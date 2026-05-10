@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
 const MODEL_PATH = 'bridge-lineage-timeline-model.json';
+const SCOPE_PATH = '.';
 
 function git(args) {
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 }).trimEnd();
@@ -17,49 +18,71 @@ function normalizePatch(text) {
     .replace(/\r\n/g, '\n')
     .split('\n')
     .filter((line) => !line.startsWith('index '))
+    .map((line) => line.replace(/[ \t]+$/g, ''))
     .join('\n')
     .trim();
 }
 
-function classifyImpacts(diffText) {
-  const t = diffText.toLowerCase();
+const impactMatchers = [
+  ['normalization', /(normalize|normalization|canonical|trim\(|sanitize|dedupe|clean)/i],
+  ['transcription', /(transcrib|speech|stt|recognition|utterance|transcript)/i],
+  ['translation', /(translat|locale|language|i18n|thai|english|xlate)/i],
+  ['joining/rejoining flow', /(rejoin|join\b|reconnect|session|handshake|room|participant)/i],
+  ['call termination behavior', /(hangup|terminate|end call|disconnect|teardown|close\(|leave call)/i],
+  ['compose strip focus behavior', /(compose|focus|cursor|caret|textarea|input field|contenteditable)/i],
+  ['ui/ux flow changes', /(button|modal|panel|tab|layout|render|view|screen|ux|ui|timeline|explorer)/i],
+  ['remediation/repair/fix behavior', /(fix|bug|repair|rollback|guard|fallback|recover|hotfix|patch)/i],
+];
+
+function extractPatchSignals(patch) {
+  const changedFiles = [];
+  const addedLines = [];
+  const removedLines = [];
+  for (const raw of patch.split('\n')) {
+    if (raw.startsWith('diff --git ')) {
+      const m = raw.match(/ b\/(.+)$/);
+      if (m) changedFiles.push(m[1]);
+      continue;
+    }
+    if (raw.startsWith('+++ ') || raw.startsWith('--- ') || raw.startsWith('@@')) continue;
+    if (raw.startsWith('+')) addedLines.push(raw.slice(1));
+    if (raw.startsWith('-')) removedLines.push(raw.slice(1));
+  }
+  return { changedFiles, addedLines, removedLines };
+}
+
+function classifyImpacts(patch) {
+  const { addedLines, removedLines } = extractPatchSignals(patch);
+  const corpus = `${addedLines.join('\n')}\n${removedLines.join('\n')}`;
   const hits = [];
-  const categories = [
-    ['normalization', /(normalize|normalization|canonical|trim\(|lowercase|uppercase|sanitize)/],
-    ['transcription', /(transcrib|speech|stt|recognition|utterance|transcript)/],
-    ['translation', /(translat|locale|language|i18n|thai|english|xlate)/],
-    ['joining/rejoining flow', /(rejoin|join\b|reconnect|session|handshake|room|participant)/],
-    ['call termination behavior', /(hangup|terminate|end call|disconnect|teardown|close\()/],
-    ['compose strip focus behavior', /(compose|focus|cursor|caret|textarea|input field)/],
-    ['ui/ux flow changes', /(button|modal|panel|tab|layout|render|view|screen|ux|ui)/],
-    ['remediation/repair/fix behavior', /(fix|bug|repair|rollback|guard|fallback|recover|hotfix|patch)/],
-  ];
-  for (const [name, re] of categories) {
-    if (re.test(t)) hits.push(name);
+  for (const [name, re] of impactMatchers) {
+    if (re.test(corpus)) hits.push(name);
   }
   return hits;
 }
 
 function summarizePatch(patch) {
   if (!patch.trim()) return 'No code diff from previous timeline entry.';
-  const fileSet = new Set();
-  let added = 0;
-  let removed = 0;
-  for (const line of patch.split('\n')) {
-    if (line.startsWith('diff --git ')) {
-      const m = line.match(/ b\/(.+)$/);
-      if (m) fileSet.add(m[1]);
-      continue;
-    }
-    if (line.startsWith('+++ ') || line.startsWith('--- ') || line.startsWith('@@')) continue;
-    if (line.startsWith('+')) added += 1;
-    if (line.startsWith('-')) removed += 1;
-  }
-  const files = [...fileSet].slice(0, 3).join(', ');
-  return `Patch touched ${fileSet.size} file(s) (+${added}/-${removed})${files ? `; key paths: ${files}` : ''}.`;
+  const { changedFiles, addedLines, removedLines } = extractPatchSignals(patch);
+  const files = [...new Set(changedFiles)];
+  const actionHints = [];
+  if (/(normalize|sanitize|canonical|trim\()/i.test(addedLines.join('\n'))) actionHints.push('adds normalization logic');
+  if (/(transcrib|transcript|speech|recognition)/i.test(addedLines.join('\n'))) actionHints.push('adjusts transcription handling');
+  if (/(translat|locale|language|i18n)/i.test(addedLines.join('\n'))) actionHints.push('updates translation/language flow');
+  if (/(rejoin|reconnect|join\b|session|participant)/i.test(addedLines.join('\n'))) actionHints.push('changes joining/rejoining behavior');
+  if (/(hangup|terminate|disconnect|end call|teardown)/i.test(`${addedLines.join('\n')}\n${removedLines.join('\n')}`)) actionHints.push('modifies call termination behavior');
+  if (/(compose|focus|cursor|caret|textarea|contenteditable)/i.test(`${addedLines.join('\n')}\n${removedLines.join('\n')}`)) actionHints.push('modifies compose focus behavior');
+  if (/(button|panel|layout|render|timeline|explorer|tab)/i.test(`${addedLines.join('\n')}\n${removedLines.join('\n')}`)) actionHints.push('updates UI/UX flow');
+  if (/(fix|guard|fallback|recover|rollback|patch)/i.test(addedLines.join('\n'))) actionHints.push('applies remediation/fix logic');
+
+  const changedSummary = `Patch touched ${files.length} file(s) (+${addedLines.length}/-${removedLines.length})`;
+  const keyPaths = files.slice(0, 3).join(', ');
+  const behavior = actionHints.length ? ` Behavior: ${actionHints.slice(0, 3).join('; ')}.` : '';
+  return `${changedSummary}${keyPaths ? `; key paths: ${keyPaths}.` : '.'}${behavior}`;
 }
 
-const commitLines = git(['log', '--date=iso-strict', '--pretty=format:%H%x09%h%x09%cI']).split('\n').filter(Boolean);
+const commitLines = git(['log', '--date=iso-strict', '--pretty=format:%H%x09%h%x09%cI', '--', SCOPE_PATH]).split('\n').filter(Boolean);
+
 const commits = commitLines.map((line, idx) => {
   const [full, short, timestamp] = line.split('\t');
   return { seq: idx + 1, full, short, timestamp };
@@ -67,8 +90,13 @@ const commits = commitLines.map((line, idx) => {
 
 const rows = commits.map((commit, idx) => {
   const previous = commits[idx + 1]?.full ?? null;
-  const patch = previous ? git(['diff', `${previous}..${commit.full}`, '--', '.']) : git(['show', commit.full, '--pretty=format:', '--', '.']);
-  const nameStatusRaw = previous ? git(['diff', '--name-status', `${previous}..${commit.full}`, '--', '.']) : git(['show', '--name-status', '--pretty=format:', commit.full, '--', '.']);
+  const patch = previous
+    ? git(['diff', `${previous}..${commit.full}`, '--patch', '--', SCOPE_PATH])
+    : git(['show', commit.full, '--patch', '--pretty=format:', '--', SCOPE_PATH]);
+  const nameStatusRaw = previous
+    ? git(['diff', '--name-status', `${previous}..${commit.full}`, '--', SCOPE_PATH])
+    : git(['show', '--name-status', '--pretty=format:', commit.full, '--', SCOPE_PATH]);
+
   const changed_paths = nameStatusRaw
     .split('\n')
     .filter(Boolean)
@@ -80,10 +108,14 @@ const rows = commits.map((commit, idx) => {
       }
       return { status, path: parts[1] };
     });
+
   const code_fingerprint = hashText(normalizePatch(patch));
-  const blob_refs = changed_paths.slice(0, 8).map((entry) => (entry.to ? `${commit.full}:${entry.to}` : `${commit.full}:${entry.path}`));
   const primary_filename = changed_paths[0]?.to || changed_paths[0]?.path || 'N/A';
-  const impacts = classifyImpacts(patch);
+  const functional_impacts = classifyImpacts(patch);
+  const blob_refs = changed_paths.map((entry) => {
+    const path = entry.to || entry.path;
+    return path ? `${commit.full}:${path}` : `${commit.full}:N/A`;
+  });
 
   return {
     seq: commit.seq,
@@ -94,10 +126,12 @@ const rows = commits.map((commit, idx) => {
     primary_filename,
     changed_paths,
     description_delta_from_previous: summarizePatch(patch),
-    functional_impacts: impacts,
+    functional_impacts,
     blob_refs,
     launch_ref: primary_filename,
-    note: impacts.length ? `Inferred impacts: ${impacts.join(', ')}.` : 'No prioritized behavior category detected from diff hunks.',
+    note: functional_impacts.length
+      ? `Inferred impacts from patch hunks: ${functional_impacts.join(', ')}.`
+      : 'No prioritized behavior category detected from patch hunks.',
     previous_commit_hash: previous,
   };
 });
