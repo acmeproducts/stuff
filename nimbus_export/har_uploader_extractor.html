@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HAR Asset Extractor</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; line-height: 1.4; }
+    .box { max-width: 840px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+    button { margin-top: 12px; padding: 10px 14px; }
+    pre { background: #f7f7f7; padding: 12px; border-radius: 6px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>HAR Asset Extractor</h1>
+    <p>Upload <code>Copy all as HAR (sanitized)</code> output. Exports <code>index.html</code>, all <code>/assets/*</code>, and <code>dependency-list.json</code> to a ZIP.</p>
+    <input id="harFile" type="file" accept=".har,.json,.txt" />
+    <br />
+    <button id="runBtn">Extract + Download ZIP</button>
+    <pre id="log"></pre>
+  </div>
+  <script>
+    const logEl = document.getElementById('log');
+    const btn = document.getElementById('runBtn');
+    const audioExt = ['.mp3','.wav','.ogg','.m4a','.aac','.flac','.opus'];
+    const texExt = ['.png','.jpg','.jpeg','.webp','.ktx2','.dds','.bmp','.gif','.tga','.hdr','.exr'];
+    const fontExt = ['.woff2','.woff','.ttf','.otf'];
+    const hasExt = (p, arr) => arr.some(e => p.toLowerCase().endsWith(e));
+    const uniq = arr => [...new Set(arr)].sort();
+
+    function sanitizePath(url) {
+      const clean = url.split('#')[0].split('?')[0];
+      try {
+        const u = new URL(clean);
+        if (u.pathname === '/' || u.pathname === '') return 'index.html';
+        if (u.pathname.startsWith('/assets/')) return u.pathname.slice(1);
+        return null;
+      } catch { return null; }
+    }
+
+    function toBytes(content) {
+      const text = content?.text;
+      if (text == null) return null;
+      if ((content.encoding || '').toLowerCase() === 'base64') {
+        const bin = atob(text);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+      }
+      return new TextEncoder().encode(text);
+    }
+
+    function parseHarText(raw) {
+      const t = raw.trim();
+      const tryParse = v => { try { return JSON.parse(v); } catch { return null; } };
+      let parsed = tryParse(t);
+      if (parsed) return parsed;
+
+      if (t.includes('\\n') || t.includes('\\"')) {
+        const unescaped = t
+          .replace(/^"|"$/g, '')
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"');
+        parsed = tryParse(unescaped);
+        if (parsed) return parsed;
+      }
+
+      let depth = 0, start = -1, inStr = false, esc = false;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (esc) { esc = false; continue; }
+        if (ch === '\\') { esc = true; continue; }
+        if (ch === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === '{') { if (depth === 0) start = i; depth++; }
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0 && start >= 0) {
+            parsed = tryParse(t.slice(start, i + 1));
+            if (parsed) return parsed;
+          }
+        }
+      }
+      throw new Error('Could not parse HAR JSON.');
+    }
+
+    async function fetchBytes(url) {
+      const r = await fetch(url, { credentials: 'omit' });
+      if (!r.ok) throw new Error('fetch failed');
+      return new Uint8Array(await r.arrayBuffer());
+    }
+
+    btn.onclick = async () => {
+      try {
+        logEl.textContent = 'Reading HAR...';
+        const file = document.getElementById('harFile').files[0];
+        if (!file) throw new Error('Choose a HAR/TXT file first.');
+        const txt = await file.text();
+        const har = parseHarText(txt);
+        const entries = har?.log?.entries || [];
+
+        const zip = new JSZip();
+        const deps = { entry_js:[], dynamic_chunks:[], audio_files:[], textures_material_maps:[], fonts:[], worker_files:[] };
+        const jsFiles = [];
+        let written = 0;
+
+        for (const e of entries) {
+          const req = e.request || {};
+          const res = e.response || {};
+          if ((res.status || 0) !== 200) continue;
+          const rel = sanitizePath(req.url || '');
+          if (!rel) continue;
+
+          let bytes = toBytes(res.content || {});
+          if (!bytes) {
+            try { bytes = await fetchBytes(req.url); } catch { continue; }
+          }
+
+          zip.file(rel, bytes);
+          written++;
+          const lower = rel.toLowerCase();
+          if (lower.endsWith('.js')) jsFiles.push(rel);
+          if (hasExt(lower, audioExt)) deps.audio_files.push(rel);
+          if (hasExt(lower, texExt)) deps.textures_material_maps.push(rel);
+          if (hasExt(lower, fontExt)) deps.fonts.push(rel);
+          if (lower.includes('worker') || lower.endsWith('.worker.js')) deps.worker_files.push(rel);
+        }
+
+        if (!written) throw new Error('0 files extracted. HAR has no embedded content and live refetch blocked or unavailable.');
+
+        const jsUniq = uniq(jsFiles);
+        deps.entry_js = jsUniq.filter(f => /assets\/index-.*\.js$/i.test(f));
+        deps.dynamic_chunks = jsUniq.filter(f => !deps.entry_js.includes(f));
+        deps.audio_files = uniq(deps.audio_files);
+        deps.textures_material_maps = uniq(deps.textures_material_maps);
+        deps.fonts = uniq(deps.fonts);
+        deps.worker_files = uniq(deps.worker_files);
+        zip.file('dependency-list.json', JSON.stringify(deps, null, 2));
+
+        logEl.textContent = `Files added: ${written}\nCreating ZIP...`;
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'nimbus_export.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        logEl.textContent += '\nDone: downloaded nimbus_export.zip';
+      } catch (err) {
+        logEl.textContent = 'Error: ' + err.message;
+      }
+    };
+  </script>
+</body>
+</html>
