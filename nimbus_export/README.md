@@ -1,35 +1,35 @@
-# HAR-only asset export (upload HAR file)
+# HAR-only asset export (upload HAR file, no terminal tools)
 
-## Use this exact flow
+You already have HAR data. Use the included browser tool to upload your HAR and export files.
 
-1. Chrome DevTools → Network.
-2. Enable **Preserve log** and **Disable cache**.
-3. Hard refresh and trigger lazy-loaded features.
-4. Right-click request list: **Copy → Copy all as HAR (sanitized)**.
-5. Paste into `HAR.txt` (or `session.har`).
-6. Open `nimbus_export/har_uploader_extractor.html` in Chrome.
-7. Upload HAR file and click **Extract + Download ZIP**.
+## 1) Capture in Chrome
 
-## Why you saw "Files added: 0"
+1. Open site and press `F12`.
+2. Go to **Network**.
+3. Enable **Preserve log** and **Disable cache**.
+4. Hard refresh (`Ctrl+Shift+R`) and trigger lazy-loaded features.
+5. In request table right-click: **Copy** → **Copy all as HAR (sanitized)**.
+6. Paste into a file named `session.har`.
 
-Your snippet shows `response.content` with `size`/`mimeType` but no `content.text`. Sanitized HAR often removes bodies.
+## 2) Run the extractor
 
-The extractor now:
-- parses raw `.txt` HAR text safely,
-- tries HAR embedded body first,
-- falls back to live re-fetch per URL when body is missing.
+1. Open `nimbus_export/har_uploader_extractor.html` in Chrome.
+2. Upload `session.har`.
+3. Click **Extract + Download ZIP**.
+4. The tool generates `nimbus_export.zip` containing:
+   - `index.html` (main document if present)
+   - all `/assets/*` files with relative paths preserved exactly (`assets/...`)
+   - `dependency-list.json` with categorized dependency lists
 
-If it still shows 0, your network/CORS blocked fallback fetching.
+## 3) Verify completeness
 
-## Output
+After extraction, open `dependency-list.json` and confirm categories:
 
-`nimbus_export.zip` includes:
-- `index.html`
-- `assets/...` files
-- `dependency-list.json` with:
-  - `entry_js`
-  - `dynamic_chunks`
-  - `audio_files`
-  - `textures_material_maps`
-  - `fonts`
-  - `worker_files`
+- `entry_js`
+- `dynamic_chunks`
+- `audio_files`
+- `textures_material_maps`
+- `fonts`
+- `worker_files`
+
+If anything is missing, recapture with cache disabled and include interactions that trigger lazy-loaded assets.
