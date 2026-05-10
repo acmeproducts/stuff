@@ -12,7 +12,7 @@
     .left { background:#020617; border-right:1px solid var(--line); overflow:auto; }
     .right { overflow:auto; }
     .top { padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#020617; z-index:10; }
-    .search { width:100%; background:#0b1220; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; }
+    .search,.sel { width:100%; background:#0b1220; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; }
     .list { padding:10px; display:flex; flex-direction:column; gap:6px; }
     .item { padding:8px; border:1px solid var(--line); border-radius:8px; cursor:pointer; background:#0b1220; }
     .item.active { border-color:var(--brand); }
@@ -20,32 +20,34 @@
     .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; }
     .muted{ color:var(--muted); font-size:.9rem; }
     code { color:#bae6fd; }
+    .tabs button{background:#0b1220;color:var(--text);border:1px solid var(--line);padding:6px 10px;border-radius:8px;margin-right:6px;cursor:pointer}
+    .tabs .active{border-color:var(--brand)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.frame{width:100%;height:65vh;border:1px solid var(--line);border-radius:8px;background:#fff}
   </style>
 </head>
 <body>
   <div class="app" id="app">
-    <aside class="left">
-      <div class="top">
-        <input class="search" id="omni" placeholder="Search hash, path, impact, summary" />
-      </div>
-      <div class="list" id="variantList"></div>
-    </aside>
-    <main class="right">
-      <section class="pane" id="explorer">
-        <div class="card" id="activeMeta"></div>
-      </section>
-    </main>
+    <aside class="left"><div class="top"><input class="search" id="omni" placeholder="Search hash, path, impact, summary, PT time" /></div><div class="list" id="variantList"></div></aside>
+    <main class="right"><section class="pane"><div class="tabs"><button id="tabDetails" class="active">Details</button><button id="tabSide">Side-by-Side</button></div><div id="detailsPane" class="card"></div><div id="sidePane" class="card" style="display:none"><div class="row"><div><input class="search" id="leftFilter" placeholder="Filter left options"/><select id="leftSel" class="sel"></select><iframe id="leftFrame" class="frame"></iframe></div><div><input class="search" id="rightFilter" placeholder="Filter right options"/><select id="rightSel" class="sel"></select><iframe id="rightFrame" class="frame"></iframe></div></div></div></section></main>
   </div>
 <script>
-let all=[]; let shown=[]; let current=null;
+let all=[]; let shown=[]; let current=null; let leftOpts=[]; let rightOpts=[];
 const $=id=>document.getElementById(id);
 function esc(s){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function setCurrentBySeq(seq){current=shown.find(x=>x.seq===seq)||shown[0]; renderList(); renderCurrent();}
-function renderList(){ $('variantList').innerHTML=shown.map(x=>`<div class='item ${current&&current.seq===x.seq?'active':''}' data-seq='${x.seq}'><strong>#${x.seq} ${esc(x.commit_short)}</strong><div class='muted'>${esc(x.timestamp)} · ${esc(x.primary_filename||'')}</div><div class='muted'>${esc((x.functional_impacts||[]).join(', ')||'no impact tags')}</div></div>`).join(''); $('variantList').querySelectorAll('.item').forEach(n=>n.onclick=()=>setCurrentBySeq(Number(n.dataset.seq))); }
-function renderCurrent(){ if(!current) return; $('activeMeta').innerHTML=`<strong>Timeline Entry #${current.seq}</strong><div class='muted'>${esc(current.timestamp)}</div><div><code title='${esc(current.commit_hash)}'>${esc(current.commit_short)}</code> · <span class='muted'>full: ${esc(current.commit_hash)}</span></div><div><strong>code_fingerprint</strong>: <code>${esc(current.code_fingerprint)}</code></div><div><strong>description_delta_from_previous</strong>: ${esc(current.description_delta_from_previous)}</div><div><strong>functional_impacts</strong>: ${esc((current.functional_impacts||[]).join(', ')||'none')}</div><div><strong>primary_filename</strong>: ${esc(current.primary_filename||'N/A')}</div><div><strong>changed_paths</strong><pre>${esc(JSON.stringify(current.changed_paths||[], null, 2))}</pre></div>`; }
-function applyFilter(q){ const n=q.toLowerCase().trim(); shown=all.filter(x=>[x.commit_hash,x.commit_short,x.primary_filename,x.description_delta_from_previous,(x.functional_impacts||[]).join(' '),JSON.stringify(x.changed_paths||[])].join(' ').toLowerCase().includes(n)); current=null; if(shown[0]) setCurrentBySeq(shown[0].seq); else {renderList(); $('activeMeta').innerHTML='<div class="muted">No matching entries.</div>';} }
+function label(x){return `#${x.seq} ${x.commit_short} · ${x.primary_filename||''} · ${x.timestamp_pt}`;}
+function renderList(){ $('variantList').innerHTML=shown.map(x=>`<div class='item ${current&&current.seq===x.seq?'active':''}' data-seq='${x.seq}'><strong>#${x.seq} ${esc(x.commit_short)}</strong><div class='muted'>${esc(x.timestamp_pt)} · ${esc(x.primary_filename||'')}</div><div class='muted'>${esc(x.commit_message||'')}</div><div class='muted'>${esc(x.note||'')}</div></div>`).join(''); $('variantList').querySelectorAll('.item').forEach(n=>n.onclick=()=>setCurrentBySeq(Number(n.dataset.seq))); }
+function renderCurrent(){ if(!current) return; $('detailsPane').innerHTML=`<strong>Timeline Entry #${current.seq}</strong><div class='muted'>${esc(current.timestamp_pt)} (${esc(current.timestamp)})</div><div><code title='${esc(current.commit_hash)}'>${esc(current.commit_short)}</code> · ${esc(current.commit_message||'')}</div><div><strong>description_delta_from_previous</strong>: ${esc(current.description_delta_from_previous)}</div><div><strong>functional_impacts</strong>: ${esc((current.functional_impacts||[]).join(', ')||'none')}</div><div><strong>note</strong>: ${esc(current.note||'')}</div><div><a href="https://github.com/search?q=${esc(current.blob_refs?.[0]||'')}" target="_blank">view blob</a> · <a href="${esc(current.launch_ref||'#')}" target="_blank">launch actual version</a></div>`; }
+function applyFilter(q){ const n=q.toLowerCase().trim(); shown=all.filter(x=>[x.commit_hash,x.commit_short,x.primary_filename,x.description_delta_from_previous,(x.functional_impacts||[]).join(' '),JSON.stringify(x.changed_paths||[]),x.commit_message,x.note,x.timestamp_pt,x.timestamp].join(' ').toLowerCase().includes(n)); current=null; if(shown[0]) setCurrentBySeq(shown[0].seq); else {renderList(); $('detailsPane').innerHTML='<div class="muted">No matching entries.</div>';} updateSelects(); }
+function fillSelect(selId, opts){ const sel=$(selId); sel.innerHTML=opts.map(o=>`<option value="${esc(o.launch_ref||'')}">${esc(label(o))}</option>`).join(''); if(opts[0]) $(selId==='leftSel'?'leftFrame':'rightFrame').src=opts[0].launch_ref||''; }
+function updateSelects(){ leftOpts=[...shown]; rightOpts=[...shown]; fillSelect('leftSel', leftOpts); fillSelect('rightSel', rightOpts); }
+function wireFilters(inputId, selId, side){ $(inputId).oninput=e=>{ const q=e.target.value.toLowerCase(); const opts=shown.filter(x=>label(x).toLowerCase().includes(q)); side==='left'?leftOpts=opts:rightOpts=opts; fillSelect(selId, opts); }; }
 $('omni').oninput=e=>applyFilter(e.target.value);
-fetch('bridge-lineage-timeline-model.json',{cache:'no-store'}).then(r=>r.json()).then(data=>{ all=[...data].sort((a,b)=>b.seq-a.seq); shown=[...all]; if(shown[0]) setCurrentBySeq(shown[0].seq); else $('activeMeta').textContent='Timeline model is empty.'; }).catch(e=>{$('activeMeta').textContent='Load failed: '+e.message;});
+$('leftSel').onchange=e=>$('leftFrame').src=e.target.value; $('rightSel').onchange=e=>$('rightFrame').src=e.target.value;
+wireFilters('leftFilter','leftSel','left'); wireFilters('rightFilter','rightSel','right');
+$('tabDetails').onclick=()=>{$('tabDetails').classList.add('active');$('tabSide').classList.remove('active');$('detailsPane').style.display='block';$('sidePane').style.display='none';};
+$('tabSide').onclick=()=>{$('tabSide').classList.add('active');$('tabDetails').classList.remove('active');$('detailsPane').style.display='none';$('sidePane').style.display='block';};
+fetch('bridge-lineage-timeline-model.json',{cache:'no-store'}).then(r=>r.json()).then(data=>{ all=[...data].sort((a,b)=>b.seq-a.seq); shown=[...all]; if(shown[0]) setCurrentBySeq(shown[0].seq); else $('detailsPane').textContent='Timeline model is empty.'; updateSelects(); }).catch(e=>{$('detailsPane').textContent='Load failed: '+e.message;});
 </script>
 </body>
 </html>
