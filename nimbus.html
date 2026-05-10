@@ -7,87 +7,272 @@
   <meta name="description" content="Nimbus Flight is a cozy flying experience where you explore infinite oceans and drifting islands in a relaxing sky adventure." />
   <meta name="theme-color" content="#5998f8" />
   <style>
-    :root { --bg1:#79b8ff; --bg2:#9fd0ff; --bg3:#cfe9ff; --ui:rgba(255,255,255,.2); --stroke:rgba(255,255,255,.75); }
+    :root { --ui:rgba(255,255,255,.2); --stroke:rgba(255,255,255,.75); }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin:0; width:100%; height:100%; overflow:hidden; font-family:Inter, system-ui, sans-serif; }
-    body { background: radial-gradient(circle at 50% 0%, var(--bg3) 0%, var(--bg2) 45%, var(--bg1) 100%); color:#fff; touch-action:none; user-select:none; }
+    body { color:#fff; touch-action:none; user-select:none; }
     #game,#vignette { position:fixed; inset:0; }
     #game { width:100%; height:100%; display:block; }
     #vignette { pointer-events:none; background: radial-gradient(circle at center, transparent 45%, rgba(0,20,55,.35) 100%); }
-    #intro-screen { position:fixed; inset:0; display:grid; place-items:center; background:rgba(10,35,75,.32); backdrop-filter: blur(4px); z-index:3; }
+    #intro-screen { position:fixed; inset:0; display:grid; place-items:center; background:rgba(10,35,75,.32); backdrop-filter: blur(4px); z-index:8; }
     .intro-content { text-align:center; letter-spacing:.15em; }
     .intro-content h1 { margin:0; font-size:clamp(2.2rem,10vw,3.2rem); }
-    .intro-content p { margin:.35rem 0 1.3rem; opacity:.8; }
+    .intro-content p { margin:.35rem 0 1rem; opacity:.8; }
     #play-btn,#mute-btn,#fullscreen-btn,#time-sync-btn { border:1px solid var(--stroke); background:var(--ui); color:#fff; font-weight:700; padding:.6rem .9rem; border-radius:999px; }
-    #hud { position:fixed; top:max(12px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); font-size:.85rem; padding:.35rem .8rem; border-radius:999px; border:1px solid var(--stroke); background:rgba(10,35,75,.28); z-index:2; white-space:nowrap; }
-    #top-controls { position:fixed; z-index:2; right:max(10px, env(safe-area-inset-right)); top:max(10px, env(safe-area-inset-top)); display:flex; gap:6px; }
-    #joystick-wrap { position:fixed; left:max(10px, env(safe-area-inset-left)); bottom:max(10px, env(safe-area-inset-bottom)); width:210px; height:210px; z-index:4; touch-action:none; }
+    #hud-instrument { position:fixed; top:max(10px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); width:min(84vw,460px); height:auto; z-index:4; }
+    #hud-time { fill:#fff; font-size:13px; letter-spacing:.08em; }
+    #top-controls { position:fixed; z-index:5; right:max(10px, env(safe-area-inset-right)); top:max(10px, env(safe-area-inset-top)); display:flex; gap:6px; }
+    #joystick-wrap { position:fixed; left:max(10px, env(safe-area-inset-left)); bottom:max(12px, env(safe-area-inset-bottom)); width:210px; height:210px; z-index:7; touch-action:none; }
     #collar { width:100%; height:100%; border-radius:50%; border:2px solid var(--stroke); background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.18) 0%, rgba(255,255,255,.05) 60%, rgba(20,45,80,.2) 100%); display:grid; place-items:center; cursor:grab; position:relative; }
     #collar.dragging { cursor:grabbing; }
     #nipple { position:absolute; width:86px; height:86px; border-radius:50%; border:2px solid rgba(255,255,255,.95); background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.9) 0%, rgba(230,240,255,.55) 55%, rgba(130,170,225,.45) 100%); box-shadow:0 8px 28px rgba(0,0,0,.3); transform:translate(0,0); transition:transform 100ms ease-out; pointer-events:none; }
-    #hint { position:fixed; right:max(10px, env(safe-area-inset-right)); bottom:max(10px, env(safe-area-inset-bottom)); max-width:48vw; font-size:.75rem; line-height:1.3; opacity:.75; z-index:2; text-align:right; }
+    #hint { position:fixed; right:max(10px, env(safe-area-inset-right)); bottom:max(10px, env(safe-area-inset-bottom)); max-width:48vw; font-size:.75rem; line-height:1.3; opacity:.8; z-index:4; text-align:right; }
   </style>
 </head>
 <body>
   <canvas id="game" aria-label="Nimbus Flight scene"></canvas>
   <div id="vignette"></div>
   <div id="intro-screen"><div class="intro-content"><h1>Nimbus</h1><p>FLIGHT</p><button id="play-btn">START</button></div></div>
-  <div id="hud">Pitch: 0.00 | Roll: 0.00 | Speed: 0 | Alt: 0 | T+ 0.0s</div>
+
+  <svg id="hud-instrument" viewBox="0 0 460 180" aria-label="Flight HUD">
+    <g id="outer-ticks"></g>
+    <g id="speed-marker"></g>
+    <g id="height-marker"></g>
+    <g id="compass-group" transform="translate(230,112)">
+      <g id="compass-rotating-group">
+        <g id="compass-ring"></g>
+        <g id="hud-islands"></g>
+      </g>
+      <text id="hud-time" x="0" y="60" text-anchor="middle">00:00</text>
+    </g>
+  </svg>
+
   <div id="top-controls"><button id="mute-btn">MUTE</button><button id="fullscreen-btn">FULL</button><button id="time-sync-btn">TIME x1.0</button></div>
-  <div id="joystick-wrap" aria-label="Joystick container"><div id="collar" aria-label="Drag to move control, touch inside to fly"><div id="nipple"></div></div></div>
-  <div id="hint">Mobile controls: drag collar to reposition. Move joystick to fly.</div>
+  <div id="joystick-wrap"><div id="collar"><div id="nipple"></div></div></div>
+  <div id="hint">Touch joystick to fly. Drag outer ring to reposition.</div>
 
   <script>
-    const intro = document.getElementById('intro-screen'), playBtn = document.getElementById('play-btn');
-    const STORAGE_KEY = 'nimbus_joystick_pos_v1';
-    const wrap = document.getElementById('joystick-wrap'), collar = document.getElementById('collar'), nipple = document.getElementById('nipple');
-    const hud = document.getElementById('hud'), muteBtn = document.getElementById('mute-btn'), fullBtn = document.getElementById('fullscreen-btn'), timeBtn = document.getElementById('time-sync-btn');
-    const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
-    const sim = { started:false, pitch:0, roll:0, throttle:0, speed:0, alt:120, heading:0, t:0, timeScale:1, muted:false };
-    let activePointer = null, dragPointer = null, center = { x:0, y:0 }, radius = 0, last = performance.now();
-    let ac, gain, osc;
+    const STORAGE_KEY_POS = 'nimbus_joystick_pos_v1';
+    const STORAGE_KEY_MUTE = 'nimbus_mute_v1';
+    const JOYSTICK_DEADZONE = 0.06;
+    const MAX_ALTITUDE = 1500;
+    const MIN_ALTITUDE = 2;
 
-    const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
-    const isMobile = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isMobile) document.getElementById('hint').textContent = 'Designed for touch/mobile controls.';
+    const sim = {
+      started: false, time: 0, timeScale: 1, pitch: 0, roll: 0, pitchInput: 0, rollInput: 0,
+      throttle: 0, speed: 0, altitude: 120, heading: 0, muted: false, syncLocalTime: false
+    };
+    const ui = {
+      canvas: document.getElementById('game'), ctx: document.getElementById('game').getContext('2d'), intro: document.getElementById('intro-screen'),
+      playBtn: document.getElementById('play-btn'), hudTime: document.getElementById('hud-time'),
+      heightMarker: document.getElementById('height-marker'), speedMarker: document.getElementById('speed-marker'),
+      timeBtn: document.getElementById('time-sync-btn'), muteBtn: document.getElementById('mute-btn'), fullscreenBtn: document.getElementById('fullscreen-btn'),
+      wrap: document.getElementById('joystick-wrap'), collar: document.getElementById('collar'), nipple: document.getElementById('nipple')
+    };
+    const audio = { ctx: null, osc: null, gain: null };
+    let activePointerId = null, dragPointerId = null, joyCenter = { x: 0, y: 0 }, joyRadius = 1, last = performance.now();
 
-    const fit = ()=>{ canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio; ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); refreshGeometry(); };
-    function refreshGeometry(){ const r = collar.getBoundingClientRect(); center = { x:r.left + r.width/2, y:r.top + r.height/2 }; radius = r.width * .5 - 44; }
-    function setNipple(dx,dy){ const d = Math.hypot(dx,dy); if(d > radius && d > 0){ dx = dx / d * radius; dy = dy / d * radius; } nipple.style.transform = `translate(${dx}px, ${dy}px)`; sim.roll = clamp(dx / radius, -1, 1); sim.pitch = clamp(-dy / radius, -1, 1); sim.throttle = clamp((sim.pitch + 1) * .5, 0, 1); }
-    function resetNipple(){ sim.pitch = 0; sim.roll = 0; sim.throttle = 0; nipple.style.transform = 'translate(0, 0)'; }
-    function savePosition(){ const s = getComputedStyle(wrap); localStorage.setItem(STORAGE_KEY, JSON.stringify({ left:s.left, bottom:s.bottom })); }
-    function restorePosition(){ try{ const p = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); if(p){ if(p.left) wrap.style.left = p.left; if(p.bottom) wrap.style.bottom = p.bottom; } } catch (e) { console.info('joystick restore skipped'); } }
+    const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
 
-    function ensureAudio(){ if(ac) return; ac = new (window.AudioContext || window.webkitAudioContext)(); osc = ac.createOscillator(); gain = ac.createGain(); osc.type = 'sawtooth'; gain.gain.value = 0; osc.connect(gain).connect(ac.destination); osc.start(); }
-    function render(dt){
-      const w = innerWidth, h = innerHeight; sim.t += dt * sim.timeScale;
-      sim.speed += ((70 + sim.throttle * 180) - sim.speed) * Math.min(1, dt * 2.2);
-      sim.alt = clamp(sim.alt + sim.pitch * sim.speed * 0.08 * dt, 2, 1500);
-      sim.heading += sim.roll * dt * 0.7;
-      const horizon = h * (0.52 + sim.pitch * 0.16), roll = sim.roll * 0.8;
-      ctx.clearRect(0,0,w,h);
-      ctx.save(); ctx.translate(w/2,h/2); ctx.rotate(roll); ctx.translate(-w/2,-h/2);
-      const grad = ctx.createLinearGradient(0,0,0,horizon); grad.addColorStop(0,'#9ad5ff'); grad.addColorStop(1,'#4aa0ff'); ctx.fillStyle = grad; ctx.fillRect(0,0,w,horizon);
-      ctx.fillStyle = '#2c80d3'; ctx.fillRect(0,horizon,w,h-horizon);
-      for(let i=0;i<7;i++){ const x=((i*190 + sim.t*sim.speed*0.9)% (w+260)) -130; const y=horizon + 25 + Math.sin(sim.t*1.2+i)*8; ctx.fillStyle='rgba(255,255,255,.26)'; ctx.beginPath(); ctx.ellipse(x,y,66,10,0,0,6.283); ctx.fill(); }
-      ctx.fillStyle='rgba(250,250,240,.95)'; ctx.beginPath(); ctx.moveTo(w/2, h*0.68); ctx.lineTo(w/2-26, h*0.74); ctx.lineTo(w/2+26, h*0.74); ctx.closePath(); ctx.fill();
-      ctx.restore();
-      hud.textContent = `Pitch: ${sim.pitch.toFixed(2)} | Roll: ${sim.roll.toFixed(2)} | Speed: ${sim.speed.toFixed(0)} | Alt: ${sim.alt.toFixed(0)} | T+ ${sim.t.toFixed(1)}s`;
-      if (ac && gain && osc) { osc.frequency.value = 90 + sim.speed * 2 + sim.pitch * 35; gain.gain.value = sim.started && !sim.muted ? 0.01 + sim.throttle * 0.035 : 0; }
+    function refreshJoystickGeometry() {
+      const r = ui.collar.getBoundingClientRect();
+      joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      joyRadius = r.width * 0.5 - 44;
     }
-    function loop(now){ const dt = Math.min(0.05,(now-last)/1000); last=now; if(sim.started) render(dt); requestAnimationFrame(loop); }
+    function setNipple(dx, dy) {
+      const d = Math.hypot(dx, dy);
+      if (d > joyRadius && d > 0) { dx = (dx / d) * joyRadius; dy = (dy / d) * joyRadius; }
+      ui.nipple.style.transform = `translate(${dx}px, ${dy}px)`;
+      let roll = clamp(dx / joyRadius, -1, 1);
+      let pitch = clamp(-dy / joyRadius, -1, 1);
+      if (Math.abs(roll) < JOYSTICK_DEADZONE) roll = 0;
+      if (Math.abs(pitch) < JOYSTICK_DEADZONE) pitch = 0;
+      sim.rollInput = roll;
+      sim.pitchInput = pitch;
+    }
+    function resetNipple() { sim.rollInput = 0; sim.pitchInput = 0; ui.nipple.style.transform = 'translate(0, 0)'; }
+    function saveJoystickPosition() {
+      const s = getComputedStyle(ui.wrap);
+      localStorage.setItem(STORAGE_KEY_POS, JSON.stringify({ left: s.left, bottom: s.bottom }));
+    }
+    function restoreJoystickPosition() {
+      try {
+        const p = JSON.parse(localStorage.getItem(STORAGE_KEY_POS) || 'null');
+        if (p) { if (p.left) ui.wrap.style.left = p.left; if (p.bottom) ui.wrap.style.bottom = p.bottom; }
+      } catch (e) { console.info('joystick restore skipped'); }
+    }
 
-    playBtn.addEventListener('click', async ()=>{ sim.started = true; intro.style.display = 'none'; try { ensureAudio(); if (ac.state === 'suspended') await ac.resume(); } catch(e){ console.info('audio unavailable'); } });
-    muteBtn.addEventListener('click', ()=>{ sim.muted = !sim.muted; muteBtn.textContent = sim.muted ? 'UNMUTE' : 'MUTE'; });
-    fullBtn.addEventListener('click', ()=>{ if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); });
-    timeBtn.addEventListener('click', ()=>{ sim.timeScale = sim.timeScale === 1 ? 1.5 : sim.timeScale === 1.5 ? 0.75 : 1; timeBtn.textContent = `TIME x${sim.timeScale.toFixed(2).replace(/\.00$/,'')}`; });
+    function ensureAudio() {
+      if (audio.ctx) return;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      audio.ctx = new AudioCtx();
+      audio.osc = audio.ctx.createOscillator();
+      audio.gain = audio.ctx.createGain();
+      audio.osc.type = 'sawtooth';
+      audio.gain.gain.value = 0;
+      audio.osc.connect(audio.gain).connect(audio.ctx.destination);
+      audio.osc.start();
+    }
+    function updateAudio() {
+      if (!audio.osc || !audio.gain) return;
+      audio.osc.frequency.value = 90 + sim.speed * 2 + sim.pitch * 35;
+      audio.gain.gain.value = sim.started && !sim.muted ? 0.01 + sim.throttle * 0.035 : 0;
+    }
+    function setMuted(nextMuted) {
+      sim.muted = !!nextMuted;
+      ui.muteBtn.textContent = sim.muted ? 'UNMUTE' : 'MUTE';
+      ui.muteBtn.title = sim.muted ? 'Sound off' : 'Sound on';
+      localStorage.setItem(STORAGE_KEY_MUTE, sim.muted ? '1' : '0');
+      updateAudio();
+    }
+    function fitCanvas() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      ui.canvas.width = Math.floor(innerWidth * dpr);
+      ui.canvas.height = Math.floor(innerHeight * dpr);
+      ui.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      refreshJoystickGeometry();
+    }
+    function updateSim(dt) {
+      sim.time += dt * sim.timeScale;
+      sim.pitch += (sim.pitchInput - sim.pitch) * Math.min(1, dt * 5);
+      sim.roll += (sim.rollInput - sim.roll) * Math.min(1, dt * 5);
+      const targetSpeed = 70 + sim.throttle * 180;
+      sim.speed += (targetSpeed - sim.speed) * Math.min(1, dt * 2.2);
+      sim.altitude = clamp(sim.altitude + sim.pitch * sim.speed * 0.08 * dt, MIN_ALTITUDE, MAX_ALTITUDE);
+      sim.heading += sim.roll * dt * 0.7;
+    }
+    function renderScene() {
+      const w = innerWidth, h = innerHeight, ctx = ui.ctx;
+      const horizon = h * (0.52 + sim.pitch * 0.16);
+      ctx.clearRect(0, 0, w, h);
+      const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+      sky.addColorStop(0, '#9ad5ff'); sky.addColorStop(1, '#4aa0ff');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, w, horizon);
+      ctx.fillStyle = '#2c80d3'; ctx.fillRect(0, horizon, w, h - horizon);
+      for (let i = 0; i < 7; i++) {
+        const x = ((i * 190 + sim.time * (sim.speed * 0.9 + 22)) % (w + 260)) - 130;
+        const y = horizon + 25 + Math.sin(sim.time * 1.2 + i) * 8;
+        ctx.fillStyle = 'rgba(255,255,255,.26)'; ctx.beginPath(); ctx.ellipse(x, y, 66, 10, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      for (let i = 0; i < 3; i++) {
+        const ix = (w * 0.2) + i * (w * 0.3) + Math.sin(sim.time * 0.4 + i) * 18;
+        const iy = horizon - 18 + i * 3;
+        ctx.fillStyle = 'rgba(244,232,180,.35)'; ctx.beginPath(); ctx.moveTo(ix - 15, iy + 8); ctx.lineTo(ix, iy - 6); ctx.lineTo(ix + 15, iy + 8); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(250,250,240,.95)'; ctx.beginPath(); ctx.moveTo(w / 2, h * 0.68); ctx.lineTo(w / 2 - 26, h * 0.74); ctx.lineTo(w / 2 + 26, h * 0.74); ctx.closePath(); ctx.fill();
+    }
+    function setArcMarker(el, angleDeg, radius) {
+      const a = (angleDeg - 90) * (Math.PI / 180);
+      const x = 230 + Math.cos(a) * radius;
+      const y = 112 + Math.sin(a) * radius;
+      el.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+    }
+    function updateHud() {
+      if (sim.syncLocalTime) {
+        const t = new Date();
+        ui.hudTime.textContent = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const hh = String(Math.floor(sim.time / 3600)).padStart(2, '0');
+        const mm = String(Math.floor((sim.time % 3600) / 60)).padStart(2, '0');
+        ui.hudTime.textContent = `${hh}:${mm}`;
+      }
+      setArcMarker(ui.heightMarker, -120 + (sim.altitude / MAX_ALTITUDE) * 240, 82);
+      setArcMarker(ui.speedMarker, -120 + (sim.speed / 250) * 240, 104);
+      document.getElementById('compass-rotating-group').setAttribute('transform', `rotate(${(-sim.heading * 180 / Math.PI).toFixed(2)})`);
+    }
 
-    collar.addEventListener('pointerdown', e=>{ if (e.pointerType === 'mouse') return; refreshGeometry(); const dist = Math.hypot(e.clientX-center.x,e.clientY-center.y); if(dist<52){ activePointer=e.pointerId; collar.setPointerCapture(e.pointerId); nipple.style.transition='none'; setNipple(e.clientX-center.x,e.clientY-center.y);} else { dragPointer=e.pointerId; collar.setPointerCapture(e.pointerId); collar.classList.add('dragging'); } });
-    collar.addEventListener('pointermove', e=>{ if(e.pointerId===activePointer){ setNipple(e.clientX-center.x,e.clientY-center.y);} else if(e.pointerId===dragPointer){ wrap.style.left = clamp(e.clientX-wrap.offsetWidth/2,0,innerWidth-wrap.offsetWidth)+'px'; wrap.style.bottom = clamp(innerHeight-(e.clientY+wrap.offsetHeight/2),0,innerHeight-wrap.offsetHeight)+'px'; refreshGeometry(); } });
-    function release(e){ if(e.pointerId===activePointer){ activePointer=null; nipple.style.transition='transform 100ms ease-out'; resetNipple(); } if(e.pointerId===dragPointer){ dragPointer=null; collar.classList.remove('dragging'); savePosition(); } }
-    collar.addEventListener('pointerup', release); collar.addEventListener('pointercancel', release);
+    function buildOuterTicks() {
+      const g = document.getElementById('outer-ticks');
+      g.innerHTML = '';
+      for (let i = -120; i <= 120; i += 12) {
+        const a = (i - 90) * Math.PI / 180;
+        const r1 = 86, r2 = i % 36 === 0 ? 102 : 96;
+        const x1 = 230 + Math.cos(a) * r1, y1 = 112 + Math.sin(a) * r1;
+        const x2 = 230 + Math.cos(a) * r2, y2 = 112 + Math.sin(a) * r2;
+        g.insertAdjacentHTML('beforeend', `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="rgba(255,255,255,.72)" stroke-width="2"/>`);
+      }
+      ui.heightMarker.innerHTML = '<circle r="6" fill="#c4ffc4" stroke="white" stroke-width="2"/>';
+      ui.speedMarker.innerHTML = '<circle r="6" fill="#ffe3bd" stroke="white" stroke-width="2"/>';
+    }
+    function buildCompassRing() {
+      const ring = document.getElementById('compass-ring');
+      const islands = document.getElementById('hud-islands');
+      ring.innerHTML = '<circle r="48" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2"/>';
+      const labels = ['N','E','S','W'];
+      labels.forEach((l, idx) => {
+        const ang = idx * 90 * Math.PI / 180;
+        ring.insertAdjacentHTML('beforeend', `<text x="${(Math.cos(ang) * 38).toFixed(2)}" y="${(Math.sin(ang) * 38 + 4).toFixed(2)}" text-anchor="middle" fill="white" font-size="12">${l}</text>`);
+      });
+      islands.innerHTML = '<circle cx="18" cy="-12" r="3" fill="rgba(255,255,255,.8)"/><circle cx="-24" cy="16" r="2.5" fill="rgba(255,255,255,.75)"/>';
+    }
 
-    restorePosition(); fit(); addEventListener('resize', fit); requestAnimationFrame(loop);
+    function initControls() {
+      ui.playBtn.addEventListener('click', async () => {
+        ui.intro.style.display = 'none';
+        sim.started = true;
+        try { ensureAudio(); if (audio.ctx?.state === 'suspended') await audio.ctx.resume(); } catch (e) { console.info('audio unavailable'); }
+      });
+      ui.muteBtn.addEventListener('click', () => setMuted(!sim.muted));
+      ui.fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+        else document.exitFullscreen?.();
+      });
+      ui.timeBtn.addEventListener('click', () => {
+        if (!sim.syncLocalTime && sim.timeScale === 1) sim.timeScale = 1.5;
+        else if (!sim.syncLocalTime && sim.timeScale === 1.5) sim.timeScale = 0.75;
+        else if (!sim.syncLocalTime && sim.timeScale === 0.75) sim.syncLocalTime = true;
+        else { sim.syncLocalTime = false; sim.timeScale = 1; }
+        ui.timeBtn.textContent = sim.syncLocalTime ? 'TIME LOCAL' : `TIME x${sim.timeScale.toFixed(2).replace(/\.00$/, '')}`;
+        ui.timeBtn.title = sim.syncLocalTime ? 'Synced to local clock' : `Simulation rate ${sim.timeScale}`;
+      });
+
+      ui.collar.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') return;
+        refreshJoystickGeometry();
+        const dist = Math.hypot(e.clientX - joyCenter.x, e.clientY - joyCenter.y);
+        if (dist < 52) { activePointerId = e.pointerId; ui.collar.setPointerCapture(e.pointerId); ui.nipple.style.transition = 'none'; setNipple(e.clientX - joyCenter.x, e.clientY - joyCenter.y); }
+        else { dragPointerId = e.pointerId; ui.collar.setPointerCapture(e.pointerId); ui.collar.classList.add('dragging'); }
+      });
+      ui.collar.addEventListener('pointermove', (e) => {
+        if (e.pointerId === activePointerId) setNipple(e.clientX - joyCenter.x, e.clientY - joyCenter.y);
+        else if (e.pointerId === dragPointerId) {
+          ui.wrap.style.left = clamp(e.clientX - ui.wrap.offsetWidth / 2, 0, innerWidth - ui.wrap.offsetWidth) + 'px';
+          ui.wrap.style.bottom = clamp(innerHeight - (e.clientY + ui.wrap.offsetHeight / 2), 0, innerHeight - ui.wrap.offsetHeight) + 'px';
+          refreshJoystickGeometry();
+        }
+      });
+      const release = (e) => {
+        if (e.pointerId === activePointerId) { activePointerId = null; ui.nipple.style.transition = 'transform 100ms ease-out'; resetNipple(); }
+        if (e.pointerId === dragPointerId) { dragPointerId = null; ui.collar.classList.remove('dragging'); saveJoystickPosition(); }
+      };
+      ui.collar.addEventListener('pointerup', release);
+      ui.collar.addEventListener('pointercancel', release);
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!sim.started) return requestAnimationFrame(frame);
+      updateSim(dt);
+      renderScene(dt);
+      updateHud();
+      updateAudio();
+      requestAnimationFrame(frame);
+    }
+
+    function init() {
+      restoreJoystickPosition();
+      setMuted(localStorage.getItem(STORAGE_KEY_MUTE) === '1');
+      buildOuterTicks();
+      buildCompassRing();
+      fitCanvas();
+      initControls();
+      addEventListener('resize', fitCanvas);
+      requestAnimationFrame(frame);
+    }
+
+    init();
   </script>
 </body>
 </html>
