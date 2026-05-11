@@ -403,7 +403,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <span style="font-size:10px;color:var(--text-muted);">v3.5.3</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
-    </div>    </div>
+    </div>
     <div id="lobby-waiting" style="display:none;">
       <div style="font-size:14px;color:var(--text-dim);text-align:center;margin-bottom:10px;" id="room-name-display"></div>
       <div class="lobby-link-box" id="lobby-link" onclick="copyLink()">—</div>
@@ -822,7 +822,11 @@ function detectLang(text,src){return src||'en';}
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
-var FT_CONF=0.5;
+var FT_CONF=0.5,FT_LOAD_TIMEOUT_MS=5000;
+var FT_ASSETS=['fastType/fastText.common.js','fastType/fastText.common.wasm','fastType/lid.176.ftz'];
+var FT_SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
+function _ftWhitelist(){return Object.keys(LANGS||{});} 
+function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
 function _syncFtStatus(){
   var dot=$('ft-dot'),label=$('ft-label'),pill=$('ft-lobby-status');
   if(!dot||!label||!pill)return;
@@ -830,41 +834,55 @@ function _syncFtStatus(){
   else if(_ftLoadFailed){dot.className='ft-status-dot err';label.textContent='Lang detect unavailable';}
   else{dot.className='ft-status-dot loading';label.textContent='Lang model loading…';}
 }
+function _probeFtAsset(path){
+  log('ft_asset_probe',{path:path});
+  return fetch(path,{cache:'no-store'}).then(function(res){
+    if(!res.ok)throw new Error('status_'+res.status);
+    return res.arrayBuffer().then(function(buf){
+      if(!buf||!buf.byteLength)throw new Error('empty');
+      log('ft_asset_ok',{path:path,size:buf.byteLength},'ok');
+      return true;
+    });
+  }).catch(function(e){
+    log('ft_asset_err',{path:path,e:String(e)},'error');
+    throw e;
+  });
+}
+function _ftPredictLabel(ft,text){
+  var r=ft.predict(text,1);
+  var item=r&&r.length?r[0]:null;
+  var label=item&&item.label?String(item.label).replace('__label__',''):null;
+  var score=item?(item.prob||item.score||item.probability||0):0;
+  return (label&&score>=FT_CONF&&_ftAllowed(label))?label:null;
+}
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  window.FastTextModule={locateFile:function(path){return 'fastType/'+path.replace('fasttext_wasm.wasm','fastText.common.wasm');}};
-  log('ft_load_start',{src:'fastType/fastText.common.js'});
-  var s=document.createElement('script');s.src='fastType/fastText.common.js';
-  s.onerror=function(){
-    log('ft_load_err',{src:s.src},'error');
-    _ftLoadFailed=true;_syncFtStatus();
-    _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-  };
-  s.onload=function(){
-    if(typeof FastText==='undefined'){
-      log('ft_no_global',{},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;
-    }
-    try{
-      var ft=new FastText();
-      log('ft_model_load',{model:'fastType/lid.176.ftz'});
-      ft.loadModel('fastType/lid.176.ftz').then(function(){
-        _ftModule=ft;_ftReady=true;_syncFtStatus();
-        log('ft_ready',{},'ok');
-        _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
-      }).catch(function(e){
-        log('ft_model_err',{e:String(e)},'error');
-        _ftLoadFailed=true;_syncFtStatus();
-        _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-      });
-    }catch(e){
-      log('ft_init_err',{e:String(e)},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-    }
-  };
-  document.head.appendChild(s);
+  Promise.all(FT_ASSETS.map(_probeFtAsset)).then(function(){
+    window.FastTextModule={locateFile:function(path){return 'fastType/'+path.replace('fasttext_wasm.wasm','fastText.common.wasm');}};
+    log('ft_load_start',{src:'fastType/fastText.common.js'});
+    var s=document.createElement('script');s.src='fastType/fastText.common.js';
+    s.onerror=function(){ log('ft_load_err',{src:s.src},'error'); _ftLoadFailed=true;_syncFtStatus(); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
+    s.onload=function(){
+      if(typeof FastText==='undefined'){log('ft_no_global',{},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+      try{
+        var ft=new FastText();
+        log('ft_model_load',{model:'fastType/lid.176.ftz'});
+        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
+        ft.loadModel('fastType/lid.176.ftz').then(function(){
+          return Promise.all(FT_SMOKE.map(function(pair){
+            var got=_ftPredictLabel(ft,pair[0]);
+            if(got!==pair[1])throw new Error('smoke_'+pair[1]+'_got_'+got);
+            return got;
+          }));
+        }).then(function(){
+          clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+        }).catch(function(e){
+          clearTimeout(timer);log('ft_model_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
+        });
+      }catch(e){log('ft_init_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+    };
+    document.head.appendChild(s);
+  }).catch(function(){_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
@@ -878,13 +896,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);resolve(_ftPredictLabel(_ftModule,t));}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);resolve(_ftPredictLabel(ft,t));}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -2412,6 +2430,7 @@ function startDeepgram(){
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
+  log('dg_lang_select',{role:role,myLang:room.myLang,theirLang:room.theirLang,dgLang:langCode});
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
