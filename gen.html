@@ -17,7 +17,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#020307;font-family:
 .gbt.active{color:#00e5b0;}
 .gbt.active .gi{filter:drop-shadow(0 0 6px rgba(0,229,180,.5));}
 #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:stretch;z-index:50;background:rgba(2,3,7,.93);border-bottom:1px solid rgba(255,255,255,.07);height:38px;}
-#inspToggle{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.3);cursor:pointer;}
+#inspToggle{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.3);}
 #inspToggle .ch{transition:transform .2s;}
 #inspToggle.open .ch{transform:rotate(180deg);}
 #modeBtn{width:48px;background:rgba(255,255,255,.04);border:none;border-left:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.38);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s,color .2s;}
@@ -105,7 +105,7 @@ body.compose #cbadge{display:block;}
   <div class="lgrid" id="landingCards"></div>
 </div>
 <div id="topBar">
-  <div id="inspToggle"><span id="galaxyLabel">Panel Galaxy</span><span id="inspCount" style="opacity:.4">·</span><span class="ch">▾</span></div>
+  <div id="inspToggle"><span id="galaxyLabel">Panel Galaxy</span><span id="inspCount" style="opacity:.4">·</span></div>
   <button id="modeBtn">✎</button>
 </div>
 <div id="inspBody"></div>
@@ -195,7 +195,7 @@ body.compose #cbadge{display:block;}
   <div class="ps">
     <div class="pl">Navigation</div>
     <div class="navbox">
-      <div class="nrow"><span>Drag</span><span>orbit / pan camera</span></div>
+      <div class="nrow"><span>Joystick</span><span>move up/down/left/right</span></div>
       <div class="nrow"><span>Pinch</span><span>zoom</span></div>
       <div class="nrow"><span>Tap panel</span><span>open face sim picker</span></div>
       <div class="nrow"><span>Tap cube</span><span>change face color</span></div>
@@ -269,7 +269,7 @@ let camAnim=null;
 function applyOrbit(){camera.position.set(orb.tgt.x+orb.r*Math.sin(orb.phi)*Math.sin(orb.theta),orb.tgt.y+orb.r*Math.cos(orb.phi),orb.tgt.z+orb.r*Math.sin(orb.phi)*Math.cos(orb.theta));camera.lookAt(orb.tgt);}
 applyOrbit();
 const GOFF={panel:new THREE.Vector3(-24,0,0),cube:new THREE.Vector3(0,0,0),box:new THREE.Vector3(24,0,0)};
-const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:.5,phi:1.1,r:11,tgt:[24,0,0]}};
+const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:0,phi:Math.PI/2,r:11,tgt:[24,0,0]}};
 let activeGalaxy='panel';
 function flyTo(g){
   const h=HOMES[g];if(!h)return;
@@ -538,7 +538,7 @@ renderer.domElement.addEventListener('touchstart',e=>{
     if(h&&(h.gi||h.bb)){
       hitGI=h.gi;touchState='touching';
       
-    }else{hitGI=null;touchState='orbit';}
+    }else{hitGI=null;touchState='idle';}
   }else if(tc.length===2){
     clearTimeout(holdTimer);exitJiggle();touchState='pinch';
     t0={x:tc[0].clientX,y:tc[0].clientY};
@@ -550,24 +550,17 @@ renderer.domElement.addEventListener('touchstart',e=>{
 
 renderer.domElement.addEventListener('touchmove',e=>{
   const tc=Array.from(e.touches);
-  if(touchState==='orbit'&&tc.length===1&&t0){
-    vel.th-=(tc[0].clientX-t0.x)*.012;vel.ph-=(tc[0].clientY-t0.y)*.012;
-    t0={x:tc[0].clientX,y:tc[0].clientY};
-  }else if(touchState==='touching'&&tc.length===1&&t0){
+  if(touchState==='touching'&&tc.length===1&&t0){
     const dx=tc[0].clientX-t0.x,dy=tc[0].clientY-t0.y,dist=Math.hypot(dx,dy);
     if(dist>40&&hitGI){
       clearTimeout(holdTimer);touchState='idle';
       hitGI.swipeFace(dx,dy);hitGI=null;
-    }else if(dist>14&&!hitGI){
-      clearTimeout(holdTimer);touchState='orbit';
-      vel.th-=dx*.012;vel.ph-=dy*.012;t0={x:tc[0].clientX,y:tc[0].clientY};
     }
+
   }else if(touchState==='pinch'&&tc.length===2){
     const d=Math.hypot(tc[1].clientX-tc[0].clientX,tc[1].clientY-tc[0].clientY);
     orb.r=Math.max(1.2,Math.min(65,zoom0*(pinchD0/d)));
-    const mx=(tc[0].clientX+tc[1].clientX)/2,my=(tc[0].clientY+tc[1].clientY)/2;
-    vel.th-=(mx-pinchMid0.x)*.007;vel.ph-=(my-pinchMid0.y)*.007;
-    pinchMid0={x:mx,y:my};applyOrbit();
+    applyOrbit();
   }
 },{passive:true});
 
@@ -591,10 +584,6 @@ renderer.domElement.addEventListener('touchend',e=>{
         if(selectedItem)deselectCube();
       }
       lastTap=now;
-    }
-  }else if(touchState==='orbit'&&e.changedTouches.length===1&&t0){
-    if(Math.hypot(e.changedTouches[0].clientX-t0.x,e.changedTouches[0].clientY-t0.y)<10&&selectedItem){
-      deselectCube();
     }
   }
   if(Array.from(e.touches).length===0){touchState='idle';t0=null;}
@@ -652,12 +641,7 @@ window._cfs=(id,fi,key)=>{
 
 // ── INSPECTOR ─────────────────────────────────────────────────────────────
 let inspOpen=false;
-document.getElementById('inspToggle').onclick=()=>{
-  inspOpen=!inspOpen;
-  document.getElementById('inspBody').classList.toggle('on',inspOpen);
-  document.getElementById('inspToggle').classList.toggle('open',inspOpen);
-  if(inspOpen)renderInspector();
-};
+document.getElementById('inspToggle').onclick=()=>{};
 function renderInspector(focusGI,focusFI){
   let total=0;
   for(const g of Object.values(GALAXIES)){total+=g.constellation.items.length+g.constellation.balls.length;}
@@ -745,7 +729,6 @@ let frame=0,simPaused=false;
 (function loop(){
   requestAnimationFrame(loop);frame++;
   if(camAnim){const sp=.07;orb.theta+=(camAnim.theta-orb.theta)*sp;orb.phi+=(camAnim.phi-orb.phi)*sp;orb.r+=(camAnim.r-orb.r)*sp;orb.tgt.lerp(camAnim.tgt,sp);if(Math.abs(orb.r-camAnim.r)<.04)camAnim=null;}
-  orb.theta+=vel.th;orb.phi=Math.max(.08,Math.min(Math.PI*.92,orb.phi+vel.ph));vel.th*=.88;vel.ph*=.88;
   applyOrbit();
   if(jiggleItem&&!jHandleDragging){jigglePhase+=.15;jiggleItem.mesh.rotation.z=Math.sin(jigglePhase)*.07;updateJiggleUI();}
   if(!simPaused)for(const g of Object.values(GALAXIES))g.update(frame);
