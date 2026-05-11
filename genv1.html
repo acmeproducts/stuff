@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>GenCosmos</title>
+<title>GenCosmos v1</title>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"}}
 </script>
@@ -81,24 +81,28 @@ body.compose #cbadge{display:block;}
 .nrow.cm span:first-child{color:rgba(255,185,0,.65);}
 #toast{position:fixed;top:46px;left:50%;transform:translateX(-50%);background:rgba(0,229,180,.1);border:1px solid rgba(0,229,180,.25);color:#00e5b0;font-size:9px;letter-spacing:.18em;text-transform:uppercase;padding:6px 13px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .22s;z-index:500;white-space:nowrap;}
 #toast.on{opacity:1;}
-#landing{position:fixed;inset:0;background:radial-gradient(circle at 20% 10%,rgba(0,229,180,.08),transparent 45%),#020307;z-index:700;display:flex;flex-direction:column;padding:18px 14px 80px;overflow:auto;}
+#landing{position:fixed;inset:0;background:radial-gradient(circle at 20% 10%,rgba(0,229,180,.12),transparent 45%),#020307;z-index:700;display:flex;flex-direction:column;padding:16px 14px 80px;overflow:auto;}
 #landing.off{display:none;}
-.lhd{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:10px;}
-.lcd{font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;line-height:1.45;}
+.lhd{font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.9);margin-bottom:6px;}
+.lcd{font-size:11px;color:rgba(255,255,255,.62);margin-bottom:10px;line-height:1.45;}
 .lgrid{display:flex;flex-direction:column;gap:10px;}
-.lcard{border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px;background:rgba(255,255,255,.03);}
+.lcard{border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
 .lct{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
-.lcn{font-size:11px;color:#fff;}
+.lcn{font-size:12px;color:#fff;}
 .lcb{font-size:9px;color:rgba(255,255,255,.25);}
-.lrow{display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.5);padding:2px 0;}
+.lrow{display:flex;justify-content:space-between;font-size:10px;color:rgba(255,255,255,.72);padding:2px 0;}
 .lgo{margin-top:8px;}
+.demos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:8px 0 10px;}
+.demo{height:38px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:#0b1020;position:relative;overflow:hidden;}
+.demo::after{content:attr(data-sim);position:absolute;left:4px;bottom:3px;font-size:7px;color:rgba(255,255,255,.65);letter-spacing:.08em;text-transform:uppercase;}
 </style>
 </head>
 <body>
 <canvas id="r"></canvas>
 <div id="landing">
-  <div class="lhd">Galaxy Front Door</div>
-  <div class="lcd">Pick one galaxy to enter. Metrics update as you compose and interact.</div>
+  <div class="lhd">GenCosmos v1</div>
+  <div class="lcd">Choose a galaxy. Interact directly or switch to compose. No camera hijack, just objects and flow.</div>
+  <div class="demos" id="simDemos"></div>
   <div class="lgrid" id="landingCards"></div>
 </div>
 <div id="topBar">
@@ -713,11 +717,21 @@ function renderLanding(){
   cards.innerHTML=Object.entries(GALAXIES).map(([k,g])=>{
     const c=g.constellation,objects=c.items.length+c.balls.length;
     const fact=objects===0?'quiet sector':`chaos index ${objects*7%97}`;
-    return`<div class="lcard"><div class="lct"><span class="lcn">${names[k]}</span><span class="lcb">${fact}</span></div><div class="lrow"><span>containers</span><span>1</span></div><div class="lrow"><span>objects</span><span>${objects}</span></div><div class="lrow"><span>first seen</span><span>${relAge(Date.now()-objects*120000)}</span></div><div class="lrow"><span>minutes since update</span><span>${Math.max(0,objects?objects-1:0)}</span></div><button class="pb hi lgo" onclick="enterGalaxy('${k}')">Enter</button></div>`;
+    return`<div class="lcard"><div class="lct"><span class="lcn">${names[k]}</span><span class="lcb">${fact}</span></div><div class="lrow"><span>containers</span><span>1</span></div><div class="lrow"><span>objects</span><span>${objects}</span></div><div class="lrow"><span>first seen</span><span>${relAge(Date.now()-objects*120000)}</span></div><div class="lrow"><span>minutes since update</span><span>${Math.max(0,objects?objects-1:0)}</span></div><button class="pb hi lgo" onclick="enterGalaxy('${k}')">Enter ${names[k]}</button></div>`;
   }).join('');
+  drawSimDemos();
 }
-window.enterGalaxy=(k)=>{document.getElementById('landing').classList.add('off');flyTo(k);renderInspector();};
-window.showLanding=()=>{renderLanding();document.getElementById('landing').classList.remove('off');};
+function drawSimDemos(){
+  const host=document.getElementById('simDemos');
+  if(host.children.length)return;
+  ['life','rd','flow','voronoi','maze','julia','dice','halftone'].forEach((k,i)=>{
+    const d=document.createElement('div');d.className='demo';d.dataset.sim=k;
+    d.style.background=`linear-gradient(${35+i*11}deg, rgba(${40+i*15},${80+i*10},${130+i*6},.95), rgba(${10+i*9},${30+i*5},${60+i*3},.95))`;
+    host.appendChild(d);
+  });
+}
+window.enterGalaxy=(k)=>{document.getElementById('landing').classList.add('off');document.getElementById('gear').style.display='none';flyTo(k);renderInspector();};
+window.showLanding=()=>{renderLanding();document.getElementById('landing').classList.remove('off');document.getElementById('gear').style.display='flex';};
 let modalItem=null,modalFace=0;
 function openObjectModal(gi,fi=0){
   modalItem=gi;modalFace=fi;
