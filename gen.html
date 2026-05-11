@@ -54,6 +54,8 @@ body.compose #cbadge{display:block;}
 #back.on{opacity:1;pointer-events:all;}
 #panel{position:fixed;bottom:0;left:0;right:0;background:#0a0a16;border-top:1px solid rgba(255,255,255,.08);border-radius:20px 20px 0 0;padding:14px 20px 72px;z-index:300;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);max-height:82vh;overflow-y:auto;}
 #panel.on{transform:translateY(0);}
+#objModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,360px);background:#090f17;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;z-index:450;display:none;}
+#objModal.on{display:block;}
 .ph{width:34px;height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin:0 auto 14px;}
 .ps{margin-bottom:14px;}
 .pl{font-size:8px;letter-spacing:.28em;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:7px;}
@@ -79,12 +81,28 @@ body.compose #cbadge{display:block;}
 .nrow.cm span:first-child{color:rgba(255,185,0,.65);}
 #toast{position:fixed;top:46px;left:50%;transform:translateX(-50%);background:rgba(0,229,180,.1);border:1px solid rgba(0,229,180,.25);color:#00e5b0;font-size:9px;letter-spacing:.18em;text-transform:uppercase;padding:6px 13px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .22s;z-index:500;white-space:nowrap;}
 #toast.on{opacity:1;}
+#landing{position:fixed;inset:0;background:radial-gradient(circle at 20% 10%,rgba(0,229,180,.08),transparent 45%),#020307;z-index:700;display:flex;flex-direction:column;padding:18px 14px 80px;overflow:auto;}
+#landing.off{display:none;}
+.lhd{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:10px;}
+.lcd{font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;line-height:1.45;}
+.lgrid{display:flex;flex-direction:column;gap:10px;}
+.lcard{border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px;background:rgba(255,255,255,.03);}
+.lct{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.lcn{font-size:11px;color:#fff;}
+.lcb{font-size:9px;color:rgba(255,255,255,.25);}
+.lrow{display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.5);padding:2px 0;}
+.lgo{margin-top:8px;}
 </style>
 </head>
 <body>
 <canvas id="r"></canvas>
+<div id="landing">
+  <div class="lhd">Galaxy Front Door</div>
+  <div class="lcd">Pick one galaxy to enter. Metrics update as you compose and interact.</div>
+  <div class="lgrid" id="landingCards"></div>
+</div>
 <div id="topBar">
-  <div id="inspToggle"><span id="galaxyLabel">Universe</span><span id="inspCount" style="opacity:.4">·</span><span class="ch">▾</span></div>
+  <div id="inspToggle"><span id="galaxyLabel">Panel Galaxy</span><span id="inspCount" style="opacity:.4">·</span><span class="ch">▾</span></div>
   <button id="modeBtn">✎</button>
 </div>
 <div id="inspBody"></div>
@@ -102,10 +120,18 @@ body.compose #cbadge{display:block;}
   <button class="gbt" onclick="flyTo('panel')" id="gbt-panel"><span class="gi">◧</span>Panels</button>
   <button class="gbt" onclick="flyTo('cube')"  id="gbt-cube"><span class="gi">▪</span>Cubes</button>
   <button class="gbt" onclick="flyTo('box')"   id="gbt-box"><span class="gi">⬡</span>Spheres</button>
-  <button class="gbt" onclick="flyTo('universe')" id="gbt-universe"><span class="gi">✦</span>All</button>
+  <button class="gbt" onclick="showLanding()" id="gbt-universe"><span class="gi">✦</span>Home</button>
 </div>
 <button id="gear">⚙</button>
 <div id="back"></div>
+<div id="objModal">
+  <div class="pl" id="objTitle">Object</div>
+  <input class="pinp" id="objSeed" type="number" placeholder="seed">
+  <div class="pr" style="margin-top:8px;">
+    <button class="pb hi" id="objApply">Save</button>
+    <button class="pb" id="objClose">Cancel</button>
+  </div>
+</div>
 <div id="panel">
   <div class="ph"></div>
   <div class="ps">
@@ -231,19 +257,19 @@ let camAnim=null;
 function applyOrbit(){camera.position.set(orb.tgt.x+orb.r*Math.sin(orb.phi)*Math.sin(orb.theta),orb.tgt.y+orb.r*Math.cos(orb.phi),orb.tgt.z+orb.r*Math.sin(orb.phi)*Math.cos(orb.theta));camera.lookAt(orb.tgt);}
 applyOrbit();
 const GOFF={panel:new THREE.Vector3(-24,0,0),cube:new THREE.Vector3(0,0,0),box:new THREE.Vector3(24,0,0)};
-const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:.5,phi:1.1,r:11,tgt:[24,0,0]},universe:{theta:.05,phi:1.15,r:42,tgt:[0,0,0]}};
-let activeGalaxy='universe';
+const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:.5,phi:1.1,r:11,tgt:[24,0,0]}};
+let activeGalaxy='panel';
 function flyTo(g){
   const h=HOMES[g];if(!h)return;
   camAnim={theta:h.theta,phi:h.phi,r:h.r,tgt:new THREE.Vector3(...h.tgt)};
   activeGalaxy=g;
   document.querySelectorAll('.gbt').forEach(b=>b.classList.remove('active'));
   document.getElementById('gbt-'+g)?.classList.add('active');
-  const labels={panel:'Panel Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy',universe:'Universe'};
+  const labels={panel:'Panel Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy'};
   document.getElementById('galaxyLabel').textContent=labels[g]||g;
-  document.getElementById('spawnTarget').textContent=g==='universe'?'active galaxy':(g+' galaxy');
+  document.getElementById('spawnTarget').textContent=g+' galaxy';
 }
-window.flyTo=flyTo;flyTo('universe');
+window.flyTo=flyTo;
 
 // ── GRID ITEM (panel or cube — STATIONARY) ────────────────────────────────
 let itemSerial=0;
@@ -274,7 +300,7 @@ class GridItem{
     this.mesh.rotation.set(0,0,0);
     this.mesh.userData.gi=this;
     parentGroup.add(this.mesh);
-    // Face animation state (only used when cube is selected)
+  // Face animation state
     this.fRX=0;this.fRY=0;this.tRX=0;this.tRY=0;
   }
   // Smoothly animate face rotation (only matters when selected)
@@ -291,7 +317,7 @@ class GridItem{
     if(this.gtype==='panel'){
       this.sims[0].color();this.sims[0].draw();this.txs[0].needsUpdate=true;
     }else if(this.gtype==='cube'){
-      if(Math.abs(dx)>Math.abs(dy))this.tRY+=dx>0?-Math.PI/2:Math.PI/2;
+      if(Math.abs(dx)>Math.abs(dy))this.tRY+=dx>0?Math.PI/2:-Math.PI/2;
       else this.tRX+=dy>0?Math.PI/2:-Math.PI/2;
     }
   }
@@ -315,17 +341,17 @@ class GridItem{
   dispose(){this.txs.forEach(t=>t.dispose());(Array.isArray(this.mesh.material)?this.mesh.material:[this.mesh.material]).forEach(m=>m.dispose());this.mesh.geometry.dispose();}
 }
 
-// ── BOX BALL (bouncing sphere inside cube container) ──────────────────────
+// ── BOX BALL (2D sphere field inside flat container) ──────────────────────
 class BoxBall{
   constructor(seed,simType,parentGroup){
-    const R=mb32(seed);this.r=.28;this.H=2.55; // container half-size minus radius
+    const R=mb32(seed);this.r=.28;this.H=2.55;this.seed=seed;
     const cv=document.createElement('canvas');cv.width=cv.height=CS;
     const st=simType==='random'?SIM_NAMES[(R()*SIM_NAMES.length)|0]:simType;
     this.simKey=st;this.sim=SIMS[st](cv,seed);this.sim.draw();
     const tx=new THREE.CanvasTexture(cv);tx.magFilter=THREE.LinearFilter;this.tx=tx;
     this.mesh=new THREE.Mesh(new THREE.SphereGeometry(this.r,14,10),new THREE.MeshBasicMaterial({map:tx}));
-    this.mesh.position.set((R()-.5)*4,(R()-.5)*3.5,(R()-.5)*4);
-    this.vel=new THREE.Vector3((R()-.5)*2.5,(R())*1.5,(R()-.5)*2.5);
+    this.mesh.position.set((R()-.5)*4,(R()-.5)*3.5,0);
+    this.vel=new THREE.Vector3((R()-.5)*2.5,(R()-.5)*2.5,0);
     this.mesh.userData.bb=this;
     parentGroup.add(this.mesh);
   }
@@ -337,15 +363,13 @@ class BoxBall{
   }
   update(){
     const dt=.016,pos=this.mesh.position,H=this.H;
-    this.vel.y-=3.2*dt; // gravity
     pos.addScaledVector(this.vel,dt);
-    // Box walls
+    // 2D walls (z stays flat)
     if(pos.x>H){pos.x=H;if(this.vel.x>0)this.vel.x*=-.65;}
     if(pos.x<-H){pos.x=-H;if(this.vel.x<0)this.vel.x*=-.65;}
     if(pos.y>H){pos.y=H;if(this.vel.y>0)this.vel.y*=-.65;}
     if(pos.y<-H){pos.y=-H;if(this.vel.y<0)this.vel.y*=-.65;}
-    if(pos.z>H){pos.z=H;if(this.vel.z>0)this.vel.z*=-.65;}
-    if(pos.z<-H){pos.z=-H;if(this.vel.z<0)this.vel.z*=-.65;}
+    pos.z=0;this.vel.z=0;
     this.vel.multiplyScalar(.993);
     this.mesh.rotation.x+=this.vel.z*.04;this.mesh.rotation.z-=this.vel.x*.04;
     this.sim.step();this.sim.draw();this.tx.needsUpdate=true;
@@ -469,18 +493,11 @@ let selectedItem=null,preFocusOrb=null;
 function selectCube(gi){
   selectedItem=gi;
   document.getElementById('focusHint').style.display='block';
-  // Save current camera state to restore on deselect
-  preFocusOrb={theta:orb.theta,phi:orb.phi,r:orb.r,tgt:orb.tgt.clone()};
-  // Fly camera directly in front of cube
-  const wp=gi.mesh.getWorldPosition(new THREE.Vector3());
-  camAnim={theta:0,phi:Math.PI/2,r:2.5,tgt:wp.clone()};
   renderInspector();
 }
 function deselectCube(){
   selectedItem=null;document.getElementById('focusHint').style.display='none';
-  // Return to previous camera position
-  if(preFocusOrb){camAnim={...preFocusOrb,tgt:preFocusOrb.tgt.clone()};preFocusOrb=null;}
-  else flyTo(activeGalaxy!=='universe'?activeGalaxy:'cube');
+  preFocusOrb=null;
 }
 
 // ── RAYCASTING ────────────────────────────────────────────────────────────
@@ -497,7 +514,7 @@ function raycastAll(cx,cy){
 // ── TOUCH STATE MACHINE ───────────────────────────────────────────────────
 let touchState='idle',holdTimer=null,lastTap=0,t0=null,hitGI=null;
 let pinchD0=0,pinchMid0={x:0,y:0},zoom0=36;
-let mode='observe';
+let mode='interact';
 
 renderer.domElement.addEventListener('touchstart',e=>{
   const tc=Array.from(e.touches);
@@ -550,14 +567,11 @@ renderer.domElement.addEventListener('touchend',e=>{
       if(h?.bb){h.bb.repel();toast('⚡');}
       else if(h?.gi){
         if(h.gi.gtype==='cube'){
-          if(selectedItem===h.gi){
-            if(now-lastTap<280){h.gi.tRX=0;h.gi.tRY=0;toast('Face reset');}
-            // else just keep selected
-          }else{
-            deselectCube();selectCube(h.gi);
-          }
+          if(now-lastTap<280){openObjectModal(h.gi,h.fi);}
+          else {selectedItem=h.gi;h.gi.sims[h.fi].color();h.gi.sims[h.fi].draw();h.gi.txs[h.fi].needsUpdate=true;}
         }else if(h.gi.gtype==='panel'){
-          showFacePickerFor(h.gi,h.fi);
+          if(now-lastTap<280)openObjectModal(h.gi,h.fi);
+          else showFacePickerFor(h.gi,h.fi);
         }
       }else{
         // tap empty → deselect
@@ -572,17 +586,6 @@ renderer.domElement.addEventListener('touchend',e=>{
   }
   if(Array.from(e.touches).length===0){touchState='idle';t0=null;}
 },{passive:true});
-
-// Handle swipe on selected cube AFTER focus (cube is close, camera still, swipe = face change)
-let selSwipe0=null;
-renderer.domElement.addEventListener('touchstart',e=>{if(selectedItem&&e.touches.length===1)selSwipe0={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true,capture:false});
-renderer.domElement.addEventListener('touchend',e=>{
-  if(selectedItem&&selSwipe0&&e.changedTouches.length===1){
-    const dx=e.changedTouches[0].clientX-selSwipe0.x,dy=e.changedTouches[0].clientY-selSwipe0.y;
-    if(Math.hypot(dx,dy)>38){selectedItem.swipeFace(dx,dy);}
-    selSwipe0=null;
-  }
-},{passive:true,capture:false});
 
 // ── TOAST ─────────────────────────────────────────────────────────────────
 let toTmr;
@@ -690,19 +693,50 @@ let frame=0,simPaused=false;
 const openP=()=>{document.getElementById('panel').classList.add('on');document.getElementById('back').classList.add('on');renderUList();};
 const closeP=()=>{document.getElementById('panel').classList.remove('on');document.getElementById('back').classList.remove('on');};
 document.getElementById('gear').onclick=openP;
-document.getElementById('back').onclick=closeP;
-document.getElementById('modeBtn').onclick=()=>{mode=mode==='observe'?'compose':'observe';document.body.classList.toggle('compose',mode==='compose');document.getElementById('modeBtn').textContent=mode==='compose'?'✓':'✎';if(mode==='observe')exitJiggle();toast(mode==='compose'?'Compose · hold to reposition':'Observe mode');};
+document.getElementById('back').onclick=()=>{if(document.getElementById('objModal').classList.contains('on'))closeObjectModal();else closeP();};
+document.getElementById('modeBtn').onclick=()=>{mode=mode==='interact'?'compose':'interact';document.body.classList.toggle('compose',mode==='compose');document.getElementById('modeBtn').textContent=mode==='compose'?'✓':'✎';if(mode==='interact')exitJiggle();toast(mode==='compose'?'Compose · hold to reposition':'Interact mode');};
 document.getElementById('saveUBtn').onclick=saveUniverse;
 document.getElementById('shareUBtn').onclick=()=>{const s=saveUniverse();navigator.clipboard.writeText(s).then(()=>toast('Copied to clipboard')).catch(()=>{});};
 document.getElementById('impUBtn').onclick=()=>{const s=document.getElementById('impUInp').value.trim();if(loadUniverse(s)){document.getElementById('impUInp').value='';closeP();}else toast('Invalid universe string');};
 document.getElementById('spawnBtn').onclick=()=>{
   const st=document.getElementById('simType').value;
-  const gtype=activeGalaxy==='universe'?'cube':activeGalaxy;
+  const gtype=activeGalaxy;
   GALAXIES[gtype]?.spawn(st);renderInspector();toast(`Spawned in ${gtype}`);
 };
-document.getElementById('clearBtn').onclick=()=>{const g=activeGalaxy==='universe'?'cube':activeGalaxy;GALAXIES[g]?.clear();renderInspector();toast(`${g} galaxy cleared`);};
+document.getElementById('clearBtn').onclick=()=>{const g=activeGalaxy;GALAXIES[g]?.clear();renderInspector();toast(`${g} galaxy cleared`);};
 document.getElementById('pauseBtn').onclick=()=>{simPaused=!simPaused;document.getElementById('pauseBtn').textContent=simPaused?'▶ Resume Sims':'⏸ Pause Sims';};
 document.getElementById('spd').oninput=()=>{};
+function relAge(ts){const mins=Math.max(0,Math.floor((Date.now()-ts)/60000));if(mins<60)return`${mins}m ago`;return`${Math.floor(mins/60)}h ago`;}
+function renderLanding(){
+  const cards=document.getElementById('landingCards');
+  const names={panel:'Pane Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy'};
+  cards.innerHTML=Object.entries(GALAXIES).map(([k,g])=>{
+    const c=g.constellation,objects=c.items.length+c.balls.length;
+    const fact=objects===0?'quiet sector':`chaos index ${objects*7%97}`;
+    return`<div class="lcard"><div class="lct"><span class="lcn">${names[k]}</span><span class="lcb">${fact}</span></div><div class="lrow"><span>containers</span><span>1</span></div><div class="lrow"><span>objects</span><span>${objects}</span></div><div class="lrow"><span>first seen</span><span>${relAge(Date.now()-objects*120000)}</span></div><div class="lrow"><span>minutes since update</span><span>${Math.max(0,objects?objects-1:0)}</span></div><button class="pb hi lgo" onclick="enterGalaxy('${k}')">Enter</button></div>`;
+  }).join('');
+}
+window.enterGalaxy=(k)=>{document.getElementById('landing').classList.add('off');flyTo(k);renderInspector();};
+window.showLanding=()=>{renderLanding();document.getElementById('landing').classList.remove('off');};
+let modalItem=null,modalFace=0;
+function openObjectModal(gi,fi=0){
+  modalItem=gi;modalFace=fi;
+  document.getElementById('objTitle').textContent=`${gi.gtype==='cube'?'Cube':'Panel'} properties`;
+  document.getElementById('objSeed').value=gi.seed;
+  document.getElementById('back').classList.add('on');
+  document.getElementById('objModal').classList.add('on');
+}
+function closeObjectModal(){document.getElementById('objModal').classList.remove('on');document.getElementById('back').classList.remove('on');modalItem=null;}
+document.getElementById('objClose').onclick=closeObjectModal;
+document.getElementById('objApply').onclick=()=>{
+  if(!modalItem)return closeObjectModal();
+  const nextSeed=Number(document.getElementById('objSeed').value)||modalItem.seed;
+  const key=modalItem.faceTypeKeys[modalFace]||'random';
+  modalItem.seed=nextSeed;
+  modalItem.setFaceSim(modalFace,key);
+  closeObjectModal();
+};
+renderLanding();
 </script>
 </body>
 </html>
