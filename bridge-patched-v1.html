@@ -870,10 +870,14 @@ function _detectLangAsync(text){
 }
 
 /* === CHAT === */
+var _pbMutedMic=false;
 function composeFocusMute(){
   if(!isCallActive())return;
-  if(micOn&&!micMutedByUser){toggleMic();}
+  if(micOn&&!micMutedByUser){_pbMutedMic=true;toggleMic();}
   else if(!micOn){toast('Mic is muted — tap mic button to speak');}
+}
+function _pbRestoreMic(){
+  if(_pbMutedMic&&!micOn&&isCallActive()){_pbMutedMic=false;toggleMic();}else{_pbMutedMic=false;}
 }
 function chatInputEvt(){
   var ta=$('chat-input');if(!ta)return;
@@ -1243,6 +1247,7 @@ function pbCloseDrawer(){
   _pbDrawerMode='';
   var btn=document.getElementById('pb-strip-btn');
   if(btn)btn.classList.remove('active');
+  _pbRestoreMic();
 }
 function pbCmdDrawerHtml(){
   return '<div class="pb-drawer-hdr"><span class="pb-drawer-title" style="font-size:11px;color:var(--text-muted);">Phrasebook (//) management</span>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer();pbClearComposeSlash()">×</button></div>'    +'<div class="pb-cmd-chips" style="justify-content:flex-start;">'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenBooksModal()" title="Open / switch phrasebook">'+ICO.book+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbOpenNewCard({})" title="New phrase">'+ICO.plus+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbTriggerImport()" title="Import file">'+ICO.upload+'</button>'    +'<button class="pb-ico-chip" onclick="pbCloseDrawer();pbClearCompose();pbExportPrompt()" title="Export">'+ICO.download+'</button>'    +'<button class="pb-ico-chip danger" onclick="pbCloseDrawer();pbClearCompose();pbResetConfirm()" title="Reset phrasebook">'+ICO.warn+'</button>'    +'</div>';
@@ -2327,13 +2332,20 @@ function onDGFinal(text){
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
-  var srcText=normalizeText(text,'speech')||text;
-  relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
-  addTr('me',srcText,srcText,src,tgt,ss);
-  translateWithRetry(srcText,src,tgt,1).then(function(tr){
-    tr=normalizeText(tr,'speech')||srcText;
-    relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
-    patchTr('me',ss,tr,src,tgt);
+  Promise.race([
+    _detectLangAsync(text),
+    new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
+  ]).then(function(detected){
+    return (detected&&detected!==src)?translateWithRetry(text,detected,src,2):Promise.resolve(text);
+  }).then(function(srcText){
+    srcText=normalizeText(srcText,'speech')||text;
+    relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
+    addTr('me',srcText,srcText,src,tgt,ss);
+    return translateWithRetry(srcText,src,tgt,2).then(function(tr){
+      tr=normalizeText(tr,'speech')||srcText;
+      relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
+      patchTr('me',ss,tr,src,tgt);
+    });
   }).catch(function(e){log('dg_trans_err',{e:String(e)},'error');});
 }
 
@@ -2751,7 +2763,7 @@ function cleanUp(){
   transcriptTtsOn=false;syncTranscriptTtsButton();if(window.speechSynthesis)window.speechSynthesis.cancel();
   document.querySelector('.call-videos').classList.remove('swapped');
   resetRemoteMediaState();
-  transcript=[];micOn=true;camOn=true;micMutedByUser=false;dgDesired=false;syncMic();syncCam();renderRecent();
+  transcript=[];micOn=true;camOn=true;micMutedByUser=false;dgDesired=false;_pbMutedMic=false;syncMic();syncCam();renderRecent();
 }
 
 // === INIT ===
