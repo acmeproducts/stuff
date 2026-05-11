@@ -720,6 +720,8 @@ var _relayWs=null;
 var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
+var _dgLastMsg=0,_dgWatchdogTimer=null;
+var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var localSubSeq=(Date.now()&0xFFFF),_ssNonce=Date.now().toString(36).slice(-4),transcript=[],trCache=new Map(),TR_CACHE_MAX=500;
 var hbTimer=null,seq=0,wsReconnectTimer=null;
@@ -830,8 +832,8 @@ function _syncFtStatus(){
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  log('ft_load_start',{src:'/fastType/fastText.common.js'});
-  var s=document.createElement('script');s.src='/fastType/fastText.common.js';
+  log('ft_load_start',{src:'fastType/fastText.common.js'});
+  var s=document.createElement('script');s.src='fastType/fastText.common.js';
   s.onerror=function(){
     log('ft_load_err',{src:s.src},'error');
     _ftLoadFailed=true;_syncFtStatus();
@@ -845,8 +847,8 @@ function _loadFastText(){
     }
     try{
       var ft=new FastText();
-      log('ft_model_load',{model:'/fastType/lid.176.ftz'});
-      ft.loadModel('/fastType/lid.176.ftz').then(function(){
+      log('ft_model_load',{model:'fastType/lid.176.ftz'});
+      ft.loadModel('fastType/lid.176.ftz').then(function(){
         _ftModule=ft;_ftReady=true;_syncFtStatus();
         log('ft_ready',{},'ok');
         _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
@@ -2397,6 +2399,7 @@ function stopDGAudio(){
   if(dgAudioCtx)try{dgAudioCtx.close();}catch(_){}dgAudioCtx=null;
 }
 function stopDeepgram(){
+  _stopDgWatchdog();
   dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}stopDGAudio();log('dg_stopped',{});
 }
 function startDeepgram(){
@@ -2460,6 +2463,7 @@ function startDeepgram(){
     }catch(e){log('dg_audio_err',{e:String(e)},'error');dgActive=false;}
   };
   dgWs.onmessage=function(e){
+    _dgLastMsg=Date.now();
     try{
       var d=JSON.parse(e.data);
       var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
@@ -2469,8 +2473,7 @@ function startDeepgram(){
   dgWs.onerror=function(){log('dg_error',{},'error')};
   dgWs.onclose=function(ev){
     log('dg_close',{code:ev.code,captureEpoch:captureEpoch,current:sessionEpoch},'warn');
-    dgActive=false;stopDGAudio();
-    // Only retry if still desired, not muted, and same epoch
+    dgActive=false;stopDGAudio();_stopDgWatchdog();
     if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
       setTimeout(function(){
         if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
@@ -2479,7 +2482,23 @@ function startDeepgram(){
       },2000);
     }
   };
+  // Watchdog: if DG goes silent (no WS messages) during a live call, restart it
+  _dgLastMsg=Date.now();
+  _stopDgWatchdog();
+  _dgWatchdogTimer=setInterval(function(){
+    if(!dgActive||!dgDesired||micMutedByUser||captureEpoch!==sessionEpoch){_stopDgWatchdog();return;}
+    if(Date.now()-_dgLastMsg>DG_WATCHDOG_MS){
+      log('dg_watchdog_restart',{silent_ms:Date.now()-_dgLastMsg},'warn');
+      stopDeepgram();
+      setTimeout(function(){
+        if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
+          reconcileDeepgramState('dg_watchdog');
+        }
+      },1000);
+    }
+  },5000);
 }
+function _stopDgWatchdog(){clearInterval(_dgWatchdogTimer);_dgWatchdogTimer=null;}
 
 function showSub(text,cls){
   var a=$('subtitle-area'),el=document.createElement('div');
