@@ -110,7 +110,7 @@ body.compose #cbadge{display:block;}
 </div>
 <div id="inspBody"></div>
 <div id="focusHint">selected · swipe to change face</div>
-<div id="cbadge">compose · hold object to move</div>
+<div id="cbadge">compose · add, edit, or move objects</div>
 <div id="jHandle">
   <svg width="20" height="20" viewBox="-10 -10 20 20" fill="none" stroke="#00e5b0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
     <line x1="0" y1="-8" x2="0" y2="8"/><line x1="-8" y1="0" x2="8" y2="0"/>
@@ -155,7 +155,12 @@ body.compose #cbadge{display:block;}
     </div>
   </div>
   <div class="ps">
-    <div class="pl">Spawn into <span id="spawnTarget" style="color:#00e5b0">active galaxy</span></div>
+    <div class="pl">Compose Actions</div>
+    <div class="pr" style="margin-bottom:7px;">
+      <button class="pb hi" id="composeAddContainer">+ Add Container</button>
+      <button class="pb" id="composeEditExisting">✎ Edit Existing</button>
+    </div>
+    <div class="pl">Add Object into <span id="spawnTarget" style="color:#00e5b0">active galaxy</span></div>
     <div class="pr" style="margin-bottom:7px;">
       <select class="pb" id="simType">
         <option value="random">Random</option>
@@ -193,12 +198,12 @@ body.compose #cbadge{display:block;}
       <div class="nrow"><span>Drag</span><span>orbit / pan camera</span></div>
       <div class="nrow"><span>Pinch</span><span>zoom</span></div>
       <div class="nrow"><span>Tap panel</span><span>open face sim picker</span></div>
-      <div class="nrow"><span>Tap cube</span><span>focus · swipe faces</span></div>
-      <div class="nrow"><span>Swipe cube ↑↓←→</span><span>rotate to next face</span></div>
+      <div class="nrow"><span>Tap cube</span><span>change face color</span></div>
+      <div class="nrow"><span>Double tap object</span><span>open object editor</span></div>
+      <div class="nrow"><span>Swipe cube ↑↓←→</span><span>step exactly one face turn</span></div>
       <div class="nrow"><span>Tap sphere ball</span><span>repel it away</span></div>
-      <div class="nrow"><span>Tap empty</span><span>deselect / unfocus</span></div>
-      <div class="nrow"><span>▾ top chevron</span><span>object inspector</span></div>
-      <div class="nrow cm"><span>✎ Compose</span><span>hold 0.5s → move handle</span></div>
+      <div class="nrow"><span>Tap empty</span><span>deselect object</span></div>
+      <div class="nrow cm"><span>✎ Compose</span><span>add container / add object / edit existing</span></div>
     </div>
   </div>
 </div>
@@ -532,7 +537,7 @@ renderer.domElement.addEventListener('touchstart',e=>{
     const h=raycastAll(t0.x,t0.y);
     if(h&&(h.gi||h.bb)){
       hitGI=h.gi;touchState='touching';
-      if(mode==='compose'&&h.gi)holdTimer=setTimeout(()=>{touchState='idle';enterJiggle(hitGI);},500);
+      
     }else{hitGI=null;touchState='orbit';}
   }else if(tc.length===2){
     clearTimeout(holdTimer);exitJiggle();touchState='pinch';
@@ -572,7 +577,7 @@ renderer.domElement.addEventListener('touchend',e=>{
     const tc=e.changedTouches[0];
     if(Math.hypot(tc.clientX-t0.x,tc.clientY-t0.y)<14){
       const now=Date.now(),h=raycastAll(tc.clientX,tc.clientY);
-      if(h?.bb){h.bb.repel();toast('⚡');}
+      if(h?.bb){if(now-lastTap<280)openObjectModal(h.bb,0);else {h.bb.repel();toast('⚡');}}
       else if(h?.gi){
         if(h.gi.gtype==='cube'){
           if(now-lastTap<280){openObjectModal(h.gi,h.fi);}
@@ -756,6 +761,20 @@ document.getElementById('modeBtn').onclick=()=>{mode=mode==='interact'?'compose'
 document.getElementById('saveUBtn').onclick=saveUniverse;
 document.getElementById('shareUBtn').onclick=()=>{const s=saveUniverse();navigator.clipboard.writeText(s).then(()=>toast('Copied to clipboard')).catch(()=>{});};
 document.getElementById('impUBtn').onclick=()=>{const s=document.getElementById('impUInp').value.trim();if(loadUniverse(s)){document.getElementById('impUInp').value='';closeP();}else toast('Invalid universe string');};
+
+document.getElementById('composeAddContainer').onclick=()=>{
+  const g=GALAXIES[activeGalaxy];if(!g||!g.constellation)return;
+  if(g.constellation.items.length>=24){toast('Container full');return;}
+  const item=new GridItem(activeGalaxy,(Math.random()*1e9)>>>0,'random',null,g.constellation.group);
+  g.constellation.items.push(item);g.constellation.nextSlot++;renderInspector();persistSession();toast('Container added');
+};
+document.getElementById('composeEditExisting').onclick=()=>{
+  if(mode!=='compose'){mode='compose';document.body.classList.add('compose');document.getElementById('modeBtn').textContent='✓';}
+  const g=GALAXIES[activeGalaxy];const c=g?.constellation;
+  if(c?.items?.length){openObjectModal(c.items[c.items.length-1],0);return;}
+  if(c?.balls?.length){openObjectModal(c.balls[c.balls.length-1],0);return;}
+  toast('No objects to edit');
+};
 document.getElementById('spawnBtn').onclick=()=>{
   const st=document.getElementById('simType').value;
   const gtype=activeGalaxy;
