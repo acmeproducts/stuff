@@ -403,7 +403,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <span style="font-size:10px;color:var(--text-muted);">v3.5.3</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
-    </div>    </div>
+    </div>
     <div id="lobby-waiting" style="display:none;">
       <div style="font-size:14px;color:var(--text-dim);text-align:center;margin-bottom:10px;" id="room-name-display"></div>
       <div class="lobby-link-box" id="lobby-link" onclick="copyLink()">—</div>
@@ -830,41 +830,37 @@ function _syncFtStatus(){
   else if(_ftLoadFailed){dot.className='ft-status-dot err';label.textContent='Lang detect unavailable';}
   else{dot.className='ft-status-dot loading';label.textContent='Lang model loading…';}
 }
+function _ftWhitelist(){var m={};for(var i=0;i<LANGS.length;i++)m[LANGS[i].code]=1;return m;}
+function _ftSafeFail(tag,data){log(tag,data||{},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+function _ftTimeout(p,ms,label){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error(label||'timeout'));},ms);})]);}
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  window.FastTextModule={locateFile:function(path){return 'fastType/'+path.replace('fasttext_wasm.wasm','fastText.common.wasm');}};
-  log('ft_load_start',{src:'fastType/fastText.common.js'});
-  var s=document.createElement('script');s.src='fastType/fastText.common.js';
-  s.onerror=function(){
-    log('ft_load_err',{src:s.src},'error');
-    _ftLoadFailed=true;_syncFtStatus();
-    _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-  };
-  s.onload=function(){
-    if(typeof FastText==='undefined'){
-      log('ft_no_global',{},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;
-    }
-    try{
-      var ft=new FastText();
-      log('ft_model_load',{model:'fastType/lid.176.ftz'});
-      ft.loadModel('fastType/lid.176.ftz').then(function(){
-        _ftModule=ft;_ftReady=true;_syncFtStatus();
-        log('ft_ready',{},'ok');
-        _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
-      }).catch(function(e){
-        log('ft_model_err',{e:String(e)},'error');
-        _ftLoadFailed=true;_syncFtStatus();
-        _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-      });
-    }catch(e){
-      log('ft_init_err',{e:String(e)},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-    }
-  };
-  document.head.appendChild(s);
+  var assets=['fastType/fastText.common.js','fastType/fastText.common.wasm','fastType/lid.176.ftz'];
+  log('ft_asset_probe',{assets:assets});
+  Promise.all(assets.map(function(u){return fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.arrayBuffer().then(function(b){if(!b||!b.byteLength)throw new Error('empty');log('ft_asset_ok',{url:u,size:b.byteLength},'ok');return true;});}).catch(function(e){log('ft_asset_err',{url:u,e:String(e)},'error');throw e;});})).then(function(){
+    window.FastTextModule={locateFile:function(path){return 'fastType/'+path.replace('fasttext_wasm.wasm','fastText.common.wasm');}};
+    log('ft_load_start',{src:'fastType/fastText.common.js'});
+    var s=document.createElement('script');s.src='fastType/fastText.common.js';
+    s.onerror=function(){_ftSafeFail('ft_load_err',{src:s.src});};
+    s.onload=function(){
+      if(typeof FastText==='undefined'){_ftSafeFail('ft_no_global',{});return;}
+      try{
+        var ft=new FastText();
+        log('ft_model_load',{model:'fastType/lid.176.ftz'});
+        _ftTimeout(ft.loadModel('fastType/lid.176.ftz'),7000,'model_load_timeout').then(function(){
+          var tests=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
+          var ok=true;
+          for(var i=0;i<tests.length;i++){
+            var out=ft.predict(tests[i][0],1);var got=out&&out[0]&&String(out[0].label||'').replace('__label__','');
+            if(got!==tests[i][1]){ok=false;log('ft_smoke_err',{input:tests[i][0],expected:tests[i][1],got:got||null},'error');break;}
+          }
+          if(!ok){_ftSafeFail('ft_smoke_fail',{});return;}
+          _ftModule=ft;_ftReady=true;_syncFtStatus();log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+        }).catch(function(e){_ftSafeFail('ft_model_err',{e:String(e)});});
+      }catch(e){_ftSafeFail('ft_init_err',{e:String(e)});}
+    };
+    document.head.appendChild(s);
+  }).catch(function(){_ftSafeFail('ft_asset_preflight_failed',{});});
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
@@ -878,13 +874,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1),c=(r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null;var w=_ftWhitelist();resolve(c&&w[c]?c:null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1),c=(r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null;var w=_ftWhitelist();resolve(c&&w[c]?c:null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -2412,6 +2408,7 @@ function startDeepgram(){
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
+  log('dg_lang_select',{role:room.role||null,myLang:room.myLang||null,theirLang:room.theirLang||null,dgLang:langCode});
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
