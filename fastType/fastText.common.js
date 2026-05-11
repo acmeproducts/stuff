@@ -8720,7 +8720,7 @@ if(typeof module!=='undefined'&&module.exports)module.exports=FastTextModule;
   FastText.prototype.loadModel=function(url){
     var self=this;
     return new Promise(function(resolve,reject){
-      FastTextModule().then(function(ft){
+      FastTextModule(Module).then(function(ft){
         fetch(url).then(function(r){return r.arrayBuffer();}).then(function(buf){
           var data=new Uint8Array(buf);
           ft.FS.writeFile('model.ftz',data);
