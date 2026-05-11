@@ -79,12 +79,28 @@ body.compose #cbadge{display:block;}
 .nrow.cm span:first-child{color:rgba(255,185,0,.65);}
 #toast{position:fixed;top:46px;left:50%;transform:translateX(-50%);background:rgba(0,229,180,.1);border:1px solid rgba(0,229,180,.25);color:#00e5b0;font-size:9px;letter-spacing:.18em;text-transform:uppercase;padding:6px 13px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .22s;z-index:500;white-space:nowrap;}
 #toast.on{opacity:1;}
+#landing{position:fixed;inset:0;background:radial-gradient(circle at 20% 10%,rgba(0,229,180,.08),transparent 45%),#020307;z-index:700;display:flex;flex-direction:column;padding:18px 14px 80px;overflow:auto;}
+#landing.off{display:none;}
+.lhd{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:10px;}
+.lcd{font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;line-height:1.45;}
+.lgrid{display:flex;flex-direction:column;gap:10px;}
+.lcard{border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px;background:rgba(255,255,255,.03);}
+.lct{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.lcn{font-size:11px;color:#fff;}
+.lcb{font-size:9px;color:rgba(255,255,255,.25);}
+.lrow{display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.5);padding:2px 0;}
+.lgo{margin-top:8px;}
 </style>
 </head>
 <body>
 <canvas id="r"></canvas>
+<div id="landing">
+  <div class="lhd">Galaxy Front Door</div>
+  <div class="lcd">Pick one galaxy to enter. Metrics update as you compose and interact.</div>
+  <div class="lgrid" id="landingCards"></div>
+</div>
 <div id="topBar">
-  <div id="inspToggle"><span id="galaxyLabel">Universe</span><span id="inspCount" style="opacity:.4">·</span><span class="ch">▾</span></div>
+  <div id="inspToggle"><span id="galaxyLabel">Panel Galaxy</span><span id="inspCount" style="opacity:.4">·</span><span class="ch">▾</span></div>
   <button id="modeBtn">✎</button>
 </div>
 <div id="inspBody"></div>
@@ -102,7 +118,7 @@ body.compose #cbadge{display:block;}
   <button class="gbt" onclick="flyTo('panel')" id="gbt-panel"><span class="gi">◧</span>Panels</button>
   <button class="gbt" onclick="flyTo('cube')"  id="gbt-cube"><span class="gi">▪</span>Cubes</button>
   <button class="gbt" onclick="flyTo('box')"   id="gbt-box"><span class="gi">⬡</span>Spheres</button>
-  <button class="gbt" onclick="flyTo('universe')" id="gbt-universe"><span class="gi">✦</span>All</button>
+  <button class="gbt" onclick="showLanding()" id="gbt-universe"><span class="gi">✦</span>Home</button>
 </div>
 <button id="gear">⚙</button>
 <div id="back"></div>
@@ -231,19 +247,19 @@ let camAnim=null;
 function applyOrbit(){camera.position.set(orb.tgt.x+orb.r*Math.sin(orb.phi)*Math.sin(orb.theta),orb.tgt.y+orb.r*Math.cos(orb.phi),orb.tgt.z+orb.r*Math.sin(orb.phi)*Math.cos(orb.theta));camera.lookAt(orb.tgt);}
 applyOrbit();
 const GOFF={panel:new THREE.Vector3(-24,0,0),cube:new THREE.Vector3(0,0,0),box:new THREE.Vector3(24,0,0)};
-const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:.5,phi:1.1,r:11,tgt:[24,0,0]},universe:{theta:.05,phi:1.15,r:42,tgt:[0,0,0]}};
-let activeGalaxy='universe';
+const HOMES={panel:{theta:0,phi:Math.PI/2,r:9,tgt:[-24,0,0]},cube:{theta:0,phi:Math.PI/2,r:11,tgt:[0,0,0]},box:{theta:.5,phi:1.1,r:11,tgt:[24,0,0]}};
+let activeGalaxy='panel';
 function flyTo(g){
   const h=HOMES[g];if(!h)return;
   camAnim={theta:h.theta,phi:h.phi,r:h.r,tgt:new THREE.Vector3(...h.tgt)};
   activeGalaxy=g;
   document.querySelectorAll('.gbt').forEach(b=>b.classList.remove('active'));
   document.getElementById('gbt-'+g)?.classList.add('active');
-  const labels={panel:'Panel Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy',universe:'Universe'};
+  const labels={panel:'Panel Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy'};
   document.getElementById('galaxyLabel').textContent=labels[g]||g;
-  document.getElementById('spawnTarget').textContent=g==='universe'?'active galaxy':(g+' galaxy');
+  document.getElementById('spawnTarget').textContent=g+' galaxy';
 }
-window.flyTo=flyTo;flyTo('universe');
+window.flyTo=flyTo;
 
 // ── GRID ITEM (panel or cube — STATIONARY) ────────────────────────────────
 let itemSerial=0;
@@ -480,7 +496,7 @@ function deselectCube(){
   selectedItem=null;document.getElementById('focusHint').style.display='none';
   // Return to previous camera position
   if(preFocusOrb){camAnim={...preFocusOrb,tgt:preFocusOrb.tgt.clone()};preFocusOrb=null;}
-  else flyTo(activeGalaxy!=='universe'?activeGalaxy:'cube');
+  else flyTo(activeGalaxy);
 }
 
 // ── RAYCASTING ────────────────────────────────────────────────────────────
@@ -497,7 +513,7 @@ function raycastAll(cx,cy){
 // ── TOUCH STATE MACHINE ───────────────────────────────────────────────────
 let touchState='idle',holdTimer=null,lastTap=0,t0=null,hitGI=null;
 let pinchD0=0,pinchMid0={x:0,y:0},zoom0=36;
-let mode='observe';
+let mode='interact';
 
 renderer.domElement.addEventListener('touchstart',e=>{
   const tc=Array.from(e.touches);
@@ -691,18 +707,31 @@ const openP=()=>{document.getElementById('panel').classList.add('on');document.g
 const closeP=()=>{document.getElementById('panel').classList.remove('on');document.getElementById('back').classList.remove('on');};
 document.getElementById('gear').onclick=openP;
 document.getElementById('back').onclick=closeP;
-document.getElementById('modeBtn').onclick=()=>{mode=mode==='observe'?'compose':'observe';document.body.classList.toggle('compose',mode==='compose');document.getElementById('modeBtn').textContent=mode==='compose'?'✓':'✎';if(mode==='observe')exitJiggle();toast(mode==='compose'?'Compose · hold to reposition':'Observe mode');};
+document.getElementById('modeBtn').onclick=()=>{mode=mode==='interact'?'compose':'interact';document.body.classList.toggle('compose',mode==='compose');document.getElementById('modeBtn').textContent=mode==='compose'?'✓':'✎';if(mode==='interact')exitJiggle();toast(mode==='compose'?'Compose · hold to reposition':'Interact mode');};
 document.getElementById('saveUBtn').onclick=saveUniverse;
 document.getElementById('shareUBtn').onclick=()=>{const s=saveUniverse();navigator.clipboard.writeText(s).then(()=>toast('Copied to clipboard')).catch(()=>{});};
 document.getElementById('impUBtn').onclick=()=>{const s=document.getElementById('impUInp').value.trim();if(loadUniverse(s)){document.getElementById('impUInp').value='';closeP();}else toast('Invalid universe string');};
 document.getElementById('spawnBtn').onclick=()=>{
   const st=document.getElementById('simType').value;
-  const gtype=activeGalaxy==='universe'?'cube':activeGalaxy;
+  const gtype=activeGalaxy;
   GALAXIES[gtype]?.spawn(st);renderInspector();toast(`Spawned in ${gtype}`);
 };
-document.getElementById('clearBtn').onclick=()=>{const g=activeGalaxy==='universe'?'cube':activeGalaxy;GALAXIES[g]?.clear();renderInspector();toast(`${g} galaxy cleared`);};
+document.getElementById('clearBtn').onclick=()=>{const g=activeGalaxy;GALAXIES[g]?.clear();renderInspector();toast(`${g} galaxy cleared`);};
 document.getElementById('pauseBtn').onclick=()=>{simPaused=!simPaused;document.getElementById('pauseBtn').textContent=simPaused?'▶ Resume Sims':'⏸ Pause Sims';};
 document.getElementById('spd').oninput=()=>{};
+function relAge(ts){const mins=Math.max(0,Math.floor((Date.now()-ts)/60000));if(mins<60)return`${mins}m ago`;return`${Math.floor(mins/60)}h ago`;}
+function renderLanding(){
+  const cards=document.getElementById('landingCards');
+  const names={panel:'Pane Galaxy',cube:'Cube Galaxy',box:'Sphere Galaxy'};
+  cards.innerHTML=Object.entries(GALAXIES).map(([k,g])=>{
+    const c=g.constellation,objects=c.items.length+c.balls.length;
+    const fact=objects===0?'quiet sector':`chaos index ${objects*7%97}`;
+    return`<div class="lcard"><div class="lct"><span class="lcn">${names[k]}</span><span class="lcb">${fact}</span></div><div class="lrow"><span>containers</span><span>1</span></div><div class="lrow"><span>objects</span><span>${objects}</span></div><div class="lrow"><span>first seen</span><span>${relAge(Date.now()-objects*120000)}</span></div><div class="lrow"><span>minutes since update</span><span>${Math.max(0,objects?objects-1:0)}</span></div><button class="pb hi lgo" onclick="enterGalaxy('${k}')">Enter</button></div>`;
+  }).join('');
+}
+window.enterGalaxy=(k)=>{document.getElementById('landing').classList.add('off');flyTo(k);renderInspector();};
+window.showLanding=()=>{renderLanding();document.getElementById('landing').classList.remove('off');};
+renderLanding();
 </script>
 </body>
 </html>
