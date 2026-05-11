@@ -8714,7 +8714,7 @@ run();
 }
 );
 })();
-module.exports = FastTextModule;
+if(typeof module!=='undefined'&&module.exports)module.exports=FastTextModule;
 
   function FastText(){}
   FastText.prototype.loadModel=function(url){
