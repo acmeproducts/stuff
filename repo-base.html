@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Timeline + Lineage Workbench</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --line:#334155; --text:#e2e8f0; --muted:#94a3b8; --brand:#38bdf8; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    .app { display:grid; grid-template-columns:320px 1fr; height:100vh; }
+    .left { background:#020617; border-right:1px solid var(--line); overflow:auto; }
+    .right { overflow:auto; }
+    .top { padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#020617; z-index:10; }
+    .hamburger { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
+    .search { width:100%; margin-top:8px; background:#0b1220; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; }
+    .list { padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .item { padding:8px; border:1px solid var(--line); border-radius:8px; cursor:pointer; background:#0b1220; }
+    .item.active { border-color:var(--brand); }
+    .tabs { display:flex; gap:8px; padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+    .tab { background:#1e293b; color:var(--text); border:1px solid var(--line); border-radius:999px; padding:7px 12px; cursor:pointer; }
+    .tab.active { background:var(--brand); color:#001018; border-color:var(--brand); }
+    .pane { display:none; padding:10px; }
+    .pane.active { display:block; }
+    iframe { width:100%; height:70vh; border:1px solid var(--line); border-radius:10px; background:white; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; }
+    .muted{ color:var(--muted); font-size:.9rem; }
+    .hidden-left .left { display:none; }
+    .hidden-left.app { grid-template-columns:1fr; }
+    a{ color:var(--brand); }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="left">
+      <div class="top">
+        <button class="hamburger" id="toggleNav">☰</button>
+        <input class="search" id="omni" placeholder="Omni search: file, tag, hash" />
+      </div>
+      <div class="list" id="variantList"></div>
+    </aside>
+    <main class="right">
+      <div class="tabs">
+        <button class="tab active" data-tab="analysis">Analysis Run</button>
+        <button class="tab" data-tab="results">Lineage Results</button>
+        <button class="tab" data-tab="explorer">Manual Explorer</button>
+        <button class="tab" data-tab="compare">Side-by-Side</button>
+      </div>
+
+      <section class="pane active" id="analysis">
+        <div class="card"><strong>Production + Progress</strong><div class="muted" id="progress">Loading bridge timeline…</div></div>
+        <div class="card" id="analysisLog"></div>
+      </section>
+
+      <section class="pane" id="results">
+        <div class="card"><button class="tab" id="exportModel">Export timeline JSON model</button></div>
+        <div class="card" id="resultsList"></div>
+      </section>
+
+      <section class="pane" id="explorer">
+        <div class="card" id="activeMeta"></div>
+        <iframe id="preview"></iframe>
+      </section>
+
+      <section class="pane" id="compare">
+        <div class="card grid2">
+          <div><select id="leftPick"></select><iframe id="leftFrame"></iframe></div>
+          <div><select id="rightPick"></select><iframe id="rightFrame"></iframe></div>
+        </div>
+      </section>
+    </main>
+  </div>
+<script>
+let all=[]; let shown=[]; let current=null; let timelineModel=[];
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function dt(x){return new Date(x||0).getTime()||0}
+function iso(x){const d=new Date(x||0); return Number.isNaN(d.getTime())?'1970-01-01T00:00:00.000Z':d.toISOString();}
+function inferFocus(tags){if(tags.includes('soft-delete')&&tags.includes('xml'))return 'Soft-delete + XML fix iteration.'; if(tags.includes('soft-delete'))return 'Soft-delete focused.'; if(tags.includes('xml'))return 'XML handling focused.'; if(tags.includes('patched'))return 'Patch stabilization attempt.'; if(tags.includes('restore'))return 'Rollback/restore exploration.'; return 'General iteration.';}
+async function loadBlobText(item){
+  if(item._blobText!==undefined) return item._blobText;
+  try{
+    const res=await fetch(item.blobUrl,{cache:'no-store'});
+    item._blobText=res.ok?await res.text():'';
+  }catch{ item._blobText=''; }
+  return item._blobText;
+}
+function summarizeDelta(prevText,nextText){
+  if(!prevText && nextText) return 'Initial version in timeline.';
+  if(prevText===nextText) return 'No textual delta from previous timeline item.';
+  const a=(prevText||'').split('\n'); const b=(nextText||'').split('\n');
+  let added=0, removed=0;
+  const prevSet=new Set(a); const nextSet=new Set(b);
+  for(const line of b){ if(!prevSet.has(line)) added++; }
+  for(const line of a){ if(!nextSet.has(line)) removed++; }
+  return `Changed from previous variant: +${added} / -${removed} unique lines.`;
+}
+async function buildTimelineModel(){
+  const sorted=[...shown].sort((a,b)=>dt(a.created)-dt(b.created)||dt(a.lastUpdated)-dt(b.lastUpdated));
+  const blobs=await Promise.all(sorted.map(loadBlobText));
+  timelineModel=sorted.map((item,idx)=>({
+    seq: idx+1,
+    timestamp: iso(item.lastUpdated||item.created),
+    commitid: item.commit,
+    filename: item.file,
+    description_delta_from_previous: summarizeDelta(blobs[idx-1]||'', blobs[idx]||''),
+    blob: item.blobUrl,
+    launch: item.launchUrl,
+    note: item.lineageNote||inferFocus(item.tags||[])
+  }));
+}
+function setCurrent(file){current=shown.find(x=>x.file===file)||shown[0]; if(!current)return; $('preview').src=current.launchUrl; $('activeMeta').innerHTML=`<strong>${esc(current.file)}</strong><br><span class='muted'>${esc(current.created)} | ${esc(current.commit.slice(0,10))}</span><div>${inferFocus(current.tags||[])}</div><div><a target='_blank' href='${esc(current.launchUrl)}'>Launch</a> · <a target='_blank' href='${esc(current.blobUrl)}'>Code blob</a></div>`; renderList();}
+function renderList(){ $('variantList').innerHTML=shown.map(x=>`<div class='item ${current&&current.file===x.file?'active':''}' data-file='${esc(x.file)}'><strong>${esc(x.file)}</strong><div class='muted'>${esc((x.tags||[]).join(', '))}</div></div>`).join(''); $('variantList').querySelectorAll('.item').forEach(n=>n.onclick=()=>setCurrent(n.dataset.file)); }
+function renderResults(){ $('resultsList').innerHTML=timelineModel.map(row=>`<div class='card'><strong>${row.seq}. ${esc(row.filename)}</strong><div class='muted'>${esc(row.timestamp)} · ${esc(row.commitid.slice(0,12))}</div><div>${esc(row.description_delta_from_previous)}</div><div class='muted'>${esc(row.note)}</div></div>`).join(''); }
+function renderAnalysis(){ $('analysisLog').innerHTML=`<ol>${shown.map(x=>`<li><code>${esc(x.file)}</code> — ${esc(inferFocus(x.tags||[]))}</li>`).join('')}</ol>`; $('progress').textContent=`Completed: ${shown.length} bridge variants ordered and indexed.`; }
+function renderCompare(){ const opts=shown.map(x=>`<option value='${esc(x.file)}'>${esc(x.file)}</option>`).join(''); $('leftPick').innerHTML=opts; $('rightPick').innerHTML=opts; if(shown[0]) $('leftFrame').src=shown[0].launchUrl; if(shown[1]) $('rightFrame').src=shown[1].launchUrl; $('leftPick').onchange=e=>{const f=shown.find(x=>x.file===e.target.value); if(f) $('leftFrame').src=f.launchUrl;}; $('rightPick').onchange=e=>{const f=shown.find(x=>x.file===e.target.value); if(f) $('rightFrame').src=f.launchUrl;}; }
+async function rerender(){ await buildTimelineModel(); renderList(); renderResults(); renderAnalysis(); renderCompare(); if(!current&&shown[0]) setCurrent(shown[0].file); }
+$('omni').oninput=e=>{ const q=e.target.value.toLowerCase().trim(); shown=all.filter(x=>[x.file,x.commit,(x.tags||[]).join(' ')].join(' ').toLowerCase().includes(q)); shown.sort((a,b)=>dt(a.created)-dt(b.created)); current=null; rerender(); };
+$('toggleNav').onclick=()=>$('app').classList.toggle('hidden-left');
+$('exportModel').onclick=()=>{ const out=JSON.stringify(timelineModel,null,2); const blob=new Blob([out],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='bridge-lineage-timeline-model.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active')); $(t.dataset.tab).classList.add('active');});
+fetch('bridge-lineage.json',{cache:'no-store'}).then(r=>r.json()).then(data=>{all=data.sort((a,b)=>dt(a.created)-dt(b.created)); shown=[...all]; rerender();}).catch(e=>{$('progress').textContent='Load failed: '+e.message;});
+</script>
+</body>
+</html>

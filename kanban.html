@@ -138,6 +138,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;background:#fff;font-size:12px;max-width:100%;overflow-wrap:anywhere}
 .chip button{border:none;background:transparent;outline:none;padding:0;margin:0;cursor:pointer;font-size:13px;font-weight:800;line-height:1;color:#444}
 .chip button:hover{color:#000}
+.tag-search-btn{cursor:pointer;color:#1f6feb}
+.tag-search-btn:hover{border-color:var(--accent);color:#1d4ed8}
+.tag-search-btn:focus-visible{outline:2px solid #93c5fd;outline-offset:1px}
 .attachment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .attachment-item{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:10px;padding:6px 8px;background:#fff}
 .attachment-item .attachment-link,.attachment-item .attachment-name{font-size:12px;color:#1f6feb;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
@@ -697,12 +700,38 @@ document.addEventListener("dragover", e=> e.preventDefault());
 
 let pointerDrag=null;
 let suppressNextCardClick=false;
+function targetClosest(target, selector){
+  const el = target instanceof Element ? target : target?.parentElement;
+  return el?.closest?.(selector) || null;
+}
 function isInteractiveCardTarget(target){
-  return !!target?.closest?.('a,button,input,textarea,select,label,[contenteditable="true"]');
+  return !!targetClosest(target,'a,button,input,textarea,select,label,[contenteditable]');
+}
+function hasActiveTextSelection(){
+  const sel = window.getSelection?.();
+  return !!sel && !sel.isCollapsed && String(sel).trim().length>0;
+}
+function hasActiveEditableInCard(cardEl){
+  const active = document.activeElement;
+  return !!(
+    active &&
+    cardEl?.contains(active) &&
+    active.matches?.('input,textarea,select,[contenteditable]')
+  );
+}
+function isTextSelectableCardTarget(target){
+  return !!targetClosest(target,'.card-detail,.live-notes-preview,.attachment-list,.attachment-item,.attachment-link,.card-tags,.chip');
+}
+function hasActiveTextSelection(){
+  const sel = window.getSelection?.();
+  return !!sel && !sel.isCollapsed && String(sel).trim().length>0;
+}
+function isTextSelectableCardTarget(target){
+  return !!targetClosest(target,'.card-detail,.live-notes-preview,.attachment-list,.attachment-item,.attachment-link,.card-tags,.chip');
 }
 function pointerFromCardStart(card, e){
   if(e.pointerType==="mouse") return;
-  if(isInteractiveCardTarget(e.target)) return;
+  if(isInteractiveCardTarget(e.target) || isTextSelectableCardTarget(e.target) || hasActiveTextSelection()) return;
   pointerDrag={id:card.id,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,startAt:Date.now(),active:false};
   card.setPointerCapture?.(e.pointerId);
 }
@@ -712,7 +741,7 @@ function pointerFromCardMove(cardEl, e){
   if(!pointerDrag.active && moved>12){ pointerDrag.active=true; draggingId=pointerDrag.id; cardEl.classList.add("dragging"); }
   if(!pointerDrag.active) return;
   e.preventDefault();
-  const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+  const laneBody=document.elementFromPoint(e.clientX, e.clientY)?.closest('.lane-body') || e.target.closest('.lane-body');
   if(!laneBody) return;
   const {index,targetEl}=getDropTarget(laneBody,e.clientY);
   laneBody.dataset.dropIndex=index;
@@ -728,7 +757,7 @@ function pointerFromCardEnd(cardEl, e){
   draggingId=null;
   if(wasActive){
     suppressNextCardClick=true;
-    const laneBody=e.target.closest('.lane-body') || document.elementFromPoint(e.clientX,e.clientY)?.closest('.lane-body');
+    const laneBody=document.elementFromPoint(e.clientX, e.clientY)?.closest('.lane-body') || e.target.closest('.lane-body');
     if(laneBody){ moveToStageAt(dragId,laneBody.closest('.lane').dataset.stage,Number(laneBody.dataset.dropIndex??0)); }
     setHighlight(null);
     return;
@@ -805,10 +834,8 @@ function buildInlineTagEditor(tagArr){
   const inputRow = document.createElement("div");
   inputRow.className = "inline-tag-input-row";
   const tagIn = document.createElement("input");
-  tagIn.placeholder = "type tag, Enter or Add";
-  const addBtn = document.createElement("button");
-  addBtn.type = "button"; addBtn.textContent = "Add";
-  inputRow.append(tagIn, addBtn);
+  tagIn.placeholder = "type tag, press Enter";
+  inputRow.append(tagIn);
 
   const sugLabel = document.createElement("div");
   sugLabel.className = "inline-tag-sug-label";
@@ -831,7 +858,12 @@ function buildInlineTagEditor(tagArr){
 
   function renderSuggestions(){
     sugEl.innerHTML = "";
-    tagHistory.filter(t=>!tagArr.includes(t)).forEach(t=>{
+    const query = tagIn.value.trim().toLowerCase();
+    const show = query.length>0;
+    sugLabel.style.display = show ? "" : "none";
+    sugEl.style.display = show ? "" : "none";
+    if(!show) return;
+    tagHistory.filter(t=>!tagArr.includes(t) && t.toLowerCase().includes(query)).forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       const txt = document.createElement("span"); txt.textContent = t;
       const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "remove from list";
@@ -854,7 +886,7 @@ function buildInlineTagEditor(tagArr){
   }
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
-  addBtn.addEventListener("click", e=>{ e.stopPropagation(); commitInput(); });
+  tagIn.addEventListener("input", ()=> renderSuggestions());
 
   renderAssigned(); renderSuggestions();
   return wrap;
@@ -862,8 +894,23 @@ function buildInlineTagEditor(tagArr){
 
 function renderCard(card){
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
+  el.addEventListener("focusin", (e)=>{
+    if(e.target?.closest?.('input,textarea,select,[contenteditable]')) el.draggable=false;
+  });
+  el.addEventListener("focusout", ()=>{
+    requestAnimationFrame(()=>{
+      if(!hasActiveEditableInCard(el)) el.draggable=true;
+    });
+  });
   el.addEventListener("dragstart", e=>{
-    if(isInteractiveCardTarget(e.target) || e.target.closest('.card-links,.live-notes-preview,.attachment-list')){
+    const dragTarget = e.target;
+    if(
+      isInteractiveCardTarget(dragTarget) ||
+      isTextSelectableCardTarget(dragTarget) ||
+      hasActiveTextSelection() ||
+      hasActiveEditableInCard(el) ||
+      dragTarget?.closest?.('.card-links,.live-notes-preview,.attachment-list')
+    ){
       e.preventDefault();
       return;
     }
@@ -944,7 +991,19 @@ function renderCard(card){
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
   tagsRow.appendChild(p);
-  if(card.tags?.length){ card.tags.forEach(t=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=t; tagsRow.appendChild(chip); }); }
+  if(card.tags?.length){
+    card.tags.forEach(t=>{
+      const chip=document.createElement("button");
+      chip.type="button";
+      chip.className="chip tag-search-btn";
+      chip.textContent=t;
+      chip.title=`Search tag: ${t}`;
+      chip.addEventListener("click", (e)=>{ e.stopPropagation(); applyTagSearch(t); });
+      chip.addEventListener("pointerdown", e=>e.stopPropagation());
+      chip.addEventListener("pointerup", e=>e.stopPropagation());
+      tagsRow.appendChild(chip);
+    });
+  }
   el.append(tagsRow);
 
   const detail=document.createElement("div"); detail.className="card-detail";
@@ -1107,23 +1166,36 @@ function renderCard(card){
   });
   notesPreview.addEventListener("click", (e)=>{
     if(e.target.closest("a")) return;
+    if(hasActiveTextSelection()) return;
     e.stopPropagation();
     showInlineNotesEditor();
   });
   notesPreview.addEventListener("pointerdown", (e)=>{
-    if(e.target.closest("a")){
+    if(targetClosest(e.target,"a")){
       e.stopPropagation();
       return;
     }
     e.stopPropagation();
   });
   notesPreview.addEventListener("pointerup", (e)=>{
-    if(e.target.closest("a")){
+    if(targetClosest(e.target,"a")){
       e.stopPropagation();
       return;
     }
     e.stopPropagation();
   });
+  const restoreCardDraggable=()=>{
+    if(!hasActiveEditableInCard(el)) el.draggable=true;
+  };
+  notesWrap.addEventListener("pointerdown", (e)=>{
+    e.stopPropagation();
+    el.draggable=false;
+  });
+  notesWrap.addEventListener("pointerup", (e)=>{
+    e.stopPropagation();
+    restoreCardDraggable();
+  });
+  notesWrap.addEventListener("pointercancel", restoreCardDraggable);
   notesWrap.append(notesInput, notesPreview);
   showInlineNotesPreview();
 
@@ -1294,6 +1366,7 @@ function commitTagFromInput(){
 }
 tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
 tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
+tagInput.addEventListener("input", ()=> renderTagSuggestions());
 function renderTagChips(){
   tagChips.innerHTML="";
   activeTags.forEach(t=>{
@@ -1304,17 +1377,21 @@ function renderTagChips(){
   hiddenTags.value = activeTags.join(",");
 }
 function renderTagSuggestions(){
-  tagSuggestions.innerHTML=""; if(!tagHistory.length) return;
+  tagSuggestions.innerHTML="";
+  const query = tagInput.value.trim().toLowerCase();
+  if(!query || !tagHistory.length) return;
   const seen=new Set();
   tagHistory.forEach(t=>{
-    const k=t.toLowerCase(); if(seen.has(k)) return; seen.add(k);
+    const k=t.toLowerCase();
+    if(!k.includes(query) || seen.has(k) || activeTags.includes(t)) return;
+    seen.add(k);
     const el=document.createElement("span"); el.className="chip";
     const txt=document.createElement("span"); txt.textContent=t;
     const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
     el.append(txt,rm);
     el.onclick=(e)=>{
       if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); }
+      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); renderTagSuggestions(); }
     };
     tagSuggestions.appendChild(el);
   });
@@ -1397,11 +1474,11 @@ $("#bKeySwitch").addEventListener("click", ()=>{
   // reload state from the new slot
   const fresh = loadState();
   if(fresh){
-    Object.assign(state, fresh);
-    state.collapsed   = state.collapsed||{};
-    state.cardCollapsed = state.cardCollapsed||{};
-    state.archive     = Array.isArray(state.archive)?state.archive:[];
-    state.layout      = state.layout||"auto";
+    state = fresh;
+    state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
+    state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
+    state.archive = Array.isArray(state.archive) ? state.archive : [];
+    state.layout = state.layout || "auto";
   } else {
     state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
   }
@@ -1609,6 +1686,12 @@ function applySearch(q){
   highlightMatches(new Set(currentMatches.map(c=>c.id)), includes.length||excludes.length);
   renderResultsPreview(currentMatches.slice(0,120));
   $("#searchCount").textContent=(includes.length||excludes.length)? `${currentMatches.length} match(es)`:"";
+}
+function applyTagSearch(tag){
+  const next=(tag||"").trim().toLowerCase();
+  if(!next) return;
+  searchInput.value=next;
+  applySearch(next);
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
 function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
@@ -1907,11 +1990,11 @@ function sanitizeMarkdownImages(s){
     updateKeyLabel();
     const fresh = loadState();
     if(fresh){
-      Object.assign(state, fresh);
-      state.collapsed = state.collapsed||{};
-      state.cardCollapsed = state.cardCollapsed||{};
-      state.archive = Array.isArray(state.archive)?state.archive:[];
-      state.layout = state.layout||"auto";
+      state = fresh;
+      state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
+      state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
+      state.archive = Array.isArray(state.archive) ? state.archive : [];
+      state.layout = state.layout || "auto";
     } else {
       state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
     }

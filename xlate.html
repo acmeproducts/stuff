@@ -183,7 +183,7 @@
             <h2>Thai Audio → English Text</h2>
             <p>Drop any Thai audio file. Speechmatics transcribes it server-side, then MyMemory translates to English. Results persist across reloads.</p>
             <div class="pipeline-note">
-                <span>Speechmatics</span> STT → <span>MyMemory</span> translate (free)
+                <span>Speechmatics</span> STT + speaker diarization → <span>MyMemory</span> translate (free)
             </div>
             <div class="drop-zone" id="dropZone">
                 <div class="drop-zone-label">📂 Drop audio file or click to browse</div>
@@ -243,6 +243,14 @@
                     <option value="lingva">Lingva (open-source Google proxy)</option>
                 </select>
             </div>
+            <div class="field">
+                <div class="field-label">Speaker Attribution</div>
+                <select class="field-select" id="diarizationSelect">
+                    <option value="speaker">Speaker diarization</option>
+                    <option value="none">Off</option>
+                </select>
+                <div class="field-hint">Speaker diarization labels transcript segments like S1, S2 so you can see who said what.</div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-outline" id="settingsCancel">Cancel</button>
@@ -257,7 +265,7 @@
 <script>
 const CONFIG_KEY='thai-transcriber-v11-config';
 const LIB_KEY='xlate-library-v11'; // stores {[fileName]: sessionObj}
-let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'speechmatics',xlateEngine:'mymemory'};
+let config={apiKey:'',dgModel:'nova-2',smKey:'',sttEngine:'speechmatics',xlateEngine:'mymemory',diarizationMode:'speaker'};
 let state={session:null,translating:false,abortController:null,audioUrl:null};
 
 function init(){
@@ -281,7 +289,7 @@ function saveSession(){
             savedAt:Date.now(),
             paragraphs:state.session.paragraphs.map(p=>({
                 index:p.index,startTime:p.startTime,endTime:p.endTime,
-                thai:p.thai,english:p.english,confidence:p.confidence,
+                thai:p.thai,english:p.english,confidence:p.confidence,speaker:p.speaker||'Unknown',
                 btThai:null,btEnglish:null,btStatus:'idle',btOpen:false
             }))
         };
@@ -300,6 +308,16 @@ function checkSavedSession(){
     if(entries.length)showLibrary(entries);
 }
 
+
+function normalizeSpeakerLabel(v){
+    if(v==null||v==='')return'Unknown';
+    return String(v).toUpperCase();
+}
+
+function speakerLabel(p){
+    return normalizeSpeakerLabel(p?.speaker);
+}
+
 function buildMarkdown(s){
     const paras=s.paragraphs.filter(p=>p.thai);
     let md=`# ${s.name}\n\n**File:** ${s.fileName}\n**Saved:** ${new Date(s.savedAt).toLocaleString()}\n\n---\n\n## English Translation\n\n`;
@@ -308,7 +326,7 @@ function buildMarkdown(s){
     for(const p of paras){
         const id=String(p.index+1).padStart(3,'0');
         const conf=p.confidence!=null?` · ${Math.round(p.confidence*100)}% conf`:'';
-        md+=`### [${id}] ${fmtTime(p.startTime)} → ${fmtTime(p.endTime)}${conf}\n\n`;
+        md+=`### [${id}] ${speakerLabel(p)} · ${fmtTime(p.startTime)} → ${fmtTime(p.endTime)}${conf}\n\n`;
         if(p.thai)md+=`🇹🇭 ${p.thai}\n\n`;
         if(p.english)md+=`🇺🇸 ${p.english}\n\n`;
     }
@@ -364,7 +382,7 @@ function showLibrary(entries){
 
 function restoreSession(fileName){
     const lib=loadLibrary();const saved=lib[fileName];if(!saved)return;
-    state.session={...saved};
+    state.session={...saved, paragraphs:(saved.paragraphs||[]).map(p=>({...p,speaker:p.speaker||'Unknown'}))};
     renderSession();
     const incomplete=saved.paragraphs.some(p=>!p.english);
     if(incomplete)translateAll();
@@ -387,6 +405,7 @@ function loadConfig(){
     document.getElementById('smKeyInput').value=config.smKey||'';
     document.getElementById('sttEngineSelect').value=config.sttEngine||'deepgram';
     document.getElementById('xlateSelect').value=config.xlateEngine;
+    const diarizationEl=document.getElementById('diarizationSelect'); if(diarizationEl)diarizationEl.value=config.diarizationMode||'speaker';
     toggleSttFields();
 }
 
@@ -402,6 +421,7 @@ function saveConfig(){
     config.smKey=document.getElementById('smKeyInput').value.trim();
     config.sttEngine=document.getElementById('sttEngineSelect').value;
     config.xlateEngine=document.getElementById('xlateSelect').value;
+    const diarizationEl=document.getElementById('diarizationSelect'); if(diarizationEl)config.diarizationMode=diarizationEl.value;
     localStorage.setItem(CONFIG_KEY,JSON.stringify(config));
     updateApiStatus();
 }
@@ -429,6 +449,7 @@ function setupEvents(){
         document.getElementById('smKeyInput').value=config.smKey||'';
         document.getElementById('sttEngineSelect').value=config.sttEngine||'deepgram';
         document.getElementById('xlateSelect').value=config.xlateEngine;
+    const diarizationEl=document.getElementById('diarizationSelect'); if(diarizationEl)diarizationEl.value=config.diarizationMode||'speaker';
         toggleSttFields();
         document.getElementById('settingsOverlay').classList.remove('hidden');
     };
@@ -467,7 +488,7 @@ async function handleFile(file){
         }
         state.session={
             name:file.name.replace(/\.[^.]+$/,''),fileName:file.name,fileSize:file.size,savedAt:Date.now(),
-            paragraphs:paragraphs.map((p,i)=>({index:i,startTime:p.start,endTime:p.end,thai:p.transcript,english:null,confidence:p.confidence,btThai:null,btEnglish:null,btStatus:'idle',btOpen:false}))
+            paragraphs:paragraphs.map((p,i)=>({index:i,startTime:p.start,endTime:p.end,thai:p.transcript,english:null,confidence:p.confidence,speaker:p.speaker||'Unknown',btThai:null,btEnglish:null,btStatus:'idle',btOpen:false}))
         };
         saveSession();
         toast('ok',`${paragraphs.length} paragraphs transcribed · translating now…`);
@@ -479,7 +500,7 @@ async function handleFile(file){
 }
 
 function showWelcome(){
-    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. Speechmatics transcribes it server-side, then MyMemory translates to English. Results persist across reloads.</p><div class="pipeline-note"><span>Speechmatics</span> STT → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
+    document.getElementById('mainArea').innerHTML=`<div class="welcome" id="welcomeView"><div class="welcome-icon">🎙️</div><h2>Thai Audio → English Text</h2><p>Drop any Thai audio file. Speechmatics transcribes it server-side, then MyMemory translates to English. Results persist across reloads.</p><div class="pipeline-note"><span>Speechmatics</span> STT + speaker diarization → <span>MyMemory</span> translate (free)</div><div class="drop-zone" id="dropZone"><div class="drop-zone-label">📂 Drop audio file or click to browse</div><div class="drop-zone-sub">m4a · mp3 · wav · ogg · flac · aac · webm</div></div></div>`;
     const drop=document.getElementById('dropZone'),fi=document.getElementById('fileInput');
     drop.onclick=()=>fi.click();
     drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragover');};
@@ -586,15 +607,18 @@ async function transcribeFile(file){
 function avgConf(words){if(!words.length)return null;return words.reduce((s,w)=>s+(w.confidence||0),0)/words.length;}
 
 function splitWordsByTime(words,windowSec){
-    const segs=[];let segStart=words[0]?.start||0,segWords=[];
+    const segs=[];if(!words.length)return segs;
+    let segStart=words[0]?.start||0,segWords=[],currentSpeaker=normalizeSpeakerLabel(words[0]?.speaker);
     for(const w of words){
-        segWords.push(w);
-        if(w.end-segStart>=windowSec){
-            segs.push({start:segStart,end:w.end,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords)});
-            segStart=w.end;segWords=[];
+        const wordSpeaker=normalizeSpeakerLabel(w?.speaker);
+        const shouldSplit=segWords.length&&((w.end-segStart)>=windowSec||wordSpeaker!==currentSpeaker);
+        if(shouldSplit){
+            segs.push({start:segStart,end:segWords[segWords.length-1]?.end||segStart,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords),speaker:currentSpeaker});
+            segWords=[];segStart=w.start;currentSpeaker=wordSpeaker;
         }
+        segWords.push(w);
     }
-    if(segWords.length)segs.push({start:segStart,end:segWords[segWords.length-1]?.end||segStart,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords)});
+    if(segWords.length)segs.push({start:segStart,end:segWords[segWords.length-1]?.end||segStart,transcript:segWords.map(x=>x.punctuated_word||x.word).join(' '),confidence:avgConf(segWords),speaker:currentSpeaker});
     return segs;
 }
 
@@ -610,7 +634,7 @@ async function transcribeWithSpeechmatics(file){
     form.append('data_file',file);
     form.append('config',JSON.stringify({
         type:'transcription',
-        transcription_config:{language:'th',operating_point:'enhanced',punctuation_overrides:{permitted_marks:['.','?','!',',']}}
+        transcription_config:{language:'th',operating_point:'standard',diarization:config.diarizationMode||'speaker',punctuation_overrides:{permitted_marks:['.','?','!',',']}}
     }));
 
     const submitResp=await fetch(`${BASE}/jobs/`,{method:'POST',headers,body:form});
@@ -651,7 +675,8 @@ async function transcribeWithSpeechmatics(file){
         word:w.alternatives?.[0]?.content||'',
         punctuated_word:w.alternatives?.[0]?.content||'',
         start:w.start_time,end:w.end_time,
-        confidence:w.alternatives?.[0]?.confidence??null
+        confidence:w.alternatives?.[0]?.confidence??null,
+        speaker:w.speaker||w.alternatives?.[0]?.speaker||'Unknown'
     })),300);
 }
 
@@ -748,11 +773,12 @@ function redoBt(index){
 
 function renderSession(){
     const s=state.session;if(!s)return;
+    const speakerCount=new Set(s.paragraphs.map(p=>speakerLabel(p)).filter(v=>v&&v!=='Unknown')).size;
     document.getElementById('mainArea').innerHTML=`
         <div class="session-bar">
             <div class="session-info">
                 <div class="session-name">${esc(s.name)}</div>
-                <div class="session-meta"><span>${esc(s.fileName)}</span><span>${s.paragraphs.length} paragraphs</span><span>${fmtSize(s.fileSize)}</span></div>
+                <div class="session-meta"><span>${esc(s.fileName)}</span><span>${s.paragraphs.length} paragraphs</span><span>${speakerCount||0} speakers</span><span>${fmtSize(s.fileSize)}</span></div>
             </div>
             <div class="session-actions">
                 <button class="btn btn-outline btn-sm" id="newFileBtn">📂 New File</button>
@@ -781,6 +807,8 @@ function createParaEl(index){
     const wrapper=document.createElement('div');wrapper.className='para-wrapper';wrapper.id='para-'+index;
     const id=String(index+1).padStart(3,'0');
     const time=fmtTime(p.startTime)+' → '+fmtTime(p.endTime);
+    const speaker=speakerLabel(p);
+    const speakerBadge=`<span class="speaker-badge">${esc(speaker)}</span>`;
     const confColor=p.confidence==null?'':p.confidence>.85?'var(--ok)':p.confidence>.6?'var(--warn)':'var(--err)';
     const confBadge=p.confidence!=null?`<span class="conf-badge" style="color:${confColor};background:${confColor}18">${Math.round(p.confidence*100)}%</span>`:'';
     const thaiContent=p.thai?`<div class="cell-text thai-text">${esc(p.thai)}</div>
@@ -800,7 +828,7 @@ function createParaEl(index){
     let drawerContent='';
     if(btDone){drawerContent=`<div class="bt-content"><div class="bt-col"><div class="bt-col-label"><span class="bt-arrow">↩</span> English → Thai</div><div class="bt-text thai-text">${esc(p.btThai)||'<span class="empty">—</span>'}</div></div><div class="bt-col"><div class="bt-col-label"><span class="bt-arrow">↩</span> Thai → English (fresh)</div><div class="bt-text">${esc(p.btEnglish)||'<span class="empty">—</span>'}</div></div></div><div class="bt-actions"><button class="cell-action" onclick="redoBt(${index})">🔄 Redo</button></div>`;}
     else if(btLoading){drawerContent=`<div class="bt-content"><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div><div class="bt-col"><div class="bt-text empty">⏳ Generating...</div></div></div>`;}
-    wrapper.innerHTML=`<div class="para-row${p.english==null?' translating':''}"><div class="cell"><div class="cell-head"><span class="cell-id">${id}</span><span class="cell-time">${time}</span>${confBadge}</div>${thaiContent}</div><div class="cell"><div class="cell-head"></div>${engContent}</div></div><div class="${toggleClass}" onclick="toggleBt(${index})"><span class="bt-chevron">▶</span><div class="bt-spinner"></div><span class="bt-label">${btLabel}</span>${canBt?`<span class="bt-note">${config.xlateEngine}</span>`:''}</div><div class="bt-drawer${p.btOpen?' open':''}"> ${drawerContent}</div>`;
+    wrapper.innerHTML=`<div class="para-row${p.english==null?' translating':''}"><div class="cell"><div class="cell-head"><span class="cell-id">${id}</span>${speakerBadge}<span class="cell-time">${time}</span>${confBadge}</div>${thaiContent}</div><div class="cell"><div class="cell-head">${speakerBadge}</div>${engContent}</div></div><div class="${toggleClass}" onclick="toggleBt(${index})"><span class="bt-chevron">▶</span><div class="bt-spinner"></div><span class="bt-label">${btLabel}</span>${canBt?`<span class="bt-note">${config.xlateEngine}</span>`:''}</div><div class="bt-drawer${p.btOpen?' open':''}"> ${drawerContent}</div>`;
     return wrapper;
 }
 
