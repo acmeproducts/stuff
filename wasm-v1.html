@@ -33,10 +33,9 @@
   <div class="box"><h3>Logs</h3><pre id="logs"></pre></div>
 
 <script>
-const FT_BASE=(location.pathname.includes('/stuff/')?'/stuff/':'/')+'fastType/';
-const FT_WRAPPER=FT_BASE+'fasttext-wrapper.umd.js';
-const FT_WASM=FT_BASE+'core/fasttext.wasm';
-const FT_MODEL=FT_BASE+'model/lid.176.ftz';
+const FT_WRAPPER='fastType/fasttext-wrapper.umd.js';
+const FT_WASM='fastType/core/fasttext.wasm';
+const FT_MODEL='fastType/model/lid.176.ftz';
 const SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
 let ft=null,loaded=false;
 
@@ -65,7 +64,7 @@ async function run(){
     stage('probe model','pending',FT_MODEL); stage('probe model','ok',`${await probe(FT_MODEL)} bytes`);
 
     stage('load wrapper','pending',FT_WRAPPER);
-    window.Module={locateFile:(p)=>{const n=String(p||'').split('/').pop().split('\\').pop();return /\.wasm$/i.test(String(p||''))?FT_WASM:(FT_BASE+n);}};
+    window.Module={locateFile:(p)=>/\.wasm$/i.test(String(p||''))?FT_WASM:`fastType/${String(p||'').split('/').pop().split('\\').pop()}`};
     window.FastTextModule=window.Module;
     await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=FT_WRAPPER;s.onload=resolve;s.onerror=()=>reject(new Error('wrapper script load failed'));document.head.appendChild(s);});
     stage('load wrapper','ok','loaded');
@@ -79,17 +78,9 @@ async function run(){
     stage('constructor','ok','instance ready');
 
     stage('loadModel','pending',FT_MODEL);
-    try{
-      await ft.loadModel(FT_MODEL);
-      loaded=true;
-      stage('loadModel','ok','resolved');
-    }catch(firstErr){
-      const alt='/stuff/fastType/model/lid.176.ftz';
-      log('warn','loadModel_retry',Object.assign({attempt:'absolute_subpath',model:alt},normErr('loadModel_first',firstErr)));
-      await ft.loadModel(alt);
-      loaded=true;
-      stage('loadModel','ok',`resolved via retry: ${alt}`);
-    }
+    await ft.loadModel(FT_MODEL);
+    loaded=true;
+    stage('loadModel','ok','resolved');
 
     stage('smoke','pending',`${SMOKE.length} tests`);
     for(const [text,exp] of SMOKE){const p=parsePrediction(ft.predict(text,1));if(p.label!==exp)throw new Error(`smoke mismatch exp=${exp} got=${p.label}`);}
