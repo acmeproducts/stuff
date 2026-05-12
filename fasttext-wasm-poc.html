@@ -85,7 +85,6 @@
       let detail;
       try { detail = JSON.stringify(err); } catch (_) { detail = String(err); }
       if (!detail || detail === '{}' || detail === 'null') detail = String(err);
-      if (t === 'number') detail = `numeric runtime error code: ${detail}`;
       return { context, type: t, detail, timestamp: nowTs() };
     }
     function log(level, context, payload) {
@@ -185,20 +184,13 @@
 
       setStage('model load', 'pending', FT_MODEL);
       const start = performance.now();
-      try {
-        await Promise.race([
-          ftInstance.loadModel(FT_MODEL),
-          new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${FT_LOAD_TIMEOUT_MS}ms`)), FT_LOAD_TIMEOUT_MS))
-        ]);
-        const ms = Math.round(performance.now() - start);
-        setStage('model load', 'ok', `${ms}ms`);
-        log('ok', 'model_load', { ms });
-      } catch (e) {
-        const n = normErr('model_load', e);
-        setStage('model load', 'error', n.detail);
-        log('error', 'model_load', n);
-        throw e;
-      }
+      await Promise.race([
+        ftInstance.loadModel(FT_MODEL),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${FT_LOAD_TIMEOUT_MS}ms`)), FT_LOAD_TIMEOUT_MS))
+      ]);
+      const ms = Math.round(performance.now() - start);
+      setStage('model load', 'ok', `${ms}ms`);
+      log('ok', 'model_load', { ms });
     }
 
     async function runSmoke() {
