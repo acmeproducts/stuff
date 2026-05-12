@@ -1,139 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Site Bundler - Art Edition</title>
+    <title>Site Bundler</title>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; background: #1a1a2e; color: #eaeaea; }
-        h1 { color: #e94560; }
-        input { width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; }
-        button { padding: 12px 24px; margin: 10px 5px 10px 0; cursor: pointer; background: #0f3460; color: white; border: none; border-radius: 4px; }
-        button:hover { background: #16213e; }
-        button.primary { background: #e94560; }
-        .status { margin: 20px 0; padding: 15px; border-radius: 4px; }
-        .status.success { background: #16c79a; color: #000; }
-        .status.error { background: #e94560; }
-        .status.loading { background: #0f3460; }
-        #download { display: none; margin-top: 20px; padding: 20px; background: #16c79a; text-align: center; border-radius: 8px; }
-        #download a { color: #000; font-weight: bold; font-size: 18px; text-decoration: none; }
-        .logs { background: #0f3460; padding: 15px; margin-top: 20px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
-        .log-success { color: #16c79a; }
-        .log-error { color: #e94560; }
-        .log-warn { color: #ffb800; }
+        body { font-family: sans-serif; max-width: 700px; margin: 50px auto; padding: 20px; background: #0d1117; color: #c9d1d9; }
+        input { width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+        button { padding: 12px 24px; background: #238636; color: white; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px; }
+        button:hover { background: #2ea043; }
+        button:disabled { background: #484f58; }
+        #status { margin: 20px 0; padding: 15px; border-radius: 6px; display: none; }
+        #status.error { background: #da363320; border: 1px solid #da3633; display: block; }
+        #status.success { background: #23863620; border: 1px solid #238636; display: block; }
+        #status.loading { background: #1f6feb20; border: 1px solid #58a6ff; display: block; }
+        #download { display: none; margin-top: 20px; text-align: center; }
+        #download a { display: inline-block; padding: 15px 40px; background: #238636; color: white; text-decoration: none; border-radius: 8px; font-size: 18px; }
+        #logs { margin-top: 20px; background: #0d1117; border: 1px solid #30363d; padding: 15px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; display: none; }
+        .log-line { margin: 2px 0; color: #8b949e; }
+        .log-ok { color: #56d364; }
+        .log-err { color: #f85149; }
     </style>
 </head>
 <body>
-    <h1>🎨 Site Bundler - Generative Art Edition</h1>
-    <p>Smart mode extracts iframe content and makes it the primary display</p>
+    <h1>🔽 Site Bundler</h1>
     
-    <input type="url" id="url" value="https://andrewmcwhae.ca/2025/06/16/perpendicular/" />
+    <input type="url" id="url" value="https://andrewmcwhae.ca/2025/06/16/perpendicular/" placeholder="URL to bundle..." />
     
     <div>
-        <button class="primary" onclick="bundle('smart')">Smart Bundle (Extract Art)</button>
-        <button onclick="bundle('full')">Full Bundle (Everything)</button>
-        <button onclick="document.getElementById('url').value='https://andrewmcwhae.ca/2025/06/16/perpendicular/'">Perpendicular</button>
+        <button onclick="bundle()">Bundle</button>
+        <button onclick="setUrl('https://andrewmcwhae.ca/2025/06/16/perpendicular/')" style="background:#1f6feb">Perpendicular</button>
+        <button onclick="document.getElementById('logs').style.display='block'">Show Logs</button>
     </div>
     
     <div id="status"></div>
     
     <div id="download">
-        <a id="link" href="#" download>⬇ Download</a>
-        <div id="stats"></div>
+        <a id="link" href="#" download="bundled.html">⬇ Download</a>
     </div>
     
-    <div id="logs" class="logs" style="display: none;"></div>
+    <div id="logs"></div>
 
     <script>
         const WORKER = 'https://site-bundler.myacctfortracking.workers.dev/';
         
-        function log(msg, type = 'info') {
-            const div = document.createElement('div');
-            div.className = `log-${type}`;
-            div.textContent = msg;
-            const logs = document.getElementById('logs');
-            logs.appendChild(div);
-            logs.style.display = 'block';
-            logs.scrollTop = logs.scrollHeight;
+        function setUrl(u) { document.getElementById('url').value = u; }
+        
+        function log(msg, ok) {
+            const d = document.createElement('div');
+            d.className = ok ? 'log-ok' : 'log-line';
+            d.textContent = msg;
+            document.getElementById('logs').appendChild(d);
         }
         
-        async function bundle(mode) {
+        async function bundle() {
             const url = document.getElementById('url').value;
-            if (!url) return alert('Enter URL');
+            if (!url) return;
             
-            document.getElementById('status').className = 'status loading';
-            document.getElementById('status').textContent = mode === 'smart' ? 'Extracting generative art...' : 'Bundling everything...';
-            document.getElementById('download').style.display = 'none';
+            const btn = document.querySelector('button');
+            const status = document.getElementById('status');
+            const download = document.getElementById('download');
+            
+            btn.disabled = true;
+            status.className = 'loading';
+            status.textContent = 'Bundling... (may take 30-60s for large sites)';
+            status.style.display = 'block';
+            download.style.display = 'none';
             document.getElementById('logs').innerHTML = '';
             
             try {
                 const res = await fetch(WORKER, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, mode })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url})
                 });
                 
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); } catch(e) { throw new Error('Invalid response: ' + text.slice(0,100)); }
                 
-                if (data.logs) {
-                    data.logs.forEach(l => {
-                        const type = l.includes('[EXTRACT]') ? 'success' : 
-                                    l.includes('[FAIL]') || l.includes('[ERROR]') ? 'error' :
-                                    l.includes('[SKIP]') ? 'warn' : 'info';
-                        log(l, type);
-                    });
-                }
-                
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
                 if (!data.success) throw new Error(data.error);
                 
+                if (data.logs) data.logs.forEach(l => log(l, l.includes('[OK]') || l.includes('Complete')));
+                
                 const html = decodeURIComponent(escape(atob(data.html)));
+                const blob = new Blob([html], {type: 'text/html'});
+                const objUrl = URL.createObjectURL(blob);
                 
-                // Auto-detect if we need to extract just the art
-                if (mode === 'smart' && data.extractedIframes && data.extractedIframes.length > 0) {
-                    // Option: Create a clean version with just the art
-                    const artIframe = data.extractedIframes[0]; // Usually the main content
-                    const cleanHtml = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Perpendicular - Standalone</title>
-<style>
-body { margin: 0; padding: 0; overflow: hidden; }
-canvas { display: block; }
-</style>
-</head>
-<body>
-${artIframe.bundled}
-</body>
-</html>`;
-                    
-                    const blob = new Blob([cleanHtml], {type: 'text/html'});
-                    const objUrl = URL.createObjectURL(blob);
-                    document.getElementById('link').href = objUrl;
-                    document.getElementById('link').download = 'perpendicular-standalone.html';
-                    document.getElementById('stats').innerHTML = `
-                        Mode: Smart Extract<br>
-                        Art size: ${(artIframe.size/1024/1024).toFixed(2)} MB<br>
-                        Final size: ${(blob.size/1024/1024).toFixed(2)} MB
-                    `;
-                } else {
-                    const blob = new Blob([html], {type: 'text/html'});
-                    const objUrl = URL.createObjectURL(blob);
-                    document.getElementById('link').href = objUrl;
-                    document.getElementById('link').download = 'bundled-site.html';
-                    document.getElementById('stats').innerHTML = `Size: ${(blob.size/1024/1024).toFixed(2)} MB`;
-                }
+                document.getElementById('link').href = objUrl;
+                document.getElementById('link').download = 'bundled-' + url.replace(/[^a-z0-9]/gi, '-').slice(0,30) + '.html';
+                document.getElementById('link').textContent = `⬇ Download (${(blob.size/1024/1024).toFixed(2)} MB)`;
                 
-                document.getElementById('status').className = 'status success';
-                document.getElementById('status').textContent = '✅ Success!';
-                document.getElementById('download').style.display = 'block';
+                status.className = 'success';
+                status.textContent = '✅ Success!';
+                download.style.display = 'block';
                 
-            } catch (err) {
-                document.getElementById('status').className = 'status error';
-                document.getElementById('status').textContent = '❌ ' + err.message;
-                log('FATAL: ' + err.message, 'error');
+            } catch(err) {
+                status.className = 'error';
+                status.textContent = '❌ ' + err.message;
+                log('FATAL: ' + err.message, false);
+            } finally {
+                btn.disabled = false;
             }
         }
+        
+        document.getElementById('url').addEventListener('keypress', e => { if(e.key==='Enter') bundle(); });
     </script>
 </body>
 </html>
