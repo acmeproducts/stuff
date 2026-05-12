@@ -13,7 +13,6 @@
   <h1>fastText WASM smoke test</h1>
   <pre id="log">Running...</pre>
   <script type="module">
-    import { FastText } from "./fasttext-wrapper.mjs";
 
     const logEl = document.getElementById("log");
     const lines = [];
@@ -45,22 +44,31 @@
       return String(label || "").replace(/^__label__/, "").replace(/^label__/, "");
     }
 
-    window.Module = window.Module || {};
-    window.FastTextModule = {
+    const moduleConfig = {
       locateFile(path) {
-        if (path.endsWith(".wasm")) return new URL("./core/fasttext.wasm", window.location.href).href;
-        return new URL(path, window.location.href).href;
+        if (/\.wasm$/i.test(String(path || ""))) return new URL("./core/fasttext.wasm", window.location.href).href;
+        const base = String(path || "").split("/").pop().split("\\").pop();
+        return new URL("./" + base, window.location.href).href;
       }
     };
+    window.Module = moduleConfig;
+    window.FastTextModule = moduleConfig;
 
     try {
-      const wasmUrl = window.FastTextModule.locateFile("fasttext.wasm");
+      const wasmUrl = moduleConfig.locateFile("fasttext.wasm");
       const wasmResponse = await fetch(wasmUrl);
       if (!wasmResponse.ok) fail("WASM fetch returned HTTP " + wasmResponse.status);
       const wasmBytes = await wasmResponse.arrayBuffer();
       if (wasmBytes.byteLength <= 0) fail("WASM fetch returned zero bytes");
       log("WASM HTTP 200 and nonzero bytes: " + wasmBytes.byteLength);
 
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "./fasttext-wrapper.umd.js";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
       const ft = new FastText();
       await ft.loadModel(new URL("./model/lid.176.ftz", window.location.href).href);
       log("loadModel resolved");

@@ -823,8 +823,29 @@ function detectLang(text,src){return src||'en';}
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
 var FT_CONF=0.5,FT_LOAD_TIMEOUT_MS=5000;
-var FT_ASSETS=['fastType/fastText.common.js','fastType/fastText.common.wasm','fastType/lid.176.ftz'];
+var FT_WRAPPER_JS='fastType/fasttext-wrapper.umd.js';
+var FT_CORE_JS='fastType/core/fasttext.mjs';
+var FT_CORE_WASM='fastType/core/fasttext.wasm';
+var FT_MODEL='fastType/model/lid.176.ftz';
+var FT_ASSETS=[FT_WRAPPER_JS,FT_CORE_JS,FT_CORE_WASM,FT_MODEL];
 var FT_SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
+var _ftStartupOverlay=null,_ftStartupStatus=null;
+function _ftEnsureStartupOverlay(){
+  if(_ftStartupOverlay)return;
+  var el=document.createElement('div');
+  el.style.cssText='position:fixed;inset:0;z-index:120;background:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-family:DM Sans,sans-serif;color:#e8e4df;';
+  el.innerHTML='<div style="font-size:15px;font-weight:700;color:#3FC1C1;">TalkBridge startup</div><div id="ft-startup-status" style="font-size:13px;color:#aaa;">Initializing language detector…</div>';
+  document.body.appendChild(el);
+  _ftStartupOverlay=el;
+  _ftStartupStatus=el.querySelector('#ft-startup-status');
+}
+function _ftStartupStep(step,extra){ _ftEnsureStartupOverlay(); var msg='Startup: '+step+(extra?(' · '+extra):''); if(_ftStartupStatus)_ftStartupStatus.textContent=msg; log('ft_startup_step',{step:step,extra:extra||null}); }
+function _ftStartupDone(ok,msg){
+  _ftEnsureStartupOverlay();
+  if(_ftStartupStatus)_ftStartupStatus.textContent=ok?'Detector ready':'Degraded mode: language detector unavailable';
+  log('ft_startup_'+(ok?'ready':'degraded'),{message:msg||null},ok?'ok':'warn');
+  if(ok){setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},400);}
+}
 function _ftWhitelist(){return Object.keys(LANGS||{});} 
 function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
 function _syncFtStatus(){
@@ -857,39 +878,43 @@ function _ftPredictLabel(ft,text){
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
+  _ftStartupStep('asset probes');
   Promise.all(FT_ASSETS.map(_probeFtAsset)).then(function(){
+    _ftStartupStep('runtime bootstrap load');
     var ftModuleConfig={locateFile:function(path){
       var p=String(path||'');
-      if(/\.wasm$/i.test(p))return 'fastType/fastText.common.wasm';
+      if(/\.wasm$/i.test(p))return FT_CORE_WASM;
       var base=p.split('/').pop().split('\\').pop();
       return 'fastType/'+base;
     }};
     window.Module=ftModuleConfig;
     window.FastTextModule=ftModuleConfig;
-    log('ft_load_start',{src:'fastType/fastText.common.js'});
-    var s=document.createElement('script');s.src='fastType/fastText.common.js';
-    s.onerror=function(){ log('ft_load_err',{src:s.src},'error'); _ftLoadFailed=true;_syncFtStatus(); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
+    log('ft_load_start',{src:FT_WRAPPER_JS});
+    var s=document.createElement('script');s.src=FT_WRAPPER_JS;
+    s.onerror=function(){ log('ft_load_err',{src:s.src},'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
     s.onload=function(){
       if(typeof FastText==='undefined'){log('ft_no_global',{},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
       try{
         var ft=new FastText();
-        log('ft_model_load',{model:'fastType/lid.176.ftz'});
-        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
-        ft.loadModel('fastType/lid.176.ftz').then(function(){
+        _ftStartupStep('model load');
+        log('ft_model_load',{model:FT_MODEL});
+        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'model_timeout');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
+        ft.loadModel(FT_MODEL).then(function(){
+          _ftStartupStep('smoke tests');
           return Promise.all(FT_SMOKE.map(function(pair){
             var got=_ftPredictLabel(ft,pair[0]);
             if(got!==pair[1])throw new Error('smoke_'+pair[1]+'_got_'+got);
             return got;
           }));
         }).then(function(){
-          clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+          clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();_ftStartupDone(true,'ready');log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
         }).catch(function(e){
-          clearTimeout(timer);log('ft_model_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
+          clearTimeout(timer);log('ft_model_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
         });
-      }catch(e){log('ft_init_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+      }catch(e){log('ft_init_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
     };
     document.head.appendChild(s);
-  }).catch(function(){_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
+  }).catch(function(e){_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
