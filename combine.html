@@ -1,2 +1,921 @@
 <!DOCTYPE html>
-<!-- Deprecated shim: phrasebook is now integrated into bridge8-patched.html. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Suite</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 60px;
+            background: rgba(20,20,20,0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            z-index: 1000;
+            border-bottom: 1px solid #333;
+        }
+        
+        .gear-btn {
+            width: 40px; height: 40px;
+            background: transparent;
+            border: 1px solid #444;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #e0e0e0;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+        
+        .gear-btn:hover { background: #222; border-color: #666; }
+        .gear-btn.spinning { animation: spin 2s linear infinite; }
+        
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        .panel {
+            position: fixed;
+            top: 60px; 
+            right: -400px;
+            width: 400px;
+            height: calc(100vh - 60px);
+            background: rgba(15,15,15,0.98);
+            border-left: 1px solid #333;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            z-index: 999;
+            padding: 2rem;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+        }
+        
+        .panel.open { right: 0; }
+        
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            padding: 100px 2rem 2rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .app-container {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .app-header {
+            padding: 1rem;
+            background: #161616;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .app-canvas-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #000;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: crisp-edges;
+            cursor: pointer;
+            display: block;
+        }
+        
+        .control-group {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #222;
+        }
+        
+        .control-group h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 0.75rem;
+            letter-spacing: 0.1em;
+        }
+        
+        .btn {
+            background: #222;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .btn:hover { background: #333; border-color: #666; }
+        .btn.primary { background: #0066cc; border-color: #0066cc; }
+        .btn.primary:hover { background: #0052a3; border-color: #0052a3; }
+        .btn.danger { background: #cc3300; border-color: #cc3300; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #333;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        
+        .toggle.active { background: #0066cc; }
+        
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px; left: 2px;
+            width: 20px; height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        
+        .toggle.active::after { transform: translateX(20px); }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 0.5rem 0;
+            accent-color: #0066cc;
+        }
+        
+        .value-display {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #888;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .log-stats {
+            background: #1a1a1a;
+            padding: 1rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .status-indicator.active { background: #00cc66; box-shadow: 0 0 8px #00cc66; }
+        .status-indicator.idle { background: #666; }
+        
+        .progress-ring {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px; height: 100px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        
+        .progress-ring.active { opacity: 1; }
+        
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            background: #222;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .hidden-file-input { display: none; }
+        
+        @media (max-width: 768px) {
+            .app-grid { grid-template-columns: 1fr; padding: 80px 1rem 1rem 1rem; }
+            .panel { width: 100%; right: -100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <h1 style="font-size:1.1rem;font-weight:600;">Generative Suite</h1>
+        <span id="auto-status" style="font-size:0.8rem;color:#666;">
+            <span class="status-indicator idle"></span>Manual
+        </span>
+    </div>
+    <button class="gear-btn" id="gearBtn" title="Control Panel">⚙</button>
+</div>
+
+<div class="panel" id="controlPanel">
+    <div class="control-group">
+        <h3>Auto Generation</h3>
+        <div class="toggle-row">
+            <span>Enable Auto-Generate</span>
+            <div class="toggle" id="autoToggle"></div>
+        </div>
+        <div style="margin-top:0.75rem;">
+            <label>Interval: <span class="value-display" id="intervalVal">5000</span>ms</label>
+            <input type="range" id="intervalRange" min="1000" max="30000" value="5000" step="1000">
+        </div>
+        <div style="margin-top:0.75rem;">
+            <label>Mode</label>
+            <select id="autoMode">
+                <option value="sequential">Sequential</option>
+                <option value="random">Random App</option>
+                <option value="all">All Simultaneous</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="control-group">
+        <h3>Active Apps</h3>
+        <div class="toggle-row"><span>Perpendicular</span><div class="toggle active" data-app="perpendicular"></div></div>
+        <div class="toggle-row"><span>FIVE</span><div class="toggle active" data-app="five"></div></div>
+        <div class="toggle-row"><span>Stencil</span><div class="toggle active" data-app="stencil"></div></div>
+        <div class="toggle-row"><span>Aether</span><div class="toggle active" data-app="aether"></div></div>
+    </div>
+    
+    <div class="control-group">
+        <h3>Session Log</h3>
+        <div class="log-stats" id="logStats">
+            Sessions: 0<br>
+            Total Generations: 0<br>
+            Storage Used: 0 KB
+        </div>
+        <button class="btn primary" id="exportBtn">Export Log (.json)</button>
+        <button class="btn" id="importBtn">Import Log</button>
+        <button class="btn danger" id="clearBtn">Clear Storage</button>
+        <input type="file" id="fileInput" class="hidden-file-input" accept=".json,.ndjson">
+        
+        <div style="margin-top:0.75rem;">
+            <button class="btn" id="replayBtn" disabled>Replay Last Session</button>
+        </div>
+    </div>
+    
+    <div class="control-group">
+        <h3>Quick Save</h3>
+        <div class="toggle-row">
+            <span>Auto-Download</span>
+            <div class="toggle" id="autoSaveToggle"></div>
+        </div>
+    </div>
+</div>
+
+<div class="app-grid">
+    <div class="app-container" data-app="perpendicular">
+        <div class="app-header">
+            <span>Perpendicular</span>
+            <button class="btn gen-btn" data-app="perpendicular">Generate</button>
+        </div>
+        <div class="app-canvas-wrapper">
+            <canvas id="canvas-perpendicular" width="800" height="600"></canvas>
+            <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" stroke="#0066cc" stroke-width="8" fill="none" stroke-dasharray="283" stroke-dashoffset="283" id="progress-ring-perpendicular"/>
+            </svg>
+        </div>
+    </div>
+    
+    <div class="app-container" data-app="five">
+        <div class="app-header">
+            <span>FIVE</span>
+            <button class="btn gen-btn" data-app="five">Generate</button>
+        </div>
+        <div class="app-canvas-wrapper">
+            <canvas id="canvas-five" width="800" height="600"></canvas>
+            <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" stroke="#0066cc" stroke-width="8" fill="none" stroke-dasharray="283" stroke-dashoffset="283" id="progress-ring-five"/>
+            </svg>
+        </div>
+    </div>
+    
+    <div class="app-container" data-app="stencil">
+        <div class="app-header">
+            <span>Stencil</span>
+            <button class="btn gen-btn" data-app="stencil">Generate</button>
+        </div>
+        <div class="app-canvas-wrapper">
+            <canvas id="canvas-stencil" width="800" height="600"></canvas>
+            <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" stroke="#0066cc" stroke-width="8" fill="none" stroke-dasharray="283" stroke-dashoffset="283" id="progress-ring-stencil"/>
+            </svg>
+        </div>
+    </div>
+    
+    <div class="app-container" data-app="aether">
+        <div class="app-header">
+            <span>Aether</span>
+            <button class="btn gen-btn" data-app="aether">Generate</button>
+        </div>
+        <div class="app-canvas-wrapper">
+            <canvas id="canvas-aether" width="800" height="600"></canvas>
+            <svg class="progress-ring" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" stroke="#0066cc" stroke-width="8" fill="none" stroke-dasharray="283" stroke-dashoffset="283" id="progress-ring-aether"/>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<script>
+// PNG Metadata Handler
+const PNGMetadata = {
+    crc32Table: null,
+    
+    getCrc32Table() {
+        if (this.crc32Table) return this.crc32Table;
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let c = i;
+            for (let j = 0; j < 8; j++) {
+                c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            }
+            table[i] = c;
+        }
+        this.crc32Table = table;
+        return table;
+    },
+    
+    crc32(uint8) {
+        const table = this.getCrc32Table();
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < uint8.length; i++) {
+            crc = table[(crc ^ uint8[i]) & 0xFF] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+    },
+    
+    async embed(imageBlob, metadata) {
+        const arrayBuffer = await imageBlob.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+        const text = `parameters\0${JSON.stringify(metadata)}`;
+        const textBytes = new TextEncoder().encode(text);
+        const texChunkType = new TextEncoder().encode('tEXt');
+        
+        const chunkData = new Uint8Array(texChunkType.length + textBytes.length);
+        chunkData.set(texChunkType, 0);
+        chunkData.set(textBytes, texChunkType.length);
+        
+        const crc = this.crc32(chunkData);
+        const lengthBuf = new Uint8Array(4);
+        new DataView(lengthBuf.buffer).setUint32(0, textBytes.length, false);
+        const crcBuf = new Uint8Array(4);
+        new DataView(crcBuf.buffer).setUint32(0, crc, false);
+        
+        const finalChunk = new Uint8Array(4 + 4 + textBytes.length + 4 + texChunkType.length);
+        let pos = 0;
+        finalChunk.set(lengthBuf, pos); pos += 4;
+        finalChunk.set(texChunkType, pos); pos += texChunkType.length;
+        finalChunk.set(textBytes, pos); pos += textBytes.length;
+        finalChunk.set(crcBuf, pos);
+        
+        let insertPos = 8;
+        while (insertPos < uint8.length) {
+            const len = new DataView(uint8.buffer, insertPos, 4).getUint32(0, false);
+            const type = new TextDecoder().decode(uint8.slice(insertPos + 4, insertPos + 8));
+            if (type === 'IDAT') break;
+            insertPos += 12 + len;
+        }
+        
+        const result = new Uint8Array(uint8.length + finalChunk.length);
+        result.set(uint8.slice(0, insertPos), 0);
+        result.set(finalChunk, insertPos);
+        result.set(uint8.slice(insertPos), insertPos + finalChunk.length);
+        
+        return new Blob([result], { type: 'image/png' });
+    },
+    
+    async extract(file) {
+        const uint8 = new Uint8Array(await file.arrayBuffer());
+        let pos = 8;
+        while (pos < uint8.length) {
+            const len = new DataView(uint8.buffer, pos, 4).getUint32(0, false);
+            const type = new TextDecoder().decode(uint8.slice(pos + 4, pos + 8));
+            if (type === 'tEXt') {
+                const data = uint8.slice(pos + 8, pos + 8 + len);
+                const text = new TextDecoder().decode(data);
+                const [key, value] = text.split('\0');
+                if (key === 'parameters') return JSON.parse(value);
+            }
+            if (type === 'IEND') break;
+            pos += 12 + len;
+        }
+        return null;
+    }
+};
+
+// Simple PRNG
+function mulberry32(seed) {
+    return function() {
+        let t = seed += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// IndexedDB Logger
+class SessionLogger {
+    constructor() {
+        this.db = null;
+        this.currentSession = crypto.randomUUID();
+        this.startTime = Date.now();
+    }
+    
+    async init() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open('GenSuite', 1);
+            req.onerror = () => reject(req.error);
+            req.onsuccess = () => { this.db = req.result; resolve(); };
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('generations')) {
+                    const store = db.createObjectStore('generations', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('sessionId', 'sessionId', { unique: false });
+                }
+            };
+        });
+    }
+    
+    async logGeneration(appId, params, seed) {
+        const entry = {
+            id: crypto.randomUUID(),
+            sessionId: this.currentSession,
+            timestamp: Date.now(),
+            appId,
+            params,
+            seed,
+            saved: false
+        };
+        const tx = this.db.transaction('generations', 'readwrite');
+        await tx.objectStore('generations').put(entry);
+        return entry.id;
+    }
+    
+    async exportSession() {
+        const tx = this.db.transaction('generations', 'readonly');
+        const index = tx.objectStore('generations').index('sessionId');
+        const entries = await index.getAll(this.currentSession);
+        return {
+            version: '1.0',
+            exported: Date.now(),
+            session: {
+                id: this.currentSession,
+                started: this.startTime,
+                entries: entries.sort((a, b) => a.timestamp - b.timestamp)
+            }
+        };
+    }
+    
+    async importSession(json) {
+        const data = typeof json === 'string' ? JSON.parse(json) : json;
+        const tx = this.db.transaction('generations', 'readwrite');
+        const store = tx.objectStore('generations');
+        for (const entry of data.session.entries) {
+            await store.put({...entry, imported: true});
+        }
+    }
+    
+    async getStats() {
+        const tx = this.db.transaction('generations', 'readonly');
+        const store = tx.objectStore('generations');
+        const all = await store.getAll();
+        const size = JSON.stringify(all).length;
+        return {
+            sessions: new Set(all.map(e => e.sessionId)).size,
+            total: all.length,
+            size: (size / 1024).toFixed(2) + ' KB'
+        };
+    }
+    
+    async clear() {
+        const tx = this.db.transaction('generations', 'readwrite');
+        await tx.objectStore('generations').clear();
+    }
+}
+
+// Generative Apps
+const Apps = {
+    Perpendicular: class {
+        constructor() {
+            this.canvas = document.getElementById('canvas-perpendicular');
+            this.ctx = this.canvas.getContext('2d');
+        }
+        generate(seed) {
+            const rng = mulberry32(seed);
+            const ctx = this.ctx;
+            const w = this.canvas.width, h = this.canvas.height;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            const lines = Math.floor(rng() * 20) + 10;
+            const hue = rng() * 360;
+            ctx.strokeStyle = `hsl(${hue}, 70%, 60%)`;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < lines; i++) {
+                const x = rng() * w, y = rng() * h;
+                const angle = rng() > 0.5 ? 0 : Math.PI / 2;
+                ctx.beginPath();
+                if (angle === 0) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+                else { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+                ctx.stroke();
+            }
+            return { algorithm: 'perpendicular', lines, hue, seed, timestamp: Date.now() };
+        }
+    },
+    
+    Five: class {
+        constructor() {
+            this.canvas = document.getElementById('canvas-five');
+            this.ctx = this.canvas.getContext('2d');
+        }
+        generate(seed) {
+            const rng = mulberry32(seed);
+            const ctx = this.ctx;
+            const w = this.canvas.width, h = this.canvas.height;
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, w, h);
+            const cx = w / 2, cy = h / 2;
+            const radius = Math.min(w, h) * 0.35;
+            const layers = Math.floor(rng() * 3) + 3;
+            const hue = rng() * 360;
+            for (let layer = 0; layer < layers; layer++) {
+                ctx.strokeStyle = `hsl(${(hue + layer * 30) % 360}, 60%, ${50 + layer * 10}%)`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i <= 10; i++) {
+                    const r = i % 2 === 0 ? radius * (1 + layer * 0.1) : radius * 0.4;
+                    const angle = (i / 10) * Math.PI * 2 - Math.PI / 2;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+            return { algorithm: 'five-point', layers, hue, seed, timestamp: Date.now() };
+        }
+    },
+    
+    Stencil: class {
+        constructor() {
+            this.canvas = document.getElementById('canvas-stencil');
+            this.ctx = this.canvas.getContext('2d');
+        }
+        generate(seed) {
+            const rng = mulberry32(seed);
+            const ctx = this.ctx;
+            const w = this.canvas.width, h = this.canvas.height;
+            const mask = document.createElement('canvas');
+            mask.width = w; mask.height = h;
+            const mctx = mask.getContext('2d');
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, w, h);
+            const shapes = Math.floor(rng() * 5) + 3;
+            const hue = rng() * 360;
+            mctx.fillStyle = '#000';
+            mctx.fillRect(0, 0, w, h);
+            mctx.fillStyle = '#fff';
+            for (let i = 0; i < shapes; i++) {
+                mctx.beginPath();
+                if (rng() > 0.5) {
+                    mctx.arc(rng() * w, rng() * h, rng() * 100 + 50, 0, Math.PI * 2);
+                } else {
+                    mctx.rect(rng() * w, rng() * h, rng() * 200 + 100, rng() * 100 + 50);
+                }
+                mctx.fill();
+            }
+            ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.drawImage(mask, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = `hsl(${(hue + 180) % 360}, 70%, 60%)`;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, w, h);
+            return { algorithm: 'stencil', shapes, hue, seed, timestamp: Date.now() };
+        }
+    },
+    
+    Aether: class {
+        constructor() {
+            this.canvas = document.getElementById('canvas-aether');
+            this.ctx = this.canvas.getContext('2d');
+        }
+        generate(seed) {
+            const rng = mulberry32(seed);
+            const ctx = this.ctx;
+            const w = this.canvas.width, h = this.canvas.height;
+            const img = ctx.createImageData(w, h);
+            const data = img.data;
+            const scale = rng() * 0.02 + 0.005;
+            const octaves = Math.floor(rng() * 3) + 2;
+            const hue = rng() * 360;
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let n = 0;
+                    for (let i = 0; i < octaves; i++) {
+                        n += Math.sin(x * scale * (i + 1) + seed) * Math.cos(y * scale * (i + 1) + seed) * Math.pow(0.5, i);
+                    }
+                    n = (n + 1) / 2;
+                    const idx = (y * w + x) * 4;
+                    data[idx] = n * 255 * (0.8 + 0.2 * Math.sin(hue));
+                    data[idx + 1] = n * 255 * (0.8 + 0.2 * Math.cos(hue));
+                    data[idx + 2] = n * 255 * (1.2 - 0.2 * Math.sin(hue));
+                    data[idx + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+            return { algorithm: 'aether', scale, octaves, hue, seed, timestamp: Date.now() };
+        }
+    }
+};
+
+// Instances
+const instances = {};
+const logger = new SessionLogger();
+let autoInterval = null;
+let autoConfig = {
+    enabled: false,
+    interval: 5000,
+    mode: 'sequential',
+    apps: ['perpendicular', 'five', 'stencil', 'aether'],
+    index: 0,
+    autoSave: false
+};
+
+// UI References
+const gearBtn = document.getElementById('gearBtn');
+const panel = document.getElementById('controlPanel');
+const autoToggle = document.getElementById('autoToggle');
+const autoSaveToggle = document.getElementById('autoSaveToggle');
+
+// Initialize
+async function init() {
+    await logger.init();
+    
+    // Create app instances
+    Object.keys(Apps).forEach(key => {
+        const id = key.toLowerCase();
+        instances[id] = new Apps[key]();
+    });
+    
+    // Initial generation
+    Object.keys(instances).forEach(id => generate(id));
+    updateStats();
+}
+
+// Generate function
+async function generate(appId) {
+    if (!appId) {
+        if (autoConfig.apps.length === 0) return;
+        if (autoConfig.mode === 'random') {
+            appId = autoConfig.apps[Math.floor(Math.random() * autoConfig.apps.length)];
+        } else if (autoConfig.mode === 'all') {
+            autoConfig.apps.forEach(id => generate(id));
+            return;
+        } else {
+            appId = autoConfig.apps[autoConfig.index];
+            autoConfig.index = (autoConfig.index + 1) % autoConfig.apps.length;
+        }
+    }
+    
+    const instance = instances[appId];
+    if (!instance) return;
+    
+    // Progress animation
+    const ring = document.getElementById(`progress-ring-${appId}`);
+    if (ring) {
+        ring.parentElement.classList.add('active');
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 20;
+            ring.style.strokeDashoffset = 283 - (283 * progress / 100);
+            if (progress >= 100) {
+                clearInterval(interval);
+                setTimeout(() => ring.parentElement.classList.remove('active'), 200);
+            }
+        }, 50);
+    }
+    
+    const seed = Date.now();
+    const params = instance.generate(seed);
+    await logger.logGeneration(appId, params, seed);
+    
+    if (autoConfig.autoSave) {
+        await save(appId, params);
+    }
+    
+    updateStats();
+}
+
+// Save function
+async function save(appId, metadata) {
+    const canvas = document.getElementById(`canvas-${appId}`);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const enhanced = await PNGMetadata.embed(blob, metadata);
+    const filename = `${appId}-${metadata.seed}.png`;
+    
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: filename,
+                types: [{ accept: { 'image/png': ['.png'] } }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(enhanced);
+            await writable.close();
+        } catch (e) { console.log('Save cancelled'); }
+    } else {
+        const url = URL.createObjectURL(enhanced);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+}
+
+// Update statistics
+async function updateStats() {
+    const stats = await logger.getStats();
+    document.getElementById('logStats').innerHTML = `
+        Sessions: ${stats.sessions}<br>
+        Total Generations: ${stats.total}<br>
+        Storage Used: ${stats.size}
+    `;
+    document.getElementById('replayBtn').disabled = stats.total === 0;
+}
+
+// Event Listeners
+gearBtn.addEventListener('click', () => {
+    panel.classList.toggle('open');
+    gearBtn.classList.toggle('spinning');
+});
+
+// Auto toggle
+autoToggle.addEventListener('click', () => {
+    autoConfig.enabled = !autoConfig.enabled;
+    autoToggle.classList.toggle('active');
+    document.getElementById('auto-status').innerHTML = autoConfig.enabled 
+        ? `<span class="status-indicator active"></span>Auto (${autoConfig.mode})`
+        : `<span class="status-indicator idle"></span>Manual`;
+    if (autoConfig.enabled) {
+        autoInterval = setInterval(() => generate(), autoConfig.interval);
+    } else {
+        clearInterval(autoInterval);
+    }
+});
+
+// Auto save toggle
+autoSaveToggle.addEventListener('click', () => {
+    autoConfig.autoSave = !autoConfig.autoSave;
+    autoSaveToggle.classList.toggle('active');
+});
+
+// Interval
+document.getElementById('intervalRange').addEventListener('input', (e) => {
+    autoConfig.interval = parseInt(e.target.value);
+    document.getElementById('intervalVal').textContent = autoConfig.interval;
+    if (autoConfig.enabled) {
+        clearInterval(autoInterval);
+        autoInterval = setInterval(() => generate(), autoConfig.interval);
+    }
+});
+
+// Mode
+document.getElementById('autoMode').addEventListener('change', (e) => {
+    autoConfig.mode = e.target.value;
+});
+
+// App toggles
+document.querySelectorAll('.toggle[data-app]').forEach(t => {
+    t.addEventListener('click', () => {
+        const app = t.dataset.app;
+        const idx = autoConfig.apps.indexOf(app);
+        if (idx > -1) {
+            autoConfig.apps.splice(idx, 1);
+            t.classList.remove('active');
+        } else {
+            autoConfig.apps.push(app);
+            t.classList.add('active');
+        }
+    });
+});
+
+// Generate buttons
+document.querySelectorAll('.gen-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        generate(e.target.dataset.app);
+    });
+});
+
+// Canvas click to save
+Object.keys(instances).forEach(id => {
+    const canvas = document.getElementById(`canvas-${id}`);
+    canvas.addEventListener('click', async () => {
+        const seed = Date.now();
+        const params = instances[id].generate(seed);
+        await save(id, params);
+    });
+});
+
+// Export
+document.getElementById('exportBtn').addEventListener('click', async () => {
+    const data = await logger.exportSession();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${data.session.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+// Import
+document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    await logger.importSession(text);
+    updateStats();
+});
+
+// Clear
+document.getElementById('clearBtn').addEventListener('click', async () => {
+    if (confirm('Clear all session data?')) {
+        await logger.clear();
+        updateStats();
+    }
+});
+
+// Replay
+document.getElementById('replayBtn').addEventListener('click', async () => {
+    const data = await logger.exportSession();
+    if (autoConfig.enabled) {
+        clearInterval(autoInterval);
+        autoConfig.enabled = false;
+        autoToggle.classList.remove('active');
+    }
+    alert(`Replaying ${data.session.entries.length} generations...`);
+    for (const entry of data.session.entries) {
+        const inst = instances[entry.appId];
+        if (inst) {
+            inst.generate(entry.seed);
+            await new Promise(r => setTimeout(r, 300));
+        }
+    }
+});
+
+// Start
+init();
+</script>
+
+</body>
+</html>
