@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Soothing Reactive Live Wallpaper - Guarded Visual Build</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --panel-bg: rgba(8, 10, 20, 0.72);
+      --panel-border: rgba(255, 255, 255, 0.14);
+      --text: rgba(255, 255, 255, 0.92);
+      --muted: rgba(255, 255, 255, 0.64);
+      --field: rgba(255, 255, 255, 0.08);
+      --field-strong: rgba(255, 255, 255, 0.14);
+      --accent: #b7d7ff;
+      --ok: #c8f8dc;
+      --warn: #ffe0b3;
+      --bad: #ffc1c1;
+      --radius: 20px;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #070915;
+      color: var(--text);
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: #070915;
+      touch-action: none;
+    }
+
+    .ambientGlass {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(255,255,255,0.055), transparent 32%),
+        linear-gradient(180deg, rgba(255,255,255,0.035), transparent 42%, rgba(0,0,0,0.22));
+      mix-blend-mode: screen;
+    }
+
+    .gearButton {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      right: max(16px, env(safe-area-inset-right));
+      z-index: 20;
+      width: 50px;
+      height: 50px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      color: var(--text);
+      background: rgba(8, 11, 24, 0.56);
+      backdrop-filter: blur(18px) saturate(1.2);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 23px;
+      line-height: 1;
+      transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+    }
+
+    .gearButton:hover,
+    .gearButton:focus-visible {
+      transform: scale(1.045) rotate(16deg);
+      background: rgba(15, 20, 40, 0.82);
+      border-color: rgba(255, 255, 255, 0.28);
+      outline: none;
+    }
+
+    .panel {
+      position: fixed;
+      z-index: 19;
+      top: calc(max(16px, env(safe-area-inset-top)) + 64px);
+      right: max(16px, env(safe-area-inset-right));
+      width: min(410px, calc(100vw - 32px));
+      max-height: calc(100vh - 96px - env(safe-area-inset-top));
+      overflow: auto;
+      padding: 16px;
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      background: var(--panel-bg);
+      backdrop-filter: blur(24px) saturate(1.18);
+      -webkit-backdrop-filter: blur(24px) saturate(1.18);
+      box-shadow: var(--shadow);
+      transform-origin: top right;
+      transform: translateY(-8px) scale(0.965);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 190ms ease, opacity 190ms ease;
+      scrollbar-width: thin;
+    }
+
+    .panel.open {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .panelHeader {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 760;
+      letter-spacing: 0.01em;
+    }
+
+    .panel p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .group {
+      padding: 13px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .group:first-of-type {
+      border-top: 0;
+      padding-top: 2px;
+    }
+
+    .groupTitle {
+      margin: 0 0 10px;
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 720;
+    }
+
+    .control {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .control:first-child {
+      margin-top: 0;
+    }
+
+    .labelRow {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    output {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 56px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      accent-color: var(--accent);
+    }
+
+    select,
+    button.inlineButton {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 13px;
+      color: var(--text);
+      background: var(--field);
+      padding: 0 12px;
+      font: inherit;
+    }
+
+    button.inlineButton {
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    button.inlineButton:hover,
+    button.inlineButton:focus-visible {
+      background: var(--field-strong);
+      border-color: rgba(255,255,255,0.26);
+      outline: none;
+    }
+
+    button.inlineButton:active {
+      transform: translateY(1px);
+    }
+
+    .buttonGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .statusLine {
+      min-height: 19px;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .statusLine.good {
+      color: var(--ok);
+    }
+
+    .statusLine.warn {
+      color: var(--warn);
+    }
+
+    .statusLine.bad {
+      color: var(--bad);
+    }
+
+    .transcriptBox {
+      min-height: 74px;
+      max-height: 126px;
+      overflow: auto;
+      padding: 10px 11px;
+      border: 1px solid rgba(255,255,255,0.11);
+      border-radius: 13px;
+      background: rgba(255,255,255,0.065);
+      color: rgba(255,255,255,0.78);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .microLabel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.78);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .meter {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .meterFill {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(183,215,255,0.72), rgba(255,218,196,0.78));
+      transition: width 80ms linear;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: rgba(255,255,255,0.56);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 560px) {
+      .gearButton {
+        width: 48px;
+        height: 48px;
+      }
+
+      .panel {
+        left: 12px;
+        right: 12px;
+        top: calc(max(12px, env(safe-area-inset-top)) + 60px);
+        width: auto;
+        max-height: calc(100vh - 84px - env(safe-area-inset-top));
+        padding: 14px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .gearButton,
+      .panel,
+      button.inlineButton {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Soothing reactive live wallpaper"></canvas>
+  <div class="ambientGlass"></div>
+
+  <button class="gearButton" id="gearButton" type="button" aria-expanded="false" aria-controls="controlPanel" aria-label="Open visual controls">⚙</button>
+
+  <aside class="panel" id="controlPanel" aria-label="Live wallpaper controls">
+    <div class="panelHeader">
+      <div>
+        <h1>Soothing Reactive Wallpaper</h1>
+        <p>Soft aurora, water, mist, and breathing-light motion. Designed to avoid hard 16-bit geometry.</p>
+      </div>
+    </div>
+
+    <section class="group">
+      <h2 class="groupTitle">Mood</h2>
+      <label class="control">
+        <span class="labelRow"><span>Palette</span></span>
+        <select id="palette">
+          <option value="moonlit" selected>Moonlit mist</option>
+          <option value="dusk">Warm dusk</option>
+          <option value="ocean">Deep ocean</option>
+          <option value="rose">Rose quartz</option>
+          <option value="forest">Quiet forest</option>
+        </select>
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Hue drift</span><output for="hueDrift" id="hueDriftOut">0°</output></span>
+        <input id="hueDrift" type="range" min="-180" max="180" value="0" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Warmth</span><output for="warmth" id="warmthOut">42%</output></span>
+        <input id="warmth" type="range" min="0" max="100" value="42" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Brightness</span><output for="brightness" id="brightnessOut">58%</output></span>
+        <input id="brightness" type="range" min="22" max="100" value="58" step="1" />
+      </label>
+    </section>
+
+    <section class="group">
+      <h2 class="groupTitle">Motion</h2>
+      <label class="control">
+        <span class="labelRow"><span>Speed</span><output for="speed" id="speedOut">0.32×</output></span>
+        <input id="speed" type="range" min="0.05" max="1.4" value="0.32" step="0.01" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Breathing pulse</span><output for="breath" id="breathOut">55%</output></span>
+        <input id="breath" type="range" min="0" max="100" value="55" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Flow depth</span><output for="flow" id="flowOut">64%</output></span>
+        <input id="flow" type="range" min="0" max="100" value="64" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Water ripple</span><output for="ripple" id="rippleOut">38%</output></span>
+        <input id="ripple" type="range" min="0" max="100" value="38" step="1" />
+      </label>
+    </section>
+
+    <section class="group">
+      <h2 class="groupTitle">Softness</h2>
+      <label class="control">
+        <span class="labelRow"><span>Blur softness</span><output for="softness" id="softnessOut">82%</output></span>
+        <input id="softness" type="range" min="25" max="100" value="82" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Bloom</span><output for="bloom" id="bloomOut">68%</output></span>
+        <input id="bloom" type="range" min="0" max="100" value="68" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Mist density</span><output for="mist" id="mistOut">60%</output></span>
+        <input id="mist" type="range" min="0" max="100" value="60" step="1" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Fine grain</span><output for="grain" id="grainOut">10%</output></span>
+        <input id="grain" type="range" min="0" max="40" value="10" step="1" />
+      </label>
+    </section>
+
+
+    <section class="group">
+      <h2 class="groupTitle">Performance Guards</h2>
+      <label class="control">
+        <span class="labelRow"><span>Quality mode</span></span>
+        <select id="qualityMode">
+          <option value="balanced" selected>Balanced rich</option>
+          <option value="full">Full visual</option>
+          <option value="safe">Safety mode</option>
+        </select>
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Frame cap</span><output for="frameCap" id="frameCapOut">40 fps</output></span>
+        <input id="frameCap" type="range" min="20" max="60" value="40" step="5" />
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Render scale</span><output for="renderScale" id="renderScaleOut">78%</output></span>
+        <input id="renderScale" type="range" min="50" max="100" value="78" step="1" />
+      </label>
+      <label class="microLabel">
+        <input id="adaptiveGuard" type="checkbox" checked />
+        <span>Adaptive guard: temporarily lowers blur workload during slow frames.</span>
+      </label>
+      <label class="microLabel" style="margin-top: 8px;">
+        <input id="panelRelief" type="checkbox" checked />
+        <span>Control-panel relief: reduces draw rate while the panel is open.</span>
+      </label>
+      <div class="statusLine" id="perfLine">Performance guard ready.</div>
+    </section>
+
+    <section class="group">
+      <h2 class="groupTitle">Microphone Reaction</h2>
+      <label class="control">
+        <span class="labelRow"><span>Reactive mode</span></span>
+        <select id="reactiveMode">
+          <option value="off" selected>Off</option>
+          <option value="music">Music / ambient level</option>
+          <option value="speech">Conversation STT</option>
+          <option value="hybrid">Music + conversation STT</option>
+        </select>
+      </label>
+      <label class="control">
+        <span class="labelRow"><span>Reaction strength</span><output for="reactivity" id="reactivityOut">70%</output></span>
+        <input id="reactivity" type="range" min="0" max="200" value="70" step="1" />
+      </label>
+      <div class="meter" aria-hidden="true"><span class="meterFill" id="meterFill"></span></div>
+      <div class="buttonGrid">
+        <button class="inlineButton" id="startMic" type="button">Start microphone</button>
+        <button class="inlineButton" id="startSpeech" type="button">Start STT</button>
+      </div>
+      <button class="inlineButton" id="stopAudio" type="button" style="margin-top: 8px;">Stop listening</button>
+      <div class="statusLine" id="statusLine">Microphone and STT are inactive.</div>
+      <div class="control">
+        <span class="microLabel">Transcript influence</span>
+        <div class="transcriptBox" id="transcriptBox">No transcript yet.</div>
+      </div>
+      <div class="hint">Audio stays in the page for visualization. Browser speech recognition availability varies; Chromium-based desktop browsers usually support it best.</div>
+    </section>
+  </aside>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const canvas = document.getElementById('stage');
+      const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+      const panel = document.getElementById('controlPanel');
+      const gearButton = document.getElementById('gearButton');
+      const statusLine = document.getElementById('statusLine');
+      const perfLine = document.getElementById('perfLine');
+      const transcriptBox = document.getElementById('transcriptBox');
+      const meterFill = document.getElementById('meterFill');
+
+      const controls = {
+        palette: document.getElementById('palette'),
+        hueDrift: document.getElementById('hueDrift'),
+        warmth: document.getElementById('warmth'),
+        brightness: document.getElementById('brightness'),
+        speed: document.getElementById('speed'),
+        breath: document.getElementById('breath'),
+        flow: document.getElementById('flow'),
+        ripple: document.getElementById('ripple'),
+        softness: document.getElementById('softness'),
+        bloom: document.getElementById('bloom'),
+        mist: document.getElementById('mist'),
+        grain: document.getElementById('grain'),
+        qualityMode: document.getElementById('qualityMode'),
+        frameCap: document.getElementById('frameCap'),
+        renderScale: document.getElementById('renderScale'),
+        adaptiveGuard: document.getElementById('adaptiveGuard'),
+        panelRelief: document.getElementById('panelRelief'),
+        reactiveMode: document.getElementById('reactiveMode'),
+        reactivity: document.getElementById('reactivity')
+      };
+
+      const outputs = {
+        hueDrift: document.getElementById('hueDriftOut'),
+        warmth: document.getElementById('warmthOut'),
+        brightness: document.getElementById('brightnessOut'),
+        speed: document.getElementById('speedOut'),
+        breath: document.getElementById('breathOut'),
+        flow: document.getElementById('flowOut'),
+        ripple: document.getElementById('rippleOut'),
+        softness: document.getElementById('softnessOut'),
+        bloom: document.getElementById('bloomOut'),
+        mist: document.getElementById('mistOut'),
+        grain: document.getElementById('grainOut'),
+        frameCap: document.getElementById('frameCapOut'),
+        renderScale: document.getElementById('renderScaleOut'),
+        reactivity: document.getElementById('reactivityOut')
+      };
+
+      const startMicButton = document.getElementById('startMic');
+      const startSpeechButton = document.getElementById('startSpeech');
+      const stopAudioButton = document.getElementById('stopAudio');
+
+      const palettes = {
+        moonlit: {
+          skyTop: [226, 46, 9], skyMid: [246, 40, 20], skyLow: [27, 54, 58],
+          glowA: [205, 80, 74], glowB: [280, 48, 70], glowC: [38, 78, 76], water: [220, 48, 13]
+        },
+        dusk: {
+          skyTop: [244, 34, 11], skyMid: [296, 34, 22], skyLow: [24, 72, 62],
+          glowA: [22, 86, 72], glowB: [328, 64, 70], glowC: [48, 88, 72], water: [238, 34, 13]
+        },
+        ocean: {
+          skyTop: [218, 52, 8], skyMid: [207, 55, 18], skyLow: [178, 46, 39],
+          glowA: [188, 78, 68], glowB: [214, 70, 66], glowC: [165, 64, 62], water: [213, 56, 10]
+        },
+        rose: {
+          skyTop: [258, 38, 10], skyMid: [317, 34, 23], skyLow: [12, 60, 56],
+          glowA: [336, 74, 74], glowB: [286, 48, 70], glowC: [28, 72, 74], water: [254, 36, 12]
+        },
+        forest: {
+          skyTop: [218, 36, 8], skyMid: [171, 38, 16], skyLow: [90, 38, 38],
+          glowA: [154, 58, 62], glowB: [190, 48, 64], glowC: [72, 58, 58], water: [190, 38, 10]
+        }
+      };
+
+      const state = {
+        width: 1,
+        height: 1,
+        dpr: 1,
+        time: 0,
+        last: performance.now(),
+        lastDraw: performance.now(),
+        adaptivePenalty: 0,
+        lastFrameCost: 0,
+        frameCounter: 0,
+        lastPerfMessage: 0,
+        audioLevel: 0,
+        bass: 0,
+        mids: 0,
+        treble: 0,
+        speechPulse: 0,
+        speechHue: 0,
+        wordSoftness: 0,
+        energy: 0,
+        transcript: '',
+        mouseX: 0.5,
+        mouseY: 0.5,
+        targetMouseX: 0.5,
+        targetMouseY: 0.5,
+        noiseSeed: Math.random() * 1000,
+        bubbles: [],
+        mist: []
+      };
+
+      let audioContext = null;
+      let analyser = null;
+      let sourceNode = null;
+      let microphoneStream = null;
+      let frequencyData = null;
+      let speechRecognition = null;
+      let speechRunning = false;
+      let animationFrame = 0;
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function ease(value) {
+        const v = clamp(value, 0, 1);
+        return v * v * (3 - 2 * v);
+      }
+
+      function wrapHue(hue) {
+        return ((hue % 360) + 360) % 360;
+      }
+
+      function readRange(id) {
+        return Number(controls[id].value);
+      }
+
+
+      function isChecked(id) {
+        return Boolean(controls[id] && controls[id].checked);
+      }
+
+      function qualityProfile() {
+        const mode = controls.qualityMode ? controls.qualityMode.value : 'balanced';
+        if (mode === 'full') return { maxDpr: 1.7, blur: 1.0, particles: 1.0, layers: 1.0 };
+        if (mode === 'safe') return { maxDpr: 1.05, blur: 0.58, particles: 0.66, layers: 0.72 };
+        return { maxDpr: 1.25, blur: 0.78, particles: 0.88, layers: 0.88 };
+      }
+
+      function blurValue(px) {
+        const profile = qualityProfile();
+        const adaptive = isChecked('adaptiveGuard') ? state.adaptivePenalty : 0;
+        return Math.max(0.4, px * profile.blur * (1 - adaptive * 0.46));
+      }
+
+      function setBlur(px) {
+        ctx.filter = `blur(${blurValue(px).toFixed(1)}px)`;
+      }
+
+      function targetFrameMs() {
+        let fps = controls.frameCap ? readRange('frameCap') : 40;
+        if (panel.classList.contains('open') && isChecked('panelRelief')) fps = Math.min(fps, 24);
+        return 1000 / clamp(fps, 20, 60);
+      }
+
+      function updatePerformanceGuard(frameCost, frameBudget) {
+        state.lastFrameCost = frameCost;
+        if (!isChecked('adaptiveGuard')) {
+          state.adaptivePenalty = 0;
+          return;
+        }
+        const pressure = frameCost / Math.max(1, frameBudget);
+        if (pressure > 0.92) state.adaptivePenalty = clamp(state.adaptivePenalty + 0.055, 0, 1);
+        else if (pressure < 0.56) state.adaptivePenalty = clamp(state.adaptivePenalty - 0.028, 0, 1);
+      }
+
+      function updatePerfLine(force = false) {
+        if (!perfLine) return;
+        const now = performance.now();
+        if (!force && now - state.lastPerfMessage < 500) return;
+        state.lastPerfMessage = now;
+        const fps = Math.round(1000 / targetFrameMs());
+        const penalty = Math.round(state.adaptivePenalty * 100);
+        perfLine.textContent = `Guard: ${controls.qualityMode.value}, ${fps} fps cap, ${controls.renderScale.value}% scale, adaptive trim ${penalty}%, last draw ${state.lastFrameCost.toFixed(1)} ms.`;
+      }
+
+      function hsl(parts, alpha = 1, lightAdjust = 0, satAdjust = 0, hueAdjust = 0) {
+        const warmth = readRange('warmth');
+        const drift = readRange('hueDrift') + state.speechHue * speechInfluenceAmount();
+        const hue = wrapHue(parts[0] + drift + hueAdjust + (warmth - 50) * 0.18);
+        const saturation = clamp(parts[1] + satAdjust + (warmth - 50) * 0.04, 0, 100);
+        const brightness = readRange('brightness');
+        const lightness = clamp(parts[2] + lightAdjust + (brightness - 58) * 0.34, 0, 100);
+        return `hsla(${hue.toFixed(1)}, ${saturation.toFixed(1)}%, ${lightness.toFixed(1)}%, ${alpha})`;
+      }
+
+      function speechInfluenceAmount() {
+        const mode = controls.reactiveMode.value;
+        if (mode !== 'speech' && mode !== 'hybrid') return 0;
+        return clamp(readRange('reactivity') / 100, 0, 2) * clamp(state.speechPulse, 0, 1.25) * 0.85;
+      }
+
+      function audioInfluenceAmount() {
+        const mode = controls.reactiveMode.value;
+        if (mode !== 'music' && mode !== 'hybrid') return 0;
+        return clamp(readRange('reactivity') / 100, 0, 2) * state.audioLevel;
+      }
+
+      function setStatus(text, type) {
+        statusLine.textContent = text;
+        statusLine.className = `statusLine ${type || ''}`.trim();
+      }
+
+      function updateOutputs() {
+        outputs.hueDrift.textContent = `${controls.hueDrift.value}°`;
+        outputs.warmth.textContent = `${controls.warmth.value}%`;
+        outputs.brightness.textContent = `${controls.brightness.value}%`;
+        outputs.speed.textContent = `${Number(controls.speed.value).toFixed(2)}×`;
+        outputs.breath.textContent = `${controls.breath.value}%`;
+        outputs.flow.textContent = `${controls.flow.value}%`;
+        outputs.ripple.textContent = `${controls.ripple.value}%`;
+        outputs.softness.textContent = `${controls.softness.value}%`;
+        outputs.bloom.textContent = `${controls.bloom.value}%`;
+        outputs.mist.textContent = `${controls.mist.value}%`;
+        outputs.grain.textContent = `${controls.grain.value}%`;
+        outputs.frameCap.textContent = `${controls.frameCap.value} fps`;
+        outputs.renderScale.textContent = `${controls.renderScale.value}%`;
+        outputs.reactivity.textContent = `${controls.reactivity.value}%`;
+        updatePerfLine(true);
+      }
+
+      function resize() {
+        const nativeDpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.floor(window.innerWidth));
+        const height = Math.max(1, Math.floor(window.innerHeight));
+        const profile = qualityProfile();
+        const requestedScale = clamp(readRange('renderScale') / 100, 0.5, 1);
+        const dpr = clamp(nativeDpr * requestedScale, 0.5, profile.maxDpr);
+        state.width = width;
+        state.height = height;
+        state.dpr = dpr;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.imageSmoothingEnabled = true;
+        makeParticles();
+        updatePerfLine(true);
+      }
+
+      function randomSigned(seed) {
+        const x = Math.sin(seed * 12.9898 + state.noiseSeed * 78.233) * 43758.5453;
+        return (x - Math.floor(x)) * 2 - 1;
+      }
+
+      function makeParticles() {
+        state.bubbles.length = 0;
+        state.mist.length = 0;
+        const area = state.width * state.height;
+        const profile = qualityProfile();
+        const adaptive = isChecked('adaptiveGuard') ? state.adaptivePenalty : 0;
+        const particleFactor = profile.particles * (1 - adaptive * 0.34);
+        const bubbleCount = clamp(Math.round((area / 58000) * particleFactor), 6, 34);
+        const mistCount = clamp(Math.round((area / 44000) * particleFactor), 8, 44);
+        for (let i = 0; i < bubbleCount; i += 1) {
+          state.bubbles.push({
+            x: Math.random(),
+            y: Math.random() * 0.92 + 0.02,
+            r: Math.random() * 0.055 + 0.018,
+            phase: Math.random() * Math.PI * 2,
+            speed: Math.random() * 0.24 + 0.08,
+            alpha: Math.random() * 0.11 + 0.035
+          });
+        }
+        for (let i = 0; i < mistCount; i += 1) {
+          state.mist.push({
+            x: Math.random(),
+            y: Math.random(),
+            sx: Math.random() * 0.55 + 0.28,
+            sy: Math.random() * 0.12 + 0.05,
+            phase: Math.random() * Math.PI * 2,
+            speed: Math.random() * 0.16 + 0.04,
+            alpha: Math.random() * 0.055 + 0.018
+          });
+        }
+      }
+
+      function getPalette() {
+        return palettes[controls.palette.value] || palettes.moonlit;
+      }
+
+      function drawBackground(palette) {
+        const w = state.width;
+        const h = state.height;
+        const audio = audioInfluenceAmount();
+        const breath = Math.sin(state.time * 0.38) * 0.5 + 0.5;
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, hsl(palette.skyTop, 1, -4 - audio * 2));
+        sky.addColorStop(0.46, hsl(palette.skyMid, 1, 0 + breath * 2 + audio * 3));
+        sky.addColorStop(0.74, hsl(palette.skyLow, 1, 4 + audio * 5));
+        sky.addColorStop(1, hsl(palette.water, 1, -2));
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const cx = w * (0.52 + (state.mouseX - 0.5) * 0.04);
+        const cy = h * 0.38;
+        const radialA = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.72);
+        radialA.addColorStop(0, hsl(palette.glowA, 0.30 + audio * 0.16, 8));
+        radialA.addColorStop(0.42, hsl(palette.glowB, 0.12 + audio * 0.08, 2));
+        radialA.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = radialA;
+        ctx.fillRect(0, 0, w, h);
+
+        const radialB = ctx.createRadialGradient(w * 0.18, h * 0.24, 0, w * 0.18, h * 0.24, Math.max(w, h) * 0.62);
+        radialB.addColorStop(0, hsl(palette.glowC, 0.13, 6));
+        radialB.addColorStop(0.65, 'rgba(0,0,0,0)');
+        ctx.fillStyle = radialB;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+
+      function ribbonPoint(index, step, baseY, amplitude, offset, width) {
+        const t = state.time;
+        const xNorm = step;
+        const slow = Math.sin(xNorm * 6.2 + t * (0.34 + index * 0.06) + offset);
+        const slower = Math.sin(xNorm * 12.8 - t * (0.15 + index * 0.04) + offset * 0.7);
+        const mousePull = (state.mouseY - 0.5) * amplitude * 0.18;
+        const y = baseY + (slow * 0.78 + slower * 0.22) * amplitude + mousePull;
+        const x = xNorm * width;
+        return [x, y];
+      }
+
+      function drawAuroraRibbons(palette) {
+        const w = state.width;
+        const h = state.height;
+        const softness = readRange('softness') / 100;
+        const bloom = readRange('bloom') / 100;
+        const flow = readRange('flow') / 100;
+        const audio = audioInfluenceAmount();
+        const speech = speechInfluenceAmount();
+        const lines = state.adaptivePenalty > 0.72 ? 4 : 5;
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        for (let i = 0; i < lines; i += 1) {
+          const baseY = h * (0.30 + i * 0.058) + Math.sin(state.time * 0.18 + i) * h * 0.014;
+          const amplitude = h * (0.030 + flow * 0.060 + audio * 0.020 + speech * 0.018) * (1 + i * 0.035);
+          const offset = i * 1.8 + state.noiseSeed;
+          const color = i % 3 === 0 ? palette.glowA : i % 3 === 1 ? palette.glowB : palette.glowC;
+          const stroke = w * (0.036 + softness * 0.034 + bloom * 0.020 + audio * 0.012);
+
+          for (let layer = 0; layer < 3; layer += 1) {
+            ctx.beginPath();
+            const first = ribbonPoint(i, -0.08, baseY, amplitude, offset, w);
+            ctx.moveTo(first[0], first[1]);
+            const steps = 12;
+            for (let s = 1; s <= steps; s += 1) {
+              const xNorm = s / steps;
+              const prev = ribbonPoint(i, (s - 0.55) / steps, baseY, amplitude, offset, w);
+              const point = ribbonPoint(i, xNorm, baseY, amplitude, offset, w);
+              const cp1x = lerp(prev[0], point[0], 0.42);
+              const cp1y = prev[1] + Math.sin(state.time * 0.22 + s + i) * amplitude * 0.08;
+              const cp2x = lerp(prev[0], point[0], 0.78);
+              const cp2y = point[1] - Math.cos(state.time * 0.18 + s) * amplitude * 0.07;
+              ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, point[0], point[1]);
+            }
+            const alpha = [0.18, 0.095, 0.04][layer] * (0.75 + bloom * 0.6) * (1 + audio * 0.7 + speech * 0.45);
+            ctx.lineWidth = stroke * [1.0, 1.9, 3.25][layer];
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            setBlur(10 + layer * 18 + softness * 14);
+            ctx.strokeStyle = hsl(color, alpha, 5 + layer * 2, 2, layer * 5);
+            ctx.stroke();
+          }
+        }
+        ctx.filter = 'none';
+        ctx.restore();
+      }
+
+      function drawBreathingBloom(palette) {
+        const w = state.width;
+        const h = state.height;
+        const breathControl = readRange('breath') / 100;
+        const bloom = readRange('bloom') / 100;
+        const softness = readRange('softness') / 100;
+        const audio = audioInfluenceAmount();
+        const speech = speechInfluenceAmount();
+        const pulse = Math.sin(state.time * 0.52) * 0.5 + 0.5;
+        const cx = w * (0.52 + (state.mouseX - 0.5) * 0.045);
+        const cy = h * (0.50 + (state.mouseY - 0.5) * 0.025);
+        const rx = w * (0.22 + pulse * 0.025 * breathControl + audio * 0.05 + speech * 0.035);
+        const ry = h * (0.13 + pulse * 0.020 * breathControl + audio * 0.026 + speech * 0.022);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.translate(cx, cy);
+        ctx.rotate(Math.sin(state.time * 0.12) * 0.10);
+
+        const bloomLayers = state.adaptivePenalty > 0.72 ? 4 : state.adaptivePenalty > 0.42 ? 5 : 6;
+        for (let layer = 0; layer < bloomLayers; layer += 1) {
+          const scale = 1 + layer * 0.28;
+          const alpha = (0.13 / (layer + 1)) * (0.6 + bloom) * (1 + audio * 0.7 + speech * 0.5);
+          const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * scale);
+          const color = layer % 2 === 0 ? palette.glowA : palette.glowB;
+          grad.addColorStop(0, hsl(color, alpha, 10, 5, layer * 7));
+          grad.addColorStop(0.52, hsl(palette.glowC, alpha * 0.36, 4, 1));
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          setBlur(10 + layer * 8 + softness * 20);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rx * scale, ry * (scale * 0.82 + 0.08), 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.filter = 'none';
+      }
+
+      function drawMist(palette) {
+        const w = state.width;
+        const h = state.height;
+        const mistAmount = readRange('mist') / 100;
+        if (mistAmount <= 0.01) return;
+        const audio = audioInfluenceAmount();
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const stride = state.adaptivePenalty > 0.55 ? 2 : 1;
+        for (let i = 0; i < state.mist.length; i += stride) {
+          const p = state.mist[i];
+          const drift = (state.time * p.speed * 0.025 + Math.sin(state.time * 0.05 + p.phase) * 0.01) % 1;
+          const x = ((p.x + drift + 0.15) % 1.3 - 0.15) * w;
+          const y = (p.y * 0.62 + 0.13 + Math.sin(state.time * p.speed + p.phase) * 0.012) * h;
+          const rx = p.sx * w * (0.42 + mistAmount * 0.42);
+          const ry = p.sy * h * (0.65 + mistAmount * 0.35);
+          const grad = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+          grad.addColorStop(0, hsl(i % 2 ? palette.glowA : palette.glowC, p.alpha * mistAmount * (1.2 + audio), 12));
+          grad.addColorStop(0.65, hsl(palette.glowB, p.alpha * 0.28 * mistAmount, 4));
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          setBlur(18 + mistAmount * 28);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(x, y, rx, ry, Math.sin(p.phase) * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.filter = 'none';
+      }
+
+      function drawWater(palette) {
+        const w = state.width;
+        const h = state.height;
+        const horizon = h * 0.61;
+        const ripple = readRange('ripple') / 100;
+        const softness = readRange('softness') / 100;
+        const audio = audioInfluenceAmount();
+        const speech = speechInfluenceAmount();
+
+        ctx.save();
+        const waterGrad = ctx.createLinearGradient(0, horizon, 0, h);
+        waterGrad.addColorStop(0, hsl(palette.water, 0.58, 7));
+        waterGrad.addColorStop(0.34, hsl(palette.skyMid, 0.40, -5));
+        waterGrad.addColorStop(1, hsl(palette.skyTop, 0.72, -6));
+        ctx.fillStyle = waterGrad;
+        ctx.fillRect(0, horizon, w, h - horizon);
+
+        ctx.globalCompositeOperation = 'screen';
+        setBlur(1.5 + softness * 1.8);
+        for (let i = 0; i < 15; i += 1) {
+          const yNorm = i / 14;
+          const y = horizon + yNorm * yNorm * (h - horizon) * 0.94 + Math.sin(state.time * 0.22 + i) * 1.6;
+          const amp = (2.0 + yNorm * 9.0) * (0.35 + ripple * 0.9 + audio * 0.55 + speech * 0.25);
+          const alpha = (0.045 + yNorm * 0.045) * (0.55 + ripple * 0.6) * (1 + audio * 0.8);
+          ctx.beginPath();
+          ctx.moveTo(-w * 0.05, y);
+          const segments = 8;
+          for (let s = 0; s <= segments; s += 1) {
+            const x = (s / segments) * w * 1.1 - w * 0.05;
+            const yy = y + Math.sin(s * 1.6 + state.time * (0.36 + yNorm * 0.1) + i) * amp;
+            ctx.lineTo(x, yy);
+          }
+          ctx.lineWidth = lerp(0.8, 2.6, yNorm);
+          ctx.strokeStyle = hsl(i % 2 ? palette.glowA : palette.glowC, alpha, 12);
+          ctx.stroke();
+        }
+        ctx.filter = 'none';
+
+        const reflection = ctx.createRadialGradient(w * 0.5, horizon, 0, w * 0.5, horizon, Math.max(w, h) * 0.62);
+        reflection.addColorStop(0, hsl(palette.glowA, 0.13 + audio * 0.08, 8));
+        reflection.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = reflection;
+        ctx.fillRect(0, horizon, w, h - horizon);
+
+        ctx.globalCompositeOperation = 'source-over';
+        const shade = ctx.createLinearGradient(0, horizon, 0, h);
+        shade.addColorStop(0, 'rgba(0,0,0,0)');
+        shade.addColorStop(1, 'rgba(0,0,0,0.30)');
+        ctx.fillStyle = shade;
+        ctx.fillRect(0, horizon, w, h - horizon);
+        ctx.restore();
+      }
+
+      function drawBokeh(palette) {
+        const w = state.width;
+        const h = state.height;
+        const mistAmount = readRange('mist') / 100;
+        const bloom = readRange('bloom') / 100;
+        const audio = audioInfluenceAmount();
+        if (mistAmount < 0.04 && bloom < 0.04) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const stride = state.adaptivePenalty > 0.62 ? 2 : 1;
+        for (let i = 0; i < state.bubbles.length; i += stride) {
+          const b = state.bubbles[i];
+          const floatY = ((b.y - state.time * b.speed * 0.006) % 1 + 1) % 1;
+          const x = (b.x + Math.sin(state.time * b.speed + b.phase) * 0.035) * w;
+          const y = floatY * h;
+          const r = b.r * Math.min(w, h) * (0.55 + bloom * 0.75 + audio * 0.5);
+          const alpha = b.alpha * (0.45 + mistAmount * 0.8 + bloom * 0.45) * (1 + audio * 1.2);
+          const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+          const color = i % 3 === 0 ? palette.glowA : i % 3 === 1 ? palette.glowB : palette.glowC;
+          grad.addColorStop(0, hsl(color, alpha, 13));
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          setBlur(Math.max(3, r * 0.14));
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        ctx.filter = 'none';
+      }
+
+      function drawVignette() {
+        const w = state.width;
+        const h = state.height;
+        const grad = ctx.createRadialGradient(w * 0.5, h * 0.42, Math.min(w, h) * 0.1, w * 0.5, h * 0.5, Math.max(w, h) * 0.74);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.72, 'rgba(0,0,0,0.10)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.44)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      function drawGrain() {
+        const amount = readRange('grain');
+        if (amount <= 0) return;
+        const w = state.width;
+        const h = state.height;
+        const density = Math.round((w * h / 22000) * (amount / 40) * (1 - state.adaptivePenalty * 0.5));
+        ctx.save();
+        ctx.globalCompositeOperation = 'soft-light';
+        for (let i = 0; i < density; i += 1) {
+          const x = (Math.sin(i * 34.37 + state.time * 0.21) * 0.5 + 0.5) * w;
+          const y = (Math.sin(i * 91.17 + state.time * 0.17) * 0.5 + 0.5) * h;
+          const alpha = 0.018 + amount * 0.0008;
+          ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+          ctx.fillRect(x, y, 1, 1);
+        }
+        ctx.restore();
+      }
+
+      function updateAudio() {
+        if (!analyser || !frequencyData) {
+          state.audioLevel *= 0.94;
+          state.bass *= 0.94;
+          state.mids *= 0.94;
+          state.treble *= 0.94;
+          meterFill.style.width = `${Math.round(state.audioLevel * 100)}%`;
+          return;
+        }
+        analyser.getByteFrequencyData(frequencyData);
+        let sum = 0;
+        let bass = 0;
+        let mids = 0;
+        let treble = 0;
+        const len = frequencyData.length;
+        const bassEnd = Math.max(3, Math.floor(len * 0.12));
+        const midEnd = Math.max(bassEnd + 1, Math.floor(len * 0.46));
+        for (let i = 0; i < len; i += 1) {
+          const v = frequencyData[i] / 255;
+          sum += v;
+          if (i < bassEnd) bass += v;
+          else if (i < midEnd) mids += v;
+          else treble += v;
+        }
+        const level = clamp(sum / len * 2.4, 0, 1.35);
+        state.audioLevel = lerp(state.audioLevel, level, 0.14);
+        state.bass = lerp(state.bass, clamp(bass / bassEnd * 1.9, 0, 1.4), 0.16);
+        state.mids = lerp(state.mids, clamp(mids / (midEnd - bassEnd) * 1.8, 0, 1.3), 0.14);
+        state.treble = lerp(state.treble, clamp(treble / (len - midEnd) * 1.7, 0, 1.2), 0.12);
+        meterFill.style.width = `${Math.round(clamp(state.audioLevel, 0, 1) * 100)}%`;
+      }
+
+      function animate(now) {
+        animationFrame = requestAnimationFrame(animate);
+        const frameBudget = targetFrameMs();
+        if (now - state.lastDraw < frameBudget * 0.92) return;
+
+        const frameStart = performance.now();
+        const dt = Math.min(0.08, Math.max(0.001, (now - state.last) / 1000));
+        state.last = now;
+        state.lastDraw = now;
+        const baseSpeed = readRange('speed');
+        const reactivePush = audioInfluenceAmount() * 0.18 + speechInfluenceAmount() * 0.14;
+        state.time += dt * (baseSpeed + reactivePush) * 1.65;
+        state.mouseX = lerp(state.mouseX, state.targetMouseX, 0.035);
+        state.mouseY = lerp(state.mouseY, state.targetMouseY, 0.035);
+        state.speechPulse *= 0.986;
+        state.wordSoftness *= 0.992;
+        updateAudio();
+
+        const palette = getPalette();
+        drawBackground(palette);
+        drawMist(palette);
+        drawAuroraRibbons(palette);
+        drawBreathingBloom(palette);
+        drawWater(palette);
+        drawBokeh(palette);
+        drawVignette();
+        drawGrain();
+
+        updatePerformanceGuard(performance.now() - frameStart, frameBudget);
+        state.frameCounter += 1;
+        if (state.frameCounter % 12 === 0) updatePerfLine(false);
+      }
+
+      async function startMicrophone() {
+        try {
+          if (microphoneStream && analyser) {
+            setStatus('Microphone visualization is already active.', 'good');
+            return;
+          }
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false
+            }
+          });
+          microphoneStream = stream;
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 1024;
+          analyser.smoothingTimeConstant = 0.88;
+          frequencyData = new Uint8Array(analyser.frequencyBinCount);
+          sourceNode = audioContext.createMediaStreamSource(stream);
+          sourceNode.connect(analyser);
+          if (controls.reactiveMode.value === 'off') controls.reactiveMode.value = 'music';
+          setStatus('Microphone visualization is active.', 'good');
+        } catch (error) {
+          setStatus(`Microphone unavailable: ${error.message || 'permission denied'}.`, 'bad');
+        }
+      }
+
+      function getSpeechConstructor() {
+        return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+      }
+
+      function scoreSpeech(text) {
+        const lower = text.toLowerCase();
+        const colorTargets = [
+          { keys: ['blue', 'ocean', 'water', 'calm', 'quiet'], hue: -22, pulse: 0.60 },
+          { keys: ['warm', 'sun', 'sunset', 'gold', 'orange'], hue: 32, pulse: 0.70 },
+          { keys: ['rose', 'pink', 'soft', 'love'], hue: 58, pulse: 0.55 },
+          { keys: ['green', 'forest', 'leaf', 'earth'], hue: -48, pulse: 0.55 },
+          { keys: ['bright', 'energy', 'loud', 'fast'], hue: 86, pulse: 0.95 },
+          { keys: ['slow', 'sleep', 'rest', 'gentle'], hue: -12, pulse: 0.38 }
+        ];
+        let matched = false;
+        for (const target of colorTargets) {
+          if (target.keys.some((key) => lower.includes(key))) {
+            state.speechHue = lerp(state.speechHue, target.hue, 0.38);
+            state.speechPulse = clamp(state.speechPulse + target.pulse, 0, 1.4);
+            state.wordSoftness = clamp(state.wordSoftness + 0.35, 0, 1);
+            matched = true;
+          }
+        }
+        if (!matched) {
+          let hash = 0;
+          for (let i = 0; i < lower.length; i += 1) hash = ((hash << 5) - hash + lower.charCodeAt(i)) | 0;
+          const hue = ((hash % 90) + 90) % 90 - 45;
+          state.speechHue = lerp(state.speechHue, hue, 0.18);
+          state.speechPulse = clamp(state.speechPulse + Math.min(0.52, lower.length / 260), 0, 1.2);
+        }
+      }
+
+      function startSpeechRecognition() {
+        const SpeechCtor = getSpeechConstructor();
+        if (!SpeechCtor) {
+          setStatus('STT is not supported by this browser.', 'warn');
+          return;
+        }
+        if (speechRunning) {
+          setStatus('STT is already active.', 'good');
+          return;
+        }
+        try {
+          speechRecognition = new SpeechCtor();
+          speechRecognition.continuous = true;
+          speechRecognition.interimResults = true;
+          speechRecognition.lang = navigator.language || 'en-US';
+          speechRecognition.onstart = () => {
+            speechRunning = true;
+            if (controls.reactiveMode.value === 'off' || controls.reactiveMode.value === 'music') controls.reactiveMode.value = 'speech';
+            setStatus('STT is active. Spoken words gently shift color and pulse.', 'good');
+          };
+          speechRecognition.onresult = (event) => {
+            let interim = '';
+            let finalText = '';
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+              const text = event.results[i][0].transcript.trim();
+              if (event.results[i].isFinal) finalText += `${text} `;
+              else interim += `${text} `;
+            }
+            const combined = `${state.transcript}${finalText}`.trim();
+            if (finalText) {
+              state.transcript = `${state.transcript}${finalText}`.slice(-900);
+              scoreSpeech(finalText);
+            }
+            const visible = `${combined}${interim ? `\n${interim.trim()}` : ''}`.trim();
+            transcriptBox.textContent = visible || 'Listening for speech.';
+            if (interim) scoreSpeech(interim);
+          };
+          speechRecognition.onerror = (event) => {
+            const message = event && event.error ? event.error : 'unknown STT error';
+            setStatus(`STT issue: ${message}.`, message === 'no-speech' ? 'warn' : 'bad');
+          };
+          speechRecognition.onend = () => {
+            speechRunning = false;
+            if (controls.reactiveMode.value === 'speech' || controls.reactiveMode.value === 'hybrid') {
+              setStatus('STT stopped. Press Start STT to resume.', 'warn');
+            }
+          };
+          speechRecognition.start();
+        } catch (error) {
+          setStatus(`STT unavailable: ${error.message || 'could not start recognition'}.`, 'bad');
+        }
+      }
+
+      function stopListening() {
+        if (speechRecognition) {
+          try { speechRecognition.stop(); } catch (error) { /* stop can throw when already inactive */ }
+          speechRecognition = null;
+        }
+        speechRunning = false;
+        if (sourceNode) {
+          try { sourceNode.disconnect(); } catch (error) { /* disconnect can throw after close */ }
+          sourceNode = null;
+        }
+        if (microphoneStream) {
+          microphoneStream.getTracks().forEach((track) => track.stop());
+          microphoneStream = null;
+        }
+        if (audioContext) {
+          audioContext.close().catch(() => {});
+          audioContext = null;
+        }
+        analyser = null;
+        frequencyData = null;
+        state.audioLevel = 0;
+        state.bass = 0;
+        state.mids = 0;
+        state.treble = 0;
+        meterFill.style.width = '0%';
+        setStatus('Microphone and STT are inactive.', '');
+      }
+
+      function handlePointer(event) {
+        const x = event.clientX / Math.max(1, state.width);
+        const y = event.clientY / Math.max(1, state.height);
+        state.targetMouseX = clamp(x, 0, 1);
+        state.targetMouseY = clamp(y, 0, 1);
+      }
+
+      function bindEvents() {
+        gearButton.addEventListener('click', () => {
+          const open = !panel.classList.contains('open');
+          panel.classList.toggle('open', open);
+          gearButton.setAttribute('aria-expanded', String(open));
+          updatePerfLine(true);
+        });
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && panel.classList.contains('open')) {
+            panel.classList.remove('open');
+            gearButton.setAttribute('aria-expanded', 'false');
+          }
+        });
+        Object.keys(controls).forEach((key) => {
+          const control = controls[key];
+          control.addEventListener('input', () => {
+            updateOutputs();
+            if (key === 'renderScale') resize();
+          });
+          control.addEventListener('change', () => {
+            updateOutputs();
+            if (key === 'renderScale' || key === 'qualityMode') resize();
+            if (key === 'adaptiveGuard' && !control.checked) state.adaptivePenalty = 0;
+          });
+        });
+        startMicButton.addEventListener('click', startMicrophone);
+        startSpeechButton.addEventListener('click', startSpeechRecognition);
+        stopAudioButton.addEventListener('click', stopListening);
+        window.addEventListener('resize', resize, { passive: true });
+        window.addEventListener('pointermove', handlePointer, { passive: true });
+        window.addEventListener('beforeunload', stopListening);
+      }
+
+      function init() {
+        bindEvents();
+        updateOutputs();
+        resize();
+        cancelAnimationFrame(animationFrame);
+        state.last = performance.now();
+        state.lastDraw = state.last;
+        animationFrame = requestAnimationFrame(animate);
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
