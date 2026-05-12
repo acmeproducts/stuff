@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fastText WASM smoke test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+    pre { white-space: pre-wrap; padding: 1rem; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>fastText WASM smoke test</h1>
+  <pre id="log">Running...</pre>
+  <script type="module">
+    import { FastText } from "./fasttext-wrapper.mjs";
+
+    const logEl = document.getElementById("log");
+    const lines = [];
+
+    function log(line) {
+      lines.push(line);
+      logEl.textContent = lines.join("\n");
+      console.log(line);
+    }
+
+    function fail(message) {
+      document.body.dataset.status = "fail";
+      log("FAIL: " + message);
+      throw new Error(message);
+    }
+
+    function normalizePrediction(result) {
+      let label;
+      if (result instanceof Map) {
+        label = result.keys().next().value;
+      } else if (Array.isArray(result)) {
+        const first = result[0];
+        label = Array.isArray(first) ? first[0] : first && typeof first === "object" ? first.label : first;
+      } else if (result && typeof result === "object") {
+        label = result.label;
+      } else {
+        label = result;
+      }
+      return String(label || "").replace(/^__label__/, "").replace(/^label__/, "");
+    }
+
+    window.Module = window.Module || {};
+    window.FastTextModule = {
+      locateFile(path) {
+        if (path.endsWith(".wasm")) return new URL("./core/fasttext.wasm", window.location.href).href;
+        return new URL(path, window.location.href).href;
+      }
+    };
+
+    try {
+      const wasmUrl = window.FastTextModule.locateFile("fasttext.wasm");
+      const wasmResponse = await fetch(wasmUrl);
+      if (!wasmResponse.ok) fail("WASM fetch returned HTTP " + wasmResponse.status);
+      const wasmBytes = await wasmResponse.arrayBuffer();
+      if (wasmBytes.byteLength <= 0) fail("WASM fetch returned zero bytes");
+      log("WASM HTTP 200 and nonzero bytes: " + wasmBytes.byteLength);
+
+      const ft = new FastText();
+      await ft.loadModel(new URL("./model/lid.176.ftz", window.location.href).href);
+      log("loadModel resolved");
+
+      const cases = [
+        ["hello how are you today", "en"],
+        ["hola como estas hoy", "es"],
+        ["bonjour comment allez vous", "fr"],
+        ["guten morgen wie geht es dir", "de"]
+      ];
+
+      for (const [text, expected] of cases) {
+        const actual = normalizePrediction(ft.predict(text, 1));
+        log(JSON.stringify(text) + " -> " + actual);
+        if (actual !== expected) fail(JSON.stringify(text) + " expected " + expected + " but got " + actual);
+      }
+
+      document.body.dataset.status = "pass";
+      log("PASS");
+    } catch (error) {
+      document.body.dataset.status = "fail";
+      log("ERROR: " + (error && error.stack ? error.stack : error));
+      throw error;
+    }
+  </script>
+</body>
+</html>
