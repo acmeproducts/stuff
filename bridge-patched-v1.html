@@ -845,6 +845,13 @@ function _ftStartupDone(ok,msg){
   if(_ftStartupStatus)_ftStartupStatus.textContent=ok?'Detector ready':'Degraded mode: language detector unavailable';
   log('ft_startup_'+(ok?'ready':'degraded'),{message:msg||null},ok?'ok':'warn');
   if(ok){setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},400);}
+  else{
+    if(_ftStartupOverlay){
+      _ftStartupOverlay.style.cursor='pointer';
+      _ftStartupOverlay.onclick=function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';};
+    }
+    setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},1800);
+  }
 }
 function _ftWhitelist(){return Object.keys(LANGS||{});} 
 function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
@@ -869,12 +876,42 @@ function _probeFtAsset(path){
     throw e;
   });
 }
+function _ftErrDetail(e,ctx){
+  var t=(e===null)?'null':typeof e;
+  var raw;
+  try{raw=(t==='object'&&e&&e.message)?String(e.message):String(e);}catch(_){raw='[unstringifiable]';}
+  return {context:ctx||null,type:t,detail:raw};
+}
 function _ftPredictLabel(ft,text){
   var r=ft.predict(text,1);
-  var item=r&&r.length?r[0]:null;
-  var label=item&&item.label?String(item.label).replace('__label__',''):null;
-  var score=item?(item.prob||item.score||item.probability||0):0;
-  return (label&&score>=FT_CONF&&_ftAllowed(label))?label:null;
+  var item=null,label=null,score=null;
+  function _normLabel(v){
+    if(v==null)return null;
+    return String(v).replace(/^(__label__|label__)/,'');
+  }
+  if(r instanceof Map){
+    var first=r.entries().next();
+    if(!first.done){label=_normLabel(first.value[0]);score=first.value[1];}
+  }else if(Array.isArray(r)){
+    item=r.length?r[0]:null;
+    if(Array.isArray(item)){label=_normLabel(item[0]);score=item[1];}
+    else if(item&&typeof item==='object'){label=_normLabel(item.label);score=(item.prob!=null?item.prob:(item.score!=null?item.score:item.probability));}
+    else if(typeof item==='string'){label=_normLabel(item);}
+  }else if(r&&typeof r==='object'){
+    label=_normLabel(r.label!=null?r.label:r[0]);
+    score=(r.prob!=null?r.prob:(r.score!=null?r.score:r.probability));
+    if(!label){
+      var keys=Object.keys(r);
+      if(keys.length){label=_normLabel(keys[0]);score=(score==null?r[keys[0]]:score);}
+    }
+  }else if(typeof r==='string'){
+    label=_normLabel(r);
+  }
+  if(!label||!_ftAllowed(label))return null;
+  if(score==null)return label;
+  var n=Number(score);
+  if(!isFinite(n))return null;
+  return n>=FT_CONF?label:null;
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
@@ -891,30 +928,32 @@ function _loadFastText(){
     window.FastTextModule=ftModuleConfig;
     log('ft_load_start',{src:FT_WRAPPER_JS});
     var s=document.createElement('script');s.src=FT_WRAPPER_JS;
-    s.onerror=function(){ log('ft_load_err',{src:s.src},'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
+    s.onerror=function(){ log('ft_load_err',Object.assign({src:s.src,reason:'runtime wrapper script failed to load'},_ftErrDetail(null,'script.onerror')),'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
     s.onload=function(){
-      if(typeof FastText==='undefined'){log('ft_no_global',{},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+      if(typeof FastText==='undefined'){log('ft_no_global',{reason:'FastText global missing after wrapper load'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_init_err: FastText global missing');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
       try{
         var ft=new FastText();
         _ftStartupStep('model load');
         log('ft_model_load',{model:FT_MODEL});
-        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'model_timeout');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
+        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS,reason:'FastText model load timeout'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'timeout: model load exceeded '+FT_LOAD_TIMEOUT_MS+'ms');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
         ft.loadModel(FT_MODEL).then(function(){
           _ftStartupStep('smoke tests');
           return Promise.all(FT_SMOKE.map(function(pair){
-            var got=_ftPredictLabel(ft,pair[0]);
-            if(got!==pair[1])throw new Error('smoke_'+pair[1]+'_got_'+got);
+            var got=null;
+            try{got=_ftPredictLabel(ft,pair[0]);}
+            catch(e){throw new Error('smoke predict error: input="'+pair[0]+'" err="'+String(e)+'"');}
+            if(got!==pair[1])throw new Error('smoke mismatch: input="'+pair[0]+'" expected="'+pair[1]+'" got="'+got+'"');
             return got;
           }));
         }).then(function(){
           clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();_ftStartupDone(true,'ready');log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
         }).catch(function(e){
-          clearTimeout(timer);log('ft_model_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
+          clearTimeout(timer);log('ft_model_err',Object.assign({reason:'runtime/model init or smoke failure'},_ftErrDetail(e,'loadModel/smoke')),'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
         });
-      }catch(e){log('ft_init_err',{e:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+      }catch(e){log('ft_init_err',Object.assign({reason:'FastText constructor/init failure'},_ftErrDetail(e,'new FastText')),'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
     };
     document.head.appendChild(s);
-  }).catch(function(e){_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
+  }).catch(function(e){log('ft_probe_err',Object.assign({reason:'asset probe failure'},_ftErrDetail(e,'asset probe')),'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
