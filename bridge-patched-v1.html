@@ -876,6 +876,12 @@ function _probeFtAsset(path){
     throw e;
   });
 }
+function _ftErrDetail(e,ctx){
+  var t=(e===null)?'null':typeof e;
+  var raw;
+  try{raw=(t==='object'&&e&&e.message)?String(e.message):String(e);}catch(_){raw='[unstringifiable]';}
+  return {context:ctx||null,type:t,detail:raw};
+}
 function _ftPredictLabel(ft,text){
   var r=ft.predict(text,1);
   var item=null,label=null,score=null;
@@ -918,9 +924,9 @@ function _loadFastText(){
     window.FastTextModule=ftModuleConfig;
     log('ft_load_start',{src:FT_WRAPPER_JS});
     var s=document.createElement('script');s.src=FT_WRAPPER_JS;
-    s.onerror=function(){ log('ft_load_err',{src:s.src},'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
+    s.onerror=function(){ log('ft_load_err',Object.assign({src:s.src,reason:'runtime wrapper script failed to load'},_ftErrDetail(null,'script.onerror')),'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
     s.onload=function(){
-      if(typeof FastText==='undefined'){log('ft_no_global',{},'error');_ftLoadFailed=true;_syncFtStatus();_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+      if(typeof FastText==='undefined'){log('ft_no_global',{reason:'FastText global missing after wrapper load'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_init_err: FastText global missing');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
       try{
         var ft=new FastText();
         _ftStartupStep('model load');
