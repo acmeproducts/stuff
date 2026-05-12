@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>wasm-v1 FastText PoC</title>
+  <style>
+    body{font-family:system-ui,sans-serif;background:#0f1218;color:#eaf0f8;margin:20px}
+    .box{background:#161b24;border:1px solid #2d3442;border-radius:8px;padding:12px;margin-bottom:12px}
+    button{background:#2e86ff;border:0;border-radius:6px;color:white;padding:8px 10px;cursor:pointer}
+    pre{white-space:pre-wrap;background:#0f141d;border:1px solid #2d3442;border-radius:6px;padding:8px;max-height:260px;overflow:auto}
+    table{width:100%;border-collapse:collapse}td{border-bottom:1px solid #2d3442;padding:6px;vertical-align:top}
+    .ok{color:#53d68a}.err{color:#ff6b6b}.warn{color:#ffd166}
+  </style>
+</head>
+<body>
+  <h1>wasm-v1</h1>
+  <p>Direct module sequence only: wrapper -> global -> constructor -> loadModel -> predict.</p>
+
+  <div class="box">
+    <button id="run">Run Init + Smoke</button>
+    <span id="status">idle</span>
+    <table><tbody id="stages"></tbody></table>
+  </div>
+
+  <div class="box">
+    <label for="txt">Manual input</label>
+    <textarea id="txt" rows="3" style="width:100%">hello from wasm-v1</textarea><br/>
+    <button id="predict">Manual predict(k=1)</button>
+    <pre id="manual"></pre>
+  </div>
+
+  <div class="box"><h3>Logs</h3><pre id="logs"></pre></div>
+
+<script>
+const FT_BASE=(location.pathname.includes('/stuff/')?'/stuff/':'/')+'fastType/';
+const FT_WRAPPER=FT_BASE+'fasttext-wrapper.umd.js';
+const FT_WASM=FT_BASE+'core/fasttext.wasm';
+const FT_MODEL=FT_BASE+'model/lid.176.ftz';
+const SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
+let ft=null,loaded=false;
+
+function log(level,ctx,obj){document.getElementById('logs').textContent += `[${new Date().toISOString()}] [${level}] ${ctx} ${JSON.stringify(obj||{})}\n`;}
+function normErr(context,e){const type=e===null?'null':typeof e;let detail;try{detail=JSON.stringify(e);}catch(_){detail=String(e);}if(!detail||detail==='{}'||detail==='null')detail=String(e);return{context,type,detail,timestamp:new Date().toISOString()};}
+function stage(name,status,detail){const tb=document.getElementById('stages');let tr=tb.querySelector(`[data-k='${name}']`);if(!tr){tr=document.createElement('tr');tr.dataset.k=name;tr.innerHTML=`<td>${name}</td><td class='s'></td><td class='d'></td>`;tb.appendChild(tr);}tr.querySelector('.s').innerHTML=`<span class='${status==='ok'?'ok':status==='error'?'err':'warn'}'>${status}</span>`;tr.querySelector('.d').textContent=detail||'';}
+async function probe(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error(`status_${r.status}`);const b=await r.arrayBuffer();if(!b.byteLength)throw new Error('empty');return b.byteLength;}
+function parsePrediction(raw){
+  const norm=v=>v==null?null:String(v).replace(/^(__label__|label__)/,'');
+  let label=null,score=null;
+  if(raw instanceof Map){const f=raw.entries().next();if(!f.done){label=norm(f.value[0]);score=f.value[1];}}
+  else if(Array.isArray(raw)){const i=raw[0];if(Array.isArray(i)){label=norm(i[0]);score=i[1];}else if(i&&typeof i==='object'){label=norm(i.label);score=i.prob??i.score??i.probability;}else if(typeof i==='string'){label=norm(i);}}
+  else if(raw&&typeof raw==='object'){label=norm(raw.label??raw[0]);score=raw.prob??raw.score??raw.probability;}
+  else if(typeof raw==='string'){label=norm(raw);}
+  return {label,score,raw};
+}
+
+async function run(){
+  document.getElementById('status').textContent='running';
+  document.getElementById('logs').textContent='';
+  document.getElementById('stages').innerHTML='';
+  ft=null;loaded=false;
+  try{
+    stage('probe wrapper','pending',FT_WRAPPER); stage('probe wrapper','ok',`${await probe(FT_WRAPPER)} bytes`);
+    stage('probe wasm','pending',FT_WASM); stage('probe wasm','ok',`${await probe(FT_WASM)} bytes`);
+    stage('probe model','pending',FT_MODEL); stage('probe model','ok',`${await probe(FT_MODEL)} bytes`);
+
+    stage('load wrapper','pending',FT_WRAPPER);
+    window.Module={locateFile:(p)=>{const n=String(p||'').split('/').pop().split('\\').pop();return /\.wasm$/i.test(String(p||''))?FT_WASM:(FT_BASE+n);}};
+    window.FastTextModule=window.Module;
+    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=FT_WRAPPER;s.onload=resolve;s.onerror=()=>reject(new Error('wrapper script load failed'));document.head.appendChild(s);});
+    stage('load wrapper','ok','loaded');
+
+    stage('FastText global','pending','check');
+    if(typeof FastText==='undefined') throw new Error('FastText global missing');
+    stage('FastText global','ok',typeof FastText);
+
+    stage('constructor','pending','new FastText()');
+    ft=new FastText();
+    stage('constructor','ok','instance ready');
+
+    stage('loadModel','pending',FT_MODEL);
+    try{
+      await ft.loadModel(FT_MODEL);
+      loaded=true;
+      stage('loadModel','ok','resolved');
+    }catch(firstErr){
+      const alt='/stuff/fastType/model/lid.176.ftz';
+      log('warn','loadModel_retry',Object.assign({attempt:'absolute_subpath',model:alt},normErr('loadModel_first',firstErr)));
+      await ft.loadModel(alt);
+      loaded=true;
+      stage('loadModel','ok',`resolved via retry: ${alt}`);
+    }
+
+    stage('smoke','pending',`${SMOKE.length} tests`);
+    for(const [text,exp] of SMOKE){const p=parsePrediction(ft.predict(text,1));if(p.label!==exp)throw new Error(`smoke mismatch exp=${exp} got=${p.label}`);}
+    stage('smoke','ok','all passed');
+    document.getElementById('status').innerHTML='<span class="ok">ready</span>';
+  }catch(e){
+    const n=normErr('run',e); log('error','run',n);
+    if(n.type==='number') n.detail=`numeric runtime error code: ${n.detail}`;
+    stage('failure','error',n.detail);
+    document.getElementById('status').innerHTML='<span class="err">failed</span>';
+  }
+}
+
+document.getElementById('run').onclick=run;
+document.getElementById('predict').onclick=()=>{
+  const out=document.getElementById('manual');
+  try{
+    if(!ft||!loaded) throw new Error('FastText model is not loaded. Run init and wait for loadModel=ok before predict.');
+    out.textContent=JSON.stringify(parsePrediction(ft.predict(document.getElementById('txt').value,1)),null,2);
+  }catch(e){out.textContent=JSON.stringify(normErr('manual_predict',e),null,2);}
+};
+</script>
+</body>
+</html>
