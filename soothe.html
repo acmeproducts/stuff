@@ -550,6 +550,8 @@
         lastFrameCost: 0,
         frameCounter: 0,
         lastPerfMessage: 0,
+        slowFrameCount: 0,
+        worstFrameCost: 0,
         audioLevel: 0,
         bass: 0,
         mids: 0,
@@ -637,6 +639,28 @@
         else if (pressure < 0.56) state.adaptivePenalty = clamp(state.adaptivePenalty - 0.028, 0, 1);
       }
 
+
+      function logPerformanceIssue(frameCost, frameBudget) {
+        const pressure = frameCost / Math.max(1, frameBudget);
+        state.worstFrameCost = Math.max(state.worstFrameCost, frameCost);
+        if (pressure > 1.25) {
+          state.slowFrameCount += 1;
+          if (state.slowFrameCount === 1 || state.slowFrameCount % 15 === 0) {
+            console.warn('[Soothe] Slow frame detected', {
+              frameCostMs: Number(frameCost.toFixed(2)),
+              frameBudgetMs: Number(frameBudget.toFixed(2)),
+              pressure: Number(pressure.toFixed(2)),
+              adaptivePenalty: Number(state.adaptivePenalty.toFixed(2)),
+              qualityMode: controls.qualityMode.value,
+              renderScale: Number(controls.renderScale.value),
+              frameCap: Number(controls.frameCap.value)
+            });
+          }
+        } else if (state.slowFrameCount > 0 && pressure < 0.9) {
+          state.slowFrameCount -= 1;
+        }
+      }
+
       function updatePerfLine(force = false) {
         if (!perfLine) return;
         const now = performance.now();
@@ -644,7 +668,7 @@
         state.lastPerfMessage = now;
         const fps = Math.round(1000 / targetFrameMs());
         const penalty = Math.round(state.adaptivePenalty * 100);
-        perfLine.textContent = `Guard: ${controls.qualityMode.value}, ${fps} fps cap, ${controls.renderScale.value}% scale, adaptive trim ${penalty}%, last draw ${state.lastFrameCost.toFixed(1)} ms.`;
+        perfLine.textContent = `Guard: ${controls.qualityMode.value}, ${fps} fps cap, ${controls.renderScale.value}% scale, adaptive trim ${penalty}%, last draw ${state.lastFrameCost.toFixed(1)} ms, worst ${state.worstFrameCost.toFixed(1)} ms.`;
       }
 
       function hsl(parts, alpha = 1, lightAdjust = 0, satAdjust = 0, hueAdjust = 0) {
@@ -1083,7 +1107,9 @@
         drawVignette();
         drawGrain();
 
-        updatePerformanceGuard(performance.now() - frameStart, frameBudget);
+        const frameCost = performance.now() - frameStart;
+        updatePerformanceGuard(frameCost, frameBudget);
+        logPerformanceIssue(frameCost, frameBudget);
         state.frameCounter += 1;
         if (state.frameCounter % 12 === 0) updatePerfLine(false);
       }
@@ -1270,13 +1296,29 @@
       }
 
       function init() {
-        bindEvents();
-        updateOutputs();
-        resize();
-        cancelAnimationFrame(animationFrame);
-        state.last = performance.now();
-        state.lastDraw = state.last;
-        animationFrame = requestAnimationFrame(animate);
+        if (!canvas || !ctx) {
+          console.error('[Soothe] Startup failed: Canvas context could not be created.');
+          if (perfLine) {
+            perfLine.textContent = 'Startup issue: canvas rendering is unavailable in this browser.';
+            perfLine.className = 'statusLine bad';
+          }
+          return;
+        }
+        try {
+          bindEvents();
+          updateOutputs();
+          resize();
+          cancelAnimationFrame(animationFrame);
+          state.last = performance.now();
+          state.lastDraw = state.last;
+          animationFrame = requestAnimationFrame(animate);
+        } catch (error) {
+          console.error('[Soothe] Startup failed unexpectedly.', error);
+          if (perfLine) {
+            perfLine.textContent = `Startup issue: ${error.message || 'unexpected error'}.`;
+            perfLine.className = 'statusLine bad';
+          }
+        }
       }
 
       init();
