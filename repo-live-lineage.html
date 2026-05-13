@@ -1091,10 +1091,37 @@
         if (!quiet) setStatus(els.scanStatus, `Loaded ${v.path} at ${v.shortSha}.`, 'success');
       } catch (error) {
         console.error(error);
+        const removed = handleMissingVariant(v, error);
+        if (removed) return;
         state.currentContent = '';
         els.sourceEditor.value = '';
         setStatus(els.scanStatus, `Unable to load selected variant: ${error.message}`, 'error');
       }
+    }
+
+
+    function handleMissingVariant(variant, error) {
+      const message = String(error?.message || '').toLowerCase();
+      const notFound = error?.status === 404 || message.includes('not found') || message.includes('no content returned');
+      if (!notFound) return false;
+      const before = state.allVariants.length;
+      state.allVariants = state.allVariants.filter(item => item.id !== variant.id);
+      state.shownVariants = state.shownVariants.filter(item => item.id !== variant.id);
+      state.contentCache.delete(variant.id);
+      if (state.selectedId === variant.id) state.selectedId = '';
+      if (state.allVariants.length !== before) {
+        persistTimeline();
+        renderTimeline();
+        updateStats();
+        fillCompareSelectors();
+        if (state.allVariants.length) {
+          selectVariant(state.allVariants[0].id, { quiet: true });
+        } else {
+          resetSelection();
+        }
+        setStatus(els.scanStatus, `Removed missing variant ${variant.path} @ ${variant.shortSha}.`, 'warn');
+      }
+      return true;
     }
 
     function renderPreview(v, content) {
