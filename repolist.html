@@ -259,6 +259,9 @@
     .modal-grid label { font-size: 0.85rem; color: #475569; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
     .ghost { background: #fff; color: #334155; border-color: #cbd5e1; }
+    .resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; }
+    th.dragging { outline: 2px solid #2563eb; }
+    th.drag-over { outline: 2px solid #f97316; }
     @media (max-width: 760px) {
       .wrap { width: min(1200px, 99vw); margin: 10px auto 16px; }
       .controls { grid-template-columns: 1fr; }
@@ -277,9 +280,12 @@
     <div class="controls">
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
       <input id="tokenInput" type="password" placeholder="GitHub PAT (optional, persisted)">
+      <input id="omniSearch" placeholder="Omni-search: name, date, time, commit, size, message">
+      <button id="scanBtn" type="button">Scan</button>
     </div>
     <div class="status-row">
       <div id="status" role="status" aria-live="polite"></div>
+      <div id="lastSearchText" class="mono" style="font-size:12px;color:#64748b;">▸ Last search: —</div>
       <button id="exportCsvBtn" class="mini" type="button">Export CSV</button>
     </div>
 
@@ -293,14 +299,14 @@
       <div class="table-scroll">
       <table>
         <thead>
-          <tr>
-            <th><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button></th>
-            <th>Open</th>
-            <th>Delete</th>
-            <th>Edit</th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button></th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="size">Size</button></th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button></th>
+          <tr id="headRow">
+            <th data-col="name" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button><span class="resize-handle"></span></th>
+            <th data-col="open" draggable="true">Open<span class="resize-handle"></span></th>
+            <th data-col="delete" draggable="true">Delete<span class="resize-handle"></span></th>
+            <th data-col="edit" draggable="true">Edit<span class="resize-handle"></span></th>
+            <th data-col="desc" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button><span class="resize-handle"></span></th>
+            <th data-col="size" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="size">Size</button><span class="resize-handle"></span></th>
+            <th data-col="changed" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button><span class="resize-handle"></span></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -330,7 +336,9 @@
 
   <script>
     const PAT_KEY = 'repolist:pat';
-    const state = { files: [], sortKey: 'changed', sortDir: 'desc', repo: null, recycleOpen: false, editPath: null, loading: false };
+    const LAST_SCAN_KEY = 'repolist:lastScan';
+    const LAST_SEARCH_KEY = 'repolist:lastSearch';
+    const state = { files: [], sortKey: 'changed', sortDir: 'desc', repo: null, recycleOpen: false, editPath: null, loading: false, search: '' };
 
     function parseRepoLike(value) {
       if (!value) return null;
@@ -533,7 +541,16 @@
     function sortedFiles() {
       const deleted = new Set(loadDeleted().map((x) => x.path));
       const purged = loadPurgedSet();
-      const files = state.files.filter((f) => !deleted.has(f.path) && !purged.has(f.path));
+      let files = state.files.filter((f) => !deleted.has(f.path) && !purged.has(f.path));
+      const q = (state.search || '').toLowerCase().trim();
+      if (q) files = files.filter((f) => {
+        const hay = [f.path, f.name, f.changed, fmtAgo(f.changed), f.commitMessage, f.size, fmtSize(f.size)].join(' ').toLowerCase();
+        if (q.includes('*')) {
+          const regex = new RegExp(`^${q.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+          return regex.test((f.name || '').toLowerCase()) || regex.test((f.path || '').toLowerCase()) || hay.includes(q.replaceAll('*', ''));
+        }
+        return hay.includes(q);
+      });
       const key = state.sortKey;
       const dir = state.sortDir === 'asc' ? 1 : -1;
       files.sort((a, b) => {
@@ -600,7 +617,7 @@
             <td class="desc-cell" title="${esc(f.commitMessage || '')}">
               <span class="commit-msg">${esc(commitWrappedPreview(f.commitMessage || ''))}</span>
             </td>
-            <td class="size-cell">${esc(fmtSize(f.size))}</td>
+            <td class="size-cell" title="${esc(String(f.size))}">${esc(fmtSize(f.size))}</td>
             <td class="changed-cell" title="${esc(f.changed || '')}">${esc(fmtAgo(f.changed))}</td>
           </tr>`;
         }).join('');
@@ -723,7 +740,9 @@
         });
 
         render();
-        setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}).`);
+        const lastScan = new Date().toISOString();
+        localStorage.setItem(LAST_SCAN_KEY, lastScan);
+        setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}). Last scan: ${lastScan}`);
       } catch (err) {
         const msg = err.message || String(err);
         if (msg.includes('GitHub API 401')) {
@@ -817,8 +836,20 @@
       }, 450);
     });
     document.getElementById('tokenInput').value = localStorage.getItem(PAT_KEY) || '';
+    state.search = localStorage.getItem(LAST_SEARCH_KEY) || '';
+    document.getElementById('omniSearch').value = state.search;
+    document.getElementById('lastSearchText').textContent = `▸ Last search: ${state.search || '—'}`;
     document.getElementById('tokenInput').addEventListener('input', persistToken);
     document.getElementById('tokenInput').addEventListener('blur', persistToken);
+    document.getElementById('omniSearch').addEventListener('input', (e) => {
+      state.search = e.target.value || '';
+      localStorage.setItem(LAST_SEARCH_KEY, state.search);
+      document.getElementById('lastSearchText').textContent = `▸ Last search: ${state.search || '—'}`;
+      render();
+    });
+    document.getElementById('scanBtn').addEventListener('click', () => {
+      loadRepo(document.getElementById('repoInput').value).catch((err) => setStatus(err.message || String(err), true));
+    });
     document.getElementById('editCancel').addEventListener('click', closeEdit);
     document.getElementById('editSave').addEventListener('click', saveEdit);
     document.getElementById('editModal').addEventListener('click', (e) => {
@@ -849,6 +880,56 @@
         render();
       });
     });
+
+    (function initColumnUX() {
+      const row = document.getElementById('headRow');
+      if (!row) return;
+      const colKey = () => storageKey('repolist:columns');
+      try {
+        const saved = JSON.parse(localStorage.getItem(colKey()) || '{}');
+        if (Array.isArray(saved.order)) saved.order.forEach((col) => {
+          const th = row.querySelector(`th[data-col="${col}"]`);
+          if (th) row.appendChild(th);
+        });
+        if (saved.widths) row.querySelectorAll('th').forEach((th) => {
+          if (saved.widths[th.dataset.col]) th.style.width = saved.widths[th.dataset.col];
+        });
+      } catch (_) {}
+      const persistCols = () => {
+        const widths = {};
+        row.querySelectorAll('th').forEach((th) => { widths[th.dataset.col] = th.style.width || ''; });
+        const order = [...row.querySelectorAll('th')].map((th) => th.dataset.col);
+        localStorage.setItem(colKey(), JSON.stringify({ order, widths }));
+      };
+      let dragTh = null;
+      row.querySelectorAll('th').forEach((th) => {
+        th.addEventListener('dragstart', () => { dragTh = th; th.classList.add('dragging'); });
+        th.addEventListener('dragend', () => { th.classList.remove('dragging'); persistCols(); });
+        th.addEventListener('dragover', (e) => { e.preventDefault(); th.classList.add('drag-over'); });
+        th.addEventListener('dragleave', () => th.classList.remove('drag-over'));
+        th.addEventListener('drop', (e) => {
+          e.preventDefault();
+          th.classList.remove('drag-over');
+          if (dragTh && dragTh !== th) row.insertBefore(dragTh, th);
+          persistCols();
+        });
+        const handle = th.querySelector('.resize-handle');
+        if (!handle) return;
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const startX = e.clientX;
+          const startW = th.offsetWidth;
+          const mm = (ev) => { th.style.width = `${Math.max(40, startW + (ev.clientX - startX))}px`; };
+          const mu = () => {
+            window.removeEventListener('mousemove', mm);
+            window.removeEventListener('mouseup', mu);
+            persistCols();
+          };
+          window.addEventListener('mousemove', mm);
+          window.addEventListener('mouseup', mu);
+        });
+      });
+    })();
 
     (async function init() {
       const detected = detectRepo();
