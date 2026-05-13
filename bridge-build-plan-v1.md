@@ -11,15 +11,15 @@ Executing prompt format:
 ```
 build <xyz> version <abc> using bridge-build-plan-v1.md
 ```
-
-- `<xyz>` — target source filename to read and modify (e.g. `bridge-patched-v1.html`)
+ baseline sourcecode: bridge-patched-v1.html
+- `<xyz>` — target  filename to create
 - `<abc>` — version string to stamp into the output (e.g. `3.6.0`, `4.0-beta1`)
 
 Codex must:
-1. Locate file `<xyz>` as the input
+1. Locate file `bridge-patched-v1.html` as the input = baseline sourcecode
 2. Apply every change in Section 6 surgically
 3. Stamp `<abc>` into exactly three locations (Section 3)
-4. Output a single complete HTML file named `bridge-<abc>.html`
+4. Output a single complete HTML file named `<xyz>.html`
 5. Verify the do-not-touch constants (Section 4) are unchanged
 
 ---
@@ -49,7 +49,8 @@ Codex must:
 ## 2. Source References
 
 ```
-Target:   https://github.com/acmeproducts/stuff/blob/main/bridge-patched-v1.html
+sourcecode baseline: https://github.com/acmeproducts/stuff/blob/main/bridge-patched-v1.html
+Target:  https://github.com/acmeproducts/stuff/blob/main/<xyz>.html 
 Package:  https://github.com/acmeproducts/stuff/blob/main/fastType/README.md
           https://github.com/acmeproducts/stuff/blob/main/fastType/fasttext-wrapper.umd.js
           https://github.com/acmeproducts/stuff/blob/main/fastType/validation-report.txt
