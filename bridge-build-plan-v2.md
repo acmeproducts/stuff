@@ -1,9 +1,11 @@
-# bridge-build-plan-v1.md
+# bridge-build-plan-v2.md
 **Single source of truth for all TalkBridge build runs.**
 **Date:** 2026-05-12
 
 ---
+revision history: added requirement for startup sequence verification
 
+---
 ## How to Use This Plan
 
 Executing prompt format:
@@ -812,6 +814,8 @@ After `ci.value=...` in `tr-use-ico` handler:
 ci.dispatchEvent(new Event('input'));
 ```
 
+**G start up health and indicator 
+upon launch as the WASM is going through startup there should also be additional checks that DG is accessible that the relay is up and running that CF turn servers are accessible in short anything that is an external dependency must be checked and logged success failure or otherwise and there should be a pill at the bottom center of the lobby that is green yellow or red red means cannot proceed broken yellow means degraded green means go
 ---
 
 ## 8. Known Limitations
