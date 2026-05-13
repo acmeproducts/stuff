@@ -874,16 +874,34 @@
         const concurrency = Math.max(1, Math.min(Number.isFinite(concurrencyRaw) ? concurrencyRaw : 6, 12));
         const patternRegex = wildcardToRegExp(state.pattern);
         const commitSummaries = [];
-        let page = 1;
+        const scopedPaths = await resolveScopedPaths(state.pattern, patternRegex);
 
-        while (!state.cancelScan && page <= maxPages) {
-          setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
-          const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
-          const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
-          if (!Array.isArray(pageData) || pageData.length === 0) break;
-          commitSummaries.push(...pageData);
-          if (pageData.length < 100) break;
-          page += 1;
+        if (scopedPaths.length) {
+          setStatus(els.scanStatus, `Found ${scopedPaths.length} matching files. Loading commit history…`, 'info', true);
+          for (let pathIndex = 0; pathIndex < scopedPaths.length && !state.cancelScan; pathIndex += 1) {
+            const path = scopedPaths[pathIndex];
+            let page = 1;
+            while (!state.cancelScan && page <= maxPages) {
+              setStatus(els.scanStatus, `Loading commits for ${path} (${pathIndex + 1}/${scopedPaths.length}) page ${page}…`, 'info', true);
+              const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch, path });
+              const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
+              if (!Array.isArray(pageData) || pageData.length === 0) break;
+              commitSummaries.push(...pageData);
+              if (pageData.length < 100) break;
+              page += 1;
+            }
+          }
+        } else {
+          let page = 1;
+          while (!state.cancelScan && page <= maxPages) {
+            setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
+            const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
+            const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
+            if (!Array.isArray(pageData) || pageData.length === 0) break;
+            commitSummaries.push(...pageData);
+            if (pageData.length < 100) break;
+            page += 1;
+          }
         }
 
         if (state.cancelScan) {
@@ -892,14 +910,15 @@
           return;
         }
 
+        const uniqueCommitSummaries = Array.from(new Map(commitSummaries.map((summary) => [summary.sha, summary])).values());
         const variants = [];
         let processed = 0;
-        await runPool(commitSummaries, concurrency, async (summary) => {
+        await runPool(uniqueCommitSummaries, concurrency, async (summary) => {
           if (state.cancelScan) return;
           const detail = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits/${summary.sha}`);
           processed += 1;
-          if (processed % 5 === 0 || processed === commitSummaries.length) {
-            setStatus(els.scanStatus, `Scanning changed files ${processed}/${commitSummaries.length}…`, 'info', true);
+          if (processed % 5 === 0 || processed === uniqueCommitSummaries.length) {
+            setStatus(els.scanStatus, `Scanning changed files ${processed}/${uniqueCommitSummaries.length}…`, 'info', true);
           }
           const files = Array.isArray(detail.files) ? detail.files : [];
           for (const file of files) {
@@ -950,7 +969,7 @@
         if (state.allVariants.length) {
           await selectVariant(state.allVariants[0].id, { quiet: true });
           if (els.setupDetails) els.setupDetails.open = false;
-          setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${commitSummaries.length} commits.`, 'success');
+          setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${uniqueCommitSummaries.length} commits.`, 'success');
         } else {
           resetSelection();
           setStatus(els.scanStatus, `No changed files matched ${state.pattern}.`, 'warn');
@@ -963,6 +982,23 @@
       }
     }
 
+
+    async function resolveScopedPaths(pattern, patternRegex) {
+      const scoped = isRootHtmlWildcard(pattern);
+      if (!scoped) return [];
+      const tree = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/git/trees/${encodeURIComponent(state.branch)}?recursive=1`);
+      const nodes = Array.isArray(tree.tree) ? tree.tree : [];
+      return nodes
+        .filter((node) => node && node.type === 'blob' && typeof node.path === 'string' && !node.path.includes('/'))
+        .map((node) => node.path)
+        .filter((filePath) => matchesPattern(filePath, patternRegex));
+    }
+
+    function isRootHtmlWildcard(pattern) {
+      const value = (pattern || '').trim().toLowerCase();
+      if (!value || value.includes('/')) return false;
+      return value.endsWith('*.html') || value === '*.html';
+    }
     async function runPool(items, limit, worker) {
       let index = 0;
       const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -1055,10 +1091,37 @@
         if (!quiet) setStatus(els.scanStatus, `Loaded ${v.path} at ${v.shortSha}.`, 'success');
       } catch (error) {
         console.error(error);
+        const removed = handleMissingVariant(v, error);
+        if (removed) return;
         state.currentContent = '';
         els.sourceEditor.value = '';
         setStatus(els.scanStatus, `Unable to load selected variant: ${error.message}`, 'error');
       }
+    }
+
+
+    function handleMissingVariant(variant, error) {
+      const message = String(error?.message || '').toLowerCase();
+      const notFound = error?.status === 404 || message.includes('not found') || message.includes('no content returned');
+      if (!notFound) return false;
+      const before = state.allVariants.length;
+      state.allVariants = state.allVariants.filter(item => item.id !== variant.id);
+      state.shownVariants = state.shownVariants.filter(item => item.id !== variant.id);
+      state.contentCache.delete(variant.id);
+      if (state.selectedId === variant.id) state.selectedId = '';
+      if (state.allVariants.length !== before) {
+        persistTimeline();
+        renderTimeline();
+        updateStats();
+        fillCompareSelectors();
+        if (state.allVariants.length) {
+          selectVariant(state.allVariants[0].id, { quiet: true });
+        } else {
+          resetSelection();
+        }
+        setStatus(els.scanStatus, `Removed missing variant ${variant.path} @ ${variant.shortSha}.`, 'warn');
+      }
+      return true;
     }
 
     function renderPreview(v, content) {
