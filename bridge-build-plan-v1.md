@@ -50,7 +50,7 @@ Codex must:
 
 ```
 sourcecode baseline: https://github.com/acmeproducts/stuff/blob/main/bridge-patched-v1.html
-Target:  https://github.com/acmeproducts/stuff/blob/main/<xyz>.html 
+ 
 Package:  https://github.com/acmeproducts/stuff/blob/main/fastType/README.md
           https://github.com/acmeproducts/stuff/blob/main/fastType/fasttext-wrapper.umd.js
           https://github.com/acmeproducts/stuff/blob/main/fastType/validation-report.txt
@@ -92,7 +92,7 @@ Replace with:
 log('startup',{v:'<abc>',ua:navigator.userAgent.slice(0,80)});
 ```
 
-Output filename: `bridge-<abc>.html`
+Output filename: `bridge-<xyz>.html`
 
 ---
 
