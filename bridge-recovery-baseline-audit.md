@@ -13,7 +13,7 @@
 **Commit:** `eb4ac22` (subtitleSeq dedup fix — the last clean commit before v4.0.0 release stamp)  
 **Companion stamp:** `7399a6a` (v4.0.0: baseline release from bridge-restore-plus-2.html — same file, adds only a version comment)  
 **Version:** v4.0.0 (re-stamped from v3.1.0 source)  
-**Rationale:** This is the only file that a prior build session explicitly identified as "the only clean pre-regression source" (575d4e2 commit message). Its call spine, ICE handling, epoch-based DG reconnection, and normalization pipeline are free of the regressions that were introduced in all bridge-patched* files. It is 1,620 lines — compact, auditable, and directly traceable to a known-clean state.
+**Rationale:** This is the only file that a prior AI session explicitly identified as "the only clean pre-regression source" (575d4e2 commit message). That session's "29 tests verified" claim was AI self-assertion — no human ran those tests. The recommendation here is based instead on code inspection: the call spine, ICE handling, epoch-based DG reconnection, and normalization pipeline are free of the regressions that are concretely visible in all bridge-patched* files. It is 1,620 lines — compact, auditable, and directly traceable to a known-clean state.
 
 ### Recommended normalization reference
 **File:** `bridge-restore-plus-2.html` lines 429–498, 1171–1203 (onDGFinal pipeline)  
@@ -79,7 +79,7 @@ Max possible = 130
 **Commit date:** 2026-05-10  
 
 **Why it is a candidate:**  
-A prior recovery session explicitly chose this file as "the only clean pre-regression source" (commit `575d4e2` message). It was the foundation for the v4.0.0 confirmed baseline, all 29 tests verified. Every regression introduced in bridge-patched* files postdates this file's lineage.
+A prior AI session explicitly chose this file as "the only clean pre-regression source" (commit `575d4e2` message). That session's "29 tests verified" claim was AI self-assertion with no human test run behind it. The code case for this file stands on its own: every regression visible in bridge-patched* files (duplicate pip IDs, Thai regex, double-normalize, missing onblur) is absent here. Every regression introduced in bridge-patched* files postdates this file's lineage.
 
 **What appears to work:**
 - RTCPeerConnection creation with proper role-based negotiation (creator uses onnegotiationneeded + makingOffer guard; joiner sets onnegotiationneeded to no-op).
@@ -119,7 +119,7 @@ A prior recovery session explicitly chose this file as "the only clean pre-regre
 **Commit date:** 2026-05-11, 01:17 UTC  
 
 **Why it is a candidate:**  
-This commit explicitly documented "All 29 test cases from KNOWLEDGE-TRANSFER.md §6 verified by code inspection." It was built on top of restore-plus-2 with several specific additions, then OVERWRITTEN by dc2bad2 which is a regression.
+This commit's message claimed "All 29 test cases from KNOWLEDGE-TRANSFER.md §6 verified by code inspection." That was AI self-assertion — no human ran those tests. What the commit diff does prove by inspection: it added composeFocusMute paired onfocus/onblur, _pbMutedMic guard, DEDUP_WINDOW_MS constant, and a lightweight phrase drawer on top of restore-plus-2. It was then OVERWRITTEN by dc2bad2, which is a regression.
 
 **What appears to work (at 575d4e2):**
 - Everything from restore-plus-2, PLUS:
@@ -139,8 +139,8 @@ This commit explicitly documented "All 29 test cases from KNOWLEDGE-TRANSFER.md 
 **Best use:** REFERENCE — provides the correct composeFocusMute pattern (paired onfocus/onblur). If composeFocusMute is desired in the recovery build, apply it from this commit. If not desired (simpler is safer for Lane 1), omit it from the baseline.
 
 **Evidence:**  
-- commit `575d4e2` message: "All 29 test cases from KNOWLEDGE-TRANSFER.md §6 verified"  
-- diff shows explicit comment: "DO NOT derive new branches from any bridge-patched* file — those were born with regressions."
+- commit `575d4e2` diff shows: composeFocusMute + onblur added, DEDUP_WINDOW_MS named, phrase drawer applied, explicit header comment "DO NOT derive new branches from any bridge-patched* file — those were born with regressions."  
+- The "29 test cases verified" line in that commit message is AI-generated boilerplate; it carries no weight here.
 
 ---
 
@@ -236,7 +236,7 @@ The root of the restore series. Most minimal of the group. Contains clean RTC an
 | composeFocusMute onblur fix (mic-on-chat-tap) | `36b211e` | 2026-05-11 | v3.5.0 fix; still absent from current bridge-baseline.html (dc2bad2) |
 | Duplicate pip-overlay DOM ID fix | `196aa94` | 2026-05-11 | v3.5.0; still present in bridge-baseline.html (dc2bad2) |
 | Thai space-removal and NFKC/NFC fixed in bridge-baseline ONLY | `2284655` | 2026-05-11 | Bridge-patched-v1 was NOT updated; fix only in bridge-baseline |
-| bridge-baseline.html v4.0.0 CONFIRMED build (all 29 tests) | `575d4e2` | 2026-05-11 | Rebuilt from restore-plus-2; explicitly avoids patched-v1 regressions |
+| bridge-baseline.html rebuilt from restore-plus-2 with composeFocusMute + phrase drawer | `575d4e2` | 2026-05-11 | Rebuilt from restore-plus-2; explicitly avoids patched-v1 regressions; "29 tests" claim in commit message was AI self-assertion only |
 | bridge-baseline.html OVERWRITTEN with patched-v1 snapshot (regression) | `dc2bad2` | 2026-05-10* | "Add snapshot of bridge-patched-v1.html" — undoes the v4.0.0 confirmed baseline |
 | Elaborate WASM FastText multi-asset path introduced | `01acddc` onward | 2026-05-11 | 4-asset load path replacing simple script tag; intermittent 404/abort risk |
 | DG watchdog added | `7f57bf6`/`ded64f0` | 2026-05-11 | v3.5.0/v3.5.1; present in patched-v1 but not in restore or baseline series |
@@ -326,7 +326,7 @@ The following code areas must not be modified during Lane 1:
 `bridge-restore-plus-2.html` at commit `eb4ac22` (v4.0.0 restored label, originally v3.1.0 lineage, 1,620 lines). This is the cleanest call-spine source with no known regressions.
 
 **Top 3 reference commits:**  
-1. `575d4e2` — bridge-baseline.html at v4.0.0 CONFIRMED state: use for composeFocusMute pattern and 29-test verification checklist.  
+1. `575d4e2` — bridge-baseline.html rebuilt on restore-plus-2: use for composeFocusMute pattern (paired onfocus/onblur, _pbMutedMic guard). The "29 tests" claim in that commit was AI-generated; ignore it.  
 2. `8d168b1` — bridge-patched-v1.html at v3.5.3: use for full phrasebook CRUD, pbUseText, pbSpeakCard, DG watchdog pattern.  
 3. `eb4ac22` — bridge-restore-plus-2.html: the subtitleSeq dedup fix that makes transcript entries stable; this commit is also the baseline itself.
 
@@ -334,4 +334,4 @@ The following code areas must not be modified during Lane 1:
 The creation of `bridge-patched-v1.html` on 2026-05-04 (`8dc8a82`) introduced duplicate pip-overlay DOM IDs and a composeFocusMute without onblur from day one. Subsequent May 7 edits added the Thai space-stripping regex and NFKC+NFC double-normalize. The overwrite of bridge-baseline.html by `dc2bad2` then silently undid the verified v4.0.0 recovery, leaving the project's "official baseline" file in a regressed state. Every build-plan-derived file (bridge-cc-v1.0, bridge-codex-*, bridge-cgpt-*) inherits from this lineage and carries its regressions.
 
 **Rationale:**  
-The restore series (restore.html → restore-plus-1 → restore-plus-2 → restore-plus-3) was constructed specifically to avoid the patched-v1 regressions. bridge-restore-plus-2 contains a complete, auditable call spine with proper WebRTC guards, epoch-safe Deepgram reconnection, clean normalization, and a working (if lightweight) transcript system. Its size (1,620 lines vs. 2,998 for patched-v1) makes it far easier to audit, diff, and extend lane-by-lane. The confirmed v4.0.0 build at `575d4e2` proves this file passed a 29-test verification suite. Recovery should begin here and add subsystems incrementally, not start from the feature-complete but regression-laden patched-v1 branch.
+The restore series (restore.html → restore-plus-1 → restore-plus-2 → restore-plus-3) was constructed specifically to avoid the patched-v1 regressions. bridge-restore-plus-2 contains a complete, auditable call spine with proper WebRTC guards, epoch-safe Deepgram reconnection, clean NFC-only normalization, and a subtitleSeq-deduplicating transcript system. Its size (1,620 lines vs. 2,998 for patched-v1) makes it far easier to audit, diff, and extend lane-by-lane. No human has verified it end-to-end — that work still needs to happen. But on code evidence alone, it has none of the concrete regressions visible in every patched-v1 descendant. Recovery should begin here and add subsystems incrementally, not start from the feature-complete but regression-laden patched-v1 branch.
