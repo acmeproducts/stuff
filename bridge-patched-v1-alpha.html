@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v2.0 -->
+<!-- talkbridge · dcr · v3.3.0 — phrasebook v2+ -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -51,13 +51,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .lobby-footer{display:flex;gap:8px;margin-top:4px;}
 .lobby-footer-btn{background:none;border:none;color:var(--text-dim);padding:6px 10px;font-size:18px;cursor:pointer;font-family:"DM Sans",sans-serif;border-radius:8px;line-height:1;}
 .lobby-footer-btn:hover{background:var(--surface2);color:var(--text);}.lobby-footer-btn.active{color:var(--teal-bright);}
-.ft-status-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:20px;background:rgba(255,255,255,.05);font-size:10px;color:var(--text-muted);transition:opacity .4s;}
-.ft-status-pill.ready{opacity:0;pointer-events:none;}
-.ft-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--text-muted);}
-.ft-status-dot.loading{background:#f39c12;animation:ftPulse .8s ease-in-out infinite alternate;}
-.ft-status-dot.ok{background:var(--green);}
-.ft-status-dot.err{background:var(--red);}
-@keyframes ftPulse{from{opacity:.35}to{opacity:1}}
 .joining-screen{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
 .joining-screen.show{display:flex;}
 .joining-spinner{width:40px;height:40px;border:3px solid var(--surface2);border-top-color:var(--teal-bright);border-radius:50%;animation:spin .8s linear infinite;}
@@ -169,6 +162,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .chat-send-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--teal);color:#fff;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .15s;}
 .chat-send-btn:disabled{opacity:.3;cursor:default;}
 .chat-send-btn:hover:not(:disabled){opacity:.85;}
+/* ─── PiP overlay ─── */
+#pip-overlay{position:fixed;bottom:16px;right:12px;width:min(38vw,160px);z-index:9998;display:none;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.55);}
+#pip-overlay.show{display:flex;}
+#pip-remote{width:100%;aspect-ratio:9/16;object-fit:cover;background:#000;display:block;}
+#pip-local{width:30%;aspect-ratio:9/16;object-fit:cover;position:absolute;bottom:6px;right:6px;border-radius:6px;border:1.5px solid rgba(255,255,255,.3);}
+#pip-btns{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:6px;background:linear-gradient(to bottom,rgba(0,0,0,.5),transparent);}
+.pip-btn{background:rgba(0,0,0,.45);border:none;color:#fff;border-radius:50%;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 /* ═══ PHRASEBOOK v2 STYLES ═══════════════════════════════════════════════ */
 .pb-drawer{position:fixed;left:0;right:0;bottom:-56dvh;height:56dvh;background:var(--surface);border-top:1px solid rgba(255,255,255,.12);border-radius:14px 14px 0 0;z-index:20;transition:bottom .2s ease;display:flex;flex-direction:column;overflow:hidden;}
 .pb-drawer.open{bottom:0;}
@@ -399,11 +399,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
-        <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v2.0</span>
+        <span style="font-size:10px;color:var(--text-muted);">v3.4.0</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
-    </div>
+    </div>    </div>
     <div id="lobby-waiting" style="display:none;">
       <div style="font-size:14px;color:var(--text-dim);text-align:center;margin-bottom:10px;" id="room-name-display"></div>
       <div class="lobby-link-box" id="lobby-link" onclick="copyLink()">—</div>
@@ -523,13 +522,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="transcript-more-indicator" id="transcript-more-indicator" onclick="scrollToBottom()">↓</div>
   </div>
   <div class="chat-compose-strip" id="chat-compose-strip">
-    <input type="file" id="chat-file-input" accept=".pdf,.html,.txt,text/*,application/pdf" style="display:none" onchange="handleChatFile(event)"><button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><button class="pb-strip-btn" id="pb-strip-btn" onclick="pbToggleDrawer()" title="Phrases"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button><textarea class="chat-compose-ta" id="chat-input" placeholder="type here to chat" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)" onfocus="composeFocusMute()" onblur="_pbRestoreMic()"></textarea>
+    <input type="file" id="chat-file-input" accept=".pdf,.html,.txt,text/*,application/pdf" style="display:none" onchange="handleChatFile(event)"><button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><button class="pb-strip-btn" id="pb-strip-btn" onclick="pbToggleDrawer()" title="Phrases"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button><textarea class="chat-compose-ta" id="chat-input" placeholder="type here to chat" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)" onfocus="composeFocusMute()"></textarea>
     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()" disabled title="Send">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </button>
   </div>
 </div>
 <!-- PiP overlay -->
+<div id="pip-overlay">
+  <video id="pip-remote" autoplay playsinline></video>
+  <video id="pip-local" autoplay muted playsinline></video>
+  <div id="pip-btns">
+    <button class="pip-btn" onclick="pipExpand()" title="Expand"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button class="pip-btn" onclick="pipClose()" title="End call"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+</div>
 <div id="pip-overlay">
   <div class="pip-tap-target" onclick="pipExpand()"></div>
   <video id="pip-remote" autoplay playsinline muted></video>
@@ -720,8 +727,6 @@ var _relayWs=null;
 var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
-var _dgLastMsg=0,_dgWatchdogTimer=null;
-var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var localSubSeq=(Date.now()&0xFFFF),_ssNonce=Date.now().toString(36).slice(-4),transcript=[],trCache=new Map(),TR_CACHE_MAX=500;
 var hbTimer=null,seq=0,wsReconnectTimer=null;
@@ -745,6 +750,7 @@ function getMicConstraints(){
 function normalizeText(raw,mode){
   if(!raw)return'';
   var s=raw.normalize?raw.normalize('NFKC'):raw;
+  if(s.normalize)s=s.normalize('NFC');
   s=s.trim().replace(/\s+/g,' ');
   s=s.replace(/[\u200B-\u200D\uFEFF\u2060]/g,'');
   if(mode==='speech'){
@@ -822,132 +828,22 @@ function detectLang(text,src){return src||'en';}
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
-var FT_CONF=0.5,FT_LOAD_TIMEOUT_MS=5000;
-var FT_WRAPPER_JS='fastType/fasttext-wrapper.umd.js';
-var FT_CORE_JS='fastType/core/fasttext.mjs';
-var FT_CORE_WASM='fastType/core/fasttext.wasm';
-var FT_MODEL='fastType/model/lid.176.ftz';
-var FT_ASSETS=[FT_WRAPPER_JS,FT_CORE_JS,FT_CORE_WASM,FT_MODEL];
-var FT_SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
-var _ftStartupOverlay=null,_ftStartupStatus=null;
-function _ftEnsureStartupOverlay(){
-  if(_ftStartupOverlay)return;
-  var el=document.createElement('div');
-  el.style.cssText='position:fixed;inset:0;z-index:120;background:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-family:DM Sans,sans-serif;color:#e8e4df;';
-  el.innerHTML='<div style="font-size:15px;font-weight:700;color:#3FC1C1;">TalkBridge startup</div><div id="ft-startup-status" style="font-size:13px;color:#aaa;">Initializing language detector…</div>';
-  document.body.appendChild(el);
-  _ftStartupOverlay=el;
-  _ftStartupStatus=el.querySelector('#ft-startup-status');
-}
-function _ftStartupStep(step,extra){ _ftEnsureStartupOverlay(); var msg='Startup: '+step+(extra?(' · '+extra):''); if(_ftStartupStatus)_ftStartupStatus.textContent=msg; log('ft_startup_step',{step:step,extra:extra||null}); }
-function _ftStartupDone(ok,msg){
-  _ftEnsureStartupOverlay();
-  if(_ftStartupStatus)_ftStartupStatus.textContent=ok?'Detector ready':'Degraded mode: language detector unavailable';
-  log('ft_startup_'+(ok?'ready':'degraded'),{message:msg||null},ok?'ok':'warn');
-  if(ok){setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},400);}
-  else{
-    if(_ftStartupOverlay){
-      _ftStartupOverlay.style.cursor='pointer';
-      _ftStartupOverlay.onclick=function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';};
-    }
-    setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},1800);
-  }
-}
-function _ftWhitelist(){return Object.keys(LANGS||{});} 
-function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
-function _syncFtStatus(){
-  var dot=$('ft-dot'),label=$('ft-label'),pill=$('ft-lobby-status');
-  if(!dot||!label||!pill)return;
-  if(_ftReady){pill.classList.add('ready');}
-  else if(_ftLoadFailed){dot.className='ft-status-dot err';label.textContent='Lang detect unavailable';}
-  else{dot.className='ft-status-dot loading';label.textContent='Lang model loading…';}
-}
-function _probeFtAsset(path){
-  log('ft_asset_probe',{path:path});
-  return fetch(path,{cache:'no-store'}).then(function(res){
-    if(!res.ok)throw new Error('status_'+res.status);
-    return res.arrayBuffer().then(function(buf){
-      if(!buf||!buf.byteLength)throw new Error('empty');
-      log('ft_asset_ok',{path:path,size:buf.byteLength},'ok');
-      return true;
-    });
-  }).catch(function(e){
-    log('ft_asset_err',{path:path,e:String(e)},'error');
-    throw e;
-  });
-}
-function _ftErrDetail(e,ctx){
-  var t=(e===null)?'null':typeof e;
-  var raw;
-  try{raw=(t==='object'&&e&&e.message)?String(e.message):String(e);}catch(_){raw='[unstringifiable]';}
-  return {context:ctx||null,type:t,detail:raw};
-}
-function _ftPredictLabel(ft,text){
-  var r=ft.predict(text,1);
-  var item=null,label=null,score=null;
-  function _normLabel(v){
-    if(v==null)return null;
-    return String(v).replace(/^(__label__|label__)/,'');
-  }
-  if(r instanceof Map){
-    var first=r.entries().next();
-    if(!first.done){label=_normLabel(first.value[0]);score=first.value[1];}
-  }else if(Array.isArray(r)){
-    item=r.length?r[0]:null;
-    if(Array.isArray(item)){label=_normLabel(item[0]);score=item[1];}
-    else if(item&&typeof item==='object'){label=_normLabel(item.label);score=(item.prob!=null?item.prob:(item.score!=null?item.score:item.probability));}
-    else if(typeof item==='string'){label=_normLabel(item);}
-  }else if(r&&typeof r==='object'){
-    label=_normLabel(r.label!=null?r.label:r[0]);
-    score=(r.prob!=null?r.prob:(r.score!=null?r.score:r.probability));
-  }else if(typeof r==='string'){
-    label=_normLabel(r);
-  }
-  if(!label||!_ftAllowed(label))return null;
-  if(score==null)return label;
-  var n=Number(score);
-  if(!isFinite(n))return null;
-  return n>=FT_CONF?label:null;
-}
+var FT_CONF=0.5;
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  _ftStartupStep('asset probes');
-  Promise.all(FT_ASSETS.map(_probeFtAsset)).then(function(){
-    _ftStartupStep('runtime bootstrap load');
-    var ftModuleConfig={locateFile:function(path){
-      var p=String(path||'');
-      if(/\.wasm$/i.test(p))return FT_CORE_WASM;
-      var base=p.split('/').pop().split('\\').pop();
-      return 'fastType/'+base;
-    }};
-    window.Module=ftModuleConfig;
-    window.FastTextModule=ftModuleConfig;
-    log('ft_load_start',{src:FT_WRAPPER_JS});
-    var s=document.createElement('script');s.src=FT_WRAPPER_JS;
-    s.onerror=function(){ log('ft_load_err',Object.assign({src:s.src,reason:'runtime wrapper script failed to load'},_ftErrDetail(null,'script.onerror')),'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
-    s.onload=function(){
-      if(typeof FastText==='undefined'){log('ft_no_global',{reason:'FastText global missing after wrapper load'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_init_err: FastText global missing');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
-      try{
-        var ft=new FastText();
-        _ftStartupStep('model load');
-        log('ft_model_load',{model:FT_MODEL});
-        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS,reason:'FastText model load timeout'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'timeout: model load exceeded '+FT_LOAD_TIMEOUT_MS+'ms');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
-        ft.loadModel(FT_MODEL).then(function(){
-          _ftStartupStep('smoke tests');
-          return Promise.all(FT_SMOKE.map(function(pair){
-            var got=_ftPredictLabel(ft,pair[0]);
-            if(got!==pair[1])throw new Error('smoke mismatch: input="'+pair[0]+'" expected="'+pair[1]+'" got="'+got+'"');
-            return got;
-          }));
-        }).then(function(){
-          clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();_ftStartupDone(true,'ready');log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
-        }).catch(function(e){
-          clearTimeout(timer);log('ft_model_err',{reason:'runtime/model init or smoke failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-        });
-      }catch(e){log('ft_init_err',{reason:'FastText constructor/init failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
-    };
-    document.head.appendChild(s);
-  }).catch(function(e){log('ft_probe_err',{reason:'asset probe failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
+  var s=document.createElement('script');s.src='/fastType/fastText.common.js';
+  s.onerror=function(){_ftLoadFailed=true;log('ft_load_fail',{src:s.src},'warn');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];};
+  s.onload=function(){
+    if(typeof FastText==='undefined'){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+    try{
+      var ft=new FastText();
+      ft.loadModel('/fastType/lid.176.ftz').then(function(){
+        _ftModule=ft;_ftReady=true;log('ft_ready',{},'ok');
+        _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+      }).catch(function(){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
+    }catch(e){_ftLoadFailed=true;_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+  };
+  document.head.appendChild(s);
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
@@ -961,13 +857,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve(_ftPredictLabel(_ftModule,t));}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve(_ftPredictLabel(ft,t));}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -1023,31 +919,19 @@ async function sendChat(){
   pbCloseDrawer();
   var src=room.myLang,tgt=room.theirLang;
   var srcText=text;
-  log('chat_norm_start',{src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   try{
-    var _ftWonC=false;
     var detected=await Promise.race([
-      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
-      new Promise(function(res){setTimeout(function(){
-        if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
-        res(detectLang(text,src));
-      },150);})
+      _detectLangAsync(text),
+      new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
     ]);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
-      log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
-      if(normed){srcText=normalizeText(normed,'chat');log('chat_norm_result',{srcText:srcText.slice(0,60)});}
+      if(normed)srcText=normalizeText(normed,'chat');
     }
-  }catch(e){log('chat_norm_err',{e:String(e)},'error');}
+  }catch(_){}
   var tgtText=srcText;
   if(src&&tgt&&src!==tgt){
-    try{
-      var tr=await translateWithRetry(srcText,src,tgt,1);
-      if(tr)tgtText=normalizeText(tr,'chat');
-      if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}
-      log('chat_trans_result',{from:src,to:tgt,tgtText:tgtText.slice(0,60)},'ok');
-    }catch(e){log('chat_trans_err',{e:String(e)},'error');}
+    try{var tr=await translateWithRetry(srcText,src,tgt,1);if(tr)tgtText=normalizeText(tr,'chat');if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}}catch(_){}
   }
   var id='cm-'+uid();
   var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
@@ -2448,33 +2332,21 @@ function onDGFinal(text){
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
-  log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
-  var _ftWon=false;
   Promise.race([
-    _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
-    new Promise(function(res){setTimeout(function(){
-      if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
-      res(detectLang(text,src));
-    },150);})
+    _detectLangAsync(text),
+    new Promise(function(res){setTimeout(function(){res(detectLang(text,src));},150);})
   ]).then(function(detected){
-    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
-    if(detected&&detected!==src){
-      log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
-      return translateWithRetry(text,detected,src,2);
-    }
-    return Promise.resolve(text);
+    return (detected&&detected!==src)?translateWithRetry(text,detected,src,2):Promise.resolve(text);
   }).then(function(srcText){
     srcText=normalizeText(srcText,'speech')||text;
-    log('norm_result',{srcText:srcText.slice(0,60),ss:ss});
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
     addTr('me',srcText,srcText,src,tgt,ss);
     return translateWithRetry(srcText,src,tgt,2).then(function(tr){
       tr=normalizeText(tr,'speech')||srcText;
-      log('trans_result',{from:src,to:tgt,tr:tr.slice(0,60),ss:ss},'ok');
       relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
       patchTr('me',ss,tr,src,tgt);
     });
-  }).catch(function(e){log('dg_trans_err',{e:String(e),ss:ss},'error');});
+  }).catch(function(e){log('dg_trans_err',{e:String(e)},'error');});
 }
 
 function stopDGAudio(){
@@ -2483,19 +2355,17 @@ function stopDGAudio(){
   if(dgAudioCtx)try{dgAudioCtx.close();}catch(_){}dgAudioCtx=null;
 }
 function stopDeepgram(){
-  _stopDgWatchdog();
   dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}stopDGAudio();log('dg_stopped',{});
 }
 function startDeepgram(){
   var key=(($('dg-key')&&$('dg-key').value)||inviteDgKey||localStorage.getItem('tb_dg_key')||'').trim();
   if(!key){toast('Deepgram key missing');return}
-  if(!inviteDgKey&&key)localStorage.setItem('tb_dg_key',key);
+  if(!inviteDgKey||key!==inviteDgKey)localStorage.setItem('tb_dg_key',key);
   if(dgActive){log('dg_skip_active',{},'warn');return;}
   if(dgWs&&dgWs.readyState<2){log('dg_skip_open',{},'warn');return;}
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
-  log('dg_lang_select',{role:role,myLang:room.myLang,theirLang:room.theirLang,dgLang:langCode});
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
@@ -2548,7 +2418,6 @@ function startDeepgram(){
     }catch(e){log('dg_audio_err',{e:String(e)},'error');dgActive=false;}
   };
   dgWs.onmessage=function(e){
-    _dgLastMsg=Date.now();
     try{
       var d=JSON.parse(e.data);
       var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
@@ -2558,7 +2427,8 @@ function startDeepgram(){
   dgWs.onerror=function(){log('dg_error',{},'error')};
   dgWs.onclose=function(ev){
     log('dg_close',{code:ev.code,captureEpoch:captureEpoch,current:sessionEpoch},'warn');
-    dgActive=false;stopDGAudio();_stopDgWatchdog();
+    dgActive=false;stopDGAudio();
+    // Only retry if still desired, not muted, and same epoch
     if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
       setTimeout(function(){
         if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
@@ -2567,23 +2437,7 @@ function startDeepgram(){
       },2000);
     }
   };
-  // Watchdog: if DG goes silent (no WS messages) during a live call, restart it
-  _dgLastMsg=Date.now();
-  _stopDgWatchdog();
-  _dgWatchdogTimer=setInterval(function(){
-    if(!dgActive||!dgDesired||micMutedByUser||captureEpoch!==sessionEpoch){_stopDgWatchdog();return;}
-    if(Date.now()-_dgLastMsg>DG_WATCHDOG_MS){
-      log('dg_watchdog_restart',{silent_ms:Date.now()-_dgLastMsg},'warn');
-      stopDeepgram();
-      setTimeout(function(){
-        if(isCallActive()&&dgDesired&&!micMutedByUser&&captureEpoch===sessionEpoch){
-          reconcileDeepgramState('dg_watchdog');
-        }
-      },1000);
-    }
-  },5000);
 }
-function _stopDgWatchdog(){clearInterval(_dgWatchdogTimer);_dgWatchdogTimer=null;}
 
 function showSub(text,cls){
   var a=$('subtitle-area'),el=document.createElement('div');
@@ -2917,8 +2771,7 @@ if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem(
 if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
 if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
-log('startup',{v:'2.0',ua:navigator.userAgent.slice(0,80)});
-pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
+pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
   var tts=ev.target.closest('.tr-tts');
