@@ -444,6 +444,10 @@
               <div class="field">
                 <label for="patternInput">Wildcard</label>
                 <input id="patternInput" type="text" value="bridge*" placeholder="bridge*" autocomplete="off" />
+                <details id="searchHistoryDetails" class="setup-details" style="margin-top:8px;">
+                  <summary>Prior searches</summary>
+                  <div id="searchHistoryList" class="setup-content"></div>
+                </details>
               </div>
             </div>
 
@@ -605,6 +609,7 @@
     const LEGACY_SETTINGS_KEY = 'repoRecallLive.settings.v2';
     const LEGACY_TOKEN_KEY = 'repoRecallLive.token.v1';
     const TIMELINE_KEY = 'repoRecallLive.timeline.v2';
+    const SEARCH_HISTORY_KEY = 'repoRecallLive.searchHistory.v1';
     const $ = (id) => document.getElementById(id);
 
     const state = {
@@ -629,6 +634,7 @@
       ownerInput: $('ownerInput'), repoInput: $('repoInput'), branchInput: $('branchInput'), patternInput: $('patternInput'), tokenInput: $('tokenInput'),
       maxPagesInput: $('maxPagesInput'), concurrencyInput: $('concurrencyInput'), scanBtn: $('scanBtn'), cancelScanBtn: $('cancelScanBtn'), saveDefaultsBtn: $('saveDefaultsBtn'),
       scanStatus: $('scanStatus'), omniInput: $('omniInput'), timeline: $('timeline'), statVariants: $('statVariants'), statFiles: $('statFiles'), statCommits: $('statCommits'),
+      searchHistoryDetails: $('searchHistoryDetails'), searchHistoryList: $('searchHistoryList'),
       exportJsonBtn: $('exportJsonBtn'), exportCsvBtn: $('exportCsvBtn'), copyLinkBtn: $('copyLinkBtn'), currentTitle: $('currentTitle'), commitLink: $('commitLink'), blobLink: $('blobLink'),
       previewEmpty: $('previewEmpty'), previewLayout: $('previewLayout'), previewMeta: $('previewMeta'), previewFrame: $('previewFrame'), selectedDetails: $('selectedDetails'), actionsDetails: $('actionsDetails'),
       openStandaloneBtn: $('openStandaloneBtn'), downloadBtn: $('downloadBtn'), copyContentBtn: $('copyContentBtn'), sourceEditor: $('sourceEditor'), refreshPreviewBtn: $('refreshPreviewBtn'),
@@ -839,17 +845,54 @@
       els.cancelScanBtn.disabled = !scanning;
     }
 
+    function normalizePattern(input) {
+      let value = String(input || '').trim().toLowerCase();
+      if (!value) value = 'bridge*';
+      if (!value.includes('.')) value += '.html';
+      if (!value.includes('*')) value = `*${value}*`;
+      return value;
+    }
+
+    function readSearchHistory() {
+      try {
+        const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list.filter(Boolean) : [];
+      } catch (_) { return []; }
+    }
+
+    function writeSearchHistory(pattern) {
+      const next = [pattern].concat(readSearchHistory().filter((item) => item !== pattern)).slice(0, 20);
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+      renderSearchHistory();
+    }
+
+    function removeSearchHistory(pattern) {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(readSearchHistory().filter((item) => item !== pattern)));
+      renderSearchHistory();
+    }
+
+    function renderSearchHistory() {
+      if (!els.searchHistoryList) return;
+      const items = readSearchHistory();
+      els.searchHistoryList.innerHTML = items.length ? items.map((item) => `<div class="button-row"><button class="btn small" type="button" data-search="${escapeHtml(item)}">${escapeHtml(item)}</button><button class="btn small danger" type="button" data-remove-search="${escapeHtml(item)}">x</button></div>`).join('') : '<div class="muted">No prior searches yet.</div>';
+      els.searchHistoryList.querySelectorAll('[data-search]').forEach((btn) => btn.addEventListener('click', () => { els.patternInput.value = btn.dataset.search || ''; }));
+      els.searchHistoryList.querySelectorAll('[data-remove-search]').forEach((btn) => btn.addEventListener('click', () => removeSearchHistory(btn.dataset.removeSearch || '')));
+    }
+
     async function buildWildcardTimeline() {
       state.token = els.tokenInput.value.trim();
       state.owner = els.ownerInput.value.trim() || 'acmeproducts';
       state.repo = els.repoInput.value.trim() || 'stuff';
       state.branch = els.branchInput.value.trim() || 'main';
-      state.pattern = els.patternInput.value.trim() || 'bridge*';
+      state.pattern = normalizePattern(els.patternInput.value.trim() || 'bridge*');
+      els.patternInput.value = state.pattern;
       els.ownerInput.value = state.owner;
       els.repoInput.value = state.repo;
       els.branchInput.value = state.branch;
       if (state.token) localStorage.setItem(TOKEN_KEY, state.token);
       saveSettings();
+      writeSearchHistory(state.pattern);
       state.cancelScan = false;
       state.allVariants = [];
       state.shownVariants = [];
@@ -874,16 +917,34 @@
         const concurrency = Math.max(1, Math.min(Number.isFinite(concurrencyRaw) ? concurrencyRaw : 6, 12));
         const patternRegex = wildcardToRegExp(state.pattern);
         const commitSummaries = [];
-        let page = 1;
+        const scopedPaths = await resolveScopedPaths(state.pattern, patternRegex);
 
-        while (!state.cancelScan && page <= maxPages) {
-          setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
-          const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
-          const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
-          if (!Array.isArray(pageData) || pageData.length === 0) break;
-          commitSummaries.push(...pageData);
-          if (pageData.length < 100) break;
-          page += 1;
+        if (scopedPaths.length) {
+          setStatus(els.scanStatus, `Found ${scopedPaths.length} matching files. Loading commit history…`, 'info', true);
+          for (let pathIndex = 0; pathIndex < scopedPaths.length && !state.cancelScan; pathIndex += 1) {
+            const path = scopedPaths[pathIndex];
+            let page = 1;
+            while (!state.cancelScan && page <= maxPages) {
+              setStatus(els.scanStatus, `Loading commits for ${path} (${pathIndex + 1}/${scopedPaths.length}) page ${page}…`, 'info', true);
+              const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch, path });
+              const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
+              if (!Array.isArray(pageData) || pageData.length === 0) break;
+              commitSummaries.push(...pageData);
+              if (pageData.length < 100) break;
+              page += 1;
+            }
+          }
+        } else {
+          let page = 1;
+          while (!state.cancelScan && page <= maxPages) {
+            setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
+            const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
+            const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
+            if (!Array.isArray(pageData) || pageData.length === 0) break;
+            commitSummaries.push(...pageData);
+            if (pageData.length < 100) break;
+            page += 1;
+          }
         }
 
         if (state.cancelScan) {
@@ -892,14 +953,15 @@
           return;
         }
 
+        const uniqueCommitSummaries = Array.from(new Map(commitSummaries.map((summary) => [summary.sha, summary])).values());
         const variants = [];
         let processed = 0;
-        await runPool(commitSummaries, concurrency, async (summary) => {
+        await runPool(uniqueCommitSummaries, concurrency, async (summary) => {
           if (state.cancelScan) return;
           const detail = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits/${summary.sha}`);
           processed += 1;
-          if (processed % 5 === 0 || processed === commitSummaries.length) {
-            setStatus(els.scanStatus, `Scanning changed files ${processed}/${commitSummaries.length}…`, 'info', true);
+          if (processed % 5 === 0 || processed === uniqueCommitSummaries.length) {
+            setStatus(els.scanStatus, `Scanning changed files ${processed}/${uniqueCommitSummaries.length}…`, 'info', true);
           }
           const files = Array.isArray(detail.files) ? detail.files : [];
           for (const file of files) {
@@ -950,7 +1012,7 @@
         if (state.allVariants.length) {
           await selectVariant(state.allVariants[0].id, { quiet: true });
           if (els.setupDetails) els.setupDetails.open = false;
-          setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${commitSummaries.length} commits.`, 'success');
+          setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${uniqueCommitSummaries.length} commits.`, 'success');
         } else {
           resetSelection();
           setStatus(els.scanStatus, `No changed files matched ${state.pattern}.`, 'warn');
@@ -963,6 +1025,23 @@
       }
     }
 
+
+    async function resolveScopedPaths(pattern, patternRegex) {
+      const scoped = isRootHtmlWildcard(pattern);
+      if (!scoped) return [];
+      const tree = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/git/trees/${encodeURIComponent(state.branch)}?recursive=1`);
+      const nodes = Array.isArray(tree.tree) ? tree.tree : [];
+      return nodes
+        .filter((node) => node && node.type === 'blob' && typeof node.path === 'string' && !node.path.includes('/'))
+        .map((node) => node.path)
+        .filter((filePath) => matchesPattern(filePath, patternRegex));
+    }
+
+    function isRootHtmlWildcard(pattern) {
+      const value = (pattern || '').trim().toLowerCase();
+      if (!value || value.includes('/')) return false;
+      return value.endsWith('*.html') || value === '*.html';
+    }
     async function runPool(items, limit, worker) {
       let index = 0;
       const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -1055,10 +1134,37 @@
         if (!quiet) setStatus(els.scanStatus, `Loaded ${v.path} at ${v.shortSha}.`, 'success');
       } catch (error) {
         console.error(error);
+        const removed = handleMissingVariant(v, error);
+        if (removed) return;
         state.currentContent = '';
         els.sourceEditor.value = '';
         setStatus(els.scanStatus, `Unable to load selected variant: ${error.message}`, 'error');
       }
+    }
+
+
+    function handleMissingVariant(variant, error) {
+      const message = String(error?.message || '').toLowerCase();
+      const notFound = error?.status === 404 || message.includes('not found') || message.includes('no content returned');
+      if (!notFound) return false;
+      const before = state.allVariants.length;
+      state.allVariants = state.allVariants.filter(item => item.id !== variant.id);
+      state.shownVariants = state.shownVariants.filter(item => item.id !== variant.id);
+      state.contentCache.delete(variant.id);
+      if (state.selectedId === variant.id) state.selectedId = '';
+      if (state.allVariants.length !== before) {
+        persistTimeline();
+        renderTimeline();
+        updateStats();
+        fillCompareSelectors();
+        if (state.allVariants.length) {
+          selectVariant(state.allVariants[0].id, { quiet: true });
+        } else {
+          resetSelection();
+        }
+        setStatus(els.scanStatus, `Removed missing variant ${variant.path} @ ${variant.shortSha}.`, 'warn');
+      }
+      return true;
     }
 
     function renderPreview(v, content) {
@@ -1397,6 +1503,7 @@
 
     loadSettings();
     bindEvents();
+    renderSearchHistory();
     hydratePersistedTimeline();
     toggleRail(false);
     toggleSidebar(false);
