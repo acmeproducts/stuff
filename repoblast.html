@@ -3,97 +3,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RepoBlast Deployment Tool</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0b1020; color: #e8ecff; }
-    .wrap { width: min(1100px, 96vw); margin: 18px auto 30px; }
-    h1 { margin: 0 0 10px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 850px) { .grid { grid-template-columns: 1fr; } }
-    .panel { background: #101735; border: 1px solid #293563; border-radius: 12px; padding: 12px; }
-    label { display: block; margin: 8px 0 4px; font-size: 0.9rem; }
-    input, button { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #46558d; background: #111a39; color: #e8ecff; padding: 10px 12px; }
-    button { background: #5e7cff; border: 0; cursor: pointer; margin-top: 10px; font-weight: 700; }
-    #repos { max-height: 300px; overflow: auto; border: 1px solid #2d3a66; border-radius: 10px; padding: 8px; }
-    .repo-list-controls { margin: 8px 0; display: flex; justify-content: flex-start; }
-    .repo-list-controls button { width: auto; margin-top: 0; padding: 6px 10px; font-size: 0.82rem; }
-    .repo-item { display: flex; gap: 8px; align-items: center; justify-content: flex-start; padding: 4px 2px; text-align: left; }
-    .repo-item label { margin: 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #2f3c68; font-size: 0.83rem; line-height: 1.2; }
-    th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #c4d0ff; }
-    .ok { color: #b8ffc6; }
-    .bad { color: #ffb6b6; }
-    #status { margin-top: 10px; min-height: 1.35em; }
-    .hint { opacity: 0.85; font-size: 0.92rem; }
-    code { background: rgba(255,255,255,0.1); padding: 0.1em 0.35em; border-radius: 6px; }
-  </style>
-</head>
-<body>
-  <main class="wrap">
-    <h1>RepoBlast Deployment Tool</h1>
-    <p class="hint">Deploys dynamic <code>index.html</code> and <code>repolist.html</code> to selected repositories using GitHub Contents API.</p>
-    <div class="grid">
-      <section class="panel">
-        <label for="owner">Owner (user or org)</label>
-        <input id="owner" placeholder="GitHub owner">
-
-        <label for="token">GitHub Token (required for writes)</label>
-        <input id="token" type="password" placeholder="ghp_...">
-
-        <div class="repo-list-controls"><button id="checkAllRepos" type="button">Check All</button></div>
-        <div id="repos"></div>
-        <button id="deploy">Deploy to Selected Repos</button>
-      </section>
-
-      <section class="panel">
-        <h2 style="margin-top:0;font-size:1.1rem;">Deployment Results</h2>
-        <div id="status" role="status" aria-live="polite"></div>
-        <table class="results-table">
-          <thead><tr><th>Repository</th><th>index.html</th><th>repolist.html</th><th>Result</th></tr></thead>
-          <tbody id="results"></tbody>
-        </table>
-      </section>
-    </div>
-  </main>
-
-  <script>
-    function defaultOwnerFromHost() {
-      const host = window.location.hostname || '';
-      const m = host.match(/^([A-Za-z0-9_.-]+)\.github\.io$/i);
-      return m ? m[1] : 'acmeproducts';
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
-    }
-
-    function templateIndex() {
-      return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Repo Redirect</title></head>
-<body style="font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:20px">
-<script>
-(function(){
-  function p(v){if(!v)return null;v=v.trim().replace(/^https?:\\/\\//i,'').replace(/^www\\./i,'');
-    var q=v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+)/);if(q)return q[1];
-    var m=v.match(/^github\\.com\\/([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^github\\.([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^([A-Za-z0-9_.-]+)\\.github\\.io\\/([A-Za-z0-9_.-]+)/i);if(m)return m[1]+'/'+m[2];
-    m=v.match(/^([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)/);if(m)return m[1]+'/'+m[2];return null;}
-  var u=new URL(location.href),r=p(u.searchParams.get('repo'))||p(u.host+u.pathname)||p(u.pathname.slice(1));
-  if(!r){document.body.innerHTML='<h2>Enter repo</h2><input id="i" placeholder="owner/repo"><button id="b">Go</button>';document.getElementById('b').onclick=function(){var x=p(document.getElementById('i').value);if(x)location.href='https://'+x.split('/')[0]+'.github.io/'+x.split('/')[1]+'/repolist.html';};return;}
-  var s=r.split('/');location.replace('https://'+s[0]+'.github.io/'+s[1]+'/repolist.html');
-})();
-<\/script></body></html>`;
-    }
-
-    function templateRepoList() {
-      return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Repo File List</title>
   <style>
     * { box-sizing: border-box; }
@@ -350,6 +259,9 @@
     .modal-grid label { font-size: 0.85rem; color: #475569; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
     .ghost { background: #fff; color: #334155; border-color: #cbd5e1; }
+    .resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; }
+    th.dragging { outline: 2px solid #2563eb; }
+    th.drag-over { outline: 2px solid #f97316; }
     @media (max-width: 760px) {
       .wrap { width: min(1200px, 99vw); margin: 10px auto 16px; }
       .controls { grid-template-columns: 1fr; }
@@ -368,9 +280,12 @@
     <div class="controls">
       <input id="repoInput" placeholder="owner/repo or github.com/owner/repo">
       <input id="tokenInput" type="password" placeholder="GitHub PAT (optional, persisted)">
+      <input id="omniSearch" placeholder="Omni-search: name, date, time, commit, size, message">
+      <button id="scanBtn" type="button">Scan</button>
     </div>
     <div class="status-row">
       <div id="status" role="status" aria-live="polite"></div>
+      <div id="lastSearchText" class="mono" style="font-size:12px;color:#64748b;">▸ Last search: —</div>
       <button id="exportCsvBtn" class="mini" type="button">Export CSV</button>
     </div>
 
@@ -384,14 +299,14 @@
       <div class="table-scroll">
       <table>
         <thead>
-          <tr>
-            <th><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button></th>
-            <th>Open</th>
-            <th>Delete</th>
-            <th>Edit</th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button></th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="size">Size</button></th>
-            <th><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button></th>
+          <tr id="headRow">
+            <th data-col="name" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button><span class="resize-handle"></span></th>
+            <th data-col="open" draggable="true">Open<span class="resize-handle"></span></th>
+            <th data-col="delete" draggable="true">Delete<span class="resize-handle"></span></th>
+            <th data-col="edit" draggable="true">Edit<span class="resize-handle"></span></th>
+            <th data-col="desc" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button><span class="resize-handle"></span></th>
+            <th data-col="size" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="size">Size</button><span class="resize-handle"></span></th>
+            <th data-col="changed" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button><span class="resize-handle"></span></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -421,7 +336,9 @@
 
   <script>
     const PAT_KEY = 'repolist:pat';
-    const state = { files: [], sortKey: 'changed', sortDir: 'desc', repo: null, recycleOpen: false, editPath: null, loading: false };
+    const LAST_SCAN_KEY = 'repolist:lastScan';
+    const LAST_SEARCH_KEY = 'repolist:lastSearch';
+    const state = { files: [], sortKey: 'changed', sortDir: 'desc', repo: null, recycleOpen: false, editPath: null, loading: false, search: '' };
 
     function parseRepoLike(value) {
       if (!value) return null;
@@ -429,13 +346,13 @@
       const q = v.match(/(?:^|[?&])repo=([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/);
       if (q) return q[1];
       let m = v.match(/^github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);
-      if (m) return \`\${m[1]}/\${m[2]}\`;
+      if (m) return `${m[1]}/${m[2]}`;
       m = v.match(/^github\.([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/i);
-      if (m) return \`\${m[1]}/\${m[2]}\`;
+      if (m) return `${m[1]}/${m[2]}`;
       m = v.match(/^([A-Za-z0-9_.-]+)\.github\.io\/([A-Za-z0-9_.-]+)/i);
-      if (m) return \`\${m[1]}/\${m[2]}\`;
+      if (m) return `${m[1]}/${m[2]}`;
       m = v.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);
-      return m ? \`\${m[1]}/\${m[2]}\` : null;
+      return m ? `${m[1]}/${m[2]}` : null;
     }
 
     function detectRepo() {
@@ -467,12 +384,12 @@
     function shortCommitMessage(message) {
       const line = String(message || '').split('\n')[0].trim();
       if (!line) return '—';
-      return line.length > 131 ? \`\${line.slice(0, 131)}…\` : line;
+      return line.length > 131 ? `${line.slice(0, 131)}…` : line;
     }
 
     function shortFileName(path) {
       const full = String(path || '');
-      return full.length > 40 ? \`\${full.slice(0, 40)}…\` : full;
+      return full.length > 40 ? `${full.slice(0, 40)}…` : full;
     }
 
     function commitWrappedPreview(message) {
@@ -490,12 +407,12 @@
 
     function fmtSize(bytes) {
       if (!Number.isFinite(bytes) || bytes < 0) return '-';
-      if (bytes < 1024) return \`\${bytes} B\`;
+      if (bytes < 1024) return `${bytes} B`;
       const units = ['KB', 'MB', 'GB'];
       let n = bytes / 1024;
       let i = 0;
       while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
-      return \`\${n.toFixed(1)} \${units[i]}\`;
+      return `${n.toFixed(1)} ${units[i]}`;
     }
 
     function fmtAgo(iso) {
@@ -506,26 +423,37 @@
       const d = Math.floor(sec / 86400); sec -= d * 86400;
       const h = Math.floor(sec / 3600); sec -= h * 3600;
       const m = Math.floor(sec / 60);
-      if (d > 0) return \`\${d}d \${h}h ago\`;
-      if (h > 0) return \`\${h}h \${m}m ago\`;
-      return \`\${m}m ago\`;
+      if (d > 0) return `${d}d ${h}h ago`;
+      if (h > 0) return `${h}h ${m}m ago`;
+      return `${m}m ago`;
+    }
+
+    function currentToken() {
+      return (document.getElementById('tokenInput').value || '').trim();
+    }
+
+    function persistToken() {
+      localStorage.setItem(PAT_KEY, currentToken());
     }
 
     async function fetchJson(url) {
-      const token = (document.getElementById('tokenInput').value || '').trim();
+      const token = currentToken();
       const headers = { Accept: 'application/vnd.github+json' };
-      if (token) headers.Authorization = \`token \${token}\`;
-      const res = await fetch(url, { headers });
+      if (token) headers.Authorization = `Bearer ${token}`;
+      let res = await fetch(url, { headers });
+      if (res.status === 401 && token) {
+        res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      }
       if (!res.ok) {
         const body = await res.text();
-        throw new Error(\`GitHub API \${res.status}: \${body.slice(0, 200)}\`);
+        throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
       }
       return res.json();
     }
 
     function storageKey(base) {
-      if (!state.repo) return \`\${base}:global\`;
-      return \`\${base}:\${state.repo.owner}/\${state.repo.name}\`;
+      if (!state.repo) return `${base}:global`;
+      return `${base}:${state.repo.owner}/${state.repo.name}`;
     }
 
     function loadDeleted() {
@@ -559,11 +487,6 @@
       }
     }
 
-    function saveRepoCache(cache) {
-      try { localStorage.setItem(storageKey('repolist:cache'), JSON.stringify(cache)); }
-      catch (_) {}
-    }
-
     function loadMetadata() {
       try { return JSON.parse(localStorage.getItem(storageKey('repolist:metadata')) || '{}'); }
       catch (_) { return {}; }
@@ -574,9 +497,14 @@
       catch (_) {}
     }
 
+    function saveRepoCache(cache) {
+      try { localStorage.setItem(storageKey('repolist:cache'), JSON.stringify(cache)); }
+      catch (_) {}
+    }
+
     async function fetchLatestCommitForPath(owner, name, branch, path) {
       try {
-        const latest = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?path=\${encodeURIComponent(path)}&sha=\${encodeURIComponent(branch)}&per_page=1\`);
+        const latest = await fetchJson(`https://api.github.com/repos/${owner}/${name}/commits?path=${encodeURIComponent(path)}&sha=${encodeURIComponent(branch)}&per_page=1`);
         const c = Array.isArray(latest) ? latest[0] : null;
         if (!c) return { changed: null, message: '' };
         return {
@@ -613,7 +541,16 @@
     function sortedFiles() {
       const deleted = new Set(loadDeleted().map((x) => x.path));
       const purged = loadPurgedSet();
-      const files = state.files.filter((f) => !deleted.has(f.path) && !purged.has(f.path));
+      let files = state.files.filter((f) => !deleted.has(f.path) && !purged.has(f.path));
+      const q = (state.search || '').toLowerCase().trim();
+      if (q) files = files.filter((f) => {
+        const hay = [f.path, f.name, f.changed, fmtAgo(f.changed), f.commitMessage, f.size, fmtSize(f.size)].join(' ').toLowerCase();
+        if (q.includes('*')) {
+          const regex = new RegExp(`^${q.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+          return regex.test((f.name || '').toLowerCase()) || regex.test((f.path || '').toLowerCase()) || hay.includes(q.replaceAll('*', ''));
+        }
+        return hay.includes(q);
+      });
       const key = state.sortKey;
       const dir = state.sortDir === 'asc' ? 1 : -1;
       files.sort((a, b) => {
@@ -640,16 +577,16 @@
       }
       wrap.style.display = 'block';
       deleteAllBtn.style.display = 'inline-flex';
-      document.getElementById('recycleLabel').textContent = \`Recently Deleted (\${list.length})\`;
+      document.getElementById('recycleLabel').textContent = `Recently Deleted (${list.length})`;
       document.getElementById('recycleChev').textContent = state.recycleOpen ? '▾' : '▸';
       wrap.classList.toggle('open', state.recycleOpen);
 
-      document.getElementById('recycleList').innerHTML = list.map((item) => \`
+      document.getElementById('recycleList').innerHTML = list.map((item) => `
         <div class="recycle-item">
-          <span class="mono" title="\${esc(item.path)}">\${esc(item.path)}</span>
-          <button class="mini" type="button" data-restore="\${esc(item.path)}">Restore</button>
-          <button class="mini danger" type="button" data-purge="\${esc(item.path)}">Delete Forever</button>
-        </div>\`).join('');
+          <span class="mono" title="${esc(item.path)}">${esc(item.path)}</span>
+          <button class="mini" type="button" data-restore="${esc(item.path)}">Restore</button>
+          <button class="mini danger" type="button" data-purge="${esc(item.path)}">Delete Forever</button>
+        </div>`).join('');
 
       document.querySelectorAll('[data-restore]').forEach((btn) => btn.addEventListener('click', () => restoreDeleted(btn.getAttribute('data-restore'))));
       document.querySelectorAll('[data-purge]').forEach((btn) => btn.addEventListener('click', () => purgeDeleted(btn.getAttribute('data-purge'))));
@@ -664,25 +601,25 @@
       } else {
         tbody.innerHTML = files.map((f) => {
           const canLaunch = /\.html?$/i.test(f.path);
-          return \`<tr>
-            <td class="mono name-cell" title="\${esc(f.path)}">
-              \${canLaunch ? \`<a class="file-primary" href="\${esc(f.pagesUrl)}" target="_blank" rel="noopener" title="\${esc(f.path)}">\${esc(shortFileName(f.path))}</a>\` : \`<span class="file-primary" title="\${esc(f.path)}">\${esc(shortFileName(f.path))}</span>\`}
+          return `<tr>
+            <td class="mono name-cell" title="${esc(f.path)}">
+              ${canLaunch ? `<a class="file-primary" href="${esc(f.pagesUrl)}" target="_blank" rel="noopener" title="${esc(f.path)}">${esc(shortFileName(f.path))}</a>` : `<span class="file-primary" title="${esc(f.path)}">${esc(shortFileName(f.path))}</span>`}
             </td>
             <td class="open-cell">
-              <a class="file-external" href="\${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for \${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"></path><path fill="currentColor" d="M5 5h6v2H7v10h10v-4h2v6H5z"></path></svg></a>
+              <a class="file-external" href="${esc(f.ghListingUrl)}" target="_blank" rel="noopener" aria-label="Open GitHub blob for ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"></path><path fill="currentColor" d="M5 5h6v2H7v10h10v-4h2v6H5z"></path></svg></a>
             </td>
             <td class="delete-cell">
-              <button class="action-btn delete" type="button" data-delete="\${esc(f.path)}" aria-label="Delete \${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"></path></svg></button>
+              <button class="action-btn delete" type="button" data-delete="${esc(f.path)}" aria-label="Delete ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"></path></svg></button>
             </td>
             <td class="edit-cell">
-              <button class="action-btn" type="button" data-edit="\${esc(f.path)}" aria-label="Edit \${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75z"></path></svg></button>
+              <button class="action-btn" type="button" data-edit="${esc(f.path)}" aria-label="Edit ${esc(f.path)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75L21 5.75z"></path></svg></button>
             </td>
-            <td class="desc-cell" title="\${esc(f.commitMessage || '')}">
-              <span class="commit-msg">\${esc(commitWrappedPreview(f.commitMessage || ''))}</span>
+            <td class="desc-cell" title="${esc(f.commitMessage || '')}">
+              <span class="commit-msg">${esc(commitWrappedPreview(f.commitMessage || ''))}</span>
             </td>
-            <td class="size-cell">\${esc(fmtSize(f.size))}</td>
-            <td class="changed-cell" title="\${esc(f.changed || '')}">\${esc(fmtAgo(f.changed))}</td>
-          </tr>\`;
+            <td class="size-cell" title="${esc(String(f.size))}">${esc(fmtSize(f.size))}</td>
+            <td class="changed-cell" title="${esc(f.changed || '')}">${esc(fmtAgo(f.changed))}</td>
+          </tr>`;
         }).join('');
         document.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => softDelete(btn.getAttribute('data-delete'))));
         document.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openEdit(btn.getAttribute('data-edit'))));
@@ -699,9 +636,9 @@
     function exportCsv() {
       const files = sortedFiles();
       if (!files.length) return;
-      const q = (v) => \`"\${String(v ?? '').replace(/"/g, '""')}"\`;
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const rows = ['filename,pages_url,blob_url,description,size,updated_when,updated_iso'];
-      const asLink = (v) => \`=HYPERLINK(\"\${String(v ?? '').replace(/\"/g, '\"\"')}\",\"\${String(v ?? '').replace(/\"/g, '\"\"')}\")\`;
+      const asLink = (v) => `=HYPERLINK("${String(v ?? '').replace(/"/g, '""')}","${String(v ?? '').replace(/"/g, '""')}")`;
       for (const f of files) {
         rows.push([
           q(f.path),
@@ -713,11 +650,11 @@
           q(f.changed || '')
         ].join(','));
       }
-      const blob = new Blob([rows.join('\\n')], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = \`\${state.repo?.owner || 'repo'}-\${state.repo?.name || 'files'}-files.csv\`;
+      a.download = `${state.repo?.owner || 'repo'}-${state.repo?.name || 'files'}-files.csv`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 500);
     }
@@ -729,13 +666,13 @@
       state.loading = true;
       const [owner, name] = parsed.split('/');
       state.repo = { owner, name, branch: 'main' };
-      setStatus(\`Loading \${owner}/\${name} ...\`);
+      setStatus(`Loading ${owner}/${name} ...`);
       try {
-        const meta = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}\`);
+        const meta = await fetchJson(`https://api.github.com/repos/${owner}/${name}`);
         const branch = meta.default_branch || 'main';
         state.repo.branch = branch;
 
-        const headList = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/commits?per_page=1&sha=\${encodeURIComponent(branch)}\`);
+        const headList = await fetchJson(`https://api.github.com/repos/${owner}/${name}/commits?per_page=1&sha=${encodeURIComponent(branch)}`);
         const headSha = Array.isArray(headList) && headList[0] ? headList[0].sha : null;
         const cache = loadRepoCache();
         const metadata = loadMetadata();
@@ -744,17 +681,17 @@
         if (cache && cache.branch === branch && cache.headSha && headSha && cache.headSha === headSha) {
           state.files = cache.files;
           render();
-          setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}) from cache.\`);
+          setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}) from cache.`);
           return;
         }
 
-        const tree = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/git/trees/\${encodeURIComponent(branch)}?recursive=1\`);
+        const tree = await fetchJson(`https://api.github.com/repos/${owner}/${name}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
         const blobs = (tree.tree || []).filter((x) => x.type === 'blob');
         const changedPaths = new Set();
 
         if (cache && cache.branch === branch && cache.headSha && headSha) {
           try {
-            const cmp = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/compare/\${encodeURIComponent(cache.headSha)}...\${encodeURIComponent(headSha)}\`);
+            const cmp = await fetchJson(`https://api.github.com/repos/${owner}/${name}/compare/${encodeURIComponent(cache.headSha)}...${encodeURIComponent(headSha)}`);
             for (const f of (cmp.files || [])) {
               if (f.filename) changedPaths.add(f.filename);
               if (f.previous_filename) changedPaths.add(f.previous_filename);
@@ -768,9 +705,9 @@
 
         state.files = await Promise.all(blobs.map(async (item) => {
           const encodedPath = encodePath(item.path);
-          const pagesPrefix = name.toLowerCase() === \`\${owner.toLowerCase()}.github.io\`
-            ? \`https://\${owner}.github.io/\`
-            : \`https://\${owner}.github.io/\${name}/\`;
+          const pagesPrefix = name.toLowerCase() === `${owner.toLowerCase()}.github.io`
+            ? `https://${owner}.github.io/`
+            : `https://${owner}.github.io/${name}/`;
           const cached = cachedByPath.get(item.path);
           const commitData = (!changedPaths.has(item.path) && cached)
             ? { changed: cached.changed || null, message: cached.commitMessage || '' }
@@ -785,7 +722,7 @@
             changed: finalChanged,
             commitMessage: finalMessage,
             pagesUrl: pagesPrefix + encodedPath,
-            ghListingUrl: \`https://github.com/\${owner}/\${name}/blob/\${branch}/\${encodedPath}\`
+            ghListingUrl: `https://github.com/${owner}/${name}/blob/${branch}/${encodedPath}`
           };
         }));
 
@@ -803,9 +740,14 @@
         });
 
         render();
-        setStatus(\`Loaded \${state.files.length} files from \${owner}/\${name} (\${branch}).\`);
+        const lastScan = new Date().toISOString();
+        localStorage.setItem(LAST_SCAN_KEY, lastScan);
+        setStatus(`Loaded ${state.files.length} files from ${owner}/${name} (${branch}). Last scan: ${lastScan}`);
       } catch (err) {
         const msg = err.message || String(err);
+        if (msg.includes('GitHub API 401')) {
+          setStatus('GitHub token was rejected (401). Re-enter PAT and it will persist automatically.', true);
+        } else
         if (msg.includes('GitHub API 403')) {
           setStatus('GitHub API rate limit hit. Add a PAT in the token box for higher limits.', true);
         } else {
@@ -822,7 +764,7 @@
       if (!file) return;
       state.editPath = path;
       document.getElementById('editName').value = file.path;
-      document.getElementById('editCommitMessage').value = shortCommitMessage(file.commitMessage || \`Update \${file.path}\`);
+      document.getElementById('editCommitMessage').value = shortCommitMessage(file.commitMessage || `Update ${file.path}`);
       document.getElementById('editModal').classList.add('open');
     }
 
@@ -834,20 +776,20 @@
     function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
 
     async function githubWrite(path, body, method = 'PUT') {
-      const token = (document.getElementById('tokenInput').value || '').trim();
+      const token = currentToken();
       if (!token) throw new Error('GitHub PAT required for edits.');
       const [owner, name] = [state.repo.owner, state.repo.name];
-      const url = \`https://api.github.com/repos/\${owner}/\${name}/contents/\${encodePath(path)}\`;
+      const url = `https://api.github.com/repos/${owner}/${name}/contents/${encodePath(path)}`;
       const res = await fetch(url, {
         method,
         headers: {
           Accept: 'application/vnd.github+json',
-          Authorization: \`token \${token}\`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error(\`GitHub API \${res.status}: \${(await res.text()).slice(0, 200)}\`);
+      if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return res.json();
     }
 
@@ -855,23 +797,23 @@
       if (!state.editPath || !state.repo) return;
       const oldPath = state.editPath;
       const newPath = (document.getElementById('editName').value || '').trim();
-      const message = (document.getElementById('editCommitMessage').value || '').trim() || \`Update \${oldPath}\`;
+      const message = (document.getElementById('editCommitMessage').value || '').trim() || `Update ${oldPath}`;
       if (!newPath) return setStatus('Name/path is required.', true);
       const [owner, name, branch] = [state.repo.owner, state.repo.name, state.repo.branch];
       try {
-        setStatus(\`Saving \${oldPath}...\`);
-        const current = await fetchJson(\`https://api.github.com/repos/\${owner}/\${name}/contents/\${encodePath(oldPath)}?ref=\${encodeURIComponent(branch)}\`);
+        setStatus(`Saving ${oldPath}...`);
+        const current = await fetchJson(`https://api.github.com/repos/${owner}/${name}/contents/${encodePath(oldPath)}?ref=${encodeURIComponent(branch)}`);
         const content = current.content ? current.content.replace(/\n/g, '') : '';
         if (newPath !== oldPath) {
           await githubWrite(newPath, { message, content, branch });
-          await githubWrite(oldPath, { message: \`Remove \${oldPath}\`, sha: current.sha, branch }, 'DELETE');
+          await githubWrite(oldPath, { message: `Remove ${oldPath}`, sha: current.sha, branch }, 'DELETE');
         } else {
           const decoded = current.content ? decodeURIComponent(escape(atob(content))) : '';
           await githubWrite(oldPath, { message, content: b64Utf8(decoded), sha: current.sha, branch });
         }
         closeEdit();
-        await loadRepo(\`\${owner}/\${name}\`);
-        setStatus(\`Saved changes for \${newPath}.\`);
+        await loadRepo(`${owner}/${name}`);
+        setStatus(`Saved changes for ${newPath}.`);
       } catch (err) {
         setStatus(err.message || String(err), true);
       }
@@ -894,8 +836,19 @@
       }, 450);
     });
     document.getElementById('tokenInput').value = localStorage.getItem(PAT_KEY) || '';
-    document.getElementById('tokenInput').addEventListener('blur', () => {
-      localStorage.setItem(PAT_KEY, document.getElementById('tokenInput').value.trim());
+    state.search = localStorage.getItem(LAST_SEARCH_KEY) || '';
+    document.getElementById('omniSearch').value = state.search;
+    document.getElementById('lastSearchText').textContent = `▸ Last search: ${state.search || '—'}`;
+    document.getElementById('tokenInput').addEventListener('input', persistToken);
+    document.getElementById('tokenInput').addEventListener('blur', persistToken);
+    document.getElementById('omniSearch').addEventListener('input', (e) => {
+      state.search = e.target.value || '';
+      localStorage.setItem(LAST_SEARCH_KEY, state.search);
+      document.getElementById('lastSearchText').textContent = `▸ Last search: ${state.search || '—'}`;
+      render();
+    });
+    document.getElementById('scanBtn').addEventListener('click', () => {
+      loadRepo(document.getElementById('repoInput').value).catch((err) => setStatus(err.message || String(err), true));
     });
     document.getElementById('editCancel').addEventListener('click', closeEdit);
     document.getElementById('editSave').addEventListener('click', saveEdit);
@@ -911,7 +864,7 @@
     document.getElementById('deleteAllDeletedBtn').addEventListener('click', () => {
       const list = loadDeleted();
       if (!list.length) return;
-      if (!window.confirm(\`Delete all \${list.length} recently deleted entries forever? This cannot be undone.\`)) return;
+      if (!window.confirm(`Delete all ${list.length} recently deleted entries forever? This cannot be undone.`)) return;
       const purged = loadPurgedSet();
       for (const item of list) purged.add(item.path);
       savePurgedSet(purged);
@@ -928,6 +881,56 @@
       });
     });
 
+    (function initColumnUX() {
+      const row = document.getElementById('headRow');
+      if (!row) return;
+      const colKey = () => storageKey('repolist:columns');
+      try {
+        const saved = JSON.parse(localStorage.getItem(colKey()) || '{}');
+        if (Array.isArray(saved.order)) saved.order.forEach((col) => {
+          const th = row.querySelector(`th[data-col="${col}"]`);
+          if (th) row.appendChild(th);
+        });
+        if (saved.widths) row.querySelectorAll('th').forEach((th) => {
+          if (saved.widths[th.dataset.col]) th.style.width = saved.widths[th.dataset.col];
+        });
+      } catch (_) {}
+      const persistCols = () => {
+        const widths = {};
+        row.querySelectorAll('th').forEach((th) => { widths[th.dataset.col] = th.style.width || ''; });
+        const order = [...row.querySelectorAll('th')].map((th) => th.dataset.col);
+        localStorage.setItem(colKey(), JSON.stringify({ order, widths }));
+      };
+      let dragTh = null;
+      row.querySelectorAll('th').forEach((th) => {
+        th.addEventListener('dragstart', () => { dragTh = th; th.classList.add('dragging'); });
+        th.addEventListener('dragend', () => { th.classList.remove('dragging'); persistCols(); });
+        th.addEventListener('dragover', (e) => { e.preventDefault(); th.classList.add('drag-over'); });
+        th.addEventListener('dragleave', () => th.classList.remove('drag-over'));
+        th.addEventListener('drop', (e) => {
+          e.preventDefault();
+          th.classList.remove('drag-over');
+          if (dragTh && dragTh !== th) row.insertBefore(dragTh, th);
+          persistCols();
+        });
+        const handle = th.querySelector('.resize-handle');
+        if (!handle) return;
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const startX = e.clientX;
+          const startW = th.offsetWidth;
+          const mm = (ev) => { th.style.width = `${Math.max(40, startW + (ev.clientX - startX))}px`; };
+          const mu = () => {
+            window.removeEventListener('mousemove', mm);
+            window.removeEventListener('mouseup', mu);
+            persistCols();
+          };
+          window.addEventListener('mousemove', mm);
+          window.addEventListener('mouseup', mu);
+        });
+      });
+    })();
+
     (async function init() {
       const detected = detectRepo();
       if (detected) {
@@ -938,139 +941,6 @@
         setStatus('No repo detected automatically. Enter owner/repo to auto-load.');
       }
     })();
-  <\/script>
-</body>
-</html>
-`;
-    }
-
-    async function ghFetch(url, token, opts = {}) {
-      const headers = Object.assign({ Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' }, opts.headers || {});
-      const res = await fetch(url, Object.assign({}, opts, { headers }));
-      const text = await res.text();
-      let json = null;
-      try { json = text ? JSON.parse(text) : null; } catch (_) {}
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${(json && (json.message || JSON.stringify(json))) || text}`);
-      return json;
-    }
-
-    async function listRepos(owner, token) {
-      const userUrl = `https://api.github.com/users/${encodeURIComponent(owner)}/repos?per_page=100&type=owner&sort=full_name`;
-      return ghFetch(userUrl, token);
-    }
-
-    function b64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
-
-    async function upsertFile(owner, repo, path, content, token, message) {
-      const base = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodeURIComponent(path)}`;
-      let sha;
-      try { const existing = await ghFetch(base, token); sha = existing.sha; } catch (_) {}
-      const body = { message, content: b64Utf8(content) };
-      if (sha) body.sha = sha;
-      return ghFetch(base, token, { method: 'PUT', body: JSON.stringify(body) });
-    }
-
-    function setStatus(msg, bad = false) {
-      const el = document.getElementById('status');
-      el.textContent = msg;
-      el.className = bad ? 'bad' : 'ok';
-    }
-
-    function persistDeployAuth() {
-      localStorage.setItem('repoblast:owner', ownerEl.value.trim());
-      localStorage.setItem('repoblast:token', tokenEl.value.trim());
-    }
-
-    function addResultRow(repo, indexMsg, listMsg, ok) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${escapeHtml(repo)}</td><td>${escapeHtml(indexMsg)}</td><td>${escapeHtml(listMsg)}</td><td class="${ok ? 'ok' : 'bad'}">${ok ? 'OK' : 'FAILED'}</td>`;
-      document.getElementById('results').appendChild(tr);
-    }
-
-    async function loadRepos() {
-      const owner = document.getElementById('owner').value.trim();
-      const token = document.getElementById('token').value.trim();
-      if (!owner) return setStatus('Owner required.', true);
-      if (!token) return setStatus('Token required to list private repos and write.', true);
-      persistDeployAuth();
-      setStatus(`Loading repos for ${owner}...`);
-      const reposWrap = document.getElementById('repos');
-      reposWrap.innerHTML = '';
-      try {
-        const repos = await listRepos(owner, token);
-        if (!repos.length) { reposWrap.textContent = 'No repositories found.'; return setStatus('No repositories found.', true); }
-        for (const r of repos) {
-          const div = document.createElement('div');
-          div.className = 'repo-item';
-          div.innerHTML = `<input type="checkbox" value="${escapeHtml(r.name)}" id="repo_${escapeHtml(r.name)}"> <label for="repo_${escapeHtml(r.name)}">${escapeHtml(r.full_name)}</label>`;
-          reposWrap.appendChild(div);
-        }
-        setStatus(`Loaded ${repos.length} repos for ${owner}.`);
-      } catch (err) {
-        setStatus(err.message || String(err), true);
-      }
-    }
-
-    async function deploySelected() {
-      const owner = document.getElementById('owner').value.trim();
-      const token = document.getElementById('token').value.trim();
-      if (!owner || !token) return setStatus('Owner and token are required.', true);
-      const checked = Array.from(document.querySelectorAll('#repos input[type="checkbox"]:checked'));
-      if (!checked.length) return setStatus('Select at least one repository.', true);
-
-      document.getElementById('results').innerHTML = '';
-      let okCount = 0;
-      setStatus(`Deploying to ${checked.length} repos...`);
-      persistDeployAuth();
-      let repolistPayload = '';
-      try {
-        repolistPayload = await fetch('repolist.html', { cache: 'no-store' }).then((res) => {
-          if (!res.ok) throw new Error(`Unable to load local repolist.html (${res.status})`);
-          return res.text();
-        });
-      } catch (err) {
-        return setStatus(`Failed to read local repolist.html: ${err.message || err}`, true);
-      }
-
-      for (const cb of checked) {
-        const repo = cb.value;
-        let indexMsg = 'pending', listMsg = 'pending', ok = true;
-        try { await upsertFile(owner, repo, 'index.html', templateIndex(), token, 'Deploy dynamic index redirect page'); indexMsg = 'updated'; }
-        catch (err) { ok = false; indexMsg = `error: ${err.message || err}`; }
-        try { await upsertFile(owner, repo, 'repolist.html', repolistPayload, token, 'Deploy dynamic repolist app'); listMsg = 'updated'; }
-        catch (err) { ok = false; listMsg = `error: ${err.message || err}`; }
-        if (ok) okCount++;
-        addResultRow(repo, indexMsg, listMsg, ok);
-      }
-
-      setStatus(`Done. Success: ${okCount}/${checked.length}.`, okCount !== checked.length);
-    }
-
-    const ownerEl = document.getElementById('owner');
-    const tokenEl = document.getElementById('token');
-    ownerEl.value = localStorage.getItem('repoblast:owner') || defaultOwnerFromHost();
-    tokenEl.value = localStorage.getItem('repoblast:token') || '';
-    ownerEl.addEventListener('input', persistDeployAuth);
-    tokenEl.addEventListener('input', persistDeployAuth);
-    ownerEl.addEventListener('blur', persistDeployAuth);
-    tokenEl.addEventListener('blur', persistDeployAuth);
-    document.getElementById('checkAllRepos').addEventListener('click', () => {
-      const boxes = Array.from(document.querySelectorAll('#repos input[type="checkbox"]'));
-      if (!boxes.length) return;
-      const shouldCheck = boxes.some((box) => !box.checked);
-      boxes.forEach((box) => { box.checked = shouldCheck; });
-    });
-    let loadReposTimer = null;
-    function scheduleLoadRepos() {
-      clearTimeout(loadReposTimer);
-      loadReposTimer = setTimeout(() => { loadRepos(); }, 350);
-    }
-    ownerEl.addEventListener('input', scheduleLoadRepos);
-    tokenEl.addEventListener('input', scheduleLoadRepos);
-    ownerEl.addEventListener('change', scheduleLoadRepos);
-    tokenEl.addEventListener('change', scheduleLoadRepos);
-    document.getElementById('deploy').addEventListener('click', deploySelected);
-    if (ownerEl.value && tokenEl.value) loadRepos();
   </script>
 </body>
 </html>
