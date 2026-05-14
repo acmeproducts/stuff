@@ -406,6 +406,10 @@
       .drawer-toggle-floating { display: none; }
       .main { min-height: 100vh; }
       .topbar { padding: 10px 12px; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(92vw, 390px); z-index: 9; box-shadow: var(--shadow); }
+      .sidebar.collapsed { transform: translateX(-102%); width: min(92vw, 390px); border-right: 1px solid var(--border); }
+      .drawer-toggle-floating { display: none; }
       .preview-layout, .preview-layout.actions-closed { grid-template-columns: 1fr; }
       .preview-area { border-right: 0; border-bottom: 1px solid var(--border); min-height: 52vh; }
       .side-column { max-height: 42vh; }
@@ -633,6 +637,8 @@
     const LEGACY_TOKEN_KEY = 'repoRecallLive.token.v1';
     const TIMELINE_KEY = 'repoRecallLive.timeline.v2';
     const SEARCH_HISTORY_KEY = 'repoRecallLive.searchHistory.v1';
+    const REPO_SCAN_KEY = 'repo-scan.json';
+    const REPO_SCAN_LINEAGE_KEY = 'repo-scan-lineage.json';
     const $ = (id) => document.getElementById(id);
 
     const state = {
@@ -903,6 +909,44 @@
       els.searchHistoryList.querySelectorAll('[data-remove-search]').forEach((btn) => btn.addEventListener('click', () => removeSearchHistory(btn.dataset.removeSearch || '')));
     }
 
+
+    async function readRepoJson(path, ref) {
+      try {
+        const data = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`);
+        if (!data || data.type !== 'file' || !data.content) return null;
+        return { json: JSON.parse(decodeBase64Unicode(data.content)), sha: data.sha || null };
+      } catch (error) {
+        if (error && error.status === 404) return null;
+        throw error;
+      }
+    }
+
+    async function writeRepoJson(path, payload, branch, existingSha = null) {
+      if (!state.token) return;
+      const message = `Update ${path} from live lineage`;
+      const body = { message, branch, content: encodeBase64Unicode(JSON.stringify(payload, null, 2)) };
+      if (existingSha) body.sha = existingSha;
+      await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/contents/${encodePath(path)}`, { method: 'PUT', body: JSON.stringify(body) });
+    }
+
+    async function tryHydrateFromRepoLineage() {
+      const loaded = await readRepoJson(REPO_SCAN_LINEAGE_KEY, state.branch);
+      if (!loaded || !loaded.json) return false;
+      const payload = loaded.json;
+      if (!Array.isArray(payload.variants) || !payload.variants.length) return false;
+      if ((payload.pattern || '') !== state.pattern) return false;
+      state.allVariants = payload.variants.slice();
+      state.allVariants.forEach((variant, index) => { variant.rank = index + 1; });
+      state.shownVariants = state.allVariants.slice();
+      persistTimeline();
+      applyOmniFilter();
+      updateStats();
+      fillCompareSelectors();
+      if (state.allVariants.length) await selectVariant(state.allVariants[0].id, { quiet: true });
+      setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${REPO_SCAN_LINEAGE_KEY}.`, 'success');
+      return true;
+    }
+
     async function buildWildcardTimeline() {
       state.token = els.tokenInput.value.trim();
       state.owner = els.ownerInput.value.trim() || 'acmeproducts';
@@ -932,6 +976,11 @@
         if (!state.branch) {
           state.branch = state.defaultBranch;
           els.branchInput.value = state.branch;
+        }
+
+        if (await tryHydrateFromRepoLineage()) {
+          setScanning(false);
+          return;
         }
 
         const maxPagesRaw = parseInt(els.maxPagesInput.value, 10);
@@ -1035,6 +1084,16 @@
         if (state.allVariants.length) {
           await selectVariant(state.allVariants[0].id, { quiet: true });
           if (els.setupDetails) els.setupDetails.open = false;
+          const scanPayload = { owner: state.owner, repo: state.repo, branch: state.branch, savedAt: new Date().toISOString(), files: Array.from(new Set(state.allVariants.map((v) => v.path).filter(Boolean))).sort() };
+          const lineagePayload = { owner: state.owner, repo: state.repo, branch: state.branch, pattern: state.pattern, savedAt: new Date().toISOString(), variants: state.allVariants };
+          try {
+            const existingScan = await readRepoJson(REPO_SCAN_KEY, state.branch);
+            const existingLineage = await readRepoJson(REPO_SCAN_LINEAGE_KEY, state.branch);
+            await writeRepoJson(REPO_SCAN_KEY, scanPayload, state.branch, existingScan?.sha || null);
+            await writeRepoJson(REPO_SCAN_LINEAGE_KEY, lineagePayload, state.branch, existingLineage?.sha || null);
+          } catch (persistError) {
+            console.warn('Unable to persist repo scan artifacts', persistError);
+          }
           setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${uniqueCommitSummaries.length} commits.`, 'success');
         } else {
           resetSelection();
