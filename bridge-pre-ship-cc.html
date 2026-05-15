@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v4.1.0-pre-ship-cc -->
+<!-- talkbridge · dcr · v3.5.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -56,6 +56,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .ft-status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--text-muted);}
 .ft-status-dot.loading{background:#f39c12;animation:ftPulse .8s ease-in-out infinite alternate;}
 .ft-status-dot.ok{background:var(--green);}
+.ft-status-dot.warn{background:#f39c12;}
 .ft-status-dot.err{background:var(--red);}
 @keyframes ftPulse{from{opacity:.35}to{opacity:1}}
 .joining-screen{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
@@ -125,7 +126,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .tr-col.source .tr-text{color:var(--text-dim);}
 .tr-tts{border:none;background:transparent;color:#8f959d;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px;font-size:10px;line-height:1;}
 .tr-tts:hover{color:#c4ccd4;}
-.tr-tts svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.tr-tts svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}.tr-tts svg *{pointer-events:none;}.tr-use-ico svg{pointer-events:none;}.tr-use-ico svg *{pointer-events:none;}
 .tr-empty{color:var(--text-muted);font-size:12px;font-style:italic;padding:12px 0;}
 .call-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:8px 16px max(8px,env(safe-area-inset-bottom));background:var(--surface);flex-shrink:0;}
 .ctrl-btn{width:48px;height:48px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .1s;background:rgba(255,255,255,.1);color:#fff;}
@@ -360,8 +361,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 #att-modal-body iframe{width:100%;height:60dvh;border:none;border-radius:8px;background:#fff;}
 /* tr-use icon style */
 .tr-use-ico{border:none;background:rgba(255,255,255,.08);color:#c4ccd4;border-radius:5px;padding:3px 6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;}
-.tr-tts svg,.tr-tts path,.tr-tts polygon,.tr-use-ico svg,.tr-use-ico path,.tr-use-ico polygon{pointer-events:none;}
-.tr-use-ico:hover{background:rgba(63,193,193,.25);color:var(--teal-bright);}
+.tr-use-ico:hover{background:rgba(63,193,193,.25);color:var(--teal-bright);}.tr-fail-badge{display:inline-block;font-size:10px;color:#e67e22;background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.3);border-radius:4px;padding:1px 5px;margin-top:3px;}
 /* Chat attach SVG */
 .chat-attach-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:6px;display:flex;align-items:center;line-height:0;flex-shrink:0;}
 .chat-attach-btn:hover{color:var(--text);}
@@ -401,10 +401,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v4.1.0-pre-ship-cc</span>
+        <span style="font-size:10px;color:var(--text-muted);">v3.5.3</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
-    </div>    </div>
+    </div>
     <div id="lobby-waiting" style="display:none;">
       <div style="font-size:14px;color:var(--text-dim);text-align:center;margin-bottom:10px;" id="room-name-display"></div>
       <div class="lobby-link-box" id="lobby-link" onclick="copyLink()">—</div>
@@ -723,7 +723,7 @@ var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var _dgLastMsg=0,_dgWatchdogTimer=null;
 var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
-var recentFinals=[],DEDUP_MS=6000,DEDUP_MAX=6;
+var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
 var localSubSeq=(Date.now()&0xFFFF),_ssNonce=Date.now().toString(36).slice(-4),transcript=[],trCache=new Map(),TR_CACHE_MAX=500;
 var hbTimer=null,seq=0,wsReconnectTimer=null;
 var debugLog=[],HEARTBEAT_MS=30000,SUB_LINGER=5000,MAX_TR=300;
@@ -818,85 +818,142 @@ function routePostCallByRole(sourceReason){
   }
 }
 
-// Safe stub — returns current lang so the race fallback never throws
+// B3 fix: use unicode ranges to identify non-Latin scripts; detect Latin text in non-Latin rooms
 function detectLang(text,src){
-  if(!text)return src||'en';
-  var t=text;
-  if(/[\u4E00-\u9FFF\u3400-\u4DBF]/.test(t))return'zh';
-  if(/[\u3040-\u30FF\u31F0-\u31FF]/.test(t))return'ja';
-  if(/[\uAC00-\uD7A3\u1100-\u11FF]/.test(t))return'ko';
-  if(/[\u0E00-\u0E7F]/.test(t))return'th';
-  if(/[\u0600-\u06FF]/.test(t))return'ar';
-  if(/[\u0900-\u097F]/.test(t))return'hi';
-  if(/[\u0400-\u04FF]/.test(t))return'ru';
-  var NON_LATIN=['th','zh','ja','ko','ar','hi','ru'];
-  if(NON_LATIN.indexOf(src)>=0&&/^[\u0000-\u024F\s\d\W]+$/.test(t))return'en';
+  var t=(text||'').trim();
+  if(/[฀-๿]/.test(t))return 'th';
+  if(/[぀-ヿㇰ-ㇿ]/.test(t))return 'ja';
+  if(/[一-鿿]/.test(t))return 'zh';
+  if(/[가-힣]/.test(t))return 'ko';
+  if(/[؀-ۿ]/.test(t))return 'ar';
+  if(/[ऀ-ॿ]/.test(t))return 'hi';
+  if(/[Ѐ-ӿ]/.test(t))return 'ru';
+  var nonLatinSrcs=['zh','ja','ko','th','ar','hi','ru'];
+  if(nonLatinSrcs.indexOf(src)>=0&&/^[\x00-\x7FÀ-ɏ\s]+$/.test(t))return 'en';
   return src||'en';
 }
 
 /* === FASTTEXT WASM === */
-var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
-var FT_CONF_SPEECH=0.58,FT_CONF_CHAT=0.50,FT_CONF_FLOOR=0.40;
-var FT_WASM_URL='/stuff/fastType/core/fasttext.wasm';
-var FT_MODEL_URL='/stuff/fastType/model/lid.176.ftz';
-var FT_WRAPPER_URL='/stuff/fastType/fasttext-wrapper.umd.js';
+var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftDegraded=false,_ftPending=[];
+var CONF_SPEECH=0.58,CONF_CHAT=0.50,CONF_FLOOR=0.40,FT_LOAD_TIMEOUT_MS=5000;
+var FT_WRAPPER_JS='/stuff/fastType/fasttext-wrapper.umd.js';
+var FT_CORE_JS='/stuff/fastType/core/fasttext.mjs';
+var FT_CORE_WASM='/stuff/fastType/core/fasttext.wasm';
+var FT_MODEL='/stuff/fastType/model/lid.176.ftz';
+var FT_ASSETS=[FT_WRAPPER_JS,FT_CORE_JS,FT_CORE_WASM,FT_MODEL];
+var FT_SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
+var _ftStartupOverlay=null,_ftStartupStatus=null;
+function _ftEnsureStartupOverlay(){
+  if(_ftStartupOverlay)return;
+  var el=document.createElement('div');
+  el.style.cssText='position:fixed;inset:0;z-index:120;background:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-family:DM Sans,sans-serif;color:#e8e4df;';
+  el.innerHTML='<div style="font-size:15px;font-weight:700;color:#3FC1C1;">TalkBridge startup</div><div id="ft-startup-status" style="font-size:13px;color:#aaa;">Initializing language detector…</div>';
+  document.body.appendChild(el);
+  _ftStartupOverlay=el;
+  _ftStartupStatus=el.querySelector('#ft-startup-status');
+}
+function _ftStartupStep(step,extra){ _ftEnsureStartupOverlay(); var msg='Startup: '+step+(extra?(' · '+extra):''); if(_ftStartupStatus)_ftStartupStatus.textContent=msg; log('ft_startup_step',{step:step,extra:extra||null}); }
+function _ftStartupDone(ok,msg){
+  _ftEnsureStartupOverlay();
+  if(!ok)_ftDegraded=true; // unicode fallback stays active; room creation never blocked
+  if(_ftStartupStatus)_ftStartupStatus.textContent=ok?'Detector ready':'Degraded mode: unicode fallback active';
+  log('ft_startup_'+(ok?'ready':'degraded'),{message:msg||null},ok?'ok':'warn');
+  _syncFtStatus();
+  if(ok){setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},400);}
+  else{
+    if(_ftStartupOverlay){
+      _ftStartupOverlay.style.cursor='pointer';
+      _ftStartupOverlay.onclick=function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';};
+    }
+    setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},1800);
+  }
+}
+function _ftWhitelist(){return Object.keys(LANGS||{});} 
+function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
 function _syncFtStatus(){
   var dot=$('ft-dot'),label=$('ft-label'),pill=$('ft-lobby-status');
   if(!dot||!label||!pill)return;
-  if(_ftReady){pill.classList.add('ready');}
+  if(_ftReady){dot.className='ft-status-dot ok';pill.classList.add('ready');}
+  else if(_ftLoadFailed&&_ftDegraded){dot.className='ft-status-dot warn';label.textContent='Degraded — unicode fallback active';}
   else if(_ftLoadFailed){dot.className='ft-status-dot err';label.textContent='Lang detect unavailable';}
   else{dot.className='ft-status-dot loading';label.textContent='Lang model loading…';}
 }
+function _probeFtAsset(path){
+  log('ft_asset_probe',{path:path});
+  return fetch(path,{cache:'no-store'}).then(function(res){
+    if(!res.ok)throw new Error('status_'+res.status);
+    return res.arrayBuffer().then(function(buf){
+      if(!buf||!buf.byteLength)throw new Error('empty');
+      log('ft_asset_ok',{path:path,size:buf.byteLength},'ok');
+      return true;
+    });
+  }).catch(function(e){
+    log('ft_asset_err',{path:path,e:String(e)},'error');
+    throw e;
+  });
+}
+function _ftErrDetail(e,ctx){
+  var t=(e===null)?'null':typeof e;
+  var raw;
+  try{raw=(t==='object'&&e&&e.message)?String(e.message):String(e);}catch(_){raw='[unstringifiable]';}
+  return {context:ctx||null,type:t,detail:raw};
+}
+// B6 fix: handles Map/Array/Object/string return shapes; uses per-mode confidence thresholds
+function _ftPredictLabel(ft,text,mode,attempt){
+  var r=ft.predict(text,1);
+  var item=null,label=null,score=null;
+  function _normLabel(v){if(v==null)return null;return String(v).replace(/^(__label__|label__)/,'');}
+  if(r instanceof Map){var first=r.entries().next();if(!first.done){label=_normLabel(first.value[0]);score=first.value[1];}}
+  else if(Array.isArray(r)){item=r.length?r[0]:null;if(Array.isArray(item)){label=_normLabel(item[0]);score=item[1];}else if(item&&typeof item==='object'){label=_normLabel(item.label);score=(item.prob!=null?item.prob:(item.score!=null?item.score:item.probability));}else if(typeof item==='string'){label=_normLabel(item);}}
+  else if(r&&typeof r==='object'){label=_normLabel(r.label!=null?r.label:r[0]);score=(r.prob!=null?r.prob:(r.score!=null?r.score:r.probability));}
+  else if(typeof r==='string'){label=_normLabel(r);}
+  if(!label||!_ftAllowed(label))return null;
+  if(score==null)return label;
+  var n=Number(score);if(!isFinite(n))return null;
+  var base=(mode==='chat')?CONF_CHAT:CONF_SPEECH;
+  var thresh=Math.max(CONF_FLOOR,base-(0.05*(attempt||0)));
+  return n>=thresh?label:null;
+}
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  window.FastTextModule={locateFile:function(path){return String(path).endsWith('.wasm')?FT_WASM_URL:'/stuff/fastType/'+String(path||'').split('/').pop();}};
-  window.Module={locateFile:window.FastTextModule.locateFile};
-  log('ft_load_start',{src:FT_WRAPPER_URL});
-  var s=document.createElement('script');s.src=FT_WRAPPER_URL;
-  s.onerror=function(){
-    log('ft_load_err',{src:s.src},'error');
-    _ftLoadFailed=true;_syncFtStatus();
-    _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-  };
-  s.onload=function(){
-    if(typeof FastText==='undefined'){
-      log('ft_no_global',{},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;
-    }
-    try{
-      var ft=new FastText();
-      log('ft_model_load',{model:'fastType/lid.176.ftz'});
-      ft.loadModel(FT_MODEL_URL).then(function(){
-        _ftModule=ft;_ftReady=true;_syncFtStatus();
-        log('ft_ready',{},'ok');
-        _ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
-      }).catch(function(e){
-        log('ft_model_err',{e:String(e)},'error');
-        _ftLoadFailed=true;_syncFtStatus();
-        _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-      });
-    }catch(e){
-      log('ft_init_err',{e:String(e)},'error');
-      _ftLoadFailed=true;_syncFtStatus();
-      _ftPending.forEach(function(cb){cb(null);});_ftPending=[];
-    }
-  };
-  document.head.appendChild(s);
+  _ftStartupStep('asset probes');
+  Promise.all(FT_ASSETS.map(_probeFtAsset)).then(function(){
+    _ftStartupStep('runtime bootstrap load');
+    var ftModuleConfig={locateFile:function(path){
+      var p=String(path||'');
+      if(/\.wasm$/i.test(p))return FT_CORE_WASM;
+      return '/stuff/fastType/'+p.split('/').pop();
+    }};
+    window.Module=ftModuleConfig;
+    window.FastTextModule=ftModuleConfig;
+    log('ft_load_start',{src:FT_WRAPPER_JS});
+    var s=document.createElement('script');s.src=FT_WRAPPER_JS;
+    s.onerror=function(){ log('ft_load_err',Object.assign({src:s.src,reason:'runtime wrapper script failed to load'},_ftErrDetail(null,'script.onerror')),'error'); _ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_load_err'); _ftPending.forEach(function(cb){cb(null);});_ftPending=[]; };
+    s.onload=function(){
+      if(typeof FastText==='undefined'){log('ft_no_global',{reason:'FastText global missing after wrapper load'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'runtime_init_err: FastText global missing');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];return;}
+      try{
+        var ft=new FastText();
+        _ftStartupStep('model load');
+        log('ft_model_load',{model:FT_MODEL});
+        var timer=setTimeout(function(){log('ft_model_timeout',{ms:FT_LOAD_TIMEOUT_MS,reason:'FastText model load timeout'},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,'timeout: model load exceeded '+FT_LOAD_TIMEOUT_MS+'ms');_ftPending.forEach(function(cb){cb(null);});_ftPending=[];},FT_LOAD_TIMEOUT_MS);
+        ft.loadModel(FT_MODEL).then(function(){
+          _ftStartupStep('smoke tests');
+          return Promise.all(FT_SMOKE.map(function(pair){
+            var got=_ftPredictLabel(ft,pair[0]);
+            if(got!==pair[1])throw new Error('smoke mismatch: input="'+pair[0]+'" expected="'+pair[1]+'" got="'+got+'"');
+            return got;
+          }));
+        }).then(function(){
+          clearTimeout(timer);_ftModule=ft;_ftReady=true;_syncFtStatus();_ftStartupDone(true,'ready');log('ft_ready',{},'ok');_ftPending.forEach(function(cb){cb(ft);});_ftPending=[];
+        }).catch(function(e){
+          clearTimeout(timer);log('ft_model_err',{reason:'runtime/model init or smoke failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];
+        });
+      }catch(e){log('ft_init_err',{reason:'FastText constructor/init failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];}
+    };
+    document.head.appendChild(s);
+  }).catch(function(e){log('ft_probe_err',{reason:'asset probe failure',detail:String(e)},'error');_ftLoadFailed=true;_syncFtStatus();_ftStartupDone(false,String(e));_ftPending.forEach(function(cb){cb(null);});_ftPending=[];});
 }
-function parsePredict(raw){
-  var trim=function(x){return String(x||'').replace(/^(__label__|label__)/,'');};
-  var label=null,score=null;
-  if(raw instanceof Map){var it=raw.entries().next();if(!it.done){label=trim(it.value[0]);score=it.value[1];}}
-  else if(Array.isArray(raw)){var v=raw[0];if(Array.isArray(v)){label=trim(v[0]);score=v[1];}
-    else if(v&&typeof v==='object'){label=trim(v.label);score=v.score!=null?v.score:(v.prob!=null?v.prob:v.probability);}
-    else if(typeof v==='string'){label=trim(v);}}
-  else if(raw&&typeof raw==='object'){label=trim(raw.label!=null?raw.label:raw[0]);score=raw.score!=null?raw.score:(raw.prob!=null?raw.prob:raw.probability);}
-  else if(typeof raw==='string'){label=trim(raw);}
-  return {label:label,score:score};
-}
-function _detectLangAsync(text,conf){
-  var threshold=conf||FT_CONF_SPEECH;
+function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
   if(/[\u0E00-\u0E7F]/.test(t))return Promise.resolve('th');
   if(/[\u3040-\u30FF\u31F0-\u31FF]/.test(t))return Promise.resolve('ja');
@@ -908,13 +965,13 @@ function _detectLangAsync(text,conf){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);var p=parsePredict(r);resolve((p.label&&(p.score||0)>=threshold)?p.label:null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);resolve(_ftPredictLabel(_ftModule,t));}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);var p=parsePredict(r);resolve((p.label&&(p.score||0)>=threshold)?p.label:null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);resolve(_ftPredictLabel(ft,t));}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -974,13 +1031,14 @@ async function sendChat(){
   try{
     var _ftWonC=false;
     var detected=await Promise.race([
-      _detectLangAsync(text,FT_CONF_CHAT).then(function(d){_ftWonC=true;return d;}),
+      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
       new Promise(function(res){setTimeout(function(){
         if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
         res(detectLang(text,src));
       },150);})
     ]);
-    detected=detected||detectLang(text,src);
+    // B2 fix: if race resolved null, fall back to unicode stub
+    if(!detected)detected=detectLang(text,src);
     log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
@@ -992,14 +1050,13 @@ async function sendChat(){
   if(src&&tgt&&src!==tgt){
     try{
       var tr=await translateWithRetry(srcText,src,tgt,1);
-      var chatTrFailed=!tr;
       if(tr)tgtText=normalizeText(tr,'chat');
-      if(!chatTrFailed&&normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}
+      if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}
       log('chat_trans_result',{from:src,to:tgt,tgtText:tgtText.slice(0,60)},'ok');
     }catch(e){log('chat_trans_err',{e:String(e)},'error');}
   }
   var id='cm-'+uid();
-  var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now(),failedTranslation:chatTrFailed||undefined};
+  var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
   transcript.push(entry);saveTr();
   appendTrDom(entry);
   var relayMsg={type:'chat-msg',chatId:id,srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt};
@@ -1034,7 +1091,7 @@ function handleChatMsg(d){
   transcript.push(entry);saveTr();
   appendTrDom(entry);
   markPartnerTalking();
-  if(transcriptTtsOn&&entry.sourceText&&entry.who==='partner')speakText(entry.sourceText,entry.srcLang||room.theirLang);
+  if(transcriptTtsOn&&entry.translatedText&&entry.who==='partner')speakText(entry.translatedText,entry.tgtLang||room.myLang);
   log('chat_rx',{t:(d.srcText||'').slice(0,40)},'ok');
 }
 
@@ -1520,7 +1577,7 @@ function pbBtPanelHtml(card){
   }
   return'<div style="padding:8px 10px;">'
     +'<button class="pb-bt-run" onclick="pbRunBT(\''+id+'\')"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.2"/></svg> Back-translate</button>'
-    +resultHtml+'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">'+verdictHtml+'+failBadge+'</div></div>';
+    +resultHtml+'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">'+verdictHtml+'</div></div>';
 }
 function pbPlayBT(id){var e=_btCache[id];if(e&&e.text)speakText(e.text,e.lang);}
 function pbRunBT(id){
@@ -1821,7 +1878,7 @@ function translateWithRetry(text,from,to,retries){
           return new Promise(function(res){setTimeout(res,300+((retries-n)*250));}).then(function(){return attempt(n-1);});
         }
         log('trans_fail',{from:from,to:to,e:String(e)},'error');
-        return null;
+        return text;
       });
   };
   return attempt(retries||0);
@@ -2383,7 +2440,7 @@ function isCallActive(){return !!(room.id&&$('call-screen').classList.contains('
 function isDupe(text){
   var now=Date.now();recentFinals=recentFinals.filter(function(f){return now-f.t<DEDUP_MS});
   var lo=normalizeText(text,'compare');
-  for(var i=0;i<recentFinals.length;i++){var p=recentFinals[i].s;if(p===lo)return true;if(p.length>5&&lo.length>5&&(p.indexOf(lo)>=0||lo.indexOf(p)>=0))return true}
+  for(var i=0;i<recentFinals.length;i++){var p=recentFinals[i].s;if(p===lo)return true;if(p.length>8&&lo.length>8&&(p.indexOf(lo)>=0||lo.indexOf(p)>=0))return true}
   return false;
 }
 function recFinal(t){recentFinals.push({s:normalizeText(t,'compare'),t:Date.now()});if(recentFinals.length>DEDUP_MAX)recentFinals.shift()}
@@ -2391,19 +2448,21 @@ function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ')
 
 function onDGFinal(text){
   text=normalizeText(stripDGTags(text),'speech');if(!text)return;
-    if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
+  if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
   log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   var _ftWon=false;
   Promise.race([
-    _detectLangAsync(text,FT_CONF_SPEECH).then(function(d){_ftWon=true;return d;}),
+    _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
     new Promise(function(res){setTimeout(function(){
       if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
       res(detectLang(text,src));
     },150);})
   ]).then(function(detected){
+    // B2 fix: if race resolved null (WASM failed fast), fall back to unicode stub
+    if(!detected)detected=detectLang(text,src);
     log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
     if(detected&&detected!==src){
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
@@ -2416,12 +2475,13 @@ function onDGFinal(text){
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
     addTr('me',srcText,srcText,src,tgt,ss);
     return translateWithRetry(srcText,src,tgt,2).then(function(tr){
-      var trFailed=!tr;
+      // B10: detect translation failure (translateWithRetry returns src text on exhausted retries)
+      var trFailed=(src!==tgt&&(!tr||normalizeText(tr,'compare')===normalizeText(srcText,'compare')));
       tr=normalizeText(tr,'speech')||srcText;
-      log('trans_result',{from:src,to:tgt,tr:tr.slice(0,60),ss:ss,failed:trFailed},'ok');
-      if(trFailed){for(var _i=transcript.length-1;_i>=0;_i--){if(transcript[_i].who==='me'&&transcript[_i].subtitleSeq===ss){transcript[_i].failedTranslation=true;break;}}}
+      if(trFailed){log('trans_failed_inline',{ss:ss,src:src,tgt:tgt},'warn');}
+      else{log('trans_result',{from:src,to:tgt,tr:tr.slice(0,60),ss:ss},'ok');}
       relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
-      patchTr('me',ss,tr,src,tgt);
+      patchTr('me',ss,tr,src,tgt,trFailed);
     });
   }).catch(function(e){log('dg_trans_err',{e:String(e),ss:ss},'error');});
 }
@@ -2444,6 +2504,7 @@ function startDeepgram(){
   if(!videoStream){log('dg_no_stream',{},'error');return}
   if(micMutedByUser){log('dg_skip_muted',{},'warn');return;}
   var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
+  log('dg_lang_select',{role:room.role,myLang:room.myLang,theirLang:room.theirLang,dgLang:langCode});
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   var captureEpoch=sessionEpoch;
   dgWs=new WebSocket(url,['token',key]);
@@ -2548,16 +2609,18 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={id:(ss?('sp-'+(who==='me'?'m'+_ssNonce:'p')+'-'+ss):('sp-'+uid())),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
-  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(src,sL||room.theirLang);
+  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
 }
-function patchTr(who,ss,newTr,sL,tL){
+function patchTr(who,ss,newTr,sL,tL,failed){
   newTr=normalizeText(newTr,'speech');if(!newTr)return;
   for(var i=transcript.length-1;i>=0;i--){
     if(transcript[i].who===who&&transcript[i].subtitleSeq===ss){
-      if(normalizeText(transcript[i].translatedText,'compare')===normalizeText(newTr,'compare'))return;
-      transcript[i].translatedText=newTr;transcript[i].ts=Date.now();saveTr();
+      if(normalizeText(transcript[i].translatedText,'compare')===normalizeText(newTr,'compare')&&!failed)return;
+      transcript[i].translatedText=newTr;transcript[i].ts=Date.now();
+      if(failed)transcript[i].translationFailed=true;
+      saveTr();
       replaceTrDomById(transcript[i].id,transcript[i]);
-      if(transcriptTtsOn&&who==='partner'&&newTr)speakText(transcript[i].sourceText||newTr,sL||room.theirLang);
+      if(transcriptTtsOn&&who==='partner'&&newTr&&!failed)speakText(newTr,tL||room.myLang);
       return;
     }
   }
@@ -2596,20 +2659,21 @@ function trHtml(e){
       +'</div>'+imgPreview+'</div>';
   }
   var chatClass=e.type==='chat'?' is-chat':'';
-  var failBadge=e.failedTranslation?'<div style="font-size:10px;color:#f39c12;padding:1px 8px 3px;display:flex;align-items:center;gap:3px;">⚠ not translated</div>':'';
+  var failBadge=e.translationFailed?'<span class="tr-fail-badge">&#9888; not translated</span>':'';
   return '<div class="tr-entry"><div class="tr-bubble'+chatClass+'">'
     +'<div class="tr-head"><div class="tr-who '+(isMine?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
     +'<div class="tr-body">'
     +'<div class="tr-col"><div class="tr-text">'+(e.type==='chat'?renderMd(leftText):esc(leftText))+attachHtml+'</div>'
-    +'<div style="display:flex;gap:5px;align-items:center;">'
+    +'<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(leftText)+'" data-tts-lang="'+esc(leftLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>'
     +'<button class="tr-use-ico" type="button" data-use-text="'+esc(leftText)+'" title="'+esc(L('use_word',leftLang))+'">'+esc(L('use_word',leftLang))+'</button>'
     +'</div></div>'
     +'<div class="tr-divider"></div>'
     +'<div class="tr-col source"><div class="tr-text">'+(e.type==='chat'?renderMd(rightText):esc(rightText))+'</div>'
-    +'<div style="display:flex;gap:5px;align-items:center;">'
+    +'<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">'
     +'<button class="tr-tts" type="button" data-tts-text="'+esc(rightText)+'" data-tts-lang="'+esc(rightLang)+'" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>'
     +'<button class="tr-use-ico" type="button" data-use-text="'+esc(rightText)+'" title="'+esc(L('use_word',rightLang))+'">'+esc(L('use_word',rightLang))+'</button>'
+    +failBadge
     +'</div></div>'
     +'</div></div></div>';
 }
@@ -2781,41 +2845,41 @@ function rejoinCall(){
 function showThankYou(msg){
   var savedRole=room.role;
   var ty_lang=((_pendingJoin&&_pendingJoin.tl)||room.myLang||'en');
-  var hl_lang=((_pendingJoin&&_pendingJoin.ml)||room.theirLang||'en');
-  var bi=hl_lang!==ty_lang;
+  var host_lang=room.myLang||'en'; // capture before teardown
+  function bil(key){var a=L(key,ty_lang),b=L(key,host_lang);return(a&&b&&a!==b)?a+' / '+b:a||b;}
   teardownSession('to_thankyou',msg||'local_end');
   room.id=null;room.role=null;
   setCallPhase('postcall_joiner','show_thankyou');
   $('call-screen').classList.remove('active');
   var t=$('thankyou-title'),s=$('thankyou-sub'),lp=$('thankyou-lang-pill');
-  if(t)t.textContent=(msg||L('thanks',ty_lang))+(bi?'\n'+L('thanks',hl_lang):'');
-  if(s)s.textContent=L('close_tab',ty_lang)+(bi?'\n'+L('close_tab',hl_lang):'');
-  if(lp)lp.textContent=(_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:''))+(bi?' '+gL(hl_lang).flag:'');
+  if(t)t.textContent=msg||L('thanks',ty_lang);
+  if(s)s.textContent=bil('close_tab');
+  if(lp)lp.textContent=_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:'');
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
-  var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',ty_lang)+(bi?' / '+L('rejoin',hl_lang):'');}
-  var dl=$('thankyou-dl-btn');if(dl)dl.textContent=L('dl_transcript',ty_lang)+(bi?'\n'+L('dl_transcript',hl_lang):'');
+  var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=bil('rejoin');}
+  var dl=$('thankyou-dl-btn');if(dl)dl.textContent=bil('dl_transcript');
   try{window.close();}catch(_){}
 }
 
 // Phase 7: showHostLeftCountdown uses teardownSession
 function showHostLeftCountdown(){
   var ty_lang=((_pendingJoin&&_pendingJoin.tl)||room.myLang||'en');
-  var hl_lang=((_pendingJoin&&_pendingJoin.ml)||room.theirLang||'en');
-  var bi=hl_lang!==ty_lang;
+  var host_lang=room.myLang||'en'; // capture before teardown
+  function bil(key){var a=L(key,ty_lang),b=L(key,host_lang);return(a&&b&&a!==b)?a+' / '+b:a||b;}
   teardownSession('to_host_left_countdown','host_ended');
   room.id=null;room.role=null;
   setCallPhase('postcall_joiner','host_left');
   $('call-screen').classList.remove('active');
   var n=5,t=$('thankyou-title'),s=$('thankyou-sub'),lp=$('thankyou-lang-pill');
-  if(t)t.textContent='Host ended the call.'+(bi?'\nHost ended the call.':'');
-  if(s)s.textContent=L('close_tab',ty_lang)+(bi?'\n'+L('close_tab',hl_lang):'');
-  if(lp)lp.textContent=(_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:''))+(bi?' '+gL(hl_lang).flag:'');
-  var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',ty_lang)+(bi?' / '+L('rejoin',hl_lang):'');}
-  var dl=$('thankyou-dl-btn');if(dl)dl.textContent=L('dl_transcript',ty_lang)+(bi?'\n'+L('dl_transcript',hl_lang):'');
+  if(t)t.textContent='Host ended the call.';
+  if(s)s.textContent=bil('close_tab');
+  if(lp)lp.textContent=_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:'');
+  var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=bil('rejoin');}
+  var dl=$('thankyou-dl-btn');if(dl)dl.textContent=bil('dl_transcript');
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
-  var iv=setInterval(function(){n--;if(t)t.textContent=n>0?('Host ended the call. Closing in '+n+'s…'):'Host ended the call.';if(n<=0){clearInterval(iv);try{window.close();}catch(_){}}},1000);
+  var iv=setInterval(function(){n--;if(t)t.textContent=n>0?'Host ended the call. Closing in '+n+'s…':'Host ended the call.';if(n<=0){clearInterval(iv);try{window.close();}catch(_){}}},1000);
 }
 
 function downloadThankyouLog(){
@@ -2869,14 +2933,14 @@ if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem(
 if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
 if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
-log('startup',{v:'4.0.0-base-cc',ua:navigator.userAgent.slice(0,80)});
+log('startup',{v:'3.5.3',ua:navigator.userAgent.slice(0,80)});
 pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
   var tts=ev.target.closest('.tr-tts');
   if(tts){speakText(tts.getAttribute('data-tts-text')||'',tts.getAttribute('data-tts-lang')||room.myLang||'en');return;}
   var use=ev.target.closest('.tr-use-ico');
-  if(use){var ci=$('chat-input');if(ci){ci.value=use.getAttribute('data-use-text')||'';ci.dispatchEvent(new Event('input',{bubbles:true}));chatInputEvt();}}
+  if(use){var ci=$('chat-input');if(ci){ci.value=use.getAttribute('data-use-text')||'';ci.dispatchEvent(new Event('input'));}}
 });
 $('local-video').addEventListener('click',swapVideos);
 $('remote-video').addEventListener('click',swapVideos);
