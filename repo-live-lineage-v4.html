@@ -931,10 +931,10 @@
 
     async function tryHydrateFromRepoLineage() {
       const loaded = await readRepoJson(REPO_SCAN_LINEAGE_KEY, state.branch);
-      if (!loaded || !loaded.json) return false;
+      if (!loaded || !loaded.json) return null;
       const payload = loaded.json;
-      if (!Array.isArray(payload.variants) || !payload.variants.length) return false;
-      if ((payload.pattern || '') !== state.pattern) return false;
+      if (!Array.isArray(payload.variants) || !payload.variants.length) return null;
+      if ((payload.pattern || '') !== state.pattern) return null;
       state.allVariants = payload.variants.slice();
       state.allVariants.forEach((variant, index) => { variant.rank = index + 1; });
       state.shownVariants = state.allVariants.slice();
@@ -943,8 +943,15 @@
       updateStats();
       fillCompareSelectors();
       if (state.allVariants.length) await selectVariant(state.allVariants[0].id, { quiet: true });
-      setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${REPO_SCAN_LINEAGE_KEY}.`, 'success');
-      return true;
+      setStatus(els.scanStatus, `Loaded ${state.allVariants.length} cached variants from ${REPO_SCAN_LINEAGE_KEY}. Checking for incremental updates…`, 'success');
+      const latestDate = state.allVariants.reduce((max, variant) => {
+        const stamp = Date.parse(variant.date || '');
+        return Number.isFinite(stamp) && stamp > max ? stamp : max;
+      }, 0);
+      return {
+        loaded: true,
+        latestDateIso: latestDate ? new Date(latestDate).toISOString() : null
+      };
     }
 
     async function buildWildcardTimeline() {
@@ -978,10 +985,7 @@
           els.branchInput.value = state.branch;
         }
 
-        if (await tryHydrateFromRepoLineage()) {
-          setScanning(false);
-          return;
-        }
+        const hydrateState = await tryHydrateFromRepoLineage();
 
         const maxPagesRaw = parseInt(els.maxPagesInput.value, 10);
         const maxPages = Number.isFinite(maxPagesRaw) && maxPagesRaw > 0 ? maxPagesRaw : Infinity;
@@ -989,6 +993,7 @@
         const concurrency = Math.max(1, Math.min(Number.isFinite(concurrencyRaw) ? concurrencyRaw : 6, 12));
         const patternRegex = wildcardToRegExp(state.pattern);
         const commitSummaries = [];
+        const since = hydrateState?.latestDateIso || null;
         const scopedPaths = await resolveScopedPaths(state.pattern, patternRegex);
 
         if (scopedPaths.length) {
@@ -999,6 +1004,7 @@
             while (!state.cancelScan && page <= maxPages) {
               setStatus(els.scanStatus, `Loading commits for ${path} (${pathIndex + 1}/${scopedPaths.length}) page ${page}…`, 'info', true);
               const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch, path });
+              if (since) query.set('since', since);
               const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
               if (!Array.isArray(pageData) || pageData.length === 0) break;
               commitSummaries.push(...pageData);
@@ -1011,6 +1017,7 @@
           while (!state.cancelScan && page <= maxPages) {
             setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
             const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
+            if (since) query.set('since', since);
             const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
             if (!Array.isArray(pageData) || pageData.length === 0) break;
             commitSummaries.push(...pageData);
@@ -1070,6 +1077,10 @@
         for (const v of variants) {
           if (!unique.has(v.id)) unique.set(v.id, v);
         }
+        const baseVariants = hydrateState?.loaded ? state.allVariants.slice() : [];
+        for (const cachedVariant of baseVariants) {
+          if (!unique.has(cachedVariant.id)) unique.set(cachedVariant.id, cachedVariant);
+        }
         state.allVariants = Array.from(unique.values()).sort((a, b) => {
           const byDate = new Date(b.date || 0) - new Date(a.date || 0);
           if (byDate) return byDate;
@@ -1094,7 +1105,14 @@
           } catch (persistError) {
             console.warn('Unable to persist repo scan artifacts', persistError);
           }
-          setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${uniqueCommitSummaries.length} commits.`, 'success');
+          const addedCount = Math.max(0, state.allVariants.length - baseVariants.length);
+          if (hydrateState?.loaded && addedCount === 0) {
+            setStatus(els.scanStatus, `No new variants found since ${since || 'the cached snapshot'}.`, 'success');
+          } else if (hydrateState?.loaded) {
+            setStatus(els.scanStatus, `Added ${addedCount} new variants (${state.allVariants.length} total) from ${uniqueCommitSummaries.length} commits.`, 'success');
+          } else {
+            setStatus(els.scanStatus, `Loaded ${state.allVariants.length} variants from ${uniqueCommitSummaries.length} commits.`, 'success');
+          }
         } else {
           resetSelection();
           setStatus(els.scanStatus, `No changed files matched ${state.pattern}.`, 'warn');
