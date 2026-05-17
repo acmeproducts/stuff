@@ -510,8 +510,8 @@ function _syncFtStatus(){
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  var FT_SCRIPT='/fastType/fastText.common.js';
-  var FT_MODEL='/fastType/lid.176.ftz';
+  var FT_SCRIPT='./fastType/fasttext-wrapper.umd.js';
+  var FT_MODEL='./fastType/lid.176.ftz';
   log('ft_load_start',{src:FT_SCRIPT});
   var s=document.createElement('script');s.src=FT_SCRIPT;
   s.onerror=function(){
@@ -557,13 +557,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -1284,7 +1284,7 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={id:'sp-'+uid(),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
-  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
+  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,(entry.tgtLang)||room.myLang);
 }
 function replaceTrDomById(entry){
   var b=$('transcript-body');if(!b)return;

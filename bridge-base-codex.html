@@ -496,7 +496,19 @@ function routePostCallByRole(sourceReason){
 }
 
 // Safe stub — returns current lang so the race fallback never throws
-function detectLang(text,src){return src||'en';}
+function detectLang(text,src){
+  var t=(text||'').trim();
+  var roomSrc=(src||'en').toLowerCase();
+  if(/[\u0E00-\u0E7F]/.test(t))return 'th';
+  if(/[\u4E00-\u9FFF]/.test(t))return 'zh';
+  if(/[\u3040-\u30FF]/.test(t))return 'ja';
+  if(/[\u0600-\u06FF]/.test(t))return 'ar';
+  if(/[\u0400-\u04FF]/.test(t))return 'ru';
+  var hasLatin=/[A-Za-z]/.test(t);
+  var nonLatinRoom=/^(th|zh|ja|ko|ar|ru|uk|bg|sr)$/.test(roomSrc);
+  if(nonLatinRoom&&hasLatin)return 'en';
+  return roomSrc||'en';
+}
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
@@ -510,8 +522,8 @@ function _syncFtStatus(){
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  var FT_SCRIPT='/fastType/fasttext-wrapper.umd.js';
-  var FT_MODEL='/fastType/lid.176.ftz';
+  var FT_SCRIPT='./fastType/fasttext-wrapper.umd.js';
+  var FT_MODEL='./fastType/lid.176.ftz';
   log('ft_load_start',{src:FT_SCRIPT});
   var s=document.createElement('script');s.src=FT_SCRIPT;
   s.onerror=function(){
@@ -557,13 +569,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -614,8 +626,8 @@ async function sendChat(){
         res(detectLang(text,src));
       },150);})
     ]);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(!detected)detected=detectLang(text,src);
+    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
@@ -1184,8 +1196,8 @@ function onDGFinal(text){
       res(detectLang(text,src));
     },150);})
   ]).then(function(detected){
-    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
     if(!detected)detected=detectLang(text,src);
+    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
     if(detected&&detected!==src){
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
       return translateWithRetry(text,detected,src,2);
@@ -1286,7 +1298,7 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={id:'sp-'+uid(),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
-  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
+  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,(entry.tgtLang)||room.myLang);
 }
 function replaceTrDomById(entry){
   var b=$('transcript-body');if(!b)return;
@@ -1326,7 +1338,7 @@ function trHtml(e){
   var locale=TTS_LOCALE[srcLang]||'en-US';
   var ts=new Date(e.ts).toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   var speaker=e.who==='me'?L('you_word'):L('partner_word');
-  var srcText=e.sourceText||'';var tgtText=e.translatedText||srcText;var failMark=e.failedTranslation?' ⚠ not translated':'';
+  var srcText=e.sourceText||'';var tgtText=e.translatedText||srcText;
   var isMine=e.who==='me';
   var leftText,rightText,leftLang,rightLang;
   if(isMine){leftText=srcText;rightText=tgtText;leftLang=srcLang;rightLang=tgtLang;}
