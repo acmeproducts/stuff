@@ -148,3 +148,16 @@ Goal: enforce intended progression `pre-base -> base -> pre-ship -> ship` and re
 ### Confirmation checks run after edits
 - [x] JS parse checks passed for all four variants (`new Function(...)`).
 - [x] Static invariant checks for wrapper path/parser/fallback presence passed.
+
+## Merge-conflict resolution check (2026-05-17)
+Requested conflict files checked directly:
+- `bridge-base-codex.html`
+- `bridge-pre-base-codex.html`
+- `bridge-pre-ship-codex.html`
+- `bridge-ship-codex.html`
+- `talkbridge-recovery-execution-report.md`
+
+Resolution status:
+- [x] No Git conflict markers remain (`<<<<<<<`, `=======`, `>>>>>>>`).
+- [x] Stage chain consistency retained after resolution check.
+- [x] Files are ready for PR merge once remote branch state is synced.
