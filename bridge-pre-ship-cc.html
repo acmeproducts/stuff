@@ -1026,7 +1026,8 @@ async function sendChat(){
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
-      if(normed){srcText=normalizeText(normed,'chat');log('chat_norm_result',{srcText:srcText.slice(0,60)});}
+      if(normed&&normalizeText(normed,'compare')!==normalizeText(text,'compare')){srcText=normalizeText(normed,'chat');log('chat_norm_result',{srcText:srcText.slice(0,60)});}
+      else{src=detected;log('chat_norm_fallback',{detected:detected},'warn');}
     }
   }catch(e){log('chat_norm_err',{e:String(e)},'error');}
   var tgtText=srcText;
@@ -2431,12 +2432,13 @@ function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ')
 
 function onDGFinal(text){
   text=normalizeText(stripDGTags(text),'speech');if(!text)return;
+  if(/[฀-๿]/.test(text)){text=text.replace(/([ิ-ืเ-ไ]) ([฀-๿])/g,'$1$2').replace(/([฀-๿]) ([ะ-ื็-๎])/g,'$1$2');}
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
   log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
-  var _ftWon=false;
+  var _ftWon=false,_detected=src;
   Promise.race([
     _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
     new Promise(function(res){setTimeout(function(){
@@ -2448,18 +2450,29 @@ function onDGFinal(text){
     if(!detected)detected=detectLang(text,src);
     log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
     if(detected&&detected!==src){
+      _detected=detected;
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
       return translateWithRetry(text,detected,src,2);
     }
     return Promise.resolve(text);
   }).then(function(srcText){
+    if(_detected!==src&&normalizeText(srcText,'compare')===normalizeText(text,'compare')){src=_detected;log('norm_fallback',{detected:_detected},'warn');}
     srcText=normalizeText(srcText,'speech')||text;
     log('norm_result',{srcText:srcText.slice(0,60),ss:ss});
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
     addTr('me',srcText,srcText,src,tgt,ss);
     return translateWithRetry(srcText,src,tgt,2).then(function(tr){
-      // B10: detect translation failure (translateWithRetry returns src text on exhausted retries)
       var trFailed=(src!==tgt&&(!tr||normalizeText(tr,'compare')===normalizeText(srcText,'compare')));
+      if(trFailed&&src!==tgt){
+        return translateWithRetry(srcText,src,tgt,0).then(function(tr2){
+          if(tr2&&normalizeText(tr2,'compare')!==normalizeText(srcText,'compare')){tr=tr2;trFailed=false;}
+          tr=normalizeText(tr,'speech')||srcText;
+          if(trFailed){log('trans_failed_inline',{ss:ss,src:src,tgt:tgt},'warn');}
+          else{log('trans_result',{from:src,to:tgt,tr:tr.slice(0,60),ss:ss},'ok');}
+          relaySend({type:'subtitle-update',subtitleSeq:ss,text:tr,sourceText:srcText,sourceLang:src,targetLang:tgt});
+          patchTr('me',ss,tr,src,tgt,trFailed);
+        });
+      }
       tr=normalizeText(tr,'speech')||srcText;
       if(trFailed){log('trans_failed_inline',{ss:ss,src:src,tgt:tgt},'warn');}
       else{log('trans_result',{from:src,to:tgt,tr:tr.slice(0,60),ss:ss},'ok');}
