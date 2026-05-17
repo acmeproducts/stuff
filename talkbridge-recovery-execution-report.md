@@ -146,7 +146,7 @@ Goal: user-facing polish/features after core reliability is proven.
 - Out-of-scope: rollback of pre-base/base/pre-ship fixes.
 
 ### Verification run log
-- Conflict marker scan on all targets: no matches for `<<<<<<<`, `=======`, `>>>>>>>`.
+- Conflict marker scan on all targets: no matches for `[conflict-open]`, `[conflict-sep]`, `[conflict-close]`.
 - Path checks: `./fastType/fasttext-wrapper.umd.js` and `./fastType/lid.176.ftz` present in rebuilt stage files.
 - Absence checks: no `fastText.common.js`; no `r[0].prob` in target HTML stage files.
 - JS syntax sanity: extracted inline scripts from all four stage files and validated via `new Function(...)` (all pass).
@@ -195,7 +195,7 @@ Goal: user-facing polish/features after core reliability is proven.
 - Out-of-scope: rollback of prior bug fixes.
 
 ### Verification log
-- Conflict marker scan (`bridge-pre-base-codex.html`, `bridge-base-codex.html`, `bridge-pre-ship-codex.html`, `bridge-ship-codex.html`): no `<<<<<<<`, `=======`, `>>>>>>>` markers.
+- Conflict marker scan (`bridge-pre-base-codex.html`, `bridge-base-codex.html`, `bridge-pre-ship-codex.html`, `bridge-ship-codex.html`): no `[conflict-open]`, `[conflict-sep]`, `[conflict-close]` markers.
 - Path checks present:
   - `./fastType/fasttext-wrapper.umd.js`
   - `./fastType/lid.176.ftz`
@@ -231,10 +231,21 @@ Goal: user-facing polish/features after core reliability is proven.
 - If `.ftz` model load fails, runtime logs first failure, logs `.bin` retry attempt, then logs retry success or final failure; room creation/call flow remains non-blocking under degradation.
 
 ### Verification log (v2)
-- Conflict marker scan on target files: no `<<<<<<<`, `=======`, `>>>>>>>`.
+- Conflict marker scan on target files: no `[conflict-open]`, `[conflict-sep]`, `[conflict-close]`.
 - Stage-boundary cleanliness: PRE-BASE/BASE have no FastText wrapper/model-load execution path; PRE-SHIP/SHIP contain intended WASM loader logic and retry behavior.
 - Path checks present: `./fastType/fasttext-wrapper.umd.js`, `./fastType/lid.176.ftz`, and `./fastType/lid.176.bin` fallback retry reference.
 - Absence checks: no `fastText.common.js`; no `r[0].prob`.
 - JS syntax sanity: inline scripts extracted for all four stage HTML files and validated with `new Function(...)`.
 - Stage-chain integrity: pre-base rebuilt from baseline; base copied from pre-base; pre-ship copied from base; ship copied from pre-ship.
 - Runtime-log expectation note: `.ftz` failure now requires visible retry attempt to `.bin` rather than immediate terminal `ft_model_err`.
+
+## Restart rebuild execution v3 (reference-aligned pre-ship loader hardening)
+- Baseline/reference: rebuilt PRE-BASE from `bridge-restore-plus-2.html`, and aligned PRE-SHIP loader behavior to `bridge-pre-ship-cc.html` semantics.
+- Root-cause correction: PRE-SHIP previously retried but still terminated loader path on numeric model-load errors without resilient result parsing and stable non-blocking continuation; v3 hardens loader parsing/retry flow and preserves app continuity when `.ftz` and `.bin` both fail.
+- Stage scope:
+  - PRE-BASE in-scope: transcript dedupe/add/patch stability and call/STT runtime-safety fixes only; out-of-scope includes FastText/WASM loader logic.
+  - BASE in-scope: deterministic `if(!detected) detected = detectLang(text, src);`, script-aware fallback detection, non-Latin-room + Latin-text => `en`, translation failure visibility (`⚠ not translated`); out-of-scope includes FastText/WASM loader logic.
+  - PRE-SHIP in-scope: first stage with FastText/WASM loader; exact wrapper/model/fallback paths; robust `parsePredictResult`; `.ftz` fail => `.bin` retry logging and non-blocking fallback behavior.
+  - SHIP in-scope: inherits PRE-SHIP loader/parser/retry/fallback semantics unchanged (loader behavior not modified).
+- Boundary note: BASE remains clean of FastText/WASM loader/model-load execution logic.
+- PRE-SHIP runtime expectation: `.ftz` load failure always triggers `.bin` retry log; then retry success or final failure log; runtime remains non-blocking for room creation/join/rejoin/call.

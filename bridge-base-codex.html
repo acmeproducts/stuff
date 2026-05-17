@@ -497,23 +497,20 @@ function routePostCallByRole(sourceReason){
 
 // Safe stub — returns current lang so the race fallback never throws
 function detectLang(text,src){
-  var t=(text||'').trim();
-  if(!t)return src||'en';
-  if(/[฀-๿]/.test(t))return 'th';
-  if(/[぀-ヿㇰ-ㇿ]/.test(t))return 'ja';
-  if(/[一-鿿]/.test(t))return 'zh';
-  if(/[؀-ۿ]/.test(t))return 'ar';
-  if(/[Ѐ-ӿ]/.test(t))return 'ru';
-  var source=(src||'').toLowerCase();
-  var nonLatin=/^(th|zh|ja|ko|ar|ru|uk|bg|sr|kk|mn|el|he|fa)/.test(source);
-  var latinOnly=/^[-À-ɏ\s\d\p{P}]+$/u.test(t);
-  if(nonLatin&&latinOnly)return 'en';
+  if(!text||typeof text!=='string') return src||'en';
+  var t=text.trim();
+  if(!t) return src||'en';
+  if(/[฀-๿]/.test(t)) return 'th';
+  if(/[぀-ヿ]/.test(t)) return 'ja';
+  if(/[一-鿿]/.test(t)) return 'zh';
+  if(/[؀-ۿ]/.test(t)) return 'ar';
+  if(/[Ѐ-ӿ]/.test(t)) return 'ru';
+  if(src && src!=='en' && /^[\x00-\x7F\s\p{P}]+$/u.test(t)) return 'en';
   return src||'en';
 }
 
-
-/* PRE-BASE: no WASM loader in this stage */
 function _detectLangAsync(text){ return Promise.resolve(detectLang(text, room.myLang||'en')); }
+function detectLangRace(text,src){return _detectLangAsync(text).then(function(d){return d||detectLang(text,src);});}
 
 /* === CHAT === */
 function chatInputEvt(){
@@ -552,9 +549,15 @@ async function sendChat(){
   var srcText=text;
   log('chat_norm_start',{src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   try{
-    var detected=await _detectLangAsync(text);
-    if(!detected) detected=detectLang(text,src);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:'stub'});
+    var _ftWonC=false;
+    var detected=await Promise.race([
+      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
+      new Promise(function(res){setTimeout(function(){
+        if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
+        res(detectLang(text, src));
+      },150);})
+    ]);
+    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
@@ -1120,7 +1123,7 @@ function onDGFinal(text){
     _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
     new Promise(function(res){setTimeout(function(){
       if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
-      res(detectLang(text,src));
+      res(detectLang(text, src));
     },150);})
   ]).then(function(detected){
     log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
