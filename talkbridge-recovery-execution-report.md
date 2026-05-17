@@ -155,3 +155,58 @@ Goal: user-facing polish/features after core reliability is proven.
   - BASE copied from final PRE-BASE, then BASE-only modifications applied.
   - PRE-SHIP copied from final BASE, then WASM-focused modifications applied.
   - SHIP copied from final PRE-SHIP, then ship-only polish applied.
+
+## Restart rebuild execution (pre-base -> base -> pre-ship -> ship)
+
+- Starting source for PRE-BASE: `bridge-restore-plus-2.html`.
+
+### PRE-BASE
+- Replaced `bridge-pre-base-codex.html` from source baseline (`bridge-restore-plus-2.html`) and resolved stage-file conflicts by removing marker artifacts.
+- Removed silent-drop behavior before dedupe in STT finalization path (no pre-dedupe text drop).
+- Preserved transcript dedupe/add/patch flow and added defensive subtitle-sequence handling to avoid undeclared-reference runtime hazard in chat/STT-linked paths.
+- Kept join/rejoin/call flow behavior intact aside from stability fixes above.
+- In-scope: dedupe stability + runtime hazard cleanup.
+- Out-of-scope: ship polish and extra WASM optimizations.
+
+### BASE
+- Created `bridge-base-codex.html` by copying PRE-BASE then applying BASE-only behavior.
+- Added deterministic fallback ordering: fallback language assignment runs immediately when async detection is falsy (`if(!detected) detected = detectLang(text, src);`).
+- Expanded `detectLang` fallback to detect Thai/CJK/Japanese/Arabic/Cyrillic scripts and return `en` when room source is non-Latin but text is Latin.
+- Removed silent translation-fail outcome by surfacing failure marker (`⚠ not translated`) when retries are exhausted.
+- Preserved PRE-BASE transcript dedupe/patch semantics.
+- In-scope: fallback ordering/script-awareness/failure visibility.
+- Out-of-scope: pre-ship WASM strictness/polish.
+
+### PRE-SHIP
+- Created `bridge-pre-ship-codex.html` by copying BASE then applying WASM-focused changes.
+- FastText wrapper path set to exact `./fastType/fasttext-wrapper.umd.js`.
+- FastText primary model path set to exact `./fastType/lid.176.ftz`.
+- Added robust `parsePredictResult(...)` handling Map/Array/Object/String-like shapes and replaced brittle direct parsing usage.
+- WASM-win semantics maintained as non-null detection wins only.
+- Added non-blocking model-load fallback: on `.ftz` load failure, logs failure, logs retry attempt to `./fastType/lid.176.bin`, logs fallback success or final failure, and continues degraded flow without blocking room/call.
+- In-scope: WASM loader/parser/retry resilience.
+- Out-of-scope: ship-only polish.
+
+### SHIP
+- Created `bridge-ship-codex.html` by copying PRE-SHIP and applying ship-stage-only UX polish label/title adjustments.
+- Kept PRE-SHIP WASM parser/model-retry/fallback behavior unchanged.
+- Kept transcript dedupe and normalization behavior unchanged.
+- In-scope: final stage polish only.
+- Out-of-scope: rollback of prior bug fixes.
+
+### Verification log
+- Conflict marker scan (`bridge-pre-base-codex.html`, `bridge-base-codex.html`, `bridge-pre-ship-codex.html`, `bridge-ship-codex.html`): no `<<<<<<<`, `=======`, `>>>>>>>` markers.
+- Path checks present:
+  - `./fastType/fasttext-wrapper.umd.js`
+  - `./fastType/lid.176.ftz`
+  - `./fastType/lid.176.bin` (retry fallback reference in pre-ship/ship loader flow)
+- Absence checks passed:
+  - no `fastText.common.js`
+  - no `r[0].prob`
+- JS syntax sanity: inline script extraction + `new Function(...)` compile checks passed for all 4 stage HTML files.
+- Stage-chain integrity:
+  - pre-base exists; base rebuilt from pre-base;
+  - pre-ship rebuilt from base;
+  - ship rebuilt from pre-ship.
+- Runtime expectation note:
+  - `.ftz` model-load failure now logs retry attempt to `.bin` (instead of immediate terminal failure), then logs fallback success/final failure while keeping app flow non-blocking.

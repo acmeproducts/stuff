@@ -511,7 +511,7 @@ function _syncFtStatus(){
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
   var FT_SCRIPT='./fastType/fasttext-wrapper.umd.js';
-  var FT_MODEL='./fastType/lid.176.ftz';
+  var FT_MODEL='/fastType/lid.176.ftz';
   log('ft_load_start',{src:FT_SCRIPT});
   var s=document.createElement('script');s.src=FT_SCRIPT;
   s.onerror=function(){
@@ -545,6 +545,7 @@ function _loadFastText(){
   };
   document.head.appendChild(s);
 }
+function parsePredictResult(r){if(!r)return null;if(typeof r==='string')return {label:r.replace('__label__',''),prob:1};if(Array.isArray(r)){var it=r[0];if(Array.isArray(it))it={label:it[0],prob:it[1]};if(it&&typeof it==='object'){var l=it.label||it.lang||it[0]||'';var p=Number(it.prob||it.score||it.conf||it[1]||0);return {label:String(l).replace('__label__',''),prob:isFinite(p)?p:0};}}if(typeof r==='object'){var l2=r.label||r.lang||'';var p2=Number(r.prob||r.score||r.conf||0);if(l2)return {label:String(l2).replace('__label__',''),prob:isFinite(p2)?p2:0};}return null;}
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
   if(/[\u0E00-\u0E7F]/.test(t))return Promise.resolve('th');
@@ -557,13 +558,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);var p=parsePredictResult(r);resolve((p&&p.prob>=FT_CONF)?p.label:null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);var it=(r&&r[0])||null;resolve((it&&((it.prob||0)>=FT_CONF)&&it.label)?String(it.label).replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);var p=parsePredictResult(r);resolve((p&&p.prob>=FT_CONF)?p.label:null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -1169,7 +1170,7 @@ function recFinal(t){recentFinals.push({s:normalizeText(t,'compare'),t:Date.now(
 function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim()}
 
 function onDGFinal(text){
-  text=normalizeText(stripDGTags(text),'speech');if(!text)return;
+  text=normalizeText(stripDGTags(text),'speech');
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
@@ -1284,7 +1285,7 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={id:'sp-'+uid(),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
-  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,(entry.tgtLang)||room.myLang);
+  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
 }
 function replaceTrDomById(entry){
   var b=$('transcript-body');if(!b)return;
