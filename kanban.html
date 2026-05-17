@@ -381,7 +381,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   <form method="dialog" class="modal">
     <button type="button" class="modal-close" id="boardsClose">×</button>
     <h3>Board Manager</h3>
-    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Export saves as <code style="background:#f0f4ff;padding:1px 5px;border-radius:4px">&lt;key&gt;.js</code>. Rename workflow: export → push → switch key → import → export → push.</p>
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Export saves as <code style="background:#f0f4ff;padding:1px 5px;border-radius:4px">&lt;key&gt;.json</code>. Include lane/card open-close state for seamless device handoff.</p>
 
     <div class="field">
       <label for="bKeyInput">Board key</label>
@@ -1530,7 +1530,7 @@ const DRIVE_JSON_URLS = DRIVE_FILE_ID
     ]
   : [];
 
-// NEW: export filename = currentBoardKey.js
+// Export filename = currentBoardKey.json
 $("#btnExport").onclick=()=>{
   const data=JSON.stringify(state,null,2);
   const blob=new Blob([data],{type:"application/json"});
@@ -1575,7 +1575,8 @@ function parseBoardPayload(text){
     return isValidBoardData(obj) ? obj : null;
   }catch{}
   const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-  const candidate = preMatch?.[1] || raw;
+  const jsAssignMatch = raw.match(/(?:window\.)?[a-zA-Z_$][\w$]*\s*=\s*(\{[\s\S]*\})\s*;?\s*$/);
+  const candidate = preMatch?.[1] || jsAssignMatch?.[1] || raw;
   if(!candidate) return null;
   try{
     const decoded = candidate
@@ -1646,7 +1647,7 @@ async function forceRefreshFromDrive(){
   applyImportedBoard(remote, "Google Drive refresh");
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
-$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applyImportedBoard(JSON.parse(r.result), "JSON file"); }catch(err){ toast("Import failed","Could not parse file", true); alert("Failed to parse JSON."); } }; r.readAsText(f); };
+$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ applyImportedBoard(board, "JSON file"); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 $("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
@@ -1801,7 +1802,9 @@ async function fetchGitHubBoard(cfg){
   const url=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path)}?ref=${encodeURIComponent(cfg.branch)}`;
   const data=await githubFetch(url);
   const text=b64DecodeUnicode((data.content||"").replace(/\n/g,""));
-  return { sha:data.sha, board:JSON.parse(text) };
+  const board=parseBoardPayload(text);
+  if(!board) throw new Error("Repository file is not valid board JSON");
+  return { sha:data.sha, board };
 }
 function boardTimestamp(board){
   const ts=Number(board?.lastModified||0);
