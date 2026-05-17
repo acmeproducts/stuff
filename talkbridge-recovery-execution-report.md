@@ -210,3 +210,31 @@ Goal: user-facing polish/features after core reliability is proven.
   - ship rebuilt from pre-ship.
 - Runtime expectation note:
   - `.ftz` model-load failure now logs retry attempt to `.bin` (instead of immediate terminal failure), then logs fallback success/final failure while keeping app flow non-blocking.
+
+
+## Restart rebuild execution v2 (strict clean-base boundary enforcement)
+- PRE-BASE baseline source: `bridge-restore-plus-2.html` used as hard reset for `bridge-pre-base-codex.html`.
+- Root-cause correction: PRE-BASE/BASE were previously contaminated with pre-ship WASM loader behavior, violating stage boundaries and propagating loader semantics upstream.
+
+### Stage changes
+- PRE-BASE (in-scope): rebuilt from baseline, removed pre-dedupe silent-drop path, preserved dedupe/add/patch behavior, removed runtime hazard-prone loader path/null-risk code, kept join/rejoin/call flow behavior stable except bug fixes.
+- PRE-BASE (out-of-scope): no WASM strictness, no ship polish, no FastText model-loader execution logic.
+- BASE (in-scope): copied from PRE-BASE, added deterministic fallback ordering (`if(!detected) detected = detectLang(text, src);`), script-aware `detectLang`, and translation failure visibility (`⚠ not translated`) while preserving dedupe/patch behavior.
+- BASE (out-of-scope): no pre-ship loader/model execution logic, no ship-only polish.
+- PRE-SHIP (in-scope): copied from BASE and introduced first-stage WASM loader behavior with exact wrapper/model paths (`./fastType/fasttext-wrapper.umd.js`, `./fastType/lid.176.ftz`), robust `parsePredictResult(...)`, removal of brittle direct indexing parsing, WASM-win only when non-null, non-blocking degraded fallback, and explicit `.ftz` -> `.bin` retry logging/flow.
+- SHIP (in-scope): copied from PRE-SHIP; retains loader/parser/retry semantics unchanged; only final stage parity/polish position maintained with no loader semantic changes.
+
+### Boundary assertion
+- BASE is now clean of FastText model-loader execution logic.
+
+### PRE-SHIP runtime expectation
+- If `.ftz` model load fails, runtime logs first failure, logs `.bin` retry attempt, then logs retry success or final failure; room creation/call flow remains non-blocking under degradation.
+
+### Verification log (v2)
+- Conflict marker scan on target files: no `<<<<<<<`, `=======`, `>>>>>>>`.
+- Stage-boundary cleanliness: PRE-BASE/BASE have no FastText wrapper/model-load execution path; PRE-SHIP/SHIP contain intended WASM loader logic and retry behavior.
+- Path checks present: `./fastType/fasttext-wrapper.umd.js`, `./fastType/lid.176.ftz`, and `./fastType/lid.176.bin` fallback retry reference.
+- Absence checks: no `fastText.common.js`; no `r[0].prob`.
+- JS syntax sanity: inline scripts extracted for all four stage HTML files and validated with `new Function(...)`.
+- Stage-chain integrity: pre-base rebuilt from baseline; base copied from pre-base; pre-ship copied from base; ship copied from pre-ship.
+- Runtime-log expectation note: `.ftz` failure now requires visible retry attempt to `.bin` rather than immediate terminal `ft_model_err`.
