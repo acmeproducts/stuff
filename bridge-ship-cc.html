@@ -845,31 +845,11 @@ var FT_CORE_WASM='/stuff/fastType/core/fasttext.wasm';
 var FT_MODEL='/stuff/fastType/model/lid.176.ftz';
 var FT_ASSETS=[FT_WRAPPER_JS,FT_CORE_JS,FT_CORE_WASM,FT_MODEL];
 var FT_SMOKE=[['hello how are you today','en'],['hola como estas hoy','es'],['bonjour comment allez vous','fr'],['guten morgen wie geht es dir','de']];
-var _ftStartupOverlay=null,_ftStartupStatus=null;
-function _ftEnsureStartupOverlay(){
-  if(_ftStartupOverlay)return;
-  var el=document.createElement('div');
-  el.style.cssText='position:fixed;inset:0;z-index:120;background:#0a0a0a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-family:DM Sans,sans-serif;color:#e8e4df;';
-  el.innerHTML='<div style="font-size:15px;font-weight:700;color:#3FC1C1;">TalkBridge startup</div><div id="ft-startup-status" style="font-size:13px;color:#aaa;">Initializing language detector…</div>';
-  document.body.appendChild(el);
-  _ftStartupOverlay=el;
-  _ftStartupStatus=el.querySelector('#ft-startup-status');
-}
-function _ftStartupStep(step,extra){ _ftEnsureStartupOverlay(); var msg='Startup: '+step+(extra?(' · '+extra):''); if(_ftStartupStatus)_ftStartupStatus.textContent=msg; log('ft_startup_step',{step:step,extra:extra||null}); }
+function _ftStartupStep(step,extra){ log('ft_startup_step',{step:step,extra:extra||null}); }
 function _ftStartupDone(ok,msg){
-  _ftEnsureStartupOverlay();
-  if(!ok)_ftDegraded=true; // unicode fallback stays active; room creation never blocked
-  if(_ftStartupStatus)_ftStartupStatus.textContent=ok?'Detector ready':'Degraded mode: unicode fallback active';
+  if(!ok)_ftDegraded=true;
   log('ft_startup_'+(ok?'ready':'degraded'),{message:msg||null},ok?'ok':'warn');
   _syncFtStatus();
-  if(ok){setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},400);}
-  else{
-    if(_ftStartupOverlay){
-      _ftStartupOverlay.style.cursor='pointer';
-      _ftStartupOverlay.onclick=function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';};
-    }
-    setTimeout(function(){if(_ftStartupOverlay)_ftStartupOverlay.style.display='none';},1800);
-  }
 }
 function _ftWhitelist(){return Object.keys(LANGS||{});} 
 function _ftAllowed(code){return _ftWhitelist().indexOf(code)>=0;}
@@ -942,7 +922,10 @@ function _loadFastText(){
         ft.loadModel(FT_MODEL).then(function(){
           _ftStartupStep('smoke tests');
           return Promise.all(FT_SMOKE.map(function(pair){
-            var got=_ftPredictLabel(ft,pair[0]);
+            var _raw=ft.predict(pair[0],1);var got=null;
+            if(_raw instanceof Map){var _it=_raw.entries().next();if(!_it.done)got=String(_it.value[0]).replace(/^(__label__|label__)/,'');}
+            else if(Array.isArray(_raw)&&_raw.length){var _v=_raw[0];got=Array.isArray(_v)?String(_v[0]).replace(/^(__label__|label__)/,''):typeof _v==='string'?_v.replace(/^(__label__|label__)/,''):(_v&&_v.label?String(_v.label).replace(/^(__label__|label__)/,''):null);}
+            else if(_raw&&typeof _raw==='object'){got=String(_raw.label!=null?_raw.label:(_raw[0]||'')).replace(/^(__label__|label__)/,'');}
             if(got!==pair[1])throw new Error('smoke mismatch: input="'+pair[0]+'" expected="'+pair[1]+'" got="'+got+'"');
             return got;
           }));
