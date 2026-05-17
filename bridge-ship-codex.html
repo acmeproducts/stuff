@@ -312,7 +312,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div class="subtitle-area" id="subtitle-area"></div>
   </div>
   <div class="call-transcript" id="call-transcript">
-    <div class="call-transcript-header" style="justify-content:space-between;">
+    <div class="call-transcript-header" style="justify-content:space-between;" title="Live transcript">
       <div class="call-transcript-actions">
         <button class="call-transcript-btn" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Collapse" aria-label="Collapse transcript" aria-expanded="true">
           <svg class="chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
@@ -496,7 +496,19 @@ function routePostCallByRole(sourceReason){
 }
 
 // Safe stub — returns current lang so the race fallback never throws
-function detectLang(text,src){return src||'en';}
+function detectLang(text,src){
+  var t=(text||'').trim();
+  var roomSrc=(src||'en').toLowerCase();
+  if(/[\u0E00-\u0E7F]/.test(t))return 'th';
+  if(/[\u4E00-\u9FFF]/.test(t))return 'zh';
+  if(/[\u3040-\u30FF]/.test(t))return 'ja';
+  if(/[\u0600-\u06FF]/.test(t))return 'ar';
+  if(/[\u0400-\u04FF]/.test(t))return 'ru';
+  var hasLatin=/[A-Za-z]/.test(t);
+  var nonLatinRoom=/^(th|zh|ja|ko|ar|ru|uk|bg|sr)$/.test(roomSrc);
+  if(nonLatinRoom&&hasLatin)return 'en';
+  return roomSrc||'en';
+}
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftPending=[];
@@ -510,8 +522,8 @@ function _syncFtStatus(){
 }
 function _loadFastText(){
   if(_ftReady||_ftLoadFailed)return;
-  var FT_SCRIPT='/fastType/fasttext-wrapper.umd.js';
-  var FT_MODEL='/fastType/lid.176.ftz';
+  var FT_SCRIPT='./fastType/fasttext-wrapper.umd.js';
+  var FT_MODEL='./fastType/lid.176.ftz';
   log('ft_load_start',{src:FT_SCRIPT});
   var s=document.createElement('script');s.src=FT_SCRIPT;
   s.onerror=function(){
@@ -545,6 +557,34 @@ function _loadFastText(){
   };
   document.head.appendChild(s);
 }
+
+function parsePredictResult(r){
+  function cleanLabel(lbl){return lbl?String(lbl).replace('__label__','').trim():null;}
+  function pick(obj){
+    if(!obj)return null;
+    var label=cleanLabel(obj.label||obj.lang||obj.code||(Array.isArray(obj)?obj[0]:null));
+    var prob=Number(obj.prob!=null?obj.prob:obj.score!=null?obj.score:obj.confidence);
+    if(label&&isFinite(prob))return {label:label,prob:prob};
+    if(label&&obj.prob==null&&obj.score==null&&obj.confidence==null)return {label:label,prob:1};
+    return null;
+  }
+  if(r==null)return null;
+  if(typeof Map!=='undefined'&&r instanceof Map){
+    for(const [k,v] of r.entries()){
+      var p=pick({label:k,prob:v}); if(p)return p;
+    }
+  }
+  if(Array.isArray(r)){
+    for(var i=0;i<r.length;i++){var p=pick(r[i]); if(p)return p;}
+  }else if(typeof r==='object'){
+    var p=pick(r); if(p)return p;
+    if(r[0]){p=pick(r[0]); if(p)return p;}
+  }else if(typeof r==='string'){
+    var s=cleanLabel(r); if(s)return {label:s,prob:1};
+  }
+  return null;
+}
+
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
   if(/[\u0E00-\u0E7F]/.test(t))return Promise.resolve('th');
@@ -557,13 +597,13 @@ function _detectLangAsync(text){
   if(_ftLoadFailed)return Promise.resolve(null);
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
-      try{var r=_ftModule.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=_ftModule.predict(t,1);var p=parsePredictResult(r);resolve((p&&p.prob>=FT_CONF)?p.label:null);}catch(_){resolve(null);}
     });
   }
   return new Promise(function(resolve){
     _ftPending.push(function(ft){
       if(!ft){resolve(null);return;}
-      try{var r=ft.predict(t,1);resolve((r&&r.length&&(r[0].prob||0)>=FT_CONF)?r[0].label.replace('__label__',''):null);}catch(_){resolve(null);}
+      try{var r=ft.predict(t,1);var p=parsePredictResult(r);resolve((p&&p.prob>=FT_CONF)?p.label:null);}catch(_){resolve(null);}
     });
     if(!_ftReady&&!_ftLoadFailed&&_ftPending.length===1)_loadFastText();
   });
@@ -608,12 +648,13 @@ async function sendChat(){
   try{
     var _ftWonC=false;
     var detected=await Promise.race([
-      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
+      _detectLangAsync(text).then(function(d){if(d)_ftWonC=true;return d;}),
       new Promise(function(res){setTimeout(function(){
         if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
         res(detectLang(text,src));
       },150);})
     ]);
+    if(!detected)detected=detectLang(text,src);
     log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
@@ -1177,12 +1218,13 @@ function onDGFinal(text){
   log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   var _ftWon=false;
   Promise.race([
-    _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
+    _detectLangAsync(text).then(function(d){if(d)_ftWon=true;return d;}),
     new Promise(function(res){setTimeout(function(){
       if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
       res(detectLang(text,src));
     },150);})
   ]).then(function(detected){
+    if(!detected)detected=detectLang(text,src);
     log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
     if(detected&&detected!==src){
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
@@ -1284,7 +1326,7 @@ function addTr(who,src,tr,sL,tL,ss){
   var entry={id:'sp-'+uid(),type:'speech',who:who,sourceText:src,translatedText:tr,srcLang:sL,tgtLang:tL,subtitleSeq:ss||null,ts:Date.now()};
   transcript.push(entry);if(transcript.length>MAX_TR)transcript.splice(0,transcript.length-MAX_TR);
   saveTr();appendTrDom(entry);
-  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,tL||room.myLang);
+  if(transcriptTtsOn&&who==='partner'&&tr&&!ss)speakText(tr,(entry.tgtLang)||room.myLang);
 }
 function replaceTrDomById(entry){
   var b=$('transcript-body');if(!b)return;
