@@ -259,7 +259,23 @@
     .modal-grid label { font-size: 0.85rem; color: #475569; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
     .ghost { background: #fff; color: #334155; border-color: #cbd5e1; }
-    .resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; }
+    thead th { position: relative; }
+    .col-head { display: inline-flex; align-items: center; gap: 6px; }
+    .drag-handle { cursor: grab; color: #64748b; font-size: 0.78rem; user-select: none; }
+    .drag-handle:active { cursor: grabbing; }
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 12px;
+      height: 100%;
+      cursor: col-resize;
+      border-right: 2px solid transparent;
+      transition: border-color 120ms ease;
+    }
+    th:hover .resize-handle { border-right-color: #93c5fd; }
+    .resize-handle:hover { border-right-color: #2563eb; }
+    th.resizing { user-select: none; }
     th.dragging { outline: 2px solid #2563eb; }
     th.drag-over { outline: 2px solid #f97316; }
     @media (max-width: 760px) {
@@ -300,13 +316,13 @@
       <table>
         <thead>
           <tr id="headRow">
-            <th data-col="name" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button><span class="resize-handle"></span></th>
-            <th data-col="open" draggable="true">Open<span class="resize-handle"></span></th>
-            <th data-col="delete" draggable="true">Delete<span class="resize-handle"></span></th>
-            <th data-col="edit" draggable="true">Edit<span class="resize-handle"></span></th>
-            <th data-col="desc" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button><span class="resize-handle"></span></th>
-            <th data-col="size" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="size">Size</button><span class="resize-handle"></span></th>
-            <th data-col="changed" draggable="true"><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button><span class="resize-handle"></span></th>
+            <th data-col="name" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><button class="mini sort-chip" type="button" data-sort-key="name">Filename</button></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="open" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><span>Open</span></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="delete" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><span>Delete</span></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="edit" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><span>Edit</span></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="desc" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><button class="mini sort-chip" type="button" data-sort-key="commitMessage">Description</button></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="size" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><button class="mini sort-chip" type="button" data-sort-key="size">Size</button></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
+            <th data-col="changed" draggable="true"><span class="col-head"><span class="drag-handle" draggable="true" title="Drag to reorder column" aria-hidden="true">⋮⋮</span><button class="mini sort-chip" type="button" data-sort-key="changed">Changed</button></span><span class="resize-handle" title="Drag to resize column" aria-hidden="true"></span></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -932,27 +948,52 @@
         localStorage.setItem(colKey(), JSON.stringify({ order, widths }));
       };
       let dragTh = null;
+      let isResizing = false;
       row.querySelectorAll('th').forEach((th) => {
-        th.addEventListener('dragstart', () => { dragTh = th; th.classList.add('dragging'); });
-        th.addEventListener('dragend', () => { th.classList.remove('dragging'); persistCols(); });
-        th.addEventListener('dragover', (e) => { e.preventDefault(); th.classList.add('drag-over'); });
+        const dragHandle = th.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.addEventListener('dragstart', (e) => {
+            if (isResizing) { e.preventDefault(); return; }
+            dragTh = th;
+            th.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', th.dataset.col || '');
+          });
+          dragHandle.addEventListener('dragend', () => { th.classList.remove('dragging'); dragTh = null; persistCols(); });
+        }
+        th.addEventListener('dragover', (e) => {
+          if (!dragTh || dragTh === th || isResizing) return;
+          e.preventDefault();
+          th.classList.add('drag-over');
+        });
         th.addEventListener('dragleave', () => th.classList.remove('drag-over'));
         th.addEventListener('drop', (e) => {
+          if (!dragTh || dragTh === th || isResizing) return;
           e.preventDefault();
           th.classList.remove('drag-over');
-          if (dragTh && dragTh !== th) row.insertBefore(dragTh, th);
+          row.insertBefore(dragTh, th);
+          syncColumnLayout();
           persistCols();
         });
         const handle = th.querySelector('.resize-handle');
         if (!handle) return;
         handle.addEventListener('mousedown', (e) => {
           e.preventDefault();
+          e.stopPropagation();
+          isResizing = true;
+          th.classList.add('resizing');
           const startX = e.clientX;
           const startW = th.offsetWidth;
-          const mm = (ev) => { th.style.width = `${Math.max(40, startW + (ev.clientX - startX))}px`; };
+          const mm = (ev) => {
+            const w = Math.max(40, startW + (ev.clientX - startX));
+            th.style.width = `${w}px`;
+            syncColumnLayout();
+          };
           const mu = () => {
             window.removeEventListener('mousemove', mm);
             window.removeEventListener('mouseup', mu);
+            th.classList.remove('resizing');
+            isResizing = false;
             persistCols();
           };
           window.addEventListener('mousemove', mm);
