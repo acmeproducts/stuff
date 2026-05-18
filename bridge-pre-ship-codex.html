@@ -562,13 +562,16 @@ async function sendChat(){
   try{
     var _ftWonC=false;
     var detected=await Promise.race([
-      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
+      _detectLangAsync(text).then(function(d){_ftWonC=!!d;return d;}),
       new Promise(function(res){setTimeout(function(){
         if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
-        res(detectLang(text, src));
+        var fb=detectLang(text, src);
+      _ftWonC=false;
+      res(fb);
       },150);})
     ]);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
+    if(!detected) detected = detectLang(text, src);
+    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'fallback'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
@@ -1131,13 +1134,16 @@ function onDGFinal(text){
   log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   var _ftWon=false;
   Promise.race([
-    _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
+    _detectLangAsync(text).then(function(d){_ftWon=!!d;return d;}),
     new Promise(function(res){setTimeout(function(){
       if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
-      res(detectLang(text, src));
+      var fb=detectLang(text, src);
+      _ftWon=false;
+      res(fb);
     },150);})
   ]).then(function(detected){
-    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
+    if(!detected) detected = detectLang(text, src);
+    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'fallback'});
     if(detected&&detected!==src){
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
       return translateWithRetry(text,detected,src,2);
