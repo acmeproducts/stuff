@@ -167,6 +167,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .board-list-row.current{border-color:var(--accent)}
 .board-list-row .brow-name{flex:1;font-family:ui-monospace,monospace;font-size:13px;font-weight:600;color:var(--accent)}
 .board-list-row .brow-badge{font-size:11px;background:#e8f0fe;color:var(--accent);border-radius:999px;padding:2px 8px}
+.board-list-row .brow-ts{font-size:11px;color:var(--muted)}
+.board-row-actions{display:flex;align-items:center;gap:4px}
+.btn.icon-btn.small{width:28px;height:28px;padding:4px}
+.btn.icon-btn.small svg{width:16px;height:16px}
+.board-inline-edit{display:flex;align-items:center;gap:8px;flex:1}
+.empty-boarding{padding:20px;border:1px dashed var(--border);border-radius:12px;background:#fff;color:var(--muted)}
 
 /* Dialogs */
 .hidden{display:none}
@@ -384,6 +390,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <label for="bKeyInput">Board name</label>
       <div class="row">
         <input id="bKeyInput" placeholder="kanban" style="font-family:ui-monospace,monospace;flex:1"/>
+        <input id="new-board-datetime" type="datetime-local" />
         <button type="button" class="btn primary" id="bCreateBoard">New</button>
       </div>
     </div>
@@ -1616,7 +1623,7 @@ async function forceRefreshFromDrive(){
   applyImportedBoard(remote, "Google Drive refresh");
 }
 $("#btnImport").onclick=()=> $("#fileImport").click();
-$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ applyImportedBoard(board, "JSON file"); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file"); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 $("#btnShare").onclick=()=>{ window.open(DRIVE_SHARE_URL, "_blank", "noopener"); };
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
@@ -1693,6 +1700,7 @@ function hideTooltip(){ tooltip.style.display="none"; tooltip.setAttribute("aria
 
 /* ===== Helpers ===== */
 function fmtDate(ts){ if(!ts) return ""; const d=new Date(ts); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function localDateTimeInputValue(date=new Date()){ const d=date instanceof Date ? date : new Date(date); const pad=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 // NEW: status bar shows current board key
 function setStatus(t){ const detail=t? `${t} • ` : ""; document.getElementById("status").textContent=`${detail}Last updated: ${formatLastUpdated(state.lastModified)} • Build ${BUILD} • board: ${currentBoardKey}`; }
@@ -1949,6 +1957,12 @@ function sanitizeMarkdownImages(s){
   const dlg = document.getElementById("boardsDialog");
   const activeList=document.getElementById("bBoardList");
   const archivedList=document.getElementById("bArchivedList");
+  const nameInput=document.getElementById("bKeyInput");
+  const dtInput=document.getElementById("new-board-datetime");
+  dtInput.value=localDateTimeInputValue();
+  const pencilSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.57 1.57 3.75 3.75L21 5.75Z"/></svg>';
+  const xSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.7 2.88 18.3l6.3-6.29-6.3-6.29L4.3 4.29l6.29 6.3 6.3-6.3z"/></svg>';
+  const chevronSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 17 5-5-5-5v10Z"/></svg>';
   function switchToBoard(name){
     const key = setBoardKey(name);
     currentBoardKey = key;
@@ -1968,6 +1982,14 @@ function sanitizeMarkdownImages(s){
     renderBoardManager();
     toast("Switched","board: "+key);
   }
+  function isBoardNameUnique(name, ignoreName=""){
+    const key=_cleanKey(name), ignore=_cleanKey(ignoreName);
+    return !(repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===key && _cleanKey(b.name)!==ignore);
+  }
+  function setBoardInputDefaults(raw=""){
+    nameInput.value = raw || "new-board";
+    dtInput.value = localDateTimeInputValue();
+  }
   function renderBoardManager(){
     const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
     const active=boards.filter(b=>!b.archived).sort((a,b)=>a.name.localeCompare(b.name));
@@ -1978,39 +2000,61 @@ function sanitizeMarkdownImages(s){
     active.forEach(b=>{
       const row=document.createElement("div");
       row.className="board-list-row"+(_cleanKey(b.name)===currentBoardKey?" current":"");
-      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}`;
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}`;
       const open=document.createElement("button"); open.type="button"; open.className="btn small"; open.textContent="Open";
       open.onclick=()=>switchToBoard(b.name);
-      const del=document.createElement("button"); del.type="button"; del.className="btn small danger"; del.textContent="X"; del.title="Archive board";
-      del.onclick=()=>{ upsertBoardRecord(b.name,{ archived:true }); renderBoardManager(); };
-      row.append(open,del); activeList.appendChild(row);
+      const edit=document.createElement("button"); edit.type="button"; edit.className="btn icon-btn small"; edit.style.color="#6b7280"; edit.title="Edit name"; edit.innerHTML=pencilSvg;
+      edit.onclick=()=>{
+        const inline=document.createElement("div");
+        inline.className="board-inline-edit";
+        inline.innerHTML=`<input style="flex:1;font-family:ui-monospace,monospace" value="${escapeHtml(b.name)}"/><button type="button" class="btn small primary">Save</button><button type="button" class="btn small">Cancel</button>`;
+        row.replaceChildren(inline);
+        const [input,save,cancel]=inline.querySelectorAll("input,button");
+        cancel.onclick=()=>renderBoardManager();
+        save.onclick=()=>{
+          const next=(input.value||"").trim();
+          if(!next){ alert("Board name cannot be empty."); return; }
+          if(!isBoardNameUnique(next,b.name)){ alert("Board name must be unique."); return; }
+          const oldKey=_cleanKey(b.name), newKey=_cleanKey(next);
+          repoBoardsIndex.boards=repoBoardsIndex.boards.map(x=>_cleanKey(x.name)===oldKey?{...x,name:newKey,lastUpdated:Date.now()}:x);
+          if(_cleanKey(currentBoardKey)===oldKey){ setBoardKey(newKey); currentBoardKey=newKey; updateKeyLabel(); }
+          saveRepoBoardsIndex(); renderBoardManager();
+        };
+      };
+      const archive=document.createElement("button"); archive.type="button"; archive.className="btn icon-btn small"; archive.style.color="#6b7280"; archive.title="Archive board"; archive.innerHTML=xSvg;
+      archive.onclick=()=>{ upsertBoardRecord(b.name,{ archived:true }); renderBoardManager(); };
+      row.append(open,edit,archive); activeList.appendChild(row);
     });
     if(!archived.length) archivedList.innerHTML="<span class='muted'>No archived boards.</span>";
     archived.forEach(b=>{
       const row=document.createElement("div");
       row.className="board-list-row";
-      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span>`;
-      const restore=document.createElement("button"); restore.type="button"; restore.className="btn small"; restore.textContent="Restore";
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>`;
+      const controls=document.createElement("details");
+      controls.innerHTML=`<summary class="btn icon-btn small" style="list-style:none;color:#6b7280">${chevronSvg}</summary><div class="board-row-actions"><button type="button" class="btn small">Restore</button><button type="button" class="btn small danger">Delete</button></div>`;
+      const [restore,del]=controls.querySelectorAll("button");
       restore.onclick=()=>{ upsertBoardRecord(b.name,{ archived:false }); renderBoardManager(); };
-      const del=document.createElement("button"); del.type="button"; del.className="btn small danger"; del.textContent="Delete";
       del.onclick=()=>{ if(confirm(`Permanently delete board '${b.name}'?`)){ repoBoardsIndex.boards=repoBoardsIndex.boards.filter(x=>_cleanKey(x.name)!==_cleanKey(b.name)); saveRepoBoardsIndex(); localStorage.removeItem(`ai_jobs_kanban__${_cleanKey(b.name)}`); renderBoardManager(); } };
-      row.append(restore,del); archivedList.appendChild(row);
+      row.append(controls); archivedList.appendChild(row);
     });
   }
   document.getElementById("boardKeyPill").addEventListener("click", ()=>{
-    document.getElementById("bKeyInput").value = currentBoardKey;
+    setBoardInputDefaults(currentBoardKey);
     renderBoardManager();
     dlg.showModal();
   });
   document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
 
   document.getElementById("bCreateBoard").addEventListener("click", ()=>{
-    const raw = document.getElementById("bKeyInput").value.trim();
+    const raw = nameInput.value.trim();
     if(!raw){ alert("Enter a board name."); return; }
+    if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
     const next=upsertBoardRecord(raw,{ archived:false });
     switchToBoard(next.name);
     dlg.close();
   });
+  window.__switchToBoard=switchToBoard;
+  window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
 })();
 
 
@@ -2024,7 +2068,21 @@ async function bootstrapBoardsLifecycle(){
   const lastBoardMatch=boards.find(b=>boardSlug(b.name)===lastBoard||String(b.name||"").toLowerCase()===lastBoard);
   const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
   const chosen=requestedBoard||lastBoardMatch||activeMatch||null;
-  if(!chosen){ setStatus("Select or create a board to begin"); boardsBootstrapped=true; return; }
+  if(!chosen){
+    if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
+    else{
+      window.__openBoardManager?.("new-board");
+      state={ cards:[], archive:[], stages:[], platforms:[], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
+      render();
+      const msg=document.createElement("div");
+      msg.className="empty-boarding";
+      msg.textContent="Welcome. Create a board from Board Manager to get started.";
+      document.getElementById("board").appendChild(msg);
+    }
+    setStatus("Select or create a board to begin");
+    boardsBootstrapped=true;
+    return;
+  }
   const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
   const meta=loadCacheMeta(); const cachedTs=String(meta[key]?.lastUpdated||""); const repoTs=String(chosen.lastUpdated||"");
   if(!cachedTs || (repoTs && cachedTs<repoTs)){
