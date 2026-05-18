@@ -828,11 +828,13 @@ function detectLang(text,src){
   if(/[Ѐ-ӿ]/.test(t))return 'ru';
   var nonLatinSrcs=['zh','ja','ko','th','ar','hi','ru'];
   if(nonLatinSrcs.indexOf(src)>=0&&/^[\x00-\x7FÀ-ɏ\s]+$/.test(t))return 'en';
+  if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t))return 'en';
   return src||'en';
 }
 
 /* === FASTTEXT WASM === */
 var _ftReady=false,_ftModule=null,_ftLoadFailed=false,_ftDegraded=false,_ftPending=[];
+var _lastAsyncVia='wasm';
 var CONF_SPEECH=0.58,CONF_CHAT=0.50,CONF_FLOOR=0.40,FT_LOAD_TIMEOUT_MS=5000;
 var FT_WRAPPER_JS='/stuff/fastType/fasttext-wrapper.umd.js';
 var FT_CORE_JS='/stuff/fastType/core/fasttext.mjs';
@@ -936,15 +938,16 @@ function _loadFastText(){
 }
 function _detectLangAsync(text){
   var t=(text||'').trim();if(!t)return Promise.resolve(null);
-  if(/[\u0E00-\u0E7F]/.test(t))return Promise.resolve('th');
-  if(/[\u3040-\u30FF\u31F0-\u31FF]/.test(t))return Promise.resolve('ja');
-  if(/[\u4E00-\u9FFF]/.test(t))return Promise.resolve('zh');
-  if(/[\uAC00-\uD7A3]/.test(t))return Promise.resolve('ko');
-  if(/[\u0600-\u06FF]/.test(t))return Promise.resolve('ar');
-  if(/[\u0900-\u097F]/.test(t))return Promise.resolve('hi');
-  if(/[\u0400-\u04FF]/.test(t))return Promise.resolve('ru');
-  if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t))return Promise.resolve('en');
+  if(/[\u0E00-\u0E7F]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('th');}
+  if(/[\u3040-\u30FF\u31F0-\u31FF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ja');}
+  if(/[\u4E00-\u9FFF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('zh');}
+  if(/[\uAC00-\uD7A3]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ko');}
+  if(/[\u0600-\u06FF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ar');}
+  if(/[\u0900-\u097F]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('hi');}
+  if(/[\u0400-\u04FF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ru');}
+  if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t)){_lastAsyncVia='marker';return Promise.resolve('en');}
   if(_ftLoadFailed)return Promise.resolve(null);
+  _lastAsyncVia='wasm';
   if(_ftReady&&_ftModule){
     return new Promise(function(resolve){
       try{var r=_ftModule.predict(t,1);resolve(_ftPredictLabel(_ftModule,t));}catch(_){resolve(null);}
@@ -1002,9 +1005,9 @@ async function sendChat(){
   var srcText=text;
   log('chat_norm_start',{src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   try{
-    var _ftWonC=false;
+    var _ftWonC=false,_detectViaC='fallback';
     var detected=await Promise.race([
-      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
+      _detectLangAsync(text).then(function(d){_ftWonC=true;_detectViaC=d?_lastAsyncVia:'fallback';return d;}),
       new Promise(function(res){setTimeout(function(){
         if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
         res(detectLang(text,src));
@@ -1012,7 +1015,7 @@ async function sendChat(){
     ]);
     // B2 fix: if race resolved null, fall back to unicode stub
     if(!detected)detected=detectLang(text,src);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
+    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_detectViaC});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
@@ -2422,9 +2425,9 @@ function onDGFinal(text){
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   showSub(text,'mine');
   log('norm_start',{ss:ss,src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
-  var _ftWon=false,_detected=src;
+  var _ftWon=false,_detected=src,_detectVia='fallback';
   Promise.race([
-    _detectLangAsync(text).then(function(d){_ftWon=true;return d;}),
+    _detectLangAsync(text).then(function(d){_ftWon=true;_detectVia=d?_lastAsyncVia:'fallback';return d;}),
     new Promise(function(res){setTimeout(function(){
       if(!_ftWon)log('norm_timeout',{ft_ready:_ftReady,ft_failed:_ftLoadFailed,fallback:src},'warn');
       res(detectLang(text,src));
@@ -2432,7 +2435,7 @@ function onDGFinal(text){
   ]).then(function(detected){
     // B2 fix: if race resolved null (WASM failed fast), fall back to unicode stub
     if(!detected)detected=detectLang(text,src);
-    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWon?'wasm':'stub'});
+    log('norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_detectVia});
     if(detected&&detected!==src){
       _detected=detected;
       log('norm_step',{from:detected,to:src,text:text.slice(0,60)});
