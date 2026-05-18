@@ -127,7 +127,7 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field textarea{resize:vertical;min-height:72px}
 .card-edit-field input,.card-edit-field textarea,.card-edit-field select,
 .field input,.field textarea,.field select,
-#search,#tagInput,#bKeyInput,#bRepoUrl{
+#search,#tagInput,#bKeyInput{
   user-select:text;
   -webkit-user-select:text;
 }
@@ -375,33 +375,26 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </dialog>
 
 <!-- NEW: Boards dialog -->
-<dialog id="boardsDialog" style="width:min(520px,96vw)">
+<dialog id="boardsDialog" style="width:min(620px,96vw)">
   <form method="dialog" class="modal">
     <button type="button" class="modal-close" id="boardsClose">×</button>
     <h3>Board Manager</h3>
-    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Export saves as <code style="background:#f0f4ff;padding:1px 5px;border-radius:4px">&lt;key&gt;.json</code>. Include lane/card open-close state for seamless device handoff.</p>
-
+    <p style="font-size:12px;color:var(--muted);margin:4px 0 12px">Boards are managed from <code style="background:#f0f4ff;padding:1px 5px;border-radius:4px">kanban-boards.json</code>.</p>
     <div class="field">
-      <label for="bKeyInput">Board key</label>
+      <label for="bKeyInput">Board name</label>
       <div class="row">
         <input id="bKeyInput" placeholder="kanban" style="font-family:ui-monospace,monospace;flex:1"/>
-        <button type="button" class="btn primary" id="bKeySwitch">Switch</button>
+        <button type="button" class="btn primary" id="bCreateBoard">New</button>
       </div>
     </div>
-
     <div class="field">
-      <label for="bRepoUrl">GitHub repo contents URL (to list *.json boards)</label>
-      <div class="row">
-        <input id="bRepoUrl" placeholder="https://api.github.com/repos/" style="font-family:ui-monospace,monospace;font-size:12px;flex:1"/>
-        <button type="button" class="btn" id="bListBoards">List</button>
-      </div>
+      <label>Active boards</label>
+      <div id="bBoardList" style="margin-top:4px;display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow:auto"></div>
     </div>
-
-    <div id="bBoardList" class="hidden" style="margin-top:4px;display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto"></div>
-
-    <div class="row" style="margin-top:14px">
-      <button class="btn" value="close">Close</button>
-    </div>
+    <details id="bArchivedWrap" style="margin-top:10px">
+      <summary style="cursor:pointer;font-weight:600;">Archived boards</summary>
+      <div id="bArchivedList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:26vh;overflow:auto"></div>
+    </details>
   </form>
 </dialog>
 
@@ -417,7 +410,6 @@ const BUILD = "2025-10-28";
 
 /* ===== NEW: Board Key System ===== */
 const BOARD_KEY_LS   = "kanban_board_key";
-const BOARD_REPO_LS  = "kanban_repo_url";
 const urlBoardParamRaw = new URLSearchParams(location.search).get("board");
 const hasBoardQueryParam = !!(urlBoardParamRaw && urlBoardParamRaw.trim());
 const REPO_BOARDS_FILE = "kanban-boards.json";
@@ -449,6 +441,25 @@ async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE);
 async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
 function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.stringify(meta||{})); }
+function normalizeBoardRecord(record){
+  const name=_cleanKey(record?.name||"");
+  if(!name) return null;
+  return { name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()) };
+}
+function saveRepoBoardsIndex(){
+  repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
+  localStorage.setItem("kanban_repo_boards_index_cache", JSON.stringify(repoBoardsIndex));
+}
+function upsertBoardRecord(name, patch={}){
+  const key=_cleanKey(name);
+  const idx=repoBoardsIndex.boards.findIndex(b=>_cleanKey(b.name)===key);
+  const base=idx>=0 ? repoBoardsIndex.boards[idx] : { name:key, archived:false, lastUpdated:Date.now() };
+  const next=normalizeBoardRecord({ ...base, ...patch, name:key, lastUpdated:Date.now() });
+  if(idx>=0) repoBoardsIndex.boards[idx]=next; else repoBoardsIndex.boards.push(next);
+  if(!next.archived) repoBoardsIndex.activeBoard=next.name;
+  saveRepoBoardsIndex();
+  return next;
+}
 
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
@@ -1471,69 +1482,6 @@ settingsDialog.addEventListener("close", ()=>{
   }
 });
 
-/* ===== NEW: Boards Modal ===== */
-const boardsDialog = $("#boardsDialog");
-$("#boardKeyPill").addEventListener("click", ()=>{
-  $("#bKeyInput").value = currentBoardKey;
-  $("#bRepoUrl").value = localStorage.getItem(BOARD_REPO_LS)||"https://api.github.com/repos/";
-  $("#bBoardList").classList.add("hidden");
-  boardsDialog.showModal();
-});
-$("#boardsClose").addEventListener("click", ()=> boardsDialog.close());
-
-$("#bKeySwitch").addEventListener("click", ()=>{
-  const raw = $("#bKeyInput").value.trim();
-  if(!raw){ alert("Enter a board key."); return; }
-  const key = setBoardKey(raw);
-  currentBoardKey = key;
-  updateKeyLabel();
-  // reload state from the new slot
-  const fresh = loadState();
-  if(fresh){
-    state = fresh;
-    state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
-    state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
-    state.archive = Array.isArray(state.archive) ? state.archive : [];
-    state.layout = state.layout || "auto";
-  } else {
-    state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
-  }
-  boardsDialog.close();
-  render();
-  toast("Switched","board: "+key);
-});
-
-$("#bListBoards").addEventListener("click", async ()=>{
-  const url = $("#bRepoUrl").value.trim();
-  if(!url){ alert("Enter the GitHub repo contents API URL."); return; }
-  localStorage.setItem(BOARD_REPO_LS, url);
-  try{
-    const res = await fetch(url, { headers:{ Accept:"application/vnd.github.v3+json" } });
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const files = await res.json();
-    const jsFiles = files.filter(f=> f.type==="file" && f.name?.endsWith(".json"));
-    const listEl = $("#bBoardList");
-    listEl.innerHTML = "";
-    if(!jsFiles.length){
-      listEl.innerHTML = "<span class='muted'>No .json files found.</span>";
-    } else {
-      jsFiles.forEach(f=>{
-        const key = f.name.replace(/\.json$/,"");
-        const row = document.createElement("div");
-        row.style.cssText = "display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:#fff";
-        if(key===currentBoardKey) row.style.borderColor="var(--accent)";
-        row.innerHTML = `<span style="flex:1;font-family:ui-monospace,monospace;font-size:13px;font-weight:600;color:var(--accent)">${escapeHtml(f.name)}</span>${key===currentBoardKey?'<span style="font-size:11px;background:#e8f0fe;color:var(--accent);border-radius:999px;padding:2px 8px">current</span>':''}`;
-        const selBtn = document.createElement("button");
-        selBtn.type="button"; selBtn.className="btn small"; selBtn.textContent="Select";
-        selBtn.onclick = ()=>{ $("#bKeyInput").value = key; };
-        row.appendChild(selBtn);
-        listEl.appendChild(row);
-      });
-    }
-    listEl.classList.remove("hidden");
-  }catch(err){ alert("Could not fetch list: "+err.message); }
-});
-
 /* ===== Import/Export/Share ===== */
 const DRIVE_SHARE_URL = "https://drive.google.com/file/d/1Fzzsy_Vu8xK5IGVMt5O4-BNFtuKmAoIx/view?usp=drivesdk";
 const DRIVE_FILE_ID = (DRIVE_SHARE_URL.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]) || "";
@@ -1574,6 +1522,11 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   clearTimeout(saveTimer);
   dirty=true;
   persistNow({ touchTimestamp:false, syncToGitHub:false });
+  const key=_cleanKey(currentBoardKey);
+  const rec=upsertBoardRecord(key,{ archived:false });
+  const meta=loadCacheMeta();
+  meta[key]={ lastUpdated:String(rec.lastUpdated) };
+  saveCacheMeta(meta);
   render();
   toast("Import successful","Board replaced");
   setStatus(`Imported ${sourceLabel} and saved to local storage.`);
@@ -1994,18 +1947,10 @@ function sanitizeMarkdownImages(s){
 /* ===== Boards Modal ===== */
 (function(){
   const dlg = document.getElementById("boardsDialog");
-  document.getElementById("boardKeyPill").addEventListener("click", ()=>{
-    document.getElementById("bKeyInput").value = currentBoardKey;
-    document.getElementById("bRepoUrl").value = localStorage.getItem(BOARD_REPO_LS)||"https://api.github.com/repos/";
-    document.getElementById("bBoardList").classList.add("hidden");
-    dlg.showModal();
-  });
-  document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
-
-  document.getElementById("bKeySwitch").addEventListener("click", ()=>{
-    const raw = document.getElementById("bKeyInput").value.trim();
-    if(!raw){ alert("Enter a board key."); return; }
-    const key = setBoardKey(raw);
+  const activeList=document.getElementById("bBoardList");
+  const archivedList=document.getElementById("bArchivedList");
+  function switchToBoard(name){
+    const key = setBoardKey(name);
     currentBoardKey = key;
     updateKeyLabel();
     const fresh = loadState();
@@ -2016,43 +1961,55 @@ function sanitizeMarkdownImages(s){
       state.archive = Array.isArray(state.archive) ? state.archive : [];
       state.layout = state.layout || "auto";
     } else {
-      state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={};
+      state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={}; state.layout="auto";
     }
-    dlg.close();
+    upsertBoardRecord(key,{ archived:false });
     render();
+    renderBoardManager();
     toast("Switched","board: "+key);
+  }
+  function renderBoardManager(){
+    const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
+    const active=boards.filter(b=>!b.archived).sort((a,b)=>a.name.localeCompare(b.name));
+    const archived=boards.filter(b=>b.archived).sort((a,b)=>a.name.localeCompare(b.name));
+    activeList.innerHTML="";
+    archivedList.innerHTML="";
+    if(!active.length) activeList.innerHTML="<span class='muted'>No active boards yet.</span>";
+    active.forEach(b=>{
+      const row=document.createElement("div");
+      row.className="board-list-row"+(_cleanKey(b.name)===currentBoardKey?" current":"");
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}`;
+      const open=document.createElement("button"); open.type="button"; open.className="btn small"; open.textContent="Open";
+      open.onclick=()=>switchToBoard(b.name);
+      const del=document.createElement("button"); del.type="button"; del.className="btn small danger"; del.textContent="X"; del.title="Archive board";
+      del.onclick=()=>{ upsertBoardRecord(b.name,{ archived:true }); renderBoardManager(); };
+      row.append(open,del); activeList.appendChild(row);
+    });
+    if(!archived.length) archivedList.innerHTML="<span class='muted'>No archived boards.</span>";
+    archived.forEach(b=>{
+      const row=document.createElement("div");
+      row.className="board-list-row";
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span>`;
+      const restore=document.createElement("button"); restore.type="button"; restore.className="btn small"; restore.textContent="Restore";
+      restore.onclick=()=>{ upsertBoardRecord(b.name,{ archived:false }); renderBoardManager(); };
+      const del=document.createElement("button"); del.type="button"; del.className="btn small danger"; del.textContent="Delete";
+      del.onclick=()=>{ if(confirm(`Permanently delete board '${b.name}'?`)){ repoBoardsIndex.boards=repoBoardsIndex.boards.filter(x=>_cleanKey(x.name)!==_cleanKey(b.name)); saveRepoBoardsIndex(); localStorage.removeItem(`ai_jobs_kanban__${_cleanKey(b.name)}`); renderBoardManager(); } };
+      row.append(restore,del); archivedList.appendChild(row);
+    });
+  }
+  document.getElementById("boardKeyPill").addEventListener("click", ()=>{
+    document.getElementById("bKeyInput").value = currentBoardKey;
+    renderBoardManager();
+    dlg.showModal();
   });
+  document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
 
-  document.getElementById("bListBoards").addEventListener("click", async ()=>{
-    const url = document.getElementById("bRepoUrl").value.trim();
-    if(!url){ alert("Enter the GitHub repo contents API URL."); return; }
-    localStorage.setItem(BOARD_REPO_LS, url);
-    const listEl = document.getElementById("bBoardList");
-    listEl.innerHTML = "<span class='muted'>Loading…</span>";
-    listEl.classList.remove("hidden");
-    try{
-      const res = await fetch(url, { headers:{ Accept:"application/vnd.github.v3+json" } });
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const files = await res.json();
-      const jsFiles = files.filter(f=> f.type==="file" && f.name?.endsWith(".json"));
-      listEl.innerHTML = "";
-      if(!jsFiles.length){
-        listEl.innerHTML = "<span class='muted'>No .json files found.</span>";
-      } else {
-        jsFiles.forEach(f=>{
-          const key = f.name.replace(/\.json$/,"");
-          const row = document.createElement("div");
-          row.className = "board-list-row" + (key===currentBoardKey?" current":"");
-          const nm = document.createElement("span"); nm.className="brow-name"; nm.textContent=f.name;
-          row.appendChild(nm);
-          if(key===currentBoardKey){ const b=document.createElement("span"); b.className="brow-badge"; b.textContent="current"; row.appendChild(b); }
-          const btn = document.createElement("button"); btn.type="button"; btn.className="btn small"; btn.textContent="Select";
-          btn.onclick = ()=>{ document.getElementById("bKeyInput").value = key; };
-          row.appendChild(btn);
-          listEl.appendChild(row);
-        });
-      }
-    }catch(err){ listEl.innerHTML = `<span class='muted'>Error: ${escapeHtml(err.message)}</span>`; }
+  document.getElementById("bCreateBoard").addEventListener("click", ()=>{
+    const raw = document.getElementById("bKeyInput").value.trim();
+    if(!raw){ alert("Enter a board name."); return; }
+    const next=upsertBoardRecord(raw,{ archived:false });
+    switchToBoard(next.name);
+    dlg.close();
   });
 })();
 
