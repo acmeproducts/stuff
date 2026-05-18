@@ -1535,28 +1535,59 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
 function isValidBoardData(obj){
   return Array.isArray(obj?.cards) && Array.isArray(obj?.platforms) && Array.isArray(obj?.stages);
 }
+function sanitizeJsonControlChars(source){
+  let out="";
+  let inString=false;
+  let escaping=false;
+  for(let i=0;i<source.length;i++){
+    const ch=source[i];
+    const code=source.charCodeAt(i);
+    if(inString){
+      if(escaping){ out+=ch; escaping=false; continue; }
+      if(ch==='\\'){ out+=ch; escaping=true; continue; }
+      if(ch==='"'){ out+=ch; inString=false; continue; }
+      if(code<0x20){
+        if(ch==='\n') out+='\\n';
+        else if(ch==='\r') out+='\\r';
+        else if(ch==='\t') out+='\\t';
+        else out+=`\\u${code.toString(16).padStart(4,'0')}`;
+        continue;
+      }
+      out+=ch;
+      continue;
+    }
+    if(ch==='"') inString=true;
+    out+=ch;
+  }
+  return out;
+}
 function parseBoardPayload(text){
   if(!text) return null;
   const raw = String(text).trim();
   if(!raw) return null;
-  try{
-    const obj = JSON.parse(raw);
-    return isValidBoardData(obj) ? obj : null;
-  }catch{}
+  const tryParse=(input)=>{
+    try{
+      const obj = JSON.parse(input);
+      return isValidBoardData(obj) ? obj : null;
+    }catch(err){
+      return null;
+    }
+  };
+  const direct=tryParse(raw);
+  if(direct) return direct;
+  const directSanitized=tryParse(sanitizeJsonControlChars(raw));
+  if(directSanitized) return directSanitized;
   const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   const jsAssignMatch = raw.match(/(?:window\.)?[a-zA-Z_$][\w$]*\s*=\s*(\{[\s\S]*\})\s*;?\s*$/);
   const candidate = preMatch?.[1] || jsAssignMatch?.[1] || raw;
   if(!candidate) return null;
-  try{
-    const decoded = candidate
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
-    const obj = JSON.parse(decoded.trim());
-    return isValidBoardData(obj) ? obj : null;
-  }catch{}
-  return null;
+  const decoded = candidate
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .trim();
+  return tryParse(decoded) || tryParse(sanitizeJsonControlChars(decoded));
 }
 async function fetchCentralizedBoard(){
   for(const url of DRIVE_JSON_URLS){
@@ -2112,10 +2143,27 @@ async function bootstrapBoardsLifecycle(){
     return;
   }
   const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
-  const meta=loadCacheMeta(); const cachedTs=String(meta[key]?.lastUpdated||""); const repoTs=String(chosen.lastUpdated||"");
-  if(!cachedTs || (repoTs && cachedTs<repoTs)){
-    try{ const remote=await fetchJson(boardFilePath(chosen.name)); if(isValidBoardData(remote)){ applyImportedBoard(remote, "repo"); const next=loadCacheMeta(); next[key]={lastUpdated:repoTs||String(Date.now())}; saveCacheMeta(next); setStatus(`Loaded ${chosen.name} from repo`);} }
-    catch{ setStatus(`Loaded ${chosen.name} from local cache`); }
+  const meta=loadCacheMeta();
+  const cachedTs=Number(meta[key]?.lastUpdated||0);
+  const repoTs=Number(chosen.lastUpdated||0);
+  const localTs=getBoardLastModified(state);
+  const repoLooksNewer = Number.isFinite(repoTs) && repoTs>Math.max(cachedTs, localTs);
+  const shouldCheckRepo = hasBoardQueryParam || !cachedTs || repoLooksNewer;
+  if(shouldCheckRepo){
+    try{
+      const remote=await fetchJson(boardFilePath(chosen.name));
+      if(isValidBoardData(remote)){
+        const remoteTs=getBoardLastModified(remote);
+        const shouldApplyRemote = hasBoardQueryParam ? (remoteTs>=localTs) : (repoLooksNewer || !cachedTs);
+        if(shouldApplyRemote){
+          applyImportedBoard(remote, "repo");
+          const next=loadCacheMeta();
+          next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
+          saveCacheMeta(next);
+          setStatus(`Loaded ${chosen.name} from repo`);
+        }else setStatus(`Loaded ${chosen.name} from local cache`);
+      } else setStatus(`Loaded ${chosen.name} from local cache`);
+    }catch{ setStatus(`Loaded ${chosen.name} from local cache`); }
   } else setStatus(`Loaded ${chosen.name} from local cache`);
   boardsBootstrapped=true;
 }
