@@ -721,7 +721,7 @@ function isActiveCallPhase(){
 var _relayWs=null;
 var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
-var dgWs=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
+var dgWs=null,dgWsEn=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var _dgLastMsg=0,_dgWatchdogTimer=null;
 var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
@@ -2497,7 +2497,7 @@ function stopDGAudio(){
 }
 function stopDeepgram(){
   _stopDgWatchdog();
-  dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}stopDGAudio();log('dg_stopped',{});
+  dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null;}stopDGAudio();log('dg_stopped',{});
 }
 function startDeepgram(){
   var key=(($('dg-key')&&$('dg-key').value)||inviteDgKey||localStorage.getItem('tb_dg_key')||'').trim();
@@ -2531,6 +2531,7 @@ function startDeepgram(){
           var b=new Int16Array(f.length);
           for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
           dgWs.send(b.buffer);
+          if(dgWsEn&&dgWsEn.readyState===1)dgWsEn.send(b.buffer);
         };
         dgSrc.connect(dgProc);dgProc.connect(silentGain);
         dgActive=true;log('dg_scriptproc_active',{},'warn');
@@ -2547,6 +2548,7 @@ function startDeepgram(){
             var f=ev.data;var b=new Int16Array(f.length);
             for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF;}
             dgWs.send(b.buffer);
+            if(dgWsEn&&dgWsEn.readyState===1)dgWsEn.send(b.buffer);
           };
           dgSrc.connect(_wnode);_wnode.connect(silentGain);
           dgProc=_wnode;dgActive=true;log('dg_worklet_active',{},'ok');
@@ -2596,6 +2598,19 @@ function startDeepgram(){
       },1000);
     }
   },5000);
+  var DG_DUAL_LANGS=['zh','th','ko','ar'];
+  if(DG_DUAL_LANGS.indexOf(room.myLang)>=0){
+    var urlEn='wss://api.deepgram.com/v1/listen?model=nova-3&language=en&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+    if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null;}
+    dgWsEn=new WebSocket(urlEn,['token',key]);
+    dgWsEn.onmessage=function(e){
+      _dgLastMsg=Date.now();
+      try{var d=JSON.parse(e.data);var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];if(alt&&alt.transcript&&d.is_final)onDGFinal(alt.transcript);}catch(_){}
+    };
+    dgWsEn.onerror=function(){log('dg_en_error',{},'error');};
+    dgWsEn.onclose=function(ev){log('dg_en_close',{code:ev.code,captureEpoch:captureEpoch,current:sessionEpoch},'warn');dgWsEn=null;};
+    log('dg_en_open',{myLang:room.myLang},'ok');
+  }
 }
 function _stopDgWatchdog(){clearInterval(_dgWatchdogTimer);_dgWatchdogTimer=null;}
 
