@@ -289,7 +289,7 @@ Goal: user-facing polish/features after core reliability is proven.
 - SHIP out-of-scope: rollback of prior-stage fixes or changes to loader retry semantics.
 
 ### Verification executed
-- Conflict scan on all target files: no `<<<<<<<`, `=======`, `>>>>>>>` markers.
+- Conflict scan on all target files: no conflict marker tokens markers.
 - Stage-boundary cleanliness confirmed:
   - PRE-BASE/BASE: no FastText/WASM loader/model-load execution path.
   - PRE-SHIP/SHIP: intended WASM loader logic present.
@@ -312,3 +312,38 @@ Goal: user-facing polish/features after core reliability is proven.
   - `.ftz` failure shows `.bin` retry attempt with success/final-failure logging, non-blocking.
   - detection-source logging does not claim WASM when fallback/null path was used.
   - Spanish-room + English speech triggers detected `en` and en->es normalization path.
+
+## Restart rebuild execution v4 (policy adoption: unified detection + truthful source logging + pre-outbound normalization)
+
+### Adopted policy (A–E)
+- **A) Unified detection policy (chat + speech):** both paths now enforce the same order contract: (1) script-first detection, (2) WASM detection when available, (3) deterministic fallback.
+- **B) Confidence gate:** WASM predictions are accepted only when parser-normalized detection is non-null and confidence passes threshold; otherwise flow continues to deterministic fallback.
+- **C) Non-blocking loader:** model/script load failures remain non-blocking for room create/join/rejoin/call/send flows; degraded fallback path remains active.
+- **D) Truthful source logging:** `via:"wasm"` is now emitted only when a real non-null WASM detection is used; null/timeout/low-confidence outcomes emit `via:"fallback"`.
+- **E) Normalization-before-outbound:** when detected input language differs from room/source language, source text is normalized to room source before outbound translation/send in both chat and speech paths.
+
+### Stage-boundary statement
+- PRE-BASE and BASE remain clean of FastText/WASM wrapper/model-loader execution logic.
+- PRE-SHIP is the first stage containing WASM loader/model logic.
+- SHIP preserves PRE-SHIP loader/retry/parser/detection-source semantics.
+
+### Verification results (v4)
+- Conflict scan (all targets): no conflict marker tokens found.
+- Stage-boundary scan:
+  - PRE-BASE/BASE: no wrapper/model-load execution path.
+  - PRE-SHIP/SHIP: intended WASM loader/model logic present.
+- Presence checks (PRE-SHIP/SHIP):
+  - `./fastType/fasttext-wrapper.umd.js` present.
+  - `./fastType/lid.176.ftz` present.
+  - `./fastType/lid.176.bin` present.
+- Absence checks (all four stage files):
+  - no `fastText.common.js`
+  - no `r[0].prob`
+  - no `r[0].label`
+- JS syntax sanity:
+  - Extracted inline scripts from all four stage HTML files.
+  - Validated with `new Function(...)` (pass).
+- Runtime expectation documentation confirmed:
+  - `.ftz` failure logs `.bin` retry attempt.
+  - `via:"wasm"` is not claimed on null/fallback outcomes.
+  - detected/source mismatch triggers normalization-before-outbound.
