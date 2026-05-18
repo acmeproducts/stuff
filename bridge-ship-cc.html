@@ -522,7 +522,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
     </div>
     <div id="transcript-body"><div class="tr-empty">Speak or type to see transcript here.</div></div>
-    <div class="transcript-more-indicator" id="transcript-more-indicator" onclick="scrollToBottom()" title="Jump to newest">↑</div>
+    <div class="transcript-more-indicator" id="transcript-more-indicator" onclick="scrollToLatest()" title="Jump to latest">↓</div>
   </div>
   <div class="chat-compose-strip" id="chat-compose-strip">
     <input type="file" id="chat-file-input" accept=".pdf,.html,.txt,text/*,application/pdf" style="display:none" onchange="handleChatFile(event)"><button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><textarea class="chat-compose-ta" id="chat-input" placeholder="type here to chat" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)" ></textarea>
@@ -2708,7 +2708,7 @@ function appendTrDom(entry){
   wrap.innerHTML=trHtml(entry);
   var eid=entry.id||(entry.ts+'_'+entry.who);
   wrap.firstChild.dataset.trId=eid;
-  b.insertBefore(wrap.firstChild,b.firstChild);
+  b.appendChild(wrap.firstChild);
   checkAutoScroll();
 }
 function replaceTrDomById(id,entry){
@@ -2726,24 +2726,24 @@ function renderTr(){
   if(!transcript.length){b.innerHTML='<div class="tr-empty">Speak or type to see transcript here.</div>';setTranscriptMore(false);return}
   var existing=Array.from(b.querySelectorAll('.tr-entry'));
   var existingIds=new Set(existing.map(function(el){return el.dataset.trId;}));
-  var toRender=transcript.slice(-120).slice().reverse();
+  var toRender=transcript.slice(-120);
   var newHtml='';
   for(var i=0;i<toRender.length;i++){
     var e=toRender[i];var eid=e.id||(e.ts+'_'+e.who);
     if(!existingIds.has(eid)){var wrap=document.createElement('div');wrap.innerHTML=trHtml(e);wrap.firstChild.dataset.trId=eid;newHtml+=wrap.innerHTML;}
   }
-  if(newHtml){var em=b.querySelector('.tr-empty');if(em)em.remove();b.insertAdjacentHTML('afterbegin',newHtml);}
-  while(b.children.length>120){b.lastChild.remove();}
+  if(newHtml){var em=b.querySelector('.tr-empty');if(em)em.remove();b.insertAdjacentHTML('beforeend',newHtml);}
+  while(b.children.length>120){b.firstChild.remove();}
   setTranscriptMore(false);
 }
 
 function checkAutoScroll(){
-  var c=$('call-transcript');
-  if(transcriptNearBottom()){c.scrollTop=0;setTranscriptMore(false)}else{setTranscriptMore(true)}
+  var c=$('call-transcript');if(!c)return;
+  if(transcriptNearBottom()){c.scrollTop=c.scrollHeight;setTranscriptMore(false);}else{setTranscriptMore(true);}
 }
-function transcriptNearBottom(){var c=$('call-transcript');if(!c)return true;return c.scrollTop<100;}
+function transcriptNearBottom(){var c=$('call-transcript');if(!c)return true;return c.scrollTop+c.clientHeight>=c.scrollHeight-80;}
 function setTranscriptMore(show){var ind=$('transcript-more-indicator');if(!ind)return;if(show)ind.classList.add('show');else ind.classList.remove('show');}
-function scrollToBottom(){var c=$('call-transcript');if(c){c.scrollTop=0;setTranscriptMore(false)}}
+function scrollToLatest(){var c=$('call-transcript');if(c){c.scrollTop=c.scrollHeight;setTranscriptMore(false);}}
 
 function copyTr(){
   if(!transcript.length){toast('No transcript');return}
