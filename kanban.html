@@ -248,6 +248,8 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </button>
         <!-- board key pill -->
     <div class="board-key-pill" id="boardKeyPill" title="Switch board / list boards">board: <span class="bkp-name" id="boardKeyLabel">kanban</span> ▾</div>
+    <button id="btnProjectView" class="btn small">Project</button>
+    <button id="btnProgramView" class="btn small">Program</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -258,6 +260,13 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </header>
 
 <div id="resultsContainer"></div>
+<section id="programView" class="hidden" style="padding:16px">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <h3 style="margin:0">Program Matrix</h3>
+    <button id="btnProgramSettings" class="btn icon-btn" title="Program settings">⚙</button>
+  </div>
+  <div id="programMatrix"></div>
+</section>
 <main id="board" aria-live="polite" data-layout="auto"></main>
 <div class="footer" id="status"></div>
 <div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
@@ -414,6 +423,16 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
   </form>
 </dialog>
 
+<dialog id="programSettingsDialog" style="width:min(560px,96vw)">
+  <form method="dialog" class="modal">
+    <button type="button" class="modal-close" id="programSettingsClose" aria-label="Close"></button>
+    <h3>Program Matrix Settings</h3>
+    <div class="field"><label>Stage axis (rows, bottom→top)</label><input id="programStagesInput" placeholder="Dev, Test, Prod"></div>
+    <div class="field"><label>Phase axis (columns, left→right)</label><input id="programPhasesInput" placeholder="Concept, Initial, Pilot, Beta, Graduate"></div>
+    <div class="row"><button class="btn primary" value="save">Save</button><button class="btn" value="cancel">Cancel</button></div>
+  </form>
+</dialog>
+
 <div id="tooltip" role="tooltip" aria-hidden="true">
   <div class="t-title"></div>
   <div class="t-meta"></div>
@@ -434,6 +453,27 @@ const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
+
+const PROGRAM_CFG_KEY = "kanban_program_cfg_v1";
+const DEFAULT_PROGRAM_CFG = {
+  stages:[{id:"dev",label:"Dev"},{id:"test",label:"Test"},{id:"prod",label:"Prod"}],
+  phases:[{id:"concept",label:"Concept"},{id:"initial",label:"Initial"},{id:"pilot",label:"Pilot"},{id:"beta",label:"Beta"},{id:"graduate",label:"Graduate"}]
+};
+let programCfg = loadProgramCfg();
+
+function loadProgramCfg(){
+  const parsed=safeParseJson(localStorage.getItem(PROGRAM_CFG_KEY)||"", null);
+  if(parsed?.stages && parsed?.phases) return parsed;
+  return JSON.parse(JSON.stringify(DEFAULT_PROGRAM_CFG));
+}
+function saveProgramCfg(){ localStorage.setItem(PROGRAM_CFG_KEY, JSON.stringify(programCfg)); }
+function ensureProgramMeta(rec){
+  rec.program=rec.program||{};
+  rec.program.enabled = rec.program.enabled!==false;
+  rec.program.stageId = rec.program.stageId || programCfg.stages[0]?.id;
+  rec.program.phaseId = rec.program.phaseId || programCfg.phases[0]?.id;
+  return rec;
+}
 
 
 function _cleanKey(raw){ return (raw||"").trim().replace(/[^A-Za-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"kanban"; }
@@ -460,7 +500,7 @@ function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.st
 function normalizeBoardRecord(record){
   const name=_cleanKey(record?.name||"");
   if(!name) return null;
-  return { name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()) };
+  return ensureProgramMeta({ name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()), program:record?.program||{} });
 }
 function saveRepoBoardsIndex(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
@@ -756,6 +796,40 @@ function render(){
   refillSelects();
   applySearch($("#search").value);
 }
+
+function renderProgramView(){
+  const wrap=$("#programMatrix"); if(!wrap) return;
+  const stages=[...programCfg.stages];
+  const phases=[...programCfg.phases];
+  wrap.innerHTML="";
+  const grid=document.createElement("div");
+  grid.style.display="grid";
+  grid.style.gridTemplateColumns=`180px repeat(${phases.length}, minmax(160px,1fr))`;
+  grid.style.gap="8px";
+  grid.appendChild(document.createElement("div"));
+  phases.forEach(ph=>{ const h=document.createElement("div"); h.className="chip"; h.textContent=ph.label; grid.appendChild(h); });
+  [...stages].reverse().forEach(st=>{
+    const rowLabel=document.createElement("div"); rowLabel.className="chip"; rowLabel.textContent=st.label; grid.appendChild(rowLabel);
+    phases.forEach(ph=>{
+      const cell=document.createElement("div");
+      cell.style.minHeight="92px"; cell.style.border="1px solid var(--border)"; cell.style.borderRadius="10px"; cell.style.padding="6px";
+      cell.dataset.stageId=st.id; cell.dataset.phaseId=ph.id;
+      const boards=(repoBoardsIndex.boards||[]).filter(b=>!b.archived && b.program?.enabled && b.program?.stageId===st.id && b.program?.phaseId===ph.id);
+      boards.forEach(b=>{
+        const tile=document.createElement("button"); tile.className="btn small"; tile.style.width="100%"; tile.style.marginBottom="4px"; tile.textContent=b.name;
+        tile.draggable=true; tile.dataset.boardName=b.name;
+        tile.addEventListener("dragstart",e=>{ e.dataTransfer.setData("text/program-board", b.name); e.dataTransfer.effectAllowed="move"; });
+        tile.addEventListener("click",()=>switchBoard(b.name));
+        cell.appendChild(tile);
+      });
+      cell.addEventListener("dragover",e=>{ e.preventDefault(); });
+      cell.addEventListener("drop",e=>{ e.preventDefault(); const name=e.dataTransfer.getData("text/program-board"); if(!name) return; upsertBoardRecord(name,{ program:{...((repoBoardsIndex.boards.find(x=>x.name===name)||{}).program||{}), enabled:true, stageId:st.id, phaseId:ph.id } }); renderProgramView(); });
+      grid.appendChild(cell);
+    });
+  });
+  wrap.appendChild(grid);
+}
+
 document.addEventListener("dragover", e=> e.preventDefault());
 
 let pointerDrag=null;
@@ -1557,6 +1631,12 @@ function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileRe
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
+$("#btnProjectView").onclick=()=>{ $("#programView").classList.add("hidden"); $("#board").classList.remove("hidden"); $("#resultsContainer").classList.remove("hidden"); };
+$("#btnProgramView").onclick=()=>{ $("#board").classList.add("hidden"); $("#resultsContainer").classList.add("hidden"); $("#programView").classList.remove("hidden"); renderProgramView(); };
+$("#btnProgramSettings").onclick=()=>{ $("#programStagesInput").value=programCfg.stages.map(s=>s.label).join(", "); $("#programPhasesInput").value=programCfg.phases.map(s=>s.label).join(", "); $("#programSettingsDialog").showModal(); };
+$("#programSettingsDialog").addEventListener("close",()=>{ if($("#programSettingsDialog").returnValue!=="save") return; const stages=$("#programStagesInput").value.split(",").map(s=>s.trim()).filter(Boolean); const phases=$("#programPhasesInput").value.split(",").map(s=>s.trim()).filter(Boolean); if(stages.length) programCfg.stages=stages.map((label,i)=>({id:_cleanKey(label)||`stage-${i+1}`,label})); if(phases.length) programCfg.phases=phases.map((label,i)=>({id:_cleanKey(label)||`phase-${i+1}`,label})); saveProgramCfg(); renderProgramView(); });
+$("#programSettingsClose").onclick=()=>$("#programSettingsDialog").close("cancel");
+
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
