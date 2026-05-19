@@ -2143,28 +2143,19 @@ async function bootstrapBoardsLifecycle(){
     return;
   }
   const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
-  const meta=loadCacheMeta();
-  const cachedTs=Number(meta[key]?.lastUpdated||0);
-  const repoTs=Number(chosen.lastUpdated||0);
-  const localTs=getBoardLastModified(state);
-  const repoLooksNewer = Number.isFinite(repoTs) && repoTs>Math.max(cachedTs, localTs);
-  const shouldCheckRepo = hasBoardQueryParam || !cachedTs || repoLooksNewer;
-  if(shouldCheckRepo){
-    try{
-      const remote=await fetchJson(boardFilePath(chosen.name));
-      if(isValidBoardData(remote)){
-        const remoteTs=getBoardLastModified(remote);
-        const shouldApplyRemote = hasBoardQueryParam ? (remoteTs>=localTs) : (repoLooksNewer || !cachedTs);
-        if(shouldApplyRemote){
-          applyImportedBoard(remote, "repo");
-          const next=loadCacheMeta();
-          next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
-          saveCacheMeta(next);
-          setStatus(`Loaded ${chosen.name} from repo`);
-        }else setStatus(`Loaded ${chosen.name} from local cache`);
-      } else setStatus(`Loaded ${chosen.name} from local cache`);
-    }catch{ setStatus(`Loaded ${chosen.name} from local cache`); }
-  } else setStatus(`Loaded ${chosen.name} from local cache`);
+  try{
+    const remote=await fetchJson(boardFilePath(chosen.name));
+    if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
+    applyImportedBoard(remote, "repo");
+    const repoTs=Number(chosen.lastUpdated||0);
+    const remoteTs=getBoardLastModified(remote);
+    const next=loadCacheMeta();
+    next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
+    saveCacheMeta(next);
+    setStatus(`Loaded ${chosen.name} from repo`);
+  }catch{
+    setStatus(`Loaded ${chosen.name} from local cache`);
+  }
   boardsBootstrapped=true;
 }
 
