@@ -81,6 +81,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .vc-btn:hover{background:rgba(255,255,255,.18);color:#fff;}
 .vc-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
 .vc-btn.muted{background:rgba(231,76,60,.25);color:#e74c3c;}
+#top-mic-btn{transition:box-shadow 80ms ease,background .2s,color .2s;}
 .vc-btn.end{background:#e74c3c;color:#fff;}
 .vc-btn.end:hover{background:#c0392b;}
 .call-videos{position:relative;background:#000;overflow:hidden;flex:1;min-height:0;}
@@ -742,6 +743,7 @@ var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgWsEn=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
 var _dgEnLastFiredAt=0,_DG_CROSS_MS=600,_dgPrimHoldTimer=null,_dgPrimHeldText=null;
+var _micAnalyser=null,_micLvlRaf=null,_micLvlSmooth=0;
 var _dgLastMsg=0,_dgWatchdogTimer=null;
 var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
@@ -1037,18 +1039,17 @@ function pbIScore(card,q){
   if(s===q)return 100;if(s.indexOf(q)===0)return 80;if(tg.indexOf(q)>=0)return 70;if(s.indexOf(q)>=0)return 50;return 30;
 }
 function pbIRowHtml(card,idx){
-  var id=card.id;
   var tags=(card.tags||[]).map(function(t){
-    return'<button class="pb-itag" onclick="event.stopPropagation();pbITagOpen(\''+pbEsc(id)+'\',event.clientX,event.clientY)" tabindex="-1">#'+pbEsc(t)+'</button>';
+    return'<button class="pb-itag" onclick="event.stopPropagation();pbITagOpenI('+idx+',event.clientX,event.clientY)" tabindex="-1">#'+pbEsc(t)+'</button>';
   }).join('');
   var TTS_SVG='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-  return '<div class="pb-irow" data-idx="'+idx+'" data-id="'+pbEsc(id)+'" onclick="pbISelect(\''+pbEsc(id)+'\')">'
+  return '<div class="pb-irow" data-idx="'+idx+'" data-id="'+pbEsc(card.id)+'" onclick="pbIRowClick('+idx+')">'
     +(tags?'<div class="pb-irow-tags">'+tags+'</div>':'')
     +'<div class="pb-irow-src"><span class="pb-irow-txt">'+pbEsc(card.source||'')+'</span>'
-    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbSpeakCard(\''+pbEsc(id)+'\',\'src\')" tabindex="-1">'+TTS_SVG+'</button></div>'
+    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',0)" tabindex="-1">'+TTS_SVG+'</button></div>'
     +'<div class="pb-irow-div"></div>'
     +'<div class="pb-irow-tgt"><span class="pb-irow-txt">'+pbEsc(card.target||'')+'</span>'
-    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbSpeakCard(\''+pbEsc(id)+'\',\'tgt\')" tabindex="-1">'+TTS_SVG+'</button></div>'
+    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',1)" tabindex="-1">'+TTS_SVG+'</button></div>'
     +'</div>';
 }
 function pbISelect(id){
@@ -1059,6 +1060,9 @@ function pbISelect(id){
     $('chat-send-btn').disabled=!ta.value.trim();ta.focus();}
   _pbEmitUsage(card,'autocomplete');
 }
+function pbIRowClick(idx){var c=_pbICards[idx];if(c)pbISelect(c.id);}
+function pbITagOpenI(idx,x,y){var c=_pbICards[idx];if(c)pbITagOpen(c.id,x,y);}
+function pbISpeakI(idx,side){var c=_pbICards[idx];if(c)pbSpeakCard(c.id,side?'tgt':'src');}
 function pbITagOpen(id,x,y){
   _qrOpen(id,x,y,'quick_ring');
 }
@@ -2756,6 +2760,7 @@ function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ')
 
 function onDGFinal(text){
   text=normalizeText(stripDGTags(text),'speech');if(!text)return;
+  if(!text.replace(/[\s　-〿！-｠.,!?;:'"()\-]/gu,''))return;
   if(/[฀-๿]/.test(text)){text=text.replace(/([ิ-ูเ-ไ]) ([฀-๿])/g,'$1$2').replace(/([฀-๿]) ([ะ-ู็-๎])/g,'$1$2');}
   if(isDupe(text)){log('dg_dedup',{t:text.slice(0,40)},'warn');return}
   recFinal(text);log('dg_final',{t:text.slice(0,60)},'ok');
@@ -2807,6 +2812,7 @@ function onDGFinal(text){
 }
 
 function stopDGAudio(){
+  _micLevelStop();
   if(dgProc)try{dgProc.disconnect();}catch(_){}dgProc=null;
   if(dgSrc)try{dgSrc.disconnect();}catch(_){}dgSrc=null;
   if(dgAudioCtx)try{dgAudioCtx.close();}catch(_){}dgAudioCtx=null;
@@ -2838,6 +2844,7 @@ function startDeepgram(){
       var dgStream=new MediaStream(audioTracks);
       dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
       dgSrc=dgAudioCtx.createMediaStreamSource(dgStream);
+      _micLevelStart();
       var silentGain=dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(dgAudioCtx.destination);
       function _setupScriptProc(){
         dgProc=dgAudioCtx.createScriptProcessor(4096,1,1);
@@ -2936,6 +2943,33 @@ function startDeepgram(){
   }
 }
 function _stopDgWatchdog(){clearInterval(_dgWatchdogTimer);_dgWatchdogTimer=null;}
+function _micLevelStart(){
+  if(!dgAudioCtx||!dgSrc)return;
+  _micAnalyser=dgAudioCtx.createAnalyser();_micAnalyser.fftSize=256;
+  dgSrc.connect(_micAnalyser);
+  var buf=new Uint8Array(_micAnalyser.frequencyBinCount);
+  function _tick(){
+    _micLvlRaf=requestAnimationFrame(_tick);
+    if(micMutedByUser||!dgActive){_micLvlSmooth=0;_applyMicGlow(0);return;}
+    _micAnalyser.getByteFrequencyData(buf);
+    var sum=0;for(var i=0;i<8;i++)sum+=buf[i];
+    var rms=Math.sqrt(sum/8)/255;
+    _micLvlSmooth=_micLvlSmooth*0.8+rms*0.2;
+    _applyMicGlow(_micLvlSmooth);
+  }
+  _tick();
+}
+function _micLevelStop(){
+  if(_micLvlRaf){cancelAnimationFrame(_micLvlRaf);_micLvlRaf=null;}
+  _micLvlSmooth=0;_applyMicGlow(0);
+  if(_micAnalyser){try{_micAnalyser.disconnect();}catch(_){}}_micAnalyser=null;
+}
+function _applyMicGlow(level){
+  var btn=$('top-mic-btn');if(!btn)return;
+  if(level<0.01){btn.style.boxShadow='';return;}
+  var r=Math.round(level*40);var a=Math.min(level*0.7,0.7).toFixed(2);
+  btn.style.boxShadow='0 0 '+r+'px '+(r>>1)+'px rgba(39,174,96,'+a+')';
+}
 
 function showSub(text,cls){
   var a=$('subtitle-area'),el=document.createElement('div');
