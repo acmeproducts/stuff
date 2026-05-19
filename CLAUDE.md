@@ -61,3 +61,11 @@ Every key that appears in multiple files must have the same count; any key appea
 - Develop on branch `claude/audit-talkbridge-recovery-UHws6`
 - Push to `origin main:claude/audit-talkbridge-recovery-UHws6` after every session
 - Commit all modified bridge files together in a single commit when propagating fixes
+- **At the start of every session**, sync local main with origin/main before doing any work:
+  ```bash
+  git fetch origin main
+  git rebase origin/main
+  ```
+  PRs may have been merged since the last session. Skipping this causes local main to
+  drift behind origin/main, making the stop hook report false unpushed-commit counts
+  and risking push conflicts later in the session.
