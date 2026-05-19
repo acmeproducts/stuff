@@ -741,6 +741,7 @@ var _relayWs=null;
 var pc=null,videoStream=null,remoteStream=null;
 var micOn=true,camOn=true,makingOffer=false;
 var dgWs=null,dgWsEn=null,dgAudioCtx=null,dgProc=null,dgSrc=null,dgActive=false;
+var _dgEnLastFiredAt=0,_DG_CROSS_MS=600,_dgPrimHoldTimer=null,_dgPrimHeldText=null;
 var _dgLastMsg=0,_dgWatchdogTimer=null;
 var DG_WATCHDOG_MS=20000; // restart DG if no WS messages in 20s during live call
 var recentFinals=[],DEDUP_MS=4000,DEDUP_MAX=5;
@@ -2812,7 +2813,7 @@ function stopDGAudio(){
 }
 function stopDeepgram(){
   _stopDgWatchdog();
-  dgActive=false;if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null;}stopDGAudio();log('dg_stopped',{});
+  dgActive=false;if(_dgPrimHoldTimer){clearTimeout(_dgPrimHoldTimer);_dgPrimHoldTimer=null;_dgPrimHeldText=null;}if(dgWs){try{dgWs.close()}catch(_){}dgWs=null;}if(dgWsEn){try{dgWsEn.close()}catch(_){}dgWsEn=null;}stopDGAudio();log('dg_stopped',{});
 }
 function startDeepgram(){
   var key=(($('dg-key')&&$('dg-key').value)||inviteDgKey||localStorage.getItem('tb_dg_key')||'').trim();
@@ -2883,7 +2884,14 @@ function startDeepgram(){
     try{
       var d=JSON.parse(e.data);
       var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
-      if(alt&&alt.transcript&&d.is_final)onDGFinal(alt.transcript);
+      if(alt&&alt.transcript&&d.is_final){
+        if(dgWsEn){
+          if(Date.now()-_dgEnLastFiredAt<_DG_CROSS_MS){log('dg_cross_suppress',{t:alt.transcript.slice(0,40)},'warn');return;}
+          if(_dgPrimHoldTimer)clearTimeout(_dgPrimHoldTimer);
+          var _pt=alt.transcript;_dgPrimHeldText=_pt;
+          _dgPrimHoldTimer=setTimeout(function(){_dgPrimHoldTimer=null;if(_dgPrimHeldText===_pt){onDGFinal(_pt);_dgPrimHeldText=null;}},250);
+        }else{onDGFinal(alt.transcript);}
+      }
     }catch(_){}
   };
   dgWs.onerror=function(){log('dg_error',{},'error')};
@@ -2920,7 +2928,7 @@ function startDeepgram(){
     dgWsEn=new WebSocket(urlEn,['token',key]);
     dgWsEn.onmessage=function(e){
       _dgLastMsg=Date.now();
-      try{var d=JSON.parse(e.data);var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];if(alt&&alt.transcript&&d.is_final)onDGFinal(alt.transcript);}catch(_){}
+      try{var d=JSON.parse(e.data);var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];if(alt&&alt.transcript&&d.is_final){if(alt.transcript.trim().length>10){_dgEnLastFiredAt=Date.now();if(_dgPrimHoldTimer){clearTimeout(_dgPrimHoldTimer);_dgPrimHoldTimer=null;log('dg_cross_suppress',{held:_dgPrimHeldText&&_dgPrimHeldText.slice(0,40)},'warn');_dgPrimHeldText=null;}}onDGFinal(alt.transcript);}}catch(_){}
     };
     dgWsEn.onerror=function(){log('dg_en_error',{},'error');};
     dgWsEn.onclose=function(ev){log('dg_en_close',{code:ev.code,captureEpoch:captureEpoch,current:sessionEpoch},'warn');dgWsEn=null;};
