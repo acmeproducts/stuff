@@ -108,6 +108,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-status-btn{border:1px solid var(--border);background:#fff;padding:0;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto;border-radius:999px;width:14px;height:14px}
 .card-status-btn:hover{border-color:var(--accent)}
 .card-status-dot{width:8px;height:8px;border-radius:999px;display:block;background:#9ca3af}
+.status-picker-popover{position:absolute;top:22px;right:0;z-index:30;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.12);padding:8px;display:flex;flex-direction:column;gap:8px;min-width:220px}
+.status-picker-popover.hidden{display:none}
+.status-picker-input{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px}
+.status-picker-swatches{display:flex;flex-wrap:wrap;gap:6px}
+.status-swatch{width:16px;height:16px;border-radius:999px;border:1px solid #cbd5e1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1}
+.status-swatch.emoji{width:auto;min-width:22px;height:22px;border-radius:8px;padding:0 4px;background:#fff}
 .card-archive-btn{position:absolute;top:8px;right:8px;border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#1f6feb;cursor:pointer;flex:0 0 auto}
 .card-archive-btn svg{width:14px;height:14px;fill:currentColor}
 .card-archive-btn:hover{color:#1d4ed8}
@@ -565,7 +571,7 @@ function fmtBytes(bytes){
   while(value>=1024 && i<units.length-1){ value/=1024; i++; }
   return `${value.toFixed(value>=10?0:1)} ${units[i]}`;
 }
-const STATUS_COLORS = Object.freeze(["gray","red","yellow","green","blue","orange","white","black"]);
+const STATUS_COLORS = Object.freeze(["gray","red","yellow","green","blue","orange","white","black","purple","pink","teal","cyan","lime","brown"]);
 const STATUS_COLOR_MAP = Object.freeze({
   gray:"#9ca3af",
   red:"#ef4444",
@@ -574,11 +580,19 @@ const STATUS_COLOR_MAP = Object.freeze({
   blue:"#3b82f6",
   orange:"#f97316",
   white:"#ffffff",
-  black:"#111827"
+  black:"#111827",
+  purple:"#8b5cf6",
+  pink:"#ec4899",
+  teal:"#14b8a6",
+  cyan:"#06b6d4",
+  lime:"#84cc16",
+  brown:"#92400e"
 });
+const STATUS_EMOJIS = Object.freeze(["✅","🟢","🟡","🔴","🟣","🔵","⚫","⚪","🟤","⭐","🔥","⏳","🚧","💡","❗"]);
 function normalizeStatusColor(color){
   const value=String(color||"").trim().toLowerCase();
-  return STATUS_COLORS.includes(value) ? value : "gray";
+  if(STATUS_COLORS.includes(value)) return value;
+  return STATUS_EMOJIS.includes(String(color||"").trim()) ? String(color||"").trim() : "gray";
 }
 
 /* ===== Ordering ===== */
@@ -597,6 +611,15 @@ function maybeRebalance(stage){ const list=stageCards(stage); for(let i=1;i<list
 /* ===== Rendering ===== */
 let draggingId=null, highlightEl=null, editorDirty=false;
 let draggingLaneStage=null, laneHighlightEl=null;
+let statusPickerDismissBound=false;
+function ensureStatusPickerDismissHandler(){
+  if(statusPickerDismissBound) return;
+  statusPickerDismissBound=true;
+  document.addEventListener("pointerdown",(ev)=>{
+    if(ev.target?.closest?.(".card-status-btn")) return;
+    $$(".status-picker-popover").forEach(pop=>pop.classList.add("hidden"));
+  });
+}
 function render(){
   $("#sPlatforms").value = state.platforms.join(", ");
   $("#sStages").value = state.stages.join(", ");
@@ -930,6 +953,7 @@ function buildInlineTagEditor(tagArr){
 }
 
 function renderCard(card){
+  ensureStatusPickerDismissHandler();
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
   el.addEventListener("focusin", (e)=>{
     if(e.target?.closest?.('input,textarea,select,[contenteditable]')) el.draggable=false;
@@ -994,22 +1018,83 @@ function renderCard(card){
   statusBtn.setAttribute("aria-label","Change status color");
   const statusDot=document.createElement("span");
   statusDot.className="card-status-dot";
+  const statusPicker=document.createElement("div");
+  statusPicker.className="status-picker-popover hidden";
+  statusBtn.append(statusPicker);
   const applyStatusDot=(colorName)=>{
     const normalized=normalizeStatusColor(colorName);
-    statusDot.style.background=STATUS_COLOR_MAP[normalized];
-    statusDot.style.border=normalized==="white" ? "1px solid #cbd5e1" : "none";
+    if(STATUS_COLOR_MAP[normalized]){
+      statusDot.textContent="";
+      statusDot.style.background=STATUS_COLOR_MAP[normalized];
+      statusDot.style.border=normalized==="white" ? "1px solid #cbd5e1" : "none";
+      statusDot.style.width="8px";
+      statusDot.style.height="8px";
+    }else{
+      statusDot.textContent=normalized;
+      statusDot.style.background="transparent";
+      statusDot.style.border="none";
+      statusDot.style.width="auto";
+      statusDot.style.height="auto";
+      statusDot.style.fontSize="12px";
+    }
     statusBtn.title=`Status: ${normalized}`;
   };
   applyStatusDot(card.statusColor);
   statusBtn.append(statusDot);
+  const buildStatusPicker=()=>{
+    statusPicker.innerHTML="";
+    const input=document.createElement("input");
+    input.className="status-picker-input";
+    input.placeholder="type color name or emoji";
+    input.value=normalizeStatusColor(card.statusColor);
+    const swatches=document.createElement("div");
+    swatches.className="status-picker-swatches";
+    const renderSwatches=(query="")=>{
+      swatches.innerHTML="";
+      const q=query.trim().toLowerCase();
+      const colors=STATUS_COLORS.filter(c=>!q || c.includes(q));
+      const emojis=STATUS_EMOJIS.filter(e=>!q || e.includes(query));
+      [...colors,...emojis].forEach(value=>{
+        const sw=document.createElement("button");
+        sw.type="button";
+        sw.className=`status-swatch${STATUS_COLOR_MAP[value]?"":" emoji"}`;
+        if(STATUS_COLOR_MAP[value]) sw.style.background=STATUS_COLOR_MAP[value];
+        else sw.textContent=value;
+        sw.title=value;
+        sw.addEventListener("click",(ev)=>{
+          ev.stopPropagation();
+          if(value===normalizeStatusColor(card.statusColor)) return;
+          updateCard(card.id,{ statusColor:value });
+          statusPicker.classList.add("hidden");
+        });
+        swatches.appendChild(sw);
+      });
+    };
+    input.addEventListener("input",()=>renderSwatches(input.value));
+    input.addEventListener("keydown",(ev)=>{
+      if(ev.key==="Enter"){
+        ev.preventDefault();
+        const raw=input.value.trim();
+        if(!raw) return;
+        const next=normalizeStatusColor(raw);
+        if(next!==normalizeStatusColor(card.statusColor)) updateCard(card.id,{ statusColor:next });
+        statusPicker.classList.add("hidden");
+      }else if(ev.key==="Escape"){
+        statusPicker.classList.add("hidden");
+      }
+    });
+    statusPicker.append(input,swatches);
+    renderSwatches();
+    requestAnimationFrame(()=>input.focus());
+  };
   statusBtn.addEventListener("click", (e)=>{
     e.stopPropagation();
-    const current=normalizeStatusColor(card.statusColor);
-    const choice=prompt(`Status color (${STATUS_COLORS.join(", ")})`, current);
-    if(choice===null) return;
-    const next=normalizeStatusColor(choice);
-    if(next===current) return;
-    updateCard(card.id,{ statusColor:next });
+    const opening=statusPicker.classList.contains("hidden");
+    $$(".status-picker-popover").forEach(pop=>pop.classList.add("hidden"));
+    if(opening){
+      statusPicker.classList.remove("hidden");
+      buildStatusPicker();
+    }
   });
   statusBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   statusBtn.addEventListener("pointerup", e=>e.stopPropagation());
