@@ -44,7 +44,53 @@ Every key that appears in multiple files must have the same count; any key appea
 
 ---
 
-## Other Permanent Constraints
+## TTS Wiring — Verified State (all four bridge files)
+
+Every TTS touch point has been audited across all files. This table is the ground truth.
+Before committing any change that touches transcript rendering, phrasebook bubbles, or `speakText`, re-run the verification below and confirm the table still holds.
+
+| Touch point | Trigger | Language source | Files |
+|---|---|---|---|
+| Transcript ribbon toggle | `toggleTranscriptTts()` → sets `transcriptTtsOn` flag | — | all 4 |
+| Auto-play on partner speech | `addTr`/`patchTr` → `speakText(tr, tL\|\|room.myLang)` | `entry.tgtLang` | all 4 |
+| Transcript bubble — left col (source) | `.tr-tts` button, `data-tts-lang=srcLang` | `entry.srcLang` | all 4 |
+| Transcript bubble — right col (target) | `.tr-tts` button, `data-tts-lang=tgtLang` | `entry.tgtLang` | all 4 |
+| Phrasebook drawer — source | `pbSpeakCard(id,'src',this)` → `speakText(card.source, card.sourceLang)` | `card.sourceLang` | all 4 |
+| Phrasebook drawer — target | `pbSpeakCard(id,'tgt',this)` → `speakText(card.target, card.targetLang)` | `card.targetLang` | all 4 |
+| Back-translate result | `pbPlayBT(id)` reads `_btCache[id]` → `speakText(bt.resultText, bt.targetLang)` | `card.backtranslate.targetLang` | all 4 |
+| Inline panel — source | `pbISpeakI(idx,0)` → `pbSpeakCard(c.id,'src')` | `card.sourceLang` | post-ship only |
+| Inline panel — target | `pbISpeakI(idx,1)` → `pbSpeakCard(c.id,'tgt')` | `card.targetLang` | post-ship only |
+
+**Verification commands:**
+```bash
+# 1. All TTS buttons present and using correct functions
+for f in bridge-base-cc.html bridge-pre-ship-cc.html bridge-ship-cc.html bridge-post-ship-cc.html; do
+  echo "--- $f ---"
+  grep -c "transcript-tts-toggle\|closest.*tr-tts\|pbSpeakCard\|pbPlayBT" "$f"
+  grep -c "pb-tts-btn\|pb-bt-tts" "$f"
+done
+
+# 2. speakText receives lang from entry, not hardcoded
+grep "speakText" bridge-*-cc.html | grep -v "room\.myLang\|card\.\|e\.lang\|tL\|tts-lang\|function speakText"
+# Above should return nothing (all speakText calls use dynamic lang)
+
+# 3. data-tts-lang is set from entry.srcLang / entry.tgtLang (not hardcoded)
+grep "data-tts-lang" bridge-*-cc.html
+# Should show leftLang/rightLang in all four files
+
+# 4. pbSpeakCard uses card.sourceLang / card.targetLang
+grep -A4 "^function pbSpeakCard" bridge-*-cc.html
+# Should show: lang = side==='src' ? card.sourceLang : card.targetLang
+```
+
+**Rules:**
+- Never hardcode a lang string in any `speakText()` call.
+- Never read `room.myLang` or `room.theirLang` as the TTS lang for phrasebook or transcript bubble buttons — always read from the entry or card.
+- `pbSpeakCard` must always derive lang from `card.sourceLang` / `card.targetLang`.
+- If a new TTS button is added anywhere, add it to the table above and backport to all applicable files.
+
+---
+
 
 - No PiP changes
 - No auto-mute on chat focus (`composeFocusMute` stays removed)
