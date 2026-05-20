@@ -269,6 +269,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-ov-si:focus{border-color:#2e8b8b;}
 .pb-ov-si::placeholder{color:#9a9592;}
 .pb-ov-filter-bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px;border-bottom:1px solid #e0dbd6;background:#fdfaf7;flex-shrink:0;}
+.pb-conf{font-size:10px;margin-left:2px;} .pb-conf.high{color:#27ae60;} .pb-conf.med{color:#f39c12;}
 .pb-fc{background:#fff;border:1.5px solid #e0dbd6;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;color:#5a5552;font-family:"DM Sans",sans-serif;transition:all .12s;}
 .pb-fc:hover{border-color:#2e8b8b;color:#2e8b8b;}
 .pb-fc.act{background:#2e8b8b;border-color:#2e8b8b;color:#fff;}
@@ -523,7 +524,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="call-transcript-btn" onclick="exportTxt()" title="Download">
           <svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 20h16"/></svg>
         </button>
-        <button class="call-transcript-btn pb-strip-btn" id="pb-strip-btn" onclick="pbToggleDrawer()" title="Phrases">
+        <button class="call-transcript-btn pb-strip-btn" id="pb-strip-btn" onclick="pbOpenOverlay()" title="Phrases">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </button>
       </div>
@@ -581,7 +582,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <button class="pb-ov-act" onclick="pbOpenNewCard({})" title="New phrase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button class="pb-ov-act" onclick="pbTriggerImport()" title="Import file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></button>
     <button class="pb-ov-act" onclick="pbExportPrompt()" title="Export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg></button>
-    <button class="pb-ov-act" onclick="pbOpenBooksModal()" title="Switch phrasebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.41 14.14"/><path d="M4.93 4.93A10 10 0 0 0 3.52 19.07"/></svg></button>
     <button class="pb-ov-act" onclick="pbResetConfirm()" title="Reset phrasebook" style="color:#c0392b;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
     <button class="pb-ov-act" onclick="pbCloseOverlay()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -1260,6 +1260,7 @@ function pbNorm(c){
     tags:Array.isArray(c.tags)?c.tags.filter(Boolean):[],
     backtranslate:{sourceLang:bt.sourceLang||c.targetLang||'en',targetLang:bt.targetLang||c.sourceLang||'en',inputText:bt.inputText||c.target||'',resultText:bt.resultText||'',verdict:bt.verdict||'',contentHash:bt.contentHash||'',updatedAt:bt.updatedAt||now},
     clarifyChain:Array.isArray(c.clarifyChain)?c.clarifyChain:[],
+    confidence:typeof c.confidence==='number'?c.confidence:0,
     savedBy:c.savedBy||'',
     deletedAt:c.deletedAt||null,
     createdAt:c.createdAt||now,
@@ -1685,6 +1686,7 @@ function pbBubbleHtml(card,ctx){
   var vBadge=verdict==='good'?'<span class="pb-vbadge good">\u2713</span>':verdict==='flag'?'<span class="pb-vbadge flag">\u2691</span>':'';
   var _hdrDate=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
   var _hdrTime=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  var cBadge=card.confidence>=0.85?'<span class="pb-conf high" title="'+Math.round(card.confidence*100)+'% confidence">✓</span>':card.confidence>=0.5?'<span class="pb-conf med" title="'+Math.round(card.confidence*100)+'% confidence">~</span>':'';
   var _savedBy=card.savedBy?(' · '+card.savedBy):'';
   var tagChips='';
   if(ctx==='search'&&tags.length){
@@ -1695,7 +1697,7 @@ function pbBubbleHtml(card,ctx){
       }).join('')+'</div>';
   }
   return '<div class="pb-bubble'+(isDel?' deleted':'')+'" id="pbb-'+id+'">'
-    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hdrDate+' '+_hdrTime+_savedBy)+'</span></div>'
+    +'<div class="pb-bbl-hdr">'+vBadge+cBadge+'<span class="pb-bbl-ts">'+pbEsc(_hdrDate+' '+_hdrTime+_savedBy)+'</span></div>'
     +(tagChips?tagChips:'')
     +'<div class="pb-bbl-body">'
     +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pbsrc-'+id+'" contenteditable="true" onblur="pbCommitSrcEdit(\''+id+'\')" spellcheck="false">'+pbEsc(card.source)+'</div>'
@@ -1901,9 +1903,9 @@ var _pbFilter='all';
 
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
-  var pair=pbActivePair();
-  _pbFilter=(pair&&pair.src&&pair.tgt)?(pair.src+'|'+pair.tgt):'all';
+  _pbFilter='all';
   pbRenderOverlayFilter();pbRenderOverlay();
+  setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
 function pbCloseOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='none';
@@ -1911,13 +1913,11 @@ function pbCloseOverlay(){
 function pbSetFilter(f){_pbFilter=f;pbRenderOverlayFilter();pbRenderOverlay();}
 function pbRenderOverlayFilter(){
   var host=document.getElementById('pb-ov-filter');if(!host)return;
-  var cards=pbGetCards();var pairs={};
-  cards.forEach(function(c){var k=(c.sourceLang||'en')+'|'+(c.targetLang||'en');pairs[k]=true;});
+  var cats=pbGetCats();
   var html='<button class="pb-fc'+(_pbFilter==='all'?' act':'')+'" onclick="pbSetFilter(\'all\')">All</button>';
-  Object.keys(pairs).forEach(function(k){
-    var p=k.split('|');
-    html+='<button class="pb-fc'+(_pbFilter===k?' act':'')+'" onclick="pbSetFilter(\''+pbEsc(k)+'\')">'
-      +pbEsc(pbLangFlag(p[0])+' '+p[0].toUpperCase())+' → '+pbEsc(pbLangFlag(p[1])+' '+p[1].toUpperCase())+'</button>';
+  cats.forEach(function(cat){
+    var k='cat:'+cat.id;
+    html+='<button class="pb-fc'+(_pbFilter===k?' act':'')+'" onclick="pbSetFilter(\''+pbEsc(k)+'\')">'+pbEsc((cat.emoji?cat.emoji+' ':'')+cat.name)+'</button>';
   });
   host.innerHTML=html;
 }
@@ -1925,7 +1925,15 @@ function pbRenderOverlay(){
   var host=document.getElementById('pb-ov-cards');if(!host)return;
   var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
   var cards=pbGetCards();
-  if(_pbFilter!=='all'){var p=_pbFilter.split('|');cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});}
+  if(_pbFilter!=='all'){
+    if(_pbFilter.indexOf('cat:')===0){
+      var catId=_pbFilter.slice(4);
+      cards=cards.filter(function(c){return (c.catalogIds||[]).indexOf(catId)>=0;});
+    }else{
+      var p=_pbFilter.split('|');
+      cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
+    }
+  }
   if(q)cards=pbSearch(q,cards);
   if(!cards.length){host.innerHTML='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';return;}
   host.innerHTML=cards.map(function(c){return pbBubbleHtml(c,'overlay');}).join('');
