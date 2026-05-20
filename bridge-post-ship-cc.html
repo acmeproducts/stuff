@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v3.5.3 -->
+<!-- talkbridge · dcr · v3.5.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -419,7 +419,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v3.5.3</span>
+        <span style="font-size:10px;color:var(--text-muted);">v3.5.5</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1012,9 +1012,7 @@ var _pbICards=[];
 
 function pbISearch(q){
   var panel=$('pb-inline-panel');if(!panel)return;
-  var pair=pbActivePair();
   var cards=pbGetCards();
-  if(pair)cards=cards.filter(function(c){return pbCardMatchesPair(c,pair);});
   var qLow=(q||'').toLowerCase().trim();
   if(qLow){
     cards=cards.filter(function(c){
@@ -1027,8 +1025,9 @@ function pbISearch(q){
     cards.sort(function(a,b){return (b.usage||0)-(a.usage||0)||(b.createdAt||0)-(a.createdAt||0);});
   }
   _pbICards=cards.slice(0,30);
+  var total=pbGetCards().length;
   if(!_pbICards.length){
-    panel.innerHTML='<div id="pb-inline-empty">No matching phrases</div>';
+    panel.innerHTML='<div id="pb-inline-empty">'+(total?'No matching phrases':'No phrasebook loaded — use // to import')+'</div>';
   } else {
     panel.innerHTML=_pbICards.map(function(c,i){return pbIRowHtml(c,i);}).join('');
   }
@@ -1043,8 +1042,10 @@ function pbIRowHtml(card,idx){
     return'<button class="pb-itag" onclick="event.stopPropagation();pbITagOpenI('+idx+',event.clientX,event.clientY)" tabindex="-1">#'+pbEsc(t)+'</button>';
   }).join('');
   var TTS_SVG='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+  var conf=card.confidence>=0.85?'<span class="pb-conf high">✓</span>':card.confidence>=0.5?'<span class="pb-conf med">~</span>':'';
   return '<div class="pb-irow" data-idx="'+idx+'" data-id="'+pbEsc(card.id)+'" onclick="pbIRowClick('+idx+')">'
     +(tags?'<div class="pb-irow-tags">'+tags+'</div>':'')
+    +(conf?'<div style="margin-bottom:2px;">'+conf+'</div>':'')
     +'<div class="pb-irow-src"><span class="pb-irow-txt">'+pbEsc(card.source||'')+'</span>'
     +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',0)" tabindex="-1">'+TTS_SVG+'</button></div>'
     +'<div class="pb-irow-div"></div>'
@@ -1454,18 +1455,20 @@ function pbSearchDrawerHtml(){
   var badge=pair?('<span class="pb-pair-badge">'+pbEsc(pbLangFlag(pair.src)+' → '+pbLangFlag(pair.tgt))+'</span>'):'';
   return '<div class="pb-drawer-hdr" style="flex-shrink:0;">'    +'<input id="pb-search-input" class="pb-search-inp" placeholder="Search phrases…" oninput="pbRunSearch()" onkeydown="pbSearchKD(event)">'    +badge    +'<button class="pb-ov-act" onclick="pbOpenOverlay()" title="Manage phrasebook" style="color:var(--text-dim);padding:4px 6px;">'+ICO.book+'</button>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer()" style="line-height:0;">'+ICO.x+'</button></div>'    +'<div id="pb-search-results" class="pb-search-results"></div>';
 }
-var _PB_BASE='https://github.acmeproducts.com/stuff/phrase/';
+var _PB_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/phrasebook/';
 function pbBuildUrl(){
   var src=(document.getElementById('pb-url-src')||{}).value||'en';
   var tgt=(document.getElementById('pb-url-tgt')||{}).value||'th';
-  var url=_PB_BASE+'phrasebook-'+src+'-'+tgt+'-default.json';
+  var url=_PB_BASE+'phrasebook-'+_pbRepoToken(src)+'-'+_pbRepoToken(tgt)+'-default.json';
   var inp=document.getElementById('pb-ov-url-inp');if(inp)inp.value=url;
   var nm=document.getElementById('pb-ov-url-name');
   if(nm&&!nm._userEdited)nm.value='Standard '+src.toUpperCase()+'↔'+tgt.toUpperCase()+' Phrasebook';
 }
 
-/* ── CDN Ingest (v1.0.4 schema) ── */
-var _PB_CDN_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/phrasebooks/';
+/* ── CDN Ingest ── */
+var _PB_LANG_MAP={zh:'cn',ko:'kr',vi:'vn'};
+function _pbRepoToken(lang){return _PB_LANG_MAP[lang]||lang;}
+var _PB_CDN_BASE=_PB_BASE; // same base; kept for TM compatibility
 var _intentIdMap={}; // intentId → card for Quick-Ring O(1) lookup
 
 function _pbNormCard(raw){
@@ -1494,8 +1497,7 @@ function _pbNormCard(raw){
 }
 
 function _pbLoadCDN(srcLang,tgtLang){
-  // Prototype: always use neutral_any (production will use room.speakerGender/formality)
-  var url=_PB_CDN_BASE+srcLang+'_to_'+tgtLang+'_neutral_any.json';
+  var url=_PB_CDN_BASE+'phrasebook-'+_pbRepoToken(srcLang)+'-'+_pbRepoToken(tgtLang)+'-default.json';
   var tsKey='pb_cdn_ts:'+srcLang+'-'+tgtLang;
   var fresh=Date.now()-parseInt(localStorage.getItem(tsKey)||'0',10)<86400000;
   if(fresh){_tmBuild(srcLang,tgtLang);return;}
@@ -2527,6 +2529,7 @@ async function enterCall(){
   transcript=loadTr()||[];
   _chatOutbox.clear();_chatReceived.clear();
   _pbLoadCDN(room.myLang,room.theirLang);
+  _pbLoadCDN(room.theirLang,room.myLang);
   $('lobby').classList.add('hidden');$('joiner-landing').classList.remove('show');
   hidePartnerDisconnected();
   var sb=$('strip-share-btn');if(sb)sb.style.display=room.role==='creator'?'':'none';
@@ -3322,7 +3325,7 @@ if(localStorage.getItem('tb_dg_key')&&$('dg-key')){var _sk=localStorage.getItem(
 if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=localStorage.getItem('tb_cf_tid').trim();
 if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
-log('startup',{v:'3.5.4',ua:navigator.userAgent.slice(0,80)});
+log('startup',{v:'3.5.5',ua:navigator.userAgent.slice(0,80)});
 pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
