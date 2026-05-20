@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Program Board Organizer</title>
+<style>
+:root{--bg:#f3f6fb;--panel:#fff;--text:#111827;--muted:#6b7280;--border:#d1d9e6;--accent:#2563eb}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:10px 14px;z-index:10}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+main{padding:14px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
+.grid{display:grid;grid-template-columns:160px repeat(5,minmax(180px,1fr));gap:8px}
+.hdr{font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:700;padding:8px;border:1px solid var(--border);border-radius:10px;background:#f8fafc}
+.cell{min-height:110px;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px;display:flex;flex-direction:column;gap:6px}
+.tile{border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;cursor:grab}
+.tile .n{font-weight:700}.tile .m{font-size:12px;color:var(--muted)}
+.dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1px solid var(--border);border-radius:999px;font-size:12px}
+dialog{border:none;border-radius:12px;padding:0;width:min(620px,96vw)}
+.modal{padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.field{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+input,textarea,select{border:1px solid var(--border);border-radius:8px;padding:8px;font:inherit}
+small{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <strong>Program Organizer</strong>
+    <button id="btnReload" class="btn">Reload Boards</button>
+    <button id="btnNewBoard" class="btn">New Board</button>
+    <button id="btnExportMeta" class="btn">Export Program Metadata</button>
+    <span id="status" style="color:#6b7280;font-size:12px"></span>
+  </div>
+</header>
+<main>
+  <section class="panel">
+    <div id="matrix" class="grid"></div>
+  </section>
+</main>
+
+<dialog id="boardDialog">
+  <form method="dialog" class="modal" id="boardForm">
+    <h3 id="dlgTitle" style="margin:0 0 8px">Board Metadata</h3>
+    <div class="field"><label>Board Name</label><input id="fName" required /></div>
+    <div class="row">
+      <div class="field" style="flex:1"><label>Stage</label><select id="fStage"></select></div>
+      <div class="field" style="flex:1"><label>Phase</label><select id="fPhase"></select></div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1"><label>Status color/emoji</label><input id="fStatus" placeholder="gray or ✅" /></div>
+      <div class="field" style="flex:1"><label>Tags (comma separated)</label><input id="fTags" placeholder="infra, api" /></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="fNotes" rows="4"></textarea></div>
+    <small>Program metadata is stored in browser localStorage under <code>kanban_program_meta_v1</code>.</small>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const PHASES=["concept","initial","pilot","beta","graduate"];
+const STAGES=["dev","test","prod"];
+const INDEX_FILE="kanban-boards.json";
+const META_KEY="kanban_program_meta_v1";
+let boardsIndex={version:1,activeBoard:"",boards:[]};
+let programMeta={};
+let editingBoard=null;
+
+const $=s=>document.querySelector(s);
+function setStatus(t){ $("#status").textContent=t||""; }
+function loadMeta(){ try{return JSON.parse(localStorage.getItem(META_KEY)||"{}");}catch{return{};} }
+function saveMeta(){ localStorage.setItem(META_KEY, JSON.stringify(programMeta)); }
+function getMeta(name){
+  const key=String(name||"").trim();
+  if(!programMeta[key]) programMeta[key]={ stage:"dev", phase:"concept", tags:[], notes:"", status:"gray" };
+  return programMeta[key];
+}
+function normalizedTags(v){ return [...new Set(String(v||"").split(",").map(x=>x.trim()).filter(Boolean))]; }
+async function loadBoards(){
+  const res=await fetch(INDEX_FILE,{cache:"no-store"});
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data=await res.json();
+  if(!data || !Array.isArray(data.boards)) throw new Error("Invalid kanban-boards.json payload");
+  boardsIndex=data;
+}
+function boardTiles(stage,phase){
+  return boardsIndex.boards.filter(b=>!b.archived).filter(b=>{const m=getMeta(b.name); return m.stage===stage && m.phase===phase;});
+}
+function render(){
+  const matrix=$("#matrix"); matrix.innerHTML="";
+  matrix.appendChild(document.createElement("div"));
+  PHASES.forEach(p=>{ const h=document.createElement("div"); h.className="hdr"; h.textContent=p; matrix.appendChild(h); });
+  [...STAGES].reverse().forEach(stage=>{
+    const rh=document.createElement("div"); rh.className="hdr"; rh.textContent=stage; matrix.appendChild(rh);
+    PHASES.forEach(phase=>{
+      const cell=document.createElement("div"); cell.className="cell";
+      cell.addEventListener("dragover",e=>e.preventDefault());
+      cell.addEventListener("drop",e=>{ e.preventDefault(); const name=e.dataTransfer.getData("text/board"); if(!name) return; const m=getMeta(name); m.stage=stage; m.phase=phase; saveMeta(); render(); });
+      boardTiles(stage,phase).forEach(b=>{
+        const m=getMeta(b.name);
+        const t=document.createElement("div"); t.className="tile"; t.draggable=true;
+        t.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board", b.name));
+        t.addEventListener("dblclick",()=>openBoardMeta(b.name,false));
+        t.innerHTML=`<div class="n">${b.name}</div><div class="m"><span class="dot">${m.status||"•"}</span> ${m.tags?.join(", ")||"no-tags"}</div>`;
+        const launch=document.createElement("button"); launch.className="btn"; launch.textContent="Open";
+        launch.addEventListener("click",()=>{ const u=new URL("kanban.html", location.href); u.searchParams.set("board", b.name); location.href=u.toString(); });
+        t.appendChild(launch);
+        cell.appendChild(t);
+      });
+      matrix.appendChild(cell);
+    });
+  });
+  setStatus(`Loaded ${boardsIndex.boards.filter(b=>!b.archived).length} boards.`);
+}
+function fillSelect(el, values){ el.innerHTML=values.map(v=>`<option value="${v}">${v}</option>`).join(""); }
+function openBoardMeta(name,isNew){
+  editingBoard={name,isNew};
+  $("#dlgTitle").textContent=isNew?"Create Board":"Edit Board Metadata";
+  fillSelect($("#fStage"), STAGES); fillSelect($("#fPhase"), PHASES);
+  const m=getMeta(name);
+  $("#fName").value=name; $("#fName").readOnly=!isNew;
+  $("#fStage").value=m.stage||"dev"; $("#fPhase").value=m.phase||"concept";
+  $("#fStatus").value=m.status||"gray"; $("#fTags").value=(m.tags||[]).join(", "); $("#fNotes").value=m.notes||"";
+  $("#boardDialog").showModal();
+}
+function saveDialog(){
+  const name=$("#fName").value.trim();
+  if(!name) return;
+  if(editingBoard?.isNew){ boardsIndex.boards.push({name, archived:false, lastUpdated:Date.now()}); }
+  const m=getMeta(name);
+  m.stage=$("#fStage").value; m.phase=$("#fPhase").value; m.status=$("#fStatus").value.trim()||"gray";
+  m.tags=normalizedTags($("#fTags").value); m.notes=$("#fNotes").value.trim();
+  saveMeta(); render();
+}
+$("#boardForm").addEventListener("submit",e=>{ if((document.activeElement?.value||"")!=="save") return; e.preventDefault(); saveDialog(); $("#boardDialog").close(); });
+$("#btnReload").onclick=async()=>{ try{ await loadBoards(); render(); }catch(err){ setStatus(`Load failed: ${err.message}`); } };
+$("#btnNewBoard").onclick=()=>openBoardMeta("", true);
+$("#btnExportMeta").onclick=()=>{ const blob=new Blob([JSON.stringify(programMeta,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="kanban-program-meta.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); };
+(async()=>{ programMeta=loadMeta(); try{ await loadBoards(); render(); }catch(err){ setStatus(`Load failed: ${err.message}`); }})();
+</script>
+</body>
+</html>
