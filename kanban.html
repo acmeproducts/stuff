@@ -387,6 +387,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="row" style="margin:4px 0 12px;gap:6px">
       <button type="button" class="btn small" id="tabList">List</button>
       <button type="button" class="btn small" id="tabNew">New</button>
+      <button type="button" class="btn small" id="tabImport">Import</button>
     </div>
     <section id="tabListPane">
       <div id="bBoardList" style="margin-top:4px;display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow:auto"></div>
@@ -395,7 +396,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
         <div id="bArchivedList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:26vh;overflow:auto"></div>
       </details>
     </section>
-    <section id="tabNewPane" class="hidden">
+    <section id="tabNewPane">
       <div class="field">
         <label for="bKeyInput">Board name</label>
         <div class="row">
@@ -403,11 +404,18 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
           <button type="button" class="btn primary" id="bCreateBoard">Create</button>
         </div>
       </div>
+    </section>
+    <section id="tabImportPane" class="hidden">
       <div class="field">
         <label for="bImportFile">Import board JSON</label>
-        <div class="row">
+        <div class="row" style="align-items:flex-start">
           <input id="bImportFile" type="file" accept="application/json"/>
-          <button type="button" class="btn" id="bImportBoard">Import</button>
+          <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:240px">
+            <input id="bImportName" placeholder="board name" style="font-family:ui-monospace,monospace"/>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input id="bImportOverwrite" type="checkbox"/> Overwrite if board exists</label>
+            <div id="bImportPreview" class="muted">No file selected.</div>
+            <button type="button" class="btn primary" id="bImportApply">Apply Import</button>
+          </div>
         </div>
       </div>
     </section>
@@ -434,6 +442,7 @@ const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
+let repoPullFailureNotified = false;
 
 
 function _cleanKey(raw){ return (raw||"").trim().replace(/[^A-Za-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"kanban"; }
@@ -454,7 +463,7 @@ function boardSlug(name){ return _cleanKey(String(name||"kanban").toLowerCase())
 function boardFilePath(name){ const prefix=typeof repoSwitchCfg.pathPrefix==="string" ? repoSwitchCfg.pathPrefix : ""; return `${prefix}${boardSlug(name)}.json`; }
 async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE); repoSwitchCfg=(v&&typeof v==="object")?v:{}; }catch{ repoSwitchCfg={}; } }
-async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
+async function loadRepoBoardsIndex(){ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
 function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.stringify(meta||{})); }
 function normalizeBoardRecord(record){
@@ -1938,6 +1947,19 @@ async function pullBoardFromGitHub(options={}){
     throw err;
   }
 }
+async function reloadRepoBoardsIndexWithNotice(){
+  try{
+    await loadRepoBoardsIndex();
+    repoPullFailureNotified=false;
+    return true;
+  }catch{
+    if(!repoPullFailureNotified){
+      toast("Repo refresh failed","Unable to pull board index from repo", true);
+      repoPullFailureNotified=true;
+    }
+    return false;
+  }
+}
 async function syncBoardWithGitHub(reason="sync", options={}){
   clearAutoSync();
   if(autoSyncInFlight) return autoSyncInFlight;
@@ -2148,21 +2170,38 @@ function sanitizeMarkdownImages(s){
   }
   const tabListBtn=document.getElementById("tabList");
   const tabNewBtn=document.getElementById("tabNew");
+  const tabImportBtn=document.getElementById("tabImport");
   const tabListPane=document.getElementById("tabListPane");
   const tabNewPane=document.getElementById("tabNewPane");
+  const tabImportPane=document.getElementById("tabImportPane");
+  const importFileInput=document.getElementById("bImportFile");
+  const importNameInput=document.getElementById("bImportName");
+  const importOverwriteInput=document.getElementById("bImportOverwrite");
+  const importPreview=document.getElementById("bImportPreview");
+  let pendingImportBoard=null;
+  function refreshImportPreview(){
+    const board=pendingImportBoard;
+    if(!board){ importPreview.textContent="No file selected."; return; }
+    const cards=Array.isArray(board.cards)?board.cards:[];
+    const names=cards.map(c=>String(c.title||"(untitled)").trim()||"(untitled)").slice(0,10);
+    const extra=cards.length>10?` +${cards.length-10} more`:"";
+    importPreview.textContent=`Cards: ${cards.length}. ${names.join(", ")}${extra}`;
+  }
   function setBoardTab(tab){
-    const listMode=tab!=="new";
-    tabListPane.classList.toggle("hidden",!listMode);
-    tabNewPane.classList.toggle("hidden",listMode);
-    tabListBtn.classList.toggle("primary",listMode);
-    tabNewBtn.classList.toggle("primary",!listMode);
+    tabListPane.classList.toggle("hidden",tab!=="list");
+    tabNewPane.classList.toggle("hidden",tab!=="new");
+    tabImportPane.classList.toggle("hidden",tab!=="import");
+    tabListBtn.classList.toggle("primary",tab==="list");
+    tabNewBtn.classList.toggle("primary",tab==="new");
+    tabImportBtn.classList.toggle("primary",tab==="import");
   }
   tabListBtn.addEventListener("click",()=>setBoardTab("list"));
   tabNewBtn.addEventListener("click",()=>setBoardTab("new"));
+  tabImportBtn.addEventListener("click",()=>setBoardTab("import"));
 document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     setBoardInputDefaults(currentBoardKey);
-    renderBoardManager();
-    setBoardTab("list");
+    reloadRepoBoardsIndexWithNotice().finally(()=>renderBoardManager());
+    setBoardTab("new");
     dlg.showModal();
   });
   document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
@@ -2175,27 +2214,45 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     switchToBoard(next.name);
     dlg.close();
   });
-  
-  document.getElementById("bImportBoard").addEventListener("click", ()=>{
-    const fi=document.getElementById("bImportFile");
-    const [file]=fi.files||[];
-    if(!file){ alert("Choose a JSON file to import."); return; }
+  importFileInput.addEventListener("change", ()=>{
+    const [file]=importFileInput.files||[];
+    pendingImportBoard=null;
+    if(!file){ refreshImportPreview(); return; }
     const reader=new FileReader();
     reader.onload=()=>{
       try{
         const parsed=JSON.parse(String(reader.result||"{}"));
         if(!isValidBoardData(parsed)) throw new Error("Invalid board JSON");
-        const raw=nameInput.value.trim();
-        if(!raw){ alert("Enter a board name."); return; }
-        if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
-        const next=upsertBoardRecord(raw,{ archived:false });
-        setBoardKey(next.name); currentBoardKey=next.name;
-        localStorage.setItem(boardLS(), JSON.stringify(parsed));
-        switchToBoard(next.name);
-        dlg.close();
+        pendingImportBoard=parsed;
+        const inferred=_cleanKey((file.name||"import").replace(/\.[^.]+$/,""));
+        importNameInput.value=inferred;
+        refreshImportPreview();
       }catch(err){ alert("Import failed: "+err.message); }
     };
     reader.readAsText(file);
+  });
+  document.getElementById("bImportApply").addEventListener("click", async ()=>{
+    if(!pendingImportBoard){ alert("Choose a valid JSON file first."); return; }
+    const raw=importNameInput.value.trim();
+    if(!raw){ alert("Enter a board name."); return; }
+    const exists=(repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(raw));
+    if(exists && !importOverwriteInput.checked){ alert("Board already exists. Check overwrite to replace it."); return; }
+    const confirmed=confirm(`Apply import to board '${_cleanKey(raw)}' and push to repo now?`);
+    if(!confirmed) return;
+    const next=upsertBoardRecord(raw,{ archived:false });
+    setBoardKey(next.name); currentBoardKey=next.name;
+    localStorage.setItem(boardLS(), JSON.stringify(pendingImportBoard));
+    switchToBoard(next.name);
+    while(true){
+      try{
+        await pushBoardToGitHub({ reason:"import apply" });
+        alert("Import applied and pushed.");
+        dlg.close();
+        break;
+      }catch(err){
+        if(!confirm(`Push failed: ${err.message||"unknown error"}. Retry?`)) break;
+      }
+    }
   });
   window.__switchToBoard=switchToBoard;
   window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
@@ -2204,7 +2261,15 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
 
 async function bootstrapBoardsLifecycle(){
   await loadRepoSwitch();
-  await loadRepoBoardsIndex();
+  try{
+    await loadRepoBoardsIndex();
+  }catch{
+    repoBoardsIndex={version:1,activeBoard:"",boards:[]};
+    if(!repoPullFailureNotified){
+      toast("Repo pull failed","Unable to load board list from repo", true);
+      repoPullFailureNotified=true;
+    }
+  }
   const boards=repoBoardsIndex.boards.filter(b=>!b.archived);
   const requested=(urlBoardParamRaw||"").trim().toLowerCase();
   const requestedBoard=boards.find(b=>String(b.name||"").toLowerCase()===requested||boardSlug(b.name)===requested);
@@ -2239,7 +2304,11 @@ async function bootstrapBoardsLifecycle(){
     saveCacheMeta(next);
     setStatus(`Loaded ${chosen.name} from repo`);
   }catch{
-    setStatus(`Loaded ${chosen.name} from local cache`);
+    if(!repoPullFailureNotified){
+      toast("Repo pull failed",`Unable to load ${chosen.name} from repo`, true);
+      repoPullFailureNotified=true;
+    }
+    setStatus(`Repo pull failed for ${chosen.name}`);
   }
   boardsBootstrapped=true;
 }
