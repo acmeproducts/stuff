@@ -356,6 +356,49 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </div>
   </form>
 </dialog>
+<dialog id="copyCardDialog">
+  <form method="dialog" class="modal">
+    <h3>Copy & Promote Card</h3>
+    <div id="copyCardSummary" class="muted"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn primary" value="ok" id="btnCopyCardOk">OK</button>
+      <button class="btn" value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="notesLinkDialog">
+  <form method="dialog" class="modal">
+    <h3>Insert Board/Card Link</h3>
+    <div class="grid-2">
+      <div class="field"><label for="nlBoard">Board</label><select id="nlBoard"></select></div>
+      <div class="field"><label for="nlCard">Card</label><select id="nlCard"></select></div>
+    </div>
+    <div class="field"><label for="nlSearch">Filter</label><input id="nlSearch" placeholder="Filter cards..."/></div>
+    <div id="nlEmpty" class="muted hidden">No cards on selected board.</div>
+    <div id="nlPreview" class="live-notes-preview" style="min-height:100px;max-height:160px"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn primary" value="ok" id="btnNotesLinkOk">OK</button>
+      <button class="btn" value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="internalLinkDialog">
+  <form method="dialog" class="modal">
+    <h3>Referenced Card</h3>
+    <div id="ilMissing" class="muted hidden"></div>
+    <div id="ilFields" class="grid-2">
+      <div class="field"><label for="ilTitle">Title</label><input id="ilTitle"/></div>
+      <div class="field"><label for="ilPlatform">Platform</label><input id="ilPlatform"/></div>
+      <div class="field"><label for="ilStage">Lane</label><input id="ilStage"/></div>
+      <div class="field"><label for="ilLineage">Lineage</label><input id="ilLineage"/></div>
+      <div class="field" style="grid-column:1/-1"><label for="ilNotes">Notes</label><textarea id="ilNotes" rows="4"></textarea></div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn primary" value="ok" id="btnInternalLinkOk">OK</button>
+      <button class="btn" value="cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="settingsDialog">
   <form method="dialog" class="modal" id="settingsForm">
@@ -458,6 +501,8 @@ const REPO_SWITCH_FILE = "kanban-switch.json";
 const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 const LAST_SEEN_BOARD_LS = "kanban_last_seen_board";
 const CARD_LINEAGES = ["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
+const INTERNAL_LINK_PREFIX = "board:";
+let suppressInternalLinkModal = false;
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
@@ -1149,6 +1194,16 @@ function renderCard(card){
   statusBtn.addEventListener("pointerup", e=>e.stopPropagation());
   links.append(dev,live,statusBtn);
   const archiveBtn=document.createElement("button");
+  const copyBtn=document.createElement("button");
+  copyBtn.type="button";
+  copyBtn.className="card-archive-btn";
+  copyBtn.style.right="28px";
+  copyBtn.title="Copy card";
+  copyBtn.setAttribute("aria-label","Copy card");
+  copyBtn.textContent="⧉";
+  copyBtn.addEventListener("click", (e)=>{ e.stopPropagation(); openCopyCardDialog(card); });
+  copyBtn.addEventListener("pointerdown", e=>e.stopPropagation());
+  copyBtn.addEventListener("pointerup", e=>e.stopPropagation());
   archiveBtn.type="button";
   archiveBtn.className="card-archive-btn";
   archiveBtn.title="Archive card";
@@ -1157,7 +1212,7 @@ function renderCard(card){
   archiveBtn.addEventListener("click", (e)=>{ e.stopPropagation(); archiveCard(card.id); });
   archiveBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   archiveBtn.addEventListener("pointerup", e=>e.stopPropagation());
-  line.append(title,links); el.append(line,archiveBtn);
+  line.append(title,links); el.append(line,copyBtn,archiveBtn);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("button"); p.type="button"; p.className="chip card-platform tag-search-btn"; p.textContent=card.platform; p.title=`Search platform: ${card.platform}`;
@@ -1345,7 +1400,9 @@ function renderCard(card){
     showInlineNotesPreview();
   });
   notesPreview.addEventListener("click", (e)=>{
-    if(e.target.closest("a")) return;
+    const anchor=e.target.closest("a");
+    if(anchor?.dataset?.internalLink==="1"){ e.preventDefault(); e.stopPropagation(); openInternalLinkEditor(anchor.getAttribute("href")); return; }
+    if(anchor) return;
     if(hasActiveTextSelection()) return;
     e.stopPropagation();
     showInlineNotesEditor();
@@ -1427,6 +1484,71 @@ function archiveCard(id){
   state.cards.splice(idx,1);
   state.archive.push({...c, archivedAt: Date.now()});
   scheduleSave(); render();
+}
+function openCopyCardDialog(card){
+  const dlg=$("#copyCardDialog");
+  const next=nextLineageStage(card.lineage);
+  $("#copyCardSummary").innerHTML=`<strong>${escapeHtml(card.title||"(untitled)")}</strong><br/>Lineage: ${escapeHtml(normalizeLineage(card.lineage))}<br/>Next: ${escapeHtml(next)}`;
+  dlg.onclose=()=>{
+    if(dlg.returnValue!=="ok") return;
+    createCard({ ...card, lineage:next, stage:card.stage });
+  };
+  dlg.showModal();
+}
+function openInternalLinkEditor(href){
+  if(suppressInternalLinkModal) return;
+  const parsed=parseInternalLink(href);
+  const dlg=$("#internalLinkDialog");
+  const missing=$("#ilMissing");
+  const fields=$("#ilFields");
+  const ok=$("#btnInternalLinkOk");
+  if(!parsed){ missing.textContent="Invalid reference."; missing.classList.remove("hidden"); fields.classList.add("hidden"); ok.disabled=true; dlg.showModal(); return; }
+  const card=getCardFromBoard(parsed.boardKey, parsed.cardId);
+  if(!card){ missing.textContent=`Missing target: ${parsed.boardKey}/${parsed.cardId}`; missing.classList.remove("hidden"); fields.classList.add("hidden"); ok.disabled=true; dlg.showModal(); return; }
+  missing.classList.add("hidden"); fields.classList.remove("hidden"); ok.disabled=false;
+  $("#ilTitle").value=card.title||""; $("#ilPlatform").value=card.platform||""; $("#ilStage").value=card.stage||""; $("#ilLineage").value=normalizeLineage(card.lineage); $("#ilNotes").value=card.notes||"";
+  dlg.onclose=()=>{
+    if(dlg.returnValue!=="ok") return;
+    card.title=$("#ilTitle").value.trim();
+    card.platform=$("#ilPlatform").value.trim();
+    card.stage=$("#ilStage").value.trim()||card.stage;
+    card.lineage=normalizeLineage($("#ilLineage").value);
+    card.notes=preprocessNotes($("#ilNotes").value);
+    card.updatedAt=Date.now();
+    saveBoardCache(parsed.boardKey,{ cards:(loadBoardCache(parsed.boardKey)?.cards||[]).map(c=>String(c.id)===String(card.id)?card:c), archive:loadBoardCache(parsed.boardKey)?.archive||[], stages:loadBoardCache(parsed.boardKey)?.stages||state.stages, platforms:loadBoardCache(parsed.boardKey)?.platforms||state.platforms, collapsed:loadBoardCache(parsed.boardKey)?.collapsed||{}, cardCollapsed:loadBoardCache(parsed.boardKey)?.cardCollapsed||{}, layout:loadBoardCache(parsed.boardKey)?.layout||"auto", lastModified:Date.now() });
+    if(canonicalBoardKey(parsed.boardKey)===canonicalBoardKey(currentBoardKey)){ const i=state.cards.findIndex(c=>String(c.id)===String(card.id)); if(i>=0) state.cards[i]=card; render(); scheduleSave(); }
+  };
+  dlg.showModal();
+}
+function openNotesLinkDialog(initialFilter, notesEl){
+  const dlg=$("#notesLinkDialog"), boardSel=$("#nlBoard"), cardSel=$("#nlCard"), search=$("#nlSearch"), preview=$("#nlPreview"), ok=$("#btnNotesLinkOk"), empty=$("#nlEmpty");
+  const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>!b.archived);
+  boardSel.innerHTML=boards.map(b=>`<option value="${escapeHtml(canonicalBoardKey(b.name))}">${escapeHtml(b.name)}</option>`).join("");
+  search.value=initialFilter||"";
+  const refresh=()=>{
+    const selected=boardSel.value;
+    const q=search.value.trim().toLowerCase();
+    const cache=loadBoardCache(selected)||{ cards:[] };
+    const cards=(cache.cards||[]).filter(c=>!q || (c.title||"").toLowerCase().includes(q));
+    cardSel.innerHTML=cards.map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.title||"(untitled)")}</option>`).join("");
+    const chosen=cards.find(c=>String(c.id)===String(cardSel.value))||cards[0];
+    empty.classList.toggle("hidden", cards.length>0);
+    ok.disabled=!chosen;
+    preview.innerHTML=chosen ? `<strong>${escapeHtml(chosen.title||"(untitled)")}</strong><br/>${escapeHtml(chosen.platform||"")} • ${escapeHtml(chosen.stage||"")} • ${escapeHtml(normalizeLineage(chosen.lineage))}<br/>${escapeHtml((chosen.notes||"").slice(0,120))}` : "";
+  };
+  boardSel.onchange=refresh; cardSel.onchange=refresh; search.oninput=refresh; refresh();
+  dlg.onclose=()=>{
+    if(dlg.returnValue!=="ok") return;
+    const label=(cardSel.options[cardSel.selectedIndex]?.textContent||"card").trim();
+    const ref=formatInternalLink(boardSel.value, cardSel.value);
+    const insert=`[${label}](${ref})`;
+    const end=notesEl.selectionStart||notesEl.value.length;
+    const begin=notesEl.value.lastIndexOf("//", end);
+    if(begin>=0){ notesEl.value=notesEl.value.slice(0, begin)+insert+notesEl.value.slice(end); }
+    else notesEl.value += insert;
+    notesEl.dispatchEvent(new Event("input",{bubbles:true}));
+  };
+  dlg.showModal();
 }
 function restoreCard(id){
   if(!guardMutation("Restore blocked while repository is unavailable")) return;
@@ -1512,7 +1634,9 @@ editDialog.addEventListener("close", ()=>{
 editForm.addEventListener("input", ()=>{ editorDirty=true; });
 editForm.addEventListener("change", ()=>{ editorDirty=true; });
 $("#fNotesPreview").addEventListener("click", (e)=>{
-  if(e.target.closest("a")) return;
+  const anchor=e.target.closest("a");
+  if(anchor?.dataset?.internalLink==="1"){ e.preventDefault(); e.stopPropagation(); openInternalLinkEditor(anchor.getAttribute("href")); return; }
+  if(anchor) return;
   showNotesEditor();
 });
 $("#fNotesPreview").addEventListener("keydown", (e)=>{
@@ -1520,7 +1644,13 @@ $("#fNotesPreview").addEventListener("keydown", (e)=>{
   e.preventDefault();
   showNotesEditor();
 });
-$("#fNotes").addEventListener("input", ()=>{ syncNotesPreview(); editorDirty=true; });
+$("#fNotes").addEventListener("input", (e)=>{
+  const val=e.target.value||"";
+  const cursor=e.target.selectionStart||0;
+  const trigger=val.slice(0,cursor).match(/\/\/([^\n]*)$/);
+  if(trigger){ openNotesLinkDialog(trigger[1]||"", e.target); }
+  syncNotesPreview(); editorDirty=true;
+});
 $("#fNotes").addEventListener("blur", ()=>{
   const notes=$("#fNotes");
   const normalized=preprocessNotes(notes.value);
@@ -2116,6 +2246,25 @@ function normalizeShorthandUrl(url){
   if(!host.includes(".")) host += ".com";
   return `https://${host}${rest}`;
 }
+function nextLineageStage(current){
+  const idx=CARD_LINEAGES.indexOf(normalizeLineage(current));
+  if(idx<0) return CARD_LINEAGES[0];
+  return CARD_LINEAGES[Math.min(idx+1, CARD_LINEAGES.length-1)];
+}
+function formatInternalLink(boardKey, cardId){ return `${INTERNAL_LINK_PREFIX}${boardKey}/${cardId}`; }
+function parseInternalLink(href){
+  const m=String(href||"").match(/^board:([^\/\s]+)\/(.+)$/);
+  return m ? { boardKey:m[1], cardId:m[2] } : null;
+}
+function getBoardRecordByKey(boardKey){
+  return (repoBoardsIndex.boards||[]).map(normalizeBoardRecord).find(b=>canonicalBoardKey(b.name)===canonicalBoardKey(boardKey))||null;
+}
+function getCardFromBoard(boardKey, cardId){
+  const board=getBoardRecordByKey(boardKey);
+  if(!board) return null;
+  const cached=loadBoardCache(board.name)||{ cards:[] };
+  return (cached.cards||[]).find(c=>String(c.id)===String(cardId))||null;
+}
 function shorthandToMarkdown(text){
   return String(text||"").replace(/(^|[\s(>])([A-Za-z0-9][^\n<>()\[\]]*?\S)\s*--\s*([^\s<>()]+)(?=$|[\s),.!?])/g, (match, prefix, label, rawUrl)=>{
     const trimmedLabel=label.trim();
@@ -2160,6 +2309,7 @@ function inlineMarkdown(text){
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((board:[^\s)]+)\)/g, '<a href="$2" data-internal-link="1">$1</a>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 function renderMarkdown(source){
