@@ -108,12 +108,6 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-status-btn{border:1px solid var(--border);background:#fff;padding:0;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto;border-radius:999px;width:14px;height:14px}
 .card-status-btn:hover{border-color:var(--accent)}
 .card-status-dot{width:8px;height:8px;border-radius:999px;display:block;background:#9ca3af}
-.status-picker-popover{position:absolute;top:22px;right:0;z-index:30;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.12);padding:8px;display:flex;flex-direction:column;gap:8px;min-width:220px}
-.status-picker-popover.hidden{display:none}
-.status-picker-input{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12px}
-.status-picker-swatches{display:flex;flex-wrap:wrap;gap:6px}
-.status-swatch{width:16px;height:16px;border-radius:999px;border:1px solid #cbd5e1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1}
-.status-swatch.emoji{width:auto;min-width:22px;height:22px;border-radius:8px;padding:0 4px;background:#fff}
 .card-archive-btn{position:absolute;top:8px;right:8px;border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#1f6feb;cursor:pointer;flex:0 0 auto}
 .card-archive-btn svg{width:14px;height:14px;fill:currentColor}
 .card-archive-btn:hover{color:#1d4ed8}
@@ -179,14 +173,6 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .btn.icon-btn.small svg{width:16px;height:16px}
 .board-inline-edit{display:flex;align-items:center;gap:8px;flex:1}
 .empty-boarding{padding:20px;border:1px dashed var(--border);border-radius:12px;background:#fff;color:var(--muted)}
-
-.program-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
-.program-grid{display:grid;gap:8px;grid-auto-rows:minmax(110px,auto)}
-.program-col-header,.program-row-header{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#f8fafc}
-.program-cell{min-height:110px;border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;display:flex;flex-direction:column;gap:6px}
-.program-board-tile{width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.toolbar .btn.small.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-
 
 /* Dialogs */
 .hidden{display:none}
@@ -256,8 +242,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </button>
         <!-- board key pill -->
     <div class="board-key-pill" id="boardKeyPill" title="Switch board / list boards">board: <span class="bkp-name" id="boardKeyLabel">kanban</span> ▾</div>
-    <button id="btnProjectView" class="btn small">Project</button>
-    <button id="btnProgramView" class="btn small">Program</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -268,13 +252,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </header>
 
 <div id="resultsContainer"></div>
-<section id="programView" class="hidden" style="padding:16px">
-  <div class="program-toolbar">
-    <h3 style="margin:0">Program Matrix</h3>
-    <button id="btnProgramSettings" class="btn icon-btn" title="Program settings">⚙</button>
+<div id="repoBlocker" class="empty-boarding hidden" style="margin:10px 16px;">
+  <div id="repoBlockerMsg">Repository load failed.</div>
+  <div class="row" style="margin-top:8px;">
+    <button id="repoRetryBtn" type="button" class="btn small primary">Retry</button>
   </div>
-  <div id="programMatrix"></div>
-</section>
+</div>
 <main id="board" aria-live="polite" data-layout="auto"></main>
 <div class="footer" id="status"></div>
 <div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
@@ -404,7 +387,6 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="row" style="margin:4px 0 12px;gap:6px">
       <button type="button" class="btn small" id="tabList">List</button>
       <button type="button" class="btn small" id="tabNew">New</button>
-      <button type="button" class="btn small" id="tabImport">Import</button>
     </div>
     <section id="tabListPane">
       <div id="bBoardList" style="margin-top:4px;display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow:auto"></div>
@@ -421,37 +403,14 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
           <button type="button" class="btn primary" id="bCreateBoard">Create</button>
         </div>
       </div>
-    </section>
-    <section id="tabImportPane" class="hidden">
       <div class="field">
         <label for="bImportFile">Import board JSON</label>
-        <input id="bImportFile" type="file" accept="application/json"/>
-      </div>
-      <div class="field">
-        <label for="bImportName">Board name</label>
-        <input id="bImportName" placeholder="imported-board" style="font-family:ui-monospace,monospace"/>
-      </div>
-      <div class="field">
-        <label><input id="bImportOverwrite" type="checkbox"/> Overwrite existing board</label>
-      </div>
-      <div class="field">
-        <label>Preview</label>
-        <div id="bImportPreview" class="muted">Choose a JSON file to preview.</div>
-      </div>
-      <div class="row">
-        <button type="button" class="btn primary" id="bImportBoard">Apply</button>
+        <div class="row">
+          <input id="bImportFile" type="file" accept="application/json"/>
+          <button type="button" class="btn" id="bImportBoard">Import</button>
+        </div>
       </div>
     </section>
-  </form>
-</dialog>
-
-<dialog id="programSettingsDialog" style="width:min(560px,96vw)">
-  <form method="dialog" class="modal">
-    <button type="button" class="modal-close" id="programSettingsClose" aria-label="Close"></button>
-    <h3>Program Matrix Settings</h3>
-    <div class="field"><label>Stage axis (rows, bottom→top)</label><input id="programStagesInput" placeholder="Dev, Test, Prod"></div>
-    <div class="field"><label>Phase axis (columns, left→right)</label><input id="programPhasesInput" placeholder="Concept, Initial, Pilot, Beta, Graduate"></div>
-    <div class="row"><button class="btn primary" value="save">Save</button><button class="btn" value="cancel">Cancel</button></div>
   </form>
 </dialog>
 
@@ -475,28 +434,10 @@ const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
-let repoPullFailureNotified = false;
-
-const PROGRAM_CFG_KEY = "kanban_program_cfg_v1";
-const DEFAULT_PROGRAM_CFG = {
-  stages:[{id:"dev",label:"Dev"},{id:"test",label:"Test"},{id:"prod",label:"Prod"}],
-  phases:[{id:"concept",label:"Concept"},{id:"initial",label:"Initial"},{id:"pilot",label:"Pilot"},{id:"beta",label:"Beta"},{id:"graduate",label:"Graduate"}]
-};
-let programCfg = loadProgramCfg();
-
-function loadProgramCfg(){
-  const parsed=safeParseJson(localStorage.getItem(PROGRAM_CFG_KEY)||"", null);
-  if(parsed?.stages && parsed?.phases) return parsed;
-  return JSON.parse(JSON.stringify(DEFAULT_PROGRAM_CFG));
-}
-function saveProgramCfg(){ localStorage.setItem(PROGRAM_CFG_KEY, JSON.stringify(programCfg)); }
-function ensureProgramMeta(rec){
-  rec.program=rec.program||{};
-  rec.program.enabled = rec.program.enabled!==false;
-  rec.program.stageId = rec.program.stageId || programCfg.stages[0]?.id;
-  rec.program.phaseId = rec.program.phaseId || programCfg.phases[0]?.id;
-  return rec;
-}
+let repoLoadBlocked = false;
+let repoLoadError = "";
+let repoLoadErrorAt = 0;
+let startupBoardName = "";
 
 
 function _cleanKey(raw){ return (raw||"").trim().replace(/[^A-Za-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"kanban"; }
@@ -517,23 +458,13 @@ function boardSlug(name){ return _cleanKey(String(name||"kanban").toLowerCase())
 function boardFilePath(name){ const prefix=typeof repoSwitchCfg.pathPrefix==="string" ? repoSwitchCfg.pathPrefix : ""; return `${prefix}${boardSlug(name)}.json`; }
 async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE); repoSwitchCfg=(v&&typeof v==="object")?v:{}; }catch{ repoSwitchCfg={}; } }
-async function loadRepoBoardsIndex(){
-  try{
-    const v=await fetchJson(REPO_BOARDS_FILE);
-    if(!(v && typeof v==="object")) throw new Error("Invalid boards index payload");
-    repoBoardsIndex=v;
-  }catch(err){
-    repoBoardsIndex={version:1,activeBoard:"",boards:[]};
-    throw new Error(`Failed to load ${REPO_BOARDS_FILE}: ${err?.message||err}`);
-  }
-  repoBoardsIndex.boards=(Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]).map(normalizeBoardRecord).filter(Boolean);
-}
+async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
 function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.stringify(meta||{})); }
 function normalizeBoardRecord(record){
   const name=_cleanKey(record?.name||"");
   if(!name) return null;
-  return ensureProgramMeta({ name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()), program:record?.program||{} });
+  return { name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()) };
 }
 function saveRepoBoardsIndex(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
@@ -584,6 +515,7 @@ function loadPersistedGithubToken(){
   return "";
 }
 function persistNow(options={}){
+  if(repoLoadBlocked) return false;
   const { touchTimestamp=true, syncToGitHub=true } = options || {};
   if(touchTimestamp) state.lastModified=Date.now();
   // save under keyed slot AND legacy slot for compat
@@ -598,8 +530,9 @@ function persistNow(options={}){
   }
   setStatus(ok? "Saved" : "Local save failed (likely storage limit)");
   dirty=false;
+  return ok;
 }
-function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
+function scheduleSave(){ if(repoLoadBlocked) return false; dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); return true; }
 function loadState(){
   // keyed slot first, then legacy
   let raw = localStorage.getItem(boardLS()) || localStorage.getItem(STABLE_KEY);
@@ -644,7 +577,7 @@ function fmtBytes(bytes){
   while(value>=1024 && i<units.length-1){ value/=1024; i++; }
   return `${value.toFixed(value>=10?0:1)} ${units[i]}`;
 }
-const STATUS_COLORS = Object.freeze(["gray","red","yellow","green","blue","orange","white","black","purple","pink","teal","cyan","lime","brown"]);
+const STATUS_COLORS = Object.freeze(["gray","red","yellow","green","blue","orange","white","black"]);
 const STATUS_COLOR_MAP = Object.freeze({
   gray:"#9ca3af",
   red:"#ef4444",
@@ -653,25 +586,18 @@ const STATUS_COLOR_MAP = Object.freeze({
   blue:"#3b82f6",
   orange:"#f97316",
   white:"#ffffff",
-  black:"#111827",
-  purple:"#8b5cf6",
-  pink:"#ec4899",
-  teal:"#14b8a6",
-  cyan:"#06b6d4",
-  lime:"#84cc16",
-  brown:"#92400e"
+  black:"#111827"
 });
-const STATUS_EMOJIS = Object.freeze(["✅","🟢","🟡","🔴","🟣","🔵","⚫","⚪","🟤","⭐","🔥","⏳","🚧","💡","❗"]);
 function normalizeStatusColor(color){
   const value=String(color||"").trim().toLowerCase();
-  if(STATUS_COLORS.includes(value)) return value;
-  return STATUS_EMOJIS.includes(String(color||"").trim()) ? String(color||"").trim() : "gray";
+  return STATUS_COLORS.includes(value) ? value : "gray";
 }
 
 /* ===== Ordering ===== */
 function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
 function topPos(stage){ const list=stageCards(stage); return list.length? (list[0].pos??1000)-1000 : 1000; }
 function moveToStageAt(id, stage, index){
+  if(!guardMutation("Move blocked while repository is unavailable")) return;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   const list=stageCards(stage); let pos;
   if(index<=0 || list.length===0) pos=(list[0]?.pos??1000)-1000;
@@ -684,15 +610,6 @@ function maybeRebalance(stage){ const list=stageCards(stage); for(let i=1;i<list
 /* ===== Rendering ===== */
 let draggingId=null, highlightEl=null, editorDirty=false;
 let draggingLaneStage=null, laneHighlightEl=null;
-let statusPickerDismissBound=false;
-function ensureStatusPickerDismissHandler(){
-  if(statusPickerDismissBound) return;
-  statusPickerDismissBound=true;
-  document.addEventListener("pointerdown",(ev)=>{
-    if(ev.target?.closest?.(".card-status-btn")) return;
-    $$(".status-picker-popover").forEach(pop=>pop.classList.add("hidden"));
-  });
-}
 function render(){
   $("#sPlatforms").value = state.platforms.join(", ");
   $("#sStages").value = state.stages.join(", ");
@@ -829,39 +746,6 @@ function render(){
   refillSelects();
   applySearch($("#search").value);
 }
-
-function renderProgramView(){
-  const wrap=$("#programMatrix"); if(!wrap) return;
-  const stages=[...programCfg.stages];
-  const phases=[...programCfg.phases];
-  wrap.innerHTML="";
-  const grid=document.createElement("div");
-  grid.className="program-grid";
-  grid.style.gridTemplateColumns=`180px repeat(${phases.length}, minmax(170px,1fr))`;
-  grid.appendChild(document.createElement("div"));
-  phases.forEach(ph=>{ const h=document.createElement("div"); h.className="program-col-header"; h.textContent=ph.label; grid.appendChild(h); });
-  [...stages].reverse().forEach(st=>{
-    const rowLabel=document.createElement("div"); rowLabel.className="program-row-header"; rowLabel.textContent=st.label; grid.appendChild(rowLabel);
-    phases.forEach(ph=>{
-      const cell=document.createElement("div");
-      cell.className="program-cell";
-      cell.dataset.stageId=st.id; cell.dataset.phaseId=ph.id;
-      const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean).filter(b=>!b.archived && b.program?.enabled && b.program?.stageId===st.id && b.program?.phaseId===ph.id).sort((a,b)=>a.name.localeCompare(b.name));
-      boards.forEach(b=>{
-        const tile=document.createElement("button"); tile.className="btn small program-board-tile"; tile.textContent=b.name;
-        tile.draggable=true; tile.dataset.boardName=b.name;
-        tile.addEventListener("dragstart",e=>{ e.dataTransfer.setData("text/program-board", b.name); e.dataTransfer.effectAllowed="move"; });
-        tile.addEventListener("click",()=>switchBoard(b.name));
-        cell.appendChild(tile);
-      });
-      cell.addEventListener("dragover",e=>{ e.preventDefault(); });
-      cell.addEventListener("drop",e=>{ e.preventDefault(); const name=e.dataTransfer.getData("text/program-board"); if(!name) return; const existing=repoBoardsIndex.boards.find(x=>x.name===name)||{}; upsertBoardRecord(name,{ program:{...(existing.program||{}), enabled:true, stageId:st.id, phaseId:ph.id } }); renderProgramView(); });
-      grid.appendChild(cell);
-    });
-  });
-  wrap.appendChild(grid);
-}
-
 document.addEventListener("dragover", e=> e.preventDefault());
 
 let pointerDrag=null;
@@ -974,6 +858,7 @@ function getLaneDropIndex(targetStage, y){
   return y < (r.top + r.height/2) ? targetIndex : targetIndex+1;
 }
 function moveLaneToIndex(stage, rawIndex){
+  if(!guardMutation("Lane reorder blocked while repository is unavailable")) return;
   const fromIndex=state.stages.indexOf(stage);
   if(fromIndex<0) return;
   const stages=[...state.stages];
@@ -1059,7 +944,6 @@ function buildInlineTagEditor(tagArr){
 }
 
 function renderCard(card){
-  ensureStatusPickerDismissHandler();
   const el=document.createElement("article"); el.className="card"; el.draggable=true; el.dataset.id=card.id;
   el.addEventListener("focusin", (e)=>{
     if(e.target?.closest?.('input,textarea,select,[contenteditable]')) el.draggable=false;
@@ -1124,83 +1008,22 @@ function renderCard(card){
   statusBtn.setAttribute("aria-label","Change status color");
   const statusDot=document.createElement("span");
   statusDot.className="card-status-dot";
-  const statusPicker=document.createElement("div");
-  statusPicker.className="status-picker-popover hidden";
-  statusBtn.append(statusPicker);
   const applyStatusDot=(colorName)=>{
     const normalized=normalizeStatusColor(colorName);
-    if(STATUS_COLOR_MAP[normalized]){
-      statusDot.textContent="";
-      statusDot.style.background=STATUS_COLOR_MAP[normalized];
-      statusDot.style.border=normalized==="white" ? "1px solid #cbd5e1" : "none";
-      statusDot.style.width="8px";
-      statusDot.style.height="8px";
-    }else{
-      statusDot.textContent=normalized;
-      statusDot.style.background="transparent";
-      statusDot.style.border="none";
-      statusDot.style.width="auto";
-      statusDot.style.height="auto";
-      statusDot.style.fontSize="12px";
-    }
+    statusDot.style.background=STATUS_COLOR_MAP[normalized];
+    statusDot.style.border=normalized==="white" ? "1px solid #cbd5e1" : "none";
     statusBtn.title=`Status: ${normalized}`;
   };
   applyStatusDot(card.statusColor);
   statusBtn.append(statusDot);
-  const buildStatusPicker=()=>{
-    statusPicker.innerHTML="";
-    const input=document.createElement("input");
-    input.className="status-picker-input";
-    input.placeholder="type color name or emoji";
-    input.value=normalizeStatusColor(card.statusColor);
-    const swatches=document.createElement("div");
-    swatches.className="status-picker-swatches";
-    const renderSwatches=(query="")=>{
-      swatches.innerHTML="";
-      const q=query.trim().toLowerCase();
-      const colors=STATUS_COLORS.filter(c=>!q || c.includes(q));
-      const emojis=STATUS_EMOJIS.filter(e=>!q || e.includes(query));
-      [...colors,...emojis].forEach(value=>{
-        const sw=document.createElement("button");
-        sw.type="button";
-        sw.className=`status-swatch${STATUS_COLOR_MAP[value]?"":" emoji"}`;
-        if(STATUS_COLOR_MAP[value]) sw.style.background=STATUS_COLOR_MAP[value];
-        else sw.textContent=value;
-        sw.title=value;
-        sw.addEventListener("click",(ev)=>{
-          ev.stopPropagation();
-          if(value===normalizeStatusColor(card.statusColor)) return;
-          updateCard(card.id,{ statusColor:value });
-          statusPicker.classList.add("hidden");
-        });
-        swatches.appendChild(sw);
-      });
-    };
-    input.addEventListener("input",()=>renderSwatches(input.value));
-    input.addEventListener("keydown",(ev)=>{
-      if(ev.key==="Enter"){
-        ev.preventDefault();
-        const raw=input.value.trim();
-        if(!raw) return;
-        const next=normalizeStatusColor(raw);
-        if(next!==normalizeStatusColor(card.statusColor)) updateCard(card.id,{ statusColor:next });
-        statusPicker.classList.add("hidden");
-      }else if(ev.key==="Escape"){
-        statusPicker.classList.add("hidden");
-      }
-    });
-    statusPicker.append(input,swatches);
-    renderSwatches();
-    requestAnimationFrame(()=>input.focus());
-  };
   statusBtn.addEventListener("click", (e)=>{
     e.stopPropagation();
-    const opening=statusPicker.classList.contains("hidden");
-    $$(".status-picker-popover").forEach(pop=>pop.classList.add("hidden"));
-    if(opening){
-      statusPicker.classList.remove("hidden");
-      buildStatusPicker();
-    }
+    const current=normalizeStatusColor(card.statusColor);
+    const choice=prompt(`Status color (${STATUS_COLORS.join(", ")})`, current);
+    if(choice===null) return;
+    const next=normalizeStatusColor(choice);
+    if(next===current) return;
+    updateCard(card.id,{ statusColor:next });
   });
   statusBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   statusBtn.addEventListener("pointerup", e=>e.stopPropagation());
@@ -1452,11 +1275,13 @@ function renderCard(card){
 
 /* ===== Card Ops ===== */
 function createCard(data){
+  if(!guardMutation("Create blocked while repository is unavailable")) return null;
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
   const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
+  if(!guardMutation("Update blocked while repository is unavailable")) return;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   if(Object.prototype.hasOwnProperty.call(patch,"dev")) patch.dev=normalizeUrl(patch.dev);
   if(Object.prototype.hasOwnProperty.call(patch,"live")) patch.live=normalizeUrl(patch.live);
@@ -1465,6 +1290,7 @@ function updateCard(id, patch){
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
 function archiveCard(id){
+  if(!guardMutation("Archive blocked while repository is unavailable")) return;
   const idx = state.cards.findIndex(x=>x.id===id); if(idx===-1) return;
   const c = state.cards[idx];
   state.cards.splice(idx,1);
@@ -1472,6 +1298,7 @@ function archiveCard(id){
   scheduleSave(); render();
 }
 function restoreCard(id){
+  if(!guardMutation("Restore blocked while repository is unavailable")) return;
   const idx = state.archive.findIndex(x=>x.id===id); if(idx===-1) return;
   const c = state.archive[idx];
   state.archive.splice(idx,1);
@@ -1481,8 +1308,8 @@ function restoreCard(id){
   state.cards.push(c);
   scheduleSave(); render(); focusCard(c.id);
 }
-function deleteCardPermanently(id){ state.archive = state.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
-function emptyArchive(){ if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
+function deleteCardPermanently(id){ if(!guardMutation("Delete blocked while repository is unavailable")) return; state.archive = state.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
+function emptyArchive(){ if(!guardMutation("Empty archive blocked while repository is unavailable")) return; if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
 function deleteCard(id){ archiveCard(id); }
 function focusCard(id){ const el=$( `.card[data-id="${id}"]` ); if(el){ el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); el.animate([{transform:"scale(1)"},{transform:"scale(1.02)"},{transform:"scale(1)"}],{duration:450}); } }
 function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else if(typeof tags==="string") arr=tags.split(",").map(s=>s.trim()); arr=arr.map(s=>s.toLowerCase()).filter(Boolean); return [...new Set(arr)]; }
@@ -1516,6 +1343,7 @@ function showNotesEditor(){
   notesInput.focus();
 }
 function openEditor(id=null, presetStage=null){
+  if(id===null && !guardMutation("Create blocked while repository is unavailable")) return;
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
   const c=id? state.cards.find(x=>x.id===id):null;
@@ -1663,12 +1491,6 @@ function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileRe
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
 $("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
-$("#btnProjectView").onclick=()=>{ $("#programView").classList.add("hidden"); $("#board").classList.remove("hidden"); $("#resultsContainer").classList.remove("hidden"); $("#btnProjectView").classList.add("active"); $("#btnProgramView").classList.remove("active"); };
-$("#btnProgramView").onclick=()=>{ $("#board").classList.add("hidden"); $("#resultsContainer").classList.add("hidden"); $("#programView").classList.remove("hidden"); $("#btnProgramView").classList.add("active"); $("#btnProjectView").classList.remove("active"); renderProgramView(); };
-$("#btnProgramSettings").onclick=()=>{ $("#programStagesInput").value=programCfg.stages.map(s=>s.label).join(", "); $("#programPhasesInput").value=programCfg.phases.map(s=>s.label).join(", "); $("#programSettingsDialog").showModal(); };
-$("#programSettingsDialog").addEventListener("close",()=>{ if($("#programSettingsDialog").returnValue!=="save") return; const stages=$("#programStagesInput").value.split(",").map(s=>s.trim()).filter(Boolean); const phases=$("#programPhasesInput").value.split(",").map(s=>s.trim()).filter(Boolean); if(stages.length) programCfg.stages=stages.map((label,i)=>({id:_cleanKey(label)||`stage-${i+1}`,label})); if(phases.length) programCfg.phases=phases.map((label,i)=>({id:_cleanKey(label)||`phase-${i+1}`,label})); saveProgramCfg(); renderProgramView(); });
-$("#programSettingsClose").onclick=()=>$("#programSettingsDialog").close("cancel");
-
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
@@ -1677,8 +1499,9 @@ $("#btnSettings").onclick=()=>{
 };
 settingsDialog.addEventListener("close", ()=>{
   const v=settingsDialog.returnValue; if(v==="cancel") return;
-  if(v==="reset"){ if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
+  if(v==="reset"){ if(!guardMutation("Reset blocked while repository is unavailable")) return; if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
   if(v==="save"){
+    if(!guardMutation("Settings changes blocked while repository is unavailable")) return;
     const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
     const layout=$("#sLayout").value; // auto|horizontal|vertical
@@ -1703,6 +1526,7 @@ const DRIVE_JSON_URLS = DRIVE_FILE_ID
 
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import", options={}){
+  if(options?.requireWritable && !guardMutation("Import blocked while repository is unavailable")) return false;
   if(!(Array.isArray(obj?.cards)&&Array.isArray(obj?.platforms)&&Array.isArray(obj?.stages))){
     toast("Import failed","Invalid JSON", true);
     alert("Invalid JSON structure.");
@@ -1726,7 +1550,7 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   saveCacheMeta(meta);
   render();
   toast("Import successful","Board replaced");
-  setStatus(`Imported ${sourceLabel} and saved to local storage.`);
+  setStatus(`Imported ${sourceLabel}.`);
   return true;
 }
 function isValidBoardData(obj){
@@ -1843,11 +1667,11 @@ async function forceRefreshFromDrive(){
   }
   applyImportedBoard(remote, "Google Drive refresh");
 }
-$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file"); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+$("#fileImport").onchange=(e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
-$("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
+$("#btnOpenArchive").onclick=()=>{ if(!guardMutation("Archive changes blocked while repository is unavailable")) return; renderArchiveList(); archiveDialog.showModal(); };
 archiveDialog.addEventListener("close", (e)=>{ if(archiveDialog.returnValue==="empty"){ emptyArchive(); } });
 function renderArchiveList(){
   const list=$("#archiveList"); list.innerHTML="";
@@ -1924,6 +1748,36 @@ function localDateTimeInputValue(date=new Date()){ const d=date instanceof Date 
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 // NEW: status bar shows current board key
 function setStatus(t){ const detail=t? `${t} • ` : ""; document.getElementById("status").textContent=`${detail}Last updated: ${formatLastUpdated(state.lastModified)} • Build ${BUILD} • board: ${currentBoardKey}`; }
+function updateRepoBlockerUI(){
+  const blocker=document.getElementById("repoBlocker");
+  const msg=document.getElementById("repoBlockerMsg");
+  if(!blocker || !msg) return;
+  blocker.classList.toggle("hidden", !repoLoadBlocked);
+  if(repoLoadBlocked){
+    const when=repoLoadErrorAt ? new Date(repoLoadErrorAt).toLocaleString() : "unknown";
+    msg.textContent=`Repository load failed. Board is read-only until retry succeeds. ${repoLoadError||"Unknown error"} (${when})`;
+  }
+}
+function setRepoLoadBlocked(error){
+  repoLoadBlocked=true;
+  repoLoadError=String(error?.message||error||"Repository fetch failed");
+  repoLoadErrorAt=Date.now();
+  setStatus(`Repo load failed: ${repoLoadError} @ ${new Date(repoLoadErrorAt).toLocaleString()}`);
+  updateRepoBlockerUI();
+}
+function clearRepoLoadBlocked(){
+  repoLoadBlocked=false;
+  repoLoadError="";
+  repoLoadErrorAt=0;
+  updateRepoBlockerUI();
+}
+function guardMutation(actionLabel="Changes are blocked"){
+  if(!repoLoadBlocked) return true;
+  const msg=String(actionLabel||"Changes are blocked");
+  toast("Read-only mode", msg, true);
+  setStatus(`Blocked: ${msg}`);
+  return false;
+}
 function b64EncodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
 function b64DecodeUnicode(b64){ return decodeURIComponent(escape(atob(b64))); }
 async function validateToken(token){
@@ -2178,11 +2032,6 @@ function sanitizeMarkdownImages(s){
   const activeList=document.getElementById("bBoardList");
   const archivedList=document.getElementById("bArchivedList");
   const nameInput=document.getElementById("bKeyInput");
-  const importNameInput=document.getElementById("bImportName");
-  const importOverwriteInput=document.getElementById("bImportOverwrite");
-  const importPreview=document.getElementById("bImportPreview");
-  const importFileInput=document.getElementById("bImportFile");
-  let pendingImport=null;
     const pencilSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25Zm18-11.5a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.57 1.57 3.75 3.75L21 5.75Z"/></svg>';
   const downloadSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2Zm7-16v9.17l3.09-3.08 1.41 1.41L12 17l-4.5-5.5 1.41-1.41L11 13.17V4h1Z"/></svg>';
   const trashSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>';
@@ -2191,7 +2040,6 @@ function sanitizeMarkdownImages(s){
     const key = setBoardKey(name);
     currentBoardKey = key;
     updateKeyLabel();
-$("#btnProjectView")?.classList.add("active");
     const fresh = loadState();
     if(fresh){
       state = fresh;
@@ -2213,17 +2061,7 @@ $("#btnProjectView")?.classList.add("active");
   }
   function setBoardInputDefaults(raw=""){
     nameInput.value = raw || "new-board";
-  }
-  function previewImport(board){
-    const cards=Array.isArray(board?.cards)?board.cards:[];
-    const names=cards.slice(0,8).map(c=>`• ${escapeHtml(c?.title||"(untitled)")}`).join("<br>");
-    importPreview.innerHTML=`<strong>${cards.length}</strong> cards${names?`<br>${names}`:""}`;
-  }
-  function clearImportState(){
-    pendingImport=null;
-    importPreview.textContent="Choose a JSON file to preview.";
-    importOverwriteInput.checked=false;
-  }
+      }
   function renderBoardManager(){
     const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
     const active=boards.filter(b=>!b.archived).sort((a,b)=>b.lastUpdated-a.lastUpdated);
@@ -2251,8 +2089,7 @@ $("#btnProjectView")?.classList.add("active");
           if(!isBoardNameUnique(next,b.name)){ alert("Board name must be unique."); return; }
           const oldKey=_cleanKey(b.name), newKey=_cleanKey(next);
           repoBoardsIndex.boards=repoBoardsIndex.boards.map(x=>_cleanKey(x.name)===oldKey?{...x,name:newKey,lastUpdated:Date.now()}:x);
-          if(_cleanKey(currentBoardKey)===oldKey){ setBoardKey(newKey); currentBoardKey=newKey; updateKeyLabel();
-$("#btnProjectView")?.classList.add("active"); }
+          if(_cleanKey(currentBoardKey)===oldKey){ setBoardKey(newKey); currentBoardKey=newKey; updateKeyLabel(); }
           saveRepoBoardsIndex(); renderBoardManager();
         };
       };
@@ -2277,42 +2114,27 @@ $("#btnProjectView")?.classList.add("active"); }
   }
   const tabListBtn=document.getElementById("tabList");
   const tabNewBtn=document.getElementById("tabNew");
-  const tabImportBtn=document.getElementById("tabImport");
   const tabListPane=document.getElementById("tabListPane");
   const tabNewPane=document.getElementById("tabNewPane");
-  const tabImportPane=document.getElementById("tabImportPane");
   function setBoardTab(tab){
-    const listMode=tab==="list";
-    const newMode=tab==="new";
-    const importMode=tab==="import";
+    const listMode=tab!=="new";
     tabListPane.classList.toggle("hidden",!listMode);
-    tabNewPane.classList.toggle("hidden",!newMode);
-    tabImportPane.classList.toggle("hidden",!importMode);
+    tabNewPane.classList.toggle("hidden",listMode);
     tabListBtn.classList.toggle("primary",listMode);
-    tabNewBtn.classList.toggle("primary",newMode);
-    tabImportBtn.classList.toggle("primary",importMode);
+    tabNewBtn.classList.toggle("primary",!listMode);
   }
   tabListBtn.addEventListener("click",()=>setBoardTab("list"));
   tabNewBtn.addEventListener("click",()=>setBoardTab("new"));
-  tabImportBtn.addEventListener("click",()=>setBoardTab("import"));
 document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     setBoardInputDefaults(currentBoardKey);
-    Promise.resolve(loadRepoBoardsIndex()).catch(err=>{
-      if(!repoPullFailureNotified){
-        toast("Repo refresh failed", String(err.message||err), true);
-        repoPullFailureNotified=true;
-      }
-    }).finally(()=>{
-      renderBoardManager();
-      setBoardTab("new");
-      clearImportState();
-      importFileInput.value="";
-      dlg.showModal();
-    });
+    renderBoardManager();
+    setBoardTab("list");
+    dlg.showModal();
   });
   document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
 
   document.getElementById("bCreateBoard").addEventListener("click", ()=>{
+    if(!guardMutation("Create board blocked while repository is unavailable")) return;
     const raw = nameInput.value.trim();
     if(!raw){ alert("Enter a board name."); return; }
     if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
@@ -2321,45 +2143,27 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     dlg.close();
   });
   
-  importFileInput.addEventListener("change", ()=>{
-    const [file]=importFileInput.files||[];
-    if(!file){ clearImportState(); return; }
-    importNameInput.value=file.name.replace(/\.[^.]+$/,"").trim()||"imported-board";
+  document.getElementById("bImportBoard").addEventListener("click", ()=>{
+    if(!guardMutation("Import board blocked while repository is unavailable")) return;
+    const fi=document.getElementById("bImportFile");
+    const [file]=fi.files||[];
+    if(!file){ alert("Choose a JSON file to import."); return; }
     const reader=new FileReader();
     reader.onload=()=>{
       try{
         const parsed=JSON.parse(String(reader.result||"{}"));
         if(!isValidBoardData(parsed)) throw new Error("Invalid board JSON");
-        pendingImport={ board:parsed, source:file.name };
-        previewImport(parsed);
-      }catch(err){
-        pendingImport=null;
-        importPreview.textContent="Import preview unavailable.";
-        toast("Import failed", String(err.message||err), true);
-      }
-    };
-    reader.readAsText(file);
-  });
-  document.getElementById("bImportBoard").addEventListener("click", async ()=>{
-    if(!pendingImport){ alert("Choose a valid JSON file to import."); return; }
-    const raw=importNameInput.value.trim();
-    if(!raw){ alert("Enter a board name."); return; }
-    const key=_cleanKey(raw);
-    const exists=(repoBoardsIndex.boards||[]).find(b=>_cleanKey(b.name)===key);
-    if(exists && !importOverwriteInput.checked){ alert("Board exists. Enable overwrite to continue."); return; }
-    if(!confirm(`Import board '${key}' now?`)) return;
-    while(true){
-      try{
-        const next=upsertBoardRecord(key,{ archived:false, lastUpdated:Date.now() });
+        const raw=nameInput.value.trim();
+        if(!raw){ alert("Enter a board name."); return; }
+        if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
+        const next=upsertBoardRecord(raw,{ archived:false });
         setBoardKey(next.name); currentBoardKey=next.name;
-        localStorage.setItem(boardLS(), JSON.stringify(pendingImport.board));
+        localStorage.setItem(boardLS(), JSON.stringify(parsed));
         switchToBoard(next.name);
         dlg.close();
-        break;
-      }catch(err){
-        if(!confirm(`Import push failed. Retry?\n${String(err.message||err)}`)) break;
-      }
-    }
+      }catch(err){ alert("Import failed: "+err.message); }
+    };
+    reader.readAsText(file);
   });
   window.__switchToBoard=switchToBoard;
   window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
@@ -2368,26 +2172,12 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
 
 async function bootstrapBoardsLifecycle(){
   await loadRepoSwitch();
-  try{
-    await loadRepoBoardsIndex();
-  }catch(err){
-    console.error(err);
-    setStatus(err.message||"Failed to load board index");
-    if(!repoPullFailureNotified){
-      toast("Board index load failed", String(err.message||err), true);
-      repoPullFailureNotified=true;
-    }
-    window.__openBoardManager?.("new-board");
-    boardsBootstrapped=true;
-    return;
-  }
+  await loadRepoBoardsIndex();
   const boards=repoBoardsIndex.boards.filter(b=>!b.archived);
   const requested=(urlBoardParamRaw||"").trim().toLowerCase();
   const requestedBoard=boards.find(b=>String(b.name||"").toLowerCase()===requested||boardSlug(b.name)===requested);
-  const lastBoard=(localStorage.getItem(BOARD_KEY_LS)||"").trim().toLowerCase();
-  const lastBoardMatch=boards.find(b=>boardSlug(b.name)===lastBoard||String(b.name||"").toLowerCase()===lastBoard);
   const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
-  const chosen=requestedBoard||lastBoardMatch||activeMatch||null;
+  const chosen=requestedBoard||activeMatch||null;
   if(!chosen){
     if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
     else{
@@ -2404,7 +2194,7 @@ async function bootstrapBoardsLifecycle(){
     return;
   }
   const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
-$("#btnProjectView")?.classList.add("active");
+  startupBoardName=chosen.name;
   try{
     const remote=await fetchJson(boardFilePath(chosen.name));
     if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
@@ -2414,26 +2204,35 @@ $("#btnProjectView")?.classList.add("active");
     const next=loadCacheMeta();
     next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
     saveCacheMeta(next);
+    clearRepoLoadBlocked();
     setStatus(`Loaded ${chosen.name} from repo`);
   }catch(err){
-    if(!repoPullFailureNotified){
-      toast("Repo board load failed", String(err?.message||err||"Failed to load board payload"), true);
-      repoPullFailureNotified=true;
-    }
-    setStatus(`Repo load failed for ${chosen.name}`);
+    setRepoLoadBlocked(err);
   }
   boardsBootstrapped=true;
 }
 
+async function retryRepoStartupLoad(){
+  if(!startupBoardName) return;
+  try{
+    const remote=await fetchJson(boardFilePath(startupBoardName));
+    if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
+    applyImportedBoard(remote, "repo retry");
+    clearRepoLoadBlocked();
+    setStatus(`Loaded ${startupBoardName} from repo`);
+  }catch(err){
+    setRepoLoadBlocked(err);
+  }
+}
+
 /* ===== Init ===== */
 updateKeyLabel();
-$("#btnProjectView")?.classList.add("active");
+updateRepoBlockerUI();
+document.getElementById("repoRetryBtn").addEventListener("click", ()=>{ retryRepoStartupLoad(); });
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
   await bootstrapBoardsLifecycle();
-  syncBootstrapComplete = true;
-  queueAutoSync("bootstrap");
 })();
 </script>
 </body>
