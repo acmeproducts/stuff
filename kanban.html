@@ -103,7 +103,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;min-width:0;justify-content:flex-start}
 .card-line{padding-right:26px}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:#1f6feb}
-.card-platform{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto}
+.card-platform,.card-lineage{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-platform.tag-search-btn,.card-lineage.tag-search-btn{color:#1f6feb}
+.card-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-status-btn{border:1px solid var(--border);background:#fff;padding:0;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto;border-radius:999px;width:14px;height:14px}
 .card-status-btn:hover{border-color:var(--accent)}
@@ -275,7 +277,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       </div>
     </div>
 
-    <div class="grid-2">
+    <div class="grid-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
       <div class="field">
         <label for="fPlatform">Platform</label>
         <select id="fPlatform"></select>
@@ -283,6 +285,10 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
       <div class="field">
         <label for="fStage">Lane</label>
         <select id="fStage"></select>
+      </div>
+      <div class="field">
+        <label for="fLineage">Lineage</label>
+        <select id="fLineage"></select>
       </div>
     </div>
 
@@ -450,6 +456,8 @@ const hasBoardQueryParam = !!(urlBoardParamRaw && urlBoardParamRaw.trim());
 const REPO_BOARDS_FILE = "kanban-boards.json";
 const REPO_SWITCH_FILE = "kanban-switch.json";
 const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
+const LAST_SEEN_BOARD_LS = "kanban_last_seen_board";
+const CARD_LINEAGES = ["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
@@ -464,6 +472,7 @@ function getBoardKey(){ return _cleanKey(urlBoardParamRaw || localStorage.getIte
 function setBoardKey(raw){
   const k=_cleanKey(raw);
   localStorage.setItem(BOARD_KEY_LS, k);
+  localStorage.setItem(LAST_SEEN_BOARD_LS, k);
   const u=new URL(location.href); u.searchParams.set("board",k); history.replaceState(null,"",u.toString());
   return k;
 }
@@ -698,6 +707,10 @@ const STATUS_COLOR_MAP = Object.freeze({
 function normalizeStatusColor(color){
   const value=String(color||"").trim().toLowerCase();
   return STATUS_COLORS.includes(value) ? value : "gray";
+}
+function normalizeLineage(value){
+  const v=String(value||"").trim().toLowerCase();
+  return CARD_LINEAGES.includes(v) ? v : CARD_LINEAGES[0];
 }
 
 /* ===== Ordering ===== */
@@ -1147,8 +1160,11 @@ function renderCard(card){
   line.append(title,links); el.append(line,archiveBtn);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
-  const p=document.createElement("span"); p.className="chip card-platform"; p.textContent=card.platform;
-  tagsRow.appendChild(p);
+  const p=document.createElement("button"); p.type="button"; p.className="chip card-platform tag-search-btn"; p.textContent=card.platform; p.title=`Search platform: ${card.platform}`;
+  p.addEventListener("click",(e)=>{ e.stopPropagation(); applyTagSearch(card.platform); });
+  const lineageChip=document.createElement("button"); lineageChip.type="button"; lineageChip.className="chip card-lineage tag-search-btn"; lineageChip.textContent=normalizeLineage(card.lineage); lineageChip.title=`Search lineage: ${normalizeLineage(card.lineage)}`;
+  lineageChip.addEventListener("click",(e)=>{ e.stopPropagation(); applyTagSearch(normalizeLineage(card.lineage)); });
+  tagsRow.append(p,lineageChip);
   if(card.tags?.length){
     card.tags.forEach(t=>{
       const chip=document.createElement("button");
@@ -1172,6 +1188,7 @@ function renderCard(card){
     title: card.title||"",
     platform: card.platform||state.platforms[0]||"General",
     stage: card.stage,
+    lineage: normalizeLineage(card.lineage),
     dev: card.dev||"",
     live: card.live||"",
     statusColor: normalizeStatusColor(card.statusColor),
@@ -1232,6 +1249,7 @@ function renderCard(card){
       title:inlineState.title.trim()||"(untitled)",
       platform:inlineState.platform,
       stage:inlineState.stage,
+      lineage:inlineState.lineage,
       dev:inlineState.dev.trim(),
       live:inlineState.live.trim(),
       statusColor:inlineState.statusColor,
@@ -1243,6 +1261,7 @@ function renderCard(card){
       patch.title===card.title &&
       patch.platform===card.platform &&
       patch.stage===card.stage &&
+      patch.lineage===normalizeLineage(card.lineage) &&
       patch.dev===card.dev &&
       patch.live===card.live &&
       patch.statusColor===normalizeStatusColor(card.statusColor) &&
@@ -1280,6 +1299,9 @@ function renderCard(card){
   const stageSelect=document.createElement("select");
   state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
   stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
+  const lineageSelect=document.createElement("select");
+  CARD_LINEAGES.forEach(lg=>{ const opt=document.createElement("option"); opt.value=lg; opt.textContent=lg; if(lg===inlineState.lineage) opt.selected=true; lineageSelect.append(opt); });
+  lineageSelect.addEventListener("change", ()=>{ inlineState.lineage=lineageSelect.value; });
 
   const devInput=document.createElement("input");
   devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=inlineState.dev;
@@ -1368,6 +1390,7 @@ function renderCard(card){
     makeField("Title", titleInput, true),
     makeField("Platform", platformSelect),
     makeField("Lane", stageSelect),
+    makeField("Lineage", lineageSelect),
     makeField("Dev Link", devInput),
     makeField("Live Link", liveInput),
     makeField("Tags", inlineTagEditor, true),   // NEW: replaced tagsInput
@@ -1384,7 +1407,7 @@ function renderCard(card){
 function createCard(data){
   if(!guardMutation("Create blocked while repository is unavailable")) return null;
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
-  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
+  const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, lineage:normalizeLineage(data.lineage), dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
@@ -1393,6 +1416,7 @@ function updateCard(id, patch){
   if(Object.prototype.hasOwnProperty.call(patch,"dev")) patch.dev=normalizeUrl(patch.dev);
   if(Object.prototype.hasOwnProperty.call(patch,"live")) patch.live=normalizeUrl(patch.live);
   if(Object.prototype.hasOwnProperty.call(patch,"statusColor")) patch.statusColor=normalizeStatusColor(patch.statusColor);
+  if(Object.prototype.hasOwnProperty.call(patch,"lineage")) patch.lineage=normalizeLineage(patch.lineage);
   if(Object.prototype.hasOwnProperty.call(patch,"notes")) patch.notes=preprocessNotes(patch.notes);
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
@@ -1457,6 +1481,7 @@ function openEditor(id=null, presetStage=null){
   refillSelects();
   $("#fPlatform").value = c?.platform || (state.platforms[0]||"General");
   $("#fStage").value = c?.stage || (presetStage || state.stages[0] || "Next");
+  $("#fLineage").value = normalizeLineage(c?.lineage);
   $("#fTitle").value = c?.title || "";
   $("#fDev").value = c?.dev || "";
   $("#fLive").value = c?.live || "";
@@ -1510,8 +1535,8 @@ editorCloseBtn.addEventListener("click", ()=>{
 });
 $("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
 $("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:getNotesValue($("#fNotes")), files: currentFiles.slice() }; }
-function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); }
+function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, lineage:$("#fLineage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:getNotesValue($("#fNotes")), files: currentFiles.slice() }; }
+function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); $("#fLineage").innerHTML = CARD_LINEAGES.map(l=>`<option>${l}</option>`).join(""); }
 
 /* ===== Tagging UI ===== */
 const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
@@ -1641,8 +1666,10 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   }
   state=obj;
   state.collapsed = state.collapsed || {};
-  state.layout = state.layout || "auto";
-  state.archive = Array.isArray(state.archive)? state.archive : [];
+state.layout = state.layout || "auto";
+state.archive = Array.isArray(state.archive)? state.archive : [];
+state.cards = Array.isArray(state.cards) ? state.cards : [];
+state.cards.forEach(c=>{ c.lineage=normalizeLineage(c.lineage); });
   state.cardCollapsed = state.cardCollapsed || {};
   state.lastModified = Number(state.lastModified||Date.now());
   state.cards.forEach(c=>{ c.statusColor=normalizeStatusColor(c.statusColor); });
@@ -1849,7 +1876,7 @@ function applyTagSearch(tag){
   applySearch(next);
 }
 function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(Boolean); const includes=[], excludes=[]; for(const p of parts){ if(p.startsWith("-")&&p.length>1) excludes.push(p.slice(1)); else includes.push(p); } return {includes,excludes}; }
-function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
+function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,normalizeLineage(c.lineage),c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
 function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
 function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
 function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
@@ -2183,6 +2210,8 @@ function sanitizeMarkdownImages(s){
       state.layout = state.layout || "auto";
     } else {
       state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={}; state.layout="auto";
+      state.stages=Array.isArray(state.stages)&&state.stages.length?state.stages:["Done","Doing","Next"];
+      state.platforms=Array.isArray(state.platforms)&&state.platforms.length?state.platforms:["Gemini","Claude","ChatGPT","Perplexity"];
     }
     upsertBoardRecord(key,{ archived:false });
     render();
@@ -2330,16 +2359,19 @@ async function bootstrapBoardsLifecycle(){
   await loadRepoSwitch();
   await loadRepoBoardsIndex();
   const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>b && !b.archived);
+  boards.sort((a,b)=>Number(b.lastUpdated||0)-Number(a.lastUpdated||0));
   const requested=canonicalBoardKey((urlBoardParamRaw||"").trim());
+  const lastSeen=canonicalBoardKey(localStorage.getItem(LAST_SEEN_BOARD_LS)||"");
   const requestedBoard=boards.find(b=>canonicalBoardKey(b.name)===requested);
+  const lastSeenBoard=boards.find(b=>canonicalBoardKey(b.name)===lastSeen);
   const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
-  const ordered=[requestedBoard,activeMatch,...boards].filter((b,i,a)=>b && a.findIndex(x=>canonicalBoardKey(x.name)===canonicalBoardKey(b.name))===i);
+  const ordered=[requestedBoard,lastSeenBoard,activeMatch,...boards].filter((b,i,a)=>b && a.findIndex(x=>canonicalBoardKey(x.name)===canonicalBoardKey(b.name))===i);
   const chosen=ordered[0]||null;
   if(!chosen){
     if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
     else{
       window.__openBoardManager?.("new-board");
-      state={ cards:[], archive:[], stages:[], platforms:[], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
+      state={ cards:[], archive:[], stages:["Done","Doing","Next"], platforms:["Gemini","Claude","ChatGPT","Perplexity"], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
       render();
       const msg=document.createElement("div");
       msg.className="empty-boarding";
