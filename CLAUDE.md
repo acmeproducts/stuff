@@ -105,13 +105,42 @@ grep -A4 "^function pbSpeakCard" bridge-*-cc.html
 ## Git
 
 - Develop on branch `claude/audit-talkbridge-recovery-UHws6`
-- Push to `origin main:claude/audit-talkbridge-recovery-UHws6` after every session
 - Commit all modified bridge files together in a single commit when propagating fixes
-- **At the start of every session**, sync local main with origin/main before doing any work:
-  ```bash
-  git fetch origin main
-  git rebase origin/main
-  ```
-  PRs may have been merged since the last session. Skipping this causes local main to
-  drift behind origin/main, making the stop hook report false unpushed-commit counts
-  and risking push conflicts later in the session.
+
+### End-of-session push (required — in this order)
+
+1. **Rebase onto latest origin/main first:**
+   ```bash
+   git fetch origin main
+   git rebase origin/main
+   ```
+
+2. **Push to origin/main (primary):**
+   ```bash
+   git push origin main
+   ```
+   Confirm success: the command must print `main -> main` with no errors. If it prints "Everything up-to-date" and `git log --oneline origin/main..main` shows commits, something is wrong — investigate before stopping.
+
+3. **Also push to the feature branch (secondary):**
+   ```bash
+   git push origin main:claude/audit-talkbridge-recovery-UHws6
+   ```
+
+4. **Verify both are clean:**
+   ```bash
+   git log --oneline origin/main..main          # must be empty
+   git log --oneline origin/claude/audit-talkbridge-recovery-UHws6..main  # must be empty
+   ```
+   If either is non-empty, push again. Do not stop until both are empty.
+
+### Session start (required before any work)
+
+```bash
+git fetch origin main
+git rebase origin/main
+```
+PRs may have been merged since the last session. Skipping this causes local main to drift behind origin/main, making the stop hook report false unpushed-commit counts and risking push conflicts later in the session.
+
+### Why push to main directly
+
+The stop hook checks `origin/main`. Pushing only to the feature branch leaves commits unreachable from `origin/main`, causing the hook to fire every session until a PR is manually merged. Pushing directly to `origin/main` is the correct workflow for this repository — PRs are used for external review only, not as the default merge path.
