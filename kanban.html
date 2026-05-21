@@ -478,7 +478,41 @@ function boardFilePath(name){ const prefix=typeof repoSwitchCfg.pathPrefix==="st
 function canonicalBoardKey(name){ return boardSlug(name); }
 async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE); repoSwitchCfg=(v&&typeof v==="object")?v:{}; }catch{ repoSwitchCfg={}; } }
-async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
+function loadRepoBoardsIndexCache(){
+  return safeParseJson(localStorage.getItem("kanban_repo_boards_index_cache")||"", null);
+}
+function mergeBoardIndexes(primary, secondary){
+  const left=(primary && typeof primary==="object") ? primary : { version:1, activeBoard:"", boards:[] };
+  const right=(secondary && typeof secondary==="object") ? secondary : { version:1, activeBoard:"", boards:[] };
+  const merged={ version:Number(left.version||right.version||1)||1, activeBoard:String(left.activeBoard||right.activeBoard||""), boards:[] };
+  const byKey=new Map();
+  const push=(items=[])=>{
+    items.forEach((item)=>{
+      const rec=normalizeBoardRecord(item);
+      if(!rec) return;
+      const key=canonicalBoardKey(rec.name);
+      const prev=byKey.get(key);
+      if(!prev || Number(rec.lastUpdated||0)>=Number(prev.lastUpdated||0)) byKey.set(key, rec);
+    });
+  };
+  push(right.boards);
+  push(left.boards);
+  merged.boards=Array.from(byKey.values());
+  if(merged.activeBoard && !merged.boards.some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(merged.activeBoard))){
+    merged.activeBoard=merged.boards.find(b=>!b.archived)?.name || merged.boards[0]?.name || "";
+  }
+  return merged;
+}
+async function loadRepoBoardsIndex(){
+  const cached=loadRepoBoardsIndexCache();
+  try{
+    const remote=await fetchJson(REPO_BOARDS_FILE);
+    repoBoardsIndex=mergeBoardIndexes(remote, cached);
+  }catch{
+    repoBoardsIndex=mergeBoardIndexes(cached, null);
+  }
+  repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[];
+}
 async function refreshBoardsIndexFromRepo(){ await loadRepoBoardsIndex(); saveRepoBoardsIndexCache(); }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
 function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.stringify(meta||{})); }
