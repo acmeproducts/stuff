@@ -479,6 +479,7 @@ function canonicalBoardKey(name){ return boardSlug(name); }
 async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE); repoSwitchCfg=(v&&typeof v==="object")?v:{}; }catch{ repoSwitchCfg={}; } }
 async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
+async function refreshBoardsIndexFromRepo(){ await loadRepoBoardsIndex(); saveRepoBoardsIndexCache(); }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
 function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.stringify(meta||{})); }
 function normalizeBoardRecord(record){
@@ -510,13 +511,13 @@ async function persistRepoBoardsIndexAuthoritative(){
   const path=REPO_BOARDS_FILE;
   const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
   let sha=null;
-  const existing=await githubApiRequest(getUrl,{method:"GET",headers:{Authorization:`token ${token}`}});
+  const existing=await githubFetch(getUrl,{method:"GET"});
   if(existing?.ok){
     const body=await existing.json();
     sha=body?.sha||null;
   }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
-  await githubApiRequest(putUrl,{method:"PUT",headers:{Authorization:`token ${token}`},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
+  await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
 }
 async function persistBoardPayloadAuthoritative(name, boardData){
   const cfg=getGitHubSyncConfig();
@@ -524,13 +525,13 @@ async function persistBoardPayloadAuthoritative(name, boardData){
   const path=boardFilePath(name);
   const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
   let sha=null;
-  const existing=await githubApiRequest(getUrl,{method:"GET",headers:{Authorization:`token ${token}`}});
+  const existing=await githubFetch(getUrl,{method:"GET"});
   if(existing?.ok){
     const body=await existing.json();
     sha=body?.sha||null;
   }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
-  await githubApiRequest(putUrl,{method:"PUT",headers:{Authorization:`token ${token}`},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(boardData,null,2)+"\n"),branch:cfg.branch,sha})});
+  await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(boardData,null,2)+"\n"),branch:cfg.branch,sha})});
 }
 function deriveBoardStats(board){
   const cards=Array.isArray(board?.cards)?board.cards:[];
@@ -1737,7 +1738,7 @@ async function forceRefreshFromDrive(){
   }
   applyImportedBoard(remote, "Google Drive refresh");
 }
-$("#fileImport").onchange=(e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+$("#fileImport").onchange=async (e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } await refreshBoardsIndexFromRepo(); if((repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(name))){ alert("Board name must be unique in repository index."); e.target.value=""; return; } try{ const rec=upsertBoardRecord(name,{ archived:false },board); await persistBoardPayloadAuthoritative(rec.name, board); await persistRepoBoardsIndexAuthoritative(); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }catch(err){ alert("Import failed before authoritative commit: "+err.message); setStatus(`Import failed (${canonicalBoardKey(name)} @ ${boardFilePath(name)}): ${err.message}`); } }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
@@ -2232,7 +2233,8 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     if(!guardMutation("Import board blocked while repository is unavailable")) return;
     const raw=document.getElementById("bImportName").value.trim();
     if(!raw){ alert("Enter a board name."); return; }
-    if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
+    await refreshBoardsIndexFromRepo();
+    if(!isBoardNameUnique(raw)){ alert("Board name must be unique in repository index."); return; }
     const mode=(document.querySelector('input[name="importSource"]:checked')||{}).value||"file";
     let parsed=null;
     try{
