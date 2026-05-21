@@ -475,6 +475,7 @@ function updateKeyLabel(){ document.getElementById("boardKeyLabel").textContent 
 function safeParseJson(text, fallback){ try{ return JSON.parse(text); }catch{ return fallback; } }
 function boardSlug(name){ return _cleanKey(String(name||"kanban").toLowerCase()); }
 function boardFilePath(name){ const prefix=typeof repoSwitchCfg.pathPrefix==="string" ? repoSwitchCfg.pathPrefix : ""; return `${prefix}${boardSlug(name)}.json`; }
+function canonicalBoardKey(name){ return boardSlug(name); }
 async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function loadRepoSwitch(){ try{ const v=await fetchJson(REPO_SWITCH_FILE); repoSwitchCfg=(v&&typeof v==="object")?v:{}; }catch{ repoSwitchCfg={}; } }
 async function loadRepoBoardsIndex(){ try{ const v=await fetchJson(REPO_BOARDS_FILE); repoBoardsIndex=(v&&typeof v==="object")?v:{version:1,activeBoard:"",boards:[]}; }catch{ repoBoardsIndex={version:1,activeBoard:"",boards:[]}; } repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[]; }
@@ -498,9 +499,38 @@ function normalizeBoardRecord(record){
     stageUpdatedAt:Number(record?.stageUpdatedAt||now)
   };
 }
-function saveRepoBoardsIndex(){
+function saveRepoBoardsIndexCache(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
   localStorage.setItem("kanban_repo_boards_index_cache", JSON.stringify(repoBoardsIndex));
+}
+async function persistRepoBoardsIndexAuthoritative(){
+  repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
+  const cfg=getGitHubSyncConfig();
+  const token=await ensureGithubToken();
+  const path=REPO_BOARDS_FILE;
+  const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
+  let sha=null;
+  const existing=await githubApiRequest(getUrl,{method:"GET",headers:{Authorization:`token ${token}`}});
+  if(existing?.ok){
+    const body=await existing.json();
+    sha=body?.sha||null;
+  }
+  const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
+  await githubApiRequest(putUrl,{method:"PUT",headers:{Authorization:`token ${token}`},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
+}
+async function persistBoardPayloadAuthoritative(name, boardData){
+  const cfg=getGitHubSyncConfig();
+  const token=await ensureGithubToken();
+  const path=boardFilePath(name);
+  const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
+  let sha=null;
+  const existing=await githubApiRequest(getUrl,{method:"GET",headers:{Authorization:`token ${token}`}});
+  if(existing?.ok){
+    const body=await existing.json();
+    sha=body?.sha||null;
+  }
+  const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
+  await githubApiRequest(putUrl,{method:"PUT",headers:{Authorization:`token ${token}`},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(boardData,null,2)+"\n"),branch:cfg.branch,sha})});
 }
 function deriveBoardStats(board){
   const cards=Array.isArray(board?.cards)?board.cards:[];
@@ -509,15 +539,15 @@ function deriveBoardStats(board){
   return { cardCount:cards.length, lastCardUpdatedId:lastCard?.id||"", lastCardUpdatedAt:Number(lastCard?.updatedAt)||0 };
 }
 function upsertBoardRecord(name, patch={}, boardData=null){
-  const key=_cleanKey(name);
-  const idx=repoBoardsIndex.boards.findIndex(b=>_cleanKey(b.name)===key);
+  const key=canonicalBoardKey(name);
+  const idx=repoBoardsIndex.boards.findIndex(b=>canonicalBoardKey(b.name)===key);
   const now=Date.now();
   const base=idx>=0 ? normalizeBoardRecord(repoBoardsIndex.boards[idx]) : normalizeBoardRecord({ name:key, archived:false, createdAt:now, phase:"dev", stage:"concept" });
   const stats=boardData?deriveBoardStats(boardData):{};
   const next=normalizeBoardRecord({ ...base, ...stats, ...patch, name:key, createdAt:base.createdAt, lastUpdated:now });
   if(idx>=0) repoBoardsIndex.boards[idx]=next; else repoBoardsIndex.boards.push(next);
   if(!next.archived) repoBoardsIndex.activeBoard=next.name;
-  saveRepoBoardsIndex();
+  saveRepoBoardsIndexCache();
   return next;
 }
 
@@ -1707,7 +1737,7 @@ async function forceRefreshFromDrive(){
   }
   applyImportedBoard(remote, "Google Drive refresh");
 }
-$("#fileImport").onchange=(e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+$("#fileImport").onchange=(e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
@@ -2096,8 +2126,8 @@ function sanitizeMarkdownImages(s){
     toast("Switched","board: "+key);
   }
   function isBoardNameUnique(name, ignoreName=""){
-    const key=_cleanKey(name), ignore=_cleanKey(ignoreName);
-    return !(repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===key && _cleanKey(b.name)!==ignore);
+    const key=canonicalBoardKey(name), ignore=canonicalBoardKey(ignoreName);
+    return !(repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===key && canonicalBoardKey(b.name)!==ignore);
   }
   function setBoardInputDefaults(raw=""){
     nameInput.value = raw || "new-board";
@@ -2111,8 +2141,8 @@ function sanitizeMarkdownImages(s){
     if(!active.length) activeList.innerHTML="<div class='empty-boarding'>Click on the New tab to create a new board.</div>";
     active.forEach(b=>{
       const row=document.createElement("div");
-      row.className="board-list-row"+(_cleanKey(b.name)===currentBoardKey?" current":"");
-      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}<select class="phaseSel"><option value="dev">dev</option><option value="tst">tst</option><option value="prd">prd</option></select><select class="stageSel"><option value="concept">concept</option><option value="alpha">alpha</option><option value="pilot">pilot</option><option value="beta">beta</option><option value="launch">launch</option></select>`;
+      row.className="board-list-row"+(canonicalBoardKey(b.name)===currentBoardKey?" current":"");
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${canonicalBoardKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}<select class="phaseSel"><option value="dev">dev</option><option value="tst">tst</option><option value="prd">prd</option></select><select class="stageSel"><option value="concept">concept</option><option value="alpha">alpha</option><option value="pilot">pilot</option><option value="beta">beta</option><option value="launch">launch</option></select>`;
       const phaseSel=row.querySelector(".phaseSel"); const stageSel=row.querySelector(".stageSel"); phaseSel.value=b.phase||"dev"; stageSel.value=b.stage||"concept";
       phaseSel.onchange=()=>upsertBoardRecord(b.name,{phase:phaseSel.value,phaseUpdatedAt:Date.now()});
       stageSel.onchange=()=>upsertBoardRecord(b.name,{stage:stageSel.value,stageUpdatedAt:Date.now()});
@@ -2130,14 +2160,14 @@ function sanitizeMarkdownImages(s){
           const next=(input.value||"").trim();
           if(!next){ alert("Board name cannot be empty."); return; }
           if(!isBoardNameUnique(next,b.name)){ alert("Board name must be unique."); return; }
-          const oldKey=_cleanKey(b.name), newKey=_cleanKey(next);
+          const oldKey=canonicalBoardKey(b.name), newKey=canonicalBoardKey(next);
           repoBoardsIndex.boards=repoBoardsIndex.boards.map(x=>_cleanKey(x.name)===oldKey?{...x,name:newKey,lastUpdated:Date.now()}:x);
-          if(_cleanKey(currentBoardKey)===oldKey){ setBoardKey(newKey); currentBoardKey=newKey; updateKeyLabel(); }
-          saveRepoBoardsIndex(); renderBoardManager();
+          if(canonicalBoardKey(currentBoardKey)===oldKey){ setBoardKey(newKey); currentBoardKey=newKey; updateKeyLabel(); }
+          saveRepoBoardsIndexCache(); renderBoardManager();
         };
       };
       const download=document.createElement("button"); download.type="button"; download.className="btn icon-btn small"; download.style.color="#6b7280"; download.title="Download board"; download.innerHTML=downloadSvg;
-      download.onclick=()=>{ const payload=localStorage.getItem(`ai_jobs_kanban__${_cleanKey(b.name)}`)||"{}"; const blob=new Blob([payload],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${_cleanKey(b.name)}-${Date.now()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1200); };
+      download.onclick=()=>{ const payload=localStorage.getItem(`ai_jobs_kanban__${canonicalBoardKey(b.name)}`)||"{}"; const blob=new Blob([payload],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${canonicalBoardKey(b.name)}-${Date.now()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1200); };
       const archive=document.createElement("button"); archive.type="button"; archive.className="btn icon-btn small"; archive.style.color="#6b7280"; archive.title="Soft delete board"; archive.innerHTML=trashSvg;
       archive.onclick=()=>{ upsertBoardRecord(b.name,{ archived:true }); renderBoardManager(); };
       row.append(open,edit,download,archive); activeList.appendChild(row);
@@ -2151,7 +2181,7 @@ function sanitizeMarkdownImages(s){
       controls.innerHTML=`<summary class="btn icon-btn small" style="list-style:none;color:#6b7280">${chevronSvg}</summary><div class="board-row-actions"><button type="button" class="btn small">Restore</button><button type="button" class="btn small danger">Delete</button></div>`;
       const [restore,del]=controls.querySelectorAll("button");
       restore.onclick=()=>{ upsertBoardRecord(b.name,{ archived:false }); renderBoardManager(); };
-      del.onclick=()=>{ if(confirm(`Permanently delete board '${b.name}'?`)){ repoBoardsIndex.boards=repoBoardsIndex.boards.filter(x=>_cleanKey(x.name)!==_cleanKey(b.name)); saveRepoBoardsIndex(); localStorage.removeItem(`ai_jobs_kanban__${_cleanKey(b.name)}`); renderBoardManager(); } };
+      del.onclick=()=>{ if(confirm(`Permanently delete board '${b.name}'?`)){ repoBoardsIndex.boards=repoBoardsIndex.boards.filter(x=>canonicalBoardKey(x.name)!==canonicalBoardKey(b.name)); saveRepoBoardsIndexCache(); localStorage.removeItem(`ai_jobs_kanban__${canonicalBoardKey(b.name)}`); renderBoardManager(); } };
       row.append(controls); archivedList.appendChild(row);
     });
   }
@@ -2222,11 +2252,17 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
       const stats=deriveBoardStats(parsed);
       document.getElementById("bImportPreview").textContent=`cards: ${stats.cardCount} · last card update: ${stats.lastCardUpdatedAt?fmtDate(stats.lastCardUpdatedAt):"n/a"}`;
       const next=upsertBoardRecord(raw,{ archived:false },parsed);
-      setBoardKey(next.name); currentBoardKey=next.name;
-      localStorage.setItem(boardLS(), JSON.stringify(parsed));
+      await persistBoardPayloadAuthoritative(next.name, parsed);
+      await persistRepoBoardsIndexAuthoritative();
+      setBoardKey(next.name); currentBoardKey=canonicalBoardKey(next.name);
+      localStorage.setItem(boardLS(), JSON.stringify(parsed)); // mirror cache
+      saveRepoBoardsIndexCache(); // mirror cache
       switchToBoard(next.name);
       dlg.close();
-    }catch(err){ alert("Import failed: "+err.message); }
+    }catch(err){
+      alert("Import failed before authoritative commit: "+err.message);
+      setStatus(`Import failed (${canonicalBoardKey(raw)} @ ${boardFilePath(raw)}): ${err.message}`);
+    }
   });
   window.__switchToBoard=switchToBoard;
   window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
@@ -2236,11 +2272,12 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
 async function bootstrapBoardsLifecycle(){
   await loadRepoSwitch();
   await loadRepoBoardsIndex();
-  const boards=repoBoardsIndex.boards.filter(b=>!b.archived);
-  const requested=(urlBoardParamRaw||"").trim().toLowerCase();
-  const requestedBoard=boards.find(b=>String(b.name||"").toLowerCase()===requested||boardSlug(b.name)===requested);
+  const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>b && !b.archived);
+  const requested=canonicalBoardKey((urlBoardParamRaw||"").trim());
+  const requestedBoard=boards.find(b=>canonicalBoardKey(b.name)===requested);
   const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
-  const chosen=requestedBoard||activeMatch||null;
+  const ordered=[requestedBoard,activeMatch,...boards].filter((b,i,a)=>b && a.findIndex(x=>canonicalBoardKey(x.name)===canonicalBoardKey(b.name))===i);
+  const chosen=ordered[0]||null;
   if(!chosen){
     if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
     else{
@@ -2256,21 +2293,45 @@ async function bootstrapBoardsLifecycle(){
     boardsBootstrapped=true;
     return;
   }
-  const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
+  const key=setBoardKey(chosen.name); currentBoardKey=canonicalBoardKey(key); updateKeyLabel();
   startupBoardName=chosen.name;
+  let loaded=false;
+  let lastErr=null;
+  for(const candidate of ordered){
+    try{
+      const remote=await fetchJson(boardFilePath(candidate.name));
+      if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
+      startupBoardName=candidate.name;
+      setBoardKey(candidate.name); currentBoardKey=canonicalBoardKey(candidate.name); updateKeyLabel();
+      applyImportedBoard(remote, "repo");
+      const repoTs=Number(candidate.lastUpdated||0);
+      const remoteTs=getBoardLastModified(remote);
+      const next=loadCacheMeta();
+      next[currentBoardKey]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
+      saveCacheMeta(next);
+      clearRepoLoadBlocked();
+      setStatus(`Loaded ${candidate.name} from repo`);
+      loaded=true;
+      break;
+    }catch(err){
+      lastErr=err;
+    }
+  }
+  if(loaded){
+    boardsBootstrapped=true;
+    return;
+  }
   try{
     const remote=await fetchJson(boardFilePath(chosen.name));
     if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
-    applyImportedBoard(remote, "repo");
-    const repoTs=Number(chosen.lastUpdated||0);
-    const remoteTs=getBoardLastModified(remote);
-    const next=loadCacheMeta();
-    next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
-    saveCacheMeta(next);
-    clearRepoLoadBlocked();
-    setStatus(`Loaded ${chosen.name} from repo`);
+    applyImportedBoard(remote, "repo fallback");
   }catch(err){
-    setRepoLoadBlocked(err);
+    setRepoLoadBlocked(lastErr||err);
+    const msg=document.createElement("div");
+    msg.className="empty-boarding";
+    msg.textContent=`No active boards could be loaded from repo. Open Board Manager to create/import. Last error: ${(lastErr||err)?.message||"unknown"}`;
+    document.getElementById("board").appendChild(msg);
+    window.__openBoardManager?.(chosen?.name||"new-board");
   }
   boardsBootstrapped=true;
 }
