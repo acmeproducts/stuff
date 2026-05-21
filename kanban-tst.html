@@ -252,6 +252,12 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </header>
 
 <div id="resultsContainer"></div>
+<div id="repoBlocker" class="empty-boarding hidden" style="margin:10px 16px;">
+  <div id="repoBlockerMsg">Repository load failed.</div>
+  <div class="row" style="margin-top:8px;">
+    <button id="repoRetryBtn" type="button" class="btn small primary">Retry</button>
+  </div>
+</div>
 <main id="board" aria-live="polite" data-layout="auto"></main>
 <div class="footer" id="status"></div>
 <div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
@@ -428,6 +434,10 @@ const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 let repoSwitchCfg = {};
 let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
 let boardsBootstrapped = false;
+let repoLoadBlocked = false;
+let repoLoadError = "";
+let repoLoadErrorAt = 0;
+let startupBoardName = "";
 
 
 function _cleanKey(raw){ return (raw||"").trim().replace(/[^A-Za-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"kanban"; }
@@ -505,6 +515,7 @@ function loadPersistedGithubToken(){
   return "";
 }
 function persistNow(options={}){
+  if(repoLoadBlocked) return false;
   const { touchTimestamp=true, syncToGitHub=true } = options || {};
   if(touchTimestamp) state.lastModified=Date.now();
   // save under keyed slot AND legacy slot for compat
@@ -519,8 +530,9 @@ function persistNow(options={}){
   }
   setStatus(ok? "Saved" : "Local save failed (likely storage limit)");
   dirty=false;
+  return ok;
 }
-function scheduleSave(){ dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); }
+function scheduleSave(){ if(repoLoadBlocked) return false; dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); return true; }
 function loadState(){
   // keyed slot first, then legacy
   let raw = localStorage.getItem(boardLS()) || localStorage.getItem(STABLE_KEY);
@@ -585,6 +597,7 @@ function normalizeStatusColor(color){
 function stageCards(stage){ return state.cards.filter(c=>c.stage===stage).sort((a,b)=> (a.pos??0)-(b.pos??0) || (a.createdAt-b.createdAt)); }
 function topPos(stage){ const list=stageCards(stage); return list.length? (list[0].pos??1000)-1000 : 1000; }
 function moveToStageAt(id, stage, index){
+  if(!guardMutation("Move blocked while repository is unavailable")) return;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   const list=stageCards(stage); let pos;
   if(index<=0 || list.length===0) pos=(list[0]?.pos??1000)-1000;
@@ -845,6 +858,7 @@ function getLaneDropIndex(targetStage, y){
   return y < (r.top + r.height/2) ? targetIndex : targetIndex+1;
 }
 function moveLaneToIndex(stage, rawIndex){
+  if(!guardMutation("Lane reorder blocked while repository is unavailable")) return;
   const fromIndex=state.stages.indexOf(stage);
   if(fromIndex<0) return;
   const stages=[...state.stages];
@@ -1261,11 +1275,13 @@ function renderCard(card){
 
 /* ===== Card Ops ===== */
 function createCard(data){
+  if(!guardMutation("Create blocked while repository is unavailable")) return null;
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
   const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
 }
 function updateCard(id, patch){
+  if(!guardMutation("Update blocked while repository is unavailable")) return;
   const c=state.cards.find(x=>x.id===id); if(!c) return;
   if(Object.prototype.hasOwnProperty.call(patch,"dev")) patch.dev=normalizeUrl(patch.dev);
   if(Object.prototype.hasOwnProperty.call(patch,"live")) patch.live=normalizeUrl(patch.live);
@@ -1274,6 +1290,7 @@ function updateCard(id, patch){
   Object.assign(c, patch); c.tags=normalizeTags(c.tags); c.updatedAt=Date.now(); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id);
 }
 function archiveCard(id){
+  if(!guardMutation("Archive blocked while repository is unavailable")) return;
   const idx = state.cards.findIndex(x=>x.id===id); if(idx===-1) return;
   const c = state.cards[idx];
   state.cards.splice(idx,1);
@@ -1281,6 +1298,7 @@ function archiveCard(id){
   scheduleSave(); render();
 }
 function restoreCard(id){
+  if(!guardMutation("Restore blocked while repository is unavailable")) return;
   const idx = state.archive.findIndex(x=>x.id===id); if(idx===-1) return;
   const c = state.archive[idx];
   state.archive.splice(idx,1);
@@ -1290,8 +1308,8 @@ function restoreCard(id){
   state.cards.push(c);
   scheduleSave(); render(); focusCard(c.id);
 }
-function deleteCardPermanently(id){ state.archive = state.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
-function emptyArchive(){ if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
+function deleteCardPermanently(id){ if(!guardMutation("Delete blocked while repository is unavailable")) return; state.archive = state.archive.filter(x=>x.id!==id); scheduleSave(); renderArchiveList(); }
+function emptyArchive(){ if(!guardMutation("Empty archive blocked while repository is unavailable")) return; if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
 function deleteCard(id){ archiveCard(id); }
 function focusCard(id){ const el=$( `.card[data-id="${id}"]` ); if(el){ el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); el.animate([{transform:"scale(1)"},{transform:"scale(1.02)"},{transform:"scale(1)"}],{duration:450}); } }
 function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else if(typeof tags==="string") arr=tags.split(",").map(s=>s.trim()); arr=arr.map(s=>s.toLowerCase()).filter(Boolean); return [...new Set(arr)]; }
@@ -1325,6 +1343,7 @@ function showNotesEditor(){
   notesInput.focus();
 }
 function openEditor(id=null, presetStage=null){
+  if(id===null && !guardMutation("Create blocked while repository is unavailable")) return;
   editingId=id; editorDirty=false;
   $("#editTitle").textContent=id? "Edit Card":"New Card";
   const c=id? state.cards.find(x=>x.id===id):null;
@@ -1480,8 +1499,9 @@ $("#btnSettings").onclick=()=>{
 };
 settingsDialog.addEventListener("close", ()=>{
   const v=settingsDialog.returnValue; if(v==="cancel") return;
-  if(v==="reset"){ if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
+  if(v==="reset"){ if(!guardMutation("Reset blocked while repository is unavailable")) return; if(confirm("Remove all cards? (Archive remains)")){ state.cards=[]; scheduleSave(); render(); } return; }
   if(v==="save"){
+    if(!guardMutation("Settings changes blocked while repository is unavailable")) return;
     const platforms=$("#sPlatforms").value.split(",").map(s=>s.trim()).filter(Boolean);
     const stages=$("#sStages").value.split(",").map(s=>s.trim()).filter(Boolean);
     const layout=$("#sLayout").value; // auto|horizontal|vertical
@@ -1506,6 +1526,7 @@ const DRIVE_JSON_URLS = DRIVE_FILE_ID
 
 function toast(title, desc="", isErr=false){ const t=document.getElementById("toast"); t.className=isErr? "err":""; t.querySelector(".tmsg").textContent=title; t.querySelector(".tdesc").textContent=desc; t.style.display="block"; clearTimeout(t._timer); t._timer=setTimeout(()=>{ t.style.display="none"; }, 2800); }
 function applyImportedBoard(obj, sourceLabel="import", options={}){
+  if(options?.requireWritable && !guardMutation("Import blocked while repository is unavailable")) return false;
   if(!(Array.isArray(obj?.cards)&&Array.isArray(obj?.platforms)&&Array.isArray(obj?.stages))){
     toast("Import failed","Invalid JSON", true);
     alert("Invalid JSON structure.");
@@ -1529,7 +1550,7 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
   saveCacheMeta(meta);
   render();
   toast("Import successful","Board replaced");
-  setStatus(`Imported ${sourceLabel} and saved to local storage.`);
+  setStatus(`Imported ${sourceLabel}.`);
   return true;
 }
 function isValidBoardData(obj){
@@ -1646,11 +1667,11 @@ async function forceRefreshFromDrive(){
   }
   applyImportedBoard(remote, "Google Drive refresh");
 }
-$("#fileImport").onchange=(e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file"); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+$("#fileImport").onchange=(e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } if((repoBoardsIndex.boards||[]).some(b=>_cleanKey(b.name)===_cleanKey(name))){ alert("Board name must be unique."); e.target.value=""; return; } const rec=upsertBoardRecord(name,{ archived:false }); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
-$("#btnOpenArchive").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
+$("#btnOpenArchive").onclick=()=>{ if(!guardMutation("Archive changes blocked while repository is unavailable")) return; renderArchiveList(); archiveDialog.showModal(); };
 archiveDialog.addEventListener("close", (e)=>{ if(archiveDialog.returnValue==="empty"){ emptyArchive(); } });
 function renderArchiveList(){
   const list=$("#archiveList"); list.innerHTML="";
@@ -1727,6 +1748,36 @@ function localDateTimeInputValue(date=new Date()){ const d=date instanceof Date 
 function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 // NEW: status bar shows current board key
 function setStatus(t){ const detail=t? `${t} • ` : ""; document.getElementById("status").textContent=`${detail}Last updated: ${formatLastUpdated(state.lastModified)} • Build ${BUILD} • board: ${currentBoardKey}`; }
+function updateRepoBlockerUI(){
+  const blocker=document.getElementById("repoBlocker");
+  const msg=document.getElementById("repoBlockerMsg");
+  if(!blocker || !msg) return;
+  blocker.classList.toggle("hidden", !repoLoadBlocked);
+  if(repoLoadBlocked){
+    const when=repoLoadErrorAt ? new Date(repoLoadErrorAt).toLocaleString() : "unknown";
+    msg.textContent=`Repository load failed. Board is read-only until retry succeeds. ${repoLoadError||"Unknown error"} (${when})`;
+  }
+}
+function setRepoLoadBlocked(error){
+  repoLoadBlocked=true;
+  repoLoadError=String(error?.message||error||"Repository fetch failed");
+  repoLoadErrorAt=Date.now();
+  setStatus(`Repo load failed: ${repoLoadError} @ ${new Date(repoLoadErrorAt).toLocaleString()}`);
+  updateRepoBlockerUI();
+}
+function clearRepoLoadBlocked(){
+  repoLoadBlocked=false;
+  repoLoadError="";
+  repoLoadErrorAt=0;
+  updateRepoBlockerUI();
+}
+function guardMutation(actionLabel="Changes are blocked"){
+  if(!repoLoadBlocked) return true;
+  const msg=String(actionLabel||"Changes are blocked");
+  toast("Read-only mode", msg, true);
+  setStatus(`Blocked: ${msg}`);
+  return false;
+}
 function b64EncodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
 function b64DecodeUnicode(b64){ return decodeURIComponent(escape(atob(b64))); }
 async function validateToken(token){
@@ -2083,6 +2134,7 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
   document.getElementById("boardsClose").addEventListener("click", ()=> dlg.close());
 
   document.getElementById("bCreateBoard").addEventListener("click", ()=>{
+    if(!guardMutation("Create board blocked while repository is unavailable")) return;
     const raw = nameInput.value.trim();
     if(!raw){ alert("Enter a board name."); return; }
     if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
@@ -2092,6 +2144,7 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
   });
   
   document.getElementById("bImportBoard").addEventListener("click", ()=>{
+    if(!guardMutation("Import board blocked while repository is unavailable")) return;
     const fi=document.getElementById("bImportFile");
     const [file]=fi.files||[];
     if(!file){ alert("Choose a JSON file to import."); return; }
@@ -2123,10 +2176,8 @@ async function bootstrapBoardsLifecycle(){
   const boards=repoBoardsIndex.boards.filter(b=>!b.archived);
   const requested=(urlBoardParamRaw||"").trim().toLowerCase();
   const requestedBoard=boards.find(b=>String(b.name||"").toLowerCase()===requested||boardSlug(b.name)===requested);
-  const lastBoard=(localStorage.getItem(BOARD_KEY_LS)||"").trim().toLowerCase();
-  const lastBoardMatch=boards.find(b=>boardSlug(b.name)===lastBoard||String(b.name||"").toLowerCase()===lastBoard);
   const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
-  const chosen=requestedBoard||lastBoardMatch||activeMatch||null;
+  const chosen=requestedBoard||activeMatch||null;
   if(!chosen){
     if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
     else{
@@ -2143,6 +2194,7 @@ async function bootstrapBoardsLifecycle(){
     return;
   }
   const key=setBoardKey(chosen.name); currentBoardKey=key; updateKeyLabel();
+  startupBoardName=chosen.name;
   try{
     const remote=await fetchJson(boardFilePath(chosen.name));
     if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
@@ -2152,15 +2204,31 @@ async function bootstrapBoardsLifecycle(){
     const next=loadCacheMeta();
     next[key]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
     saveCacheMeta(next);
+    clearRepoLoadBlocked();
     setStatus(`Loaded ${chosen.name} from repo`);
-  }catch{
-    setStatus(`Loaded ${chosen.name} from local cache`);
+  }catch(err){
+    setRepoLoadBlocked(err);
   }
   boardsBootstrapped=true;
 }
 
+async function retryRepoStartupLoad(){
+  if(!startupBoardName) return;
+  try{
+    const remote=await fetchJson(boardFilePath(startupBoardName));
+    if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
+    applyImportedBoard(remote, "repo retry");
+    clearRepoLoadBlocked();
+    setStatus(`Loaded ${startupBoardName} from repo`);
+  }catch(err){
+    setRepoLoadBlocked(err);
+  }
+}
+
 /* ===== Init ===== */
 updateKeyLabel();
+updateRepoBlockerUI();
+document.getElementById("repoRetryBtn").addEventListener("click", ()=>{ retryRepoStartupLoad(); });
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
