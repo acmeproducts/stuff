@@ -387,6 +387,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     <div class="row" style="margin:4px 0 12px;gap:6px">
       <button type="button" class="btn small" id="tabList">List</button>
       <button type="button" class="btn small" id="tabNew">New</button>
+      <button type="button" class="btn small" id="tabImport">Import</button>
     </div>
     <section id="tabListPane">
       <div id="bBoardList" style="margin-top:4px;display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow:auto"></div>
@@ -403,12 +404,30 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
           <button type="button" class="btn primary" id="bCreateBoard">Create</button>
         </div>
       </div>
+    </section>
+    <section id="tabImportPane" class="hidden">
       <div class="field">
-        <label for="bImportFile">Import board JSON</label>
+        <label for="bImportName">Board name</label>
+        <input id="bImportName" placeholder="imported-board" style="font-family:ui-monospace,monospace;flex:1"/>
+      </div>
+      <div class="field">
+        <label>Import source</label>
         <div class="row">
-          <input id="bImportFile" type="file" accept="application/json"/>
-          <button type="button" class="btn" id="bImportBoard">Import</button>
+          <label><input type="radio" name="importSource" value="file" checked/> Local file</label>
+          <label><input type="radio" name="importSource" value="url"/> URL</label>
         </div>
+      </div>
+      <div class="field" id="importFileRow">
+        <label for="bImportFile">Import board JSON file</label>
+        <input id="bImportFile" type="file" accept="application/json"/>
+      </div>
+      <div class="field hidden" id="importUrlRow">
+        <label for="bImportUrl">Import board JSON URL</label>
+        <input id="bImportUrl" type="url" placeholder="https://.../board.json"/>
+      </div>
+      <div id="bImportPreview" class="muted" style="margin-bottom:8px"></div>
+      <div class="row">
+        <button type="button" class="btn primary" id="bImportBoard">Import & Commit</button>
       </div>
     </section>
   </form>
@@ -464,17 +483,38 @@ function saveCacheMeta(meta){ localStorage.setItem(BOARD_CACHE_META_KEY, JSON.st
 function normalizeBoardRecord(record){
   const name=_cleanKey(record?.name||"");
   if(!name) return null;
-  return { name, archived:!!record?.archived, lastUpdated:Number(record?.lastUpdated||Date.now()) };
+  const now=Date.now();
+  return {
+    name,
+    archived:!!record?.archived,
+    lastUpdated:Number(record?.lastUpdated||now),
+    createdAt:Number(record?.createdAt||record?.lastUpdated||now),
+    cardCount:Number.isFinite(Number(record?.cardCount)) ? Number(record.cardCount) : 0,
+    lastCardUpdatedId:String(record?.lastCardUpdatedId||""),
+    lastCardUpdatedAt:Number(record?.lastCardUpdatedAt||0),
+    phase:["dev","tst","prd"].includes(String(record?.phase||"")) ? String(record.phase) : "dev",
+    phaseUpdatedAt:Number(record?.phaseUpdatedAt||now),
+    stage:["concept","alpha","pilot","beta","launch"].includes(String(record?.stage||"")) ? String(record.stage) : "concept",
+    stageUpdatedAt:Number(record?.stageUpdatedAt||now)
+  };
 }
 function saveRepoBoardsIndex(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
   localStorage.setItem("kanban_repo_boards_index_cache", JSON.stringify(repoBoardsIndex));
 }
-function upsertBoardRecord(name, patch={}){
+function deriveBoardStats(board){
+  const cards=Array.isArray(board?.cards)?board.cards:[];
+  let lastCard=null;
+  for(const c of cards){ if(!lastCard || Number(c.updatedAt||0)>Number(lastCard.updatedAt||0)) lastCard=c; }
+  return { cardCount:cards.length, lastCardUpdatedId:lastCard?.id||"", lastCardUpdatedAt:Number(lastCard?.updatedAt)||0 };
+}
+function upsertBoardRecord(name, patch={}, boardData=null){
   const key=_cleanKey(name);
   const idx=repoBoardsIndex.boards.findIndex(b=>_cleanKey(b.name)===key);
-  const base=idx>=0 ? repoBoardsIndex.boards[idx] : { name:key, archived:false, lastUpdated:Date.now() };
-  const next=normalizeBoardRecord({ ...base, ...patch, name:key, lastUpdated:Date.now() });
+  const now=Date.now();
+  const base=idx>=0 ? normalizeBoardRecord(repoBoardsIndex.boards[idx]) : normalizeBoardRecord({ name:key, archived:false, createdAt:now, phase:"dev", stage:"concept" });
+  const stats=boardData?deriveBoardStats(boardData):{};
+  const next=normalizeBoardRecord({ ...base, ...stats, ...patch, name:key, createdAt:base.createdAt, lastUpdated:now });
   if(idx>=0) repoBoardsIndex.boards[idx]=next; else repoBoardsIndex.boards.push(next);
   if(!next.archived) repoBoardsIndex.activeBoard=next.name;
   saveRepoBoardsIndex();
@@ -2072,7 +2112,10 @@ function sanitizeMarkdownImages(s){
     active.forEach(b=>{
       const row=document.createElement("div");
       row.className="board-list-row"+(_cleanKey(b.name)===currentBoardKey?" current":"");
-      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}`;
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${_cleanKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}<select class="phaseSel"><option value="dev">dev</option><option value="tst">tst</option><option value="prd">prd</option></select><select class="stageSel"><option value="concept">concept</option><option value="alpha">alpha</option><option value="pilot">pilot</option><option value="beta">beta</option><option value="launch">launch</option></select>`;
+      const phaseSel=row.querySelector(".phaseSel"); const stageSel=row.querySelector(".stageSel"); phaseSel.value=b.phase||"dev"; stageSel.value=b.stage||"concept";
+      phaseSel.onchange=()=>upsertBoardRecord(b.name,{phase:phaseSel.value,phaseUpdatedAt:Date.now()});
+      stageSel.onchange=()=>upsertBoardRecord(b.name,{stage:stageSel.value,stageUpdatedAt:Date.now()});
       const open=document.createElement("button"); open.type="button"; open.className="btn small"; open.textContent="Open";
       open.onclick=()=>switchToBoard(b.name);
       const edit=document.createElement("button"); edit.type="button"; edit.className="btn icon-btn small"; edit.style.color="#6b7280"; edit.title="Edit name"; edit.innerHTML=pencilSvg;
@@ -2114,17 +2157,21 @@ function sanitizeMarkdownImages(s){
   }
   const tabListBtn=document.getElementById("tabList");
   const tabNewBtn=document.getElementById("tabNew");
+  const tabImportBtn=document.getElementById("tabImport");
   const tabListPane=document.getElementById("tabListPane");
   const tabNewPane=document.getElementById("tabNewPane");
+  const tabImportPane=document.getElementById("tabImportPane");
   function setBoardTab(tab){
-    const listMode=tab!=="new";
-    tabListPane.classList.toggle("hidden",!listMode);
-    tabNewPane.classList.toggle("hidden",listMode);
-    tabListBtn.classList.toggle("primary",listMode);
-    tabNewBtn.classList.toggle("primary",!listMode);
+    tabListPane.classList.toggle("hidden",tab!=="list");
+    tabNewPane.classList.toggle("hidden",tab!=="new");
+    tabImportPane.classList.toggle("hidden",tab!=="import");
+    tabListBtn.classList.toggle("primary",tab==="list");
+    tabNewBtn.classList.toggle("primary",tab==="new");
+    tabImportBtn.classList.toggle("primary",tab==="import");
   }
   tabListBtn.addEventListener("click",()=>setBoardTab("list"));
   tabNewBtn.addEventListener("click",()=>setBoardTab("new"));
+  tabImportBtn.addEventListener("click",()=>setBoardTab("import"));
 document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     setBoardInputDefaults(currentBoardKey);
     renderBoardManager();
@@ -2143,27 +2190,43 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     dlg.close();
   });
   
-  document.getElementById("bImportBoard").addEventListener("click", ()=>{
+  function setImportSourceUi(){
+    const mode=(document.querySelector('input[name="importSource"]:checked')||{}).value||"file";
+    document.getElementById("importFileRow").classList.toggle("hidden",mode!=="file");
+    document.getElementById("importUrlRow").classList.toggle("hidden",mode!=="url");
+  }
+  document.querySelectorAll('input[name="importSource"]').forEach(el=>el.addEventListener("change",setImportSourceUi));
+  setImportSourceUi();
+
+  document.getElementById("bImportBoard").addEventListener("click", async ()=>{
     if(!guardMutation("Import board blocked while repository is unavailable")) return;
-    const fi=document.getElementById("bImportFile");
-    const [file]=fi.files||[];
-    if(!file){ alert("Choose a JSON file to import."); return; }
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{
-        const parsed=JSON.parse(String(reader.result||"{}"));
-        if(!isValidBoardData(parsed)) throw new Error("Invalid board JSON");
-        const raw=nameInput.value.trim();
-        if(!raw){ alert("Enter a board name."); return; }
-        if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
-        const next=upsertBoardRecord(raw,{ archived:false });
-        setBoardKey(next.name); currentBoardKey=next.name;
-        localStorage.setItem(boardLS(), JSON.stringify(parsed));
-        switchToBoard(next.name);
-        dlg.close();
-      }catch(err){ alert("Import failed: "+err.message); }
-    };
-    reader.readAsText(file);
+    const raw=document.getElementById("bImportName").value.trim();
+    if(!raw){ alert("Enter a board name."); return; }
+    if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
+    const mode=(document.querySelector('input[name="importSource"]:checked')||{}).value||"file";
+    let parsed=null;
+    try{
+      if(mode==="url"){
+        const importUrl=(document.getElementById("bImportUrl").value||"").trim();
+        if(!importUrl) throw new Error("Enter a URL to import.");
+        const resp=await fetch(importUrl,{cache:"no-store"});
+        if(!resp.ok) throw new Error(`Import URL failed: HTTP ${resp.status}`);
+        parsed=await resp.json();
+      } else {
+        const fi=document.getElementById("bImportFile");
+        const [file]=fi.files||[];
+        if(!file) throw new Error("Choose a JSON file to import.");
+        parsed=JSON.parse(await file.text());
+      }
+      if(!isValidBoardData(parsed)) throw new Error("Invalid board JSON");
+      const stats=deriveBoardStats(parsed);
+      document.getElementById("bImportPreview").textContent=`cards: ${stats.cardCount} · last card update: ${stats.lastCardUpdatedAt?fmtDate(stats.lastCardUpdatedAt):"n/a"}`;
+      const next=upsertBoardRecord(raw,{ archived:false },parsed);
+      setBoardKey(next.name); currentBoardKey=next.name;
+      localStorage.setItem(boardLS(), JSON.stringify(parsed));
+      switchToBoard(next.name);
+      dlg.close();
+    }catch(err){ alert("Import failed: "+err.message); }
   });
   window.__switchToBoard=switchToBoard;
   window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
