@@ -511,10 +511,11 @@ async function persistRepoBoardsIndexAuthoritative(){
   const path=REPO_BOARDS_FILE;
   const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
   let sha=null;
-  const existing=await githubFetch(getUrl,{method:"GET"});
-  if(existing?.ok){
-    const body=await existing.json();
-    sha=body?.sha||null;
+  try{
+    const existing=await githubFetch(getUrl,{method:"GET"});
+    sha=existing?.sha||null;
+  }catch(err){
+    if(!String(err?.message||"").includes("(404)")) throw err;
   }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
   await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
@@ -525,10 +526,11 @@ async function persistBoardPayloadAuthoritative(name, boardData){
   const path=boardFilePath(name);
   const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
   let sha=null;
-  const existing=await githubFetch(getUrl,{method:"GET"});
-  if(existing?.ok){
-    const body=await existing.json();
-    sha=body?.sha||null;
+  try{
+    const existing=await githubFetch(getUrl,{method:"GET"});
+    sha=existing?.sha||null;
+  }catch(err){
+    if(!String(err?.message||"").includes("(404)")) throw err;
   }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
   await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(boardData,null,2)+"\n"),branch:cfg.branch,sha})});
@@ -539,7 +541,7 @@ function deriveBoardStats(board){
   for(const c of cards){ if(!lastCard || Number(c.updatedAt||0)>Number(lastCard.updatedAt||0)) lastCard=c; }
   return { cardCount:cards.length, lastCardUpdatedId:lastCard?.id||"", lastCardUpdatedAt:Number(lastCard?.updatedAt)||0 };
 }
-function upsertBoardRecord(name, patch={}, boardData=null){
+function upsertBoardRecord(name, patch={}, boardData=null, options={}){
   const key=canonicalBoardKey(name);
   const idx=repoBoardsIndex.boards.findIndex(b=>canonicalBoardKey(b.name)===key);
   const now=Date.now();
@@ -548,7 +550,7 @@ function upsertBoardRecord(name, patch={}, boardData=null){
   const next=normalizeBoardRecord({ ...base, ...stats, ...patch, name:key, createdAt:base.createdAt, lastUpdated:now });
   if(idx>=0) repoBoardsIndex.boards[idx]=next; else repoBoardsIndex.boards.push(next);
   if(!next.archived) repoBoardsIndex.activeBoard=next.name;
-  saveRepoBoardsIndexCache();
+  if(options.persistCache!==false) saveRepoBoardsIndexCache();
   return next;
 }
 
@@ -1738,7 +1740,34 @@ async function forceRefreshFromDrive(){
   }
   applyImportedBoard(remote, "Google Drive refresh");
 }
-$("#fileImport").onchange=async (e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } await refreshBoardsIndexFromRepo(); if((repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(name))){ alert("Board name must be unique in repository index."); e.target.value=""; return; } try{ const rec=upsertBoardRecord(name,{ archived:false },board); await persistBoardPayloadAuthoritative(rec.name, board); await persistRepoBoardsIndexAuthoritative(); window.__switchToBoard?.(rec.name); applyImportedBoard(board, "JSON file", { requireWritable:true }); }catch(err){ alert("Import failed before authoritative commit: "+err.message); setStatus(`Import failed (${canonicalBoardKey(name)} @ ${boardFilePath(name)}): ${err.message}`); } }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
+async function importBoardAuthoritative(name, board, sourceLabel){
+  await refreshBoardsIndexFromRepo();
+  if((repoBoardsIndex.boards||[]).some(b=>canonicalBoardKey(b.name)===canonicalBoardKey(name))){
+    throw new Error("Board name must be unique in repository index.");
+  }
+  const snapshot=JSON.parse(JSON.stringify(repoBoardsIndex));
+  let rec=null;
+  try{
+    rec=upsertBoardRecord(name,{ archived:false },board,{ persistCache:false });
+    await persistBoardPayloadAuthoritative(rec.name, board);
+    await persistRepoBoardsIndexAuthoritative();
+    setBoardKey(rec.name); currentBoardKey=canonicalBoardKey(rec.name);
+    localStorage.setItem(boardLS(), JSON.stringify(board)); // mirror cache
+    saveRepoBoardsIndexCache(); // mirror cache
+    if(sourceLabel==="JSON file"){
+      window.__switchToBoard?.(rec.name);
+      applyImportedBoard(board, sourceLabel, { requireWritable:true });
+    }else{
+      switchToBoard(rec.name);
+    }
+    return rec;
+  }catch(err){
+    repoBoardsIndex=snapshot;
+    throw err;
+  }
+}
+
+$("#fileImport").onchange=async (e)=>{ if(!guardMutation("Import blocked while repository is unavailable")){ e.target.value=""; return; } const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=async ()=>{ const board=parseBoardPayload(r.result); if(board){ const raw=prompt("Name for imported board:",""); if(raw===null){ e.target.value=""; return; } const name=raw.trim(); if(!name){ alert("Board name cannot be blank."); e.target.value=""; return; } try{ await importBoardAuthoritative(name, board, "JSON file"); }catch(err){ alert("Import failed: "+err.message); setStatus(`Import failed (${canonicalBoardKey(name)} @ ${boardFilePath(name)}): ${err.message}`); } }else{ toast("Import failed","Could not parse board file", true); alert("Failed to parse board file. Expected .json board data."); } }; r.readAsText(f); e.target.value=""; };
 
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
@@ -2233,8 +2262,6 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     if(!guardMutation("Import board blocked while repository is unavailable")) return;
     const raw=document.getElementById("bImportName").value.trim();
     if(!raw){ alert("Enter a board name."); return; }
-    await refreshBoardsIndexFromRepo();
-    if(!isBoardNameUnique(raw)){ alert("Board name must be unique in repository index."); return; }
     const mode=(document.querySelector('input[name="importSource"]:checked')||{}).value||"file";
     let parsed=null;
     try{
@@ -2253,16 +2280,10 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
       if(!isValidBoardData(parsed)) throw new Error("Invalid board JSON");
       const stats=deriveBoardStats(parsed);
       document.getElementById("bImportPreview").textContent=`cards: ${stats.cardCount} · last card update: ${stats.lastCardUpdatedAt?fmtDate(stats.lastCardUpdatedAt):"n/a"}`;
-      const next=upsertBoardRecord(raw,{ archived:false },parsed);
-      await persistBoardPayloadAuthoritative(next.name, parsed);
-      await persistRepoBoardsIndexAuthoritative();
-      setBoardKey(next.name); currentBoardKey=canonicalBoardKey(next.name);
-      localStorage.setItem(boardLS(), JSON.stringify(parsed)); // mirror cache
-      saveRepoBoardsIndexCache(); // mirror cache
-      switchToBoard(next.name);
+      await importBoardAuthoritative(raw, parsed, mode==="url"?"URL":"JSON file");
       dlg.close();
     }catch(err){
-      alert("Import failed before authoritative commit: "+err.message);
+      alert("Import failed: "+err.message);
       setStatus(`Import failed (${canonicalBoardKey(raw)} @ ${boardFilePath(raw)}): ${err.message}`);
     }
   });
