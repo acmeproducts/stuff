@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v4.6.0 -->
+<!-- talkbridge · dcr · v5.1.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>TalkBridge</title>
+<link rel="manifest" href="/stuff/manifest.json">
+<meta name="theme-color" content="#0a1a1a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -430,6 +432,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
           <div><div class="lobby-label" style="margin-bottom:6px;">GitHub PAT <span style="font-size:10px;opacity:.6;">(repo write — optional)</span></div>
           <input class="lobby-input" id="gh-pat-inp" type="password" placeholder="ghp_… — stored locally" oninput="saveGhPat()">
           </div>
+          <div id="tel-creds-section" style="display:none;"><div class="lobby-label" style="margin-bottom:6px;">Telemetry endpoint <span style="font-size:10px;opacity:.6;">(host only)</span></div>
+          <input class="lobby-input" id="tel-endpoint" type="text" placeholder="https://…" oninput="saveTelCreds()">
+          <div class="lobby-label" style="margin-bottom:6px;margin-top:10px;">Telemetry token</div>
+          <input class="lobby-input" id="tel-token" type="password" placeholder="Bearer token — stored locally" oninput="saveTelCreds()">
+          </div>
+          <button id="pwa-install-btn" onclick="pwaInstall()" style="display:none;margin-top:6px;width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">📲 Install app</button>
         </div>
         <div class="recent-rooms" id="recent-rooms" style="display:none;margin-top:14px;">
           <div class="recent-title">Recent rooms</div>
@@ -439,7 +447,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v4.6.0</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.1.0</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1365,7 +1373,14 @@ function pbNorm(c){
     savedBy:c.savedBy||'',
     deletedAt:c.deletedAt||null,
     createdAt:c.createdAt||now,
-    updatedAt:c.updatedAt||now
+    updatedAt:c.updatedAt||now,
+    intentId:c.intentId||null,
+    fingerprint:c.fingerprint||null,
+    primaryTag:c.primaryTag||null,
+    parentCategory:c.parentCategory||null,
+    relatedIntents:Array.isArray(c.relatedIntents)?c.relatedIntents.slice(0,5):[],
+    semanticRelationships:c.semanticRelationships||null,
+    usage:typeof c.usage==='number'?c.usage:0
   };
 }
 
@@ -1594,6 +1609,8 @@ function _pbAutoLoad(){
   if(!room.myLang||!room.theirLang||room.myLang===room.theirLang)return;
   _pbFetchOne(room.myLang,room.theirLang);
   _pbFetchOne(room.theirLang,room.myLang);
+  _pbCheckETag(room.myLang,room.theirLang);
+  _pbCheckETag(room.theirLang,room.myLang);
 }
 var _PB_GIT_FILES=[
   {src:'en',tgt:'es'},{src:'es',tgt:'en'},
@@ -1723,6 +1740,17 @@ function _pbLoadCDN(srcLang,tgtLang){
       _tmBuild(srcLang,tgtLang);
     }).catch(function(e){log('cdn_load_fail',{e:String(e)},'warn');_tmBuild(srcLang,tgtLang);});
 }
+function _pbCheckETag(srcLang,tgtLang){
+  var url=_PB_CDN_BASE+'phrasebook-'+_pbRepoToken(srcLang)+'-'+_pbRepoToken(tgtLang)+'-default.json';
+  var eKey='pb_cdn_etag:'+srcLang+'-'+tgtLang;
+  fetch(url,{method:'HEAD'}).then(function(r){
+    var etag=r.headers.get('etag')||r.headers.get('last-modified')||'';
+    if(!etag)return;
+    var prev=localStorage.getItem(eKey)||'';
+    if(prev&&prev!==etag){toast('Phrasebook update available — tap ☁↓ to refresh');log('cdn_etag_changed',{pair:srcLang+'-'+tgtLang});}
+    localStorage.setItem(eKey,etag);
+  }).catch(function(){});
+}
 function pbGetCardByIntentId(intentId){
   if(_intentIdMap[intentId])return _intentIdMap[intentId];
   var cards=pbGetCards();for(var i=0;i<cards.length;i++){if(cards[i].intentId===intentId){_intentIdMap[intentId]=cards[i];return cards[i];}}
@@ -1821,6 +1849,20 @@ function _telFlush(){
   _telBuf=[];
 }
 window.addEventListener('beforeunload',_telFlush);
+async function _telPost(){
+  _telFlush();
+  if(!_PB_TEL_ENDPOINT)return;
+  var key='pb_telemetry:'+((room&&room.myLang)||'?')+'-'+((room&&room.theirLang)||'?');
+  var buf=[];try{buf=JSON.parse(localStorage.getItem(key)||'[]');}catch(_){}
+  if(!buf.length)return;
+  try{
+    var r=await fetch(_PB_TEL_ENDPOINT+'/ingest',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_PB_TEL_TOKEN},
+      body:JSON.stringify({client:'talkbridge',version:'5.1',events:buf})});
+    if(r.ok){localStorage.removeItem(key);log('tel_posted',{n:buf.length});}
+    else{log('tel_post_fail',{status:r.status},'warn');}
+  }catch(e){log('tel_post_fail',{e:String(e)},'warn');}
+}
 function pbExportPrompt(){
   var pair=pbActivePair();
   var pairStr=pair?(pair.src+'-'+pair.tgt+'-'):'';
@@ -2458,6 +2500,19 @@ function pbSaveNewCard(){
   pbPushCardToRepo(card);
 }
 function saveGhPat(){var v=(document.getElementById('gh-pat-inp')||{}).value||'';if(v.trim())localStorage.setItem('tb_gh_pat',v.trim());}
+function saveTelCreds(){
+  var ep=(document.getElementById('tel-endpoint')||{}).value||'';
+  var tok=(document.getElementById('tel-token')||{}).value||'';
+  _PB_TEL_ENDPOINT=ep.trim();_PB_TEL_TOKEN=tok.trim();
+  if(ep.trim())localStorage.setItem('tb_pb_tel_ep',ep.trim());
+  if(tok.trim())localStorage.setItem('tb_pb_tel_tok',tok.trim());
+}
+function _initTelCreds(){
+  var ep=localStorage.getItem('tb_pb_tel_ep')||'';var tok=localStorage.getItem('tb_pb_tel_tok')||'';
+  _PB_TEL_ENDPOINT=ep;_PB_TEL_TOKEN=tok;
+  var epEl=document.getElementById('tel-endpoint');if(epEl&&ep)epEl.value=ep;
+  var tokEl=document.getElementById('tel-token');if(tokEl&&tok)tokEl.value=tok;
+}
 async function pbPushCardToRepo(card){
   var pat=(localStorage.getItem('tb_gh_pat')||'').trim();if(!pat)return;
   var src=card.sourceLang;var tgt=card.targetLang;
@@ -2725,6 +2780,7 @@ function toggleKeysPanel(){
   var p=document.getElementById('keys-panel');var btn=document.getElementById('keys-gear-btn');if(!p)return;
   var open=p.style.display==='flex';p.style.display=open?'none':'flex';
   if(btn)btn.style.background=open?'':'var(--teal)';if(btn)btn.style.color=open?'':'#fff';
+  var ts=document.getElementById('tel-creds-section');if(ts)ts.style.display=(!open&&!room.role||!open&&room.role==='creator')?'':'none';
 }
 function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok2=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();var cb=$('create-btn');if(cb)cb.disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified&&tid&&tok2);syncModalBtn();}
 function setCfTurnStatus(msg,color){var el=$('cf-turn-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
@@ -3713,7 +3769,7 @@ function hidePartnerDisconnected(){
 // Phase 2: hangUp — role-split enforced
 function hangUp(){
   pbIClose();
-  _telFlush();
+  _telPost();
   relaySend({type:'hangup'});
   if(room.role==='creator'){
     cleanUp();
@@ -3749,7 +3805,7 @@ if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=lo
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
 if(localStorage.getItem('tb_gh_pat')&&$('gh-pat-inp'))$('gh-pat-inp').value=localStorage.getItem('tb_gh_pat').trim();
 log('startup',{v:'3.5.5',ua:navigator.userAgent.slice(0,80)});
-pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
+pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();_initTelCreds();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
   var tts=ev.target.closest('.tr-tts');
@@ -3822,6 +3878,10 @@ window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive())reconcileDeepgramState('visibility_restore');
 });
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
+var _pwaPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_pwaPrompt=e;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='';});
+function pwaInstall(){if(!_pwaPrompt)return;_pwaPrompt.prompt();_pwaPrompt.userChoice.then(function(){_pwaPrompt=null;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='none';});}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){/* SW opt-in only — registered via pwaInstall */});}
 </script>
 </body>
 </html>

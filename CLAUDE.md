@@ -3,7 +3,7 @@
 ## Maturity Chain
 
 ```
-bridge-pre-base-cc.html → bridge-base-cc.html → bridge-pre-ship-cc.html → bridge-ship-cc.html → bridge-post-ship-cc.html
+bridge-pre-base-cc.html → bridge-base-cc.html → bridge-pre-ship-cc.html → bridge-ship-cc.html → bridge-post-ship-cc.html → bridge-post-ship-plus-1-cc.html
 ```
 
 **Never modify** `bridge-pre-base-cc.html`, `bridge-base-cc.html`, `bridge-pre-ship-cc.html`, or `bridge-ship-cc.html` unless the change is a bug fix or fix that must propagate through the chain. Fixes found in later files must be backported to all earlier files that contain the affected code.
@@ -28,12 +28,14 @@ All files in the maturity chain share the **same localStorage origin** and there
 | `PB_CATS` | `say_catalogs` | Phrasebook catalogs |
 | `PB_TAGS_K` | `say_tags` | Phrasebook tag registry |
 | `PB_SEEDED` | `pb_bridge_v2` | One-time seed sentinel |
+| `tb_pb_tel_ep` | `tb_pb_tel_ep` | Telemetry endpoint URL (host-only, post-ship+1) |
+| `tb_pb_tel_tok` | `tb_pb_tel_tok` | Telemetry Bearer token (host-only, post-ship+1) |
 
 **Rules:**
 1. Never rename any key in the table above in any file.
 2. Never add a version-specific prefix or suffix to any key.
 3. If a new persistent key is needed, add it to this table and apply it identically to every file that needs it.
-4. Before committing any change that touches localStorage, grep all five bridge files and confirm the key is spelled identically in each.
+4. Before committing any change that touches localStorage, grep all six bridge files and confirm the key is spelled identically in each.
 
 **Verification command:**
 ```bash
