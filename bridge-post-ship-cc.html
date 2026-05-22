@@ -236,7 +236,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-tts-btn{background:none;border:none;cursor:pointer;color:#9a9592;padding:3px;line-height:0;display:flex;align-items:center;}
 .pb-tts-btn:hover{color:#1a1714;}
 .pb-bbl-foot{border-top:1px solid #e0dbd6;display:flex;gap:1px;padding:3px 5px;background:#fdfaf7;}
-.pb-fbt{background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;color:#9a9592;padding:4px 8px;border-radius:6px;font-family:"DM Sans",sans-serif;white-space:nowrap;flex:1;text-align:center;transition:background .1s;}
+.pb-fbt{background:none;border:none;cursor:pointer;color:#9a9592;padding:5px 8px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex:1;transition:background .1s,color .1s;}
 .pb-fbt:hover{background:rgba(0,0,0,.05);color:#5a5552;}
 .pb-fbt.on{background:rgba(46,139,139,.12);color:#2e8b8b;}
 .pb-panel{border-top:1px solid #e0dbd6;background:#fdfaf7;}
@@ -658,7 +658,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="pb-nc-verdict-btn" id="pbnc-vflag" onclick="pbNcSetVerdict('flag')">⚑ Flag</button>
       </div>
     </div>
-    <input id="pbnc-tags" class="pb-nc-inp" type="text" placeholder="tags (comma-separated)" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+    <div style="margin-bottom:10px;position:relative;">
+      <div id="pbnc-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:20px;margin-bottom:5px;"></div>
+      <input id="pbnc-tag-inp" class="pb-nc-inp" type="text" placeholder="Add tag…" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="pbNcTagSugg()" onkeydown="pbNcTagKey(event)">
+      <div id="pbnc-tag-sugg" style="display:none;position:absolute;left:0;right:0;background:#fdfaf7;border:1px solid #e0dbd6;border-radius:6px;max-height:120px;overflow-y:auto;z-index:10;"></div>
+    </div>
     <div style="display:flex;gap:8px;">
       <button onclick="pbCloseNewCard()" style="flex:1;background:none;border:1.5px solid #e0dbd6;border-radius:10px;padding:11px;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;color:#5a5552;">Cancel</button>
       <button class="pb-nc-save" onclick="pbSaveNewCard()" style="flex:2;">Save</button>
@@ -908,6 +912,7 @@ function detectLang(text,src){
   if(/[؀-ۿ]/.test(t))return 'ar';
   if(/[ऀ-ॿ]/.test(t))return 'hi';
   if(/[Ѐ-ӿ]/.test(t))return 'ru';
+  if(/[Ḁ-ỿ]/.test(t))return 'vi';
   var nonLatinSrcs=['zh','ja','ko','th','ar','hi','ru'];
   if(nonLatinSrcs.indexOf(src)>=0&&/^[\x00-\x7FÀ-ɏ\s]+$/.test(t))return 'en';
   if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t))return 'en';
@@ -1027,6 +1032,7 @@ function _detectLangAsync(text){
   if(/[\u0600-\u06FF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ar');}
   if(/[\u0900-\u097F]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('hi');}
   if(/[\u0400-\u04FF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('ru');}
+  if(/[\u1E00-\u1EFF]/.test(t)){_lastAsyncVia='unicode';return Promise.resolve('vi');}
   if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t)){_lastAsyncVia='marker';return Promise.resolve('en');}
   if(_ftLoadFailed)return Promise.resolve(null);
   _lastAsyncVia='wasm';
@@ -1318,6 +1324,8 @@ function pbNow(){return Date.now();}
 /* ── Card normalize ── */
 function pbNorm(c){
   var now=pbNow();c=c||{};
+  if(c.sourceLang==='vn')c.sourceLang='vi';
+  if(c.targetLang==='vn')c.targetLang='vi';
   var bt=c.backtranslate||{};
   return {
     id:c.id||(Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
@@ -1672,13 +1680,15 @@ var _intentIdMap={}; // intentId → card for Quick-Ring O(1) lookup
 
 function _pbNormCard(raw){
   var lp=raw.languagePair||{};var sr=raw.semanticRelationships||{};var rep=raw.representation||{};
+  var sl=(lp.source||'en');if(sl==='vn')sl='vi';
+  var tl=(lp.target||'en');if(tl==='vn')tl='vi';
   return{
     id:uid(),
     intentId:raw.intentId||'',
     fingerprint:raw.fingerprint||'',
     catalogIds:[],
-    sourceLang:lp.source||'en',
-    targetLang:lp.target||'en',
+    sourceLang:sl,
+    targetLang:tl,
     source:rep.source||'',
     target:rep.target||'',
     notes:'',
@@ -1910,9 +1920,9 @@ function pbBubbleHtml(card,ctx){
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\'tgt\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'</div>'
     +'<div class="pb-bbl-foot">'
-    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+' Clarify'+(cc?' ('+cc+')':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Back-translate">'+ICO.verify+' Verify'+(bt.resultText?' ·':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+(tags.length?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+tags.length+'</span>':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+(cc?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+cc+'</span>':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Verify">'+ICO.verify+(bt.resultText?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">·</span>':'')+'</button>'
     +'</div>'
     +'<div class="pb-panel" id="pbtags-'+id+'" style="display:'+(cs.tagsOpen?'block':'none')+';">'+pbTagPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbclarify-'+id+'" style="display:'+(cs.clarifyOpen?'block':'none')+';">'+pbClarifyPanelHtml(card)+'</div>'
@@ -2071,15 +2081,15 @@ function pbReRenderCardPanel(type,id){
   el.innerHTML=fn(card);
   if(type==='tags'){
     var btn=document.getElementById('pbft-'+id);
-    if(btn){var tags=card.tags||[];btn.innerHTML=ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'');}
+    if(btn){var tags=card.tags||[];btn.innerHTML=ICO.tag+(tags.length?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+tags.length+'</span>':'');}
   }
   if(type==='clarify'){
     var btn2=document.getElementById('pbfc-'+id);
-    if(btn2){var cc=(card.clarifyChain||[]).length;btn2.innerHTML=ICO.chat+' Clarify'+(cc?' ('+cc+')':'');}
+    if(btn2){var cc=(card.clarifyChain||[]).length;btn2.innerHTML=ICO.chat+(cc?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+cc+'</span>':'');}
   }
   if(type==='bt'){
     var btn3=document.getElementById('pbfb-'+id);
-    if(btn3){var bt=card.backtranslate||{};btn3.innerHTML=ICO.verify+' Verify'+(bt.resultText?' ·':'');}
+    if(btn3){var bt=card.backtranslate||{};btn3.innerHTML=ICO.verify+(bt.resultText?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">·</span>':'');}
   }
 }
 function pbReRenderBubbleHeader(id){
@@ -2170,7 +2180,13 @@ function pbRenderOverlay(){
     var p=_pbFilter.split('|');
     cards=cards.filter(function(c){return(c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
   }
-  if(q)cards=pbSearch(q,cards);
+  if(q){
+    cards=pbSearch(q,cards);
+    if(!cards.length){host.innerHTML='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';return;}
+    _pbICards=cards;
+    host.innerHTML=cards.map(function(c,i){return pbIRowHtml(c,i);}).join('');
+    return;
+  }
   if(!cards.length){host.innerHTML='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';return;}
   host.innerHTML=cards.map(function(c){return pbBubbleHtml(c,'overlay');}).join('');
 }
@@ -2294,17 +2310,29 @@ function pbOpenNewCard(opts){
   var bv=document.getElementById('pbnc-bt-verdict');if(bv)bv.style.display='none';
   var vg=document.getElementById('pbnc-vgood');if(vg)vg.classList.remove('act');
   var vf=document.getElementById('pbnc-vflag');if(vf)vf.classList.remove('act');
-  var ti=document.getElementById('pbnc-tags');if(ti)ti.value='';
+  _pbNcTags=[];pbNcRenderTagChips();
+  var ti=document.getElementById('pbnc-tag-inp');if(ti)ti.value='';
+  var ts=document.getElementById('pbnc-tag-sugg');if(ts)ts.style.display='none';
   document.getElementById('pb-new-card-sheet').classList.add('open');
   setTimeout(function(){var s=document.getElementById('pbnc-src');if(s)s.focus();},40);
 }
 function pbCloseNewCard(){document.getElementById('pb-new-card-sheet').classList.remove('open');if(document.getElementById('pb-overlay').style.display!=='flex'){document.getElementById('pb-overlay').style.display='flex';pbRenderOverlayFilter();pbRenderOverlay();}}
-function pbNcSrcKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('pbnc-src').blur();}}
+function pbNcAutoTranslate(){
+  var src=((document.getElementById('pbnc-src')||{}).textContent||'').trim();
+  if(!src)return;
+  var tt=document.getElementById('pbnc-tgt');
+  if(tt)tt.textContent='…';
+  translateWithRetry(src,_pbNcSrcLang,_pbNcTgtLang,2).then(function(r){
+    if(tt)tt.textContent=r||'';
+    pbNcRunBt();
+  });
+}
+function pbNcSrcKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();pbNcAutoTranslate();}}
 function pbNcOnSrcBlur(){
   var src=(document.getElementById('pbnc-src')||{}).textContent||'';
   src=src.trim();if(!src)return;
   var tt=document.getElementById('pbnc-tgt');
-  if(tt&&tt.textContent.trim())return;
+  if(tt&&tt.textContent.trim()&&tt.textContent!=='…')return;
   translateWithRetry(src,_pbNcSrcLang,_pbNcTgtLang,2).then(function(r){
     if(tt)tt.textContent=r||'';
     pbNcRunBt();
@@ -2312,6 +2340,38 @@ function pbNcOnSrcBlur(){
 }
 function pbNcSpeakSrc(){var s=(document.getElementById('pbnc-src')||{}).textContent||'';if(s.trim())speakText(s.trim(),_pbNcSrcLang);}
 function pbNcSpeakTgt(){var s=(document.getElementById('pbnc-tgt')||{}).textContent||'';if(s.trim())speakText(s.trim(),_pbNcTgtLang);}
+var _pbNcTags=[];
+function pbNcRenderTagChips(){
+  var h=document.getElementById('pbnc-tag-chips');if(!h)return;
+  h.innerHTML=_pbNcTags.map(function(t,i){
+    return '<span style="display:inline-flex;align-items:center;gap:3px;background:#e8f5f5;color:#2e8b8b;border-radius:999px;padding:2px 8px;font-size:12px;">'+pbEsc(t)
+      +'<button onclick="pbNcRemoveTag('+i+')" style="background:none;border:none;cursor:pointer;color:#2e8b8b;font-size:11px;padding:0 0 0 2px;line-height:1;">×</button></span>';
+  }).join('');
+}
+function pbNcAddTag(tag){
+  tag=(tag||'').trim().toLowerCase();if(!tag||_pbNcTags.indexOf(tag)>=0)return;
+  _pbNcTags.push(tag);pbNcRenderTagChips();
+  var inp=document.getElementById('pbnc-tag-inp');if(inp)inp.value='';
+  var s=document.getElementById('pbnc-tag-sugg');if(s)s.style.display='none';
+}
+function pbNcRemoveTag(i){_pbNcTags.splice(i,1);pbNcRenderTagChips();}
+function pbNcTagKey(e){
+  if(e.key==='Enter'||e.key===','){e.preventDefault();pbNcAddTag(document.getElementById('pbnc-tag-inp').value);}
+}
+function pbNcTagSugg(){
+  var val=((document.getElementById('pbnc-tag-inp')||{}).value||'').trim().toLowerCase();
+  var h=document.getElementById('pbnc-tag-sugg');if(!h)return;
+  var rows=[];
+  if(val){
+    var all=pbGetTags().filter(function(t){return t.toLowerCase().indexOf(val)>=0&&_pbNcTags.indexOf(t)<0;});
+    rows=all.slice(0,7).map(function(t){return '<div style="padding:6px 10px;cursor:pointer;font-size:13px;" onclick="pbNcAddTag(\''+pbEsc(t)+'\')">'+pbEsc(t)+'</div>';});
+    if(_pbNcTags.indexOf(val)<0&&all.indexOf(val)<0){
+      rows.push('<div style="padding:6px 10px;cursor:pointer;font-size:13px;color:#2e8b8b;font-style:italic;" onclick="pbNcAddTag(\''+pbEsc(val)+'\')">+ add #'+pbEsc(val)+'</div>');
+    }
+  }
+  if(!rows.length){h.style.display='none';return;}
+  h.innerHTML=rows.join('');h.style.display='block';
+}
 var _pbNcVerdict='';
 function pbNcRunBt(){
   var tgt=(document.getElementById('pbnc-tgt')||{}).textContent||'';
@@ -2334,7 +2394,7 @@ function pbSaveNewCard(){
   var tgt=((document.getElementById('pbnc-tgt')||{}).textContent||'').trim();
   if(!src){toast('Enter a source phrase');return;}
   if(!tgt){toast('Enter a translation');return;}
-  var tagsRaw=((document.getElementById('pbnc-tags')||{}).value||'').split(',').map(function(t){return t.trim();}).filter(Boolean);
+  var tagsRaw=_pbNcTags.slice();
   var savedBy=((document.getElementById('pbnc-name')||{}).textContent||'me').trim()||'me';
   var btResultEl=document.getElementById('pbnc-bt-result');
   var btResult=btResultEl?btResultEl.textContent.trim():'';
