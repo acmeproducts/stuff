@@ -432,6 +432,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
           <div><div class="lobby-label" style="margin-bottom:6px;">GitHub PAT <span style="font-size:10px;opacity:.6;">(repo write — optional)</span></div>
           <input class="lobby-input" id="gh-pat-inp" type="password" placeholder="ghp_… — stored locally" oninput="saveGhPat()">
           </div>
+          <div><div class="lobby-label" style="margin-bottom:6px;">PB Telemetry endpoint <span style="font-size:10px;opacity:.6;">(from PB team)</span></div>
+          <input class="lobby-input" id="pb-tel-ep-inp" type="text" placeholder="https://… — stored locally" oninput="savePbTel()">
+          <div class="lobby-label" style="margin-bottom:6px;margin-top:8px;">PB Telemetry token <span style="font-size:10px;opacity:.6;">(from PB team)</span></div>
+          <input class="lobby-input" id="pb-tel-tok-inp" type="password" placeholder="Bearer token — stored locally" oninput="savePbTel()">
+          </div>
         </div>
         <div class="recent-rooms" id="recent-rooms" style="display:none;margin-top:14px;">
           <div class="recent-title">Recent rooms</div>
@@ -2574,6 +2579,8 @@ function _tmCheck(text,srcLang,tgtLang){
 }
 
 /* ── Telemetry ── */
+var _PB_TEL_ENDPOINT=''; // set from credentials panel — provided by PB team
+var _PB_TEL_TOKEN='';    // set from credentials panel — provided by PB team
 var _telBuf=[];
 function _pbEmitUsage(card,entryPoint){
   _telBuf.push({event:'usage_hit',ts:Date.now(),session_id:_sessionId,
@@ -2606,6 +2613,30 @@ function _telFlush(){
   _telBuf=[];
 }
 window.addEventListener('beforeunload',_telFlush);
+async function _telPost(){
+  _telFlush(); // drain buffer to localStorage first
+  if(!_PB_TEL_ENDPOINT)return;
+  var key='pb_telemetry:'+((room&&room.myLang)||'?')+'-'+((room&&room.theirLang)||'?');
+  var buf=[];try{buf=JSON.parse(localStorage.getItem(key)||'[]');}catch(_){}
+  if(!buf.length)return;
+  var payload={client:'talkbridge',version:'5.1',events:buf};
+  try{
+    var r=await fetch(_PB_TEL_ENDPOINT+'/ingest',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_PB_TEL_TOKEN},
+      body:JSON.stringify(payload)
+    });
+    if(r.ok){localStorage.removeItem(key);log('tel_posted',{n:buf.length});}
+    else{log('tel_post_fail',{status:r.status},'warn');}
+  }catch(e){log('tel_post_fail',{e:String(e)},'warn');}
+}
+function savePbTel(){
+  var ep=(document.getElementById('pb-tel-ep-inp')||{}).value||'';
+  var tok=(document.getElementById('pb-tel-tok-inp')||{}).value||'';
+  if(ep.trim())localStorage.setItem('tb_pb_tel_ep',ep.trim());
+  if(tok.trim())localStorage.setItem('tb_pb_tel_tok',tok.trim());
+  _PB_TEL_ENDPOINT=ep.trim();_PB_TEL_TOKEN=tok.trim();
+}
 
 function translate(text,from,to){
   if(!text||!from||!to||from===to)return Promise.resolve(text);
@@ -3754,6 +3785,7 @@ function hidePartnerDisconnected(){
 // Phase 2: hangUp — role-split enforced
 function hangUp(){
   relaySend({type:'hangup'});
+  _telPost(); // flush + POST telemetry on session end (non-blocking)
   if(room.role==='creator'){
     cleanUp();
   }else{
@@ -3787,6 +3819,8 @@ if(localStorage.getItem('tb_cf_tid')&&$('cf-turn-id'))$('cf-turn-id').value=loca
 if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=localStorage.getItem('tb_cf_tok').trim();
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
 if(localStorage.getItem('tb_gh_pat')&&$('gh-pat-inp'))$('gh-pat-inp').value=localStorage.getItem('tb_gh_pat').trim();
+if(localStorage.getItem('tb_pb_tel_ep')){_PB_TEL_ENDPOINT=localStorage.getItem('tb_pb_tel_ep').trim();var _tepInp=$('pb-tel-ep-inp');if(_tepInp)_tepInp.value=_PB_TEL_ENDPOINT;}
+if(localStorage.getItem('tb_pb_tel_tok')){_PB_TEL_TOKEN=localStorage.getItem('tb_pb_tel_tok').trim();var _ttokInp=$('pb-tel-tok-inp');if(_ttokInp)_ttokInp.value=_PB_TEL_TOKEN;}
 log('startup',{v:'3.5.5',ua:navigator.userAgent.slice(0,80)});
 pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
