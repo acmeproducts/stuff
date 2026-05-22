@@ -2351,7 +2351,7 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     }
   });
   window.__switchToBoard=switchToBoard;
-  window.__openBoardManager=(name="new-board")=>{ setBoardInputDefaults(name); renderBoardManager(); dlg.showModal(); };
+  window.__openBoardManager=(name="new-board", tab="new")=>{ setBoardInputDefaults(name); renderBoardManager(); setBoardTab(tab); dlg.showModal(); };
 })();
 
 
@@ -2361,66 +2361,48 @@ async function bootstrapBoardsLifecycle(){
   const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>b && !b.archived);
   boards.sort((a,b)=>Number(b.lastUpdated||0)-Number(a.lastUpdated||0));
   const requested=canonicalBoardKey((urlBoardParamRaw||"").trim());
-  const lastSeen=canonicalBoardKey(localStorage.getItem(LAST_SEEN_BOARD_LS)||"");
-  const requestedBoard=boards.find(b=>canonicalBoardKey(b.name)===requested);
-  const lastSeenBoard=boards.find(b=>canonicalBoardKey(b.name)===lastSeen);
-  const activeMatch=boards.find(b=>String(b.name||"")===String(repoBoardsIndex.activeBoard||""));
-  const ordered=[requestedBoard,lastSeenBoard,activeMatch,...boards].filter((b,i,a)=>b && a.findIndex(x=>canonicalBoardKey(x.name)===canonicalBoardKey(b.name))===i);
-  const chosen=ordered[0]||null;
-  if(!chosen){
-    if(hasBoardQueryParam){ window.__openBoardManager?.(_cleanKey(urlBoardParamRaw)); }
-    else{
-      window.__openBoardManager?.("new-board");
-      state={ cards:[], archive:[], stages:["Done","Doing","Next"], platforms:["Gemini","Claude","ChatGPT","Perplexity"], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
-      render();
-      const msg=document.createElement("div");
-      msg.className="empty-boarding";
-      msg.textContent="Welcome. Create a board from Board Manager to get started.";
-      document.getElementById("board").appendChild(msg);
-    }
+  if(!hasBoardQueryParam){
+    state={ cards:[], archive:[], stages:["Done","Doing","Next"], platforms:["Gemini","Claude","ChatGPT","Perplexity"], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
+    render();
+    const msg=document.createElement("div");
+    msg.className="empty-boarding";
+    msg.textContent="Welcome. Create a board from Board Manager to get started.";
+    document.getElementById("board").appendChild(msg);
+    window.__openBoardManager?.("new-board","list");
     setStatus("Select or create a board to begin");
     boardsBootstrapped=true;
     return;
   }
-  const key=setBoardKey(chosen.name); currentBoardKey=canonicalBoardKey(key); updateKeyLabel();
-  startupBoardName=chosen.name;
-  let loaded=false;
-  let lastErr=null;
-  for(const candidate of ordered){
-    try{
-      const remote=await fetchJson(boardFilePath(candidate.name));
-      if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
-      startupBoardName=candidate.name;
-      setBoardKey(candidate.name); currentBoardKey=canonicalBoardKey(candidate.name); updateKeyLabel();
-      applyImportedBoard(remote, "repo");
-      const repoTs=Number(candidate.lastUpdated||0);
-      const remoteTs=getBoardLastModified(remote);
-      const next=loadCacheMeta();
-      next[currentBoardKey]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
-      saveCacheMeta(next);
-      clearRepoLoadBlocked();
-      setStatus(`Loaded ${candidate.name} from repo`);
-      loaded=true;
-      break;
-    }catch(err){
-      lastErr=err;
-    }
-  }
-  if(loaded){
+
+  const requestedBoard=boards.find(b=>canonicalBoardKey(b.name)===requested);
+  if(!requestedBoard){
+    toast("Board not found",`${requested} not found`,true);
+    window.__openBoardManager?.(requested||"new-board","list");
+    setStatus("Requested board not found");
     boardsBootstrapped=true;
     return;
   }
+
   try{
-    const remote=await fetchJson(boardFilePath(chosen.name));
+    const remote=await fetchJson(boardFilePath(requestedBoard.name));
     if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
-    applyImportedBoard(remote, "repo fallback");
+    startupBoardName=requestedBoard.name;
+    setBoardKey(requestedBoard.name); currentBoardKey=canonicalBoardKey(requestedBoard.name); updateKeyLabel();
+    applyImportedBoard(remote, "repo");
+    const repoTs=Number(requestedBoard.lastUpdated||0);
+    const remoteTs=getBoardLastModified(remote);
+    const next=loadCacheMeta();
+    next[currentBoardKey]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
+    saveCacheMeta(next);
+    clearRepoLoadBlocked();
+    setStatus(`Loaded ${requestedBoard.name} from repo`);
+    boardsBootstrapped=true;
+    return;
   }catch(err){
-    setRepoLoadBlocked(lastErr||err);
-    const msg=document.createElement("div");
-    msg.className="empty-boarding";
-    msg.textContent=`No active boards could be loaded from repo. Open Board Manager to create/import. Last error: ${(lastErr||err)?.message||"unknown"}`;
-    document.getElementById("board").appendChild(msg);
-    window.__openBoardManager?.(chosen?.name||"new-board");
+    setRepoLoadBlocked(err);
+    toast("Board not found",`${requested} not found`,true);
+    window.__openBoardManager?.(requested||"new-board","list");
+    setStatus(`Requested board failed to load: ${err.message}`);
   }
   boardsBootstrapped=true;
 }
