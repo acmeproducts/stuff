@@ -1,148 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Program Board Organizer</title>
-<style>
-:root{--bg:#f3f6fb;--panel:#fff;--text:#111827;--muted:#6b7280;--border:#d1d9e6;--accent:#2563eb}
-*{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
-header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:10px 14px;z-index:10}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.btn{border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-main{padding:14px}
-.panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
-.grid{display:grid;grid-template-columns:160px repeat(5,minmax(180px,1fr));gap:8px}
-.hdr{font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:700;padding:8px;border:1px solid var(--border);border-radius:10px;background:#f8fafc}
-.cell{min-height:110px;border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px;display:flex;flex-direction:column;gap:6px}
-.tile{border:1px solid var(--border);border-radius:10px;padding:8px;background:#fff;cursor:grab}
-.tile .n{font-weight:700}.tile .m{font-size:12px;color:var(--muted)}
-.dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1px solid var(--border);border-radius:999px;font-size:12px}
-dialog{border:none;border-radius:12px;padding:0;width:min(620px,96vw)}
-.modal{padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff}
-.field{display:flex;flex-direction:column;gap:6px;margin:8px 0}
-input,textarea,select{border:1px solid var(--border);border-radius:8px;padding:8px;font:inherit}
-small{color:var(--muted)}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Program View</title>
+  <style>
+    :root{--bg:#f3f6fb;--card:#fff;--line:#d7deea;--text:#0f172a;--muted:#64748b;--accent:#2563eb;--dev:#dbeafe;--tst:#fef3c7;--prd:#dcfce7}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
+    header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;z-index:10}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.muted{color:var(--muted);font-size:12px}
+    button,select{border:1px solid var(--line);background:#fff;padding:8px 10px;border-radius:10px;cursor:pointer}
+    main{padding:14px;display:grid;gap:14px}
+    .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+    .matrix{overflow:auto}.grid{display:grid;grid-template-columns:180px repeat(5,minmax(170px,1fr));gap:8px}
+    .h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:6px}
+    .phase{font-weight:700;padding:10px;border-radius:10px}.phase.dev{background:var(--dev)}.phase.tst{background:var(--tst)}.phase.prd{background:var(--prd)}
+    .cell{min-height:120px;border:1px dashed var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px}
+    .cell.dragover{border-color:var(--accent);box-shadow:0 0 0 2px #bfdbfe inset}
+    .board{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px;cursor:grab}
+    .board:active{cursor:grabbing}.board .name{font-weight:700}.board .meta{font-size:11px;color:var(--muted)}
+    .lineage-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.bar{border:1px solid var(--line);border-radius:10px;padding:8px}
+    .bar h4{margin:0 0 6px 0;font-size:12px;color:var(--muted);text-transform:uppercase}.count{font-size:20px;font-weight:700}
+    .list{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:#f8fafc}
+  </style>
 </head>
 <body>
 <header>
   <div class="row">
-    <strong>Program Organizer</strong>
-    <button id="btnReload" class="btn">Reload Boards</button>
-    <button id="btnNewBoard" class="btn">New Board</button>
-    <button id="btnExportMeta" class="btn">Export Program Metadata</button>
-    <span id="status" style="color:#6b7280;font-size:12px"></span>
+    <strong>Program Planning Space</strong>
+    <button id="reloadBtn">Reload</button>
+    <button id="saveBtn">Save kanban-boards.json</button>
+    <span id="status" class="muted">Ready.</span>
   </div>
 </header>
 <main>
-  <section class="panel">
-    <div id="matrix" class="grid"></div>
-  </section>
+  <section class="panel matrix"><h3>Phase × Stage (drag board cards between cells)</h3><div id="matrix" class="grid"></div></section>
+  <section class="panel"><h3>Lineage Overlay (from all board cards)</h3><div id="lineageBars" class="lineage-bars"></div></section>
 </main>
-
-<dialog id="boardDialog">
-  <form method="dialog" class="modal" id="boardForm">
-    <h3 id="dlgTitle" style="margin:0 0 8px">Board Metadata</h3>
-    <div class="field"><label>Board Name</label><input id="fName" required /></div>
-    <div class="row">
-      <div class="field" style="flex:1"><label>Stage</label><select id="fStage"></select></div>
-      <div class="field" style="flex:1"><label>Phase</label><select id="fPhase"></select></div>
-    </div>
-    <div class="row">
-      <div class="field" style="flex:1"><label>Status color/emoji</label><input id="fStatus" placeholder="gray or ✅" /></div>
-      <div class="field" style="flex:1"><label>Tags (comma separated)</label><input id="fTags" placeholder="infra, api" /></div>
-    </div>
-    <div class="field"><label>Notes</label><textarea id="fNotes" rows="4"></textarea></div>
-    <small>Program metadata is stored in browser localStorage under <code>kanban_program_meta_v1</code>.</small>
-    <div class="row" style="justify-content:flex-end;margin-top:8px">
-      <button class="btn" value="cancel">Cancel</button>
-      <button class="btn primary" value="save">Save</button>
-    </div>
-  </form>
-</dialog>
-
 <script>
-const PHASES=["concept","initial","pilot","beta","graduate"];
-const STAGES=["dev","test","prod"];
-const INDEX_FILE="kanban-boards.json";
-const META_KEY="kanban_program_meta_v1";
-let boardsIndex={version:1,activeBoard:"",boards:[]};
-let programMeta={};
-let editingBoard=null;
-
+const STAGES=["concept","alpha","pilot","beta","launch"];
+const PHASES=["dev","tst","prd"];
+const LINEAGES=["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
+const REPO_BOARDS_FILE="kanban-boards.json", REPO_SWITCH_FILE="kanban-switch.json", GITHUB_PAT_KEY="github_pat";
+let repoSwitchCfg={}, index={version:1,activeBoard:"",boards:[]}, boardCardsByBoard={};
 const $=s=>document.querySelector(s);
-function setStatus(t){ $("#status").textContent=t||""; }
-function loadMeta(){ try{return JSON.parse(localStorage.getItem(META_KEY)||"{}");}catch{return{};} }
-function saveMeta(){ localStorage.setItem(META_KEY, JSON.stringify(programMeta)); }
-function getMeta(name){
-  const key=String(name||"").trim();
-  if(!programMeta[key]) programMeta[key]={ stage:"dev", phase:"concept", tags:[], notes:"", status:"gray" };
-  return programMeta[key];
+const boardSlug=n=>String(n||"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+const boardFilePath=n=>`${typeof repoSwitchCfg.pathPrefix==="string"?repoSwitchCfg.pathPrefix:""}${boardSlug(n)}.json`;
+const status=t=>$("#status").textContent=t;
+async function fetchJson(path){ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) throw new Error(`HTTP ${r.status} for ${path}`); return r.json(); }
+function b64EncodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
+function normalizeBoardRecord(r){ const now=Date.now(); return {name:boardSlug(r?.name||""),archived:!!r?.archived,lastUpdated:Number(r?.lastUpdated||now),createdAt:Number(r?.createdAt||now),cardCount:Number(r?.cardCount||0),phase:PHASES.includes(String(r?.phase))?String(r.phase):"dev",phaseUpdatedAt:Number(r?.phaseUpdatedAt||now),stage:STAGES.includes(String(r?.stage))?String(r.stage):"concept",stageUpdatedAt:Number(r?.stageUpdatedAt||now)} }
+async function boot(){
+  repoSwitchCfg=await fetchJson(REPO_SWITCH_FILE).catch(()=>({}));
+  index=await fetchJson(REPO_BOARDS_FILE); index.boards=(index.boards||[]).map(normalizeBoardRecord).filter(b=>b.name);
+  await Promise.all(index.boards.map(async b=>{ try{ const data=await fetchJson(boardFilePath(b.name)); boardCardsByBoard[b.name]=Array.isArray(data.cards)?data.cards:[]; b.cardCount=boardCardsByBoard[b.name].length; }catch{ boardCardsByBoard[b.name]=[]; } }));
+  render();
 }
-function normalizedTags(v){ return [...new Set(String(v||"").split(",").map(x=>x.trim()).filter(Boolean))]; }
-async function loadBoards(){
-  const res=await fetch(INDEX_FILE,{cache:"no-store"});
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data=await res.json();
-  if(!data || !Array.isArray(data.boards)) throw new Error("Invalid kanban-boards.json payload");
-  boardsIndex=data;
+function render(){ renderMatrix(); renderLineage(); status(`Loaded ${index.boards.length} boards.`); }
+function renderMatrix(){
+  const m=$("#matrix"); m.innerHTML=""; m.append(Object.assign(document.createElement("div"),{className:"h",textContent:"Phase / Stage"})); STAGES.forEach(s=>m.append(Object.assign(document.createElement("div"),{className:"h",textContent:s})));
+  PHASES.forEach(p=>{ const ph=document.createElement("div"); ph.className=`phase ${p}`; ph.textContent=p; m.append(ph); STAGES.forEach(s=>{ const cell=document.createElement("div"); cell.className="cell"; cell.dataset.phase=p; cell.dataset.stage=s;
+      cell.addEventListener("dragover",e=>{e.preventDefault(); cell.classList.add("dragover")}); cell.addEventListener("dragleave",()=>cell.classList.remove("dragover"));
+      cell.addEventListener("drop",e=>{e.preventDefault(); cell.classList.remove("dragover"); const name=e.dataTransfer.getData("text/board"); const rec=index.boards.find(b=>b.name===name); if(!rec) return; rec.phase=p; rec.stage=s; rec.phaseUpdatedAt=Date.now(); rec.stageUpdatedAt=Date.now(); rec.lastUpdated=Date.now(); render(); status(`Moved ${name} -> ${p}/${s}`);});
+      index.boards.filter(b=>!b.archived&&b.phase===p&&b.stage===s).sort((a,b)=>a.name.localeCompare(b.name)).forEach(b=>{ const card=document.createElement("div"); card.className="board"; card.draggable=true; card.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board",b.name)); card.innerHTML=`<div class='name'>${b.name}</div><div class='meta'>${b.cardCount||0} cards</div>`; cell.append(card); });
+      m.append(cell);
+    })
+  })
 }
-function boardTiles(stage,phase){
-  return boardsIndex.boards.filter(b=>!b.archived).filter(b=>{const m=getMeta(b.name); return m.stage===stage && m.phase===phase;});
+function renderLineage(){ const cts=Object.fromEntries(LINEAGES.map(l=>[l,0])); const boardsByLineage=Object.fromEntries(LINEAGES.map(l=>[l,new Set()]));
+  Object.entries(boardCardsByBoard).forEach(([board,cards])=>cards.forEach(c=>{ const l=LINEAGES.includes(c?.lineage)?c.lineage:LINEAGES[0]; cts[l]++; boardsByLineage[l].add(board); }));
+  const root=$("#lineageBars"); root.innerHTML=""; LINEAGES.forEach(l=>{ const d=document.createElement("div"); d.className="bar"; d.innerHTML=`<h4>${l}</h4><div class='count'>${cts[l]}</div>`; const list=document.createElement("div"); list.className="list"; [...boardsByLineage[l]].slice(0,18).forEach(b=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=b; list.append(chip); }); d.append(list); root.append(d); }); }
+async function ensureGithubToken(){ const t=localStorage.getItem(GITHUB_PAT_KEY)||""; if(!t.trim()) throw new Error("Missing github_pat in localStorage."); return t.trim(); }
+function getGitHubSyncConfig(){ return { owner:repoSwitchCfg.owner||"acmeproducts", repo:repoSwitchCfg.repo||"stuff", branch:repoSwitchCfg.branch||"main" }; }
+async function githubFetch(url, options={}){ const token=await ensureGithubToken(); const r=await fetch(url,{...options,headers:{Accept:"application/vnd.github+json",Authorization:`Bearer ${token}`,...(options.headers||{})}}); if(!r.ok){ throw new Error(`${r.status} ${r.statusText}`);} return r.json(); }
+async function saveIndex(){ const cfg=getGitHubSyncConfig(); const path=REPO_BOARDS_FILE; const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`; let sha=null;
+  try{ const existing=await githubFetch(getUrl,{method:"GET"}); sha=existing?.sha||null; }catch(e){ if(!String(e.message).includes("404")) throw e; }
+  const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
+  await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path} via program.html`,content:b64EncodeUnicode(JSON.stringify(index,null,2)+"\n"),branch:cfg.branch,sha})});
+  status("Saved kanban-boards.json to GitHub.");
 }
-function render(){
-  const matrix=$("#matrix"); matrix.innerHTML="";
-  matrix.appendChild(document.createElement("div"));
-  PHASES.forEach(p=>{ const h=document.createElement("div"); h.className="hdr"; h.textContent=p; matrix.appendChild(h); });
-  [...STAGES].reverse().forEach(stage=>{
-    const rh=document.createElement("div"); rh.className="hdr"; rh.textContent=stage; matrix.appendChild(rh);
-    PHASES.forEach(phase=>{
-      const cell=document.createElement("div"); cell.className="cell";
-      cell.addEventListener("dragover",e=>e.preventDefault());
-      cell.addEventListener("drop",e=>{ e.preventDefault(); const name=e.dataTransfer.getData("text/board"); if(!name) return; const m=getMeta(name); m.stage=stage; m.phase=phase; saveMeta(); render(); });
-      boardTiles(stage,phase).forEach(b=>{
-        const m=getMeta(b.name);
-        const t=document.createElement("div"); t.className="tile"; t.draggable=true;
-        t.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board", b.name));
-        t.addEventListener("dblclick",()=>openBoardMeta(b.name,false));
-        t.innerHTML=`<div class="n">${b.name}</div><div class="m"><span class="dot">${m.status||"•"}</span> ${m.tags?.join(", ")||"no-tags"}</div>`;
-        const launch=document.createElement("button"); launch.className="btn"; launch.textContent="Open";
-        launch.addEventListener("click",()=>{ const u=new URL("kanban.html", location.href); u.searchParams.set("board", b.name); location.href=u.toString(); });
-        t.appendChild(launch);
-        cell.appendChild(t);
-      });
-      matrix.appendChild(cell);
-    });
-  });
-  setStatus(`Loaded ${boardsIndex.boards.filter(b=>!b.archived).length} boards.`);
-}
-function fillSelect(el, values){ el.innerHTML=values.map(v=>`<option value="${v}">${v}</option>`).join(""); }
-function openBoardMeta(name,isNew){
-  editingBoard={name,isNew};
-  $("#dlgTitle").textContent=isNew?"Create Board":"Edit Board Metadata";
-  fillSelect($("#fStage"), STAGES); fillSelect($("#fPhase"), PHASES);
-  const m=getMeta(name);
-  $("#fName").value=name; $("#fName").readOnly=!isNew;
-  $("#fStage").value=m.stage||"dev"; $("#fPhase").value=m.phase||"concept";
-  $("#fStatus").value=m.status||"gray"; $("#fTags").value=(m.tags||[]).join(", "); $("#fNotes").value=m.notes||"";
-  $("#boardDialog").showModal();
-}
-function saveDialog(){
-  const name=$("#fName").value.trim();
-  if(!name) return;
-  if(editingBoard?.isNew){ boardsIndex.boards.push({name, archived:false, lastUpdated:Date.now()}); }
-  const m=getMeta(name);
-  m.stage=$("#fStage").value; m.phase=$("#fPhase").value; m.status=$("#fStatus").value.trim()||"gray";
-  m.tags=normalizedTags($("#fTags").value); m.notes=$("#fNotes").value.trim();
-  saveMeta(); render();
-}
-$("#boardForm").addEventListener("submit",e=>{ if((document.activeElement?.value||"")!=="save") return; e.preventDefault(); saveDialog(); $("#boardDialog").close(); });
-$("#btnReload").onclick=async()=>{ try{ await loadBoards(); render(); }catch(err){ setStatus(`Load failed: ${err.message}`); } };
-$("#btnNewBoard").onclick=()=>openBoardMeta("", true);
-$("#btnExportMeta").onclick=()=>{ const blob=new Blob([JSON.stringify(programMeta,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="kanban-program-meta.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); };
-(async()=>{ programMeta=loadMeta(); try{ await loadBoards(); render(); }catch(err){ setStatus(`Load failed: ${err.message}`); }})();
+$("#reloadBtn").onclick=()=>boot().catch(e=>status(`Reload failed: ${e.message}`));
+$("#saveBtn").onclick=()=>saveIndex().catch(e=>status(`Save failed: ${e.message}`));
+boot().catch(e=>status(`Boot failed: ${e.message}`));
 </script>
 </body>
 </html>
