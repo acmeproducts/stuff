@@ -103,16 +103,18 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-line{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;width:100%;min-width:0;justify-content:flex-start}
 .card-line{padding-right:26px}
 .card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;max-width:100%;border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:#1f6feb}
-.card-platform,.card-lineage{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:0 0 auto;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-platform.tag-search-btn,.card-lineage.tag-search-btn{color:#1f6feb}
+.card-platform,.card-lineage,.card-stage{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:2px 8px;border-radius:999px;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-platform.tag-search-btn,.card-lineage.tag-search-btn,.card-stage.tag-search-btn{color:#1f6feb}
 .card-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .card-links{display:inline-flex;align-items:center;gap:8px;position:relative;z-index:1;flex:0 0 auto}
 .card-status-btn{border:1px solid var(--border);background:#fff;padding:0;display:inline-flex;align-items:center;justify-content:center;color:#6b7280;cursor:pointer;flex:0 0 auto;border-radius:999px;width:14px;height:14px}
 .card-status-btn:hover{border-color:var(--accent)}
 .card-status-dot{width:8px;height:8px;border-radius:999px;display:block;background:#9ca3af}
-.card-archive-btn{position:absolute;top:8px;right:8px;border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#1f6feb;cursor:pointer;flex:0 0 auto}
-.card-archive-btn svg{width:14px;height:14px;fill:currentColor}
-.card-archive-btn:hover{color:#1d4ed8}
+.card-archive-btn,.card-copy-btn{position:absolute;top:8px;border:none;background:transparent;padding:2px;display:inline-flex;align-items:center;justify-content:center;color:#1f6feb;cursor:pointer;flex:0 0 auto}
+.card-copy-btn{right:28px}
+.card-archive-btn{right:8px}
+.card-archive-btn svg,.card-copy-btn svg{width:14px;height:14px;fill:currentColor}
+.card-archive-btn:hover,.card-copy-btn:hover{color:#1d4ed8}
 .card-links a,.card-links span{font-size:12px;text-decoration:none;color:#1f6feb}
 .card-links .empty{color:#9ca3af}
 .card-links a,.attachment-item .attachment-link,.live-notes-preview{
@@ -126,6 +128,7 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .card-edit-field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .card-edit-field label{font-size:11px;color:var(--muted);font-weight:600}
 .card-edit-field input,.card-edit-field select,.card-edit-field textarea{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;background:#fff;color:inherit}
+.card-edit-field select{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-edit-field textarea{resize:vertical;min-height:72px}
 .card-edit-field input,.card-edit-field textarea,.card-edit-field select,
 .field input,.field textarea,.field select,
@@ -244,6 +247,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
     </button>
         <!-- board key pill -->
     <div class="board-key-pill" id="boardKeyPill" title="Switch board / list boards">board: <span class="bkp-name" id="boardKeyLabel">kanban</span> ▾</div>
+    <button id="btnSoftDeletedCards" class="btn small" type="button" title="Soft deleted cards">▸ Soft deleted cards</button>
     <input id="fileImport" type="file" accept="application/json" class="hidden" aria-hidden="true" tabindex="-1" />
   </div>
   <div class="searchbar">
@@ -256,9 +260,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 <div id="resultsContainer"></div>
 <div id="repoBlocker" class="empty-boarding hidden" style="margin:10px 16px;">
   <div id="repoBlockerMsg">Repository load failed.</div>
-  <div class="row" style="margin-top:8px;">
-    <button id="repoRetryBtn" type="button" class="btn small primary">Retry</button>
-  </div>
+
 </div>
 <main id="board" aria-live="polite" data-layout="auto"></main>
 <div class="footer" id="status"></div>
@@ -1148,6 +1150,16 @@ function renderCard(card){
   statusBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   statusBtn.addEventListener("pointerup", e=>e.stopPropagation());
   links.append(dev,live,statusBtn);
+  const copyBtn=document.createElement("button");
+  copyBtn.type="button";
+  copyBtn.className="card-copy-btn";
+  copyBtn.title="Duplicate card";
+  copyBtn.setAttribute("aria-label","Duplicate card");
+  copyBtn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h11v13H8V8Zm-3-5h11v3H8a3 3 0 0 0-3 3v8H5V3Z"/></svg>';
+  copyBtn.addEventListener("click", (e)=>{ e.stopPropagation(); duplicateCard(card.id); });
+  copyBtn.addEventListener("pointerdown", e=>e.stopPropagation());
+  copyBtn.addEventListener("pointerup", e=>e.stopPropagation());
+
   const archiveBtn=document.createElement("button");
   archiveBtn.type="button";
   archiveBtn.className="card-archive-btn";
@@ -1157,14 +1169,16 @@ function renderCard(card){
   archiveBtn.addEventListener("click", (e)=>{ e.stopPropagation(); archiveCard(card.id); });
   archiveBtn.addEventListener("pointerdown", e=>e.stopPropagation());
   archiveBtn.addEventListener("pointerup", e=>e.stopPropagation());
-  line.append(title,links); el.append(line,archiveBtn);
+  line.append(title,links); el.append(line,copyBtn,archiveBtn);
 
   const tagsRow=document.createElement("div"); tagsRow.className="card-tags";
   const p=document.createElement("button"); p.type="button"; p.className="chip card-platform tag-search-btn"; p.textContent=card.platform; p.title=`Search platform: ${card.platform}`;
   p.addEventListener("click",(e)=>{ e.stopPropagation(); applyTagSearch(card.platform); });
+  const stageChip=document.createElement("button"); stageChip.type="button"; stageChip.className="chip card-stage tag-search-btn"; stageChip.textContent=card.stage; stageChip.title=`Search lane: ${card.stage}`;
+  stageChip.addEventListener("click",(e)=>{ e.stopPropagation(); applyTagSearch(card.stage); });
   const lineageChip=document.createElement("button"); lineageChip.type="button"; lineageChip.className="chip card-lineage tag-search-btn"; lineageChip.textContent=normalizeLineage(card.lineage); lineageChip.title=`Search lineage: ${normalizeLineage(card.lineage)}`;
   lineageChip.addEventListener("click",(e)=>{ e.stopPropagation(); applyTagSearch(normalizeLineage(card.lineage)); });
-  tagsRow.append(p,lineageChip);
+  tagsRow.append(p,stageChip,lineageChip);
   if(card.tags?.length){
     card.tags.forEach(t=>{
       const chip=document.createElement("button");
@@ -1409,6 +1423,16 @@ function createCard(data){
   const now=Date.now(); const stage=data.stage||state.stages[0]||"Next";
   const c={ id:uid(), title:(data.title||"").trim(), platform:data.platform||state.platforms[0]||"General", stage, lineage:normalizeLineage(data.lineage), dev:normalizeUrl(data.dev), live:normalizeUrl(data.live), statusColor:normalizeStatusColor(data.statusColor), tags:normalizeTags(data.tags), notes:preprocessNotes(data.notes), pos:topPos(stage), createdAt:now, updatedAt:now, files:(data.files||[]) };
   state.cards.push(c); bumpTagHistory(c.tags); scheduleSave(); render(); focusCard(c.id); return c.id;
+}
+function duplicateCard(id){
+  if(!guardMutation("Duplicate blocked while repository is unavailable")) return null;
+  const original=state.cards.find(x=>x.id===id); if(!original) return null;
+  const now=Date.now();
+  const clone={...original,id:uid(),title:`${original.title||"(untitled)"} (copy)`,createdAt:now,updatedAt:now,pos:topPos(original.stage),files:Array.isArray(original.files)?original.files.map(f=>({...f})):[]};
+  state.cards.push(clone);
+  bumpTagHistory(clone.tags||[]);
+  scheduleSave(); render(); focusCard(clone.id);
+  return clone.id;
 }
 function updateCard(id, patch){
   if(!guardMutation("Update blocked while repository is unavailable")) return;
@@ -1833,6 +1857,7 @@ $("#fileImport").onchange=async (e)=>{ if(!guardMutation("Import blocked while r
 /* ===== Archive UI ===== */
 const archiveDialog=$("#archiveDialog");
 $("#btnOpenArchive").onclick=()=>{ if(!guardMutation("Archive changes blocked while repository is unavailable")) return; renderArchiveList(); archiveDialog.showModal(); };
+$("#btnSoftDeletedCards").onclick=()=>{ renderArchiveList(); archiveDialog.showModal(); };
 archiveDialog.addEventListener("close", (e)=>{ if(archiveDialog.returnValue==="empty"){ emptyArchive(); } });
 function renderArchiveList(){
   const list=$("#archiveList"); list.innerHTML="";
@@ -1916,7 +1941,7 @@ function updateRepoBlockerUI(){
   blocker.classList.toggle("hidden", !repoLoadBlocked);
   if(repoLoadBlocked){
     const when=repoLoadErrorAt ? new Date(repoLoadErrorAt).toLocaleString() : "unknown";
-    msg.textContent=`Repository load failed. Board is read-only until retry succeeds. ${repoLoadError||"Unknown error"} (${when})`;
+    msg.textContent=`Repository load failed. Open Board Manager to select or create another board. ${repoLoadError||"Unknown error"} (${when})`;
   }
 }
 function setRepoLoadBlocked(error){
@@ -2235,7 +2260,7 @@ function sanitizeMarkdownImages(s){
     active.forEach(b=>{
       const row=document.createElement("div");
       row.className="board-list-row"+(canonicalBoardKey(b.name)===currentBoardKey?" current":"");
-      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span>${canonicalBoardKey(b.name)===currentBoardKey?'<span class="brow-badge">current</span>':""}<select class="phaseSel"><option value="dev">dev</option><option value="tst">tst</option><option value="prd">prd</option></select><select class="stageSel"><option value="concept">concept</option><option value="alpha">alpha</option><option value="pilot">pilot</option><option value="beta">beta</option><option value="launch">launch</option></select>`;
+      row.innerHTML=`<span class="brow-name">${escapeHtml(b.name)}${canonicalBoardKey(b.name)===currentBoardKey?' <span class="brow-badge">current</span>':""}</span><span class="brow-ts">${escapeHtml(fmtDate(b.lastUpdated))}</span><select class="phaseSel"><option value="dev">dev</option><option value="tst">tst</option><option value="prd">prd</option></select><select class="stageSel"><option value="concept">concept</option><option value="alpha">alpha</option><option value="pilot">pilot</option><option value="beta">beta</option><option value="launch">launch</option></select>`;
       const phaseSel=row.querySelector(".phaseSel"); const stageSel=row.querySelector(".stageSel"); phaseSel.value=b.phase||"dev"; stageSel.value=b.stage||"concept";
       phaseSel.onchange=()=>upsertBoardRecord(b.name,{phase:phaseSel.value,phaseUpdatedAt:Date.now()});
       stageSel.onchange=()=>upsertBoardRecord(b.name,{stage:stageSel.value,stageUpdatedAt:Date.now()});
@@ -2312,7 +2337,7 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     switchToBoard(next.name);
     dlg.close();
   });
-  
+
   function setImportSourceUi(){
     const mode=(document.querySelector('input[name="importSource"]:checked')||{}).value||"file";
     document.getElementById("importFileRow").classList.toggle("hidden",mode!=="file");
@@ -2390,7 +2415,8 @@ async function bootstrapBoardsLifecycle(){
     setBoardKey(requestedBoard.name); currentBoardKey=canonicalBoardKey(requestedBoard.name); updateKeyLabel();
     applyImportedBoard(remote, "repo");
     const repoTs=Number(requestedBoard.lastUpdated||0);
-    const remoteTs=getBoardLastModified(remote);
+    const remoteStats=deriveBoardStats(remote);
+    const remoteTs=Number(remote?.lastModified || remoteStats.lastCardUpdatedAt || 0);
     const next=loadCacheMeta();
     next[currentBoardKey]={lastUpdated:String(Math.max(repoTs, remoteTs, Date.now()))};
     saveCacheMeta(next);
@@ -2407,23 +2433,9 @@ async function bootstrapBoardsLifecycle(){
   boardsBootstrapped=true;
 }
 
-async function retryRepoStartupLoad(){
-  if(!startupBoardName) return;
-  try{
-    const remote=await fetchJson(boardFilePath(startupBoardName));
-    if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
-    applyImportedBoard(remote, "repo retry");
-    clearRepoLoadBlocked();
-    setStatus(`Loaded ${startupBoardName} from repo`);
-  }catch(err){
-    setRepoLoadBlocked(err);
-  }
-}
-
 /* ===== Init ===== */
 updateKeyLabel();
 updateRepoBlockerUI();
-document.getElementById("repoRetryBtn").addEventListener("click", ()=>{ retryRepoStartupLoad(); });
 window.addEventListener("beforeunload", ()=>{ if(dirty) persistNow(); });
 (async ()=>{
   render();
