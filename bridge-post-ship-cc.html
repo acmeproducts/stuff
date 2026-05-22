@@ -116,6 +116,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .tr-bubble{border:1px solid rgba(255,255,255,.14);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);}
 .tr-bubble.is-chat{border-color:rgba(63,193,193,.25);background:rgba(46,139,139,.08);}
 .tr-head{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;}
+.tr-head-acts{display:none;align-items:center;gap:6px;flex:1;justify-content:center;}
+.tr-entry.tr-active .tr-head-acts{display:flex;}
+.tr-act-btn{background:none;border:none;cursor:pointer;font-size:14px;color:#9a9592;padding:3px 7px;border-radius:4px;line-height:1;}
+.tr-act-btn:hover{background:rgba(255,255,255,.1);color:#f5f2ef;}
 .tr-who{font-weight:700;color:var(--text-dim);}
 .tr-who.mine{color:var(--teal-bright);}
 .tr-time{font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
@@ -627,7 +631,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
 </div>
 
-<div id="pb-new-card-sheet" class="pb-nc-sheet">
+<div id="pb-new-card-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:35;align-items:center;justify-content:center;">
+<div id="pb-new-card-sheet" style="background:#fdfaf7;border-radius:14px;width:min(480px,94vw);max-height:90vh;overflow-y:auto;font-family:'DM Sans',sans-serif;display:flex;flex-direction:column;">
   <div class="pb-nc-hdr" style="gap:6px;">
     <span id="pbnc-pair-label" style="flex:1;font-size:13px;font-weight:600;color:#5a5552;"></span>
     <span style="font-size:12px;color:#9a9592;flex-shrink:0;">by <span id="pbnc-name" contenteditable="true" style="min-width:20px;display:inline-block;outline:none;border-bottom:1px dashed #c0b8b0;color:#5a5552;font-style:italic;cursor:text;">me</span></span>
@@ -641,7 +646,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       </div>
       <div style="width:1px;background:#e0dbd6;flex-shrink:0;"></div>
       <div style="flex:1;display:flex;flex-direction:column;padding:10px 12px;gap:8px;">
-        <div id="pbnc-tgt" class="pb-nc-editable" contenteditable="true" data-placeholder="Translation…" spellcheck="false" style="min-height:48px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;color:#1a1714;line-height:1.4;"></div>
+        <div id="pbnc-tgt" class="pb-nc-editable" contenteditable="true" data-placeholder="Translation…" spellcheck="false" oninput="_pbNcDirty=true" style="min-height:48px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;color:#1a1714;line-height:1.4;"></div>
         <button class="pb-tts-btn" onclick="pbNcSpeakTgt()" title="Play" style="align-self:flex-start;"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>
       </div>
     </div>
@@ -653,12 +658,25 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="pb-nc-verdict-btn" id="pbnc-vflag" onclick="pbNcSetVerdict('flag')">⚑ Flag</button>
       </div>
     </div>
-    <input id="pbnc-tags" class="pb-nc-inp" type="text" placeholder="tags (comma-separated)" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:600;color:#9a9592;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Tags</div>
+      <div id="pbnc-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:20px;margin-bottom:4px;"></div>
+      <input id="pbnc-tag-inp" class="pb-nc-inp" placeholder="Add tag…" autocomplete="off" style="width:100%;box-sizing:border-box;"
+        oninput="pbNcTagSugg()" onkeydown="pbNcTagKey(event)">
+      <div id="pbnc-tag-sugg" style="display:none;background:#fdfaf7;border:1px solid #e0dbd6;border-radius:6px;max-height:100px;overflow-y:auto;margin-top:2px;position:relative;z-index:1;"></div>
+    </div>
+    <input id="pbnc-clarify" class="pb-nc-inp" type="text" placeholder="Clarify note (optional)" style="width:100%;box-sizing:border-box;margin-bottom:10px;" oninput="_pbNcDirty=true">
+    <div id="pbnc-discard-warn" style="display:none;align-items:center;gap:8px;padding:8px 14px;background:#fff3cd;border-radius:8px;margin-bottom:8px;">
+      <span style="flex:1;font-size:13px;color:#856404;">Discard changes?</span>
+      <button class="pb-nc-save" onclick="pbNcConfirmDiscard()" style="background:#856404;">Discard</button>
+      <button class="pb-nc-act" onclick="document.getElementById('pbnc-discard-warn').style.display='none'">Keep</button>
+    </div>
     <div style="display:flex;gap:8px;">
       <button onclick="pbCloseNewCard()" style="flex:1;background:none;border:1.5px solid #e0dbd6;border-radius:10px;padding:11px;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;color:#5a5552;">Cancel</button>
-      <button class="pb-nc-save" onclick="pbSaveNewCard()" style="flex:2;">Save</button>
+      <button class="pb-nc-save" onclick="pbSaveNewCard()" style="flex:2;">💾 Save</button>
     </div>
   </div>
+</div>
 </div>
 
 <div id="pb-books-modal" style="position:fixed;inset:0;background:#fdfaf7;z-index:45;display:none;flex-direction:column;font-family:'DM Sans',sans-serif;overflow:hidden;">
@@ -686,6 +704,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <div id="pb-imp-stats" style="font-size:12px;color:#5a5552;"></div>
     <div id="pb-imp-skipped" style="font-size:11px;color:#c0392b;margin-top:6px;max-height:80px;overflow-y:auto;"></div>
     <button id="pb-imp-done" style="display:none;margin-top:14px;width:100%;" class="pb-nc-save" onclick="pbImportProgressClose()">Done</button>
+  </div>
+</div>
+<div id="tr-clarify-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:36;align-items:center;justify-content:center;">
+  <div style="background:#fdfaf7;border-radius:14px;width:min(440px,94vw);padding:20px 24px;font-family:'DM Sans',sans-serif;">
+    <div style="font-weight:700;font-size:15px;margin-bottom:12px;color:#1a1714;">Clarify translation</div>
+    <div id="tr-clar-orig" style="font-size:13px;color:#5a5552;margin-bottom:8px;"></div>
+    <textarea id="tr-clar-inp" style="width:100%;min-height:72px;border:1px solid #e0dbd6;border-radius:8px;padding:8px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;resize:vertical;" placeholder="Your corrected translation…"></textarea>
+    <div id="tr-clar-bt" style="font-size:12px;color:#7a7672;min-height:16px;margin-top:4px;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="pb-nc-save" onclick="trSendClarify()" style="flex:1;">Send</button>
+      <button class="pb-nc-act" onclick="document.getElementById('tr-clarify-modal').style.display='none'">Cancel</button>
+    </div>
   </div>
 </div>
 <div id="toast"></div>
@@ -1367,7 +1397,7 @@ function pbSoftDelete(id){
   var card=pbGetCardById(id);if(!card)return;
   card.deletedAt=pbNow();pbSaveCard(card);
   var el=document.getElementById('pbb-'+id);
-  if(el){el.classList.add('deleted');pbReRenderBubbleChevron(id);}
+  if(el){el.classList.add('deleted');pbReRenderBubbleFoot(id);}
   toast('Moved to trash');
 }
 function pbHardDelete(id){
@@ -1380,23 +1410,15 @@ function pbRestoreCard(id){
   var card=pbGetCardById(id);if(!card)return;
   card.deletedAt=null;pbSaveCard(card);
   var el=document.getElementById('pbb-'+id);
-  if(el){el.classList.remove('deleted');pbReRenderBubbleChevron(id);}
+  if(el){el.classList.remove('deleted');pbReRenderBubbleFoot(id);}
   toast('Phrase restored');
 }
-function pbReRenderBubbleChevron(id){
+function pbReRenderBubbleFoot(id){
   var card=pbGetCardById(id);if(!card)return;
-  var row=document.getElementById('pbchev-'+id);if(!row)return;
-  row.innerHTML=pbChevRowHtml(card);
-  row.className='pb-chevron-row'+(card.deletedAt?' deleted':'');
-}
-function pbChevRowHtml(card){
-  var id=card.id;
-  if(card.deletedAt){
-    return '<span style="font-size:10px;color:#c0392b;flex:1;padding-left:4px;">In trash</span>'
-      +'<button class="pb-icon-btn restore" onclick="pbRestoreCard(\'' +id+ '\')" title="Restore">'+ICO.restore+'</button>'
-      +'<button class="pb-icon-btn danger" onclick="pbHardDelete(\'' +id+ '\')" title="Delete permanently">'+ICO.hardtrash+'</button>';
-  }
-  return '<button class="pb-icon-btn danger" onclick="pbSoftDelete(\''+id+'\')" title="Move to trash">'+ICO.trash+'</button>';
+  var footEl=document.getElementById('pbfoot-'+id);
+  if(footEl)footEl.innerHTML=pbBubbleFootHtml(card);
+  var bbl=document.getElementById('pbb-'+id);
+  if(bbl)bbl.className='pb-bubble'+(card.deletedAt?' deleted':'');
 }
 function pbAddTagToReg(t){var tags=pbGetTags();if(tags.indexOf(t)<0){tags.push(t);pbSaveTags(tags);}}
 
@@ -1872,6 +1894,17 @@ function pbSpeakCard(id,side,btn){
 /* ── Bubble HTML ── */
 var _pbCardState={}; // id→{tagsOpen,clarifyOpen,btOpen}
 function _pbCS(id){if(!_pbCardState[id])_pbCardState[id]={tagsOpen:false,clarifyOpen:false,btOpen:false};return _pbCardState[id];}
+function pbBubbleFootHtml(card){
+  var id=card.id;var cs=_pbCS(id);var isDel=!!card.deletedAt;
+  var bt=card.backtranslate||{};var tags=card.tags||[];var cc=(card.clarifyChain||[]).length;
+  return (isDel
+    ?'<button class="pb-fbt" onclick="pbRestoreCard(\''+id+'\')" title="Restore">↩ Restore</button>'
+     +'<button class="pb-fbt" onclick="pbHardDelete(\''+id+'\')" title="Delete permanently" style="color:#c0392b;">✕ Purge</button>'
+    :'<button class="pb-fbt" onclick="pbSoftDelete(\''+id+'\')" title="Move to trash" style="color:#c0392b;">🗑 Delete</button>')
+    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+' Clarify'+(cc?' ('+cc+')':'')+'</button>'
+    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Back-translate">'+ICO.verify+' Verify'+(bt.resultText?' ·':'')+'</button>';
+}
 function pbBubbleHtml(card,ctx){
   var id=card.id;var src=card.sourceLang||'en';var tgt=card.targetLang||'en';
   var sf=pbLangFlag(src);var tf=pbLangFlag(tgt);
@@ -1904,15 +1937,10 @@ function pbBubbleHtml(card,ctx){
     +'<div class="pb-bbl-acts"><button class="pb-use-btn" onclick="pbUseText(\''+id+'\',\'tgt\')" title="'+pbEsc(useR)+'">'+pbEsc(useR)+'</button>'
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\'tgt\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'</div>'
-    +'<div class="pb-bbl-foot">'
-    +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+' Tags'+(tags.length?' ('+tags.length+')':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+' Clarify'+(cc?' ('+cc+')':'')+'</button>'
-    +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Back-translate">'+ICO.verify+' Verify'+(bt.resultText?' ·':'')+'</button>'
-    +'</div>'
+    +'<div class="pb-bbl-foot" id="pbfoot-'+id+'" style="display:flex;justify-content:space-around;">'+pbBubbleFootHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbtags-'+id+'" style="display:'+(cs.tagsOpen?'block':'none')+';">'+pbTagPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbclarify-'+id+'" style="display:'+(cs.clarifyOpen?'block':'none')+';">'+pbClarifyPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbbt-'+id+'" style="display:'+(cs.btOpen?'block':'none')+';">'+pbBtPanelHtml(card)+'</div>'
-    +'<div class="pb-chevron-row'+(isDel?' deleted':'')+'" id="pbchev-'+id+'">'+pbChevRowHtml(card)+'</div>'
     +'</div>';
 }
 function pbTagPanelHtml(card){
@@ -1955,6 +1983,9 @@ function pbCommitSrcEdit(id){
   translateWithRetry(newSrc,card.sourceLang,card.targetLang,2).then(function(tr){
     if(tr&&tr!==newSrc){card.target=tr;card.updatedAt=pbNow();pbSaveCard(card);
       var te=document.getElementById('pbtgt-'+id);if(te)te.textContent=tr;}
+    // Auto-run back-translate
+    var cs2=_pbCS(id);cs2.btOpen=true;
+    pbRunBT(id);
   });
 }
 function pbCommitTgtEdit(id){
@@ -2289,15 +2320,27 @@ function pbOpenNewCard(opts){
   var bv=document.getElementById('pbnc-bt-verdict');if(bv)bv.style.display='none';
   var vg=document.getElementById('pbnc-vgood');if(vg)vg.classList.remove('act');
   var vf=document.getElementById('pbnc-vflag');if(vf)vf.classList.remove('act');
-  var ti=document.getElementById('pbnc-tags');if(ti)ti.value='';
-  document.getElementById('pb-new-card-sheet').classList.add('open');
+  _pbNcTags=[];_pbNcDirty=false;pbNcRenderTagChips();
+  var ti=document.getElementById('pbnc-tag-inp');if(ti)ti.value='';
+  var cl=document.getElementById('pbnc-clarify');if(cl)cl.value='';
+  document.getElementById('pb-new-card-overlay').style.display='flex';
   setTimeout(function(){var s=document.getElementById('pbnc-src');if(s)s.focus();},40);
 }
-function pbCloseNewCard(){document.getElementById('pb-new-card-sheet').classList.remove('open');if(document.getElementById('pb-overlay').style.display!=='flex'){document.getElementById('pb-overlay').style.display='flex';pbRenderOverlayFilter();pbRenderOverlay();}}
-function pbNcSrcKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('pbnc-src').blur();}}
+function pbCloseNewCard(){
+  if(_pbNcDirty){
+    var warn=document.getElementById('pbnc-discard-warn');
+    if(warn)warn.style.display='flex';return;
+  }
+  document.getElementById('pb-new-card-overlay').style.display='none';
+  if(document.getElementById('pb-overlay').style.display!=='flex'){
+    document.getElementById('pb-overlay').style.display='flex';pbRenderOverlayFilter();pbRenderOverlay();
+  }
+}
+function pbNcSrcKeydown(e){_pbNcDirty=true;if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('pbnc-src').blur();}}
 function pbNcOnSrcBlur(){
   var src=(document.getElementById('pbnc-src')||{}).textContent||'';
   src=src.trim();if(!src)return;
+  _pbNcDirty=true;
   var tt=document.getElementById('pbnc-tgt');
   if(tt&&tt.textContent.trim())return;
   translateWithRetry(src,_pbNcSrcLang,_pbNcTgtLang,2).then(function(r){
@@ -2308,7 +2351,47 @@ function pbNcOnSrcBlur(){
 function pbNcSpeakSrc(){var s=(document.getElementById('pbnc-src')||{}).textContent||'';if(s.trim())speakText(s.trim(),_pbNcSrcLang);}
 function pbNcSpeakTgt(){var s=(document.getElementById('pbnc-tgt')||{}).textContent||'';if(s.trim())speakText(s.trim(),_pbNcTgtLang);}
 var _pbNcVerdict='';
+var _pbNcTags=[];
+var _pbNcDirty=false;
+function pbNcRenderTagChips(){
+  var host=document.getElementById('pbnc-tag-chips');if(!host)return;
+  host.innerHTML=_pbNcTags.map(function(t,i){
+    return '<span style="display:inline-flex;align-items:center;gap:3px;background:#e8f5f5;color:#2e8b8b;border-radius:999px;padding:2px 8px;font-size:12px;">'
+      +pbEsc(t)
+      +'<button onclick="pbNcRemoveTag('+i+')" style="background:none;border:none;cursor:pointer;color:#2e8b8b;font-size:11px;padding:0 0 0 2px;line-height:1;">×</button>'
+      +'</span>';
+  }).join('');
+}
+function pbNcAddTag(tag){
+  tag=(tag||'').trim().toLowerCase();
+  if(!tag||_pbNcTags.indexOf(tag)>=0)return;
+  _pbNcTags.push(tag);_pbNcDirty=true;pbNcRenderTagChips();
+  var inp=document.getElementById('pbnc-tag-inp');if(inp)inp.value='';
+  var sugg=document.getElementById('pbnc-tag-sugg');if(sugg)sugg.style.display='none';
+}
+function pbNcRemoveTag(idx){_pbNcTags.splice(idx,1);_pbNcDirty=true;pbNcRenderTagChips();}
+function pbNcTagKey(e){
+  if(e.key==='Enter'||e.key===','){e.preventDefault();
+    pbNcAddTag(document.getElementById('pbnc-tag-inp').value);}
+}
+function pbNcTagSugg(){
+  var val=(document.getElementById('pbnc-tag-inp').value||'').trim().toLowerCase();
+  var host=document.getElementById('pbnc-tag-sugg');if(!host)return;
+  if(!val){host.style.display='none';return;}
+  var all=pbGetTags().filter(function(t){return t.toLowerCase().indexOf(val)>=0&&_pbNcTags.indexOf(t)<0;});
+  if(!all.length){host.style.display='none';return;}
+  host.innerHTML=all.slice(0,8).map(function(t){
+    return '<div style="padding:6px 10px;cursor:pointer;font-size:13px;" onclick="pbNcAddTag(\''+pbEsc(t)+'\')">'
+      +pbEsc(t)+'</div>';
+  }).join('');
+  host.style.display='block';
+}
+function pbNcConfirmDiscard(){
+  _pbNcDirty=false;
+  document.getElementById('pb-new-card-overlay').style.display='none';
+}
 function pbNcRunBt(){
+  _pbNcDirty=true;
   var tgt=(document.getElementById('pbnc-tgt')||{}).textContent||'';
   tgt=tgt.trim();if(!tgt)return;
   var br=document.getElementById('pbnc-bt-result');
@@ -2320,7 +2403,7 @@ function pbNcRunBt(){
   }).catch(function(){if(br)br.textContent='Error';});
 }
 function pbNcSetVerdict(v){
-  _pbNcVerdict=v;
+  _pbNcVerdict=v;_pbNcDirty=true;
   var vg=document.getElementById('pbnc-vgood');if(vg)vg.classList.toggle('act',v==='good');
   var vf=document.getElementById('pbnc-vflag');if(vf)vf.classList.toggle('act',v==='flag');
 }
@@ -2329,17 +2412,23 @@ function pbSaveNewCard(){
   var tgt=((document.getElementById('pbnc-tgt')||{}).textContent||'').trim();
   if(!src){toast('Enter a source phrase');return;}
   if(!tgt){toast('Enter a translation');return;}
-  var tagsRaw=((document.getElementById('pbnc-tags')||{}).value||'').split(',').map(function(t){return t.trim();}).filter(Boolean);
+  var tagsRaw=_pbNcTags.slice();
+  var clarifyNote=((document.getElementById('pbnc-clarify')||{}).value||'').trim();
   var savedBy=((document.getElementById('pbnc-name')||{}).textContent||'me').trim()||'me';
   var btResultEl=document.getElementById('pbnc-bt-result');
   var btResult=btResultEl?btResultEl.textContent.trim():'';
   var validBt=btResult&&btResult!=='Translating…'&&btResult!=='(no result)'&&btResult!=='Error';
   var btObj=validBt?{sourceLang:_pbNcTgtLang,targetLang:_pbNcSrcLang,inputText:tgt,resultText:btResult,verdict:_pbNcVerdict,contentHash:src+'||'+tgt,updatedAt:pbNow()}:{};
   var card=pbNorm({sourceLang:_pbNcSrcLang,targetLang:_pbNcTgtLang,source:src,target:tgt,
-    catalogIds:_pbNcCatalogIds,tags:tagsRaw,backtranslate:btObj,clarifyChain:[],
+    catalogIds:_pbNcCatalogIds,tags:tagsRaw,backtranslate:btObj,
+    clarifyChain:clarifyNote?[{text:clarifyNote,ts:pbNow(),by:savedBy}]:[],
     savedBy:savedBy,createdAt:pbNow(),updatedAt:pbNow()});
   pbUpsert(card);
-  pbCloseNewCard();toast('Saved to phrasebook');
+  pbCloseNewCard();
+  var pairLabel=pbLangFlag(_pbNcSrcLang)+' '+_pbNcSrcLang.toUpperCase()+' → '+pbLangFlag(_pbNcTgtLang)+' '+_pbNcTgtLang.toUpperCase();
+  var verLabel=_pbNcVerdict==='good'?' · verified':_pbNcVerdict==='flag'?' · flagged':' · not verified';
+  toast('"'+(src.length>30?src.slice(0,30)+'…':src)+'" added to '+pairLabel+verLabel);
+  _pbNcDirty=false;
   pbRenderOverlayFilter();pbRenderOverlay();
   document.getElementById('pb-overlay').style.display='flex';
   pbPushCardToRepo(card);
@@ -3341,9 +3430,10 @@ function trHtml(e){
   if(isMine){leftText=srcText;rightText=tgtText;leftLang=srcLang;rightLang=tgtLang;}
   else{leftText=tgtText;rightText=srcText;leftLang=tgtLang;rightLang=srcLang;}
   function thaiWrap(text,lang){return lang==='th'?'<span class="thai-overlay">'+esc(text)+'</span>':esc(text);}
+  var eid=e.id||(e.ts+'_'+e.who);
   var attachHtml='';
   if(e.attachment&&e.attachment.dataUrl){
-    var att=e.attachment;var eid=e.id||'';var isImg=/^image\//.test(att.type||'');
+    var att=e.attachment;var isImg=/^image\//.test(att.type||'');
     if(!_attCache[eid])_attCache[eid]=att;
     var imgPreview=isImg?'<img src="'+att.dataUrl+'" style="max-width:100%;max-height:120px;border-radius:6px;margin-top:4px;display:block;cursor:pointer;" onclick="attModalOpenById(\''+eid+'\')">':'';
     attachHtml='<div style="margin-top:6px;">'
@@ -3355,8 +3445,16 @@ function trHtml(e){
   var chatClass=e.type==='chat'?' is-chat':'';
   var failBadge=e.translationFailed?'<span class="tr-fail-badge">&#9888; not translated</span>':'';
   var TTS_SVG='<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>';
-  return '<div class="tr-entry"><div class="tr-bubble'+chatClass+'">'
-    +'<div class="tr-head"><div class="tr-who '+(isMine?'mine':'')+'">'+esc(speaker)+'</div><div class="tr-time">'+esc(ts)+'</div></div>'
+  return '<div class="tr-entry" data-id="'+esc(eid)+'" onclick="trTogActive(this)"><div class="tr-bubble'+chatClass+'">'
+    +'<div class="tr-head">'
+    +'<div class="tr-who '+(isMine?'mine':'')+'">'+esc(speaker)+'</div>'
+    +'<div class="tr-head-acts">'
+    +'<button class="tr-act-btn" onclick="event.stopPropagation();trSaveToPb(this)" title="Save to phrasebook">💾</button>'
+    +'<button class="tr-act-btn" onclick="event.stopPropagation();trDeleteEntry(this)" title="Delete" style="color:#c0392b;font-size:16px;">×</button>'
+    +'<button class="tr-act-btn" onclick="event.stopPropagation();trOpenClarify(this)" title="Clarify">?</button>'
+    +'</div>'
+    +'<div class="tr-time">'+esc(ts)+'</div>'
+    +'</div>'
     +'<div class="tr-body">'
     +'<div class="tr-col tr-col-tap" data-insert-text="'+esc(leftText)+'" onclick="trInsertText(this)">'
     +'<div class="tr-col-row">'
@@ -3376,6 +3474,54 @@ function trInsertText(el){
   var ta=$('chat-input');if(!ta)return;
   ta.value=text;ta.dispatchEvent(new Event('input'));ta.focus();
   pbIClose();
+}
+function trTogActive(el){
+  var was=el.classList.contains('tr-active');
+  document.querySelectorAll('.tr-entry.tr-active').forEach(function(e){e.classList.remove('tr-active');});
+  if(!was)el.classList.add('tr-active');
+}
+function _trEntryFromBtn(btn){
+  var row=btn.closest('.tr-entry');if(!row)return null;
+  var id=row.dataset.id;
+  return transcript.find(function(e){return (e.id||(e.ts+'_'+e.who))===id;})||null;
+}
+function trSaveToPb(btn){
+  var entry=_trEntryFromBtn(btn);if(!entry)return;
+  pbOpenNewCard({source:entry.sourceText||'',target:entry.translatedText||'',
+    sourceLang:entry.srcLang,targetLang:entry.tgtLang});
+}
+function trDeleteEntry(btn){
+  var entry=_trEntryFromBtn(btn);if(!entry)return;
+  if(!confirm('Delete this transcript entry?'))return;
+  var id=entry.id||(entry.ts+'_'+entry.who);
+  transcript=transcript.filter(function(e){return (e.id||(e.ts+'_'+e.who))!==id;});
+  saveTr();
+  var row=btn.closest('.tr-entry');if(row)row.remove();
+}
+var _trClarEntry=null;
+function trOpenClarify(btn){
+  var entry=_trEntryFromBtn(btn);if(!entry)return;
+  _trClarEntry=entry;
+  var orig=document.getElementById('tr-clar-orig');
+  if(orig)orig.textContent='Original: "'+((entry.sourceText||'').slice(0,60))+'" → "'+(entry.translatedText||'').slice(0,60)+'"';
+  var inp=document.getElementById('tr-clar-inp');
+  if(inp){inp.value=entry.translatedText||'';inp.oninput=function(){
+    var v=inp.value.trim();if(!v||!_trClarEntry)return;
+    translateWithRetry(v,_trClarEntry.tgtLang||'en',_trClarEntry.srcLang||'en',1).then(function(r){
+      var bt=document.getElementById('tr-clar-bt');if(bt)bt.textContent='Back: '+(r||'');
+    });
+  };}
+  document.getElementById('tr-clar-bt').textContent='';
+  document.getElementById('tr-clarify-modal').style.display='flex';
+  setTimeout(function(){if(inp)inp.focus();},40);
+}
+function trSendClarify(){
+  var inp=document.getElementById('tr-clar-inp');
+  var text=(inp?inp.value:'').trim();if(!text)return;
+  document.getElementById('tr-clarify-modal').style.display='none';
+  var ta=$('chat-input');if(!ta)return;
+  ta.value=text;ta.dispatchEvent(new Event('input'));
+  sendChat();
 }
 function appendTrDom(entry){
   var b=$('transcript-body');if(!b)return;
