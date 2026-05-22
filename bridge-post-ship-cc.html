@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v3.5.5 -->
+<!-- talkbridge · dcr · v5.0.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -172,6 +172,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-itag{background:rgba(63,193,193,.12);color:var(--teal-bright);border-radius:8px;padding:1px 5px;font-size:9px;cursor:pointer;white-space:nowrap;border:none;}
 .pb-itag:hover{background:rgba(63,193,193,.25);}
 .pb-irow-src,.pb-irow-tgt{flex:1;padding:6px 8px;display:flex;align-items:center;gap:5px;min-width:0;}
+.pb-iside{flex:1;padding:6px 8px;display:flex;align-items:center;gap:5px;min-width:0;cursor:pointer;}
+.pb-iside:hover{background:rgba(255,255,255,.06);}
 .pb-irow-txt{flex:1;font-size:12px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pb-irow-src .pb-irow-txt{color:var(--text);}
 .pb-irow-tgt .pb-irow-txt{color:var(--text-dim);}
@@ -239,6 +241,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-fbt{background:none;border:none;cursor:pointer;color:#9a9592;padding:5px 8px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex:1;transition:background .1s,color .1s;}
 .pb-fbt:hover{background:rgba(0,0,0,.05);color:#5a5552;}
 .pb-fbt.on{background:rgba(46,139,139,.12);color:#2e8b8b;}
+.pb-fbt.danger:hover{background:rgba(192,57,43,.08);color:#c0392b;}
 .pb-panel{border-top:1px solid #e0dbd6;background:#fdfaf7;}
 .pb-tpills{display:flex;flex-wrap:wrap;gap:4px;min-height:18px;}
 .pb-tp{background:#eee8ff;color:#6b4fbb;border-radius:5px;padding:2px 6px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;}
@@ -442,7 +445,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v3.5.5</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.0.0</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1113,20 +1116,28 @@ function pbIScore(card,q){
   if(s===q)return 100;if(s.indexOf(q)===0)return 80;if(tg.indexOf(q)>=0)return 70;if(s.indexOf(q)>=0)return 50;return 30;
 }
 function pbIRowHtml(card,idx){
-  var tags=(card.tags||[]).map(function(t){
-    return'<button class="pb-itag" onclick="event.stopPropagation();pbITagOpenI('+idx+',event.clientX,event.clientY)" tabindex="-1">#'+pbEsc(t)+'</button>';
-  }).join('');
   var TTS_SVG='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-  var conf=card.confidence>=0.85?'<span class="pb-conf high">✓</span>':card.confidence>=0.5?'<span class="pb-conf med">~</span>':'';
-  return '<div class="pb-irow" data-idx="'+idx+'" data-id="'+pbEsc(card.id)+'" onclick="pbIRowClick('+idx+')">'
-    +(tags?'<div class="pb-irow-tags">'+tags+'</div>':'')
-    +(conf?'<div style="margin-bottom:2px;">'+conf+'</div>':'')
-    +'<div class="pb-irow-src"><span class="pb-irow-txt">'+pbEsc(card.source||'')+'</span>'
-    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',0)" tabindex="-1">'+TTS_SVG+'</button></div>'
+  return '<div class="pb-irow" data-idx="'+idx+'" data-id="'+pbEsc(card.id)+'">'
+    +'<div class="pb-iside" onclick="pbISideClick('+idx+',\'src\')">'
+      +'<span class="pb-irow-txt">'+pbEsc(card.source||'')+'</span>'
+      +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',0)" tabindex="-1">'+TTS_SVG+'</button>'
+    +'</div>'
     +'<div class="pb-irow-div"></div>'
-    +'<div class="pb-irow-tgt"><span class="pb-irow-txt">'+pbEsc(card.target||'')+'</span>'
-    +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',1)" tabindex="-1">'+TTS_SVG+'</button></div>'
+    +'<div class="pb-iside" onclick="pbISideClick('+idx+',\'tgt\')">'
+      +'<span class="pb-irow-txt">'+pbEsc(card.target||'')+'</span>'
+      +'<button class="pb-irow-tts" onclick="event.stopPropagation();pbISpeakI('+idx+',1)" tabindex="-1">'+TTS_SVG+'</button>'
+    +'</div>'
     +'</div>';
+}
+function pbISideClick(idx,side){
+  var c=_pbICards[idx];if(!c)return;
+  var text=side==='src'?c.source:c.target;
+  pbIClose();
+  var ov=document.getElementById('pb-overlay');if(ov&&ov.style.display==='flex')pbCloseOverlay();
+  var ta=$('chat-input');
+  if(ta){ta.value=text||'';ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,80)+'px';
+    $('chat-send-btn').disabled=!ta.value.trim();ta.focus();}
+  _pbEmitUsage(c,side==='src'?'autocomplete':'autocomplete');
 }
 function pbISelect(id){
   var card=pbGetCardById(id);if(!card)return;
@@ -1920,6 +1931,11 @@ function pbBubbleHtml(card,ctx){
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\'tgt\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'</div>'
     +'<div class="pb-bbl-foot">'
+    +(isDel
+      ?'<button class="pb-fbt" onclick="pbRestoreCard(\''+id+'\')" title="Restore">'+ICO.restore+'</button>'
+        +'<button class="pb-fbt danger" onclick="pbHardDelete(\''+id+'\')" title="Delete permanently">'+ICO.hardtrash+'</button>'
+      :'<button class="pb-fbt" onclick="pbSoftDelete(\''+id+'\')" title="Delete">'+ICO.trash+'</button>'
+    )
     +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">'+ICO.tag+(tags.length?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+tags.length+'</span>':'')+'</button>'
     +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICO.chat+(cc?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">'+cc+'</span>':'')+'</button>'
     +'<button class="pb-fbt'+(cs.btOpen?' on':'')+'" id="pbfb-'+id+'" onclick="pbTogBt(\''+id+'\')" title="Verify">'+ICO.verify+(bt.resultText?'<span style="font-size:9px;margin-left:2px;vertical-align:middle;">·</span>':'')+'</button>'
@@ -1927,7 +1943,6 @@ function pbBubbleHtml(card,ctx){
     +'<div class="pb-panel" id="pbtags-'+id+'" style="display:'+(cs.tagsOpen?'block':'none')+';">'+pbTagPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbclarify-'+id+'" style="display:'+(cs.clarifyOpen?'block':'none')+';">'+pbClarifyPanelHtml(card)+'</div>'
     +'<div class="pb-panel" id="pbbt-'+id+'" style="display:'+(cs.btOpen?'block':'none')+';">'+pbBtPanelHtml(card)+'</div>'
-    +'<div class="pb-chevron-row'+(isDel?' deleted':'')+'" id="pbchev-'+id+'">'+pbChevRowHtml(card)+'</div>'
     +'</div>';
 }
 function pbTagPanelHtml(card){
@@ -3452,13 +3467,13 @@ function trHtml(e){
     +'<div class="tr-col tr-col-tap" data-insert-text="'+esc(leftText)+'" onclick="trInsertText(this)">'
     +'<div class="tr-col-row">'
     +'<div class="tr-text" style="flex:1;">'+(e.type==='chat'?renderMd(leftText):thaiWrap(leftText,leftLang))+attachHtml+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(leftText)+'" data-tts-lang="'+esc(leftLang)+'" title="Play" onclick="event.stopPropagation()">'+TTS_SVG+'</button>'
+    +'<button class="tr-tts" type="button" title="Play" onclick="event.stopPropagation();speakText(\''+esc(leftText)+'\',\''+esc(leftLang)+'\')">'+TTS_SVG+'</button>'
     +'</div></div>'
     +'<div class="tr-divider"></div>'
     +'<div class="tr-col tr-col-tap source" data-insert-text="'+esc(rightText)+'" onclick="trInsertText(this)">'
     +'<div class="tr-col-row">'
     +'<div class="tr-text" style="flex:1;">'+(e.type==='chat'?renderMd(rightText):thaiWrap(rightText,rightLang))+'</div>'
-    +'<button class="tr-tts" type="button" data-tts-text="'+esc(rightText)+'" data-tts-lang="'+esc(rightLang)+'" title="Play" onclick="event.stopPropagation()">'+TTS_SVG+'</button>'
+    +'<button class="tr-tts" type="button" title="Play" onclick="event.stopPropagation();speakText(\''+esc(rightText)+'\',\''+esc(rightLang)+'\')">'+TTS_SVG+'</button>'
     +'</div>'+(failBadge?'<div>'+failBadge+'</div>':'')+'</div>'
     +'</div></div></div>';
 }
