@@ -22,6 +22,12 @@
     .lineage-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.bar{border:1px solid var(--line);border-radius:10px;padding:8px}
     .bar h4{margin:0 0 6px 0;font-size:12px;color:var(--muted);text-transform:uppercase}.count{font-size:20px;font-weight:700}
     .list{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:#f8fafc}
+      .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:40}
+    .modal.open{display:flex}.modal-card{width:min(1100px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;border:1px solid var(--line);padding:14px}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.lane-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+    .lane{border:1px dashed var(--line);border-radius:10px;min-height:100px;padding:8px;background:#f8fafc}.lane.dragover{border-color:var(--accent);box-shadow:0 0 0 2px #bfdbfe inset}
+    .lane.drop-top{background:#ecfeff;border-style:solid}.lane h5{margin:0 0 8px 0;text-transform:uppercase;color:var(--muted);font-size:11px}
+    .kanban-card{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px;margin-bottom:6px;cursor:grab}.tiny{font-size:11px;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -37,12 +43,13 @@
   <section class="panel matrix"><h3>Phase × Stage (drag board cards between cells)</h3><div id="matrix" class="grid"></div></section>
   <section class="panel"><h3>Lineage Overlay (from all board cards)</h3><div id="lineageBars" class="lineage-bars"></div></section>
 </main>
+<div id="boardModal" class="modal" aria-hidden="true"><div class="modal-card"><div class="modal-head"><strong id="modalTitle">Board</strong><button id="closeModalBtn">Close</button></div><div id="laneWrap" class="lane-wrap"></div></div></div>
 <script>
 const STAGES=["concept","alpha","pilot","beta","launch"];
 const PHASES=["dev","tst","prd"];
 const LINEAGES=["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
 const REPO_BOARDS_FILE="kanban-boards.json", REPO_SWITCH_FILE="kanban-switch.json", GITHUB_PAT_KEY="github_pat";
-let repoSwitchCfg={}, index={version:1,activeBoard:"",boards:[]}, boardCardsByBoard={};
+let repoSwitchCfg={}, index={version:1,activeBoard:"",boards:[]}, boardCardsByBoard={}, activeBoardModal="";
 const $=s=>document.querySelector(s);
 const boardSlug=n=>String(n||"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
 const boardFilePath=n=>`${typeof repoSwitchCfg.pathPrefix==="string"?repoSwitchCfg.pathPrefix:""}${boardSlug(n)}.json`;
@@ -62,7 +69,7 @@ function renderMatrix(){
   PHASES.forEach(p=>{ const ph=document.createElement("div"); ph.className=`phase ${p}`; ph.textContent=p; m.append(ph); STAGES.forEach(s=>{ const cell=document.createElement("div"); cell.className="cell"; cell.dataset.phase=p; cell.dataset.stage=s;
       cell.addEventListener("dragover",e=>{e.preventDefault(); cell.classList.add("dragover")}); cell.addEventListener("dragleave",()=>cell.classList.remove("dragover"));
       cell.addEventListener("drop",e=>{e.preventDefault(); cell.classList.remove("dragover"); const name=e.dataTransfer.getData("text/board"); const rec=index.boards.find(b=>b.name===name); if(!rec) return; rec.phase=p; rec.stage=s; rec.phaseUpdatedAt=Date.now(); rec.stageUpdatedAt=Date.now(); rec.lastUpdated=Date.now(); render(); status(`Moved ${name} -> ${p}/${s}`);});
-      index.boards.filter(b=>!b.archived&&b.phase===p&&b.stage===s).sort((a,b)=>a.name.localeCompare(b.name)).forEach(b=>{ const card=document.createElement("div"); card.className="board"; card.draggable=true; card.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board",b.name)); card.innerHTML=`<div class='name'>${b.name}</div><div class='meta'>${b.cardCount||0} cards</div>`; cell.append(card); });
+      index.boards.filter(b=>!b.archived&&b.phase===p&&b.stage===s).sort((a,b)=>a.name.localeCompare(b.name)).forEach(b=>{ const card=document.createElement("div"); card.className="board"; card.draggable=true; card.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board",b.name)); card.addEventListener("click",()=>openBoardModal(b.name)); card.innerHTML=`<div class='name'>${b.name}</div><div class='meta'>${b.cardCount||0} cards</div>`; cell.append(card); });
       m.append(cell);
     })
   })
@@ -70,17 +77,53 @@ function renderMatrix(){
 function renderLineage(){ const cts=Object.fromEntries(LINEAGES.map(l=>[l,0])); const boardsByLineage=Object.fromEntries(LINEAGES.map(l=>[l,new Set()]));
   Object.entries(boardCardsByBoard).forEach(([board,cards])=>cards.forEach(c=>{ const l=LINEAGES.includes(c?.lineage)?c.lineage:LINEAGES[0]; cts[l]++; boardsByLineage[l].add(board); }));
   const root=$("#lineageBars"); root.innerHTML=""; LINEAGES.forEach(l=>{ const d=document.createElement("div"); d.className="bar"; d.innerHTML=`<h4>${l}</h4><div class='count'>${cts[l]}</div>`; const list=document.createElement("div"); list.className="list"; [...boardsByLineage[l]].slice(0,18).forEach(b=>{ const chip=document.createElement("span"); chip.className="chip"; chip.textContent=b; list.append(chip); }); d.append(list); root.append(d); }); }
+
+function closeBoardModal(){ $("#boardModal").classList.remove("open"); activeBoardModal=""; }
+function openBoardModal(board){ activeBoardModal=board; $("#modalTitle").textContent=`Board: ${board}`; renderBoardModal(); $("#boardModal").classList.add("open"); }
+function renderBoardModal(){
+  const root=$("#laneWrap"); if(!activeBoardModal||!root) return; const srcCards=boardCardsByBoard[activeBoardModal]||[];
+  const stages=[...new Set(srcCards.map(c=>String(c?.stage||"Backlog")))]; if(!stages.length) stages.push("Backlog","Next","Doing","Done","Archive");
+  root.innerHTML="";
+  stages.forEach((stage,idx)=>{ const lane=document.createElement("div"); lane.className="lane"; lane.dataset.stage=stage;
+    if(idx===0){ lane.classList.add("drop-top"); const tip=document.createElement("div"), tip2=document.createElement("div"); tip.className='tiny'; tip.textContent='Drag target outlined = lane active.'; tip2.className='tiny'; tip2.textContent='Drop here to move cards from any board into this board.'; lane.append(tip,tip2); }
+    const h=document.createElement("h5"); h.textContent=stage; lane.append(h);
+    lane.addEventListener("dragover",e=>{e.preventDefault(); lane.classList.add("dragover")}); lane.addEventListener("dragleave",()=>lane.classList.remove("dragover"));
+    lane.addEventListener("drop",e=>{e.preventDefault(); lane.classList.remove("dragover"); const cardId=e.dataTransfer.getData("text/card"); const fromBoard=e.dataTransfer.getData("text/from-board");
+      if(!cardId||!fromBoard) return; const from=boardCardsByBoard[fromBoard]||[]; const i=from.findIndex(c=>String(c.id)===cardId); if(i<0) return; const [card]=from.splice(i,1);
+      const toBoard=activeBoardModal; card.stage=stage; card.updatedAt=Date.now(); (boardCardsByBoard[toBoard] ||= []).push(card);
+      const now=Date.now(); [fromBoard,toBoard].forEach(bn=>{ const rec=index.boards.find(b=>b.name===bn); if(rec){ rec.cardCount=(boardCardsByBoard[bn]||[]).length; rec.lastUpdated=now; }});
+      render(); renderBoardModal(); status(`Moved card ${card.title||card.id} -> ${toBoard}/${stage}`);
+    });
+    srcCards.filter(c=>String(c?.stage||"Backlog")===stage).sort((a,b)=>(a.pos||0)-(b.pos||0)).forEach(c=>{ const el=document.createElement("div"); el.className="kanban-card"; el.draggable=true;
+      el.addEventListener("dragstart",e=>{e.dataTransfer.setData("text/card",String(c.id||"")); e.dataTransfer.setData("text/from-board",activeBoardModal);});
+      el.innerHTML=`<div>${c.title||c.id}</div><div class='tiny'>${c.platform||"Default"}</div>`; lane.append(el); });
+    root.append(lane);
+  });
+}
+
 async function ensureGithubToken(){ const t=localStorage.getItem(GITHUB_PAT_KEY)||""; if(!t.trim()) throw new Error("Missing github_pat in localStorage."); return t.trim(); }
 function getGitHubSyncConfig(){ return { owner:repoSwitchCfg.owner||"acmeproducts", repo:repoSwitchCfg.repo||"stuff", branch:repoSwitchCfg.branch||"main" }; }
 async function githubFetch(url, options={}){ const token=await ensureGithubToken(); const r=await fetch(url,{...options,headers:{Accept:"application/vnd.github+json",Authorization:`Bearer ${token}`,...(options.headers||{})}}); if(!r.ok){ throw new Error(`${r.status} ${r.statusText}`);} return r.json(); }
+
+async function saveBoardFile(boardName){ const cfg=getGitHubSyncConfig(); const path=boardFilePath(boardName); const cards=boardCardsByBoard[boardName]||[]; let payload={cards};
+  try{ const existing=await fetchJson(path); if(existing&&typeof existing==="object") payload={...existing,cards}; }catch{}
+  const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`; let sha=null;
+  try{ const ex=await githubFetch(getUrl,{method:"GET"}); sha=ex?.sha||null; }catch(e){ if(!String(e.message).includes("404")) throw e; }
+  const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
+  await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path} via program.html`,content:b64EncodeUnicode(JSON.stringify(payload,null,2)+"\n"),branch:cfg.branch,sha})});
+}
+
 async function saveIndex(){ const cfg=getGitHubSyncConfig(); const path=REPO_BOARDS_FILE; const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`; let sha=null;
   try{ const existing=await githubFetch(getUrl,{method:"GET"}); sha=existing?.sha||null; }catch(e){ if(!String(e.message).includes("404")) throw e; }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
   await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path} via program.html`,content:b64EncodeUnicode(JSON.stringify(index,null,2)+"\n"),branch:cfg.branch,sha})});
-  status("Saved kanban-boards.json to GitHub.");
+  await Promise.all(index.boards.map(b=>saveBoardFile(b.name)));
+  status("Saved kanban-boards.json and board files to GitHub.");
 }
 $("#reloadBtn").onclick=()=>boot().catch(e=>status(`Reload failed: ${e.message}`));
 $("#saveBtn").onclick=()=>saveIndex().catch(e=>status(`Save failed: ${e.message}`));
+$("#closeModalBtn").onclick=()=>closeBoardModal();
+$("#boardModal").addEventListener("click",e=>{ if(e.target.id==="boardModal") closeBoardModal(); });
 boot().catch(e=>status(`Boot failed: ${e.message}`));
 </script>
 </body>
