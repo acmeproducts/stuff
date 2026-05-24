@@ -22,8 +22,8 @@
     .lineage-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.bar{border:1px solid var(--line);border-radius:10px;padding:8px}
     .bar h4{margin:0 0 6px 0;font-size:12px;color:var(--muted);text-transform:uppercase}.count{font-size:20px;font-weight:700}
     .list{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:#f8fafc}
-      .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:40}
-    .modal.open{display:flex}.modal-card{width:min(1100px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;border:1px solid var(--line);padding:14px}
+      .modal{position:fixed;top:70px;right:14px;bottom:14px;display:none;align-items:stretch;justify-content:flex-end;z-index:40;pointer-events:none}
+    .modal.open{display:flex}.modal-card{width:min(560px,94vw);max-height:100%;overflow:auto;background:#fff;border-radius:14px;border:1px solid var(--line);padding:14px;box-shadow:0 10px 30px rgba(15,23,42,.22);pointer-events:auto}
     .modal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.lane-wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
     .lane{border:1px dashed var(--line);border-radius:10px;min-height:100px;padding:8px;background:#f8fafc}.lane.dragover{border-color:var(--accent);box-shadow:0 0 0 2px #bfdbfe inset}
     .lane.drop-top{background:#ecfeff;border-style:solid}.lane h5{margin:0 0 8px 0;text-transform:uppercase;color:var(--muted);font-size:11px}
@@ -49,7 +49,7 @@ const STAGES=["concept","alpha","pilot","beta","launch"];
 const PHASES=["dev","tst","prd"];
 const LINEAGES=["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
 const REPO_BOARDS_FILE="kanban-boards.json", REPO_SWITCH_FILE="kanban-switch.json", GITHUB_PAT_KEY="github_pat";
-let repoSwitchCfg={}, index={version:1,activeBoard:"",boards:[]}, boardCardsByBoard={}, activeBoardModal="";
+let repoSwitchCfg={}, index={version:1,activeBoard:"",boards:[]}, boardCardsByBoard={}, activeBoardModal="", hoverOpenTimer=null;
 const $=s=>document.querySelector(s);
 const boardSlug=n=>String(n||"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
 const boardFilePath=n=>`${typeof repoSwitchCfg.pathPrefix==="string"?repoSwitchCfg.pathPrefix:""}${boardSlug(n)}.json`;
@@ -69,7 +69,12 @@ function renderMatrix(){
   PHASES.forEach(p=>{ const ph=document.createElement("div"); ph.className=`phase ${p}`; ph.textContent=p; m.append(ph); STAGES.forEach(s=>{ const cell=document.createElement("div"); cell.className="cell"; cell.dataset.phase=p; cell.dataset.stage=s;
       cell.addEventListener("dragover",e=>{e.preventDefault(); cell.classList.add("dragover")}); cell.addEventListener("dragleave",()=>cell.classList.remove("dragover"));
       cell.addEventListener("drop",e=>{e.preventDefault(); cell.classList.remove("dragover"); const name=e.dataTransfer.getData("text/board"); const rec=index.boards.find(b=>b.name===name); if(!rec) return; rec.phase=p; rec.stage=s; rec.phaseUpdatedAt=Date.now(); rec.stageUpdatedAt=Date.now(); rec.lastUpdated=Date.now(); render(); status(`Moved ${name} -> ${p}/${s}`);});
-      index.boards.filter(b=>!b.archived&&b.phase===p&&b.stage===s).sort((a,b)=>a.name.localeCompare(b.name)).forEach(b=>{ const card=document.createElement("div"); card.className="board"; card.draggable=true; card.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board",b.name)); card.addEventListener("click",()=>openBoardModal(b.name)); card.innerHTML=`<div class='name'>${b.name}</div><div class='meta'>${b.cardCount||0} cards</div>`; cell.append(card); });
+      index.boards.filter(b=>!b.archived&&b.phase===p&&b.stage===s).sort((a,b)=>a.name.localeCompare(b.name)).forEach(b=>{ const card=document.createElement("div"); card.className="board"; card.draggable=true; card.addEventListener("dragstart",e=>e.dataTransfer.setData("text/board",b.name)); card.addEventListener("click",()=>openKanbanBoard(b.name));
+      card.addEventListener("dragenter",e=>{
+        if(!e.dataTransfer?.types?.includes("text/card")) return;
+        clearTimeout(hoverOpenTimer);
+        hoverOpenTimer=setTimeout(()=>{ if(activeBoardModal!==b.name) openBoardModal(b.name); },120);
+      }); card.innerHTML=`<div class='name'>${b.name}</div><div class='meta'>${b.cardCount||0} cards</div>`; cell.append(card); });
       m.append(cell);
     })
   })
@@ -80,6 +85,7 @@ function renderLineage(){ const cts=Object.fromEntries(LINEAGES.map(l=>[l,0])); 
 
 function closeBoardModal(){ $("#boardModal").classList.remove("open"); activeBoardModal=""; }
 function openBoardModal(board){ activeBoardModal=board; $("#modalTitle").textContent=`Board: ${board}`; renderBoardModal(); $("#boardModal").classList.add("open"); }
+function openKanbanBoard(board){ window.open(`kanban.html?board=${encodeURIComponent(board)}`,"_blank","noopener"); }
 function renderBoardModal(){
   const root=$("#laneWrap"); if(!activeBoardModal||!root) return; const srcCards=boardCardsByBoard[activeBoardModal]||[];
   const stages=[...new Set(srcCards.map(c=>String(c?.stage||"Backlog")))]; if(!stages.length) stages.push("Backlog","Next","Doing","Done","Archive");
@@ -123,6 +129,7 @@ async function saveIndex(){ const cfg=getGitHubSyncConfig(); const path=REPO_BOA
 $("#reloadBtn").onclick=()=>boot().catch(e=>status(`Reload failed: ${e.message}`));
 $("#saveBtn").onclick=()=>saveIndex().catch(e=>status(`Save failed: ${e.message}`));
 $("#closeModalBtn").onclick=()=>closeBoardModal();
+window.addEventListener("focus",()=>boot().catch(e=>status(`Refresh failed: ${e.message}`)));
 $("#boardModal").addEventListener("click",e=>{ if(e.target.id==="boardModal") closeBoardModal(); });
 boot().catch(e=>status(`Boot failed: ${e.message}`));
 </script>
