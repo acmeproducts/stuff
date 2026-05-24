@@ -108,20 +108,24 @@ Host-only: joiner role never posts telemetry
 
 ## Git Rules
 
-Develop on branch: `claude/audit-talkbridge-recovery-UHws6`
+The only branch that serves the live page is `main`.
+All work commits directly to main. No feature branches.
 
-### End-of-session push (required — in this order)
+### End-of-session push
 
 ```bash
-git fetch origin main
-git rebase origin/main
+git add -A
+git commit -m "describe what was done"
 git push origin main
-git push origin main:claude/audit-talkbridge-recovery-UHws6
-git log --oneline origin/main..main          # must be empty
-git log --oneline origin/claude/audit-talkbridge-recovery-UHws6..main  # must be empty
 ```
 
-### Session start (required)
+Verify it landed:
+
+```bash
+git log --oneline origin/main..main   # must be empty after push
+```
+
+### Session start
 
 ```bash
 git fetch origin main
