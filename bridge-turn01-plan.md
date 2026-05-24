@@ -81,8 +81,8 @@ Updated after each stage completes.
 
 | Stage | File | Version | Lint | Committed | User go-ahead |
 |---|---|---|---|---|---|
-| PRE-REQUISITE | `bridge-turn00-post-ship.html` | v5.1.0 | n/a | ☐ | n/a |
-| pre-base | `bridge-turn01-pre-base.html` | v5.2.0 | ☐ | ☐ | ☐ |
+| PRE-REQUISITE | `bridge-turn00-post-ship.html` | v5.1.0 | n/a | ✅ | n/a |
+| pre-base | `bridge-turn01-pre-base.html` | v5.2.0 | ✅ | ✅ | ✅ |
 | base | `bridge-turn01-base.html` | v5.2.1 | ☐ | ☐ | ☐ |
 | pre-ship | `bridge-turn01-pre-ship.html` | v5.2.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn01-ship.html` | v5.2.3 | ☐ | ☐ | ☐ |
@@ -96,7 +96,7 @@ Updated after each stage completes.
 
 | Stage | Implemented as planned | Additions beyond scope | Removals / deferrals | Bugs found |
 |---|---|---|---|---|
-| pre-base | | | | |
+| pre-base | ✅ version stamp only (v5.2.0) | — | — | — |
 | base | | | | |
 | pre-ship | | | | |
 | ship | | | | |
