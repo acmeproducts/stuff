@@ -83,10 +83,10 @@ Updated after each stage completes.
 |---|---|---|---|---|---|
 | PRE-REQUISITE | `bridge-turn00-post-ship.html` | v5.1.0 | n/a | ✅ | n/a |
 | pre-base | `bridge-turn01-pre-base.html` | v5.2.0 | ✅ | ✅ | ✅ |
-| base | `bridge-turn01-base.html` | v5.2.1 | ☐ | ☐ | ☐ |
-| pre-ship | `bridge-turn01-pre-ship.html` | v5.2.2 | ☐ | ☐ | ☐ |
-| ship | `bridge-turn01-ship.html` | v5.2.3 | ☐ | ☐ | ☐ |
-| post-ship | `bridge-turn01-post-ship.html` | v5.2.4 | ☐ | ☐ | ☐ |
+| base | `bridge-turn01-base.html` | v5.2.1 | ✅ | ✅ | ✅ |
+| pre-ship | `bridge-turn01-pre-ship.html` | v5.2.2 | ✅ | ✅ | ✅ |
+| ship | `bridge-turn01-ship.html` | v5.2.3 | ✅ | ✅ | ✅ |
+| post-ship | `bridge-turn01-post-ship.html` | v5.2.4 | ✅ | ✅ | ✅ |
 
 ---
 
@@ -97,10 +97,10 @@ Updated after each stage completes.
 | Stage | Implemented as planned | Additions beyond scope | Removals / deferrals | Bugs found |
 |---|---|---|---|---|
 | pre-base | ✅ version stamp only (v5.2.0) | — | — | — |
-| base | | | | |
-| pre-ship | | | | |
-| ship | | | | |
-| post-ship | | | | |
+| base | ✅ F4/F1/A/B/C/D as planned | — | C: room-tr-overlay Copy btn removed (interpretation); C: PB book icon added to call-transcript-header | — |
+| pre-ship | ✅ E/F/G/H/I/F3 as planned | — | — | — |
+| ship | ✅ F2 as planned | — | — | — |
+| post-ship | ✅ version stamp only (v5.2.4) | — | — | — |
 
 ---
 
