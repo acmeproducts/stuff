@@ -1,0 +1,671 @@
+<!-- TalkBridge Pipeline Workspace-v2.6.0-MyMemory-Audit-Protocol -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TalkBridge Pipeline Workspace</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+    
+    @keyframes pulse-fast {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .pulse-loading {
+      animation: pulse-fast 1.5s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950">
+
+  <!-- Core Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="p-1.5 bg-teal-500/10 text-teal-400 rounded border border-teal-500/20">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </span>
+          <h1 class="text-xl font-bold tracking-tight text-white">TalkBridge Certification Workspace</h1>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Curated-Ahead-of-Ingestion Engine (Powered by MyMemory Translation API)</p>
+      </div>
+
+      <!-- Action Configuration Drawer Settings Toggle -->
+      <div class="flex items-center gap-3">
+        <span id="gdrive-status-indicator" class="px-2.5 py-1 rounded-lg text-2xs font-semibold bg-rose-950/20 border border-rose-800 text-rose-400 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Drive Disconnected
+        </span>
+        <button onclick="toggleConfigDrawer()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-all">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Google Drive Settings Drawer Slide-out -->
+  <div id="gdrive-drawer" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden transition-all duration-300">
+    <div class="absolute right-0 top-0 bottom-0 max-w-md w-full bg-slate-900 border-l border-slate-800 p-6 shadow-2xl flex flex-col justify-between">
+      <div class="space-y-6">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-2 text-purple-400 font-bold">
+            <i data-lucide="database" class="w-5 h-5"></i>
+            <h3 class="text-sm uppercase tracking-wider">Cloud Storage Configuration</h3>
+          </div>
+          <button onclick="toggleConfigDrawer()" class="text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div class="space-y-1.5">
+            <label class="text-xs text-slate-300 font-medium">Google OAuth 2.0 Client ID</label>
+            <input type="text" id="gdrive-client-id" oninput="saveClientCredentials()" placeholder="Paste your Google OAuth 2.0 Client ID here" class="w-full bg-slate-950 border border-slate-800 text-xs px-3 py-2.5 rounded-lg text-white focus:outline-none focus:border-purple-600 transition-all">
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-xs text-slate-300 font-medium">Google Drive Directory Target</label>
+            <div class="w-full bg-slate-950 border border-slate-800 text-xs px-3 py-2.5 rounded-lg text-purple-400 font-mono select-all">
+              GDrive://My Drive/TalkBridge/Phrasebooks/{lang_pair}/
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-4 border-t border-slate-800">
+          <button onclick="authenticateGoogleDrive()" class="w-full bg-purple-700 hover:bg-purple-600 text-white py-2 rounded-lg text-xs font-bold transition-all border border-purple-600 shadow-md flex items-center justify-center gap-1.5">
+            <i data-lucide="unlock" class="w-4 h-4"></i> Authorize Google Drive API
+          </button>
+          <button id="disconnect-gdrive-btn" onclick="disconnectGoogleDrive()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-xs font-semibold transition-all border border-slate-700 hidden">
+            Disconnect Session
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Process Workspace Tabs Selector -->
+  <div class="border-b border-slate-800 bg-slate-900/40">
+    <div class="max-w-7xl mx-auto px-6 flex border-b border-transparent">
+      <button onclick="switchTab('import')" id="tab-btn-import" class="px-6 py-4 text-sm font-bold border-b-2 border-teal-500 text-teal-400 flex items-center gap-2 transition-all">
+        <i data-lucide="cloud-upload" class="w-4 h-4"></i> 0. Input Seeder
+      </button>
+      <button onclick="switchTab('go')" id="tab-btn-go" class="px-6 py-4 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition-all">
+        <i data-lucide="shield-check" class="w-4 h-4"></i> 1. Certification Engine
+      </button>
+    </div>
+  </div>
+
+  <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+    <!-- Active Workspace Language Pair Selector -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider">Dynamic Workspace Alignment</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Define your custom language code parameters to immediately isolate directory scopes in Google Drive.</p>
+        </div>
+        
+        <div class="flex items-center gap-3 w-full lg:w-auto">
+          <div class="space-y-1">
+            <label class="text-3xs uppercase text-slate-500 font-bold">Source Language</label>
+            <input type="text" id="workspace-src-lang" onchange="updateWorkspaceContext()" value="en" class="bg-slate-950 border border-slate-800 text-xs px-3 py-2 rounded-lg text-white placeholder-slate-700 w-24 text-center font-mono focus:outline-none focus:border-teal-500">
+          </div>
+          <span class="text-slate-600 mt-4 font-bold">➔</span>
+          <div class="space-y-1">
+            <label class="text-3xs uppercase text-slate-500 font-bold">Target Language</label>
+            <input type="text" id="workspace-tgt-lang" onchange="updateWorkspaceContext()" value="ko" class="bg-slate-950 border border-slate-800 text-xs px-3 py-2 rounded-lg text-teal-400 placeholder-slate-700 w-24 text-center font-mono focus:outline-none focus:border-teal-500">
+          </div>
+        </div>
+      </div>
+      
+      <div class="p-3 bg-slate-950 rounded-lg border border-slate-800 text-2xs text-slate-400 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="folder" class="w-3.5 h-3.5 text-purple-400"></i>
+          <span>Target Path: <code class="text-purple-400 font-mono" id="gdrive-path-preview">GDrive://My Drive/TalkBridge/Phrasebooks/en_to_ko/</code></span>
+        </div>
+        <span class="text-2xs text-slate-500" id="in-memory-count">0 phrases in workspace cache</span>
+      </div>
+    </div>
+
+    <!-- TAB 0: SEEDER -->
+    <div id="panel-import" class="space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+        <div class="flex items-center gap-2 text-teal-400 font-bold">
+          <i data-lucide="cloud-upload" class="w-5 h-5"></i>
+          <h3 class="text-sm uppercase tracking-wider">Seed Target Language Phrasebooks to Google Drive</h3>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Import your master JSON file. This sets up the workspace memory, or seeds directly into your Google Drive master directories.
+        </p>
+
+        <div class="space-y-4">
+          <div class="border-2 border-dashed border-slate-800 hover:border-teal-500/50 bg-slate-950/40 p-10 rounded-xl text-center space-y-3 relative cursor-pointer" onclick="document.getElementById('phrasebook-file-picker').click()">
+            <input type="file" id="phrasebook-file-picker" class="hidden" accept=".json" onchange="handleRawFileIngestion(this)">
+            <i data-lucide="file-json" class="w-8 h-8 text-teal-500/60 mx-auto"></i>
+            <p class="text-sm font-semibold text-slate-300" id="seeder-box-title">Upload Target Phrasebook File</p>
+            <p class="text-xs text-slate-500" id="seeder-box-desc">Drag & drop or click to select your master JSON phrasebook</p>
+          </div>
+
+          <div class="flex justify-end">
+            <button onclick="seedAndPushMasterPhrasebooks()" id="push-sources-btn" class="flex items-center gap-2 bg-purple-900 hover:bg-purple-800 text-purple-100 px-5 py-2.5 rounded-lg font-bold text-xs border border-purple-700 transition-all shadow-lg shadow-purple-900/10 disabled:opacity-50" disabled>
+              <i data-lucide="folder-plus" class="w-4 h-4"></i>
+              🚀 Seed Master Phrasebook directly to Google Drive
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: CERTIFICATION ENGINE -->
+    <div id="panel-go" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+          <div class="flex items-center gap-2 text-teal-400 font-bold">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            <h3 class="text-sm uppercase tracking-wider">Run Validation & Auditing</h3>
+          </div>
+
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Pulls unvalidated sources, queries back-translations using MyMemory API, calculates drift, applies exact cultural/demographic tags, and enforces the TalkBridge pre-ingestion schema contract.
+          </p>
+
+          <div class="space-y-3 p-4 bg-slate-950 border border-slate-800 rounded-xl">
+            <h4 class="text-2xs text-teal-400 uppercase font-bold tracking-wider">Demographic Tagging</h4>
+            
+            <div class="space-y-1">
+              <label class="text-3xs uppercase text-slate-400 font-semibold">Speaker Gender</label>
+              <select id="compile-gender" class="w-full bg-slate-900 border border-slate-800 text-xs px-2.5 py-1.5 rounded text-slate-200">
+                <option value="neutral">Neutral / Unmarked</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-3xs uppercase text-slate-400 font-semibold">Formality & Register</label>
+              <select id="compile-formality" class="w-full bg-slate-900 border border-slate-800 text-xs px-2.5 py-1.5 rounded text-slate-200">
+                <option value="polite">Polite / Standard</option>
+                <option value="casual">Casual / Conversational</option>
+                <option value="formal">Highly Formal / Honorifics</option>
+              </select>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-3xs uppercase text-slate-400 font-semibold">Age Group</label>
+              <select id="compile-age" class="w-full bg-slate-900 border border-slate-800 text-xs px-2.5 py-1.5 rounded text-slate-200">
+                <option value="adult">Adult</option>
+                <option value="child">Child / Informal</option>
+                <option value="senior">Senior / Respectful</option>
+              </select>
+            </div>
+          </div>
+
+          <button onclick="runCuratedValidationPipeline()" id="run-compile-btn" class="w-full bg-teal-600 hover:bg-teal-500 text-slate-950 py-3 rounded-lg font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-teal-500/10">
+            <i data-lucide="zap" class="w-5 h-5"></i>
+            Execute Certification Pipeline
+          </button>
+        </div>
+
+        <!-- Terminal Console Output Window -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col h-[520px]">
+          <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-2 text-white font-bold">
+              <i data-lucide="terminal" class="w-4 h-4 text-teal-400"></i>
+              <h3 class="text-sm uppercase tracking-wider">Certification Audit Trail</h3>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <button onclick="copyConsoleLogs()" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-all" title="Copy Logs to Clipboard">
+                <i data-lucide="copy" class="w-4 h-4"></i>
+              </button>
+              <button id="download-certified-btn" onclick="downloadCertifiedJson()" class="p-1.5 bg-teal-900 hover:bg-teal-800 text-teal-400 border border-teal-700 rounded transition-all hidden" title="Download Certified JSON">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
+              <span id="compiler-indicator" class="text-xs text-slate-500 flex items-center gap-1.5 ml-2">
+                <span class="w-2 h-2 rounded-full bg-slate-700"></span> Idle
+              </span>
+            </div>
+          </div>
+
+          <div id="console-logs" class="flex-grow bg-slate-950 border border-slate-800 text-xs font-mono p-4 rounded-lg text-emerald-400 overflow-y-auto space-y-1.5 scrollbar-thin">
+            <span class="text-slate-600">-- Seed phrasebooks inside Google Drive or upload to open compilation loops --</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="toast" class="fixed bottom-6 right-6 z-[200] transform translate-y-12 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 bg-teal-500 text-slate-950 px-4 py-3 rounded-lg shadow-xl font-semibold text-sm">
+    <i data-lucide="check" class="w-4 h-4"></i>
+    <span id="toast-text">Success!</span>
+  </div>
+
+  <footer class="border-t border-slate-800 bg-slate-900 py-3 px-6 text-center text-xs text-slate-500 sticky bottom-0 z-40 flex flex-col md:flex-row justify-between items-center gap-2 max-w-full">
+    <div>TalkBridge Orchestration Pipeline Dashboard & Tracker</div>
+    <div class="flex items-center gap-1.5 text-teal-400">
+      <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
+      <span>v2.6.0-MyMemoryAPI</span>
+    </div>
+  </footer>
+
+  <!-- Processing Core Scripts -->
+  <script>
+    let activeLanguage = 'en_to_ko';
+    let gapiInited = false;
+    let gisInited = false;
+    let tokenClient = null;
+    let googleAccessToken = null;
+    let parsedPhrasebookData = null;
+    let currentlyCertifiedData = null;
+
+    // Threshold for passing drift validation
+    const CONFIDENCE_THRESHOLD = 0.90;
+
+    function safeSetText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
+    function safeSetValue(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+    function safeSetDisabled(id, disabled) { const el = document.getElementById(id); if (el) el.disabled = disabled; }
+    function toggleConfigDrawer() { const d = document.getElementById('gdrive-drawer'); if(d) d.classList.toggle('hidden'); }
+
+    window.onload = function() {
+      const savedClientId = localStorage.getItem('talkbridge_gdrive_client_id') || '';
+      safeSetValue('gdrive-client-id', savedClientId);
+      updateWorkspaceContext();
+      lucide.createIcons();
+    };
+
+    function switchTab(tabId) {
+      const tabs = ['import', 'go'];
+      tabs.forEach(id => {
+        const btn = document.getElementById(`tab-btn-${id}`);
+        const panel = document.getElementById(`panel-${id}`);
+        if (id === tabId) {
+          if (btn) btn.className = "px-6 py-4 text-sm font-bold border-b-2 border-teal-500 text-teal-400 flex items-center gap-2 transition-all";
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          if (btn) btn.className = "px-6 py-4 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition-all";
+          if (panel) panel.classList.add('hidden');
+        }
+      });
+    }
+
+    function logToConsole(text, isError = false) {
+      const consoleDiv = document.getElementById('console-logs');
+      if (!consoleDiv) return;
+      if (consoleDiv.innerHTML.includes('Seed phrasebooks inside Google Drive')) consoleDiv.innerHTML = '';
+      
+      const dateStr = new Date().toLocaleTimeString();
+      const color = isError ? 'text-rose-400' : 'text-emerald-400';
+      consoleDiv.innerHTML += `<div class="${color}">[${dateStr}] ${text}</div>`;
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+
+    function copyConsoleLogs() {
+      const consoleDiv = document.getElementById('console-logs');
+      if (!consoleDiv) return;
+      document.execCommand('copy');
+      navigator.clipboard.writeText(consoleDiv.innerText)
+        .then(() => showToast("Audit logs copied to clipboard!"))
+        .catch(err => showToast("Failed to copy logs."));
+    }
+
+    function downloadCertifiedJson() {
+      if (!currentlyCertifiedData) return showToast("No certified data available for download.");
+      const blob = new Blob([JSON.stringify(currentlyCertifiedData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `v_certified_${activeLanguage}_${Date.now()}.json`;
+      a.click();
+      showToast("Download initiated!");
+    }
+
+    function updateWorkspaceContext() {
+      const srcEl = document.getElementById('workspace-src-lang');
+      const tgtEl = document.getElementById('workspace-tgt-lang');
+      if (!srcEl || !tgtEl) return;
+      const src = srcEl.value.trim().toLowerCase();
+      const tgt = tgtEl.value.trim().toLowerCase();
+      activeLanguage = `${src}_to_${tgt}`;
+      safeSetText('gdrive-path-preview', `GDrive://My Drive/TalkBridge/Phrasebooks/${activeLanguage}/`);
+    }
+
+    function handleRawFileIngestion(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed.cards || !Array.isArray(parsed.cards)) {
+            showToast("Invalid structure: File must contain a 'cards' array.");
+            return;
+          }
+          parsedPhrasebookData = parsed;
+          safeSetText('seeder-box-title', `Seeded: ${file.name}`);
+          safeSetText('seeder-box-desc', `Successfully parsed ${parsed.cards.length} cards from uploaded file!`);
+          safeSetDisabled('push-sources-btn', false);
+          safeSetText('in-memory-count', `${parsed.cards.length} phrases loaded in workspace cache`);
+          showToast(`Ingested ${parsed.cards.length} cards from local file!`);
+        } catch (err) { showToast("Failed to parse JSON file: " + err.message); }
+      };
+      reader.readAsText(file);
+    }
+
+    // --- LEVENSHTEIN / SIMILARITY ALGORITHM ---
+    function calculateSimilarity(s1, s2) {
+      s1 = s1.toLowerCase().trim();
+      s2 = s2.toLowerCase().trim();
+      const longer = s1.length > s2.length ? s1 : s2;
+      const shorter = s1.length > s2.length ? s2 : s1;
+      if (longer.length === 0) return 1.0;
+      
+      const costs = [];
+      for (let i = 0; i <= longer.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= shorter.length; j++) {
+          if (i == 0) costs[j] = j;
+          else if (j > 0) {
+            let newValue = costs[j - 1];
+            if (longer.charAt(i - 1) != shorter.charAt(j - 1)) {
+              newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+            }
+            costs[j - 1] = lastValue;
+            lastValue = newValue;
+          }
+        }
+        if (i > 0) costs[shorter.length] = lastValue;
+      }
+      const distance = costs[shorter.length];
+      return (longer.length - distance) / parseFloat(longer.length);
+    }
+
+    // --- MYMEMORY TRANSLATION API IMPLEMENTATION ---
+    async function fetchMyMemoryTranslation(text, sourceLang, targetLang) {
+      // API format: langpair=source|target
+      const langpair = `${sourceLang}|${targetLang}`;
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`;
+      
+      let delay = 1000;
+      for (let i = 0; i < 4; i++) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.responseData && data.responseData.translatedText) {
+              return data.responseData.translatedText;
+            }
+          }
+        } catch (err) {}
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+      throw new Error("Connection to MyMemory API failed after retries.");
+    }
+
+    // --- WORKER ENCAPSULATION ---
+    async function certifyCardWorkerLogic(card, config) {
+      const { gender, formality, age, sourceLang, targetLang } = config;
+      
+      // We are back-translating from Target (e.g., ko) -> Source (e.g., en)
+      const backTranslatedText = await fetchMyMemoryTranslation(card.target, targetLang, sourceLang);
+      
+      // Calculate Drift
+      const score = calculateSimilarity(card.source, backTranslatedText);
+      const verdict = score >= CONFIDENCE_THRESHOLD ? "PASS" : "FAIL";
+
+      // 3. Schema Enforcement
+      card.backtranslate = {
+        sourceLang: targetLang,
+        targetLang: sourceLang,
+        inputText: card.target,
+        resultText: backTranslatedText,
+        verdict: verdict,
+        confidenceScore: parseFloat(score.toFixed(3)),
+        contentHash: `${card.source}||${card.target}`,
+        updatedAt: Date.now()
+      };
+
+      // 4. Register Metadata Injection
+      if (!card.tags) card.tags = [];
+      if (formality !== "neutral" && !card.tags.includes(formality)) card.tags.push(formality);
+      if (gender !== "neutral" && !card.tags.includes(gender)) card.tags.push(gender);
+      if (age !== "adult" && !card.tags.includes(age)) card.tags.push(age);
+
+      return { card, score, verdict };
+    }
+
+    // --- MAIN CERTIFICATION PIPELINE ---
+    async function runCuratedValidationPipeline() {
+      const srcLang = document.getElementById('workspace-src-lang').value.trim() || 'en';
+      const tgtLang = document.getElementById('workspace-tgt-lang').value.trim() || 'ko';
+      const gender = document.getElementById('compile-gender').value;
+      const formality = document.getElementById('compile-formality').value;
+      const age = document.getElementById('compile-age').value;
+
+      let sourceData = parsedPhrasebookData;
+      
+      // Fallback: Fetch from Drive if not loaded locally
+      if (!sourceData && googleAccessToken) {
+        logToConsole(`Checking GDrive://TalkBridge/Phrasebooks/${activeLanguage}/a_sources/master_sources.json...`);
+        try {
+          const tbId = await getOrCreateDriveFolder("TalkBridge");
+          const pbId = await getOrCreateDriveFolder("Phrasebooks", tbId);
+          const langId = await getOrCreateDriveFolder(activeLanguage, pbId);
+          const aSrcId = await getOrCreateDriveFolder("a_sources", langId);
+          const query = `name = 'master_sources.json' and '${aSrcId}' in parents and trashed = false`;
+          const response = await gapi.client.drive.files.list({ q: query, fields: 'files(id)' });
+          if (response.result.files && response.result.files.length > 0) {
+            const fileData = await gapi.client.drive.files.get({ fileId: response.result.files[0].id, alt: 'media' });
+            sourceData = fileData.result;
+            logToConsole(`Fetched ${sourceData.cards.length} cards from Drive.`);
+          }
+        } catch (e) { logToConsole(`Drive fetch error: ${e.message}`, true); }
+      }
+
+      if (!sourceData || !sourceData.cards) {
+        logToConsole("ERROR: No valid phrasebook data available. Upload file or connect Drive.", true);
+        return;
+      }
+
+      const totalCards = sourceData.cards.length;
+      document.getElementById('compiler-indicator').innerHTML = `<span class="w-2 h-2 rounded-full bg-teal-400 pulse-loading"></span> Processing`;
+      logToConsole(`🚀 Starting Validation Pipeline via MyMemory API for ${totalCards} cards.`);
+      logToConsole(`Context tagged as: ${gender}/${formality}/${age}`);
+      
+      let passCount = 0; let failCount = 0; let totalScore = 0;
+
+      // Sequential execution strictly enforcing API rate-limits
+      for (let i = 0; i < totalCards; i++) {
+        const card = sourceData.cards[i];
+        logToConsole(`[${i+1}/${totalCards}] Auditing ID: ${card.id}`);
+        try {
+          const config = { gender, formality, age, sourceLang: srcLang, targetLang: tgtLang };
+          const result = await certifyCardWorkerLogic(card, config);
+          
+          if (result.verdict === "PASS") passCount++; else failCount++;
+          totalScore += result.score;
+          
+          logToConsole(`↳ Verdict: ${result.verdict} (Score: ${result.score.toFixed(3)}) | Out: "${card.backtranslate.resultText}"`);
+        } catch (err) {
+          failCount++;
+          logToConsole(`↳ ERROR on ID ${card.id}: ${err.message}`, true);
+        }
+      }
+
+      // TB Contract Requirement: Audit Summary
+      sourceData.auditSummary = {
+        totalProcessed: totalCards,
+        statusDistribution: { PASS: passCount, FAIL: failCount },
+        meanConfidenceScore: parseFloat((totalScore / totalCards).toFixed(3))
+      };
+
+      currentlyCertifiedData = sourceData;
+      logToConsole(`✅ Certification Complete! PASS: ${passCount}, FAIL: ${failCount}, Mean Score: ${sourceData.auditSummary.meanConfidenceScore}`);
+      
+      // Reveal download button in UI
+      document.getElementById('download-certified-btn').classList.remove('hidden');
+      document.getElementById('compiler-indicator').innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-700"></span> Idle`;
+
+      // Output: Write certified data to Google Drive
+      if (googleAccessToken) {
+        logToConsole(`Writing Certified Payload back to Google Drive...`);
+        try {
+          const tbId = await getOrCreateDriveFolder("TalkBridge");
+          const pbId = await getOrCreateDriveFolder("Phrasebooks", tbId);
+          const langId = await getOrCreateDriveFolder(activeLanguage, pbId);
+          const c2WayId = await getOrCreateDriveFolder("c_2way", langId); // Save to target destination
+          
+          const fileName = `v_certified_${activeLanguage}_${Date.now()}.json`;
+          await pushFileToDrive(c2WayId, fileName, currentlyCertifiedData);
+          logToConsole(`Successfully wrote ${fileName} to Drive.`);
+          showToast("Validation complete. Exported to Drive.");
+        } catch (e) { logToConsole(`Failed to write to Drive: ${e.message}`, true); }
+      } else {
+        logToConsole(`⚠️ Google Drive not connected. Use the download button above to retrieve the JSON.`, true);
+      }
+    }
+
+    // --- GOOGLE DRIVE OAUTH LOGIC (UNTOUCHED FROM ORIGINAL) ---
+    async function seedAndPushMasterPhrasebooks() {
+      if (!parsedPhrasebookData) { showToast("Error: No raw phrasebook file ingested."); return; }
+      if (!googleAccessToken) { showToast("Error: Please authorize Google Drive API access first."); return; }
+
+      showToast("🚀 Initializing Google Drive Directories...");
+      try {
+        const talkBridgeId = await getOrCreateDriveFolder("TalkBridge");
+        const phrasebooksId = await getOrCreateDriveFolder("Phrasebooks", talkBridgeId);
+        const langFolderId = await getOrCreateDriveFolder(activeLanguage, phrasebooksId);
+        
+        const aSourcesId = await getOrCreateDriveFolder("a_sources", langFolderId);
+        const b1WayId = await getOrCreateDriveFolder("b_1way", langFolderId);
+        await getOrCreateDriveFolder("c_2way", langFolderId);
+
+        await pushFileToDrive(aSourcesId, "master_sources.json", parsedPhrasebookData);
+        showToast("✅ Master phrasebook source file written to Google Drive!");
+      } catch (err) { showToast("Drive Seed Failed: " + err.message); }
+    }
+
+    function gapiLoaded() { gapi.load('client', initializeGapiClient); }
+    async function initializeGapiClient() {
+      await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+      gapiInited = true;
+      recoverTokenSession();
+    }
+    function gisLoaded() {
+      const storedClientId = localStorage.getItem('talkbridge_gdrive_client_id') || '';
+      if (document.getElementById('gdrive-client-id')) document.getElementById('gdrive-client-id').value = storedClientId;
+      if (storedClientId) initTokenClient(storedClientId);
+    }
+    function initTokenClient(clientId) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId, scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: (resp) => {
+          if (resp.error !== undefined) { showToast("OAuth 2.0 Error: " + resp.error); return; }
+          googleAccessToken = resp.access_token;
+          localStorage.setItem('talkbridge_gdrive_token', googleAccessToken);
+          showToast("Successfully authenticated with Google Drive API!");
+          checkGoogleAuthStatus();
+        },
+      });
+      gisInited = true;
+      checkGoogleAuthStatus();
+    }
+    function saveClientCredentials() {
+      const clientId = document.getElementById('gdrive-client-id').value.trim();
+      localStorage.setItem('talkbridge_gdrive_client_id', clientId);
+      initTokenClient(clientId);
+    }
+    function recoverTokenSession() {
+      const cachedToken = localStorage.getItem('talkbridge_gdrive_token');
+      if (cachedToken) {
+        googleAccessToken = cachedToken;
+        gapi.client.setToken({ access_token: googleAccessToken });
+        checkGoogleAuthStatus();
+      }
+    }
+    function authenticateGoogleDrive() {
+      const clientId = document.getElementById('gdrive-client-id').value.trim();
+      if (!clientId) { showToast("Error: Client ID required."); return; }
+      if (!tokenClient) initTokenClient(clientId);
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    }
+    function disconnectGoogleDrive() {
+      localStorage.removeItem('talkbridge_gdrive_token');
+      googleAccessToken = null;
+      if (gapiInited) gapi.client.setToken(null);
+      checkGoogleAuthStatus();
+      showToast("Disconnected from Google Drive API.");
+    }
+    function checkGoogleAuthStatus() {
+      const badge = document.getElementById('gdrive-status-indicator');
+      const disconnectBtn = document.getElementById('disconnect-gdrive-btn');
+      if (!badge) return;
+      if (googleAccessToken) {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span> Drive Connected`;
+        badge.className = "px-2.5 py-1 rounded-lg text-2xs font-semibold bg-teal-950/20 border border-teal-800 text-teal-400 flex items-center gap-1.5 shrink-0";
+        if (disconnectBtn) disconnectBtn.classList.remove('hidden');
+      } else {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Drive Disconnected`;
+        badge.className = "px-2.5 py-1 rounded-lg text-2xs font-semibold bg-rose-950/20 border border-rose-800 text-rose-400 flex items-center gap-1.5 shrink-0";
+        if (disconnectBtn) disconnectBtn.classList.add('hidden');
+      }
+    }
+    async function getOrCreateDriveFolder(folderName, parentId = null) {
+      if (!googleAccessToken) throw new Error("Google Drive unauthorized.");
+      let query = `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      if (parentId) query += ` and '${parentId}' in parents`;
+      const response = await gapi.client.drive.files.list({ q: query, fields: 'files(id, name)' });
+      const files = response.result.files;
+      if (files && files.length > 0) return files[0].id;
+      const metadata = { name: folderName, mimeType: 'application/vnd.google-apps.folder' };
+      if (parentId) metadata.parents = [parentId];
+      const folder = await gapi.client.drive.files.create({ resource: metadata, fields: 'id' });
+      return folder.result.id;
+    }
+    async function pushFileToDrive(folderId, fileName, fileContent) {
+      const boundary = '314159265358979323846';
+      const delimiter = "\r\n--" + boundary + "\r\n";
+      const close_delim = "\r\n--" + boundary + "--";
+      const metadata = { name: fileName, mimeType: 'application/json', parents: [folderId] };
+      const multipartRequestBody = delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(fileContent, null, 2) + close_delim;
+      const existCheck = await gapi.client.drive.files.list({ q: `name = '${fileName}' and '${folderId}' in parents and trashed = false`, fields: 'files(id)' });
+      const files = existCheck.result.files;
+      if (files && files.length > 0) {
+        return gapi.client.request({ 'path': `/upload/drive/v3/files/${files[0].id}`, 'method': 'PATCH', 'params': {'uploadType': 'multipart'}, 'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, 'body': multipartRequestBody });
+      } else {
+        return gapi.client.request({ 'path': '/upload/drive/v3/files', 'method': 'POST', 'params': {'uploadType': 'multipart'}, 'headers': { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' }, 'body': multipartRequestBody });
+      }
+    }
+    function showToast(text) {
+      const toast = document.getElementById('toast'); if (!toast) return;
+      document.getElementById('toast-text').innerText = text;
+      toast.classList.remove('translate-y-12', 'opacity-0', 'pointer-events-none'); toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => { toast.classList.remove('translate-y-0', 'opacity-100'); toast.classList.add('translate-y-12', 'opacity-0', 'pointer-events-none'); }, 3000);
+    }
+  </script>
+
+  <!-- Load Google API Script SDKs asynchronously after callback handlers are registered in global window scope -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+</body>
+</html>

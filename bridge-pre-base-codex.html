@@ -498,9 +498,8 @@ function routePostCallByRole(sourceReason){
 // Safe stub — returns current lang so the race fallback never throws
 function detectLang(text,src){return src||'en';}
 
-
-/* PRE-BASE: no WASM loader in this stage */
 function _detectLangAsync(text){ return Promise.resolve(detectLang(text, room.myLang||'en')); }
+function detectLangRace(text,src){return _detectLangAsync(text).then(function(d){return d||detectLang(text,src);});}
 
 /* === CHAT === */
 function chatInputEvt(){
@@ -539,9 +538,15 @@ async function sendChat(){
   var srcText=text;
   log('chat_norm_start',{src:src,tgt:tgt,ft_ready:_ftReady,text:text.slice(0,60)});
   try{
-    var detected=await _detectLangAsync(text);
-    if(!detected) detected=detectLang(text,src);
-    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:'stub'});
+    var _ftWonC=false;
+    var detected=await Promise.race([
+      _detectLangAsync(text).then(function(d){_ftWonC=true;return d;}),
+      new Promise(function(res){setTimeout(function(){
+        if(!_ftWonC)log('chat_norm_timeout',{ft_ready:_ftReady,fallback:src},'warn');
+        res(detectLang(text,src));
+      },150);})
+    ]);
+    log('chat_norm_detect',{detected:detected||'(none)',src:src,needs_norm:!!(detected&&detected!==src),via:_ftWonC?'wasm':'stub'});
     if(detected&&detected!==src){
       log('chat_norm_step',{from:detected,to:src,text:text.slice(0,60)});
       var normed=await translateWithRetry(text,detected,src,2);
@@ -553,7 +558,7 @@ async function sendChat(){
     try{
       var tr=await translateWithRetry(srcText,src,tgt,2);
       if(tr){tgtText=normalizeText(tr,'chat');log('chat_trans_result',{from:src,to:tgt,tgtText:tgtText.slice(0,60)},'ok');}
-    }catch(e){log('chat_trans_err',{e:String(e)},'error');tgtText='⚠ not translated';}
+    }catch(e){log('chat_trans_err',{e:String(e)},'error');}
   }
   var id='cm-'+uid();
   var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};

@@ -430,3 +430,11 @@ A build is blocked if any of these are true:
 9. Duplicate static DOM IDs exist.
 10. JavaScript syntax check fails.
 
+
+## Clean-base boundary gate (restart v3)
+- Enforce copy chain exactly: PRE-BASE -> BASE -> PRE-SHIP -> SHIP; verify with file hash checkpoints after each copy.
+- Pre-promotion checklist: no merge markers; no forbidden stage contamination; JS syntax passes inline script `new Function(...)` validation.
+- PRE-BASE/BASE forbidden grep: `fasttext-wrapper.umd.js|lid.176.ftz|lid.176.bin|loadModel\(|FastText\(`.
+- WASM-stage required reference validation: compare PRE-SHIP loader flow against `bridge-pre-ship-cc.html` before promotion.
+- PRE-SHIP acceptance: wrapper `./fastType/fasttext-wrapper.umd.js`; model `./fastType/lid.176.ftz`; fallback `./fastType/lid.176.bin`; robust `parsePredictResult`; no `r[0].prob`/`r[0].label`; non-blocking flow on load failure.
+- Runtime log gate: `.ftz` failure must emit retry attempt for `.bin`, then retry success or final failure; app must continue join/rejoin/call path.

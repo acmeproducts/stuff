@@ -930,3 +930,10 @@ permanently locks · both channels use `processConversationInput` · Latin-to-La
 verified in speech and chat · translation failures are inline and actionable ·
 TTS works across all surfaces · all acceptance matrix rows pass · version stamp
 present in all three locations.
+
+## Clean-base boundary gate (restart v3)
+- Promotion must follow strict copy chain: PRE-BASE -> BASE -> PRE-SHIP -> SHIP (verify each hop).
+- Boundary grep gates: PRE-BASE/BASE must not contain FastText/WASM loader/model-load execution symbols.
+- WASM-stage validation is mandatory against known-good counterpart (`*-cc.html`) before ship promotion.
+- PRE-SHIP loader hard requirements: exact wrapper/model/fallback paths, parsePredictResult normalization, `.ftz` fail -> `.bin` retry logs, non-blocking fallback.
+- Anti-regression checks required on each rebuild: conflict marker scan, forbidden pattern scan, loader log expectation checks.
