@@ -61,8 +61,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | Stage | File | Version | Lint | Committed | Go-ahead |
 |---|---|---|---|---|---|
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
-| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (2nd attempt) | ✅ |
-| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ✅ | ✅ | ☐ |
+| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (3rd — ICO crash fix) | ✅ |
+| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ✅ | ✅ (re-derived) | ☐ |
 | pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
