@@ -19,6 +19,7 @@
     .cell.dragover{border-color:var(--accent);box-shadow:0 0 0 2px #bfdbfe inset}
     .board{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px;cursor:grab}
     .board:active{cursor:grabbing}.board .name{font-weight:700}.board .meta{font-size:11px;color:var(--muted)}
+    .board-top{display:flex;justify-content:space-between;gap:8px;align-items:center}.actions{display:flex;gap:6px}.icon-btn{border:1px solid var(--line);border-radius:8px;padding:2px 6px;font-size:12px;background:#fff;cursor:pointer}
     .lineage-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.bar{border:1px solid var(--line);border-radius:10px;padding:8px}
     .bar h4{margin:0 0 6px 0;font-size:12px;color:var(--muted);text-transform:uppercase}.count{font-size:20px;font-weight:700}
     .list{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:#f8fafc}
@@ -63,6 +64,12 @@ async function boot(){
   await Promise.all(index.boards.map(async b=>{ try{ const data=await fetchJson(boardFilePath(b.name)); boardCardsByBoard[b.name]=Array.isArray(data.cards)?data.cards:[]; b.cardCount=boardCardsByBoard[b.name].length; }catch{ boardCardsByBoard[b.name]=[]; } }));
   render();
 }
+
+function getBoardLaunchUrl(board){ const base=String(repoSwitchCfg.kanbanUrl||"kanban.html"); return `${base}?board=${encodeURIComponent(board)}`; }
+function recalcBoardCardPositions(boardName){ const cards=boardCardsByBoard[boardName]||[]; const byStage={}; cards.forEach(c=>{ const st=String(c?.stage||"Backlog"); (byStage[st] ||= []).push(c); });
+  Object.values(byStage).forEach(arr=>arr.sort((a,b)=>(a?.pos||0)-(b?.pos||0)).forEach((c,i)=>{ c.pos=(i+1)*1000; })); }
+function updateBoardMeta(boardName){ const rec=index.boards.find(b=>b.name===boardName); if(rec){ rec.cardCount=(boardCardsByBoard[boardName]||[]).length; rec.lastUpdated=Date.now(); }}
+
 function render(){ renderMatrix(); renderLineage(); status(`Loaded ${index.boards.length} boards.`); }
 function renderMatrix(){
   const m=$("#matrix"); m.innerHTML=""; m.append(Object.assign(document.createElement("div"),{className:"h",textContent:"Phase / Stage"})); STAGES.forEach(s=>m.append(Object.assign(document.createElement("div"),{className:"h",textContent:s})));
