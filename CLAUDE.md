@@ -1,148 +1,127 @@
-# TalkBridge — Claude Working Rules
+# CLAUDE.md — Agent Process Instructions
 
-## Maturity Chain
-
-```
-bridge-pre-base-cc.html → bridge-base-cc.html → bridge-pre-ship-cc.html → bridge-ship-cc.html → bridge-post-ship-cc.html → bridge-post-ship-plus-1-cc.html
-```
-
-**Never modify** `bridge-pre-base-cc.html`, `bridge-base-cc.html`, `bridge-pre-ship-cc.html`, or `bridge-ship-cc.html` unless the change is a bug fix or fix that must propagate through the chain. Fixes found in later files must be backported to all earlier files that contain the affected code.
+This file governs how Claude Code operates in this repository.
+App-specific rules are in `claude-bridge.md`.
 
 ---
 
-## STORAGE SCOPE — PERMANENT CONSTRAINT
+## Core Law
 
-All files in the maturity chain share the **same localStorage origin** and therefore the **same storage namespace**. Every localStorage key must be identical across every version of every bridge file. Changing a key name in any one file silently breaks credential restore, room history, transcripts, and phrasebook data for anyone who was testing a different version.
-
-**Canonical key table — do not change these:**
-
-| Constant | Key string | What it holds |
-|----------|-----------|---------------|
-| `tb_dg_key` | `tb_dg_key` | Deepgram API key |
-| `tb_cf_tid` | `tb_cf_tid` | Cloudflare TURN credential ID |
-| `tb_cf_tok` | `tb_cf_tok` | Cloudflare TURN credential token |
-| `RK` | `tb_recent_rooms` | Recent rooms list (JSON array) |
-| `TP` | `tb_transcript_` | Per-room transcript prefix |
-| `tb_dev` | `tb_dev` | Dev mode flag |
-| `PB_CARDS` | `say_cards` | Phrasebook cards |
-| `PB_CATS` | `say_catalogs` | Phrasebook catalogs |
-| `PB_TAGS_K` | `say_tags` | Phrasebook tag registry |
-| `PB_SEEDED` | `pb_bridge_v2` | One-time seed sentinel |
-| `tb_pb_tel_ep` | `tb_pb_tel_ep` | Telemetry endpoint URL (host-only, post-ship+1) |
-| `tb_pb_tel_tok` | `tb_pb_tel_tok` | Telemetry Bearer token (host-only, post-ship+1) |
-
-**Rules:**
-1. Never rename any key in the table above in any file.
-2. Never add a version-specific prefix or suffix to any key.
-3. If a new persistent key is needed, add it to this table and apply it identically to every file that needs it.
-4. Before committing any change that touches localStorage, grep all six bridge files and confirm the key is spelled identically in each.
-
-**Verification command:**
-```bash
-grep -h "localStorage\.\(getItem\|setItem\|removeItem\)" bridge-*-cc.html \
-  | grep -oP "'[^']+'" | sort | uniq -c | sort -rn
-```
-Every key that appears in multiple files must have the same count; any key appearing in only one file is a candidate inconsistency to review.
+A stage is never patched in place.
+Backporting is permanently forbidden.
+Code existing is not the same as code working.
 
 ---
 
-## TTS Wiring — Verified State (all four bridge files)
+## Naming Convention
 
-Every TTS touch point has been audited across all files. This table is the ground truth.
-Before committing any change that touches transcript rendering, phrasebook bubbles, or `speakText`, re-run the verification below and confirm the table still holds.
+All project stage files follow this pattern:
 
-| Touch point | Trigger | Language source | Files |
-|---|---|---|---|
-| Transcript ribbon toggle | `toggleTranscriptTts()` → sets `transcriptTtsOn` flag | — | all 4 |
-| Auto-play on partner speech | `addTr`/`patchTr` → `speakText(tr, tL\|\|room.myLang)` | `entry.tgtLang` | all 4 |
-| Transcript bubble — left col (source) | `.tr-tts` button, `data-tts-lang=srcLang` | `entry.srcLang` | all 4 |
-| Transcript bubble — right col (target) | `.tr-tts` button, `data-tts-lang=tgtLang` | `entry.tgtLang` | all 4 |
-| Phrasebook drawer — source | `pbSpeakCard(id,'src',this)` → `speakText(card.source, card.sourceLang)` | `card.sourceLang` | all 4 |
-| Phrasebook drawer — target | `pbSpeakCard(id,'tgt',this)` → `speakText(card.target, card.targetLang)` | `card.targetLang` | all 4 |
-| Back-translate result | `pbPlayBT(id)` reads `_btCache[id]` → `speakText(bt.resultText, bt.targetLang)` | `card.backtranslate.targetLang` | all 4 |
-| Inline panel — source | `pbISpeakI(idx,0)` → `pbSpeakCard(c.id,'src')` | `card.sourceLang` | post-ship only |
-| Inline panel — target | `pbISpeakI(idx,1)` → `pbSpeakCard(c.id,'tgt')` | `card.targetLang` | post-ship only |
-
-**Verification commands:**
-```bash
-# 1. All TTS buttons present and using correct functions
-for f in bridge-base-cc.html bridge-pre-ship-cc.html bridge-ship-cc.html bridge-post-ship-cc.html; do
-  echo "--- $f ---"
-  grep -c "transcript-tts-toggle\|closest.*tr-tts\|pbSpeakCard\|pbPlayBT" "$f"
-  grep -c "pb-tts-btn\|pb-bt-tts" "$f"
-done
-
-# 2. speakText receives lang from entry, not hardcoded
-grep "speakText" bridge-*-cc.html | grep -v "room\.myLang\|card\.\|e\.lang\|tL\|tts-lang\|function speakText"
-# Above should return nothing (all speakText calls use dynamic lang)
-
-# 3. data-tts-lang is set from entry.srcLang / entry.tgtLang (not hardcoded)
-grep "data-tts-lang" bridge-*-cc.html
-# Should show leftLang/rightLang in all four files
-
-# 4. pbSpeakCard uses card.sourceLang / card.targetLang
-grep -A4 "^function pbSpeakCard" bridge-*-cc.html
-# Should show: lang = side==='src' ? card.sourceLang : card.targetLang
+```
+<project>-<turn><stage>.html
 ```
 
-**Rules:**
-- Never hardcode a lang string in any `speakText()` call.
-- Never read `room.myLang` or `room.theirLang` as the TTS lang for phrasebook or transcript bubble buttons — always read from the entry or card.
-- `pbSpeakCard` must always derive lang from `card.sourceLang` / `card.targetLang`.
-- If a new TTS button is added anywhere, add it to the table above and backport to all applicable files.
+Examples:
+```
+bridge-turn00-post-ship.html   ← Turn 0 baseline (cold storage)
+bridge-turn01-pre-base.html    ← Turn 1 pre-base
+bridge-turn01-base.html        ← Turn 1 base
+bridge-turn01-pre-ship.html    ← Turn 1 pre-ship
+bridge-turn01-ship.html        ← Turn 1 ship
+bridge-turn01-post-ship.html   ← Turn 1 post-ship
+```
+
+Stages per turn: `pre-base → base → pre-ship → ship → post-ship`
+
+There is no `post-ship-plus-1` stage. The post-ship output of one turn
+becomes the pre-base input of the next turn.
 
 ---
 
+## Turn Model
 
-- No PiP changes
-- No auto-mute on chat focus (`composeFocusMute` stays removed)
-- No "Ask Again" button
-- Every utterance and chat message must produce a visible result
-- Joiner credentials are session-only — never write `inviteDgKey`, `inviteCfTid`, or `inviteCfTok` to localStorage
-- No out-of-scope features
-- `bridge-pre-base-cc.html` is the original source and must never be modified
+### Turn 0 — Establish baseline
+
+Turn 0 is documentation and verification only. No feature work.
+
+Goal: produce one verified, honest file named `bridge-turn00-post-ship.html`.
+
+This file must be verified — not assumed. Code existing in a file
+does not mean the feature works. Every feature claimed must be
+confirmed by audit, not by grep alone.
+
+Turn 0 is complete only when:
+- The baseline file is named and committed
+- A build plan exists for Turn 1
+- Known gaps and unverified features are documented honestly
+
+### Turn N — Full forward replay
+
+1. User specifies the pre-base file
+2. User and agent co-develop `bridge-build-plan-cc.md` before any code is written
+3. Agent copies pre-base to `bridge-turnNN-pre-base.html`
+4. Agent applies only the declared pre-base delta
+5. Lint passes → agent stops and reports
+6. User confirms → agent copies to next stage, applies only that stage's delta
+7. Repeat through post-ship
+8. If lint fails at any stage: stop, archive, report — do not proceed
+
+### Failure rule
+
+When a stage fails:
+1. Do not patch the failed stage
+2. Stop the turn
+3. Report what failed and why
+4. User updates the build plan
+5. New turn begins from Turn 0 baseline
 
 ---
 
-## Git
+## Build Plan Requirement
 
-- Develop on branch `claude/audit-talkbridge-recovery-UHws6`
-- Commit all modified bridge files together in a single commit when propagating fixes
+No turn begins without a complete `bridge-build-plan-cc.md`.
 
-### End-of-session push (required — in this order)
+The build plan must exist before the first file is touched.
+It must declare the exact delta for each stage.
+It is co-developed by user and agent — not generated by the agent alone.
 
-1. **Rebase onto latest origin/main first:**
-   ```bash
-   git fetch origin main
-   git rebase origin/main
-   ```
+---
 
-2. **Push to origin/main (primary):**
-   ```bash
-   git push origin main
-   ```
-   Confirm success: the command must print `main -> main` with no errors. If it prints "Everything up-to-date" and `git log --oneline origin/main..main` shows commits, something is wrong — investigate before stopping.
+## One-File-Per-Response Rule
 
-3. **Also push to the feature branch (secondary):**
-   ```bash
-   git push origin main:claude/audit-talkbridge-recovery-UHws6
-   ```
+- One stage per response
+- One file edited per response
+- No parallel agents
+- Stop after lint passes and report
+- Wait for explicit user confirmation before the next stage
 
-4. **Verify both are clean:**
-   ```bash
-   git log --oneline origin/main..main          # must be empty
-   git log --oneline origin/claude/audit-talkbridge-recovery-UHws6..main  # must be empty
-   ```
-   If either is non-empty, push again. Do not stop until both are empty.
+---
 
-### Session start (required before any work)
+## Agent Behavior
 
-```bash
-git fetch origin main
-git rebase origin/main
-```
-PRs may have been merged since the last session. Skipping this causes local main to drift behind origin/main, making the stop hook report false unpushed-commit counts and risking push conflicts later in the session.
+The agent must not:
+- Assume a feature works because the code exists
+- Apply the same change independently to multiple files
+- Patch a file after validation failure
+- Begin work before the build plan is complete
+- Proceed to the next stage without user confirmation
 
-### Why push to main directly
+The agent must:
+- Read the build plan before touching any file
+- Report honestly when something is unverified
+- Flag features that exist in code but have not been confirmed working
+- Ask the user to make decisions — not make them unilaterally
 
-The stop hook checks `origin/main`. Pushing only to the feature branch leaves commits unreachable from `origin/main`, causing the hook to fire every session until a PR is manually merged. Pushing directly to `origin/main` is the correct workflow for this repository — PRs are used for external review only, not as the default merge path.
+---
+
+## Verified vs Present
+
+These are different:
+
+| State | Meaning |
+|---|---|
+| Present | grep found the code |
+| Verified | the feature was tested and confirmed working |
+
+The build plan and status doc must distinguish these.
+A feature is not verified until a human has confirmed it works.

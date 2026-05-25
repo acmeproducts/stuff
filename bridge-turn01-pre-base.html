@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<!-- talkbridge · dcr · v4.4.2 -->
+<!-- talkbridge · dcr · v5.2.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>TalkBridge</title>
+<link rel="manifest" href="/stuff/manifest.json">
+<meta name="theme-color" content="#0a1a1a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -264,7 +266,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-conf{font-size:10px;margin-left:2px;} .pb-conf.high{color:#27ae60;} .pb-conf.med{color:#f39c12;}
 #pb-inline-panel{display:none;flex-direction:column;background:var(--surface);border-top:2px solid rgba(255,255,255,.22);max-height:44vh;overflow-y:auto;flex-shrink:0;}
 #pb-inline-panel.show{display:flex;}
-.pb-ip-hdr{position:sticky;top:0;background:var(--surface);border-bottom:1px solid rgba(255,255,255,.1);padding:4px 10px;display:flex;align-items:center;gap:6px;z-index:1;flex-shrink:0;}
+.pb-ip-hdr{position:sticky;top:0;background:var(--surface);border-bottom:1px solid rgba(255,255,255,.1);padding:6px 12px;display:flex;align-items:center;gap:8px;z-index:1;flex-shrink:0;}
 .pb-irow{display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,.08);min-height:48px;}
 .pb-irow:hover{background:rgba(255,255,255,.04);}
 .pb-iside{display:flex;align-items:center;flex:1;gap:6px;padding:8px 10px;cursor:pointer;}
@@ -435,6 +437,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
           <div><div class="lobby-label" style="margin-bottom:6px;">GitHub PAT <span style="font-size:10px;opacity:.6;">(repo write — optional)</span></div>
           <input class="lobby-input" id="gh-pat-inp" type="password" placeholder="ghp_… — stored locally" oninput="saveGhPat()">
           </div>
+          <div id="tel-creds-section" style="display:none;"><div class="lobby-label" style="margin-bottom:6px;">Telemetry endpoint <span style="font-size:10px;opacity:.6;">(host only)</span></div>
+          <input class="lobby-input" id="tel-endpoint" type="text" placeholder="https://…" oninput="saveTelCreds()">
+          <div class="lobby-label" style="margin-bottom:6px;margin-top:10px;">Telemetry token</div>
+          <input class="lobby-input" id="tel-token" type="password" placeholder="Bearer token — stored locally" oninput="saveTelCreds()">
+          </div>
+          <button id="pwa-install-btn" onclick="pwaInstall()" style="display:none;margin-top:6px;width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">📲 Install app</button>
         </div>
         <div class="recent-rooms" id="recent-rooms" style="display:none;margin-top:14px;">
           <div class="recent-title">Recent rooms</div>
@@ -444,7 +452,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v4.4.2</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.2.0</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -543,15 +551,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         <button class="call-transcript-btn" id="strip-share-btn" onclick="shareLink()" title="Share" style="display:none;">
           <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.8 10.8l6.4-3.6M8.8 13.2l6.4 3.6"/></svg>
         </button>
-        <button class="call-transcript-btn" onclick="copyTr()" title="Copy">
-          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-        </button>
-        <button class="call-transcript-btn" onclick="exportTxt()" title="Download">
-          <svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M4 20h16"/></svg>
-        </button>
-        <button class="call-transcript-btn pb-strip-btn" id="pb-strip-btn" onclick="pbOpenOverlay()" title="Phrases">
-          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        </button>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
         <button class="vc-btn" id="top-mic-btn" onclick="toggleMic()" title="Mic">
@@ -607,13 +606,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 <div id="pb-drawer" class="pb-drawer"><div id="pb-drawer-content"></div></div>
 
 <div id="pb-overlay" class="pb-overlay" style="display:none;">
-  <div class="pb-ov-hdr">
+  <div class="pb-ov-hdr" style="justify-content:flex-start;gap:4px;">
     <button class="pb-ov-back" onclick="pbCloseOverlay()" title="Back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="pb-ov-title">Phrasebook</div>
     <button class="pb-ov-act" onclick="pbOpenNewCardForContext()" title="New phrase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button class="pb-ov-act" onclick="pbTriggerImport()" title="Import from file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg></button>
     <button class="pb-ov-act" onclick="pbOpenGitSheet()" title="Download from library"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="8 14 12 18 16 14"/><line x1="12" y1="9" x2="12" y2="18"/></svg></button>
     <button class="pb-ov-act" onclick="pbExportPrompt()" title="Export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="5 12 19 12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+    <div style="flex:1;"></div>
     <button class="pb-ov-act" onclick="pbCloseOverlay()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="pb-ov-searchbar" style="position:relative;">
@@ -1098,8 +1097,12 @@ function pbISearch(q){
   }
   _pbICards=cards.slice(0,30);
   var total=pbGetCards().length;
-  var hdr='<div class="pb-ip-hdr"><span style="font-size:11px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;">Phrasebook</span>'
-    +'<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">'+(_pbICards.length?_pbICards.length+(total>_pbICards.length?' of '+total:''):'')+'</span></div>';
+  var _pair=pbActivePair();
+  var _pairLabel=_pair?pbLangFlag(_pair.src)+' '+_pair.src.toUpperCase()+' → '+pbLangFlag(_pair.tgt)+' '+_pair.tgt.toUpperCase()+' ':'';
+  var hdr='<div class="pb-ip-hdr" id="pb-ip-hdr">'
+    +'<button style="background:none;border:none;cursor:pointer;padding:2px;line-height:0;color:var(--text-dim);display:flex;align-items:center;flex-shrink:0;" onclick="pbOpenOverlayClean()" title="Open phrasebook"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></button>'
+    +'<span style="font-size:13px;color:var(--text-dim);font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(_pairLabel||'Phrasebook')+'</span>'
+    +'<span style="font-size:13px;color:var(--text-muted);flex-shrink:0;">'+(_pbICards.length?_pbICards.length+(total>_pbICards.length?' of '+total:''):'')+'</span></div>';
   if(!_pbICards.length){
     panel.innerHTML=hdr+'<div id="pb-inline-empty">'+(total?'No matching phrases':'No phrasebook loaded — use // to import')+'</div>';
   } else {
@@ -1397,7 +1400,14 @@ function pbNorm(c){
     savedBy:c.savedBy||'',
     deletedAt:c.deletedAt||null,
     createdAt:c.createdAt||now,
-    updatedAt:c.updatedAt||now
+    updatedAt:c.updatedAt||now,
+    intentId:c.intentId||null,
+    fingerprint:c.fingerprint||null,
+    primaryTag:c.primaryTag||null,
+    parentCategory:c.parentCategory||null,
+    relatedIntents:Array.isArray(c.relatedIntents)?c.relatedIntents.slice(0,5):[],
+    semanticRelationships:c.semanticRelationships||null,
+    usage:typeof c.usage==='number'?c.usage:0
   };
 }
 
@@ -1625,6 +1635,8 @@ function _pbAutoLoad(){
   if(!room.myLang||!room.theirLang||room.myLang===room.theirLang)return;
   _pbFetchOne(room.myLang,room.theirLang);
   _pbFetchOne(room.theirLang,room.myLang);
+  _pbCheckETag(room.myLang,room.theirLang);
+  _pbCheckETag(room.theirLang,room.myLang);
 }
 var _PB_GIT_FILES=[
   {src:'en',tgt:'es'},{src:'es',tgt:'en'},
@@ -1725,6 +1737,158 @@ function pbImportProgressClose(){
   document.getElementById('pb-imp-done').style.display='none';
   document.getElementById('pb-imp-bar').style.width='0';
 }
+/* ── CDN + Translation Memory + Quick-Ring + Telemetry ── */
+var _PB_CDN_BASE=_PB_BASE;
+var _intentIdMap={};
+var _sessionId=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function _pbRepoToken(lang){return({zh:'cn',ko:'kr',vi:'vn'})[lang]||lang;}
+function _pbNormCard(raw){
+  var lp=raw.languagePair||{};var sr=raw.semanticRelationships||{};var rep=raw.representation||{};
+  var sl=(lp.source||'en');if(sl==='vn')sl='vi';var tl=(lp.target||'en');if(tl==='vn')tl='vi';
+  return{id:uid(),intentId:raw.intentId||'',fingerprint:raw.fingerprint||'',catalogIds:[],
+    sourceLang:sl,targetLang:tl,source:rep.source||'',target:rep.target||'',notes:'',
+    tags:raw.tags||[],relatedIntents:(sr.relatedIntents||[]),usage:0,
+    backtranslate:{sourceLang:tl,targetLang:sl,inputText:'',resultText:'',verdict:'',contentHash:'',updatedAt:pbNow()},
+    clarifyChain:[],savedBy:'cdn',createdAt:pbNow(),updatedAt:pbNow()};
+}
+function _pbLoadCDN(srcLang,tgtLang){
+  var url=_PB_CDN_BASE+'phrasebook-'+_pbRepoToken(srcLang)+'-'+_pbRepoToken(tgtLang)+'-default.json';
+  var tsKey='pb_cdn_ts:'+srcLang+'-'+tgtLang;
+  var fresh=Date.now()-parseInt(localStorage.getItem(tsKey)||'0',10)<86400000;
+  if(fresh){_tmBuild(srcLang,tgtLang);return;}
+  fetch(url).then(function(r){if(!r.ok)throw new Error('CDN '+r.status);return r.json();})
+    .then(function(data){
+      if(!data||!Array.isArray(data.cards))throw new Error('Invalid phrasebook');
+      var mapped=data.cards.map(_pbNormCard);
+      mapped.forEach(function(c){if(c.intentId)_intentIdMap[c.intentId]=c;});
+      pbApplyImport({cards:mapped,catalogs:[],tags:[]},{});
+      localStorage.setItem(tsKey,String(Date.now()));
+      _tmBuild(srcLang,tgtLang);
+    }).catch(function(e){log('cdn_load_fail',{e:String(e)},'warn');_tmBuild(srcLang,tgtLang);});
+}
+function _pbCheckETag(srcLang,tgtLang){
+  var url=_PB_CDN_BASE+'phrasebook-'+_pbRepoToken(srcLang)+'-'+_pbRepoToken(tgtLang)+'-default.json';
+  var eKey='pb_cdn_etag:'+srcLang+'-'+tgtLang;
+  fetch(url,{method:'HEAD'}).then(function(r){
+    var etag=r.headers.get('etag')||r.headers.get('last-modified')||'';
+    if(!etag)return;
+    var prev=localStorage.getItem(eKey)||'';
+    if(prev&&prev!==etag){toast('Phrasebook update available — tap ☁↓ to refresh');log('cdn_etag_changed',{pair:srcLang+'-'+tgtLang});}
+    localStorage.setItem(eKey,etag);
+  }).catch(function(){});
+}
+function pbGetCardByIntentId(intentId){
+  if(_intentIdMap[intentId])return _intentIdMap[intentId];
+  var cards=pbGetCards();for(var i=0;i<cards.length;i++){if(cards[i].intentId===intentId){_intentIdMap[intentId]=cards[i];return cards[i];}}
+  return null;
+}
+var _tmIndex={};
+function _tmNorm(text){return(text||'').toLowerCase().replace(/[　-〿＀-￯]/g,'').replace(/[^\w]/g,'').trim();}
+function _tmBuild(srcLang,tgtLang){
+  var pair=srcLang+'-'+tgtLang;var index={};
+  pbGetCards().filter(function(c){return c.sourceLang===srcLang&&c.targetLang===tgtLang;})
+    .forEach(function(c){if(!c.source||!c.target)return;var key=c.fingerprint||_tmNorm(c.source);
+      var corr=(c.clarifyChain||[]).length;var usage=c.usage||0;
+      index[key]={tgt:c.target,intentId:c.intentId||'',cardId:c.id,usage:usage,confidence:usage/Math.max(1,usage+corr*3)};});
+  _tmIndex[pair]=index;
+}
+function _tmCheck(text,srcLang,tgtLang){
+  var pair=srcLang+'-'+tgtLang;if(!_tmIndex[pair])return null;
+  var hit=_tmIndex[pair][_tmNorm(text)];
+  if(!hit)return null;
+  if(hit.confidence>=0.90&&hit.usage>=5)return hit.tgt;
+  return null;
+}
+var _qrCardId=null;
+function _qrOpen(cardId,x,y,entryPoint){
+  _qrClose();var card=pbGetCardById(cardId)||pbGetCardByIntentId(cardId);
+  if(!card||(card.relatedIntents||[]).length===0)return;
+  _qrCardId=cardId;_qrRender(card,x,y,entryPoint||'quick_ring');
+}
+function _qrRender(card,cx,cy,entryPoint){
+  var neighbors=card.relatedIntents||[];var N=neighbors.length;if(!N)return;
+  var wrap=document.createElement('div');wrap.id='qr-wrap';
+  wrap.style.cssText='position:fixed;inset:0;z-index:7900;';
+  wrap.addEventListener('click',_qrClose);
+  var ring=document.createElement('div');ring.id='qr-ring';
+  ring.style.cssText='position:fixed;z-index:8000;pointer-events:none;left:0;top:0;';
+  ring.addEventListener('click',function(e){e.stopPropagation();});
+  ring.appendChild(_qrNode(card.source||'',cx,cy,true));
+  neighbors.forEach(function(intentId,i){
+    var nb=pbGetCardByIntentId(intentId);if(!nb)return;
+    var angle=(2*Math.PI*i)/N-Math.PI/2;var nx=cx+75*Math.cos(angle);var ny=cy+75*Math.sin(angle);
+    var node=_qrNode(nb.source||'',nx,ny,false);node.style.pointerEvents='auto';
+    var tapTimer=null;
+    node.addEventListener('click',function(e){e.stopPropagation();
+      if(tapTimer){clearTimeout(tapTimer);tapTimer=null;_qrUse(nb,entryPoint);}
+      else{tapTimer=setTimeout(function(){tapTimer=null;_qrClose();_qrRender(nb,nx,ny,entryPoint);},300);}
+    });
+    ring.appendChild(node);
+  });
+  document.body.appendChild(wrap);document.body.appendChild(ring);
+}
+function _qrNode(label,cx,cy,isCenter){
+  var size=isCenter?36:28;var el=document.createElement('div');
+  el.style.cssText='position:fixed;left:'+(cx-size/2)+'px;top:'+(cy-size/2)+'px;width:'+size+'px;height:'+size+'px;border-radius:50%;'
+    +'background:'+(isCenter?'#4A90D9':'#1a1a2e')+';border:1.5px solid '+(isCenter?'#fff':'#4A90D9')+';cursor:pointer;overflow:visible;';
+  if(label){
+    var tip=document.createElement('div');
+    tip.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#0a0a14;border:1px solid #333;border-radius:4px;padding:3px 7px;font-size:11px;color:#fff;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;pointer-events:none;opacity:0;transition:opacity .12s;z-index:8010;';
+    tip.textContent=label;el.appendChild(tip);
+    el.addEventListener('mouseenter',function(){tip.style.opacity='1';});
+    el.addEventListener('mouseleave',function(){tip.style.opacity='0';});
+  }
+  return el;
+}
+function _qrUse(card,entryPoint){
+  _qrClose();var ta=document.getElementById('chat-input');
+  if(ta){ta.value=card.source||'';ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,80)+'px';
+    var sb=document.getElementById('chat-send-btn');if(sb)sb.disabled=!ta.value.trim();ta.focus();}
+  _pbEmitUsage(card,entryPoint||'quick_ring');
+}
+function _qrClose(){
+  var r=document.getElementById('qr-ring');if(r)r.remove();
+  var w=document.getElementById('qr-wrap');if(w)w.remove();_qrCardId=null;
+}
+var _telBuf=[];
+var _PB_TEL_ENDPOINT='';
+var _PB_TEL_TOKEN='';
+function _pbEmitUsage(card,entryPoint){
+  _telBuf.push({event:'usage_hit',ts:Date.now(),session_id:_sessionId,
+    intent_id:card.intentId||'',fingerprint:card.fingerprint||_tmNorm(card.source||''),
+    src_lang:card.sourceLang,tgt_lang:card.targetLang,entry_point:entryPoint||'autocomplete',
+    context:(room&&room.id)?'live_call':'review'});
+  card.usage=(card.usage||0)+1;pbSaveCard(card);
+  setTimeout(function(){_tmBuild(card.sourceLang,card.targetLang);},0);
+}
+function _clarifyEmit(card,beforeSrc,beforeTgt,afterSrc,afterTgt){
+  _telBuf.push({event:'clarify',ts:Date.now(),session_id:_sessionId,
+    intent_id:card.intentId||'',src_lang:card.sourceLang,tgt_lang:card.targetLang,
+    before_source:beforeSrc,before_target:beforeTgt,after_source:afterSrc,after_target:afterTgt});
+  setTimeout(function(){_tmBuild(card.sourceLang,card.targetLang);},0);
+}
+function _telFlush(){
+  if(!_telBuf.length)return;
+  var key='pb_telemetry:'+((room&&room.myLang)||'?')+'-'+((room&&room.theirLang)||'?');
+  try{var buf=JSON.parse(localStorage.getItem(key)||'[]');buf=buf.concat(_telBuf);
+    if(buf.length>500)buf=buf.slice(buf.length-500);localStorage.setItem(key,JSON.stringify(buf));}catch(_){}
+  _telBuf=[];
+}
+window.addEventListener('beforeunload',_telFlush);
+async function _telPost(){
+  _telFlush();
+  if(!_PB_TEL_ENDPOINT)return;
+  var key='pb_telemetry:'+((room&&room.myLang)||'?')+'-'+((room&&room.theirLang)||'?');
+  var buf=[];try{buf=JSON.parse(localStorage.getItem(key)||'[]');}catch(_){}
+  if(!buf.length)return;
+  try{
+    var r=await fetch(_PB_TEL_ENDPOINT+'/ingest',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_PB_TEL_TOKEN},
+      body:JSON.stringify({client:'talkbridge',version:'5.1',events:buf})});
+    if(r.ok){localStorage.removeItem(key);log('tel_posted',{n:buf.length});}
+    else{log('tel_post_fail',{status:r.status},'warn');}
+  }catch(e){log('tel_post_fail',{e:String(e)},'warn');}
+}
 function pbExportPrompt(){
   var pair=pbActivePair();
   var pairStr=pair?(pair.src+'-'+pair.tgt+'-'):'';
@@ -1761,6 +1925,12 @@ function pbRunSearch(){
   var host=document.getElementById('pb-search-results');if(!host)return;
   if(!cards.length){host.innerHTML='<div class="pb-empty">No matching phrases.</div>';return;}
   host.innerHTML=cards.slice(0,40).map(function(c){return pbBubbleHtml(c,'search');}).join('');
+  host.querySelectorAll('.pb-bubble').forEach(function(el){
+    var cid=el.id.replace('pbb-','');var lpt=null;
+    el.addEventListener('touchstart',function(e){lpt=setTimeout(function(){_qrOpen(cid,e.touches[0].clientX,e.touches[0].clientY,'quick_ring');},600);},{passive:true});
+    el.addEventListener('touchend',function(){clearTimeout(lpt);},{passive:true});
+    el.addEventListener('touchmove',function(){clearTimeout(lpt);},{passive:true});
+  });
 }
 function pbSearchKD(e){if(e.key==='Escape'){pbCloseDrawer();pbClearComposeSlash();}}
 function pbClearCompose(){
@@ -2135,8 +2305,8 @@ function pbTrashSectionHtml(trashedCards){
     html+='<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #ede9e4;flex-wrap:wrap;">'
       +'<div style="flex:1;min-width:0;font-size:13px;color:#5a5552;">'+srcT+(tgtT?'<span style="color:#9a9592;"> → </span>'+tgtT:'')+'</div>'
       +'<div style="display:flex;gap:6px;flex-shrink:0;">'
-      +'<button onclick="pbRestoreCard(\''+c.id+'\')" style="border:1px solid #c5d2ea;background:#f8fbff;color:#1f2937;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;">Restore</button>'
-      +'<button onclick="pbHardDelete(\''+c.id+'\')" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;">Delete Forever</button>'
+      +'<button onclick="pbRestoreCard(\''+c.id+'\')"  style="border:1px solid #c5d2ea;background:#f8fbff;color:#1f2937;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;">Restore</button>'
+      +'<button onclick="pbHardDelete(\''+c.id+'\')"  style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;">Delete Forever</button>'
       +'</div>'
       +'</div>';
   });
@@ -2395,6 +2565,19 @@ function pbSaveNewCard(){
   pbPushCardToRepo(card);
 }
 function saveGhPat(){var v=(document.getElementById('gh-pat-inp')||{}).value||'';if(v.trim())localStorage.setItem('tb_gh_pat',v.trim());}
+function saveTelCreds(){
+  var ep=(document.getElementById('tel-endpoint')||{}).value||'';
+  var tok=(document.getElementById('tel-token')||{}).value||'';
+  _PB_TEL_ENDPOINT=ep.trim();_PB_TEL_TOKEN=tok.trim();
+  if(ep.trim())localStorage.setItem('tb_pb_tel_ep',ep.trim());
+  if(tok.trim())localStorage.setItem('tb_pb_tel_tok',tok.trim());
+}
+function _initTelCreds(){
+  var ep=localStorage.getItem('tb_pb_tel_ep')||'';var tok=localStorage.getItem('tb_pb_tel_tok')||'';
+  _PB_TEL_ENDPOINT=ep;_PB_TEL_TOKEN=tok;
+  var epEl=document.getElementById('tel-endpoint');if(epEl&&ep)epEl.value=ep;
+  var tokEl=document.getElementById('tel-token');if(tokEl&&tok)tokEl.value=tok;
+}
 async function pbPushCardToRepo(card){
   var pat=(localStorage.getItem('tb_gh_pat')||'').trim();if(!pat)return;
   var src=card.sourceLang;var tgt=card.targetLang;
@@ -2662,6 +2845,7 @@ function toggleKeysPanel(){
   var p=document.getElementById('keys-panel');var btn=document.getElementById('keys-gear-btn');if(!p)return;
   var open=p.style.display==='flex';p.style.display=open?'none':'flex';
   if(btn)btn.style.background=open?'':'var(--teal)';if(btn)btn.style.color=open?'':'#fff';
+  var ts=document.getElementById('tel-creds-section');if(ts)ts.style.display=(!open&&!room.role||!open&&room.role==='creator')?'':'none';
 }
 function syncBtn(){var k=($('dg-key')&&$('dg-key').value)||localStorage.getItem('tb_dg_key')||'';var tid=(($('cf-turn-id')&&$('cf-turn-id').value)||localStorage.getItem('tb_cf_tid')||'').trim();var tok2=(($('cf-turn-tok')&&$('cf-turn-tok').value)||localStorage.getItem('tb_cf_tok')||'').trim();var cb=$('create-btn');if(cb)cb.disabled=!($('my-lang').value&&$('their-lang').value&&k&&dgKeyVerified&&tid&&tok2);syncModalBtn();}
 function setCfTurnStatus(msg,color){var el=$('cf-turn-status');if(!el)return;el.textContent=msg;el.style.color=color||'#888';}
@@ -3650,6 +3834,7 @@ function hidePartnerDisconnected(){
 // Phase 2: hangUp — role-split enforced
 function hangUp(){
   pbIClose();
+  _telPost();
   relaySend({type:'hangup'});
   if(room.role==='creator'){
     cleanUp();
@@ -3685,7 +3870,7 @@ if(localStorage.getItem('tb_cf_tok')&&$('cf-turn-tok'))$('cf-turn-tok').value=lo
 if(localStorage.getItem('tb_cf_tid')&&localStorage.getItem('tb_cf_tok'))setCfTurnStatus('✅ Saved','#2ecc71');
 if(localStorage.getItem('tb_gh_pat')&&$('gh-pat-inp'))$('gh-pat-inp').value=localStorage.getItem('tb_gh_pat').trim();
 log('startup',{v:'3.5.5',ua:navigator.userAgent.slice(0,80)});
-pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();
+pbAutoSeed();populateLangs();renderRecent();syncMic();syncCam();syncTranscriptToggleButton();syncTranscriptTtsButton();syncBtn();_loadFastText();_syncFtStatus();_initTelCreds();
 $('call-transcript').addEventListener('scroll',function(){if(transcriptNearBottom())setTranscriptMore(false)});
 $('call-transcript').addEventListener('click',function(ev){
   var tts=ev.target.closest('.tr-tts');
@@ -3758,6 +3943,10 @@ window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive())reconcileDeepgramState('visibility_restore');
 });
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
+var _pwaPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_pwaPrompt=e;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='';});
+function pwaInstall(){if(!_pwaPrompt)return;_pwaPrompt.prompt();_pwaPrompt.userChoice.then(function(){_pwaPrompt=null;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='none';});}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){/* SW opt-in only — registered via pwaInstall */});}
 </script>
 </body>
 </html>
