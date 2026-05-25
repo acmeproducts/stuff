@@ -61,7 +61,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | Stage | File | Version | Lint | Committed | Go-ahead |
 |---|---|---|---|---|---|
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
-| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (2nd attempt) | ☐ |
+| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (2nd attempt) | ✅ |
+| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ✅ | ✅ | ☐ |
 | pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
@@ -442,9 +443,40 @@ grep -c "manifest.json" bridge-turn02-base.html
 
 ---
 
+## Stage: rejoin (P1 fix) — v5.3.1a
+
+Copy `bridge-turn02-base.html` to `bridge-turn02-rejoin.html` then apply:
+
+**Root cause:** `showHostLeftCountdown()` (joiner's host-left teardown path) calls `teardownSession()` which closes `pc` and nulls `videoStream` but never clears `remoteStream` or `rv.srcObject`. The creator's equivalent path (`cleanUp()`) calls `resetRemoteMediaState()` which does clear both. On rejoin, the joiner's `handleSig` offer handler skips `remoteStream=null` (the `if(pc&&...)` block is skipped because `pc` is already null from teardown). `setupPC()` is called with stale `remoteStream`. New tracks from the new PC are added to the old stale stream. `refreshRemoteVideo()` sees `rv.srcObject === remoteStream` (same object reference) and does not re-assign it. iOS/Android Chrome does not re-render video from an existing stale `srcObject` without explicit re-assignment. Creator's path works because `cleanUp()` calls `resetRemoteMediaState()`.
+
+### Fix A — `showHostLeftCountdown()`
+
+Add `resetRemoteMediaState()` after `teardownSession(...)`:
+
+```js
+teardownSession('to_host_left_countdown','host_ended');
+resetRemoteMediaState();   // ← ADD: mirrors cleanUp() path so joiner teardown is symmetric
+room.id=null;room.role=null;
+```
+
+### Fix B — `handleSig` offer path (defensive)
+
+Reset `remoteStream`/`rv.srcObject` when `pc` is null before `setupPC()`:
+
+```js
+if(!pc){if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});remoteStream=null;var _rv=$('remote-video');if(_rv)_rv.srcObject=null;await setupPC();}
+```
+
+### Rejoin post-development update
+- Implemented: Fix A (showHostLeftCountdown + resetRemoteMediaState) + Fix B (defensive remoteStream reset in handleSig offer path)
+- Bugs found: none
+- Lint: PASS
+
+---
+
 ## Stage: pre-ship — v5.3.2
 
-Copy `bridge-turn02-base.html` to `bridge-turn02-pre-ship.html` then apply:
+Copy `bridge-turn02-rejoin.html` to `bridge-turn02-pre-ship.html` then apply:
 
 ---
 
