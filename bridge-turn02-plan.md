@@ -60,8 +60,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 
 | Stage | File | Version | Lint | Committed | Go-ahead |
 |---|---|---|---|---|---|
-| pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ☐ | n/a |
-| base | `bridge-turn02-base.html` | v5.3.1 | ☐ | ☐ | ☐ |
+| pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
+| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ | ☐ |
 | pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
@@ -435,10 +435,10 @@ grep -c "manifest.json" bridge-turn02-base.html
 ```
 
 ### Base post-development update
-- Implemented as planned:
-- Additions:
-- Removals/deferrals:
-- Bugs found:
+- Implemented as planned: telemetry removal (HTML + 4 JS functions + 2 call sites); B1 tag suggestions (CSS + pbNcTagSugg inline styles); B2/B11 clarify textarea + pbClarifyKey + pbNcClarifyKey + _pbNcClarifyNotes buffer; B3 verified (pbOpenOverlayClean already correct); B4 book icon removed from pbSearchDrawerHtml; ICO.tts added; pbPushCardToRepo extended with operation param; CRUD wired (create/update×4/softDelete/restore/read = 9 call sites); PWA manifest link + apple-touch-icon + JS banner
+- Additions: _pbNcClarifyNotes buffer supports multiple clarify notes before save; pbNcClarifyKey handles Enter in new card modal
+- Removals/deferrals: pbCommitTgtEdit not wired (per plan — function exists but target edits flow through auto-translate)
+- Bugs found: none
 
 ---
 
