@@ -13,6 +13,12 @@ Code existing is not the same as code working.
 
 ---
 
+## STORAGE SCOPE — PERMANENT CONSTRAINT
+
+All files in the maturity chain share the **same localStorage origin** and therefore the **same storage namespace**. Every localStorage key must be identical across every version of every bridge file. Changing a key name in any one file silently breaks credential restore, room history, transcripts, and phrasebook data for anyone who was testing a different version.
+
+---
+
 ## Naming Convention
 
 All project stage files follow this pattern:
