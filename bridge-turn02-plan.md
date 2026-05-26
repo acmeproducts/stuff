@@ -63,9 +63,9 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
 | base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (rebuild — Fix A–E incorporated) | ✅ |
 | ~~rejoin~~ | ~~`bridge-turn02-rejoin.html`~~ | ~~v5.3.1a~~ | eliminated | eliminated | eliminated |
-| pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ✅ | ✅ | ☐ |
-| ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
-| post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
+| pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ✅ | ✅ | ✅ |
+| ship | `bridge-turn02-ship.html` | v5.3.3 | ✅ | ✅ | ✅ |
+| post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ✅ | ✅ | ✅ |
 
 ---
 
@@ -1591,10 +1591,10 @@ grep -n "resolveShortLinks" bridge-turn02-ship.html
 ```
 
 ### Ship post-development update
-- Implemented as planned:
-- Additions:
-- Removals/deferrals:
-- Bugs found:
+- Implemented as planned: B9 (pbOpenFromRibbon, ribbon button wired), OI-5 (pbHardDelete captures card before removal), s1 (flag mosaic centered — background-position:center center, no-repeat×4), s2a (pbNc* modal removed, pbAddCard provisional card, trSaveToPb updated, pbOpenOverlayClean prunes empty cards), s2b (pbOvRowHtml branch removed from pbRenderOverlay, pbSetFilter clears search), s3 (pbAddTag + pbRemoveTag log clarify entries), s4 (ICO.bt always, no checkmarks), s5 (pbSearch extended with datesStr), OI-2/3 (global / keydown + .. alias), hyperlinks send-time (resolveShortLinks in sendChat), talkbridge-status.html updated
+- Additions: none beyond plan
+- Removals/deferrals: OI-1 already present in pre-ship — no change needed
+- Bugs found: none
 
 ---
 
@@ -1705,10 +1705,10 @@ go through PB Central process.
 ---
 
 ## Turn 2 Summary
-*(Fill after all stages complete)*
-- Stages completed:
-- Device bugs resolved:
-- PB Central wired:
-- Features delivered:
-- Regressions found:
-- Turn 3 pre-base:
+
+- Stages completed: pre-base (v5.3.0), base (v5.3.1 — rebuilt×5), pre-ship (v5.3.2), ship (v5.3.3), post-ship (v5.3.4). Rejoin stage eliminated (Fix A–E folded into base).
+- Device bugs resolved: window.close() auto-close removed; 5-second countdown removed; rejoin Fix A–E (symmetric teardown, defensive reset, handleHash joiner path, offer re-arm, savedId creator path).
+- PB Central wired: create, update, softDelete, restore, read, hardDelete — all 7 CRUD operations.
+- Features delivered: telemetry removal, B5/B13 source edit, B6 verdict reset, B7 tag clears verdict, B8 clarify on verdict, B9 ribbon query carry, B10/B14 row layout, B12 X clears search, B15 BT failure message, TM Tier 2 fuzzy match, EP2/EP3 entry points, C1 hello/goodbye redesign, OI-1 mic glow, OI-2/3 global search, OI-4 clarify renderMd, OI-5 hardDelete capture, s1 flag mosaic centered, s2a provisional card, s2b overlay always bubbles, s3 tag clarify chain, s4 BT button no checkmarks, s5 date search, hyperlinks send-time, PWA add-to-home-screen.
+- Regressions found: none in final state.
+- Turn 3 pre-base: `bridge-turn02-post-ship.html` (v5.3.4)
