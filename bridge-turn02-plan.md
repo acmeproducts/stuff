@@ -627,6 +627,184 @@ Copy `bridge-turn02-base.html` to `bridge-turn02-pre-ship.html` then apply:
 
 ---
 
+### C1 — Hello and Goodbye screen redesign
+
+**Goal:** Flag mosaic visible as background on both screens. Goodbye screen stripped to
+two elements only: bilingual "Call has ended" title + bilingual Rejoin button. No emojis.
+No icons. No log/transcript download buttons.
+
+---
+
+#### C1 — CSS changes
+
+1. In `.joiner-landing` (inline style block, one long line): change both
+   `rgba(10,10,10,.82)` occurrences to `rgba(10,10,10,.55)`.
+   There are exactly two in that rule (the `linear-gradient` layer uses it twice).
+
+2. In `.thankyou-page-bg`: change both `rgba(10,10,10,.82)` occurrences to
+   `rgba(10,10,10,.55)`. Same approach.
+
+3. Remove `.joiner-flags{font-size:36px;letter-spacing:4px;}` — element being removed.
+
+4. Remove `.joiner-lang-pill{font-size:28px;letter-spacing:2px;}` — element being removed
+   from both screens.
+
+5. Remove `.thankyou-sub{...}` CSS rule — element being removed from goodbye screen.
+
+---
+
+#### C1 — HTML: joiner-landing screen
+
+Remove these two elements from `#joiner-landing`:
+```html
+<div class="joiner-lang-pill" id="joiner-lang-pill"></div>
+<div class="joiner-flags" id="joiner-flags"></div>
+```
+
+After removal the screen contains: `joiner-room-name`, `joiner-join-btn`, `joiner-sub`.
+
+---
+
+#### C1 — HTML: thankyou-page (goodbye screen)
+
+Remove from `#thankyou-page`:
+- `<div class="joiner-lang-pill" id="thankyou-lang-pill"></div>`
+- `<button … onclick="copyLogText();toast('Log copied')">📋 Copy log</button>`
+- `<button … onclick="downloadThankyouLog()">⬇ Download log</button>`
+- `<button … onclick="copyTr();toast('Transcript copied')">📋 Copy transcript</button>`
+- `<button id="thankyou-dl-btn" … onclick="exportTxt()">⬇ Download transcript</button>`
+- `<div class="thankyou-sub" id="thankyou-sub" …>You can close this tab.</div>`
+
+After removal the screen contains:
+- `.thankyou-page-bg` (flag mosaic bg)
+- `#thankyou-title` (Call has ended — set by JS)
+- `#thankyou-rejoin-btn` (Rejoin — set by JS, hidden until rejoin eligible)
+
+---
+
+#### C1 — L10N changes
+
+Add `call_ended` key to `L_STRINGS` (insert after `thanks`):
+```js
+call_ended:{en:"Call has ended",es:"Llamada finalizada",zh:"通话已结束",fr:"Appel terminé",
+  de:"Anruf beendet",ja:"通話終了",ko:"통화가 종료되었습니다",ar:"انتهت المكالمة",
+  hi:"कॉल समाप्त हो गई",ru:"Звонок завершён",pt:"Chamada encerrada",it:"Chiamata terminata",
+  vi:"Cuộc gọi đã kết thúc",id:"Panggilan berakhir",ms:"Panggilan tamat",
+  fil:"Natapos ang tawag",nl:"Gesprek beëindigd",sv:"Samtalet avslutat",
+  pl:"Rozmowa zakończona",tr:"Arama sona erdi",th:"การโทรสิ้นสุดลงแล้ว"},
+```
+
+Update `rejoin` key — remove the `🔄 ` emoji prefix from every language value.
+Example: `en:"🔄 Rejoin"` → `en:"Rejoin"`, `es:"🔄 Volver"` → `es:"Volver"`, etc.
+Apply to all 21 language values in that key.
+
+---
+
+#### C1 — JS: joiner-landing (handleHash / showJoinerLanding)
+
+In the function that populates the joiner landing (around line 2927):
+```js
+var ne=$('joiner-room-name'),fe=$('joiner-flags'),lp=$('joiner-lang-pill'),...
+```
+
+After the change:
+- Remove line `if(fe)fe.textContent=...` (joiner-flags no longer in DOM)
+- Remove line `if(lp)lp.textContent=jl?gL(jl).flag:'';` (joiner-lang-pill no longer in DOM)
+- Keep `fe` and `lp` variable declarations — they'll be null but cause no harm, OR remove them
+  for cleanliness if easy to do without touching unrelated code.
+
+---
+
+#### C1 — JS: showThankYou and showHostLeftCountdown
+
+In `showThankYou()`:
+- Change: `if(t)t.textContent=msg||L('thanks',ty_lang);`
+  To: `if(t)t.textContent=msg||bil('call_ended');`
+- Remove: `if(s)s.textContent=bil('close_tab');` (element gone)
+- Remove: `if(lp)lp.textContent=...` (element gone)
+- Remove: `var dl=$('thankyou-dl-btn');if(dl)dl.textContent=bil('dl_transcript');` (button gone)
+
+In `showHostLeftCountdown()`:
+- Change: `if(t)t.textContent='Host ended the call.';`
+  To: `if(t)t.textContent=bil('call_ended');`
+- Remove: `if(s)s.textContent=bil('close_tab');` (element gone)
+- Remove: `if(lp)lp.textContent=...` (element gone)
+- Remove: `var dl=$('thankyou-dl-btn');if(dl)dl.textContent=bil('dl_transcript');` (button gone)
+
+The `bil('rejoin')` call that sets rejoin button text is untouched — it will now render
+"Rejoin / เข้าร่วมอีกครั้ง" (no emoji) which is correct.
+
+---
+
+### Hyperlinks — resolveShortLinks (text--url smart shorthand)
+
+Typed format: `label text--domain` where label (before `--`) becomes link text and
+domain/URL (after `--`) gets protocol and TLD inferred.
+
+Rules:
+- No protocol → prepend `https://`
+- No dot in hostname → append `.com`
+- URL portion must be the last non-whitespace token on the line (regex: `^(.*\S)--(\S+)$` with `gm`)
+- If label is empty or only whitespace → no conversion (avoids CSS `--var` patterns)
+- Converts to standard Markdown `[label](url)` which `renderMd` then renders as `<a>`
+
+Examples:
+- `visit us--google` → `[visit us](https://google.com)`
+- `click here--example.org` → `[click here](https://example.org)`
+- `docs--https://docs.example.com/path` → `[docs](https://docs.example.com/path)`
+
+Add function (place immediately before `renderMd`):
+```js
+function resolveShortLinks(text) {
+  return text.replace(/^(.*\S)--(\S+)$/gm, function(_, label, raw) {
+    var url = raw;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    var host = url.replace(/^https?:\/\//i,'').split(/[/?#]/)[0];
+    if (!host.includes('.')) url += '.com';
+    return '[' + label.trim() + '](' + url + ')';
+  });
+}
+```
+
+Update `renderMd` — two changes:
+
+1. After the `[PB]` prefix block and before the `escapeHtml` line, insert:
+```js
+txt = resolveShortLinks(txt);
+```
+
+2. After the `*italic*` replace and before the existing `--text|url--` pattern, insert
+   the standard Markdown link pattern AND fix the auto-link pattern:
+```js
+// Standard Markdown [text](url) — resolveShortLinks output lands here
+s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+  '<a href="$2" target="_blank" rel="noopener" style="color:var(--teal-bright)">$1</a>');
+```
+
+Also fix the bare-URL auto-link pattern to exclude `"` from the char class
+(prevents double-linking inside `href=` attributes):
+```js
+// was: (https?:\/\/[^\s<]+)
+// becomes:
+s = s.replace(/(https?:\/\/[^\s<"']+)/g,
+  '<a href="$1" target="_blank" rel="noopener" style="color:var(--teal-bright)">$1</a>');
+```
+
+**Clarify chain rendering** — change clarify body from `pbEsc` to `renderMd`:
+
+In `pbBubbleHtml` clarify chain render (around line 2084), change:
+```js
++'<div class="pb-clarify-body">'+pbEsc(item.text||'')+'</div></div>';
+```
+To:
+```js
++'<div class="pb-clarify-body">'+renderMd(item.text||'')+'</div></div>';
+```
+
+`renderMd` is a function declaration (hoisted) so calling it from `pbBubbleHtml` is safe.
+
+---
+
 ### B5/B13 — Source edit: Enter + inline Enter/Cancel buttons trigger update
 
 Blur, Enter key, and Enter button all trigger `pbCommitSrcEdit(id)`.
@@ -947,6 +1125,28 @@ grep -c "TTS_SVG" bridge-turn02-pre-ship.html
 # expected: 0
 grep -c "uE001\|\\\\uE001" bridge-turn02-pre-ship.html
 grep -c "tm-fuzzy-ind" bridge-turn02-pre-ship.html
+
+# C1 checks
+grep -c "rgba(10,10,10,.55)" bridge-turn02-pre-ship.html
+# expected: 4 (2 in joiner-landing, 2 in thankyou-page-bg)
+grep -c "rgba(10,10,10,.82)" bridge-turn02-pre-ship.html
+# expected: 0
+grep -c "joiner-flags\|joiner-lang-pill\|thankyou-lang-pill\|thankyou-sub" bridge-turn02-pre-ship.html
+# expected: 0
+grep -c "copyLogText\|downloadThankyouLog\|copyTr\|exportTxt" bridge-turn02-pre-ship.html
+# expected: 0 (buttons removed from goodbye screen)
+grep -c "call_ended" bridge-turn02-pre-ship.html
+# expected: > 0
+grep -c "🔄" bridge-turn02-pre-ship.html
+# expected: 0
+
+# Hyperlinks checks
+grep -c "function resolveShortLinks" bridge-turn02-pre-ship.html
+# expected: 1
+grep -c "resolveShortLinks" bridge-turn02-pre-ship.html
+# expected: 2 (definition + call in renderMd)
+grep -c "renderMd(item\.text" bridge-turn02-pre-ship.html
+# expected: 1
 ```
 
 ### Pre-ship post-development update
@@ -983,12 +1183,29 @@ Update PB icon button in transcript ribbon:
 
 ---
 
-### Hard delete — wire to PB Central
+### OI-5 / Hard delete — capture card before removal, wire to PB Central
 
-In `pbHardDelete(id)` after local removal:
+**Gap flagged by PB team (non-blocking):** If the card is removed from local storage first,
+the card object is unavailable for the write-back. Fix: capture before deletion.
+
+Read `pbHardDelete(id)` in full. Confirm the exact line that removes the card from storage.
+Then apply this pattern:
+
 ```js
-pbPushCardToRepo(card, 'hardDelete');
+function pbHardDelete(id) {
+  var card = pbGetCardById(id);   // OI-5: capture before deletion
+  // ... existing removal logic (unchanged) ...
+  if (card) pbPushCardToRepo(card, 'hardDelete');  // fire-and-forget after local removal
+}
 ```
+
+The card capture line goes before any localStorage write or array splice.
+The push fires after the local removal completes (same as soft delete in base).
+
+**Reconciliation with soft delete (base):**
+- `pbSoftDelete` → fires `pbPushCardToRepo(card, 'softDelete')` — card still in storage ✓
+- `pbHardDelete` → capture first, remove, then `pbPushCardToRepo(card, 'hardDelete')` ✓
+Both paths are now symmetric for PB Central write-back.
 
 ---
 
@@ -1013,7 +1230,10 @@ open('/tmp/l.js','w').write(m.group(1))"
 node --check /tmp/l.js && echo "PASS" || echo "FAIL"
 
 grep -c "function pbOpenFromRibbon" bridge-turn02-ship.html
-grep "hardDelete.*pbPushCardToRepo\|pbPushCardToRepo.*hardDelete" bridge-turn02-ship.html
+grep -n "pbGetCardById.*pbHardDelete\|pbHardDelete" bridge-turn02-ship.html
+# OI-5: card must be captured (pbGetCardById) before the removal line
+grep -n "pbPushCardToRepo.*hardDelete\|hardDelete.*pbPushCardToRepo" bridge-turn02-ship.html
+# expected: 1
 ```
 
 ### Ship post-development update
