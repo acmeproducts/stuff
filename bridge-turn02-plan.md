@@ -1378,19 +1378,19 @@ The `✓Verified` branch already records clarify. Extend the else branch:
 
 ---
 
-### s4 — Remove duplicate checkmark on BT toggle button
+### s4 — Remove all checkmarks from BT toggle button
 
-**Root cause:** `pbReRenderCardPanel('bt', id)` sets the BT toggle button to:
-```js
-btn3.innerHTML = ICO.verify + ' Verify' + (bt.resultText ? ' ✓' : '');
-```
-`ICO.verify` is already a checkmark SVG. When BT has a result, the extra ` ✓` text
-creates a second checkmark.
+The BT footer toggle button initially renders as `ICO.bt` (refresh arrows, no checkmarks).
+`pbReRenderCardPanel('bt', id)` then overwrites it with `ICO.verify + ' Verify' + (bt.resultText ? ' ✓' : '')`,
+introducing one or two checkmarks depending on state.
 
-**Fix:** Remove the appended `' ✓'`:
+**Fix:** Keep the button as `ICO.bt` always — no checkmarks in any state:
 ```js
-if (btn3) { btn3.innerHTML = ICO.verify + ' Verify'; }
+if (btn3) { btn3.innerHTML = ICO.bt; }
 ```
+
+Remove `ICO.verify` and `' ✓'` entirely from this line. Button appearance is now
+consistent before and after BT runs.
 
 ---
 
