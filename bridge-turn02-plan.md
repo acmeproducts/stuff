@@ -1297,14 +1297,39 @@ This prevents orphaned blank cards if the user opens add-phrase and immediately 
 
 ---
 
-### s2b — Chip click: clear search, ensure bubble mode
+### s2b — Overlay always renders bubbles (remove compact-row branch)
 
-**Problem:** When a search query is active in the PB overlay and the user clicks a
-language pair chip, `pbRenderOverlay` renders compact rows (`pbOvRowHtml`) instead
-of bubbles (`pbBubbleHtml`). Compact rows have no source edit handlers → no save/cancel
-buttons, no auto-translate, no BT.
+**Root cause:** `pbRenderOverlay` has two branches:
 
-**Fix:** In `pbSetFilter`, clear the search input before re-rendering:
+```js
+} else if (q) {
+  _pbICards = cards;
+  html = cards.map(function(c, i) { return pbOvRowHtml(c, i); }).join('');
+} else {
+  html = cards.map(function(c) { return pbBubbleHtml(c, 'overlay'); }).join('');
+}
+```
+
+When a search query (`q`) is active — including after a chip switch that leaves a
+stale query in the box — the overlay renders compact rows (`pbOvRowHtml`). These rows
+have NO source edit handlers, no save/cancel buttons, no auto-translate, no BT trigger.
+`pbBubbleHtml` ("primary PB path") has all of them; `pbOvRowHtml` ("other PB path") has none.
+
+**Fix:** Remove the `else if (q)` branch. The full PB overlay always renders bubbles.
+`pbSearch` already filters the card list; `pbBubbleHtml` renders them correctly regardless.
+Also clear search on chip click (correct UX — new chip = new context).
+
+In `pbRenderOverlay`, replace the three-branch block with:
+```js
+if (!cards.length) {
+  html = '<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';
+} else {
+  html = cards.map(function(c) { return pbBubbleHtml(c, 'overlay'); }).join('');
+}
+```
+Remove the `else if(q){ _pbICards=cards; pbOvRowHtml... }` branch entirely.
+
+In `pbSetFilter`, clear the search input:
 ```js
 function pbSetFilter(f) {
   _pbFilter = f;
@@ -1315,9 +1340,6 @@ function pbSetFilter(f) {
   pbRenderOverlay();
 }
 ```
-
-This ensures chip switches always render in bubble mode. Search term clearing on chip
-switch is also correct UX — the user is navigating to a new context.
 
 ---
 
