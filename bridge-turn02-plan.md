@@ -3,7 +3,7 @@
 **Turn:** 02
 **Date:** 2026-05-24
 **Baseline:** bridge-turn01-post-ship.html (v5.2.4)
-**Status:** IN PROGRESS — rejoin stage pending re-derive + Fix D/E
+**Status:** IN PROGRESS — base rebuilt (Fix A–E incorporated); rejoin stage eliminated; pre-ship next
 
 ---
 
@@ -49,9 +49,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 |---|---|
 | `bridge-turn01-post-ship.html` | Source — never modified |
 | `bridge-turn02-pre-base.html` | Copy of turn01 post-ship, frozen |
-| `bridge-turn02-base.html` | Base delta applied |
-| `bridge-turn02-rejoin.html` | Injected P1 stage — derived from base, see Rejoin Architecture below |
-| `bridge-turn02-pre-ship.html` | Pre-ship delta applied (copies from rejoin, not base) |
+| `bridge-turn02-base.html` | Base delta applied (includes Fix A–E; rejoin stage eliminated) |
+| `bridge-turn02-pre-ship.html` | Pre-ship delta applied (copies from base) |
 | `bridge-turn02-ship.html` | Ship delta applied |
 | `bridge-turn02-post-ship.html` | Validated — becomes Turn 3 pre-base |
 
@@ -62,8 +61,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | Stage | File | Version | Lint | Committed | Go-ahead |
 |---|---|---|---|---|---|
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
-| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (5th — save roomId) | ✅ |
-| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ☐ | ☐ re-derive needed | ☐ |
+| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (rebuild — Fix A–E incorporated) | ✅ |
+| ~~rejoin~~ | ~~`bridge-turn02-rejoin.html`~~ | ~~v5.3.1a~~ | eliminated | eliminated | eliminated |
 | pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
@@ -624,7 +623,7 @@ Manual device test — all 4 cases must reach outcome (a) = both see each other:
 
 ## Stage: pre-ship — v5.3.2
 
-Copy `bridge-turn02-rejoin.html` to `bridge-turn02-pre-ship.html` then apply:
+Copy `bridge-turn02-base.html` to `bridge-turn02-pre-ship.html` then apply:
 
 ---
 
