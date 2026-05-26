@@ -1435,6 +1435,94 @@ function pbSearch(q, cards) {
 
 ---
 
+### OI-1 — Mic glow not visible on device
+
+**Root cause:** `_micAnalyser` may not be correctly tapped off `dgSrc` in
+`startDeepgram`, or the rAF box-shadow loop is not running on the mute button.
+
+Read `startDeepgram` in full. Confirm:
+1. `_micAnalyser` is created: `_micAnalyser = dgCtx.createAnalyser()`
+2. `dgSrc` is connected to `_micAnalyser`: `dgSrc.connect(_micAnalyser)`
+3. The rAF loop reads `_micAnalyser.getByteFrequencyData` and applies
+   `box-shadow` to the mute button element
+4. The rAF loop is started and the mute button ID is correct
+
+Fix any broken step. Low risk — contained to DG startup path.
+
+---
+
+### OI-2/3 — `/` or `..` typed anywhere activates search
+
+**Two triggers, same outcome:** focus the compose textarea and enter search mode.
+
+**`/` global (desktop):**
+Add `document.addEventListener('keydown', ...)` that fires when `/` is pressed
+and the active element is NOT an input, textarea, or contenteditable:
+```js
+document.addEventListener('keydown', function(e) {
+  if (e.key !== '/') return;
+  var ae = document.activeElement;
+  var tag = ae ? ae.tagName.toLowerCase() : '';
+  var ce = ae && ae.isContentEditable;
+  if (tag === 'input' || tag === 'textarea' || ce) return;
+  // Only fire when the call screen is visible
+  if (!$('call-screen') || $('call-screen').classList.contains('hidden')) return;
+  e.preventDefault();
+  var ta = $('chat-input');
+  if (!ta) return;
+  ta.focus();
+  if (ta.value !== '/') { ta.value = '/'; ta.dispatchEvent(new Event('input')); }
+});
+```
+
+**`..` in compose (mobile alias):**
+In `chatInputEvt` (the `oninput` handler for chat-input), add detection:
+```js
+function chatInputEvt() {
+  var ta = $('chat-input');
+  var v = ta ? ta.value : '';
+  // Mobile alias: '..' at start = '/'
+  if (v === '..') { ta.value = '/'; v = '/'; }
+  // ... existing logic continues unchanged ...
+}
+```
+This runs after every keystroke. When `..` is the full compose value, replace with `/`
+which triggers the existing search-mode detection in `chatKeydown` on the next input.
+
+Note: the existing `/` handling in `chatKeydown` already opens the inline PB strip.
+The global listener extends the same behavior to when compose is not focused.
+
+---
+
+### Hyperlinks — resolve at send time (before translation)
+
+**Problem:** `resolveShortLinks` currently runs only at render time (inside `renderMd`).
+When a user types `visit us--google` and sends, the raw `text--link` text passes through
+`translateWithRetry`, which mangles the `--` pattern. The translated text no longer
+contains a valid shorthand link, so the other participant sees broken or plain text.
+
+**Fix:** In `sendChat()`, call `resolveShortLinks(text)` immediately after `normalizeText`
+and BEFORE the translation pipeline:
+```js
+async function sendChat() {
+  var ta = $('chat-input');
+  var text = normalizeText((ta && ta.value || ''), 'chat');
+  if (!text || !room.id) return;
+  text = resolveShortLinks(text);   // ← convert text--url to [text](url) before storing/translating
+  // ... rest of sendChat unchanged ...
+}
+```
+
+`resolveShortLinks` is a function declaration (hoisted) — safe to call anywhere.
+The stored `sourceText` and transmitted relay message both carry `[text](url)`.
+Both participants' `renderMd` then render it as a clickable `<a>` via the MD link pattern.
+`renderMd` still calls `resolveShortLinks` internally as a second-pass safety net (no harm
+in double-running — already-converted `[text](url)` is not affected by the `--` regex).
+
+Reference: kanban.html uses the same send-before-store pattern via `preprocessNotes`.
+
+---
+
 ### talkbridge-status.html update
 
 Update version headers for all Turn 2 stages. Add rows:
@@ -1443,7 +1531,7 @@ Update version headers for all Turn 2 stages. Add rows:
 - PWA add-to-home-screen (base)
 - TM Tier 2 fuzzy match suggestion (pre-ship)
 - PB entry points 1/2/3 (pre-ship/ship)
-- s1–s5 ship injections
+- OI-1 mic glow, OI-2/3 global search, s1–s5 ship injections
 
 ---
 
@@ -1474,8 +1562,8 @@ grep -c "pb-new-card-overlay\|pb-new-card-sheet\|pbNcOpen\|pbSaveNewCard\|_pbNcS
 # expected: 0
 
 # s2b
-grep -c "si.value=''" bridge-turn02-ship.html
-# expected: >= 1 (in pbSetFilter)
+grep -c "else.*pbOvRowHtml\|_pbICards.*pbOvRowHtml" bridge-turn02-ship.html
+# expected: 0 (branch removed)
 
 # s3
 grep -c "Tag added:\|Tag removed:" bridge-turn02-ship.html
@@ -1488,6 +1576,18 @@ grep -c "bt.resultText.*✓\|✓.*bt.resultText" bridge-turn02-ship.html
 # s5
 grep -c "datesStr\|toISOString.*slice.*10" bridge-turn02-ship.html
 # expected: >= 1
+
+# OI-1
+grep -c "_micAnalyser\|box-shadow.*rAF\|rAF.*box-shadow" bridge-turn02-ship.html
+# expected: >= 1
+
+# OI-2/3
+grep -c "document.addEventListener.*keydown\|chatInputEvt.*\.\." bridge-turn02-ship.html
+# expected: >= 1
+
+# Hyperlinks send-time
+grep -n "resolveShortLinks" bridge-turn02-ship.html
+# expect: definition + call in renderMd + call in sendChat = 3 occurrences
 ```
 
 ### Ship post-development update
@@ -1533,15 +1633,74 @@ transcript entry. BT auto-runs on open. Save fires
 
 ---
 
+## Pre-ship v5.3.2 — Delivered Feature Inventory
+
+For reference — what is confirmed in the committed pre-ship file:
+
+| ID | Feature | Status |
+|---|---|---|
+| B3 | PB icon in call header opens phrasebook | ✅ (base) |
+| B4 | PB icon removed from search drawer header | ✅ (base) |
+| B5/B13 | Source edit — Enter key + ✓/✕ inline buttons | ✅ pre-ship |
+| B6 | Source edit clears verdict + ✓Verified tag | ✅ pre-ship |
+| B7 | Removing ✓Verified tag clears BT verdict | ✅ pre-ship |
+| B8 | BT confirm/clear auto-logs clarify entry | ✅ pre-ship |
+| B10 | Phrase search rows — TTS + Send + Edit | ✅ pre-ship |
+| B10a | Compose /search rows — same layout | ✅ pre-ship |
+| B12 | PB overlay X clears search, stays open | ✅ pre-ship (already present) |
+| B14 | Row layout — TTS/Send/Edit left-justified | ✅ pre-ship |
+| B15 | BT failure — "Translation unavailable…" | ✅ pre-ship |
+| TM2 | Levenshtein fuzzy match ~ suggestion | ✅ pre-ship |
+| OI-4 | Clarify notes render hyperlinks (renderMd) | ✅ pre-ship |
+| OI-5 | Hard delete captured before PB Central push | ⏳ ship |
+| EP2 | /search + Enter → overlay with query | ✅ pre-ship |
+| C1 | Hello/goodbye screen bilingual redesign | ✅ pre-ship |
+| OI-1 | Mic glow on device | ⏳ ship |
+| OI-2/3 | Global `/` + `..` search trigger | ⏳ ship |
+
+---
+
 ## Known Gaps — Turn 3
 
 | Gap | Blocked on |
 |---|---|
 | PWA offline | Out of scope by design — add to home screen only |
 | TM Tier 3 glossary injection | Spec required |
-| Telemetry live endpoint test | PB team staging URL + token |
 | PB Central manifest read on load | PB team to expose manifest endpoint |
 | Laptop translation quota failure | Open issue — monitor after network stabilizes |
+
+---
+
+## Future Turns — Backlog
+
+Items discussed but explicitly deferred. Do not implement in Turn 2.
+
+### c2 — Localization (PARKED — major, stand-alone)
+Full i18n of all UI strings. Potentially a separate shared resource file to
+reduce per-file bloat. Existing L_STRINGS / L() system is the fallback.
+Decision: stand-alone turn or parallel track. **Do not scope into Turn 3 without
+explicit planning session.**
+
+### c3 — Adjustable room attributes (Turn 3–4)
+Long-press on video screen opens a modal for full app theming:
+- Accent colour (app outline, background, accent) with built-in themes
+- Bubble: icon colour/size, outline thickness/colour
+- Header / body / footer: font colour + size (universal to transcript + PB windows)
+- Reset button
+- Colour palette must be polished/sophisticated, not standard widget
+Needs more definition before spec. **Turn 3 or 4.**
+
+### c4 — Room personalization (future)
+Optional: when creating a room, enter participant names. Names used in chat
+and conversation going forward. No retroactive history update. No name tracking.
+Needs more definition. **Future turn.**
+
+### c5 — PB download from cloud (Turn 3)
+Underline "library" on the add screen → modal listing all phrasebooks at
+PB Central, sorted by last updated, flagged if already installed or if update
+available. Device manifest in localStorage compared to cloud manifest.
+**Turn 3.** At this stage: remove upload and export feature; all changes
+go through PB Central process.
 
 ---
 
