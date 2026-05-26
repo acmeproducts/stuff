@@ -63,7 +63,7 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
 | base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (rebuild — Fix A–E incorporated) | ✅ |
 | ~~rejoin~~ | ~~`bridge-turn02-rejoin.html`~~ | ~~v5.3.1a~~ | eliminated | eliminated | eliminated |
-| pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
+| pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ✅ | ✅ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
 
@@ -1150,10 +1150,10 @@ grep -c "renderMd(item\.text" bridge-turn02-pre-ship.html
 ```
 
 ### Pre-ship post-development update
-- Implemented as planned:
-- Additions:
-- Removals/deferrals:
-- Bugs found:
+- Implemented as planned: C1 (hello/goodbye screen redesign — flag mosaic tiling, bilingual layout, new CSS classes, L10N), B5/B13 (source edit Enter + inline buttons), B6 (verdict reset on source edit), B7 (✓Verified reset on tag removal), B8 (clarify entries on verdict change), B10/B14/B10a (PB row rewrite with TTS+Send+Edit buttons, pbIEditCard), B12 (pbOvClearSearch — already present), B15 (BT failure message), TM Tier 2 (Levenshtein fuzzy match with U+E001 signal), Entry Point 2 (pbOpenFromSlashSearch, /search Enter handler), Hyperlinks (resolveShortLinks, renderMd MD link pattern, auto-link fix, clarify body renderMd)
+- Additions: ICO.edit added to ICO object; pbSrcFocus/pbSrcKeydown/pbCancelSrcEdit helpers
+- Removals/deferrals: none
+- Bugs found: none
 
 ---
 
