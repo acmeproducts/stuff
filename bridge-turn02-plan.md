@@ -3,7 +3,7 @@
 **Turn:** 02
 **Date:** 2026-05-24
 **Baseline:** bridge-turn01-post-ship.html (v5.2.4)
-**Status:** READY TO EXECUTE
+**Status:** IN PROGRESS — rejoin stage pending re-derive + Fix D/E
 
 ---
 
@@ -50,7 +50,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | `bridge-turn01-post-ship.html` | Source — never modified |
 | `bridge-turn02-pre-base.html` | Copy of turn01 post-ship, frozen |
 | `bridge-turn02-base.html` | Base delta applied |
-| `bridge-turn02-pre-ship.html` | Pre-ship delta applied |
+| `bridge-turn02-rejoin.html` | Injected P1 stage — derived from base, see Rejoin Architecture below |
+| `bridge-turn02-pre-ship.html` | Pre-ship delta applied (copies from rejoin, not base) |
 | `bridge-turn02-ship.html` | Ship delta applied |
 | `bridge-turn02-post-ship.html` | Validated — becomes Turn 3 pre-base |
 
@@ -61,8 +62,8 @@ One stage per response. Stop after lint passes. Wait for go-ahead.
 | Stage | File | Version | Lint | Committed | Go-ahead |
 |---|---|---|---|---|---|
 | pre-base | `bridge-turn02-pre-base.html` | v5.3.0 | n/a | ✅ | n/a |
-| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (4th — remove auto-close) | ✅ |
-| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ✅ | ✅ (re-derive + Fix A/B/C) | ☐ |
+| base | `bridge-turn02-base.html` | v5.3.1 | ✅ | ✅ (5th — save roomId) | ✅ |
+| rejoin (P1 fix) | `bridge-turn02-rejoin.html` | v5.3.1a | ☐ | ☐ re-derive needed | ☐ |
 | pre-ship | `bridge-turn02-pre-ship.html` | v5.3.2 | ☐ | ☐ | ☐ |
 | ship | `bridge-turn02-ship.html` | v5.3.3 | ☐ | ☐ | ☐ |
 | post-ship | `bridge-turn02-post-ship.html` | v5.3.4 | ☐ | ☐ | ☐ |
@@ -435,42 +436,189 @@ grep -c "manifest.json" bridge-turn02-base.html
 # expected: 1
 ```
 
-### Base post-development update (2nd attempt — fixes B1/B2/B4 regressions from 1st attempt)
-- Implemented as planned: telemetry removal (HTML + 4 JS functions + 2 call sites); B1 tag suggestions (CSS + pbNcTagSugg inline styles, NO # prefix); B2/B11 clarify textarea + pbClarifyKey + pbNcClarifyKey (CORRECT field names: author/timestamp not ts/by) + _pbNcClarifyNotes buffer; B3 verified (pbOpenOverlayClean already correct); B4 book icon removed from BOTH pb-ip-hdr (pbISearch) AND pbSearchDrawerHtml; ICO.tts added to ICO object + PB_ICON_TTS var removed + all 4 usages replaced with ICO.tts; pbPushCardToRepo extended with operation param; CRUD wired (create/update×4/softDelete/restore/read = 9 call sites); PWA manifest link + apple-touch-icon + JS banner
-- Additions: _pbNcClarifyNotes buffer supports multiple clarify notes before save; pbNcClarifyKey handles Enter in new card modal
-- Removals/deferrals: pbCommitTgtEdit not wired (per plan — function exists but target edits flow through auto-translate)
-- Bugs found (1st attempt device testing): B1 had # prefix; B2 used wrong field names (ts/by instead of author/timestamp); B4 only removed from pbSearchDrawerHtml, missed pb-ip-hdr
+### Base post-development update
+
+**Commit history (base has been updated 5 times):**
+
+| # | What | Why |
+|---|---|---|
+| 1st | Full base delta (all features) | Initial build |
+| 2nd | Fix B1 (# prefix), Fix B2 (wrong field names author/timestamp), Fix B4 (missed pb-ip-hdr) | Device test regressions from 1st attempt |
+| 3rd | Fix ICO.speaker self-reference crash | `speaker:ICO.tts` inside ICO literal crashed on load — blocked credential restore |
+| 4th | Remove `window.close()` from `showThankYou`; remove 5-second countdown from `showHostLeftCountdown` | Auto-close prevented Rejoin button from being used on device |
+| 5th | Add `roomId` to `lastSessionContext`; set in `createRoom()` and `joinerProceed()` | Enables Fix E (creator rejoin reconnects to original room instead of new uid) |
+
+**Feature summary (all commits):**
+- Telemetry removal (HTML + 4 JS functions + 2 call sites)
+- B1: tag suggestions — fully opaque, no # prefix
+- B2/B11: clarify textarea + Enter handler — correct field names (author/timestamp)
+- B3: verified — pbOpenOverlayClean already correct
+- B4: book icon removed from BOTH pb-ip-hdr AND pbSearchDrawerHtml
+- ICO.tts in ICO object; ICO.speaker assigned after ICO closes; PB_ICON_TTS removed
+- pbPushCardToRepo with operation param; CRUD wired (9 call sites)
+- PWA manifest link + apple-touch-icon + JS banner
+- `lastSessionContext.roomId` saved on call entry (both roles)
+
+---
+
+## Join / Rejoin Architecture — Design Principle
+
+**One room. Two doors. Two keys.**
+
+- **Room** = a stable `room.id` (one uid, never changes between sessions for the same call)
+- **Door 1 / Key 1** = the creator — always knows their own room (`lastSessionContext.roomId`)
+- **Door 2 / Key 2** = the joiner — holds the invite link (`_pendingJoin.r` = same `room.id`)
+- Either party enters or exits without invalidating the other's key
+- Re-entry is symmetric and order-independent
+
+**WebRTC negotiation model (compatible with two-door design):**
+- Creator always sends offers (`onnegotiationneeded` wired at `setupPC()`, line ~3180)
+- Joiner always sends answers (empty handler; responds to offer in `handleSig`)
+- Both orderings of arrival work: creator-first sends offer immediately; joiner-first waits and receives offer when creator connects
+- Relay resends `savedOffer` when the other side sends `hello` (line ~3002)
+
+**What was broken (and the fix lineage — see below):**
+Before the rejoin fixes, the creator's `rejoinCall()` sent them to the lobby and `createRoom()` which called `room.id=uid()` — a brand new room every time. The joiner's key still pointed to the old room. Two different relay sessions. No signaling possible. All rejoin cases failed regardless of order.
+
+**Failure case analysis (code-traced):**
+
+| Case | Who's on goodbye screen | Room match? | Pre-fix outcome |
+|---|---|---|---|
+| Joiner hangs up, creator rejoins first | Creator manually leaves → both on goodbye | Creator=new uid, Joiner=old id → NO | (c) or (d) |
+| Joiner hangs up, joiner rejoins first | Creator stays in solo call (relay open, old room.id) | Same room, but no offer re-trigger | (c) — relay connects, no WebRTC |
+| Creator hangs up, creator rejoins first | Both on goodbye | Creator=new uid, Joiner=old id → NO | (c) or (d) |
+| Creator hangs up, joiner rejoins first | Both on goodbye | Creator=new uid, Joiner=old id → NO | (c) or (d) |
+
+Note: when joiner hangs up, creator does NOT go to goodbye screen. Creator receives `{type:'hangup'}`, resets pc/remoteStream, shows solo-banner, stays on relay at original `room.id`.
 
 ---
 
 ## Stage: rejoin (P1 fix) — v5.3.1a
 
-Copy `bridge-turn02-base.html` to `bridge-turn02-rejoin.html` then apply:
+Injected between base and pre-ship. Pre-ship copies from this file, not base.
 
-**Root cause:** `showHostLeftCountdown()` (joiner's host-left teardown path) calls `teardownSession()` which closes `pc` and nulls `videoStream` but never clears `remoteStream` or `rv.srcObject`. The creator's equivalent path (`cleanUp()`) calls `resetRemoteMediaState()` which does clear both. On rejoin, the joiner's `handleSig` offer handler skips `remoteStream=null` (the `if(pc&&...)` block is skipped because `pc` is already null from teardown). `setupPC()` is called with stale `remoteStream`. New tracks from the new PC are added to the old stale stream. `refreshRemoteVideo()` sees `rv.srcObject === remoteStream` (same object reference) and does not re-assign it. iOS/Android Chrome does not re-render video from an existing stale `srcObject` without explicit re-assignment. Creator's path works because `cleanUp()` calls `resetRemoteMediaState()`.
+Copy `bridge-turn02-base.html` to `bridge-turn02-rejoin.html`, stamp v5.3.1a,
+then apply all fixes below.
 
-### Fix A — `showHostLeftCountdown()`
+---
 
-Add `resetRemoteMediaState()` after `teardownSession(...)`:
+### Rejoin Fix Lineage
 
+All fixes listed here must be re-applied every time rejoin is re-derived from base.
+Base changes do not automatically propagate — re-derive and re-apply.
+
+#### Fix A — `showHostLeftCountdown()`: symmetric teardown
+
+**Root cause:** `showHostLeftCountdown()` (joiner's host-left teardown) calls `teardownSession()` which closes `pc` and nulls `videoStream` but never clears `remoteStream` or `rv.srcObject`. Creator's `cleanUp()` calls `resetRemoteMediaState()` which does clear both. On rejoin the joiner's `handleSig` offer path called `setupPC()` with stale `remoteStream` — new tracks added to old stream, `rv.srcObject` unchanged, iOS/Android did not re-render.
+
+Add `resetRemoteMediaState()` after `teardownSession(...)` in `showHostLeftCountdown()`:
 ```js
 teardownSession('to_host_left_countdown','host_ended');
-resetRemoteMediaState();   // ← ADD: mirrors cleanUp() path so joiner teardown is symmetric
+resetRemoteMediaState();   // mirrors cleanUp() — makes joiner teardown symmetric
 room.id=null;room.role=null;
 ```
 
-### Fix B — `handleSig` offer path (defensive)
+#### Fix B — `handleSig` offer path: defensive reset
 
-Reset `remoteStream`/`rv.srcObject` when `pc` is null before `setupPC()`:
-
+Belt-and-suspenders: when `pc` is null before `setupPC()`, explicitly null `remoteStream` and `rv.srcObject`:
 ```js
 if(!pc){if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});remoteStream=null;var _rv=$('remote-video');if(_rv)_rv.srcObject=null;await setupPC();}
 ```
 
-### Rejoin post-development update
-- Implemented: Fix A (showHostLeftCountdown + resetRemoteMediaState) + Fix B (defensive remoteStream reset in handleSig offer path)
-- Bugs found: none
-- Lint: PASS
+#### Fix C — `rejoinCall()` joiner path: mirror share-link flow
+
+**Root cause:** Old joiner path manually called `setCallPhase('prejoin')` and showed `joiner-landing` without re-initializing `inviteDgKey`, `inviteCfTid/Tok`, `_pendingJoin`, or the landing UI. The share-link revisit worked because `handleHash(p)` does all of that.
+
+Replace joiner branch in `rejoinCall()`:
+```js
+function rejoinCall(){
+  $('thankyou-page').classList.remove('show');
+  var role=lastSessionContext.role||(_pendingJoin?'joiner':'creator');
+  if(role==='joiner'){
+    var p=_pendingJoin||lastSessionContext.pendingJoinSnapshot;
+    handleHash(p);   // mirrors share-link: resets credentials, _pendingJoin, UI, shows landing
+  }else{
+    // Fix E below handles creator path
+  }
+}
+```
+
+#### Fix D — `handleRelay` hangup handler: re-trigger offer immediately
+
+**Root cause:** When joiner hangs up, creator closes `pc` (via hangup handler) and shows solo-banner. `savedOffer` is cleared. The relay stays open. When joiner rejoins and sends `hello`, creator has no `pc` and no `savedOffer` to resend (line ~3002). The `onopen` trigger for `setupPC()` (line ~2979) only fires on a new relay connection — not while relay is already open.
+
+In the creator-side hangup handler in `handleRelay()`, after `pc.close()` and before `armConnectTimeout()`:
+```js
+// Re-arm offer so creator is ready when joiner reconnects
+if(videoStream)(async()=>{await setupPC();})();
+```
+`setupPC()` creates a new `pc`, `addTrack()` triggers `onnegotiationneeded`, a fresh offer is generated and saved as `savedOffer`. When joiner's `hello` arrives, the existing resend path (line ~3002) fires it automatically.
+
+#### Fix E — `rejoinCall()` creator path: reconnect to saved room
+
+**Root cause:** Creator's rejoin sent them to lobby → `createRoom()` → `room.id=uid()`. New room, joiner's key invalid. Fix now in base (5th commit): `lastSessionContext.roomId` saved in both `createRoom()` and `joinerProceed()`.
+
+Replace creator branch in `rejoinCall()`:
+```js
+  }else{
+    var savedId=lastSessionContext.roomId;
+    if(savedId){
+      room.id=savedId;room.role='creator';
+      room.myLang=lastSessionContext.myLang;room.theirLang=lastSessionContext.theirLang;room.name=lastSessionContext.roomName;
+      $('thankyou-page').classList.remove('show');
+      (async function(){
+        try{
+          videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()});
+          var lv=$('local-video');if(lv)lv.srcObject=videoStream;
+          enterCall();
+        }catch(e){
+          setCallPhase('idle','rejoin_creator_cam_fail');
+          $('lobby').classList.remove('hidden');setLS(LS.setup);
+        }
+      })();
+    }else{
+      setCallPhase('idle','rejoin_creator');
+      $('lobby').classList.remove('hidden');setLS(LS.setup);
+    }
+  }
+```
+
+With Fix E, creator reconnects to the original relay session. With Fix D, creator already has a fresh `savedOffer` ready. When joiner reconnects, `hello` triggers resend → joiner answers → WebRTC established. Order-independent.
+
+---
+
+### Rejoin post-development update (lineage)
+
+| Attempt | What changed | Device result |
+|---|---|---|
+| 1st (Fix A + Fix B) | Symmetric teardown + defensive reset | Still broken — rejoin button didn't re-initialize state |
+| 2nd (Fix C added) | rejoinCall → handleHash for joiner | Still broken — window auto-closed before user could click |
+| 3rd (auto-close removed from base, re-derive) | window.close() + countdown timer removed from showThankYou + showHostLeftCountdown | Goodbye screen stays open — rejoin button accessible. Root cause of room mismatch identified |
+| 4th (Fix D + Fix E — PENDING) | Creator reconnects to saved room; offer re-triggered on hangup | PENDING device test |
+
+Current state: base has been updated (5th commit — roomId saved). Rejoin must be re-derived from base and Fix A/B/C/D/E all applied.
+
+### Rejoin verification
+
+```bash
+# Extract and lint
+node -e "const fs=require('fs');const html=fs.readFileSync('bridge-turn02-rejoin.html','utf8');const m=html.match(/<script>([\s\S]*?)<\/script>/g);const js=m.map(s=>s.replace(/<\/?script[^>]*>/g,'')).join('\n');fs.writeFileSync('/tmp/l.js',js);"
+node --check /tmp/l.js && echo "PASS"
+
+grep -c "window.close" bridge-turn02-rejoin.html           # must be 0
+grep -c "Closing in" bridge-turn02-rejoin.html             # must be 0
+grep -n "resetRemoteMediaState" bridge-turn02-rejoin.html  # Fix A: must appear in showHostLeftCountdown
+grep -n "handleHash(p)" bridge-turn02-rejoin.html          # Fix C: rejoinCall joiner path
+grep -n "lastSessionContext.roomId" bridge-turn02-rejoin.html  # Fix E: creator uses savedId
+grep -n "await setupPC" bridge-turn02-rejoin.html          # Fix D: re-arm in hangup handler
+grep -n "v5.3.1a" bridge-turn02-rejoin.html               # version in 2 places
+```
+
+Manual device test — all 4 cases must reach outcome (a) = both see each other:
+1. Joiner hangs up → creator stays solo → joiner clicks Rejoin first → both connected
+2. Joiner hangs up → creator also leaves → creator clicks Rejoin first → both connected
+3. Creator hangs up → joiner on goodbye → joiner clicks Rejoin first → both connected
+4. Creator hangs up → joiner on goodbye → creator clicks Rejoin first → both connected
 
 ---
 
