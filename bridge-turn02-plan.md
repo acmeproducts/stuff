@@ -1209,6 +1209,210 @@ Both paths are now symmetric for PB Central write-back.
 
 ---
 
+### s1 — Flag motif: centered, not tiled
+
+Revises the C1 tiling from pre-ship. The flag mosaic should be centered on screen (one
+copy, natural size, centered) rather than tiled across the screen.
+
+In `.joiner-landing` and `.thankyou-page-bg`:
+- Change `background-repeat` from `no-repeat, repeat, repeat, no-repeat`
+  → `no-repeat, no-repeat, no-repeat, no-repeat`
+- Change `background-position` from `0 0, 0 0, 0 0, 0 0`
+  → `0 0, center center, center center, 0 0`
+- `background-size: cover, auto, auto, cover` — unchanged
+
+Two rules to update (`.joiner-landing` inline rule and `.thankyou-page-bg`).
+
+---
+
+### s2a — Add phrase: replace modal with provisional card + bubble
+
+**Directive:** Remove `#pb-new-card-overlay` / `#pb-new-card-sheet` and all `pbNc*`
+functions. Replace with a provisional card approach — creates a real card immediately,
+opens the PB overlay scrolled to it. The user edits it in-place using the same bubble
+UI as every other card.
+
+**HTML removed:** `#pb-new-card-overlay` div (lines ~639–686 in pre-ship)
+
+**Functions removed:** `pbNcOpen`, `pbNcClose`, `pbCloseNewCard`, `pbNcCancel`,
+`pbSaveNewCard`, `pbNcAutoTranslate`, `pbNcOnSrcBlur`, `pbNcSrcKeydown`,
+`pbNcTagSugg`, `pbNcTagKey`, `pbNcSetVerdict`, `pbNcRunBt`, `pbNcTogPanel`,
+`pbNcClarifyKey`, `pbNcSpeakSrc`, `pbNcSpeakTgt`, `pbNcTogPanel`
+
+**Globals removed:** `_pbNcSrcLang`, `_pbNcTgtLang`, `_pbNcDirty`, `_pbNcVerdict`,
+`_pbNcAttr`, `_pbNcTags`, `_pbNcCatalogIds`, `_pbNcClarifyNotes`
+
+**New function** (replaces `pbNcOpen`):
+```js
+function pbAddCard(opts) {
+  opts = opts || {};
+  var sl = opts.sourceLang || room.myLang || 'en';
+  var tl = opts.targetLang || room.theirLang || 'en';
+  var src = (opts.source || '').trim();
+  var card = pbNorm({
+    sourceLang: sl, targetLang: tl,
+    source: src, target: '',
+    savedBy: 'Me', tags: [], catalogIds: [],
+    createdAt: pbNow(), updatedAt: pbNow()
+  });
+  pbSaveCard(card);
+  pbPushCardToRepo(card, 'create');
+  pbOpenOverlay();
+  setTimeout(function() {
+    var el = document.getElementById('pbb-' + card.id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Focus source for immediate typing
+      var src_el = document.getElementById('pbsrc-' + card.id);
+      if (src_el) { src_el.focus(); }
+    }
+    // Auto-translate if source pre-populated
+    if (src) {
+      translateWithRetry(src, sl, tl, 2).then(function(tr) {
+        if (tr && tr !== src) {
+          var c2 = pbGetCardById(card.id); if (!c2) return;
+          c2.target = tr; c2.updatedAt = pbNow(); pbSaveCard(c2);
+          var te = document.getElementById('pbtgt-' + card.id);
+          if (te) te.textContent = tr;
+        }
+      });
+    }
+  }, 80);
+}
+```
+
+**All callers** of `pbNcOpen` / `pbCloseNewCard` updated to call `pbAddCard(opts)`.
+Pass `{source, sourceLang, targetLang}` where pre-population makes sense
+(e.g., transcript save-to-PB, compose strip add). Where no pre-population, call `pbAddCard()`.
+
+**Cleanup on empty new card (provisional card pruning):**
+In `pbOpenOverlayClean` (called when overlay is closed or cleaned), add:
+```js
+// Prune provisional cards with no source and no target
+pbSaveCards(pbGetAllCards().filter(function(c) {
+  return c.deletedAt || c.source || c.target;
+}));
+```
+This prevents orphaned blank cards if the user opens add-phrase and immediately closes.
+
+---
+
+### s2b — Chip click: clear search, ensure bubble mode
+
+**Problem:** When a search query is active in the PB overlay and the user clicks a
+language pair chip, `pbRenderOverlay` renders compact rows (`pbOvRowHtml`) instead
+of bubbles (`pbBubbleHtml`). Compact rows have no source edit handlers → no save/cancel
+buttons, no auto-translate, no BT.
+
+**Fix:** In `pbSetFilter`, clear the search input before re-rendering:
+```js
+function pbSetFilter(f) {
+  _pbFilter = f;
+  var si = document.getElementById('pb-ov-search');
+  if (si) si.value = '';
+  pbOvSearchX();
+  pbRenderOverlayFilter();
+  pbRenderOverlay();
+}
+```
+
+This ensures chip switches always render in bubble mode. Search term clearing on chip
+switch is also correct UX — the user is navigating to a new context.
+
+---
+
+### s3 — All tag add/remove recorded in clarify chain
+
+Currently only the `✓Verified` tag removal records a clarify entry. All other tag
+additions and removals should also be recorded (except ✓Verified, which is covered by
+the BT verdict flow).
+
+**`pbAddTag(id, tag)` — add clarify entry for non-Verified tags:**
+```js
+function pbAddTag(id, tag) {
+  // ... existing tag normalize / dedupe logic ...
+  pbAddTagToReg(t);
+  if (t !== '✓Verified') {
+    card.clarifyChain = card.clarifyChain || [];
+    card.clarifyChain.push({text: 'Tag added: ' + t, author: 'Me', timestamp: pbNow()});
+    pbReRenderCardPanel('clarify', id);
+  }
+  pbSaveCard(card);
+  pbPushCardToRepo(card, 'update');
+  pbReRenderCardPanel('tags', id);
+}
+```
+
+**`pbRemoveTag(id, tag)` — add clarify entry for non-Verified tags:**
+The `✓Verified` branch already records clarify. Extend the else branch:
+```js
+} else {
+  card.clarifyChain = card.clarifyChain || [];
+  card.clarifyChain.push({text: 'Tag removed: ' + tag, author: 'Me', timestamp: pbNow()});
+  pbSaveCard(card); pbPushCardToRepo(card, 'update');
+  pbReRenderCardPanel('clarify', id);
+}
+```
+
+---
+
+### s4 — Remove duplicate checkmark on BT toggle button
+
+**Root cause:** `pbReRenderCardPanel('bt', id)` sets the BT toggle button to:
+```js
+btn3.innerHTML = ICO.verify + ' Verify' + (bt.resultText ? ' ✓' : '');
+```
+`ICO.verify` is already a checkmark SVG. When BT has a result, the extra ` ✓` text
+creates a second checkmark.
+
+**Fix:** Remove the appended `' ✓'`:
+```js
+if (btn3) { btn3.innerHTML = ICO.verify + ' Verify'; }
+```
+
+---
+
+### s5 — PB search by date
+
+Extend `pbSearch(q, cards)` to match date tokens against card `createdAt` and
+`updatedAt`. Both fields are searched; a match on either counts.
+
+Add date formatting helper and date match to the haystack:
+```js
+function pbSearch(q, cards) {
+  if (!q || !q.trim()) return cards;
+  var tokens = q.trim().toLowerCase().split(/\s+/);
+  var inc = tokens.filter(function(t) { return t[0] !== '-'; });
+  var exc = tokens.filter(function(t) { return t[0] === '-'; }).map(function(t) { return t.slice(1); });
+  return cards.filter(function(c) {
+    // Build date strings for createdAt and updatedAt
+    var datesStr = [c.createdAt, c.updatedAt].filter(Boolean).map(function(ts) {
+      var d = new Date(ts);
+      return [
+        d.toLocaleDateString(),
+        d.toLocaleDateString('en', {month:'short', day:'numeric'}),
+        d.toLocaleDateString('en', {month:'short', day:'numeric', year:'numeric'}),
+        d.toISOString().slice(0, 10)
+      ].join(' ');
+    }).join(' ').toLowerCase();
+    var hay = [c.source, c.target, c.notes, (c.tags || []).join(' '),
+      (c.clarifyChain || []).map(function(x) { return x.text || ''; }).join(' '),
+      (c.backtranslate && c.backtranslate.resultText) || '',
+      c.sourceLang, c.targetLang, datesStr].join(' ').toLowerCase();
+    var verdict = (c.backtranslate && c.backtranslate.verdict) || '';
+    if (exc.some(function(t) { return t && hay.indexOf(t) >= 0; })) return false;
+    return inc.every(function(t) {
+      if (!t) return true;
+      if (t.indexOf('verdict:') === 0) return verdict === t.slice(8);
+      if (t.indexOf('tag:') === 0) return (c.tags || []).indexOf(t.slice(4)) >= 0;
+      return hay.indexOf(t) >= 0;
+    });
+  });
+}
+```
+
+---
+
 ### talkbridge-status.html update
 
 Update version headers for all Turn 2 stages. Add rows:
@@ -1217,6 +1421,7 @@ Update version headers for all Turn 2 stages. Add rows:
 - PWA add-to-home-screen (base)
 - TM Tier 2 fuzzy match suggestion (pre-ship)
 - PB entry points 1/2/3 (pre-ship/ship)
+- s1–s5 ship injections
 
 ---
 
@@ -1234,6 +1439,33 @@ grep -n "pbGetCardById.*pbHardDelete\|pbHardDelete" bridge-turn02-ship.html
 # OI-5: card must be captured (pbGetCardById) before the removal line
 grep -n "pbPushCardToRepo.*hardDelete\|hardDelete.*pbPushCardToRepo" bridge-turn02-ship.html
 # expected: 1
+
+# s1
+grep -c "no-repeat, no-repeat, no-repeat, no-repeat" bridge-turn02-ship.html
+# expected: 2 (joiner-landing + thankyou-page-bg)
+grep -c "center center, center center" bridge-turn02-ship.html
+# expected: 2
+
+# s2a
+grep -c "function pbAddCard" bridge-turn02-ship.html
+grep -c "pb-new-card-overlay\|pb-new-card-sheet\|pbNcOpen\|pbSaveNewCard\|_pbNcSrcLang" bridge-turn02-ship.html
+# expected: 0
+
+# s2b
+grep -c "si.value=''" bridge-turn02-ship.html
+# expected: >= 1 (in pbSetFilter)
+
+# s3
+grep -c "Tag added:\|Tag removed:" bridge-turn02-ship.html
+# expected: 2
+
+# s4
+grep -c "bt.resultText.*✓\|✓.*bt.resultText" bridge-turn02-ship.html
+# expected: 0
+
+# s5
+grep -c "datesStr\|toISOString.*slice.*10" bridge-turn02-ship.html
+# expected: >= 1
 ```
 
 ### Ship post-development update
