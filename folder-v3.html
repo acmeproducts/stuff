@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>folder-v3</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2f;--muted:#94a3b8;--text:#e2e8f0;--line:#24304a;--green:#22c55e;--amber:#f59e0b;--gray:#64748b;--orange:#fb923c;--red:#ef4444}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-columns:280px 1fr 0;grid-template-rows:52px 1fr;height:100vh}
+header{grid-column:1/4;display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+button,select{background:#1e293b;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.main{display:grid;grid-template-columns:280px 1fr;grid-column:1/3;min-height:0}
+.left{border-right:1px solid var(--line);overflow:auto;padding:8px}
+.center{display:flex;flex-direction:column;min-width:0}
+.tier{border-bottom:1px solid var(--line)} details summary{cursor:pointer;padding:8px 12px;color:var(--muted)}
+.files{flex:1;overflow:auto}.files table{width:100%;border-collapse:collapse}.files th,.files td{border-bottom:1px solid var(--line);padding:8px;text-align:left}.files th{cursor:pointer}
+.badge{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px}.yes{background:var(--green)}.inprogress{background:var(--amber)}.no{background:var(--gray)}.stale{background:var(--orange)}.error{background:var(--red)}
+.row{padding:6px;border-radius:8px;cursor:pointer}.row:hover,.row.active{background:#1e293b}
+.rightStatus{position:fixed;right:8px;top:60px;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:10px;max-height:44vh;overflow:auto}
+.preview{position:fixed;right:-46vw;top:0;width:46vw;height:100vh;background:#0f172a;border-left:1px solid var(--line);transition:right .2s;padding:12px}.preview.open{right:0}
+.chev{font-weight:700}
+@media(max-width:900px){.app{grid-template-columns:1fr}.main{grid-template-columns:1fr}.left{position:fixed;left:-300px;top:52px;bottom:0;width:280px;background:var(--panel);z-index:3;transition:left .2s}.left.open{left:0}.preview{width:100vw;right:-100vw}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <button id="hamburger">☰</button>
+    <strong>folder-v3</strong>
+    <span style="color:var(--muted)">provider-agnostic file explorer</span>
+    <button id="togglePreview" style="margin-left:auto">Preview</button>
+  </header>
+  <div class="main">
+    <aside class="left" id="drawer"></aside>
+    <section class="center">
+      <div class="tier">
+        <details open><summary>Filter View · Tier 1 (Type)</summary><div style="padding:0 12px 10px"><select id="fType"><option value="">All</option><option>image</option><option>video</option><option>html</option><option>other</option></select></div></details>
+        <details><summary>Filter View · Tier 2 (Stack)</summary><div style="padding:0 12px 10px"><select id="fStack"><option value="">All</option><option>keep</option><option>inbox</option><option>maybe</option></select></div></details>
+      </div>
+      <div class="files"><table><thead><tr><th data-k="name">Name</th><th data-k="date">Date</th><th data-k="size">Size</th><th>Actions</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    </section>
+  </div>
+</div>
+<div class="rightStatus"><details open><summary>Indexing Status (expand/collapse)</summary><div id="jobs" style="padding:8px"></div></details></div>
+<aside class="preview" id="previewPane"><h3 id="pvTitle">Preview</h3><div id="pvBody" style="color:var(--muted)">Select a file…</div></aside>
+<script>
+const tree=[{p:'Provider A',folders:[{name:'Design',status:'no'},{name:'Videos',status:'stale'},{name:'Web',status:'yes'}]},{p:'Provider B',folders:[{name:'Archive',status:'no'},{name:'Invoices',status:'error'}]}];
+let files=[{name:'hero.jpg',type:'image',stack:'keep',date:'2026-05-26',size:2300,mime:'image/jpeg'},{name:'walkthrough.mp4',type:'video',stack:'inbox',date:'2026-05-22',size:40200,mime:'video/mp4'},{name:'index.html',type:'html',stack:'keep',date:'2026-05-20',size:42,mime:'text/html'},{name:'dump.bin',type:'other',stack:'maybe',date:'2026-05-15',size:958000,mime:'application/octet-stream'}];
+let sort={k:'name',dir:1}; const jobs=[]; const indexed=new Set();
+const drawer=document.getElementById('drawer'),tbody=document.getElementById('tbody'),jobsEl=document.getElementById('jobs');
+function renderTree(){drawer.innerHTML=''; tree.forEach(prov=>{const h=document.createElement('div'); h.textContent=prov.p; h.style.color='#93c5fd'; h.style.padding='8px'; drawer.appendChild(h); prov.folders.forEach(f=>{const r=document.createElement('div'); r.className='row'; r.innerHTML=`<span class="badge ${f.status}"></span>${f.name}`; r.onclick=()=>selectFolder(prov.p,f,r); drawer.appendChild(r);});});}
+function queueIndex(key){ if(indexed.has(key)) return; const active=jobs.filter(j=>j.state==='inprogress').length; if(active>=5){jobs.unshift({name:key,state:'queued-msg',msg:'5 folders and subfolders are already indexing. Come back later.'}); renderJobs(); return;} const job={name:key,state:'inprogress'}; jobs.unshift(job); renderJobs(); indexed.add(key); setTimeout(()=>{job.state='yes'; renderJobs();},1500+Math.random()*2500);}
+function renderJobs(){jobsEl.innerHTML=jobs.slice(0,12).map(j=>`<div style="padding:6px 4px;border-bottom:1px solid var(--line)"><span class="badge ${j.state}"></span>${j.msg||j.name}</div>`).join('');}
+function selectFolder(p,f,row){document.querySelectorAll('.row').forEach(x=>x.classList.remove('active')); row.classList.add('active'); queueIndex(`${p}/${f.name}`);}
+function renderFiles(){const ft=fType.value,fs=fStack.value; const data=files.filter(x=>(!ft||x.type===ft)&&(!fs||x.stack===fs)).sort((a,b)=>a[sort.k]>b[sort.k]?sort.dir:-sort.dir); tbody.innerHTML=data.map(f=>`<tr draggable="true" data-name="${f.name}"><td>${f.name}</td><td>${f.date}</td><td>${f.size}</td><td><button onclick="openFile('${f.name}')">Open</button><button onclick="downloadFile('${f.name}')">Download</button><details style="display:inline"><summary class="chev">▾</summary><button onclick="softDelete('${f.name}')">Soft Delete</button></details></td></tr>`).join('');
+  document.querySelectorAll('#tbody tr').forEach(tr=>{tr.onclick=()=>preview(tr.dataset.name)});
+}
+function preview(name){const f=files.find(x=>x.name===name); pvTitle.textContent=name; if(!f) return; if(f.mime.startsWith('image/')) pvBody.innerHTML=`<img src="https://placehold.co/640x360" style="max-width:100%">`; else if(f.mime.startsWith('video/')) pvBody.innerHTML=`<video controls style="max-width:100%"><source src=""></video><p>video preview required</p>`; else if(f.mime==='text/html') pvBody.innerHTML=`<iframe title="html-preview" srcdoc="<h1>HTML Preview</h1><p>${name}</p>" style="width:100%;height:70vh;border:1px solid #334155"></iframe>`; else pvBody.textContent='Large/unknown file: metadata only (read-only).'; previewPane.classList.add('open');}
+function openFile(n){window.open('about:blank','_blank');}
+function downloadFile(n){alert('download: '+n)}
+function softDelete(n){alert('soft delete via provider recycle bin: '+n)}
+fType.onchange=fStack.onchange=()=>{localStorage.setItem('filters',JSON.stringify({type:fType.value,stack:fStack.value}));renderFiles()};
+const saved=JSON.parse(localStorage.getItem('filters')||'{}'); if(saved.type)fType.value=saved.type; if(saved.stack)fStack.value=saved.stack;
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; sort.dir=(sort.k===k)?-sort.dir:1; sort.k=k; renderFiles();});
+togglePreview.onclick=()=>previewPane.classList.toggle('open'); hamburger.onclick=()=>drawer.classList.toggle('open');
+renderTree(); renderFiles(); renderJobs();
+</script>
+</body>
+</html>
