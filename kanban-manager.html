@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Kanban Program Manager</title>
+<style>
+body{margin:0;font-family:system-ui;background:#f3f6fb;color:#0f172a}header{padding:10px 12px;border-bottom:1px solid #d7deea;background:#fff;display:flex;gap:8px;align-items:center;position:sticky;top:0}.shell{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px)}aside{border-right:1px solid #d7deea;background:#fff;display:flex;flex-direction:column}main{padding:10px;overflow:auto}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}input,select,button{border:1px solid #d7deea;border-radius:8px;padding:8px;background:#fff}.boards{overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px}.board{padding:8px;border:1px solid #d7deea;border-radius:8px;background:#fff;cursor:pointer}.board.active{border-color:#2563eb;background:#eff6ff}.lane{border:1px solid #d7deea;border-radius:8px;padding:8px;min-height:110px;background:#fff}.lane h4{margin:0 0 8px}.cards{display:flex;flex-direction:column;gap:6px}.card{border:1px solid #d7deea;border-radius:8px;padding:6px;background:#fff;cursor:grab}.muted{color:#64748b;font-size:12px}.grid{display:grid;gap:10px}.lanes{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.matrix{grid-template-columns:150px repeat(3,minmax(180px,1fr))}.head{font-weight:700;font-size:12px;color:#64748b;text-transform:uppercase}.chip{font-size:11px;border:1px solid #d7deea;border-radius:999px;padding:2px 8px;cursor:pointer}.modal{position:fixed;inset:0;background:rgba(2,6,23,.45);display:none;align-items:center;justify-content:center}.modal.open{display:flex}.modal-card{background:#fff;border-radius:10px;padding:12px;width:min(720px,95vw)}.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}.form .full{grid-column:1/-1}
+</style>
+</head>
+<body>
+<header>
+  <strong>Kanban Program Manager</strong>
+  <button id="reloadBtn">Reload</button><button id="saveBtn">Download JSON</button>
+  <span id="status" class="muted">Ready</span>
+</header>
+<div class="shell">
+  <aside>
+    <div class="row" style="padding:8px">
+      <input id="boardSearch" placeholder="Omnisearch boards (-term exclude)" style="flex:1"/>
+    </div>
+    <div class="boards" id="boards"></div>
+  </aside>
+  <main>
+    <div class="row" style="margin-bottom:8px">
+      <select id="tabSel"><option>LANE</option><option>STAGE</option><option>PHASE</option><option>MATRIX</option></select>
+      <select id="fltPlatform"></select><select id="fltStatus"></select><select id="fltTurn"></select>
+      <input id="cardSearch" placeholder="Omnisearch cards" style="min-width:260px"/>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="modal" id="cardModal"><div class="modal-card"><div class="row"><strong id="mTitle">Card</strong><button id="closeM" style="margin-left:auto">Close</button></div><div id="mForm" class="form"></div></div></div>
+<script>
+const DATA_FILE='kanban-program-manager.json';
+const DEVPLATFORMS=['OC','CC','Codex','ChatGpt','Gemini','Perpelxity','Other'];
+const STAGES=['Pre-Base','Base','Pre-Ship','Ship','Post-Ship'];
+const TURNS=['Turn01','Turn02','Turn03','Turn04','Turn05','Turn06','Turn07','Turn08','Turn09','Turn10'];
+const PHASES=['Concept','Alpha','Pilot','Beta','Launch V1','Launch V2','Launch V3','Launch V4','Launch V5','Launch V6','Launch V7','Launch V8','Launch V9','Launch V10'];
+const STATUSES=['Dev','Tst','Prod'];
+let data={controlPanel:{lanes:['Doing','Done','Backlog'],stages:STAGES,phases:PHASES,devPlatforms:DEVPLATFORMS,statuses:STATUSES,turns:TURNS},boards:[]},activeBoardId='';
+const $=s=>document.querySelector(s); const byId=id=>data.boards.find(b=>b.boardId===id);
+function defaults(c,b){c.devPlatform=c.devPlatform||DEVPLATFORMS[0];c.status=c.status||STATUSES[0];c.stage=c.stage||STAGES[0];c.turn=c.turn||TURNS[0];c.phase=c.phase||PHASES[0];c.lane=c.lane||data.controlPanel.lanes[0];c.boardId=b.boardId;c.boardName=b.boardName;return c}
+async function boot(){const r=await fetch(DATA_FILE,{cache:'no-store'});data=await r.json();data.boards.forEach(b=>{b.cards=(b.cards||[]).map(c=>defaults(c,b));});activeBoardId=data.boards[0]?.boardId||'';fillFilters();render();}
+function fillFilters(){[['#fltPlatform',['All',...DEVPLATFORMS]],['#fltStatus',['All',...STATUSES]],['#fltTurn',['All',...TURNS]]].forEach(([id,list])=>{$(id).innerHTML=list.map(v=>`<option>${v}</option>`).join('')});}
+function passText(text,q){if(!q.trim())return true;let inc=q.toLowerCase().split(/\s+/).filter(Boolean);for(const t of inc){if(t.startsWith('-')&&text.includes(t.slice(1)))return false;if(!t.startsWith('-')&&!text.includes(t))return false;}return true}
+function filteredCards(board){let cards=[...(board?.cards||[])];const p=$('#fltPlatform').value,s=$('#fltStatus').value,t=$('#fltTurn').value,q=$('#cardSearch').value.toLowerCase();return cards.filter(c=>(p==='All'||c.devPlatform===p)&&(s==='All'||c.status===s)&&(t==='All'||c.turn===t)&&passText((`${c.title} ${(c.tags||[]).join(' ')} ${c.status}`).toLowerCase(),q));}
+function renderBoards(){const q=$('#boardSearch').value.toLowerCase();const root=$('#boards');root.innerHTML='';data.boards.filter(b=>passText((b.boardName+' '+b.boardId).toLowerCase(),q)).forEach(b=>{const d=document.createElement('div');d.className='board'+(b.boardId===activeBoardId?' active':'');d.textContent=`${b.boardName} (${b.cards?.length||0})`;d.onclick=()=>{activeBoardId=b.boardId;render();};d.ondragover=e=>e.preventDefault();d.ondrop=e=>{const raw=e.dataTransfer.getData('text/cardref');if(!raw)return;const {boardId,cardId}=JSON.parse(raw);moveBoardCard(boardId,b.boardId,cardId)};root.append(d);});}
+function moveBoardCard(from,to,id){if(from===to)return;const a=byId(from),b=byId(to);const i=a.cards.findIndex(c=>c.id===id);if(i<0)return;const [card]=a.cards.splice(i,1);defaults(card,b);b.cards.push(card);render();}
+function render(){renderBoards();const b=byId(activeBoardId);const tab=$('#tabSel').value;$('#view').innerHTML='';if(!b)return; if(tab==='MATRIX') return renderMatrix(b); if(tab==='LANE') return renderByAttr(b,'lane',data.controlPanel.lanes); if(tab==='STAGE') return renderByAttr(b,'stage',data.controlPanel.stages); return renderByAttr(b,'phase',data.controlPanel.phases);}
+function renderByAttr(board,key,list){const cards=filteredCards(board),v=$('#view');const g=document.createElement('div');g.className='grid lanes';list.forEach(k=>{const lane=document.createElement('div');lane.className='lane';lane.innerHTML=`<h4>${k}</h4>`;const wrap=document.createElement('div');wrap.className='cards';cards.filter(c=>c[key]===k).forEach(c=>wrap.append(cardEl(c,board,key)));lane.append(wrap);lane.ondragover=e=>e.preventDefault();lane.ondrop=e=>{const {boardId,cardId}=JSON.parse(e.dataTransfer.getData('text/cardref'));const src=byId(boardId);const cd=(src.cards||[]).find(x=>x.id===cardId);if(cd){cd[key]=k; if(boardId!==board.boardId) moveBoardCard(boardId,board.boardId,cardId); render();}};g.append(lane)});v.append(g)}
+function cardEl(c,b,key){const d=document.createElement('div');d.className='card';d.draggable=true;d.ondragstart=e=>e.dataTransfer.setData('text/cardref',JSON.stringify({boardId:b.boardId,cardId:c.id}));d.innerHTML=`<div><strong class='ct'>${c.title}</strong></div><div class='muted'>${c.devPlatform} · ${c.status} · ${c.turn}</div><div>${(c.tags||[]).slice(0,4).map(t=>`<span class='chip'>${t}</span>`).join(' ')}</div>`;d.querySelector('.ct').onclick=(e)=>{e.stopPropagation();openModal(c,b)};return d}
+function renderMatrix(board){const attrs=[['lane',data.controlPanel.lanes],['stage',data.controlPanel.stages],['phase',data.controlPanel.phases],['devPlatform',DEVPLATFORMS],['status',STATUSES],['turn',TURNS]];const x=attrs[0], y=attrs[1]; const cards=filteredCards(board); const v=$('#view');const g=document.createElement('div');g.className='grid matrix';g.append(Object.assign(document.createElement('div'),{className:'head',textContent:`${y[0]} / ${x[0]}`}));x[1].slice(0,3).forEach(h=>g.append(Object.assign(document.createElement('div'),{className:'head',textContent:h})));y[1].slice(0,8).forEach(r=>{g.append(Object.assign(document.createElement('div'),{className:'head',textContent:r}));x[1].slice(0,3).forEach(c=>{const cell=document.createElement('div');cell.className='lane';cards.filter(k=>k[x[0]]===c&&k[y[0]]===r).forEach(k=>cell.append(cardEl(k,board,x[0])));g.append(cell);});});v.append(g)}
+function openModal(c,b){$('#cardModal').classList.add('open');$('#mTitle').textContent=`${b.boardName} · ${c.title}`;const fields=['title','lane','stage','phase','devPlatform','status','turn','tags'];$('#mForm').innerHTML=fields.map(f=>`<label>${f}<input data-f='${f}' value='${Array.isArray(c[f])?c[f].join(', '):(c[f]??'')}'/></label>`).join('')+"<label class='full'>notes<textarea data-f='notes'>"+(c.notes||"")+"</textarea></label>";$('#mForm').querySelectorAll('[data-f]').forEach(inp=>inp.onchange=()=>{const f=inp.dataset.f; c[f]=f==='tags'?inp.value.split(',').map(x=>x.trim()).filter(Boolean):inp.value; render();});}
+$('#closeM').onclick=()=>$('#cardModal').classList.remove('open');['#reloadBtn','#saveBtn','#boardSearch','#cardSearch','#tabSel','#fltPlatform','#fltStatus','#fltTurn'].forEach(id=>$(id).addEventListener('input',()=>id==='#reloadBtn'?boot():render()));
+$('#reloadBtn').onclick=()=>boot();
+$('#saveBtn').onclick=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=DATA_FILE;a.click();URL.revokeObjectURL(a.href);$('#status').textContent='Downloaded JSON snapshot.';};
+boot().catch(e=>$('#status').textContent='Boot failed: '+e.message);
+</script>
+</body></html>
