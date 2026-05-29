@@ -2917,7 +2917,7 @@ async function createRoom(){
   room.myLang=$('my-lang').value;room.theirLang=$('their-lang').value;room.name=($('room-name').value||'').trim();
   if(!room.myLang||!room.theirLang){toast('Select both languages');return}
   room.id=uid();room.role='creator';
-  lastSessionContext.role='creator';lastSessionContext.myLang=room.myLang;lastSessionContext.theirLang=room.theirLang;lastSessionContext.roomName=room.name;
+  lastSessionContext.role='creator';lastSessionContext.myLang=room.myLang;lastSessionContext.theirLang=room.theirLang;lastSessionContext.roomName=room.name;lastSessionContext.roomId=room.id;
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}
   var url=invUrl();$('lobby-link').textContent=url;var nd=$('room-name-display');if(nd)nd.textContent=room.name||'';
   if(navigator.clipboard)navigator.clipboard.writeText(url).catch(function(){});
@@ -2956,7 +2956,7 @@ function joinerProceed(){
     if(captureEpoch!==sessionEpoch){log('joiner_stale_media',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}
     videoStream=s;$('joining-screen').classList.remove('show');
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';
-    lastSessionContext.role='joiner';lastSessionContext.myLang=p.tl;lastSessionContext.theirLang=p.ml;lastSessionContext.roomName=p.n||'';
+    lastSessionContext.role='joiner';lastSessionContext.myLang=p.tl;lastSessionContext.theirLang=p.ml;lastSessionContext.roomName=p.n||'';lastSessionContext.roomId=p.r;
     saveRecent();enterCall();
   }).catch(function(){
     $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');
@@ -3130,8 +3130,6 @@ function startRemoteVideoWatchdog(){
 }
 async function runRecovery(reason){
   if(_recoveryLock||!room.id||lobbyState!==LS.call)return;
-  _remoteVideoStallCount=0;
-  _remoteVideoLastTime=0;
   _recoveryLock=true;
   _recoveryStep=Math.min(_recoveryStep+1,3);
   var step=_recoveryStep;
@@ -3139,7 +3137,7 @@ async function runRecovery(reason){
   try{
     if(step===1){
       refreshRemoteVideo();
-      // startRemoteVideoWatchdog() removed to prevent death spiral
+      startRemoteVideoWatchdog();
       log('rtc_recovery_done',{step:step},'ok');
     }else if(step===2){
       if(pc&&pc.connectionState!=='closed'){
@@ -3154,13 +3152,13 @@ async function runRecovery(reason){
       _seenRemoteCand.clear();
       await setupPC();
       connectRelay();
-      // armConnectTimeout() removed
+      armConnectTimeout();
       log('rtc_recovery_rebuild',{},'ok');
     }
   }catch(e){log('rtc_recovery_err',{step:step,e:String(e)},'error');}
   finally{
     clearTimeout(_recoveryTimer);
-    _recoveryTimer=setTimeout(function(){_recoveryLock=false;},5000);
+    _recoveryTimer=setTimeout(function(){_recoveryLock=false;},800);
   }
 }
 
@@ -3257,7 +3255,7 @@ async function handleSig(d){
       if(desc.type==='offer'){
         if(pc&&pc.connectionState==='connected'){log('rtc_offer_skip',{state:pc.connectionState});return;}
         if(pc&&pc.connectionState!=='closed'&&pc.connectionState!=='failed'){try{pc.close()}catch(_){}pc=null;remoteStream=null;pendingCandidates=[];savedCandidates=[];}
-        if(!pc)await setupPC();
+        if(!pc){if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});remoteStream=null;var _rv=$('remote-video');if(_rv)_rv.srcObject=null;await setupPC();}
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
         await pc.setLocalDescription(await pc.createAnswer());
@@ -3818,13 +3816,29 @@ function toggleCam(){
 function rejoinCall(){
   $('thankyou-page').classList.remove('show');
   var role=lastSessionContext.role||(_pendingJoin?'joiner':'creator');
-  if(role==='joiner'&&_pendingJoin){
-    setCallPhase('prejoin','rejoin_joiner');
-    $('joiner-landing').classList.add('show');
+  if(role==='joiner'){
+    var p=_pendingJoin||lastSessionContext.pendingJoinSnapshot;
+    handleHash(p);
   }else{
-    setCallPhase('idle','rejoin_creator');
-    $('lobby').classList.remove('hidden');
-    setLS(LS.setup);
+    var savedId=lastSessionContext.roomId;
+    if(savedId){
+      room.id=savedId;room.role='creator';
+      room.myLang=lastSessionContext.myLang;room.theirLang=lastSessionContext.theirLang;room.name=lastSessionContext.roomName;
+      $('thankyou-page').classList.remove('show');
+      (async function(){
+        try{
+          videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()});
+          var lv=$('local-video');if(lv)lv.srcObject=videoStream;
+          enterCall();
+        }catch(e){
+          setCallPhase('idle','rejoin_creator_cam_fail');
+          $('lobby').classList.remove('hidden');setLS(LS.setup);
+        }
+      })();
+    }else{
+      setCallPhase('idle','rejoin_creator');
+      $('lobby').classList.remove('hidden');setLS(LS.setup);
+    }
   }
 }
 
@@ -3855,18 +3869,18 @@ function showHostLeftCountdown(){
   var host_lang=room.myLang||'en'; // capture before teardown
   function bil(key){var a=L(key,ty_lang),b=L(key,host_lang);return(a&&b&&a!==b)?a+' / '+b:a||b;}
   teardownSession('to_host_left_countdown','host_ended');
+  resetRemoteMediaState();
   room.id=null;room.role=null;
   setCallPhase('postcall_joiner','host_left');
   $('call-screen').classList.remove('active');
-  var n=5,t=$('thankyou-title'),s=$('thankyou-sub'),lp=$('thankyou-lang-pill');
-  if(t)t.textContent='Host ended the call.';
-  if(s)s.textContent=bil('close_tab');
-  if(lp)lp.textContent=_pendingJoin&&_pendingJoin.tl?gL(_pendingJoin.tl).flag:(ty_lang?gL(ty_lang).flag:'');
-  var rb=$('thankyou-rejoin-btn');if(rb&&_pendingJoin){rb.style.display='';rb.textContent=bil('rejoin');}
-  var dl=$('thankyou-dl-btn');if(dl)dl.textContent=bil('dl_transcript');
+  var t=$('thankyou-title');
+  if(t)t.textContent=L('call_ended',ty_lang);
+  var ten=$('thankyou-title-en');
+  if(ten){ten.textContent=L('call_ended','en');ten.style.display=(ty_lang==='en')?'none':'';}
+  var rb=$('thankyou-rejoin-btn'),rs=$('thankyou-rejoin-sub');
+  if(rb&&_pendingJoin){rb.style.display='';rb.textContent=L('rejoin',ty_lang);if(rs){rs.style.display='';rs.textContent=L('rejoin','en');}}
   $('thankyou-page').classList.add('show');
   history.replaceState({tbView:'thankyou'},'',location.pathname);
-  var iv=setInterval(function(){n--;if(t)t.textContent=n>0?'Host ended the call. Closing in '+n+'s…':'Host ended the call.';if(n<=0){clearInterval(iv);try{window.close();}catch(_){}}},1000);
 }
 
 function downloadThankyouLog(){
