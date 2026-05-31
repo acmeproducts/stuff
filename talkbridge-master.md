@@ -56,6 +56,9 @@ R7.  Lint fails: STOP. Do not push. Report.
 R8.  Validation grep differs from EXPECTED: STOP. Report.
 R9.  No stage begins until previous stage is committed, pushed, checkpoint updated.
 R10. Fail = revert to stage input file, retry. Never patch forward.
+R11. After every stage's final push: merge the working branch to main before
+     posting the checkpoint. GitHub Pages must be serving the new file before
+     you stop and wait. Confirm with: "Pages live at [URL]" in the checkpoint.
 ```
 
 ### Lint helper
