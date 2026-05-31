@@ -148,7 +148,17 @@ grep -c "v5.4.0" bridge-turn04-pre-base.html  # EXPECTED: 2
 
 **Commit:** `bridge Turn 04 pre-base v5.4.0 — version stamp` Push.
 
-<!-- CC_STATUS: T04-PRE-BASE | PENDING -->
+<!-- CC_STATUS: T04-PRE-BASE
+STATUS[T04-PRE-BASE]
+Result: PASS
+Date: 2026-05-31
+File: bridge-turn04-pre-base.html
+Commits: 162c334 bridge Turn 04 — add v5.4.0–v5.4.4 stage files to main
+Greps: grep -c "v5.2.4" → 0 (PASS) | grep -c "v5.4.0" → 2 (PASS)
+Lint: PASS
+Notes: File was already present and correctly stamped on branch from prior session commit 162c334. Version stamps confirmed clean.
+END[T04-PRE-BASE]
+-->
 
 ---
 
