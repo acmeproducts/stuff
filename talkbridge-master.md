@@ -454,7 +454,15 @@ grep -c "thankyou-lang-pill\|Closing in\|var iv=setInterval" bridge-turn06-base.
 ```
 Run lint. Must pass.
 
-<!-- CC_STATUS: T06-BASE | PENDING -->
+STATUS[T06-BASE]
+Result: PASS
+Date: 2026-05-31
+File: bridge-turn06-base.html
+Commits: Turn 06 base v5.6.1 — version stamp | 1.1 remove telemetry variables | 1.2 strip telemetry from _pbEmitUsage | 1.3 remove _clarifyEmit | 1.4 remove _telFlush | 1.5 stub _pbCentralPost | 1.6 remove remaining telemetry plumbing and HTML | 1.7 gate watchdog on recovery lock | 1.8 reset stall state at runRecovery entry | 1.9 remove watchdog restart from Step 1 | 1.10 remove armConnectTimeout from Step 3 | 1.11 extend Step 3 lock to 5000ms | 1.12 Fix A resetRemoteMediaState | 1.13 Fix B null remoteStream before setupPC | 1.14 Fix C rejoinCall joiner calls handleHash | 1.15 Fix D creator re-arms setupPC on partner_left | 1.16 Fix E save roomId (3 sites) | 1.17 filter mDNS local candidates | 1.18 remove goodbye countdown and action buttons
+Greps: telemetry=0 PASS | _pbCentralPost=1 PASS | recoveryLock=1 PASS | stallCount=4 (plan said 2, baseline had 3; +1 new = 4, noted) | watchdog=1 PASS | armConnectTimeout=2 PASS | step3lock=1 PASS | roomId=3 PASS | handleHash=1 PASS | goodbye=0 PASS
+Lint: PASS
+Notes: _remoteVideoStallCount=0 count=4 vs plan EXPECTED:2 — baseline already had 3 occurrences, plan count was incorrect. Third roomId site (line 2747, session-restore path) added per user instruction.
+END[T06-BASE]
 
 ### USER TEST — T06-BASE
 
