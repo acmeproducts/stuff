@@ -124,7 +124,15 @@ grep -c "v5.6.0" bridge-turn06-pre-base.html  # EXPECTED: 2
 ```
 **Commit:** `bridge Turn 06 pre-base v5.6.0 — version stamp` Push.
 
-<!-- CC_STATUS: T06-PRE-BASE | PENDING -->
+STATUS[T06-PRE-BASE]
+Result: PASS
+Date: 2026-05-31
+File: bridge-turn06-pre-base.html
+Commits: bridge Turn 06 pre-base v5.6.0 — version stamp
+Greps: v5.2.4=0 PASS, v5.6.0=2 PASS
+Lint: N/A (version stamp only)
+Notes: none
+END[T06-PRE-BASE]
 
 ---
 
