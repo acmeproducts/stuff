@@ -3204,8 +3204,13 @@ async function handleSig(d){
       var desc=d.signal.description;
       if(desc.type==='offer'){
         if(pc&&pc.connectionState==='connected'){log('rtc_offer_skip',{state:pc.connectionState});return;}
-        if(pc&&pc.connectionState!=='closed'&&pc.connectionState!=='failed'){try{pc.close()}catch(_){}pc=null;remoteStream=null;pendingCandidates=[];savedCandidates=[];}
-        if(!pc)await setupPC();
+        if(pc&&pc.connectionState!=='closed'&&pc.connectionState!=='failed'){try{pc.close()}catch(_){}pc=null;pendingCandidates=[];savedCandidates=[];}
+        if(!pc){
+          if(remoteStream)remoteStream.getTracks().forEach(function(t){t.onunmute=null;t.onmute=null;t.onended=null;});
+          remoteStream=null;
+          var _rv=$('remote-video');if(_rv)_rv.srcObject=null;
+          await setupPC();
+        }
         await pc.setRemoteDescription(desc);
         await flushPendingCandidates();
         await pc.setLocalDescription(await pc.createAnswer());
