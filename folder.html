@@ -500,7 +500,7 @@ function mapStack(raw){return STACK_FROM_AP[raw]||'inbox';}
 
 // ── Constants ─────────────────────────────────────────────
 const INTEL_FILE='.orbital8-intelligence.json';
-const LS_INTEL='o8_intel_cache',LS_PREFS='o8_intel_prefs',LS_LEFT='o8_left_open',LS_LPW='o8_lpw',LS_ITEM_WIN='o8_item_windows',LS_SESSION='o8_folder_session';
+const LS_INTEL='o8_intel_cache',LS_PREFS='o8_intel_prefs',LS_LEFT='o8_left_open',LS_LPW='o8_lpw',LS_ITEM_WIN='o8_item_windows';
 const DIV_MIN_W=160;
 const DIV_MAX_W_RATIO=0.60;
 const COLUMNS=[
@@ -611,47 +611,6 @@ function updateIntelSummary(){
   txt.textContent=summary;dot.className=changed?'dot-changed':'dot-indexed';
 }
 function updateBulkBar(){const bar=$id('bulk-bar');const count=$id('bulk-count');if(!bar)return;const n=st.ui.selectedIds.size;if(n===0){bar.classList.add('hidden');return;}bar.classList.remove('hidden');if(count){count.innerHTML=`<span>${n} selected</span><button type="button" title="Deselect all">×</button>`;count.querySelector('button').addEventListener('click',()=>{st.ui.selectedIds.clear();updateBulkBar();RightPane.renderContent();});}}
-
-const SessionPersistence={
-  fields:['view','search','classFilter','stackFilter','sortCol','sortDir','portalPage','portalDensity','portalOrder','timelineOpen','timelineRange','timelineLevel','timelineBreadcrumbs'],
-  toPlain(value){try{return value===undefined?null:JSON.parse(JSON.stringify(value));}catch(e){return null;}},
-  snapshot(){
-    const ui={};
-    this.fields.forEach(k=>{ui[k]=this.toPlain(st.ui[k]);});
-    ui.selectedIds=[...(st.ui.selectedIds||new Set())];
-    return{providerType:st.providerType,selFolderId:st.selFolderId,selFolderEnrolled:st.selFolderEnrolled,expandedNodes:[...st.expandedNodes],ui,savedAt:Date.now()};
-  },
-  save(){
-    if(!st.providerType&&!st.selFolderId)return;
-    try{localStorage.setItem(LS_SESSION,JSON.stringify(this.snapshot()));}catch(e){}
-  },
-  load(){try{return JSON.parse(localStorage.getItem(LS_SESSION)||'null');}catch(e){return null;}},
-  folderExists(id){return st.levelOneFolders.some(f=>f.id===id)||!!st.intel?.folders?.[id];},
-  restore(session=this.load()){
-    if(!session||session.providerType!==st.providerType)return false;
-    if(Array.isArray(session.expandedNodes))st.expandedNodes=new Set(session.expandedNodes);
-    const ui=session.ui||{};
-    this.fields.forEach(k=>{if(Object.prototype.hasOwnProperty.call(ui,k))st.ui[k]=ui[k];});
-    st.ui.selectedIds=new Set(Array.isArray(ui.selectedIds)?ui.selectedIds:[]);
-    const density=$id('density-slider');if(density)density.value=String(st.ui.portalDensity||4);
-    const densityVal=$id('density-val');if(densityVal)densityVal.textContent=String(st.ui.portalDensity||4);
-    const omni=$id('omni-input');if(omni)omni.value=st.ui.search||'';
-    document.querySelectorAll('.vtab').forEach(b=>b.classList.toggle('active',b.dataset.view===st.ui.view));
-    $id('portal-strip')?.classList.toggle('hidden',st.ui.view!=='portal');
-    $id('density-slider')?.closest('.density-wrap')?.classList.toggle('hidden',st.ui.view!=='portal');
-    if(session.selFolderId&&this.folderExists(session.selFolderId)){
-      st.selFolderId=session.selFolderId;
-      st.selFolderEnrolled=App.isFolderIndexed(session.selFolderId,session.selFolderEnrolled);
-    }
-    Tree.render();RightPane.render();
-    return true;
-  },
-  flush(){
-    this.save();
-    if(st.intel)Intel.saveLocal();
-    if(Intel._saveTimer){clearTimeout(Intel._saveTimer);Intel._saveTimer=null;try{if(st.intel&&st.provider)st.provider.saveIntelligenceFile(st.intel).catch(()=>{});}catch(e){}}
-  }
-};
 const TagService={
   normalize(tag){const t=String(tag||'').trim().replace(/^#+/,'').toLowerCase();return t?`#${t}`:'';},
   normalizeList(tags=[]){const out=[];(tags||[]).forEach(tag=>{const t=this.normalize(tag);if(t&&!out.includes(t))out.push(t);});return out;},
@@ -929,7 +888,7 @@ const Intel={
     return rec;
   },
   saveLocal(){if(!st.intel)return;st.intel.lastUpdated=Date.now();try{localStorage.setItem(LS_INTEL,JSON.stringify(st.intel));}catch(e){}},
-  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{this._saveTimer=null;try{if(st.intel)await st.provider.saveIntelligenceFile(st.intel);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},450);},
+  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{try{if(st.intel)await st.provider.saveIntelligenceFile(st.intel);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},450);},
   async save(){
     if(!st.intel)return;
     this.saveLocal();
@@ -1079,7 +1038,6 @@ const Tree={
       if(!hasKidsActual&&!enrolled)return;
       if(st.expandedNodes.has(fid))st.expandedNodes.delete(fid);
       else st.expandedNodes.add(fid);
-      SessionPersistence.save();
       this.render();
     });
 
@@ -1432,8 +1390,7 @@ const App={
             Tree.render();
       RightPane.render();
       // Defer intelligence hydration to keep first paint and initial interaction instant.
-      const session=SessionPersistence.load();
-      setTimeout(()=>{Intel.load().then(()=>{Tree.render();SessionPersistence.restore(session);}).catch(()=>{});},0);
+      setTimeout(()=>{Intel.load().then(()=>{Tree.render();}).catch(()=>{});},0);
     }catch(e){toast('Load failed: '+e.message,'t-err');}
   },
 
@@ -1477,7 +1434,6 @@ const App={
         try{const changed=await Intel.checkDelta(folderId);if(changed){toast('Changes detected — refresh to re-index','',4000);Tree.render();}}catch(e){}
       },250);
     }
-    SessionPersistence.save();
   },
 
   async startIndexing(folderId,folderName){
@@ -1723,13 +1679,6 @@ function initEvents(){
 
   // Close FAB on outside click
   document.addEventListener('click',e=>{if(!e.target.closest('.fab')&&!e.target.closest('.fab-panel')){document.querySelectorAll('.fab-panel').forEach(p=>p.classList.add('hidden'));}});
-
-  const persistSession=()=>SessionPersistence.flush();
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistSession();else SessionPersistence.restore();});
-  window.addEventListener('pagehide',persistSession);
-  window.addEventListener('blur',persistSession);
-  window.addEventListener('focus',()=>SessionPersistence.restore());
-  window.addEventListener('pageshow',e=>{if(e.persisted)SessionPersistence.restore();});
 
   // Google OAuth popup return handler
   if(window.location.search.includes('code=')||window.location.search.includes('error=')){
