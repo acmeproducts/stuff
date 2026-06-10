@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TURN Diagnostic</title>
+<style>
+body{font-family:system-ui;background:#111;color:#eee;padding:20px;max-width:500px;margin:0 auto}
+h2{margin:0 0 20px;font-size:18px}
+.label{font-size:11px;color:#888;margin-bottom:4px;margin-top:14px}
+input{background:#1e1e1e;color:#eee;border:1px solid #333;border-radius:6px;padding:10px;width:100%;box-sizing:border-box;font-size:14px;font-family:monospace}
+button{background:#2563eb;color:#fff;border:none;border-radius:6px;padding:14px 20px;font-size:15px;width:100%;margin-top:16px;cursor:pointer}
+button:active{background:#1d4ed8}
+#log{background:#0a0a0a;border-radius:8px;padding:12px;font-size:12px;font-family:monospace;white-space:pre-wrap;max-height:300px;overflow-y:auto;margin-top:14px;display:none}
+</style>
+</head>
+<body>
+<h2>TURN Credential Test</h2>
+<div class="label">Token ID (tb_cf_tid)</div>
+<input id="tid" type="text" placeholder="Paste token ID">
+<div class="label">API Token (tb_cf_tok)</div>
+<input id="tok" type="password" placeholder="Paste API token">
+<button onclick="runTest()">Test Now</button>
+<div id="log"></div>
+<script>
+function log(msg){
+  var el=document.getElementById('log');
+  el.style.display='block';
+  el.textContent+='['+new Date().toISOString().substr(11,12)+'] '+msg+'\n';
+  el.scrollTop=el.scrollHeight;
+}
+function checkChars(s,name){
+  var bad=[];
+  for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0x20||c>0x7E)bad.push('pos'+i+'=0x'+c.toString(16));}
+  if(bad.length)log('⚠ '+name+' has non-ASCII chars: '+bad.join(', '));
+  else log('✓ '+name+' characters are ASCII-safe ('+s.length+' chars)');
+}
+async function runTest(){
+  document.getElementById('log').textContent='';
+  var tid=document.getElementById('tid').value.trim();
+  var tok=document.getElementById('tok').value.trim();
+  if(!tid||!tok){log('Enter both fields first.');return;}
+  checkChars(tid,'Token ID');
+  checkChars(tok,'API Token');
+  var cleanTid=tid.replace(/[^\x20-\x7E]/g,'');
+  var cleanTok=tok.replace(/[^\x20-\x7E]/g,'');
+  log('Calling Cloudflare TURN API…');
+  try{
+    var r=await fetch('https://rtc.live.cloudflare.com/v1/turn/keys/'+cleanTid+'/credentials/generate',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+cleanTok,'Content-Type':'application/json'},
+      body:JSON.stringify({ttl:86400})
+    });
+    log('HTTP status: '+r.status);
+    if(r.ok){
+      var d=await r.json();
+      var servers=Array.isArray(d.iceServers)?d.iceServers:[d.iceServers];
+      log('✅ TURN credentials are VALID');
+      log(servers.length+' ICE server(s): '+JSON.stringify(servers.map(function(s){return s.urls;})));
+    }else{
+      var body='';try{body=await r.text();}catch(_){}
+      log('✗ FAILED — HTTP '+r.status);
+      if(r.status===401)log('→ Credentials rejected. Token expired or wrong.');
+      if(r.status===403)log('→ Forbidden. Check token permissions.');
+      if(r.status===404)log('→ Key ID not found.');
+      if(body)log('Response: '+body.slice(0,300));
+    }
+  }catch(e){log('✗ Network error: '+String(e));}
+}
+</script>
+</body>
+</html>
