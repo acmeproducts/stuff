@@ -500,7 +500,7 @@ function mapStack(raw){return STACK_FROM_AP[raw]||'inbox';}
 
 // ── Constants ─────────────────────────────────────────────
 const INTEL_FILE='.orbital8-intelligence.json';
-const LS_INTEL='o8_intel_cache',LS_PREFS='o8_intel_prefs',LS_LEFT='o8_left_open',LS_LPW='o8_lpw',LS_ITEM_WIN='o8_item_windows';
+const LS_INTEL='o8_intel_cache',LS_PREFS='o8_intel_prefs',LS_LEFT='o8_left_open',LS_LPW='o8_lpw',LS_ITEM_WIN='o8_item_windows',LS_VIEW='o8_view_state';
 const DIV_MIN_W=160;
 const DIV_MAX_W_RATIO=0.60;
 const COLUMNS=[
@@ -643,6 +643,32 @@ class NotesEditorInstance{
   async commit(){const notes=this.el.querySelector('textarea').value;const qualityRating=parseInt(this.el.querySelector('[data-rate="qualityRating"]').value)||0;const contentRating=parseInt(this.el.querySelector('[data-rate="contentRating"]').value)||0;for(const id of this.fileIds){const f=st.intel?.files?.[id];if(f){f.notes=notes;f.qualityRating=qualityRating;f.contentRating=contentRating;}}Intel.rollup(st.intel);Intel.saveLocal();toast(`Updated ${this.fileIds.length} item(s)`,'t-ok',1400);if(st.providerType==='googledrive')Promise.allSettled(this.fileIds.map(id=>st.provider.updateAppProperties(id,{notes,qualityRating:String(qualityRating),contentRating:String(contentRating)}))).then(()=>Intel.saveDebounced());else Intel.saveDebounced();}
 }
 const NotesEditor={create(fileIds,opts){return new NotesEditorInstance(fileIds,opts);}};
+function saveViewState(){
+  try{
+    if(!st.providerType)return;
+    localStorage.setItem(LS_VIEW,JSON.stringify({provider:st.providerType,selFolderId:st.selFolderId||null,selFolderName:st.selFolderName||null,view:st.ui.view,sortCol:st.ui.sortCol,sortDir:st.ui.sortDir}));
+  }catch(e){}
+}
+function applyViewUi(){
+  document.querySelectorAll('.vtab').forEach(b=>b.classList.toggle('active',b.dataset.view===st.ui.view));
+  const strip=$id('portal-strip');if(strip)strip.classList.toggle('hidden',st.ui.view!=='portal');
+  $id('density-slider')?.closest('.density-wrap')?.classList.toggle('hidden',st.ui.view!=='portal');
+}
+function restoreViewState(){
+  let s=null;try{s=JSON.parse(localStorage.getItem(LS_VIEW)||'null');}catch(e){}
+  if(!s||s.provider!==st.providerType)return;
+  if(s.view)st.ui.view=s.view;
+  if(s.sortCol)st.ui.sortCol=s.sortCol;
+  if(s.sortDir)st.ui.sortDir=s.sortDir;
+  applyViewUi();
+  if(s.selFolderId&&!st.selFolderId){
+    const inIntel=!!st.intel?.folders?.[s.selFolderId];
+    const inL1=st.levelOneFolders.some(f=>f.id===s.selFolderId);
+    if(inIntel||inL1){App.selectFolder(s.selFolderId,s.selFolderName||s.selFolderId);}
+    else{try{localStorage.removeItem(LS_VIEW);}catch(e){}}
+  }
+  RightPane.render();
+}
 function showBulkPanel(type){
   const ids=[...st.ui.selectedIds];if(!ids.length)return;
   const ov=document.createElement('div');ov.className='confirm-overlay';
@@ -1212,6 +1238,7 @@ const ListView={
         th.addEventListener('click',()=>{
           if(st.ui.sortCol===col.sortKey)st.ui.sortDir=st.ui.sortDir==='asc'?'desc':'asc';
           else{st.ui.sortCol=col.sortKey;st.ui.sortDir='asc';}
+          saveViewState();
           RightPane.renderContent();
         });
       }else th.style.cursor='default';
@@ -1390,7 +1417,7 @@ const App={
             Tree.render();
       RightPane.render();
       // Defer intelligence hydration to keep first paint and initial interaction instant.
-      setTimeout(()=>{Intel.load().then(()=>{Tree.render();}).catch(()=>{});},0);
+      setTimeout(()=>{Intel.load().then(()=>{Tree.render();restoreViewState();}).catch(()=>{});},0);
     }catch(e){toast('Load failed: '+e.message,'t-err');}
   },
 
@@ -1407,7 +1434,7 @@ const App={
 
   selectFolder(folderId,folderName,enrolled){
     // Clear context
-    st.selFolderId=folderId;st.selFolderEnrolled=this.isFolderIndexed(folderId,enrolled);
+    st.selFolderId=folderId;st.selFolderName=folderName;st.selFolderEnrolled=this.isFolderIndexed(folderId,enrolled);saveViewState();
     st.ui.search='';st.ui.classFilter=null;st.ui.stackFilter=null;
     st.ui.expandedItemId=null;st.ui.fabItemId=null;st.ui.portalPage=1;st.ui.selectedIds=new Set();
     Timeline.clear();
@@ -1664,7 +1691,7 @@ function initEvents(){
   // View tabs
   document.querySelectorAll('.vtab').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      st.ui.view=btn.dataset.view;
+      st.ui.view=btn.dataset.view;saveViewState();
       document.querySelectorAll('.vtab').forEach(b=>b.classList.toggle('active',b===btn));
       $id('portal-strip').classList.toggle('hidden',st.ui.view!=='portal');
       $id('density-slider')?.closest('.density-wrap')?.classList.toggle('hidden',st.ui.view!=='portal');
@@ -1679,6 +1706,14 @@ function initEvents(){
 
   // Close FAB on outside click
   document.addEventListener('click',e=>{if(!e.target.closest('.fab')&&!e.target.closest('.fab-panel')){document.querySelectorAll('.fab-panel').forEach(p=>p.classList.add('hidden'));}});
+
+  // BFCache restore (mobile back/forward) + tab re-focus refresh
+  window.addEventListener('pageshow',e=>{
+    if(e.persisted&&st.providerType){try{Tree.render();RightPane.render();}catch(_){}}
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&st.providerType){try{updateIntelSummary();RightPane.renderFooter();}catch(_){}}
+  });
 
   // Google OAuth popup return handler
   if(window.location.search.includes('code=')||window.location.search.includes('error=')){
