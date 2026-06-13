@@ -1,834 +1,575 @@
-<!-- TalkBridge Curation Desk-v5.0-2026-06-12 08:15 PM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TalkBridge Curation Desk</title>
+    <title>TalkBridge PB Curation</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- QRCode.js Library for real QR generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        /* Smooth transitions and mobile optimization */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; }
+        .view-section { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .view-section.active { display: block; opacity: 1; }
+        .view-flex.active { display: flex; opacity: 1; }
         
-        /* Compact Scrollbars */
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Auto-resizing text inputs */
-        .pb-input {
-            width: 100%;
-            background: transparent;
-            border: none;
-            outline: none;
-            resize: none;
-            overflow: hidden;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-            line-height: 1.4;
-        }
-
-        /* Verdict Radios */
-        .verdict-radio { display: none; }
-        .verdict-label {
-            cursor: pointer;
-            padding: 8px 24px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-            background: #ffffff;
-            color: #94a3b8;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .verdict-label:hover { border-color: #cbd5e1; color: #475569; }
-        .radio-good:checked + .verdict-label { background-color: #ecfdf5; border-color: #10b981; color: #10b981; }
-        .radio-flag:checked + .verdict-label { background-color: #fef2f2; border-color: #ef4444; color: #ef4444; }
-
-        /* Step Indicators */
-        .wizard-step { display: none; animation: fadeIn 0.2s ease-in-out; }
-        .wizard-step.active { display: block; }
+        /* Custom scrollbar for textareas */
+        textarea::-webkit-scrollbar { width: 4px; }
+        textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
         
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulseSync { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
-        .syncing { animation: pulseSync 1s infinite; background-color: #eab308 !important; }
+        /* Modal Background */
+        .modal-bg { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+<body class="text-slate-800 antialiased h-screen overflow-hidden flex flex-col">
 
-    <!-- View: Setup / Onboarding Wizard -->
-    <div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4 hidden">
-        <div class="w-full max-w-lg bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-2 md:mt-8">
-            
-            <!-- Management Tabs -->
-            <div class="flex border-b border-slate-200 bg-slate-50 shrink-0">
-                <button class="flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600 transition-colors" onclick="switchSetupTab('create')" id="tab-create">Assignment Wizard</button>
-                <button class="flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700 hover:bg-slate-100 transition-colors" onclick="switchSetupTab('manage')" id="tab-manage">Job Management</button>
-            </div>
+    <!-- App Header -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex justify-between items-center shadow-sm flex-shrink-0">
+        <div class="font-bold text-lg tracking-tight text-slate-800">TB<span class="text-blue-600">Curation</span></div>
+        <button onclick="navTo('job-mgmt')" id="btn-home" class="hidden text-slate-500 hover:text-blue-600 font-medium text-sm">Jobs</button>
+    </header>
 
-            <!-- Panel: Create Assignment -->
-            <div id="panel-create" class="p-6">
-                <!-- Step Dots -->
-                <div class="flex justify-between items-center mb-6 px-4">
-                    <div id="dot-1" class="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center transition-colors">1</div>
-                    <div class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
-                    <div id="dot-2" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors">2</div>
-                    <div class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
-                    <div id="dot-3" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors">3</div>
+    <!-- Main Scrollable Area -->
+    <main class="flex-1 overflow-y-auto w-full relative">
+
+        <!-- ========================================== -->
+        <!-- WIZARD STEP 1: AUTH & REPO CONFIG          -->
+        <!-- ========================================== -->
+        <div id="view-wizard-1" class="view-section active max-w-md mx-auto p-4 pt-8">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-slate-800">Step 1: Configuration</h2>
+                    <p class="text-sm text-slate-500 mt-1">Connect to the phrasebook repository.</p>
                 </div>
-
-                <!-- Step 1: Auth -->
-                <div id="step-1" class="wizard-step active space-y-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="key" class="w-4 h-4 text-teal-600"></i> Authentication & Context</h3>
+                
+                <div class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Personal Access Token (PAT)</label>
-                        <input type="password" id="cfg-pat" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="ghp_...">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Personal Access Token (PAT)</label>
+                        <input type="password" id="input-pat" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="ghp_...">
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Username / Org</label>
-                            <input type="text" id="cfg-owner" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" value="acmeproducts">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Username</label>
+                            <input type="text" id="input-user" value="acmeproducts" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Repository</label>
-                            <input type="text" id="cfg-repo" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" value="stuff">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Repository</label>
+                            <input type="text" id="input-repo" value="stuff" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
                     </div>
-                    <button onclick="advanceWizard(2)" class="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-sm">Next</button>
                 </div>
 
-                <!-- Step 2: Source Phrasebook -->
-                <div id="step-2" class="wizard-step space-y-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="book" class="w-4 h-4 text-teal-600"></i> Select Source</h3>
-                    <p class="text-xs text-slate-500 leading-relaxed">Fetching phrasebooks from your repository, ordered descending by file name.</p>
-                    <div>
-                        <select id="cfg-source" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors cursor-pointer" onchange="autoSuggestTarget()"></select>
-                    </div>
-                    <div class="flex gap-2 pt-2">
-                        <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition-colors">Back</button>
-                        <button onclick="advanceWizard(3)" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm transition-colors">Next</button>
-                    </div>
-                </div>
-
-                <!-- Step 3: Target & Initials -->
-                <div id="step-3" class="wizard-step space-y-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="target" class="w-4 h-4 text-teal-600"></i> Assignment Details</h3>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target Version Path</label>
-                        <input type="text" id="cfg-target" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="phrasebook/pb-v2.json">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reviewer Initials (Optional)</label>
-                        <input type="text" id="cfg-initials" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="e.g. JD">
-                    </div>
-                    <div class="flex gap-2 pt-2">
-                        <button onclick="advanceWizard(2)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition-colors">Back</button>
-                        <button onclick="generateJob()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-1 shadow-sm transition-colors">Go <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel: Job Management -->
-            <div id="panel-manage" class="p-6 hidden bg-slate-50 min-h-[350px]">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-bold text-slate-800 text-sm">Deployments</h2>
-                    <button onclick="syncJobsFromGH()" class="flex items-center gap-1 text-[11px] uppercase tracking-wide font-bold text-teal-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md hover:bg-slate-50 transition-colors shadow-sm"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync</button>
-                </div>
-                <div id="jobs-list" class="space-y-3">
-                    <!-- Populated dynamically -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- View: Loading -->
-    <div id="view-loading" class="flex-1 flex flex-col items-center justify-center hidden">
-        <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-teal-600 mb-4"></i>
-        <h2 class="font-bold text-slate-700" id="loading-msg">Loading Environment...</h2>
-    </div>
-
-    <!-- View: Main App (Curation Desk) -->
-    <div id="view-app" class="flex-1 flex flex-col hidden bg-slate-100 min-h-0">
-        
-        <!-- Header -->
-        <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0">
-            <!-- Filters -->
-            <div class="flex gap-2 overflow-x-auto hide-scrollbar">
-                <button onclick="filterCards('all')" class="stat-chip bg-teal-50 border-teal-600 text-teal-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border transition-colors" id="filter-all"><i data-lucide="layers" class="w-3.5 h-3.5"></i> All <span id="count-total">0</span></button>
-                <button onclick="filterCards('pending')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-pending"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Pend <span id="count-pending">0</span></button>
-                <button onclick="filterCards('good')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-good"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 text-green-500"></i> <span id="count-good">0</span></button>
-                <button onclick="filterCards('flag')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-flag"><i data-lucide="flag" class="w-3.5 h-3.5 text-red-500"></i> <span id="count-flag">0</span></button>
-            </div>
-
-            <!-- Global Actions -->
-            <div class="flex items-center gap-1.5 shrink-0 ml-4">
-                <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg transition-colors border border-transparent hover:border-teal-200" title="Add Phrase" onclick="addNewPhrase()"><i data-lucide="plus" class="w-4 h-4"></i></button>
-                <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg transition-colors border border-transparent hover:border-teal-200" title="Sync to GitHub" onclick="forceSaveToGitHub()"><i data-lucide="save" class="w-4 h-4"></i></button>
-                <div class="w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm" id="sync-status"></div>
-            </div>
-        </div>
-
-        <!-- Scrollable Workspace -->
-        <div class="flex-1 overflow-y-auto px-3 py-4 md:px-6" id="workspace-scroll">
-            <div class="max-w-4xl mx-auto flex flex-col pb-24">
-
-                <!-- Persistent Welcome Banner -->
-                <div id="welcome-banner" class="mb-4 p-3 rounded-lg bg-teal-50 border border-teal-100 relative hidden">
-                    <button onclick="document.getElementById('welcome-banner').style.display='none'" class="absolute top-3 right-3 text-teal-600 hover:text-teal-800" title="Dismiss">
-                        <i data-lucide="x" class="w-4 h-4"></i>
+                <div class="mt-8">
+                    <button onclick="processWizardStep1()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">
+                        Next Step
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
-                    <h3 class="font-bold text-sm mb-1 text-teal-800" id="welcome-title">Welcome</h3>
-                    <p class="text-xs pr-6 text-teal-700" id="welcome-desc">
-                        Edit source and press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate and confirm.
-                    </p>
                 </div>
+            </div>
+        </div>
 
-                <!-- Column Labels (Visible on Desktop, hidden on Mobile) -->
-                <div class="hidden sm:flex w-full mb-2 px-4">
-                    <div class="w-1/2 pr-4 flex items-center gap-1.5">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-teal-600">Source</span>
-                        <span title="Edit and press Enter to translate and confirm." class="cursor-help"><i data-lucide="info" class="w-3.5 h-3.5 text-slate-400"></i></span>
+        <!-- ========================================== -->
+        <!-- WIZARD STEP 2: SOURCE, TARGET & INITIALS   -->
+        <!-- ========================================== -->
+        <div id="view-wizard-2" class="view-section max-w-md mx-auto p-4 pt-8">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="mb-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Step 2: Assignment</h2>
+                        <p class="text-sm text-slate-500 mt-1">Select source and generate target.</p>
                     </div>
-                    <div class="w-1/2 pl-4 flex items-center gap-1.5">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target</span>
-                        <span title="Read-only generated translation." class="cursor-help"><i data-lucide="info" class="w-3.5 h-3.5 text-slate-400"></i></span>
-                    </div>
-                </div>
-
-                <!-- Deleted Items Chevron (TOP) -->
-                <div id="deleted-section" class="hidden mb-4 shrink-0">
-                    <button onclick="toggleDeleted()" class="w-full flex justify-between items-center bg-white border border-slate-200 p-3 rounded-lg shadow-sm text-sm font-bold text-slate-500 hover:bg-slate-50">
-                        <div class="flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Soft Deleted (<span id="count-deleted">0</span>)</div>
-                        <i data-lucide="chevron-down" id="del-chevron" class="w-4 h-4 transition-transform"></i>
+                    <button onclick="navTo('wizard-1')" class="text-slate-400 hover:text-slate-600 p-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
-                    <div id="deleted-container" class="hidden mt-2 flex-col gap-2"></div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Source Phrasebook</label>
+                        <select id="select-source" onchange="autoPopulateTarget()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Loading files...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Target Phrasebook (New Version)</label>
+                        <input type="text" id="input-target" class="w-full bg-blue-50 border border-blue-200 text-blue-800 font-medium rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Initials (Optional)</label>
+                        <input type="text" id="input-initials" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. J.D.">
+                    </div>
                 </div>
 
-                <!-- Cards Injection -->
-                <div id="cards-container" class="flex flex-col gap-4"></div>
+                <div class="mt-8">
+                    <button onclick="generateJob()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">
+                        Generate Job & QR
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
 
+        <!-- ========================================== -->
+        <!-- JOB MANAGEMENT DASHBOARD                   -->
+        <!-- ========================================== -->
+        <div id="view-job-mgmt" class="view-section max-w-lg mx-auto p-4 pt-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800">Active Assignments</h2>
+                <button onclick="navTo('wizard-2')" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-1.5 px-3 rounded-lg flex items-center gap-1 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    New
+                </button>
+            </div>
+
+            <!-- Job List Container -->
+            <div id="job-list" class="space-y-4">
+                <!-- Job Cards injected via JS -->
+            </div>
+            
+            <div id="empty-jobs" class="text-center py-12 hidden">
+                <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                <p class="text-slate-500 font-medium">No active assignments.</p>
+                <p class="text-slate-400 text-sm mt-1">Create a new job to begin curating.</p>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- CURATION DESK (THE EXACT SPECIFIED LAYOUT) -->
+        <!-- ========================================== -->
+        <div id="view-curation" class="view-section max-w-3xl mx-auto p-4 pb-24">
+            
+            <div class="mb-6 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800" id="curation-title">Target: loading...</h2>
+                    <p class="text-xs text-slate-500 font-mono" id="curation-source">Source: loading...</p>
+                </div>
+                <div class="flex gap-2">
+                    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full">0/358</span>
+                </div>
+            </div>
+
+            <!-- Soft Deleted Container (Top, condensed) -->
+            <div id="deleted-container" class="mb-6 hidden">
+                <button onclick="toggleDeleted()" class="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition w-full py-2">
+                    <svg id="deleted-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    Soft Deleted Items (<span id="deleted-count">0</span>)
+                </button>
+                <div id="deleted-list" class="hidden flex-col gap-2 mt-2">
+                    <!-- Deleted items injected here -->
+                </div>
+            </div>
+
+            <!-- Active Cards Container -->
+            <div id="curation-list" class="space-y-6">
+                <!-- Translation Cards injected via JS -->
+            </div>
+            
+            <div class="mt-8 text-center">
+                <button onclick="navTo('job-mgmt')" class="px-6 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Save & Return to Jobs</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- QR / SHARE MODAL                           -->
+    <!-- ========================================== -->
+    <div id="modal-qr" class="fixed inset-0 modal-bg z-50 view-flex hidden justify-center items-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800">Job Assignment</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col items-center">
+                <p class="text-sm text-slate-500 mb-4 text-center">Scan to open on a mobile device or tablet.</p>
+                
+                <!-- QR Canvas Container -->
+                <div id="qrcode-container" class="bg-white p-2 border-2 border-slate-100 rounded-xl shadow-sm mb-6"></div>
+                
+                <div class="w-full">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Direct Link</label>
+                    <div class="flex gap-2 w-full">
+                        <input type="text" id="share-link-input" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono text-slate-600 focus:outline-none">
+                        <button onclick="copyLink()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg transition" title="Copy">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-100">
+                <button onclick="closeModal()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 rounded-lg transition">Done</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal: QR Code / Share -->
-    <div id="share-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-xl w-full max-w-sm p-6 relative shadow-2xl flex flex-col items-center">
-            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
-            <h3 class="font-bold text-lg text-slate-800 mb-4">Job Created</h3>
-            <img id="modal-qr" src="" class="w-40 h-40 border border-slate-200 rounded p-2 mb-4 shadow-sm bg-white">
-            <div class="relative w-full">
-                <input type="text" id="modal-link" class="w-full bg-slate-50 border border-slate-200 text-teal-600 text-xs p-3 pr-10 rounded-lg outline-none" readonly>
-                <button onclick="copyModalLink()" class="absolute right-1 top-1 p-2 text-teal-600 hover:bg-teal-50 rounded"><i data-lucide="copy" class="w-4 h-4"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Master Footer -->
-    <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-        TalkBridge Curation Desk-v5.0-2026-06-12 08:15 PM
-    </div>
-
+    <!-- Application Logic -->
     <script>
-        // --- State Management ---
-        let appState = {
-            config: { owner: '', repo: '', source: '', target: '', pat: '', initials: '' },
-            jobId: null,
-            pbData: { cards: [] },
-            targetSha: null,
-            langPair: { source: 'en', target: 'th' },
-            currentFilter: 'all',
-            showDeleted: false
+        // State
+        const state = {
+            pat: '',
+            user: 'acmeproducts',
+            repo: 'stuff',
+            jobs: [],
+            availableSources: [],
+            mockDataMode: false,
+            currentJobId: null
         };
 
-        let ghDebounceTimer = null;
-        const LOCAL_CONFIG_KEY = 'tb_cfg';
-        const LOCAL_JOBS_KEY = 'tb_jobs';
+        // Mock data for Curation View to prove layout works immediately
+        const mockPhrases = [
+            { id: '1', source: 'I ordered a hot bowl of traditional Northern Thai Khao Soi noodles.', target: 'ฉันสั่งข้าวซอยเส้นนุ่มๆ ร้อนๆ แบบภาคเหนือโบราณ', back: 'I ordered soft, hot Khao Soi noodles, ancient Northern style.', status: 'pending', deleted: false },
+            { id: '2', source: 'Can you lower the spice level please?', target: 'ช่วยลดระดับความเผ็ดลงหน่อยได้ไหมคะ', back: 'Can you please reduce the spice level a bit?', status: 'pending', deleted: false }
+        ];
 
-        lucide.createIcons();
-
-        // --- Safe Base64 Utils for UTF-8 (Thai chars) ---
-        function toB64(str) {
-            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-                return String.fromCharCode('0x' + p1);
-            }));
-        }
-        function fromB64(str) {
-            return decodeURIComponent(atob(str).split('').map(function(c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-        }
-        function setLoadMsg(msg) { document.getElementById('loading-msg').innerText = msg; }
-
-        // --- Initialization ---
-        function init() {
-            const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
-            if (saved) {
-                const c = JSON.parse(saved);
-                if(c.owner) document.getElementById('cfg-owner').value = c.owner;
-                if(c.repo) document.getElementById('cfg-repo').value = c.repo;
-                if(c.pat) document.getElementById('cfg-pat').value = c.pat;
-                if(c.initials) document.getElementById('cfg-initials').value = c.initials;
-            }
-
-            const params = new URLSearchParams(window.location.search);
-            if (params.has('owner') && params.has('pat') && params.has('jobId')) {
-                appState.config = {
-                    owner: params.get('owner'), repo: params.get('repo'),
-                    source: params.get('source'), target: params.get('target'), 
-                    pat: params.get('pat'), initials: params.get('initials')
-                };
-                appState.jobId = params.get('jobId');
-                switchView('view-loading');
-                startCurationLifecycle();
+        // Core Navigation
+        function navTo(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            
+            // Toggle header home button
+            const btnHome = document.getElementById('btn-home');
+            if (viewId === 'job-mgmt' || viewId === 'wizard-1') {
+                btnHome.classList.add('hidden');
             } else {
-                switchView('view-setup');
+                btnHome.classList.remove('hidden');
             }
         }
 
-        // --- View Handlers ---
-        function switchView(viewId) {
-            ['view-setup', 'view-loading', 'view-app'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            document.getElementById(viewId).classList.remove('hidden');
-        }
-
-        function switchSetupTab(tab) {
-            const activeClass = "flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600 transition-colors";
-            const inactiveClass = "flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700 hover:bg-slate-100 transition-colors";
+        // ==========================================
+        // WIZARD LOGIC
+        // ==========================================
+        async function processWizardStep1() {
+            state.pat = document.getElementById('input-pat').value.trim();
+            state.user = document.getElementById('input-user').value.trim();
+            state.repo = document.getElementById('input-repo').value.trim();
             
-            document.getElementById('tab-create').className = inactiveClass;
-            document.getElementById('tab-manage').className = inactiveClass;
-            document.getElementById(`tab-${tab}`).className = activeClass;
+            navTo('wizard-2');
+            await fetchGitHubSources();
+        }
+
+        async function fetchGitHubSources() {
+            const select = document.getElementById('select-source');
+            select.innerHTML = '<option value="">Loading files from GitHub...</option>';
             
-            document.getElementById('panel-create').classList.add('hidden');
-            document.getElementById('panel-manage').classList.add('hidden');
-            document.getElementById(`panel-${tab}`).classList.remove('hidden');
-
-            if(tab === 'manage') renderJobsDashboard();
-        }
-
-        // --- Wizard Logic ---
-        async function advanceWizard(step) {
-            if (step === 2) {
-                const p = document.getElementById('cfg-pat').value.trim();
-                const o = document.getElementById('cfg-owner').value.trim();
-                const r = document.getElementById('cfg-repo').value.trim();
-                if(!p || !o || !r) return alert("PAT, Username, and Repo required.");
-                
-                appState.config = { ...appState.config, pat: p, owner: o, repo: r };
-                localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(appState.config));
-                await fetchPhrasebooks();
-            }
-
-            for(let i=1; i<=3; i++) {
-                document.getElementById(`step-${i}`).classList.remove('active');
-                const dot = document.getElementById(`dot-${i}`);
-                if (i <= step) {
-                    dot.className = "w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center transition-colors";
-                } else {
-                    dot.className = "w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors";
-                }
-            }
-            document.getElementById(`step-${step}`).classList.add('active');
-        }
-
-        async function fetchPhrasebooks() {
-            const select = document.getElementById('cfg-source');
-            select.innerHTML = `<option>Fetching from GitHub...</option>`;
             try {
-                const res = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/phrasebook`, {
-                    headers: { 'Authorization': `token ${appState.config.pat}`, 'Accept': 'application/vnd.github.v3+json' }
-                });
-                if(!res.ok) throw new Error("Could not access phrasebook directory.");
-                const files = (await res.json()).filter(f => f.name.endsWith('.json')).sort((a,b) => b.name.localeCompare(a.name));
-                
-                select.innerHTML = files.map(f => `<option value="${f.path}">${f.name}</option>`).join('');
-                autoSuggestTarget();
-            } catch(e) { select.innerHTML = `<option>Error fetching data</option>`; }
-        }
-
-        function autoSuggestTarget() {
-            let tgt = document.getElementById('cfg-source').value;
-            if(!tgt) return;
-            const match = tgt.match(/-v(\d+)/);
-            tgt = match ? tgt.replace(`-v${match[1]}`, `-v${parseInt(match[1])+1}`) : tgt.replace('-default', '-v1').replace('.json', '-v1.json');
-            document.getElementById('cfg-target').value = tgt;
-        }
-
-        // --- Job Generation, Management & Modal ---
-        function getLocalJobs() { return JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY) || '[]'); }
-        
-        async function generateJob() {
-            const src = document.getElementById('cfg-source').value;
-            const target = document.getElementById('cfg-target').value.trim();
-            const initials = document.getElementById('cfg-initials').value.trim() || 'OP';
-            if(!src || !target) return alert("Source and Target paths required.");
-
-            appState.config.source = src; appState.config.target = target; appState.config.initials = initials;
-            localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(appState.config));
-
-            const jobId = 'job-' + Date.now();
-            const url = new URL(window.location.href.split('?')[0]);
-            ['owner','repo','source','target','pat','initials'].forEach(k => url.searchParams.set(k, appState.config[k]));
-            url.searchParams.set('jobId', jobId);
-
-            const linkStr = url.toString();
-            const newJob = { jobId, initials, source: src, target, url: linkStr, stats: { total: 0, pending: 0, good: 0, flag: 0, deleted: 0 }, lastUpdated: Date.now() };
-
-            let jobs = getLocalJobs(); jobs.push(newJob);
-            localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(jobs));
-
-            // Push meta to GH asynchronously
-            pushJobsToGitHub(jobs, appState.config.owner, appState.config.repo, appState.config.pat);
-            
-            // Pop Modal
-            document.getElementById('modal-link').value = linkStr;
-            document.getElementById('modal-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(linkStr)}`;
-            document.getElementById('share-modal').classList.remove('hidden');
-        }
-
-        function closeShareModal() {
-            document.getElementById('share-modal').classList.add('hidden');
-            switchSetupTab('manage');
-        }
-
-        function copyModalLink() {
-            document.getElementById('modal-link').select(); document.execCommand('copy');
-        }
-
-        function renderJobsDashboard() {
-            const jobs = getLocalJobs();
-            const container = document.getElementById('jobs-list');
-            if(!jobs.length) return container.innerHTML = `<p class="text-sm text-slate-500">No active jobs.</p>`;
-
-            container.innerHTML = jobs.sort((a,b) => b.lastUpdated - a.lastUpdated).map(j => {
-                let good = j.stats.good || 0; let total = j.stats.total || 0;
-                let pct = total === 0 ? 0 : Math.round((good / total) * 100);
-                return `
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-start mb-3">
-                        <div class="pr-2">
-                            <h3 class="font-bold text-sm text-slate-800 break-all">${j.target.split('/').pop()}</h3>
-                            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Reviewer: ${j.initials}</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md border border-teal-100">${pct}%</span>
-                            <button onclick="openShareModal('${j.jobId}')" class="p-1.5 rounded-md bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"><i data-lucide="share-2" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 mb-3">
-                        <div class="flex-1 bg-slate-50 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">All</div><div class="text-xs font-bold">${total}</div></div>
-                        <div class="flex-1 bg-white border border-slate-100 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">Pend</div><div class="text-xs font-bold text-slate-600">${j.stats.pending||0}</div></div>
-                        <div class="flex-1 bg-green-50 rounded p-1.5 text-center"><div class="text-[9px] text-green-600 font-bold uppercase">Good</div><div class="text-xs font-bold text-green-700">${good}</div></div>
-                        <div class="flex-1 bg-red-50 rounded p-1.5 text-center"><div class="text-[9px] text-red-600 font-bold uppercase">Flag</div><div class="text-xs font-bold text-red-700">${j.stats.flag||0}</div></div>
-                    </div>
-                    <button onclick="window.location.href='${j.url}'" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white transition-colors text-xs font-bold rounded-lg">Launch Desk</button>
-                </div>`;
-            }).join('');
-            lucide.createIcons();
-        }
-
-        function openShareModal(jobId) {
-            const job = getLocalJobs().find(j => j.jobId === jobId);
-            if(!job) return;
-            document.getElementById('modal-link').value = job.url;
-            document.getElementById('modal-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(job.url)}`;
-            document.getElementById('share-modal').classList.remove('hidden');
-        }
-
-        async function syncJobsFromGH() {
-            const {owner, repo, pat} = appState.config;
-            if(!owner || !repo || !pat) return alert("Missing credentials to sync.");
-            try {
-                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }});
-                if(res.ok) {
+                // Attempt real fetch if PAT is provided, else fallback to mock instantly to prevent UI blocking
+                let files = [];
+                if (state.pat) {
+                    const res = await fetch(`https://api.github.com/repos/${state.user}/${state.repo}/contents/phrasebooks`, {
+                        headers: { 'Authorization': `token ${state.pat}` }
+                    });
+                    if (!res.ok) throw new Error('API fetch failed');
                     const data = await res.json();
-                    localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(JSON.parse(fromB64(data.content))));
-                    renderJobsDashboard();
-                } else { alert("No active jobs file found on GitHub."); }
-            } catch(e) { console.error(e); }
-        }
-
-        async function pushJobsToGitHub(jobsArray, owner, repo, pat) {
-            try {
-                let sha = null;
-                const getRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }});
-                if(getRes.ok) sha = (await getRes.json()).sha;
-                await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, {
-                    method: 'PUT', headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: `Update Job Tracking`, content: toB64(JSON.stringify(jobsArray, null, 2)), sha, branch: 'main' })
-                });
-            } catch(e) {}
-        }
-
-        async function updateJobStatsCentral() {
-            if(!appState.jobId) return;
-            try {
-                let jobs = []; let jobsSha = null;
-                const getRes = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${appState.config.pat}`, 'Accept': 'application/vnd.github.v3+json' }});
-                if(getRes.ok) { const data = await getRes.json(); jobsSha = data.sha; jobs = JSON.parse(fromB64(data.content)); }
-
-                let idx = jobs.findIndex(j => j.jobId === appState.jobId);
-                let curStats = {
-                    total: parseInt(document.getElementById('count-total').innerText) || 0,
-                    pending: parseInt(document.getElementById('count-pending').innerText) || 0,
-                    good: parseInt(document.getElementById('count-good').innerText) || 0,
-                    flag: parseInt(document.getElementById('count-flag').innerText) || 0,
-                    deleted: parseInt(document.getElementById('count-deleted').innerText) || 0
-                };
-                if(idx > -1) { jobs[idx].stats = curStats; jobs[idx].lastUpdated = Date.now(); }
-
-                await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/curation-jobs.json`, {
-                    method: 'PUT', headers: { 'Authorization': `token ${appState.config.pat}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: `Stats update`, content: toB64(JSON.stringify(jobs, null, 2)), sha: jobsSha, branch: 'main' })
-                });
-            } catch(e) {}
-        }
-
-        function updateWelcomeBanner() {
-            let latestEdit = 0;
-            if (appState.pbData.cards) {
-                appState.pbData.cards.forEach(c => {
-                    if (c.updatedAt && c.updatedAt > latestEdit) latestEdit = c.updatedAt;
-                });
-            }
-            const el = document.getElementById('welcome-title');
-            const desc = document.getElementById('welcome-desc');
-            if(el && desc) {
-                if (latestEdit > 0) {
-                    el.innerText = `Welcome back, ${appState.config.initials}.`;
-                    desc.innerHTML = `Last session: <strong>${new Date(latestEdit).toLocaleString()}</strong>. Edit source & press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate.`;
+                    files = data.filter(f => f.name.endsWith('.json')).map(f => f.name);
                 } else {
-                    el.innerText = `Welcome, ${appState.config.initials}.`;
-                    desc.innerHTML = `New Assignment Loaded. Edit source & press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate.`;
+                    throw new Error('No PAT provided, using fallback');
                 }
-                document.getElementById('welcome-banner').style.display = 'block';
-            }
-        }
-
-        // --- Curation Lifecycle ---
-        async function startCurationLifecycle() {
-            try {
-                setLoadMsg("Loading target...");
-                let targetRes = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/${appState.config.target}`, { headers: { 'Authorization': `token ${appState.config.pat}` }});
                 
-                if (targetRes.ok) {
-                    const data = await targetRes.json();
-                    appState.targetSha = data.sha;
-                    appState.pbData = JSON.parse(fromB64(data.content));
-                } else {
-                    setLoadMsg("Bootstrapping source...");
-                    let sourceRes = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/${appState.config.source}`, { headers: { 'Authorization': `token ${appState.config.pat}` }});
-                    if(!sourceRes.ok) throw new Error("Source file missing.");
-                    appState.pbData = JSON.parse(fromB64((await sourceRes.json()).content));
-                }
-
-                appState.pbData.cards = appState.pbData.cards.filter(c => c.source && c.source.trim() !== '');
-                if (appState.pbData.cards.length > 0) {
-                    appState.langPair.source = appState.pbData.cards[0].sourceLang || 'en';
-                    appState.langPair.target = appState.pbData.cards[0].targetLang || 'th';
-                }
-
-                updateWelcomeBanner();
-                renderAll();
-                switchView('view-app');
-            } catch(e) {
-                alert(`Error loading data: ${e.message}`);
-                switchView('view-setup');
+                populateSourceDropdown(files);
+            } catch (e) {
+                console.log("Using fallback file list:", e.message);
+                state.mockDataMode = true;
+                const fallbackFiles = [
+                    'en_to_th_phrasebook-default.json',
+                    'en_to_th_phrasebook-v1.json',
+                    'th_to_en_phrasebook-default.json'
+                ];
+                populateSourceDropdown(fallbackFiles);
             }
         }
 
-        function triggerDebouncedSave() {
-            const status = document.getElementById('sync-status');
-            status.className = "w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
-            clearTimeout(ghDebounceTimer);
-            ghDebounceTimer = setTimeout(forceSaveToGitHub, 2500); 
-        }
-
-        async function forceSaveToGitHub() {
-            const status = document.getElementById('sync-status');
-            status.className = "w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
-            try {
-                appState.pbData.version = "5.0-curated";
-                const body = {
-                    message: `Curation Update: ${appState.pbData.cards.length} cards`,
-                    content: toB64(JSON.stringify(appState.pbData, null, 2)),
-                    branch: 'main'
-                };
-                if (appState.targetSha) body.sha = appState.targetSha;
-
-                const res = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/${appState.config.target}`, {
-                    method: 'PUT', headers: { 'Authorization': `token ${appState.config.pat}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                if(!res.ok) throw new Error();
-                appState.targetSha = (await res.json()).content.sha;
-                status.className = "w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm";
-                
-                updateJobStatsCentral();
-            } catch(e) {
-                status.className = "w-2.5 h-2.5 rounded-full bg-red-500 ml-1.5 shadow-sm";
-            }
-        }
-
-        // --- Render UI ---
-        function updateStats() {
-            let good = 0, flag = 0, pending = 0, deleted = 0;
-            appState.pbData.cards.forEach(c => {
-                if (c.deletedAt) { deleted++; return; }
-                let v = c.backtranslate?.verdict || 'pending';
-                if(v === 'good') good++; else if(v === 'flag') flag++; else pending++;
-            });
-            document.getElementById('count-total').innerText = (good + flag + pending);
-            document.getElementById('count-pending').innerText = pending;
-            document.getElementById('count-good').innerText = good;
-            document.getElementById('count-flag').innerText = flag;
-            document.getElementById('count-deleted').innerText = deleted;
-            document.getElementById('deleted-section').style.display = deleted > 0 ? 'block' : 'none';
-        }
-
-        function filterCards(type) {
-            appState.currentFilter = type;
-            document.querySelectorAll('.stat-chip').forEach(el => {
-                el.classList.remove('bg-teal-50','border-teal-600','text-teal-700','bg-white');
-                el.classList.add('bg-white','border-slate-200','text-slate-600');
-            });
-            const activeEl = document.getElementById(`filter-${type}`);
-            activeEl.classList.remove('bg-white','border-slate-200','text-slate-600');
-            activeEl.classList.add('bg-teal-50','border-teal-600','text-teal-700');
+        function populateSourceDropdown(files) {
+            const select = document.getElementById('select-source');
+            state.availableSources = files;
             
-            document.querySelectorAll('.pb-card').forEach(el => {
-                const st = el.getAttribute('data-status');
-                el.style.display = (type === 'all' || st === type) ? 'flex' : 'none';
+            if (files.length === 0) {
+                select.innerHTML = '<option value="">No JSON files found.</option>';
+                return;
+            }
+            
+            select.innerHTML = '';
+            // Sort descending by name simulating descending date for versioned files
+            files.sort().reverse().forEach(file => {
+                const opt = document.createElement('option');
+                opt.value = file;
+                opt.textContent = file;
+                select.appendChild(opt);
             });
+            
+            autoPopulateTarget();
+        }
+
+        function autoPopulateTarget() {
+            const source = document.getElementById('select-source').value;
+            if (!source) return;
+            
+            let targetName = '';
+            let base = source.replace('.json', '');
+            
+            // Version bumping logic
+            let versionMatch = base.match(/-v(\d+)$/);
+            if (versionMatch) {
+                let nextNum = parseInt(versionMatch[1]) + 1;
+                targetName = base.replace(/-v\d+$/, `-v${nextNum}.json`);
+            } else if (base.includes('-default')) {
+                targetName = base.replace('-default', '-v1.json');
+            } else {
+                targetName = base + '-v1.json';
+            }
+            
+            document.getElementById('input-target').value = targetName;
+        }
+
+        // ==========================================
+        // JOB MANAGEMENT & MODAL
+        // ==========================================
+        let qrCodeObj = null;
+
+        function generateJob() {
+            const source = document.getElementById('select-source').value;
+            const target = document.getElementById('input-target').value;
+            const initials = document.getElementById('input-initials').value || 'Unassigned';
+            
+            if (!source || !target) return alert('Source and Target are required.');
+
+            const jobId = 'job_' + Math.random().toString(36).substr(2, 9);
+            const newJob = { id: jobId, source, target, initials, date: new Date().toLocaleDateString() };
+            
+            state.jobs.unshift(newJob);
+            renderJobs();
+            
+            // Create URL (mocking domain)
+            const jobUrl = `${window.location.origin}${window.location.pathname}?job=${jobId}`;
+            openShareModal(jobUrl);
+        }
+
+        function renderJobs() {
+            const container = document.getElementById('job-list');
+            const emptyState = document.getElementById('empty-jobs');
+            
+            if (state.jobs.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            container.innerHTML = state.jobs.map(job => `
+                <div class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    <div>
+                        <div class="text-xs font-mono text-slate-500 mb-1">${job.source}</div>
+                        <div class="font-bold text-blue-700">${job.target}</div>
+                        <div class="text-xs text-slate-500 mt-1">Assigned: ${job.initials} &bull; ${job.date}</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openShareModal('${window.location.origin}${window.location.pathname}?job=${job.id}')" class="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition" title="Share">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                        </button>
+                        <button onclick="startCuration('${job.id}')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition whitespace-nowrap">
+                            Curate
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openShareModal(url) {
+            const modal = document.getElementById('modal-qr');
+            const input = document.getElementById('share-link-input');
+            const qrContainer = document.getElementById('qrcode-container');
+            
+            input.value = url;
+            qrContainer.innerHTML = ''; // clear old
+            
+            // Generate real QR code
+            qrCodeObj = new QRCode(qrContainer, {
+                text: url,
+                width: 160,
+                height: 160,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.L
+            });
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('active'); // triggers flex display via css class
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal-qr');
+            modal.classList.add('hidden');
+            modal.classList.remove('active');
+            navTo('job-mgmt');
+        }
+
+        function copyLink() {
+            const input = document.getElementById('share-link-input');
+            input.select();
+            document.execCommand('copy');
+            // Brief visual feedback
+            const orig = input.value;
+            input.value = "Copied!";
+            setTimeout(() => { input.value = orig; }, 1000);
+        }
+
+        // ==========================================
+        // CURATION VIEW (THE EXACT SPECIFIED LAYOUT)
+        // ==========================================
+        function startCuration(jobId) {
+            const job = state.jobs.find(j => j.id === jobId);
+            if (!job) return;
+            
+            document.getElementById('curation-title').textContent = job.target;
+            document.getElementById('curation-source').textContent = `Source: ${job.source}`;
+            
+            renderCurationCards();
+            navTo('curation');
+        }
+
+        function renderCurationCards() {
+            const list = document.getElementById('curation-list');
+            const deletedList = document.getElementById('deleted-list');
+            const deletedContainer = document.getElementById('deleted-container');
+            
+            let activeHtml = '';
+            let deletedHtml = '';
+            let delCount = 0;
+
+            mockPhrases.forEach(item => {
+                if (item.deleted) {
+                    delCount++;
+                    deletedHtml += `
+                        <div class="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center shadow-sm">
+                            <div class="truncate text-sm text-slate-500 line-through mr-4">${item.source}</div>
+                            <button onclick="restoreItem('${item.id}')" class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-md hover:bg-blue-100 whitespace-nowrap">Restore</button>
+                        </div>
+                    `;
+                } else {
+                    activeHtml += `
+                        <!-- EXACT LAYOUT SPECIFICATION START -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6 relative" id="card-${item.id}">
+                            
+                            <!-- MAIN WORKSPACE -->
+                            <div class="p-3 space-y-3">
+                                
+                                <!-- Row 1: Source & Target (Side by Side) -->
+                                <div class="flex flex-row space-x-3 w-full">
+                                    <!-- Source -->
+                                    <div class="w-1/2 flex items-start space-x-2">
+                                        <textarea class="w-full resize-none outline-none text-slate-900 bg-transparent text-base sm:text-lg" rows="2" placeholder="Source text..." onblur="autoSave('${item.id}')">${item.source}</textarea>
+                                        <button class="text-slate-400 hover:text-blue-600 p-1 flex-shrink-0" title="Text to Speech">
+                                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 001.707-.707V4.414a1 1 0 00-1.707-.707L10.293 7.707A1 1 0 019.586 8H7a2 2 0 00-2 2z"></path></svg>
+                                        </button>
+                                    </div>
+                                    <!-- Target -->
+                                    <div class="w-1/2 flex items-start space-x-2 pl-3 border-l border-gray-200">
+                                        <div class="w-full text-slate-700 text-base sm:text-lg">${item.target}</div>
+                                        <button class="text-slate-400 hover:text-blue-600 p-1 flex-shrink-0" title="Text to Speech">
+                                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 001.707-.707V4.414a1 1 0 00-1.707-.707L10.293 7.707A1 1 0 019.586 8H7a2 2 0 00-2 2z"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Row 2: Back Translate -->
+                                <div class="w-full flex items-start space-x-2 pt-3 border-t border-gray-100">
+                                    <div class="w-full text-slate-800 text-base sm:text-lg font-medium">${item.back}</div>
+                                    <button class="text-slate-400 hover:text-blue-600 p-1 flex-shrink-0" title="Text to Speech">
+                                        <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 001.707-.707V4.414a1 1 0 00-1.707-.707L10.293 7.707A1 1 0 019.586 8H7a2 2 0 00-2 2z"></path></svg>
+                                    </button>
+                                </div>
+
+                                <!-- Row 3: Verdicts -->
+                                <div class="flex justify-center space-x-4 pt-2">
+                                    <button onclick="setVerdict('${item.id}', 'good')" class="px-6 py-2 ${item.status === 'good' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'} rounded-full font-semibold transition">Sounds Good</button>
+                                    <button onclick="setVerdict('${item.id}', 'flag')" class="px-6 py-2 ${item.status === 'flag' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'} rounded-full font-semibold transition">Flag</button>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Action Footer (3 Equal Columns) -->
+                            <div class="grid grid-cols-3 bg-slate-50 border-t border-gray-200 divide-x divide-gray-200">
+                                <!-- Tag Button (# Text Icon as requested) -->
+                                <button class="py-3 flex justify-center items-center text-slate-500 hover:bg-slate-100 hover:text-blue-600 font-bold text-xl transition" title="Tags">
+                                    #
+                                </button>
+                                <!-- Clarify Button (SVG) -->
+                                <button class="py-3 flex justify-center items-center text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition" title="Clarify">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                                </button>
+                                <!-- Soft Delete Button (SVG Trash) -->
+                                <button onclick="softDelete('${item.id}')" class="py-3 flex justify-center items-center text-slate-500 hover:bg-slate-100 hover:text-red-600 transition" title="Delete">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+
+                        </div>
+                        <!-- EXACT LAYOUT SPECIFICATION END -->
+                    `;
+                }
+            });
+
+            list.innerHTML = activeHtml;
+            deletedList.innerHTML = deletedHtml;
+            document.getElementById('deleted-count').textContent = delCount;
+            
+            if (delCount > 0) {
+                deletedContainer.classList.remove('hidden');
+            } else {
+                deletedContainer.classList.add('hidden');
+            }
+        }
+
+        // Curation Actions
+        function setVerdict(id, verdict) {
+            const item = mockPhrases.find(p => p.id === id);
+            if(item) {
+                // Toggle off if already selected, otherwise set
+                item.status = item.status === verdict ? 'pending' : verdict;
+                renderCurationCards();
+            }
+        }
+
+        function softDelete(id) {
+            const item = mockPhrases.find(p => p.id === id);
+            if(item) {
+                item.deleted = true;
+                renderCurationCards();
+            }
+        }
+
+        function restoreItem(id) {
+            const item = mockPhrases.find(p => p.id === id);
+            if(item) {
+                item.deleted = false;
+                renderCurationCards();
+            }
+        }
+
+        function autoSave(id) {
+            // Triggered on blur of text area
+            console.log(`Auto-saving edits for item ${id}`);
+            // Logic to sync telemetry and trigger API for back-translate goes here
         }
 
         function toggleDeleted() {
-            appState.showDeleted = !appState.showDeleted;
-            document.getElementById('deleted-container').style.display = appState.showDeleted ? 'flex' : 'none';
-            document.getElementById('del-chevron').style.transform = appState.showDeleted ? 'rotate(180deg)' : 'rotate(0)';
-        }
-
-        function autoResize(el) { 
-            el.style.height = 'auto'; 
-            el.style.height = el.scrollHeight + 'px'; 
-        }
-
-        function playTTS(text, lang) {
-            if(!text || text==='...') return;
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = lang === 'en' ? 'en-US' : lang === 'th' ? 'th-TH' : lang;
-            window.speechSynthesis.speak(u);
-        }
-
-        function generateCardHTML(card, isDeleted) {
-            if(isDeleted) {
-                return `
-                <div class="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-lg shadow-sm mb-2">
-                    <span class="text-xs text-slate-500 truncate pr-4">${card.source}</span>
-                    <div class="flex gap-1 shrink-0">
-                        <button class="p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600 rounded" title="Restore" onclick="restorePhrase('${card.id}')"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
-                        <button class="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded" title="Permanent Delete" onclick="permDeletePhrase('${card.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>
-                </div>`;
-            }
-
-            let tagsHtml = (card.tags || []).map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${card.id}', ${i})"></i></span>`).join('');
-            let clarifyHtml = (card.clarifyChain || []).map(c => `<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>${c.author||'REV'}</span><span>${new Date(c.timestamp).toLocaleTimeString()}</span></div><div class="text-xs text-slate-700 leading-relaxed">${c.text}</div></div>`).join('');
-            let backTxt = card.backtranslate?.resultText || '';
-            let verdict = card.backtranslate?.verdict || 'pending';
-
-            return `
-            <div class="pb-card" data-status="${verdict}" id="card-${card.id}">
-                <!-- Row 1: Source & Target -->
-                <div class="flex flex-col sm:flex-row border-b border-slate-100 bg-white">
-                    <div class="w-full sm:w-1/2 p-3 flex flex-col sm:border-r border-slate-100 border-b sm:border-b-0">
-                        <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-teal-600 mb-1 flex justify-between">Source <i data-lucide="info" class="w-3 h-3 text-slate-300"></i></span>
-                        <div class="flex w-full">
-                            <textarea class="pb-input font-medium text-slate-800 text-sm" id="src-${card.id}" rows="1" oninput="autoResize(this)" onkeydown="handleSourceEnter(event, '${card.id}')">${card.source || ''}</textarea>
-                            <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('src-${card.id}').value, '${appState.langPair.source}')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>
-                    <div class="w-full sm:w-1/2 p-3 flex flex-col bg-slate-50/50">
-                        <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex justify-between">Target <i data-lucide="info" class="w-3 h-3 text-slate-300"></i></span>
-                        <div class="flex w-full">
-                            <div class="pb-input font-medium text-teal-700 text-sm" id="tgt-${card.id}">${card.target || '...'}</div>
-                            <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('tgt-${card.id}').innerText, '${appState.langPair.target}')"><i data-lucide="volume-2" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>
-                </div>
-                <!-- Row 2: Back Translate -->
-                <div class="flex flex-col p-3 border-b border-slate-100 bg-white items-start">
-                    <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex justify-between w-full">Back-Translate <i data-lucide="info" class="w-3 h-3 text-slate-300"></i></span>
-                    <div class="flex w-full">
-                        <div class="pb-input italic text-slate-600 text-sm" id="bck-${card.id}">${backTxt || '...'}</div>
-                        <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('bck-${card.id}').innerText, '${appState.langPair.source}')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>
-                    </div>
-                </div>
-                <!-- Row 3: Verdict -->
-                <div class="flex justify-center gap-4 p-3 border-b border-slate-100 bg-slate-50/50">
-                    <input type="radio" name="v-${card.id}" id="vg-${card.id}" class="verdict-radio radio-good" value="good" ${verdict==='good'?'checked':''} onchange="handleVerdict('${card.id}', 'good')">
-                    <label for="vg-${card.id}" class="verdict-label"><i data-lucide="thumbs-up" class="w-4 h-4"></i></label>
-                    <input type="radio" name="v-${card.id}" id="vf-${card.id}" class="verdict-radio radio-flag" value="flag" ${verdict==='flag'?'checked':''} onchange="handleVerdict('${card.id}', 'flag')">
-                    <label for="vf-${card.id}" class="verdict-label"><i data-lucide="flag" class="w-4 h-4"></i></label>
-                </div>
-                <!-- Row 4: Footer -->
-                <div class="flex bg-white">
-                    <div class="flex-1 flex justify-center p-3 border-r border-slate-100 cursor-pointer text-slate-400 hover:bg-slate-50 hover:text-teal-600 transition-colors" onclick="toggleDrawer('${card.id}', 'tags')" id="btn-tags-${card.id}"><i data-lucide="tag" class="w-4 h-4"></i></div>
-                    <div class="flex-1 flex justify-center p-3 border-r border-slate-100 cursor-pointer text-slate-400 hover:bg-slate-50 hover:text-teal-600 transition-colors" onclick="toggleDrawer('${card.id}', 'clarify')" id="btn-clarify-${card.id}"><i data-lucide="message-square" class="w-4 h-4"></i></div>
-                    <div class="flex-1 flex justify-center p-3 cursor-pointer text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors" onclick="softDeletePhrase('${card.id}')"><i data-lucide="x" class="w-4 h-4"></i></div>
-                </div>
-                <!-- Drawers -->
-                <div id="drawer-tags-${card.id}" class="hidden bg-slate-50 p-3 border-t border-slate-100">
-                    <div class="flex flex-wrap gap-1 mb-2" id="tags-container-${card.id}">${tagsHtml}</div>
-                    <input type="text" id="in-tags-${card.id}" class="w-full bg-white border border-slate-200 rounded p-2 text-xs font-mono outline-none focus:border-teal-500" placeholder="Type tags, comma split + Enter" onkeydown="addTag(event, '${card.id}')">
-                </div>
-                <div id="drawer-clarify-${card.id}" class="hidden bg-slate-50 p-3 border-t border-slate-100">
-                    <div id="clarify-container-${card.id}">${clarifyHtml}</div>
-                    <textarea rows="1" id="in-clarify-${card.id}" class="w-full bg-white border border-slate-200 rounded p-2 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden" oninput="autoResize(this)" onkeydown="addClarify(event, '${card.id}')" placeholder="Add note and press Enter..."></textarea>
-                </div>
-            </div>`;
-        }
-
-        function renderAll() {
-            const aCont = document.getElementById('cards-container');
-            const dCont = document.getElementById('deleted-container');
-            aCont.innerHTML = ''; dCont.innerHTML = '';
-            appState.pbData.cards.forEach(c => {
-                if(c.deletedAt) dCont.insertAdjacentHTML('beforeend', generateCardHTML(c, true));
-                else aCont.insertAdjacentHTML('beforeend', generateCardHTML(c, false));
-            });
-            lucide.createIcons();
-            setTimeout(() => document.querySelectorAll('textarea').forEach(el => autoResize(el)), 0);
-            updateStats();
-            filterCards(appState.currentFilter);
-        }
-
-        function getCard(id) { return appState.pbData.cards.find(c => String(c.id) === String(id)); }
-        
-        function toggleDrawer(id, type) {
-            const el = document.getElementById(`drawer-${type}-${id}`);
-            el.classList.toggle('hidden');
-            if(!el.classList.contains('hidden')) document.getElementById(`in-${type}-${id}`).focus();
-        }
-
-        // --- Interaction Logic ---
-        function addTag(e, id) {
-            if(e.key === 'Enter') {
-                e.preventDefault();
-                let v = e.target.value.trim();
-                if(!v) return;
-                const c = getCard(id);
-                let newTags = v.split(',').map(t => t.trim().toLowerCase()).filter(t => t).map(t => t.startsWith('#')?t:'#'+t);
-                c.tags = [...new Set([...(c.tags||[]), ...newTags])];
-                c.updatedAt = Date.now();
-                e.target.value = '';
-                document.getElementById(`tags-container-${id}`).innerHTML = c.tags.map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${c.id}', ${i})"></i></span>`).join('');
-                lucide.createIcons();
-                triggerDebouncedSave();
-            }
-        }
-        function removeTag(id, idx) {
-            const c = getCard(id); c.tags.splice(idx, 1);
-            document.getElementById(`tags-container-${id}`).innerHTML = c.tags.map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${c.id}', ${i})"></i></span>`).join('');
-            lucide.createIcons();
-            triggerDebouncedSave();
-        }
-
-        function addClarify(e, id) {
-            if(e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                let v = e.target.value.trim();
-                if(!v) return;
-                const c = getCard(id);
-                if(!c.clarifyChain) c.clarifyChain = [];
-                c.clarifyChain.push({ timestamp: Date.now(), text: v, author: appState.config.initials });
-                c.updatedAt = Date.now();
-                e.target.value = '';
-                document.getElementById(`clarify-container-${id}`).innerHTML = c.clarifyChain.map(log => `<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>${log.author||'REV'}</span><span>${new Date(log.timestamp).toLocaleTimeString()}</span></div><div class="text-xs text-slate-700 leading-relaxed">${log.text}</div></div>`).join('');
-                triggerDebouncedSave();
+            const list = document.getElementById('deleted-list');
+            const icon = document.getElementById('deleted-chevron');
+            if (list.classList.contains('hidden')) {
+                list.classList.remove('hidden');
+                list.classList.add('flex');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                list.classList.add('hidden');
+                list.classList.remove('flex');
+                icon.style.transform = 'rotate(0deg)';
             }
         }
 
-        function handleVerdict(id, verdict) {
-            const c = getCard(id);
-            if(!c.backtranslate) c.backtranslate = {};
-            c.backtranslate.verdict = verdict;
-            document.getElementById(`card-${id}`).setAttribute('data-status', verdict);
-            updateStats(); filterCards(appState.currentFilter);
-            triggerDebouncedSave();
-        }
+        // Initialize App
+        navTo('wizard-1');
 
-        function softDeletePhrase(id) { const c = getCard(id); c.deletedAt = Date.now(); renderAll(); triggerDebouncedSave(); }
-        function restorePhrase(id) { const c = getCard(id); delete c.deletedAt; renderAll(); triggerDebouncedSave(); }
-        function permDeletePhrase(id) { appState.pbData.cards = appState.pbData.cards.filter(c => String(c.id) !== String(id)); renderAll(); triggerDebouncedSave(); }
-        
-        function addNewPhrase() {
-            if(appState.pbData.cards.some(c => !c.deletedAt && c.source.trim() === '')) {
-                alert("Please fill out the existing blank phrase before creating a new one.");
-                return;
-            }
-            const newId = `pb-${Date.now()}`;
-            appState.pbData.cards.unshift({ id: newId, source: "", target: "", tags: [], clarifyChain: [], createdAt: Date.now(), updatedAt: Date.now() });
-            renderAll();
-            document.getElementById('workspace-scroll').scrollTo({top:0, behavior:'smooth'});
-            triggerDebouncedSave();
-        }
-
-        async function handleSourceEnter(e, id) {
-            if(e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                const v = e.target.value.trim();
-                e.target.blur();
-                const c = getCard(id);
-                
-                if(!v) return;
-
-                // Confirm untouched
-                if(c.source === v && c.target) {
-                    c.confirmedBy = appState.config.initials;
-                    if(c.backtranslate) c.backtranslate.verdict = 'pending';
-                    const vg=document.getElementById(`vg-${id}`), vf=document.getElementById(`vf-${id}`);
-                    if(vg) vg.checked=false; if(vf) vf.checked=false;
-                    document.getElementById(`card-${id}`).setAttribute('data-status', 'pending');
-                    updateStats(); triggerDebouncedSave(); return;
-                }
-
-                c.source = v; c.updatedAt = Date.now();
-                const tEl = document.getElementById(`tgt-${id}`); 
-                const bEl = document.getElementById(`bck-${id}`);
-                tEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>`;
-                bEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>`;
-                lucide.createIcons();
-                
-                if(c.backtranslate) c.backtranslate.verdict = 'pending';
-                const vg=document.getElementById(`vg-${id}`), vf=document.getElementById(`vf-${id}`);
-                if(vg) vg.checked=false; if(vf) vf.checked=false;
-                document.getElementById(`card-${id}`).setAttribute('data-status', 'pending');
-                updateStats();
-
-                try {
-                    const em = `tb_${Math.floor(Math.random()*1000)}@tb.com`;
-                    const resT = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(v)}&langpair=${appState.langPair.source}|${appState.langPair.target}&de=${em}`);
-                    const tgt = (await resT.json()).responseData.translatedText;
-                    c.target = tgt; tEl.innerText = tgt;
-
-                    const resB = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(tgt)}&langpair=${appState.langPair.target}|${appState.langPair.source}&de=${em}`);
-                    const bck = (await resB.json()).responseData.translatedText;
-                    if(!c.backtranslate) c.backtranslate = {};
-                    c.backtranslate.resultText = bck; bEl.innerText = bck;
-                    triggerDebouncedSave();
-                } catch(err) {
-                    tEl.innerText = "Error"; bEl.innerText = "Error";
-                }
-            }
-        }
-
-        init();
     </script>
 </body>
 </html>
