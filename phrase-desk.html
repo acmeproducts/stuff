@@ -1,0 +1,962 @@
+<!-- TalkBridge Curation Desk-v7.0-2026-06-13 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TalkBridge Curation Desk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .pb-input {
+            width: 100%; background: transparent; border: none; outline: none; resize: none;
+            overflow: hidden; word-wrap: break-word; white-space: pre-wrap; line-height: 1.4;
+        }
+
+        .verdict-radio { display: none; }
+        .verdict-label {
+            cursor: pointer; padding: 8px 18px; border-radius: 6px; border: 1px solid #e2e8f0;
+            background: #ffffff; color: #94a3b8; transition: all 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .verdict-label:hover { border-color: #cbd5e1; color: #475569; }
+        .radio-good:checked + .verdict-label { background-color: #ecfdf5; border-color: #10b981; color: #10b981; }
+        .radio-flag:checked + .verdict-label { background-color: #fef2f2; border-color: #ef4444; color: #ef4444; }
+
+        .wizard-step { display: none; animation: fadeIn 0.2s ease-in-out; }
+        .wizard-step.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseSync { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.1); } }
+        .syncing { animation: pulseSync 1s infinite; background-color: #eab308 !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+    <!-- View: Setup / Onboarding Wizard -->
+    <div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4 hidden">
+        <div class="w-full max-w-lg bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-2 md:mt-8">
+
+            <!-- Management Tabs -->
+            <div class="flex border-b border-slate-200 bg-slate-50 shrink-0">
+                <button class="flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600 transition-colors" onclick="switchSetupTab('create')" id="tab-create">Assignment Wizard</button>
+                <button class="flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700 hover:bg-slate-100 transition-colors" onclick="switchSetupTab('manage')" id="tab-manage">Job Management</button>
+            </div>
+
+            <!-- Panel: Create Assignment -->
+            <div id="panel-create" class="p-6">
+                <div class="flex justify-between items-center mb-6 px-4">
+                    <div id="dot-1" class="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center transition-colors">1</div>
+                    <div class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+                    <div id="dot-2" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors">2</div>
+                    <div class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+                    <div id="dot-3" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors">3</div>
+                </div>
+
+                <div id="auth-error" class="hidden mb-4 bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 break-words font-medium"></div>
+
+                <!-- Step 1: Auth -->
+                <div id="step-1" class="wizard-step active space-y-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="key" class="w-4 h-4 text-teal-600"></i> Authentication & Context</h3>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Personal Access Token (PAT)</label>
+                        <input type="password" id="cfg-pat" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="ghp_...">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Username / Org</label>
+                            <input type="text" id="cfg-owner" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" value="acmeproducts">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Repository</label>
+                            <input type="text" id="cfg-repo" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" value="stuff">
+                        </div>
+                    </div>
+                    <button onclick="fetchPhrasebooks()" id="btn-fetch" class="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-sm">Connect & Fetch</button>
+                </div>
+
+                <!-- Step 2: Source Phrasebook -->
+                <div id="step-2" class="wizard-step space-y-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="book" class="w-4 h-4 text-teal-600"></i> Select Source</h3>
+                    <p class="text-xs text-slate-500 leading-relaxed">Phrasebooks found in your repository, newest first.</p>
+                    <div>
+                        <select id="cfg-source" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors cursor-pointer" onchange="autoSuggestTarget()"></select>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition-colors">Back</button>
+                        <button onclick="advanceWizard(3)" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm transition-colors">Next</button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Target & Initials -->
+                <div id="step-3" class="wizard-step space-y-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="target" class="w-4 h-4 text-teal-600"></i> Assignment Details</h3>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target Version Path</label>
+                        <input type="text" id="cfg-target" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="phrasebook-v2.json">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reviewer Initials</label>
+                        <input type="text" id="cfg-initials" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 transition-colors" placeholder="e.g. JD">
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="advanceWizard(2)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50 transition-colors">Back</button>
+                        <button onclick="generateJob()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-1 shadow-sm transition-colors">Go <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel: Job Management -->
+            <div id="panel-manage" class="p-6 hidden bg-slate-50 min-h-[350px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-slate-800 text-sm">Deployments</h2>
+                    <button onclick="syncJobsFromGH()" class="flex items-center gap-1 text-[11px] uppercase tracking-wide font-bold text-teal-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md hover:bg-slate-50 transition-colors shadow-sm"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync</button>
+                </div>
+                <div id="jobs-list" class="space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View: Loading -->
+    <div id="view-loading" class="flex-1 flex flex-col items-center justify-center hidden">
+        <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-teal-600 mb-4"></i>
+        <h2 class="font-bold text-slate-700" id="loading-msg">Loading Environment...</h2>
+    </div>
+
+    <!-- View: Main App (Curation Desk) -->
+    <div id="view-app" class="flex-1 flex flex-col hidden bg-slate-100 min-h-0">
+
+        <datalist id="all-tags"></datalist>
+
+        <!-- Header -->
+        <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+                <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back to Setup"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v7.0</span></div>
+            </div>
+
+            <!-- Omni Search Bar -->
+            <div class="flex-1 min-w-[180px] max-w-md relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+                <input type="text" id="omni-search" oninput="runSearch()" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-4 py-2 text-xs outline-none transition-colors">
+            </div>
+
+            <!-- Filters -->
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar">
+                <button onclick="filterCards('all')" class="stat-chip bg-teal-50 border-teal-600 text-teal-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border transition-colors" id="filter-all"><i data-lucide="layers" class="w-3.5 h-3.5"></i> All <span id="count-total">0</span></button>
+                <button onclick="filterCards('pending')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-pending"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Pend <span id="count-pending">0</span></button>
+                <button onclick="filterCards('good')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-good"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 text-green-500"></i> <span id="count-good">0</span></button>
+                <button onclick="filterCards('flag')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50 transition-colors" id="filter-flag"><i data-lucide="flag" class="w-3.5 h-3.5 text-red-500"></i> <span id="count-flag">0</span></button>
+            </div>
+
+            <!-- Global Actions -->
+            <div class="flex items-center gap-1.5 shrink-0 ml-2">
+                <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg transition-colors border border-transparent hover:border-teal-200" title="Add Phrase" onclick="addNewPhrase()"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg transition-colors border border-transparent hover:border-teal-200" title="Sync to GitHub" onclick="forceSaveToGitHub()" id="btn-sync"><i data-lucide="save" class="w-4 h-4"></i></button>
+                <div class="w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm" id="sync-status"></div>
+            </div>
+        </div>
+
+        <!-- Bulk Action Bar (visible only when search active) -->
+        <div id="bulk-action-bar" class="hidden bg-teal-50 border-b border-teal-100 p-2 shadow-inner z-30 shrink-0">
+            <div class="max-w-4xl mx-auto flex items-center gap-2">
+                <span class="text-xs font-bold text-teal-800 whitespace-nowrap pl-1"><i data-lucide="tags" class="w-3.5 h-3.5 inline mr-1"></i>Bulk Tag:</span>
+                <input type="text" list="all-tags" id="bulk-tag" placeholder="Tag to apply..." class="flex-1 text-xs px-2 py-1.5 border border-teal-200 rounded outline-none focus:border-teal-500">
+                <button onclick="applyBulkTag()" class="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded transition whitespace-nowrap shadow-sm">Apply to All Visible</button>
+            </div>
+        </div>
+
+        <!-- Scrollable Workspace -->
+        <div class="flex-1 overflow-y-auto px-3 py-4 md:px-6 relative" id="workspace-scroll">
+            <div class="max-w-4xl mx-auto flex flex-col pb-24">
+
+                <!-- Save Error Banner -->
+                <div id="save-error-banner" class="hidden bg-red-50 text-red-700 text-xs font-bold p-3 rounded-lg mb-4 shadow-sm border border-red-200 flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+                    <span id="save-error-msg">Commit cannot be completed right now. Uncommitted updates are saved locally. Please try again later.</span>
+                </div>
+
+                <!-- Welcome Banner -->
+                <div id="welcome-banner" class="mb-4 p-3 rounded-lg bg-teal-50 border border-teal-100 relative hidden">
+                    <button onclick="document.getElementById('welcome-banner').style.display='none'" class="absolute top-3 right-3 text-teal-600 hover:text-teal-800" title="Dismiss"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <h3 class="font-bold text-sm mb-1 text-teal-800" id="welcome-title">Welcome</h3>
+                    <p class="text-xs pr-6 text-teal-700" id="welcome-desc">Edit source and press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate and confirm.</p>
+                </div>
+
+                <!-- Column Labels -->
+                <div class="hidden sm:flex w-full mb-2 px-4">
+                    <div class="w-1/2 pr-4"><span class="text-[10px] font-bold uppercase tracking-wider text-teal-600">Source</span></div>
+                    <div class="w-1/2 pl-4"><span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target</span></div>
+                </div>
+
+                <!-- Deleted Items Chevron -->
+                <div id="deleted-section" class="hidden mb-4 shrink-0">
+                    <button onclick="toggleDeleted()" class="w-full flex justify-between items-center bg-white border border-slate-200 p-3 rounded-lg shadow-sm text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors">
+                        <div class="flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Soft Deleted (<span id="count-deleted">0</span>)</div>
+                        <i data-lucide="chevron-down" id="del-chevron" class="w-4 h-4 transition-transform"></i>
+                    </button>
+                    <div id="deleted-container" class="hidden mt-2 flex-col gap-2"></div>
+                </div>
+
+                <!-- Cards Injection -->
+                <div id="cards-container" class="flex flex-col gap-4"></div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: QR Code / Share -->
+    <div id="share-modal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center hidden p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl w-full max-w-sm p-6 relative shadow-2xl flex flex-col items-center">
+            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <h3 class="font-bold text-lg text-slate-800 mb-4">Job Created</h3>
+            <img id="modal-qr" src="" class="w-40 h-40 border border-slate-200 rounded p-2 mb-4 shadow-sm bg-white">
+            <div class="relative w-full">
+                <input type="text" id="modal-link" class="w-full bg-slate-50 border border-slate-200 text-teal-600 text-xs p-3 pr-10 rounded-lg outline-none" readonly>
+                <button onclick="copyModalLink()" class="absolute right-1 top-1 p-2 text-teal-600 hover:bg-teal-50 rounded"><i data-lucide="copy" class="w-4 h-4"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Master Footer -->
+    <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
+        TalkBridge Curation Desk-v7.0 | <span id="footer-ts"></span>
+    </div>
+
+    <script>
+        setInterval(() => document.getElementById('footer-ts').textContent = new Date().toLocaleString(), 1000);
+
+        let appState = {
+            config: { owner: 'acmeproducts', repo: 'stuff', path: 'phrasebook', source: '', target: '', pat: '', initials: 'JD' },
+            jobId: null,
+            pbData: { cards: [] },
+            uniqueTags: new Set(),
+            targetSha: null,
+            langPair: { source: 'en', target: 'th' },
+            searchQuery: '',
+            currentFilter: 'all',
+            openDrawers: {}
+        };
+
+        let ghDebounceTimer = null;
+        const LOCAL_CONFIG_KEY = 'tb_cfg';
+        const LOCAL_JOBS_KEY = 'tb_jobs';
+
+        if(window.lucide) lucide.createIcons();
+        else {
+            // Lucide CDN was slow/blocked on first paint — retry shortly.
+            let lucideRetries = 0;
+            const lucideWait = setInterval(() => {
+                lucideRetries++;
+                if(window.lucide) { lucide.createIcons(); clearInterval(lucideWait); }
+                else if(lucideRetries > 20) clearInterval(lucideWait);
+            }, 250);
+        }
+
+        // --- Safe Base64 Utils for UTF-8 ---
+        function toB64(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1)));
+        }
+        function fromB64(str) {
+            return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        }
+        function setLoadMsg(msg) { document.getElementById('loading-msg').innerText = msg; }
+        function getLocalJobs() { return JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY) || '[]'); }
+
+        // --- Initialization ---
+        function init() {
+            const saved = localStorage.getItem(LOCAL_CONFIG_KEY);
+            if (saved) {
+                const c = JSON.parse(saved);
+                if(c.owner) document.getElementById('cfg-owner').value = c.owner;
+                if(c.repo) document.getElementById('cfg-repo').value = c.repo;
+                if(c.pat) document.getElementById('cfg-pat').value = c.pat;
+                if(c.initials) document.getElementById('cfg-initials').value = c.initials;
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('owner') && params.has('pat') && params.has('jobId')) {
+                appState.config = {
+                    owner: params.get('owner'), repo: params.get('repo'), path: 'phrasebook',
+                    source: params.get('source'), target: params.get('target'),
+                    pat: params.get('pat'), initials: params.get('initials') || 'JD'
+                };
+                appState.jobId = params.get('jobId');
+                switchView('view-loading');
+                startCurationLifecycle();
+            } else {
+                switchView('view-setup');
+            }
+        }
+
+        // --- View Handlers ---
+        function switchView(viewId) {
+            ['view-setup', 'view-loading', 'view-app'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        function goToSetup() {
+            const url = new URL(window.location.href.split('?')[0]);
+            window.history.replaceState({}, '', url);
+            switchSetupTab('manage');
+            switchView('view-setup');
+        }
+
+        function switchSetupTab(tab) {
+            const activeClass = "flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600 transition-colors";
+            const inactiveClass = "flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700 hover:bg-slate-100 transition-colors";
+            document.getElementById('tab-create').className = tab === 'create' ? activeClass : inactiveClass;
+            document.getElementById('tab-manage').className = tab === 'manage' ? activeClass : inactiveClass;
+            document.getElementById('panel-create').classList.toggle('hidden', tab !== 'create');
+            document.getElementById('panel-manage').classList.toggle('hidden', tab !== 'manage');
+            if(tab === 'manage') renderJobsDashboard();
+        }
+
+        // --- Wizard Logic ---
+        function advanceWizard(step) {
+            [1,2,3].forEach(s => {
+                document.getElementById(`step-${s}`).classList.remove('active');
+                const dot = document.getElementById(`dot-${s}`);
+                dot.className = s <= step
+                    ? "w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center transition-colors shadow-sm"
+                    : "w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center transition-colors";
+            });
+            document.getElementById(`step-${step}`).classList.add('active');
+        }
+
+        async function fetchPhrasebooks() {
+            const p = document.getElementById('cfg-pat').value.trim();
+            const o = document.getElementById('cfg-owner').value.trim() || 'acmeproducts';
+            const r = document.getElementById('cfg-repo').value.trim() || 'stuff';
+            const path = 'phrasebook';
+            if(!p || !o || !r) {
+                const err = document.getElementById('auth-error');
+                err.textContent = "PAT, Username, and Repo required.";
+                err.classList.remove('hidden');
+                return;
+            }
+
+            appState.config = { ...appState.config, pat: p, owner: o, repo: r, path: path };
+            localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(appState.config));
+
+            const errDiv = document.getElementById('auth-error');
+            const select = document.getElementById('cfg-source');
+            errDiv.classList.add('hidden');
+            select.innerHTML = `<option>Fetching from GitHub...</option>`;
+
+            try {
+                const res = await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}`, {
+                    headers: { 'Authorization': `token ${p}`, 'Accept': 'application/vnd.github.v3+json' }
+                });
+                if(!res.ok) throw new Error("Could not access phrasebook directory.");
+                const files = (await res.json()).filter(f => f.name.endsWith('.json')).sort((a,b) => b.name.localeCompare(a.name));
+                if(files.length === 0) throw new Error("No JSON phrasebooks found in that directory.");
+
+                select.innerHTML = files.map(f => `<option value="${f.path.split('/').pop()}">${f.name}</option>`).join('');
+                autoSuggestTarget();
+                advanceWizard(2);
+            } catch(e) {
+                select.innerHTML = `<option>Error fetching data</option>`;
+                let detail = e.message || String(e);
+                if(detail === "Failed to fetch") {
+                    detail += " — likely a CORS/origin issue. This page must be served over https (e.g. your GitHub Pages URL), not opened from a local file or preview link.";
+                }
+                errDiv.textContent = `[${location.protocol}//${location.host}] ${detail}`;
+                errDiv.classList.remove('hidden');
+            }
+        }
+
+        function autoSuggestTarget() {
+            let tgt = document.getElementById('cfg-source').value;
+            if(!tgt) return;
+            appState.config.source = tgt;
+            const match = tgt.match(/-v(\d+)\.json$/);
+            tgt = match ? tgt.replace(/-v\d+\.json$/, `-v${parseInt(match[1])+1}.json`) : tgt.replace(/\.json$/, '-v1.json');
+            document.getElementById('cfg-target').value = tgt;
+
+            const parts = tgt.split('_');
+            if(parts.length >= 3 && parts[1] === 'to') {
+                appState.langPair = { source: parts[0], target: parts[2].split('.')[0].split('-')[0] };
+            }
+        }
+
+        // --- Job Generation, Management & Modal ---
+        async function generateJob() {
+            const src = document.getElementById('cfg-source').value;
+            const target = document.getElementById('cfg-target').value.trim();
+            const initials = document.getElementById('cfg-initials').value.trim() || 'JD';
+            if(!src || !target) return alert("Source and Target paths required.");
+
+            appState.config.source = src; appState.config.target = target; appState.config.initials = initials;
+            localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(appState.config));
+
+            const jobId = 'job-' + Date.now();
+            const url = new URL(window.location.href.split('?')[0]);
+            ['owner','repo','source','target','pat','initials'].forEach(k => url.searchParams.set(k, appState.config[k]));
+            url.searchParams.set('jobId', jobId);
+
+            const linkStr = url.toString();
+            const newJob = { jobId, initials, source: src, target, url: linkStr, stats: { total: 0, pending: 0, good: 0, flag: 0, deleted: 0 }, lastUpdated: Date.now() };
+
+            let jobs = getLocalJobs(); jobs.push(newJob);
+            localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(jobs));
+            pushJobsToGitHub(jobs, appState.config.owner, appState.config.repo, appState.config.path, appState.config.pat);
+
+            document.getElementById('modal-link').value = linkStr;
+            document.getElementById('modal-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(linkStr)}`;
+            document.getElementById('share-modal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.add('hidden');
+            switchSetupTab('manage');
+        }
+
+        function copyModalLink() {
+            const el = document.getElementById('modal-link');
+            el.select(); document.execCommand('copy');
+        }
+
+        function renderJobsDashboard() {
+            const jobs = getLocalJobs();
+            const container = document.getElementById('jobs-list');
+            if(!jobs.length) { container.innerHTML = `<p class="text-sm text-slate-500">No active jobs.</p>`; return; }
+
+            container.innerHTML = jobs.sort((a,b) => b.lastUpdated - a.lastUpdated).map(j => {
+                let good = j.stats.good || 0; let total = j.stats.total || 0;
+                let pct = total === 0 ? 0 : Math.round((good / total) * 100);
+                return `
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="pr-2">
+                            <h3 class="font-bold text-sm text-slate-800 break-all">${j.target.split('/').pop()}</h3>
+                            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Reviewer: ${j.initials}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md border border-teal-100">${pct}%</span>
+                            <button onclick="openShareModal('${j.jobId}')" class="p-1.5 rounded-md bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600 transition-colors"><i data-lucide="share-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <div class="flex-1 bg-slate-50 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">All</div><div class="text-xs font-bold">${total}</div></div>
+                        <div class="flex-1 bg-white border border-slate-100 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">Pend</div><div class="text-xs font-bold text-slate-600">${j.stats.pending||0}</div></div>
+                        <div class="flex-1 bg-green-50 rounded p-1.5 text-center"><div class="text-[9px] text-green-600 font-bold uppercase">Good</div><div class="text-xs font-bold text-green-700">${good}</div></div>
+                        <div class="flex-1 bg-red-50 rounded p-1.5 text-center"><div class="text-[9px] text-red-600 font-bold uppercase">Flag</div><div class="text-xs font-bold text-red-700">${j.stats.flag||0}</div></div>
+                    </div>
+                    <button onclick="window.location.href='${j.url}'" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white transition-colors text-xs font-bold rounded-lg">Launch Desk</button>
+                </div>`;
+            }).join('');
+            if(window.lucide) lucide.createIcons();
+        }
+
+        function openShareModal(jobId) {
+            const job = getLocalJobs().find(j => j.jobId === jobId);
+            if(!job) return;
+            document.getElementById('modal-link').value = job.url;
+            document.getElementById('modal-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(job.url)}`;
+            document.getElementById('share-modal').classList.remove('hidden');
+        }
+
+        async function syncJobsFromGH() {
+            const {owner, repo, pat} = appState.config;
+            if(!owner || !repo || !pat) return alert("Missing credentials to sync.");
+            try {
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }});
+                if(res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(JSON.parse(fromB64(data.content))));
+                    renderJobsDashboard();
+                } else { alert("No active jobs file found on GitHub."); }
+            } catch(e) { console.error(e); }
+        }
+
+        async function pushJobsToGitHub(jobsArray, owner, repo, path, pat) {
+            try {
+                let sha = null;
+                const getRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }});
+                if(getRes.ok) sha = (await getRes.json()).sha;
+                await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/curation-jobs.json`, {
+                    method: 'PUT', headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: `Update Job Tracking`, content: toB64(JSON.stringify(jobsArray, null, 2)), sha, branch: 'main' })
+                });
+            } catch(e) {}
+        }
+
+        async function updateJobStatsCentral() {
+            if(!appState.jobId) return;
+            try {
+                let jobs = []; let jobsSha = null;
+                const getRes = await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/curation-jobs.json`, { headers: { 'Authorization': `token ${appState.config.pat}`, 'Accept': 'application/vnd.github.v3+json' }});
+                if(getRes.ok) { const data = await getRes.json(); jobsSha = data.sha; jobs = JSON.parse(fromB64(data.content)); }
+
+                let idx = jobs.findIndex(j => j.jobId === appState.jobId);
+                let curStats = {
+                    total: parseInt(document.getElementById('count-total').innerText) || 0,
+                    pending: parseInt(document.getElementById('count-pending').innerText) || 0,
+                    good: parseInt(document.getElementById('count-good').innerText) || 0,
+                    flag: parseInt(document.getElementById('count-flag').innerText) || 0,
+                    deleted: parseInt(document.getElementById('count-deleted').innerText) || 0
+                };
+                if(idx > -1) { jobs[idx].stats = curStats; jobs[idx].lastUpdated = Date.now(); }
+                else {
+                    jobs.push({ jobId: appState.jobId, initials: appState.config.initials, source: appState.config.source, target: appState.config.target, url: window.location.href, stats: curStats, lastUpdated: Date.now() });
+                }
+
+                await fetch(`https://api.github.com/repos/${appState.config.owner}/${appState.config.repo}/contents/curation-jobs.json`, {
+                    method: 'PUT', headers: { 'Authorization': `token ${appState.config.pat}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: `Stats update`, content: toB64(JSON.stringify(jobs, null, 2)), sha: jobsSha, branch: 'main' })
+                });
+
+                // keep local copy in sync too
+                let localJobs = getLocalJobs();
+                let lidx = localJobs.findIndex(j => j.jobId === appState.jobId);
+                if(lidx > -1) { localJobs[lidx].stats = curStats; localJobs[lidx].lastUpdated = Date.now(); localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(localJobs)); }
+            } catch(e) {}
+        }
+
+        function updateWelcomeBanner() {
+            let latestEdit = 0;
+            appState.pbData.cards.forEach(c => { if(c.updatedAt && c.updatedAt > latestEdit) latestEdit = c.updatedAt; });
+            const el = document.getElementById('welcome-title');
+            const desc = document.getElementById('welcome-desc');
+            if(latestEdit > 0) {
+                el.innerText = `Welcome back, ${appState.config.initials}.`;
+                desc.innerHTML = `Last session: <strong>${new Date(latestEdit).toLocaleString()}</strong>. Edit source & press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate.`;
+            } else {
+                el.innerText = `Welcome, ${appState.config.initials}.`;
+                desc.innerHTML = `New Assignment Loaded. Edit source & press <kbd class="bg-white border border-teal-200 px-1 rounded shadow-sm font-mono text-[10px]">Enter</kbd> to translate.`;
+            }
+            document.getElementById('welcome-banner').style.display = 'block';
+        }
+
+        // --- Curation Lifecycle ---
+        async function startCurationLifecycle() {
+            try {
+                setLoadMsg("Loading target...");
+                const {owner, repo, path, pat, target, source} = appState.config;
+                let targetRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}/${target}`, { headers: { 'Authorization': `token ${pat}` }});
+
+                if (targetRes.ok) {
+                    const data = await targetRes.json();
+                    appState.targetSha = data.sha;
+                    appState.pbData = JSON.parse(fromB64(data.content));
+                } else {
+                    setLoadMsg("Bootstrapping from source...");
+                    let sourceRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}/${source}`, { headers: { 'Authorization': `token ${pat}` }});
+                    if(!sourceRes.ok) throw new Error("Source file missing.");
+                    appState.pbData = JSON.parse(fromB64((await sourceRes.json()).content));
+                    appState.targetSha = null;
+                }
+
+                if(!Array.isArray(appState.pbData.cards)) appState.pbData.cards = appState.pbData.cards || [];
+
+                // Normalize incoming cards to canonical schema + fallback chain
+                appState.uniqueTags.clear();
+                appState.pbData.cards = appState.pbData.cards.map((c, idx) => {
+                    const src = c.source || c.src || c.representation?.source || c.en || '';
+                    const tgt = c.target || c.tgt || c.representation?.target || '';
+                    const tags = Array.isArray(c.tags) ? c.tags : [];
+                    tags.forEach(t => appState.uniqueTags.add(t));
+                    return {
+                        id: c.id || c.intentId || `pb-${Date.now()}-${idx}`,
+                        source: src,
+                        target: tgt,
+                        backtranslate: { resultText: c.backtranslate?.resultText || c.back || '', verdict: c.backtranslate?.verdict || 'pending' },
+                        tags: tags,
+                        clarifyChain: Array.isArray(c.clarifyChain) ? c.clarifyChain : [],
+                        deletedAt: c.deletedAt || null,
+                        updatedAt: c.updatedAt || null
+                    };
+                }).filter(c => c.source.trim() !== '' || c.deletedAt);
+
+                if (appState.pbData.cards.length > 0) {
+                    appState.langPair.source = appState.pbData.cards[0].sourceLang || appState.langPair.source || 'en';
+                    appState.langPair.target = appState.pbData.cards[0].targetLang || appState.langPair.target || 'th';
+                }
+
+                refreshDatalist();
+                document.getElementById('workspace-title').innerHTML = `${appState.config.target.split('/').pop()} <span class="text-xs font-normal text-slate-400 ml-1">v7.0</span>`;
+                updateWelcomeBanner();
+                if(appState.pbData.cards.length === 0) addNewPhrase();
+                renderAll();
+                switchView('view-app');
+            } catch(e) {
+                alert(`Error loading data: ${e.message}`);
+                switchView('view-setup');
+            }
+        }
+
+        function refreshDatalist() {
+            document.getElementById('all-tags').innerHTML = Array.from(appState.uniqueTags).map(t => `<option value="${t}">`).join('');
+        }
+
+        function triggerDebouncedSave() {
+            const status = document.getElementById('sync-status');
+            status.className = "w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
+            clearTimeout(ghDebounceTimer);
+            ghDebounceTimer = setTimeout(forceSaveToGitHub, 2500);
+        }
+
+        async function forceSaveToGitHub() {
+            const status = document.getElementById('sync-status');
+            const errBanner = document.getElementById('save-error-banner');
+            status.className = "w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
+
+            try {
+                appState.pbData.version = "1.2";
+                appState.pbData.type = "phrasebook";
+                const {owner, repo, path, pat, target} = appState.config;
+                const body = {
+                    message: `Curation Update: ${appState.pbData.cards.length} cards`,
+                    content: toB64(JSON.stringify(appState.pbData, null, 2)),
+                    branch: 'main'
+                };
+                if (appState.targetSha) body.sha = appState.targetSha;
+
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}/${target}`, {
+                    method: 'PUT', headers: { 'Authorization': `token ${pat}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if(!res.ok) throw new Error();
+                appState.targetSha = (await res.json()).content.sha;
+                status.className = "w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm";
+                errBanner.classList.add('hidden');
+                updateJobStatsCentral();
+            } catch(e) {
+                status.className = "w-2.5 h-2.5 rounded-full bg-red-500 ml-1.5 shadow-sm";
+                document.getElementById('save-error-msg').textContent = "Commit cannot be completed right now. Uncommitted updates are saved locally. Please try again later.";
+                errBanner.classList.remove('hidden');
+            }
+        }
+
+        // --- Render UI ---
+        function updateStats() {
+            let good = 0, flag = 0, pending = 0, deleted = 0;
+            appState.pbData.cards.forEach(c => {
+                if (c.deletedAt) { deleted++; return; }
+                let v = c.backtranslate?.verdict || 'pending';
+                if(v === 'good') good++; else if(v === 'flag') flag++; else pending++;
+            });
+            document.getElementById('count-total').innerText = (good + flag + pending);
+            document.getElementById('count-pending').innerText = pending;
+            document.getElementById('count-good').innerText = good;
+            document.getElementById('count-flag').innerText = flag;
+            document.getElementById('count-deleted').innerText = deleted;
+            document.getElementById('deleted-section').classList.toggle('hidden', deleted === 0);
+        }
+
+        // --- Omni Search ---
+        function runSearch() {
+            appState.searchQuery = document.getElementById('omni-search').value.trim();
+            renderAll();
+        }
+
+        function matchesSearch(c) {
+            if(!appState.searchQuery) return true;
+            const terms = appState.searchQuery.toLowerCase().split(/\s+/);
+            const blob = [c.source, c.target, c.backtranslate?.resultText || '', ...(c.tags||[]), ...(c.clarifyChain||[]).map(l=>l.txt)].join(' ').toLowerCase();
+            for(let term of terms) {
+                if(!term) continue;
+                if(term.startsWith('-')) {
+                    const exclude = term.substring(1).replace(/\*/g, '.*');
+                    if(exclude && new RegExp(exclude).test(blob)) return false;
+                } else {
+                    const include = term.replace(/\*/g, '.*');
+                    if(include && !new RegExp(include).test(blob)) return false;
+                }
+            }
+            return true;
+        }
+
+        function filterCards(type) {
+            appState.currentFilter = type;
+            document.querySelectorAll('.stat-chip').forEach(el => {
+                el.classList.remove('bg-teal-50','border-teal-600','text-teal-700');
+                el.classList.add('bg-white','border-slate-200','text-slate-600');
+            });
+            const activeEl = document.getElementById(`filter-${type}`);
+            activeEl.classList.remove('bg-white','border-slate-200','text-slate-600');
+            activeEl.classList.add('bg-teal-50','border-teal-600','text-teal-700');
+            renderAll();
+        }
+
+        function toggleDeleted() {
+            const list = document.getElementById('deleted-container');
+            const chev = document.getElementById('del-chevron');
+            const showing = list.classList.contains('hidden');
+            list.classList.toggle('hidden', !showing);
+            list.classList.toggle('flex', showing);
+            chev.style.transform = showing ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+
+        function playTTS(text, lang) {
+            if(!text || text==='...') return;
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang === 'en' ? 'en-US' : lang === 'th' ? 'th-TH' : lang;
+            window.speechSynthesis.speak(u);
+        }
+
+        function generateCardHTML(card, isDeleted) {
+            if(isDeleted) {
+                return `
+                <div class="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-lg shadow-sm mb-2">
+                    <span class="text-xs text-slate-500 truncate pr-4">${card.source || 'Empty Phrase'}</span>
+                    <div class="flex gap-1 shrink-0">
+                        <button class="p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600 rounded" title="Restore" onclick="restorePhrase('${card.id}')"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                        <button class="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded" title="Permanent Delete" onclick="permDeletePhrase('${card.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>`;
+            }
+
+            let tagsHtml = (card.tags || []).map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${card.id}', ${i})"></i></span>`).join('');
+            let clarifyHtml = (card.clarifyChain || []).map(c => `<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>${c.ini||'REV'}</span><span>${c.ts||''}</span></div><div class="text-xs text-slate-700 leading-relaxed">${c.txt}</div></div>`).join('');
+            let backTxt = card.backtranslate?.resultText || '';
+            let verdict = card.backtranslate?.verdict || 'pending';
+            const tagDrawerOpen = appState.openDrawers[`tags-${card.id}`];
+            const clarifyDrawerOpen = appState.openDrawers[`clarify-${card.id}`];
+
+            return `
+            <div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" data-status="${verdict}" id="card-${card.id}">
+                <!-- Row 1: Source & Target -->
+                <div class="flex flex-col sm:flex-row border-b border-slate-100 bg-white">
+                    <div class="w-full sm:w-1/2 p-3 flex flex-col sm:border-r border-slate-100 border-b sm:border-b-0">
+                        <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-teal-600 mb-1">Source</span>
+                        <div class="flex w-full">
+                            <textarea class="pb-input font-medium text-slate-800 text-sm" id="src-${card.id}" rows="1" oninput="autoResize(this)" onkeydown="handleSourceEnter(event, '${card.id}')">${card.source || ''}</textarea>
+                            <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('src-${card.id}').value, '${appState.langPair.source}')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <div class="w-full sm:w-1/2 p-3 flex flex-col bg-slate-50/50">
+                        <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1">Target</span>
+                        <div class="flex w-full">
+                            <div class="pb-input font-medium text-teal-700 text-sm" id="tgt-${card.id}">${card.target || '...'}</div>
+                            <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('tgt-${card.id}').innerText, '${appState.langPair.target}')"><i data-lucide="volume-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Row 2: Back Translate -->
+                <div class="flex flex-col p-3 border-b border-slate-100 bg-white items-start">
+                    <span class="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1">Back-Translate</span>
+                    <div class="flex w-full">
+                        <div class="pb-input italic text-slate-600 text-sm" id="bck-${card.id}">${backTxt || '...'}</div>
+                        <button class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded shrink-0 self-start ml-2" onclick="playTTS(document.getElementById('bck-${card.id}').innerText, '${appState.langPair.source}')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <!-- Row 3: Verdict -->
+                <div class="flex justify-center gap-4 p-3 border-b border-slate-100 bg-slate-50/50">
+                    <input type="radio" name="v-${card.id}" id="vg-${card.id}" class="verdict-radio radio-good" value="good" ${verdict==='good'?'checked':''} onchange="handleVerdict('${card.id}', 'good')">
+                    <label for="vg-${card.id}" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-4 h-4 mr-1.5"></i>Sounds Good</label>
+                    <input type="radio" name="v-${card.id}" id="vf-${card.id}" class="verdict-radio radio-flag" value="flag" ${verdict==='flag'?'checked':''} onchange="handleVerdict('${card.id}', 'flag')">
+                    <label for="vf-${card.id}" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-4 h-4 mr-1.5"></i>Flag</label>
+                </div>
+                <!-- Row 4: Footer -->
+                <div class="grid grid-cols-3 bg-slate-50 divide-x divide-slate-200">
+                    <button class="py-2.5 flex justify-center items-center ${tagDrawerOpen ? 'text-teal-600 bg-teal-50' : 'text-slate-500 hover:text-teal-600 hover:bg-slate-100'} transition-colors" onclick="toggleDrawer('${card.id}', 'tags')"><i data-lucide="hash" class="w-4 h-4"></i></button>
+                    <button class="py-2.5 flex justify-center items-center ${clarifyDrawerOpen ? 'text-teal-600 bg-teal-50' : 'text-slate-500 hover:text-teal-600 hover:bg-slate-100'} transition-colors" onclick="toggleDrawer('${card.id}', 'clarify')"><i data-lucide="message-square" class="w-4 h-4"></i></button>
+                    <button class="py-2.5 flex justify-center items-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors" onclick="softDeletePhrase('${card.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+                <!-- Drawers -->
+                <div id="drawer-tags-${card.id}" class="${tagDrawerOpen ? '' : 'hidden'} bg-slate-50 p-3 border-t border-slate-100">
+                    <div class="flex flex-wrap gap-1 mb-2" id="tags-container-${card.id}">${tagsHtml}</div>
+                    <input type="text" list="all-tags" id="in-tags-${card.id}" class="w-full bg-white border border-slate-200 rounded p-2 text-xs font-mono outline-none focus:border-teal-500" placeholder="Type tag, comma split + Enter" onkeydown="addTag(event, '${card.id}')">
+                </div>
+                <div id="drawer-clarify-${card.id}" class="${clarifyDrawerOpen ? '' : 'hidden'} bg-slate-50 p-3 border-t border-slate-100">
+                    <div id="clarify-container-${card.id}">${clarifyHtml}</div>
+                    <textarea rows="1" id="in-clarify-${card.id}" class="w-full bg-white border border-slate-200 rounded p-2 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden" oninput="autoResize(this)" onkeydown="addClarify(event, '${card.id}')" placeholder="Add note and press Enter..."></textarea>
+                </div>
+            </div>`;
+        }
+
+        function renderAll() {
+            const aCont = document.getElementById('cards-container');
+            const dCont = document.getElementById('deleted-container');
+            aCont.innerHTML = ''; dCont.innerHTML = '';
+
+            let anyVisible = false;
+            appState.pbData.cards.forEach(c => {
+                if(c.deletedAt) { dCont.insertAdjacentHTML('beforeend', generateCardHTML(c, true)); return; }
+                const verdict = c.backtranslate?.verdict || 'pending';
+                const matchesFilter = appState.currentFilter === 'all' || verdict === appState.currentFilter;
+                if(matchesFilter && matchesSearch(c)) {
+                    anyVisible = true;
+                    aCont.insertAdjacentHTML('beforeend', generateCardHTML(c, false));
+                }
+            });
+
+            if(window.lucide) lucide.createIcons();
+            setTimeout(() => document.querySelectorAll('textarea').forEach(el => autoResize(el)), 0);
+            updateStats();
+
+            document.getElementById('bulk-action-bar').classList.toggle('hidden', !(appState.searchQuery.length > 0 && anyVisible));
+        }
+
+        function getCard(id) { return appState.pbData.cards.find(c => String(c.id) === String(id)); }
+
+        function toggleDrawer(id, type) {
+            const key = `${type}-${id}`;
+            appState.openDrawers[key] = !appState.openDrawers[key];
+            renderAll();
+            if(appState.openDrawers[key]) {
+                const input = document.getElementById(`in-${type}-${id}`);
+                if(input) input.focus();
+            }
+        }
+
+        // --- Interaction Logic ---
+        function addTag(e, id) {
+            if(e.key === 'Enter') {
+                e.preventDefault();
+                let v = e.target.value.trim();
+                if(!v) return;
+                const c = getCard(id);
+                let newTags = v.split(',').map(t => t.trim()).filter(t => t);
+                c.tags = [...new Set([...(c.tags||[]), ...newTags])];
+                newTags.forEach(t => appState.uniqueTags.add(t));
+                c.updatedAt = Date.now();
+                e.target.value = '';
+                document.getElementById(`tags-container-${id}`).innerHTML = c.tags.map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${c.id}', ${i})"></i></span>`).join('');
+                if(window.lucide) lucide.createIcons();
+                refreshDatalist();
+                triggerDebouncedSave();
+                e.target.focus();
+            }
+        }
+        function removeTag(id, idx) {
+            const c = getCard(id); c.tags.splice(idx, 1);
+            document.getElementById(`tags-container-${id}`).innerHTML = c.tags.map((t,i) => `<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">${t} <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag('${c.id}', ${i})"></i></span>`).join('');
+            if(window.lucide) lucide.createIcons();
+            triggerDebouncedSave();
+        }
+
+        function addClarify(e, id) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                let v = e.target.value.trim();
+                if(!v) return;
+                const c = getCard(id);
+                if(!c.clarifyChain) c.clarifyChain = [];
+                const log = { ini: appState.config.initials, ts: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), txt: v };
+                c.clarifyChain.push(log);
+                c.updatedAt = Date.now();
+                e.target.value = '';
+                document.getElementById(`clarify-container-${id}`).insertAdjacentHTML('beforeend', `<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>${log.ini}</span><span>${log.ts}</span></div><div class="text-xs text-slate-700 leading-relaxed">${log.txt}</div></div>`);
+                triggerDebouncedSave();
+                e.target.focus();
+            }
+        }
+
+        function handleVerdict(id, verdict) {
+            const c = getCard(id);
+            if(!c.backtranslate) c.backtranslate = {};
+            c.backtranslate.verdict = verdict;
+            c.updatedAt = Date.now();
+            document.getElementById(`card-${id}`).setAttribute('data-status', verdict);
+            updateStats();
+            if(appState.currentFilter !== 'all' && verdict !== appState.currentFilter) renderAll();
+            triggerDebouncedSave();
+        }
+
+        function softDeletePhrase(id) { const c = getCard(id); c.deletedAt = Date.now(); renderAll(); triggerDebouncedSave(); }
+        function restorePhrase(id) { const c = getCard(id); delete c.deletedAt; renderAll(); triggerDebouncedSave(); }
+        function permDeletePhrase(id) {
+            if(!confirm("Permanently delete this card?")) return;
+            appState.pbData.cards = appState.pbData.cards.filter(c => String(c.id) !== String(id));
+            renderAll(); triggerDebouncedSave();
+        }
+
+        function addNewPhrase() {
+            if(appState.pbData.cards.some(c => !c.deletedAt && c.source.trim() === '')) {
+                alert("Please fill out the existing blank phrase before creating a new one.");
+                return;
+            }
+            const newId = `pb-${Date.now()}`;
+            appState.pbData.cards.unshift({ id: newId, source: "", target: "", backtranslate: { resultText: "", verdict: "pending" }, tags: [], clarifyChain: [], createdAt: Date.now(), updatedAt: Date.now() });
+            renderAll();
+            const ws = document.getElementById('workspace-scroll');
+            if(ws) ws.scrollTo({top:0, behavior:'smooth'});
+            triggerDebouncedSave();
+        }
+
+        // --- Bulk Tagging (simple, single tag) ---
+        function applyBulkTag() {
+            const input = document.getElementById('bulk-tag');
+            const tag = input.value.trim();
+            if(!tag) return;
+            appState.pbData.cards.forEach(c => {
+                if(c.deletedAt) return;
+                const verdict = c.backtranslate?.verdict || 'pending';
+                const matchesFilter = appState.currentFilter === 'all' || verdict === appState.currentFilter;
+                if(matchesFilter && matchesSearch(c)) {
+                    if(!c.tags) c.tags = [];
+                    if(!c.tags.includes(tag)) { c.tags.push(tag); c.updatedAt = Date.now(); }
+                }
+            });
+            appState.uniqueTags.add(tag);
+            refreshDatalist();
+            input.value = '';
+            renderAll();
+            triggerDebouncedSave();
+        }
+
+        async function handleSourceEnter(e, id) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const v = e.target.value.trim();
+                e.target.blur();
+                const c = getCard(id);
+                if(!v) return;
+
+                // Confirm untouched: re-confirms without retranslating
+                if(c.source === v && c.target) {
+                    if(c.backtranslate) c.backtranslate.verdict = 'pending';
+                    const vg=document.getElementById(`vg-${id}`), vf=document.getElementById(`vf-${id}`);
+                    if(vg) vg.checked=false; if(vf) vf.checked=false;
+                    document.getElementById(`card-${id}`).setAttribute('data-status', 'pending');
+                    c.updatedAt = Date.now();
+                    updateStats(); triggerDebouncedSave(); return;
+                }
+
+                c.source = v; c.updatedAt = Date.now();
+                const tEl = document.getElementById(`tgt-${id}`);
+                const bEl = document.getElementById(`bck-${id}`);
+                tEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>`;
+                bEl.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>`;
+                if(window.lucide) lucide.createIcons();
+
+                if(c.backtranslate) c.backtranslate.verdict = 'pending';
+                const vg=document.getElementById(`vg-${id}`), vf=document.getElementById(`vf-${id}`);
+                if(vg) vg.checked=false; if(vf) vf.checked=false;
+                document.getElementById(`card-${id}`).setAttribute('data-status', 'pending');
+                updateStats();
+
+                try {
+                    const em = `tb_${Math.floor(Math.random()*1000)}@tb.com`;
+                    const resT = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(v)}&langpair=${appState.langPair.source}|${appState.langPair.target}&de=${em}`);
+                    const tgt = (await resT.json()).responseData.translatedText;
+                    c.target = tgt; tEl.innerText = tgt;
+
+                    const resB = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(tgt)}&langpair=${appState.langPair.target}|${appState.langPair.source}&de=${em}`);
+                    const bck = (await resB.json()).responseData.translatedText;
+                    if(!c.backtranslate) c.backtranslate = {};
+                    c.backtranslate.resultText = bck; bEl.innerText = bck;
+                    triggerDebouncedSave();
+                } catch(err) {
+                    tEl.innerText = "Error"; bEl.innerText = "Error";
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
