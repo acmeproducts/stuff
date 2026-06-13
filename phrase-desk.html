@@ -26,11 +26,6 @@ body{font-family:'Inter',sans-serif;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 @keyframes pulseSync{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.6;transform:scale(1.1);}}
 .syncing{animation:pulseSync 1s infinite;background-color:#eab308!important;}
-.lang-flag-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;background:#fff;transition:all .15s;}
-.lang-flag-btn:hover{border-color:#94a3b8;}
-.lang-flag-btn.selected{border-color:#0d9488;background:#f0fdfa;}
-.lang-flag-btn .flag{font-size:22px;}
-.lang-flag-btn .code{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
@@ -75,13 +70,15 @@ body{font-family:'Inter',sans-serif;}
       <!-- Step 2: Language Pair -->
       <div id="step-2" class="wizard-step space-y-4">
         <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="languages" class="w-4 h-4 text-teal-600"></i> Language Pair</h3>
-        <div>
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Source language</label>
-          <div id="src-lang-grid" class="grid grid-cols-5 gap-2"></div>
-        </div>
-        <div>
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Target language</label>
-          <div id="tgt-lang-grid" class="grid grid-cols-5 gap-2"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Source language</label>
+            <select id="src-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target language</label>
+            <select id="tgt-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
         </div>
         <div class="flex gap-2 pt-2">
           <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
@@ -273,18 +270,17 @@ function init(){
 }
 
 function renderLangGrids(){
-  ['src-lang-grid','tgt-lang-grid'].forEach(function(gridId){
-    var grid=document.getElementById(gridId);
-    grid.innerHTML=LANGS.map(function(l){
-      return '<div class="lang-flag-btn" data-code="'+l.code+'" onclick="selectLang(\''+gridId+'\',\''+l.code+'\')"><span class="flag">'+l.flag+'</span><span class="code">'+l.code+'</span></div>';
-    }).join('');
-  });
+  var src=document.getElementById('src-lang-select');
+  var tgt=document.getElementById('tgt-lang-select');
+  var opts=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+' ('+l.code+')</option>';}).join('');
+  src.innerHTML='<option value="">Select...</option>'+opts;
+  tgt.innerHTML='<option value="">Select...</option>'+opts;
+  src.value='en';tgt.value='es';
+  onLangSelectChange();
 }
-function selectLang(gridId,code){
-  var grid=document.getElementById(gridId);
-  grid.querySelectorAll('.lang-flag-btn').forEach(function(el){el.classList.toggle('selected',el.getAttribute('data-code')===code);});
-  if(gridId==='src-lang-grid')appState.langPair.source=code;
-  else appState.langPair.target=code;
+function onLangSelectChange(){
+  appState.langPair.source=document.getElementById('src-lang-select').value;
+  appState.langPair.target=document.getElementById('tgt-lang-select').value;
   var btn=document.getElementById('btn-lang-next');
   btn.disabled=!(appState.langPair.source&&appState.langPair.target&&appState.langPair.source!==appState.langPair.target);
 }
@@ -315,24 +311,28 @@ function advanceWizard(step){
 
 // --- Step 1: fetch directory ---
 async function fetchPhrasebooks(){
+  var errDiv=document.getElementById('auth-error');
+  try{
   var p=document.getElementById('cfg-pat').value.trim();
   var o=document.getElementById('cfg-owner').value.trim()||'acmeproducts';
   var r=document.getElementById('cfg-repo').value.trim()||'stuff';
   var path='phrasebook';
-  var errDiv=document.getElementById('auth-error');
   errDiv.classList.add('hidden');
   if(!p||!o||!r){errDiv.textContent="PAT, Username, and Repo required.";errDiv.classList.remove('hidden');return;}
   appState.config={...appState.config,pat:p,owner:o,repo:r,path:path};
   localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));
-  try{
-    var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/'+path,{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
-    if(!res.ok)throw new Error("Could not access phrasebook directory.");
-    var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
-    if(!files.length)throw new Error("No JSON phrasebooks found.");
-    appState.allFiles=files.map(function(f){return f.name;});
-    advanceWizard(2);
+  var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/'+path,{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
+  if(!res.ok){
+    var body='';try{body=(await res.json()).message||'';}catch(_){}
+    throw new Error('HTTP '+res.status+(body?(': '+body):'')+' — check Owner/Repo/PAT.');
+  }
+  var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
+  if(!files.length)throw new Error("No JSON phrasebooks found in /phrasebook.");
+  appState.allFiles=files.map(function(f){return f.name;});
+  advanceWizard(2);
   }catch(e){
-    errDiv.textContent=(e.message||"Failed to fetch")+" — check Owner/Repo/PAT.";
+    console.error('fetchPhrasebooks error:',e);
+    errDiv.textContent=(e&&e.message)?e.message:String(e);
     errDiv.classList.remove('hidden');
   }
 }
@@ -350,12 +350,15 @@ function findMatchingFiles(){
     if(!pair)return false;
     return (pair.a===src&&pair.b===tgt)||(pair.a===tgt&&pair.b===src);
   });
-  if(!matches.length)matches=appState.allFiles; // fallback: show everything if naming doesn't match
+  var fellBack=false;
+  if(!matches.length){matches=appState.allFiles.slice();fellBack=true;}
   matches.sort().reverse();
   appState.matchedFiles=matches;
   var sel=document.getElementById('cfg-source');
   sel.innerHTML=matches.map(function(f){return '<option value="'+f+'">'+f+'</option>';}).join('');
-  document.getElementById('step3-sub').textContent=flagFor(src)+' '+labelFor(src)+' \u2192 '+flagFor(tgt)+' '+labelFor(tgt)+' \u00b7 '+matches.length+' file(s) found';
+  var sub=flagFor(src)+' '+labelFor(src)+' \u2192 '+flagFor(tgt)+' '+labelFor(tgt);
+  sub+=fellBack?(' \u2014 no filename matched this pair; showing all '+matches.length+' file(s).'):(' \u00b7 '+matches.length+' matching file(s).');
+  document.getElementById('step3-sub').textContent=sub;
   autoSuggestTarget();
   advanceWizard(3);
 }
@@ -510,9 +513,9 @@ async function startCurationLifecycle(){
     }
     if(!Array.isArray(appState.pbData.cards))appState.pbData.cards=[];
 
-    // language pair: prefer wizard selection, else stored in file, else from filename
+    // language pair: wizard selection always wins; file/filename only used as last-resort fallback
     if(!appState.langPair.source||!appState.langPair.target){
-      if(appState.pbData.langPair){appState.langPair=appState.pbData.langPair;}
+      if(appState.pbData.langPair&&appState.pbData.langPair.source&&appState.pbData.langPair.target){appState.langPair=appState.pbData.langPair;}
       else{
         var p=parseLangsFromFilename(target)||parseLangsFromFilename(source);
         if(p)appState.langPair={source:p.a,target:p.b};
@@ -670,11 +673,11 @@ function generateCardHTML(card,isDeleted){
   return '<div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" data-status="'+verdict+'" id="card-'+card.id+'">'
     // Row 1: source | target side-by-side, TTS underneath each
     +'<div class="flex border-b border-slate-100 bg-white">'
-      +'<div class="w-1/2 p-3 flex flex-col gap-2 border-r border-slate-100">'
+      +'<div class="w-1/2 min-w-0 p-3 flex flex-col gap-2 border-r border-slate-100">'
         +'<textarea class="pb-input font-medium text-slate-800 text-sm" id="src-'+card.id+'" rows="1" oninput="autoResize(this)" onkeydown="handleSourceEnter(event,\''+card.id+'\')">'+(card.source||'')+'</textarea>'
         +'<button class="self-start p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded" onclick="playTTS(document.getElementById(\'src-'+card.id+'\').value,\''+appState.langPair.source+'\')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>'
       +'</div>'
-      +'<div class="w-1/2 p-3 flex flex-col gap-2 bg-slate-50/50">'
+      +'<div class="w-1/2 min-w-0 p-3 flex flex-col gap-2 bg-slate-50/50">'
         +'<div class="pb-input font-medium text-teal-700 text-sm" id="tgt-'+card.id+'">'+(card.target||'...')+'</div>'
         +'<button class="self-start p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded" onclick="playTTS(document.getElementById(\'tgt-'+card.id+'\').innerText,\''+appState.langPair.target+'\')"><i data-lucide="volume-2" class="w-4 h-4"></i></button>'
       +'</div>'
