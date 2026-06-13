@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v8.0-2026-06-13 -->
+<!-- TalkBridge Curation Desk-v9.0-2026-06-13 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,7 +139,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v8.0</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.0</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -199,7 +199,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v8.0 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.0 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -540,7 +540,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v8.0</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.0</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -722,15 +722,15 @@ function generateCardHTML(card,isDeleted){
       +'<button type="button" class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50" onclick="softDeletePhrase(\''+card.id+'\')"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
     +'</div>'
 
-    // Tag drawer — surgical show/hide via JS, NOT re-render
+    // Tag drawer — direct DOM manipulation only, zero event dispatch
     +'<div id="drawer-tags-'+card.id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
       +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+card.id+'">'+tagsHtml+'</div>'
-      +'<input type="text" autocomplete="off" list="all-tags" id="in-tags-'+card.id+'"'
+      +'<input type="text" autocomplete="off" id="in-tags-'+card.id+'"'
         +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500"'
-        +' placeholder="Type tag + Enter (autocomplete enabled)"'
-        +' oninput="filterTagSuggestions(\''+card.id+'\',this.value)"'
-        +' onkeydown="addTag(event,\''+card.id+'\')">'
-      +'<div id="tag-suggestions-'+card.id+'" class="flex flex-wrap gap-1 mt-1"></div>'
+        +' placeholder="Type tag + Enter to add"'
+        +' oninput="onTagInput(\''+card.id+'\',this.value)"'
+        +' onkeydown="onTagKeydown(event,\''+card.id+'\')">'
+      +'<div id="tag-suggestions-'+card.id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
     +'</div>'
 
     // Clarify drawer
@@ -789,52 +789,92 @@ function renderAll(){
 
 function getCard(id){return appState.pbData.cards.find(function(c){return String(c.id)===String(id);});}
 
-// Tag suggestion chips below the input (does NOT use datalist — more reliable on mobile)
-function filterTagSuggestions(id,val){
+// ── TAG SYSTEM ──────────────────────────────────────────────────────────────
+// No synthetic events, no dispatchEvent, no datalist.
+// All paths call commitTag(id, value) directly.
+
+function renderTagChips(id,tags){
+  return (tags||[]).map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono">'
+      +t
+      +'<button type="button" class="ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold" onclick="removeTag(\''+id+'\','+i+')">&times;</button>'
+      +'</span>';
+  }).join('');
+}
+
+function onTagInput(id,val){
   var box=document.getElementById('tag-suggestions-'+id);
   if(!box)return;
   var q=(val||'').trim().toLowerCase();
   if(!q){box.innerHTML='';return;}
-  var existing=(getCard(id)||{}).tags||[];
-  var matches=Array.from(appState.uniqueTags).filter(function(t){
-    return t.toLowerCase().indexOf(q)>=0&&existing.indexOf(t)<0;
-  }).slice(0,8);
+  var card=getCard(id);
+  var existing=(card&&card.tags)||[];
+  var matches=Array.from(appState.uniqueTags)
+    .filter(function(t){return t.toLowerCase().indexOf(q)>=0&&existing.indexOf(t)<0;})
+    .slice(0,8);
   box.innerHTML=matches.map(function(t){
-    return '<button type="button" class="text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300" onclick="pickTagSuggestion(\''+id+'\',\''+t+'\')">'+t+'</button>';
+    return '<button type="button"'
+      +' class="text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300"'
+      +' onmousedown="event.preventDefault()"'  // prevent input blur before click fires
+      +' onclick="commitTag(\''+id+'\',\''+t+'\')">'
+      +t+'</button>';
   }).join('');
 }
-function pickTagSuggestion(id,tag){
-  var input=document.getElementById('in-tags-'+id);
-  if(input){input.value=tag;input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));}
-}
-function renderTagChips(id,tags){
-  return tags.map(function(t,i){
-    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono">'
-      +t+' <button type="button" class="text-slate-400 hover:text-red-500 leading-none" onclick="removeTag(\''+id+'\','+i+')">&times;</button></span>';
-  }).join('');
-}
-function addTag(e,id){
+
+function onTagKeydown(e,id){
   if(e.key!=='Enter')return;
-  e.preventDefault();e.stopPropagation();
-  var v=e.target.value.trim();if(!v)return;
+  e.preventDefault();
+  e.stopPropagation();
+  var input=document.getElementById('in-tags-'+id);
+  if(!input)return;
+  var val=input.value.trim();
+  if(!val)return;
+  // comma-split for multiple
+  val.split(',').forEach(function(part){
+    var t=part.trim();
+    if(t)commitTag(id,t);
+  });
+}
+
+function commitTag(id,tag){
+  tag=(tag||'').trim();
+  if(!tag)return;
   var c=getCard(id);
-  var newTags=v.split(',').map(function(t){return t.trim();}).filter(function(t){return t;});
-  c.tags=[...new Set([...(c.tags||[]),...newTags])];
-  newTags.forEach(function(t){appState.uniqueTags.add(t);});
+  if(!c)return;
+  if(!c.tags)c.tags=[];
+  if(c.tags.indexOf(tag)>=0){
+    // already exists — just clear input and suggestions
+    var inp=document.getElementById('in-tags-'+id);
+    if(inp)inp.value='';
+    var box=document.getElementById('tag-suggestions-'+id);
+    if(box)box.innerHTML='';
+    return;
+  }
+  c.tags.push(tag);
+  appState.uniqueTags.add(tag);
   c.updatedAt=Date.now();
-  e.target.value='';
-  var box=document.getElementById('tag-suggestions-'+id);if(box)box.innerHTML='';
-  document.getElementById('tags-container-'+id).innerHTML=renderTagChips(id,c.tags);
+  // update chips
+  var container=document.getElementById('tags-container-'+id);
+  if(container)container.innerHTML=renderTagChips(id,c.tags);
+  // clear input + suggestions
+  var inp=document.getElementById('in-tags-'+id);
+  if(inp){inp.value='';inp.focus();}
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(box)box.innerHTML='';
   refreshDatalist();
   triggerDebouncedSave();
-  e.target.focus();
 }
+
 function removeTag(id,idx){
-  var c=getCard(id);c.tags.splice(idx,1);
+  var c=getCard(id);
+  if(!c||!c.tags)return;
+  c.tags.splice(idx,1);
   c.updatedAt=Date.now();
-  document.getElementById('tags-container-'+id).innerHTML=renderTagChips(id,c.tags);
+  var container=document.getElementById('tags-container-'+id);
+  if(container)container.innerHTML=renderTagChips(id,c.tags);
   triggerDebouncedSave();
 }
+// ── END TAG SYSTEM ───────────────────────────────────────────────────────────
 function addClarify(e,id){
   if(!(e.key==='Enter'&&!e.shiftKey))return;
   e.preventDefault();e.stopPropagation();
