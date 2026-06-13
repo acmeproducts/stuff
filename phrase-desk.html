@@ -659,56 +659,115 @@ function generateCardHTML(card,isDeleted){
     return '<div class="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-lg shadow-sm mb-2">'
       +'<span class="text-xs text-slate-500 truncate pr-4">'+(card.source||'Empty Phrase')+'</span>'
       +'<div class="flex gap-1 shrink-0">'
-      +'<button class="p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600 rounded" title="Restore" onclick="restorePhrase(\''+card.id+'\')"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>'
-      +'<button class="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded" title="Permanent Delete" onclick="permDeletePhrase(\''+card.id+'\')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>'
+      +'<button class="p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600 rounded" title="Restore" onclick="restorePhrase(\''+card.id+'\')"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>'
+      +'<button class="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded" title="Permanent Delete" onclick="permDeletePhrase(\''+card.id+'\')"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
       +'</div></div>';
   }
-  var tagsHtml=(card.tags||[]).map(function(t,i){return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">'+t+' <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag(\''+card.id+'\','+i+')"></i></span>';}).join('');
-  var clarifyHtml=(card.clarifyChain||[]).map(function(c){return '<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>'+(c.ini||'REV')+'</span><span>'+(c.ts||'')+'</span></div><div class="text-xs text-slate-700 leading-relaxed">'+c.txt+'</div></div>';}).join('');
+
+  var tagsHtml=(card.tags||[]).map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono">'
+      +t+' <button type="button" class="text-slate-400 hover:text-red-500 leading-none" onclick="removeTag(\''+card.id+'\','+i+')">&times;</button></span>';
+  }).join('');
+
+  var clarifyHtml=(card.clarifyChain||[]).map(function(c){
+    return '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+      +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
+      +'<span>'+(c.ini||'?')+'</span><span>'+(c.ts||'')+'</span></div>'
+      +'<div class="text-xs text-slate-700 leading-snug">'+c.txt+'</div>'
+      +'</div>';
+  }).join('');
+
   var backTxt=(card.backtranslate&&card.backtranslate.resultText)||'';
   var verdict=(card.backtranslate&&card.backtranslate.verdict)||'pending';
-  var tagOpen=appState.openDrawers['tags-'+card.id];
-  var clarifyOpen=appState.openDrawers['clarify-'+card.id];
+  var tagOpen=!!appState.openDrawers['tags-'+card.id];
+  var clarifyOpen=!!appState.openDrawers['clarify-'+card.id];
+
+  // TTS button inline after text, small
+  var ttsBtn=function(getterExpr,lang){
+    return '<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5" onclick="playTTS('+getterExpr+',\''+lang+'\')"><i data-lucide="volume-2" class="w-3 h-3"></i></button>';
+  };
 
   return '<div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" data-status="'+verdict+'" id="card-'+card.id+'">'
-    // Row 1: source | target side-by-side, TTS underneath each
-    +'<div class="flex border-b border-slate-100 bg-white">'
-      +'<div class="w-1/2 min-w-0 p-3 flex flex-col gap-2 border-r border-slate-100">'
-        +'<textarea class="pb-input font-medium text-slate-800 text-sm" id="src-'+card.id+'" rows="1" oninput="autoResize(this)" onkeydown="handleSourceEnter(event,\''+card.id+'\')">'+(card.source||'')+'</textarea>'
-        +'<button class="self-start p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded" onclick="playTTS(document.getElementById(\'src-'+card.id+'\').value,\''+appState.langPair.source+'\')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>'
+
+    // Row 1: Source | Target side-by-side, TTS inline at end of each text
+    +'<div class="flex border-b border-slate-100">'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start border-r border-slate-100">'
+        +'<textarea class="pb-input font-medium text-slate-800 text-sm flex-1" id="src-'+card.id+'" rows="1" oninput="autoResize(this)" onkeydown="handleSourceEnter(event,\''+card.id+'\')">'+(card.source||'')+'</textarea>'
+        +ttsBtn('document.getElementById(\'src-'+card.id+'\').value','\''+appState.langPair.source+'\'')
       +'</div>'
-      +'<div class="w-1/2 min-w-0 p-3 flex flex-col gap-2 bg-slate-50/50">'
-        +'<div class="pb-input font-medium text-teal-700 text-sm" id="tgt-'+card.id+'">'+(card.target||'...')+'</div>'
-        +'<button class="self-start p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded" onclick="playTTS(document.getElementById(\'tgt-'+card.id+'\').innerText,\''+appState.langPair.target+'\')"><i data-lucide="volume-2" class="w-4 h-4"></i></button>'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
+        +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+card.id+'">'+(card.target||'...')+'</div>'
+        +ttsBtn('document.getElementById(\'tgt-'+card.id+'\').innerText','\''+appState.langPair.target+'\'')
       +'</div>'
     +'</div>'
-    // Row 2: back-translate full width + TTS underneath
-    +'<div class="p-3 border-b border-slate-100 bg-white flex flex-col gap-2">'
-      +'<div class="pb-input italic text-slate-600 text-sm" id="bck-'+card.id+'">'+(backTxt||'...')+'</div>'
-      +'<button class="self-start p-1 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded" onclick="playTTS(document.getElementById(\'bck-'+card.id+'\').innerText,\''+appState.langPair.source+'\')"><i data-lucide="volume-1" class="w-4 h-4"></i></button>'
+
+    // Row 2: Back-translate full width, TTS inline at end
+    +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
+      +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+card.id+'">'+(backTxt||'...')+'</div>'
+      +ttsBtn('document.getElementById(\'bck-'+card.id+'\').innerText','\''+appState.langPair.source+'\'')
     +'</div>'
-    // Row 3: verdict buttons
-    +'<div class="flex gap-2 p-3 border-b border-slate-100 bg-slate-50/50">'
+
+    // Row 3: Verdict buttons
+    +'<div class="flex gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50">'
       +'<input type="radio" name="v-'+card.id+'" id="vg-'+card.id+'" class="verdict-radio radio-good" value="good" '+(verdict==='good'?'checked':'')+' onchange="handleVerdict(\''+card.id+'\',\'good\')">'
-      +'<label for="vg-'+card.id+'" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-4 h-4 mr-1.5"></i>Sounds Good</label>'
+      +'<label for="vg-'+card.id+'" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 mr-1"></i>Sounds Good</label>'
       +'<input type="radio" name="v-'+card.id+'" id="vf-'+card.id+'" class="verdict-radio radio-flag" value="flag" '+(verdict==='flag'?'checked':'')+' onchange="handleVerdict(\''+card.id+'\',\'flag\')">'
-      +'<label for="vf-'+card.id+'" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-4 h-4 mr-1.5"></i>Flag</label>'
+      +'<label for="vf-'+card.id+'" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-3.5 h-3.5 mr-1"></i>Flag</label>'
     +'</div>'
-    // Row 4: footer icons
-    +'<div class="grid grid-cols-3 bg-slate-50 divide-x divide-slate-200">'
-      +'<button class="py-2.5 flex justify-center items-center '+(tagOpen?'text-teal-600 bg-teal-50':'text-slate-500 hover:text-teal-600 hover:bg-slate-100')+'" onclick="toggleDrawer(\''+card.id+'\',\'tags\')"><i data-lucide="hash" class="w-4 h-4"></i></button>'
-      +'<button class="py-2.5 flex justify-center items-center '+(clarifyOpen?'text-teal-600 bg-teal-50':'text-slate-500 hover:text-teal-600 hover:bg-slate-100')+'" onclick="toggleDrawer(\''+card.id+'\',\'clarify\')"><i data-lucide="message-square" class="w-4 h-4"></i></button>'
-      +'<button class="py-2.5 flex justify-center items-center text-slate-500 hover:text-red-600 hover:bg-red-50" onclick="softDeletePhrase(\''+card.id+'\')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>'
+
+    // Row 4: Footer icons — compact
+    +'<div class="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50">'
+      +'<button type="button" class="py-1.5 flex justify-center items-center '+(tagOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'" onclick="toggleDrawer(\''+card.id+'\',\'tags\')"><i data-lucide="hash" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" class="py-1.5 flex justify-center items-center '+(clarifyOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'" onclick="toggleDrawer(\''+card.id+'\',\'clarify\')"><i data-lucide="message-square" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50" onclick="softDeletePhrase(\''+card.id+'\')"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
     +'</div>'
-    +'<div id="drawer-tags-'+card.id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 p-3 border-t border-slate-100">'
-      +'<div class="flex flex-wrap gap-1 mb-2" id="tags-container-'+card.id+'">'+tagsHtml+'</div>'
-      +'<input type="text" list="all-tags" id="in-tags-'+card.id+'" class="w-full bg-white border border-slate-200 rounded p-2 text-xs font-mono outline-none focus:border-teal-500" placeholder="Type tag, comma split + Enter" onkeydown="addTag(event,\''+card.id+'\')">'
+
+    // Tag drawer — surgical show/hide via JS, NOT re-render
+    +'<div id="drawer-tags-'+card.id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+card.id+'">'+tagsHtml+'</div>'
+      +'<input type="text" autocomplete="off" list="all-tags" id="in-tags-'+card.id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500"'
+        +' placeholder="Type tag + Enter (autocomplete enabled)"'
+        +' oninput="filterTagSuggestions(\''+card.id+'\',this.value)"'
+        +' onkeydown="addTag(event,\''+card.id+'\')">'
+      +'<div id="tag-suggestions-'+card.id+'" class="flex flex-wrap gap-1 mt-1"></div>'
     +'</div>'
-    +'<div id="drawer-clarify-'+card.id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 p-3 border-t border-slate-100">'
+
+    // Clarify drawer
+    +'<div id="drawer-clarify-'+card.id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
       +'<div id="clarify-container-'+card.id+'">'+clarifyHtml+'</div>'
-      +'<textarea rows="1" id="in-clarify-'+card.id+'" class="w-full bg-white border border-slate-200 rounded p-2 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden" oninput="autoResize(this)" onkeydown="addClarify(event,\''+card.id+'\')" placeholder="Add note and press Enter..."></textarea>'
+      +'<textarea rows="1" id="in-clarify-'+card.id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
+        +' oninput="autoResize(this)"'
+        +' onkeydown="addClarify(event,\''+card.id+'\')"'
+        +' placeholder="Add note + Enter to log..."></textarea>'
     +'</div>'
+
   +'</div>';
+}
+
+// Toggle drawer without full re-render — purely surgical DOM show/hide
+function toggleDrawer(id,type){
+  var key=type+'-'+id;
+  var was=!!appState.openDrawers[key];
+  appState.openDrawers[key]=!was;
+  var drawer=document.getElementById('drawer-'+type+'-'+id);
+  if(!drawer)return;
+  drawer.classList.toggle('hidden',was);
+  // Update footer button highlight
+  var card=document.getElementById('card-'+id);
+  if(card){
+    var btns=card.querySelectorAll('.grid.grid-cols-3 button');
+    var idx=type==='tags'?0:type==='clarify'?1:2;
+    if(btns[idx]){
+      if(!was){btns[idx].classList.remove('text-slate-400','hover:text-teal-600','hover:bg-slate-100');btns[idx].classList.add('text-teal-600','bg-teal-50');}
+      else{btns[idx].classList.add('text-slate-400','hover:text-teal-600','hover:bg-slate-100');btns[idx].classList.remove('text-teal-600','bg-teal-50');}
+    }
+  }
+  if(!was){
+    var input=document.getElementById('in-'+type+'-'+id);
+    if(input)setTimeout(function(){input.focus();},30);
+  }
 }
 
 function renderAll(){
@@ -729,17 +788,31 @@ function renderAll(){
 }
 
 function getCard(id){return appState.pbData.cards.find(function(c){return String(c.id)===String(id);});}
-function toggleDrawer(id,type){
-  var key=type+'-'+id;
-  appState.openDrawers[key]=!appState.openDrawers[key];
-  renderAll();
-  if(appState.openDrawers[key]){
-    var input=document.getElementById('in-'+type+'-'+id);
-    if(input)input.focus();
-  }
-}
 
-// --- Tags / Clarify ---
+// Tag suggestion chips below the input (does NOT use datalist — more reliable on mobile)
+function filterTagSuggestions(id,val){
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(!box)return;
+  var q=(val||'').trim().toLowerCase();
+  if(!q){box.innerHTML='';return;}
+  var existing=(getCard(id)||{}).tags||[];
+  var matches=Array.from(appState.uniqueTags).filter(function(t){
+    return t.toLowerCase().indexOf(q)>=0&&existing.indexOf(t)<0;
+  }).slice(0,8);
+  box.innerHTML=matches.map(function(t){
+    return '<button type="button" class="text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300" onclick="pickTagSuggestion(\''+id+'\',\''+t+'\')">'+t+'</button>';
+  }).join('');
+}
+function pickTagSuggestion(id,tag){
+  var input=document.getElementById('in-tags-'+id);
+  if(input){input.value=tag;input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));}
+}
+function renderTagChips(id,tags){
+  return tags.map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono">'
+      +t+' <button type="button" class="text-slate-400 hover:text-red-500 leading-none" onclick="removeTag(\''+id+'\','+i+')">&times;</button></span>';
+  }).join('');
+}
 function addTag(e,id){
   if(e.key!=='Enter')return;
   e.preventDefault();e.stopPropagation();
@@ -750,16 +823,16 @@ function addTag(e,id){
   newTags.forEach(function(t){appState.uniqueTags.add(t);});
   c.updatedAt=Date.now();
   e.target.value='';
-  document.getElementById('tags-container-'+id).innerHTML=c.tags.map(function(t,i){return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">'+t+' <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag(\''+id+'\','+i+')"></i></span>';}).join('');
-  if(window.lucide)lucide.createIcons();
+  var box=document.getElementById('tag-suggestions-'+id);if(box)box.innerHTML='';
+  document.getElementById('tags-container-'+id).innerHTML=renderTagChips(id,c.tags);
   refreshDatalist();
   triggerDebouncedSave();
   e.target.focus();
 }
 function removeTag(id,idx){
   var c=getCard(id);c.tags.splice(idx,1);
-  document.getElementById('tags-container-'+id).innerHTML=c.tags.map(function(t,i){return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-2 py-1 rounded text-[11px] font-mono">'+t+' <i data-lucide="x" class="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onclick="removeTag(\''+id+'\','+i+')"></i></span>';}).join('');
-  if(window.lucide)lucide.createIcons();
+  c.updatedAt=Date.now();
+  document.getElementById('tags-container-'+id).innerHTML=renderTagChips(id,c.tags);
   triggerDebouncedSave();
 }
 function addClarify(e,id){
@@ -772,7 +845,10 @@ function addClarify(e,id){
   c.clarifyChain.push(log);
   c.updatedAt=Date.now();
   e.target.value='';
-  document.getElementById('clarify-container-'+id).insertAdjacentHTML('beforeend','<div class="bg-white border border-slate-200 p-2.5 rounded-lg mb-2"><div class="flex justify-between text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-wide"><span>'+log.ini+'</span><span>'+log.ts+'</span></div><div class="text-xs text-slate-700 leading-relaxed">'+log.txt+'</div></div>');
+  document.getElementById('clarify-container-'+id).insertAdjacentHTML('beforeend',
+    '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+    +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+log.ini+'</span><span>'+log.ts+'</span></div>'
+    +'<div class="text-xs text-slate-700 leading-snug">'+log.txt+'</div></div>');
   triggerDebouncedSave();
   e.target.focus();
 }
