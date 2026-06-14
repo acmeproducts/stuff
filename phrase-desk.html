@@ -36,6 +36,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>TalkBridge Curation Desk</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
@@ -818,6 +821,7 @@ function generateCardHTML(card,isDeleted){
         +' oninput="onTagInput(this)"'
         +' onkeydown="onTagKeydown(event,this)">'
       +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
+      +'<div id="tag-debug-'+id+'" class="text-[10px] text-slate-400 mt-1 font-mono break-all"></div>'
     +'</div>'
 
     // Clarify drawer
@@ -918,9 +922,15 @@ function renderTagChips(id,tags){
   }).join('');
 }
 
+function tagDebug(id,msg){
+  var el=document.getElementById('tag-debug-'+id);
+  if(el)el.textContent=msg;
+}
 function onTagInput(el){
   var id=el.getAttribute('data-cardid');
   var val=el.value;
+  var c=getCard(id);
+  tagDebug(id,'id='+id.slice(0,12)+' cards='+appState.pbData.cards.length+' card='+(c?'FOUND':'NULL'));
   var box=document.getElementById('tag-suggestions-'+id);
   if(!box)return;
   var q=(val||'').trim().toLowerCase();
@@ -946,11 +956,19 @@ function onTagKeydown(e,el){
   if(e.key!=='Enter')return;
   e.preventDefault();
   e.stopPropagation();
-  // Guard: only act if this input is actually the active element
-  if(document.activeElement!==el)return;
   var id=el.getAttribute('data-cardid');
+  var c=getCard(id);
+  if(document.activeElement!==el){
+    tagDebug(id,'ENTER: activeElement mismatch — not our input');
+    return;
+  }
+  if(!c){
+    tagDebug(id,'ENTER: getCard NULL — id='+id.slice(0,12)+' cards='+appState.pbData.cards.length);
+    return;
+  }
   var val=el.value.trim();
-  if(!val)return;
+  if(!val){tagDebug(id,'ENTER: empty value');return;}
+  tagDebug(id,'ENTER: committing "'+val+'"');
   val.split(',').forEach(function(part){
     var t=part.trim();
     if(t)commitTag(id,t);
