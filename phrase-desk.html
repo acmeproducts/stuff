@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.6-2026-06-13
+<!-- TalkBridge Curation Desk-v9.8-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -31,6 +31,26 @@
      - File picker now strict-direction only (src→tgt), no reverse match
      - Job dedup now handles old records missing owner/repo fields
      - Job stats now written on load (not only on successful GitHub save)
+
+     v9.8 fixes:
+     - ROOT FIX: replaced innerHTML+post-wire hybrid with generateCardEl() which
+       returns a real DOM element. All tag input and clarify textarea events are
+       wired directly via addEventListener during element construction — no inline
+       attrs, no post-render wiring loop, no _wired flag. Identical pattern to
+       kanban.html which works correctly on mobile.
+     - Source textarea also wired via addEventListener in generateCardEl.
+       el.blur() removed from handleSourceEnter (spec 4.3.2: no focus loss).
+     - Drawer state from appState.openDrawers still drives hidden/visible class
+       on render — drawer never self-closes.
+
+     v9.8 fixes:
+     - SSOT audit performed (spec 3.3.3, 3.3.4, 4.3.2)
+     - Tag Enter no longer jumps focus to next card source textarea:
+       stopImmediatePropagation() added to wireTagInput keydown handler;
+       inp.focus() deferred 60ms to survive iOS/Android layout reflow
+     - commitTagFromEl path also deferred focus 60ms
+     - handleSourceEnter: added stopPropagation/stopImmediatePropagation so
+       source Enter cannot bubble and trigger other card handlers
 
      v9.6 fixes:
      - GitHub rate limit mitigation: debounce extended from 2500ms to 8000ms,
@@ -194,7 +214,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.6</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.8</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -254,7 +274,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.6 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.8 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -620,7 +640,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.6</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.8</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -887,6 +907,189 @@ function toggleDrawer(id,type){
   }
 }
 
+// generateCardEl — returns a real DOM element with addEventListener wiring.
+// Replaces the innerHTML+post-wire approach which is unreliable on mobile iOS/Android.
+function generateCardEl(card){
+  var id=card.id;
+  var backTxt=(card.backtranslate&&card.backtranslate.resultText)||'';
+  var verdict=(card.backtranslate&&card.backtranslate.verdict)||'pending';
+  var tagOpen=!!appState.openDrawers['tags-'+id];
+  var clarifyOpen=!!appState.openDrawers['clarify-'+id];
+  var srcLang=appState.langPair.source;
+  var tgtLang=appState.langPair.target;
+
+  // Build outer card div via innerHTML for static structure, then wire inputs
+  var wrap=document.createElement('div');
+  wrap.className='pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden';
+  wrap.setAttribute('data-status',verdict);
+  wrap.setAttribute('data-cardid',id);
+  wrap.id='card-'+id;
+
+  wrap.innerHTML=
+    // Row 1
+    '<div class="flex border-b border-slate-100">'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start border-r border-slate-100">'
+        +'<textarea class="pb-input font-medium text-slate-800 text-sm flex-1" id="src-'+id+'" data-cardid="'+id+'" rows="1"></textarea>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
+        +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+id+'">'+(card.target||'...')+'</div>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" onclick="ttsBtnClick(this)">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+    +'</div>'
+    // Row 2
+    +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
+      +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+id+'">'+(backTxt||'...')+'</div>'
+      +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+        +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+    +'</div>'
+    // Row 3
+    +'<div class="flex gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50" data-cardid="'+id+'">'
+      +'<input type="radio" name="v-'+id+'" id="vg-'+id+'" class="verdict-radio radio-good" value="good" '+(verdict==='good'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vg-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 mr-1"></i>Sounds Good</label>'
+      +'<input type="radio" name="v-'+id+'" id="vf-'+id+'" class="verdict-radio radio-flag" value="flag" '+(verdict==='flag'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vf-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-3.5 h-3.5 mr-1"></i>Flag</label>'
+    +'</div>'
+    // Row 4 footer
+    +'<div class="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50" data-cardid="'+id+'">'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="tags"'
+        +' class="py-1.5 flex justify-center items-center '+(tagOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' data-action="toggle-drawer"><i data-lucide="hash" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="clarify"'
+        +' class="py-1.5 flex justify-center items-center '+(clarifyOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' data-action="toggle-drawer"><i data-lucide="message-square" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'"'
+        +' class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50"'
+        +' data-action="soft-delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
+    +'</div>'
+    // Tag drawer shell (input wired below via addEventListener)
+    +'<div id="drawer-tags-'+id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+id+'"></div>'
+      +'<div class="relative" id="tag-input-wrap-'+id+'">'
+        +'<input type="text" autocomplete="off" id="in-tags-'+id+'" data-cardid="'+id+'"'
+          +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500"'
+          +' placeholder="Type tag + Enter to add">'
+        +'<button type="button" id="tag-clear-'+id+'"'
+          +' class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold">&times;</button>'
+      +'</div>'
+      +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
+      +'<div id="tag-debug-'+id+'" class="text-[10px] text-slate-400 mt-1 font-mono break-all"></div>'
+    +'</div>'
+    // Clarify drawer shell (textarea wired below via addEventListener)
+    +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div id="clarify-container-'+id+'"></div>'
+      +'<textarea rows="1" id="in-clarify-'+id+'" data-cardid="'+id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
+        +' placeholder="Add note + Enter to log..."></textarea>'
+    +'</div>';
+
+  // Populate source textarea value (not in innerHTML to avoid encoding issues)
+  var srcTA=wrap.querySelector('#src-'+id);
+  if(srcTA){
+    srcTA.value=card.source||'';
+    srcTA.addEventListener('input',function(){autoResize(srcTA);});
+    srcTA.addEventListener('keydown',function(e){
+      if(!(e.key==='Enter'&&!e.shiftKey))return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      handleSourceEnter(e,srcTA);
+    });
+  }
+
+  // Populate tags
+  var tagsCont=wrap.querySelector('#tags-container-'+id);
+  if(tagsCont) tagsCont.innerHTML=renderTagChips(id,card.tags||[]);
+
+  // Wire tag input — pure addEventListener, no inline attrs
+  var tagInp=wrap.querySelector('#in-tags-'+id);
+  if(tagInp){
+    tagInp.addEventListener('input',function(){ onTagInput(tagInp); });
+    tagInp.addEventListener('keydown',function(e){
+      if(e.key!=='Enter') return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      var val=tagInp.value.trim();
+      if(val){
+        val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
+      } else {
+        var box=document.getElementById('tag-suggestions-'+id);
+        var btns=box?box.querySelectorAll('button'):[];
+        if(btns.length===1){ commitTagFromEl(btns[0]); }
+      }
+      if(wrap._stampCommit) wrap._stampCommit();
+      setTimeout(function(){ tagInp.focus(); },60);
+    });
+  }
+
+  // Wire × clear button
+  var clrBtn=wrap.querySelector('#tag-clear-'+id);
+  if(clrBtn){
+    clrBtn.addEventListener('mousedown',function(e){ e.preventDefault(); });
+    clrBtn.addEventListener('click',function(){ clearTagInput(id); });
+  }
+
+  // Populate clarify chain
+  var clarifyCont=wrap.querySelector('#clarify-container-'+id);
+  if(clarifyCont){
+    clarifyCont.innerHTML=(card.clarifyChain||[]).map(function(c){
+      return '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+        +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
+        +'<span>'+(c.ini||'?')+'</span><span>'+(c.ts||'')+'</span></div>'
+        +'<div class="text-xs text-slate-700 leading-snug">'+c.txt+'</div></div>';
+    }).join('');
+  }
+
+  // Wire clarify textarea — pure addEventListener
+  var clarTA=wrap.querySelector('#in-clarify-'+id);
+  if(clarTA){
+    clarTA.addEventListener('input',function(){ autoResize(clarTA); });
+    clarTA.addEventListener('keydown',function(e){
+      if(!(e.key==='Enter'&&!e.shiftKey)) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      var txt=clarTA.value.trim(); if(!txt) return;
+      var c=getCard(id); if(!c) return;
+      if(!c.clarifyChain) c.clarifyChain=[];
+      var ini=appState.config.initials||'?';
+      var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
+      c.updatedAt=Date.now();
+      var cont=document.getElementById('clarify-container-'+id);
+      if(cont){
+        var entry=document.createElement('div');
+        entry.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
+        entry.innerHTML='<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+ini+'</span><span>'+ts+'</span></div>'
+          +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div>';
+        cont.appendChild(entry);
+      }
+      clarTA.value=''; autoResize(clarTA);
+      if(wrap._stampCommit) wrap._stampCommit();
+      setTimeout(function(){ clarTA.focus(); },60);
+      triggerDebouncedSave();
+    });
+  }
+
+  // Wire footer buttons via addEventListener with ghost-tap guard (300ms cooldown after keyboard commit)
+  var lastCommitAt=0;
+  function guardedToggle(btn){
+    if(Date.now()-lastCommitAt<300){ return; }
+    toggleDrawerEl(btn);
+  }
+  wrap.querySelectorAll('[data-action="toggle-drawer"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); guardedToggle(btn); });
+  });
+  wrap.querySelectorAll('[data-action="soft-delete"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); softDeletePhrase(cardId(btn)); });
+  });
+  // Expose lastCommitAt setter so tag/clarify commit can stamp it
+  wrap._stampCommit=function(){ lastCommitAt=Date.now(); };
+
+  return wrap;
+}
+
+
 function renderAll(){
   var aCont=document.getElementById('cards-container');
   var dCont=document.getElementById('deleted-container');
@@ -896,12 +1099,8 @@ function renderAll(){
     if(c.deletedAt){dCont.insertAdjacentHTML('beforeend',generateCardHTML(c,true));return;}
     var verdict=(c.backtranslate&&c.backtranslate.verdict)||'pending';
     var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
-    if(matchesFilter&&matchesSearch(c)){anyVisible=true;aCont.insertAdjacentHTML('beforeend',generateCardHTML(c,false));}
+    if(matchesFilter&&matchesSearch(c)){anyVisible=true;aCont.appendChild(generateCardEl(c));}
   });
-  // Wire tag/clarify inputs via addEventListener — inline oninput/onkeydown attrs
-  // are unreliable on mobile iOS/Android for dynamically injected HTML (kanban.html pattern)
-  document.querySelectorAll('[id^="in-tags-"]').forEach(function(inp){wireTagInput(inp);});
-  document.querySelectorAll('[id^="in-clarify-"]').forEach(function(ta){wireClarifyInput(ta);});
   if(window.lucide)lucide.createIcons();
   setTimeout(function(){document.querySelectorAll('textarea').forEach(function(el){autoResize(el);});},0);
   updateStats();
@@ -954,7 +1153,7 @@ function renderTagChips(id,tags){
 
 function clearTagInput(id){
   var inp=document.getElementById('in-tags-'+id);
-  if(inp){inp.value='';inp.focus();}
+  if(inp){inp.value='';setTimeout(function(){inp.focus();},60);}
   var box=document.getElementById('tag-suggestions-'+id);
   if(box)box.innerHTML='';
   tagDebug(id,'');
@@ -974,7 +1173,7 @@ function wireTagInput(inp){
   inp.addEventListener('input', function(){ onTagInput(inp); });
   inp.addEventListener('keydown', function(e){
     if(e.key!=='Enter') return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     var id=inp.getAttribute('data-cardid');
     var c=getCard(id);
     if(!c){ tagDebug(id,'ENTER: card not found'); return; }
@@ -986,6 +1185,8 @@ function wireTagInput(inp){
       var btns=box?box.querySelectorAll('button'):[];
       if(btns.length===1){ commitTagFromEl(btns[0]); tagDebug(id,'ENTER: auto sole suggestion'); }
     }
+    // Deferred focus — prevents iOS/Android layout reflow from stealing focus back to source textarea
+    setTimeout(function(){ inp.focus(); }, 60);
   });
   // Wire the × clear button in same wrapper
   var wrap=inp.parentNode;
@@ -1132,7 +1333,7 @@ function commitTag(id,tag){
   if(container)container.innerHTML=renderTagChips(id,c.tags);
   // clear input + suggestions
   var inp=document.getElementById('in-tags-'+id);
-  if(inp){inp.value='';inp.focus();}
+  if(inp){inp.value='';setTimeout(function(){inp.focus();},60);}
   var box=document.getElementById('tag-suggestions-'+id);
   if(box)box.innerHTML='';
   refreshDatalist();
@@ -1230,11 +1431,10 @@ function applyBulkTag(){
 
 // --- Translation pipeline ---
 async function handleSourceEnter(e,el){
-  if(!(e.key==='Enter'&&!e.shiftKey))return;
-  e.preventDefault();
+  // Called from generateCardEl's keydown handler which already checked Enter+stopPropagation
   var id=el.getAttribute('data-cardid');
   var v=el.value.trim();
-  el.blur();
+  // Do not blur — spec 4.3.2: no scroll/focus loss on Enter
   var c=getCard(id);
   if(!v)return;
 
