@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.8-2026-06-13
+<!-- TalkBridge Curation Desk-v9.10-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -32,6 +32,18 @@
      - Job dedup now handles old records missing owner/repo fields
      - Job stats now written on load (not only on successful GitHub save)
 
+     v9.10 fixes:
+     - Tag input now built entirely via createElement (not innerHTML+wire)
+       This is the kanban.html pattern — guarantees keydown/keyup fire on
+       mobile iOS/Android. Added keyup as IME fallback. Added enterkeyhint="done".
+       Drawer shell also createElement so the element exists before event binding.
+
+     v9.9 fixes:
+     - Tag Enter focus: removed 60ms setTimeout deferral — synchronous focus()
+       prevents keyboard dismissal and eliminates cursor jump to next card source
+     - commitTag: also synchronous focus (was deferred 60ms unnecessarily)
+     - Added tagDebug logging to generateCardEl keydown for diagnostics
+
      v9.8 fixes:
      - ROOT FIX: replaced innerHTML+post-wire hybrid with generateCardEl() which
        returns a real DOM element. All tag input and clarify textarea events are
@@ -42,6 +54,18 @@
        el.blur() removed from handleSourceEnter (spec 4.3.2: no focus loss).
      - Drawer state from appState.openDrawers still drives hidden/visible class
        on render — drawer never self-closes.
+
+     v9.10 fixes:
+     - Tag input now built entirely via createElement (not innerHTML+wire)
+       This is the kanban.html pattern — guarantees keydown/keyup fire on
+       mobile iOS/Android. Added keyup as IME fallback. Added enterkeyhint="done".
+       Drawer shell also createElement so the element exists before event binding.
+
+     v9.9 fixes:
+     - Tag Enter focus: removed 60ms setTimeout deferral — synchronous focus()
+       prevents keyboard dismissal and eliminates cursor jump to next card source
+     - commitTag: also synchronous focus (was deferred 60ms unnecessarily)
+     - Added tagDebug logging to generateCardEl keydown for diagnostics
 
      v9.8 fixes:
      - SSOT audit performed (spec 3.3.3, 3.3.4, 4.3.2)
@@ -214,7 +238,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.8</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.10</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -274,7 +298,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.8 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.10 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -640,7 +664,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.8</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.10</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -967,19 +991,6 @@ function generateCardEl(card){
         +' class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50"'
         +' data-action="soft-delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
     +'</div>'
-    // Tag drawer shell (input wired below via addEventListener)
-    +'<div id="drawer-tags-'+id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
-      +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+id+'"></div>'
-      +'<div class="relative" id="tag-input-wrap-'+id+'">'
-        +'<input type="text" autocomplete="off" id="in-tags-'+id+'" data-cardid="'+id+'"'
-          +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500"'
-          +' placeholder="Type tag + Enter to add">'
-        +'<button type="button" id="tag-clear-'+id+'"'
-          +' class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold">&times;</button>'
-      +'</div>'
-      +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
-      +'<div id="tag-debug-'+id+'" class="text-[10px] text-slate-400 mt-1 font-mono break-all"></div>'
-    +'</div>'
     // Clarify drawer shell (textarea wired below via addEventListener)
     +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
       +'<div id="clarify-container-'+id+'"></div>'
@@ -1000,36 +1011,83 @@ function generateCardEl(card){
     });
   }
 
-  // Populate tags
-  var tagsCont=wrap.querySelector('#tags-container-'+id);
-  if(tagsCont) tagsCont.innerHTML=renderTagChips(id,card.tags||[]);
+  // Build tag drawer entirely via createElement (not innerHTML) — guarantees keydown fires on mobile
+  (function(){
+    var tagDrawer=document.createElement('div');
+    tagDrawer.id='drawer-tags-'+id;
+    tagDrawer.className=(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100';
 
-  // Wire tag input — pure addEventListener, no inline attrs
-  var tagInp=wrap.querySelector('#in-tags-'+id);
-  if(tagInp){
+    var tagsCont=document.createElement('div');
+    tagsCont.id='tags-container-'+id;
+    tagsCont.className='flex flex-wrap gap-1 mb-1.5';
+    tagsCont.innerHTML=renderTagChips(id,card.tags||[]);
+
+    var inputWrap=document.createElement('div');
+    inputWrap.className='relative';
+
+    var tagInp=document.createElement('input');
+    tagInp.type='text';
+    tagInp.autocomplete='off';
+    tagInp.id='in-tags-'+id;
+    tagInp.setAttribute('data-cardid',id);
+    tagInp.setAttribute('enterkeyhint','done');
+    tagInp.className='w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500';
+    tagInp.placeholder='Type tag + Enter to add';
+
+    var clrBtn=document.createElement('button');
+    clrBtn.type='button';
+    clrBtn.id='tag-clear-'+id;
+    clrBtn.className='absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold';
+    clrBtn.textContent='×';
+
+    var sugBox=document.createElement('div');
+    sugBox.id='tag-suggestions-'+id;
+    sugBox.className='flex flex-wrap gap-1 mt-1.5';
+
+    var dbg=document.createElement('div');
+    dbg.id='tag-debug-'+id;
+    dbg.className='text-[10px] text-slate-400 mt-1 font-mono break-all';
+
+    function doCommit(){
+      var val=tagInp.value.trim();
+      if(val){
+        tagDebug(id,'ENTER: committing "'+val+'"');
+        val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
+      } else {
+        var btns=sugBox.querySelectorAll('button');
+        if(btns.length===1){ tagDebug(id,'ENTER: auto sole suggestion'); commitTagFromEl(btns[0]); }
+        else { tagDebug(id,'ENTER: empty, '+btns.length+' suggestions'); }
+      }
+      if(wrap._stampCommit) wrap._stampCommit();
+      tagInp.focus();
+    }
+
     tagInp.addEventListener('input',function(){ onTagInput(tagInp); });
     tagInp.addEventListener('keydown',function(e){
       if(e.key!=='Enter') return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-      var val=tagInp.value.trim();
-      if(val){
-        val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
-      } else {
-        var box=document.getElementById('tag-suggestions-'+id);
-        var btns=box?box.querySelectorAll('button'):[];
-        if(btns.length===1){ commitTagFromEl(btns[0]); }
-      }
-      if(wrap._stampCommit) wrap._stampCommit();
-      setTimeout(function(){ tagInp.focus(); },60);
+      doCommit();
     });
-  }
-
-  // Wire × clear button
-  var clrBtn=wrap.querySelector('#tag-clear-'+id);
-  if(clrBtn){
+    tagInp.addEventListener('keyup',function(e){
+      // fallback for mobile IME where keydown may not fire
+      if(e.key!=='Enter') return;
+      if(tagInp.value.trim()==='' && sugBox.querySelectorAll('button').length===0) return; // already committed
+      doCommit();
+    });
     clrBtn.addEventListener('mousedown',function(e){ e.preventDefault(); });
     clrBtn.addEventListener('click',function(){ clearTagInput(id); });
-  }
+
+    inputWrap.appendChild(tagInp);
+    inputWrap.appendChild(clrBtn);
+    tagDrawer.appendChild(tagsCont);
+    tagDrawer.appendChild(inputWrap);
+    tagDrawer.appendChild(sugBox);
+    tagDrawer.appendChild(dbg);
+    // Insert before clarify drawer so order is: footer → tags → clarify
+    var clarifyDrawer=wrap.querySelector('#drawer-clarify-'+id);
+    if(clarifyDrawer){ wrap.insertBefore(tagDrawer, clarifyDrawer); }
+    else { wrap.appendChild(tagDrawer); }
+  })();
 
   // Populate clarify chain
   var clarifyCont=wrap.querySelector('#clarify-container-'+id);
@@ -1153,7 +1211,7 @@ function renderTagChips(id,tags){
 
 function clearTagInput(id){
   var inp=document.getElementById('in-tags-'+id);
-  if(inp){inp.value='';setTimeout(function(){inp.focus();},60);}
+  if(inp){inp.value='';inp.focus();}
   var box=document.getElementById('tag-suggestions-'+id);
   if(box)box.innerHTML='';
   tagDebug(id,'');
@@ -1333,7 +1391,7 @@ function commitTag(id,tag){
   if(container)container.innerHTML=renderTagChips(id,c.tags);
   // clear input + suggestions
   var inp=document.getElementById('in-tags-'+id);
-  if(inp){inp.value='';setTimeout(function(){inp.focus();},60);}
+  if(inp){inp.value='';inp.focus();}
   var box=document.getElementById('tag-suggestions-'+id);
   if(box)box.innerHTML='';
   refreshDatalist();
