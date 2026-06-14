@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.12-2026-06-13
+<!-- TalkBridge Curation Desk-v9.15-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -252,7 +252,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.12</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.15</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -314,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.12 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.15 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -680,7 +680,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.12</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.15</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -768,7 +768,7 @@ function clearSearch(){
 function matchesSearch(c){
   if(!appState.searchQuery)return true;
   var terms=appState.searchQuery.toLowerCase().split(/\s+/);
-  var blob=[c.source,c.target,(c.backtranslate&&c.backtranslate.resultText)||'',...(c.tags||[]),...(c.clarifyChain||[]).map(function(l){return l.txt;})].join(' ').toLowerCase();
+  var blob=[c.source,c.target,(c.backtranslate&&c.backtranslate.resultText)||'',...(c.tags||[]),...(c.clarifyChain||[]).map(function(l){return (l.txt||'')+' '+(l.ts||'');})].join(' ').toLowerCase();
   for(var i=0;i<terms.length;i++){
     var term=terms[i];if(!term)continue;
     if(term.startsWith('-')){
@@ -926,7 +926,7 @@ function generateCardHTML(card,isDeleted){
 
     // Clarify drawer
     +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
-      +'<div id="clarify-container-'+id+'">'+clarifyHtml+'</div>'
+      +'<div id="clarify-container-'+id+'" class="max-h-40 overflow-y-auto">'+clarifyHtml+'</div>'
       +'<textarea rows="1" id="in-clarify-'+id+'" data-cardid="'+id+'"'
         +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
         +' oninput="autoResize(this)"'
@@ -1020,7 +1020,7 @@ function generateCardEl(card){
     +'</div>'
     // Clarify drawer shell (textarea wired below via addEventListener)
     +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
-      +'<div id="clarify-container-'+id+'"></div>'
+      +'<div id="clarify-container-'+id+'" class="max-h-40 overflow-y-auto"></div>'
       +'<textarea rows="1" id="in-clarify-'+id+'" data-cardid="'+id+'"'
         +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
         +' placeholder="Add note + Enter to log..."></textarea>'
@@ -1138,7 +1138,7 @@ function generateCardEl(card){
       var c=getCard(id); if(!c) return;
       if(!c.clarifyChain) c.clarifyChain=[];
       var ini=appState.config.initials||'?';
-      var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      var ts=clarifyTs();
       c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
       c.updatedAt=Date.now();
       var cont=document.getElementById('clarify-container-'+id);
@@ -1312,13 +1312,13 @@ function wireClarifyInput(ta){
     if(!c) return;
     if(!c.clarifyChain) c.clarifyChain=[];
     var ini=appState.reviewerInitials||'?';
-    c.clarifyChain.push({ini:ini,ts:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),txt:txt});
+    c.clarifyChain.push({ini:ini,ts:clarifyTs(),txt:txt});
     c.updatedAt=Date.now();
     var cont=document.getElementById('clarify-container-'+id);
     if(cont){
       var entry='<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
         +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
-        +'<span>'+ini+'</span><span>'+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div>'
+        +'<span>'+ini+'</span><span>'+clarifyTs()+'</span></div>'
         +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div></div>';
       cont.insertAdjacentHTML('beforeend',entry);
     }
@@ -1407,11 +1407,15 @@ function commitTagFromEl(el){
   commitTag(id,tag);
 }
 
+function clarifyTs(){
+  var d=new Date();
+  return d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
 function addClarifyEntry(c,txt){
   if(!c)return;
   if(!c.clarifyChain)c.clarifyChain=[];
   var ini=appState.config.initials||'?';
-  var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  var ts=clarifyTs();
   c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
   // Append to DOM if clarify container is rendered
   var cont=document.getElementById('clarify-container-'+c.id);
@@ -1473,7 +1477,7 @@ function onClarifyKeydown(e,el){
   var v=el.value.trim();if(!v)return;
   var c=getCard(id);if(!c)return;
   if(!c.clarifyChain)c.clarifyChain=[];
-  var log={ini:appState.config.initials,ts:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),txt:v};
+  var log={ini:appState.config.initials,ts:clarifyTs(),txt:v};
   c.clarifyChain.push(log);
   c.updatedAt=Date.now();
   el.value='';
@@ -1519,7 +1523,7 @@ function addNewPhrase(){
   }
   var newId='pb-new-'+Math.random().toString(36).slice(2,10);
   var ini=appState.config.initials||'?';
-  var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  var ts=clarifyTs();
   appState.pbData.cards.unshift({id:newId,source:"",target:"",backtranslate:{resultText:"",verdict:"pending"},tags:[],clarifyChain:[{ini:ini,ts:ts,txt:'Created'}],createdAt:Date.now(),updatedAt:Date.now()});
   appState.currentFilter='all';filterCards('all');
   appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
@@ -1588,7 +1592,22 @@ async function handleSourceEnter(e,el){
     var em='tb_'+Math.floor(Math.random()*1000)+'@tb.com';
     var src=appState.langPair.source,tgt=appState.langPair.target;
     var resT=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(v)+'&langpair='+src+'|'+tgt+'&de='+em);
-    var tgtText=(await resT.json()).responseData.translatedText;
+    var tJson=await resT.json();
+    var tgtText=tJson.responseData.translatedText;
+    // MyMemory failure mode: returns source text unchanged when rate-limited or no match
+    if(!tgtText||tgtText.trim().toLowerCase()===v.trim().toLowerCase()||tJson.responseStatus===403){
+      tEl.innerText='[Translation failed — retry]';
+      bEl.innerText='';
+      if(!c.backtranslate)c.backtranslate={};
+      c.backtranslate.resultText='';
+      c.backtranslate.verdict='pending';
+      var cardEl=document.getElementById('card-'+id);
+      if(cardEl)cardEl.setAttribute('data-status','pending');
+      addClarifyEntry(c,'Translation failed — reset to pending');
+      updateStats();
+      triggerDebouncedSave();
+      return;
+    }
     c.target=tgtText;tEl.innerText=tgtText;
 
     var resB=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(tgtText)+'&langpair='+tgt+'|'+src+'&de='+em);
@@ -1597,7 +1616,14 @@ async function handleSourceEnter(e,el){
     c.backtranslate.resultText=bck;bEl.innerText=bck;
     triggerDebouncedSave();
   }catch(err){
-    tEl.innerText="Error";bEl.innerText="Error";
+    if(!c.backtranslate)c.backtranslate={};
+    c.backtranslate.verdict='pending';
+    var cardEl=document.getElementById('card-'+id);
+    if(cardEl)cardEl.setAttribute('data-status','pending');
+    tEl.innerText='[Translation error — retry]';bEl.innerText='';
+    addClarifyEntry(c,'Translation error: '+(err.message||'unknown')+' — reset to pending');
+    updateStats();
+    triggerDebouncedSave();
   }
 }
 
