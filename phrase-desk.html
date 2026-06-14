@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.10-2026-06-13
+<!-- TalkBridge Curation Desk-v9.11-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -32,6 +32,13 @@
      - Job dedup now handles old records missing owner/repo fields
      - Job stats now written on load (not only on successful GitHub save)
 
+     v9.11 fixes:
+     - Drawer open no longer autofocuses input (user may be reading)
+     - addClarifyEntry() helper added — all state changes now log to clarify chain:
+         phrase created, tag added, tag removed, verdict changed, source edited
+     - Omni search: datalist autocomplete from uniqueTags; match count shown after render
+     - Debug bar removed from tag drawer
+
      v9.10 fixes:
      - Tag input now built entirely via createElement (not innerHTML+wire)
        This is the kanban.html pattern — guarantees keydown/keyup fire on
@@ -54,6 +61,13 @@
        el.blur() removed from handleSourceEnter (spec 4.3.2: no focus loss).
      - Drawer state from appState.openDrawers still drives hidden/visible class
        on render — drawer never self-closes.
+
+     v9.11 fixes:
+     - Drawer open no longer autofocuses input (user may be reading)
+     - addClarifyEntry() helper added — all state changes now log to clarify chain:
+         phrase created, tag added, tag removed, verdict changed, source edited
+     - Omni search: datalist autocomplete from uniqueTags; match count shown after render
+     - Debug bar removed from tag drawer
 
      v9.10 fixes:
      - Tag input now built entirely via createElement (not innerHTML+wire)
@@ -238,13 +252,15 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.10</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.11</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
-      <input type="text" id="omni-search" oninput="runSearch()" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-8 py-2 text-xs outline-none">
+      <input type="text" id="omni-search" oninput="runSearch()" list="omni-datalist" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-8 py-2 text-xs outline-none">
       <button id="omni-clear" onclick="clearSearch()" class="hidden absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 p-0.5"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      <datalist id="omni-datalist"></datalist>
     </div>
+    <span id="search-match-count" class="hidden text-[11px] text-teal-700 font-bold whitespace-nowrap"></span>
     <div class="flex gap-2 overflow-x-auto hide-scrollbar">
       <button onclick="filterCards('all')" class="stat-chip bg-teal-50 border-teal-600 text-teal-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border" id="filter-all"><i data-lucide="layers" class="w-3.5 h-3.5"></i> All <span id="count-total">0</span></button>
       <button onclick="filterCards('pending')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50" id="filter-pending"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Pend <span id="count-pending">0</span></button>
@@ -298,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.10 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.11 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -664,7 +680,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.10</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.11</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -727,7 +743,21 @@ function updateStats(){
 function runSearch(){
   appState.searchQuery=document.getElementById('omni-search').value.trim();
   document.getElementById('omni-clear').classList.toggle('hidden',!appState.searchQuery);
+  refreshSearchDatalist();
   renderAll();
+}
+function refreshSearchDatalist(){
+  var dl=document.getElementById('omni-datalist');
+  if(!dl)return;
+  var tags=Array.from(appState.uniqueTags).sort();
+  dl.innerHTML=tags.map(function(t){return '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>';}).join('');
+}
+function updateSearchMatchCount(n){
+  var el=document.getElementById('search-match-count');
+  if(!el)return;
+  if(!appState.searchQuery){el.classList.add('hidden');return;}
+  el.textContent=n+' match'+(n===1?'':'es');
+  el.classList.remove('hidden');
 }
 function clearSearch(){
   document.getElementById('omni-search').value='';
@@ -891,7 +921,7 @@ function generateCardHTML(card,isDeleted){
           +' onclick="clearTagInput(this.dataset.cardid)">&times;</button>'
         +'</div>'
       +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
-      +'<div id="tag-debug-'+id+'" class="text-[10px] text-slate-400 mt-1 font-mono break-all"></div>'
+      +'<div id="tag-debug-'+id+'" class="hidden"></div>'
     +'</div>'
 
     // Clarify drawer
@@ -925,10 +955,7 @@ function toggleDrawer(id,type){
       else{btns[idx].classList.add('text-slate-400','hover:text-teal-600','hover:bg-slate-100');btns[idx].classList.remove('text-teal-600','bg-teal-50');}
     }
   }
-  if(!was){
-    var input=document.getElementById('in-'+type+'-'+id);
-    if(input)setTimeout(function(){input.focus();},30);
-  }
+  // No autofocus on open — user may just be reading
 }
 
 // generateCardEl — returns a real DOM element with addEventListener wiring.
@@ -1046,7 +1073,7 @@ function generateCardEl(card){
 
     var dbg=document.createElement('div');
     dbg.id='tag-debug-'+id;
-    dbg.className='text-[10px] text-slate-400 mt-1 font-mono break-all';
+    dbg.className='hidden'; // debug bar removed per v9.10
 
     function doCommit(){
       var val=tagInp.value.trim();
@@ -1159,6 +1186,7 @@ function renderAll(){
     var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
     if(matchesFilter&&matchesSearch(c)){anyVisible=true;aCont.appendChild(generateCardEl(c));}
   });
+  updateSearchMatchCount(aCont.children.length);
   if(window.lucide)lucide.createIcons();
   setTimeout(function(){document.querySelectorAll('textarea').forEach(function(el){autoResize(el);});},0);
   updateStats();
@@ -1369,6 +1397,23 @@ function commitTagFromEl(el){
   commitTag(id,tag);
 }
 
+function addClarifyEntry(c,txt){
+  if(!c)return;
+  if(!c.clarifyChain)c.clarifyChain=[];
+  var ini=appState.config.initials||'?';
+  var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
+  // Append to DOM if clarify container is rendered
+  var cont=document.getElementById('clarify-container-'+c.id);
+  if(cont){
+    var entry=document.createElement('div');
+    entry.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
+    entry.innerHTML='<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+ini+'</span><span>'+ts+'</span></div>'
+      +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div>';
+    cont.appendChild(entry);
+  }
+}
+
 function commitTag(id,tag){
   tag=(tag||'').trim();
   if(!tag)return;
@@ -1395,16 +1440,19 @@ function commitTag(id,tag){
   var box=document.getElementById('tag-suggestions-'+id);
   if(box)box.innerHTML='';
   refreshDatalist();
+  addClarifyEntry(c,'Tag added: '+tag);
   triggerDebouncedSave();
 }
 
 function removeTag(id,idx){
   var c=getCard(id);
   if(!c||!c.tags)return;
+  var removed=c.tags[idx]||'?';
   c.tags.splice(idx,1);
   c.updatedAt=Date.now();
   var container=document.getElementById('tags-container-'+id);
   if(container)container.innerHTML=renderTagChips(id,c.tags);
+  addClarifyEntry(c,'Tag removed: '+removed);
   triggerDebouncedSave();
 }
 // ── END TAG SYSTEM ───────────────────────────────────────────────────────────
@@ -1430,10 +1478,12 @@ function onClarifyKeydown(e,el){
 function handleVerdict(id,verdict){
   var c=getCard(id);
   if(!c.backtranslate)c.backtranslate={};
+  var prev=c.backtranslate.verdict||'pending';
   c.backtranslate.verdict=verdict;
   c.updatedAt=Date.now();
   document.getElementById('card-'+id).setAttribute('data-status',verdict);
   updateStats();
+  addClarifyEntry(c,'Verdict: '+prev+' → '+verdict);
   if(appState.currentFilter!=='all'&&verdict!==appState.currentFilter)renderAll();
   triggerDebouncedSave();
 }
@@ -1458,7 +1508,9 @@ function addNewPhrase(){
     return;
   }
   var newId='pb-new-'+Math.random().toString(36).slice(2,10);
-  appState.pbData.cards.unshift({id:newId,source:"",target:"",backtranslate:{resultText:"",verdict:"pending"},tags:[],clarifyChain:[],createdAt:Date.now(),updatedAt:Date.now()});
+  var ini=appState.config.initials||'?';
+  var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  appState.pbData.cards.unshift({id:newId,source:"",target:"",backtranslate:{resultText:"",verdict:"pending"},tags:[],clarifyChain:[{ini:ini,ts:ts,txt:'Created'}],createdAt:Date.now(),updatedAt:Date.now()});
   appState.currentFilter='all';filterCards('all');
   appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
   renderAll();
@@ -1507,7 +1559,9 @@ async function handleSourceEnter(e,el){
     updateStats();triggerDebouncedSave();return;
   }
 
+  var prevSrc=c.source;
   c.source=v;c.updatedAt=Date.now();
+  if(prevSrc&&prevSrc!==v) addClarifyEntry(c,'Source edited');
   var tEl=document.getElementById('tgt-'+id);
   var bEl=document.getElementById('bck-'+id);
   tEl.innerHTML='<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>';
