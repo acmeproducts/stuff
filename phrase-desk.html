@@ -1,4 +1,10 @@
-<!-- TalkBridge Curation Desk-v9.0-2026-06-13 -->
+<!-- TalkBridge Curation Desk-v9.1-2026-06-13
+     v9.1 fixes:
+     - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls;
+             onmousedown=preventDefault on suggestion chips prevents blur-before-tap on mobile
+     - Tags: fixed duplicate card IDs (Date.now() in synchronous map); now uses index+random suffix
+     - Job Mgmt: deduplicates jobs by owner+repo+source+target on generateJob()
+     - Job Mgmt: stats computed from appState.pbData.cards directly, not stale DOM text -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,7 +145,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.0</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.1</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -199,7 +205,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.0 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.1 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -379,17 +385,30 @@ async function generateJob(){
   appState.config.source=src;appState.config.target=target;appState.config.initials=initials;
   localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));
 
-  var jobId='job-'+Date.now();
+  var jobs=getLocalJobs();
+  // Deduplicate: if a job with same owner+repo+source+target already exists, reuse it
+  var existing=jobs.find(function(j){
+    return j.owner===appState.config.owner&&j.repo===appState.config.repo
+      &&j.source===src&&j.target===target;
+  });
+
+  var jobId=existing?existing.jobId:'job-'+Date.now();
   var url=new URL(window.location.href.split('?')[0]);
   ['owner','repo','source','target','pat','initials'].forEach(function(k){url.searchParams.set(k,appState.config[k]);});
   url.searchParams.set('srcLang',appState.langPair.source);
   url.searchParams.set('tgtLang',appState.langPair.target);
   url.searchParams.set('jobId',jobId);
-
   var linkStr=url.toString();
-  var newJob={jobId:jobId,initials:initials,source:src,target:target,langPair:{...appState.langPair},url:linkStr,stats:{total:0,pending:0,good:0,flag:0,deleted:0},lastUpdated:Date.now()};
 
-  var jobs=getLocalJobs();jobs.push(newJob);
+  if(existing){
+    existing.url=linkStr;existing.initials=initials;existing.lastUpdated=Date.now();
+    existing.langPair={...appState.langPair};
+  }else{
+    var newJob={jobId:jobId,owner:appState.config.owner,repo:appState.config.repo,
+      initials:initials,source:src,target:target,langPair:{...appState.langPair},
+      url:linkStr,stats:{total:0,pending:0,good:0,flag:0,deleted:0},lastUpdated:Date.now()};
+    jobs.push(newJob);
+  }
   localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(jobs));
   pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
 
@@ -477,18 +496,22 @@ async function pushJobsToGitHub(jobsArray,owner,repo,pat){
 }
 async function updateJobStatsCentral(){
   if(!appState.jobId)return;
+  // Compute stats directly from card state — never trust DOM counts
+  var good=0,flag=0,pending=0,deleted=0;
+  appState.pbData.cards.forEach(function(c){
+    if(c.deletedAt){deleted++;return;}
+    var v=(c.backtranslate&&c.backtranslate.verdict)||'pending';
+    if(v==='good')good++;else if(v==='flag')flag++;else pending++;
+  });
+  var curStats={total:good+flag+pending,pending:pending,good:good,flag:flag,deleted:deleted};
+
   var localJobs=getLocalJobs();
   var idx=localJobs.findIndex(function(j){return j.jobId===appState.jobId;});
-  var curStats={
-    total:parseInt(document.getElementById('count-total').innerText)||0,
-    pending:parseInt(document.getElementById('count-pending').innerText)||0,
-    good:parseInt(document.getElementById('count-good').innerText)||0,
-    flag:parseInt(document.getElementById('count-flag').innerText)||0,
-    deleted:parseInt(document.getElementById('count-deleted').innerText)||0
-  };
   if(idx>-1){localJobs[idx].stats=curStats;localJobs[idx].lastUpdated=Date.now();}
   else{
-    localJobs.push({jobId:appState.jobId,initials:appState.config.initials,source:appState.config.source,target:appState.config.target,langPair:{...appState.langPair},url:window.location.href,stats:curStats,lastUpdated:Date.now()});
+    localJobs.push({jobId:appState.jobId,owner:appState.config.owner,repo:appState.config.repo,
+      initials:appState.config.initials,source:appState.config.source,target:appState.config.target,
+      langPair:{...appState.langPair},url:window.location.href,stats:curStats,lastUpdated:Date.now()});
   }
   localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(localJobs));
   pushJobsToGitHub(localJobs,appState.config.owner,appState.config.repo,appState.config.pat);
@@ -524,13 +547,18 @@ async function startCurationLifecycle(){
     }
 
     appState.uniqueTags.clear();
+    var _seenIds={};
     appState.pbData.cards=appState.pbData.cards.map(function(c,idx){
       var src=c.source||c.src||(c.representation&&c.representation.source)||c.en||'';
       var tgt=c.target||c.tgt||(c.representation&&c.representation.target)||'';
       var tags=Array.isArray(c.tags)?c.tags:[];
       tags.forEach(function(t){appState.uniqueTags.add(t);});
+      // Guarantee unique stable ID — never rely on Date.now() in a loop
+      var rawId=String(c.id||c.intentId||'');
+      if(!rawId||_seenIds[rawId])rawId='pb-'+(idx+1)+'-'+Math.random().toString(36).slice(2,8);
+      _seenIds[rawId]=true;
       return {
-        id:c.id||c.intentId||('pb-'+Date.now()+'-'+idx),
+        id:rawId,
         source:src,target:tgt,
         backtranslate:{resultText:(c.backtranslate&&c.backtranslate.resultText)||c.back||'',verdict:(c.backtranslate&&c.backtranslate.verdict)||'pending'},
         tags:tags,
@@ -540,7 +568,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.0</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.1</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -787,7 +815,11 @@ function renderAll(){
   document.getElementById('bulk-action-bar').classList.toggle('hidden',!(appState.searchQuery.length>0&&anyVisible));
 }
 
-function getCard(id){return appState.pbData.cards.find(function(c){return String(c.id)===String(id);});}
+function getCard(id){
+  var c=appState.pbData.cards.find(function(c){return c.id===String(id);});
+  if(!c)console.warn('getCard: no card found for id='+id);
+  return c||null;
+}
 
 // ── TAG SYSTEM ──────────────────────────────────────────────────────────────
 // No synthetic events, no dispatchEvent, no datalist.
@@ -923,7 +955,7 @@ function addNewPhrase(){
     },50);
     return;
   }
-  var newId='pb-'+Date.now();
+  var newId='pb-new-'+Math.random().toString(36).slice(2,10);
   appState.pbData.cards.unshift({id:newId,source:"",target:"",backtranslate:{resultText:"",verdict:"pending"},tags:[],clarifyChain:[],createdAt:Date.now(),updatedAt:Date.now()});
   appState.currentFilter='all';filterCards('all');
   appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
