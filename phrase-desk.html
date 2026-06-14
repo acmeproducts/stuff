@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.4-2026-06-13
+<!-- TalkBridge Curation Desk-v9.5-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -31,6 +31,14 @@
      - File picker now strict-direction only (src→tgt), no reverse match
      - Job dedup now handles old records missing owner/repo fields
      - Job stats now written on load (not only on successful GitHub save)
+
+     v9.5 fixes:
+     - ROOT FIX for tag Enter and clarify Enter on mobile: switched from inline
+       oninput/onkeydown HTML attributes to addEventListener wiring post-render.
+       Inline attribute handlers on dynamically injected innerHTML are unreliable
+       on iOS/Android soft keyboard. Pattern copied from working kanban.html.
+     - Source Enter now always re-translates when backtranslate is missing or pending
+     - No UI changes
 
      v9.4 fixes:
      - ROOT FIX for tags: removed activeElement guard introduced in v9.3 which
@@ -182,7 +190,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.4</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.5</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -242,7 +250,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.4 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.5 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -608,7 +616,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.4</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.5</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -828,7 +836,7 @@ function generateCardHTML(card,isDeleted){
           +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500"'
           +' placeholder="Type tag + Enter to add"'
           +' oninput="onTagInput(this)"'
-          +' onkeydown="onTagKeydown(event,this)">'
+          +' onkeydown="onTagKeydown(event,this)" onkeyup="onTagKeyup(event,this)">'
         +'<button type="button" data-cardid="'+id+'"'
           +' class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold"'
           +' onmousedown="event.preventDefault()"'
@@ -886,6 +894,10 @@ function renderAll(){
     var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
     if(matchesFilter&&matchesSearch(c)){anyVisible=true;aCont.insertAdjacentHTML('beforeend',generateCardHTML(c,false));}
   });
+  // Wire tag/clarify inputs via addEventListener — inline oninput/onkeydown attrs
+  // are unreliable on mobile iOS/Android for dynamically injected HTML (kanban.html pattern)
+  document.querySelectorAll('[id^="in-tags-"]').forEach(function(inp){wireTagInput(inp);});
+  document.querySelectorAll('[id^="in-clarify-"]').forEach(function(ta){wireClarifyInput(ta);});
   if(window.lucide)lucide.createIcons();
   setTimeout(function(){document.querySelectorAll('textarea').forEach(function(el){autoResize(el);});},0);
   updateStats();
@@ -947,6 +959,72 @@ function tagDebug(id,msg){
   var el=document.getElementById('tag-debug-'+id);
   if(el)el.textContent=msg;
 }
+// Wire tag input with addEventListener after innerHTML injection (mobile-safe pattern from kanban.html)
+function wireTagInput(inp){
+  if(inp._wired) return;
+  inp._wired=true;
+  // Remove inline attrs to prevent double-firing
+  inp.removeAttribute('oninput');
+  inp.removeAttribute('onkeydown');
+  inp.removeAttribute('onkeyup');
+  inp.addEventListener('input', function(){ onTagInput(inp); });
+  inp.addEventListener('keydown', function(e){
+    if(e.key!=='Enter') return;
+    e.preventDefault(); e.stopPropagation();
+    var id=inp.getAttribute('data-cardid');
+    var c=getCard(id);
+    if(!c){ tagDebug(id,'ENTER: card not found'); return; }
+    var val=inp.value.trim();
+    if(val){
+      val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
+    } else {
+      var box=document.getElementById('tag-suggestions-'+id);
+      var btns=box?box.querySelectorAll('button'):[];
+      if(btns.length===1){ commitTagFromEl(btns[0]); tagDebug(id,'ENTER: auto sole suggestion'); }
+    }
+  });
+  // Wire the × clear button in same wrapper
+  var wrap=inp.parentNode;
+  if(wrap){
+    var clr=wrap.querySelector('button[data-cardid]');
+    if(clr && !clr._wired){
+      clr._wired=true;
+      clr.removeAttribute('onclick');
+      clr.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      clr.addEventListener('click', function(){ clearTagInput(inp.getAttribute('data-cardid')); });
+    }
+  }
+}
+function wireClarifyInput(ta){
+  if(ta._wired) return;
+  ta._wired=true;
+  ta.removeAttribute('oninput');
+  ta.removeAttribute('onkeydown');
+  ta.addEventListener('input', function(){ autoResize(ta); });
+  ta.addEventListener('keydown', function(e){
+    if(!(e.key==='Enter'&&!e.shiftKey)) return;
+    e.preventDefault();
+    var id=ta.getAttribute('data-cardid');
+    var txt=ta.value.trim();
+    if(!txt) return;
+    var c=getCard(id);
+    if(!c) return;
+    if(!c.clarifyChain) c.clarifyChain=[];
+    var ini=appState.reviewerInitials||'?';
+    c.clarifyChain.push({ini:ini,ts:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),txt:txt});
+    c.updatedAt=Date.now();
+    var cont=document.getElementById('clarify-container-'+id);
+    if(cont){
+      var entry='<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+        +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
+        +'<span>'+ini+'</span><span>'+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div>'
+        +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div></div>';
+      cont.insertAdjacentHTML('beforeend',entry);
+    }
+    ta.value=''; autoResize(ta); ta.focus();
+    triggerDebouncedSave();
+  });
+}
 function onTagInput(el){
   var id=el.getAttribute('data-cardid');
   var val=el.value;
@@ -1001,6 +1079,24 @@ function onTagKeydown(e,el){
     var t=part.trim();
     if(t)commitTag(id,t);
   });
+}
+
+// Mobile IME fallback — keydown Enter may not fire reliably on Android/iOS soft keyboard
+function onTagKeyup(e,el){
+  if(e.key!=='Enter')return;
+  // Only act if keydown didn't already commit (input will be empty if it did)
+  var id=el.getAttribute('data-cardid');
+  var val=el.value.trim();
+  if(!val){
+    var box=document.getElementById('tag-suggestions-'+id);
+    var btns=box?box.querySelectorAll('button'):[];
+    if(btns.length===1){commitTagFromEl(btns[0]);tagDebug(id,'KEYUP: auto-committed sole suggestion');}
+    return;
+  }
+  var c=getCard(id);
+  if(!c)return;
+  tagDebug(id,'KEYUP: committing "'+val+'"');
+  val.split(',').forEach(function(part){var t=part.trim();if(t)commitTag(id,t);});
 }
 
 // Called from suggestion chip onclick — reads id and tag from data attributes
@@ -1138,7 +1234,9 @@ async function handleSourceEnter(e,el){
   var c=getCard(id);
   if(!v)return;
 
-  if(c.source===v&&c.target){
+  // Only skip re-translation if source unchanged AND target AND backtranslate all exist
+  var btText=c.backtranslate&&c.backtranslate.resultText;
+  if(c.source===v&&c.target&&btText&&(c.backtranslate&&c.backtranslate.verdict!=='pending')){
     if(c.backtranslate)c.backtranslate.verdict='pending';
     var vg=document.getElementById('vg-'+id),vf=document.getElementById('vf-'+id);
     if(vg)vg.checked=false;if(vf)vf.checked=false;
