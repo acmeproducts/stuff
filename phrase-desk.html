@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.3-2026-06-13
+<!-- TalkBridge Curation Desk-v9.4-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -30,7 +30,15 @@
      - Lang dropdowns no longer default to en/es — user must explicitly select both
      - File picker now strict-direction only (src→tgt), no reverse match
      - Job dedup now handles old records missing owner/repo fields
-     - Job stats now written on load (not only on successful GitHub save) -->
+     - Job stats now written on load (not only on successful GitHub save)
+
+     v9.4 fixes:
+     - ROOT FIX for tags: removed activeElement guard introduced in v9.3 which
+       killed Enter on mobile (browser briefly shifts activeElement during keyboard
+       interaction before keydown fires). Guard was wrong approach.
+     - Auto-commit when exactly one suggestion remains and input is empty on Enter
+     - Added clear (×) button inside tag input field to cancel entry in progress
+     - In-app diagnostic bar retained in tag drawer (tiny grey line) for field QA -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +182,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.3</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.4</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -234,7 +242,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.3 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.4 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -600,7 +608,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.3</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.4</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -815,11 +823,17 @@ function generateCardHTML(card,isDeleted){
     // Tag drawer
     +'<div id="drawer-tags-'+id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
       +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+id+'">'+tagsHtml+'</div>'
-      +'<input type="text" autocomplete="off" id="in-tags-'+id+'" data-cardid="'+id+'"'
-        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500"'
-        +' placeholder="Type tag + Enter to add"'
-        +' oninput="onTagInput(this)"'
-        +' onkeydown="onTagKeydown(event,this)">'
+      +'<div class="relative">'
+        +'<input type="text" autocomplete="off" id="in-tags-'+id+'" data-cardid="'+id+'"'
+          +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500"'
+          +' placeholder="Type tag + Enter to add"'
+          +' oninput="onTagInput(this)"'
+          +' onkeydown="onTagKeydown(event,this)">'
+        +'<button type="button" data-cardid="'+id+'"'
+          +' class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold"'
+          +' onmousedown="event.preventDefault()"'
+          +' onclick="clearTagInput(this.dataset.cardid)">&times;</button>'
+        +'</div>'
       +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
       +'<div id="tag-debug-'+id+'" class="text-[10px] text-slate-400 mt-1 font-mono break-all"></div>'
     +'</div>'
@@ -922,6 +936,13 @@ function renderTagChips(id,tags){
   }).join('');
 }
 
+function clearTagInput(id){
+  var inp=document.getElementById('in-tags-'+id);
+  if(inp){inp.value='';inp.focus();}
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(box)box.innerHTML='';
+  tagDebug(id,'');
+}
 function tagDebug(id,msg){
   var el=document.getElementById('tag-debug-'+id);
   if(el)el.textContent=msg;
@@ -958,16 +979,23 @@ function onTagKeydown(e,el){
   e.stopPropagation();
   var id=el.getAttribute('data-cardid');
   var c=getCard(id);
-  if(document.activeElement!==el){
-    tagDebug(id,'ENTER: activeElement mismatch — not our input');
-    return;
-  }
   if(!c){
     tagDebug(id,'ENTER: getCard NULL — id='+id.slice(0,12)+' cards='+appState.pbData.cards.length);
     return;
   }
   var val=el.value.trim();
-  if(!val){tagDebug(id,'ENTER: empty value');return;}
+  if(!val){
+    // If exactly one suggestion visible, commit it automatically
+    var box=document.getElementById('tag-suggestions-'+id);
+    var btns=box?box.querySelectorAll('button'):[];
+    if(btns.length===1){
+      commitTagFromEl(btns[0]);
+      tagDebug(id,'ENTER: auto-committed sole suggestion');
+    }else{
+      tagDebug(id,'ENTER: empty value, '+btns.length+' suggestions');
+    }
+    return;
+  }
   tagDebug(id,'ENTER: committing "'+val+'"');
   val.split(',').forEach(function(part){
     var t=part.trim();
