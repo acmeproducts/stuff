@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.17-2026-06-13
+<!-- TalkBridge Curation Desk-v9.20-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -141,7 +141,7 @@ body{font-family:'Inter',sans-serif;}
 .syncing{animation:pulseSync 1s infinite;background-color:#eab308!important;}
 </style>
 </head>
-<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden overscroll-none flex flex-col">
 
 <!-- SETUP -->
 <div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4 hidden">
@@ -246,13 +246,13 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <!-- MAIN APP -->
-<div id="view-app" class="flex-1 flex flex-col hidden bg-slate-100 min-h-0">
+<div id="view-app" class="flex-1 flex flex-col hidden bg-slate-100 min-h-0 overflow-hidden">
   <datalist id="all-tags"></datalist>
 
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.17</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.20</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -282,7 +282,7 @@ body{font-family:'Inter',sans-serif;}
     </div>
   </div>
 
-  <div class="flex-1 overflow-y-auto px-3 py-4 md:px-6 relative" id="workspace-scroll">
+  <div class="flex-1 overflow-y-auto overscroll-contain px-3 py-4 md:px-6 relative" id="workspace-scroll">
     <div class="max-w-4xl mx-auto flex flex-col pb-24">
       <div id="save-error-banner" class="hidden bg-red-50 text-red-700 text-xs font-bold p-3 rounded-lg mb-4 shadow-sm border border-red-200 flex items-center gap-2">
         <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
@@ -314,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.17 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.20 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -704,7 +704,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.17</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.20</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -776,7 +776,7 @@ function showSearchDropdown(){
   var dd=document.getElementById('omni-dropdown');
   if(!dd)return;
   buildSearchDropdown(inp.value);
-  dd.classList.remove('hidden');
+  if(dd.children.length>0) dd.classList.remove('hidden');
 }
 function hideSearchDropdown(){
   setTimeout(function(){
@@ -787,34 +787,72 @@ function hideSearchDropdown(){
 function buildSearchDropdown(query){
   var dd=document.getElementById('omni-dropdown');
   if(!dd)return;
-  var q=(query||'').toLowerCase();
-  var tags=Array.from(appState.uniqueTags).sort();
-  var matches=q?tags.filter(function(t){return t.toLowerCase().includes(q);}):tags;
-  if(!matches.length){dd.classList.add('hidden');return;}
+  var q=(query||'').trim().toLowerCase();
+  if(!q){dd.innerHTML='';dd.classList.add('hidden');return;}
+  var cards=appState.pbData.cards.filter(function(c){return !c.deletedAt;});
+  var re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
+
+  // 1. Matching source phrases (unique, single match = no count, multiple = impossible since source is unique per card)
+  var phraseMatches=cards.filter(function(c){return re.test(c.source||'');}).map(function(c){return {text:c.source.trim(),count:0};});
+
+  // 2. Matching tags with their card counts
+  var tagMap={};
+  cards.forEach(function(c){
+    (c.tags||[]).forEach(function(t){
+      if(re.test(t)){
+        tagMap[t]=(tagMap[t]||0)+1;
+      }
+    });
+  });
+  var tagMatches=Object.keys(tagMap).sort().map(function(t){return {text:t,count:tagMap[t]};});
+
+  // 3. Matching clarify notes (unique text snippets, deduplicated)
+  var notesSeen={};
+  var noteMatches=[];
+  cards.forEach(function(c){
+    (c.clarifyChain||[]).forEach(function(cl){
+      if(re.test(cl.txt||'')){
+        var key=cl.txt.trim().toLowerCase();
+        if(!notesSeen[key]){
+          notesSeen[key]=true;
+          noteMatches.push({text:cl.txt.trim(),count:0});
+        }
+      }
+    });
+  });
+
+  // Combine: phrases first, tags second, notes last. Cap at 12 total.
+  var all=phraseMatches.concat(tagMatches).concat(noteMatches).slice(0,12);
+  if(!all.length){dd.innerHTML='';dd.classList.add('hidden');return;}
+
   dd.innerHTML='';
-  matches.forEach(function(t){
+  all.forEach(function(item){
     var btn=document.createElement('button');
     btn.type='button';
-    btn.className='w-full text-left px-3 py-2 text-xs hover:bg-teal-50 hover:text-teal-700';
-    if(q){
-      var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
-      btn.innerHTML=t.replace(re,'<strong>$1</strong>');
-    }else{
-      btn.textContent=t;
+    btn.className='w-full text-left px-3 py-2 text-xs hover:bg-teal-50 flex justify-between items-center gap-2';
+    var span=document.createElement('span');
+    span.className='truncate';
+    span.textContent=item.text;
+    btn.appendChild(span);
+    if(item.count>1){
+      var badge=document.createElement('span');
+      badge.className='text-slate-400 shrink-0';
+      badge.textContent=item.count;
+      btn.appendChild(badge);
     }
     btn.addEventListener('mousedown',function(e){e.preventDefault();});
-    btn.addEventListener('click',function(){selectSearchTag(t);});
+    btn.addEventListener('click',function(){selectSearchTerm(item.text);});
     dd.appendChild(btn);
   });
   dd.classList.remove('hidden');
 }
-function selectSearchTag(tag){
+function selectSearchTerm(term){
   var inp=document.getElementById('omni-search');
-  if(inp)inp.value=tag;
+  if(inp)inp.value=term;
   var dd=document.getElementById('omni-dropdown');
   if(dd)dd.classList.add('hidden');
   document.getElementById('omni-clear').classList.remove('hidden');
-  appState.searchQuery=tag;
+  appState.searchQuery=term;
   renderAll();
 }
 function updateSearchMatchCount(n){
@@ -931,13 +969,13 @@ function generateCardHTML(card,isDeleted){
           +' oninput="autoResize(this)"'
           +' onkeydown="handleSourceEnter(event,this)">'+(card.source||'')+'</textarea>'
         +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" data-action="tts">'
           +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
       +'</div>'
       +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
         +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+id+'">'+(card.target||'...')+'</div>'
         +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" onclick="ttsBtnClick(this)">'
+          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" data-action="tts">'
           +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
       +'</div>'
     +'</div>'
@@ -946,7 +984,7 @@ function generateCardHTML(card,isDeleted){
     +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
       +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+id+'">'+(backTxt||'...')+'</div>'
       +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" data-action="tts">'
         +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
     +'</div>'
 
@@ -991,13 +1029,13 @@ function generateCardHTML(card,isDeleted){
 
     // Clarify drawer
     +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
-      +'<div id="clarify-container-'+id+'" class="max-h-40 overflow-y-auto">'+clarifyHtml+'</div>'
-      +'<textarea rows="1" id="in-clarify-'+id+'" data-cardid="'+id+'"'
-        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
-        +' oninput="autoResize(this)"'
-        +' onkeydown="onClarifyKeydown(event,this)"'
-        +' placeholder="Add note + Enter to log..."></textarea>'
+      +'<div id="clarify-container-'+id+'" class="max-h-48 overflow-y-auto">'+clarifyHtml+'</div>'
+      +'<input type="text" autocomplete="off" id="in-clarify-'+id+'" data-cardid="'+id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1"'
+        +' placeholder="Add note + Enter to log..."'
+        +' onkeydown="onClarifyKeydown(event,this)">'
     +'</div>'
+
 
   +'</div>';
 }
@@ -1047,13 +1085,13 @@ function generateCardEl(card){
       +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start border-r border-slate-100">'
         +'<textarea class="pb-input font-medium text-slate-800 text-sm flex-1" id="src-'+id+'" data-cardid="'+id+'" rows="1"></textarea>'
         +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" data-action="tts">'
           +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
       +'</div>'
       +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
         +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+id+'">'+(card.target||'...')+'</div>'
         +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" onclick="ttsBtnClick(this)">'
+          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" data-action="tts">'
           +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
       +'</div>'
     +'</div>'
@@ -1061,7 +1099,7 @@ function generateCardEl(card){
     +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
       +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+id+'">'+(backTxt||'...')+'</div>'
       +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
-        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" onclick="ttsBtnClick(this)">'
+        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" data-action="tts">'
         +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
     +'</div>'
     // Row 3
@@ -1085,11 +1123,16 @@ function generateCardEl(card){
     +'</div>'
     // Clarify drawer shell (textarea wired below via addEventListener)
     +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
-      +'<div id="clarify-container-'+id+'" class="max-h-40 overflow-y-auto"></div>'
-      +'<textarea rows="1" id="in-clarify-'+id+'" data-cardid="'+id+'"'
-        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1 resize-none overflow-hidden"'
-        +' placeholder="Add note + Enter to log..."></textarea>'
+      +'<div id="clarify-container-'+id+'" class="max-h-48 overflow-y-auto"></div>'
+      +'<input type="text" autocomplete="off" id="in-clarify-'+id+'" data-cardid="'+id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1"'
+        +' placeholder="Add note + Enter to log...">'
     +'</div>';
+
+  // Wire TTS buttons via addEventListener
+  wrap.querySelectorAll('[data-action="tts"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); ttsBtnClick(btn); });
+  });
 
   // Populate source textarea value (not in innerHTML to avoid encoding issues)
   var srcTA=wrap.querySelector('#src-'+id);
@@ -1184,15 +1227,19 @@ function generateCardEl(card){
   // Populate clarify chain
   var clarifyCont=wrap.querySelector('#clarify-container-'+id);
   if(clarifyCont){
-    (card.clarifyChain||[]).forEach(function(cl){
-      clarifyCont.appendChild(buildClarifyEntry(cl.ini,cl.ts,cl.txt));
+    (card.clarifyChain||[]).forEach(function(cl,idx){
+      clarifyCont.appendChild(buildClarifyEntry(cl.ini,cl.ts,cl.txt,function(el){
+        var c=getCard(id); if(!c) return;
+        c.clarifyChain.splice(idx,1);
+        el.remove();
+        triggerDebouncedSave();
+      }));
     });
   }
 
   // Wire clarify textarea — pure addEventListener
   var clarTA=wrap.querySelector('#in-clarify-'+id);
   if(clarTA){
-    clarTA.addEventListener('input',function(){ autoResize(clarTA); });
     clarTA.addEventListener('keydown',function(e){
       if(!(e.key==='Enter'&&!e.shiftKey)) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -1205,7 +1252,12 @@ function generateCardEl(card){
       c.updatedAt=Date.now();
       var cont=document.getElementById('clarify-container-'+id);
       if(cont){
-        cont.appendChild(buildClarifyEntry(ini,ts,txt));
+        var _idx2=(c.clarifyChain.length-1);
+        cont.appendChild(buildClarifyEntry(ini,ts,txt,function(el){
+          c.clarifyChain.splice(_idx2,1);
+          el.remove();
+          triggerDebouncedSave();
+        }));
         cont.scrollTop=cont.scrollHeight;
       }
       clarTA.value=''; autoResize(clarTA);
@@ -1495,17 +1547,25 @@ function clarifyTs(){
   var d=new Date();
   return d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 }
-function buildClarifyEntry(ini,ts,txt){
+function buildClarifyEntry(ini,ts,txt,onDelete){
   var wrap=document.createElement('div');
-  wrap.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
+  wrap.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1 relative';
   var header=document.createElement('div');
-  header.className='flex justify-between text-[10px] text-slate-400 font-bold mb-0.5';
+  header.className='flex justify-between text-[10px] text-slate-400 font-bold mb-0.5 pr-4';
   var iniEl=document.createElement('span'); iniEl.textContent=ini||'?';
   var tsEl=document.createElement('span'); tsEl.textContent=ts||'';
   header.appendChild(iniEl); header.appendChild(tsEl);
   var body=document.createElement('div');
-  body.className='text-xs text-slate-700 leading-snug';
+  body.className='text-xs text-slate-700 leading-snug pr-4';
   body.textContent=txt||'';
+  if(onDelete){
+    var x=document.createElement('button');
+    x.type='button';
+    x.className='absolute top-1.5 right-1.5 text-slate-300 hover:text-red-400 text-xs leading-none font-bold';
+    x.textContent='×';
+    x.addEventListener('click',function(){ onDelete(wrap); });
+    wrap.appendChild(x);
+  }
   wrap.appendChild(header); wrap.appendChild(body);
   return wrap;
 }
@@ -1517,7 +1577,15 @@ function addClarifyEntry(c,txt){
   c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
   // Append to DOM if clarify container is rendered
   var cont=document.getElementById('clarify-container-'+c.id);
-  if(cont){ cont.appendChild(buildClarifyEntry(ini,ts,txt)); cont.scrollTop=cont.scrollHeight; }
+  if(cont){
+    var _idx=(c.clarifyChain.length-1);
+    cont.appendChild(buildClarifyEntry(ini,ts,txt,function(el){
+      c.clarifyChain.splice(_idx,1);
+      el.remove();
+      triggerDebouncedSave();
+    }));
+    cont.scrollTop=cont.scrollHeight;
+  }
 }
 
 function commitTag(id,tag){
@@ -1572,7 +1640,13 @@ function onClarifyKeydown(e,el){
   c.updatedAt=Date.now();
   el.value='';
   var _cc=document.getElementById('clarify-container-'+id);
-  if(_cc){_cc.appendChild(buildClarifyEntry(log.ini,log.ts,log.txt));_cc.scrollTop=_cc.scrollHeight;}
+  if(_cc){
+    var _idx3=(c.clarifyChain.length-1);
+    _cc.appendChild(buildClarifyEntry(log.ini,log.ts,log.txt,function(el){
+      c.clarifyChain.splice(_idx3,1); el.remove(); triggerDebouncedSave();
+    }));
+    _cc.scrollTop=_cc.scrollHeight;
+  }
   triggerDebouncedSave();
   el.focus();
 }
