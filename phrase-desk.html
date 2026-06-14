@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.15-2026-06-13
+<!-- TalkBridge Curation Desk-v9.17-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -252,13 +252,13 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.15</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.17</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
-      <input type="text" id="omni-search" oninput="runSearch()" list="omni-datalist" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-8 py-2 text-xs outline-none">
+      <input type="text" id="omni-search" oninput="runSearch()" onfocus="showSearchDropdown()" onblur="hideSearchDropdown()" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-8 py-2 text-xs outline-none" autocomplete="off">
       <button id="omni-clear" onclick="clearSearch()" class="hidden absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 p-0.5"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-      <datalist id="omni-datalist"></datalist>
+      <div id="omni-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"></div>
     </div>
     <span id="search-match-count" class="hidden text-[11px] text-teal-700 font-bold whitespace-nowrap"></span>
     <div class="flex gap-2 overflow-x-auto hide-scrollbar">
@@ -314,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.15 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.17 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -535,29 +535,53 @@ function copyModalLink(){var el=document.getElementById('modal-link');el.select(
 function renderJobsDashboard(){
   var jobs=getLocalJobs();
   var container=document.getElementById('jobs-list');
-  if(!jobs.length){container.innerHTML='<p class="text-sm text-slate-500">No active jobs.</p>';return;}
-  container.innerHTML=jobs.sort(function(a,b){return b.lastUpdated-a.lastUpdated;}).map(function(j){
+  if(!jobs.length){
+    container.innerHTML='';
+    var p=document.createElement('p'); p.className='text-sm text-slate-500'; p.textContent='No active jobs.';
+    container.appendChild(p); return;
+  }
+  container.innerHTML='';
+  jobs.sort(function(a,b){return b.lastUpdated-a.lastUpdated;}).forEach(function(j){
     var good=j.stats.good||0,total=j.stats.total||0;
     var pct=total===0?0:Math.round((good/total)*100);
-    var lp=j.langPair?(flagFor(j.langPair.source)+' \u2192 '+flagFor(j.langPair.target)):'';
-    return '<div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">'
-      +'<div class="flex justify-between items-start mb-3">'
-      +'<div class="pr-2"><h3 class="font-bold text-sm text-slate-800 break-all">'+j.target.split('/').pop()+'</h3>'
-      +'<p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">'+lp+' \u00b7 Reviewer: '+j.initials+'</p></div>'
-      +'<div class="flex items-center gap-2">'
-      +'<span class="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md border border-teal-100">'+pct+'%</span>'
-      +'<button data-jobid="'+j.jobId+'" onclick="openShareModal(this.getAttribute(\'data-jobid\'))" class="p-1.5 rounded-md bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600"><i data-lucide="share-2" class="w-4 h-4"></i></button>'
-      +'<button data-jobid="'+j.jobId+'" onclick="deleteJob(this.getAttribute(\'data-jobid\'))" class="p-1.5 rounded-md bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-600"><i data-lucide="x" class="w-4 h-4"></i></button>'
-      +'</div></div>'
-      +'<div class="flex gap-2 mb-3">'
-      +'<div class="flex-1 bg-slate-50 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">All</div><div class="text-xs font-bold">'+total+'</div></div>'
-      +'<div class="flex-1 bg-white border border-slate-100 rounded p-1.5 text-center"><div class="text-[9px] text-slate-400 font-bold uppercase">Pend</div><div class="text-xs font-bold text-slate-600">'+(j.stats.pending||0)+'</div></div>'
-      +'<div class="flex-1 bg-green-50 rounded p-1.5 text-center"><div class="text-[9px] text-green-600 font-bold uppercase">Good</div><div class="text-xs font-bold text-green-700">'+good+'</div></div>'
-      +'<div class="flex-1 bg-red-50 rounded p-1.5 text-center"><div class="text-[9px] text-red-600 font-bold uppercase">Flag</div><div class="text-xs font-bold text-red-700">'+(j.stats.flag||0)+'</div></div>'
-      +'</div>'
-      +'<button data-url="'+encodeURI(j.url)+'" onclick="window.location.href=decodeURI(this.getAttribute(\'data-url\'))" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white text-xs font-bold rounded-lg">Launch Desk</button>'
-      +'</div>';
-  }).join('');
+    var lp=j.langPair?(flagFor(j.langPair.source)+' → '+flagFor(j.langPair.target)):'';
+
+    var card=document.createElement('div');
+    card.className='bg-white p-4 rounded-xl border border-slate-200 shadow-sm';
+
+    var header=document.createElement('div');
+    header.className='flex justify-between items-start mb-3';
+    var titleWrap=document.createElement('div'); titleWrap.className='pr-2';
+    var h3=document.createElement('h3'); h3.className='font-bold text-sm text-slate-800 break-all'; h3.textContent=j.target.split('/').pop();
+    var meta=document.createElement('p'); meta.className='text-[10px] text-slate-500 uppercase tracking-wide mt-1'; meta.textContent=lp+' · Reviewer: '+j.initials;
+    titleWrap.appendChild(h3); titleWrap.appendChild(meta);
+    var actions=document.createElement('div'); actions.className='flex items-center gap-2';
+    var pctBadge=document.createElement('span'); pctBadge.className='text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md border border-teal-100'; pctBadge.textContent=pct+'%';
+    var shareBtn=document.createElement('button'); shareBtn.type='button'; shareBtn.className='p-1.5 rounded-md bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600';
+    shareBtn.innerHTML='<i data-lucide="share-2" class="w-4 h-4"></i>';
+    shareBtn.addEventListener('click',function(){ openShareModal(j.jobId); });
+    var delBtn=document.createElement('button'); delBtn.type='button'; delBtn.className='p-1.5 rounded-md bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-600';
+    delBtn.innerHTML='<i data-lucide="x" class="w-4 h-4"></i>';
+    delBtn.addEventListener('click',function(){ deleteJob(j.jobId); });
+    actions.appendChild(pctBadge); actions.appendChild(shareBtn); actions.appendChild(delBtn);
+    header.appendChild(titleWrap); header.appendChild(actions);
+
+    var stats=document.createElement('div'); stats.className='flex gap-2 mb-3';
+    [['All',total,'bg-slate-50 text-slate-800'],['Pend',j.stats.pending||0,'bg-white border border-slate-100 text-slate-600'],['Good',good,'bg-green-50 text-green-700'],['Flag',j.stats.flag||0,'bg-red-50 text-red-700']].forEach(function(s){
+      var cell=document.createElement('div'); cell.className='flex-1 rounded p-1.5 text-center '+s[2];
+      var lbl=document.createElement('div'); lbl.className='text-[9px] font-bold uppercase opacity-60'; lbl.textContent=s[0];
+      var val=document.createElement('div'); val.className='text-xs font-bold'; val.textContent=s[1];
+      cell.appendChild(lbl); cell.appendChild(val); stats.appendChild(cell);
+    });
+
+    var launch=document.createElement('button'); launch.type='button';
+    launch.className='w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white text-xs font-bold rounded-lg';
+    launch.textContent='Launch Desk';
+    launch.addEventListener('click',function(){ window.location.href=j.url; });
+
+    card.appendChild(header); card.appendChild(stats); card.appendChild(launch);
+    container.appendChild(card);
+  });
   if(window.lucide)lucide.createIcons();
 }
 function deleteJob(jobId){
@@ -680,7 +704,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.15</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.17</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -743,14 +767,55 @@ function updateStats(){
 function runSearch(){
   appState.searchQuery=document.getElementById('omni-search').value.trim();
   document.getElementById('omni-clear').classList.toggle('hidden',!appState.searchQuery);
-  refreshSearchDatalist();
+  buildSearchDropdown(appState.searchQuery);
   renderAll();
 }
-function refreshSearchDatalist(){
-  var dl=document.getElementById('omni-datalist');
-  if(!dl)return;
+function refreshSearchDatalist(){}  // no-op, dropdown built on demand
+function showSearchDropdown(){
+  var inp=document.getElementById('omni-search');
+  var dd=document.getElementById('omni-dropdown');
+  if(!dd)return;
+  buildSearchDropdown(inp.value);
+  dd.classList.remove('hidden');
+}
+function hideSearchDropdown(){
+  setTimeout(function(){
+    var dd=document.getElementById('omni-dropdown');
+    if(dd)dd.classList.add('hidden');
+  },150); // delay so tap registers before hide
+}
+function buildSearchDropdown(query){
+  var dd=document.getElementById('omni-dropdown');
+  if(!dd)return;
+  var q=(query||'').toLowerCase();
   var tags=Array.from(appState.uniqueTags).sort();
-  dl.innerHTML=tags.map(function(t){return '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>';}).join('');
+  var matches=q?tags.filter(function(t){return t.toLowerCase().includes(q);}):tags;
+  if(!matches.length){dd.classList.add('hidden');return;}
+  dd.innerHTML='';
+  matches.forEach(function(t){
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='w-full text-left px-3 py-2 text-xs hover:bg-teal-50 hover:text-teal-700';
+    if(q){
+      var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+      btn.innerHTML=t.replace(re,'<strong>$1</strong>');
+    }else{
+      btn.textContent=t;
+    }
+    btn.addEventListener('mousedown',function(e){e.preventDefault();});
+    btn.addEventListener('click',function(){selectSearchTag(t);});
+    dd.appendChild(btn);
+  });
+  dd.classList.remove('hidden');
+}
+function selectSearchTag(tag){
+  var inp=document.getElementById('omni-search');
+  if(inp)inp.value=tag;
+  var dd=document.getElementById('omni-dropdown');
+  if(dd)dd.classList.add('hidden');
+  document.getElementById('omni-clear').classList.remove('hidden');
+  appState.searchQuery=tag;
+  renderAll();
 }
 function updateSearchMatchCount(n){
   var el=document.getElementById('search-match-count');
@@ -857,7 +922,7 @@ function generateCardHTML(card,isDeleted){
   var srcLang=appState.langPair.source;
   var tgtLang=appState.langPair.target;
 
-  return '<div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" data-status="'+verdict+'" data-cardid="'+id+'" id="card-'+id+'">'
+  return '<div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible" data-status="'+verdict+'" data-cardid="'+id+'" id="card-'+id+'">'
 
     // Row 1: Source | Target
     +'<div class="flex border-b border-slate-100">'
@@ -971,7 +1036,7 @@ function generateCardEl(card){
 
   // Build outer card div via innerHTML for static structure, then wire inputs
   var wrap=document.createElement('div');
-  wrap.className='pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden';
+  wrap.className='pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible';
   wrap.setAttribute('data-status',verdict);
   wrap.setAttribute('data-cardid',id);
   wrap.id='card-'+id;
@@ -1047,7 +1112,7 @@ function generateCardEl(card){
     var tagsCont=document.createElement('div');
     tagsCont.id='tags-container-'+id;
     tagsCont.className='flex flex-wrap gap-1 mb-1.5';
-    tagsCont.innerHTML=renderTagChips(id,card.tags||[]);
+    tagsCont.appendChild(buildTagChips(id,card.tags||[]));
 
     var inputWrap=document.createElement('div');
     inputWrap.className='relative';
@@ -1119,12 +1184,9 @@ function generateCardEl(card){
   // Populate clarify chain
   var clarifyCont=wrap.querySelector('#clarify-container-'+id);
   if(clarifyCont){
-    clarifyCont.innerHTML=(card.clarifyChain||[]).map(function(c){
-      return '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
-        +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
-        +'<span>'+(c.ini||'?')+'</span><span>'+(c.ts||'')+'</span></div>'
-        +'<div class="text-xs text-slate-700 leading-snug">'+c.txt+'</div></div>';
-    }).join('');
+    (card.clarifyChain||[]).forEach(function(cl){
+      clarifyCont.appendChild(buildClarifyEntry(cl.ini,cl.ts,cl.txt));
+    });
   }
 
   // Wire clarify textarea — pure addEventListener
@@ -1143,11 +1205,8 @@ function generateCardEl(card){
       c.updatedAt=Date.now();
       var cont=document.getElementById('clarify-container-'+id);
       if(cont){
-        var entry=document.createElement('div');
-        entry.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
-        entry.innerHTML='<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+ini+'</span><span>'+ts+'</span></div>'
-          +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div>';
-        cont.appendChild(entry);
+        cont.appendChild(buildClarifyEntry(ini,ts,txt));
+        cont.scrollTop=cont.scrollHeight;
       }
       clarTA.value=''; autoResize(clarTA);
       if(wrap._stampCommit) wrap._stampCommit();
@@ -1239,12 +1298,36 @@ function removeTagEl(btn){
 // All paths call commitTag(id, value) directly.
 
 function renderTagChips(id,tags){
+  // Legacy: returns HTML string for generateCardHTML (deleted cards). Use replaceTagChips() for live cards.
   return (tags||[]).map(function(t,i){
     return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono" data-cardid="'+id+'" data-tagidx="'+i+'">'
-      +t
-      +'<button type="button" class="ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold" onclick="removeTagEl(this)">&times;</button>'
-      +'</span>';
+      +t+'<button type="button" class="ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold" onclick="removeTagEl(this)">&times;</button></span>';
   }).join('');
+}
+function buildTagChips(id,tags){
+  // Returns a DocumentFragment with proper addEventListener (no inline onclick)
+  var frag=document.createDocumentFragment();
+  (tags||[]).forEach(function(t,i){
+    var span=document.createElement('span');
+    span.className='inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono';
+    span.setAttribute('data-cardid',id);
+    span.setAttribute('data-tagidx',String(i));
+    span.appendChild(document.createTextNode(t));
+    var x=document.createElement('button');
+    x.type='button';
+    x.className='ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold';
+    x.textContent='×';
+    x.addEventListener('click',function(e){ e.stopPropagation(); removeTag(id,i); });
+    span.appendChild(x);
+    frag.appendChild(span);
+  });
+  return frag;
+}
+function replaceTagChips(id,tags){
+  var container=document.getElementById('tags-container-'+id);
+  if(!container) return;
+  container.innerHTML='';
+  container.appendChild(buildTagChips(id,tags));
 }
 
 function clearTagInput(id){
@@ -1341,15 +1424,16 @@ function onTagInput(el){
     .filter(function(t){return t.toLowerCase().indexOf(q)>=0&&existing.indexOf(t)<0;})
     .slice(0,8);
   // Use data-cardid and data-tag — no string escaping in onclick
-  box.innerHTML=matches.map(function(t){
-    return '<button type="button"'
-      +' class="text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300"'
-      +' data-cardid="'+id+'"'
-      +' data-tag="'+t.replace(/"/g,'&quot;')+'"'
-      +' onmousedown="event.preventDefault()"'
-      +' onclick="commitTagFromEl(this)">'
-      +t+'</button>';
-  }).join('');
+  box.innerHTML='';
+  matches.forEach(function(t){
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300';
+    btn.textContent=t;
+    btn.addEventListener('mousedown',function(e){e.preventDefault();});
+    btn.addEventListener('click',function(){ commitTag(id,t); });
+    box.appendChild(btn);
+  });
 }
 
 function onTagKeydown(e,el){
@@ -1411,6 +1495,20 @@ function clarifyTs(){
   var d=new Date();
   return d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 }
+function buildClarifyEntry(ini,ts,txt){
+  var wrap=document.createElement('div');
+  wrap.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
+  var header=document.createElement('div');
+  header.className='flex justify-between text-[10px] text-slate-400 font-bold mb-0.5';
+  var iniEl=document.createElement('span'); iniEl.textContent=ini||'?';
+  var tsEl=document.createElement('span'); tsEl.textContent=ts||'';
+  header.appendChild(iniEl); header.appendChild(tsEl);
+  var body=document.createElement('div');
+  body.className='text-xs text-slate-700 leading-snug';
+  body.textContent=txt||'';
+  wrap.appendChild(header); wrap.appendChild(body);
+  return wrap;
+}
 function addClarifyEntry(c,txt){
   if(!c)return;
   if(!c.clarifyChain)c.clarifyChain=[];
@@ -1419,13 +1517,7 @@ function addClarifyEntry(c,txt){
   c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
   // Append to DOM if clarify container is rendered
   var cont=document.getElementById('clarify-container-'+c.id);
-  if(cont){
-    var entry=document.createElement('div');
-    entry.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1';
-    entry.innerHTML='<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+ini+'</span><span>'+ts+'</span></div>'
-      +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div>';
-    cont.appendChild(entry);
-  }
+  if(cont){ cont.appendChild(buildClarifyEntry(ini,ts,txt)); cont.scrollTop=cont.scrollHeight; }
 }
 
 function commitTag(id,tag){
@@ -1446,8 +1538,7 @@ function commitTag(id,tag){
   appState.uniqueTags.add(tag);
   c.updatedAt=Date.now();
   // update chips
-  var container=document.getElementById('tags-container-'+id);
-  if(container)container.innerHTML=renderTagChips(id,c.tags);
+  replaceTagChips(id,c.tags);
   // clear input + suggestions
   var inp=document.getElementById('in-tags-'+id);
   if(inp){inp.value='';inp.focus();}
@@ -1464,8 +1555,7 @@ function removeTag(id,idx){
   var removed=c.tags[idx]||'?';
   c.tags.splice(idx,1);
   c.updatedAt=Date.now();
-  var container=document.getElementById('tags-container-'+id);
-  if(container)container.innerHTML=renderTagChips(id,c.tags);
+  replaceTagChips(id,c.tags);
   addClarifyEntry(c,'Tag removed: '+removed);
   triggerDebouncedSave();
 }
@@ -1481,10 +1571,8 @@ function onClarifyKeydown(e,el){
   c.clarifyChain.push(log);
   c.updatedAt=Date.now();
   el.value='';
-  document.getElementById('clarify-container-'+id).insertAdjacentHTML('beforeend',
-    '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
-    +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5"><span>'+log.ini+'</span><span>'+log.ts+'</span></div>'
-    +'<div class="text-xs text-slate-700 leading-snug">'+log.txt+'</div></div>');
+  var _cc=document.getElementById('clarify-container-'+id);
+  if(_cc){_cc.appendChild(buildClarifyEntry(log.ini,log.ts,log.txt));_cc.scrollTop=_cc.scrollHeight;}
   triggerDebouncedSave();
   el.focus();
 }
