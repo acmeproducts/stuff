@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; }
+        .glass-panel { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0; }
+        [v-cloak] { display: none; }
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid white; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px;}
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="text-slate-800 p-4 md:p-8 pb-20">
+
+<div class="max-w-6xl mx-auto">
+    
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900">Portfolio Tracker</h1>
+            <p class="text-sm text-slate-500 mt-1" id="lastUpdatedText">Last updated: --</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-4">
+            <span id="statusIndicator" class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-200 text-slate-600">Waiting...</span>
+            <button id="refreshBtn" onclick="refreshData()" class="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold py-2 px-6 rounded-lg shadow-sm flex items-center">
+                Refresh Prices
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="glass-panel p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Invested</h3>
+            <div class="text-2xl font-bold" id="valInvested">$0.00</div>
+        </div>
+        <div class="glass-panel p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Current Value</h3>
+            <div class="text-2xl font-bold" id="valCurrent">$0.00</div>
+        </div>
+        <div class="glass-panel p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Day Gain / Loss</h3>
+            <div class="text-2xl font-bold" id="valDay">$0.00</div>
+            <div class="text-sm font-semibold mt-1" id="valDayPct">0.00%</div>
+        </div>
+        <div class="glass-panel p-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">LTD Gain / Loss</h3>
+            <div class="text-2xl font-bold" id="valLTD">$0.00</div>
+            <div class="text-sm font-semibold mt-1" id="valLTDPct">0.00%</div>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="glass-panel p-5 mb-8 h-80">
+        <canvas id="portfolioChart"></canvas>
+    </div>
+
+    <!-- Positions Table -->
+    <div class="glass-panel overflow-x-auto">
+        <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+                <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
+                    <th class="p-4 font-semibold">Ticker</th>
+                    <th class="p-4 font-semibold text-right">Shares</th>
+                    <th class="p-4 font-semibold text-right bg-blue-50/50">Avg Cost</th>
+                    <th class="p-4 font-semibold text-right bg-slate-100/50">Prev Close</th>
+                    <th class="p-4 font-semibold text-right">Current Price</th>
+                    <th class="p-4 font-semibold text-right border-l border-slate-200">Day Change<br><span class="text-[10px] text-slate-400 normal-case tracking-normal">(vs Prev Close)</span></th>
+                    <th class="p-4 font-semibold text-right border-l border-slate-200">LTD Change<br><span class="text-[10px] text-slate-400 normal-case tracking-normal">(vs Avg Cost)</span></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody" class="text-sm divide-y divide-slate-100">
+                <!-- Rows injected via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // User's defined positions
+    const positions = [
+        { ticker: 'TQQQ', shares: 50, cost: 83.08 },
+        { ticker: 'USD', shares: 25, cost: 105.41 }, // Combined 6 + 19
+        { ticker: 'SOXL', shares: 10, cost: 264.86 },
+        { ticker: 'UPRO', shares: 10, cost: 145.95 },
+        { ticker: 'SSO', shares: 10, cost: 68.57 }
+    ];
+
+    // Chart.js instance and history
+    let chartInstance = null;
+    const todayStr = new Date().toLocaleDateString();
+    let chartHistory = [];
+    
+    // Reset chart history if it's a new day
+    if (localStorage.getItem('portfolioDate') === todayStr) {
+        chartHistory = JSON.parse(localStorage.getItem('portfolioHistory') || '[]');
+    } else {
+        localStorage.setItem('portfolioDate', todayStr);
+        localStorage.setItem('portfolioHistory', JSON.stringify([]));
+    }
+
+    // Formatting Helpers
+    const formatCur = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    const formatPct = (val) => (val > 0 ? '+' : '') + val.toFixed(2) + '%';
+    const getColor = (val) => {
+        if (val > 0.01) return 'text-emerald-600';
+        if (val < -0.01) return 'text-rose-600';
+        return 'text-slate-500';
+    };
+
+    async function fetchQuote(ticker) {
+        // Multiple fallback proxies to ensure data loads even if one is blocked by CORS
+        const urls = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`)}`
+        ];
+
+        for (let url of urls) {
+            try {
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) continue;
+                const data = await response.json();
+                const meta = data.chart.result[0].meta;
+                return {
+                    price: meta.regularMarketPrice,
+                    prevClose: meta.previousClose,
+                    isLive: true
+                };
+            } catch (err) {
+                console.warn(`Proxy failed for ${ticker}:`, url);
+            }
+        }
+        
+        // Return a recognizable mock structure if APIs are entirely blocked by firewall
+        return { price: null, prevClose: null, isLive: false };
+    }
+
+    function updateChartUI() {
+        const ctx = document.getElementById('portfolioChart').getContext('2d');
+        const labels = chartHistory.map(h => h.time);
+        const data = chartHistory.map(h => h.value);
+
+        if (chartInstance) {
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets[0].data = data;
+            chartInstance.update();
+        } else {
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Portfolio Value',
+                        data: data,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { callback: function(value) { return formatCur(value); } } }
+                    }
+                }
+            });
+        }
+    }
+
+    async function refreshData() {
+        const btn = document.getElementById('refreshBtn');
+        const statusEl = document.getElementById('statusIndicator');
+        const tbody = document.getElementById('tableBody');
+        
+        btn.innerHTML = '<span class="spinner"></span> Updating...';
+        btn.disabled = true;
+        statusEl.textContent = 'Fetching Data...';
+        statusEl.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700';
+
+        let totalInvested = 0;
+        let currentPortfolioValue = 0;
+        let totalDayGainDollar = 0;
+        let totalPrevCloseValue = 0; // Used to calculate Day Gain % accurately
+        let hasApiError = false;
+
+        tbody.innerHTML = ''; // Clear table
+
+        for (const pos of positions) {
+            totalInvested += pos.shares * pos.cost;
+            const quote = await fetchQuote(pos.ticker);
+            
+            let currentPrice = pos.cost; 
+            let prevClose = pos.cost;
+            
+            if (quote && quote.isLive) {
+                currentPrice = quote.price;
+                prevClose = quote.prevClose;
+            } else {
+                hasApiError = true;
+                // If blocked, use cost to prevent NaN math breaking the page
+            }
+
+            // --- THE CORE MATH ---
+            const positionCurrentValue = pos.shares * currentPrice;
+            
+            // LTD Calculation (vs Avg Cost)
+            const ltdChangeDollar = (currentPrice - pos.cost) * pos.shares;
+            const ltdChangePct = ((currentPrice - pos.cost) / pos.cost) * 100;
+
+            // Day Calculation (vs Market Prev Close)
+            const dayChangeDollar = (currentPrice - prevClose) * pos.shares;
+            const dayChangePct = ((currentPrice - prevClose) / prevClose) * 100;
+
+            // Aggregations
+            currentPortfolioValue += positionCurrentValue;
+            totalDayGainDollar += dayChangeDollar;
+            totalPrevCloseValue += (pos.shares * prevClose);
+
+            // Row Construction
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-50 transition-colors";
+            tr.innerHTML = `
+                <td class="p-4 font-bold text-slate-800">${pos.ticker}</td>
+                <td class="p-4 text-right">${pos.shares}</td>
+                <td class="p-4 text-right bg-blue-50/30">${formatCur(pos.cost)}</td>
+                <td class="p-4 text-right bg-slate-100/30">${formatCur(prevClose)}</td>
+                <td class="p-4 text-right font-semibold">${formatCur(currentPrice)}</td>
+                
+                <td class="p-4 text-right border-l border-slate-100">
+                    <div class="font-bold ${getColor(dayChangeDollar)}">${dayChangeDollar > 0 ? '+' : ''}${formatCur(dayChangeDollar)}</div>
+                    <div class="text-xs ${getColor(dayChangePct)}">${formatPct(dayChangePct)}</div>
+                </td>
+                
+                <td class="p-4 text-right border-l border-slate-100">
+                    <div class="font-bold ${getColor(ltdChangeDollar)}">${ltdChangeDollar > 0 ? '+' : ''}${formatCur(ltdChangeDollar)}</div>
+                    <div class="text-xs ${getColor(ltdChangePct)}">${formatPct(ltdChangePct)}</div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        // Summary Calculations
+        const totalLTDGainDollar = currentPortfolioValue - totalInvested;
+        const totalLTDGainPct = (totalInvested > 0) ? (totalLTDGainDollar / totalInvested) * 100 : 0;
+        const totalDayGainPct = (totalPrevCloseValue > 0) ? (totalDayGainDollar / totalPrevCloseValue) * 100 : 0;
+
+        // Update Dashboard Elements
+        document.getElementById('valInvested').textContent = formatCur(totalInvested);
+        document.getElementById('valCurrent').textContent = formatCur(currentPortfolioValue);
+        
+        const elDay = document.getElementById('valDay');
+        const elDayPct = document.getElementById('valDayPct');
+        elDay.textContent = (totalDayGainDollar > 0 ? '+' : '') + formatCur(totalDayGainDollar);
+        elDay.className = `text-2xl font-bold ${getColor(totalDayGainDollar)}`;
+        elDayPct.textContent = formatPct(totalDayGainPct);
+        elDayPct.className = `text-sm font-semibold mt-1 ${getColor(totalDayGainPct)}`;
+
+        const elLTD = document.getElementById('valLTD');
+        const elLTDPct = document.getElementById('valLTDPct');
+        elLTD.textContent = (totalLTDGainDollar > 0 ? '+' : '') + formatCur(totalLTDGainDollar);
+        elLTD.className = `text-2xl font-bold ${getColor(totalLTDGainDollar)}`;
+        elLTDPct.textContent = formatPct(totalLTDGainPct);
+        elLTDPct.className = `text-sm font-semibold mt-1 ${getColor(totalLTDGainPct)}`;
+
+        // Status Handling
+        if (hasApiError) {
+            statusEl.textContent = 'Data Blocked (CORS) - Showing Cost';
+            statusEl.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-rose-100 text-rose-700';
+        } else {
+            statusEl.textContent = 'Live Market Data';
+            statusEl.className = 'text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700';
+            
+            // Only chart actual live successful fetches
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            chartHistory.push({ time: timeStr, value: currentPortfolioValue });
+            localStorage.setItem('portfolioHistory', JSON.stringify(chartHistory));
+            updateChartUI();
+        }
+
+        // UI Reset
+        document.getElementById('lastUpdatedText').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+        btn.disabled = false;
+        btn.innerHTML = 'Refresh Prices';
+    }
+
+    // Initialize the app on load
+    window.addEventListener('DOMContentLoaded', () => {
+        updateChartUI(); // Draw empty or cached chart instantly
+        refreshData();   // Trigger first fetch
+    });
+</script>
+</body>
+</html>
