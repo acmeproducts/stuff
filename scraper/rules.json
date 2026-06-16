@@ -1,0 +1,225 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2024-06-15T00:00:00Z",
+  "description": "Scraping rules for Orange County model directories",
+  "global": {
+    "limits": {
+      "max_results_per_source": 100,
+      "timeout_seconds": 30
+    },
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0"
+    }
+  },
+  "sources": {
+    "cakdolls-oc": {
+      "name": "CakDolls Orange County",
+      "url": "https://cakdolls.com/oc/",
+      "parser": "regex",
+      "enabled": true,
+      "pattern": {
+        "container": "href=\"(https:\\/\\/cakdolls\\.com\\/escort\\/([^\"]+))\"[^>]*>[\\s\\S]*?<h[13][^>]*>([^<]+)",
+        "context_range": 500
+      },
+      "fields": {
+        "profile_url": {
+          "from_capture": 1,
+          "transform": "clean-url"
+        },
+        "slug": {
+          "from_capture": 2
+        },
+        "raw_title": {
+          "from_capture": 3
+        },
+        "name": {
+          "source": "raw_title",
+          "transform": "extract-name"
+        },
+        "age": {
+          "regex": "(\\d{2})\\s*yrs?",
+          "type": "integer"
+        },
+        "height_cm": {
+          "regex": "(\\d{3})\\s*CM",
+          "type": "integer"
+        },
+        "height": {
+          "source": "height_cm",
+          "transform": "cm-to-ft"
+        },
+        "weight": {
+          "regex": "(\\d+)\\s*lbs?",
+          "type": "integer"
+        }
+      },
+      "filters": {
+        "must_contain": {
+          "_context": "Orange County"
+        },
+        "exclude_if_contains": {
+          "_context": ["San Diego", "Los Angeles"]
+        }
+      },
+      "transforms": {
+        "name": "extract-name",
+        "profile_url": "clean-url"
+      },
+      "limits": {
+        "max_results": 50
+      }
+    },
+    "get9irl-oc": {
+      "name": "Get9IRL Orange County",
+      "url": "https://get9irl.com/index.php?route=product/category&path=2",
+      "parser": "regex",
+      "enabled": true,
+      "pattern": {
+        "container": "href=\"(https:\\/\\/get9irl\\.com\\/([^\"]+))\"[\\s\\S]*?<h4[^>]*>([^<]+)<",
+        "context_range": 800
+      },
+      "fields": {
+        "profile_url": {
+          "from_capture": 1,
+          "transform": "clean-url"
+        },
+        "slug": {
+          "from_capture": 2
+        },
+        "name": {
+          "from_capture": 3,
+          "transform": "trim"
+        },
+        "price_base": {
+          "regex": "price[^>]*>\\$(\\d+\\.?\\d*)"
+        },
+        "height": {
+          "regex": "Height\\s*:\\s*(\\d['\\d]+)"
+        },
+        "weight": {
+          "regex": "Weight\\s*:\\s*(\\d+)\\s*lbs"
+        },
+        "breast_cup": {
+          "regex": "Cup\\s*:\\s*(\\d+[A-Z]+)"
+        },
+        "services": {
+          "regex": "Service\\s*:\\s*([^<]+)"
+        },
+        "terms": {
+          "regex": "(\\d+)\\s*for\\s*(\\d+)(?:hr|hour|min)",
+          "multiple": true,
+          "join": " | "
+        }
+      },
+      "filters": {
+        "must_contain": {
+          "name": ["^[A-Z]"]
+        }
+      },
+      "limits": {
+        "max_results": 100
+      }
+    },
+    "topangels-oc": {
+      "name": "TopAngels Orange County",
+      "url": "https://topangels.ch/all-angels/",
+      "parser": "regex",
+      "enabled": true,
+      "pattern": {
+        "container": "href=\"(https:\\/\\/topangels\\.ch\\/topangel\\/([^\"]+))\"[\\s\\S]*?>([^<]{2,50}?)<",
+        "context_range": 1000
+      },
+      "fields": {
+        "profile_url": {
+          "from_capture": 1,
+          "transform": "clean-url"
+        },
+        "slug": {
+          "from_capture": 2
+        },
+        "name": {
+          "from_capture": 3,
+          "transform": "remove-quotes"
+        },
+        "stats": {
+          "regex": "Stats:\\s*([^<]+)"
+        },
+        "height": {
+          "regex": "(\\d'\\d+)",
+          "source": "stats"
+        },
+        "weight": {
+          "regex": "(\\d+)\\s*lbs",
+          "source": "stats"
+        },
+        "terms": {
+          "regex": "(\\d+[A-Z](?:-\\d+-\\d+)?)",
+          "source": "stats"
+        },
+        "location": {
+          "regex": "(Irvine|Tustin|Costa Mesa|Newport)"
+        }
+      },
+      "filters": {
+        "must_contain": {
+          "_context": "Orange County"
+        },
+        "exclude_if_contains": {
+          "_context": ["Los Angeles", "San Diego"]
+        }
+      },
+      "transforms": {
+        "name": "remove-quotes",
+        "location": "concat-orange-county"
+      },
+      "limits": {
+        "max_results": 50
+      }
+    }
+  },
+  "transforms": {
+    "definitions": {
+      "cm-to-ft": {
+        "description": "Convert centimeters to feet/inches",
+        "formula": "Math.floor(cm/30.48) + \"'\" + Math.round((cm%30.48)/2.54) + '\"'",
+        "example": "170 cm → 5'7\""
+      },
+      "extract-name": {
+        "description": "Extract name before dash in title",
+        "pattern": "split(/[-–—]/)[0].trim()",
+        "example": "Jessa K - New From Kor → Jessa K"
+      },
+      "clean-url": {
+        "description": "Ensure URL is complete and valid",
+        "action": "Prepend https:// if missing, remove trailing slashes"
+      },
+      "remove-quotes": {
+        "description": "Remove quotation marks from text",
+        "pattern": "replace(/[\\\"']/g, '')"
+      },
+      "concat-orange-county": {
+        "description": "Append Orange County to location",
+        "pattern": "value + ', Orange County'"
+      }
+    }
+  },
+  "documentation": {
+    "pattern_syntax": {
+      "container": "Main regex to find each model entry. Use capture groups for reuse in fields.",
+      "context_range": "Number of characters to extract around match for field parsing",
+      "from_capture": "Use capture group N from container regex as source",
+      "multiple": "Find all matches, not just first",
+      "join": "Join multiple matches with this separator"
+    },
+    "field_types": {
+      "integer": "Convert to integer",
+      "string": "Default, keep as string",
+      "float": "Convert to float"
+    },
+    "filters": {
+      "must_contain": {"_context": "Check surrounding HTML text for keywords"},
+      "exclude_if_contains": {"_context": "Exclude if URL/text contains keywords"},
+      "required_fields": "Array of field names that must exist"
+    }
+  }
+}
