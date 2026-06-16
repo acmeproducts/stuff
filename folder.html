@@ -452,6 +452,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tp);font-
     <div class="ft-item"><strong id="ft-c">0%</strong>&nbsp;curated</div>
     <div class="ft-sep"></div>
     <div class="ft-item">Updated:&nbsp;<strong id="ft-u">—</strong></div>
+    <div class="ft-sep"></div>
+    <div class="ft-item" id="ft-diag" style="color:var(--tm)"></div>
   </footer>
 </div>
 
@@ -503,6 +505,24 @@ const INTEL_FILE='.orbital8-intelligence.json';
 const LS_INTEL='o8_intel_cache',LS_PREFS='o8_intel_prefs',LS_LEFT='o8_left_open',LS_LPW='o8_lpw',LS_ITEM_WIN='o8_item_windows',LS_VIEW='o8_view_state';
 const DIV_MIN_W=160;
 const DIV_MAX_W_RATIO=0.60;
+
+// ── IndexedDB wrapper (C1) ────────────────────────────────
+const _idb={db:null,open(){return this.db||(this.db=new Promise((res,rej)=>{const r=indexedDB.open('Orbital8-Intel',1);r.onupgradeneeded=e=>{e.target.result.createObjectStore('cache');};r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error);}));}};
+async function idbPut(key,val){try{const db=await _idb.open();await new Promise((res,rej)=>{const tx=db.transaction('cache','readwrite');const req=tx.objectStore('cache').put(val,key);req.onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);});}catch(e){}}
+async function idbGet(key){try{const db=await _idb.open();return await new Promise((res,rej)=>{const tx=db.transaction('cache','readonly');const req=tx.objectStore('cache').get(key);req.onsuccess=()=>res(req.result);tx.onerror=e=>rej(e.target.error);});}catch(e){return undefined;}}
+async function idbDelete(key){try{const db=await _idb.open();await new Promise((res,rej)=>{const tx=db.transaction('cache','readwrite');const req=tx.objectStore('cache').delete(key);req.onsuccess=()=>res();tx.onerror=e=>rej(e.target.error);});}catch(e){}}
+
+// ── Off-thread stringify (C3) ─────────────────────────────
+let _serWkr=null;
+function _getSerWkr(){if(_serWkr)return _serWkr;try{const c=`self.onmessage=e=>{try{postMessage({ok:true,s:JSON.stringify(e.data)});}catch(x){postMessage({ok:false});}};`;_serWkr=new Worker(URL.createObjectURL(new Blob([c],{type:'application/javascript'})));}catch(e){_serWkr=null;}return _serWkr;}
+async function serializeIntel(data){const w=_getSerWkr();if(w){try{return await new Promise((res,rej)=>{const mh=e=>{w.removeEventListener('message',mh);w.removeEventListener('error',eh);e.data.ok?res(e.data.s):rej(new Error('worker'));};const eh=()=>{w.removeEventListener('message',mh);w.removeEventListener('error',eh);rej(new Error('worker err'));};w.addEventListener('message',mh);w.addEventListener('error',eh);w.postMessage(data);});}catch(e){_serWkr=null;}}return JSON.stringify(data);}
+
+// ── Diagnostics (C6) ─────────────────────────────────────
+let _storageEstShown=false;
+function diagLog(msg){const el=$id('ft-diag');if(el)el.textContent=msg;}
+async function showStorageEstimate(){if(_storageEstShown||!navigator.storage?.estimate)return;_storageEstShown=true;try{const e=await navigator.storage.estimate();const used=e.usage?Math.round(e.usage/1024/1024)+'MB':'?';const quota=e.quota?Math.round(e.quota/1024/1024)+'MB':'?';const el=$id('ft-diag');if(el)el.textContent=`Storage: ${used}/${quota}`;}catch(e){}}
+let _persistRequested=false;
+async function requestPersist(){if(_persistRequested||!navigator.storage?.persist)return;_persistRequested=true;try{await navigator.storage.persist();}catch(e){}}
 const COLUMNS=[
   {id:'sel',label:'',sortKey:null,width:'32px'},
   {id:'name',label:'Name',sortKey:'name',width:'auto'},
@@ -815,17 +835,68 @@ class GoogleDriveProvider{
     await this.makeApiCall(`/files/${fileId}`,{method:'DELETE'},false);
   }
   async loadIntelligenceFile(){
-    try{const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);const r=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);const f=r.files?.[0];if(!f)return null;const c=await this.makeApiCall(`/files/${f.id}?alt=media`,{},false);return c.json();}catch(e){return null;}
+    try{
+      const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
+      const r=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+      const f=r.files?.[0];if(!f)return null;
+      const c=await this.makeApiCall(`/files/${f.id}?alt=media`,{},false);
+      const primary=await c.json();
+      if(primary&&typeof primary.shards==='number'){
+        let full='';
+        for(let i=0;i<primary.shards;i++){
+          const pn=INTEL_FILE.replace('.json',`.part${String(i).padStart(2,'0')}.json`);
+          const pq=encodeURIComponent(`name='${pn}' and 'root' in parents and trashed=false`);
+          const pr=await this.makeApiCall(`/files?q=${pq}&fields=files(id)&pageSize=1`);
+          const pf=pr.files?.[0];if(!pf)throw new Error('Missing shard '+i);
+          const pc=await this.makeApiCall(`/files/${pf.id}?alt=media`,{},false);
+          full+=await pc.text();
+        }
+        return JSON.parse(full);
+      }
+      return primary;
+    }catch(e){return null;}
   }
-  async saveIntelligenceFile(data){
-    const body=JSON.stringify(data);
+  async saveIntelligenceFile(data,preStr){
+    const body=preStr||(await serializeIntel(data));
     const q=encodeURIComponent(`name='${INTEL_FILE}' and 'root' in parents and trashed=false`);
     const check=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
     const existing=check.files?.[0];
     let fileId;
     if(existing){fileId=existing.id;}
     else{const cr=await this.makeApiCall('/files',{method:'POST',body:JSON.stringify({name:INTEL_FILE,parents:['root'],mimeType:'application/json'})});fileId=cr.id;}
-    await this.makeApiCall(`/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',body,headers:{'Content-Type':'application/json'}},false);
+    const blob=new Blob([body],{type:'application/json'});
+    const CHUNK=4*1024*1024;
+    if(blob.size<=CHUNK){await this.makeApiCall(`/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',body:blob,headers:{'Content-Type':'application/json'}},false);return;}
+    // Resumable upload
+    let uploadUri=null;
+    try{
+      const initR=await this.makeApiCall(`/upload/drive/v3/files/${fileId}?uploadType=resumable`,{method:'PATCH',body:JSON.stringify({mimeType:'application/json'}),headers:{'Content-Type':'application/json','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(blob.size)}},false);
+      uploadUri=initR.headers.get('Location');
+    }catch(e){}
+    if(uploadUri){
+      let offset=0;
+      while(offset<blob.size){
+        const end=Math.min(offset+CHUNK,blob.size);
+        await fetch(uploadUri,{method:'PUT',headers:{'Content-Range':`bytes ${offset}-${end-1}/${blob.size}`,'Content-Type':'application/json'},body:blob.slice(offset,end)});
+        offset=end;
+      }
+      return;
+    }
+    // Shard fallback
+    await this._saveShards(body,CHUNK,fileId);
+  }
+  async _saveShards(body,CHUNK,manifestFileId){
+    const total=Math.ceil(body.length/CHUNK);
+    for(let i=0;i<total;i++){
+      const partName=INTEL_FILE.replace('.json',`.part${String(i).padStart(2,'0')}.json`);
+      const q=encodeURIComponent(`name='${partName}' and 'root' in parents and trashed=false`);
+      const check=await this.makeApiCall(`/files?q=${q}&fields=files(id)&pageSize=1`);
+      const existing=check.files?.[0];let partId;
+      if(existing){partId=existing.id;}else{const cr=await this.makeApiCall('/files',{method:'POST',body:JSON.stringify({name:partName,parents:['root'],mimeType:'application/json'})});partId=cr.id;}
+      await this.makeApiCall(`/upload/drive/v3/files/${partId}?uploadType=media`,{method:'PATCH',body:body.slice(i*CHUNK,(i+1)*CHUNK),headers:{'Content-Type':'application/json'}},false);
+    }
+    const manifest=JSON.stringify({shards:total,totalLength:body.length});
+    await this.makeApiCall(`/upload/drive/v3/files/${manifestFileId}?uploadType=media`,{method:'PATCH',body:manifest,headers:{'Content-Type':'application/json'}},false);
   }
   async disconnect(){this.isAuthenticated=false;this.accessToken=null;this.refreshToken=null;this.clientSecret=null;this.clearStoredCredentials();}
 }
@@ -892,8 +963,59 @@ class OneDriveProvider{
   }
   async renameFile(fileId,newName){await this.makeApiCall(`/me/drive/items/${fileId}`,{method:'PATCH',body:JSON.stringify({name:newName})});}
   async deleteFile(fileId){await this.makeApiCall(`/me/drive/items/${fileId}`,{method:'DELETE'});}
-  async loadIntelligenceFile(){try{const r=await this.makeApiCall('/me/drive/special/approot:/orbital8-intelligence.json:/content');return r.json();}catch(e){return null;}}
-  async saveIntelligenceFile(data){const token=await this.getAccessToken();const r=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(data)});if(!r.ok)throw new Error(`Save failed: ${r.status}`);}
+  async loadIntelligenceFile(){
+    try{
+      const r=await this.makeApiCall('/me/drive/special/approot:/orbital8-intelligence.json:/content');
+      const primary=await r.json();
+      if(primary&&typeof primary.shards==='number'){
+        const token=await this.getAccessToken();
+        let full='';
+        for(let i=0;i<primary.shards;i++){
+          const pn=`orbital8-intelligence.part${String(i).padStart(2,'0')}.json`;
+          const pr=await fetch(`${this.apiBase}/me/drive/special/approot:/${pn}:/content`,{headers:{Authorization:`Bearer ${token}`}});
+          if(!pr.ok)throw new Error('Missing shard '+i);
+          full+=await pr.text();
+        }
+        return JSON.parse(full);
+      }
+      return primary;
+    }catch(e){return null;}
+  }
+  async saveIntelligenceFile(data,preStr){
+    const body=preStr||(await serializeIntel(data));
+    const token=await this.getAccessToken();
+    const CHUNK=4*1024*1024;
+    const blob=new Blob([body],{type:'application/json'});
+    if(blob.size<=CHUNK){const r=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:blob});if(!r.ok)throw new Error(`Save failed: ${r.status}`);return;}
+    // Chunked upload session
+    let uploadUrl=null;
+    try{
+      const sr=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/createUploadSession`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':'replace'}})});
+      if(sr.ok){const sd=await sr.json();uploadUrl=sd.uploadUrl;}
+    }catch(e){}
+    if(uploadUrl){
+      let offset=0;
+      while(offset<blob.size){
+        const end=Math.min(offset+CHUNK,blob.size);
+        await fetch(uploadUrl,{method:'PUT',headers:{'Content-Range':`bytes ${offset}-${end-1}/${blob.size}`,'Content-Length':String(end-offset)},body:blob.slice(offset,end)});
+        offset=end;
+      }
+      return;
+    }
+    // Shard fallback
+    await this._saveShards(token,body,CHUNK);
+  }
+  async _saveShards(token,body,CHUNK){
+    const total=Math.ceil(body.length/CHUNK);
+    for(let i=0;i<total;i++){
+      const pn=`orbital8-intelligence.part${String(i).padStart(2,'0')}.json`;
+      const r=await fetch(`${this.apiBase}/me/drive/special/approot:/${pn}:/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body.slice(i*CHUNK,(i+1)*CHUNK)});
+      if(!r.ok)throw new Error(`Shard ${i} failed`);
+    }
+    const manifest=JSON.stringify({shards:total,totalLength:body.length});
+    const mr=await fetch(`${this.apiBase}/me/drive/special/approot:/orbital8-intelligence.json:/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:manifest});
+    if(!mr.ok)throw new Error('Manifest write failed');
+  }
   async disconnect(){this.ensureMSAL();this.isAuthenticated=false;this.activeAccount=null;const accounts=this.msalInstance.getAllAccounts();if(accounts.length>0){try{await this.msalInstance.logoutPopup({account:accounts[0]});}catch(e){}}}
 }
 
@@ -903,22 +1025,29 @@ const Intel={
   async load(onStep){
     let rec=null;
     if(onStep)onStep('Checking local cache…',1);
-    try{rec=JSON.parse(localStorage.getItem(LS_INTEL));}catch(e){}
-    if(rec&&rec.provider!==st.providerType)rec=null;
-    if(rec){st.intel=rec;if(onStep)onStep('Intelligence record loaded',2);return rec;}
+    rec=await idbGet('intel');
+    if(!rec){
+      // One-time migration from legacy localStorage
+      try{const ls=localStorage.getItem(LS_INTEL);if(ls){rec=JSON.parse(ls);if(rec){await idbPut('intel',rec);localStorage.removeItem(LS_INTEL);}}}catch(e){rec=null;}
+    }
+    if(rec&&rec.provider!==st.providerType){await idbDelete('intel');rec=null;}
+    if(rec){st.intel=rec;if(onStep)onStep('Intelligence record loaded',2);showStorageEstimate();return rec;}
     if(onStep)onStep('Checking cloud storage for existing record…',2);
     try{rec=await st.provider.loadIntelligenceFile();}catch(e){}
     if(rec&&rec.provider!==st.providerType)rec=null;
+    if(rec)await idbPut('intel',rec);
     st.intel=rec;
     if(onStep)onStep(rec?'Intelligence record loaded':'No existing record found',3);
+    showStorageEstimate();
     return rec;
   },
-  saveLocal(){if(!st.intel)return;st.intel.lastUpdated=Date.now();try{localStorage.setItem(LS_INTEL,JSON.stringify(st.intel));}catch(e){}},
-  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{try{if(st.intel)await st.provider.saveIntelligenceFile(st.intel);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},450);},
+  saveLocal(){if(!st.intel)return;st.intel.lastUpdated=Date.now();idbPut('intel',st.intel).catch(()=>{});},
+  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{if(!st.intel)return;const t0=Date.now();try{const str=await serializeIntel(st.intel);await st.provider.saveIntelligenceFile(st.intel,str);diagLog(`Sync: ${Object.keys(st.intel.files||{}).length} files · ${Math.round(str.length/1024)}KB · ${Date.now()-t0}ms`);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},800);},
   async save(){
     if(!st.intel)return;
     this.saveLocal();
-    try{await st.provider.saveIntelligenceFile(st.intel);}
+    const t0=Date.now();
+    try{const str=await serializeIntel(st.intel);await st.provider.saveIntelligenceFile(st.intel,str);diagLog(`Save: ${Object.keys(st.intel.files||{}).length} files · ${Math.round(str.length/1024)}KB · ${Date.now()-t0}ms`);}
     catch(e){toast('Saved locally — cloud write failed','t-err');}
   },
   async acquire(folderId,folderName,onProg,onLog){
@@ -969,6 +1098,7 @@ const Intel={
         iCount++;
       });
       folder.hash=simpleHash(hp.sort().join('|'));fScanned++;
+      if(fScanned%5===0)idbPut('intel',rec).catch(()=>{});
       onProg({folder:fname,fc:fScanned,ic:iCount,done:[...visited].map(id=>rec.folders[id]?.name||id)});onLog(`✓ Done ${fname}`);await sleep(0);
     }
     this.computeDepths(rec);this.rollup(rec);st.intel=rec;return rec;
@@ -1247,7 +1377,10 @@ const ListView={
     thead.appendChild(hr);tbl.appendChild(thead);
     const tbody=document.createElement('tbody');
     if(!files.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=COLUMNS.length;td.style.textAlign='center';td.style.color='var(--tm)';td.style.padding='32px';td.textContent='No files match current filters.';tr.appendChild(td);tbody.appendChild(tr);}
-    files.forEach(file=>this.appendFileRow(tbody,file));
+    const MAX_ROWS=300;
+    const displayFiles=files.length>MAX_ROWS?files.slice(0,MAX_ROWS):files;
+    displayFiles.forEach(file=>this.appendFileRow(tbody,file));
+    if(files.length>MAX_ROWS){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=COLUMNS.length;td.style.cssText='text-align:center;color:var(--tm);padding:8px;font-family:var(--mono);font-size:11px';td.textContent=`Showing ${MAX_ROWS} of ${files.length} — use filters to narrow`;tr.appendChild(td);tbody.appendChild(tr);}
     tbl.appendChild(tbody);wrap.appendChild(tbl);content.appendChild(wrap);
   },
 
@@ -1310,7 +1443,7 @@ const PortalView={
   ordered(files){const order=st.ui.portalOrder?.[this.orderKey()];if(!order?.length)return files;const pos=new Map(order.map((id,i)=>[id,i]));return[...files].sort((a,b)=>(pos.has(a.id)?pos.get(a.id):1e9)-(pos.has(b.id)?pos.get(b.id):1e9));},
   render(files){
     const content=$id('rp-content');if(!content)return;content.innerHTML='';
-    const cols=st.ui.portalDensity;const perPage=cols*cols;
+    const cols=st.ui.portalDensity;const perPage=Math.min(cols*cols,500);
     files=this.ordered(files);
     const maxPage=Math.max(1,Math.ceil(files.length/perPage));
     if(st.ui.portalPage>maxPage)st.ui.portalPage=maxPage;
@@ -1417,7 +1550,7 @@ const App={
             Tree.render();
       RightPane.render();
       // Defer intelligence hydration to keep first paint and initial interaction instant.
-      setTimeout(()=>{Intel.load().then(()=>{Tree.render();restoreViewState();}).catch(()=>{});},0);
+      setTimeout(()=>{Intel.load().then(()=>{Tree.render();restoreViewState();showStorageEstimate();}).catch(()=>{});},0);
     }catch(e){toast('Load failed: '+e.message,'t-err');}
   },
 
@@ -1499,6 +1632,7 @@ const App={
       await Intel.save();
       st.acqJobs[folderId]={running:false,cancelled:false,paused:false,lastFolder:folderName,completed:true};
       releaseSlot();
+      requestPersist();
       await sleep(500);
       hideIndexingModal();resetThinProgress();
       st.selFolderEnrolled=true;Tree.render();RightPane.render();updateIntelSummary();
@@ -1600,6 +1734,7 @@ const App={
     if(st.provider)try{await st.provider.disconnect();}catch(e){}
     st.provider=null;st.providerType=null;st.intel=null;
     st.levelOneFolders=[];st.treeCache={};st.selFolderId=null;st.selFolderEnrolled=false;
+    idbDelete('intel').catch(()=>{});
     showOverlay('scr-provider');
   },
 };
@@ -1667,7 +1802,13 @@ function initEvents(){
   });
 
   // OmniSearch
-  $id('omni-input').addEventListener('input',e=>{st.ui.search=e.target.value;Timeline.clear();RightPane.render();});
+  let _omniTimer=null;
+  $id('omni-input').addEventListener('input',e=>{
+    st.ui.search=e.target.value;
+    const desc=st.selFolderId?Intel.getDescendantFiles(st.selFolderId).length:0;
+    if(desc>10000){clearTimeout(_omniTimer);_omniTimer=setTimeout(()=>{Timeline.clear();RightPane.render();},200);return;}
+    Timeline.clear();RightPane.render();
+  });
   $id('omni-clear').addEventListener('click',()=>{st.ui.search='';Timeline.clear();const i=$id('omni-input');if(i)i.value='';RightPane.render();});
 
   $id('intel-bar-summary').addEventListener('click',()=>{
