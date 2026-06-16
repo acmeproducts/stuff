@@ -1,0 +1,1683 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portfolio Treemap Replay</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #141922;
+      --panel-2: #1b2230;
+      --text: #eef3f8;
+      --muted: #98a6b8;
+      --line: #2b3546;
+      --accent: #77b7ff;
+      --bad: #e35b5b;
+      --good: #4abd7b;
+      --warn: #f0bd4d;
+      --chip: #222b3a;
+      --input: #0f141c;
+      --shadow: rgba(0,0,0,.35);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body { min-height: 100vh; }
+    button, input, select, textarea { font: inherit; }
+    button, .fileLabel {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform .08s ease, background .12s ease, border-color .12s ease;
+      white-space: nowrap;
+    }
+    button:hover, .fileLabel:hover { background: #222c3d; border-color: #3a4960; }
+    button:active, .fileLabel:active { transform: translateY(1px); }
+    button.primary { background: #163a61; border-color: #2d6fb1; }
+    button.good { background: #163c28; border-color: #2d8c55; }
+    button.bad { background: #4c1d22; border-color: #a8424b; }
+    button.warn { background: #44320d; border-color: #9c741f; }
+    button.small { padding: 7px 9px; min-height: 34px; border-radius: 10px; font-size: 13px; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--input);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      min-height: 42px;
+      padding: 9px 10px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(119,183,255,.16); }
+    input[type="file"] { display: none; }
+    input[type="checkbox"] { width: auto; min-height: auto; }
+    input[type="range"] { padding: 0; accent-color: var(--accent); }
+    .app { width: min(1600px, 100%); margin: 0 auto; padding: 18px; }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0; font-size: clamp(24px, 3.5vw, 42px); letter-spacing: -.04em; }
+    .sub { margin: 6px 0 0; color: var(--muted); line-height: 1.45; max-width: 980px; }
+    .version { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; }
+    .grid { display: grid; gap: 14px; }
+    .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.main { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015)), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 40px var(--shadow);
+      overflow: hidden;
+    }
+    .panelPad { padding: 14px; }
+    .panelHead {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .panelHead h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .row.tight { gap: 6px; }
+    .stack { display: grid; gap: 10px; }
+    .controlGrid { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 10px; }
+    .control label { display: block; color: var(--muted); font-size: 12px; margin: 0 0 5px; }
+    .metricCard {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: 102px;
+    }
+    .metricCard .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .metricCard .value { font-size: clamp(23px, 2.3vw, 34px); font-weight: 750; margin-top: 6px; letter-spacing: -.03em; }
+    .metricCard .note { color: var(--muted); font-size: 12px; margin-top: 5px; }
+    .pos { color: #65d68f; }
+    .neg { color: #ff7373; }
+    .zero { color: #cbd4df; }
+    .warnText { color: var(--warn); }
+    .treeWrap { min-height: 560px; position: relative; }
+    #treemapSvg, #lineSvg { width: 100%; display: block; background: #090c10; }
+    #treemapSvg { height: min(68vh, 720px); min-height: 520px; }
+    #lineSvg { height: 310px; }
+    .emptyState {
+      display: grid;
+      place-items: center;
+      min-height: 260px;
+      color: var(--muted);
+      text-align: center;
+      padding: 24px;
+      line-height: 1.45;
+    }
+    .tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: rgba(7, 10, 14, .96);
+      border: 1px solid #3b4658;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 36px rgba(0,0,0,.45);
+      max-width: 320px;
+      z-index: 20;
+      display: none;
+      font-size: 13px;
+      line-height: 1.38;
+    }
+    .tooltip b { font-size: 15px; }
+    .detailTitle { font-size: 26px; font-weight: 800; letter-spacing: -.04em; }
+    .detailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .detailCell { border: 1px solid var(--line); background: rgba(255,255,255,.025); border-radius: 12px; padding: 10px; }
+    .detailCell .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .detailCell .v { margin-top: 4px; font-weight: 650; word-break: break-word; }
+    .log {
+      max-height: 160px;
+      overflow: auto;
+      background: #080b0f;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #c4ceda;
+      padding: 10px 14px;
+      white-space: pre-wrap;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; background: rgba(255,255,255,.025); position: sticky; top: 0; z-index: 1; }
+    td input { min-height: 34px; padding: 6px 8px; border-radius: 9px; }
+    .tableWrap { max-height: 400px; overflow: auto; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--chip); border-radius: 999px; padding: 5px 8px; font-size: 12px; color: var(--muted); }
+    .chip.good { color: #9be3b4; border-color: #285b3b; background: #102417; }
+    .chip.bad { color: #ffaaaa; border-color: #7a3137; background: #2a1115; }
+    .chip.warn { color: #ffdf91; border-color: #6f5420; background: #241b0b; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .hidden { display: none !important; }
+    .srOnly { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+    .legend { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .gradient { width: 160px; height: 10px; border-radius: 999px; border: 1px solid var(--line); background: linear-gradient(90deg, #b93030, #363d4a, #269057); }
+    .pillTabs { display: inline-flex; background: #090d13; border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+    .pillTabs button { min-height: 32px; padding: 5px 10px; border-radius: 9px; border-color: transparent; background: transparent; }
+    .pillTabs button.active { background: #243148; border-color: #34435b; }
+
+    .tabBar { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .tabBar button { min-width: 130px; }
+    .tabBar button.active { background: #163a61; border-color: #2d6fb1; }
+    .tabPanel { display: block; }
+    .notice {
+      border: 1px solid #6f5420;
+      background: #211806;
+      color: #ffdf91;
+      border-radius: 12px;
+      padding: 10px 12px;
+      line-height: 1.4;
+      font-size: 13px;
+    }
+    .textareaHelp { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .wideControl { grid-column: 1 / -1; }
+    textarea.quickEntry { min-height: 130px; resize: vertical; font-family: var(--mono); line-height: 1.35; }
+    .footer { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 16px 2px 6px; }
+    @media (max-width: 1100px) {
+      .grid.main { grid-template-columns: 1fr; }
+      .controlGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      header { grid-template-columns: 1fr; }
+      .version { text-align: left; }
+    }
+    @media (max-width: 720px) {
+      .app { padding: 10px; }
+      .controlGrid, .grid.cols-4, .grid.cols-3, .split { grid-template-columns: 1fr; }
+      .panelHead { align-items: stretch; }
+      .row > button, .row > .fileLabel { flex: 1 1 auto; }
+      #treemapSvg { min-height: 460px; height: 62vh; }
+      .detailGrid { grid-template-columns: 1fr; }
+      th, td { padding: 7px 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Portfolio Treemap Replay</h1>
+        <p class="sub">Single-file local dashboard. Import holdings, refresh delayed quotes, backfill daily closes, save snapshots, export the full local database, and replay portfolio composition.</p>
+      </div>
+      <div class="version">v1.1 · static HTML · localStorage</div>
+    </header>
+
+    <nav class="tabBar" aria-label="Main sections">
+      <button class="active" id="dashboardTabBtn" data-tab="dashboard">Dashboard</button>
+      <button id="dataTabBtn" data-tab="data">Data</button>
+    </nav>
+
+    <div id="dashboardTab" class="tabPanel">
+
+    <section class="grid cols-4" id="summaryCards"></section>
+
+    <section class="panel" style="margin-top:14px;">
+      <div class="panelHead">
+        <h2>View controls</h2>
+        <div class="legend"><span>Loss</span><span class="gradient"></span><span>Gain</span></div>
+      </div>
+      <div class="panelPad stack">
+        <div class="controlGrid">
+          <div class="control">
+            <label for="viewMode">Mode</label>
+            <select id="viewMode">
+              <option value="current">Current</option>
+              <option value="snapshot">Replay snapshot</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="sizeMetric">Tile size</label>
+            <select id="sizeMetric">
+              <option value="marketValue">Market value</option>
+              <option value="costBasis">Cost basis</option>
+              <option value="absGainLoss">Abs gain/loss $</option>
+              <option value="absDailyChange">Abs daily change $</option>
+              <option value="portfolioWeightPct">Portfolio weight %</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="colorMetric">Tile color</label>
+            <select id="colorMetric">
+              <option value="dailyChangePct">Daily change %</option>
+              <option value="dailyChange">Daily change $</option>
+              <option value="gainLossPct">Unrealized gain/loss %</option>
+              <option value="gainLoss">Unrealized gain/loss $</option>
+              <option value="portfolioContributionPct">Portfolio contribution %</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="groupBy">Group by</label>
+            <select id="groupBy">
+              <option value="sector">Sector</option>
+              <option value="industry">Industry</option>
+              <option value="account">Account</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="lineMetric">Line chart</label>
+            <select id="lineMetric">
+              <option value="totalMarketValue">Total value</option>
+              <option value="totalGainLoss">Total gain/loss</option>
+              <option value="selectedMarketValue">Selected holding value</option>
+              <option value="selectedGainLoss">Selected holding gain/loss</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="snapshotSlider">Snapshot replay</label>
+            <input id="snapshotSlider" type="range" min="0" max="0" value="0" />
+          </div>
+        </div>
+        <div class="row tight">
+          <span class="chip" id="snapshotLabel">No snapshots</span>
+          <span class="chip" id="selectedLabel">Selected: none</span>
+          <button class="small" id="clearSelectionBtn">Clear Selection</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid main" style="margin-top:14px;">
+      <div class="panel treeWrap">
+        <div class="panelHead">
+          <h2>Treemap</h2>
+          <span class="muted" id="treeSubtitle">Current portfolio</span>
+        </div>
+        <svg id="treemapSvg" viewBox="0 0 1000 560" role="img" aria-label="Portfolio treemap"></svg>
+        <div id="treeEmpty" class="emptyState hidden">Import holdings, then press Refresh All.</div>
+      </div>
+      <aside class="panel">
+        <div class="panelHead"><h2>Selected holding</h2></div>
+        <div class="panelPad stack" id="detailPanel"></div>
+      </aside>
+    </section>
+
+    <section class="panel" style="margin-top:14px;">
+      <div class="panelHead">
+        <h2>Snapshot line chart</h2>
+        <span class="muted" id="lineSubtitle">Total value from saved snapshots</span>
+      </div>
+      <svg id="lineSvg" viewBox="0 0 1000 320" role="img" aria-label="Portfolio snapshot line chart"></svg>
+      <div id="lineEmpty" class="emptyState hidden">Take at least two snapshots to draw a line chart.</div>
+    </section>
+
+
+    </div>
+
+    <div id="dataTab" class="tabPanel hidden">
+    <section class="panel" style="margin-top:14px;">
+      <div class="panelHead">
+        <h2>Data controls</h2>
+        <div class="row tight">
+          <span class="chip" id="storageChip">Storage: checking</span>
+          <span class="chip" id="quoteChip">Quotes: idle</span>
+          <span class="chip" id="envChip">Environment: checking</span>
+        </div>
+      </div>
+      <div class="panelPad stack">
+        <div class="notice" id="environmentNotice"></div>
+        <div class="stack">
+          <div class="control wideControl">
+            <label for="quickEntryBox">Quick entry</label>
+            <textarea class="quickEntry" id="quickEntryBox" spellcheck="false" placeholder="NVDA 22 @ 135 on 3/14/2026, T 100 @ 85 on 3/1/2026"></textarea>
+            <div class="textareaHelp">Accepts entries like <span class="mono">NVDA 22 @ 135 on 3/14/2026</span>, <span class="mono">T 100 @ 85 on 3/1/2026</span>, or one per line. Use ticker symbols when possible. A small alias map recognizes names such as <span class="mono">nvidia</span> → <span class="mono">NVDA</span>.</div>
+          </div>
+          <div class="controlGrid">
+            <div class="control">
+              <label for="quickDefaultAccount">Default account</label>
+              <input id="quickDefaultAccount" value="Taxable" />
+            </div>
+            <div class="control">
+              <label for="quickDefaultSector">Default sector</label>
+              <input id="quickDefaultSector" value="Unclassified" />
+            </div>
+            <div class="control">
+              <label for="quickDefaultIndustry">Default industry</label>
+              <input id="quickDefaultIndustry" value="Unclassified" />
+            </div>
+            <div class="control">
+              <label for="quickMergeMode">After adding</label>
+              <select id="quickMergeMode">
+                <option value="append">Append rows</option>
+                <option value="merge">Merge duplicates</option>
+              </select>
+            </div>
+            <div class="control">
+              <label class="srOnly" for="quickAddBtn">Add quick entries</label>
+              <button class="good" id="quickAddBtn">Add Quick Entries</button>
+            </div>
+            <div class="control">
+              <label class="srOnly" for="quickClearBtn">Clear quick entry box</label>
+              <button id="quickClearBtn">Clear Entry Box</button>
+            </div>
+          </div>
+        </div>
+        <div class="controlGrid">
+          <div class="control">
+            <label for="providerSelect">Quote provider</label>
+            <select id="providerSelect">
+              <option value="yahoo">Yahoo chart JSON</option>
+              <option value="stooq">Stooq daily CSV</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="historyDays">Backfill lookback</label>
+            <select id="historyDays">
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">1 year</option>
+              <option value="730">2 years</option>
+              <option value="1825">5 years</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="symbolSuffix">Stooq US suffix</label>
+            <input id="symbolSuffix" value=".US" />
+          </div>
+          <div class="control">
+            <label for="autoSnapshot">After Refresh All</label>
+            <select id="autoSnapshot">
+              <option value="no">Do not snapshot</option>
+              <option value="yes">Create snapshot</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="priceCsvFile" class="srOnly">Import price CSV</label>
+            <label class="fileLabel" for="priceCsvFile">Import price CSV</label>
+            <input id="priceCsvFile" type="file" accept=".csv,text/csv" />
+          </div>
+          <div class="control">
+            <label for="holdingsFile" class="srOnly">Import holdings CSV</label>
+            <label class="fileLabel" for="holdingsFile">Import holdings CSV</label>
+            <input id="holdingsFile" type="file" accept=".csv,text/csv" />
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" id="refreshAllBtn">Refresh All</button>
+          <button id="quoteOnlyBtn">Quote Only</button>
+          <button id="backfillBtn">Backfill History</button>
+          <button class="good" id="snapshotBtn">Take Snapshot</button>
+          <button id="exportBtn">Export Backup JSON</button>
+          <label class="fileLabel" for="backupFile">Import Backup JSON</label>
+          <input id="backupFile" type="file" accept="application/json,.json" />
+          <button id="sampleBtn">Load Demo</button>
+          <button class="warn" id="sampleCsvBtn">Download CSV Template</button>
+          <button class="bad" id="clearBtn">Clear Local Data</button>
+        </div>
+      </div>
+      <div class="log" id="logBox">Ready.</div>
+    </section>
+
+    <section class="panel" style="margin-top:14px;">
+      <div class="panelHead">
+        <h2>Holdings</h2>
+        <div class="row tight">
+          <button class="small" id="addHoldingBtn">Add Holding</button>
+          <button class="small" id="dedupeBtn">Merge Duplicate Symbols</button>
+        </div>
+      </div>
+      <div class="tableWrap"><table id="holdingsTable"></table></div>
+    </section>
+
+    <section class="panel" style="margin-top:14px;">
+      <div class="panelHead">
+        <h2>Snapshots</h2>
+        <button class="small bad" id="clearSnapshotsBtn">Clear Snapshots</button>
+      </div>
+      <div class="tableWrap"><table id="snapshotsTable"></table></div>
+    </section>
+
+    </div>
+
+    <p class="footer">Local-only database. Holdings and snapshots are stored in this browser under this exact URL. Export Backup JSON before changing browsers, devices, or GitHub Pages paths. Quote refresh sends ticker symbols to the selected public quote endpoint.</p>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const APP_VERSION = 1;
+  const LS_KEY = 'portfolioTreemap.v1';
+  const $ = (id) => document.getElementById(id);
+  const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+  const money0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  const pct = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  const fmtDateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  let app = loadState();
+  let selectedKey = null;
+  let lastCalculatedCurrent = [];
+
+  function defaultState() {
+    return {
+      version: APP_VERSION,
+      settings: {
+        provider: 'yahoo',
+        historyDays: 90,
+        symbolSuffix: '.US',
+        autoSnapshot: 'no',
+        viewMode: 'current',
+        sizeMetric: 'marketValue',
+        colorMetric: 'dailyChangePct',
+        groupBy: 'sector',
+        lineMetric: 'totalMarketValue'
+      },
+      holdings: [],
+      priceHistory: {},
+      currentQuotes: {},
+      snapshots: [],
+      meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    };
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return defaultState();
+      const parsed = JSON.parse(raw);
+      return normalizeState(parsed);
+    } catch (err) {
+      console.error(err);
+      return defaultState();
+    }
+  }
+
+  function normalizeState(state) {
+    const base = defaultState();
+    const merged = Object.assign(base, state || {});
+    merged.settings = Object.assign(base.settings, (state && state.settings) || {});
+    merged.holdings = Array.isArray(merged.holdings) ? merged.holdings.map(normalizeHolding).filter(h => h.symbol) : [];
+    merged.priceHistory = merged.priceHistory && typeof merged.priceHistory === 'object' ? merged.priceHistory : {};
+    merged.currentQuotes = merged.currentQuotes && typeof merged.currentQuotes === 'object' ? merged.currentQuotes : {};
+    merged.snapshots = Array.isArray(merged.snapshots) ? merged.snapshots : [];
+    merged.meta = merged.meta || {};
+    merged.version = APP_VERSION;
+    return merged;
+  }
+
+  function saveState() {
+    app.meta.updatedAt = new Date().toISOString();
+    localStorage.setItem(LS_KEY, JSON.stringify(app));
+    updateStorageChip();
+  }
+
+  function updateStorageChip() {
+    const bytes = new Blob([localStorage.getItem(LS_KEY) || '']).size;
+    $('storageChip').textContent = 'Storage: ' + formatBytes(bytes);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function log(message, kind) {
+    const ts = new Date().toLocaleTimeString();
+    const prefix = kind === 'error' ? 'ERROR' : kind === 'warn' ? 'WARN ' : 'INFO ';
+    const box = $('logBox');
+    box.textContent += '\n[' + ts + '] ' + prefix + ' ' + message;
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setQuoteStatus(text, cls) {
+    const el = $('quoteChip');
+    el.textContent = text;
+    el.className = 'chip' + (cls ? ' ' + cls : '');
+  }
+
+  function normalizeSymbol(value) {
+    return String(value || '').trim().toUpperCase().replace(/^\$/, '');
+  }
+
+  function parseNumber(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    const cleaned = String(value).replace(/[$,%\s,]/g, '');
+    if (cleaned === '' || cleaned === '-' || cleaned.toLowerCase() === 'nan') return 0;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function normalizeDateInput(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const iso = raw.match(/^(\d{4})[-\/]?(\d{1,2})[-\/]?(\d{1,2})$/);
+    if (iso) return iso[1] + '-' + String(iso[2]).padStart(2, '0') + '-' + String(iso[3]).padStart(2, '0');
+    const mdY = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2}|\d{4})$/);
+    if (mdY) {
+      let year = Number(mdY[3]);
+      if (year < 100) year += year >= 70 ? 1900 : 2000;
+      return String(year).padStart(4, '0') + '-' + String(mdY[1]).padStart(2, '0') + '-' + String(mdY[2]).padStart(2, '0');
+    }
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return isoFromDate(d);
+    return raw;
+  }
+
+  const SYMBOL_ALIASES = {
+    'NVIDIA': 'NVDA',
+    'NVIDIA CORP': 'NVDA',
+    'APPLE': 'AAPL',
+    'APPLE INC': 'AAPL',
+    'MICROSOFT': 'MSFT',
+    'MICROSOFT CORP': 'MSFT',
+    'GOOGLE': 'GOOGL',
+    'ALPHABET': 'GOOGL',
+    'AMAZON': 'AMZN',
+    'TESLA': 'TSLA',
+    'META': 'META',
+    'FACEBOOK': 'META',
+    'PALANTIR': 'PLTR',
+    'AT&T': 'T',
+    'ATT': 'T',
+    'GOLD': 'GLD',
+    'SPY': 'SPY',
+    'QQQ': 'QQQ',
+    'SCHD': 'SCHD',
+    'SOXL': 'SOXL'
+  };
+
+  function resolveSymbol(input) {
+    const raw = String(input || '').trim();
+    if (!raw) return '';
+    const cleaned = raw.replace(/^\$/, '').trim();
+    const upper = cleaned.toUpperCase().replace(/\s+/g, ' ');
+    if (SYMBOL_ALIASES[upper]) return SYMBOL_ALIASES[upper];
+    if (/^[A-Z][A-Z0-9.\-]{0,9}$/.test(upper)) return upper;
+    return normalizeSymbol(upper.replace(/\s+/g, ''));
+  }
+
+  function normalizeHolding(raw) {
+    const h = raw || {};
+    const shares = parseNumber(h.shares !== undefined ? h.shares : h.quantity);
+    const avgCost = parseNumber(h.avgCost !== undefined ? h.avgCost : (h.avg_cost !== undefined ? h.avg_cost : h.average_cost));
+    let costBasis = parseNumber(h.costBasis !== undefined ? h.costBasis : (h.cost_basis !== undefined ? h.cost_basis : h.basis));
+    if (!costBasis && shares && avgCost) costBasis = shares * avgCost;
+    return {
+      id: h.id || makeId(),
+      symbol: resolveSymbol(h.symbol || h.ticker),
+      name: String(h.name || h.company || '').trim(),
+      shares,
+      avgCost,
+      costBasis,
+      sector: String(h.sector || '').trim() || 'Unclassified',
+      industry: String(h.industry || '').trim() || 'Unclassified',
+      account: String(h.account || '').trim() || 'Unspecified',
+      purchaseDate: normalizeDateInput(h.purchaseDate || h.purchase_date || h.date || h.acquired || h.acquisition_date || ''),
+      include: h.include === false || String(h.include).toLowerCase() === 'false' ? false : true,
+      notes: String(h.notes || '').trim()
+    };
+  }
+
+  function makeId() {
+    return 'h_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+  }
+
+  function todayIsoLocal() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function isoFromDate(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  function compactDateForStooq(iso) {
+    return iso.replaceAll('-', '');
+  }
+
+  function addDays(date, days) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function uniqueSymbols() {
+    return Array.from(new Set(app.holdings.filter(h => h.include && h.symbol && h.shares !== 0).map(h => h.symbol))).sort();
+  }
+
+  function symbolForStooq(symbol) {
+    const suffix = String(app.settings.symbolSuffix || '.US').trim();
+    let s = normalizeSymbol(symbol).toLowerCase();
+    if (!s.includes('.') && suffix) s += suffix.toLowerCase();
+    return s;
+  }
+
+  async function fetchYahoo(symbol, mode) {
+    const range = mode === 'quote' ? '5d' : String(app.settings.historyDays || 90) + 'd';
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?range=' + encodeURIComponent(range) + '&interval=1d&includePrePost=false&events=div%2Csplits';
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Yahoo HTTP ' + res.status);
+    const json = await res.json();
+    const result = json && json.chart && json.chart.result && json.chart.result[0];
+    const err = json && json.chart && json.chart.error;
+    if (!result) throw new Error(err && err.description ? err.description : 'Yahoo returned no chart result');
+    const meta = result.meta || {};
+    const timestamps = result.timestamp || [];
+    const q = result.indicators && result.indicators.quote && result.indicators.quote[0] ? result.indicators.quote[0] : {};
+    const adj = result.indicators && result.indicators.adjclose && result.indicators.adjclose[0] ? result.indicators.adjclose[0].adjclose : [];
+    const rows = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = Number(q.close && q.close[i]);
+      if (!Number.isFinite(close) || close <= 0) continue;
+      rows.push({
+        date: isoFromDate(new Date(timestamps[i] * 1000)),
+        open: Number(q.open && q.open[i]) || null,
+        high: Number(q.high && q.high[i]) || null,
+        low: Number(q.low && q.low[i]) || null,
+        close,
+        adjClose: Number(adj && adj[i]) || close,
+        volume: Number(q.volume && q.volume[i]) || 0,
+        source: 'yahoo'
+      });
+    }
+    let currentPrice = Number(meta.regularMarketPrice || meta.postMarketPrice || meta.previousClose || 0);
+    const previousClose = Number(meta.chartPreviousClose || meta.previousClose || 0);
+    const asOf = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : new Date().toISOString();
+    if (!currentPrice && rows.length) currentPrice = rows[rows.length - 1].close;
+    return { rows, quote: { symbol, price: currentPrice, previousClose, asOf, source: 'yahoo', status: 'delayed/current if available' } };
+  }
+
+  async function fetchStooq(symbol, mode) {
+    const end = todayIsoLocal();
+    const start = isoFromDate(addDays(new Date(), -Number(app.settings.historyDays || 90)));
+    const stooqSymbol = symbolForStooq(symbol);
+    const url = 'https://stooq.com/q/d/l/?s=' + encodeURIComponent(stooqSymbol) + '&i=d&d1=' + compactDateForStooq(start) + '&d2=' + compactDateForStooq(end);
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Stooq HTTP ' + res.status);
+    const text = await res.text();
+    if (/No data/i.test(text) || !/Date/i.test(text)) throw new Error('Stooq returned no CSV data for ' + stooqSymbol);
+    const parsed = parseCsv(text);
+    const header = parsed[0].map(h => h.trim().toLowerCase());
+    const rows = [];
+    for (let i = 1; i < parsed.length; i++) {
+      const row = rowToObject(header, parsed[i]);
+      const close = parseNumber(row.close);
+      if (!row.date || !close) continue;
+      rows.push({
+        date: row.date,
+        open: parseNumber(row.open) || null,
+        high: parseNumber(row.high) || null,
+        low: parseNumber(row.low) || null,
+        close,
+        adjClose: close,
+        volume: parseNumber(row.volume),
+        source: 'stooq'
+      });
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+    const last = rows[rows.length - 1];
+    const prev = rows[rows.length - 2];
+    return { rows, quote: { symbol, price: last ? last.close : 0, previousClose: prev ? prev.close : 0, asOf: new Date().toISOString(), source: 'stooq', status: 'latest daily close' } };
+  }
+
+  function mergeHistory(symbol, rows) {
+    const key = normalizeSymbol(symbol);
+    if (!app.priceHistory[key]) app.priceHistory[key] = {};
+    let added = 0;
+    for (const r of rows || []) {
+      if (!r.date || !Number.isFinite(Number(r.close))) continue;
+      const existed = !!app.priceHistory[key][r.date];
+      app.priceHistory[key][r.date] = {
+        date: r.date,
+        open: numberOrNull(r.open),
+        high: numberOrNull(r.high),
+        low: numberOrNull(r.low),
+        close: Number(r.close),
+        adjClose: numberOrNull(r.adjClose) || Number(r.close),
+        volume: Number(r.volume) || 0,
+        source: r.source || app.settings.provider || 'manual'
+      };
+      if (!existed) added++;
+    }
+    return added;
+  }
+
+  function numberOrNull(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  async function refreshAll() {
+    setQuoteStatus('Quotes: refreshing', 'warn');
+    log('Refresh All started.');
+    await backfillHistory(false);
+    await quoteOnly(false);
+    if (app.settings.autoSnapshot === 'yes') takeSnapshot('Refresh All auto snapshot');
+    saveState();
+    renderAll();
+    setQuoteStatus('Quotes: refreshed', 'good');
+    log('Refresh All finished.');
+  }
+
+  async function quoteOnly(renderWhenDone = true) {
+    const symbols = uniqueSymbols();
+    if (!symbols.length) { log('No holdings to quote.', 'warn'); return; }
+    setQuoteStatus('Quotes: fetching', 'warn');
+    let ok = 0, fail = 0;
+    for (const symbol of symbols) {
+      try {
+        const data = app.settings.provider === 'stooq' ? await fetchStooq(symbol, 'quote') : await fetchYahoo(symbol, 'quote');
+        if (data.rows && data.rows.length) mergeHistory(symbol, data.rows);
+        if (data.quote && data.quote.price) {
+          app.currentQuotes[symbol] = data.quote;
+          ok++;
+          log(symbol + ' quote ' + money.format(data.quote.price) + ' via ' + data.quote.source + '.');
+        } else {
+          throw new Error('No usable quote price');
+        }
+      } catch (err) {
+        fail++;
+        log(symbol + ' quote failed: ' + err.message, 'error');
+      }
+      await sleep(180);
+    }
+    saveState();
+    if (renderWhenDone) renderAll();
+    setQuoteStatus('Quotes: ' + ok + ' ok, ' + fail + ' failed', fail ? 'warn' : 'good');
+  }
+
+  async function backfillHistory(renderWhenDone = true) {
+    const symbols = uniqueSymbols();
+    if (!symbols.length) { log('No holdings to backfill.', 'warn'); return; }
+    setQuoteStatus('History: fetching', 'warn');
+    let ok = 0, fail = 0, addedTotal = 0;
+    for (const symbol of symbols) {
+      try {
+        const data = app.settings.provider === 'stooq' ? await fetchStooq(symbol, 'history') : await fetchYahoo(symbol, 'history');
+        const added = mergeHistory(symbol, data.rows || []);
+        if (data.quote && data.quote.price) app.currentQuotes[symbol] = data.quote;
+        ok++;
+        addedTotal += added;
+        log(symbol + ' history merged: ' + (data.rows ? data.rows.length : 0) + ' rows, ' + added + ' new.');
+      } catch (err) {
+        fail++;
+        log(symbol + ' history failed: ' + err.message, 'error');
+      }
+      await sleep(180);
+    }
+    saveState();
+    if (renderWhenDone) renderAll();
+    setQuoteStatus('History: ' + ok + ' ok, ' + fail + ' failed', fail ? 'warn' : 'good');
+    log('Backfill finished. New historical rows: ' + addedTotal + '.');
+  }
+
+  function getHistoryArray(symbol) {
+    const hist = app.priceHistory[normalizeSymbol(symbol)] || {};
+    return Object.keys(hist).sort().map(date => hist[date]).filter(r => Number.isFinite(Number(r.close)));
+  }
+
+  function latestHistory(symbol) {
+    const rows = getHistoryArray(symbol);
+    return rows.length ? rows[rows.length - 1] : null;
+  }
+
+  function latestHistoryBefore(symbol, isoDate) {
+    const rows = getHistoryArray(symbol).filter(r => r.date < isoDate);
+    return rows.length ? rows[rows.length - 1] : null;
+  }
+
+  function calculateCurrentPositions() {
+    const positions = [];
+    for (const h of app.holdings.filter(x => x.include)) {
+      const symbol = h.symbol;
+      const quote = app.currentQuotes[symbol];
+      const hist = latestHistory(symbol);
+      const quoteDate = quote && quote.asOf ? quote.asOf.slice(0, 10) : null;
+      const price = quote && Number(quote.price) > 0 ? Number(quote.price) : (hist ? Number(hist.close) : 0);
+      const prior = quote && Number(quote.previousClose) > 0 ? Number(quote.previousClose) : (quoteDate ? latestHistoryBefore(symbol, quoteDate) : null)?.close;
+      const costBasis = h.costBasis || (h.shares * h.avgCost);
+      const marketValue = price ? h.shares * price : 0;
+      const gainLoss = marketValue - costBasis;
+      const gainLossPct = costBasis ? (gainLoss / costBasis) * 100 : 0;
+      const dailyChange = price && prior ? h.shares * (price - prior) : 0;
+      const dailyChangePct = price && prior ? ((price - prior) / prior) * 100 : 0;
+      let status = 'missing';
+      let source = 'none';
+      let asOf = '';
+      if (quote && quote.price) { status = quote.source === 'stooq' ? 'historical close' : 'delayed/current'; source = quote.source; asOf = quote.asOf || ''; }
+      else if (hist) { status = 'historical close'; source = hist.source || 'history'; asOf = hist.date; }
+      positions.push(Object.assign({}, h, {
+        key: h.id,
+        price,
+        previousClose: prior || 0,
+        priceDate: quoteDate || (hist ? hist.date : ''),
+        asOf,
+        source,
+        status,
+        costBasis,
+        marketValue,
+        gainLoss,
+        gainLossPct,
+        dailyChange,
+        dailyChangePct,
+        portfolioWeightPct: 0,
+        portfolioContributionPct: 0
+      }));
+    }
+    const total = positions.reduce((s, p) => s + p.marketValue, 0);
+    const totalDaily = positions.reduce((s, p) => s + p.dailyChange, 0);
+    for (const p of positions) {
+      p.portfolioWeightPct = total ? p.marketValue / total * 100 : 0;
+      p.portfolioContributionPct = totalDaily ? p.dailyChange / Math.abs(totalDaily) * 100 : 0;
+    }
+    lastCalculatedCurrent = positions;
+    return positions;
+  }
+
+  function summarizePositions(positions) {
+    const totalMarketValue = positions.reduce((s, p) => s + p.marketValue, 0);
+    const totalCostBasis = positions.reduce((s, p) => s + p.costBasis, 0);
+    const totalGainLoss = totalMarketValue - totalCostBasis;
+    const totalGainLossPct = totalCostBasis ? totalGainLoss / totalCostBasis * 100 : 0;
+    const totalDailyChange = positions.reduce((s, p) => s + p.dailyChange, 0);
+    const priorValue = totalMarketValue - totalDailyChange;
+    const totalDailyChangePct = priorValue ? totalDailyChange / priorValue * 100 : 0;
+    return { totalMarketValue, totalCostBasis, totalGainLoss, totalGainLossPct, totalDailyChange, totalDailyChangePct };
+  }
+
+  function currentViewPositions() {
+    if (app.settings.viewMode === 'snapshot' && app.snapshots.length) {
+      const idx = clamp(Number($('snapshotSlider').value || 0), 0, app.snapshots.length - 1);
+      const snap = sortedSnapshots()[idx];
+      return snap ? snap.positions.map(p => Object.assign({}, p, { key: p.key || p.id || p.symbol + '_' + p.account })) : [];
+    }
+    return calculateCurrentPositions();
+  }
+
+  function takeSnapshot(label) {
+    const positions = calculateCurrentPositions();
+    if (!positions.length) { log('No positions available for snapshot.', 'warn'); return; }
+    const summary = summarizePositions(positions);
+    const now = new Date();
+    const snap = {
+      snapshotId: now.toISOString(),
+      snapshotDate: todayIsoLocal(),
+      snapshotTime: now.toISOString(),
+      label: label || 'Manual snapshot',
+      totalMarketValue: summary.totalMarketValue,
+      totalCostBasis: summary.totalCostBasis,
+      totalGainLoss: summary.totalGainLoss,
+      totalGainLossPct: summary.totalGainLossPct,
+      totalDailyChange: summary.totalDailyChange,
+      totalDailyChangePct: summary.totalDailyChangePct,
+      positions: positions.map(p => ({
+        key: p.key,
+        id: p.id,
+        symbol: p.symbol,
+        name: p.name,
+        shares: p.shares,
+        avgCost: p.avgCost,
+        price: p.price,
+        previousClose: p.previousClose,
+        priceDate: p.priceDate,
+        asOf: p.asOf,
+        source: p.source,
+        status: p.status,
+        costBasis: p.costBasis,
+        marketValue: p.marketValue,
+        gainLoss: p.gainLoss,
+        gainLossPct: p.gainLossPct,
+        dailyChange: p.dailyChange,
+        dailyChangePct: p.dailyChangePct,
+        portfolioWeightPct: p.portfolioWeightPct,
+        portfolioContributionPct: p.portfolioContributionPct,
+        sector: p.sector,
+        industry: p.industry,
+        account: p.account
+      }))
+    };
+    app.snapshots.push(snap);
+    app.snapshots.sort((a, b) => String(a.snapshotTime).localeCompare(String(b.snapshotTime)));
+    saveState();
+    app.settings.viewMode = 'snapshot';
+    syncSettingsToControls();
+    $('snapshotSlider').value = app.snapshots.length - 1;
+    log('Snapshot saved: ' + fmtDateTime.format(now) + ' · ' + money.format(summary.totalMarketValue) + '.');
+    renderAll();
+  }
+
+  function sortedSnapshots() {
+    return [...app.snapshots].sort((a, b) => String(a.snapshotTime || a.snapshotId).localeCompare(String(b.snapshotTime || b.snapshotId)));
+  }
+
+  function renderSummary() {
+    const positions = app.settings.viewMode === 'snapshot' && app.snapshots.length ? currentViewPositions() : calculateCurrentPositions();
+    const summary = summarizePositions(positions);
+    const cards = [
+      { label: 'Total value', value: money0.format(summary.totalMarketValue), note: positions.length + ' holdings included' },
+      { label: 'Daily change', value: signedMoney(summary.totalDailyChange), note: signedPct(summary.totalDailyChangePct), cls: classFor(summary.totalDailyChange) },
+      { label: 'Unrealized gain/loss', value: signedMoney(summary.totalGainLoss), note: signedPct(summary.totalGainLossPct), cls: classFor(summary.totalGainLoss) },
+      { label: 'Cost basis', value: money0.format(summary.totalCostBasis), note: app.settings.viewMode === 'snapshot' ? 'Snapshot view' : 'Current view' }
+    ];
+    $('summaryCards').innerHTML = cards.map(c => '<div class="metricCard"><div class="label">' + esc(c.label) + '</div><div class="value ' + (c.cls || '') + '">' + esc(c.value) + '</div><div class="note">' + esc(c.note || '') + '</div></div>').join('');
+  }
+
+  function signedMoney(v) { return (v > 0 ? '+' : v < 0 ? '-' : '') + money0.format(Math.abs(v)); }
+  function signedPct(v) { return (v > 0 ? '+' : v < 0 ? '-' : '') + pct.format(Math.abs(v)) + '%'; }
+  function classFor(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero'; }
+  function esc(s) { return String(s ?? '').replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c])); }
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function sizeValue(p) {
+    switch (app.settings.sizeMetric) {
+      case 'costBasis': return Math.max(0, p.costBasis);
+      case 'absGainLoss': return Math.abs(p.gainLoss);
+      case 'absDailyChange': return Math.abs(p.dailyChange);
+      case 'portfolioWeightPct': return Math.max(0, p.portfolioWeightPct);
+      case 'marketValue':
+      default: return Math.max(0, p.marketValue);
+    }
+  }
+
+  function colorValue(p) {
+    switch (app.settings.colorMetric) {
+      case 'dailyChange': return p.dailyChange;
+      case 'gainLossPct': return p.gainLossPct;
+      case 'gainLoss': return p.gainLoss;
+      case 'portfolioContributionPct': return p.portfolioContributionPct;
+      case 'dailyChangePct':
+      default: return p.dailyChangePct;
+    }
+  }
+
+  function renderTreemap() {
+    const svg = $('treemapSvg');
+    const empty = $('treeEmpty');
+    svg.innerHTML = '';
+    const positions = currentViewPositions().filter(p => p.include !== false);
+    const valid = positions.filter(p => sizeValue(p) > 0);
+    $('treeSubtitle').textContent = app.settings.viewMode === 'snapshot' ? 'Saved snapshot replay' : 'Current portfolio';
+    if (!valid.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    const maxColor = Math.max(...valid.map(p => Math.abs(colorValue(p))), 1);
+    const groupBy = app.settings.groupBy;
+    if (groupBy === 'none') {
+      const rects = layoutBinary(valid.map(p => ({ item: p, value: Math.max(sizeValue(p), 0.0001) })), 8, 8, 984, 544);
+      drawRects(svg, rects, maxColor);
+    } else {
+      const groups = new Map();
+      for (const p of valid) {
+        const name = p[groupBy] || 'Unclassified';
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(p);
+      }
+      const groupItems = Array.from(groups.entries()).map(([name, items]) => ({ name, items, value: items.reduce((s, p) => s + Math.max(sizeValue(p), 0.0001), 0) }));
+      const groupRects = layoutBinary(groupItems.map(g => ({ item: g, value: g.value })), 8, 8, 984, 544);
+      for (const gr of groupRects) {
+        drawGroup(svg, gr);
+        const pad = 5, head = gr.h > 70 ? 23 : 0;
+        const x = gr.x + pad, y = gr.y + pad + head, w = Math.max(0, gr.w - pad * 2), h = Math.max(0, gr.h - pad * 2 - head);
+        if (w < 20 || h < 20) continue;
+        const rects = layoutBinary(gr.item.items.map(p => ({ item: p, value: Math.max(sizeValue(p), 0.0001) })), x, y, w, h);
+        drawRects(svg, rects, maxColor);
+      }
+    }
+  }
+
+  function layoutBinary(nodes, x, y, w, h) {
+    nodes = nodes.filter(n => n.value > 0).sort((a, b) => b.value - a.value);
+    const out = [];
+    function rec(list, x, y, w, h) {
+      if (!list.length || w <= 0 || h <= 0) return;
+      if (list.length === 1) {
+        out.push({ x, y, w, h, item: list[0].item, value: list[0].value });
+        return;
+      }
+      const total = list.reduce((s, n) => s + n.value, 0);
+      let acc = 0, split = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (acc + list[i].value <= total / 2 || i === 0) { acc += list[i].value; split = i + 1; }
+        else break;
+      }
+      split = clamp(split, 1, list.length - 1);
+      const a = list.slice(0, split);
+      const b = list.slice(split);
+      const sumA = a.reduce((s, n) => s + n.value, 0);
+      const ratio = total ? sumA / total : 0.5;
+      if (w >= h) {
+        const wa = w * ratio;
+        rec(a, x, y, wa, h);
+        rec(b, x + wa, y, w - wa, h);
+      } else {
+        const ha = h * ratio;
+        rec(a, x, y, w, ha);
+        rec(b, x, y + ha, w, h - ha);
+      }
+    }
+    rec(nodes, x, y, w, h);
+    return out;
+  }
+
+  function drawGroup(svg, gr) {
+    const g = createSvg('g');
+    const rect = createSvg('rect');
+    rect.setAttribute('x', gr.x);
+    rect.setAttribute('y', gr.y);
+    rect.setAttribute('width', gr.w);
+    rect.setAttribute('height', gr.h);
+    rect.setAttribute('fill', 'rgba(255,255,255,.025)');
+    rect.setAttribute('stroke', '#526076');
+    rect.setAttribute('stroke-width', '1.4');
+    g.appendChild(rect);
+    if (gr.w > 90 && gr.h > 55) {
+      const text = createSvg('text');
+      text.setAttribute('x', gr.x + 8);
+      text.setAttribute('y', gr.y + 17);
+      text.setAttribute('fill', '#b8c4d2');
+      text.setAttribute('font-size', '13');
+      text.setAttribute('font-weight', '700');
+      text.textContent = gr.item.name;
+      g.appendChild(text);
+    }
+    svg.appendChild(g);
+  }
+
+  function drawRects(svg, rects, maxColor) {
+    for (const r of rects) {
+      const p = r.item;
+      const gap = 2;
+      const x = r.x + gap, y = r.y + gap, w = Math.max(0, r.w - gap * 2), h = Math.max(0, r.h - gap * 2);
+      if (w <= 0 || h <= 0) continue;
+      const g = createSvg('g');
+      g.setAttribute('tabindex', '0');
+      g.style.cursor = 'pointer';
+      const rect = createSvg('rect');
+      rect.setAttribute('x', x.toFixed(2));
+      rect.setAttribute('y', y.toFixed(2));
+      rect.setAttribute('width', w.toFixed(2));
+      rect.setAttribute('height', h.toFixed(2));
+      rect.setAttribute('rx', Math.min(10, Math.max(2, Math.min(w, h) / 12)).toFixed(2));
+      rect.setAttribute('fill', colorFor(colorValue(p), maxColor, p.status));
+      rect.setAttribute('stroke', selectedKey === p.key ? '#ffffff' : 'rgba(255,255,255,.22)');
+      rect.setAttribute('stroke-width', selectedKey === p.key ? '2.4' : '1');
+      g.appendChild(rect);
+      const area = w * h;
+      if (area > 2600 && w > 70 && h > 40) {
+        const t1 = createSvg('text');
+        t1.setAttribute('x', x + 8);
+        t1.setAttribute('y', y + 18);
+        t1.setAttribute('fill', '#fff');
+        t1.setAttribute('font-size', w > 150 ? '18' : '14');
+        t1.setAttribute('font-weight', '800');
+        t1.textContent = p.symbol;
+        g.appendChild(t1);
+        const t2 = createSvg('text');
+        t2.setAttribute('x', x + 8);
+        t2.setAttribute('y', y + (w > 150 ? 39 : 35));
+        t2.setAttribute('fill', 'rgba(255,255,255,.88)');
+        t2.setAttribute('font-size', w > 150 ? '13' : '11');
+        t2.textContent = money0.format(p.marketValue) + ' · ' + signedPct(colorValue(p));
+        g.appendChild(t2);
+        if (area > 9000 && h > 95) {
+          const t3 = createSvg('text');
+          t3.setAttribute('x', x + 8);
+          t3.setAttribute('y', y + (w > 150 ? 58 : 52));
+          t3.setAttribute('fill', 'rgba(255,255,255,.72)');
+          t3.setAttribute('font-size', '11');
+          t3.textContent = pct.format(p.portfolioWeightPct) + '% weight · ' + p.status;
+          g.appendChild(t3);
+        }
+      }
+      g.addEventListener('click', () => { selectedKey = p.key; renderAll(false); });
+      g.addEventListener('mousemove', (ev) => showTooltip(ev, p));
+      g.addEventListener('mouseleave', hideTooltip);
+      g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { selectedKey = p.key; renderAll(false); } });
+      svg.appendChild(g);
+    }
+  }
+
+  function createSvg(name) { return document.createElementNS('http://www.w3.org/2000/svg', name); }
+
+  function colorFor(value, maxAbs, status) {
+    if (status === 'missing') return '#3d4652';
+    if (!Number.isFinite(value) || value === 0) return '#343c49';
+    const intensity = Math.min(1, Math.sqrt(Math.abs(value) / Math.max(maxAbs, 0.0001)));
+    if (value > 0) {
+      const light = 23 + intensity * 23;
+      const sat = 42 + intensity * 28;
+      return 'hsl(142 ' + sat.toFixed(0) + '% ' + light.toFixed(0) + '%)';
+    }
+    const light = 24 + intensity * 24;
+    const sat = 45 + intensity * 30;
+    return 'hsl(358 ' + sat.toFixed(0) + '% ' + light.toFixed(0) + '%)';
+  }
+
+  function showTooltip(ev, p) {
+    const t = $('tooltip');
+    t.innerHTML = '<b>' + esc(p.symbol) + '</b> <span class="muted">' + esc(p.name || '') + '</span><br>' +
+      esc(p.account || '') + ' · ' + esc(p.sector || '') + '<br>' +
+      'Value: ' + esc(money.format(p.marketValue)) + '<br>' +
+      'Price: ' + esc(p.price ? money.format(p.price) : 'missing') + '<br>' +
+      'Daily: <span class="' + classFor(p.dailyChange) + '">' + esc(signedMoney(p.dailyChange)) + ' / ' + esc(signedPct(p.dailyChangePct)) + '</span><br>' +
+      'Gain/Loss: <span class="' + classFor(p.gainLoss) + '">' + esc(signedMoney(p.gainLoss)) + ' / ' + esc(signedPct(p.gainLossPct)) + '</span><br>' +
+      'Weight: ' + esc(pct.format(p.portfolioWeightPct)) + '%<br>' +
+      'Price status: ' + esc(p.status) + (p.asOf ? ' · ' + esc(p.asOf.slice(0, 19).replace('T', ' ')) : '');
+    t.style.left = Math.min(window.innerWidth - 340, ev.clientX + 14) + 'px';
+    t.style.top = Math.min(window.innerHeight - 220, ev.clientY + 14) + 'px';
+    t.style.display = 'block';
+  }
+
+  function hideTooltip() { $('tooltip').style.display = 'none'; }
+
+  function renderDetails() {
+    const positions = currentViewPositions();
+    const p = positions.find(x => x.key === selectedKey) || positions[0] || null;
+    if (p && !selectedKey) selectedKey = p.key;
+    $('selectedLabel').textContent = 'Selected: ' + (p ? p.symbol : 'none');
+    if (!p) {
+      $('detailPanel').innerHTML = '<div class="muted">No holding selected.</div>';
+      return;
+    }
+    $('detailPanel').innerHTML =
+      '<div><div class="detailTitle">' + esc(p.symbol) + '</div><div class="muted">' + esc(p.name || 'Unnamed holding') + '</div></div>' +
+      '<div class="detailGrid">' +
+      detailCell('Market value', money.format(p.marketValue)) +
+      detailCell('Price', p.price ? money.format(p.price) : 'Missing') +
+      detailCell('Shares', num.format(p.shares)) +
+      detailCell('Cost basis', money.format(p.costBasis)) +
+      detailCell('Daily change', signedMoney(p.dailyChange) + ' / ' + signedPct(p.dailyChangePct), classFor(p.dailyChange)) +
+      detailCell('Gain/loss', signedMoney(p.gainLoss) + ' / ' + signedPct(p.gainLossPct), classFor(p.gainLoss)) +
+      detailCell('Portfolio weight', pct.format(p.portfolioWeightPct) + '%') +
+      detailCell('Source', (p.source || 'none') + ' · ' + (p.status || 'unknown')) +
+      detailCell('Account', p.account || '') +
+      detailCell('Sector', p.sector || '') +
+      detailCell('Industry', p.industry || '') +
+      detailCell('As of', p.asOf ? p.asOf.slice(0, 19).replace('T', ' ') : (p.priceDate || '')) +
+      '</div>';
+  }
+
+  function detailCell(k, v, cls) {
+    return '<div class="detailCell"><div class="k">' + esc(k) + '</div><div class="v ' + (cls || '') + '">' + esc(v) + '</div></div>';
+  }
+
+  function renderLineChart() {
+    const svg = $('lineSvg');
+    const empty = $('lineEmpty');
+    svg.innerHTML = '';
+    const snaps = sortedSnapshots();
+    const metric = app.settings.lineMetric;
+    const selectedSymbol = selectedKey ? (currentViewPositions().find(p => p.key === selectedKey) || {}).symbol : '';
+    const points = snaps.map((s, i) => {
+      let y = Number(s.totalMarketValue || 0);
+      let label = 'Total value';
+      if (metric === 'totalGainLoss') { y = Number(s.totalGainLoss || 0); label = 'Total gain/loss'; }
+      if ((metric === 'selectedMarketValue' || metric === 'selectedGainLoss') && selectedSymbol) {
+        const pos = (s.positions || []).filter(p => p.symbol === selectedSymbol).reduce((acc, p) => {
+          acc.marketValue += Number(p.marketValue || 0);
+          acc.gainLoss += Number(p.gainLoss || 0);
+          return acc;
+        }, { marketValue: 0, gainLoss: 0 });
+        y = metric === 'selectedGainLoss' ? pos.gainLoss : pos.marketValue;
+        label = selectedSymbol + (metric === 'selectedGainLoss' ? ' gain/loss' : ' value');
+      }
+      return { x: i, y, date: s.snapshotDate || String(s.snapshotTime || '').slice(0, 10), time: s.snapshotTime || s.snapshotId, label };
+    }).filter(p => Number.isFinite(p.y));
+    $('lineSubtitle').textContent = points[0] ? points[0].label + ' from saved snapshots' : 'Saved snapshots';
+    if (points.length < 2) { empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    const W = 1000, H = 320, L = 72, R = 18, T = 24, B = 48;
+    const minY = Math.min(...points.map(p => p.y));
+    const maxY = Math.max(...points.map(p => p.y));
+    const padY = (maxY - minY || Math.max(Math.abs(maxY), 1)) * 0.12;
+    const y0 = minY - padY, y1 = maxY + padY;
+    const xScale = i => L + (points.length === 1 ? 0 : (i / (points.length - 1)) * (W - L - R));
+    const yScale = v => T + (1 - ((v - y0) / (y1 - y0 || 1))) * (H - T - B);
+    for (let g = 0; g <= 4; g++) {
+      const y = T + g / 4 * (H - T - B);
+      const val = y1 - g / 4 * (y1 - y0);
+      const line = createSvg('line');
+      line.setAttribute('x1', L); line.setAttribute('x2', W - R); line.setAttribute('y1', y); line.setAttribute('y2', y); line.setAttribute('stroke', '#222b38');
+      svg.appendChild(line);
+      const txt = createSvg('text');
+      txt.setAttribute('x', 8); txt.setAttribute('y', y + 4); txt.setAttribute('fill', '#97a6b7'); txt.setAttribute('font-size', '12');
+      txt.textContent = money0.format(val);
+      svg.appendChild(txt);
+    }
+    const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xScale(i).toFixed(2) + ',' + yScale(p.y).toFixed(2)).join(' ');
+    const pl = createSvg('path');
+    pl.setAttribute('d', path); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#79bfff'); pl.setAttribute('stroke-width', '3');
+    svg.appendChild(pl);
+    const selectedIdx = app.settings.viewMode === 'snapshot' ? Number($('snapshotSlider').value || 0) : -1;
+    points.forEach((p, i) => {
+      const cx = xScale(i), cy = yScale(p.y);
+      const c = createSvg('circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', i === selectedIdx ? 6 : 4); c.setAttribute('fill', i === selectedIdx ? '#fff' : '#79bfff');
+      c.style.cursor = 'pointer';
+      c.addEventListener('click', () => { app.settings.viewMode = 'snapshot'; syncSettingsToControls(); $('snapshotSlider').value = i; renderAll(); });
+      c.addEventListener('mousemove', ev => {
+        const t = $('tooltip');
+        t.innerHTML = '<b>' + esc(p.date) + '</b><br>' + esc(p.label) + ': ' + esc(money.format(p.y));
+        t.style.left = Math.min(window.innerWidth - 300, ev.clientX + 14) + 'px';
+        t.style.top = Math.min(window.innerHeight - 130, ev.clientY + 14) + 'px';
+        t.style.display = 'block';
+      });
+      c.addEventListener('mouseleave', hideTooltip);
+      svg.appendChild(c);
+      if (i === 0 || i === points.length - 1 || i === selectedIdx) {
+        const tx = createSvg('text');
+        tx.setAttribute('x', cx); tx.setAttribute('y', H - 18); tx.setAttribute('text-anchor', i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle');
+        tx.setAttribute('fill', '#97a6b7'); tx.setAttribute('font-size', '12'); tx.textContent = p.date;
+        svg.appendChild(tx);
+      }
+    });
+  }
+
+  function renderHoldingsTable() {
+    const table = $('holdingsTable');
+    if (!app.holdings.length) {
+      table.innerHTML = '<tbody><tr><td class="muted">No holdings imported. Use Quick Entry, CSV import, or Load Demo.</td></tr></tbody>';
+      return;
+    }
+    const headers = ['Include', 'Symbol', 'Name', 'Shares', 'Avg cost', 'Cost basis', 'Date', 'Sector', 'Industry', 'Account', 'Notes', ''];
+    let html = '<thead><tr>' + headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>';
+    app.holdings.forEach((h, i) => {
+      html += '<tr data-index="' + i + '">' +
+        '<td><input type="checkbox" data-field="include" ' + (h.include ? 'checked' : '') + '></td>' +
+        cellInput('symbol', h.symbol) + cellInput('name', h.name) + cellInput('shares', h.shares) + cellInput('avgCost', h.avgCost) + cellInput('costBasis', h.costBasis) +
+        cellInput('purchaseDate', h.purchaseDate) + cellInput('sector', h.sector) + cellInput('industry', h.industry) + cellInput('account', h.account) + cellInput('notes', h.notes) +
+        '<td><button class="small bad" data-action="delete">Delete</button></td></tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+    table.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('change', updateHoldingFromInput);
+      inp.addEventListener('blur', updateHoldingFromInput);
+    });
+    table.querySelectorAll('button[data-action="delete"]').forEach(btn => btn.addEventListener('click', ev => {
+      const i = Number(ev.target.closest('tr').dataset.index);
+      app.holdings.splice(i, 1);
+      saveState(); renderAll();
+    }));
+  }
+
+  function cellInput(field, value) { return '<td><input data-field="' + esc(field) + '" value="' + esc(value) + '"></td>'; }
+
+  function updateHoldingFromInput(ev) {
+    const tr = ev.target.closest('tr');
+    if (!tr) return;
+    const i = Number(tr.dataset.index);
+    const field = ev.target.dataset.field;
+    if (!app.holdings[i]) return;
+    if (field === 'include') app.holdings[i][field] = ev.target.checked;
+    else if (['shares', 'avgCost', 'costBasis'].includes(field)) app.holdings[i][field] = parseNumber(ev.target.value);
+    else if (field === 'symbol') app.holdings[i][field] = resolveSymbol(ev.target.value);
+    else if (field === 'purchaseDate') app.holdings[i][field] = normalizeDateInput(ev.target.value);
+    else app.holdings[i][field] = ev.target.value;
+    if (field === 'shares' || field === 'avgCost') {
+      if (!app.holdings[i].costBasis && app.holdings[i].shares && app.holdings[i].avgCost) app.holdings[i].costBasis = app.holdings[i].shares * app.holdings[i].avgCost;
+    }
+    app.holdings[i] = normalizeHolding(app.holdings[i]);
+    saveState();
+    renderSummary();
+    renderTreemap();
+    renderDetails();
+  }
+
+  function renderSnapshotsTable() {
+    const table = $('snapshotsTable');
+    const snaps = sortedSnapshots();
+    if (!snaps.length) {
+      table.innerHTML = '<tbody><tr><td class="muted">No snapshots saved.</td></tr></tbody>';
+      return;
+    }
+    let html = '<thead><tr><th>Date</th><th>Time</th><th>Label</th><th>Total value</th><th>Daily</th><th>Gain/loss</th><th>Positions</th><th></th></tr></thead><tbody>';
+    snaps.forEach((s, i) => {
+      html += '<tr><td>' + esc(s.snapshotDate || '') + '</td><td>' + esc(String(s.snapshotTime || s.snapshotId || '').slice(11, 19)) + '</td><td>' + esc(s.label || '') + '</td><td>' + esc(money.format(Number(s.totalMarketValue || 0))) + '</td><td class="' + classFor(s.totalDailyChange) + '">' + esc(signedMoney(Number(s.totalDailyChange || 0))) + '</td><td class="' + classFor(s.totalGainLoss) + '">' + esc(signedMoney(Number(s.totalGainLoss || 0))) + '</td><td>' + esc((s.positions || []).length) + '</td><td><button class="small bad" data-snap="' + i + '">Delete</button></td></tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+    table.querySelectorAll('button[data-snap]').forEach(btn => btn.addEventListener('click', ev => {
+      const idx = Number(ev.target.dataset.snap);
+      const target = snaps[idx];
+      app.snapshots = app.snapshots.filter(s => s !== target);
+      saveState(); renderAll();
+    }));
+  }
+
+  function renderSnapshotControls() {
+    const snaps = sortedSnapshots();
+    const slider = $('snapshotSlider');
+    slider.max = Math.max(0, snaps.length - 1);
+    if (Number(slider.value) > Number(slider.max)) slider.value = slider.max;
+    if (!snaps.length) { $('snapshotLabel').textContent = 'No snapshots'; return; }
+    const idx = clamp(Number(slider.value || 0), 0, snaps.length - 1);
+    const s = snaps[idx];
+    $('snapshotLabel').textContent = 'Snapshot ' + (idx + 1) + '/' + snaps.length + ': ' + (s.snapshotDate || '') + ' · ' + money0.format(Number(s.totalMarketValue || 0));
+  }
+
+  function renderAll(resetSelectionWhenMissing = true) {
+    syncSettingsToControls(false);
+    renderSnapshotControls();
+    const positions = currentViewPositions();
+    if (resetSelectionWhenMissing && selectedKey && !positions.some(p => p.key === selectedKey)) selectedKey = null;
+    renderSummary();
+    renderTreemap();
+    renderDetails();
+    renderLineChart();
+    renderHoldingsTable();
+    renderSnapshotsTable();
+    updateStorageChip();
+  }
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], cell = '', quote = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const next = text[i + 1];
+      if (quote) {
+        if (ch === '"' && next === '"') { cell += '"'; i++; }
+        else if (ch === '"') quote = false;
+        else cell += ch;
+      } else {
+        if (ch === '"') quote = true;
+        else if (ch === ',') { row.push(cell); cell = ''; }
+        else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+        else if (ch !== '\r') cell += ch;
+      }
+    }
+    if (cell.length || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(c => String(c).trim() !== ''));
+  }
+
+  function rowToObject(header, row) {
+    const obj = {};
+    header.forEach((h, i) => { obj[String(h || '').trim().toLowerCase().replace(/\s+/g, '_')] = row[i]; });
+    return obj;
+  }
+
+  function parseQuickEntries(text) {
+    const source = String(text || '').trim();
+    if (!source) return [];
+    const entries = [];
+    const compact = source.replace(/\r/g, '\n');
+
+    const structured = /([^,;\n]+?)\s+([+-]?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?)\s*(?:shares?|sh|x)?\s*@\s*\$?([+-]?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?)(?:\s*(?:on|as\s*of|date)\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}))?/gi;
+    let match;
+    while ((match = structured.exec(compact)) !== null) {
+      const rawSymbol = match[1].trim().replace(/^[,;]+|[,;]+$/g, '');
+      const shares = parseNumber(match[2]);
+      const avgCost = parseNumber(match[3]);
+      const purchaseDate = normalizeDateInput(match[4] || '');
+      const symbol = resolveSymbol(rawSymbol);
+      if (!symbol || !shares || !avgCost) continue;
+      entries.push({ symbol, rawSymbol, shares, avgCost, purchaseDate });
+    }
+
+    if (entries.length) return entries;
+
+    const lines = compact.split(/[\n;]+/).map(x => x.trim()).filter(Boolean);
+    for (const line of lines) {
+      const cells = line.split(',').map(x => x.trim()).filter(Boolean);
+      if (cells.length < 3) continue;
+      const symbol = resolveSymbol(cells[0]);
+      const shares = parseNumber(cells[1]);
+      const avgCost = parseNumber(cells[2]);
+      const purchaseDate = normalizeDateInput(cells[3] || '');
+      if (!symbol || !shares || !avgCost) continue;
+      entries.push({ symbol, rawSymbol: cells[0], shares, avgCost, purchaseDate });
+    }
+    return entries;
+  }
+
+  function addQuickEntries() {
+    const text = $('quickEntryBox').value;
+    const entries = parseQuickEntries(text);
+    if (!entries.length) {
+      log('Quick entry found no valid rows. Use examples like NVDA 22 @ 135 on 3/14/2026 or T,100,85,3/1/2026.', 'warn');
+      return;
+    }
+    const account = $('quickDefaultAccount').value.trim() || 'Unspecified';
+    const sector = $('quickDefaultSector').value.trim() || 'Unclassified';
+    const industry = $('quickDefaultIndustry').value.trim() || 'Unclassified';
+    const holdings = entries.map(e => normalizeHolding({
+      symbol: e.symbol,
+      name: e.rawSymbol && e.rawSymbol.toUpperCase() !== e.symbol ? e.rawSymbol : '',
+      shares: e.shares,
+      avgCost: e.avgCost,
+      costBasis: e.shares * e.avgCost,
+      purchaseDate: e.purchaseDate,
+      sector,
+      industry,
+      account,
+      notes: e.purchaseDate ? 'Quick entry purchase date ' + e.purchaseDate : 'Quick entry'
+    }));
+    app.holdings.push(...holdings);
+    if ($('quickMergeMode').value === 'merge') mergeDuplicateSymbols(false);
+    saveState();
+    log('Quick entry added ' + holdings.length + ' holding row' + (holdings.length === 1 ? '' : 's') + '.');
+    renderAll();
+  }
+
+  async function importHoldingsFile(file) {
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV has no data rows');
+    const header = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    const holdings = rows.slice(1).map(r => normalizeHolding(rowToObject(header, r))).filter(h => h.symbol);
+    if (!holdings.length) throw new Error('No valid holdings found. Required: symbol, shares, avg_cost or cost_basis.');
+    app.holdings = holdings;
+    saveState();
+    log('Imported ' + holdings.length + ' holdings from CSV.');
+    renderAll();
+  }
+
+  async function importPriceCsvFile(file) {
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('Price CSV has no data rows');
+    const header = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    let count = 0;
+    for (const r of rows.slice(1)) {
+      const obj = rowToObject(header, r);
+      const symbol = normalizeSymbol(obj.symbol || obj.ticker);
+      const date = String(obj.date || '').slice(0, 10);
+      const close = parseNumber(obj.close || obj.adj_close || obj.price);
+      if (!symbol || !date || !close) continue;
+      count += mergeHistory(symbol, [{
+        date,
+        open: parseNumber(obj.open) || null,
+        high: parseNumber(obj.high) || null,
+        low: parseNumber(obj.low) || null,
+        close,
+        adjClose: parseNumber(obj.adj_close || obj.adjclose) || close,
+        volume: parseNumber(obj.volume),
+        source: 'manual-csv'
+      }]);
+    }
+    saveState();
+    log('Imported price CSV. New/updated rows: ' + count + '.');
+    renderAll();
+  }
+
+  async function importBackupFile(file) {
+    const text = await file.text();
+    const parsed = normalizeState(JSON.parse(text));
+    app = parsed;
+    saveState();
+    selectedKey = null;
+    syncSettingsToControls();
+    log('Backup JSON imported.');
+    renderAll();
+  }
+
+  function exportBackup() {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadText('portfolio-treemap-backup-' + stamp + '.json', JSON.stringify(app, null, 2), 'application/json');
+  }
+
+  function downloadTemplate() {
+    const csv = 'symbol,name,shares,avg_cost,cost_basis,purchase_date,sector,industry,account,notes\nNVDA,NVIDIA,210,42,8820,2026-03-14,Technology,Semiconductors,Taxable,example\nGLD,SPDR Gold Shares,20,180,3600,2026-03-14,Commodities,Gold,Taxable,example\nPLTR,Palantir,50,25,1250,2026-03-14,Technology,Software,Taxable,example\n';
+    downloadText('portfolio-holdings-template.csv', csv, 'text/csv');
+  }
+
+  function downloadText(filename, text, type) {
+    const blob = new Blob([text], { type: type || 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function loadDemo() {
+    app.holdings = [
+      normalizeHolding({ symbol: 'NVDA', name: 'NVIDIA', shares: 210, avgCost: 42, purchaseDate: '2026-03-14', sector: 'Technology', industry: 'Semiconductors', account: 'Taxable' }),
+      normalizeHolding({ symbol: 'GLD', name: 'SPDR Gold Shares', shares: 20, avgCost: 180, purchaseDate: '2026-03-14', sector: 'Commodities', industry: 'Gold', account: 'Taxable' }),
+      normalizeHolding({ symbol: 'PLTR', name: 'Palantir', shares: 50, avgCost: 25, purchaseDate: '2026-03-14', sector: 'Technology', industry: 'Software', account: 'Taxable' }),
+      normalizeHolding({ symbol: 'SCHD', name: 'Schwab US Dividend Equity ETF', shares: 250, avgCost: 73, sector: 'ETF', industry: 'Dividend ETF', account: 'IRA' }),
+      normalizeHolding({ symbol: 'SMR', name: 'NuScale Power', shares: 110, avgCost: 7, sector: 'Energy', industry: 'Nuclear', account: 'Taxable' }),
+      normalizeHolding({ symbol: 'SPY', name: 'SPDR S&P 500 ETF', shares: 15, avgCost: 470, sector: 'ETF', industry: 'Broad market', account: 'Taxable' })
+    ];
+    app.priceHistory = {};
+    app.currentQuotes = {};
+    app.snapshots = [];
+    saveState();
+    selectedKey = null;
+    log('Demo holdings loaded. Press Refresh All to fetch prices.');
+    renderAll();
+  }
+
+  function mergeDuplicateSymbols(renderAfter = true) {
+    const map = new Map();
+    for (const h of app.holdings) {
+      const key = [h.symbol, h.account, h.sector, h.industry].join('|');
+      if (!map.has(key)) map.set(key, Object.assign({}, h));
+      else {
+        const e = map.get(key);
+        const shares = e.shares + h.shares;
+        const costBasis = e.costBasis + h.costBasis;
+        e.shares = shares;
+        e.costBasis = costBasis;
+        e.avgCost = shares ? costBasis / shares : 0;
+        if (!e.name && h.name) e.name = h.name;
+        if (h.notes) e.notes = [e.notes, h.notes].filter(Boolean).join('; ');
+      }
+    }
+    app.holdings = Array.from(map.values()).map(normalizeHolding);
+    saveState();
+    log('Merged duplicate rows with same symbol/account/sector/industry.');
+    if (renderAfter) renderAll();
+  }
+
+  function updateEnvironmentNotice() {
+    const isFile = location.protocol === 'file:';
+    const origin = location.origin === 'null' ? 'local file' : location.origin;
+    const env = $('envChip');
+    const notice = $('environmentNotice');
+    if (isFile) {
+      env.textContent = 'Environment: local file';
+      env.className = 'chip warn';
+      notice.classList.remove('hidden');
+      notice.textContent = 'You are running from file://. Browser quote fetches can fail from local files because public endpoints often reject null/local origins. Host this file on GitHub Pages or another HTTPS static host for the best chance of quote refresh working. Manual entry, CSV import, JSON backup, snapshots, and saved history still work locally.';
+    } else {
+      env.textContent = 'Environment: ' + origin;
+      env.className = 'chip good';
+      notice.classList.add('hidden');
+      notice.textContent = '';
+    }
+  }
+
+  function switchTab(name) {
+    const dashboard = name === 'dashboard';
+    $('dashboardTab').classList.toggle('hidden', !dashboard);
+    $('dataTab').classList.toggle('hidden', dashboard);
+    $('dashboardTabBtn').classList.toggle('active', dashboard);
+    $('dataTabBtn').classList.toggle('active', !dashboard);
+    try { sessionStorage.setItem('portfolioTreemap.activeTab', name); } catch (err) { /* ignore */ }
+  }
+
+  function syncSettingsToControls(readFromControls = true) {
+    if (readFromControls) {
+      app.settings.provider = $('providerSelect').value;
+      app.settings.historyDays = Number($('historyDays').value);
+      app.settings.symbolSuffix = $('symbolSuffix').value;
+      app.settings.autoSnapshot = $('autoSnapshot').value;
+      app.settings.viewMode = $('viewMode').value;
+      app.settings.sizeMetric = $('sizeMetric').value;
+      app.settings.colorMetric = $('colorMetric').value;
+      app.settings.groupBy = $('groupBy').value;
+      app.settings.lineMetric = $('lineMetric').value;
+      saveState();
+    } else {
+      $('providerSelect').value = app.settings.provider || 'yahoo';
+      $('historyDays').value = String(app.settings.historyDays || 90);
+      $('symbolSuffix').value = app.settings.symbolSuffix || '.US';
+      $('autoSnapshot').value = app.settings.autoSnapshot || 'no';
+      $('viewMode').value = app.settings.viewMode || 'current';
+      $('sizeMetric').value = app.settings.sizeMetric || 'marketValue';
+      $('colorMetric').value = app.settings.colorMetric || 'dailyChangePct';
+      $('groupBy').value = app.settings.groupBy || 'sector';
+      $('lineMetric').value = app.settings.lineMetric || 'totalMarketValue';
+    }
+  }
+
+  function attachEvents() {
+    $('dashboardTabBtn').addEventListener('click', () => switchTab('dashboard'));
+    $('dataTabBtn').addEventListener('click', () => switchTab('data'));
+    $('quickAddBtn').addEventListener('click', addQuickEntries);
+    $('quickClearBtn').addEventListener('click', () => { $('quickEntryBox').value = ''; });
+    $('refreshAllBtn').addEventListener('click', () => refreshAll().catch(err => { log(err.message, 'error'); setQuoteStatus('Quotes: failed', 'bad'); }));
+    $('quoteOnlyBtn').addEventListener('click', () => quoteOnly().catch(err => { log(err.message, 'error'); setQuoteStatus('Quotes: failed', 'bad'); }));
+    $('backfillBtn').addEventListener('click', () => backfillHistory().catch(err => { log(err.message, 'error'); setQuoteStatus('History: failed', 'bad'); }));
+    $('snapshotBtn').addEventListener('click', () => takeSnapshot('Manual snapshot'));
+    $('exportBtn').addEventListener('click', exportBackup);
+    $('sampleBtn').addEventListener('click', loadDemo);
+    $('sampleCsvBtn').addEventListener('click', downloadTemplate);
+    $('clearSelectionBtn').addEventListener('click', () => { selectedKey = null; renderAll(); });
+    $('addHoldingBtn').addEventListener('click', () => { app.holdings.push(normalizeHolding({ symbol: 'NEW', shares: 0, avgCost: 0, sector: 'Unclassified', industry: 'Unclassified', account: 'Unspecified' })); saveState(); renderAll(); });
+    $('dedupeBtn').addEventListener('click', mergeDuplicateSymbols);
+    $('clearSnapshotsBtn').addEventListener('click', () => { if (confirm('Clear all snapshots? Holdings and price history stay intact.')) { app.snapshots = []; saveState(); renderAll(); } });
+    $('clearBtn').addEventListener('click', () => { if (confirm('Clear all local portfolio data for this app? Export a backup first if needed.')) { app = defaultState(); localStorage.removeItem(LS_KEY); selectedKey = null; syncSettingsToControls(false); $('logBox').textContent = 'Local data cleared.'; renderAll(); } });
+    $('holdingsFile').addEventListener('change', ev => { const f = ev.target.files[0]; if (f) importHoldingsFile(f).catch(err => log(err.message, 'error')).finally(() => ev.target.value = ''); });
+    $('priceCsvFile').addEventListener('change', ev => { const f = ev.target.files[0]; if (f) importPriceCsvFile(f).catch(err => log(err.message, 'error')).finally(() => ev.target.value = ''); });
+    $('backupFile').addEventListener('change', ev => { const f = ev.target.files[0]; if (f) importBackupFile(f).catch(err => log(err.message, 'error')).finally(() => ev.target.value = ''); });
+    ['providerSelect','historyDays','symbolSuffix','autoSnapshot','viewMode','sizeMetric','colorMetric','groupBy','lineMetric'].forEach(id => {
+      $(id).addEventListener('change', () => { syncSettingsToControls(true); renderAll(); });
+    });
+    $('snapshotSlider').addEventListener('input', () => { app.settings.viewMode = 'snapshot'; syncSettingsToControls(false); renderAll(false); });
+  }
+
+  syncSettingsToControls(false);
+  attachEvents();
+  updateEnvironmentNotice();
+  switchTab(sessionStorage.getItem('portfolioTreemap.activeTab') || 'dashboard');
+  renderAll();
+})();
+</script>
+</body>
+</html>
