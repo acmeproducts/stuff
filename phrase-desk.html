@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.23-2026-06-13
+<!-- TalkBridge Curation Desk-v9.24-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -252,7 +252,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.23</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.24</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -314,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.23 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.24 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -330,6 +330,12 @@ var LANGS=[
   {code:'ar',label:'Arabic',flag:'🇸🇦'},{code:'hi',label:'Hindi',flag:'🇮🇳'},
   {code:'tl',label:'Filipino',flag:'🇵🇭'},{code:'ru',label:'Russian',flag:'🇷🇺'}
 ];
+
+// CONTRACT v1.5 §5.2 / §7.1 item 5 — banned tone/mood tags and the
+// content-free meta-label "phrase". Tried and explicitly abandoned in an
+// earlier schema iteration. Rejected at point of entry, not left for a
+// downstream tool to catch — by the time PB sees it, it has already shipped.
+var BANNED_TAGS=['polite','neutral','formal','warm','romantic','urgent','curious','reflective','apologetic','phrase'];
 
 var appState={
   config:{owner:'acmeproducts',repo:'stuff',path:'phrasebook',source:'',target:'',pat:'',initials:'JD'},
@@ -480,11 +486,28 @@ function findMatchingFiles(){
   autoSuggestTarget();
   advanceWizard(3);
 }
+// CONTRACT v1.5 §7.1 item 1 — parse trailing integer from
+// phrasebook-{src}-{tgt}-{integer}.json, increment by 1. Legacy filenames
+// that don't match this pattern (e.g. "-default.json", "-newtag.json")
+// fall back to a starting integer of 999, so the first version produced
+// under this scheme is 1000.
 function autoSuggestTarget(){
   var src=document.getElementById('cfg-source').value;
   if(!src)return;
   appState.config.source=src;
-  var tgt=src.match(/-v(\d+)\.json$/) ? src.replace(/-v\d+\.json$/,'-v'+(parseInt(RegExp.$1)+1)+'.json') : src.replace(/\.json$/,'-v1.json');
+  var fname=src.split('/').pop();
+  var m=fname.match(/^(phrasebook-[a-z]+-[a-z]+-)(\d+)\.json$/i);
+  var nextVersion, prefix;
+  if(m){
+    prefix=m[1];
+    nextVersion=parseInt(m[2],10)+1;
+  }else{
+    // Legacy filename — derive prefix from current lang pair, start at 1000
+    var sl=appState.langPair.source||'xx',tl=appState.langPair.target||'xx';
+    prefix='phrasebook-'+sl+'-'+tl+'-';
+    nextVersion=1000;
+  }
+  var tgt=prefix+nextVersion+'.json';
   document.getElementById('cfg-target').value=tgt;
 }
 
@@ -535,7 +558,9 @@ function copyModalLink(){var el=document.getElementById('modal-link');el.select(
 
 // --- Job dashboard ---
 function renderJobsDashboard(){
-  var jobs=getLocalJobs();
+  // Second layer of defense — filter out any ghost/incomplete job records
+  // before rendering, even if they somehow made it into local storage.
+  var jobs=getLocalJobs().filter(isValidJobRecord);
   var container=document.getElementById('jobs-list');
   if(!jobs.length){
     container.innerHTML='';
@@ -582,7 +607,10 @@ function renderJobsDashboard(){
     var launch=document.createElement('button'); launch.type='button';
     launch.className='w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white text-xs font-bold rounded-lg';
     launch.textContent='Launch Desk';
-    launch.addEventListener('click',function(){ window.location.href=j.url; });
+    launch.addEventListener('click',function(){
+      if(!isValidJobRecord(j)){alert('This job record is incomplete and cannot be opened.');return;}
+      window.location.href=j.url;
+    });
 
     card.appendChild(header); card.appendChild(stats); card.appendChild(launch);
     container.appendChild(card);
@@ -603,6 +631,18 @@ function openShareModal(jobId){
   document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(job.url);
   document.getElementById('share-modal').classList.remove('hidden');
 }
+// A job record is only valid if it has a non-empty target filename, source
+// file, owner, and repo. Records failing this are ghost/incomplete jobs —
+// often produced during pump-priming before a phrasebook file actually
+// existed — and must never be merged into local storage or rendered.
+function isValidJobRecord(j){
+  return !!(j && typeof j==='object'
+    && j.jobId
+    && j.target && String(j.target).trim() && String(j.target).trim()!=='undefined'
+    && j.source && String(j.source).trim() && String(j.source).trim()!=='undefined'
+    && j.owner && String(j.owner).trim()!=='undefined'
+    && j.repo && String(j.repo).trim()!=='undefined');
+}
 async function syncJobsFromGH(){
   var o=appState.config.owner,r=appState.config.repo,p=appState.config.pat;
   if(!o||!r||!p){alert("Missing credentials to sync.");return;}
@@ -611,14 +651,19 @@ async function syncJobsFromGH(){
     if(res.ok){
       var data=await res.json();
       var remote=JSON.parse(fromB64(data.content));
-      var local=getLocalJobs();
+      var local=getLocalJobs().filter(isValidJobRecord);
       var byId={};local.forEach(function(j){byId[j.jobId]=j;});
-      remote.forEach(function(j){if(!byId[j.jobId]||((j.lastUpdated||0)>(byId[j.jobId].lastUpdated||0)))byId[j.jobId]=j;});
+      var rejected=0;
+      remote.forEach(function(j){
+        if(!isValidJobRecord(j)){rejected++;return;}
+        if(!byId[j.jobId]||((j.lastUpdated||0)>(byId[j.jobId].lastUpdated||0)))byId[j.jobId]=j;
+      });
       var merged=Object.values(byId);
       localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(merged));
       renderJobsDashboard();
+      if(rejected>0){console.warn('Sync: rejected '+rejected+' malformed/incomplete job record(s) — not merged.');}
     }else{
-      pushJobsToGitHub(getLocalJobs(),o,r,p);
+      pushJobsToGitHub(getLocalJobs().filter(isValidJobRecord),o,r,p);
       alert("No jobs file on GitHub yet — pushed local jobs.");
     }
   }catch(e){console.error(e);}
@@ -709,7 +754,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.23</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.24</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -1600,10 +1645,19 @@ function addClarifyEntry(c,txt){
 }
 
 function commitTag(id,tag){
-  tag=(tag||'').trim();
+  tag=(tag||'').trim().toLowerCase();
   if(!tag)return;
   var c=getCard(id);
   if(!c)return;
+  if(BANNED_TAGS.indexOf(tag)>=0){
+    var inp0=document.getElementById('in-tags-'+id);
+    if(inp0){inp0.value='';}
+    var box0=document.getElementById('tag-suggestions-'+id);
+    if(box0)box0.innerHTML='';
+    addClarifyEntry(c,'Rejected tag "'+tag+'" — tone/mood tags are banned per taxonomy (contract §5.2)');
+    triggerDebouncedSave();
+    return;
+  }
   if(!c.tags)c.tags=[];
   if(c.tags.indexOf(tag)>=0){
     // already exists — just clear input and suggestions
@@ -1697,7 +1751,25 @@ function addNewPhrase(){
   var newId='pb-new-'+Math.random().toString(36).slice(2,10);
   var ini=appState.config.initials||'?';
   var ts=clarifyTs();
-  appState.pbData.cards.unshift({id:newId,source:"",target:"",backtranslate:{resultText:"",verdict:"pending"},tags:[],clarifyChain:[{ini:ini,ts:ts,txt:'Created'}],createdAt:Date.now(),updatedAt:Date.now()});
+  // CONTRACT v1.5 §4 Stage 1 — XL birth: categories=["unassigned"], createdBy="xl",
+  // empty O-ring fields, verdict="pending". Real backtranslation runs when the
+  // curator enters source text and hits Enter (handleSourceEnter pipeline) —
+  // there is no source text yet at this point for a translation to run against.
+  appState.pbData.cards.unshift({
+    id:newId,
+    sourceLang:appState.langPair.source||'',
+    targetLang:appState.langPair.target||'',
+    source:"",target:"",
+    categories:['unassigned'],
+    tags:[],
+    intentId:null,fingerprint:null,relatedIntents:[],
+    usage:0,lastUsed:null,
+    backtranslate:{resultText:"",verdict:"pending"},
+    clarifyChain:[{ini:ini,ts:ts,txt:'Created'}],
+    createdAt:Date.now(),createdBy:'xl',
+    updatedAt:Date.now(),updatedBy:'xl',
+    deletedAt:null
+  });
   appState.currentFilter='all';filterCards('all');
   appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
   renderAll();
@@ -1709,17 +1781,21 @@ function addNewPhrase(){
 
 function applyBulkTag(){
   var input=document.getElementById('bulk-tag');
-  var tag=input.value.trim();if(!tag)return;
+  var tag=input.value.trim().toLowerCase();if(!tag)return;
+  if(BANNED_TAGS.indexOf(tag)>=0){
+    alert('"'+tag+'" is a banned tone/mood tag and cannot be applied (contract §5.2).');
+    input.value='';
+    return;
+  }
+  // Route through commitTag — single guarded entry point for all tag writes
   appState.pbData.cards.forEach(function(c){
     if(c.deletedAt)return;
     var verdict=(c.backtranslate&&c.backtranslate.verdict)||'pending';
     var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
     if(matchesFilter&&matchesSearch(c)){
-      if(!c.tags)c.tags=[];
-      if(c.tags.indexOf(tag)<0){c.tags.push(tag);c.updatedAt=Date.now();}
+      commitTag(c.id,tag);
     }
   });
-  appState.uniqueTags.add(tag);
   refreshDatalist();
   input.value='';
   renderAll();
