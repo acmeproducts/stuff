@@ -251,67 +251,79 @@ async function goToConfirm(){
 
 function ghHeaders(){return {'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};}
 
-async function translateVocabulary(terms,targetLangName){
-  if(terms.length===0)return {};
-  var prompt='Translate this list of short UI taxonomy terms into '+targetLangName+'. '+
-    'These are category/tag labels for a phrasebook app - keep translations short (1-3 words), '+
-    'natural, and appropriate for a UI chip/label, not a full sentence. '+
-    'Return ONLY a JSON object mapping each input term to its translation, nothing else, no markdown fences.\n\n'+
-    'Terms: '+JSON.stringify(terms);
-  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
-  var data=await res.json();
-  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
+// MyMemory translation API - free, no key required, CORS-friendly.
+// Same API bridge-turn06-base.html already calls directly from the browser.
+function myMemoryLangCode(code){
+  // MyMemory uses standard ISO codes, mostly matching ours already
+  var map={zh:'zh-CN'};
+  return map[code]||code;
 }
-
-async function translateCardBatch(sourceTexts,fromLangName,toLangName){
-  var prompt='Translate these '+fromLangName+' phrases into '+toLangName+'. '+
-    'This is for a travel/conversation phrasebook - keep translations natural and conversational, '+
-    'matching the tone of each source phrase. Return ONLY a JSON array of translation strings, '+
-    'in the exact same order as the input, nothing else, no markdown fences.\n\n'+
-    'Phrases: '+JSON.stringify(sourceTexts);
-  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
-  var data=await res.json();
-  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
+async function myMemoryTranslate(text,fromCode,toCode){
+  var em='pb_'+Math.floor(Math.random()*100000)+'@pb.com';
+  var pair=myMemoryLangCode(fromCode)+'|'+myMemoryLangCode(toCode);
+  var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+pair+'&de='+em;
+  var res=await fetch(url);
+  var json=await res.json();
+  var result=json&&json.responseData&&json.responseData.translatedText;
+  if(!result||json.responseStatus===403){
+    throw new Error('MyMemory translation failed for: "'+text.slice(0,40)+'..."');
+  }
+  return result;
 }
-
-async function translateBatched(sourceTexts,fromLangName,toLangName,onProgress){
-  var BATCH=25,out=[];
-  for(var i=0;i<sourceTexts.length;i+=BATCH){
-    var batch=sourceTexts.slice(i,i+BATCH);
-    if(onProgress)onProgress('Translating '+(i+1)+'-'+Math.min(i+BATCH,sourceTexts.length)+' of '+sourceTexts.length+'...');
-    var res=await translateCardBatch(batch,fromLangName,toLangName);
-    out=out.concat(res);
+async function myMemoryTranslateBatch(texts,fromCode,toCode,onProgress){
+  var out=[];
+  for(var i=0;i<texts.length;i++){
+    if(onProgress&&(i%5===0))onProgress('Translating '+(i+1)+' of '+texts.length+'...');
+    try{
+      out.push(await myMemoryTranslate(texts[i],fromCode,toCode));
+    }catch(e){
+      out.push(''); // leave blank on failure rather than abort the whole run
+      console.warn('Translation failed, left blank:',texts[i],e.message);
+    }
+    // MyMemory free tier rate limit courtesy delay
+    await new Promise(function(r){setTimeout(r,150);});
   }
   return out;
+}
+async function myMemoryTranslateVocab(terms,fromCode,toCode){
+  var map={};
+  for(var i=0;i<terms.length;i++){
+    try{
+      map[terms[i]]=await myMemoryTranslate(terms[i],fromCode,toCode);
+    }catch(e){
+      map[terms[i]]=terms[i]; // fall back to original term on failure
+    }
+    await new Promise(function(r){setTimeout(r,150);});
+  }
+  return map;
 }
 
 // Build one direction's file: fromCode is THIS file's own source language.
 // Categories/tags get translated into fromCode's language — never left in
 // the template's original language on a file whose source is something else.
 async function buildDirectionFile(templateCards,fromCode,toCode,onProgress){
-  var fromName=LANG_NAMES[fromCode]||fromCode, toName=LANG_NAMES[toCode]||toCode;
   var now=Date.now();
   var active=templateCards.filter(function(c){return !c.deletedAt;});
 
   var allCategories=Array.from(new Set(active.flatMap(function(c){return c.categories||[];})));
   var allTags=Array.from(new Set(active.flatMap(function(c){return c.tags||[];}))).filter(function(t){return !BANNED_TONE_TAGS.has(t);});
 
-  onProgress('Translating taxonomy into '+fromName+'...');
-  var categoryMap=await translateVocabulary(allCategories,fromName);
-  var tagMap=await translateVocabulary(allTags,fromName);
+  // The template's own sourceLang field tells us what language its
+  // categories/tags/source text are currently written in.
+  var templateSourceLang=(active[0]&&active[0].sourceLang)||'en';
 
-  onProgress('Translating source text into '+fromName+'...');
-  var sourceTexts=await translateBatched(active.map(function(c){return c.source;}),'the template language',fromName,onProgress);
+  onProgress('Translating taxonomy into '+(LANG_NAMES[fromCode]||fromCode)+'...');
+  var categoryMap=await myMemoryTranslateVocab(allCategories,templateSourceLang,fromCode);
+  var tagMap=await myMemoryTranslateVocab(allTags,templateSourceLang,fromCode);
 
-  onProgress('Translating target text into '+toName+'...');
-  var targetTexts=await translateBatched(sourceTexts,fromName,toName,onProgress);
+  onProgress('Translating source text into '+(LANG_NAMES[fromCode]||fromCode)+'...');
+  var sourceTexts=await myMemoryTranslateBatch(active.map(function(c){return c.source;}),templateSourceLang,fromCode,onProgress);
 
-  onProgress('Running backtranslation ('+toName+' \u2192 '+fromName+')...');
-  var backtranslatedTexts=await translateBatched(targetTexts,toName,fromName,onProgress);
+  onProgress('Translating target text into '+(LANG_NAMES[toCode]||toCode)+'...');
+  var targetTexts=await myMemoryTranslateBatch(sourceTexts,fromCode,toCode,onProgress);
+
+  onProgress('Running backtranslation ('+(LANG_NAMES[toCode]||toCode)+' \u2192 '+(LANG_NAMES[fromCode]||fromCode)+')...');
+  var backtranslatedTexts=await myMemoryTranslateBatch(targetTexts,toCode,fromCode,onProgress);
 
   return active.map(function(c,i){
     var newId='pb-'+fromCode+'-'+toCode+'-'+String(i+1).padStart(4,'0');
