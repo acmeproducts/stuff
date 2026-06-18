@@ -1,4 +1,4 @@
-<!-- TalkBridge Curation Desk-v9.24-2026-06-13
+<!-- TalkBridge Curation Desk-v9.25-2026-06-13
      v9.1 fixes:
      - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
      - Tags: fixed duplicate card IDs from Date.now() in synchronous map
@@ -252,7 +252,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
     <div class="flex items-center gap-2">
       <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.24</span></div>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.25</span></div>
     </div>
     <div class="flex-1 min-w-[180px] max-w-md relative">
       <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
@@ -314,7 +314,7 @@ body{font-family:'Inter',sans-serif;}
 </div>
 
 <div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
-  TalkBridge Curation Desk v9.24 | <span id="footer-ts"></span>
+  TalkBridge Curation Desk v9.25 | <span id="footer-ts"></span>
 </div>
 
 <script>
@@ -754,7 +754,7 @@ async function startCurationLifecycle(){
     }).filter(function(c){return c.source.trim()!==''||c.deletedAt;});
 
     refreshDatalist();
-    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.24</span>';
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.25</span>';
     if(appState.pbData.cards.length===0)addNewPhrase();
     renderAll();
     switchView('view-app');
@@ -1880,122 +1880,150 @@ async function handleSourceEnter(e,el){
 function closeInsightModal(){
   document.getElementById('insight-modal').classList.add('hidden');
 }
-async function openInsightModal(job){
+function openInsightModal(job){
   var modal=document.getElementById('insight-modal');
   var body=document.getElementById('insight-body');
   modal.classList.remove('hidden');
-  body.innerHTML='<div class="text-slate-400 text-xs animate-pulse">Analyzing...</div>';
+  body.innerHTML='';
 
-  // Build context from current pbData
   var cards=appState.pbData.cards.filter(function(c){return !c.deletedAt;});
   var total=cards.length;
   var good=cards.filter(function(c){return (c.backtranslate&&c.backtranslate.verdict)==='good';}).length;
   var flagged=cards.filter(function(c){return (c.backtranslate&&c.backtranslate.verdict)==='flag';}).length;
   var pending=cards.filter(function(c){return !c.backtranslate||c.backtranslate.verdict==='pending';}).length;
 
-  // Tag frequency
-  var tagFreq={};
-  cards.forEach(function(c){ (c.tags||[]).forEach(function(t){ tagFreq[t]=(tagFreq[t]||0)+1; }); });
-  var topTags=Object.entries(tagFreq).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(e){return e[0]+' ('+e[1]+')';}).join(', ');
+  // ── Stats bar ──────────────────────────────────────────────────────────────
+  var statsDiv=document.createElement('div');
+  statsDiv.className='grid grid-cols-4 gap-2 mb-4';
+  [[good,'Approved','text-green-700 bg-green-50'],[flagged,'Flagged','text-red-700 bg-red-50'],[pending,'Pending','text-slate-600 bg-slate-50'],[total,'Total','text-teal-700 bg-teal-50']].forEach(function(s){
+    var cell=document.createElement('div'); cell.className='rounded-lg p-2 text-center '+s[2];
+    var val=document.createElement('div'); val.className='text-lg font-bold'; val.textContent=s[0];
+    var lbl=document.createElement('div'); lbl.className='text-[10px] font-bold uppercase opacity-70'; lbl.textContent=s[1];
+    cell.appendChild(val); cell.appendChild(lbl); statsDiv.appendChild(cell);
+  });
+  body.appendChild(statsDiv);
 
-  // Curator activity — estimate from clarify timestamps
+  // ── Collect and parse all clarify entries ──────────────────────────────────
+  // ts format: "Jun 13, 2026 8:45 PM" — parse to Date for real time math
+  function parseTs(ts){
+    if(!ts) return null;
+    try{ var d=new Date(ts); return isNaN(d.getTime())?null:d; }catch(e){ return null; }
+  }
   var allEntries=[];
   cards.forEach(function(c){
     (c.clarifyChain||[]).forEach(function(cl){
-      if(cl.ts) allEntries.push({ts:cl.ts,ini:cl.ini,txt:cl.txt,cardId:c.id});
+      var d=parseTs(cl.ts);
+      if(d) allEntries.push({date:d,ini:cl.ini||'?',txt:cl.txt||'',cardId:c.id});
     });
   });
-  allEntries.sort(function(a,b){return a.ts.localeCompare(b.ts);});
+  allEntries.sort(function(a,b){return a.date-b.date;});
 
-  // Estimate sessions: gap > 30min = new session
+  // ── Session bucketing — gap > 45 min = new session ─────────────────────────
+  var SESSION_GAP_MS=45*60*1000;
   var sessions=[];
-  var sessionStart=null,sessionEnd=null,sessionCount=0;
-  allEntries.forEach(function(e,i){
-    if(!sessionStart){sessionStart=e.ts;sessionEnd=e.ts;sessionCount=1;}
-    else{
-      var prev=allEntries[i-1].ts;
-      // crude gap detection — if ts string differs by more than expected (timestamps are locale strings)
-      sessionCount++;
-      sessionEnd=e.ts;
+  var cur=null;
+  allEntries.forEach(function(e){
+    if(!cur){
+      cur={start:e.date,end:e.date,actions:[e]};
+    } else {
+      var gap=e.date-cur.end;
+      if(gap>SESSION_GAP_MS){
+        sessions.push({session:cur,gapAfterMs:gap});
+        cur={start:e.date,end:e.date,actions:[e]};
+      } else {
+        cur.end=e.date;
+        cur.actions.push(e);
+      }
     }
   });
-  var totalActions=allEntries.length;
-  var estimatedMins=Math.round(totalActions*1.5); // ~90s per action heuristic
+  if(cur) sessions.push({session:cur,gapAfterMs:0});
 
-  // Curators breakdown
+  // ── Curator breakdown across all entries ───────────────────────────────────
   var curatorMap={};
-  allEntries.forEach(function(e){ curatorMap[e.ini||'?']=(curatorMap[e.ini||'?']||0)+1; });
-  var curatorLines=Object.entries(curatorMap).map(function(e){return e[0]+': '+e[1]+' actions';}).join(', ');
+  allEntries.forEach(function(e){ curatorMap[e.ini]=(curatorMap[e.ini]||0)+1; });
 
-  // Flagged phrases
-  var flaggedSources=cards.filter(function(c){return (c.backtranslate&&c.backtranslate.verdict)==='flag';}).map(function(c){return '"'+c.source+'"';}).slice(0,8).join(', ');
+  // ── Activity replay header ─────────────────────────────────────────────────
+  var hdr=document.createElement('div');
+  hdr.className='text-[10px] font-bold uppercase text-amber-700 mb-2';
+  hdr.textContent='Curator Activity Replay — '+allEntries.length+' logged actions'
+    +(Object.keys(curatorMap).length?' · '+Object.keys(curatorMap).map(function(k){return k+': '+curatorMap[k];}).join(', '):'');
+  body.appendChild(hdr);
 
-  var promptParts=[
-    'You are a phrasebook quality analyst. Analyze this curation data and provide:',
-    '1. A quality assessment (2-3 sentences)',
-    '2. Top insights about content and coverage',
-    '3. Specific recommendations to improve the phrasebook',
-    '4. Curator activity: estimate effort and note patterns',
-    '',
-    'PHRASEBOOK: '+job.target.split('/').pop(),
-    'Language pair: '+(job.langPair?job.langPair.source+' to '+job.langPair.target:'unknown'),
-    'Total cards: '+total+' | Approved: '+good+' | Flagged: '+flagged+' | Pending: '+pending,
-    'Completion: '+Math.round((good/Math.max(total,1))*100)+'%',
-    'Top tags: '+topTags,
-    'Flagged phrases: '+flaggedSources,
-    '',
-    'CURATOR ACTIVITY',
-    'Total logged actions: '+totalActions,
-    'Estimated active time: ~'+estimatedMins+' minutes',
-    'Curators: '+curatorLines,
-    '',
-    'Recent clarify notes (last 10):',
-    allEntries.slice(-10).map(function(e){return '  ['+e.ini+'] '+e.txt;}).join(', '),
-    '',
-    'Be concise and actionable. Use plain text, no markdown headers.'
-  ];
-  var prompt=promptParts.join(' | ');
+  if(sessions.length===0){
+    var empty=document.createElement('div');
+    empty.className='text-xs text-slate-400 italic';
+    empty.textContent='No clarify entries found — activity log is empty.';
+    body.appendChild(empty);
+    return;
+  }
 
-  try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
-    });
-    var data=await res.json();
-    var text=(data.content&&data.content[0]&&data.content[0].text)||'No response.';
+  // ── Render session blocks with gap markers ─────────────────────────────────
+  function fmtDuration(ms){
+    if(ms<60000) return Math.round(ms/1000)+'s';
+    if(ms<3600000) return Math.round(ms/60000)+' min';
+    var h=Math.floor(ms/3600000),m=Math.round((ms%3600000)/60000);
+    return h+'h'+(m>0?' '+m+'m':'');
+  }
+  function fmtGap(ms){
+    if(ms<3600000) return Math.round(ms/60000)+' min lapse';
+    if(ms<86400000) return Math.round(ms/3600000)+' hr lapse';
+    return Math.round(ms/86400000)+' day lapse';
+  }
+  function fmtDate(d){
+    return d.toLocaleDateString([],{month:'short',day:'numeric'})
+      +' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
 
-    body.innerHTML='';
+  sessions.forEach(function(item,i){
+    var s=item.session;
+    var durationMs=s.end-s.start;
+    var count=s.actions.length;
+    var rateStr='';
+    if(durationMs>60000){
+      var rate=count/(durationMs/3600000);
+      rateStr=' · '+Math.round(rate)+'/hr';
+    }
+    // Session card
+    var card=document.createElement('div');
+    card.className='bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-1';
+    var top=document.createElement('div');
+    top.className='flex justify-between items-baseline';
+    var summary=document.createElement('span');
+    summary.className='text-xs font-bold text-slate-800';
+    summary.textContent=count+' action'+(count!==1?'s':'')+' · '+fmtDuration(durationMs)+rateStr;
+    var dateRange=document.createElement('span');
+    dateRange.className='text-[10px] text-slate-400';
+    dateRange.textContent=fmtDate(s.start)+(durationMs>60000?' – '+fmtDate(s.end):'');
+    top.appendChild(summary); top.appendChild(dateRange);
+    card.appendChild(top);
+    // Per-curator in session
+    var iniMap={};
+    s.actions.forEach(function(a){ iniMap[a.ini]=(iniMap[a.ini]||0)+1; });
+    if(Object.keys(iniMap).length>0){
+      var who=document.createElement('div');
+      who.className='text-[10px] text-slate-500 mt-0.5';
+      who.textContent=Object.keys(iniMap).map(function(k){return k+': '+iniMap[k];}).join(' · ');
+      card.appendChild(who);
+    }
+    body.appendChild(card);
+    // Gap marker
+    if(item.gapAfterMs>SESSION_GAP_MS){
+      var gap=document.createElement('div');
+      gap.className='text-center text-[10px] text-slate-400 my-1 tracking-wide';
+      gap.textContent='— '+fmtGap(item.gapAfterMs)+' —';
+      body.appendChild(gap);
+    }
+  });
 
-    // Stats bar
-    var statsDiv=document.createElement('div');
-    statsDiv.className='grid grid-cols-4 gap-2 mb-3';
-    [[good,'Approved','text-green-700 bg-green-50'],[flagged,'Flagged','text-red-700 bg-red-50'],[pending,'Pending','text-slate-600 bg-slate-50'],[totalActions,'Actions','text-teal-700 bg-teal-50']].forEach(function(s){
-      var cell=document.createElement('div'); cell.className='rounded-lg p-2 text-center '+s[2];
-      var val=document.createElement('div'); val.className='text-lg font-bold'; val.textContent=s[0];
-      var lbl=document.createElement('div'); lbl.className='text-[10px] font-bold uppercase opacity-70'; lbl.textContent=s[1];
-      cell.appendChild(val); cell.appendChild(lbl); statsDiv.appendChild(cell);
-    });
-    body.appendChild(statsDiv);
-
-    // Curator activity
-    var actDiv=document.createElement('div');
-    actDiv.className='bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3';
-    var actTitle=document.createElement('div'); actTitle.className='text-[10px] font-bold uppercase text-amber-700 mb-1'; actTitle.textContent='Curator Activity & Performance';
-    var actBody=document.createElement('div'); actBody.className='text-xs text-slate-700';
-    actBody.textContent='~'+estimatedMins+' min estimated · '+totalActions+' logged actions · '+(Object.keys(curatorMap).length)+' curator'+(Object.keys(curatorMap).length!==1?'s':'');
-    if(curatorLines) { var cl=document.createElement('div'); cl.className='text-[11px] text-slate-500 mt-1'; cl.textContent=curatorLines; actBody.appendChild(cl); }
-    actDiv.appendChild(actTitle); actDiv.appendChild(actBody);
-    body.appendChild(actDiv);
-
-    // AI insights
-    var aiDiv=document.createElement('div');
-    aiDiv.className='bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed';
-    aiDiv.textContent=text;
-    body.appendChild(aiDiv);
-
-  }catch(err){
-    body.innerHTML='<div class="text-red-500 text-xs">Analysis failed: '+err.message+'</div>';
+  // ── Total summary footer ───────────────────────────────────────────────────
+  if(allEntries.length>0){
+    var totalMs=allEntries[allEntries.length-1].date-allEntries[0].date;
+    var footer=document.createElement('div');
+    footer.className='mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500';
+    footer.textContent='Total span: '+fmtDuration(totalMs)
+      +' · '+sessions.length+' session'+(sessions.length!==1?'s':'')
+      +' · first entry '+fmtDate(allEntries[0].date);
+    body.appendChild(footer);
   }
 }
 
