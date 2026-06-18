@@ -1874,7 +1874,13 @@ async function _pbCentralPost(payload){
   /* Stub — wired to PB Central in T06 Stage 4 */
 }
 
-/* ── Versioned PB-series sync (contract-required) ── */
+/* ── Versioned PB-series sync (contract-required) ──
+   Replaces the old _pbAutoLoad/_pbFetchOne CDN auto-import path, which is
+   no longer called. That path is left defined but dead (not deleted) to
+   minimize diff surface; it has exactly one former call site, now removed
+   from enterCall(). This sync is pair-scoped by construction — it only
+   ever pulls/writes the file matching the active room's exact lang pair,
+   which is what the old path lacked and what caused cross-pair card bleed. */
 var _pbSyncState={status:'idle',pairFile:null,version:null,pending:false,dirty:false};
 
 async function pbSyncPullLatest(srcLang,tgtLang){
@@ -1900,9 +1906,17 @@ async function pbSyncPullLatest(srcLang,tgtLang){
     var meta=await fileRes.json();
     var content=JSON.parse(decodeURIComponent(escape(atob(meta.content))));
     var remoteCards=Array.isArray(content.cards)?content.cards:[];
+    // Pair-scoped merge: only union cards that actually belong to this pair,
+    // even though a correctly-written PB-series file should only ever
+    // contain cards for its own pair. Defense in depth against bad data.
     var local=pbGetAllCards();
     var byId={};local.forEach(function(c){byId[c.id]=c;});
-    remoteCards.forEach(function(rc){byId[rc.id]=pbNorm(rc);});
+    remoteCards.forEach(function(rc){
+      var nc=pbNorm(rc);
+      if((nc.sourceLang===srcLang&&nc.targetLang===tgtLang)||(nc.sourceLang===tgtLang&&nc.targetLang===srcLang)){
+        byId[nc.id]=nc;
+      }
+    });
     pbSaveCards(Object.values(byId));
     _pbSyncState={status:'pulled',pairFile:latest.name,version:latest.version,pending:false,dirty:false};
     log('pb_sync_pulled',{file:latest.name,version:latest.version});
@@ -2330,20 +2344,24 @@ function pbRenderOverlay(){
   }
   var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
   var cards=pbGetCards();
+  // Hard pair scope — overlay only ever shows cards for the active call's
+  // language pair. This cannot be bypassed by _pbFilter; it is a floor,
+  // not a toggle, to prevent cross-pair card bleed (e.g. en-th cards
+  // showing up in an en-zh session).
+  if(room.myLang&&room.theirLang){
+    cards=cards.filter(function(c){return (c.sourceLang===room.myLang&&c.targetLang===room.theirLang)||(c.sourceLang===room.theirLang&&c.targetLang===room.myLang);});
+  }
   if(_pbFilter.indexOf('pbcat:')===0){
     var pbCatName=_pbFilter.slice(6);
     cards=cards.filter(function(c){return (c.categories&&c.categories.length?c.categories:['unassigned']).indexOf(pbCatName)>=0;});
   }else if(_pbFilter.indexOf('cat:')===0){
     var catId=_pbFilter.slice(4);
     cards=cards.filter(function(c){return (c.catalogIds||[]).indexOf(catId)>=0;});
-  }else if(_pbFilter!=='all'){
-    var p=_pbFilter.split('|');
-    cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
   }
   if(q)cards=pbSearch(q,cards);
   var html='';
   if(!q&&_pbFilter==='all'){
-    html+='<div class="pb-cat-chiprow" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 10px;">'+pbZeroStateCategoryChips()+'</div>';
+    html+='<div class="pb-cat-chiprow" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 10px;">'+pbZeroStateCategoryChips(cards)+'</div>';
   }
   if(!cards.length){
     html+='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';
@@ -2355,10 +2373,9 @@ function pbRenderOverlay(){
   html+=pbTrashSectionHtml(trashedCards);
   host.innerHTML=html;
 }
-function pbZeroStateCategoryChips(){
-  var cards=pbGetCards();
+function pbZeroStateCategoryChips(scopedCards){
   var catSet={};
-  cards.forEach(function(c){(c.categories&&c.categories.length?c.categories:['unassigned']).forEach(function(cat){catSet[cat]=(catSet[cat]||0)+1;});});
+  scopedCards.forEach(function(c){(c.categories&&c.categories.length?c.categories:['unassigned']).forEach(function(cat){catSet[cat]=(catSet[cat]||0)+1;});});
   var cats=Object.keys(catSet).sort(function(a,b){
     if(a==='unassigned')return 1;if(b==='unassigned')return -1;return a.localeCompare(b);
   });
@@ -3093,7 +3110,8 @@ async function enterCall(){
   $('lobby-link').textContent=invUrl();
   transcript=loadTr()||[];
   _chatOutbox.clear();_chatReceived.clear();
-  _pbAutoLoad();
+  // Old CDN auto-import (_pbAutoLoad) removed — replaced by versioned
+  // PB-series pull below, which is pair-scoped and contract-compliant.
   if(room.myLang&&room.theirLang)pbSyncPullLatest(room.myLang,room.theirLang);
   $('lobby').classList.add('hidden');$('joiner-landing').classList.remove('show');
   hidePartnerDisconnected();
