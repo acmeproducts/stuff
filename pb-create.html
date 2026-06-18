@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Pump Primer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;}
+.wizard-step{display:none;animation:fadeIn .2s ease-in-out;}
+.wizard-step.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden overscroll-none flex flex-col">
+
+<div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4">
+  <div class="w-full max-w-lg bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-2 md:mt-8">
+    <div class="flex border-b border-slate-200 bg-slate-50 shrink-0 px-4 py-3">
+      <div class="font-bold text-slate-800 text-sm flex items-center gap-2"><i data-lucide="sprout" class="w-4 h-4 text-teal-600"></i> Pump Primer</div>
+    </div>
+
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-6 px-2">
+        <div id="dot-1" class="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center">1</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-2" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">2</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-3" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">3</div>
+      </div>
+
+      <div id="auth-error" class="hidden mb-4 bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 break-words font-medium"></div>
+
+      <!-- Step 1: Auth -->
+      <div id="step-1" class="wizard-step active space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="key" class="w-4 h-4 text-teal-600"></i> Authentication</h3>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Personal Access Token (PAT)</label>
+          <input type="password" id="cfg-pat" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="ghp_...">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Username / Org</label>
+            <input type="text" id="cfg-owner" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="acmeproducts"></div>
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Repository</label>
+            <input type="text" id="cfg-repo" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="stuff"></div>
+        </div>
+        <button onclick="fetchPhrasebooks()" id="btn-fetch" class="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Connect & Fetch</button>
+      </div>
+
+      <!-- Step 2: Pick Pair -->
+      <div id="step-2" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="languages" class="w-4 h-4 text-teal-600"></i> New Language Pair</h3>
+        <p class="text-xs text-slate-500">One-time seed. Generates both direction files (A→B and B→A) in this single run, then stops. No O-ring, no pruning — that's PB's job on the first real enrichment pass.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Language A</label>
+            <select id="lang-a-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onPairSelectChange()"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Language B</label>
+            <select id="lang-b-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onPairSelectChange()"></select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Template pair to translate from</label>
+          <select id="template-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer"></select>
+          <p class="text-[11px] text-slate-400 mt-1">Source text, category set, and tag vocabulary are translated from this existing PB-series pair.</p>
+        </div>
+        <div id="collision-warning" class="hidden bg-amber-50 text-amber-700 text-xs p-3 rounded-lg border border-amber-200"></div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="goToConfirm()" id="btn-pair-next" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm" disabled>Next</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Confirm + Generate -->
+      <div id="step-3" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="check-circle" class="w-4 h-4 text-teal-600"></i> Confirm & Generate</h3>
+        <div id="confirm-summary" class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm"></div>
+        <div id="gen-progress" class="hidden bg-white border border-slate-200 rounded-lg p-4 text-xs text-slate-500"><span id="gen-progress-text"></span></div>
+        <div id="gen-result" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800"></div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(2)" id="btn-confirm-back" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="runGeneration()" id="btn-generate" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Generate both files</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-6 right-6 bg-slate-800 text-white text-sm px-4 py-3 rounded-lg shadow-lg max-w-sm z-50"></div>
+
+<div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
+  Pump Primer v1 — one-time pump-priming activity, not part of the standard lifecycle | <span id="footer-ts"></span>
+</div>
+
+<script>
+setInterval(function(){var el=document.getElementById('footer-ts');if(el)el.textContent=new Date().toLocaleString();},1000);
+
+var LANGS=[
+  {code:'en',label:'English',flag:'🇺🇸'},{code:'es',label:'Spanish',flag:'🇪🇸'},
+  {code:'th',label:'Thai',flag:'🇹🇭'},{code:'ja',label:'Japanese',flag:'🇯🇵'},
+  {code:'ko',label:'Korean',flag:'🇰🇷'},{code:'zh',label:'Chinese',flag:'🇨🇳'},
+  {code:'fr',label:'French',flag:'🇫🇷'},{code:'de',label:'German',flag:'🇩🇪'},
+  {code:'vi',label:'Vietnamese',flag:'🇻🇳'},{code:'id',label:'Indonesian',flag:'🇮🇩'},
+  {code:'ms',label:'Malay',flag:'🇲🇾'},{code:'pt',label:'Portuguese',flag:'🇧🇷'},
+  {code:'ar',label:'Arabic',flag:'🇸🇦'},{code:'hi',label:'Hindi',flag:'🇮🇳'},
+  {code:'tl',label:'Filipino',flag:'🇵🇭'},{code:'ru',label:'Russian',flag:'🇷🇺'}
+];
+var LANG_NAMES={en:'English',th:'Thai',vi:'Vietnamese',es:'Spanish',fr:'French',de:'German',ja:'Japanese',ko:'Korean',zh:'Mandarin Chinese',pt:'Portuguese',id:'Indonesian',ms:'Malay',ar:'Arabic',hi:'Hindi',tl:'Filipino',ru:'Russian'};
+var BANNED_TONE_TAGS=new Set(['polite','neutral','formal','warm','romantic','urgent','curious','reflective','apologetic','phrase']);
+
+var appState={config:{owner:'acmeproducts',repo:'stuff',pat:''},allFiles:[],pbSeriesFiles:[],pairA:'',pairB:'',templateFile:null,templateData:null};
+var LOCAL_CONFIG_KEY='pump_primer_cfg1';
+
+if(window.lucide)lucide.createIcons();
+else{var lr=0;var lw=setInterval(function(){lr++;if(window.lucide){lucide.createIcons();clearInterval(lw);}else if(lr>20)clearInterval(lw);},250);}
+
+function toast(msg,isError){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='fixed bottom-6 right-6 text-sm px-4 py-3 rounded-lg shadow-lg max-w-sm z-50 '+(isError?'bg-red-600 text-white':'bg-slate-800 text-white');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(function(){t.className='hidden';},4200);
+}
+
+function init(){
+  var saved=localStorage.getItem(LOCAL_CONFIG_KEY);
+  if(saved){
+    var c=JSON.parse(saved);
+    if(c.owner)document.getElementById('cfg-owner').value=c.owner;
+    if(c.repo)document.getElementById('cfg-repo').value=c.repo;
+    if(c.pat)document.getElementById('cfg-pat').value=c.pat;
+  }
+  var aSel=document.getElementById('lang-a-select');
+  var bSel=document.getElementById('lang-b-select');
+  var opts=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+' ('+l.code+')</option>';}).join('');
+  aSel.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+  bSel.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+}
+
+function advanceWizard(step){
+  [1,2,3].forEach(function(s){
+    document.getElementById('step-'+s).classList.remove('active');
+    var dot=document.getElementById('dot-'+s);
+    dot.className=s<=step
+      ?"w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center shadow-sm"
+      :"w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center";
+  });
+  document.getElementById('step-'+step).classList.add('active');
+}
+
+async function fetchPhrasebooks(){
+  var errDiv=document.getElementById('auth-error');
+  try{
+    var p=document.getElementById('cfg-pat').value.trim();
+    var o=document.getElementById('cfg-owner').value.trim()||'acmeproducts';
+    var r=document.getElementById('cfg-repo').value.trim()||'stuff';
+    errDiv.classList.add('hidden');
+    if(!p||!o||!r){errDiv.textContent="PAT, Username, and Repo required.";errDiv.classList.remove('hidden');return;}
+    appState.config={owner:o,repo:r,pat:p};
+    localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify({owner:o,repo:r,pat:p}));
+    var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/phrasebook',{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
+    if(!res.ok){
+      var body='';try{body=(await res.json()).message||'';}catch(_){}
+      throw new Error('HTTP '+res.status+(body?(': '+body):'')+' — check Owner/Repo/PAT.');
+    }
+    var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
+    appState.allFiles=files;
+    appState.pbSeriesFiles=files.filter(function(f){return parsePbSeriesVersion(f.name)!==null;});
+    if(!appState.pbSeriesFiles.length)throw new Error("No PB-series (1000+) files found — need at least one existing pair as a translation template.");
+    var tplSel=document.getElementById('template-select');
+    tplSel.innerHTML=appState.pbSeriesFiles.map(function(f){return '<option value="'+f.name+'">'+f.name+'</option>';}).join('');
+    advanceWizard(2);
+  }catch(e){
+    console.error('fetchPhrasebooks error:',e);
+    errDiv.textContent=(e&&e.message)?e.message:String(e);
+    errDiv.classList.remove('hidden');
+  }
+}
+
+function parsePbSeriesVersion(name){
+  var m=name.match(/^phrasebook-([a-z]+)-([a-z]+)-(\d+)\.json$/i);
+  if(!m)return null;
+  var v=parseInt(m[3],10);
+  return v>=1000?{src:m[1],tgt:m[2],version:v}:null;
+}
+
+function onPairSelectChange(){
+  var a=document.getElementById('lang-a-select').value;
+  var b=document.getElementById('lang-b-select').value;
+  var warnDiv=document.getElementById('collision-warning');
+  var btn=document.getElementById('btn-pair-next');
+  warnDiv.classList.add('hidden');
+  btn.disabled=true;
+  if(!a||!b||a===b)return;
+
+  var existsAB=appState.pbSeriesFiles.some(function(f){var p=parsePbSeriesVersion(f.name);return p&&p.src===a&&p.tgt===b;});
+  var existsBA=appState.pbSeriesFiles.some(function(f){var p=parsePbSeriesVersion(f.name);return p&&p.src===b&&p.tgt===a;});
+  if(existsAB||existsBA){
+    var existing=[];
+    if(existsAB)existing.push('phrasebook-'+a+'-'+b+'-1000.json');
+    if(existsBA)existing.push('phrasebook-'+b+'-'+a+'-1000.json');
+    warnDiv.textContent='Already exists: '+existing.join(', ')+'. This pair has already been primed — not overwriting.';
+    warnDiv.classList.remove('hidden');
+    return;
+  }
+  appState.pairA=a;appState.pairB=b;
+  btn.disabled=false;
+}
+
+async function goToConfirm(){
+  var tplName=document.getElementById('template-select').value;
+  appState.templateFile=appState.pbSeriesFiles.find(function(f){return f.name===tplName;});
+  if(!appState.templateFile){toast('Select a template file',true);return;}
+
+  var btn=document.getElementById('btn-pair-next');
+  btn.disabled=true;btn.textContent='Loading template...';
+  try{
+    var res=await fetch(appState.templateFile.url,{headers:{'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json'}});
+    var meta=await res.json();
+    appState.templateData=JSON.parse(decodeURIComponent(escape(atob(meta.content))));
+  }catch(e){
+    toast('Failed to load template: '+e.message,true);
+    btn.disabled=false;btn.textContent='Next';
+    return;
+  }
+  btn.disabled=false;btn.textContent='Next';
+
+  var a=appState.pairA,b=appState.pairB;
+  var tplPair=parsePbSeriesVersion(appState.templateFile.name);
+  var cardCount=appState.templateData.cards.filter(function(c){return !c.deletedAt;}).length;
+  document.getElementById('confirm-summary').innerHTML=
+    '<div class="space-y-1">'+
+    '<div><strong>Template:</strong> '+appState.templateFile.name+' ('+cardCount+' cards, '+tplPair.src+'\u2192'+tplPair.tgt+')</div>'+
+    '<div><strong>Will create:</strong></div>'+
+    '<div class="font-mono text-teal-700">phrasebook-'+a+'-'+b+'-1000.json</div>'+
+    '<div class="text-[11px] text-slate-500">source text + categories + tags in '+LANG_NAMES[a]+' (its own source language); target + backtranslate populated, verdict pending</div>'+
+    '<div class="font-mono text-teal-700 mt-2">phrasebook-'+b+'-'+a+'-1000.json</div>'+
+    '<div class="text-[11px] text-slate-500">source text + categories + tags in '+LANG_NAMES[b]+' (its own source language); target + backtranslate populated, verdict pending</div>'+
+    '</div>';
+  document.getElementById('gen-result').classList.add('hidden');
+  document.getElementById('gen-progress').classList.add('hidden');
+  document.getElementById('btn-generate').disabled=false;
+  document.getElementById('btn-generate').textContent='Generate both files';
+  advanceWizard(3);
+}
+
+function ghHeaders(){return {'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};}
+
+async function translateVocabulary(terms,targetLangName){
+  if(terms.length===0)return {};
+  var prompt='Translate this list of short UI taxonomy terms into '+targetLangName+'. '+
+    'These are category/tag labels for a phrasebook app - keep translations short (1-3 words), '+
+    'natural, and appropriate for a UI chip/label, not a full sentence. '+
+    'Return ONLY a JSON object mapping each input term to its translation, nothing else, no markdown fences.\n\n'+
+    'Terms: '+JSON.stringify(terms);
+  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+  var data=await res.json();
+  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+async function translateCardBatch(sourceTexts,fromLangName,toLangName){
+  var prompt='Translate these '+fromLangName+' phrases into '+toLangName+'. '+
+    'This is for a travel/conversation phrasebook - keep translations natural and conversational, '+
+    'matching the tone of each source phrase. Return ONLY a JSON array of translation strings, '+
+    'in the exact same order as the input, nothing else, no markdown fences.\n\n'+
+    'Phrases: '+JSON.stringify(sourceTexts);
+  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
+  var data=await res.json();
+  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+async function translateBatched(sourceTexts,fromLangName,toLangName,onProgress){
+  var BATCH=25,out=[];
+  for(var i=0;i<sourceTexts.length;i+=BATCH){
+    var batch=sourceTexts.slice(i,i+BATCH);
+    if(onProgress)onProgress('Translating '+(i+1)+'-'+Math.min(i+BATCH,sourceTexts.length)+' of '+sourceTexts.length+'...');
+    var res=await translateCardBatch(batch,fromLangName,toLangName);
+    out=out.concat(res);
+  }
+  return out;
+}
+
+// Build one direction's file: fromCode is THIS file's own source language.
+// Categories/tags get translated into fromCode's language — never left in
+// the template's original language on a file whose source is something else.
+async function buildDirectionFile(templateCards,fromCode,toCode,onProgress){
+  var fromName=LANG_NAMES[fromCode]||fromCode, toName=LANG_NAMES[toCode]||toCode;
+  var now=Date.now();
+  var active=templateCards.filter(function(c){return !c.deletedAt;});
+
+  var allCategories=Array.from(new Set(active.flatMap(function(c){return c.categories||[];})));
+  var allTags=Array.from(new Set(active.flatMap(function(c){return c.tags||[];}))).filter(function(t){return !BANNED_TONE_TAGS.has(t);});
+
+  onProgress('Translating taxonomy into '+fromName+'...');
+  var categoryMap=await translateVocabulary(allCategories,fromName);
+  var tagMap=await translateVocabulary(allTags,fromName);
+
+  onProgress('Translating source text into '+fromName+'...');
+  var sourceTexts=await translateBatched(active.map(function(c){return c.source;}),'the template language',fromName,onProgress);
+
+  onProgress('Translating target text into '+toName+'...');
+  var targetTexts=await translateBatched(sourceTexts,fromName,toName,onProgress);
+
+  onProgress('Running backtranslation ('+toName+' \u2192 '+fromName+')...');
+  var backtranslatedTexts=await translateBatched(targetTexts,toName,fromName,onProgress);
+
+  return active.map(function(c,i){
+    var newId='pb-'+fromCode+'-'+toCode+'-'+String(i+1).padStart(4,'0');
+    return {
+      id:newId,sourceLang:fromCode,targetLang:toCode,
+      source:sourceTexts[i]||'',target:targetTexts[i]||'',
+      categories:(c.categories||[]).map(function(cat){return categoryMap[cat]||cat;}),
+      tags:(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);}).map(function(t){return tagMap[t]||t;}),
+      intentId:'intent-'+newId,fingerprint:(sourceTexts[i]||'').toLowerCase().trim(),relatedIntents:[],
+      usage:0,lastUsed:null,
+      backtranslate:{resultText:backtranslatedTexts[i]||'',verdict:'pending'},
+      clarifyChain:[],
+      createdAt:now,createdBy:'pb',updatedAt:now,updatedBy:'pb',deletedAt:null
+    };
+  });
+}
+
+async function ghWriteFile(path,payload,message){
+  var b64=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+  var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+path;
+  var res=await fetch(url,{method:'PUT',headers:ghHeaders(),body:JSON.stringify({message:message,content:b64})});
+  if(!res.ok){var t=await res.text();throw new Error('GitHub write failed for '+path+': '+res.status+' '+t);}
+}
+
+async function runGeneration(){
+  var btn=document.getElementById('btn-generate');
+  var backBtn=document.getElementById('btn-confirm-back');
+  var progressPanel=document.getElementById('gen-progress');
+  var progressText=document.getElementById('gen-progress-text');
+  var resultPanel=document.getElementById('gen-result');
+  btn.disabled=true;backBtn.disabled=true;
+  progressPanel.classList.remove('hidden');
+  resultPanel.classList.add('hidden');
+
+  var a=appState.pairA,b=appState.pairB;
+
+  try{
+    progressText.textContent='Building '+a+'\u2192'+b+' ('+LANG_NAMES[a]+' source)...';
+    var cardsAB=await buildDirectionFile(appState.templateData.cards,a,b,function(msg){progressText.textContent=msg;});
+
+    progressText.textContent='Building '+b+'\u2192'+a+' ('+LANG_NAMES[b]+' source)...';
+    var cardsBA=await buildDirectionFile(appState.templateData.cards,b,a,function(msg){progressText.textContent=msg;});
+
+    progressText.textContent='Writing files to GitHub...';
+    var nameAB='phrasebook-'+a+'-'+b+'-1000.json';
+    var nameBA='phrasebook-'+b+'-'+a+'-1000.json';
+    await ghWriteFile('phrasebook/'+nameAB,{type:'phrasebook',langPair:a+'-'+b,cards:cardsAB},'Pump primer: inception of '+a+'-'+b+' from '+appState.templateFile.name);
+    await ghWriteFile('phrasebook/'+nameBA,{type:'phrasebook',langPair:b+'-'+a,cards:cardsBA},'Pump primer: inception of '+b+'-'+a+' from '+appState.templateFile.name);
+
+    progressPanel.classList.add('hidden');
+    resultPanel.innerHTML='<div class="font-bold mb-1">Done.</div>'+
+      '<div class="font-mono text-xs">'+nameAB+'</div>'+
+      '<div class="font-mono text-xs">'+nameBA+'</div>'+
+      '<div class="text-xs mt-2 text-green-700">'+cardsAB.length+' cards each, ready for XL curation and TB field use. No O-ring, no pruning — first PB enrichment pass handles that.</div>';
+    resultPanel.classList.remove('hidden');
+    btn.textContent='Generated';
+    backBtn.disabled=false;
+  }catch(e){
+    progressPanel.classList.add('hidden');
+    toast('Generation failed: '+e.message,true);
+    btn.disabled=false;backBtn.disabled=false;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
