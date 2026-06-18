@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>PB Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
+.hide-scrollbar::-webkit-scrollbar{display:none;}
+.hide-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
+.wizard-step{display:none;animation:fadeIn .2s ease-in-out;}
+.wizard-step.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden overscroll-none flex flex-col">
+
+<!-- SETUP -->
+<div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4">
+  <div class="w-full max-w-lg bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-2 md:mt-8">
+    <div class="flex border-b border-slate-200 bg-slate-50 shrink-0 px-4 py-3">
+      <div class="font-bold text-slate-800 text-sm flex items-center gap-2"><i data-lucide="server" class="w-4 h-4 text-teal-600"></i> PB Console</div>
+    </div>
+
+    <div id="panel-create" class="p-6">
+      <div class="flex justify-between items-center mb-6 px-2">
+        <div id="dot-1" class="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center">1</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-2" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">2</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-3" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">3</div>
+      </div>
+
+      <div id="auth-error" class="hidden mb-4 bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 break-words font-medium"></div>
+
+      <!-- Step 1: Auth -->
+      <div id="step-1" class="wizard-step active space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="key" class="w-4 h-4 text-teal-600"></i> Authentication</h3>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Personal Access Token (PAT)</label>
+          <input type="password" id="cfg-pat" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="ghp_...">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Username / Org</label>
+            <input type="text" id="cfg-owner" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="acmeproducts"></div>
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Repository</label>
+            <input type="text" id="cfg-repo" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="stuff"></div>
+        </div>
+        <button onclick="fetchPhrasebooks()" id="btn-fetch" class="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Connect & Fetch</button>
+      </div>
+
+      <!-- Step 2: Language Pair -->
+      <div id="step-2" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="languages" class="w-4 h-4 text-teal-600"></i> Language Pair</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Source language</label>
+            <select id="src-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target language</label>
+            <select id="tgt-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">PB Console only loads files matching <code>phrasebook-{src}-{tgt}-{1000+}.json</code>. Anything else in the repo is reference material from before this system existed.</p>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="findMatchingFiles()" id="btn-lang-next" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm" disabled>Next</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Source File -->
+      <div id="step-3" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="book" class="w-4 h-4 text-teal-600"></i> Select PB File</h3>
+        <p class="text-xs text-slate-500" id="step3-sub"></p>
+        <div><select id="cfg-source" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer"></select></div>
+        <div id="no-pb-file-warning" class="hidden bg-amber-50 text-amber-700 text-xs p-3 rounded-lg border border-amber-200">No file matching the 1000-series pattern exists yet for this pair.</div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(2)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="loadSelectedFile()" id="btn-load" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Load</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="view-loading" class="flex-1 flex flex-col items-center justify-center hidden">
+  <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-teal-600 mb-4"></i>
+  <h2 class="font-bold text-slate-700" id="loading-msg">Loading...</h2>
+</div>
+
+<!-- MAIN APP -->
+<div id="view-app" class="flex-1 flex hidden bg-slate-100 min-h-0 overflow-hidden">
+  <div class="w-52 bg-white border-r border-slate-200 flex flex-col shrink-0">
+    <div class="px-4 py-3 border-b border-slate-200">
+      <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600 mb-2" title="Back"><i data-lucide="arrow-left" class="w-4 h-4"></i></button>
+      <div class="font-bold text-slate-800 text-sm">PB Console</div>
+      <div class="text-[10px] text-slate-400 mt-0.5" id="workspace-sub">—</div>
+    </div>
+    <div class="flex-1 overflow-y-auto py-2" id="tab-nav"></div>
+    <div class="px-4 py-2 border-t border-slate-200 flex items-center gap-1.5 text-[10px] text-slate-400">
+      <div class="w-2 h-2 rounded-full bg-green-500" id="conn-dot"></div>
+      <span id="conn-text">Connected</span>
+    </div>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6" id="main-content"></div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-6 right-6 bg-slate-800 text-white text-sm px-4 py-3 rounded-lg shadow-lg max-w-sm z-50"></div>
+
+<div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
+  PB Console v1 | <span id="footer-ts"></span>
+</div>
+
+<script>
+setInterval(function(){var el=document.getElementById('footer-ts');if(el)el.textContent=new Date().toLocaleString();},1000);
+
+var LANGS=[
+  {code:'en',label:'English',flag:'🇺🇸'},{code:'es',label:'Spanish',flag:'🇪🇸'},
+  {code:'th',label:'Thai',flag:'🇹🇭'},{code:'ja',label:'Japanese',flag:'🇯🇵'},
+  {code:'ko',label:'Korean',flag:'🇰🇷'},{code:'zh',label:'Chinese',flag:'🇨🇳'},
+  {code:'fr',label:'French',flag:'🇫🇷'},{code:'de',label:'German',flag:'🇩🇪'},
+  {code:'vi',label:'Vietnamese',flag:'🇻🇳'},{code:'id',label:'Indonesian',flag:'🇮🇩'},
+  {code:'ms',label:'Malay',flag:'🇲🇾'},{code:'pt',label:'Portuguese',flag:'🇧🇷'},
+  {code:'ar',label:'Arabic',flag:'🇸🇦'},{code:'hi',label:'Hindi',flag:'🇮🇳'},
+  {code:'tl',label:'Filipino',flag:'🇵🇭'},{code:'ru',label:'Russian',flag:'🇷🇺'}
+];
+
+var appState={
+  config:{owner:'acmeproducts',repo:'stuff',path:'phrasebook',pat:''},
+  langPair:{source:'',target:''},
+  allFiles:[],
+  matchedFiles:[],
+  cards:[],
+  currentFile:null,
+  runLog:[],
+  activeTab:'dashboard'
+};
+var LOCAL_CONFIG_KEY='pb_console_cfg1';
+
+if(window.lucide)lucide.createIcons();
+else{var lr=0;var lw=setInterval(function(){lr++;if(window.lucide){lucide.createIcons();clearInterval(lw);}else if(lr>20)clearInterval(lw);},250);}
+
+function flagFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.flag:'🏳️';}
+function labelFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.label:code;}
+
+function toast(msg,isError){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='fixed bottom-6 right-6 text-sm px-4 py-3 rounded-lg shadow-lg max-w-sm z-50 '+(isError?'bg-red-600 text-white':'bg-slate-800 text-white');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(function(){t.className='hidden';},4200);
+}
+
+function init(){
+  var saved=localStorage.getItem(LOCAL_CONFIG_KEY);
+  if(saved){
+    var c=JSON.parse(saved);
+    if(c.owner)document.getElementById('cfg-owner').value=c.owner;
+    if(c.repo)document.getElementById('cfg-repo').value=c.repo;
+    if(c.pat)document.getElementById('cfg-pat').value=c.pat;
+  }
+  renderLangGrids();
+  switchView('view-setup');
+}
+
+function renderLangGrids(){
+  var src=document.getElementById('src-lang-select');
+  var tgt=document.getElementById('tgt-lang-select');
+  var opts=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+' ('+l.code+')</option>';}).join('');
+  src.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+  tgt.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+  appState.langPair={source:'',target:''};
+  document.getElementById('btn-lang-next').disabled=true;
+}
+function onLangSelectChange(){
+  appState.langPair.source=document.getElementById('src-lang-select').value;
+  appState.langPair.target=document.getElementById('tgt-lang-select').value;
+  var btn=document.getElementById('btn-lang-next');
+  btn.disabled=!(appState.langPair.source&&appState.langPair.target&&appState.langPair.source!==appState.langPair.target);
+}
+
+function switchView(id){['view-setup','view-loading','view-app'].forEach(function(v){document.getElementById(v).classList.add('hidden');});document.getElementById(id).classList.remove('hidden');}
+function goToSetup(){switchView('view-setup');}
+
+function advanceWizard(step){
+  [1,2,3].forEach(function(s){
+    document.getElementById('step-'+s).classList.remove('active');
+    var dot=document.getElementById('dot-'+s);
+    dot.className=s<=step
+      ?"w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center shadow-sm"
+      :"w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center";
+  });
+  document.getElementById('step-'+step).classList.add('active');
+}
+
+async function fetchPhrasebooks(){
+  var errDiv=document.getElementById('auth-error');
+  try{
+    var p=document.getElementById('cfg-pat').value.trim();
+    var o=document.getElementById('cfg-owner').value.trim()||'acmeproducts';
+    var r=document.getElementById('cfg-repo').value.trim()||'stuff';
+    errDiv.classList.add('hidden');
+    if(!p||!o||!r){errDiv.textContent="PAT, Username, and Repo required.";errDiv.classList.remove('hidden');return;}
+    appState.config={owner:o,repo:r,path:'phrasebook',pat:p};
+    localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify({owner:o,repo:r,pat:p}));
+    var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/phrasebook',{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
+    if(!res.ok){
+      var body='';try{body=(await res.json()).message||'';}catch(_){}
+      throw new Error('HTTP '+res.status+(body?(': '+body):'')+' — check Owner/Repo/PAT.');
+    }
+    var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
+    if(!files.length)throw new Error("No JSON phrasebooks found in /phrasebook.");
+    appState.allFiles=files;
+    await loadRunLog();
+    advanceWizard(2);
+  }catch(e){
+    console.error('fetchPhrasebooks error:',e);
+    errDiv.textContent=(e&&e.message)?e.message:String(e);
+    errDiv.classList.remove('hidden');
+  }
+}
+
+function parsePbSeriesVersion(name,src,tgt){
+  var re=new RegExp('^phrasebook-'+src+'-'+tgt+'-(\\d+)\\.json$');
+  var m=name.match(re);
+  if(!m)return null;
+  var v=parseInt(m[1],10);
+  return v>=1000?v:null;
+}
+function findMatchingFiles(){
+  var src=appState.langPair.source, tgt=appState.langPair.target;
+  var matches=appState.allFiles.filter(function(f){return parsePbSeriesVersion(f.name,src,tgt)!==null;});
+  matches.sort(function(a,b){return parsePbSeriesVersion(b.name,src,tgt)-parsePbSeriesVersion(a.name,src,tgt);});
+  appState.matchedFiles=matches;
+  var sel=document.getElementById('cfg-source');
+  var warn=document.getElementById('no-pb-file-warning');
+  if(matches.length===0){
+    sel.innerHTML='<option disabled selected>No PB-series file exists yet for this pair</option>';
+    warn.classList.remove('hidden');
+  }else{
+    sel.innerHTML=matches.map(function(f,i){return '<option value="'+f.name+'"'+(i===0?' selected':'')+'>'+f.name+(i===0?'  (latest)':'')+'</option>';}).join('');
+    warn.classList.add('hidden');
+  }
+  var sub=flagFor(src)+' '+labelFor(src)+' \u2192 '+flagFor(tgt)+' '+labelFor(tgt)+' \u00b7 '+matches.length+' PB-series file(s) found.';
+  document.getElementById('step3-sub').textContent=sub;
+  advanceWizard(3);
+}
+
+async function loadSelectedFile(){
+  var name=document.getElementById('cfg-source').value;
+  var fileEntry=appState.matchedFiles.find(function(f){return f.name===name;});
+  if(!fileEntry){toast('No file selected',true);return;}
+  switchView('view-loading');
+  document.getElementById('loading-msg').textContent='Loading '+name+'...';
+  try{
+    var res=await fetch(fileEntry.url,{headers:{'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json'}});
+    var meta=await res.json();
+    var content=JSON.parse(decodeURIComponent(escape(atob(meta.content))));
+    appState.currentFile={path:fileEntry.path,sha:meta.sha,version:parsePbSeriesVersion(fileEntry.name,appState.langPair.source,appState.langPair.target),name:fileEntry.name};
+    appState.cards=content.cards||[];
+    appState.activeTab='dashboard';
+    document.getElementById('workspace-sub').textContent=appState.langPair.source+'-'+appState.langPair.target+' · v'+appState.currentFile.version;
+    switchView('view-app');
+    renderShell();
+  }catch(e){
+    toast('Load failed: '+e.message,true);
+    switchView('view-setup');
+  }
+}
+
+function ghHeaders(){return {'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};}
+
+async function ghWriteNextVersion(cards,jobName){
+  var nextVersion=appState.currentFile.version+1;
+  var src=appState.langPair.source,tgt=appState.langPair.target;
+  var newName='phrasebook-'+src+'-'+tgt+'-'+nextVersion+'.json';
+  var newPath='phrasebook/'+newName;
+  var payload={type:'phrasebook',langPair:src+'-'+tgt,cards:cards};
+  var b64=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+  var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+newPath;
+  var res=await fetch(url,{method:'PUT',headers:ghHeaders(),body:JSON.stringify({message:'PB: '+jobName+' -> v'+nextVersion,content:b64})});
+  if(!res.ok){var t=await res.text();throw new Error('GitHub write failed: '+res.status+' '+t);}
+  appState.currentFile={path:newPath,sha:null,version:nextVersion,name:newName};
+  appState.cards=cards;
+  return newName;
+}
+
+async function loadRunLog(){
+  var path='phrasebook/_pb-run-log.json';
+  try{
+    var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+path;
+    var res=await fetch(url,{headers:ghHeaders()});
+    if(res.status===404){appState.runLog=[];return;}
+    if(!res.ok)throw new Error('Run log fetch failed: '+res.status);
+    var meta=await res.json();
+    var content=JSON.parse(decodeURIComponent(escape(atob(meta.content))));
+    appState.runLog=content.entries||[];
+    appState._runLogSha=meta.sha;
+  }catch(e){
+    appState.runLog=[];
+  }
+}
+async function appendRunLog(entry){
+  appState.runLog.unshift(entry);
+  var path='phrasebook/_pb-run-log.json';
+  var b64=btoa(unescape(encodeURIComponent(JSON.stringify({entries:appState.runLog},null,2))));
+  var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+path;
+  var body={message:'PB run log: '+entry.job,content:b64};
+  if(appState._runLogSha)body.sha=appState._runLogSha;
+  var res=await fetch(url,{method:'PUT',headers:ghHeaders(),body:JSON.stringify(body)});
+  if(res.ok){var j=await res.json();appState._runLogSha=j.content.sha;}
+}
+
+async function runSaveJob(jobName,detailOverride){
+  toast('Saving next version...');
+  var entry={ts:Date.now(),job:jobName,status:'running',detail:detailOverride||(appState.cards.length+' cards')};
+  try{
+    var newName=await ghWriteNextVersion(appState.cards,jobName);
+    entry.status='completed';
+    entry.detail=(detailOverride||'')+' -> '+newName;
+    await appendRunLog(entry);
+    toast('Saved as '+newName);
+  }catch(e){
+    entry.status='failed';
+    entry.detail=e.message;
+    await appendRunLog(entry).catch(function(){});
+    toast('Save failed: '+e.message,true);
+  }
+  renderShell();
+}
+
+var PRUNE_DAYS=100;
+var ORING_TOP_K=5;
+var ORING_MIN_SIM=0.15;
+var ORING_TEXT_WEIGHT=0.7;
+var ORING_USAGE_WEIGHT=0.3;
+var BANNED_TONE_TAGS=new Set(['polite','neutral','formal','warm','romantic','urgent','curious','reflective','apologetic','phrase']);
+
+function getUnassignedCards(){return appState.cards.filter(function(c){return (c.categories||[]).includes('unassigned');});}
+
+function getTagPromotionCandidates(){
+  var tagMap={};
+  appState.cards.forEach(function(c){(c.tags||[]).forEach(function(t){(tagMap[t]=tagMap[t]||[]).push(c);});});
+  var existingCats=new Set();
+  appState.cards.forEach(function(c){(c.categories||[]).forEach(function(cat){existingCats.add(cat);});});
+  var candidates=[];
+  Object.entries(tagMap).forEach(function(entry){
+    var tag=entry[0],cards=entry[1];
+    if(existingCats.has(tag))return;
+    if(cards.length<2)return;
+    candidates.push({tag:tag,count:cards.length,totalUsage:cards.reduce(function(s,c){return s+(c.usage||0);},0)});
+  });
+  candidates.sort(function(a,b){return b.totalUsage-a.totalUsage;});
+  return candidates;
+}
+
+function getPruneCandidates(){
+  var now=Date.now(),thresholdMs=PRUNE_DAYS*86400000;
+  return appState.cards.filter(function(c){
+    if(c.deletedAt)return false;
+    var usage=c.usage||0;
+    if(usage>0){var last=c.lastUsed||c.updatedAt||c.createdAt;return (now-last)>thresholdMs;}
+    return (now-c.createdAt)>thresholdMs;
+  });
+}
+
+function getIncompleteCardWarnings(cards){
+  return cards.filter(function(c){
+    return !c.deletedAt && (!c.target || c.target.trim()==='' || (c.backtranslate && c.backtranslate.verdict==='pending'));
+  });
+}
+
+function getBannedTagViolations(){
+  var violations={};
+  appState.cards.forEach(function(c){
+    (c.tags||[]).forEach(function(t){if(BANNED_TONE_TAGS.has(t))violations[t]=(violations[t]||0)+1;});
+  });
+  return violations;
+}
+
+function levenshtein(a,b){
+  var m=a.length,n=b.length;
+  var dp=[];for(var i=0;i<=m;i++){dp.push(new Array(n+1).fill(0));}
+  for(i=0;i<=m;i++)dp[i][0]=i;
+  for(var j=0;j<=n;j++)dp[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++){dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);}
+  return dp[m][n];
+}
+function getTagRationalizationCandidates(){
+  var tagCounts={};
+  appState.cards.forEach(function(c){(c.tags||[]).forEach(function(t){tagCounts[t]=(tagCounts[t]||0)+1;});});
+  var tags=Object.keys(tagCounts),pairs=[];
+  for(var i=0;i<tags.length;i++)for(var j=i+1;j<tags.length;j++){
+    var dist=levenshtein(tags[i],tags[j]);
+    var maxLen=Math.max(tags[i].length,tags[j].length);
+    var sim=1-dist/maxLen;
+    if(sim>0.75&&tags[i]!==tags[j])pairs.push({a:tags[i],aCount:tagCounts[tags[i]],b:tags[j],bCount:tagCounts[tags[j]],sim:sim});
+  }
+  pairs.sort(function(a,b){return b.sim-a.sim;});
+  return pairs;
+}
+
+function tokenize(s){return (s||'').toLowerCase().replace(/[^a-z0-9\s]/g,'').split(/\s+/).filter(Boolean);}
+function tfidfVectors(docs){
+  var df={},tokenized=docs.map(tokenize);
+  tokenized.forEach(function(tokens){new Set(tokens).forEach(function(t){df[t]=(df[t]||0)+1;});});
+  var N=docs.length;
+  return tokenized.map(function(tokens){
+    var tf={};tokens.forEach(function(t){tf[t]=(tf[t]||0)+1;});
+    var vec={};
+    Object.entries(tf).forEach(function(entry){var t=entry[0],count=entry[1];var idf=Math.log((N+1)/(df[t]+1))+1;vec[t]=count*idf;});
+    return vec;
+  });
+}
+function cosineSim(a,b){
+  var dot=0,na=0,nb=0;
+  var keys=new Set(Object.keys(a).concat(Object.keys(b)));
+  keys.forEach(function(k){var av=a[k]||0,bv=b[k]||0;dot+=av*bv;na+=av*av;nb+=bv*bv;});
+  if(na===0||nb===0)return 0;
+  return dot/(Math.sqrt(na)*Math.sqrt(nb));
+}
+function usageTier(u){if(u===0)return 0;if(u<10)return 1;if(u<50)return 2;if(u<200)return 3;return 4;}
+function computeOringForCategory(group){
+  if(group.length<2){group.forEach(function(c){c._oringPreview=[];});return;}
+  var vecs=tfidfVectors(group.map(function(c){return c.source;}));
+  group.forEach(function(c,i){
+    var scores=group.map(function(c2,j){
+      if(i===j)return -1;
+      var textSim=cosineSim(vecs[i],vecs[j]);
+      var tierDist=Math.abs(usageTier(c.usage||0)-usageTier(c2.usage||0))/4;
+      var usageSim=1-tierDist;
+      return ORING_TEXT_WEIGHT*textSim+ORING_USAGE_WEIGHT*usageSim;
+    });
+    var ranked=scores.map(function(s,j){return {s:s,j:j};}).filter(function(x){return x.j!==i;}).sort(function(a,b){return b.s-a.s;}).slice(0,ORING_TOP_K).filter(function(x){return x.s>ORING_MIN_SIM;});
+    c._oringPreview=ranked.map(function(x){return group[x.j].intentId||group[x.j].id;});
+  });
+}
+function previewOring(){
+  var byCategory={};
+  appState.cards.forEach(function(c){(c.categories||['unassigned']).forEach(function(cat){(byCategory[cat]=byCategory[cat]||[]).push(c);});});
+  Object.values(byCategory).forEach(computeOringForCategory);
+}
+
+function getCurrentTaxonomy(){
+  var categories=Array.from(new Set(appState.cards.flatMap(function(c){return c.categories||[];})));
+  var tags=Array.from(new Set(appState.cards.flatMap(function(c){return c.tags||[];}))).filter(function(t){return !BANNED_TONE_TAGS.has(t);});
+  return {categories:categories,tags:tags,cardCount:appState.cards.length};
+}
+
+var LANG_NAMES={en:'English',th:'Thai',vi:'Vietnamese',es:'Spanish',fr:'French',de:'German',ja:'Japanese',ko:'Korean',zh:'Mandarin Chinese',pt:'Portuguese',id:'Indonesian',ms:'Malay',ar:'Arabic',hi:'Hindi',tl:'Filipino',ru:'Russian'};
+
+async function translateVocabulary(terms,targetLangName){
+  var prompt='Translate this list of short English UI taxonomy terms into '+targetLangName+'. '+
+    'These are category/tag labels for a phrasebook app - keep translations short (1-3 words), '+
+    'natural, and appropriate for a UI chip/label, not a full sentence. '+
+    'Return ONLY a JSON object mapping each English term to its translation, nothing else, no markdown fences.\n\n'+
+    'Terms: '+JSON.stringify(terms);
+  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+  var data=await res.json();
+  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+async function translateCardBatch(cards,sourceLangName,targetLangName){
+  var prompt='Translate these '+sourceLangName+' phrases into '+targetLangName+'. '+
+    'This is for a travel/conversation phrasebook - keep translations natural and conversational, '+
+    'matching the tone of each source phrase. Return ONLY a JSON array of translation strings, '+
+    'in the exact same order as the input, nothing else, no markdown fences.\n\n'+
+    'Phrases: '+JSON.stringify(cards.map(function(c){return c.source;}));
+  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
+  var data=await res.json();
+  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+async function generateRealLangPair(newTargetLang,onProgress){
+  var sourceLang=appState.langPair.source;
+  var sourceLangName=LANG_NAMES[sourceLang]||sourceLang;
+  var targetLangName=LANG_NAMES[newTargetLang]||newTargetLang;
+  var now=Date.now();
+  var tax=getCurrentTaxonomy();
+  onProgress('Translating '+tax.categories.length+' categories + '+tax.tags.length+' tags into '+targetLangName+'...');
+  var categoryMap=await translateVocabulary(tax.categories,targetLangName);
+  var tagMap=await translateVocabulary(tax.tags,targetLangName);
+  var activeCards=appState.cards.filter(function(c){return !c.deletedAt;});
+  var BATCH_SIZE=25,translatedTexts=[];
+  for(var i=0;i<activeCards.length;i+=BATCH_SIZE){
+    var batch=activeCards.slice(i,i+BATCH_SIZE);
+    onProgress('Translating cards '+(i+1)+'-'+Math.min(i+BATCH_SIZE,activeCards.length)+' of '+activeCards.length+'...');
+    var results=await translateCardBatch(batch,sourceLangName,targetLangName);
+    translatedTexts=translatedTexts.concat(results);
+  }
+  return activeCards.map(function(c,i){
+    var newId='pb-'+sourceLang+'-'+newTargetLang+'-'+String(i+1).padStart(4,'0');
+    return {
+      id:newId,sourceLang:sourceLang,targetLang:newTargetLang,source:c.source,target:translatedTexts[i]||'',
+      categories:(c.categories||[]).map(function(cat){return categoryMap[cat]||cat;}),
+      tags:(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);}).map(function(t){return tagMap[t]||t;}),
+      intentId:'intent-'+newId,fingerprint:(c.source||'').toLowerCase().trim(),relatedIntents:[],
+      usage:0,lastUsed:null,backtranslate:{resultText:'',verdict:'pending'},clarifyChain:[],
+      createdAt:now,createdBy:'pb',updatedAt:now,updatedBy:'pb',deletedAt:null
+    };
+  });
+}
+async function ghWriteNewLangPair(targetLang,cards){
+  var sourceLang=appState.langPair.source;
+  var newLangPair=sourceLang+'-'+targetLang;
+  var fileName='phrasebook-'+newLangPair+'-1000.json';
+  var path='phrasebook/'+fileName;
+  var payload={type:'phrasebook',langPair:newLangPair,cards:cards};
+  var b64=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+  var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+path;
+  var res=await fetch(url,{method:'PUT',headers:ghHeaders(),body:JSON.stringify({message:'PB: inception of new lang pair '+newLangPair+' - translated from '+sourceLang+'-'+appState.langPair.target,content:b64})});
+  if(!res.ok){var t=await res.text();throw new Error('GitHub write failed: '+res.status+' '+t);}
+  return fileName;
+}
+
+var TABS=[
+  {id:'dashboard',label:'Dashboard',icon:'home'},
+  {id:'instructions',label:'Instructions',icon:'book-open'},
+  {id:'categories',label:'Categories',icon:'folder'},
+  {id:'oring',label:'O-Ring',icon:'share-2'},
+  {id:'pruning',label:'Pruning',icon:'scissors'},
+  {id:'tags',label:'Tag Rationalization',icon:'tags'},
+  {id:'langgen',label:'New Lang Pair',icon:'plus-circle'},
+  {id:'management',label:'Run Log',icon:'list'}
+];
+
+function renderShell(){
+  var nav=document.getElementById('tab-nav');
+  nav.innerHTML=TABS.map(function(t){
+    var active=appState.activeTab===t.id;
+    return '<button onclick="setTab(\''+t.id+'\')" class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2 '+(active?'bg-teal-50 text-teal-700 border-r-2 border-teal-600':'text-slate-500 hover:bg-slate-50')+'"><i data-lucide="'+t.icon+'" class="w-3.5 h-3.5"></i>'+t.label+'</button>';
+  }).join('');
+  renderTabContent();
+  if(window.lucide)lucide.createIcons();
+}
+function setTab(id){appState.activeTab=id;renderShell();}
+
+function renderTabContent(){
+  var c=document.getElementById('main-content');
+  if(appState.activeTab==='dashboard')c.innerHTML=renderDashboard();
+  if(appState.activeTab==='instructions')c.innerHTML=renderInstructions();
+  if(appState.activeTab==='categories')c.innerHTML=renderCategories();
+  if(appState.activeTab==='oring')c.innerHTML=renderOring();
+  if(appState.activeTab==='pruning')c.innerHTML=renderPruning();
+  if(appState.activeTab==='tags')c.innerHTML=renderTags();
+  if(appState.activeTab==='langgen')c.innerHTML=renderLangGen();
+  if(appState.activeTab==='management')c.innerHTML=renderManagement();
+  if(window.lucide)lucide.createIcons();
+}
+
+function renderDashboard(){
+  var unassigned=getUnassignedCards().length,prune=getPruneCandidates().length,usage=appState.cards.reduce(function(s,c){return s+(c.usage||0);},0);
+  return '<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Dashboard — '+appState.langPair.source+'-'+appState.langPair.target+'</h1>'+
+    '<p class="text-sm text-slate-500 mt-1">Live file: <strong>'+appState.currentFile.name+'</strong> · '+appState.cards.length+' cards</p></div>'+
+    '<div class="grid grid-cols-4 gap-3 mb-6">'+
+    statBox(appState.cards.length,'Total cards')+statBox(unassigned,'Unassigned')+statBox(prune,'Prune candidates')+statBox(usage,'Total usage')+
+    '</div>'+
+    '<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Quick actions</div><div class="flex gap-2 flex-wrap">'+
+    '<button onclick="setTab(\'categories\')" class="bg-teal-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Resolve unassigned ('+unassigned+')</button>'+
+    '<button onclick="setTab(\'oring\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Preview O-Ring</button>'+
+    '<button onclick="setTab(\'pruning\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Review pruning ('+prune+')</button>'+
+    '<button onclick="setTab(\'tags\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Tag rationalization</button>'+
+    '</div></div>';
+}
+function statBox(num,label){return '<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="text-2xl font-bold font-mono">'+num+'</div><div class="text-xs text-slate-400 mt-1">'+label+'</div></div>';}
+
+function renderInstructions(){
+  return '<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Instructions</h1></div>'+
+  panel('What PB Console is','PB births new lang pairs with real translation, computes O-ring relationships, governs categories, prunes stale content, and rationalizes tags. XL curates and verifies what already exists. TB is where phrases get used and new ones get born in the field. None of the three teams gate each other.')+
+  panel('File naming','Only <code>phrasebook-{src}-{tgt}-{integer}.json</code> with integer 1000+ is a PB-governed file. Everything else in the repo is legacy/reference material — do not load it here.')+
+  panel('Order of operations','1. Connect → pick lang pair → pick the latest 1000-series file.<br>2. Categories → resolve unassigned.<br>3. O-Ring → preview, then apply.<br>4. Pruning → review before committing.<br>5. Tag Rationalization → check banned tags first.<br>6. New Lang Pair → only after the source pair is clean.');
+}
+function panel(title,body){return '<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">'+title+'</div><div class="text-xs text-slate-500 leading-relaxed">'+body+'</div></div>';}
+
+function renderCategories(){
+  var unassigned=getUnassignedCards(),candidates=getTagPromotionCandidates();
+  var existingCats=Array.from(new Set(appState.cards.flatMap(function(c){return c.categories||[];}))).filter(function(c){return c!=='unassigned';});
+  var incomplete=getIncompleteCardWarnings(appState.cards).filter(function(c){return c.categories&&c.categories[0]&&c.categories[0]!=='unassigned';});
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Categories</h1></div>';
+  if(incomplete.length>0){
+    html+='<div class="bg-amber-50 border border-amber-300 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2 text-amber-800">Incomplete cards already carrying a category ('+incomplete.length+')</div>'+
+    '<div class="text-xs text-amber-700">'+incomplete.slice(0,10).map(function(c){return '• '+c.source+' ['+c.categories[0]+']';}).join('<br>')+'</div></div>';
+  }
+  html+=panel('Existing categories',existingCats.map(function(c){return chip(c,true);}).join('')||'None yet.');
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Promotion candidates</div>';
+  if(candidates.length===0)html+='<div class="text-xs text-slate-400">No tags currently show activity-level signal.</div>';
+  else candidates.forEach(function(c){
+    html+='<div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-2"><div class="font-mono text-sm text-teal-700 font-bold">#'+c.tag+'</div>'+
+    '<div class="text-xs text-slate-500 my-1">'+c.count+' card(s), usage '+c.totalUsage+'</div>'+
+    '<button onclick="promoteTag(\''+c.tag+'\')" class="bg-teal-600 text-white text-xs font-bold px-2.5 py-1 rounded mt-1">Promote to category</button></div>';
+  });
+  html+='</div>';
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Unassigned ('+unassigned.length+')</div>';
+  unassigned.forEach(function(c){
+    html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs"><div class="flex-1">'+c.source+'</div>'+
+    '<input type="text" id="assign-'+c.id+'" placeholder="category" class="border border-slate-200 rounded px-2 py-1 text-xs w-32">'+
+    '<button onclick="assignCategory(\''+c.id+'\')" class="bg-teal-600 text-white text-xs font-bold px-2 py-1 rounded">Assign</button></div>';
+  });
+  html+='</div><button onclick="saveCategoriesAction()" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg">Save next version</button>';
+  return html;
+}
+function chip(text,isCat){return '<span class="inline-block border rounded px-2 py-0.5 text-xs font-mono mr-1 mb-1 '+(isCat?'border-teal-300 text-teal-700':'border-slate-300 text-slate-500')+'">'+text+'</span>';}
+
+function renderOring(){
+  previewOring();
+  var sample=appState.cards.filter(function(c){return c._oringPreview&&c._oringPreview.length>0;}).slice(0,30);
+  var noRing=appState.cards.filter(function(c){return !c._oringPreview||c._oringPreview.length===0;}).length;
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">O-Ring</h1></div>'+
+  '<div class="grid grid-cols-2 gap-3 mb-4">'+statBox(appState.cards.length-noRing,'With neighbors')+statBox(noRing,'No neighbor')+'</div>'+
+  '<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Preview</div>';
+  sample.forEach(function(c){html+='<div class="text-xs border-b border-slate-100 py-2">'+c.source+' → '+c._oringPreview.join(', ')+'</div>';});
+  html+='</div><button onclick="applyOringAction()" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg mt-4">Apply & save next version</button>';
+  return html;
+}
+
+function renderPruning(){
+  var candidates=getPruneCandidates();
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Pruning</h1><p class="text-xs text-slate-500">Zero usage for '+PRUNE_DAYS+' days. Soft delete only.</p></div>';
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5">';
+  if(candidates.length===0)html+='<div class="text-xs text-slate-400">No candidates.</div>';
+  candidates.forEach(function(c){html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs"><input type="checkbox" class="prune-check" data-id="'+c.id+'" checked><div class="flex-1">'+c.source+'</div><div class="text-slate-400">usage '+(c.usage||0)+'</div></div>';});
+  html+='</div><button onclick="applyPruneAction()" class="bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-lg mt-4" '+(candidates.length===0?'disabled':'')+'>Soft-delete selected</button>';
+  return html;
+}
+
+function renderTags(){
+  var pairs=getTagRationalizationCandidates(),violations=getBannedTagViolations();
+  var vCount=Object.keys(violations).length;
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Tag Rationalization</h1></div>';
+  html+='<div class="bg-white border '+(vCount>0?'border-red-300':'border-slate-200')+' rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">Banned tag check ('+vCount+')</div>';
+  if(vCount===0)html+='<div class="text-xs text-slate-400">Clean.</div>';
+  else{
+    html+='<div class="mb-2">'+Object.entries(violations).map(function(e){return chip(e[0]+' ('+e[1]+')',false);}).join('')+'</div>';
+    html+='<button onclick="stripBannedTagsAction()" class="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded">Strip & save</button>';
+  }
+  html+='</div><div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Likely duplicates ('+pairs.length+')</div>';
+  pairs.forEach(function(p){html+='<div class="text-xs border-b border-slate-100 py-2">'+p.a+' ('+p.aCount+') ↔ '+p.b+' ('+p.bCount+') — sim '+p.sim.toFixed(2)+'</div>';});
+  html+='</div>';
+  return html;
+}
+
+function renderLangGen(){
+  var tax=getCurrentTaxonomy();
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">New Language Pair</h1><p class="text-xs text-slate-500">One-time pump-priming activity — real translation of source text and taxonomy, run once per new pair, not part of the ongoing per-version lifecycle.</p></div>';
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">Taxonomy being translated</div><div class="text-xs text-slate-500 mb-2">'+tax.cardCount+' cards · '+tax.categories.length+' categories · '+tax.tags.length+' tags</div>'+
+  tax.categories.map(function(c){return chip(c,true);}).join('')+'<br>'+tax.tags.map(function(t){return chip(t,false);}).join('')+'</div>';
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 max-w-sm"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target language</label>'+
+  '<select id="newTargetLangInput" class="w-full border border-slate-200 rounded-lg p-2 text-sm mb-3"><option value="" disabled selected>— select —</option>'+
+  Object.entries(LANG_NAMES).filter(function(e){return e[0]!==appState.langPair.source;}).map(function(e){return '<option value="'+e[0]+'">'+e[1]+' ('+e[0]+')</option>';}).join('')+'</select>'+
+  '<button onclick="generateLangPairAction()" id="generateLangPairBtn" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg w-full">Translate & save as v1000</button></div>'+
+  '<div id="langGenProgress" class="hidden bg-white border border-slate-200 rounded-xl p-5 mt-4 text-xs text-slate-500"><span id="langGenProgressText"></span></div>';
+  return html;
+}
+
+function renderManagement(){
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Run Log</h1></div><div class="bg-white border border-slate-200 rounded-xl p-5">';
+  if(appState.runLog.length===0)html+='<div class="text-xs text-slate-400">No runs recorded yet.</div>';
+  appState.runLog.forEach(function(e){html+='<div class="text-xs border-b border-slate-100 py-2 flex gap-3"><span class="text-slate-400 font-mono">'+new Date(e.ts).toLocaleString()+'</span><span class="text-teal-700 font-bold">'+e.job+'</span><span class="text-slate-500">'+e.detail+'</span></div>';});
+  html+='</div>';
+  return html;
+}
+
+function promoteTag(tag){
+  var count=0;
+  appState.cards.forEach(function(c){if((c.tags||[]).includes(tag)){c.categories=[tag];c.updatedAt=Date.now();c.updatedBy='pb';count++;}});
+  toast('Promoted #'+tag+' on '+count+' card(s) (pending save)');
+  renderTabContent();
+}
+function assignCategory(id){
+  var input=document.getElementById('assign-'+id);
+  var cat=input.value.trim();
+  if(!cat){toast('Enter a category first',true);return;}
+  var card=appState.cards.find(function(c){return c.id===id;});
+  card.categories=[cat];card.updatedAt=Date.now();card.updatedBy='pb';
+  toast(id+' -> '+cat+' (pending save)');
+  renderTabContent();
+}
+function saveCategoriesAction(){
+  var incomplete=getIncompleteCardWarnings(appState.cards).filter(function(c){return c.categories&&c.categories[0]&&c.categories[0]!=='unassigned';});
+  if(incomplete.length>0){
+    var names=incomplete.slice(0,5).map(function(c){return c.source;}).join('; ');
+    if(!confirm(incomplete.length+' card(s) have a category but are missing target text or have a pending verdict:\n\n'+names+'\n\nSave anyway?'))return;
+  }
+  runSaveJob('category-assignment');
+}
+function applyOringAction(){
+  var existing=appState.cards.filter(function(c){return c.relatedIntents&&c.relatedIntents.length>0;}).length;
+  if(existing>0){
+    if(!confirm(existing+' card(s) already have relatedIntents — possibly inherited, not computed here. Overwrite with freshly computed values?'))return;
+  }
+  appState.cards.forEach(function(c){if(!c.intentId){c.intentId='intent-'+c.id;c.fingerprint=(c.source||'').toLowerCase();}});
+  previewOring();
+  appState.cards.forEach(function(c){c.relatedIntents=c._oringPreview||[];});
+  runSaveJob('oring-computation');
+}
+function applyPruneAction(){
+  var checked=Array.from(document.querySelectorAll('.prune-check:checked')).map(function(cb){return cb.dataset.id;});
+  var now=Date.now();
+  checked.forEach(function(id){var c=appState.cards.find(function(x){return x.id===id;});if(c){c.deletedAt=now;c.updatedAt=now;c.updatedBy='pb';}});
+  runSaveJob('pruning',checked.length+' card(s) soft-deleted');
+}
+function stripBannedTagsAction(){
+  var n=0;
+  appState.cards.forEach(function(c){var before=(c.tags||[]).length;c.tags=(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);});if(c.tags.length!==before){c.updatedAt=Date.now();c.updatedBy='pb';n++;}});
+  runSaveJob('strip-banned-tags',n+' card(s) cleaned');
+}
+async function generateLangPairAction(){
+  var targetLang=document.getElementById('newTargetLangInput').value;
+  if(!targetLang){toast('Select a target language',true);return;}
+  var src=appState.langPair.source;
+  if(targetLang===src){toast('Target must differ from source',true);return;}
+  var progressPanel=document.getElementById('langGenProgress');
+  var progressText=document.getElementById('langGenProgressText');
+  progressPanel.classList.remove('hidden');
+  document.getElementById('generateLangPairBtn').disabled=true;
+  try{
+    var existing=appState.allFiles.filter(function(f){return parsePbSeriesVersion(f.name,src,targetLang)!==null;});
+    if(existing.length>0){toast('phrasebook-'+src+'-'+targetLang+' already exists. Not overwriting.',true);progressPanel.classList.add('hidden');document.getElementById('generateLangPairBtn').disabled=false;return;}
+    var newCards=await generateRealLangPair(targetLang,function(msg){progressText.textContent=msg;});
+    progressText.textContent='Saving to GitHub...';
+    var fileName=await ghWriteNewLangPair(targetLang,newCards);
+    await appendRunLog({ts:Date.now(),job:'lang-pair-inception',status:'completed',detail:src+'-'+targetLang+' ('+newCards.length+' cards) -> '+fileName});
+    toast('Generated '+fileName+' — ready for XL curation');
+    progressPanel.classList.add('hidden');
+    document.getElementById('generateLangPairBtn').disabled=false;
+  }catch(e){
+    toast('Translation failed: '+e.message,true);
+    progressPanel.classList.add('hidden');
+    document.getElementById('generateLangPairBtn').disabled=false;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
