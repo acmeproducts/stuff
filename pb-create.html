@@ -251,49 +251,71 @@ async function goToConfirm(){
 
 function ghHeaders(){return {'Authorization':'token '+appState.config.pat,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};}
 
-// MyMemory translation API - free, no key required, CORS-friendly.
-// Same API bridge-turn06-base.html already calls directly from the browser.
-function myMemoryLangCode(code){
-  // MyMemory uses standard ISO codes, mostly matching ours already
-  var map={zh:'zh-CN'};
-  return map[code]||code;
-}
-async function myMemoryTranslate(text,fromCode,toCode){
-  var em='pb_'+Math.floor(Math.random()*100000)+'@pb.com';
-  var pair=myMemoryLangCode(fromCode)+'|'+myMemoryLangCode(toCode);
-  var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+pair+'&de='+em;
+// Translation: Lingva (primary) with LibreTranslate/disroot as fallback.
+// Neither requires a key or account registration.
+// Lingva is a privacy-first Google Translate proxy — simple GET request.
+// LibreTranslate/disroot is a volunteer-hosted open-source instance.
+// Both serve CORS headers for browser requests.
+
+// Lingva uses standard ISO codes; zh needs explicit variant
+function lingvaCode(code){ return code==='zh'?'zh':code; }
+
+async function lingvaTranslate(text,fromCode,toCode){
+  var url='https://lingva.ml/api/v1/'+lingvaCode(fromCode)+'/'+lingvaCode(toCode)+'/'+encodeURIComponent(text);
   var res=await fetch(url);
+  if(!res.ok)throw new Error('Lingva '+res.status);
   var json=await res.json();
-  var result=json&&json.responseData&&json.responseData.translatedText;
-  if(!result||json.responseStatus===403){
-    throw new Error('MyMemory translation failed for: "'+text.slice(0,40)+'..."');
-  }
-  return result;
+  if(!json.translation)throw new Error('Lingva: no translation in response');
+  return json.translation;
 }
-async function myMemoryTranslateBatch(texts,fromCode,toCode,onProgress){
+
+async function libreTranslate(text,fromCode,toCode){
+  var res=await fetch('https://libretranslate.com/translate',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({q:text,source:fromCode,target:toCode,format:'text'})
+  });
+  if(!res.ok)throw new Error('LibreTranslate '+res.status);
+  var json=await res.json();
+  if(!json.translatedText)throw new Error('LibreTranslate: no translation in response');
+  return json.translatedText;
+}
+
+async function translate(text,fromCode,toCode){
+  // Try Lingva first; fall back to LibreTranslate if it fails
+  try{
+    return await lingvaTranslate(text,fromCode,toCode);
+  }catch(e){
+    console.warn('Lingva failed, trying LibreTranslate:',e.message);
+    return await libreTranslate(text,fromCode,toCode);
+  }
+}
+
+async function translateBatch(texts,fromCode,toCode,onProgress){
   var out=[];
   for(var i=0;i<texts.length;i++){
     if(onProgress&&(i%5===0))onProgress('Translating '+(i+1)+' of '+texts.length+'...');
     try{
-      out.push(await myMemoryTranslate(texts[i],fromCode,toCode));
+      out.push(await translate(texts[i],fromCode,toCode));
     }catch(e){
-      out.push(''); // leave blank on failure rather than abort the whole run
-      console.warn('Translation failed, left blank:',texts[i],e.message);
+      out.push('');
+      console.warn('Both providers failed, left blank:',texts[i],e.message);
     }
-    // MyMemory free tier rate limit courtesy delay
-    await new Promise(function(r){setTimeout(r,150);});
+    // Courtesy delay — both services are free volunteer-hosted infra
+    await new Promise(function(r){setTimeout(r,200);});
   }
   return out;
 }
-async function myMemoryTranslateVocab(terms,fromCode,toCode){
+
+async function translateVocab(terms,fromCode,toCode){
   var map={};
   for(var i=0;i<terms.length;i++){
     try{
-      map[terms[i]]=await myMemoryTranslate(terms[i],fromCode,toCode);
+      map[terms[i]]=await translate(terms[i],fromCode,toCode);
     }catch(e){
-      map[terms[i]]=terms[i]; // fall back to original term on failure
+      map[terms[i]]=terms[i]; // keep original on failure
     }
-    await new Promise(function(r){setTimeout(r,150);});
+    await new Promise(function(r){setTimeout(r,200);});
   }
   return map;
 }
@@ -313,17 +335,17 @@ async function buildDirectionFile(templateCards,fromCode,toCode,onProgress){
   var templateSourceLang=(active[0]&&active[0].sourceLang)||'en';
 
   onProgress('Translating taxonomy into '+(LANG_NAMES[fromCode]||fromCode)+'...');
-  var categoryMap=await myMemoryTranslateVocab(allCategories,templateSourceLang,fromCode);
-  var tagMap=await myMemoryTranslateVocab(allTags,templateSourceLang,fromCode);
+  var categoryMap=await translateVocab(allCategories,templateSourceLang,fromCode);
+  var tagMap=await translateVocab(allTags,templateSourceLang,fromCode);
 
   onProgress('Translating source text into '+(LANG_NAMES[fromCode]||fromCode)+'...');
-  var sourceTexts=await myMemoryTranslateBatch(active.map(function(c){return c.source;}),templateSourceLang,fromCode,onProgress);
+  var sourceTexts=await translateBatch(active.map(function(c){return c.source;}),templateSourceLang,fromCode,onProgress);
 
   onProgress('Translating target text into '+(LANG_NAMES[toCode]||toCode)+'...');
-  var targetTexts=await myMemoryTranslateBatch(sourceTexts,fromCode,toCode,onProgress);
+  var targetTexts=await translateBatch(sourceTexts,fromCode,toCode,onProgress);
 
   onProgress('Running backtranslation ('+(LANG_NAMES[toCode]||toCode)+' \u2192 '+(LANG_NAMES[fromCode]||fromCode)+')...');
-  var backtranslatedTexts=await myMemoryTranslateBatch(targetTexts,toCode,fromCode,onProgress);
+  var backtranslatedTexts=await translateBatch(targetTexts,toCode,fromCode,onProgress);
 
   return active.map(function(c,i){
     var newId='pb-'+fromCode+'-'+toCode+'-'+String(i+1).padStart(4,'0');
