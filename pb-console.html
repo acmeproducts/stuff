@@ -347,20 +347,23 @@ var BANNED_TONE_TAGS=new Set(['polite','neutral','formal','warm','romantic','urg
 
 function getUnassignedCards(){return appState.cards.filter(function(c){return (c.categories||[]).includes('unassigned');});}
 
-function getTagPromotionCandidates(){
-  var tagMap={};
-  appState.cards.forEach(function(c){(c.tags||[]).forEach(function(t){(tagMap[t]=tagMap[t]||[]).push(c);});});
-  var existingCats=new Set();
-  appState.cards.forEach(function(c){(c.categories||[]).forEach(function(cat){existingCats.add(cat);});});
-  var candidates=[];
-  Object.entries(tagMap).forEach(function(entry){
-    var tag=entry[0],cards=entry[1];
-    if(existingCats.has(tag))return;
-    if(cards.length<2)return;
-    candidates.push({tag:tag,count:cards.length,totalUsage:cards.reduce(function(s,c){return s+(c.usage||0);},0)});
+// Categories are PB's deliberate judgment call about context/activity.
+// Tags NEVER auto-promote to categories - no volume threshold, no pattern
+// match, nothing automatic. This function only SUGGESTS a possible
+// category per unassigned card based on its existing tags and content,
+// for a human to accept, change, or ignore. It never writes anything itself.
+function suggestCategoryForCard(card, existingCategories){
+  var tagSet=new Set(card.tags||[]);
+  var bestMatch=null, bestScore=0;
+  existingCategories.forEach(function(cat){
+    var catCards=appState.cards.filter(function(c){return (c.categories||[]).includes(cat);});
+    var catTagFreq={};
+    catCards.forEach(function(c){(c.tags||[]).forEach(function(t){catTagFreq[t]=(catTagFreq[t]||0)+1;});});
+    var score=0;
+    tagSet.forEach(function(t){if(catTagFreq[t])score+=catTagFreq[t];});
+    if(score>bestScore){bestScore=score;bestMatch=cat;}
   });
-  candidates.sort(function(a,b){return b.totalUsage-a.totalUsage;});
-  return candidates;
+  return bestMatch;
 }
 
 function getPruneCandidates(){
@@ -450,88 +453,10 @@ function previewOring(){
   Object.values(byCategory).forEach(computeOringForCategory);
 }
 
-function getCurrentTaxonomy(){
-  var categories=Array.from(new Set(appState.cards.flatMap(function(c){return c.categories||[];})));
-  var tags=Array.from(new Set(appState.cards.flatMap(function(c){return c.tags||[];}))).filter(function(t){return !BANNED_TONE_TAGS.has(t);});
-  return {categories:categories,tags:tags,cardCount:appState.cards.length};
-}
-
-var LANG_NAMES={en:'English',th:'Thai',vi:'Vietnamese',es:'Spanish',fr:'French',de:'German',ja:'Japanese',ko:'Korean',zh:'Mandarin Chinese',pt:'Portuguese',id:'Indonesian',ms:'Malay',ar:'Arabic',hi:'Hindi',tl:'Filipino',ru:'Russian'};
-
-async function translateVocabulary(terms,targetLangName){
-  var prompt='Translate this list of short English UI taxonomy terms into '+targetLangName+'. '+
-    'These are category/tag labels for a phrasebook app - keep translations short (1-3 words), '+
-    'natural, and appropriate for a UI chip/label, not a full sentence. '+
-    'Return ONLY a JSON object mapping each English term to its translation, nothing else, no markdown fences.\n\n'+
-    'Terms: '+JSON.stringify(terms);
-  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
-  var data=await res.json();
-  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
-}
-async function translateCardBatch(cards,sourceLangName,targetLangName){
-  var prompt='Translate these '+sourceLangName+' phrases into '+targetLangName+'. '+
-    'This is for a travel/conversation phrasebook - keep translations natural and conversational, '+
-    'matching the tone of each source phrase. Return ONLY a JSON array of translation strings, '+
-    'in the exact same order as the input, nothing else, no markdown fences.\n\n'+
-    'Phrases: '+JSON.stringify(cards.map(function(c){return c.source;}));
-  var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
-  var data=await res.json();
-  var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('');
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
-}
-async function generateRealLangPair(newTargetLang,onProgress){
-  var sourceLang=appState.langPair.source;
-  var sourceLangName=LANG_NAMES[sourceLang]||sourceLang;
-  var targetLangName=LANG_NAMES[newTargetLang]||newTargetLang;
-  var now=Date.now();
-  var tax=getCurrentTaxonomy();
-  onProgress('Translating '+tax.categories.length+' categories + '+tax.tags.length+' tags into '+targetLangName+'...');
-  var categoryMap=await translateVocabulary(tax.categories,targetLangName);
-  var tagMap=await translateVocabulary(tax.tags,targetLangName);
-  var activeCards=appState.cards.filter(function(c){return !c.deletedAt;});
-  var BATCH_SIZE=25,translatedTexts=[];
-  for(var i=0;i<activeCards.length;i+=BATCH_SIZE){
-    var batch=activeCards.slice(i,i+BATCH_SIZE);
-    onProgress('Translating cards '+(i+1)+'-'+Math.min(i+BATCH_SIZE,activeCards.length)+' of '+activeCards.length+'...');
-    var results=await translateCardBatch(batch,sourceLangName,targetLangName);
-    translatedTexts=translatedTexts.concat(results);
-  }
-  return activeCards.map(function(c,i){
-    var newId='pb-'+sourceLang+'-'+newTargetLang+'-'+String(i+1).padStart(4,'0');
-    return {
-      id:newId,sourceLang:sourceLang,targetLang:newTargetLang,source:c.source,target:translatedTexts[i]||'',
-      categories:(c.categories||[]).map(function(cat){return categoryMap[cat]||cat;}),
-      tags:(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);}).map(function(t){return tagMap[t]||t;}),
-      intentId:'intent-'+newId,fingerprint:(c.source||'').toLowerCase().trim(),relatedIntents:[],
-      usage:0,lastUsed:null,backtranslate:{resultText:'',verdict:'pending'},clarifyChain:[],
-      createdAt:now,createdBy:'pb',updatedAt:now,updatedBy:'pb',deletedAt:null
-    };
-  });
-}
-async function ghWriteNewLangPair(targetLang,cards){
-  var sourceLang=appState.langPair.source;
-  var newLangPair=sourceLang+'-'+targetLang;
-  var fileName='phrasebook-'+newLangPair+'-1000.json';
-  var path='phrasebook/'+fileName;
-  var payload={type:'phrasebook',langPair:newLangPair,cards:cards};
-  var b64=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
-  var url='https://api.github.com/repos/'+appState.config.owner+'/'+appState.config.repo+'/contents/'+path;
-  var res=await fetch(url,{method:'PUT',headers:ghHeaders(),body:JSON.stringify({message:'PB: inception of new lang pair '+newLangPair+' - translated from '+sourceLang+'-'+appState.langPair.target,content:b64})});
-  if(!res.ok){var t=await res.text();throw new Error('GitHub write failed: '+res.status+' '+t);}
-  return fileName;
-}
-
 var TABS=[
   {id:'dashboard',label:'Dashboard',icon:'home'},
   {id:'instructions',label:'Instructions',icon:'book-open'},
-  {id:'categories',label:'Categories',icon:'folder'},
-  {id:'oring',label:'O-Ring',icon:'share-2'},
-  {id:'pruning',label:'Pruning',icon:'scissors'},
-  {id:'tags',label:'Tag Rationalization',icon:'tags'},
-  {id:'langgen',label:'New Lang Pair',icon:'plus-circle'},
+  {id:'review',label:'Review & Save',icon:'check-circle'},
   {id:'management',label:'Run Log',icon:'list'}
 ];
 
@@ -550,11 +475,7 @@ function renderTabContent(){
   var c=document.getElementById('main-content');
   if(appState.activeTab==='dashboard')c.innerHTML=renderDashboard();
   if(appState.activeTab==='instructions')c.innerHTML=renderInstructions();
-  if(appState.activeTab==='categories')c.innerHTML=renderCategories();
-  if(appState.activeTab==='oring')c.innerHTML=renderOring();
-  if(appState.activeTab==='pruning')c.innerHTML=renderPruning();
-  if(appState.activeTab==='tags')c.innerHTML=renderTags();
-  if(appState.activeTab==='langgen')c.innerHTML=renderLangGen();
+  if(appState.activeTab==='review')c.innerHTML=renderReview();
   if(appState.activeTab==='management')c.innerHTML=renderManagement();
   if(window.lucide)lucide.createIcons();
 }
@@ -566,100 +487,66 @@ function renderDashboard(){
     '<div class="grid grid-cols-4 gap-3 mb-6">'+
     statBox(appState.cards.length,'Total cards')+statBox(unassigned,'Unassigned')+statBox(prune,'Prune candidates')+statBox(usage,'Total usage')+
     '</div>'+
-    '<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Quick actions</div><div class="flex gap-2 flex-wrap">'+
-    '<button onclick="setTab(\'categories\')" class="bg-teal-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Resolve unassigned ('+unassigned+')</button>'+
-    '<button onclick="setTab(\'oring\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Preview O-Ring</button>'+
-    '<button onclick="setTab(\'pruning\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Review pruning ('+prune+')</button>'+
-    '<button onclick="setTab(\'tags\')" class="bg-white border border-slate-300 text-xs font-bold px-3 py-2 rounded-lg">Tag rationalization</button>'+
-    '</div></div>';
+    '<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Quick action</div>'+
+    '<button onclick="setTab(\'review\')" class="bg-teal-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Run pass (pruning, O-ring, category suggestions)</button>'+
+    '</div>';
 }
 function statBox(num,label){return '<div class="bg-white border border-slate-200 rounded-xl p-4"><div class="text-2xl font-bold font-mono">'+num+'</div><div class="text-xs text-slate-400 mt-1">'+label+'</div></div>';}
 
 function renderInstructions(){
   return '<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Instructions</h1></div>'+
-  panel('What PB Console is','PB births new lang pairs with real translation, computes O-ring relationships, governs categories, prunes stale content, and rationalizes tags. XL curates and verifies what already exists. TB is where phrases get used and new ones get born in the field. None of the three teams gate each other.')+
+  panel('What PB Console is','PB governs categories, prunes stale content, and computes O-ring relationships. XL curates and verifies what already exists. TB is where phrases get used and new ones get born in the field. None of the three teams gate each other.')+
+  panel('Categories are never automatic','A category is a deliberate judgment call PB makes about a real context or activity. Tags never promote to categories — not by volume, not by pattern, not ever. This console only suggests a possible category per unassigned card, based on its tags and the existing taxonomy, for a human to accept, change, or ignore.')+
   panel('File naming','Only <code>phrasebook-{src}-{tgt}-{integer}.json</code> with integer 1000+ is a PB-governed file. Everything else in the repo is legacy/reference material — do not load it here.')+
-  panel('Order of operations','1. Connect → pick lang pair → pick the latest 1000-series file.<br>2. Categories → resolve unassigned.<br>3. O-Ring → preview, then apply.<br>4. Pruning → review before committing.<br>5. Tag Rationalization → check banned tags first.<br>6. New Lang Pair → only after the source pair is clean.');
+  panel('One pass, one version','Pruning, O-ring computation, and category resolution all happen together in a single review pass and produce exactly one new version — not a separate save for each. Go to Review & Save to run a pass.');
 }
 function panel(title,body){return '<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">'+title+'</div><div class="text-xs text-slate-500 leading-relaxed">'+body+'</div></div>';}
-
-function renderCategories(){
-  var unassigned=getUnassignedCards(),candidates=getTagPromotionCandidates();
-  var existingCats=Array.from(new Set(appState.cards.flatMap(function(c){return c.categories||[];}))).filter(function(c){return c!=='unassigned';});
-  var incomplete=getIncompleteCardWarnings(appState.cards).filter(function(c){return c.categories&&c.categories[0]&&c.categories[0]!=='unassigned';});
-  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Categories</h1></div>';
-  if(incomplete.length>0){
-    html+='<div class="bg-amber-50 border border-amber-300 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2 text-amber-800">Incomplete cards already carrying a category ('+incomplete.length+')</div>'+
-    '<div class="text-xs text-amber-700">'+incomplete.slice(0,10).map(function(c){return '• '+c.source+' ['+c.categories[0]+']';}).join('<br>')+'</div></div>';
-  }
-  html+=panel('Existing categories',existingCats.map(function(c){return chip(c,true);}).join('')||'None yet.');
-  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Promotion candidates</div>';
-  if(candidates.length===0)html+='<div class="text-xs text-slate-400">No tags currently show activity-level signal.</div>';
-  else candidates.forEach(function(c){
-    html+='<div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-2"><div class="font-mono text-sm text-teal-700 font-bold">#'+c.tag+'</div>'+
-    '<div class="text-xs text-slate-500 my-1">'+c.count+' card(s), usage '+c.totalUsage+'</div>'+
-    '<button onclick="promoteTag(\''+c.tag+'\')" class="bg-teal-600 text-white text-xs font-bold px-2.5 py-1 rounded mt-1">Promote to category</button></div>';
-  });
-  html+='</div>';
-  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Unassigned ('+unassigned.length+')</div>';
-  unassigned.forEach(function(c){
-    html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs"><div class="flex-1">'+c.source+'</div>'+
-    '<input type="text" id="assign-'+c.id+'" placeholder="category" class="border border-slate-200 rounded px-2 py-1 text-xs w-32">'+
-    '<button onclick="assignCategory(\''+c.id+'\')" class="bg-teal-600 text-white text-xs font-bold px-2 py-1 rounded">Assign</button></div>';
-  });
-  html+='</div><button onclick="saveCategoriesAction()" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg">Save next version</button>';
-  return html;
-}
 function chip(text,isCat){return '<span class="inline-block border rounded px-2 py-0.5 text-xs font-mono mr-1 mb-1 '+(isCat?'border-teal-300 text-teal-700':'border-slate-300 text-slate-500')+'">'+text+'</span>';}
 
-function renderOring(){
+function renderReview(){
   previewOring();
-  var sample=appState.cards.filter(function(c){return c._oringPreview&&c._oringPreview.length>0;}).slice(0,30);
-  var noRing=appState.cards.filter(function(c){return !c._oringPreview||c._oringPreview.length===0;}).length;
-  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">O-Ring</h1></div>'+
-  '<div class="grid grid-cols-2 gap-3 mb-4">'+statBox(appState.cards.length-noRing,'With neighbors')+statBox(noRing,'No neighbor')+'</div>'+
-  '<div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Preview</div>';
-  sample.forEach(function(c){html+='<div class="text-xs border-b border-slate-100 py-2">'+c.source+' → '+c._oringPreview.join(', ')+'</div>';});
-  html+='</div><button onclick="applyOringAction()" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg mt-4">Apply & save next version</button>';
-  return html;
-}
-
-function renderPruning(){
-  var candidates=getPruneCandidates();
-  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Pruning</h1><p class="text-xs text-slate-500">Zero usage for '+PRUNE_DAYS+' days. Soft delete only.</p></div>';
-  html+='<div class="bg-white border border-slate-200 rounded-xl p-5">';
-  if(candidates.length===0)html+='<div class="text-xs text-slate-400">No candidates.</div>';
-  candidates.forEach(function(c){html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs"><input type="checkbox" class="prune-check" data-id="'+c.id+'" checked><div class="flex-1">'+c.source+'</div><div class="text-slate-400">usage '+(c.usage||0)+'</div></div>';});
-  html+='</div><button onclick="applyPruneAction()" class="bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-lg mt-4" '+(candidates.length===0?'disabled':'')+'>Soft-delete selected</button>';
-  return html;
-}
-
-function renderTags(){
-  var pairs=getTagRationalizationCandidates(),violations=getBannedTagViolations();
+  var unassigned=getUnassignedCards();
+  var existingCats=Array.from(new Set(appState.cards.flatMap(function(c){return c.categories||[];}))).filter(function(c){return c!=='unassigned';});
+  var pruneCandidates=getPruneCandidates();
+  var violations=getBannedTagViolations();
   var vCount=Object.keys(violations).length;
-  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Tag Rationalization</h1></div>';
-  html+='<div class="bg-white border '+(vCount>0?'border-red-300':'border-slate-200')+' rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">Banned tag check ('+vCount+')</div>';
-  if(vCount===0)html+='<div class="text-xs text-slate-400">Clean.</div>';
-  else{
-    html+='<div class="mb-2">'+Object.entries(violations).map(function(e){return chip(e[0]+' ('+e[1]+')',false);}).join('')+'</div>';
-    html+='<button onclick="stripBannedTagsAction()" class="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded">Strip & save</button>';
-  }
-  html+='</div><div class="bg-white border border-slate-200 rounded-xl p-5"><div class="font-bold text-sm mb-3">Likely duplicates ('+pairs.length+')</div>';
-  pairs.forEach(function(p){html+='<div class="text-xs border-b border-slate-100 py-2">'+p.a+' ('+p.aCount+') ↔ '+p.b+' ('+p.bCount+') — sim '+p.sim.toFixed(2)+'</div>';});
-  html+='</div>';
-  return html;
-}
+  var dupPairs=getTagRationalizationCandidates();
+  var noRing=appState.cards.filter(function(c){return !c._oringPreview||c._oringPreview.length===0;}).length;
 
-function renderLangGen(){
-  var tax=getCurrentTaxonomy();
-  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">New Language Pair</h1><p class="text-xs text-slate-500">One-time pump-priming activity — real translation of source text and taxonomy, run once per new pair, not part of the ongoing per-version lifecycle.</p></div>';
-  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2">Taxonomy being translated</div><div class="text-xs text-slate-500 mb-2">'+tax.cardCount+' cards · '+tax.categories.length+' categories · '+tax.tags.length+' tags</div>'+
-  tax.categories.map(function(c){return chip(c,true);}).join('')+'<br>'+tax.tags.map(function(t){return chip(t,false);}).join('')+'</div>';
-  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 max-w-sm"><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target language</label>'+
-  '<select id="newTargetLangInput" class="w-full border border-slate-200 rounded-lg p-2 text-sm mb-3"><option value="" disabled selected>— select —</option>'+
-  Object.entries(LANG_NAMES).filter(function(e){return e[0]!==appState.langPair.source;}).map(function(e){return '<option value="'+e[0]+'">'+e[1]+' ('+e[0]+')</option>';}).join('')+'</select>'+
-  '<button onclick="generateLangPairAction()" id="generateLangPairBtn" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg w-full">Translate & save as v1000</button></div>'+
-  '<div id="langGenProgress" class="hidden bg-white border border-slate-200 rounded-xl p-5 mt-4 text-xs text-slate-500"><span id="langGenProgressText"></span></div>';
+  var html='<div class="mb-6"><h1 class="text-xl font-bold text-slate-800">Review & Save</h1><p class="text-xs text-slate-500">One pass: resolve unassigned cards (suggested category, your call), review pruning, recompute O-ring, check banned tags — then a single save writes one new version.</p></div>';
+
+  if(vCount>0){
+    html+='<div class="bg-red-50 border border-red-300 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-2 text-red-800">Banned tags present ('+vCount+')</div>'+
+    '<div class="mb-2">'+Object.entries(violations).map(function(e){return chip(e[0]+' ('+e[1]+')',false);}).join('')+'</div>'+
+    '<label class="flex items-center gap-2 text-xs text-red-700"><input type="checkbox" id="strip-banned-check" checked> Strip these from all cards as part of this save</label></div>';
+  }
+
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Unassigned cards ('+unassigned.length+')</div>';
+  if(unassigned.length===0)html+='<div class="text-xs text-slate-400">None.</div>';
+  unassigned.forEach(function(c){
+    var suggestion=suggestCategoryForCard(c,existingCats);
+    html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs">'+
+    '<div class="flex-1">'+c.source+(suggestion?'<div class="text-slate-400 mt-0.5">suggested: <span class="text-teal-700 font-mono">'+suggestion+'</span> (based on tags — your call)</div>':'')+'</div>'+
+    '<input type="text" id="assign-'+c.id+'" placeholder="category" value="'+(suggestion||'')+'" class="border border-slate-200 rounded px-2 py-1 text-xs w-32">'+
+    '</div>';
+  });
+  html+='</div>';
+
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Pruning ('+pruneCandidates.length+' candidate(s), '+PRUNE_DAYS+' days no use)</div>';
+  if(pruneCandidates.length===0)html+='<div class="text-xs text-slate-400">None.</div>';
+  pruneCandidates.forEach(function(c){html+='<div class="flex items-center gap-2 border-b border-slate-100 py-2 text-xs"><input type="checkbox" class="prune-check" data-id="'+c.id+'" checked><div class="flex-1">'+c.source+'</div><div class="text-slate-400">usage '+(c.usage||0)+'</div></div>';});
+  html+='</div>';
+
+  html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">O-Ring — will be recomputed on save</div>'+
+  '<div class="text-xs text-slate-500">'+(appState.cards.length-noRing)+' card(s) will have neighbors, '+noRing+' will not (no qualifying match).</div></div>';
+
+  if(dupPairs.length>0){
+    html+='<div class="bg-white border border-slate-200 rounded-xl p-5 mb-4"><div class="font-bold text-sm mb-3">Possible duplicate tags ('+dupPairs.length+')</div>';
+    dupPairs.slice(0,10).forEach(function(p){html+='<div class="text-xs border-b border-slate-100 py-2">'+p.a+' ('+p.aCount+') ↔ '+p.b+' ('+p.bCount+') — sim '+p.sim.toFixed(2)+'</div>';});
+    html+='<div class="text-xs text-slate-400 mt-2">Not auto-merged — review and merge manually if needed in a future pass.</div></div>';
+  }
+
+  html+='<button onclick="runReviewPass()" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-lg">Save one new version</button>';
   return html;
 }
 
@@ -671,74 +558,53 @@ function renderManagement(){
   return html;
 }
 
-function promoteTag(tag){
-  var count=0;
-  appState.cards.forEach(function(c){if((c.tags||[]).includes(tag)){c.categories=[tag];c.updatedAt=Date.now();c.updatedBy='pb';count++;}});
-  toast('Promoted #'+tag+' on '+count+' card(s) (pending save)');
-  renderTabContent();
-}
-function assignCategory(id){
-  var input=document.getElementById('assign-'+id);
-  var cat=input.value.trim();
-  if(!cat){toast('Enter a category first',true);return;}
-  var card=appState.cards.find(function(c){return c.id===id;});
-  card.categories=[cat];card.updatedAt=Date.now();card.updatedBy='pb';
-  toast(id+' -> '+cat+' (pending save)');
-  renderTabContent();
-}
-function saveCategoriesAction(){
+function runReviewPass(){
+  var now=Date.now();
+
+  // 1. Category resolution - whatever the human typed/accepted in each input, never automatic
+  var unassigned=getUnassignedCards();
+  var assignedCount=0;
+  unassigned.forEach(function(c){
+    var input=document.getElementById('assign-'+c.id);
+    if(input){
+      var cat=input.value.trim();
+      if(cat){c.categories=[cat];c.updatedAt=now;c.updatedBy='pb';assignedCount++;}
+    }
+  });
+
+  // 2. Strip banned tags if checked
+  var stripCheck=document.getElementById('strip-banned-check');
+  var strippedCount=0;
+  if(stripCheck&&stripCheck.checked){
+    appState.cards.forEach(function(c){
+      var before=(c.tags||[]).length;
+      c.tags=(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);});
+      if(c.tags.length!==before){c.updatedAt=now;c.updatedBy='pb';strippedCount++;}
+    });
+  }
+
+  // 3. Pruning - soft delete checked candidates
+  var pruneChecked=Array.from(document.querySelectorAll('.prune-check:checked')).map(function(cb){return cb.dataset.id;});
+  pruneChecked.forEach(function(id){
+    var c=appState.cards.find(function(x){return x.id===id;});
+    if(c){c.deletedAt=now;c.updatedAt=now;c.updatedBy='pb';}
+  });
+
+  // 4. O-ring recompute - always part of the pass, no separate confirm needed
+  // since this is now one deliberate pass action, not a standalone repeatable tool
+  appState.cards.forEach(function(c){if(!c.intentId){c.intentId='intent-'+c.id;c.fingerprint=(c.source||'').toLowerCase();}});
+  previewOring();
+  appState.cards.forEach(function(c){c.relatedIntents=c._oringPreview||[];});
+
+  // Pre-save check: warn on incomplete cards getting a category this pass
   var incomplete=getIncompleteCardWarnings(appState.cards).filter(function(c){return c.categories&&c.categories[0]&&c.categories[0]!=='unassigned';});
   if(incomplete.length>0){
     var names=incomplete.slice(0,5).map(function(c){return c.source;}).join('; ');
     if(!confirm(incomplete.length+' card(s) have a category but are missing target text or have a pending verdict:\n\n'+names+'\n\nSave anyway?'))return;
   }
-  runSaveJob('category-assignment');
-}
-function applyOringAction(){
-  var existing=appState.cards.filter(function(c){return c.relatedIntents&&c.relatedIntents.length>0;}).length;
-  if(existing>0){
-    if(!confirm(existing+' card(s) already have relatedIntents — possibly inherited, not computed here. Overwrite with freshly computed values?'))return;
-  }
-  appState.cards.forEach(function(c){if(!c.intentId){c.intentId='intent-'+c.id;c.fingerprint=(c.source||'').toLowerCase();}});
-  previewOring();
-  appState.cards.forEach(function(c){c.relatedIntents=c._oringPreview||[];});
-  runSaveJob('oring-computation');
-}
-function applyPruneAction(){
-  var checked=Array.from(document.querySelectorAll('.prune-check:checked')).map(function(cb){return cb.dataset.id;});
-  var now=Date.now();
-  checked.forEach(function(id){var c=appState.cards.find(function(x){return x.id===id;});if(c){c.deletedAt=now;c.updatedAt=now;c.updatedBy='pb';}});
-  runSaveJob('pruning',checked.length+' card(s) soft-deleted');
-}
-function stripBannedTagsAction(){
-  var n=0;
-  appState.cards.forEach(function(c){var before=(c.tags||[]).length;c.tags=(c.tags||[]).filter(function(t){return !BANNED_TONE_TAGS.has(t);});if(c.tags.length!==before){c.updatedAt=Date.now();c.updatedBy='pb';n++;}});
-  runSaveJob('strip-banned-tags',n+' card(s) cleaned');
-}
-async function generateLangPairAction(){
-  var targetLang=document.getElementById('newTargetLangInput').value;
-  if(!targetLang){toast('Select a target language',true);return;}
-  var src=appState.langPair.source;
-  if(targetLang===src){toast('Target must differ from source',true);return;}
-  var progressPanel=document.getElementById('langGenProgress');
-  var progressText=document.getElementById('langGenProgressText');
-  progressPanel.classList.remove('hidden');
-  document.getElementById('generateLangPairBtn').disabled=true;
-  try{
-    var existing=appState.allFiles.filter(function(f){return parsePbSeriesVersion(f.name,src,targetLang)!==null;});
-    if(existing.length>0){toast('phrasebook-'+src+'-'+targetLang+' already exists. Not overwriting.',true);progressPanel.classList.add('hidden');document.getElementById('generateLangPairBtn').disabled=false;return;}
-    var newCards=await generateRealLangPair(targetLang,function(msg){progressText.textContent=msg;});
-    progressText.textContent='Saving to GitHub...';
-    var fileName=await ghWriteNewLangPair(targetLang,newCards);
-    await appendRunLog({ts:Date.now(),job:'lang-pair-inception',status:'completed',detail:src+'-'+targetLang+' ('+newCards.length+' cards) -> '+fileName});
-    toast('Generated '+fileName+' — ready for XL curation');
-    progressPanel.classList.add('hidden');
-    document.getElementById('generateLangPairBtn').disabled=false;
-  }catch(e){
-    toast('Translation failed: '+e.message,true);
-    progressPanel.classList.add('hidden');
-    document.getElementById('generateLangPairBtn').disabled=false;
-  }
+
+  var detail=assignedCount+' categorized, '+pruneChecked.length+' pruned, '+strippedCount+' tag-cleaned, O-ring recomputed';
+  runSaveJob('review-pass',detail);
 }
 
 init();
