@@ -243,7 +243,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-clarify-body{font-size:13px;color:#1a1714;line-height:1.4;margin-top:2px;}
 .pb-clarify-inp{flex:1;border:1.5px solid #e0dbd6;border-radius:8px;padding:6px 8px;font-size:13px;font-family:"DM Sans",sans-serif;outline:none;background:#fff;color:#1a1714;}
 .pb-clarify-inp:focus{border-color:#2e8b8b;}
-
+.pb-clarify-send{background:#e6f4f4;color:#2e8b8b;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .pb-bt-run{background:#e6f4f4;color:#2e8b8b;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;display:block;font-family:"DM Sans",sans-serif;}
 .pb-vbtn{border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}
 .pb-vbtn.good{background:#e8f5ee;color:#2e7d4f;}
@@ -540,6 +540,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
         </button>
       </div>
       <span style="flex:1;"></span>
+      <button class="call-transcript-btn" onclick="pbOpenOverlayClean()" title="Phrasebook">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
       <span style="flex:1;"></span>
       <div style="display:flex;gap:6px;align-items:center;">
         <button class="vc-btn" id="top-mic-btn" onclick="toggleMic()" title="Mic">
@@ -839,10 +842,6 @@ function detectLang(text,src){
   var nonLatinSrcs=['zh','ja','ko','th','ar','hi','ru'];
   if(nonLatinSrcs.indexOf(src)>=0&&/^[\x00-\x7FÀ-ɏ\s]+$/.test(t))return 'en';
   if(/^[\x20-\x7E]+$/.test(t)&&/\b(the|this|that|those|these|they|them|their|there|then|though|three|okay|sucks|yeah|awesome|what|where|when|why|who|how|you|your|are|were|have|hello|good|morning|afternoon|evening|speaking|talking|going|doing|thinking|working|don't|can't|won't|isn't|aren't|I'm|I've|I'll|you're|it's)\b/i.test(t))return 'en';
-  if(/\b(esta|estas|este|estos|que|para|por|con|una|uno|pero|porque|cuando|donde|como|quien|ya|muy|si|no|del|las|los|voy|debería|sería|haber|tenía|hizo)\b/i.test(t))return 'es';
-  if(/\b(c'est|ceci|cela|ces|que|pour|avec|une|mais|parce|quand|où|comment|qui|déjà|très|oui|non|les|des|vais|devrais|serait|avoir)\b/i.test(t))return 'fr';
-  if(/\b(ist|diese|dieser|dieses|für|mit|eine|einen|aber|weil|wenn|wo|wie|wer|schon|sehr|ja|nein|die|das|werde|sollte|wäre|haben)\b/i.test(t))return 'de';
-  if(/\b(esta|este|para|com|uma|mas|porque|quando|onde|como|quem|já|muito|sim|não|das|dos|vou|deveria|seria|ter|tinha)\b/i.test(t))return 'pt';
   return src||'en';
 }
 
@@ -982,9 +981,6 @@ var _pbICards=[];
 function pbISearch(q){
   var panel=$('pb-inline-panel');if(!panel)return;
   var cards=pbGetCards();
-  if(room.myLang&&room.theirLang){
-    cards=cards.filter(function(c){return (c.sourceLang===room.myLang&&c.targetLang===room.theirLang)||(c.sourceLang===room.theirLang&&c.targetLang===room.myLang);});
-  }
   var qLow=(q||'').toLowerCase().trim();
   if(qLow){
     cards=cards.filter(function(c){
@@ -1073,23 +1069,13 @@ function pbITagOpenI(idx,x,y){var c=_pbICards[idx];if(c)pbTagOpen&&pbTagOpen(c.i
 function pbISpeakI(idx,side){var c=_pbICards[idx];if(c)pbSpeakCard(c.id,side?'tgt':'src');}
 function pbISend(idx,side){
   var card=_pbICards[idx];if(!card)return;
-  var srcText=card.source||'';var tgtText=card.target||'';
-  if(!srcText.trim()&&!tgtText.trim())return;
+  var text='[PB] '+(side==='src'?(card.source||''):(card.target||''));
+  if(!text.trim())return;
   pbIClose();pbCloseOverlay();
-  if(!room.id)return;
-  // Bypass sendChat's translation pipeline entirely — the card's target is
-  // already a curated, trusted translation. Build the transcript entry and
-  // relay directly, same shape sendChat() produces, minus the round trip.
-  var src=room.myLang,tgt=room.theirLang;
-  var id='cm-'+uid();
-  var entry={id:id,type:'chat',who:'me',sourceText:'[PB] '+srcText,translatedText:'[PB] '+tgtText,srcLang:src,tgtLang:tgt,ts:Date.now(),translationFailed:false};
-  transcript.push(entry);saveTr();
-  appendTrDom(entry);
-  var relayMsg={type:'chat-msg',chatId:id,srcText:'[PB] '+srcText,tgtText:'[PB] '+tgtText,srcLang:src,tgtLang:tgt};
-  _chatOutbox.set(id,relayMsg);
-  relaySend(relayMsg);
-  log('chat_sent',{t:srcText.slice(0,40),via:'pb_direct'},'ok');
-  _pbEmitUsage(card,'pb_send');
+  var ta=$('chat-input');if(!ta||!room.id)return;
+  ta.value=text;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,80)+'px';
+  $('chat-send-btn').disabled=false;
+  sendChat();
 }
 function pbIClose(){
   var panel=$('pb-inline-panel');if(panel)panel.classList.remove('show');
@@ -1127,45 +1113,6 @@ function chatKeydown(e){
     }else{sendChat();}
   }
 }
-
-/* Transcript-surface shortcut: on laptop/Bluetooth keyboard with no input
-   focused, typing '/' or the second '.' of '..' moves focus into the chat
-   compose box so the keystroke (and everything typed after it) lands there
-   live, letting the existing chatInputEvt/chatKeydown search logic take
-   over unmodified. Mobile is already covered — the compose box is the only
-   reachable field there, so this listener only matters when nothing is
-   focused. Scoped to the call/transcript surface only: never fires on the
-   PB surface (already the search surface) or while editing a card's
-   source field (handled separately by pbSrcKeydown). */
-document.addEventListener('keydown',function(e){
-  var callScreen=$('call-screen');
-  if(!callScreen||!callScreen.classList.contains('active'))return;
-  var pbOverlay=$('pb-overlay');
-  if(pbOverlay&&pbOverlay.style.display==='flex')return;
-  var active=document.activeElement;
-  var tag=active&&active.tagName;
-  var isInputFocused=tag==='INPUT'||tag==='TEXTAREA'||(active&&active.isContentEditable);
-  if(isInputFocused)return;
-  if(e.key==='/'){
-    e.preventDefault();
-    var ta=$('chat-input');if(!ta)return;
-    ta.focus();ta.value='/';
-    ta.dispatchEvent(new Event('input'));
-    return;
-  }
-  if(e.key==='.'){
-    if(_lastDotKeyAt&&(Date.now()-_lastDotKeyAt)<500){
-      e.preventDefault();
-      var ta2=$('chat-input');if(!ta2)return;
-      ta2.focus();ta2.value='..';
-      ta2.dispatchEvent(new Event('input'));
-      _lastDotKeyAt=0;
-    }else{
-      _lastDotKeyAt=Date.now();
-    }
-  }
-});
-var _lastDotKeyAt=0;
 
 function handleChatFile(ev){
   var file=ev&&ev.target&&ev.target.files&&ev.target.files[0];
@@ -1218,18 +1165,16 @@ async function sendChat(){
     }
   }catch(e){log('chat_norm_err',{e:String(e)},'error');}
   var tgtText=srcText;
-  var translationFailed=false;
   if(src&&tgt&&src!==tgt){
     try{
       var tr=await translateWithRetry(srcText,src,tgt,1);
       if(tr)tgtText=normalizeText(tr,'chat');
       if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){var tr2=await translateWithRetry(srcText,src,tgt,0);if(tr2)tgtText=normalizeText(tr2,'chat');}
-      if(normalizeText(tgtText,'compare')===normalizeText(srcText,'compare')){translationFailed=true;log('chat_trans_failed_inline',{src:src,tgt:tgt},'warn');}
-      else{log('chat_trans_result',{from:src,to:tgt,tgtText:tgtText.slice(0,60)},'ok');}
-    }catch(e){translationFailed=true;log('chat_trans_err',{e:String(e)},'error');}
+      log('chat_trans_result',{from:src,to:tgt,tgtText:tgtText.slice(0,60)},'ok');
+    }catch(e){log('chat_trans_err',{e:String(e)},'error');}
   }
   var id='cm-'+uid();
-  var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now(),translationFailed:translationFailed};
+  var entry={id:id,type:'chat',who:'me',sourceText:srcText,translatedText:tgtText,srcLang:src,tgtLang:tgt,ts:Date.now()};
   transcript.push(entry);saveTr();
   appendTrDom(entry);
   var relayMsg={type:'chat-msg',chatId:id,srcText:srcText,tgtText:tgtText,srcLang:src,tgtLang:tgt};
@@ -1385,7 +1330,7 @@ function pbGetTags(){try{return JSON.parse(localStorage.getItem(PB_TAGS_K)||'[]'
 function pbSaveTags(a){try{localStorage.setItem(PB_TAGS_K,JSON.stringify(a));}catch(_){}}
 function pbCardKey(c){return (c.sourceLang||'')+'|'+(c.source||'').trim().toLowerCase()+'|'+(c.targetLang||'')+'|'+(c.target||'').trim().toLowerCase();}
 function pbGetCardById(id){return pbGetAllCards().find(function(c){return c.id===id;})||null;}
-/* ── Versioned PB-series sync state (full pull/push wired below) ── */
+/* ── Versioned PB-series sync state (sync functions wired below) ── */
 var _pbSyncState={status:'idle',pairFile:null,version:null,pending:false,dirty:false};
 
 function pbSaveCard(card){
@@ -1423,6 +1368,8 @@ function pbReRenderBubbleFoot(id){
   if(bbl)bbl.className='pb-bubble'+(card.deletedAt?' deleted':'');
 }
 function pbAddTagToReg(t){var tags=pbGetTags();if(tags.indexOf(t)<0){tags.push(t);pbSaveTags(tags);}}
+
+/* ── Auto-seed ── */
 
 /* ── Import/export ── */
 function pbExport(name){
@@ -1509,14 +1456,9 @@ function pbSearchDrawerHtml(){
   var badge=pair?('<span class="pb-pair-badge">'+pbEsc(pbLangFlag(pair.src)+' → '+pbLangFlag(pair.tgt))+'</span>'):'';
   return '<div class="pb-drawer-hdr" style="flex-shrink:0;">'    +'<input id="pb-search-input" class="pb-search-inp" placeholder="Search phrases…" oninput="pbRunSearch()" onkeydown="pbSearchKD(event)">'    +badge    +'<button class="pb-ov-act" onclick="pbOpenOverlay()" title="Manage phrasebook" style="color:var(--text-dim);padding:4px 6px;">'+ICO.book+'</button>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer()" style="line-height:0;">'+ICO.x+'</button></div>'    +'<div id="pb-search-results" class="pb-search-results"></div>';
 }
-var _PB_BASE='https://raw.githubusercontent.com/acmeproducts/stuff/main/phrasebook/';
-var _PB_LANG_MAP={zh:'cn',ko:'kr',vi:'vn'};
-function _pbRepoToken(lang){return _PB_LANG_MAP[lang]||lang;}
 /* ── CDN + Translation Memory + Quick-Ring + Telemetry ── */
-var _PB_CDN_BASE=_PB_BASE;
 var _intentIdMap={};
 var _sessionId=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-function _pbRepoToken(lang){return({zh:'cn',ko:'kr',vi:'vn'})[lang]||lang;}
 function _pbNormCard(raw){
   var lp=raw.languagePair||{};var rep=raw.representation||{};
   var sl=(lp.source||raw.sourceLang||'en');if(sl==='vn')sl='vi';var tl=(lp.target||raw.targetLang||'en');if(tl==='vn')tl='vi';
@@ -1607,23 +1549,7 @@ function _pbEmitUsage(card,entryPoint){
   setTimeout(function(){_tmBuild(card.sourceLang,card.targetLang);},0);
 }
 async function _pbCentralPost(payload){
-  /* Stub — wired to PB Central in T06 Stage 4 */
-}
-
-/* ── Overlay ribbon state ── */
-function pbOvUpdatePairLabel(){
-  var el=document.getElementById('pb-ov-pair-label');
-  if(!el)return;
-  var src=room.myLang||'';var tgt=room.theirLang||'';
-  var ver=_pbSyncState.version?('-'+_pbSyncState.version):'';
-  el.textContent=(src&&tgt)?(pbLangFlag(src)+' → '+pbLangFlag(tgt)+' '+src+'-'+tgt+ver):'';
-}
-function pbOvUpdateSyncDot(){
-  var dot=document.getElementById('pb-ov-sync-dot');if(!dot)return;
-  var status=_pbSyncState.status;
-  if(status==='pending upload'){dot.style.background='#e67e22';dot.title='Pending upload';}
-  else if(status==='pull-error'||status==='list-failed'){dot.style.background='#e74c3c';dot.title='Sync error';}
-  else{dot.style.background='#2ecc71';dot.title='Saved';}
+  /* Stub — wired to PB Central in a future turn */
 }
 
 /* ── Versioned PB-series sync (replaces old fixed-file CDN model) ──
@@ -1699,8 +1625,9 @@ async function pbSyncWriteBack(srcLang,tgtLang){
   }
 }
 
-/* ── New card creation (replaces NC system) ──
-   Entry points: trSaveToPb() from transcript, overlay + button.
+/* ── New card creation (replaces NC system at the data level) ──
+   Entry points: trSaveToPb() from transcript. Stage 3 adds the overlay +
+   button entry point against this same function — untouched here.
    Dedup: if an identical card already exists, bump usage/lastUsed/updatedAt
    and toast "Already saved" instead of creating a duplicate. */
 function pbFindDuplicate(srcLang,tgtLang,source,target){
@@ -1719,7 +1646,6 @@ function pbAddCard(opts){
       dup.usage=(dup.usage||0)+1;dup.lastUsed=pbNow();dup.updatedAt=pbNow();
       pbSaveCard(dup);
       toast('Already saved');
-      pbOpenOverlay();
       return dup;
     }
   }
@@ -1732,14 +1658,6 @@ function pbAddCard(opts){
     backtranslate:{resultText:'',verdict:'pending'}
   });
   pbSaveCard(card);
-  pbOpenOverlay();
-  setTimeout(function(){
-    var srcEl=document.getElementById('pbsrc-'+card.id);
-    if(srcEl){srcEl.focus();
-      var range=document.createRange();range.selectNodeContents(srcEl);range.collapse(false);
-      var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
-    }
-  },80);
   if(src&&!tgt){
     translateWithRetry(src,srcLang,tgtLang,2).then(function(tr){
       if(tr&&tr!==src){
@@ -1747,10 +1665,10 @@ function pbAddCard(opts){
         translateWithRetry(tr,tgtLang,srcLang,2).then(function(bt){
           card.backtranslate=card.backtranslate||{};
           card.backtranslate.resultText=bt||'';
-          pbSaveCard(card);pbRenderOverlay();
+          pbSaveCard(card);
         });
       }
-      pbSaveCard(card);pbRenderOverlay();
+      pbSaveCard(card);
     });
   }
   log('pb_card_added',{id:card.id,src:srcLang,tgt:tgtLang});
@@ -1838,25 +1756,18 @@ function pbBubbleHtml(card,ctx){
   var cs=_pbCS(id);var isDel=!!card.deletedAt;
   var useL=L('use_word',leftLang);var useR=L('use_word',rightLang);
   var vBadge=verdict==='flag'?'<span class="pb-vbadge flag">\u2691</span>':'';
-  // Header shows the most recent edit timestamp (updatedAt), falling back to createdAt
-  // if the card has never been edited, so the header advances as edits happen.
-  var _hdrStamp=card.updatedAt||card.createdAt;
-  var _hdrDate=_hdrStamp?new Date(_hdrStamp).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
-  var _hdrTime=_hdrStamp?new Date(_hdrStamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-  // Author display: createdBy/updatedBy schema values are lowercase ('tb'/'pb'/'xl');
-  // display must show them uppercase. XL-curated edits carry real initials and are
-  // shown as-is (not forced uppercase, since initials are already a proper display form).
-  var _authorRaw=card.updatedBy||card.createdBy||'tb';
-  var _author=(_authorRaw==='tb'||_authorRaw==='pb'||_authorRaw==='xl')?_authorRaw.toUpperCase():_authorRaw;
+  var _hdrDate=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
+  var _hdrTime=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
   var cBadge='';
+  var _savedBy=card.savedBy?(' · '+card.savedBy):'';
   return '<div class="pb-bubble'+(isDel?' deleted':'')+'" id="pbb-'+id+'">'
-    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-ts">'+pbEsc(_author+' · '+_hdrDate+' '+_hdrTime)+'</span></div>'
+    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hdrDate+' '+_hdrTime+_savedBy)+'</span></div>'
     +'<div class="pb-bbl-body">'
-    +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pb'+leftSide+'-'+id+'" contenteditable="true" onblur="pbCommit'+(_flip?'Tgt':'Src')+'Edit(\''+id+'\')"'+(leftSide==='src'?' onkeydown="pbSrcKeydown(event,\''+id+'\')"':'')+' spellcheck="false">'+pbEsc(leftText)+'</div>'
+    +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pb'+leftSide+'-'+id+'" contenteditable="true" onblur="pbCommit'+(_flip?'Tgt':'Src')+'Edit(\''+id+'\')" spellcheck="false">'+pbEsc(leftText)+'</div>'
     +'<div class="pb-bbl-acts"><button class="pb-use-btn" onclick="pbUseText(\''+id+'\',\''+leftSide+'\')" title="'+pbEsc(useL)+'">'+pbEsc(useL)+'</button>'
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\''+leftSide+'\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'<div class="pb-bbl-div"></div>'
-    +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pb'+rightSide+'-'+id+'" contenteditable="true" onblur="pbCommit'+(_flip?'Src':'Tgt')+'Edit(\''+id+'\')"'+(rightSide==='src'?' onkeydown="pbSrcKeydown(event,\''+id+'\')"':'')+' spellcheck="false">'+pbEsc(rightText)+'</div>'
+    +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pb'+rightSide+'-'+id+'" contenteditable="true" onblur="pbCommit'+(_flip?'Src':'Tgt')+'Edit(\''+id+'\')" spellcheck="false">'+pbEsc(rightText)+'</div>'
     +'<div class="pb-bbl-acts"><button class="pb-use-btn" onclick="pbUseText(\''+id+'\',\''+rightSide+'\')" title="'+pbEsc(useR)+'">'+pbEsc(useR)+'</button>'
     +'<button class="pb-tts-btn" onclick="pbSpeakCard(\''+id+'\',\''+rightSide+'\',this)" title="Play">'+PB_ICON_TTS+'</button></div></div>'
     +'</div>'
@@ -1899,15 +1810,16 @@ function pbCommitSrcEdit(id){
   var el=document.getElementById('pbsrc-'+id);if(!el)return;
   var newSrc=(el.textContent||'').trim();
   var card=pbGetCardById(id);if(!card||!newSrc)return;
-  var oldSrc=card.source;
-  var changed=(newSrc!==oldSrc);
+  var changed=(newSrc!==card.source);
   if(!changed)return;
+  var oldSrc=card.source;
   var oldVerdict=(card.backtranslate&&card.backtranslate.verdict)||'pending';
   card.source=newSrc;card.updatedAt=pbNow();card.updatedBy='tb';
   delete card._targetOverride;
   card.clarifyChain=card.clarifyChain||[];
   card.clarifyChain.push({text:'Was: '+oldSrc,author:'tb',timestamp:pbNow()});
-  if(card.backtranslate&&oldVerdict!=='pending'){
+  if(oldVerdict!=='pending'){
+    card.backtranslate=card.backtranslate||{};
     card.backtranslate.verdict='pending';
     card.clarifyChain.push({text:'Verdict: '+oldVerdict+' \u2192 pending',author:'tb',timestamp:pbNow()});
   }
@@ -1920,13 +1832,6 @@ function pbCommitSrcEdit(id){
     if(!cs2.btOpen){cs2.btOpen=true;pbSyncPanel('bt',id);}
     pbRunBT(id);
   });
-}
-function pbSrcKeydown(e,id){
-  if(e.key==='Enter'&&!e.shiftKey){
-    e.preventDefault();
-    document.getElementById('pbsrc-'+id).blur();
-    pbCommitSrcEdit(id);
-  }
 }
 function pbCommitTgtEdit(id){
   var el=document.getElementById('pbtgt-'+id);if(!el)return;
@@ -1956,7 +1861,8 @@ function pbClarifyPanelHtml(card){
   }).join(''):'<div style="color:#aaa;font-size:12px;padding:4px 0;">No clarifications yet.</div>';
   return'<div style="padding:8px 10px;"><div id="pb-cthread-'+id+'">'+thread+'</div>'
     +'<div style="display:flex;gap:6px;margin-top:8px;">'
-    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add clarification…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');}">'
+    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add clarification…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');}">'
+    +'<button class="pb-clarify-send" onclick="pbAddClarify(\''+id+'\')">Add</button>'
     +'</div></div>';
 }
 function pbAddClarify(id){
@@ -2083,8 +1989,7 @@ function pbTogTrash(){
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
   _pbFilter='all';
-  pbOvUpdatePairLabel();
-  pbRenderOverlay();
+  pbRenderOverlayFilter();pbRenderOverlay();
   setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
 function pbOpenOverlayClean(){
@@ -2096,12 +2001,13 @@ function pbCloseOverlay(){
 }
 function pbSetFilter(f){_pbFilter=f;pbRenderOverlay();}
 function pbRenderOverlayFilter(){
-  /* Catalog filter bar removed per contract — pair scope now handled directly in pbRenderOverlay */
+  /* Catalog system removed — filter bar has nothing to render now.
+     Pair-scoping (below in pbRenderOverlay) replaces catalog-scoping. */
+  var host=document.getElementById('pb-ov-filter');if(host)host.innerHTML='';
   _pbFilter='all';
 }
 function pbRenderOverlay(){
   var host=document.getElementById('pb-ov-cards');if(!host)return;
-  pbOvUpdatePairLabel();pbOvUpdateSyncDot();
   var allCards=pbGetAllCards();
   var trashedCards=allCards.filter(function(c){return c.deletedAt;});
   var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
@@ -2112,7 +2018,9 @@ function pbRenderOverlay(){
   if(q)cards=pbSearch(q,cards);
   var html='';
   if(!cards.length&&!trashedCards.length){
-    html='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrases yet.<br>Tap + to add your first phrase.</div>';
+    html='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrases yet for this pair.</div>';
+  }else if(!cards.length){
+    html='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';
   }else if(q){
     _pbICards=cards;html=cards.map(function(c,i){return pbOvRowHtml(c,i);}).join('');
   }else{
