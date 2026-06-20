@@ -631,6 +631,34 @@ function esc(v){return String(v??'').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'
 function fmtNum(n){return(n==null||n===0)?'—':n.toLocaleString();}
 function agoText(ts){if(!ts)return'—';const s=(Date.now()-ts)/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function simpleHash(str){let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return(h>>>0).toString(16);}
+
+const CONTRACT_VERSION=1;
+const CONTRACT_ARTIFACTS={marker:'orbital8.folderIndexMarker',index:'orbital8.folderIndex',delta:'orbital8.folderDelta',pngReuse:'orbital8.pngMetadataReuseIndex',uiPatch:'orbital8.uiStatePatch'};
+function nextFolderVersion(prev=0){return Math.max(Date.now(),(Number(prev)||0)+1);}
+function makeLastWriter(){return{app:'folder',appVersion:'folder-contract-v1',deviceId:localStorage.getItem('o8_device_id')||(localStorage.setItem('o8_device_id',crypto.randomUUID?.()||String(Date.now()+Math.random())),localStorage.getItem('o8_device_id')),writtenAt:new Date().toISOString()};}
+function ensureContractShape(rec,rootId=null){
+  if(!rec)return rec;
+  rec.schemaVersion=rec.schemaVersion||CONTRACT_VERSION;
+  rec.artifactType=rec.artifactType||CONTRACT_ARTIFACTS.index;
+  rec.folderVersion=rec.folderVersion||nextFolderVersion(rec.lastUpdated||rec.createdAt||0);
+  rec.updatedAt=rec.updatedAt||new Date(rec.folderVersion).toISOString();
+  rec.lastWriter=rec.lastWriter||makeLastWriter();
+  rec.capabilities={...(rec.capabilities||{}),markers:true,folderIndex:true,deltas:rec.capabilities?.deltas||'none',pngReuse:!!rec.pngReuse};
+  rec.compat={...(rec.compat||{}),legacyIntelVersion:rec.version||1,sourceRecordShape:'folder.html Intel.newRecord'};
+  rec.freshness={...(rec.freshness||{}),entryCount:Object.keys(rec.files||{}).length,folderCount:Object.keys(rec.folders||{}).length,deletedCount:Object.values(rec.files||{}).filter(f=>f.deleted||f.recycled||f.stack==='trash').length,recursiveHash:simpleHash(Object.values(rec.files||{}).map(f=>`${f.id}:${f.modifiedTime||f.providerModifiedTime||''}:${f.contentHash||''}`).sort().join('|'))};
+  rec.pngReuse=rec.pngReuse||{artifactType:CONTRACT_ARTIFACTS.pngReuse,schemaVersion:CONTRACT_VERSION,groups:{},fileMap:{}};
+  if(rootId&&rec.folders?.[rootId])rec.rootFolderId=rootId;
+  return rec;
+}
+function toContractEntry(file){
+  const meta=file.meta||{},ui=file.ui||{};
+  return{...file,providerCreatedTime:file.providerCreatedTime||file.createdTime||file.createdDateTime||null,providerModifiedTime:file.providerModifiedTime||file.modifiedTime||file.lastModifiedDateTime||null,providerRevision:file.providerRevision||null,entryHash:file.entryHash||simpleHash(`${file.id}:${file.modifiedTime||file.providerModifiedTime||''}:${file.contentHash||''}`),deleted:!!file.deleted,recycled:!!file.recycled,ui:{stack:ui.stack||file.stack||'inbox',stackSequence:ui.stackSequence||file.stackSequence||0,tags:ui.tags||file.tags||[],notes:ui.notes??file.notes??'',qualityRating:ui.qualityRating??file.qualityRating??0,contentRating:ui.contentRating??file.contentRating??0,favorite:ui.favorite??!!file.favorite,uiUpdatedAt:ui.uiUpdatedAt||null,uiUpdatedBy:ui.uiUpdatedBy||null},media:{width:meta.width||null,height:meta.height||null,durationSeconds:meta.duration||null,cameraMake:meta.cameraMake||null,cameraModel:meta.cameraModel||null,gpsLat:meta.gpsLat||null,gpsLng:meta.gpsLng||null},pngMetadata:{status:file.metadataStatus||'notStarted',groupKey:file.pngMetadata?.groupKey||null,source:file.pngMetadata?.source||'none',extractedAt:file.pngMetadata?.extractedAt||null,extractorVersion:file.pngMetadata?.extractorVersion||null,summary:file.extractedMetadata||file.pngMetadata?.summary||{},error:file.pngMetadata?.error||null},providerFlags:{shared:!!file.shared,canEdit:file.canEdit!==false}};
+}
+function makeIndexMarker(rec,rootId){
+  ensureContractShape(rec,rootId);const folder=rec?.folders?.[rootId]||{};
+  return{schemaVersion:CONTRACT_VERSION,artifactType:CONTRACT_ARTIFACTS.marker,provider:rec?.provider||st.providerType,accountKey:rec?.accountKey||st.providerType,rootFolderId:rootId,rootFolderName:folder.name||st.selFolderName||rootId,folderVersion:rec?.folderVersion||0,indexArtifactRef:INTEL_FILE,indexArtifactETag:null,indexArtifactModifiedTime:rec?.updatedAt||null,directHash:folder.hash||folder.directHash||null,recursiveHash:rec?.freshness?.recursiveHash||null,entryCount:rec?.freshness?.entryCount||0,folderCount:rec?.freshness?.folderCount||0,pngEntryCount:Object.values(rec?.files||{}).filter(f=>f.mimeType==='image/png').length,pngReuseGroupCount:Object.keys(rec?.pngReuse?.groups||{}).length,updatedAt:rec?.updatedAt||null,lastWriter:rec?.lastWriter||makeLastWriter()};
+}
+
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function $id(id){return document.getElementById(id);}
 function logLine(msg){const log=$id('acq-log');if(!log)return;const d=document.createElement('div');d.textContent=msg;log.appendChild(d);log.scrollTop=log.scrollHeight;}
@@ -1090,7 +1118,7 @@ class OneDriveProvider{
 
 // ── Intelligence Engine ───────────────────────────────────
 const Intel={
-  newRecord(pt){return{version:1,provider:pt,createdAt:Date.now(),lastUpdated:Date.now(),enrolledRoots:[],folders:{},files:{}};},
+  newRecord(pt){const now=Date.now();return ensureContractShape({version:1,schemaVersion:CONTRACT_VERSION,artifactType:CONTRACT_ARTIFACTS.index,provider:pt,createdAt:now,lastUpdated:now,folderVersion:now,updatedAt:new Date(now).toISOString(),lastWriter:makeLastWriter(),enrolledRoots:[],folders:{},files:{},pngReuse:{artifactType:CONTRACT_ARTIFACTS.pngReuse,schemaVersion:CONTRACT_VERSION,groups:{},fileMap:{}},capabilities:{markers:true,folderIndex:true,deltas:'none',pngReuse:false},compat:{legacyIntelVersion:1,sourceRecordShape:'folder.html Intel.newRecord'}});},
   async load(onStep){
     let rec=null;
     if(onStep)onStep('Checking local cache…',1);
@@ -1099,28 +1127,29 @@ const Intel={
       try{const ls=localStorage.getItem(LS_INTEL);if(ls){rec=JSON.parse(ls);if(rec){await idbPut('intel',rec);localStorage.removeItem(LS_INTEL);}}}catch(e){rec=null;}
     }
     if(rec&&rec.provider!==st.providerType){await idbDelete('intel');rec=null;}
-    if(rec){st.intel=rec;if(onStep)onStep('Intelligence record loaded',2);showStorageEstimate();return rec;}
+    if(rec){st.intel=ensureContractShape(rec);if(onStep)onStep('Intelligence record loaded',2);showStorageEstimate();return st.intel;}
     if(onStep)onStep('Checking cloud storage for existing record…',2);
     try{rec=await st.provider.loadIntelligenceFile();}catch(e){}
     if(rec&&rec.provider!==st.providerType)rec=null;
     if(rec)await idbPut('intel',rec);
-    st.intel=rec;
+    st.intel=ensureContractShape(rec);
     if(onStep)onStep(rec?'Intelligence record loaded':'No existing record found',3);
     showStorageEstimate();
-    return rec;
+    return st.intel;
   },
-  saveLocal(){if(!st.intel)return;st.intel.lastUpdated=Date.now();idbPut('intel',st.intel).catch(()=>{});},
-  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{if(!st.intel)return;const t0=Date.now();try{const str=await serializeIntel(st.intel);await st.provider.saveIntelligenceFile(st.intel,str);diagLog(`Sync: ${Object.keys(st.intel.files||{}).length} files · ${Math.round(str.length/1024)}KB · ${Date.now()-t0}ms`);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},800);},
+  saveLocal(){if(!st.intel)return;st.intel.lastUpdated=Date.now();st.intel.folderVersion=nextFolderVersion(st.intel.folderVersion);st.intel.updatedAt=new Date(st.intel.folderVersion).toISOString();st.intel.lastWriter=makeLastWriter();ensureContractShape(st.intel,st.selFolderId);idbPut('intel',st.intel).catch(()=>{});},
+  saveDebounced(){clearTimeout(this._saveTimer);this._saveTimer=setTimeout(async()=>{if(!st.intel)return;ensureContractShape(st.intel,st.selFolderId);const t0=Date.now();try{const str=await serializeIntel(st.intel);await st.provider.saveIntelligenceFile(st.intel,str);diagLog(`Sync: ${Object.keys(st.intel.files||{}).length} files · ${Math.round(str.length/1024)}KB · ${Date.now()-t0}ms`);}catch(e){toast('Saved locally — cloud sync pending','t-err');}},800);},
   async save(){
     if(!st.intel)return;
     this.saveLocal();
+    ensureContractShape(st.intel,st.selFolderId);
     const t0=Date.now();
     try{const str=await serializeIntel(st.intel);await st.provider.saveIntelligenceFile(st.intel,str);diagLog(`Save: ${Object.keys(st.intel.files||{}).length} files · ${Math.round(str.length/1024)}KB · ${Date.now()-t0}ms`);}
     catch(e){toast('Saved locally — cloud write failed','t-err');}
   },
   async acquire(folderId,folderName,onProg,onLog){
     const p=st.provider;
-    const rec=st.intel||this.newRecord(st.providerType);
+    const rec=ensureContractShape(st.intel||this.newRecord(st.providerType),folderId);
     if(!rec.enrolledRoots.includes(folderId))rec.enrolledRoots.push(folderId);
     const queue=[folderId],visited=new Set();
     let fScanned=0,iCount=0;
@@ -1156,7 +1185,7 @@ const Intel={
       let allFiles=[];try{allFiles=await p.getAllFiles(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
       const folder=rec.folders[fid],hp=[];
       allFiles.forEach(f=>{
-        const fr=p.extractFileRecord(f);rec.files[fr.id]={...fr,folderId:fid};
+        const fr=p.extractFileRecord(f);rec.files[fr.id]=toContractEntry({...fr,folderId:fid});
         hp.push(`${fr.id}:${fr.modifiedTime||''}`);
         folder.stats.totalFiles++;folder.stats.byClass[fr.class]=(folder.stats.byClass[fr.class]||0)+1;
         folder.stats.totalSize+=fr.size;
@@ -1165,11 +1194,11 @@ const Intel={
         if(fr.tags.length)folder.curation.tagged++;if(fr.notes)folder.curation.noted++;if(fr.qualityRating||fr.contentRating)folder.curation.rated++;if(fr.favorite)folder.curation.favorited++;
         iCount++;
       });
-      folder.hash=simpleHash(hp.sort().join('|'));fScanned++;
+      folder.hash=simpleHash(hp.sort().join('|'));folder.directHash=folder.hash;folder.lastVerified=Date.now();fScanned++;
       if(fScanned%5===0)idbPut('intel',rec).catch(()=>{});
       onProg({folder:fname,fc:fScanned,ic:iCount,done:[...visited].map(id=>rec.folders[id]?.name||id)});onLog(`✓ Done ${fname}`);await sleep(0);
     }
-    this.computeDepths(rec);this.rollup(rec);st.intel=rec;return rec;
+    this.computeDepths(rec);this.rollup(rec);st.intel=ensureContractShape(rec,folderId);return st.intel;
   },
   computeDepths(rec){const q=rec.enrolledRoots.map(id=>({id,d:1})),v=new Set();while(q.length){const{id,d}=q.shift();if(v.has(id))continue;v.add(id);if(rec.folders[id]){rec.folders[id].depth=d;(rec.folders[id].children||[]).forEach(c=>q.push({id:c,d:d+1}));}}},
   rollup(rec){
@@ -1198,8 +1227,17 @@ const Intel={
     const h=simpleHash(files.map(f=>`${f.id}:${f.modifiedTime||f.lastModifiedDateTime||''}`).sort().join('|'));
     const changed=h!==st.intel.folders[rootId].hash;
     if(changed)st.intel.folders[rootId].status='changed';
+    st.intel.folders[rootId].directHash=h;
+    ensureContractShape(st.intel,rootId);
     return changed;
   },
+  getIndexMarker(rootFolderId){return makeIndexMarker(st.intel,rootFolderId);},
+  loadFolderIndex(rootFolderId){ensureContractShape(st.intel,rootFolderId);return st.intel;},
+  async saveFolderIndex(rootFolderId,index){st.intel=ensureContractShape(index||st.intel,rootFolderId);await this.save();return st.intel;},
+  loadFolderDelta(){return null;},
+  async saveFolderDelta(){return false;},
+  loadPngMetadataReuseIndex(rootFolderId){ensureContractShape(st.intel,rootFolderId);return st.intel?.pngReuse||null;},
+  async savePngMetadataReuseIndex(rootFolderId,pngReuseIndex){if(!st.intel)return null;st.intel.pngReuse=pngReuseIndex||st.intel.pngReuse;ensureContractShape(st.intel,rootFolderId);await this.save();return st.intel.pngReuse;},
   getTotals(){
     const rec=st.intel;if(!rec)return{folders:0,files:0,curated:0,total:0};
     const folders=Object.keys(rec.folders).length;let files=0,curated=0;
