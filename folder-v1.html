@@ -622,6 +622,13 @@ function makeIndexMarker(rec,rootId){
   ensureContractShape(rec,rootId);const folder=rec?.folders?.[rootId]||{};
   return{schemaVersion:CONTRACT_VERSION,artifactType:CONTRACT_ARTIFACTS.marker,provider:rec?.provider||st.providerType,accountKey:rec?.accountKey||st.providerType,rootFolderId:rootId,rootFolderName:folder.name||st.selFolderName||rootId,folderVersion:rec?.folderVersion||0,indexArtifactRef:INTEL_FILE,indexArtifactETag:null,indexArtifactModifiedTime:rec?.updatedAt||null,directHash:folder.hash||folder.directHash||null,recursiveHash:rec?.freshness?.recursiveHash||null,entryCount:rec?.freshness?.entryCount||0,folderCount:rec?.freshness?.folderCount||0,pngEntryCount:Object.values(rec?.files||{}).filter(f=>f.mimeType==='image/png').length,pngReuseGroupCount:Object.keys(rec?.pngReuse?.groups||{}).length,updatedAt:rec?.updatedAt||null,lastWriter:rec?.lastWriter||makeLastWriter()};
 }
+function hasIndexedFolderState(rec,folderId,enrolled=false){
+  const folderRec=rec?.folders?.[folderId];
+  const stats=folderRec?.stats,agg=folderRec?.aggStats;
+  const hasStats=s=>!!s&&(s.totalFiles>0||s.totalSize>0||s.newestFile||s.oldestFile);
+  const hasVerifiedStats=!!(folderRec&&(folderRec.lastVerified||folderRec.firstIndexed)&&(stats||agg));
+  return !!(enrolled||rec?.enrolledRoots?.includes(folderId)||folderRec?.isEnrolled||folderRec?.isIndexed===true||folderRec?.indexed===true||hasVerifiedStats||hasStats(agg)||hasStats(stats));
+}
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function $id(id){return document.getElementById(id);}
@@ -1122,12 +1129,14 @@ const Intel={
       while(st.acq.paused&&!st.acq.cancelled){await sleep(120);}
       const fid=queue.shift();if(visited.has(fid))continue;visited.add(fid);
       if(!rec.folders[fid]){
-        rec.folders[fid]={id:fid,name:fid,parentId:null,depth:0,isEnrolled:fid===folderId,
+        rec.folders[fid]={id:fid,name:fid,parentId:null,depth:0,isEnrolled:fid===folderId,isIndexed:true,indexed:true,
           firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],
           stats:{totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null},
           curation:{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0}};
       }else{
+        rec.folders[fid].firstIndexed=rec.folders[fid].firstIndexed||Date.now();
         rec.folders[fid].lastVerified=Date.now();
+        rec.folders[fid].isIndexed=true;rec.folders[fid].indexed=true;rec.folders[fid].status='current';
         rec.folders[fid].stats={totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null};
         rec.folders[fid].curation={inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0};
         rec.folders[fid].children=[];
@@ -1143,7 +1152,7 @@ const Intel={
       let subs=[];try{subs=await p.getSubfolders(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
       subs.forEach(sf=>{
         if(!rec.folders[fid].children.includes(sf.id))rec.folders[fid].children.push(sf.id);
-        if(!rec.folders[sf.id])rec.folders[sf.id]={id:sf.id,name:sf.name,parentId:fid,depth:0,isEnrolled:false,firstIndexed:Date.now(),lastVerified:Date.now(),hash:'',status:'current',children:[],stats:{totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null},curation:{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0}};
+        if(!rec.folders[sf.id])rec.folders[sf.id]={id:sf.id,name:sf.name,parentId:fid,depth:0,isEnrolled:false,isIndexed:false,indexed:false,firstIndexed:null,lastVerified:null,hash:'',status:'discovered',children:[],stats:{totalFiles:0,byClass:Object.fromEntries(CLASS_KEYS.map(k=>[k,0])),totalSize:0,newestFile:null,oldestFile:null},curation:{inbox:0,maybe:0,keep:0,trash:0,tagged:0,noted:0,rated:0,favorited:0}};
         queue.push(sf.id);
       });
       let allFiles=[];try{allFiles=await p.getAllFiles(fid);}catch(e){onLog(`  ⚠ ${e.message}`);}
@@ -1158,7 +1167,7 @@ const Intel={
         if(fr.tags.length)folder.curation.tagged++;if(fr.notes)folder.curation.noted++;if(fr.qualityRating||fr.contentRating)folder.curation.rated++;if(fr.favorite)folder.curation.favorited++;
         iCount++;
       });
-      folder.hash=simpleHash(hp.sort().join('|'));folder.directHash=folder.hash;folder.lastVerified=Date.now();fScanned++;
+      folder.hash=simpleHash(hp.sort().join('|'));folder.directHash=folder.hash;folder.firstIndexed=folder.firstIndexed||Date.now();folder.lastVerified=Date.now();folder.isIndexed=true;folder.indexed=true;folder.status='current';fScanned++;
       if(fScanned%5===0)idbPut('intel',rec).catch(()=>{});
       onProg({folder:fname,fc:fScanned,ic:iCount,done:[...visited].map(id=>rec.folders[id]?.name||id)});onLog(`✓ Done ${fname}`);await sleep(0);
     }
@@ -1225,7 +1234,7 @@ const Tree={
   },
   renderNode(container,fid,fname,depth,parentId,knownChildren){
     const rec=st.intel;
-    const enrolled=rec?.enrolledRoots?.includes(fid)||false;
+    const enrolled=hasIndexedFolderState(rec,fid,rec?.enrolledRoots?.includes(fid)||false);
     const folderRec=rec?.folders?.[fid];
     const agg=folderRec?(folderRec.aggStats||folderRec.stats):null;
     const children=knownChildren||(folderRec?.children?.map(c=>({id:c,name:rec?.folders?.[c]?.name||c}))||null);
@@ -1634,7 +1643,7 @@ const App={
     return(Date.now()-lastCheck)>120000;
   },
 
-  isFolderIndexed(folderId,enrolled=false){const rec=st.intel,folderRec=rec?.folders?.[folderId],agg=folderRec?.aggStats||folderRec?.stats;return !!(enrolled||rec?.enrolledRoots?.includes(folderId)||folderRec?.isEnrolled||agg&&(agg.totalFiles>0||agg.totalSize>0||agg.newestFile||agg.oldestFile));},
+  isFolderIndexed(folderId,enrolled=false){return hasIndexedFolderState(st.intel,folderId,enrolled);},
 
   selectFolder(folderId,folderName,enrolled){
     // Clear context
