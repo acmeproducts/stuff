@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>TalkBridge</title>
 <meta name="theme-color" content="#0a1a1a">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -593,7 +594,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 <div id="pb-overlay" class="pb-overlay" style="display:none;">
   <div class="pb-ov-hdr" style="justify-content:flex-start;gap:8px;">
-    <span id="pb-ov-pair-label" style="font-size:13px;font-weight:600;color:#3a3633;white-space:nowrap;"></span>
     <div style="flex:1;"></div>
     <button class="pb-ov-act" onclick="pbAddCard({})" title="New phrase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button class="pb-ov-act" onclick="pbSyncWriteBack(room.myLang,room.theirLang)" title="Save to GitHub"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></button>
@@ -1090,6 +1090,8 @@ function chatInputEvt(){
   $('chat-send-btn').disabled=!raw.trim();
   var inSearch=raw.length>=2&&raw[0]==='/'&&raw!=='//';
   var xBtn=$('chat-search-x');if(xBtn)xBtn.style.display=inSearch?'':'none';
+  if(raw==='..'){ta.value='/';ta.style.height='';pbISearch('');var _xb=$('chat-search-x');if(_xb)_xb.style.display='';return;}
+  if(raw==='/'){pbISearch('');var _xb=$('chat-search-x');if(_xb)_xb.style.display='';return;}
   if(raw==='//'){pbIClose();pbOpenCmdDrawer();return;}
   if(inSearch){pbISearch(raw.slice(1));return;}
   pbIClose();
@@ -1137,6 +1139,8 @@ function handleChatFile(ev){
 
 async function sendChat(){
   var ta=$('chat-input');
+  var _rawSC=ta?ta.value:'';
+  if(_rawSC==='/'||_rawSC==='..')return;
   var text=normalizeText((ta&&ta.value||''),'chat');if(!text||!room.id)return;
   if(!text)return;
   pbIClose();
@@ -1454,7 +1458,7 @@ function pbCmdDrawerHtml(){
 function pbSearchDrawerHtml(){
   var pair=pbActivePair();
   var badge=pair?('<span class="pb-pair-badge">'+pbEsc(pbLangFlag(pair.src)+' → '+pbLangFlag(pair.tgt))+'</span>'):'';
-  return '<div class="pb-drawer-hdr" style="flex-shrink:0;">'    +'<input id="pb-search-input" class="pb-search-inp" placeholder="Search phrases…" oninput="pbRunSearch()" onkeydown="pbSearchKD(event)">'    +badge    +'<button class="pb-ov-act" onclick="pbOpenOverlay()" title="Manage phrasebook" style="color:var(--text-dim);padding:4px 6px;">'+ICO.book+'</button>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer()" style="line-height:0;">'+ICO.x+'</button></div>'    +'<div id="pb-search-results" class="pb-search-results"></div>';
+  return '<div class="pb-drawer-hdr" style="flex-shrink:0;">'    +'<input id="pb-search-input" class="pb-search-inp" placeholder="Search phrases…" oninput="pbRunSearch()" onkeydown="pbSearchKD(event)">'    +badge    +'<button class="pb-ov-act" onclick="pbOpenOverlay()" title="Manage phrasebook" style="color:var(--text-dim);padding:4px 6px;">'+ICO.book+'</button>'    +'<button class="pb-drawer-x" onclick="pbCloseDrawer();pbSearchExit()" title="Close" style="line-height:0;">'+ICO.x+'</button></div>'    +'<div id="pb-search-results" class="pb-search-results"></div>';
 }
 /* ── CDN + Translation Memory + Quick-Ring + Telemetry ── */
 var _intentIdMap={};
@@ -1555,13 +1559,7 @@ async function _pbCentralPost(payload){
 /* ── Versioned PB-series sync (replaces old fixed-file CDN model) ──
    Contract v1.5 §7.2: phrasebook-{src}-{tgt}-{1000+}.json, highest version wins.
    Single operator, sequential use — union-by-id merge, no conflict resolution needed. */
-function pbOvUpdatePairLabel(){
-  var el=document.getElementById('pb-ov-pair-label');
-  if(!el)return;
-  var src=room.myLang||'';var tgt=room.theirLang||'';
-  var ver=_pbSyncState.version?('-'+_pbSyncState.version):'';
-  el.textContent=(src&&tgt)?(pbLangFlag(src)+' → '+pbLangFlag(tgt)+' '+src+'-'+tgt+ver):'';
-}
+
 function pbOvUpdateSyncDot(){
   var dot=document.getElementById('pb-ov-sync-dot');if(!dot)return;
   var status=_pbSyncState.status;
@@ -1822,7 +1820,7 @@ function pbTagPanelHtml(card){
     +'<button onclick="pbRemoveTag(\''+id+'\',\''+pbEsc(t)+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:2px;font-size:10px;">×</button></span>';}).join('');
   return '<div style="padding:8px 10px;">'
     +'<div class="pb-tpills" id="pb-atags-'+id+'">'+pills+'</div>'
-    +'<input class="pb-tag-inp" id="pb-ti-'+id+'" placeholder="Add tag…" oninput="pbTagSugg(\''+id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddTagI(\''+id+'\');}">'
+    +'<input class="pb-tag-inp" id="pb-ti-'+id+'" placeholder="Add tag…" oninput="pbTagSugg(\''+id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddTagI(\''+id+'\');var _ti=document.getElementById(\'pb-ti-\'+id);if(_ti)setTimeout(function(){_ti.focus();},0);}">'
     +'<div class="pb-tsugg" id="pb-ts-'+id+'"></div>'
     +'</div>';
 }
@@ -1856,11 +1854,11 @@ function pbCommitSrcEdit(id){
   card.source=newSrc;card.updatedAt=pbNow();card.updatedBy='tb';
   delete card._targetOverride;
   card.clarifyChain=card.clarifyChain||[];
-  card.clarifyChain.push({text:'Was: '+oldSrc,author:'tb',timestamp:pbNow()});
+  card.clarifyChain.push({text:'Was: '+oldSrc,author:'TB',timestamp:pbNow()});
   if(oldVerdict!=='pending'){
     card.backtranslate=card.backtranslate||{};
     card.backtranslate.verdict='pending';
-    card.clarifyChain.push({text:'Verdict: '+oldVerdict+' \u2192 pending',author:'tb',timestamp:pbNow()});
+    card.clarifyChain.push({text:'Verdict: '+oldVerdict+' \u2192 pending',author:'TB',timestamp:pbNow()});
   }
   pbSaveCard(card);
   translateWithRetry(newSrc,card.sourceLang,card.targetLang,2).then(function(tr){
@@ -1904,7 +1902,7 @@ function pbClarifyPanelHtml(card){
   }).join(''):'<div style="color:#aaa;font-size:12px;padding:4px 0;">No clarifications yet.</div>';
   return'<div style="padding:8px 10px;"><div id="pb-cthread-'+id+'">'+thread+'</div>'
     +'<div style="display:flex;gap:6px;margin-top:8px;">'
-    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add clarification…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');}">'
+    +'<input class="pb-clarify-inp" id="pb-ci-'+id+'" placeholder="Add clarification…" style="flex:1;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddClarify(\''+id+'\');var _ci=document.getElementById(\'pb-ci-\'+id);if(_ci)setTimeout(function(){_ci.focus();},0);'
     +'</div></div>';
 }
 function pbAddClarify(id){
@@ -1946,7 +1944,7 @@ function pbSetVerdict(id,val){
   card.backtranslate.verdict=val;card.backtranslate.updatedAt=pbNow();card.updatedBy='tb';
   if(val!==prev){
     card.clarifyChain=card.clarifyChain||[];
-    card.clarifyChain.push({text:'Verdict: '+prev+' \u2192 '+val,author:'tb',timestamp:pbNow()});
+    card.clarifyChain.push({text:'Verdict: '+prev+' \u2192 '+val,author:'TB',timestamp:pbNow()});
   }
   pbSaveCard(card);
   pbRefreshCard(id);
@@ -1997,7 +1995,6 @@ function pbTogTrash(){
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
   _pbFilter='all';
-  pbOvUpdatePairLabel();
   pbRenderOverlay();
   setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
