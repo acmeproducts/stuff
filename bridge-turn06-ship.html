@@ -610,6 +610,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
   <div class="pb-ov-filter-bar" id="pb-ov-filter"></div>
   <div id="pb-ov-cards"></div>
+  <div id="pb-ov-footer" style="padding:6px 12px;font-size:10px;color:#9a9592;border-top:1px solid #ede9e4;flex-shrink:0;display:flex;justify-content:space-between;">TalkBridge·<span id="pb-ov-file-label"></span><span id="pb-ov-ts"></span></div>
 </div>
 
 <div id="pb-import-modal" class="pb-import-modal" style="display:none;">
@@ -3942,10 +3943,14 @@ window.addEventListener('visibilitychange',function(){
 });
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
 
-/* ── PB Sync ── */
+/* ── PB Sync v5.6.3 ── */
 var _pbSyncState={status:'idle',pairFile:null,version:null,dirty:false};
 function _pbSyncDot(s){var d=document.getElementById('pb-ov-sync-dot');if(d)d.style.background={idle:'#9a9592',pulling:'#3498db',writing:'#e67e22',error:'#e74c3c',ok:'#2ecc71'}[s]||'#9a9592';_pbSyncState.status=s;}
 function _pbSyncLangs(){var m={zh:'cn',ko:'kr',vi:'vn'};return{src:m[room.myLang]||room.myLang||'en',tgt:m[room.theirLang]||room.theirLang||'th'};}
+function _pbOvFooter(){
+  var fl=document.getElementById('pb-ov-file-label');if(fl)fl.textContent=_pbSyncState.pairFile?(' '+_pbSyncState.pairFile+' '):'';
+  var ts=document.getElementById('pb-ov-ts');if(ts)ts.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
 async function pbSyncPullLatest(){
   if(!room.myLang||!room.theirLang)return;
   var pat=localStorage.getItem('tb_gh_pat');var t=_pbSyncLangs();_pbSyncDot('pulling');
@@ -3953,12 +3958,16 @@ async function pbSyncPullLatest(){
     var h={'Accept':'application/vnd.github.v3+json'};if(pat)h['Authorization']='Bearer '+pat;
     var r=await fetch('https://api.github.com/repos/acmeproducts/stuff/contents/phrasebook/',{headers:h});
     if(!r.ok)throw new Error('list '+r.status);
-    var files=await r.json();
+    var files=await r.json();if(!Array.isArray(files))throw new Error('unexpected response');
     var pre='phrasebook-'+t.src+'-'+t.tgt+'-';
-    var matches=files.filter(function(f){return f.name.indexOf(pre)===0&&f.name.slice(-5)==='.json';});
-    if(!matches.length){pre='phrasebook-'+t.tgt+'-'+t.src+'-';matches=files.filter(function(f){return f.name.indexOf(pre)===0&&f.name.slice(-5)==='.json';});}
+    var matches=files.filter(function(x){return x.name.indexOf(pre)===0&&x.name.slice(-5)==='.json';});
+    if(!matches.length){pre='phrasebook-'+t.tgt+'-'+t.src+'-';matches=files.filter(function(x){return x.name.indexOf(pre)===0&&x.name.slice(-5)==='.json';});}
     if(!matches.length){_pbSyncDot('idle');toast('No shared phrasebook yet');return;}
-    var best=matches.reduce(function(a,b){var va=parseInt((a.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;var vb=parseInt((b.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;return va>=vb?a:b;});
+    var best=matches.reduce(function(a,b){
+      var va=parseInt((a.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;
+      var vb=parseInt((b.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;
+      return va>=vb?a:b;
+    });
     _pbSyncState.pairFile=best.name;_pbSyncState.version=parseInt((best.name.match(/(\d+)\.json$/)||[0,0])[1],10)||1000;
     var r2=await fetch('https://raw.githubusercontent.com/acmeproducts/stuff/main/phrasebook/'+best.name,{cache:'no-store'});
     if(!r2.ok)throw new Error('fetch '+r2.status);
@@ -3966,8 +3975,8 @@ async function pbSyncPullLatest(){
     var local=pbGetAllCards();var byId={};local.forEach(function(c){byId[c.id]=c;});
     incoming.forEach(function(ic){var nc=pbNorm(ic);if(byId[nc.id]){if((nc.updatedAt||0)>(byId[nc.id].updatedAt||0))byId[nc.id]=nc;}else{byId[nc.id]=nc;}});
     pbSaveCards(Object.values(byId));_pbSyncState.dirty=false;_pbSyncDot('ok');
-    log('pb_sync_pull_ok',{file:best.name},'ok');setTimeout(function(){_pbSyncDot('idle');},2000);
-    pbRenderOverlay();
+    log('pb_sync_pull_ok',{file:best.name},'ok');setTimeout(function(){_pbSyncDot('idle');_pbOvFooter();},2000);
+    pbRenderOverlay();_pbOvFooter();_pbOvPairLabel();
   }catch(e){_pbSyncDot('error');log('pb_sync_pull_err',{e:String(e)},'error');toast('PB: '+e.message);setTimeout(function(){_pbSyncDot('idle');},3000);}
 }
 async function pbSyncWriteBack(){
@@ -3980,26 +3989,26 @@ async function pbSyncWriteBack(){
     var r=await fetch('https://api.github.com/repos/acmeproducts/stuff/contents/phrasebook/'+nf,{method:'PUT',
       headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},
       body:JSON.stringify({message:'TB PB '+nf,content:content})});
-    if(!r.ok){var e=await r.json();throw new Error(e.message||'HTTP '+r.status);}
+    if(!r.ok){var e2=await r.json();throw new Error(e2.message||'HTTP '+r.status);}
     _pbSyncState.version=nv;_pbSyncState.pairFile=nf;_pbSyncState.dirty=false;
-    _pbSyncDot('ok');log('pb_sync_write_ok',{file:nf},'ok');setTimeout(function(){_pbSyncDot('idle');},2000);
+    _pbSyncDot('ok');log('pb_sync_write_ok',{file:nf},'ok');
+    setTimeout(function(){_pbSyncDot('idle');_pbOvFooter();},2000);_pbOvFooter();
   }catch(e){_pbSyncDot('error');log('pb_sync_write_err',{e:String(e)},'error');toast('PB save: '+e.message);setTimeout(function(){_pbSyncDot('idle');},3000);}
 }
-/* mark dirty on every save */
-var _origPbSaveCard=pbSaveCard;pbSaveCard=function(card){_pbSyncState.dirty=true;return _origPbSaveCard(card);};
-/* pbAddCard */
+/* wrap pbSaveCard to set dirty */
+(function(){var _orig=pbSaveCard;pbSaveCard=function(card){_pbSyncState.dirty=true;return _orig(card);};})();
+function _pbOvPairLabel(){var el=document.getElementById('pb-ov-pair-label');if(!el)return;var sf=pbLangFlag(room.myLang||'en');var tf=pbLangFlag(room.theirLang||'th');var ver=_pbSyncState.version?(' '+(room.myLang||'en')+'-'+(room.theirLang||'th')+'-'+_pbSyncState.version):'';el.textContent=sf+' \u2192 '+tf+ver;}
 function pbAddCard(opts){
   opts=opts||{};var src=(opts.source||'').trim();var tgt=(opts.target||'').trim();
   if(src){var dup=pbGetCards().find(function(c){return(c.source||'').trim().toLowerCase()===src.toLowerCase();});if(dup){toast('Phrase already saved');pbOpenOverlay();return;}}
-  var now=Date.now();
-  var card=pbNorm({id:'c-'+_uid(),source:src,target:tgt,sourceLang:opts.sourceLang||room.myLang||'en',targetLang:opts.targetLang||room.theirLang||'th',createdAt:now,updatedAt:now,createdBy:'tb',updatedBy:'tb',clarifyChain:[{text:'Created',author:'tb',timestamp:now}]});
+  var now=Date.now();var card=pbNorm({id:'c-'+_uid(),source:src,target:tgt,
+    sourceLang:opts.sourceLang||room.myLang||'en',targetLang:opts.targetLang||room.theirLang||'th',
+    createdAt:now,updatedAt:now,createdBy:'tb',updatedBy:'tb',
+    clarifyChain:[{text:'Created',author:'tb',timestamp:now}]});
   pbSaveCard(card);pbOpenOverlay();pbRenderOverlay();
   setTimeout(function(){var el=document.getElementById('pbsrc-'+card.id);if(el){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});}},60);
   if(src&&!tgt){translateWithRetry(src,card.sourceLang,card.targetLang,1).then(function(t){if(!t)return;card.target=t;card.updatedAt=Date.now();pbSaveCard(card);var te=document.getElementById('pbtgt-'+card.id);if(te)te.textContent=t;var cs=_pbCS(card.id);if(!cs.btOpen){cs.btOpen=true;pbSyncPanel('bt',card.id);}pbRunBT(card.id);});}
 }
-/* update overlay pair label */
-function pbOvUpdatePairLabel(){var el=document.getElementById('pb-ov-pair-label');if(!el)return;var sf=pbLangFlag(room.myLang||'en');var tf=pbLangFlag(room.theirLang||'th');var ver=_pbSyncState.version?(' '+(room.myLang||'en')+'-'+(room.theirLang||'th')+'-'+_pbSyncState.version):'';el.textContent=sf+' → '+tf+ver;}
-
 </script>
 </body>
 </html>
