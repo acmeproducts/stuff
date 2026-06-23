@@ -12,17 +12,100 @@
   tr:nth-child(even) {background:#f0f8ff;}
   #inputArea {width:100%; height:8rem; margin-bottom:1rem; font-family:monospace;}
   #loadBtn {padding:0.5rem 1rem; background:#007aff; color:#fff; border:none; border-radius:4px; cursor:pointer;}
+  #sessionToggle {display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; cursor:pointer; user-select:none;}
+  #sessionChevron {display:inline-block; transition:transform 0.15s ease;}
+  #sessionToggle[aria-expanded="true"] #sessionChevron {transform:rotate(90deg);}
+  #sessionPanel {display:none; margin-bottom:1rem;}
+  #sessionPanel.open {display:block;}
+  .session-link, .remove-session {background:none; border:none; color:#007aff; cursor:pointer; padding:0; text-decoration:underline; font:inherit;}
+  .remove-session {color:#d11;}
 </style>
 </head>
 <body>
 <div class="container">
   <h2>OpenClaw Output Viewer</h2>
+  <div id="sessionToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="sessionPanel">
+    <span id="sessionChevron">▶</span>
+    <strong>Saved pasted sessions</strong>
+    <span id="sessionCount">(0)</span>
+  </div>
+  <div id="sessionPanel" aria-hidden="true"></div>
   <textarea id="inputArea" placeholder="Paste the raw OpenClaw text here…"></textarea><br>
   <button id="loadBtn">Render Table</button>
   <div id="tableWrapper" style="margin-top:1rem;"></div>
 </div>
 
 <script>
+const STORAGE_KEY = 'openclawOutputViewer.sessions';
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function getSessions() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function setSessions(sessions) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+}
+
+function saveSession(content) {
+  const sessions = getSessions();
+  sessions.unshift({
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    content
+  });
+  setSessions(sessions);
+  renderSessions();
+}
+
+function renderSessions() {
+  const sessions = getSessions();
+  const count = document.getElementById('sessionCount');
+  const panel = document.getElementById('sessionPanel');
+  count.textContent = `(${sessions.length})`;
+
+  if (!sessions.length) {
+    panel.innerHTML = '<p>No saved sessions yet.</p>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Date & Time</th><th>Description</th><th>Full Content</th><th>Remove</th></tr></thead><tbody>';
+  sessions.forEach(session => {
+    const date = new Date(session.createdAt).toLocaleString();
+    const description = session.content.slice(0, 200);
+    html += `<tr>
+      <td>${escapeHtml(date)}</td>
+      <td>${escapeHtml(description)}</td>
+      <td><button class="session-link" data-id="${escapeHtml(session.id)}">Open full content</button></td>
+      <td><button class="remove-session" data-id="${escapeHtml(session.id)}" aria-label="Remove saved session">×</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  panel.innerHTML = html;
+}
+
+function toggleSessions() {
+  const toggle = document.getElementById('sessionToggle');
+  const panel = document.getElementById('sessionPanel');
+  const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+  toggle.setAttribute('aria-expanded', String(!isOpen));
+  panel.setAttribute('aria-hidden', String(isOpen));
+  panel.classList.toggle('open', !isOpen);
+}
+
 function parseToTable(text) {
   // Split into lines, ignore empty lines
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
@@ -31,22 +114,51 @@ function parseToTable(text) {
   const rows = lines.map(l => l.split(sep).map(c => c.trim()));
   // Build HTML
   let html = '<table><thead><tr>';
-  rows[0].forEach(col => html += `<th>${col}</th>`);
+  rows[0].forEach(col => html += `<th>${escapeHtml(col)}</th>`);
   html += '</tr></thead><tbody>';
   for (let i = 1; i < rows.length; i++) {
     html += '<tr>';
-    rows[i].forEach(col => html += `<td>${col}</td>`);
+    rows[i].forEach(col => html += `<td>${escapeHtml(col)}</td>`);
     html += '</tr>';
   }
   html += '</tbody></table>';
   return html;
 }
 
+document.getElementById('sessionToggle').addEventListener('click', toggleSessions);
+document.getElementById('sessionToggle').addEventListener('keydown', event => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    toggleSessions();
+  }
+});
+
+document.getElementById('sessionPanel').addEventListener('click', event => {
+  const id = event.target.dataset.id;
+  if (!id) return;
+
+  const sessions = getSessions();
+  if (event.target.classList.contains('session-link')) {
+    const session = sessions.find(item => item.id === id);
+    if (!session) return;
+    document.getElementById('inputArea').value = session.content;
+    document.getElementById('tableWrapper').innerHTML = parseToTable(session.content);
+  }
+
+  if (event.target.classList.contains('remove-session')) {
+    setSessions(sessions.filter(item => item.id !== id));
+    renderSessions();
+  }
+});
+
 document.getElementById('loadBtn').addEventListener('click', () => {
   const txt = document.getElementById('inputArea').value;
   if (!txt.trim()) { alert('Paste some text first'); return; }
+  saveSession(txt);
   document.getElementById('tableWrapper').innerHTML = parseToTable(txt);
 });
+
+renderSessions();
 </script>
 </body>
 </html>
