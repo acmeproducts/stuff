@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.6.2 -->
+<!-- TalkBridge v5.6.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -408,6 +408,32 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-strip-btn{color:var(--text-dim);transition:color .12s,border-color .12s;}
 .pb-strip-btn:hover{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
 .pb-strip-btn.active{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
+
+/* Phrase-desk card adapted for Bridge */
+.pd-src{width:100%;border:none;outline:none;resize:none;font-size:14px;font-weight:500;color:#1e293b;font-family:inherit;line-height:1.4;background:transparent;min-height:1.4em;}
+.pd-tgt{font-size:14px;font-weight:500;color:#0f766e;flex:1;line-height:1.4;min-height:1.4em;word-break:break-word;}
+.pd-bck{font-style:italic;color:#64748b;font-size:13px;flex:1;line-height:1.4;word-break:break-word;}
+.pd-tts-btn{flex-shrink:0;margin-left:6px;padding:2px;color:#cbd5e1;background:none;border:none;cursor:pointer;line-height:0;}
+.pd-tts-btn:hover{color:#0d9488;}
+.pd-foot-btn{padding:6px;display:flex;justify-content:center;align-items:center;color:#94a3b8;background:none;border:none;cursor:pointer;font-family:inherit;border-right:1px solid #f1f5f9;}
+.pd-foot-btn:last-child{border-right:none;}
+.pd-foot-btn:hover{background:#f1f5f9;color:#0d9488;}
+.pd-foot-active{color:#0d9488!important;background:#f0fdfa!important;}
+.pd-foot-trash:hover{background:#fef2f2!important;color:#ef4444!important;}
+.pd-drawer{background:#f8fafc;padding:8px 12px;border-top:1px solid #f1f5f9;}
+.pd-drawer.hidden{display:none;}
+.pb-tag-chip{display:inline-flex;align-items:center;gap:2px;background:#f1f5f9;border:1px solid #e2e8f0;color:#0f766e;padding:2px 6px;border-radius:4px;font-size:11px;font-family:monospace;}
+.pb-tag-x{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:12px;font-weight:700;line-height:1;margin-left:2px;}
+.pb-tag-x:hover{color:#ef4444;}
+.pd-tag-inp{width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:4px;padding:6px 24px 6px 8px;font-size:12px;outline:none;font-family:inherit;}
+.pd-tag-inp:focus{border-color:#0d9488;}
+.pd-tag-x-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:13px;font-weight:700;line-height:1;}
+.pd-clarify-inp{width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:4px;padding:6px 8px;font-size:12px;outline:none;font-family:inherit;margin-top:6px;}
+.pd-clarify-inp:focus{border-color:#0d9488;}
+.verdict-radio{display:none;}
+.verdict-label{cursor:pointer;padding:4px 10px;border-radius:16px;border:1.5px solid #e2e8f0;color:#64748b;}
+.radio-good:checked+.verdict-label{background:#dcfce7;border-color:#16a34a;color:#15803d;}
+.radio-flag:checked+.verdict-label{background:#fee2e2;border-color:#dc2626;color:#b91c1c;}
 </style>
 </head>
 <body>
@@ -445,7 +471,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v5.6.2</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.6.3</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -608,8 +634,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
     <input id="pb-ov-search" class="pb-ov-si" placeholder="Search all phrases… (-word to exclude)" oninput="pbOvSearch();pbOvSearchX()" style="padding-right:28px;">
     <button id="pb-ov-search-x" onclick="pbOvClearSearch()" style="display:none;position:absolute;right:20px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9a9592;font-size:16px;line-height:1;padding:2px 4px;" title="Clear search">×</button>
   </div>
-  <div class="pb-ov-filter-bar" id="pb-ov-filter"></div>
   <div id="pb-ov-cards"></div>
+  <div style="padding:6px 12px;font-size:10px;color:#9a9592;border-top:1px solid #ede9e4;flex-shrink:0;">TalkBridge · <span id="pb-ov-fn">no file loaded</span></div>
 </div>
 
 
@@ -1964,30 +1990,18 @@ function pbRemoveCat(catId){
 }
 function pbRenderOverlay(){
   var host=document.getElementById('pb-ov-cards');if(!host)return;
-  var cats=[];
-  var allCards=pbGetAllCards();
-  var trashedCards=allCards.filter(function(c){return c.deletedAt;});
-  if(!cats.length&&!trashedCards.length){
-    host.innerHTML='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.<br>Tap ↑ to import a file or ↓ to download from the library.</div>';
+  var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
+  var cards=pbGetCards().filter(function(c){
+    if(!room.myLang||!room.theirLang)return true;
+    return(c.sourceLang===room.myLang&&c.targetLang===room.theirLang)||(c.sourceLang===room.theirLang&&c.targetLang===room.myLang);
+  });
+  if(q)cards=pbSearch(q,cards);
+  var trashedCards=pbGetAllCards().filter(function(c){return c.deletedAt;});
+  if(!cards.length&&!trashedCards.length){
+    host.innerHTML='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrases yet.<br>Tap + to add your first phrase.</div>';
     return;
   }
-  var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
-  var cards=pbGetCards();
-  if(_pbFilter.indexOf('cat:')===0){
-    var catId=_pbFilter.slice(4);
-  }else if(_pbFilter!=='all'){
-    var p=_pbFilter.split('|');
-    cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
-  }
-  if(q)cards=pbSearch(q,cards);
-  var html='';
-  if(!cards.length){
-    html='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';
-  }else if(q){
-    _pbICards=cards;html=cards.map(function(c,i){return pbOvRowHtml(c,i);}).join('');
-  }else{
-    html=cards.map(function(c){return pbBubbleHtml(c,'overlay');}).join('');
-  }
+  var html=q?(_pbICards=cards,cards.map(function(c,i){return pbOvRowHtml(c,i);}).join('')):cards.map(function(c){return pbBubbleHtml(c,'overlay');}).join('');
   html+=pbTrashSectionHtml(trashedCards);
   host.innerHTML=html;
 }
@@ -2399,6 +2413,7 @@ async function createRoom(){
   if(!room.myLang||!room.theirLang){toast('Select both languages');return}
   room.id=uid();room.role='creator';
   lastSessionContext.role='creator';lastSessionContext.myLang=room.myLang;lastSessionContext.theirLang=room.theirLang;lastSessionContext.roomName=room.name;lastSessionContext.roomId=room.id;
+  lastSessionContext.pairKey=(room.name||'room').toLowerCase().replace(/[^a-z0-9]/g,'-');
   try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}
   var url=invUrl();$('lobby-link').textContent=url;var nd=$('room-name-display');if(nd)nd.textContent=room.name||'';
   if(navigator.clipboard)navigator.clipboard.writeText(url).catch(function(){});
@@ -2438,6 +2453,7 @@ function joinerProceed(){
     videoStream=s;$('joining-screen').classList.remove('show');
     room.id=p.r;room.myLang=p.tl;room.theirLang=p.ml;room.name=p.n||'';room.role='joiner';
     lastSessionContext.role='joiner';lastSessionContext.myLang=p.tl;lastSessionContext.theirLang=p.ml;lastSessionContext.roomName=p.n||'';lastSessionContext.roomId=p.r;
+    lastSessionContext.pairKey=((p.n||'room')+'-joiner').toLowerCase().replace(/[^a-z0-9-]/g,'');
     saveRecent();enterCall();
   }).catch(function(){
     $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');
@@ -2464,6 +2480,7 @@ function connectRelay(){
     if(room.role==='creator'&&!pc)(async()=>{await setupPC();})();
     // Reconcile DG after relay reconnect
     reconcileDeepgramState('relay_reconnect');
+    if(typeof _pbSyncState!=='undefined'&&_pbSyncState.dirty)pbSyncWriteBack();
   };
   ws.onmessage=function(e){try{handleRelay(JSON.parse(e.data))}catch(_){}};
   ws.onclose=function(ev){
@@ -2554,6 +2571,7 @@ async function enterCall(){
   dgDesired=true;
   micMutedByUser=false;
   reconcileDeepgramState('enter_call');
+  setTimeout(function(){if(room.myLang&&room.theirLang)pbSyncPullLatest();},500);
 }
 
 // === REMOTE VIDEO ===
@@ -3370,6 +3388,7 @@ function hidePartnerDisconnected(){
 function hangUp(){
   pbIClose();
   relaySend({type:'hangup'});
+  pbSyncWriteBack();
   if(room.role==='creator'){
     cleanUp();
   }else{
@@ -3477,6 +3496,224 @@ window.addEventListener('visibilitychange',function(){
   if(!document.hidden&&isCallActive())reconcileDeepgramState('visibility_restore');
 });
 window.addEventListener('pagehide',function(){stopDeepgram();if(room.id){saveTr();relaySend({type:'hangup',reason:'pagehide'})}});
+
+/* ═══════════════════════════════════════
+   PHRASE-DESK CARD ADAPTED FOR BRIDGE
+   Layout: phrase-desk. IDs+fns: Bridge.
+   Fix: clarify refocus.
+═══════════════════════════════════════ */
+
+/* Adapter shims — map phrase-desk event names to Bridge functions */
+function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+function _pdId(el){var n=el;while(n&&n!==document){if(n.dataset&&n.dataset.cardid)return n.dataset.cardid;n=n.parentElement;}return null;}
+function verdictChange(r){var id=_pdId(r);if(id)pbSetVerdict(id,r.value);}
+function toggleDrawerEl(btn){var id=btn.dataset.cardid;var t=btn.dataset.drawer;if(t==='tags')pbTogTags(id);else if(t==='clarify')pbTogClarify(id);}
+function removeTagEl(btn){var id=_pdId(btn);if(!id)return;var te=btn.closest('[data-tagidx]');if(!te)return;var card=pbGetCardById(id);if(!card)return;pbRemoveTag(id,(card.tags||[])[parseInt(te.dataset.tagidx,10)]);}
+function onTagInput(inp){pbTagSugg(_pdId(inp)||'');}
+function onTagKeydown(e,inp){if(e.key==='Enter'){e.preventDefault();pbAddTagI(_pdId(inp)||'');}}
+function onTagKeyup(e,inp){}
+function clearTagInput(id){var el=document.getElementById('pb-ti-'+id);if(el){el.value='';el.focus();}}
+function softDeletePhrase(id){pbSoftDelete(id);}
+function onClarifyKeydown(e,inp){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  var id=_pdId(inp)||'';
+  if(!id)return;
+  var text=(inp.value||'').trim();if(!text)return;
+  var card=pbGetCardById(id);if(!card)return;
+  var now=Date.now();
+  var ts=new Date(now).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  card.clarifyChain=card.clarifyChain||[];
+  card.clarifyChain.push({ini:'TB',ts:ts,txt:text});
+  pbSaveCard(card);_pbSyncState&&(_pbSyncState.dirty=true);
+  inp.value='';
+  /* populate clarify thread */
+  var cc=document.getElementById('pb-cc-'+id);
+  if(cc){cc.innerHTML=(card.clarifyChain||[]).map(function(c){return'<div class="bg-white border border-slate-100 rounded px-2 py-1 mb-1"><div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;font-weight:700;margin-bottom:2px"><span>'+(c.ini||'TB')+'</span><span>'+(c.ts||'')+'</span></div><div style="font-size:12px;color:#334155;line-height:1.4;">'+pbEsc(c.txt)+'</div></div>';}).join('');}
+  /* refocus — THE FIX */
+  setTimeout(function(){inp.focus();},30);
+}
+function handleSourceEnter(e,el){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();var id=_pdId(el)||'';if(id)pbCommitSrcEdit(id);}
+}
+
+/* Rebuilt pbBubbleHtml — phrase-desk layout */
+function pbBubbleHtml(card,ctx){
+  var id=card.id;
+  var srcLang=card.sourceLang||room.myLang||'en';
+  var tgtLang=card.targetLang||room.theirLang||'en';
+  var flip=!!(room.myLang&&tgtLang===room.myLang&&srcLang!==room.myLang);
+  var lLang=flip?tgtLang:srcLang; var rLang=flip?srcLang:tgtLang;
+  var lSide=flip?'tgt':'src';   var rSide=flip?'src':'tgt';
+  var lText=flip?(card.target||''):(card.source||'');
+  var rText=flip?(card.source||''):(card.target||'');
+  var bt=card.backtranslate||{};
+  var backTxt=bt.resultText||'';
+  var verdict=bt.verdict||'pending';
+  var cs=_pbCS(id);
+  var tagOpen=cs.tagsOpen; var clarifyOpen=cs.clarifyOpen;
+  var isDel=!!card.deletedAt;
+
+  var tagsHtml=(card.tags||[]).map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 pb-tag-chip" data-cardid="'+id+'" data-tagidx="'+i+'">'+pbEsc(t)
+      +'<button type="button" class="pb-tag-x" onclick="removeTagEl(this)">&times;</button></span>';
+  }).join('');
+
+  var clarifyHtml=(card.clarifyChain||[]).map(function(c){
+    return '<div class="bg-white border border-slate-100 rounded px-2 py-1 mb-1">'
+      +'<div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;font-weight:700;margin-bottom:2px"><span>'+(c.ini||'TB')+'</span><span>'+(c.ts||'')+'</span></div>'
+      +'<div style="font-size:12px;color:#334155;line-height:1.4;">'+pbEsc(c.txt||'')+'</div>'
+      +'</div>';
+  }).join('');
+
+  var ICO_HASH='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>';
+  var ICO_MSG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>';
+  var ICO_TRASH='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  var ICO_ROT='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>';
+
+  if(isDel){
+    return '<div class="pb-bubble deleted" data-cardid="'+id+'" id="pbb-'+id+'">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">'
+      +'<span style="font-size:12px;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;">'+pbEsc(card.source||'Empty Phrase')+'</span>'
+      +'<div style="display:flex;gap:4px;flex-shrink:0;">'
+      +'<button class="pb-fbt" title="Restore" onclick="pbRestoreCard(\''+id+'\')">'+ICO_ROT+'</button>'
+      +'<button class="pb-fbt" title="Delete permanently" onclick="pbHardDelete(\''+id+'\')">'+ICO_TRASH+'</button>'
+      +'</div></div></div>';
+  }
+
+  return '<div class="pb-bubble" data-status="'+verdict+'" data-cardid="'+id+'" id="pbb-'+id+'">'
+
+    // Row 1: Source | Target
+    +'<div style="display:flex;border-bottom:1px solid #f1f5f9;">'
+      +'<div style="width:50%;min-width:0;padding:8px 12px;display:flex;align-items:flex-start;border-right:1px solid #f1f5f9;">'
+        +'<textarea class="pd-src" id="pbsrc-'+id+'" data-cardid="'+id+'" rows="1"'
+          +' oninput="autoResize(this)"'
+          +' onkeydown="handleSourceEnter(event,this)"'
+          +' onblur="pbCommitSrcEdit(\''+id+'\')">'+(lSide==='src'?pbEsc(card.source||''):pbEsc(card.target||''))+'</textarea>'
+        +'<button type="button" class="pd-tts-btn" data-cardid="'+id+'" data-side="'+lSide+'" data-lang="'+lLang+'" onclick="pbSpeakCard(\''+id+'\',\''+lSide+'\',this)" title="Listen">'+PB_ICON_TTS+'</button>'
+      +'</div>'
+      +'<div style="width:50%;min-width:0;padding:8px 12px;display:flex;align-items:flex-start;background:#f8fafc;">'
+        +'<div class="pd-tgt" id="pb'+rSide+'-'+id+'">'+(rSide==='src'?(card.source||'...'):(card.target||'...'))+'</div>'
+        +'<button type="button" class="pd-tts-btn" data-cardid="'+id+'" data-side="'+rSide+'" data-lang="'+rLang+'" onclick="pbSpeakCard(\''+id+'\',\''+rSide+'\',this)" title="Listen">'+PB_ICON_TTS+'</button>'
+      +'</div>'
+    +'</div>'
+
+    // Row 2: Back-translate (always visible)
+    +'<div style="padding:8px 12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;background:rgba(248,250,252,.3);">'
+      +'<div class="pd-bck" id="pb-bt-text-'+id+'">'+(backTxt?pbEsc(backTxt):'…')+'</div>'
+      +'<button type="button" class="pd-tts-btn" data-cardid="'+id+'" data-side="bck" data-lang="'+lLang+'" onclick="pbSpeakBT(\''+id+'\')" title="Listen">'+PB_ICON_TTS+'</button>'
+    +'</div>'
+
+    // Row 3: Verdict
+    +'<div style="display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid #f1f5f9;background:rgba(248,250,252,.5);" data-cardid="'+id+'">'
+      +'<input type="radio" name="v-'+id+'" id="vg-'+id+'" class="verdict-radio radio-good" value="good" '+(verdict==='good'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vg-'+id+'" class="verdict-label" style="font-size:12px;font-weight:700;cursor:pointer;">✓ Sounds Good</label>'
+      +'<input type="radio" name="v-'+id+'" id="vf-'+id+'" class="verdict-radio radio-flag" value="flag" '+(verdict==='flag'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vf-'+id+'" class="verdict-label" style="font-size:12px;font-weight:700;cursor:pointer;">⚑ Flag</label>'
+    +'</div>'
+
+    // Row 4: Footer
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid #f1f5f9;" data-cardid="'+id+'">'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="tags"'
+        +' class="pd-foot-btn'+(tagOpen?' pd-foot-active':'')+'"'
+        +' onclick="toggleDrawerEl(this)">'+ICO_HASH+'</button>'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="clarify"'
+        +' class="pd-foot-btn'+(clarifyOpen?' pd-foot-active':'')+'"'
+        +' onclick="toggleDrawerEl(this)">'+ICO_MSG+'</button>'
+      +'<button type="button" data-cardid="'+id+'"'
+        +' class="pd-foot-btn pd-foot-trash"'
+        +' onclick="softDeletePhrase(\''+id+'\')">'+ICO_TRASH+'</button>'
+    +'</div>'
+
+    // Tag drawer
+    +'<div id="pbtags-'+id+'" class="pd-drawer'+(tagOpen?'':' hidden')+'">'
+      +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;" id="pb-tc-'+id+'">'+tagsHtml+'</div>'
+      +'<div style="position:relative;">'
+        +'<input type="text" autocomplete="off" id="pb-ti-'+id+'" data-cardid="'+id+'"'
+          +' class="pd-tag-inp" placeholder="Type tag + Enter to add"'
+          +' oninput="onTagInput(this)"'
+          +' onkeydown="onTagKeydown(event,this)" onkeyup="onTagKeyup(event,this)">'
+        +'<button type="button" data-cardid="'+id+'"'
+          +' class="pd-tag-x-btn"'
+          +' onmousedown="event.preventDefault()"'
+          +' onclick="clearTagInput(\''+id+'\')">×</button>'
+      +'</div>'
+      +'<div id="pb-ts-'+id+'" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>'
+    +'</div>'
+
+    // Clarify drawer
+    +'<div id="pbclarify-'+id+'" class="pd-drawer'+(clarifyOpen?'':' hidden')+'">'
+      +'<div id="pb-cc-'+id+'" style="max-height:192px;overflow-y:auto;">'+clarifyHtml+'</div>'
+      +'<input type="text" autocomplete="off" id="pb-ci-'+id+'" data-cardid="'+id+'"'
+        +' class="pd-clarify-inp" placeholder="Add note + Enter to log..."'
+        +' onkeydown="onClarifyKeydown(event,this)">'
+    +'</div>'
+
+  +'</div>';
+}
+function pbSpeakBT(id){var card=pbGetCardById(id);if(!card||!card.backtranslate||!card.backtranslate.resultText)return;speakText(card.backtranslate.resultText,card.sourceLang||'en');}
+
+/* Override pbTogTags and pbTogClarify to use phrase-desk class */
+var _origTogTags=pbTogTags;pbTogTags=function(id){
+  var cs=_pbCS(id);cs.tagsOpen=!cs.tagsOpen;
+  var el=document.getElementById('pbtags-'+id);if(el)el.classList.toggle('hidden',!cs.tagsOpen);
+  var btn=document.querySelector('[data-cardid="'+id+'"][data-drawer="tags"]');if(btn)btn.classList.toggle('pd-foot-active',cs.tagsOpen);
+};
+var _origTogClarify=pbTogClarify;pbTogClarify=function(id){
+  var cs=_pbCS(id);cs.clarifyOpen=!cs.clarifyOpen;
+  var el=document.getElementById('pbclarify-'+id);if(el)el.classList.toggle('hidden',!cs.clarifyOpen);
+  var btn=document.querySelector('[data-cardid="'+id+'"][data-drawer="clarify"]');if(btn)btn.classList.toggle('pd-foot-active',cs.clarifyOpen);
+};
+
+/* ═══ SYNC ═══ */
+var _pbSyncState={status:'idle',pairFile:null,version:null,dirty:false};
+function _pbSyncDot(s){var d=document.getElementById('pb-ov-sync-dot');if(d)d.style.background={idle:'#9a9592',pulling:'#3498db',writing:'#e67e22',error:'#e74c3c',ok:'#2ecc71'}[s]||'#9a9592';_pbSyncState.status=s;}
+function _pbSyncLangs(){var m={zh:'cn',ko:'kr',vi:'vn'};return{src:m[room.myLang]||room.myLang||'en',tgt:m[room.theirLang]||room.theirLang||'th'};}
+function pbOvUpdatePairLabel(){var el=document.getElementById('pb-ov-pair-label');if(!el)return;var sf=pbLangFlag(room.myLang||'en');var tf=pbLangFlag(room.theirLang||'th');el.textContent=sf+' \u2192 '+tf+(_pbSyncState.pairFile?' \xb7 '+_pbSyncState.pairFile.replace('.json',''):'');var fn=document.getElementById('pb-ov-fn');if(fn)fn.textContent=_pbSyncState.pairFile||'no file loaded';}
+async function pbSyncPullLatest(){
+  if(!room.myLang||!room.theirLang)return;
+  var pat=localStorage.getItem('tb_gh_pat');var t=_pbSyncLangs();_pbSyncDot('pulling');
+  try{
+    var h={'Accept':'application/vnd.github.v3+json'};if(pat)h['Authorization']='Bearer '+pat;
+    var r=await fetch('https://api.github.com/repos/acmeproducts/stuff/contents/phrasebook/',{headers:h});
+    if(!r.ok)throw new Error('list '+r.status);
+    var files=await r.json();
+    var pre='phrasebook-'+t.src+'-'+t.tgt+'-';
+    var matches=files.filter(function(f){return f.name.indexOf(pre)===0&&f.name.slice(-5)==='.json';});
+    if(!matches.length){pre='phrasebook-'+t.tgt+'-'+t.src+'-';matches=files.filter(function(f){return f.name.indexOf(pre)===0&&f.name.slice(-5)==='.json';});}
+    if(!matches.length){_pbSyncDot('idle');toast('No shared phrasebook yet');return;}
+    var best=matches.reduce(function(a,b){var va=parseInt((a.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;var vb=parseInt((b.name.match(/(\d+)\.json$/)||[0,0])[1],10)||0;return va>=vb?a:b;});
+    _pbSyncState.pairFile=best.name;_pbSyncState.version=parseInt((best.name.match(/(\d+)\.json$/)||[0,0])[1],10)||1000;
+    var r2=await fetch('https://raw.githubusercontent.com/acmeproducts/stuff/main/phrasebook/'+best.name,{cache:'no-store'});
+    if(!r2.ok)throw new Error('fetch '+r2.status);
+    var data=await r2.json();var incoming=Array.isArray(data.cards)?data.cards:[];
+    var local=pbGetAllCards();var byId={};local.forEach(function(c){byId[c.id]=c;});
+    incoming.forEach(function(ic){var nc=pbNorm(ic);if(byId[nc.id]){if((nc.updatedAt||0)>(byId[nc.id].updatedAt||0))byId[nc.id]=nc;}else{byId[nc.id]=nc;}});
+    pbSaveCards(Object.values(byId));_pbSyncState.dirty=false;_pbSyncDot('ok');log('pb_sync_pull_ok',{file:best.name},'ok');setTimeout(function(){_pbSyncDot('idle');},2000);pbRenderOverlay();pbOvUpdatePairLabel();
+  }catch(e){_pbSyncDot('error');log('pb_sync_pull_err',{e:String(e)},'error');toast('PB: '+e.message);setTimeout(function(){_pbSyncDot('idle');},3000);}
+}
+async function pbSyncWriteBack(){
+  if(!_pbSyncState.dirty){log('pb_sync_skipped_no_changes',{},'ok');return;}
+  var pat=localStorage.getItem('tb_gh_pat');if(!pat){log('pb_sync_no_pat',{},'warn');return;}
+  var t=_pbSyncLangs();var nv=(_pbSyncState.version||1000)+1;var nf='phrasebook-'+t.src+'-'+t.tgt+'-'+nv+'.json';
+  _pbSyncDot('writing');
+  try{
+    var content=btoa(unescape(encodeURIComponent(JSON.stringify({version:nv,src:t.src,tgt:t.tgt,exportedAt:pbNow(),cards:pbGetAllCards()},null,2))));
+    var r=await fetch('https://api.github.com/repos/acmeproducts/stuff/contents/phrasebook/'+nf,{method:'PUT',headers:{'Authorization':'Bearer '+pat,'Content-Type':'application/json','Accept':'application/vnd.github.v3+json'},body:JSON.stringify({message:'TB PB '+nf,content:content})});
+    if(!r.ok){var e=await r.json();throw new Error(e.message||'HTTP '+r.status);}
+    _pbSyncState.version=nv;_pbSyncState.pairFile=nf;_pbSyncState.dirty=false;_pbSyncDot('ok');log('pb_sync_write_ok',{file:nf},'ok');setTimeout(function(){_pbSyncDot('idle');},2000);pbOvUpdatePairLabel();
+  }catch(e){_pbSyncDot('error');log('pb_sync_write_err',{e:String(e)},'error');toast('PB save: '+e.message);setTimeout(function(){_pbSyncDot('idle');},3000);}
+}
+function pbAddCard(opts){
+  opts=opts||{};var src=(opts.source||'').trim();var tgt=(opts.target||'').trim();
+  if(src){var dup=pbGetCards().find(function(c){return(c.source||'').trim().toLowerCase()===src.toLowerCase();});if(dup){toast('Phrase already saved');pbOpenOverlay();return;}}
+  var now=Date.now();var ts=new Date(now).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  var card=pbNorm({id:'c-'+_uid(),source:src,target:tgt,sourceLang:opts.sourceLang||room.myLang||'en',targetLang:opts.targetLang||room.theirLang||'th',createdAt:now,updatedAt:now,createdBy:'tb',clarifyChain:[{ini:'TB',ts:ts,txt:'Created'}]});
+  pbSaveCard(card);_pbSyncState.dirty=true;pbOpenOverlay();pbRenderOverlay();
+  setTimeout(function(){var el=document.getElementById('pbsrc-'+card.id);if(el){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});}},60);
+  if(src&&!tgt){translateWithRetry(src,card.sourceLang,card.targetLang,1).then(function(t){if(!t)return;card.target=t;card.updatedAt=Date.now();pbSaveCard(card);_pbSyncState.dirty=true;var te=document.getElementById('pb'+(card.sourceLang===room.myLang?'tgt':'src')+'-'+card.id);if(te)te.textContent=t;var cs=_pbCS(card.id);if(!cs.btOpen){cs.btOpen=true;}pbRunBT(card.id);});}
+}
+
 </script>
 </body>
 </html>
