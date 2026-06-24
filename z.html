@@ -16,6 +16,9 @@
   .rendered-output {background:#fff; border:1px solid #ddd; border-radius:6px; padding:1rem; overflow:auto;}
   .rendered-output pre {white-space:pre-wrap; margin:0;}
   .rendered-output blockquote {border-left:4px solid #ddd; color:#555; margin-left:0; padding-left:1rem;}
+  .rendered-output table {margin:1rem 0; table-layout:auto;}
+  .rendered-output th {background:#f6f8fa; color:#24292f;}
+  .rendered-output ul, .rendered-output ol {padding-left:1.5rem;}
   .html-frame {width:100%; min-height:20rem; border:1px solid #ddd; border-radius:6px; background:#fff;}
   #sessionToggle {display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0; cursor:pointer; user-select:none;}
   #sessionChevron {display:inline-block; transition:transform 0.15s ease;}
@@ -130,10 +133,50 @@ function renderInlineMarkdown(text) {
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
+function splitMarkdownTableRow(line) {
+  const trimmed = line.trim().replace(/^\||\|$/g, '');
+  return trimmed.split('|').map(cell => cell.trim());
+}
+
+function isMarkdownTableDivider(line) {
+  const cells = splitMarkdownTableRow(line);
+  return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+}
+
+function renderMarkdownTable(lines, startIndex) {
+  if (startIndex + 1 >= lines.length || !isMarkdownTableDivider(lines[startIndex + 1])) {
+    return null;
+  }
+
+  const headers = splitMarkdownTableRow(lines[startIndex]);
+  let index = startIndex + 2;
+  const rows = [];
+  while (index < lines.length && /\|/.test(lines[index].trim())) {
+    rows.push(splitMarkdownTableRow(lines[index]));
+    index += 1;
+  }
+
+  let html = '<table><thead><tr>';
+  headers.forEach(header => {
+    html += `<th>${renderInlineMarkdown(header)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += '<tr>';
+    headers.forEach((_, cellIndex) => {
+      html += `<td>${renderInlineMarkdown(row[cellIndex] || '')}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  return { html, nextIndex: index };
+}
+
 function renderMarkdown(text) {
   const lines = text.split(/\r?\n/);
   let html = '';
-  let inList = false;
+  let listType = null;
   let inCode = false;
   let paragraph = [];
 
@@ -144,29 +187,53 @@ function renderMarkdown(text) {
   }
 
   function closeList() {
-    if (!inList) return;
-    html += '</ul>';
-    inList = false;
+    if (!listType) return;
+    html += `</${listType}>`;
+    listType = null;
   }
 
-  lines.forEach(line => {
+  function openList(type) {
+    if (listType === type) return;
+    closeList();
+    html += `<${type}>`;
+    listType = type;
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     if (/^```/.test(line.trim())) {
       flushParagraph();
       closeList();
       html += inCode ? '</code></pre>' : '<pre><code>';
       inCode = !inCode;
-      return;
+      continue;
     }
 
     if (inCode) {
       html += `${escapeHtml(line)}\n`;
-      return;
+      continue;
+    }
+
+    const table = /\|/.test(line.trim()) ? renderMarkdownTable(lines, index) : null;
+    if (table) {
+      flushParagraph();
+      closeList();
+      html += table.html;
+      index = table.nextIndex - 1;
+      continue;
     }
 
     if (!line.trim()) {
       flushParagraph();
       closeList();
-      return;
+      continue;
+    }
+
+    if (/^\s{0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushParagraph();
+      closeList();
+      html += '<hr>';
+      continue;
     }
 
     const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+)$/);
@@ -175,18 +242,15 @@ function renderMarkdown(text) {
       closeList();
       const level = heading[1].length;
       html += `<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`;
-      return;
+      continue;
     }
 
-    const listItem = line.match(/^\s{0,3}[-*+]\s+(.+)$/);
+    const listItem = line.match(/^\s{0,3}([-*+]|\d+\.)\s+(.+)$/);
     if (listItem) {
       flushParagraph();
-      if (!inList) {
-        html += '<ul>';
-        inList = true;
-      }
-      html += `<li>${renderInlineMarkdown(listItem[1])}</li>`;
-      return;
+      openList(/\d+\./.test(listItem[1]) ? 'ol' : 'ul');
+      html += `<li>${renderInlineMarkdown(listItem[2])}</li>`;
+      continue;
     }
 
     const quote = line.match(/^\s{0,3}>\s?(.*)$/);
@@ -194,11 +258,11 @@ function renderMarkdown(text) {
       flushParagraph();
       closeList();
       html += `<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`;
-      return;
+      continue;
     }
 
     paragraph.push(line.trim());
-  });
+  }
 
   flushParagraph();
   closeList();
