@@ -3550,33 +3550,16 @@ function pbAddCard(opts){
   setTimeout(function(){var el=document.getElementById('pbsrc-'+card.id);if(el){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});}},60);
   if(src&&!tgt){translateWithRetry(src,card.sourceLang,card.targetLang,1).then(function(t){if(!t)return;card.target=t;card.updatedAt=Date.now();pbSaveCard(card);var te=document.getElementById('pbtgt-'+card.id);if(te)te.textContent=t;var cs=_pbCS(card.id);if(!cs.btOpen){cs.btOpen=true;pbSyncPanel('bt',card.id);}pbRunBT(card.id);});}
 }
-/* Wire pbOpenOverlay to pull PB on first open during a call */
-var _pbOverlayWired=false;
-document.addEventListener('DOMContentLoaded',function(){
-  var _origOpen=window.pbOpenOverlay;
-  if(typeof _origOpen==='function'){
-    window.pbOpenOverlay=function(){
-      _origOpen.apply(this,arguments);
-      if(!_pbSyncState.pairFile&&room&&room.myLang&&room.theirLang)pbSyncPullLatest();
-    };
+/* pbOpenOverlay: pull PB once per call session on first open */
+var _pbPulledThisSession=false;
+var _origPbOpenOverlay=pbOpenOverlay;
+pbOpenOverlay=function(){
+  _origPbOpenOverlay.apply(this,arguments);
+  if(!_pbPulledThisSession&&room&&room.myLang&&room.theirLang){
+    _pbPulledThisSession=true;pbSyncPullLatest();
   }
-  /* Wire hangUp write-back safely */
-  var _origHangUp=window.hangUp;
-  if(typeof _origHangUp==='function'){
-    window.hangUp=function(){
-      if(_pbSyncState&&_pbSyncState.dirty)pbSyncWriteBack();
-      _origHangUp.apply(this,arguments);
-    };
-  }
-  /* Wire pbCloseOverlay write-back safely */
-  var _origClose=window.pbCloseOverlay;
-  if(typeof _origClose==='function'){
-    window.pbCloseOverlay=function(){
-      if(_pbSyncState&&_pbSyncState.dirty)pbSyncWriteBack();
-      _origClose.apply(this,arguments);
-    };
-  }
-});
+  pbOvUpdatePairLabel();
+};
 
 </script>
 </body>
