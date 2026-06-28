@@ -425,6 +425,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .chat-input-wrap .chat-compose-ta{width:100%;padding-right:34px;}
 .chat-input-wrap .chat-search-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tb-on-surface-muted);padding:4px;line-height:0;display:flex;align-items:center;justify-content:center;border-radius:50%;}
 .chat-input-wrap .chat-search-x:hover{color:var(--tb-on-surface);}
+
+.pbx-strip{border-bottom:1px solid var(--tb-border-light);padding:8px 12px;}
+.pbx-strip-cols{display:flex;gap:12px;}
+.pbx-strip-col{flex:1;min-width:0;}
+.pbx-strip-txt{color:var(--tb-on-surface);font-size:var(--tb-fs-base);cursor:pointer;line-height:1.4;}
+.pbx-strip-actions{display:flex;gap:8px;margin-top:4px;}
+.pbx-strip-bt{display:flex;align-items:center;gap:6px;color:var(--tb-on-surface-dim);font-size:var(--tb-fs-sm);margin-top:6px;}
+.pbx-ibtn{background:none;border:none;cursor:pointer;color:var(--tb-accent);padding:2px;line-height:0;}
+.pbx-empty{padding:24px;text-align:center;color:var(--tb-on-surface-muted);font-size:var(--tb-fs-base);}
+.pbx-hl{background:var(--pb-strip-match-hl);border-radius:2px;}
 </style>
 </head>
 <body>
@@ -1312,6 +1322,214 @@ var _attCache={}; // entryId -> {name,dataUrl,type}
 var _btCache={};  // cardId -> {text,lang}
 function pbEsc(s){var d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
 function pbLangFlag(c){var l=LANGS.find(function(x){return x.code===c;});return l?l.flag:'🌐';}
+
+
+/* ============================================================
+   PBX — New PB Subsystem (independent; built beside old pb*).
+   Phase A: DATA + QUERY. Logging only. Nothing wired to UI yet.
+   ============================================================ */
+var PBX=(function(){
+  var KEY='say_cards';
+  var LANGNORM={cn:'zh',kr:'ko',vn:'vi'};
+  function _now(){return Date.now();}
+  function _log(ev,d,l){try{log('pbx_'+ev,d||{},l||'info');}catch(e){}}
+
+  /* ---- DATA ---- */
+  function norm(c){
+    c=c||{};
+    var sl=LANGNORM[c.sourceLang]||c.sourceLang||'en';
+    var tl=LANGNORM[c.targetLang]||c.targetLang||'en';
+    var bt=c.backtranslate||{};
+    return {
+      id:c.id||(Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
+      sourceLang:sl,targetLang:tl,
+      source:(c.source||'').trim(),target:(c.target||'').trim(),
+      category:c.category||'uncategorized',
+      tags:Array.isArray(c.tags)?c.tags.filter(Boolean):[],
+      backtranslate:{sourceLang:bt.sourceLang||tl,targetLang:bt.targetLang||sl,inputText:bt.inputText||c.target||'',resultText:bt.resultText||'',verdict:bt.verdict||'pending',contentHash:bt.contentHash||'',updatedAt:bt.updatedAt||_now()},
+      clarifyChain:Array.isArray(c.clarifyChain)?c.clarifyChain:[],
+      author:c.author||'TB',createdBy:c.createdBy||'TB',updatedBy:c.updatedBy||'TB',
+      deletedAt:c.deletedAt||null,createdAt:c.createdAt||_now(),updatedAt:c.updatedAt||_now(),
+      lastUsed:c.lastUsed||null,usageCount:typeof c.usageCount==='number'?c.usageCount:0
+    };
+  }
+  function getAll(){
+    var raw=[];
+    try{raw=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){_log('data_err',{op:'getAll',e:String(e)},'warn');return[];}
+    var out=raw.map(norm);
+    _log('data_getall',{in:raw.length,out:out.length});
+    return out;
+  }
+  function getLive(){
+    var all=getAll();var live=all.filter(function(c){return !c.deletedAt;});
+    _log('data_getlive',{in:all.length,out:live.length});
+    return live;
+  }
+  function save(cards){
+    try{localStorage.setItem(KEY,JSON.stringify(cards));_log('data_save',{in:cards.length});}
+    catch(e){_log('data_err',{op:'save',e:String(e)},'warn');}
+  }
+  function byId(id){var c=getAll().filter(function(x){return x.id===id;});return c[0]||null;}
+
+  /* ---- QUERY (the one engine for strip + overlay) ---- */
+  function _blob(c){
+    return ((c.source||'')+' '+(c.target||'')+' '+(c.backtranslate&&c.backtranslate.resultText||'')+' '+
+      (c.tags||[]).join(' ')+' '+(c.clarifyChain||[]).map(function(e){return e.txt||'';}).join(' ')).toLowerCase();
+  }
+  function _match(c,terms){
+    var b=_blob(c);
+    for(var i=0;i<terms.length;i++){
+      var t=terms[i];
+      if(t.charAt(0)==='-'){if(b.indexOf(t.slice(1))>=0)return false;}
+      else{if(b.indexOf(t)<0)return false;}
+    }
+    return true;
+  }
+  function _pairKey(c){return (c.sourceLang||'?')+'|'+(c.targetLang||'?');}
+  function _pairFacets(cards){
+    var f={};
+    cards.forEach(function(c){
+      var k=_pairKey(c);var kr=(c.targetLang||'?')+'|'+(c.sourceLang||'?');
+      var key=f[kr]?kr:k;f[key]=(f[key]||0)+1;
+    });
+    return Object.keys(f).map(function(k){return {pair:k,n:f[k]};});
+  }
+  function query(text,filter){
+    var t0=_now();
+    var cards=getLive();
+    var pairs=_pairFacets(cards);
+    if(filter&&filter!=='all'&&filter.indexOf('|')>=0){
+      var p=filter.split('|');
+      cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
+    }
+    var q=(text||'').toLowerCase().trim();
+    if(q){
+      var terms=q.split(/\s+/).filter(Boolean);
+      cards=cards.filter(function(c){return _match(c,terms);});
+    }
+    var res={cards:cards,total:cards.length,pairs:pairs};
+    _log('query',{in:text||'',filter:filter||'all',out:res.total,pairs:pairs.map(function(x){return x.pair+':'+x.n;}).join(','),ms:_now()-t0});
+    return res;
+  }
+
+  /* ---- SELF-TEST ---- */
+  function selftest(){
+    var ok=true,detail=[];
+    try{var a=getAll();if(!Array.isArray(a)){ok=false;detail.push('getAll!array');}}catch(e){ok=false;detail.push('getAll throw');}
+    try{var n=norm({});if(!n.id||!n.backtranslate||n.usageCount!==0){ok=false;detail.push('norm shape');}}catch(e){ok=false;detail.push('norm throw');}
+    try{var live=getLive().length;var qt=query('','all').total;if(qt!==live){ok=false;detail.push('query!=live '+qt+'/'+live);}}catch(e){ok=false;detail.push('query throw');}
+    try{var sample=getLive()[0]||norm({source:'x',target:'y'});var el=renderStrip(sample,{});if(!el||el.nodeType!==1){ok=false;detail.push('renderStrip!el');}}catch(e){ok=false;detail.push('renderStrip throw '+e);}
+    _log('selftest',{module:'DATA+QUERY+CARD+VIEW',result:ok?'PASS':'FAIL',detail:detail.join(';')},ok?'info':'warn');
+    return ok;
+  }
+
+
+  /* ---- CARD (pure renderers: card -> DOM element) ---- */
+  function _icon(name){
+    var I={
+      tts:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>',
+      send:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'
+    };
+    return I[name]||'';
+  }
+  function _hl(text,terms){
+    if(!terms||!terms.length)return _esc(text);
+    var out=_esc(text);
+    terms.forEach(function(t){
+      if(t.charAt(0)==='-'||!t)return;
+      try{out=out.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark class="pbx-hl">$1</mark>');}catch(e){}
+    });
+    return out;
+  }
+  function _esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  // renderStrip(card, ctx) -> compact element. ctx={myLang, terms}
+  function renderStrip(card,ctx){
+    ctx=ctx||{};
+    var el=document.createElement('div');el.className='pbx-strip';el.setAttribute('data-id',card.id);
+    function side(label,text,lang,which){
+      var col=document.createElement('div');col.className='pbx-strip-col';
+      var txt=document.createElement('div');txt.className='pbx-strip-txt';txt.innerHTML=_hl(text,ctx.terms);
+      txt.addEventListener('click',function(){_useFill(card.id,which);});
+      var row=document.createElement('div');row.className='pbx-strip-actions';
+      var tts=document.createElement('button');tts.className='pbx-ibtn';tts.innerHTML=_icon('tts');
+      tts.addEventListener('click',function(e){e.stopPropagation();_speak(text,lang);});
+      var snd=document.createElement('button');snd.className='pbx-ibtn';snd.innerHTML=_icon('send');
+      snd.addEventListener('click',function(e){e.stopPropagation();_useSend(card.id,which);});
+      row.appendChild(tts);row.appendChild(snd);
+      col.appendChild(txt);col.appendChild(row);
+      return col;
+    }
+    var wrap=document.createElement('div');wrap.className='pbx-strip-cols';
+    wrap.appendChild(side('src',card.source,card.sourceLang,'src'));
+    wrap.appendChild(side('tgt',card.target,card.targetLang,'tgt'));
+    el.appendChild(wrap);
+    if(card.backtranslate&&card.backtranslate.resultText){
+      var bt=document.createElement('div');bt.className='pbx-strip-bt';
+      var btx=document.createElement('span');btx.textContent=card.backtranslate.resultText;
+      var btt=document.createElement('button');btt.className='pbx-ibtn';btt.innerHTML=_icon('tts');
+      btt.addEventListener('click',function(){_speak(card.backtranslate.resultText,card.sourceLang);});
+      bt.appendChild(btx);bt.appendChild(btt);el.appendChild(bt);
+    }
+    return el;
+  }
+
+  // helpers route through EXISTING frozen chat path
+  function _useFill(id,side){try{if(typeof pbUseText==='function'){pbUseText(id,side);}}catch(e){_log('card_err',{op:'useFill',e:String(e)},'warn');}}
+  function _useSend(id,side){
+    try{
+      var c=byId(id);if(!c)return;
+      var text=side==='src'?c.source:c.target;
+      var ta=document.getElementById('chat-input');
+      if(ta){ta.value=text;ta.dispatchEvent(new Event('input'));}
+      if(typeof sendChat==='function')sendChat();
+      _log('card_send',{id:id,side:side});
+    }catch(e){_log('card_err',{op:'useSend',e:String(e)},'warn');}
+  }
+  function _speak(text,lang){try{if(typeof speakText==='function')speakText(text,lang);}catch(e){_log('card_err',{op:'speak',e:String(e)},'warn');}}
+
+  /* ---- VIEW (surfaces call query+card). NOT wired until switchover. ---- */
+  function inlineSearch(text){
+    var panel=document.getElementById('pb-inline-panel');
+    var terms=(text||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    var r=query(text,_viewFilter);
+    _log('view_inline',{in:text||'',out:r.total});
+    if(!panel)return r;
+    panel.innerHTML='';
+    if(!r.total){var e=document.createElement('div');e.className='pbx-empty';e.textContent='No phrases found.';panel.appendChild(e);return r;}
+    r.cards.slice(0,30).forEach(function(c){panel.appendChild(renderStrip(c,{myLang:(window.room&&window.room.myLang)||'en',terms:terms}));});
+    return r;
+  }
+  var _viewFilter='all';
+  function setFilter(f){_viewFilter=f;_log('view_filter',{filter:f});}
+  function overlayRender(){
+    var host=document.getElementById('pb-ov-cards');
+    var fhost=document.getElementById('pb-ov-filter');
+    var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
+    var r=query(q,_viewFilter);
+    _log('view_overlay',{in:q,filter:_viewFilter,out:r.total,pairs:r.pairs.map(function(x){return x.pair+':'+x.n;}).join(',')});
+    if(fhost){
+      var fh='<button class="pb-fc'+(_viewFilter==='all'?' act':'')+'" onclick="PBX.setFilter(\'all\');PBX.overlayRender()">All ('+getLive().length+')</button>';
+      r.pairs.forEach(function(p){
+        var pp=p.pair.split('|');
+        fh+='<button class="pb-fc'+(_viewFilter===p.pair?' act':'')+'" onclick="PBX.setFilter(\''+p.pair+'\');PBX.overlayRender()">'+pp[0].toUpperCase()+' \u2192 '+pp[1].toUpperCase()+' ('+p.n+')</button>';
+      });
+      fhost.innerHTML=fh;
+    }
+    if(host){
+      host.innerHTML='';
+      if(!r.total){var e=document.createElement('div');e.className='pbx-empty';e.textContent='No phrases found.';host.appendChild(e);return r;}
+      var terms=q.toLowerCase().split(/\s+/).filter(Boolean);
+      r.cards.forEach(function(c){host.appendChild(renderStrip(c,{myLang:(window.room&&window.room.myLang)||'en',terms:terms}));});
+    }
+    return r;
+  }
+
+
+  return {norm:norm,getAll:getAll,getLive:getLive,save:save,byId:byId,query:query,renderStrip:renderStrip,inlineSearch:inlineSearch,overlayRender:overlayRender,setFilter:setFilter,selftest:selftest,_ready:false};
+})();
+/* run PBX self-tests on load (Phase A: 1 of 4 module groups) */
+try{PBX._ready=PBX.selftest();log('pbx_ready',{phase:'B',modules:PBX._ready?'PASS':'FAIL'});}catch(e){}
 
 function pbNow(){return Date.now();}
 
