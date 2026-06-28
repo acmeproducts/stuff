@@ -446,6 +446,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-strip-btn{color:var(--text-dim);transition:color .12s,border-color .12s;}
 .pb-strip-btn:hover{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
 .pb-strip-btn.active{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
+
+.chat-input-wrap{position:relative;flex:1;display:flex;align-items:center;}
+.chat-input-wrap .chat-compose-ta{width:100%;padding-right:34px;}
+.chat-input-wrap .chat-search-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tb-on-surface-muted);padding:4px;line-height:0;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.chat-input-wrap .chat-search-x:hover{color:var(--tb-on-surface);}
 </style>
 </head>
 <body>
@@ -601,8 +606,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   <div class="chat-compose-strip" id="chat-compose-strip">
     <input type="file" id="chat-file-input" accept=".pdf,.html,.txt,text/*,application/pdf" style="display:none" onchange="handleChatFile(event)">
     <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
-    <textarea class="chat-compose-ta" id="chat-input" placeholder="Enter chat or /Search" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)"></textarea>
-    <button class="chat-search-x" id="chat-search-x" style="display:none;" onclick="pbSearchExit()" title="Exit search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="chat-input-wrap" id="chat-input-wrap">
+      <textarea class="chat-compose-ta" id="chat-input" placeholder="Enter chat or /Search" rows="1" oninput="chatInputEvt()" onkeydown="chatKeydown(event)"></textarea>
+      <button class="chat-search-x" id="chat-search-x" style="display:none;" onclick="pbSearchExit()" title="Clear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()" disabled title="Send">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </button>
@@ -1041,9 +1048,9 @@ var _pbICards=[];
 function pbISearch(q){
   var panel=$('pb-inline-panel');if(!panel)return;
   var cards=pbGetCards();
-  if(_pbFilter!=='all'&&_pbFilter.indexOf('cat:')===0){
-    var _catId=_pbFilter.slice(4);
-    cards=cards.filter(function(c){return(c.catalogIds||[]).indexOf(_catId)>=0;});
+  if(_pbFilter!=='all'&&_pbFilter.indexOf('|')>=0){
+    var _p=_pbFilter.split('|');
+    cards=cards.filter(function(c){return (c.sourceLang===_p[0]&&c.targetLang===_p[1])||(c.sourceLang===_p[1]&&c.targetLang===_p[0]);});
   }
   var qLow=(q||'').toLowerCase().trim();
   if(qLow){
@@ -1153,7 +1160,8 @@ function chatInputEvt(){
   ta.style.height=Math.min(ta.scrollHeight,80)+'px';
   $('chat-send-btn').disabled=!raw.trim();
   var inSearch=raw.length>=2&&raw[0]==='/'&&raw!=='//';
-  var xBtn=$('chat-search-x');if(xBtn)xBtn.style.display=inSearch?'':'none';
+  /* PRE-SHIP DF-3: x shows whenever there is ANY content to clear */
+  var xBtn=$('chat-search-x');if(xBtn)xBtn.style.display=raw.length>0?'flex':'none';
   if(raw==='//'){pbIClose();pbOpenCmdDrawer();return;}
   if(inSearch){pbISearch(raw.slice(1));return;}
   pbIClose();
@@ -1927,23 +1935,25 @@ function pbCloseOverlay(){
 function pbSetFilter(f){_pbFilter=f;pbRenderOverlayFilter();pbRenderOverlay();}
 function pbRenderOverlayFilter(){
   var host=document.getElementById('pb-ov-filter');if(!host)return;
-  var cats=pbGetCats();
-  if(!cats.length){_pbFilter='all';host.innerHTML='';return;}
-  /* PRE-SHIP: do not force-select first category (old auto-seed tagging removed);
-     default 'all' so stored cards always display. Category model rebuilt in ship. */
-  if(_pbFilter!=='all'&&!cats.some(function(c){return _pbFilter==='cat:'+c.id;})){
-    _pbFilter='all';
-  }
+  /* PRE-SHIP DF-1/DF-2: derive pairs from actual cards, not stale say_catalogs.
+     Count is real; chip filters by language pair and works. */
+  var cards=pbGetCards();
+  var pairs={};
+  cards.forEach(function(c){
+    var k=(c.sourceLang||'?')+'|'+(c.targetLang||'?');
+    var kr=(c.targetLang||'?')+'|'+(c.sourceLang||'?');
+    var key=pairs[kr]?kr:k;
+    pairs[key]=(pairs[key]||0)+1;
+  });
+  var keys=Object.keys(pairs);
+  if(!keys.length){_pbFilter='all';host.innerHTML='';return;}
+  if(_pbFilter!=='all'&&keys.indexOf(_pbFilter)<0)_pbFilter='all';
   var html='';
-  cats.forEach(function(cat){
-    var k='cat:'+cat.id;
-    var lp=pbCatLangPair(cat);
-    var sf=pbLangFlag(lp.src);var tf=pbLangFlag(lp.tgt);
-    var n=pbGetCards().filter(function(c){return(c.catalogIds||[]).indexOf(cat.id)>=0;}).length;
-    var label=sf+' '+lp.src.toUpperCase()+' → '+tf+' '+lp.tgt.toUpperCase()+' ('+n+')';
-    html+='<span class="pb-fc-wrap">'
-      +'<button class="pb-fc'+(_pbFilter===k?' act':'')+'" onclick="pbSetFilter(\''+pbEsc(k)+'\')">'+pbEsc(label)+'</button>'
-      +'</span>';
+  html+='<button class="pb-fc'+(_pbFilter==='all'?' act':'')+'" onclick="pbSetFilter(\'all\')">All ('+cards.length+')</button>';
+  keys.forEach(function(k){
+    var p=k.split('|');
+    var label=pbLangFlag(p[0])+' '+p[0].toUpperCase()+' → '+pbLangFlag(p[1])+' '+p[1].toUpperCase()+' ('+pairs[k]+')';
+    html+='<button class="pb-fc'+(_pbFilter===k?' act':'')+'" onclick="pbSetFilter(\''+pbEsc(k)+'\')">'+pbEsc(label)+'</button>';
   });
   host.innerHTML=html;
 }
@@ -1951,19 +1961,16 @@ function pbRenderOverlayFilter(){
 
 function pbRenderOverlay(){
   var host=document.getElementById('pb-ov-cards');if(!host)return;
-  var cats=pbGetCats();
   var allCards=pbGetAllCards();
   var trashedCards=allCards.filter(function(c){return c.deletedAt;});
-  if(!cats.length&&!trashedCards.length){
-    host.innerHTML='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.<br>Tap ↑ to import a file or ↓ to download from the library.</div>';
+  var liveCount=allCards.filter(function(c){return !c.deletedAt;}).length;
+  if(!liveCount&&!trashedCards.length){
+    host.innerHTML='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:var(--tb-on-surface-muted);font-size:14px;line-height:1.6;">No phrases yet.</div>';
     return;
   }
   var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
   var cards=pbGetCards();
-  if(_pbFilter.indexOf('cat:')===0){
-    var catId=_pbFilter.slice(4);
-    cards=cards.filter(function(c){return (c.catalogIds||[]).indexOf(catId)>=0;});
-  }else if(_pbFilter!=='all'){
+  if(_pbFilter!=='all'&&_pbFilter.indexOf('|')>=0){
     var p=_pbFilter.split('|');
     cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
   }
