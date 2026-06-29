@@ -1529,7 +1529,13 @@ var PBX=(function(){
   return {norm:norm,getAll:getAll,getLive:getLive,save:save,byId:byId,query:query,renderStrip:renderStrip,inlineSearch:inlineSearch,overlayRender:overlayRender,setFilter:setFilter,selftest:selftest,_ready:false};
 })();
 /* run PBX self-tests on load (Phase A: 1 of 4 module groups) */
-try{PBX._ready=PBX.selftest();log('pbx_ready',{phase:'B',modules:PBX._ready?'PASS':'FAIL'});}catch(e){}
+try{
+  PBX._ready=PBX.selftest();
+  var _pbxLive=PBX.getLive().length;
+  var _pbxAll=PBX.getAll().length;
+  var _pbxQ=PBX.query('','all');
+  log('pbx_ready',{phase:'B',modules:PBX._ready?'PASS':'FAIL',cards_total:_pbxAll,cards_live:_pbxLive,query_total:_pbxQ.total,pairs:_pbxQ.pairs.map(function(x){return x.pair+':'+x.n;}).join(',')});
+}catch(e){try{log('pbx_ready',{phase:'B',modules:'FAIL',err:String(e)},'warn');}catch(_){}}
 
 function pbNow(){return Date.now();}
 
@@ -1598,7 +1604,7 @@ function pbHardDelete(id){
 function pbRestoreCard(id){
   var card=pbGetCardById(id);if(!card)return;
   card.deletedAt=null;pbSaveCard(card);
-  pbRenderOverlay();
+  PBX.overlayRender();
   toast('Phrase restored');
 }
 
@@ -2080,8 +2086,7 @@ function pbTogTrash(){
 
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
-  _pbFilter='all';
-  pbRenderOverlayFilter();pbRenderOverlay();
+  PBX.setFilter('all');PBX.overlayRender();
   setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
 function pbOpenOverlayClean(){
@@ -2091,55 +2096,11 @@ function pbOpenOverlayClean(){
 function pbCloseOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='none';
 }
-function pbSetFilter(f){_pbFilter=f;pbRenderOverlayFilter();pbRenderOverlay();}
-function pbRenderOverlayFilter(){
-  var host=document.getElementById('pb-ov-filter');if(!host)return;
-  var cards=pbGetCards();var pairs={};
-  cards.forEach(function(c){
-    var k=(c.sourceLang||'?')+'|'+(c.targetLang||'?');
-    var kr=(c.targetLang||'?')+'|'+(c.sourceLang||'?');
-    var key=pairs[kr]?kr:k;pairs[key]=(pairs[key]||0)+1;
-  });
-  var keys=Object.keys(pairs);
-  if(!keys.length){_pbFilter='all';host.innerHTML='';return;}
-  if(_pbFilter!=='all'&&keys.indexOf(_pbFilter)<0)_pbFilter='all';
-  var html='<button class="pb-fc'+(_pbFilter==='all'?' act':'')+'" onclick="pbSetFilter(\'all\')">All ('+cards.length+')</button>';
-  keys.forEach(function(k){
-    var p=k.split('|');
-    var label=pbLangFlag(p[0])+' '+p[0].toUpperCase()+' \u2192 '+pbLangFlag(p[1])+' '+p[1].toUpperCase()+' ('+pairs[k]+')';
-    html+='<button class="pb-fc'+(_pbFilter===k?' act':'')+'" onclick="pbSetFilter(\''+pbEsc(k)+'\')">'+pbEsc(label)+'</button>';
-  });
-  host.innerHTML=html;
-}
+function pbSetFilter(f){PBX.setFilter(f);PBX.overlayRender();}
 
 
-function pbRenderOverlay(){
-  var host=document.getElementById('pb-ov-cards');if(!host)return;
-  var allCards=pbGetAllCards();
-  var trashedCards=allCards.filter(function(c){return c.deletedAt;});
-  var liveCount=allCards.filter(function(c){return !c.deletedAt;}).length;
-  if(!liveCount&&!trashedCards.length){
-    host.innerHTML='<div class="pb-empty" style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.<br>Tap ↑ to import a file or ↓ to download from the library.</div>';
-    return;
-  }
-  var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
-  var cards=pbGetCards();
-  if(_pbFilter!=='all'&&_pbFilter.indexOf('|')>=0){
-    var p=_pbFilter.split('|');
-    cards=cards.filter(function(c){return (c.sourceLang===p[0]&&c.targetLang===p[1])||(c.sourceLang===p[1]&&c.targetLang===p[0]);});
-  }
-  if(q)cards=pbSearch(q,cards);
-  var html='';
-  if(!cards.length){
-    html='<div class="pb-empty" style="padding:24px;text-align:center;">No phrases found.</div>';
-  }else if(q){
-    _pbICards=cards;html=cards.map(function(c,i){return pbOvRowHtml(c,i);}).join('');
-  }else{
-    html=cards.map(function(c){return pbBubbleHtml(c,'overlay');}).join('');
-  }
-  html+=pbTrashSectionHtml(trashedCards);
-  host.innerHTML=html;
-}
+
+
 function pbTrashSectionHtml(trashedCards){
   if(!trashedCards||!trashedCards.length)return'';
   var tOpen=_pbTrashOpen;
@@ -2173,9 +2134,9 @@ function pbRenderTrashSection(){
     if(main)main.insertAdjacentHTML('beforeend',pbTrashSectionHtml(trashedCards));
   }
 }
-function pbOvSearch(){pbRenderOverlay();}
+function pbOvSearch(){PBX.overlayRender();}
 function pbOvSearchX(){var x=document.getElementById('pb-ov-search-x');if(x)x.style.display=((document.getElementById('pb-ov-search')||{}).value||'').trim()?'':'none';}
-function pbOvClearSearch(){var si=document.getElementById('pb-ov-search');if(si){si.value='';si.focus();}pbOvSearchX();pbRenderOverlay();}
+function pbOvClearSearch(){var si=document.getElementById('pb-ov-search');if(si){si.value='';si.focus();}pbOvSearchX();PBX.overlayRender();}
 
 /* ─────────────────────────────────────────────────
    IMPORT MODAL
