@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.4 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.5 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
@@ -78,7 +78,7 @@ SURFACE: none changes. CONFIG seeded with today's hardcoded values as named keys
 GATE: app runs identical to base; LOG opens; CONFIG.getAll() returns keys.
 
 ## Base — THE FLOOR (already banked; read-only input)
-bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
+bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. DORMANT-STAGE GATING PRINCIPLE: a dormant module cannot be exercised on the phone (its flag is off). Each Turn 06 stage therefore has TWO gates — a DETERMINISTIC gate (fixtures + §VI-4 report prove the dormant modules are correct in isolation) and a DEVICE gate (the user confirms only that the app still behaves EXACTLY like base). Active-behavior device cases (A1–G6) belong to the ACTIVATION turns (07+), not Turn 06. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
 
 ## Pre-ship — ENGINE GROUP (foundational modules, dormant)
 Deliver these nine as atomic marked blocks with the §H wrapper, all dormant:
@@ -94,7 +94,8 @@ The compose strip, its slide-up search drawer, the search query, and the row ren
 - PB-QUERY query({text,pair})→{cards,total} — ONE engine for the inline drawer AND the PB surface
 - PB-RENDER.renderRow(card)→el — the row renderer reused by the inline drawer AND the PB surface (renderCard stays in Post-ship)
 - the compose strip dual chat/search behavior + slide-up search drawer (the "/" and ".." seam): the strip is core chat; its search predicate, drawer, and results are the shared seam. Guards on Enter AND send so a predicate never reaches the transcript.
-SURFACE: none changes; all inert. GATE: create/join, transcript, enter-call/hang-up identical to base; engine group intact; the shared search, when exercised dormant-side, returns the same results to a drawer harness and a PB-surface harness (proves reuse). §VI-4 report. Bank → input to Post-ship.
+FIXTURES (authored HERE, where their modules land): the doer authors fixtures/norm.json (PB-DATA.norm), fixtures/query.json (PB-QUERY), fixtures/render.json renderRow cases (PB-RENDER.renderRow), submitted for gating review per §N before they are the gate.
+SURFACE: none changes; all inert. TWO GATES (a dormant module is NOT phone-tested — its flag is off): (1) DETERMINISTIC gate — fixtures norm.json/query.json/render.json (§N/§O) prove PB-DATA.norm, PB-QUERY.query, and PB-RENDER.renderRow produce expected output; §VI-4 report (modules present, 3 log points each, immutables intact, all use.* false). (2) DEVICE gate — the only thing the user verifies on the phone is that the app behaves EXACTLY like base (create/join, transcript, enter-call/hang-up unchanged; engine group intact). Bank → input to Post-ship.
 
 ## Post-ship — PB UI GROUP (PB-exclusive modules + surface, dormant)
 The pieces that ONLY the phrasebook uses, consuming the shared layer already delivered. Dormant, atomic/marked/§H-logged:
@@ -102,8 +103,7 @@ The pieces that ONLY the phrasebook uses, consuming the shared layer already del
 - PB-USAGE recordUse/getUsage
 - PB-RENDER.renderCard(card)→el — the full card (rows already shipped in the shared seam)
 - the PB overlay surface (ribbon, pair label, +, sync dot, close; zero-state = full cards, active search = shared rows)
-Plus author fixtures/norm.json, query.json, render.json (§N authorship rule).
-SURFACE: none changes; inert. GATE: PB overlay opens, cards show via renderCard, search reuses the shared query+row from Ship — identical to base; engine + core-UI + shared-search intact. §VI-4 report + fixtures for review. Bank → bridge-turn06-post-ship.html = all 17 modules present, dormant, behavior identical to base, with the shared search seam correctly placed for reuse. Input to Turn 07.
+SURFACE: none changes; inert. TWO GATES (dormant): (1) DETERMINISTIC — renderCard fixture (added to render.json) proves the full card; §VI-4 report. (2) DEVICE — app behaves EXACTLY like base; engine + core-UI + shared-search intact. (Fixtures norm/query/render were authored in Ship where their modules landed; Post-ship only ADDS the renderCard case.) Bank → bridge-turn06-post-ship.html = all 17 modules present, dormant, behavior identical to base, with the shared search seam correctly placed for reuse. Input to Turn 07.
 
 # TURN 07 — Shell: the five surfaces (ACTIVATION turn + new module work)
 Input: copy bridge-turn06-post-ship → bridge-turn07-pre-base. Output: bridge-turn07-post-ship.html.
@@ -216,6 +216,7 @@ A stage is not done until CC delivers ALL of:
 A stage banks only when lint+immutables+greps+audit pass AND the user marks every device row P. Then merge to main; that becomes the next input.
 
 ## §F. BUILD ORDER WITHIN A STAGE (dependency DAG — build in this order)
+NOTE: this is the WITHIN-A-STAGE order. Across Turn 06's grouped stages: Pre-ship = CONFIG→LOG→STORE→engine→NORMALIZE; Ship = ROOM→THREAD→CALL then the shared seam PB-DATA→PB-QUERY→PB-RENDER.renderRow→compose-strip; Post-ship = PB-SYNC→PB-USAGE→PB-RENDER.renderCard→PB-overlay. renderRow ships in Ship, renderCard in Post-ship.
 CONFIG → LOG → STORE → (RELAY, RTC, STT, TRANSLATE, LANGDETECT) → NORMALIZE → ROOM → THREAD → CALL → PB-DATA → PB-SYNC → PB-USAGE → PB-QUERY → PB-RENDER. Never wire a module before the modules it reads from exist. CONFIG and LOG exist before anything else reads or logs.
 
 ## §G. DEFINITION OF A BANKED STAGE
