@@ -1,12 +1,68 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.1 | 2026-06-29 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.2 | 2026-06-29 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
 
 **Contract rules (every module):** exposes only its listed methods; in/out fixed once frozen; every method logs `{module}_{op}{in,out}` to LOG and swallows nothing; reads only its inputs + CONFIG, never another module's internals or page globals.
 
+---
+
+# PART I — MODULE CONTRACTS (§4M) + CONFIGURATION LAYER (§4C)
+
+# 4M. MODULE ARCHITECTURE — THE ENTIRE APP (immutable in/out contracts)
+
+The whole application is modular. Not just the phrasebook — every aspect. The reason is non-negotiable: the app must become CONFIGURABLE, and it cannot be configurable until every part is a module that reads its behavior from a config layer (§4C) instead of hardcoding it. Until modularized, nothing can carry forward parameters that drive look, feel, and operation. This is the spine. Everything is built strictly against these contracts; nothing reaches into another module's internals or into globals.
+
+**Contract rules (apply to every module below):**
+- Each module exposes only its listed methods. Inputs and outputs are fixed once frozen and do not change.
+- Every public method catches all exceptions and logs `{module}_{op} {in, out}` to the debug log; nothing is swallowed silently.
+- A module never reads another module's private state or page globals — only the config layer (§4C) and the explicit inputs it's handed.
+- Modules are built beside existing code, proven in isolation, switched in one surface at a time after device confirmation. Never grep-replace live.
+
+**4M.1 CONFIG** — owns all configurable parameters; every other module reads from it.
+- get(key) → value | getAll() → object | set(key,value) (persisted) | subscribe(fn) for live re-render.
+- Owns: theme tokens (colors, spacing, radii), font size, language defaults, feature flags (e.g. room capability defaults), copy/labels, timing constants. This is what makes the app configurable and white-labelable.
+
+**4M.2 STORE** — sole owner of persistence (localStorage + relay-side state handles).
+- get(key)/set(key,value)/remove(key); namespaced. No other module touches localStorage directly.
+
+**4M.3 RELAY** — signaling transport. send(msg)/onMessage(fn)/connect()/close()/status(). (Engine; frozen functions live here.)
+
+**4M.4 RTC** — WebRTC engine + recovery state machine. start(roomCtx)/stop()/onState(fn). Invokable and tear-down-able cleanly; not entangled with page state.
+
+**4M.5 STT** — Deepgram. start()/stop()/onFinal(fn)/reconcile(reason).
+
+**4M.6 TRANSLATE** — MyMemory + retry. translate(text,src,tgt)→text | backtranslate(...)→text. One shared path for chat and call (Turn 08 depends on this).
+
+**4M.7 LANGDETECT** — fastText. detect(text)→lang. (Engine; frozen.)
+
+**4M.8 NORMALIZE** — the Z→X→Y chat rule, the single shared normalization fn for chat and call. normalize(text, userPref, partnerLang) → {display, sent}; original Z never surfaced.
+
+**4M.9 ROOM** — room lifecycle + the initiator/joiner data model. create(capability)→room | join(token)→roomView | dispose(id) | listForOwner()→rooms (owner only) | get(id). Capability fixed at creation; owner-scoped queries enforced here so a joiner can't enumerate other rooms.
+
+**4M.10 THREAD** — chat thread render + message log. render(roomId) | append(msg) | postSystem(marker). Speaker-centric display.
+
+**4M.11 CALL** — the call surface (mounts RTC+STT+TRANSLATE+PB overlay). mount(roomCtx)/unmount(); on unmount returns control to THREAD with a "call ended" marker. Present only for chat+call rooms (gated by CONFIG/ROOM capability).
+
+**4M.12 PB-DATA** — sole owner of phrasebook cards. getCards()/getLive()/byId(id)/save(cards)/norm(raw)→Card. Schema per §8.2. GH source of truth; load REPLACES cache.
+
+**4M.13 PB-SYNC** — versioned GH pull/push. pull(src,tgt)/writeBack() — highest version wins, conditional on dirty, pending/completed status.
+
+**4M.14 PB-QUERY** — search/filter. query({text,pair})→{cards,total}. One engine for inline ribbon and overlay.
+
+**4M.15 PB-RENDER** — pure card→DOM. renderRow(card) | renderCard(card). No storage, no globals.
+
+**4M.16 PB-USAGE** — usage tracking. CORE, not optional: it is the context that makes the phrasebook meaningful. recordUse(cardId) sets lastUsed + increments usage + sets updatedBy; getUsage(cardId). Usage is what ranks cards, surfaces them, and tells PB/XL teams which phrases matter for curation. A phrasebook without usage is a dead list. (Only PB Central LIVE TELEMETRY — a real-time external event pipe — is out of scope; local usage tracking on the card is core and in scope.)
+
+**4M.17 LOG** — the debug canary. log(ev,d,l) → debugLog[] → #log-body; open/copy/clear. Every module logs through this.
+
+# 4C. THE CONFIGURATION LAYER (why modularization is mandatory)
+
+Once every module reads from CONFIG (§4M.1) instead of hardcoding, the app becomes configurable end to end: theme/font/look-and-feel (Turn 12 design system + Turn 10 readability axes plug straight in), feature flags, default room capability, labels/copy for white-labeling, and operational constants — all driven by carried-forward parameters, none requiring a rebuild. This is the payoff of the module discipline and the reason it is not optional: the program cannot be made configurable until it is modularized, and it cannot scale or be white-labeled until it is configurable.
+
+---
 ---
 
 # TURN 06 — Modularize the app + complete the phrasebook
