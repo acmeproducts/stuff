@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.2 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.3 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -9,7 +9,7 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 06 → Ship → CORE UI + SHARED SEARCH SEAM.** Build ROOM, THREAD, CALL plus the shared seam (PB-DATA, PB-QUERY, PB-RENDER.renderRow, compose-strip + slide-up search drawer), all dormant, per the Turn 06 Ship section below. Nothing else. Do not start Post-ship. (Pre-ship engine group is BANKED — gated pass by the tester.) (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
+**Turn 06 → Post-ship → PB UI GROUP.** Build PB-SYNC, PB-USAGE, PB-RENDER.renderCard, and the PB overlay surface, all dormant, plus the renderCard fixture case, per the Turn 06 Post-ship section below. Input baseline: bridge-turn06-ship.html v5.6.3. Output: bridge-turn06-post-ship.html v5.6.4. (Pre-ship and Ship are BANKED — gated pass by the tester.) (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
 
 ## YOUR EXACT STEPS
 1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
@@ -39,15 +39,14 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 06 / Ship / Core UI + Shared Search Seam
-- ATTEMPT: 1
-- DISPOSITION: SUCCESS
-- OUTPUT: bridge-turn06-ship.html — 304,337 bytes, 4505 lines, v5.6.3, sha bf14bd59e10383c4d0fd2cb835c37f743c65a4f3e433aff85c93c422273c9af3
-- READY-TO-TEST REPORT: CERTIFIED — 21/21 immutables match (async-prefix method), 9 Pre-ship engine modules intact, 7 Ship modules added dormant (ROOM/THREAD/CALL/PB-DATA/PB-QUERY/PB-RENDER.renderRow/COMPOSE_SEAM), 17/17 use.* false, fixtures norm/query/render all PASS against live executed code, lint clean, single <script>, +310 lines / +13,639 bytes (additive, §L pass), version stamp v5.6.3.
-- NOTES: Input baseline confirmed 290,698 bytes / sha c490d4375fca7a97 — identical to fresh re-fetch. Size discrepancy was owner reading a stale archived artifact, resolved. PB-DATA.norm does not perform lang-pair inheritance (belongs to PB-SYNC.pull, documented in §N fixture c4).
-- NEXT STAGE: Turn 06 / Post-ship — gated on device test of this dormant build
+- STAGE: Turn 06 / Post-ship / PB UI group
+- ATTEMPT: (none yet)
+- DISPOSITION: NOT STARTED
+- READY-TO-TEST REPORT: (none yet)
+- NOTES / GAPS / EXIT REASON: (none yet)
 
 ## RUN HISTORY (append-only; newest first)
+- 2026-06-30 Turn 06 / Ship / Core UI + shared search seam — BANKED. 7 modules dormant (ROOM, THREAD, CALL, PB-DATA, PB-QUERY, PB-RENDER.renderRow, COMPOSE_SEAM), 17/17 use.* false, 21/21 immutables, fixtures pass, +310 lines additive, v5.6.3, sha bf14bd59. Deterministic gate green; device gate pass (tester).
 - 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
 
 ---
