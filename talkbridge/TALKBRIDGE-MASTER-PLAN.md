@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.3 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.4 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -9,7 +9,7 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 06 → Post-ship → PB UI GROUP.** Build PB-SYNC, PB-USAGE, PB-RENDER.renderCard, and the PB overlay surface, all dormant, plus the renderCard fixture case, per the Turn 06 Post-ship section below. Input baseline: bridge-turn06-ship.html v5.6.3. Output: bridge-turn06-post-ship.html v5.6.4. (Pre-ship and Ship are BANKED — gated pass by the tester.) (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
+**Turn 07 → Pre-ship → ENGINE ACTIVATION.** Flip on CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE one module per release (use.* true at its one call site, old path off), device-gated each. Input: copy bridge-turn06-post-ship.html → bridge-turn07-pre-base.html (then build from there). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED — gated pass by the tester.) (When this stage banks, this line is updated to the next stage; always build the stage named here.)
 
 ## YOUR EXACT STEPS
 1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
@@ -39,13 +39,14 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 06 / Post-ship / PB UI group
+- STAGE: Turn 07 / Pre-ship / Engine activation
 - ATTEMPT: (none yet)
 - DISPOSITION: NOT STARTED
 - READY-TO-TEST REPORT: (none yet)
 - NOTES / GAPS / EXIT REASON: (none yet)
 
 ## RUN HISTORY (append-only; newest first)
+- 2026-06-30 Turn 06 / Post-ship / PB UI group — BANKED. 4 dormant additions (PB-SYNC pull/writeBack/markDirty/isDirty, PB-USAGE recordUse/getUsage, PB-RENDER.renderCard, PB overlay surface markup), all 17/17 modules now present, 17/17 use.* false, 21/21 immutables untouched (enterCall confirmed pre-existing async, not newly wrapped), single <script> block, lint clean, purely additive diff vs Ship baseline (only the v5.6.3→v5.6.4 version-stamp lines changed otherwise), +274 lines, v5.6.4, sha a73aecbf. renderCard fixture (talkbridge/fixtures/render.json) verified by structural assertion: wrap id/class, 6 children, all 5 child ids and 7 drawer ids present and correctly generated. Deterministic gate green (verified independently by manager); device gate pass (tester). NOTE: the doer's first push to this plan document overwrote it to 0 bytes (destructive — file content lost, ledger included); manager detected via API readback, reverted to last-good commit by sha, then re-applied this banked entry on top of the restored document. Build artifact itself (bridge-turn06-post-ship.html) was unaffected and verified independently — see checks above.
 - 2026-06-30 Turn 06 / Ship / Core UI + shared search seam — BANKED. 7 modules dormant (ROOM, THREAD, CALL, PB-DATA, PB-QUERY, PB-RENDER.renderRow, COMPOSE_SEAM), 17/17 use.* false, 21/21 immutables, fixtures pass, +310 lines additive, v5.6.3, sha bf14bd59. Deterministic gate green; device gate pass (tester).
 - 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
 
