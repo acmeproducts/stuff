@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.6 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.7 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -9,7 +9,9 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 07 → Pre-ship → ENGINE ACTIVATION → release 1 of 9: CONFIG.** Per §C, exactly one module's flag flips per stage/release — never more. This release flips ONLY `use.CONFIG` true at its one call site (old path gated off); LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE remain dormant and flip in their own subsequent releases, each separately device-gated, in that order. Input: copy bridge-turn06-post-ship.html → bridge-turn07-pre-base.html (then build from there). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED — gated pass by the tester.) (When this release banks, this line is updated to the next release; always build the release named here.)
+**Turn 07 → Pre-ship → ENGINE ACTIVATION → Group 1: INFRA (CONFIG + LOG).** Flip `use.CONFIG` and `use.LOG` true, each at its one call site, old paths gated off. STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE remain dormant for now — they activate in Groups 2–4 (see Turn 07 Pre-ship section). Input: bridge-turn07-pre-base.html — Turn 07's Base is now confirmed BANKED (checksum-identical to Turn 06 Post-ship; see RUN HISTORY). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED.) (When this group banks, this line is updated to the next group.)
+
+**REMEDIATION (read before building):** A prior run produced `bridge-turn07-pre-ship-r1.html`, which flipped CONFIG only. That content was deterministically verified correct, but it was built BEFORE Turn 07's Base was a confirmed, banked, gated release in the ledger — that is a sequence violation (every turn always has a Base release; never start Pre-ship before Base is banked) and is now logged in the graveyard as G15. Do not repeat it: confirm the CURRENT STAGE / prior stage is BANKED in the ledger before starting any new work, every time, no exceptions. The fix for the CONFIG content itself is NOT a rebuild from scratch — take r1, ADD the LOG module flip on top of it (same workflow: checksum-before/predict-after, atomic marked block, §H wrapper), producing the complete Group 1 release. Output as `bridge-turn07-pre-ship-g1.html`. Device-test Group 1 as one combined release — do not ask for a device test of CONFIG alone.
 
 ## YOUR EXACT STEPS
 1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
@@ -154,7 +156,12 @@ This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched
 ## Base — THE FLOOR (checksum-verified, not rebuilt)
 bridge-turn07-pre-base.html = bridge-turn06-post-ship.html, copied forward byte-for-byte. GATE: full-file sha256 and line count of pre-base match the banked Turn 06 Post-ship record (4780 lines / sha prefix a73aecbf) exactly. No new device test — this content already passed its device gate as Turn 06 Post-ship. Mismatch on sha or line count → STOP, wrong input, do not start Pre-ship. Bank → input to Pre-ship.
 
-- **Pre-ship — ENGINE ACTIVATION.** Nine separate releases, one module flag flipped per release per §C (never more than one surface's flag per stage): CONFIG, then LOG, then STORE, then RELAY, then RTC, then STT, then TRANSLATE, then LANGDETECT, then NORMALIZE — each release flips its one `use.*` flag true at its one call site, old path gated off, and is device-gated before the next release starts. GATE (per release): that module's engine path now runs through it; zero regression; debug log shows MODULE.method:in/out. The Pre-ship stage as a whole banks only once all 9 releases have individually banked.
+- **Pre-ship — ENGINE ACTIVATION.** Four release groups per §C (modules grouped because flipping them individually produces no device-testable difference, or because they share one observable contract surface). Each group is its own build → device gate → bank cycle; the next group starts only after the current one banks.
+  - **Group 1 — INFRA: CONFIG + LOG.** No live call/transcript behavior of their own; bundled because there is nothing independently observable about flipping either alone. GATE: app behaves exactly like Turn 07 Base; debug log shows CONFIG.get and LOG.log call sites firing.
+  - **Group 2 — PERSISTENCE: STORE.** Its own group because it has a genuinely distinct, independently observable behavior: data survives across app close/reopen. GATE: create a room, force-close the app, reopen — recent rooms and settings persist exactly as before.
+  - **Group 3 — CONNECTIVITY: RELAY + RTC.** Signaling and the peer connection cannot be meaningfully verified apart from each other — there is no observable "RELAY works" or "RTC works" independent of an actual call connecting. GATE: create/join a room, place a call, audio+video connect, hang up — identical to Base.
+  - **Group 4 — SPEECH/TRANSLATION PIPELINE: STT + LANGDETECT + TRANSLATE + NORMALIZE.** One functional chain — speak, detect language, translate, normalize output — with no individually testable midpoint. GATE: speak in a call, transcript appears, translation is correct in both directions, identical to Base.
+  - The Pre-ship stage as a whole banks only once all 4 groups have individually banked.
 - **Ship — CORE UI ACTIVATION + the five surfaces.** Activate ROOM/THREAD/CALL; build Room List, Room Creation, Thread, Call mount/return, Room Info/Dispose (Part V element map). Old name-derived pairKey deleted. GATE: create both room types; chat-only has no call control in DOM; joiner lands in thread, cannot see other rooms; call escalates and returns to thread with "call ended" marker; dispose has the one confirmation.
 - **Post-ship — polish + token pass on the five surfaces (no new screens).** GATE: all Turn 06 + 07 device cases pass; visual consistency. Merge to main.
 
@@ -247,11 +254,11 @@ These 21 functions are byte-frozen. When a stage wraps them behind a module cont
 
 ## §C. THE SWITCH MECHANISM (the anti-grep rule, made concrete)
 "Build beside, switch one surface at a time" means literally this, never a live edit of the working function:
-1. The new module is added to the file as new code; the old function stays untouched and still live.
-2. A CONFIG flag gates which path runs at the ONE call site: `if(CONFIG.get('use.MODULE')) MODULE.method(...) else oldFunction(...)`. Default false until the stage's device gate passes.
-3. CC flips the flag for that one surface, builds nothing else, and the stage is tested with the flag on.
-4. Only AFTER the device gate passes does the next stage remove the dead old function.
-CC must NOT: edit the body of a live working function to "convert" it; replace a function in place; or flip more than one surface's flag per stage. If CC finds itself doing a find-and-replace inside a working function body, STOP — that is the failure mode.
+1. The new module(s) are added to the file as new code; the old function(s) stay untouched and still live.
+2. A CONFIG flag gates which path runs at the ONE call site per module: `if(CONFIG.get('use.MODULE')) MODULE.method(...) else oldFunction(...)`. Default false until the release's device gate passes.
+3. CC flips the flag(s) for ONE RELEASE GROUP — a set of modules that share a single observable contract surface on the device, because the old and new code paths don't have identical contracts and flipping a module in isolation often produces no device-testable difference at all. A release group is valid only if: (a) the modules in it are coupled tightly enough that none of them is independently exercisable on the phone without the others (e.g. signaling and the peer connection can't be verified apart from each other — there's no call without both), or (b) they are infra-only modules with no live-path behavior of their own (e.g. config values, logging) and bundling them carries no incremental risk. CC builds nothing outside the declared group, and the release is tested with exactly that group's flags on.
+4. Only AFTER the device gate passes does a later release remove the dead old function(s) for that group.
+CC must NOT: edit the body of a live working function to "convert" it; replace a function in place; flip a flag for any module not in the declared release group; or invent its own grouping — the groups are named in the turn's Pre-ship section, not decided ad hoc. If CC finds itself doing a find-and-replace inside a working function body, STOP — that is the failure mode.
 
 ## §D. CONTRACT DETAIL FORMAT (every method, no ambiguity)
 Each module method in Part I is implemented to this exact shape. Example for PB-SYNC.pull (CC writes the rest to match):
