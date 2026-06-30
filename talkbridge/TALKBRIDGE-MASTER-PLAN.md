@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.7 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.8 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -115,15 +115,6 @@ Once every module reads from CONFIG (§4M.1) instead of hardcoding, the app beco
 
 # TURN 06 — Modularize the app + complete the phrasebook
 Input: bridge-turn06-base.html v5.6.1. Output: bridge-turn06-post-ship.html.
-
-## Pre-base — freeze contracts
-MODULES FROZEN (in/out set, no code switched yet):
-- CONFIG: get(k)→v · getAll()→obj · set(k,v) · subscribe(fn). Owns theme tokens, font size, language defaults, feature flags, labels, timing.
-- LOG: log(ev,d,l) → debugLog[] → #log-body · open()/copy()/clear().
-- STORE: get(k)/set(k,v)/remove(k) namespaced — the only module touching localStorage.
-- PB-DATA/PB-SYNC/PB-QUERY/PB-RENDER/PB-USAGE: contracts frozen (built later this turn).
-SURFACE: none changes. CONFIG seeded with today's hardcoded values as named keys; nothing reads from it yet.
-GATE: app runs identical to base; LOG opens; CONFIG.getAll() returns keys.
 
 ## Base — THE FLOOR (already banked; read-only input)
 bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. DORMANT-STAGE GATING PRINCIPLE: a dormant module cannot be exercised on the phone (its flag is off). Each Turn 06 stage therefore has TWO gates — a DETERMINISTIC gate (fixtures + §VI-4 report prove the dormant modules are correct in isolation) and a DEVICE gate (the user confirms only that the app still behaves EXACTLY like base). Active-behavior device cases (A1–G6) belong to the ACTIVATION turns (07+), not Turn 06. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
