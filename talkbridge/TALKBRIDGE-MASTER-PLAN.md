@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.0 | 2026-06-29 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.1 | 2026-06-29 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
@@ -21,36 +21,35 @@ MODULES FROZEN (in/out set, no code switched yet):
 SURFACE: none changes. CONFIG seeded with today's hardcoded values as named keys; nothing reads from it yet.
 GATE: app runs identical to base; LOG opens; CONFIG.getAll() returns keys.
 
-## Base — modularize the non-PB app (behavior identical to base)
-MODULES BUILT + SWITCHED IN:
-- STORE — all persistence routed through it.
-- RELAY send(msg)/onMessage(fn)/connect()/close()/status() · RTC start(roomCtx)/stop()/onState(fn) · STT start()/stop()/onFinal(fn)/reconcile(r) · TRANSLATE translate(t,s,g)→t / backtranslate(...)→t · LANGDETECT detect(t)→lang — each wraps the immutable engine functions unchanged.
-- NORMALIZE normalize(text,userPref,partnerLang)→{display,sent} — the single Z→X→Y path; original never surfaced.
-- ROOM create(cap)/join(token)/listForOwner()/get(id)/dispose(id) · THREAD render(roomId)/append(msg)/postSystem(marker) · CALL mount(roomCtx)/unmount().
-SURFACE: lobby, call screen, transcript, mic/cam — visually and behaviorally identical to base.
-GATE: full call, transcription, translation, recovery, chat Z→X→Y, create/join — zero regression vs base.
+## Base — THE FLOOR (already banked; do not rebuild)
+bridge-turn06-base.html v5.6.1 is the starting line. It contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds base; it is the read-only input. The next unbuilt stage is Pre-ship.
 
-## Pre-ship — replace the phrasebook against clean PB contracts
-MODULES BUILT + SWITCHED IN:
-- PB-DATA getCards()/getLive()/byId(id)/save(cards)/norm(raw)→Card. Canonical schema (categories[] default ['unassigned']; createdBy/updatedBy; lastUsed; usage; backtranslate{…verdict 'pending'}; clarifyChain[]; drops catalogIds/confidence/semanticRelationships/parentCategory/primaryTag/relatedIntents). GH is SOT; load REPLACES cache.
-- PB-SYNC pull(src,tgt)/writeBack(). Files phrasebook-{src}-{tgt}-{NNNN>=1000}.json, highest wins; pull on enterCall; write-back on hangup + dirty overlay close, conditional on dirty; pending/completed status, retried on reconnect, never blocking.
-- PB-USAGE recordUse(id) (sets lastUsed + increments usage + updatedBy) · getUsage(id).
-- Old catalog/NC/CDN/import/old-GitHub-push system fully removed — nothing coexisting.
-SURFACE — PB overlay (inside call screen): opens showing the pair's cards pulled from GH; pair label shows flags + filename; you can add a card from the transcript and from the overlay "+"; edit, soft-delete; on hang up the changes write back as the next version.
-GATE: pull 1000-series at call start → cards in overlay → add from transcript → add from "+" → edit → soft-delete → hang up → 1001-series in GH with all changes; every base feature survives (overlay close, search × inside box, compose ×, clarify capture, Enter in source, "/" search).
+## Pre-ship — DELIVER ALL MODULES, DORMANT (behavior identical to base)
+This stage builds every module and its contract and drops them in as atomic, marked, checksummed blocks (PART VI §VI-5), each with the mandatory entry/exit/error logging wrapper. ALL DORMANT: every module present, NOTHING activated, every CONFIG `use.*` flag false. Old code untouched and still live. Behavior byte-identical to base. The 21 immutable functions stay byte-identical. One <script> block; never wrap enterCall async.
 
-## Ship — the phrasebook behaviors (the ones that kept regressing), correct
-MODULE BUILT + SWITCHED IN:
-- PB-RENDER renderRow(card)→el (transcript/search: source+TTS+send | target+TTS+send; no "tap to use") · renderCard(card)→el (full card). PB-QUERY query({text,pair})→{cards,total} — one engine for inline ribbon and overlay. pbRenderOverlay picks: active search → row, zero-state → card.
-- Full card (pbBubbleHtml; Bridge IDs pbb-/pbsrc-/pbtgt-/pb-bt-text-/pbtags-/pbclarify-): header (updatedBy||createdBy) capitalized · (updatedAt||createdAt); source+USE+TTS | target+USE+TTS; always-visible backtranslate row+TTS; verdict ✓ Sounds Good | ⚑ Flag pills; footer 3 icons (# | clarify | trash); tag drawer (chips + autocomplete, createElement); clarify drawer (Enter commits, no Add button).
-- Behavior mechanisms (the fixes): Enter-in-source = real KEYDOWN, preventDefault on plain Enter → translate+backtranslate (onblur-alone is the bug); verdict reset CONDITIONAL (only if text changed; "Was:<old>" + real transition; no pending→pending); clarify Enter handler ends with el.focus(); compose "/" or ".." opens inline ribbon on keystroke, × inside field shown only when content present, predicate reaches transcript via NEITHER Enter NOR send (both guarded); pbAddCard → categories ['unassigned'], createdBy 'tb', verdict 'pending', translateWithRetry at birth, focus SOURCE field; duplicate save → no dup, toast "Already saved", increment usage.
-SURFACE — PB overlay/card: a card edited by Enter re-translates and keeps the keyboard up; verdict and clarify log a readable history; tags add without losing focus; typing "/bank" never lands in the transcript; "+" makes a card with the source field focused.
-GATE: device cases A1–G6 (07-BEHAVIORAL-ACCEPTANCE.md) all pass.
+ALL 17 MODULES BUILT (contracts per PART I §4M; build order per §F):
+- CONFIG get(k)/getAll()/set(k,v)/subscribe(fn) — seeded with base's hardcoded values as named keys.
+- LOG log(ev,d,l)/open()/copy()/clear().
+- STORE get(k)/set(k,v)/remove(k) namespaced.
+- RELAY send/onMessage/connect/close/status · RTC start/stop/onState · STT start/stop/onFinal/reconcile · TRANSLATE translate/backtranslate · LANGDETECT detect — each WRAPS the immutable engine functions unchanged.
+- NORMALIZE normalize(text,userPref,partnerLang)→{display,sent}.
+- ROOM create/join/listForOwner/get/dispose · THREAD render/append/postSystem · CALL mount/unmount.
+- PB-DATA getCards/getLive/byId/save/norm (canonical schema: categories[] default ['unassigned']; createdBy/updatedBy; lastUsed; usage; backtranslate{…verdict 'pending'}; clarifyChain[]; drops catalogIds/confidence/semanticRelationships/parentCategory/primaryTag/relatedIntents; GH SOT, load REPLACES cache).
+- PB-SYNC pull(src,tgt)/writeBack() (phrasebook-{src}-{tgt}-{NNNN>=1000}.json, highest wins).
+- PB-USAGE recordUse(id)/getUsage(id).
+- PB-QUERY query({text,pair})→{cards,total}.
+- PB-RENDER renderRow(card)/renderCard(card).
+SURFACE: NONE changes. Every module is inert. The app looks and behaves exactly like base.
+GATE: full call, transcription, translation, recovery, chat Z→X→Y, create/join, PB overlay — all IDENTICAL to base, zero regression. PART VI §VI-4 ready-to-test report certifies: all 17 modules present as marked blocks, every method has its three log points, all 21 immutables byte-identical, all use.* flags false, behavior unchanged.
+
+## Ship — ACTIVATE, one module per release (flip new on, old off)
+Each release in this stage activates exactly ONE module: flip its CONFIG use.* flag true at its one call site, deactivate the old path it replaces, device-gate, bank, next. Atomic, one flip at a time, per PART VI §VI-1/§VI-2. The PB behaviors that historically regressed (Enter-in-source KEYDOWN; conditional verdict reset; clarify el.focus(); compose "/" and ".." guarded on Enter AND send; pbAddCard; dedup) are verified as their owning modules activate.
+GATE per activation: the relevant device cases pass (PB cases A1–G6 per PART III as PB modules activate); zero regression in already-banked modules. A release banks only on its device gate.
 
 ## Post-ship — consolidate + tokenize (D3)
 - PB-RENDER consolidated to ONE card renderer (rows stay). Every PB hardcoded color/size moved into CONFIG tokens.
-SURFACE: PB overlay/card visually identical, now theme-driven.
-GATE: zero visual regression; all ship cases still pass. Merge to main.
+SURFACE: visually identical, now theme-driven.
+GATE: zero visual regression; all activation cases still pass. Merge to main.
 
 ---
 
