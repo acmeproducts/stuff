@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.1 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.2 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -9,7 +9,7 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 06 → Pre-ship → ENGINE GROUP.** Build the nine engine modules, dormant, per the Turn 06 Pre-ship section below. Nothing else. Do not start Ship. (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
+**Turn 06 → Ship → CORE UI + SHARED SEARCH SEAM.** Build ROOM, THREAD, CALL plus the shared seam (PB-DATA, PB-QUERY, PB-RENDER.renderRow, compose-strip + slide-up search drawer), all dormant, per the Turn 06 Ship section below. Nothing else. Do not start Post-ship. (Pre-ship engine group is BANKED — gated pass by the tester.) (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
 
 ## YOUR EXACT STEPS
 1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
@@ -39,14 +39,14 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 06 / Pre-ship / Engine group
+- STAGE: Turn 06 / Ship / Core UI + shared search seam
 - ATTEMPT: (none yet)
 - DISPOSITION: NOT STARTED
 - READY-TO-TEST REPORT: (none yet)
 - NOTES / GAPS / EXIT REASON: (none yet)
 
 ## RUN HISTORY (append-only; newest first)
-- (empty)
+- 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
 
 ---
 
