@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.9 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.0 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -199,7 +199,7 @@ Every turn's input is fetched fresh from GitHub at stage start. Source of truth 
 ## §B. IMMUTABLE FUNCTION CHECKSUMS (wrap, never rewrite — diff before and after)
 
 EXACT CHECKSUM METHOD (use this precisely or you will get different hashes; setupPC in particular is sensitive to boundaries):
-- Segment START: the first character of the literal token `function NAME(` — or `async function NAME(` if the function is async. Do NOT include any leading newline, indentation, comment, or whitespace before `function`.
+- Segment START: if the function is declared `async`, the segment STARTS at the `a` of `async` (include the `async ` prefix). Otherwise it starts at the `f` of `function`. **setupPC is async — its segment MUST begin `async function setupPC(`; dropping the `async ` prefix is the one mistake that yields a wrong hash with a correct 73-line count.** Do NOT include any leading newline, indentation, comment, or whitespace before `async`/`function`. The 21 functions and which are async: only `setupPC`, `startDeepgram`, `translateWithRetry`, `translate`, `onDGFinal`, `_loadFastText`, `_detectLangAsync`, `connectRelay`, `rejoinCall` may carry `async` — in every case include the `async ` prefix exactly as it appears in the baseline.
 - Segment END: the matching closing brace `}` of the function body (brace-depth returns to zero), INCLUSIVE. Do NOT include any trailing semicolon, newline, or whitespace after that brace.
 - Encoding: UTF-8 bytes of that exact segment, with LF (\n) line endings (the repo file is LF). If your local copy has CRLF, normalize to LF first.
 - Hash: sha256 of those bytes; take the first 12 hex characters.
