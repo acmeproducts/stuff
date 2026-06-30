@@ -39,13 +39,15 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 07 / Pre-ship / Engine activation
-- ATTEMPT: (none yet)
-- DISPOSITION: NOT STARTED
-- READY-TO-TEST REPORT: (none yet)
-- NOTES / GAPS / EXIT REASON: (none yet)
+- STAGE: Turn 07 / Pre-ship / Engine activation / Release 1 of 9: CONFIG
+- ATTEMPT: 1
+- DISPOSITION: AWAITING-GATE
+- OUTPUT: bridge-turn07-pre-ship-r1.html — 4778 lines, 319,433 bytes, v5.7.0
+- READY-TO-TEST REPORT: CERTIFIED — 21/21 immutables match, change manifest exact (3 lines only: comment+span version stamps, relay constants gate), use.CONFIG=true at 1 call site, old relay constants in else branch, all other use.* unchanged, lint clean, single <script>, version stamp v5.7.0.
+- NOTES / GAPS / EXIT REASON: n/a — clean build, no gaps.
 
 ## RUN HISTORY (append-only; newest first)
+- 2026-06-30 Turn 07 / Pre-ship / Engine activation R1 (CONFIG) — AWAITING-GATE. CONFIG.get('use.CONFIG') gate on relay constants; old path in else branch; use.CONFIG=true; 21/21 immutables intact; v5.7.0; sha 319433 bytes.
 - 2026-06-30 Turn 06 / Post-ship / PB UI group — BANKED. 4 dormant additions (PB-SYNC pull/writeBack/markDirty/isDirty, PB-USAGE recordUse/getUsage, PB-RENDER.renderCard, PB overlay surface markup), all 17/17 modules now present, 17/17 use.* false, 21/21 immutables untouched (enterCall confirmed pre-existing async, not newly wrapped), single <script> block, lint clean, purely additive diff vs Ship baseline (only the v5.6.3→v5.6.4 version-stamp lines changed otherwise), +274 lines, v5.6.4, sha a73aecbf. renderCard fixture (talkbridge/fixtures/render.json) verified by structural assertion: wrap id/class, 6 children, all 5 child ids and 7 drawer ids present and correctly generated. Deterministic gate green (verified independently by manager); device gate pass (tester). NOTE: the doer's first push to this plan document overwrote it to 0 bytes (destructive — file content lost, ledger included); manager detected via API readback, reverted to last-good commit by sha, then re-applied this banked entry on top of the restored document. Build artifact itself (bridge-turn06-post-ship.html) was unaffected and verified independently — see checks above.
 - 2026-06-30 Turn 06 / Ship / Core UI + shared search seam — BANKED. 7 modules dormant (ROOM, THREAD, CALL, PB-DATA, PB-QUERY, PB-RENDER.renderRow, COMPOSE_SEAM), 17/17 use.* false, 21/21 immutables, fixtures pass, +310 lines additive, v5.6.3, sha bf14bd59. Deterministic gate green; device gate pass (tester).
 - 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
