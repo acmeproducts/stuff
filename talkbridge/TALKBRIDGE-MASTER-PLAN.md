@@ -39,11 +39,13 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 06 / Ship / Core UI + shared search seam
-- ATTEMPT: (none yet)
-- DISPOSITION: NOT STARTED
-- READY-TO-TEST REPORT: (none yet)
-- NOTES / GAPS / EXIT REASON: (none yet)
+- STAGE: Turn 06 / Ship / Core UI + Shared Search Seam
+- ATTEMPT: 1
+- DISPOSITION: SUCCESS
+- OUTPUT: bridge-turn06-ship.html — 304,337 bytes, 4505 lines, v5.6.3, sha bf14bd59e10383c4d0fd2cb835c37f743c65a4f3e433aff85c93c422273c9af3
+- READY-TO-TEST REPORT: CERTIFIED — 21/21 immutables match (async-prefix method), 9 Pre-ship engine modules intact, 7 Ship modules added dormant (ROOM/THREAD/CALL/PB-DATA/PB-QUERY/PB-RENDER.renderRow/COMPOSE_SEAM), 17/17 use.* false, fixtures norm/query/render all PASS against live executed code, lint clean, single <script>, +310 lines / +13,639 bytes (additive, §L pass), version stamp v5.6.3.
+- NOTES: Input baseline confirmed 290,698 bytes / sha c490d4375fca7a97 — identical to fresh re-fetch. Size discrepancy was owner reading a stale archived artifact, resolved. PB-DATA.norm does not perform lang-pair inheritance (belongs to PB-SYNC.pull, documented in §N fixture c4).
+- NEXT STAGE: Turn 06 / Post-ship — gated on device test of this dormant build
 
 ## RUN HISTORY (append-only; newest first)
 - 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
