@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.3 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.4 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
@@ -77,132 +77,76 @@ MODULES FROZEN (in/out set, no code switched yet):
 SURFACE: none changes. CONFIG seeded with today's hardcoded values as named keys; nothing reads from it yet.
 GATE: app runs identical to base; LOG opens; CONFIG.getAll() returns keys.
 
-## Base — THE FLOOR (already banked; do not rebuild)
-bridge-turn06-base.html v5.6.1 is the starting line. It contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds base; it is the read-only input. The next unbuilt stage is Pre-ship.
+## Base — THE FLOOR (already banked; read-only input)
+bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
 
-## Pre-ship — DELIVER ALL MODULES, DORMANT (behavior identical to base)
-This stage builds every module and its contract and drops them in as atomic, marked, checksummed blocks (PART VI §VI-5), each with the mandatory entry/exit/error logging wrapper. ALL DORMANT: every module present, NOTHING activated, every CONFIG `use.*` flag false. Old code untouched and still live. Behavior byte-identical to base. The 21 immutable functions stay byte-identical. One <script> block; never wrap enterCall async.
+## Pre-ship — ENGINE GROUP (foundational modules, dormant)
+Deliver these nine as atomic marked blocks with the §H wrapper, all dormant:
+CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE (signatures in §4M; engine modules wrap the immutable fns unchanged).
+SURFACE: none; inert. GATE: call, transcription, translation, recovery, chat Z→X→Y identical to base, zero regression; §VI-4 report (9 present, 3 log points each, 21 immutables intact, all use.* false). Bank → input to Ship.
 
-ALL 17 MODULES BUILT (contracts per PART I §4M; build order per §F):
-- CONFIG get(k)/getAll()/set(k,v)/subscribe(fn) — seeded with base's hardcoded values as named keys.
-- LOG log(ev,d,l)/open()/copy()/clear().
-- STORE get(k)/set(k,v)/remove(k) namespaced.
-- RELAY send/onMessage/connect/close/status · RTC start/stop/onState · STT start/stop/onFinal/reconcile · TRANSLATE translate/backtranslate · LANGDETECT detect — each WRAPS the immutable engine functions unchanged.
-- NORMALIZE normalize(text,userPref,partnerLang)→{display,sent}.
-- ROOM create/join/listForOwner/get/dispose · THREAD render/append/postSystem · CALL mount/unmount.
-- PB-DATA getCards/getLive/byId/save/norm (canonical schema: categories[] default ['unassigned']; createdBy/updatedBy; lastUsed; usage; backtranslate{…verdict 'pending'}; clarifyChain[]; drops catalogIds/confidence/semanticRelationships/parentCategory/primaryTag/relatedIntents; GH SOT, load REPLACES cache).
-- PB-SYNC pull(src,tgt)/writeBack() (phrasebook-{src}-{tgt}-{NNNN>=1000}.json, highest wins).
-- PB-USAGE recordUse(id)/getUsage(id).
-- PB-QUERY query({text,pair})→{cards,total}.
-- PB-RENDER renderRow(card)/renderCard(card).
-SURFACE: NONE changes. Every module is inert. The app looks and behaves exactly like base.
-GATE: full call, transcription, translation, recovery, chat Z→X→Y, create/join, PB overlay — all IDENTICAL to base, zero regression. PART VI §VI-4 ready-to-test report certifies: all 17 modules present as marked blocks, every method has its three log points, all 21 immutables byte-identical, all use.* flags false, behavior unchanged.
+## Ship — CORE UI + SHARED SEARCH SEAM (dormant)
+The compose strip, its slide-up search drawer, the search query, and the row renderer are a SHARED layer: the non-PB chat/transcript strip is not whole without them, AND the PB surface reuses the identical query + row renderer. They are delivered here, not in PB UI, because they straddle the boundary. Search needs data, so PB-DATA is delivered here too (the foundation the query reads). Modules, dormant, atomic/marked/§H-logged:
+- ROOM create/join/listForOwner/get/dispose
+- THREAD render/append/postSystem
+- CALL mount/unmount
+- PB-DATA getCards/getLive/byId/save/norm (canonical schema in §4M.12) — the data the shared search reads
+- PB-QUERY query({text,pair})→{cards,total} — ONE engine for the inline drawer AND the PB surface
+- PB-RENDER.renderRow(card)→el — the row renderer reused by the inline drawer AND the PB surface (renderCard stays in Post-ship)
+- the compose strip dual chat/search behavior + slide-up search drawer (the "/" and ".." seam): the strip is core chat; its search predicate, drawer, and results are the shared seam. Guards on Enter AND send so a predicate never reaches the transcript.
+SURFACE: none changes; all inert. GATE: create/join, transcript, enter-call/hang-up identical to base; engine group intact; the shared search, when exercised dormant-side, returns the same results to a drawer harness and a PB-surface harness (proves reuse). §VI-4 report. Bank → input to Post-ship.
 
-## Ship — ACTIVATE, one module per release (flip new on, old off)
-Each release in this stage activates exactly ONE module: flip its CONFIG use.* flag true at its one call site, deactivate the old path it replaces, device-gate, bank, next. Atomic, one flip at a time, per PART VI §VI-1/§VI-2. The PB behaviors that historically regressed (Enter-in-source KEYDOWN; conditional verdict reset; clarify el.focus(); compose "/" and ".." guarded on Enter AND send; pbAddCard; dedup) are verified as their owning modules activate.
-GATE per activation: the relevant device cases pass (PB cases A1–G6 per PART III as PB modules activate); zero regression in already-banked modules. A release banks only on its device gate.
+## Post-ship — PB UI GROUP (PB-exclusive modules + surface, dormant)
+The pieces that ONLY the phrasebook uses, consuming the shared layer already delivered. Dormant, atomic/marked/§H-logged:
+- PB-SYNC pull/writeBack
+- PB-USAGE recordUse/getUsage
+- PB-RENDER.renderCard(card)→el — the full card (rows already shipped in the shared seam)
+- the PB overlay surface (ribbon, pair label, +, sync dot, close; zero-state = full cards, active search = shared rows)
+Plus author fixtures/norm.json, query.json, render.json (§N authorship rule).
+SURFACE: none changes; inert. GATE: PB overlay opens, cards show via renderCard, search reuses the shared query+row from Ship — identical to base; engine + core-UI + shared-search intact. §VI-4 report + fixtures for review. Bank → bridge-turn06-post-ship.html = all 17 modules present, dormant, behavior identical to base, with the shared search seam correctly placed for reuse. Input to Turn 07.
 
-## Post-ship — consolidate + tokenize (D3)
-- PB-RENDER consolidated to ONE card renderer (rows stay). Every PB hardcoded color/size moved into CONFIG tokens.
-SURFACE: visually identical, now theme-driven.
-GATE: zero visual regression; all activation cases still pass. Merge to main.
+# TURN 07 — Shell: the five surfaces (ACTIVATION turn + new module work)
+Input: copy bridge-turn06-post-ship → bridge-turn07-pre-base. Output: bridge-turn07-post-ship.html.
+This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched on, old paths off, one at a time, AND the shell surfaces are built. Same three-group spine per stage.
+- **Pre-ship — ENGINE ACTIVATION.** Flip on CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE one module per release (use.* true at its one call site, old path off), device-gated each. GATE: every engine path now runs through its module; zero regression; debug log shows MODULE.method:in/out for each.
+- **Ship — CORE UI ACTIVATION + the five surfaces.** Activate ROOM/THREAD/CALL; build Room List, Room Creation, Thread, Call mount/return, Room Info/Dispose (Part V element map). Old name-derived pairKey deleted. GATE: create both room types; chat-only has no call control in DOM; joiner lands in thread, cannot see other rooms; call escalates and returns to thread with "call ended" marker; dispose has the one confirmation.
+- **Post-ship — polish + token pass on the five surfaces (no new screens).** GATE: all Turn 06 + 07 device cases pass; visual consistency. Merge to main.
 
----
-
-# TURN 07 — Shell: the five surfaces
-Input: copy turn06-post-ship → bridge-turn07-pre-base. Output: bridge-turn07-post-ship.html.
-
-## Pre-base — freeze the room model + the initiator/joiner contract
-MODULES FROZEN/EXTENDED:
-- ROOM gains the owner/token/capability model: create(capability)→{id,token,owner,cap} · join(token)→roomView · listForOwner()→rooms (owner only) · dispose(id). Owner-scoped queries enforced here — a joiner session cannot enumerate other rooms.
-- Initiator-designation decision (07A research): the credential that makes someone an initiator under no-signup/no-email/no-phone; must prove a joiner cannot reach room-creation via any URL/state manipulation, and an initiator's capability survives reinstall/multi-device.
-SURFACE: none yet.
-GATE: written contract + decision; no behavior change.
-
-## Base — token identity + the two views off one room object
-- test.html's room token replaces the name-derived pairKey everywhere (old pairKey DELETED, no fallback). One room object renders as a Room List entry for its owner and routes anyone with a valid token straight to its Thread.
-SURFACE: internal — addressing only.
-GATE: initiator creates a room → it appears in their list; joiner opens a token → lands in the thread; joiner cannot see/query any other room.
-
-## Pre-ship — Room List + Room Creation surfaces
-SURFACE — Room List (5.1, initiator only): list of rooms they started, each showing the other party's handle (or "waiting for them to join"), last-message preview, a chat-only vs chat+call icon, unread/waiting indicator, one obvious "+". Empty state = one prompt to make the first room. Room Creation (5.2): one screen, two big choices — "Chat only" / "Chat + Call", nothing else (no name, no settings, no language picker) → immediately yields link + QR. Capability is real: a chat-only room never carries a call control anywhere.
-GATE: create both room types; chat-only never exposes a call affordance; link + QR generated for each.
-
-## Ship — Thread + Call + Room Info surfaces
-SURFACE — Thread (5.3): normal chat thread, each side's own language on their own side, input at bottom. Chat+call rooms show one persistent call button; chat-only rooms have no such button (absent, not greyed). Initiator before joiner joins sees a quiet "waiting for them to join". Joiner opens link/QR and lands directly in the thread, no setup. Call (5.4): the call button mounts the CALL module (existing call+PB UI); hang up returns to the SAME thread with a "call ended" marker — no goodbye dead-end. Room Info / Dispose (5.5): room facts + the one destructive action (dispose), with a confirmation step.
-GATE: create chat+call room → joiner joins → chat → escalate to call → hang up returns to thread with marker → dispose with confirm.
-
-## Post-ship — polish the five surfaces against CONFIG tokens
-SURFACE: all five surfaces visually consistent, token-driven; no new screens introduced by the polish.
-GATE: all Turn 06 + 07 tests pass; visual consistency. Merge to main.
-
----
-
-# TURN 08 — One shared translation path (chat + call)
+# TURN 08 — PB UI ACTIVATION + phrasebook behaviors
 Input: copy turn07-post-ship → pre-base. Output: bridge-turn08-post-ship.html.
-- Pre-base: freeze NORMALIZE as the single translation entry for chat AND call; map every existing call-path/chat-path/PB-send translation call to it.
-- Base: route call-transcript translation through NORMALIZE. GATE: spoken translation identical; Z→X→Y holds in call.
-- Pre-ship: route chat end-to-end through it; delete duplicate normalization. GATE: type any language → Z→X→Y, original never shown; speak any language → same.
-- Ship: PB "use"/send and search feed the same path. SURFACE: sending a card mid-call lands correctly on both sides. GATE: card send via shared path correct both sides.
-- Post-ship: remove dead translation routes; LOG shows one path per translated message. Merge to main.
+- **Pre-ship — PB ENGINE ACTIVATION.** Flip on PB-DATA, PB-SYNC, PB-USAGE one per release. GATE: pull on call start (pbsync_pulled), replace-on-load, write-back on hangup+dirty-close (pbsync_upload_completed), usage records on use; G1–G6.
+- **Ship — PB CORE UI ACTIVATION.** Flip on PB-QUERY, PB-RENDER; row vs card; one search engine. GATE: overlay zero-state shows cards, search shows rows, same query both surfaces.
+- **Post-ship — PB BEHAVIORS (the ones that regressed).** Enter-in-source KEYDOWN; conditional verdict reset; clarify el.focus(); compose "/" and ".." guarded on Enter AND send; pbAddCard; dedup. GATE: device cases A1–G6 all pass. Merge to main.
 
----
-
-# TURN 09 — Token addressing + multi-device
+# TURN 09 — One shared translation path (engine consolidation)
 Input: copy turn08-post-ship → pre-base. Output: bridge-turn09-post-ship.html.
-- Pre-base: freeze token as sole identity; audit residual name-derived identity.
-- Base: all room/message/call addressing uses the token. GATE: no name-derived identity remains; flows unaffected.
-- Pre-ship: multi-device chat join. SURFACE: same room/thread reachable on a second device; messages converge. GATE: two devices, one party, messages converge.
-- Ship: multi-device extends to calls (CALL module recognizes/routes an active or incoming call on a second device). SURFACE: a call rings/answers on the right device. GATE: cross-device call rings/answers.
-- Post-ship: edge cases (drop mid-call, rejoin). Merge to main.
+- **Pre-ship — ENGINE:** NORMALIZE becomes the single translation entry for chat AND call; route call-transcript translation through it. GATE: spoken translation identical; Z→X→Y in call.
+- **Ship — CORE UI:** chat end-to-end through it; PB use/send/search feed the same path. GATE: type/speak any language → Z→X→Y, original never shown; card send correct both sides.
+- **Post-ship — cleanup:** remove dead translation routes; LOG shows one path per translated message. Merge to main.
 
----
-
-# TURN 10 — Presence, waiting & room disposal
+# TURN 10 — Token addressing + multi-device
 Input: copy turn09-post-ship → pre-base. Output: bridge-turn10-post-ship.html.
-- Pre-base: freeze the relay-side presence/waiting contract and disposal policy (unjoined rooms expire 30 days; joined never expire silently; explicit dispose retires token + purges record).
-- Base: token-keyed waiting indicator surviving recipient-offline. SURFACE: Room List shows "waiting for them to join" until they join, then clears. GATE: offline recipient → waiting; later join → clears.
-- Pre-ship: unread/last-message state. SURFACE: Room List reflects messages that arrived while away. GATE: away messages reflected.
-- Ship: disposal — initiator dispose does real relay-side cleanup; unjoined-room expiry purge. SURFACE: Room Info dispose removes the room everywhere. GATE: dispose removes room; expired unjoined room gone.
-- Post-ship: edge cases (dispose during waiting, re-create after dispose). Merge to main.
+- **Pre-ship — ENGINE:** token is sole identity everywhere; audit out residual name-derived identity. GATE: no name-derived identity; flows unaffected.
+- **Ship — CORE UI:** multi-device chat join; extends to calls (CALL recognizes/routes active or incoming call on a 2nd device). GATE: two devices converge; cross-device call rings/answers.
+- **Post-ship:** edge cases (drop mid-call, rejoin). Merge to main.
 
----
-
-# TURN 11 — Design system & uniform look (the configurability payoff)
+# TURN 11 — Presence, waiting & room disposal
 Input: copy turn10-post-ship → pre-base. Output: bridge-turn11-post-ship.html.
-- Pre-base: audit every remaining hardcoded color/size/spacing across all surfaces; document as CONFIG token keys (no code change).
-- Base: inject the full token set into CONFIG/:root; replace hardcoded values with tokens surface by surface. GATE: every screen renders identically, now token-driven; no black boxes/missing colors.
-- Pre-ship: CONFIG carries two independent persisted axes — font size and theme preset. SURFACE: change font size and theme separately; both persist; all surfaces honor them. GATE: independent change + persist across reload.
-- Ship: apply one uniform design language across all five surfaces + PB component (spacing, type scale, controls). SURFACE: every surface coherent in default and each theme. GATE: visual walkthrough passes in default + each theme.
-- Post-ship: final consistency pass; confirm nothing un-tokenized. Merge to main.
+- **Pre-ship — ENGINE:** relay-side presence/waiting contract + disposal policy (unjoined 30-day expiry; joined never silent; dispose retires token + purges). 
+- **Ship — CORE UI:** token-keyed waiting indicator surviving offline; unread/last-message in Room List; dispose cleanup. GATE: offline→waiting→clears on join; away messages reflected; dispose removes room everywhere.
+- **Post-ship:** edge cases (dispose during waiting, re-create). Merge to main.
 
----
-
-# TURN 12 — Installable & reachable when closed
+# TURN 12 — Design system & uniform look (configurability payoff)
 Input: copy turn11-post-ship → pre-base. Output: bridge-turn12-post-ship.html.
-- Pre-base: freeze the service-worker + notification contract (PWA/push lives HERE, not Turn 06).
-- Base: service worker registers; installable to home screen. SURFACE: install → launches full-screen. GATE: installs and launches.
-- Pre-ship: push subscription; backgrounded app gets a notification on new message/room-join. SURFACE: notification → tap opens the right room. GATE: backgrounded notification → correct room.
-- Ship: fully-closed app → push → tap opens the thread; unread badge. SURFACE: closed-app notification → correct thread; badge clears on open. GATE: closed-app flow + badge.
-- Post-ship: background edge cases. Merge to main.
+- **Pre-ship — ENGINE/CONFIG:** audit every remaining hardcoded color/size/spacing → CONFIG token keys; inject full token set; replace hardcoded with tokens. GATE: every screen identical, token-driven; no black boxes.
+- **Ship — CORE UI:** two independent persisted axes (font size, theme preset) from CONFIG; apply uniform design language across all five surfaces + PB component. GATE: change font/theme independently, both persist; every surface coherent in default + each theme.
+- **Post-ship:** final consistency; nothing un-tokenized. Merge to main.
 
----
-
-# TURN 13 — Pilot readiness (DONE)
+# TURN 13 — Installable, reachable when closed + pilot readiness (DONE)
 Input: copy turn12-post-ship → pre-base. Output: bridge-turn13-post-ship.html.
-- Pre-base: assemble the full cross-turn regression matrix.
-- Base: full lifecycle regression on real Galaxy + iPhone over real networks. GATE: whole matrix passes.
-- Pre-ship: configurability proof — change theme/font/labels/default capability via CONFIG with no rebuild; confirm white-labelable. GATE: a config change reshapes look/feel/operation without touching code.
-- Ship: fix anything surfaced; final polish. GATE: clean run, zero known regressions.
-- Post-ship: pilot sign-off. Merge to main.
-
-DONE: rooms (chat-only or chat+call, one per relationship, link/QR, no accounts) · live translation everywhere through one NORMALIZE path · a curated central phrasebook (GH SOT, PB/XL versioned, usage-tracked) inside calls · reachable when closed · one polished uniform look driven entirely by CONFIG so it re-themes and white-labels without a rebuild. Every part a module with a frozen contract; every release device-gated; nothing built by editing entangled code live.
-
-## OUT OF SCOPE throughout
-O-Ring · Translation Memory · PB Central LIVE telemetry pipe (local usage tracking IS in scope) · encryption at rest · changing a room's capability after creation.
-
----
----
+- **Pre-ship — ENGINE:** service worker + notification contract (PWA/push lives HERE); installable to home screen. GATE: installs, launches full-screen.
+- **Ship — CORE UI:** push subscription; backgrounded + fully-closed → notification → opens right thread; unread badge. GATE: closed-app notification → correct thread; badge clears.
+- **Post-ship — pilot readiness:** full cross-turn regression on real Galaxy + iPhone; configurability proof (change theme/font/labels/default capability via CONFIG, no rebuild). GATE: whole matrix passes; config change reshapes look/feel/operation without touching code. Merge to main. DONE.
 
 # PART II — CC EXECUTION SPEC (the gap-closers; without these CC reintroduces regressions)
 
