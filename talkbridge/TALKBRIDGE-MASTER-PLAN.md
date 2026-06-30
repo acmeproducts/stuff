@@ -1,6 +1,30 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.5 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.6 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+
+---
+
+# START HERE — DOER PROTOCOL (read this first; this link is your entire instruction)
+
+You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
+
+## CURRENT STAGE (the only thing to build right now)
+**Turn 06 → Pre-ship → ENGINE GROUP.** Build the nine engine modules, dormant, per the Turn 06 Pre-ship section below. Nothing else. Do not start Ship. (When Pre-ship banks, this line is updated to the next stage; always build the stage named here.)
+
+## YOUR EXACT STEPS
+1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
+2. Fetch the baseline: https://raw.githubusercontent.com/acmeproducts/stuff/main/bridge-turn06-base.html — verify 3940 lines and sha256 begins 0b21ffdeeadb5db9. Mismatch → STOP (graveyard G4). This file is read-only; never edit it in place.
+3. Execute the PART VI §VI-1 WORKFLOW in order for the current stage: READ (quote the relevant PART I §4M contracts verbatim) → COMPREHENSION (§VI-3) → GRAVEYARD SCAN (§VI-6; grep is dead, atomic marked drop-in only) → CHECKSUM BEFORE / PREDICT AFTER → INSERT atomic marked modules with the §H entry/exit/error wrapper → CHECK actual vs predicted (mismatch → REVERT) → BUILD LOG → READY-TO-TEST REPORT (§VI-4).
+4. Honor the DORMANT-STAGE GATING PRINCIPLE: everything you build is dormant (every CONFIG use.* flag false; old code untouched and live; behavior byte-identical to base). The 21 immutable functions (§B) stay byte-identical. One <script> block. Never wrap enterCall async.
+5. Produce a COMPLETE single-file HTML (no fragments, ever), the build-log, and the §VI-4 ready-to-test report.
+
+## DELIVERY (you have NO write access; do not push)
+You cannot push to GitHub and must not try. Return three things to the gating side: (1) the complete file, (2) the build-log, (3) the ready-to-test report. The push to a test path and the device test are handled by the gating side. Then STOP. Do not start the next stage. Do not merge to main. Do not touch base.
+
+## IF ANYTHING IS AMBIGUOUS
+STOP and list the exact gap with the section it should have been in. Do not decide it yourself. A correct STOP is success; a guess is the failure mode this whole document exists to prevent.
+
+---
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
