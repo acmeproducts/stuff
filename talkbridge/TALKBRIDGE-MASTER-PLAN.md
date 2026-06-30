@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.4 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.5 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -9,7 +9,7 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 07 → Pre-ship → ENGINE ACTIVATION.** Flip on CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE one module per release (use.* true at its one call site, old path off), device-gated each. Input: copy bridge-turn06-post-ship.html → bridge-turn07-pre-base.html (then build from there). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED — gated pass by the tester.) (When this stage banks, this line is updated to the next stage; always build the stage named here.)
+**Turn 07 → Pre-ship → ENGINE ACTIVATION → release 1 of 9: CONFIG.** Per §C, exactly one module's flag flips per stage/release — never more. This release flips ONLY `use.CONFIG` true at its one call site (old path gated off); LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE remain dormant and flip in their own subsequent releases, each separately device-gated, in that order. Input: copy bridge-turn06-post-ship.html → bridge-turn07-pre-base.html (then build from there). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED — gated pass by the tester.) (When this release banks, this line is updated to the next release; always build the release named here.)
 
 ## YOUR EXACT STEPS
 1. Read this entire document. Then read the graveyard: https://raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md
@@ -149,7 +149,7 @@ SURFACE: none changes; inert. TWO GATES (dormant): (1) DETERMINISTIC — renderC
 # TURN 07 — Shell: the five surfaces (ACTIVATION turn + new module work)
 Input: copy bridge-turn06-post-ship → bridge-turn07-pre-base. Output: bridge-turn07-post-ship.html.
 This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched on, old paths off, one at a time, AND the shell surfaces are built. Same three-group spine per stage.
-- **Pre-ship — ENGINE ACTIVATION.** Flip on CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE one module per release (use.* true at its one call site, old path off), device-gated each. GATE: every engine path now runs through its module; zero regression; debug log shows MODULE.method:in/out for each.
+- **Pre-ship — ENGINE ACTIVATION.** Nine separate releases, one module flag flipped per release per §C (never more than one surface's flag per stage): CONFIG, then LOG, then STORE, then RELAY, then RTC, then STT, then TRANSLATE, then LANGDETECT, then NORMALIZE — each release flips its one `use.*` flag true at its one call site, old path gated off, and is device-gated before the next release starts. GATE (per release): that module's engine path now runs through it; zero regression; debug log shows MODULE.method:in/out. The Pre-ship stage as a whole banks only once all 9 releases have individually banked.
 - **Ship — CORE UI ACTIVATION + the five surfaces.** Activate ROOM/THREAD/CALL; build Room List, Room Creation, Thread, Call mount/return, Room Info/Dispose (Part V element map). Old name-derived pairKey deleted. GATE: create both room types; chat-only has no call control in DOM; joiner lands in thread, cannot see other rooms; call escalates and returns to thread with "call ended" marker; dispose has the one confirmation.
 - **Post-ship — polish + token pass on the five surfaces (no new screens).** GATE: all Turn 06 + 07 device cases pass; visual consistency. Merge to main.
 
