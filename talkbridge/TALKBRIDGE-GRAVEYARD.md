@@ -1,6 +1,6 @@
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.0 | 2026-06-29 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.1 | 2026-06-30 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -21,6 +21,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G12 | Self-graded gate (builder asserts green) | Trust substituted for verification | Ready-to-test certification report (§VI-4); every check named with result |
 | G13 | Asking the user to re-decide settled items | "merge or separate?" stalls; infuriating | If clarified once, it's decided; act, don't re-ask |
 | G14 | Inventing a parallel process (Stage M/P, 5-stages-per-turn remix) | Broke the defined pre-base→base→pre-ship→ship→post-ship process | Use the defined five stages; the work goes inside them |
+| G15 | Starting Pre-ship before that turn's Base is confirmed BANKED in the ledger | Turn 07 Pre-ship (CONFIG release) was built before Base was a gated, banked release — sequence violated even though the copy-forward content was harmless | Before starting any stage's build, confirm the immediately prior stage shows BANKED in RUN HISTORY; if not, stop and bank it first (Base = checksum-verified copy-forward, no rebuild) |
 
 ## RULE
 Any new failure that triggers the exit condition (build outline §VI-2) is appended here with its signature, and this file is updated in project knowledge so it persists across sessions. The graveyard is scanned at workflow step 3 and before any retry. A match = forbidden path, full stop.
