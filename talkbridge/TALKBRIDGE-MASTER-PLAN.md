@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.5 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.6 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -39,15 +39,14 @@ At the END of every run, before stopping, the doer overwrites the CURRENT RUN bl
 The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
 
 ## CURRENT RUN
-- STAGE: Turn 07 / Pre-ship / Engine activation / Release 1 of 9: CONFIG
-- ATTEMPT: 1
-- DISPOSITION: AWAITING-GATE
-- OUTPUT: bridge-turn07-pre-ship-r1.html — 4778 lines, 319,433 bytes, v5.7.0
-- READY-TO-TEST REPORT: CERTIFIED — 21/21 immutables match, change manifest exact (3 lines only: comment+span version stamps, relay constants gate), use.CONFIG=true at 1 call site, old relay constants in else branch, all other use.* unchanged, lint clean, single <script>, version stamp v5.7.0.
-- NOTES / GAPS / EXIT REASON: n/a — clean build, no gaps.
+- STAGE: Turn 07 / Pre-ship / Engine activation
+- ATTEMPT: (none yet)
+- DISPOSITION: NOT STARTED
+- READY-TO-TEST REPORT: (none yet)
+- NOTES / GAPS / EXIT REASON: (none yet)
 
 ## RUN HISTORY (append-only; newest first)
-- 2026-06-30 Turn 07 / Pre-ship / Engine activation R1 (CONFIG) — AWAITING-GATE. CONFIG.get('use.CONFIG') gate on relay constants; old path in else branch; use.CONFIG=true; 21/21 immutables intact; v5.7.0; sha 319433 bytes.
+- 2026-06-30 Turn 07 / Base — BANKED. bridge-turn07-pre-base.html confirmed checksum-identical to banked Turn 06 Post-ship: 4780 lines, sha a73aecbfd2c2. No rebuild, no new device test (content already device-gated as Turn 06 Post-ship). Verified by manager. Input to Pre-ship.
 - 2026-06-30 Turn 06 / Post-ship / PB UI group — BANKED. 4 dormant additions (PB-SYNC pull/writeBack/markDirty/isDirty, PB-USAGE recordUse/getUsage, PB-RENDER.renderCard, PB overlay surface markup), all 17/17 modules now present, 17/17 use.* false, 21/21 immutables untouched (enterCall confirmed pre-existing async, not newly wrapped), single <script> block, lint clean, purely additive diff vs Ship baseline (only the v5.6.3→v5.6.4 version-stamp lines changed otherwise), +274 lines, v5.6.4, sha a73aecbf. renderCard fixture (talkbridge/fixtures/render.json) verified by structural assertion: wrap id/class, 6 children, all 5 child ids and 7 drawer ids present and correctly generated. Deterministic gate green (verified independently by manager); device gate pass (tester). NOTE: the doer's first push to this plan document overwrote it to 0 bytes (destructive — file content lost, ledger included); manager detected via API readback, reverted to last-good commit by sha, then re-applied this banked entry on top of the restored document. Build artifact itself (bridge-turn06-post-ship.html) was unaffected and verified independently — see checks above.
 - 2026-06-30 Turn 06 / Ship / Core UI + shared search seam — BANKED. 7 modules dormant (ROOM, THREAD, CALL, PB-DATA, PB-QUERY, PB-RENDER.renderRow, COMPOSE_SEAM), 17/17 use.* false, 21/21 immutables, fixtures pass, +310 lines additive, v5.6.3, sha bf14bd59. Deterministic gate green; device gate pass (tester).
 - 2026-06-30 Turn 06 / Pre-ship / Engine group — BANKED. 9 engine modules dormant (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE), all use.* false, 21/21 immutables (incl. setupPC async), lint clean, single <script>, behavior identical to base, v5.6.2. Deterministic gate green; device gate pass (tester). Plan defects fixed in-flight: §B async-prefix method (v2.0), mandatory version stamp (v2.1).
@@ -55,7 +54,7 @@ The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the man
 ---
 
 
-Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
+Process: every turn = pre-base → base → pre-ship → ship → post-ship. BASE STAGE (every turn, not just Turn 06): the prior turn's banked post-ship file, copied forward under this turn's pre-base name, IS this turn's base — a checksum-verified, byte-identical floor. The Base gate is NOT a rebuild and NOT a new device test (the content already passed its device gate as the prior turn's post-ship): it is the doer/manager confirming, by full-file sha256 and line count, that pre-base == the prior turn's banked post-ship exactly. Mismatch → STOP, wrong input, do not proceed to Pre-ship. Only after Base is confirmed does Pre-ship begin. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
 
 **Contract rules (every module):** exposes only its listed methods; in/out fixed once frozen; every method logs `{module}_{op}{in,out}` to LOG and swallows nothing; reads only its inputs + CONFIG, never another module's internals or page globals.
 
@@ -150,43 +149,53 @@ SURFACE: none changes; inert. TWO GATES (dormant): (1) DETERMINISTIC — renderC
 
 # TURN 07 — Shell: the five surfaces (ACTIVATION turn + new module work)
 Input: copy bridge-turn06-post-ship → bridge-turn07-pre-base. Output: bridge-turn07-post-ship.html.
-This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched on, old paths off, one at a time, AND the shell surfaces are built. Same three-group spine per stage.
+This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched on, old paths off, one at a time, AND the shell surfaces are built. Same four-stage spine per turn (Base → Pre-ship → Ship → Post-ship).
+
+## Base — THE FLOOR (checksum-verified, not rebuilt)
+bridge-turn07-pre-base.html = bridge-turn06-post-ship.html, copied forward byte-for-byte. GATE: full-file sha256 and line count of pre-base match the banked Turn 06 Post-ship record (4780 lines / sha prefix a73aecbf) exactly. No new device test — this content already passed its device gate as Turn 06 Post-ship. Mismatch on sha or line count → STOP, wrong input, do not start Pre-ship. Bank → input to Pre-ship.
+
 - **Pre-ship — ENGINE ACTIVATION.** Nine separate releases, one module flag flipped per release per §C (never more than one surface's flag per stage): CONFIG, then LOG, then STORE, then RELAY, then RTC, then STT, then TRANSLATE, then LANGDETECT, then NORMALIZE — each release flips its one `use.*` flag true at its one call site, old path gated off, and is device-gated before the next release starts. GATE (per release): that module's engine path now runs through it; zero regression; debug log shows MODULE.method:in/out. The Pre-ship stage as a whole banks only once all 9 releases have individually banked.
 - **Ship — CORE UI ACTIVATION + the five surfaces.** Activate ROOM/THREAD/CALL; build Room List, Room Creation, Thread, Call mount/return, Room Info/Dispose (Part V element map). Old name-derived pairKey deleted. GATE: create both room types; chat-only has no call control in DOM; joiner lands in thread, cannot see other rooms; call escalates and returns to thread with "call ended" marker; dispose has the one confirmation.
 - **Post-ship — polish + token pass on the five surfaces (no new screens).** GATE: all Turn 06 + 07 device cases pass; visual consistency. Merge to main.
 
 # TURN 08 — PB UI ACTIVATION + phrasebook behaviors
-Input: copy turn07-post-ship → pre-base. Output: bridge-turn08-post-ship.html.
+Input: copy turn07-post-ship → bridge-turn08-pre-base. Output: bridge-turn08-post-ship.html.
+BASE STAGE: bridge-turn08-pre-base.html must be checksum-verified byte-identical to the banked Turn 07 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — PB ENGINE ACTIVATION.** Flip on PB-DATA, PB-SYNC, PB-USAGE one per release. GATE: pull on call start (pbsync_pulled), replace-on-load, write-back on hangup+dirty-close (pbsync_upload_completed), usage records on use; G1–G6.
 - **Ship — PB CORE UI ACTIVATION.** Flip on PB-QUERY, PB-RENDER; row vs card; one search engine. GATE: overlay zero-state shows cards, search shows rows, same query both surfaces.
 - **Post-ship — PB BEHAVIORS (the ones that regressed).** Enter-in-source KEYDOWN; conditional verdict reset; clarify el.focus(); compose "/" and ".." guarded on Enter AND send; pbAddCard; dedup. GATE: device cases A1–G6 all pass. Merge to main.
 
 # TURN 09 — One shared translation path (engine consolidation)
-Input: copy turn08-post-ship → pre-base. Output: bridge-turn09-post-ship.html.
+Input: copy turn08-post-ship → bridge-turn09-pre-base. Output: bridge-turn09-post-ship.html.
+BASE STAGE: bridge-turn09-pre-base.html must be checksum-verified byte-identical to the banked Turn 08 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — ENGINE:** NORMALIZE becomes the single translation entry for chat AND call; route call-transcript translation through it. GATE: spoken translation identical; Z→X→Y in call.
 - **Ship — CORE UI:** chat end-to-end through it; PB use/send/search feed the same path. GATE: type/speak any language → Z→X→Y, original never shown; card send correct both sides.
 - **Post-ship — cleanup:** remove dead translation routes; LOG shows one path per translated message. Merge to main.
 
 # TURN 10 — Token addressing + multi-device
-Input: copy turn09-post-ship → pre-base. Output: bridge-turn10-post-ship.html.
+Input: copy turn09-post-ship → bridge-turn10-pre-base. Output: bridge-turn10-post-ship.html.
+BASE STAGE: bridge-turn10-pre-base.html must be checksum-verified byte-identical to the banked Turn 09 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — ENGINE:** token is sole identity everywhere; audit out residual name-derived identity. GATE: no name-derived identity; flows unaffected.
 - **Ship — CORE UI:** multi-device chat join; extends to calls (CALL recognizes/routes active or incoming call on a 2nd device). GATE: two devices converge; cross-device call rings/answers.
 - **Post-ship:** edge cases (drop mid-call, rejoin). Merge to main.
 
 # TURN 11 — Presence, waiting & room disposal
-Input: copy turn10-post-ship → pre-base. Output: bridge-turn11-post-ship.html.
+Input: copy turn10-post-ship → bridge-turn11-pre-base. Output: bridge-turn11-post-ship.html.
+BASE STAGE: bridge-turn11-pre-base.html must be checksum-verified byte-identical to the banked Turn 10 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — ENGINE:** relay-side presence/waiting contract + disposal policy (unjoined 30-day expiry; joined never silent; dispose retires token + purges). 
 - **Ship — CORE UI:** token-keyed waiting indicator surviving offline; unread/last-message in Room List; dispose cleanup. GATE: offline→waiting→clears on join; away messages reflected; dispose removes room everywhere.
 - **Post-ship:** edge cases (dispose during waiting, re-create). Merge to main.
 
 # TURN 12 — Design system & uniform look (configurability payoff)
-Input: copy turn11-post-ship → pre-base. Output: bridge-turn12-post-ship.html.
+Input: copy turn11-post-ship → bridge-turn12-pre-base. Output: bridge-turn12-post-ship.html.
+BASE STAGE: bridge-turn12-pre-base.html must be checksum-verified byte-identical to the banked Turn 11 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — ENGINE/CONFIG:** audit every remaining hardcoded color/size/spacing → CONFIG token keys; inject full token set; replace hardcoded with tokens. GATE: every screen identical, token-driven; no black boxes.
 - **Ship — CORE UI:** two independent persisted axes (font size, theme preset) from CONFIG; apply uniform design language across all five surfaces + PB component. GATE: change font/theme independently, both persist; every surface coherent in default + each theme.
 - **Post-ship:** final consistency; nothing un-tokenized. Merge to main.
 
 # TURN 13 — Installable, reachable when closed + pilot readiness (DONE)
-Input: copy turn12-post-ship → pre-base. Output: bridge-turn13-post-ship.html.
+Input: copy turn12-post-ship → bridge-turn13-pre-base. Output: bridge-turn13-post-ship.html.
+BASE STAGE: bridge-turn13-pre-base.html must be checksum-verified byte-identical to the banked Turn 12 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
 - **Pre-ship — ENGINE:** service worker + notification contract (PWA/push lives HERE); installable to home screen. GATE: installs, launches full-screen.
 - **Ship — CORE UI:** push subscription; backgrounded + fully-closed → notification → opens right thread; unread badge. GATE: closed-app notification → correct thread; badge clears.
 - **Post-ship — pilot readiness:** full cross-turn regression on real Galaxy + iPhone; configurability proof (change theme/font/labels/default capability via CONFIG, no rebuild). GATE: whole matrix passes; config change reshapes look/feel/operation without touching code. Merge to main. DONE.
