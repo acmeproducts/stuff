@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 2.0 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 2.1 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -117,14 +117,14 @@ Once every module reads from CONFIG (§4M.1) instead of hardcoding, the app beco
 Input: bridge-turn06-base.html v5.6.1. Output: bridge-turn06-post-ship.html.
 
 ## Base — THE FLOOR (already banked; read-only input)
-bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. DORMANT-STAGE GATING PRINCIPLE: a dormant module cannot be exercised on the phone (its flag is off). Each Turn 06 stage therefore has TWO gates — a DETERMINISTIC gate (fixtures + §VI-4 report prove the dormant modules are correct in isolation) and a DEVICE gate (the user confirms only that the app still behaves EXACTLY like base). Active-behavior device cases (A1–G6) belong to the ACTIVATION turns (07+), not Turn 06. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
+bridge-turn06-base.html v5.6.1. Contains all prior pre-base work (WebRTC flapping fixes etc.). No stage rebuilds it. The next unbuilt stage is Pre-ship. All modules below are delivered DORMANT (present, marked, checksummed, every CONFIG use.* flag false, old code untouched and live, behavior byte-identical to base). Activation (flip new on / old off, one at a time, device-gated) is the job of the turns/releases AFTER all three groups are banked. VERSION STAMP (mandatory each stage): every stage bumps the file's internal version stamp. Turn 06: base=v5.6.1 (input) → Pre-ship output=v5.6.2 → Ship output=v5.6.3 → Post-ship output=v5.6.4. The doer MUST update the version string inside the HTML to the stage's output version; a build still showing the input version is NOT certifiable. General rule: output version = input patch +1 within a turn; a turn's post-ship is the next turn's input. DORMANT-STAGE GATING PRINCIPLE: a dormant module cannot be exercised on the phone (its flag is off). Each Turn 06 stage therefore has TWO gates — a DETERMINISTIC gate (fixtures + §VI-4 report prove the dormant modules are correct in isolation) and a DEVICE gate (the user confirms only that the app still behaves EXACTLY like base). Active-behavior device cases (A1–G6) belong to the ACTIVATION turns (07+), not Turn 06. The 21 immutable functions stay byte-identical; one <script> block; never wrap enterCall async. Build order within a stage per §F.
 
-## Pre-ship — ENGINE GROUP (foundational modules, dormant)
+## Pre-ship — ENGINE GROUP (foundational modules, dormant) → output bridge-turn06-pre-ship.html v5.6.2
 Deliver these nine as atomic marked blocks with the §H wrapper, all dormant:
 CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE (signatures in §4M; engine modules wrap the immutable fns unchanged).
 SURFACE: none; inert. GATE: call, transcription, translation, recovery, chat Z→X→Y identical to base, zero regression; §VI-4 report (9 present, 3 log points each, 21 immutables intact, all use.* false). Bank → input to Ship.
 
-## Ship — CORE UI + SHARED SEARCH SEAM (dormant)
+## Ship — CORE UI + SHARED SEARCH SEAM (dormant) → output v5.6.3
 The compose strip, its slide-up search drawer, the search query, and the row renderer are a SHARED layer: the non-PB chat/transcript strip is not whole without them, AND the PB surface reuses the identical query + row renderer. They are delivered here, not in PB UI, because they straddle the boundary. Search needs data, so PB-DATA is delivered here too (the foundation the query reads). Modules, dormant, atomic/marked/§H-logged:
 - ROOM create/join/listForOwner/get/dispose
 - THREAD render/append/postSystem
@@ -136,7 +136,7 @@ The compose strip, its slide-up search drawer, the search query, and the row ren
 FIXTURES (authored HERE, where their modules land): the doer authors fixtures/norm.json (PB-DATA.norm), fixtures/query.json (PB-QUERY), fixtures/render.json renderRow cases (PB-RENDER.renderRow), submitted for gating review per §N before they are the gate.
 SURFACE: none changes; all inert. TWO GATES (a dormant module is NOT phone-tested — its flag is off): (1) DETERMINISTIC gate — fixtures norm.json/query.json/render.json (§N/§O) prove PB-DATA.norm, PB-QUERY.query, and PB-RENDER.renderRow produce expected output; §VI-4 report (modules present, 3 log points each, immutables intact, all use.* false). (2) DEVICE gate — the only thing the user verifies on the phone is that the app behaves EXACTLY like base (create/join, transcript, enter-call/hang-up unchanged; engine group intact). Bank → input to Post-ship.
 
-## Post-ship — PB UI GROUP (PB-exclusive modules + surface, dormant)
+## Post-ship — PB UI GROUP (PB-exclusive modules + surface, dormant) → output bridge-turn06-post-ship.html v5.6.4
 The pieces that ONLY the phrasebook uses, consuming the shared layer already delivered. Dormant, atomic/marked/§H-logged:
 - PB-SYNC pull/writeBack
 - PB-USAGE recordUse/getUsage
@@ -475,6 +475,7 @@ Before building any module, the builder answers that module's fixed questions, d
 
 ## §VI-4. READY-TO-TEST REPORT (the certification that replaces self-grading trust)
 No device test begins until the builder emits a signed report certifying every check, by name, with its result:
+- version stamp: file internal version == this stage's output version (e.g. Pre-ship == v5.6.2); FAIL if still showing the input version
 - lint (node --check): PASS + output
 - 21 immutable checksums: each one, expected vs actual
 - atomic module boundary markers present: listed
