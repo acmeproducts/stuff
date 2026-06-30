@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.6 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.7 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -18,11 +18,35 @@ You are the DOER. You build exactly ONE stage of this plan, then STOP. You do no
 4. Honor the DORMANT-STAGE GATING PRINCIPLE: everything you build is dormant (every CONFIG use.* flag false; old code untouched and live; behavior byte-identical to base). The 21 immutable functions (§B) stay byte-identical. One <script> block. Never wrap enterCall async.
 5. Produce a COMPLETE single-file HTML (no fragments, ever), the build-log, and the §VI-4 ready-to-test report.
 
-## DELIVERY (you have NO write access; do not push)
-You cannot push to GitHub and must not try. Return three things to the gating side: (1) the complete file, (2) the build-log, (3) the ready-to-test report. The push to a test path and the device test are handled by the gating side. Then STOP. Do not start the next stage. Do not merge to main. Do not touch base.
+## DELIVERY
+The build ARTIFACT (the .html) and its device promotion are handled by the gating side — you do not push the build to main or over base. But you DO record your outcome in the STATUS LEDGER below: if you have a repo token, write your outcome into the ledger and push ONLY this plan document; if you have no token, output the exact ledger text plus the complete file + build-log + report, and the manager writes the ledger and handles the build artifact. Either way: return the complete file, build-log, and ready-to-test report, update the ledger, then STOP. Do not start the next stage, merge to main, or touch base.
 
 ## IF ANYTHING IS AMBIGUOUS
 STOP and list the exact gap with the section it should have been in. Do not decide it yourself. A correct STOP is success; a guess is the failure mode this whole document exists to prevent.
+
+---
+
+# STATUS LEDGER (the doer WRITES here every run; the manager READS here; the tester never relays)
+
+This document is the shared channel. The doer does not send messages to anyone — it UPDATES this ledger and pushes the document. The manager reads this ledger and brings the human only the gating decision. The human talks only to the manager.
+
+## DOER PROTOCOL FOR THIS LEDGER
+At the END of every run, before stopping, the doer overwrites the CURRENT RUN block below with one of three outcomes, then pushes the document to GitHub (the doer DOES have the repo path; if it lacks a token it appends the outcome and flags NO-TOKEN so the manager pushes):
+- **SUCCESS** — stage built, §VI-4 report all-green. Paste the full ready-to-test report. Set DISPOSITION: AWAITING-GATE.
+- **RETRY** — first device/deterministic attempt failed; rebuilt from clean baseline per §VI-2. State what failed and that a clean-baseline retry was produced. Set DISPOSITION: AWAITING-GATE (retry build).
+- **EXIT** — retry also failed, or a graveyard match was found. State the §VI-2 exit reason in full (which change, which step, checksum divergence, red cases, graveyard match). Set DISPOSITION: EXIT — NO FURTHER ATTEMPTS. Append the new failure to the graveyard.
+
+The doer also updates CURRENT STAGE at the top: on a banked SUCCESS that the manager has gated-pass, the stage advances; the doer never advances it itself.
+
+## CURRENT RUN
+- STAGE: Turn 06 / Pre-ship / Engine group
+- ATTEMPT: (none yet)
+- DISPOSITION: NOT STARTED
+- READY-TO-TEST REPORT: (none yet)
+- NOTES / GAPS / EXIT REASON: (none yet)
+
+## RUN HISTORY (append-only; newest first)
+- (empty)
 
 ---
 
