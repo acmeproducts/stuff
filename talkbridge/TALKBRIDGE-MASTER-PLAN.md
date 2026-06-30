@@ -1,6 +1,6 @@
 # TALKBRIDGE — BUILD PLAN: STAGES × MODULES × SURFACES
 ## turn06-base → finished configurable WhatsApp-with-translation. Every stage names the module contracts it builds and the user-facing behavior it delivers.
-**Version: 1.2 | 2026-06-29 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 1.3 | 2026-06-30 | Master build plan. Source of truth in GitHub: raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 
 Process: every turn = pre-base → base → pre-ship → ship → post-ship. Each stage ends in a USER TEST gate on the phone; banks only on pass; next stage starts only from a banked stage. Modules built parallel beside working code, switched one surface at a time after device confirmation. Immutable engine (startDeepgram/stopDeepgram/reconcileDeepgramState, translate/translateWithRetry, onDGFinal, handleChatMsg, _loadFastText/_detectLangAsync, RELAY_*, all WebRTC/recovery/relay) is wrapped behind a contract, never rewritten. One change → lint → verify → next. Roll back on failure, never patch forward.
@@ -46,7 +46,7 @@ The whole application is modular. Not just the phrasebook — every aspect. The 
 
 **4M.11 CALL** — the call surface (mounts RTC+STT+TRANSLATE+PB overlay). mount(roomCtx)/unmount(); on unmount returns control to THREAD with a "call ended" marker. Present only for chat+call rooms (gated by CONFIG/ROOM capability).
 
-**4M.12 PB-DATA** — sole owner of phrasebook cards. getCards()/getLive()/byId(id)/save(cards)/norm(raw)→Card. Schema per §8.2. GH source of truth; load REPLACES cache.
+**4M.12 PB-DATA** — sole owner of phrasebook cards. getCards()/getLive()/byId(id)/save(cards)/norm(raw)→Card. Canonical schema: id, source, target, sourceLang, targetLang, categories[] (default ['unassigned']), createdBy, updatedBy, createdAt, updatedAt, lastUsed, usage, backtranslate{sourceLang,targetLang,inputText,resultText,verdict (default 'pending'),contentHash,updatedAt}, clarifyChain[]. DROPS catalogIds, confidence, semanticRelationships, parentCategory, primaryTag, relatedIntents. GH is source of truth; load REPLACES cache (no merge).
 
 **4M.13 PB-SYNC** — versioned GH pull/push. pull(src,tgt)/writeBack() — highest version wins, conditional on dirty, pending/completed status.
 
@@ -207,6 +207,7 @@ O-Ring · Translation Memory · PB Central LIVE telemetry pipe (local usage trac
 # PART II — CC EXECUTION SPEC (the gap-closers; without these CC reintroduces regressions)
 
 ## §A. INPUT FILE MAP (never use a stale local file as baseline)
+REFERENCE FILE EXACT PATHS (raw.githubusercontent.com/acmeproducts/stuff/main/): bridge-turn06-base.html (baseline, repo root), phrase-desk.html (PB card layout authority, repo root), test.html (shell architecture authority, repo root), 2vid.html (shell reference, repo root). Fixtures: talkbridge/fixtures/. Plan + graveyard: talkbridge/.
 Every turn's input is fetched fresh from GitHub at stage start. Source of truth is the repo, not any local copy.
 - Fetch: `curl -s -o <local> https://raw.githubusercontent.com/acmeproducts/stuff/main/<file>`
 - Turn 06 input: `bridge-turn06-base.html` (v5.6.1, 3940 lines, full-file sha256 starts `0b21ffdeeadb5db9`). If the fetched file's line count ≠ 3940 or the sha prefix differs, STOP — wrong baseline.
@@ -375,6 +376,7 @@ A "behavior identical" modularization stage adds module code + log lines + one f
 Each stage ships a manifest: list of functions byte-IDENTICAL to input (with sha), functions NEW (with sha), and the EXACT call sites changed (file+line+old→new). CC diffs the built file against input: every function is either in the identical list (sha matches) or the new list; any changed function NOT declared = reject. No "I also cleaned up / improved X". This extends the checksum guarantee from the 21 frozen functions to the entire file.
 
 ## §N. NORM FIXTURE (pbNorm output is byte-exact, no edge-case latitude)
+FIXTURE AUTHORSHIP: the doer authors fixtures/norm.json, fixtures/query.json, fixtures/render.json from the §4M contracts + canonical schema as part of Pre-ship, and includes them in the ready-to-test report for gating review BEFORE they are treated as the verification gate (a doer must not silently grade itself against fixtures only it has seen). Once reviewed and accepted they are frozen and committed to the repo under talkbridge/fixtures/.
 Ship `fixtures/norm.json`: an array of `{input: rawCard, expected: normalizedCard}`. PB-DATA.norm(input) must deep-equal expected for every entry, including null-vs-missing-vs-empty, language-pair inheritance (remote card lacking sourceLang/targetLang inherits the file's pair, not 'en'/'en'), categories default ['unassigned'], verdict default 'pending', and dropped fields absent. `sha256(JSON.stringify(norm(input)))` == `sha256(JSON.stringify(expected))`. A mismatch on any fixture = reject.
 
 ## §O. QUERY/RENDER FIXTURES (search and render are deterministic, not judged)
