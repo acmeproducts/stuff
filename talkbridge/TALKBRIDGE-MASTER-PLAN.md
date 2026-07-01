@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.0 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.1 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -50,7 +50,22 @@ Every turn has exactly five stages in this order:
 Pre-base → Base → Pre-ship → Ship → Post-ship
 ```
 
-**Base is never skipped.** Base = copy of the prior turn's Post-ship, byte-for-byte identical, verified by sha256 and line count. No code changes. No new device test (the content already passed as prior Post-ship). A doer that begins Pre-ship without a banked Base has produced an unverifiable artifact and must stop.
+**This is the ONLY permitted structure. No turn skips any stage. No exceptions.**
+
+**Pre-base** is fed by a copy of the previous turn's Post-ship file, byte-for-byte. That copy IS the Pre-base artifact. The doer verifies sha256 and line count match the prior Post-ship ledger entry, then banks it.
+
+**Base** is derived from Pre-base (typically identical or with a defined freeze step). It is the verified floor for all Pre-ship work. Bank it before Pre-ship starts.
+
+**Pre-ship, Ship, Post-ship** are the build stages. Each starts only from the previous banked stage.
+
+The chain across turns:
+```
+Turn N Post-ship → copy → Turn N+1 Pre-base → Base → Pre-ship → Ship → Post-ship
+                                                                         ↓
+                                                            Turn N+2 Pre-base → ...
+```
+
+A doer that begins Pre-ship without a banked Base has produced an unverifiable artifact and must stop immediately.
 
 ## The workflow for every change (§WF)
 
