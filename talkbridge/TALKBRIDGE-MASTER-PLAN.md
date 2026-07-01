@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.3 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.4 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -25,7 +25,7 @@ Turn 12  Design system + pilot readiness → DONE
 ```
 
 ## Where we are right now
-**CURRENT STAGE:** Turn 07 / Pre-ship / PB Engine Activation
+**CURRENT STAGE:** Turn 07 / Pre-ship / PB Sync + Usage Activation
 
 See Part 1 for the doer protocol. See Part 3 for the Turn 07 spec.
 
@@ -135,208 +135,179 @@ The doer writes here after every run. The manager reads here. The tester never r
 ---
 
 ## TURN 07 — PB Activation
-Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf). Copy to bridge-turn07-pre-base.html — this is the start of Turn 07. Four releases follow.
+Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 
----
+### Pre-base — Status: DONE
+**Deliver:** bridge-turn07-pre-base.html
+**Work:** Copy bridge-turn06-post-ship.html byte-for-byte. No code changes.
+**Test:** Open on phone. Call connects, transcript works, PB overlay opens — identical to T06 post-ship. Any difference → stop.
 
-### Release 1 of 4 — Pre-base
-**Status: DONE**
-**What:** Copy bridge-turn06-post-ship.html to bridge-turn07-pre-base.html byte-for-byte. No code changes.
-**Test (negative):** open bridge-turn07-pre-base.html on phone. Behavior must be identical to bridge-turn06-post-ship.html — call connects, transcript works, nothing changed. If anything looks or behaves differently, stop.
-**Output:** bridge-turn07-pre-base.html, v5.6.4 (unchanged). sha prefix a73aecbf, 4780 lines.
+### Base — Status: DONE
+**Deliver:** bridge-turn07-base.html, v5.7.0
+**Work:** Activate PB-DATA. Wire old storage functions (pbGetCards, pbSaveCards, pbNorm) to redirect into PB-DATA so all existing callers get the new canonical schema. Old catalogIds/intentId/fingerprint fields stripped on load. pbBubbleHtml (old renderer) stays live — PB-RENDER not active yet.
+**Test:** Open on phone. Overlay opens, cards display (via old renderer). Debug log shows PB-DATA.norm:in/out firing for each card. Card schema in log shows categories[] not catalogIds. Call and transcript unaffected.
 
----
+### Pre-ship — Status: NOT STARTED
+**Deliver:** bridge-turn07-pre-ship.html, v5.7.1
+**Work:** Activate PB-SYNC and PB-USAGE.
+- Wire PB-SYNC.pull(myLang, theirLang) into enterCall — fetches highest-versioned phrasebook-{src}-{tgt}-{NNNN>=1000}.json from GitHub /phrasebook/, replaces cache wholesale (no merge). Flags use.PB_SYNC → true.
+- Wire PB-SYNC.writeBack() into hangUp and dirty overlay-close — conditional on dirty flag only. If clean → pbsync_skipped_no_changes, no write.
+- Wire PB-USAGE.recordUse(cardId) into the pb-use action. Flag use.PB_USAGE → true.
+- PB-SYNC.pull: no PAT → {status:'no-pat'}, call connects. No file → toast "No shared phrasebook yet", call connects. Error → pbsync_pull_err logged, call connects.
+- PB-SYNC.writeBack: dirty → list /phrasebook/, next version = highest + 1, PUT phrasebook-{src}-{tgt}-{NNNN+1}.json, log pbsync_upload_completed. Error → pbsync_push_err.
+**References:** Part 4 §4M.13 (PB-SYNC contract), §4M.16 (PB-USAGE). Part 6 G1–G6.
+**Test (all six must pass):**
+- G1: enter en-th call, file exists in GitHub → pbsync_pulled in log; cards visible in overlay.
+- G2: no file in GitHub → toast "No shared phrasebook yet"; call connects.
+- G3: enter call, change nothing, hang up → pbsync_skipped_no_changes in log.
+- G4: edit a card, hang up → pbsync_upload_completed in log; new versioned file in GitHub.
+- G5: edit a card, close overlay → write-back fires; pbsync_upload_completed in log.
+- G6: edit card, hang up with no network → pbsync_upload_pending in log; restore network → pbsync_upload_completed.
 
-### Release 2 of 4 — Base
-**Status: DONE**
-**What:** Verify bridge-turn07-pre-base.html sha256 and line count match bridge-turn06-post-ship.html exactly. This is the confirmed clean floor. Rename/copy to bridge-turn07-base.html.
-**Test (negative):** open bridge-turn07-base.html on phone. Identical behavior to Release 1. Call connects, transcript works, PB overlay opens (old UI), nothing broken.
-**Output:** bridge-turn07-base.html, v5.6.4. Same content, confirmed floor for all Pre-ship work.
-
----
-
-### Release 3 of 4 — Pre-ship: PB Engine Activation
-**Status: NOT STARTED**
-**What:** Wire PB-DATA, PB-SYNC, PB-USAGE into the live call flow. The phrasebook now pulls real cards from GitHub on call start, tracks usage, and writes back changes on hang-up.
-- `enterCall`: call `PB-SYNC.pull(myLang, theirLang)` — fetches `phrasebook-en-th-{NNNN}.json` (highest version number ≥ 1000), replaces card cache wholesale (no merge). Flags use.PB_DATA and use.PB_SYNC → true.
-- `hangUp`: call `PB-SYNC.writeBack()` — only if dirty flag set; if clean logs `pbsync_skipped_no_changes` and does nothing.
-- Overlay dirty-close: same `PB-SYNC.writeBack()` call.
-- pb-use action: call `PB-USAGE.recordUse(cardId)` — increments usage count, sets lastUsed, marks dirty. Flag use.PB_USAGE → true.
-- Old renderer `pbBubbleHtml` stays live (PB-RENDER not active yet). Old storage functions (pbGetCards, pbSaveCards, pbNorm) redirect to PB-DATA — callers unchanged, data shape is now canonical schema.
-**References:** Part 4 §4M.12 (PB-DATA schema), §4M.13 (PB-SYNC pull/writeBack contracts), §4M.16 (PB-USAGE). Part 5 §IMM (21 immutables stay untouched). Part 6 G1–G6 (sync lifecycle cases).
-**Test (positive — all six must pass):**
-- G1: enter en-th call, phrasebook file exists in GitHub → `pbsync_pulled` appears in debug log; cards appear in overlay.
-- G2: no phrasebook file in GitHub → toast "No shared phrasebook yet"; call still connects normally.
-- G3: enter call, look at cards but change nothing, hang up → `pbsync_skipped_no_changes` in debug log.
-- G4: enter call, edit a card source or verdict, hang up → `pbsync_upload_completed` in debug log; new versioned file appears in GitHub phrasebook folder.
-- G5: edit a card, close overlay without hanging up → write-back fires immediately; `pbsync_upload_completed` in log.
-- G6: edit a card, hang up with network off → `pbsync_upload_pending` in log; reconnect → `pbsync_upload_completed`.
-**Output:** bridge-turn07-pre-ship.html, v5.7.1.
-
----
-
-### Release 4 of 4 — Ship: PB UI + Search Activation
-**Status: NOT STARTED**
-**What:** Wire PB-QUERY, PB-RENDER, and COMPOSE-SEAM live. Cards now render via the new renderer. Search works in both the overlay and the compose strip drawer.
+### Ship — Status: NOT STARTED
+**Deliver:** bridge-turn07-ship.html, v5.7.2
+**Work:** Activate PB-QUERY, PB-RENDER, COMPOSE-SEAM.
 - PB-RENDER.renderCard replaces pbBubbleHtml for full cards. pbBubbleHtml removed.
-- PB-RENDER.renderRow renders search result rows (overlay search + compose drawer).
-- PB-QUERY.query drives all search — one engine, same results in both places.
-- COMPOSE-SEAM: typing `/` or `..` in the chat input opens the slide-up search drawer. Guard on BOTH Enter key AND the send button — a search predicate must never reach the transcript.
-**References:** Part 4 §4M.14 (PB-QUERY), §4M.15 (PB-RENDER), phrase-desk.html (card layout authority). Part 6 A1–G6 (all behavioral cases), E1–E8 (compose strip cases).
-**Test (positive — all must pass):**
-- Overlay opens → cards render with source, target, back-translate, verdict pills, footer icons. Layout matches phrase-desk.html.
-- Type in overlay search → cards replace with rows filtered by query. Clear → cards return.
-- Type `/bank` in chat input + press Enter → NOT sent to chat; overlay opens searching "bank".
-- Type `/bank` in chat input + tap Send button → NOT sent (send guarded same as Enter).
-- Type normal chat message + Enter → sends normally to transcript.
-- All A1–G6 behavioral cases pass (see Part 6).
-**Output:** bridge-turn07-ship.html, v5.7.2.
+- PB-RENDER.renderRow renders search result rows in overlay and compose drawer.
+- PB-QUERY.query drives all search — same engine for both surfaces.
+- COMPOSE-SEAM wired at one call site: / and .. open slide-up search drawer. Guard on BOTH Enter key AND send button — predicate never reaches transcript.
+**References:** Part 4 §4M.14 (PB-QUERY), §4M.15 (PB-RENDER). phrase-desk.html (card layout authority). Part 6 A1–G6, E1–E8.
+**Test (all must pass):**
+- Overlay shows full cards: source, target, back-translate always visible, verdict pills, 3-icon footer, tag drawer, clarify drawer.
+- Type in overlay search → rows appear filtered; clear → full cards return.
+- Type /bank in chat + Enter → NOT sent; overlay opens searching "bank".
+- Type /bank in chat + tap Send → NOT sent.
+- Type normal message + Enter → sends to transcript normally.
+- All A1–G6 behavioral cases pass (Part 6).
 
-Post-ship note: Turn 07 has no Post-ship release. Ship is the merge point. bridge-turn07-ship.html is the input to Turn 08 Pre-base.
+### Post-ship — Status: NOT STARTED
+**Deliver:** bridge-turn07-post-ship.html, v5.7.3
+**Work:** pbAddCard wired; duplicate save check (F1); all remaining behavioral edge cases.
+**Test:** Full A1–G6 + G1–G6 pass on device. Input to Turn 08 pre-base.
 
 ---
 
 ## TURN 08 — Shell Merge + PWA
-Input: bridge-turn07-ship.html. Copy to bridge-turn08-pre-base.html — this is the start of Turn 08. Four releases follow.
+Input: bridge-turn07-post-ship.html.
 
----
+### Pre-base — Status: NOT STARTED
+**Deliver:** bridge-turn08-pre-base.html
+**Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
+**Test:** Identical behavior to T07 post-ship. PB works, call works, nothing changed.
 
-### Release 1 of 4 — Pre-base
-**Status: NOT STARTED**
-**What:** Copy bridge-turn07-ship.html to bridge-turn08-pre-base.html byte-for-byte.
-**Test (negative):** phone behavior identical to bridge-turn07-ship.html. PB works, call works, nothing changed.
-**Output:** bridge-turn08-pre-base.html, v5.7.2 (unchanged).
+### Base — Status: NOT STARTED
+**Deliver:** bridge-turn08-base.html, v5.8.0
+**Work:** Activate the nine engine modules — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — in one pass. Old hardcoded paths removed. Service worker registered; app installable.
+**References:** Part 4 §4M.1–§4M.8. Part 5 §IMM.
+**Test:** Call connects, transcript appears, translation correct — same behavior, now through modules. Debug log shows module events (CONFIG.get:out, RELAY.connect:out, STT.start:out). App installs to home screen from browser.
 
----
+### Pre-ship — Status: NOT STARTED
+**Deliver:** bridge-turn08-pre-ship.html, v5.8.1
+**Work:** test.html shell merged. Five surfaces live: Room List (initiator only), Room Creation (chat-only vs chat+call, no name field, immediate share link+QR), Thread (call button in DOM only for chat+call rooms), Call (bridge engine mounted from Thread), Room Info/Dispose (one confirmation).
+- Joiner lands in Thread directly; cannot reach Room List or Room Creation.
+- Hang-up → CALL.unmount → Thread + "call ended" marker. showThankYou no longer terminal route.
+**References:** Part 7 (all five surface element maps). test.html, 2vid.html.
+**Test:** Initiator creates chat+call room → Thread shows call button → call connects → hang up → Thread shows "call ended". Initiator creates chat-only room → no call button anywhere in DOM. Joiner opens link → lands in Thread → cannot navigate to Room List. PB works inside call.
 
-### Release 2 of 4 — Base: Engine Activation
-**Status: NOT STARTED**
-**What:** Flip all nine remaining engine modules live — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — in one pass. Old hardcoded paths removed. Service worker registered; app becomes installable to home screen.
-**References:** Part 4 §4M.1–§4M.8. Part 5 §IMM (21 immutables stay byte-identical through this).
-**Test (positive):**
-- Call connects, audio+video work, transcript appears, translation is correct — identical behavior to Release 1 but now running through modules.
-- Debug log shows module-level events (CONFIG.get:out, RELAY.connect:out, STT.start:out) confirming modules are live.
-- Browser prompt to install app appears (or install available from browser menu).
-- Install to home screen → launches full-screen, no browser chrome.
-**Output:** bridge-turn08-base.html, v5.8.0.
+### Ship — Status: NOT STARTED
+**Deliver:** bridge-turn08-ship.html, v5.8.2
+**Work:** Push notifications wired to correct room. Dispose flow complete. Full two-device test.
+**Test:** App backgrounded → message received → notification opens correct room Thread. Dispose → one confirmation → room gone from Room List, relay cleaned up. Two-device: Galaxy initiates call, iPhone answers, translation works, PB works.
 
----
-
-### Release 3 of 4 — Pre-ship: Shell Surfaces
-**Status: NOT STARTED**
-**What:** test.html shell surfaces merged in. Five screens now exist as the app structure. Bridge call engine mounts as the Call screen navigated to from Thread.
-- Room List (initiator only): shows owned rooms, last message preview, unread dot, + New Room button.
-- Room Creation: two choices only — Chat Only or Chat + Call. No name field, no language picker. Immediately shows share link + QR after choice.
-- Thread: message list, compose strip (plain chat — no / search here), call button present ONLY for chat+call rooms (absent from DOM entirely in chat-only rooms), waiting indicator for initiator pre-join.
-- Call screen: bridge engine as before, PB overlay, compose strip with / search.
-- Room Info / Dispose: read-only info + one destructive dispose with one confirmation.
-- Joiner flow: lands in Thread directly, cannot reach Room List or Room Creation.
-- Hang up: returns to Thread with "call ended" marker. showThankYou no longer the terminal route.
-**References:** Part 7 (UI element map, all five surfaces, every element ID). test.html and 2vid.html (shell architecture authority).
-**Test (positive):**
-- Initiator: Room List → + New Room → choose Chat Only → share link appears immediately → send link to self → open as joiner in new tab → joiner lands in Thread.
-- Initiator: Room List → + New Room → choose Chat + Call → Thread shows call button → tap call button → call screen mounts → hang up → returns to Thread → "call ended" appears.
-- Chat-only room: no call button anywhere in DOM (inspect element, not just hidden).
-- Joiner: cannot navigate to Room List from Thread; Room Creation is not reachable.
-- Push notification received when app is backgrounded → opens correct room Thread.
-- PB overlay works inside call exactly as Turn 07 Ship tested.
-**Output:** bridge-turn08-pre-ship.html, v5.8.1.
-
----
-
-### Release 4 of 4 — Ship: Polish + Full Regression
-**Status: NOT STARTED**
-**What:** Dispose confirmation flow complete. Joiner cannot access creator-only surfaces (enforced in code, not just UI). All Turn 07 PB behavioral cases A1–G6 verified working inside the merged app.
-**Test (positive — full regression):**
-- All G1–G6 PB sync cases pass inside the merged shell.
-- All A1–G6 PB behavioral cases pass.
-- Dispose: tap dispose → confirmation appears → confirm → room removed from Room List, relay cleaned up.
-- Dispose: tap dispose → cancel → room unchanged.
-- Two-device test: initiator on Galaxy, joiner on iPhone — full call with translation and PB.
-**Output:** bridge-turn08-ship.html, v5.8.2. Input to Turn 09 Pre-base.
+### Post-ship — Status: NOT STARTED
+**Deliver:** bridge-turn08-post-ship.html, v5.8.3
+**Work:** All T07 A1–G6 + G1–G6 pass inside merged app. Joiner asymmetry enforced in code. Edge cases.
+**Test:** Full regression both devices. Input to Turn 09 pre-base.
 
 ---
 
 ## TURN 09 — Single Translation Path
-Input: bridge-turn08-ship.html. Copy to bridge-turn09-pre-base.html. Four releases.
+Input: bridge-turn08-post-ship.html.
 
-### Release 1 of 4 — Pre-base
-Copy bridge-turn08-ship.html → bridge-turn09-pre-base.html. **Test (negative):** identical behavior.
+### Pre-base — Status: NOT STARTED
+**Deliver:** bridge-turn09-pre-base.html
+**Work:** Copy bridge-turn08-post-ship.html byte-for-byte.
+**Test:** Identical behavior to T08 post-ship.
 
-### Release 2 of 4 — Base: NORMALIZE as sole translation entry
-NORMALIZE module becomes the single entry point for all translation — chat and call use the same path. Z→X→Y enforced everywhere. Dead routes removed.
-**Test (positive):** speak in call → transcript correct. Type in chat → output correct. Type in a third language → routes through user's preferred language first, then partner's language. Original never shown anywhere.
+### Base — Status: NOT STARTED
+**Deliver:** bridge-turn09-base.html, v5.9.0
+**Work:** NORMALIZE becomes the sole translation entry for chat AND call. Z→X→Y enforced at one place for both paths. Dead parallel routes removed.
+**Test:** Speak in call → transcript and translation correct. Type chat → translation correct. Type in a third language (not yours or partner's) → routes through your preferred language first, then partner's. Original text never shown anywhere.
 
-### Release 3 of 4 — Pre-ship: PB through same path
-PB card send, use, and search all route through NORMALIZE. One log event per translated message.
-**Test (positive):** send a PB card → debug log shows one translation event. Search in PB → results consistent with chat search.
+### Pre-ship — Status: NOT STARTED
+**Deliver:** bridge-turn09-pre-ship.html, v5.9.1
+**Work:** PB card send, use, and search all route through NORMALIZE. One log event per translated message, no duplicates.
+**Test:** Send PB card → debug log shows exactly one translation event. Chat and call translation events use identical log shape.
 
-### Release 4 of 4 — Ship: Cleanup + regression
-All dead translation routes removed. Full A1–G6 + G1–G6 regression.
-**Output:** bridge-turn09-ship.html. Input to Turn 10 Pre-base.
+### Ship — Status: NOT STARTED
+**Deliver:** bridge-turn09-ship.html, v5.9.2
+**Work:** All remaining dead translation routes removed. Full regression.
+**Test:** Full A1–G6 + G1–G6 pass. Every translation in the app produces exactly one log event through NORMALIZE.
+
+### Post-ship — Status: NOT STARTED
+**Deliver:** bridge-turn09-post-ship.html, v5.9.3
+**Work:** Edge cases and cleanup.
+**Test:** Full two-device regression. Input to Turn 10 pre-base.
 
 ---
 
 ## TURN 10 — Token Identity + Multi-device
-Input: bridge-turn09-ship.html. Copy to bridge-turn10-pre-base.html. Four releases.
+Input: bridge-turn09-post-ship.html.
 
-### Release 1 of 4 — Pre-base
-Copy bridge-turn09-ship.html → bridge-turn10-pre-base.html. **Test (negative):** identical behavior.
+### Pre-base — Status: NOT STARTED
+**Deliver:** bridge-turn10-pre-base.html
+**Work:** Copy bridge-turn09-post-ship.html byte-for-byte.
+**Test:** Identical behavior to T09 post-ship.
 
-### Release 2 of 4 — Base: Token as sole identity
-All name-derived identity removed. Token is the only identity in the system — room ownership, joiner recognition, everything.
-**Test (positive):** create room, rejoin via token on a different browser → recognized correctly. No name-derived routing anywhere in debug log.
+### Base — Status: NOT STARTED
+**Deliver:** bridge-turn10-base.html, v5.10.0
+**Work:** Token is sole identity everywhere. All name-derived identity removed from code. Room ownership, joiner recognition, and routing all keyed on token only.
+**Test:** Create room on Galaxy, open join link on iPhone → recognized correctly as joiner. Debug log shows no name-derived routing. Close and reopen → still recognized by token.
 
-### Release 3 of 4 — Pre-ship: Multi-device chat
-Two devices join the same room. Messages sync to both. Thread shows correctly on both.
-**Test (positive):** Galaxy sends message → appears on iPhone thread. iPhone sends → appears on Galaxy thread. Both show speaker-centric layout (own language left, partner's language right).
+### Pre-ship — Status: NOT STARTED
+**Deliver:** bridge-turn10-pre-ship.html, v5.10.1
+**Work:** Two-device chat sync. Messages sent from either device appear in the other's Thread in real time.
+**Test:** Galaxy sends message → appears on iPhone Thread. iPhone sends → appears on Galaxy Thread. Both show speaker-centric layout (own language left, partner's right).
 
-### Release 4 of 4 — Ship: Multi-device call
-Call rings on second device when first device is in the room. Cross-device answer works.
-**Test (positive):** initiator in room on Galaxy → iPhone joins → call button available → Galaxy initiates call → iPhone receives ring → iPhone answers → call connects both devices.
-**Output:** bridge-turn10-ship.html. Input to Turn 11 Pre-base.
+### Ship — Status: NOT STARTED
+**Deliver:** bridge-turn10-ship.html, v5.10.2
+**Work:** Two-device call. Call rings on second device when first is in room. Cross-device answer works.
+**Test:** Galaxy in room → iPhone joins → Galaxy initiates call → iPhone receives ring → iPhone answers → call connects both devices with translation.
 
----
-
-## TURN 11 — Presence, Waiting, Room Disposal
-Input: bridge-turn10-ship.html. Copy to bridge-turn11-pre-base.html. Four releases.
-
-### Release 1 of 4 — Pre-base
-Copy bridge-turn10-ship.html → bridge-turn11-pre-base.html. **Test (negative):** identical behavior.
-
-### Release 2 of 4 — Base: Relay-side presence contract
-Relay tracks who is in each room. Disposal policy: unjoined rooms expire after 30 days; joined rooms never silently expire; dispose retires the token server-side and purges.
-**Test (positive):** open room → debug log shows presence event. Close app → reopen → still in room. Dispose → token no longer valid (joiner link returns error).
-
-### Release 3 of 4 — Pre-ship: Waiting indicator + unread
-Waiting indicator in Thread for initiator when joiner hasn't joined. Survives app going to background and returning. Unread count and last-message preview in Room List update in real time.
-**Test (positive):** create room, don't join from other device → Thread shows "waiting for them to join". Background app, return → still showing. Send message from second device → unread dot and preview update in Room List.
-
-### Release 4 of 4 — Ship: Full presence regression
-Dispose during waiting. Re-create after dispose. Offline → waiting indicator holds → joiner joins → clears.
-**Test (positive):** all presence edge cases pass on two devices.
-**Output:** bridge-turn11-ship.html. Input to Turn 12 Pre-base.
+### Post-ship — Status: NOT STARTED
+**Deliver:** bridge-turn10-post-ship.html, v5.10.3
+**Work:** Edge cases — drop mid-call, rejoin, re-create. Full regression.
+**Test:** Drop network mid-call → recovery; rejoin. Input to Turn 11 pre-base.
 
 ---
 
-## TURN 12 — Design System + Pilot Readiness
-Input: bridge-turn11-ship.html. Copy to bridge-turn12-pre-base.html. Four releases.
+## TURN 11 — Presence + Design + Pilot
+Input: bridge-turn10-post-ship.html.
 
-### Release 1 of 4 — Pre-base
-Copy bridge-turn11-ship.html → bridge-turn12-pre-base.html. **Test (negative):** identical behavior.
+### Pre-base — Status: NOT STARTED
+**Deliver:** bridge-turn11-pre-base.html
+**Work:** Copy bridge-turn10-post-ship.html byte-for-byte.
+**Test:** Identical behavior to T10 post-ship.
 
-### Release 2 of 4 — Base: CONFIG token audit
-Every hardcoded color, spacing, and size value replaced with a CONFIG token key. No visual change yet — values are identical, just driven by CONFIG.
-**Test (negative):** app looks exactly the same. Debug log confirms CONFIG.get firing for every visual property.
+### Base — Status: NOT STARTED
+**Deliver:** bridge-turn11-base.html, v5.11.0
+**Work:** Relay presence contract live. Disposal policy: unjoined rooms expire 30 days, joined rooms never silently expire, dispose retires token and purges relay-side. Waiting indicator in Thread for initiator pre-join, survives app backgrounding.
+**Test:** Create room → Thread shows "waiting for them to join". Background app → return → still showing. Joiner joins → indicator clears. Dispose → token invalid (joiner link returns error). Debug log shows presence events.
 
-### Release 3 of 4 — Pre-ship: Font size + theme axes
-Two independent persisted axes: font scale and theme preset. Each persists across close and reinstall independently.
-**Test (positive):** increase font size → all text larger across all surfaces, PB included. Change theme → colors change across all surfaces. Reset font → theme unchanged. Reset theme → font unchanged. Close and reopen → both persist.
+### Pre-ship — Status: NOT STARTED
+**Deliver:** bridge-turn11-pre-ship.html, v5.11.1
+**Work:** All hardcoded color/size/spacing replaced with CONFIG token keys. Two independent persisted axes added: font scale and theme preset. Each persists across close and reinstall independently of the other.
+**Test:** Increase font size → all text larger across all surfaces and PB. Change theme → colors change everywhere. Reset font → theme unchanged. Reset theme → font unchanged. Close and reopen → both persist. App visually identical to prior release at default settings.
 
-### Release 4 of 4 — Ship: Pilot readiness + full regression
-Full regression on Galaxy and iPhone: all turns, all surfaces, all PB cases. Configurability proof: change theme, font, labels, default room capability via CONFIG — no code rebuild required.
-**Test (positive — the final gate):** every test case from every prior turn passes. Config change reshapes look and behavior without touching code.
-**Output:** bridge-turn12-ship.html. **DONE.**
+### Ship — Status: NOT STARTED
+**Deliver:** bridge-turn11-ship.html, v5.11.2
+**Work:** Push notifications when app is fully closed (not just backgrounded). Unread counts and last-message preview in Room List update when message arrives with app closed. Full design coherent and consistent across all five surfaces plus PB.
+**Test:** Force-close app on Galaxy. Send message from iPhone. Galaxy receives notification → tap → opens correct room Thread. Unread dot shows in Room List. Mark read → dot clears. Every surface uses consistent typography, spacing, color from CONFIG tokens.
+
+### Post-ship — Status: NOT STARTED
+**Deliver:** bridge-turn11-post-ship.html, v5.11.3
+**Work:** Full regression Galaxy + iPhone across every turn's test cases. Configurability proof: change theme, font, labels, default room capability via CONFIG — no code rebuild.
+**Test:** Every test from T07–T11 passes. Change CONFIG value → behavior/appearance changes without touching code. **DONE.**
 
 
 ---
