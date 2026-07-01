@@ -116,35 +116,30 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 # PART 2 — STATUS LEDGER
 
 ## CURRENT RUN
-- RELEASE: Turn 07 / Pre-ship / PB-SYNC + PB-USAGE activation
-- STATUS: DONE — AWAITING DEVICE TEST
-- OUTPUT: bridge-turn07-pre-ship.html, 4870 lines, sha256 prefix 6bcbdf455264, v5.7.2
-- RTR REPORT: 21/21 immutables pass, lint clean, all log points pass, switch wiring pass (1 each for PB_DATA/PB_SYNC/PB_USAGE), all 6 frozen pbsync_* events present, +50 lines additive vs corrected Base
-- CORRECTION HISTORY (this run required going back into Base, not patching forward):
-  1. User certified Base DONE from debug-log evidence only (`PB-DATA.norm:in/out` firing). Cards were never visually confirmed rendering on-device.
-  2. User tested Pre-ship, reported zero cards visible on the PB surface. Root cause found: `pbRenderOverlay()` gated the entire card list on `pbGetCats().length` (the deleted catalog registry) instead of on whether cards exist. Bug predates Turn 07 entirely — inherited unchanged from bridge-turn06-post-ship.html.
-  3. First fix attempt patched this into Pre-ship directly. User correctly called this out as patching forward on a broken Base — explicitly prohibited. Superseded.
-  4. Base (bridge-turn07-base.html, still v5.7.1) was corrected at the root: pbRenderOverlay fix, plus explicit user direction to also fix the overlay ribbon and add a sync-state footer now rather than deferring to Ship — ribbon reduced to only `+` (new phrase) and `×` (close), all catalog/CDN-era buttons removed (Back, Import, Export, "Download from library"/pbOpenGitSheet), sticky footer added showing loaded filename + last-current timestamp.
-  5. Pre-ship was then fully rebuilt from the corrected Base (not patched) — same PB-SYNC/PB-USAGE work as before, plus the sync footer now actually populates (_pbLastPull set on successful pull/writeBack).
-- PLAN GAP SURFACED: this exact ribbon/footer spec, and the `pbRenderOverlay` cats.length bug, were already fully documented in project knowledge under TB-TURN06-MASTER.md — a prior, more detailed Turn 06 Ship plan that never made it into the current TALKBRIDGE-MASTER-PLAN.md when it was rewritten. Significant spec detail (pbAddCard, sync dot, pair label, full pbBubbleHtml rebuild per phrase-desk.html) exists there and is not yet reflected in Turns 07+ here. This needs reconciling before Ship — flagging now rather than silently dropping it again.
-- Device test (G1–G6, all six) not yet run — needs a real GH PAT + partner phrasebook file. Also needs visual confirmation this time: cards rendering, ribbon showing only +/×, footer populating after a successful pull.
+- RELEASE: Turn 07 / Pre-ship / PB-SYNC + PB-USAGE activation, plus Ship-scope card renderer pulled forward per explicit direction
+- STATUS: DONE -- AWAITING DEVICE TEST
+- OUTPUT: bridge-turn07-pre-ship.html, 4857 lines, sha256 prefix d0c27309, v5.7.2 (Base companion: bridge-turn07-base.html, sha256 prefix 0ccda6ef, still v5.7.1)
+- RTR: 21/21 immutables pass, lint clean, all log points pass, switch wiring 1 each for PB_DATA/PB_SYNC/PB_USAGE, all 6 frozen pbsync_* events present
+- THIS RUN, IN ORDER (all fixed at the root, none patched forward):
+  1. pbRenderOverlay fixed (cats.length -> allCards.length) -- cards were never showing, gated on the deleted catalog registry instead of actual card count.
+  2. Ribbon reduced to + and close only; dead catalog/CDN buttons removed (Back, Import, Export, Download-from-library); sticky sync footer added.
+  3. Section SHIP-RECOVERED added to Part 3 -- the full Ship-stage PB display spec (ribbon final state with pair label/save icon/sync dot, pbAddCard, full card layout, the clarify-focus fix, 17-item acceptance test) recovered from TB-TURN06-MASTER.md in project knowledge, which never made it into this plan when it was rewritten.
+  4. Catalog filter chip bar structurally deleted -- not conditionally empty, the HTML element and every code path that could render a chip are gone. Card footer reduced 4->3 icons (dropped the back-translate toggle). Back-translate + verdict pills now always visible instead of hidden behind that toggle; verdict pills changed to full-width side-by-side per phrase-desk.html's pattern. Previously the only passive verdict signal was a small header flag glyph with no explanation, which read as an unexplained/random bug rather than real per-card state.
+- STAGE-DISCIPLINE NOTE: item 4 is Ship-stage work (PB-RENDER's actual job) pulled into Base/Pre-ship by explicit instruction -- a deliberate, acknowledged exception, not drift. Recorded so Ship's doer doesn't redo it, and knows what's left: pair label, save icon, sync dot, pbAddCard, PB-QUERY-driven search rows -- all in SHIP-RECOVERED.
+- CORRECTION CHAIN THIS RUN (why Base got touched three times): (1) Base was originally certified DONE from debug-log evidence only, cards never visually confirmed. (2) User found cards genuinely didn't render; root cause was the cats.length bug, inherited unchanged from bridge-turn06-post-ship.html. (3) First fix patched Pre-ship directly -- user correctly called this out as patching forward on a broken Base, explicitly prohibited, superseded. (4) Base was corrected at the root instead, Pre-ship rebuilt from the corrected Base, not patched. (5) User then asked for the ribbon/footer and full card-renderer catalog-chip cleanup to also happen now rather than waiting for Ship -- applied to Base first, Pre-ship rebuilt again on top, diffed each time to confirm no drift beyond the PB-SYNC/PB-USAGE layer.
+- Device test not yet run. Needs visual confirmation: cards visible, ribbon only +/close, zero catalog chips under any condition, footer populated after a real GH pull, back-translate+verdict always visible as full-width pills, footer icon count is 3.
 
 ## RUN HISTORY (append-only, newest first)
-- 2026-07-01 T07 Pre-ship — full rebuild from corrected Base (not a patch). bridge-turn07-pre-ship.html, 4870 lines, sha prefix 6bcbdf455264, v5.7.2. PB-SYNC + PB-USAGE active, sync footer wired to real pull/writeBack state, 21/21 immutables, lint clean.
-- 2026-07-01 T07 Base — corrected at the root (still v5.7.1): pbRenderOverlay cats.length bug fixed, ribbon reduced to + and close only, dead catalog/CDN buttons removed, sticky sync footer added. bridge-turn07-base.html, sha prefix 900df96ff3ba. 21/21 immutables re-verified.
-- 2026-07-01 T07 Pre-ship — [SUPERSEDED] patched pbRenderOverlay fix directly into Pre-ship rather than fixing Base. Wrong per explicit rule (never patch forward). Rebuilt above.
-- 2026-07-01 T07 Pre-ship — DONE pending device test. bridge-turn07-pre-ship.html, 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
-
-## RUN HISTORY (append-only, newest first)
-- 2026-07-01 T07 Pre-ship — DONE pending device test. bridge-turn07-pre-ship.html, 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
-- 2026-07-01 T07 Base — DONE, device test confirmed. bridge-turn07-base.html, 4812 lines, sha prefix 9b416c8597d7, v5.7.1. PB-DATA.norm:in/out observed firing on overlay open; canonical + legacy fields both present as designed.
-- 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
-- 2026-06-30 T06 Post-ship — DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
-- 2026-06-30 T06 Ship — DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
-- 2026-06-30 T06 Pre-ship — DONE. v5.6.2. 21/21 immutables. Device gate pass.
-
-
-
+- 2026-07-01 T07 Base+Pre-ship -- card renderer pulled forward from Ship per explicit direction: catalog chips structurally deleted, footer 4->3 icons, BT+verdict always visible as full-width pills. Base sha 0ccda6ef (still v5.7.1), Pre-ship rebuilt on top sha d0c27309 (v5.7.2). Diffed to confirm no drift beyond the PB-SYNC/PB-USAGE layer.
+- 2026-07-01 T07 Pre-ship -- full rebuild from corrected Base (not a patch). 4870 lines, sha prefix 6bcbdf455264, v5.7.2. PB-SYNC + PB-USAGE active, sync footer wired to real pull/writeBack state, 21/21 immutables, lint clean.
+- 2026-07-01 T07 Base -- corrected at the root (still v5.7.1): pbRenderOverlay cats.length bug fixed, ribbon reduced to + and close only, dead catalog/CDN buttons removed, sticky sync footer added. sha prefix 900df96ff3ba. 21/21 immutables re-verified.
+- 2026-07-01 T07 Pre-ship -- [SUPERSEDED] patched pbRenderOverlay fix directly into Pre-ship rather than fixing Base. Wrong per explicit rule (never patch forward). Rebuilt above.
+- 2026-07-01 T07 Pre-ship -- DONE pending device test. 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
+- 2026-07-01 T07 Base -- DONE, device test confirmed. 4812 lines, sha prefix 9b416c8597d7, v5.7.1. PB-DATA.norm:in/out observed firing on overlay open; canonical + legacy fields both present as designed.
+- 2026-07-01 T07 Pre-base -- DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
+- 2026-06-30 T06 Post-ship -- DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
+- 2026-06-30 T06 Ship -- DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
+- 2026-06-30 T06 Pre-ship -- DONE. v5.6.2. 21/21 immutables. Device gate pass.
 
 # PART 3 — TURN SPECS
 
