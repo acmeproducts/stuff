@@ -195,19 +195,156 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 ### Ship — Status: NOT STARTED
 **Deliver:** bridge-turn07-ship.html, v5.7.3
 **Work:** Activate PB-QUERY, PB-RENDER, COMPOSE-SEAM. PB-RENDER.renderCard replaces pbBubbleHtml (removed). PB-RENDER.renderRow for search rows. PB-QUERY drives all search — one engine for both overlay and compose drawer. COMPOSE-SEAM: / and .. open slide-up drawer, guarded on BOTH Enter AND send button.
-**References:** Part 4 §4M.14, §4M.15. phrase-desk.html. Part 6 A1–G6, E1–E8.
+**References:** Part 4 §4M.14, §4M.15. phrase-desk.html. Part 6 A1–G6, E1–E8. §SHIP-RECOVERED below — full layout/wiring spec recovered from TB-TURN06-MASTER.md (project knowledge), which was never carried into this plan when it was rewritten. Treat §SHIP-RECOVERED as authoritative detail for this stage; the summary above is not sufficient on its own.
 **Test (positive):**
 - Cards show source, target, back-translate, verdict pills, footer icons, tag drawer, clarify drawer per phrase-desk.html.
 - Overlay search → rows; clear → cards return.
 - /bank + Enter in chat → NOT sent; overlay opens searching "bank".
 - /bank + tap Send → NOT sent.
 - Normal message → sends normally.
-- All A1–G6 pass.
+- All A1–G6 pass. Also run the 17-item acceptance table in §SHIP-RECOVERED.
 
 ### Post-ship — Status: NOT STARTED
 **Deliver:** bridge-turn07-post-ship.html, v5.7.4
-**Work:** pbAddCard wired; duplicate save (F1); all edge cases closed.
+**Work:** pbAddCard wired (full spec in §SHIP-RECOVERED — replaces the deleted NC/new-card system entirely, not a stub); duplicate save (F1); all edge cases closed.
 **Test:** Full A1–G6 + G1–G6 on device. Input to Turn 08 Pre-base.
+
+---
+
+## §SHIP-RECOVERED — Full Ship-stage spec (recovered from TB-TURN06-MASTER.md, 2026-06-24)
+
+This document existed in project knowledge, was the actual detailed Ship-stage plan for the PB subsystem, and never made it into this file when it was rewritten into its current leaner form. Recovered here in full so it isn't lost a second time. Function names below are adapted from the Turn 06 draft to the module structure Turn 07 actually built (PB_DATA / PB_SYNC / PB_USAGE already exist and are active as of Base+Pre-ship — do not rebuild them, wire the ribbon/renderer against them).
+
+### Principle
+Ship is the complete replacement of the entire PB *display* subsystem — old ribbon, old catalog-era buttons, old bubble renderer all out; new system in; nothing coexisting. Pre-ship already gave PB-DATA/PB-SYNC/PB-USAGE a working data layer underneath the old renderer as a deliberate bridge — Ship is where the renderer catches up to that data layer and the old one is deleted, not patched further.
+
+### Overlay ribbon — final layout
+```
+[pair label: 🇺🇸 → 🇹🇭 en-th-1001]   [+]   [save/disk icon]   [sync dot]   [× close]
+```
+- Pair label (`#pb-ov-pair-label`): flag emoji + arrow + current loaded filename, left-aligned, flex:1, ellipsis-truncated.
+- `+` → `pbAddCard({})` (see below).
+- Save/disk icon → `PB_SYNC.writeBack()` directly (manual save-now, in addition to the automatic dirty-triggered writeBack on hangup/close already wired).
+- Sync dot (`#pb-ov-sync-dot`, 8px circle): grey = idle/clean, amber = dirty/pending, green = just-saved (brief), red = error. Driven by a `pbOvUpdateSyncDot(status)` function called after every PB_SYNC operation.
+- Close (`×`) → `pbCloseOverlay()`.
+- No back arrow (redundant with close — already removed in Base). No import/export/download buttons (already removed in Base).
+
+Current Base/Pre-ship state has a simplified version of this (`+` and `×` only, static footer text) as an interim step — Ship is where pair label, save icon, and sync dot get added on top of that, using the already-live PB_SYNC state (`PB_SYNC.isDirty()`) to drive the dot instead of inventing new state.
+
+### Overlay footer
+Sticky, bottom of overlay: `TalkBridge · <span id="pb-ov-fn">no file loaded</span>`. Already partially built in Base (`#pb-ov-footer`, wired to `_pbLastPull` set by PB_SYNC.pull/writeBack) — Ship should keep this mechanism, just confirm live-timestamp formatting matches (`current as of <date> <time>`, updates on every successful pull or writeBack, not just on overlay open).
+
+### pbAddCard(opts) — replaces the deleted NC system entirely
+- Sets `categories:['unassigned']`, `createdBy` from current user context, `backtranslate.verdict:'pending'`.
+- Runs `translateWithRetry` at birth to populate initial backtranslate.
+- Saves via `pbSaveCard()` → routes through `pbSaveCards()` → `PB_DATA.save()` + `PB_SYNC.markDirty()` (already wired as of Pre-ship — pbAddCard just needs to call the existing `pbSaveCard`, not reinvent persistence).
+- Opens overlay, new card visible immediately, scrolled into view.
+- Entry points: transcript "save to phrasebook" action → `pbAddCard({source,target,sourceLang,targetLang})`; overlay `+` button → `pbAddCard({})` (blank card, cursor in source).
+
+### pbRenderOverlay — final version (do not keep the Base interim gate)
+Base's interim fix (`pbGetAllCards().length` instead of `pbGetCats().length`) was a minimal correctness fix, not the final design. Ship's version should hard-scope to the active room pair instead of showing everything:
+```javascript
+function pbRenderOverlay(){
+  var host=document.getElementById('pb-ov-cards');if(!host)return;
+  var q=((document.getElementById('pb-ov-search')||{}).value||'').trim();
+  var cards=pbGetCards().filter(function(c){
+    if(!room.myLang||!room.theirLang)return true;
+    return(c.sourceLang===room.myLang&&c.targetLang===room.theirLang)
+      ||(c.sourceLang===room.theirLang&&c.targetLang===room.myLang);
+  });
+  if(q)cards=pbSearch(q,cards); // or PB-QUERY.query(...) once that module is active
+  var trashedCards=pbGetAllCards().filter(function(c){return c.deletedAt;});
+  if(!cards.length&&!trashedCards.length){
+    host.innerHTML='<div style="padding:32px 16px;text-align:center;color:#94a3b8;font-size:14px;">No phrases yet. Tap + to add.</div>';
+    return;
+  }
+  var html=q?(cards.map(function(c,i){return PB_RENDER.renderRow(c);}).join(''))
+    :cards.map(function(c){return PB_RENDER.renderCard(c);}).join('');
+  html+=pbTrashSectionHtml(trashedCards);
+  host.innerHTML=html;
+}
+```
+(Written against `pbSearch`/plain functions above since that's what exists pre-Ship; swap in PB-QUERY/PB-RENDER method calls once those modules are the activated path — the filtering/scoping logic itself is what needed recovering, not the exact call signatures.)
+
+### Card layout (PB-RENDER.renderCard / the old pbBubbleHtml being replaced)
+Bridge element IDs (not phrase-desk's own IDs — these must match what Bridge's existing event handlers expect):
+
+| Element | ID pattern |
+|---|---|
+| Card wrapper | `pbb-{id}` |
+| Source field | `pbsrc-{id}` |
+| Target field | `pbtgt-{id}` |
+| Back-translate text | `pb-bt-text-{id}` |
+| Tag drawer | `pbtags-{id}` |
+| Tag chips container | `pb-tc-{id}` |
+| Tag input | `pb-ti-{id}` |
+| Tag suggestions | `pb-ts-{id}` |
+| Clarify drawer | `pbclarify-{id}` |
+| Clarify thread | `pb-cc-{id}` |
+| Clarify input | `pb-ci-{id}` |
+
+Layout, top to bottom:
+1. **Header row**: `createdBy · date time`, dark readable text (not muted/faint).
+2. **Body row**: source (contenteditable, 10px padding, Enter→commit, blur→commit) + USE (source lang) + TTS | target (contenteditable) + USE + TTS, side by side.
+3. **Back-translate row**: always visible, plus TTS — no toggle, no drawer, no hide state.
+4. **Verdict row**: two full-width pills — ✓ Sounds Good | ⚑ Flag.
+5. **Footer row**: exactly 3 icons, grid — # (tags) | clarify bubble | trash. No text labels, no 4th icon, no BT-drawer toggle (BT is always visible per #3).
+6. **Tag drawer**: pills with ×, tag input with autocomplete suggestions — hidden by default, preserved from Base exactly (this part already works, don't rebuild).
+7. **Clarify drawer**: scrollable thread — author shown as `createdBy`/`updatedBy` (`tb`/`pb`/`xl` or real initials if XL team sets them), timestamp, text, × to remove. Hidden by default.
+
+Event wiring that must survive the rebuild (already correct in Base, just needs porting to the new renderer, not reinvented):
+- `pbCommitSrcEdit` resets verdict to `'pending'` on blur or Enter, even if source text is unchanged. Pushes to clarifyChain: `"Was: <old source>"` only if text actually changed, plus a verdict-reset entry always (regardless of whether text changed) — two possible entries, not one.
+- `pbAddClarify`, `pbSetVerdict`, `pbAddTag`/`pbRemoveTag` all push to clarifyChain.
+- Soft delete via trash icon → `pbSoftDelete()`.
+- Enter in source fires the same commit path as blur (not a separate handler).
+
+### The clarify-input focus fix (the one known functional bug in phrase-desk.html itself)
+```javascript
+function onClarifyKeydown(e,el){
+  if(!(e.key==='Enter'&&!e.shiftKey))return;
+  e.preventDefault();e.stopPropagation();
+  var id=el.getAttribute('data-cardid');
+  var v=el.value.trim();if(!v)return;
+  var card=pbGetCardById(id);if(!card)return;
+  if(!card.clarifyChain)card.clarifyChain=[];
+  var ts=new Date().toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  card.clarifyChain.push({ini:'TB',ts:ts,txt:v});
+  card.updatedAt=Date.now();pbSaveCard(card);
+  el.value='';
+  var cc=document.getElementById('pb-cc-'+id);
+  if(cc){cc.appendChild(_pbBuildClarifyEl('TB',ts,v));cc.scrollTop=cc.scrollHeight;}
+  el.focus(); // ← the fix. Without this line, Enter appears to do nothing — input keeps
+              //   text-looking-stuck focus but doesn't visibly respond, which reads as
+              //   "clarify doesn't respond to Enter" even though the entry was saved.
+}
+```
+
+### Search rows (PB-RENDER.renderRow / pbOvRowHtml, pbIRowHtml)
+Source + TTS + `>` send | target + TTS + `>` send, side by side. No "tap to use" text label anywhere — icon-only actions.
+
+### Slash-drawer cleanup (separate surface from the overlay ribbon — the `//` compose menu)
+Remove chips wired to the deleted functions: `pbOpenNewCardForContext` (if still chip-wired anywhere beyond the ribbon `+`), `pbTriggerImport`, `pbExportPrompt`, `pbOpenBooksModal`. Wire the remaining `+` chip to `pbAddCard({})`.
+
+### 17-item Ship acceptance table
+| # | What to do | Expected result |
+|---|---|---|
+| 1 | Start call with existing PB file on GitHub | Cards load in overlay without opening it |
+| 2 | Start call with no PB file | Toast "No shared phrasebook yet", call connects normally |
+| 3 | Speak during call | Transcription fires, translation appears — no regression |
+| 4 | Type in chat | Translation appears — no regression |
+| 5 | Open PB overlay | Cards visible in phrase-desk layout |
+| 6 | Tap + | New card, source focused |
+| 7 | Type source, press Enter | Target and BT populate inline, keyboard stays up |
+| 8 | Tag drawer: type tag, Enter | Tag pill appears, input stays focused |
+| 9 | Clarify drawer: type note, Enter | Note appears in thread, input clears AND refocuses |
+| 10 | Tap Sounds Good | Verdict set, logged to clarify chain |
+| 11 | Tap trash | Card soft-deleted |
+| 12 | Tap save icon in ribbon | Write-back fires if dirty |
+| 13 | Close overlay (dirty) | Write-back fires |
+| 14 | Hang up (dirty) | Write-back fires |
+| 15 | Search in overlay | Search results in row format, no crash |
+| 16 | Save from transcript | Card appears in overlay |
+| 17 | Pair label in ribbon | Shows flag emojis + filename |
 
 ---
 
