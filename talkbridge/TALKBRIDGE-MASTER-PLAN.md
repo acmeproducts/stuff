@@ -9,7 +9,7 @@
 You are the DOER. You build exactly ONE stage of this plan, then STOP. You do not manage scope, you do not improvise, you do not grep. Everything you need is in THIS document — if something is genuinely not here, STOP and name the gap; do not fill it with a guess.
 
 ## CURRENT STAGE (the only thing to build right now)
-**Turn 07 → Pre-ship → ENGINE ACTIVATION → Group 1: INFRA (CONFIG + LOG).** Flip `use.CONFIG` and `use.LOG` true, each at its one call site, old paths gated off. STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE remain dormant for now — they activate in Groups 2–4 (see Turn 07 Pre-ship section). Input: bridge-turn07-pre-base.html — Turn 07's Base is now confirmed BANKED (checksum-identical to Turn 06 Post-ship; see RUN HISTORY). (Turn 06 — Pre-ship, Ship, and Post-ship are ALL BANKED.) (When this group banks, this line is updated to the next group.)
+**Turn 07 → Pre-ship → PB ENGINE ACTIVATION.** Flip PB-DATA, PB-SYNC, PB-USAGE live at their call sites in bridge-turn06-post-ship.html (the banked Turn 07 Base). Old schema paths deleted. Pull on enterCall, write-back on hangUp+dirty-close. Gate: pbsync_pulled in log; cards in overlay; usage increments; pbsync_upload_completed on hangup when dirty; G1–G6 pass on device. Input: bridge-turn07-pre-base.html (= bridge-turn06-post-ship.html, already banked). Output: bridge-turn07-pre-ship.html. Version stamp: v5.7.1. Do not advance CURRENT STAGE — manager gates each stage.
 
 **REMEDIATION (read before building):** A prior run produced `bridge-turn07-pre-ship-r1.html`, which flipped CONFIG only. That content was deterministically verified correct, but it was built BEFORE Turn 07's Base was a confirmed, banked, gated release in the ledger — that is a sequence violation (every turn always has a Base release; never start Pre-ship before Base is banked) and is now logged in the graveyard as G15. Do not repeat it: confirm the CURRENT STAGE / prior stage is BANKED in the ledger before starting any new work, every time, no exceptions. The fix for the CONFIG content itself is NOT a rebuild from scratch — take r1, ADD the LOG module flip on top of it (same workflow: checksum-before/predict-after, atomic marked block, §H wrapper), producing the complete Group 1 release. Output as `bridge-turn07-pre-ship-g1.html`. Device-test Group 1 as one combined release — do not ask for a device test of CONFIG alone.
 
@@ -156,49 +156,45 @@ This is the first ACTIVATION turn: the dormant modules from Turn 06 get switched
 ## Base — THE FLOOR (checksum-verified, not rebuilt)
 bridge-turn07-pre-base.html = bridge-turn06-post-ship.html, copied forward byte-for-byte. GATE: full-file sha256 and line count of pre-base match the banked Turn 06 Post-ship record (4780 lines / sha prefix a73aecbf) exactly. No new device test — this content already passed its device gate as Turn 06 Post-ship. Mismatch on sha or line count → STOP, wrong input, do not start Pre-ship. Bank → input to Pre-ship.
 
-- **Pre-ship — ENGINE ACTIVATION.** Four release groups per §C (modules grouped because flipping them individually produces no device-testable difference, or because they share one observable contract surface). Each group is its own build → device gate → bank cycle; the next group starts only after the current one banks.
-  - **Group 1 — INFRA: CONFIG + LOG.** No live call/transcript behavior of their own; bundled because there is nothing independently observable about flipping either alone. GATE: app behaves exactly like Turn 07 Base; debug log shows CONFIG.get and LOG.log call sites firing.
-  - **Group 2 — PERSISTENCE: STORE.** Its own group because it has a genuinely distinct, independently observable behavior: data survives across app close/reopen. GATE: create a room, force-close the app, reopen — recent rooms and settings persist exactly as before.
-  - **Group 3 — CONNECTIVITY: RELAY + RTC.** Signaling and the peer connection cannot be meaningfully verified apart from each other — there is no observable "RELAY works" or "RTC works" independent of an actual call connecting. GATE: create/join a room, place a call, audio+video connect, hang up — identical to Base.
-  - **Group 4 — SPEECH/TRANSLATION PIPELINE: STT + LANGDETECT + TRANSLATE + NORMALIZE.** One functional chain — speak, detect language, translate, normalize output — with no individually testable midpoint. GATE: speak in a call, transcript appears, translation is correct in both directions, identical to Base.
-  - The Pre-ship stage as a whole banks only once all 4 groups have individually banked.
-- **Ship — CORE UI ACTIVATION + the five surfaces.** Activate ROOM/THREAD/CALL; build Room List, Room Creation, Thread, Call mount/return, Room Info/Dispose (Part V element map). Old name-derived pairKey deleted. GATE: create both room types; chat-only has no call control in DOM; joiner lands in thread, cannot see other rooms; call escalates and returns to thread with "call ended" marker; dispose has the one confirmation.
-- **Post-ship — polish + token pass on the five surfaces (no new screens).** GATE: all Turn 06 + 07 device cases pass; visual consistency. Merge to main.
+- **Pre-ship — PB ENGINE ACTIVATION.** Flip PB-DATA, PB-SYNC, PB-USAGE live — new centralized GitHub schema only, old schema paths deleted. Pull on `enterCall` (src=myLang, tgt=theirLang), replace cache wholesale (no merge), write-back on hangUp+dirty-close. GATE (device): `pbsync_pulled` in log on call start; cards present in overlay; usage increments on use; `pbsync_upload_completed` in log on hangup when dirty. G1–G6 pass.
+- **Ship — PB CORE UI ACTIVATION.** Flip PB-QUERY, PB-RENDER live; COMPOSE-SEAM live at its one call site. Cards show in overlay, search works in drawer and overlay, PB-RENDER.renderCard is the only card renderer. GATE (device): overlay shows cards from pull; search filters correctly; card sent to chat lands correctly; compose `/` search opens drawer and is guarded on Enter AND send.
+- **Post-ship — PB BEHAVIORS.** All A1–G6 cases pass. Enter-in-source KEYDOWN; conditional verdict reset; clarify focus; dedup; pbAddCard. Merge to main.
 
-# TURN 08 — PB UI ACTIVATION + phrasebook behaviors
+# TURN 08 — Shell merge: test.html + bridge + PWA
 Input: copy turn07-post-ship → bridge-turn08-pre-base. Output: bridge-turn08-post-ship.html.
-BASE STAGE: bridge-turn08-pre-base.html must be checksum-verified byte-identical to the banked Turn 07 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
-- **Pre-ship — PB ENGINE ACTIVATION.** Flip on PB-DATA, PB-SYNC, PB-USAGE one per release. GATE: pull on call start (pbsync_pulled), replace-on-load, write-back on hangup+dirty-close (pbsync_upload_completed), usage records on use; G1–G6.
-- **Ship — PB CORE UI ACTIVATION.** Flip on PB-QUERY, PB-RENDER; row vs card; one search engine. GATE: overlay zero-state shows cards, search shows rows, same query both surfaces.
-- **Post-ship — PB BEHAVIORS (the ones that regressed).** Enter-in-source KEYDOWN; conditional verdict reset; clarify el.focus(); compose "/" and ".." guarded on Enter AND send; pbAddCard; dedup. GATE: device cases A1–G6 all pass. Merge to main.
+BASE STAGE: bridge-turn08-pre-base.html must be checksum-verified byte-identical to the banked Turn 07 Post-ship file before this turn's Pre-ship begins. No rebuild, no new device test.
+- **Pre-ship — ENGINE ACTIVATION (all remaining modules + PWA foundation).** Flip CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE all live — one pass, old paths deleted immediately. Service worker registered; app installable to home screen. GATE: call connects through modules; transcript appears; app installs on phone.
+- **Ship — SHELL MERGE.** test.html is the host. Bridge call engine drops in as a screen navigated to from thread. Room List (initiator), single-room view (joiner), Room Creation (one choice: chat-only vs chat+call), Thread, Call mount/return. Call button present only in chat+call rooms. Push notifications wired to correct room. GATE: create both room types; joiner asymmetry holds; call escalates and returns to thread; notification opens correct room; PB works inside call.
+- **Post-ship — polish + regression.** All Turn 07 PB cases pass inside merged app. Joiner cannot reach room creation. Dispose confirmation. Merge to main.
 
-# TURN 09 — One shared translation path (engine consolidation)
+# TURN 09 — One shared translation path
 Input: copy turn08-post-ship → bridge-turn09-pre-base. Output: bridge-turn09-post-ship.html.
-BASE STAGE: bridge-turn09-pre-base.html must be checksum-verified byte-identical to the banked Turn 08 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
-- **Pre-ship — ENGINE:** NORMALIZE becomes the single translation entry for chat AND call; route call-transcript translation through it. GATE: spoken translation identical; Z→X→Y in call.
-- **Ship — CORE UI:** chat end-to-end through it; PB use/send/search feed the same path. GATE: type/speak any language → Z→X→Y, original never shown; card send correct both sides.
-- **Post-ship — cleanup:** remove dead translation routes; LOG shows one path per translated message. Merge to main.
+BASE STAGE: checksum-verified byte-identical to banked Turn 08 Post-ship. No rebuild, no new device test.
+- **Pre-ship:** NORMALIZE is the single translation entry for chat AND call. GATE: spoken + typed translation identical; Z→X→Y in both paths.
+- **Ship:** PB use/send/search feed the same path. Dead translation routes removed. GATE: type/speak any language → correct output both sides; original never shown.
+- **Post-ship:** LOG shows one path per translated message. Merge to main.
 
 # TURN 10 — Token addressing + multi-device
 Input: copy turn09-post-ship → bridge-turn10-pre-base. Output: bridge-turn10-post-ship.html.
-BASE STAGE: bridge-turn10-pre-base.html must be checksum-verified byte-identical to the banked Turn 09 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
-- **Pre-ship — ENGINE:** token is sole identity everywhere; audit out residual name-derived identity. GATE: no name-derived identity; flows unaffected.
-- **Ship — CORE UI:** multi-device chat join; extends to calls (CALL recognizes/routes active or incoming call on a 2nd device). GATE: two devices converge; cross-device call rings/answers.
+BASE STAGE: checksum-verified byte-identical to banked Turn 09 Post-ship. No rebuild, no new device test.
+- **Pre-ship:** token is sole identity; residual name-derived identity audited out.
+- **Ship:** multi-device chat join; cross-device call rings/answers.
 - **Post-ship:** edge cases (drop mid-call, rejoin). Merge to main.
 
-# TURN 11 — Presence, waiting & room disposal
+# TURN 11 — Presence, waiting, room disposal
 Input: copy turn10-post-ship → bridge-turn11-pre-base. Output: bridge-turn11-post-ship.html.
-BASE STAGE: bridge-turn11-pre-base.html must be checksum-verified byte-identical to the banked Turn 10 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
-- **Pre-ship — ENGINE:** relay-side presence/waiting contract + disposal policy (unjoined 30-day expiry; joined never silent; dispose retires token + purges). 
-- **Ship — CORE UI:** token-keyed waiting indicator surviving offline; unread/last-message in Room List; dispose cleanup. GATE: offline→waiting→clears on join; away messages reflected; dispose removes room everywhere.
-- **Post-ship:** edge cases (dispose during waiting, re-create). Merge to main.
+BASE STAGE: checksum-verified byte-identical to banked Turn 10 Post-ship. No rebuild, no new device test.
+- **Pre-ship:** relay-side presence + disposal policy (unjoined 30-day expiry; joined never silent; dispose retires token + purges).
+- **Ship:** waiting indicator survives offline; unread/last-message in Room List; dispose cleans relay. GATE: offline→waiting→clears on join; dispose removes room everywhere.
+- **Post-ship:** edge cases. Merge to main.
 
-# TURN 12 — Design system & uniform look (configurability payoff)
+# TURN 12 — Design system + pilot readiness
 Input: copy turn11-post-ship → bridge-turn12-pre-base. Output: bridge-turn12-post-ship.html.
-BASE STAGE: bridge-turn12-pre-base.html must be checksum-verified byte-identical to the banked Turn 11 Post-ship file before this turn's Pre-ship begins (see process-level BASE STAGE rule above). No rebuild, no new device test.
-- **Pre-ship — ENGINE/CONFIG:** audit every remaining hardcoded color/size/spacing → CONFIG token keys; inject full token set; replace hardcoded with tokens. GATE: every screen identical, token-driven; no black boxes.
-- **Ship — CORE UI:** two independent persisted axes (font size, theme preset) from CONFIG; apply uniform design language across all five surfaces + PB component. GATE: change font/theme independently, both persist; every surface coherent in default + each theme.
-- **Post-ship:** final consistency; nothing un-tokenized. Merge to main.
+BASE STAGE: checksum-verified byte-identical to banked Turn 11 Post-ship. No rebuild, no new device test.
+- **Pre-ship:** all hardcoded color/size/spacing → CONFIG token keys.
+- **Ship:** two independent persisted axes (font size, theme preset); uniform design across all surfaces + PB. GATE: change font/theme independently, both persist across reinstall; every surface coherent.
+- **Post-ship:** full regression Galaxy + iPhone. Pilot. DONE.
+
 
 # TURN 13 — Installable, reachable when closed + pilot readiness (DONE)
 Input: copy turn12-post-ship → bridge-turn13-pre-base. Output: bridge-turn13-post-ship.html.
