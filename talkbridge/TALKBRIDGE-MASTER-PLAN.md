@@ -65,8 +65,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 07 / Base — PB-DATA activation**
-T07 Pre-base: DONE. T07 Base: DONE, awaiting device test (bridge-turn07-base.html, v5.7.1, sha256 prefix 9b416c8597d7). T07 Pre-ship: NOT STARTED.
+**CURRENT STAGE: Turn 07 / Pre-ship — PB-SYNC + PB-USAGE activation**
+T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, awaiting device test (bridge-turn07-pre-ship.html, v5.7.2, sha256 prefix 0e5105000619).
 
 ---
 
@@ -116,14 +116,15 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 # PART 2 — STATUS LEDGER
 
 ## CURRENT RUN
-- RELEASE: Turn 07 / Base / PB-DATA activation
+- RELEASE: Turn 07 / Pre-ship / PB-SYNC + PB-USAGE activation
 - STATUS: DONE — AWAITING DEVICE TEST
-- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 9b416c8597d7, v5.7.1
-- RTR REPORT: 21/21 immutables pass, lint clean, log points pass, switch wiring pass, +32 lines additive
-- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features (O-Ring, Translation Memory, catalog filtering) rather than dropping them per the literal Base spec — those features have no migration stage yet in Turns 07-11. Version stamp corrected from v5.7.0 to v5.7.1 and pushed; verified by read-back against commit sha 34f338c77406f5ed60562e8461dd1a02d956ba2d.
+- OUTPUT: bridge-turn07-pre-ship.html, 4851 lines, sha256 prefix 0e5105000619, v5.7.2
+- RTR REPORT: 21/21 immutables pass, lint clean, all log points pass, switch wiring pass (1 each for PB_DATA/PB_SYNC/PB_USAGE), all 6 frozen pbsync_* events present, +38 lines additive
+- NOTES: Fixed two real bugs found in the dormant scaffolding before wiring it up: (1) PB-USAGE.recordUse mutated a throwaway copy from PB_DATA.byId() and never persisted the usage increment — now saves via the full card list. (2) G6 (offline upload retry) had no implementation at all — added pbsync_upload_pending logging and an online-event retry. Card edits/creates/deletes route through pbSaveCard→pbSaveCards, which is now the single choke point calling PB_SYNC.markDirty() — needed for G3/G4/G5, since only wiring markDirty into the "use" action would have missed actual edits. Device test (G1–G6, all six) not yet run — needs a real GH PAT + partner phrasebook file to test meaningfully.
 
 ## RUN HISTORY (append-only, newest first)
-- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 9b416c8597d7, v5.7.1. PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
+- 2026-07-01 T07 Pre-ship — DONE pending device test. bridge-turn07-pre-ship.html, 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
+- 2026-07-01 T07 Base — DONE, device test confirmed. bridge-turn07-base.html, 4812 lines, sha prefix 9b416c8597d7, v5.7.1. PB-DATA.norm:in/out observed firing on overlay open; canonical + legacy fields both present as designed.
 - 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
 - 2026-06-30 T06 Post-ship — DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
 - 2026-06-30 T06 Ship — DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
