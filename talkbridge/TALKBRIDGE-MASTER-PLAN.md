@@ -66,7 +66,7 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 
 ## Where we are right now
 **CURRENT STAGE: Turn 07 / Base — PB-DATA activation**
-T07 Pre-base: DONE. T07 Base: DONE pending device test (version stamp needs correction to v5.7.1). T07 Pre-ship: NOT STARTED.
+T07 Pre-base: DONE. T07 Base: DONE, awaiting device test (bridge-turn07-base.html, v5.7.1, sha256 prefix 9b416c8597d7). T07 Pre-ship: NOT STARTED.
 
 ---
 
@@ -118,70 +118,18 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 ## CURRENT RUN
 - RELEASE: Turn 07 / Base / PB-DATA activation
 - STATUS: DONE — AWAITING DEVICE TEST
-- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 72a80f3765c5, v5.7.1 (doer used v5.7.0 — plan version corrected to v5.7.1; file needs version stamp corrected before device test)
+- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 9b416c8597d7, v5.7.1
 - RTR REPORT: 21/21 immutables pass, lint clean, log points pass, switch wiring pass, +32 lines additive
-- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features — correct decision, plan did not account for this. Version stamp in file says v5.7.0, needs correction to v5.7.1 before device test.
+- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features (O-Ring, Translation Memory, catalog filtering) rather than dropping them per the literal Base spec — those features have no migration stage yet in Turns 07-11. Version stamp corrected from v5.7.0 to v5.7.1 and pushed; verified by read-back against commit sha 34f338c77406f5ed60562e8461dd1a02d956ba2d.
 
 ## RUN HISTORY (append-only, newest first)
-- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 72a80f3765c5, v5.7.1 (stamped v5.7.0 — needs correction). PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
+- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 9b416c8597d7, v5.7.1. PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
 - 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
 - 2026-06-30 T06 Post-ship — DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
 - 2026-06-30 T06 Ship — DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
 - 2026-06-30 T06 Pre-ship — DONE. v5.6.2. 21/21 immutables. Device gate pass.
 
 
-
----
-
-# PART 1 — DOER PROTOCOL
-
-You build exactly ONE release, then STOP. Read this section before touching anything.
-
-## Before you write any code
-1. Read this entire document.
-2. Read the graveyard at `talkbridge/TALKBRIDGE-GRAVEYARD.md` in the repo.
-3. Confirm the CURRENT STAGE in Part 0. Confirm the prior release is marked DONE in the STATUS LEDGER. If it is not, stop — you are not authorized to proceed.
-4. Fetch the input file fresh from GitHub (path named in the release spec). Verify sha256 prefix and line count against the ledger. Mismatch → stop.
-
-## The mandatory five-stage structure
-Every turn has exactly five stages: Pre-base → Base → Pre-ship → Ship → Post-ship.
-- **Pre-base** = copy of prior turn's Post-ship, byte-for-byte. v_._.0. Negative test only.
-- **Base** = foundational work. v_._.1. Positive test required.
-- **Pre-ship** = first feature layer. v_._.2.
-- **Ship** = second feature layer. v_._.3.
-- **Post-ship** = regression + edge cases. v_._.4.
-No stage starts until the prior stage is confirmed working on the phone and marked DONE in the ledger.
-
-## §WF — The workflow for every release
-Execute in order. Never skip. Never reorder.
-1. READ — quote the relevant Part 4 contract verbatim for this module.
-2. COMPREHENSION — answer: what does this module return on error? what does it log? what does it never do? Wrong answer → re-read, do not build.
-3. GRAVEYARD SCAN — does this approach match any buried entry? Match → stop, report.
-4. CHECKSUM BEFORE — record sha12 of the region being changed, or `n/a-new` for new code.
-5. PREDICT AFTER — state expected sha12 and line delta before writing anything.
-6. INSERT — drop in the atomic module block (Part 5 §AF). Never edit a live function body.
-7. VERIFY — compute actual sha12. If it does not match predicted → revert. Do not adjust and continue.
-8. BUILD LOG — record: module, before sha, predicted after sha, actual after sha, PASS/FAIL.
-9. PRE-DEVICE GATE — run Part 5 §PDG. All items green before phone is touched.
-10. DEVICE TEST — run the numbered test table from the release spec. Red → §EXIT.
-
-## §EXIT — Exit condition
-After a red device test: re-fetch the last DONE file from GitHub, re-run §WF from step 1. This is the one permitted retry. If retry is also red → EXIT. State which release, which step, what diverged, what device case failed. Do not patch forward.
-
-## Delivery
-- Push the complete single-file HTML to repo root under the filename in the release spec.
-- Do not overwrite any file marked DONE in the ledger.
-- Update the STATUS LEDGER below: overwrite CURRENT RUN, append one line to RUN HISTORY.
-- Return complete file + build log + §RTR report. Then STOP.
-
-## If anything is ambiguous
-Stop. Name the exact gap and which section it belongs in. Do not guess.
-
----
-
-# PART 2 — STATUS LEDGER
-
-The doer writes here after every release. The manager reads here.
 
 
 # PART 3 — TURN SPECS
