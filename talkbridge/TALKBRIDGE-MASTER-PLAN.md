@@ -118,9 +118,22 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 ## CURRENT RUN
 - RELEASE: Turn 07 / Pre-ship / PB-SYNC + PB-USAGE activation
 - STATUS: DONE — AWAITING DEVICE TEST
-- OUTPUT: bridge-turn07-pre-ship.html, 4851 lines, sha256 prefix 0e5105000619, v5.7.2
-- RTR REPORT: 21/21 immutables pass, lint clean, all log points pass, switch wiring pass (1 each for PB_DATA/PB_SYNC/PB_USAGE), all 6 frozen pbsync_* events present, +38 lines additive
-- NOTES: Fixed two real bugs found in the dormant scaffolding before wiring it up: (1) PB-USAGE.recordUse mutated a throwaway copy from PB_DATA.byId() and never persisted the usage increment — now saves via the full card list. (2) G6 (offline upload retry) had no implementation at all — added pbsync_upload_pending logging and an online-event retry. Card edits/creates/deletes route through pbSaveCard→pbSaveCards, which is now the single choke point calling PB_SYNC.markDirty() — needed for G3/G4/G5, since only wiring markDirty into the "use" action would have missed actual edits. Device test (G1–G6, all six) not yet run — needs a real GH PAT + partner phrasebook file to test meaningfully.
+- OUTPUT: bridge-turn07-pre-ship.html, 4870 lines, sha256 prefix 6bcbdf455264, v5.7.2
+- RTR REPORT: 21/21 immutables pass, lint clean, all log points pass, switch wiring pass (1 each for PB_DATA/PB_SYNC/PB_USAGE), all 6 frozen pbsync_* events present, +50 lines additive vs corrected Base
+- CORRECTION HISTORY (this run required going back into Base, not patching forward):
+  1. User certified Base DONE from debug-log evidence only (`PB-DATA.norm:in/out` firing). Cards were never visually confirmed rendering on-device.
+  2. User tested Pre-ship, reported zero cards visible on the PB surface. Root cause found: `pbRenderOverlay()` gated the entire card list on `pbGetCats().length` (the deleted catalog registry) instead of on whether cards exist. Bug predates Turn 07 entirely — inherited unchanged from bridge-turn06-post-ship.html.
+  3. First fix attempt patched this into Pre-ship directly. User correctly called this out as patching forward on a broken Base — explicitly prohibited. Superseded.
+  4. Base (bridge-turn07-base.html, still v5.7.1) was corrected at the root: pbRenderOverlay fix, plus explicit user direction to also fix the overlay ribbon and add a sync-state footer now rather than deferring to Ship — ribbon reduced to only `+` (new phrase) and `×` (close), all catalog/CDN-era buttons removed (Back, Import, Export, "Download from library"/pbOpenGitSheet), sticky footer added showing loaded filename + last-current timestamp.
+  5. Pre-ship was then fully rebuilt from the corrected Base (not patched) — same PB-SYNC/PB-USAGE work as before, plus the sync footer now actually populates (_pbLastPull set on successful pull/writeBack).
+- PLAN GAP SURFACED: this exact ribbon/footer spec, and the `pbRenderOverlay` cats.length bug, were already fully documented in project knowledge under TB-TURN06-MASTER.md — a prior, more detailed Turn 06 Ship plan that never made it into the current TALKBRIDGE-MASTER-PLAN.md when it was rewritten. Significant spec detail (pbAddCard, sync dot, pair label, full pbBubbleHtml rebuild per phrase-desk.html) exists there and is not yet reflected in Turns 07+ here. This needs reconciling before Ship — flagging now rather than silently dropping it again.
+- Device test (G1–G6, all six) not yet run — needs a real GH PAT + partner phrasebook file. Also needs visual confirmation this time: cards rendering, ribbon showing only +/×, footer populating after a successful pull.
+
+## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Pre-ship — full rebuild from corrected Base (not a patch). bridge-turn07-pre-ship.html, 4870 lines, sha prefix 6bcbdf455264, v5.7.2. PB-SYNC + PB-USAGE active, sync footer wired to real pull/writeBack state, 21/21 immutables, lint clean.
+- 2026-07-01 T07 Base — corrected at the root (still v5.7.1): pbRenderOverlay cats.length bug fixed, ribbon reduced to + and close only, dead catalog/CDN buttons removed, sticky sync footer added. bridge-turn07-base.html, sha prefix 900df96ff3ba. 21/21 immutables re-verified.
+- 2026-07-01 T07 Pre-ship — [SUPERSEDED] patched pbRenderOverlay fix directly into Pre-ship rather than fixing Base. Wrong per explicit rule (never patch forward). Rebuilt above.
+- 2026-07-01 T07 Pre-ship — DONE pending device test. bridge-turn07-pre-ship.html, 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
 
 ## RUN HISTORY (append-only, newest first)
 - 2026-07-01 T07 Pre-ship — DONE pending device test. bridge-turn07-pre-ship.html, 4851 lines, sha prefix 0e5105000619, v5.7.2. PB-SYNC + PB-USAGE active, two scaffold bugs fixed (usage-persist, offline-retry), markDirty wired at the pbSaveCards choke point. 21/21 immutables, lint clean.
