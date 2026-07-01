@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.6 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.7 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -70,6 +70,71 @@ T07 Pre-base is DONE. T07 Base is NOT STARTED.
 
 ---
 
+# PART 1 — DOER PROTOCOL
+
+You build exactly ONE release, then STOP. Read this section before touching anything.
+
+## Before you write any code
+1. Read this entire document.
+2. Read the graveyard at `talkbridge/TALKBRIDGE-GRAVEYARD.md` in the repo.
+3. Confirm the CURRENT STAGE in Part 0. Confirm the prior release is marked DONE in the STATUS LEDGER. If it is not, stop — you are not authorized to proceed.
+4. Fetch the input file fresh from GitHub (path named in the release spec). Verify sha256 prefix and line count against the ledger. Mismatch → stop.
+
+## The mandatory five-stage structure
+Every turn has exactly five stages: Pre-base → Base → Pre-ship → Ship → Post-ship.
+- **Pre-base** = copy of prior turn's Post-ship, byte-for-byte. v_._.0. Negative test only.
+- **Base** = foundational work. v_._.1. Positive test required.
+- **Pre-ship** = first feature layer. v_._.2.
+- **Ship** = second feature layer. v_._.3.
+- **Post-ship** = regression + edge cases. v_._.4.
+No stage starts until the prior stage is confirmed working on the phone and marked DONE in the ledger.
+
+## §WF — The workflow for every release
+Execute in order. Never skip. Never reorder.
+1. READ — quote the relevant Part 4 contract verbatim for this module.
+2. COMPREHENSION — answer: what does this module return on error? what does it log? what does it never do? Wrong answer → re-read, do not build.
+3. GRAVEYARD SCAN — does this approach match any buried entry? Match → stop, report.
+4. CHECKSUM BEFORE — record sha12 of the region being changed, or `n/a-new` for new code.
+5. PREDICT AFTER — state expected sha12 and line delta before writing anything.
+6. INSERT — drop in the atomic module block (Part 5 §AF). Never edit a live function body.
+7. VERIFY — compute actual sha12. If it does not match predicted → revert. Do not adjust and continue.
+8. BUILD LOG — record: module, before sha, predicted after sha, actual after sha, PASS/FAIL.
+9. PRE-DEVICE GATE — run Part 5 §PDG. All items green before phone is touched.
+10. DEVICE TEST — run the numbered test table from the release spec. Red → §EXIT.
+
+## §EXIT — Exit condition
+After a red device test: re-fetch the last DONE file from GitHub, re-run §WF from step 1. This is the one permitted retry. If retry is also red → EXIT. State which release, which step, what diverged, what device case failed. Do not patch forward.
+
+## Delivery
+- Push the complete single-file HTML to repo root under the filename in the release spec.
+- Do not overwrite any file marked DONE in the ledger.
+- Update the STATUS LEDGER below: overwrite CURRENT RUN, append one line to RUN HISTORY.
+- Return complete file + build log + §RTR report. Then STOP.
+
+## If anything is ambiguous
+Stop. Name the exact gap and which section it belongs in. Do not guess.
+
+---
+
+# PART 2 — STATUS LEDGER
+
+The doer writes here after every release. The manager reads here.
+
+## CURRENT RUN
+- RELEASE: Turn 07 / Base / PB-DATA activation
+- STATUS: NOT STARTED
+- OUTPUT: (none yet)
+- RTR REPORT: (none yet)
+- NOTES: (none yet)
+
+## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
+- 2026-06-30 T06 Post-ship — DONE. 17 modules dormant. v5.6.4, sha prefix a73aecbf. 4780 lines. Device gate pass.
+- 2026-06-30 T06 Ship — DONE. 7 modules dormant. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
+- 2026-06-30 T06 Pre-ship — DONE. 9 engine modules dormant. v5.6.2. 21/21 immutables. Device gate pass.
+
+---
+
 # PART 3 — TURN SPECS
 
 ## Rules that apply to every turn
@@ -94,7 +159,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 **Test (negative):** Open on phone. Call connects, transcript works, PB overlay opens — identical to T06 post-ship. Any difference → stop.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn07-base.html, v5.7.0
+**Deliver:** bridge-turn07-base.html, v5.7.1
 **Work:** Activate PB-DATA. Wire old storage functions (pbGetCards, pbSaveCards, pbNorm) to redirect into PB-DATA. All callers now receive cards in the new canonical schema. Old fields stripped on load: catalogIds, intentId, fingerprint, relatedIntents, confidence, semanticRelationships, parentCategory, primaryTag. pbBubbleHtml (old renderer) stays live — PB-RENDER not active yet.
 **References:** Part 4 §4M.12 (canonical schema). Part 5 §IMM.
 **Test (positive):** Open on phone. Overlay shows cards via old renderer. Debug log shows PB-DATA.norm:in/out for each card. Card objects in log show categories[] not catalogIds. Call and transcript unaffected.
