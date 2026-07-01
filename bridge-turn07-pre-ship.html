@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.7.2.1 -->
+<!-- TalkBridge v5.7.2.2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -454,7 +454,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v5.7.2.1</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.7.2.2</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1470,7 +1470,11 @@ function pbSaveCard(card){
   pbSaveCards(cards);
 }
 function pbSoftDelete(id){
+  // FIX (v5.7.2.2): no clarify entry logged for deletion — completes the
+  // every-card-change-logs-something rule alongside tags/verdict/source/target.
   var card=pbGetCardById(id);if(!card)return;
+  card.clarifyChain=card.clarifyChain||[];
+  card.clarifyChain.push({text:'Moved to trash',author:'system',timestamp:pbNow()});
   card.deletedAt=pbNow();pbSaveCard(card);
   var el=document.getElementById('pbb-'+id);if(el)el.remove();
   pbRenderTrashSection();
@@ -1484,6 +1488,8 @@ function pbHardDelete(id){
 }
 function pbRestoreCard(id){
   var card=pbGetCardById(id);if(!card)return;
+  card.clarifyChain=card.clarifyChain||[];
+  card.clarifyChain.push({text:'Restored from trash',author:'system',timestamp:pbNow()});
   card.deletedAt=null;pbSaveCard(card);
   pbRenderOverlay();
   toast('Phrase restored');
@@ -2040,11 +2046,15 @@ function pbAddTag(id,tag){
   var card=pbGetCardById(id);if(!card){if(inp){inp.value='';inp.focus();}return;}
   if((card.tags||[]).indexOf(t)>=0){if(inp){inp.value='';inp.focus();}return;} // already tagged
   card.tags=card.tags||[];card.tags.push(t);
+  card.clarifyChain=card.clarifyChain||[];
+  card.clarifyChain.push({text:'Tag added: #'+t,author:'system',timestamp:pbNow()});
+  card.updatedAt=pbNow();card.updatedBy='tb';
   pbAddTagToReg(t);pbSaveCard(card);
   var pillsHost=document.getElementById('pb-atags-'+id);
   if(pillsHost)pillsHost.insertAdjacentHTML('beforeend',_pbTagPillHtml(id,t)); // append, don't rebuild
   var btn=document.getElementById('pbft-'+id);
   if(btn)btn.innerHTML='#';
+  pbReRenderCardPanel('clarify',id);
   if(inp){inp.value='';inp.focus();}
 }
 function pbAddTagI(id){
@@ -2052,10 +2062,27 @@ function pbAddTagI(id){
   pbAddTag(id,inp.value);
 }
 function pbRemoveTag(id,tag){
+  // FIX (v5.7.2.2): removing the Verified tag reset card.backtranslate.verdict in
+  // data but never re-rendered the BT panel — so the "Sounds Good" radio stayed
+  // visually checked even though the underlying verdict was cleared. Also logged
+  // nothing to clarifyChain for ANY tag removal. Both fixed: every removal logs an
+  // entry, and a Verified-tag removal additionally resets the verdict, logs that
+  // specifically, and re-renders the BT panel so the radio state matches reality.
   var card=pbGetCardById(id);if(!card)return;
   card.tags=(card.tags||[]).filter(function(t){return t!==tag;});
-  if(tag==='✓Verified'&&card.backtranslate){card.backtranslate.verdict='';}
-  pbSaveCard(card);pbReRenderCardPanel('tags',id);
+  card.clarifyChain=card.clarifyChain||[];
+  var wasVerdict=(card.backtranslate||{}).verdict||'';
+  if(tag==='✓Verified'&&card.backtranslate){
+    card.backtranslate.verdict='';
+    card.clarifyChain.push({text:'Verdict reset to pending (Verified tag removed, was '+(wasVerdict||'unset')+')',author:'system',timestamp:pbNow()});
+  }else{
+    card.clarifyChain.push({text:'Tag removed: #'+tag,author:'system',timestamp:pbNow()});
+  }
+  card.updatedAt=pbNow();card.updatedBy='tb';
+  pbSaveCard(card);
+  pbReRenderCardPanel('tags',id);
+  if(tag==='✓Verified')pbReRenderCardPanel('bt',id); // the actual fix — refresh the radio UI
+  pbReRenderCardPanel('clarify',id);
 }
 // C14: inline source/target editing
 function pbCommitSrcEdit(id){
@@ -2087,12 +2114,24 @@ function pbCommitSrcEdit(id){
   });
 }
 function pbCommitTgtEdit(id){
+  // FIX (v5.7.2.2): this logged nothing at all — editing the target silently changed
+  // the card with no clarify trail, unlike source edits. Mirrors pbCommitSrcEdit now:
+  // logs "Target was: X" and resets verdict to pending with its own logged entry.
   var el=document.getElementById('pbtgt-'+id);if(!el)return;
   var newTgt=(el.textContent||'').trim();
   var card=pbGetCardById(id);if(!card||!newTgt||newTgt===card.target)return;
+  var oldTgt=card.target;
+  card.clarifyChain=card.clarifyChain||[];
+  card.clarifyChain.push({text:'Target was: '+oldTgt,author:'system',timestamp:pbNow()});
+  var oldVerdict=(card.backtranslate||{}).verdict||'';
+  if(!card.backtranslate)card.backtranslate={};
+  card.backtranslate.verdict='pending';
+  card.clarifyChain.push({text:'Verdict reset to pending'+(oldVerdict&&oldVerdict!=='pending'?' (was '+oldVerdict+')':''),author:'system',timestamp:pbNow()});
   card.target=newTgt;card._targetOverride=true;card.updatedAt=pbNow();card.updatedBy='tb';
   pbSaveCard(card);
   pbReRenderBubbleHeader(id);
+  pbReRenderCardPanel('clarify',id);
+  pbReRenderCardPanel('bt',id);
 }
 function pbTagSugg(id){
   var inp=document.getElementById('pb-ti-'+id);var q=(inp?inp.value:'').toLowerCase();
@@ -2104,12 +2143,24 @@ function pbTagSugg(id){
 
 /* ── Clarify panel ── */
 function _pbClarifyItemHtml(item,id,i){
-  var ts=item.timestamp?new Date(item.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  // FIX (v5.7.2.2): real pulled data has clarify entries in at least three field-name
+  // conventions from different points in the project's history: {ini,ts,txt} (oldest),
+  // {text,ts,by} (mixed), {text,author,timestamp} (current). This only ever read the
+  // current one — older entries pulled from GitHub rendered as blank bubbles with no
+  // author and no date. Now falls back across all three per field.
+  var author=item.author||item.by||item.ini||'';
+  var rawTs=item.timestamp||item.ts;
+  var text=item.text||item.txt||'';
+  var tsStr='';
+  if(rawTs){
+    var d=(typeof rawTs==='number')?new Date(rawTs):new Date(rawTs); // numeric epoch or a pre-formatted string both parse
+    tsStr=isNaN(d.getTime())?String(rawTs):d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
   return'<div class="pb-clarify-item"><div class="pb-clarify-meta" style="display:flex;align-items:center;gap:5px;">'
-    +'<span class="pb-clarify-author">'+pbEsc(item.author||'')+'</span>'
-    +(ts?'<span style="font-size:10px;color:#b0aba8;">'+pbEsc(ts)+'</span>':'')
+    +'<span class="pb-clarify-author">'+pbEsc(author)+'</span>'
+    +(tsStr?'<span style="font-size:10px;color:#b0aba8;">'+pbEsc(tsStr)+'</span>':'')
     +'<button onclick="pbRemoveClarify(\''+id+'\','+i+')" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:11px;margin-left:auto;">×</button>'
-    +'</div><div class="pb-clarify-body">'+pbEsc(item.text||'')+'</div></div>';
+    +'</div><div class="pb-clarify-body">'+pbEsc(text)+'</div></div>';
 }
 function pbClarifyPanelHtml(card){
   var id=card.id;var chain=card.clarifyChain||[];
@@ -2186,17 +2237,26 @@ function pbRunBT(id){
   });
 }
 function pbSetVerdict(id,val){
+  // FIX (v5.7.2.2): three bugs here. (1) The 'good' branch added the Verified tag
+  // but 'flag' never removed it on a good->flag switch -- tag and verdict could
+  // disagree. (2) Only 'good' logged a clarify entry; 'flag' logged nothing.
+  // (3) The clarify entry it did log used {ts,by} fields, but the renderer reads
+  // {timestamp,author} -- that entry displayed with a blank author and no date.
   var card=pbGetCardById(id);if(!card)return;
   card.backtranslate=card.backtranslate||{};
+  var oldVerdict=card.backtranslate.verdict||'';
   card.backtranslate.verdict=val;card.backtranslate.updatedAt=pbNow();
+  var tags=card.tags||[];
+  card.clarifyChain=card.clarifyChain||[];
   if(val==='good'){
-    var tags=card.tags||[];
-    if(tags.indexOf('✓Verified')<0){card.tags=tags.concat('✓Verified');}
-    var cc=card.clarifyChain||[];
-    cc.push({text:'Back-translate verified',ts:pbNow(),by:'system'});
-    card.clarifyChain=cc;
+    if(tags.indexOf('✓Verified')<0)card.tags=tags.concat('✓Verified');
+    card.clarifyChain.push({text:'Back-translate verified',author:'system',timestamp:pbNow()});
+  }else if(val==='flag'){
+    card.tags=tags.filter(function(t){return t!=='✓Verified';}); // mirror: flag removes what good added
+    card.clarifyChain.push({text:'Back-translate flagged'+(oldVerdict==='good'?' (was verified)':''),author:'system',timestamp:pbNow()});
   }
-  pbSaveCard(card);pbReRenderCardPanel('bt',id);pbReRenderCardPanel('tags',id);
+  card.updatedAt=pbNow();card.updatedBy='tb';
+  pbSaveCard(card);pbReRenderCardPanel('bt',id);pbReRenderCardPanel('tags',id);pbReRenderCardPanel('clarify',id);
   pbReRenderBubbleHeader(id);
   toast(val==='good'?'Verified ✓':val==='flag'?'Flagged':'Verdict cleared');
 }
