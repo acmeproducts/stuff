@@ -1967,6 +1967,13 @@ function pbBubbleFootHtml(card){
     +'<button class="pb-fbt'+(cs.tagsOpen?' on':'')+'" id="pbft-'+id+'" onclick="pbTogTags(\''+id+'\')" title="Tags">#</button>'
     +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICON_CLARIFY+'</button>';
 }
+function _pbHdrText(card){
+  var cAt=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'—';
+  var uAt=card.updatedAt?new Date(card.updatedAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'—';
+  var cBy=card.createdBy||card.savedBy||'—';
+  var uBy=card.updatedBy||card.savedBy||'—';
+  return 'Created '+cBy+' · '+cAt+'  —  Modified '+uBy+' · '+uAt;
+}
 function pbBubbleHtml(card,ctx){
   var id=card.id;var src=card.sourceLang||'en';var tgt=card.targetLang||'en';
   // B8: show user's language on left regardless of card storage direction
@@ -1974,18 +1981,12 @@ function pbBubbleHtml(card,ctx){
   var leftSide=_flip?'tgt':'src';var rightSide=_flip?'src':'tgt';
   var leftLang=_flip?tgt:src;var rightLang=_flip?src:tgt;
   var leftText=_flip?card.target:card.source;var rightText=_flip?card.source:card.target;
-  var sf=pbLangFlag(src);var tf=pbLangFlag(tgt);
   var bt=card.backtranslate||{};var cc=(card.clarifyChain||[]).length;
   var verdict=bt.verdict||'';var tags=card.tags||[];
   var cs=_pbCS(id);var isDel=!!card.deletedAt;
   var useL=L('use_word',leftLang);var useR=L('use_word',rightLang);
-  var vBadge=verdict==='flag'?'<span class="pb-vbadge flag">\u2691</span>':'';
-  var _hdrDate=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
-  var _hdrTime=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-  var cBadge='';
-  var _savedBy=card.savedBy?(' · '+card.savedBy):'';
   return '<div class="pb-bubble'+(isDel?' deleted':'')+'" id="pbb-'+id+'">'
-    +'<div class="pb-bbl-hdr">'+vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hdrDate+' '+_hdrTime+_savedBy)+'</span></div>'
+    +'<div class="pb-bbl-hdr"><span class="pb-bbl-ts">'+pbEsc(_pbHdrText(card))+'</span></div>'
     +'<div class="pb-bbl-body">'
     +'<div class="pb-bbl-col"><div class="pb-bbl-txt" id="pb'+leftSide+'-'+id+'" contenteditable="true" onblur="pbCommit'+(_flip?'Tgt':'Src')+'Edit(\''+id+'\')" spellcheck="false">'+pbEsc(leftText)+'</div>'
     +'<div class="pb-bbl-acts"><button class="pb-use-btn" onclick="pbUseText(\''+id+'\',\''+leftSide+'\')" title="'+pbEsc(useL)+'">'+pbEsc(useL)+'</button>'
@@ -2034,9 +2035,10 @@ function pbCommitSrcEdit(id){
   var el=document.getElementById('pbsrc-'+id);if(!el)return;
   var newSrc=(el.textContent||'').trim();
   var card=pbGetCardById(id);if(!card||!newSrc||newSrc===card.source)return;
-  card.source=newSrc;card.updatedAt=pbNow();
+  card.source=newSrc;card.updatedAt=pbNow();card.updatedBy='tb';
   delete card._targetOverride;
   pbSaveCard(card);
+  pbReRenderBubbleHeader(id);
   translateWithRetry(newSrc,card.sourceLang,card.targetLang,2).then(function(tr){
     if(tr&&tr!==newSrc){card.target=tr;card.updatedAt=pbNow();pbSaveCard(card);
       var te=document.getElementById('pbtgt-'+id);if(te)te.textContent=tr;}
@@ -2050,8 +2052,9 @@ function pbCommitTgtEdit(id){
   var el=document.getElementById('pbtgt-'+id);if(!el)return;
   var newTgt=(el.textContent||'').trim();
   var card=pbGetCardById(id);if(!card||!newTgt||newTgt===card.target)return;
-  card.target=newTgt;card._targetOverride=true;card.updatedAt=pbNow();
+  card.target=newTgt;card._targetOverride=true;card.updatedAt=pbNow();card.updatedBy='tb';
   pbSaveCard(card);
+  pbReRenderBubbleHeader(id);
 }
 function pbTagSugg(id){
   var inp=document.getElementById('pb-ti-'+id);var q=(inp?inp.value:'').toLowerCase();
@@ -2174,16 +2177,7 @@ function pbReRenderCardPanel(type,id){
 function pbReRenderBubbleHeader(id){
   var card=pbGetCardById(id);if(!card)return;
   var hdr=document.querySelector('#pbb-'+id+' .pb-bbl-hdr');if(!hdr)return;
-  var bt=card.backtranslate||{};var verdict=bt.verdict||'';
-  var vBadge=verdict==='flag'?'<span class="pb-vbadge flag">⚑</span>':'';
-  var tags=card.tags||[];var tagBadge=tags.length?'<span class="pb-tag-ct">#'+tags.length+'</span>':'';
-  var srcLang=card.sourceLang||'en';var tgtLang=card.targetLang||'en';
-  var sf=pbLangFlag(srcLang);var tf=pbLangFlag(tgtLang);
-  // preserve delete button if in overlay
-  var _hd=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'';
-  var _ht=card.createdAt?new Date(card.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-  var _sb=card.savedBy?(' · '+card.savedBy):'';
-  hdr.innerHTML=vBadge+'<span class="pb-bbl-ts">'+pbEsc(_hd+' '+_ht+_sb)+'</span>';
+  hdr.innerHTML='<span class="pb-bbl-ts">'+pbEsc(_pbHdrText(card))+'</span>';
 }
 
 /* ─────────────────────────────────────────────────
@@ -2572,26 +2566,15 @@ function pbSaveNewCard(){
   _pbNcDirty=false;
   pbRenderOverlayFilter();pbRenderOverlay();
   document.getElementById('pb-overlay').style.display='flex';
-  pbPushCardToRepo(card);
+  // pbPushCardToRepo REMOVED: it wrote to phrasebook-{src}-{tgt}-default.json, a
+  // completely different file from what PB_SYNC reads/writes (the versioned
+  // phrasebook-{src}-{tgt}-{NNNN}.json series). New cards were vanishing into a
+  // file the real sync cycle never looks at again -- split-brain data, and the
+  // direct cause of "can't update cards". pbUpsert (above, via pbSaveCards) already
+  // calls PB_SYNC.markDirty() correctly -- the new card writes back through the
+  // real versioned cycle on hangup or overlay-close like any other edit.
 }
 function saveGhPat(){var v=(document.getElementById('gh-pat-inp')||{}).value||'';if(v.trim())localStorage.setItem('tb_gh_pat',v.trim());}
-async function pbPushCardToRepo(card){
-  var pat=(localStorage.getItem('tb_gh_pat')||'').trim();if(!pat)return;
-  var src=card.sourceLang;var tgt=card.targetLang;
-  var path='phrasebook/phrasebook-'+_pbRepoToken(src)+'-'+_pbRepoToken(tgt)+'-default.json';
-  var url='https://api.github.com/repos/acmeproducts/stuff/contents/'+path;
-  try{
-    var meta=await fetch(url,{headers:{Authorization:'token '+pat,Accept:'application/vnd.github.v3+json'}}).then(function(r){return r.ok?r.json():null;});
-    var cards=pbGetCards().filter(function(c){return c.sourceLang===src&&c.targetLang===tgt;});
-    var cats=pbGetCats().filter(function(c){return cards.some(function(x){return(x.catalogIds||[]).indexOf(c.id)>=0;});});
-    var body={type:'phrasebook',version:'1.1',cards:cards,catalogs:cats,tags:pbGetTags()};
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(body,null,2))));
-    var payload={message:'phrasebook: update '+src+'-'+tgt+' [talkbridge]',content:content};
-    if(meta&&meta.sha)payload.sha=meta.sha;
-    var res=await fetch(url,{method:'PUT',headers:{Authorization:'token '+pat,'Content-Type':'application/json',Accept:'application/vnd.github.v3+json'},body:JSON.stringify(payload)});
-    if(res.ok){toast('Saved to repo ✓');}else{toast('Repo save failed: '+res.status);}
-  }catch(e){toast('Repo save failed: '+e.message);}
-}
 
 
 
