@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.7 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.8 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -67,6 +67,66 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ## Where we are right now
 **CURRENT STAGE: Turn 07 / Base — PB-DATA activation**
 T07 Pre-base is DONE. T07 Base is NOT STARTED.
+
+---
+
+# PART 1 — DOER PROTOCOL
+
+You build exactly ONE release, then STOP.
+
+## Before you write any code
+1. Read this entire document and the graveyard at `talkbridge/TALKBRIDGE-GRAVEYARD.md`.
+2. Confirm the CURRENT STAGE in Part 0 and that the prior release is DONE in Part 2 STATUS LEDGER. If not DONE, stop.
+3. Fetch the input file fresh from GitHub. Verify sha256 prefix and line count against the ledger. Mismatch → stop.
+
+## Five-stage version numbering
+Every turn N has five stages numbered v5.N.0 through v5.N.4:
+- v5.N.0 = Pre-base (copy only, negative test)
+- v5.N.1 = Base (foundational work, positive test)
+- v5.N.2 = Pre-ship
+- v5.N.3 = Ship
+- v5.N.4 = Post-ship
+
+No stage starts until the prior stage is confirmed on the phone and marked DONE in the ledger.
+
+## §WF — Workflow (execute in order, never skip)
+1. READ — quote the relevant Part 4 contract verbatim.
+2. COMPREHENSION — answer: what does this module return on error? what does it log? what does it never do? Wrong answer → re-read, do not build.
+3. GRAVEYARD SCAN — match → stop, report.
+4. CHECKSUM BEFORE — sha12 of region being changed, or n/a-new.
+5. PREDICT AFTER — state expected sha12 and line delta before writing.
+6. INSERT — atomic module block (Part 5 §AF). Never edit a live function body.
+7. VERIFY — actual sha12 must match predicted. Mismatch → revert, do not adjust.
+8. BUILD LOG — module, before sha, predicted sha, actual sha, PASS/FAIL.
+9. PRE-DEVICE GATE — Part 5 §PDG, all green before phone is touched.
+10. DEVICE TEST — numbered test table from release spec. Red → §EXIT.
+
+## §EXIT — Exit condition
+Re-fetch last DONE file, re-run §WF from step 1. One retry only. Second red → EXIT. State what failed. Do not patch forward.
+
+## Delivery
+Push complete single-file HTML to repo root. Do not overwrite any DONE file. Update Part 2 STATUS LEDGER. Return file + build log + §RTR report. STOP.
+
+If anything is ambiguous: stop, name the gap, name the section it belongs in.
+
+---
+
+# PART 2 — STATUS LEDGER
+
+## CURRENT RUN
+- RELEASE: Turn 07 / Base / PB-DATA activation
+- STATUS: NOT STARTED
+- OUTPUT: (none yet)
+- RTR REPORT: (none yet)
+- NOTES: (none yet)
+
+## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
+- 2026-06-30 T06 Post-ship — DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
+- 2026-06-30 T06 Ship — DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
+- 2026-06-30 T06 Pre-ship — DONE. v5.6.2. 21/21 immutables. Device gate pass.
+
+
 
 ---
 
