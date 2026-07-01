@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.7.2 -->
+<!-- TalkBridge v5.7.2.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -454,7 +454,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v5.7.2</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.7.2.1</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1993,6 +1993,10 @@ function pbBubbleHtml(card,ctx){
   var verdict=bt.verdict||'';var tags=card.tags||[];
   var cs=_pbCS(id);var isDel=!!card.deletedAt;
   var useL=L('use_word',leftLang);var useR=L('use_word',rightLang);
+  // FIX (v5.7.2.1): the source/target fields previously had onblur only — Enter in a
+  // contenteditable div doesn't fire blur, so pbCommitSrcEdit/TgtEdit never ran until
+  // you tapped away. Added onkeydown so Enter (no shift) blurs the field itself,
+  // reusing the exact same commit path instead of duplicating logic.
   return '<div class="pb-bubble'+(isDel?' deleted':'')+'" id="pbb-'+id+'">'
     +'<div class="pb-bbl-hdr"><span class="pb-bbl-ts">'+pbEsc(_pbHdrText(card))+'</span></div>'
     +'<div class="pb-bbl-body">'
@@ -2024,6 +2028,11 @@ function pbTagPanelHtml(card){
     +'</div>';
 }
 function pbAddTag(id,tag){
+  // FIX (v5.7.2.1): previously called pbReRenderCardPanel('tags',id) here, which
+  // rebuilds the whole panel and destroys #pb-ti-{id} mid-typing — same bug class
+  // as the clarify input below. Now appends the pill directly and keeps/refocuses
+  // the same input node, on every path (valid tag, empty, duplicate) so Enter
+  // always leaves the field in a predictable state.
   var t=(tag||'').toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);
   var inp=document.getElementById('pb-ti-'+id);
   var suggEl=document.getElementById('pb-ts-'+id);if(suggEl)suggEl.innerHTML='';
@@ -2033,7 +2042,7 @@ function pbAddTag(id,tag){
   card.tags=card.tags||[];card.tags.push(t);
   pbAddTagToReg(t);pbSaveCard(card);
   var pillsHost=document.getElementById('pb-atags-'+id);
-  if(pillsHost)pillsHost.insertAdjacentHTML('beforeend',_pbTagPillHtml(id,t));
+  if(pillsHost)pillsHost.insertAdjacentHTML('beforeend',_pbTagPillHtml(id,t)); // append, don't rebuild
   var btn=document.getElementById('pbft-'+id);
   if(btn)btn.innerHTML='#';
   if(inp){inp.value='';inp.focus();}
@@ -2112,6 +2121,11 @@ function pbClarifyPanelHtml(card){
     +'</div></div>';
 }
 function pbAddClarify(id){
+  // FIX (v5.7.2.1): previously called pbReRenderCardPanel('clarify',id) here,
+  // which set thread.innerHTML=... and rebuilt #pb-ci-{id} from scratch on every
+  // Enter — so the input you just typed into no longer existed by the time you
+  // typed the next entry. Looked like "Enter does nothing" after the first note.
+  // Now appends the new entry directly and refocuses the SAME input node.
   var inp=document.getElementById('pb-ci-'+id);if(!inp)return;
   var text=(inp.value||'').trim();if(!text)return;
   var card=pbGetCardById(id);if(!card)return;
@@ -2123,7 +2137,7 @@ function pbAddClarify(id){
   var thread=document.getElementById('pb-cthread-'+id);
   if(thread){
     var noneMsg=thread.querySelector('div[style*="No clarifications yet"]');if(noneMsg)noneMsg.remove();
-    thread.insertAdjacentHTML('beforeend',_pbClarifyItemHtml({text:text,author:'Me',timestamp:card.clarifyChain[idx].timestamp},id,idx));
+    thread.insertAdjacentHTML('beforeend',_pbClarifyItemHtml({text:text,author:'Me',timestamp:card.clarifyChain[idx].timestamp},id,idx)); // append, don't rebuild
     thread.scrollTop=thread.scrollHeight;
   }
   inp.focus(); // the actual fix — without this, Enter appears to do nothing on the next keystroke
@@ -2141,6 +2155,10 @@ function pbBtPanelHtml(card){
   if(result)_btCache[id]={text:result,lang:btLang};
   var resultHtml=result?('<div style="display:flex;align-items:flex-start;gap:6px;margin:6px 0;"><span style="font-style:italic;color:#555;font-size:13px;flex:1;">'+pbEsc(result)+'</span><button class="pb-bt-tts" onclick="pbPlayBT(\''+id+'\')" title="Play">'+PB_ICON_TTS+'</button></div>'):('<div style="color:#aaa;font-size:12px;">No result yet.</div>');
   var verdictHtml='';
+  // FIX (v5.7.2.1): previously rendered as click-buttons (onclick="pbSetVerdict(...)"),
+  // which was the wrong markup entirely — the actual spec is a hidden radio pair with
+  // an adjacent <label>, state shown via CSS :checked+label sibling selectors
+  // (.radio-good:checked+.verdict-label / .radio-flag:checked+...). Rebuilt to match.
   if(result){
     verdictHtml='<div class="pb-vrow">'
       +'<input type="radio" name="verdict-'+id+'" id="vg-'+id+'" class="verdict-radio radio-good"'+(verdict==='good'?' checked':'')+' onchange="pbSetVerdict(\''+id+'\',\'good\')">'
@@ -2336,6 +2354,10 @@ function pbRenderCatSummary(cardsInScope){
 function pbSetCatFilter(cat){_pbCatFilter=(cat==='all')?'all':cat;pbRenderOverlay();}
 function pbRenderOverlay(){
   var host=document.getElementById('pb-ov-cards');if(!host)return;
+  // FIX (v5.7.1, carried forward): this used to gate on pbGetCats().length (the
+  // deleted catalog registry) instead of actual cards — with 0 catalogs the overlay
+  // always said "No phrasebook loaded" no matter how many cards existed. Gates on
+  // allCards.length now.
   var allCards=pbGetAllCards();
   var trashedCards=allCards.filter(function(c){return c.deletedAt;});
   if(!allCards.length&&!trashedCards.length){
