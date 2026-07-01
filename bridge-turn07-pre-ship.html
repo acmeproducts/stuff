@@ -2010,10 +2010,13 @@ function pbBubbleHtml(card,ctx){
     +'<div class="pb-panel" id="pbbt-'+id+'" style="display:block;">'+pbBtPanelHtml(card)+'</div>'
     +'</div>';
 }
+function _pbTagPillHtml(id,t){
+  return'<span class="pb-tp">#'+pbEsc(t)
+    +'<button onclick="pbRemoveTag(\''+id+'\',\''+pbEsc(t)+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:2px;font-size:10px;">×</button></span>';
+}
 function pbTagPanelHtml(card){
   var id=card.id;var tags=card.tags||[];
-  var pills=tags.map(function(t){return'<span class="pb-tp">#'+pbEsc(t)
-    +'<button onclick="pbRemoveTag(\''+id+'\',\''+pbEsc(t)+'\')" style="background:none;border:none;cursor:pointer;color:inherit;margin-left:2px;font-size:10px;">×</button></span>';}).join('');
+  var pills=tags.map(function(t){return _pbTagPillHtml(id,t);}).join('');
   return '<div style="padding:8px 10px;">'
     +'<div class="pb-tpills" id="pb-atags-'+id+'">'+pills+'</div>'
     +'<input class="pb-tag-inp" id="pb-ti-'+id+'" placeholder="Add tag…" oninput="pbTagSugg(\''+id+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pbAddTagI(\''+id+'\');}">'
@@ -2022,15 +2025,22 @@ function pbTagPanelHtml(card){
 }
 function pbAddTag(id,tag){
   var t=(tag||'').toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9\-]/g,'').slice(0,24);
-  if(!t)return;
-  var card=pbGetCardById(id);if(!card)return;
-  card.tags=card.tags||[];if(card.tags.indexOf(t)<0)card.tags.push(t);
+  var inp=document.getElementById('pb-ti-'+id);
+  var suggEl=document.getElementById('pb-ts-'+id);if(suggEl)suggEl.innerHTML='';
+  if(!t){if(inp){inp.value='';inp.focus();}return;}
+  var card=pbGetCardById(id);if(!card){if(inp){inp.value='';inp.focus();}return;}
+  if((card.tags||[]).indexOf(t)>=0){if(inp){inp.value='';inp.focus();}return;} // already tagged
+  card.tags=card.tags||[];card.tags.push(t);
   pbAddTagToReg(t);pbSaveCard(card);
-  pbReRenderCardPanel('tags',id);
+  var pillsHost=document.getElementById('pb-atags-'+id);
+  if(pillsHost)pillsHost.insertAdjacentHTML('beforeend',_pbTagPillHtml(id,t));
+  var btn=document.getElementById('pbft-'+id);
+  if(btn)btn.innerHTML='#';
+  if(inp){inp.value='';inp.focus();}
 }
 function pbAddTagI(id){
   var inp=document.getElementById('pb-ti-'+id);if(!inp)return;
-  pbAddTag(id,inp.value);inp.value='';
+  pbAddTag(id,inp.value);
 }
 function pbRemoveTag(id,tag){
   var card=pbGetCardById(id);if(!card)return;
