@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.8 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.9 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -66,7 +66,7 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 
 ## Where we are right now
 **CURRENT STAGE: Turn 07 / Base — PB-DATA activation**
-T07 Pre-base is DONE. T07 Base is NOT STARTED.
+T07 Pre-base: DONE. T07 Base: DONE pending device test (version stamp needs correction to v5.7.1). T07 Pre-ship: NOT STARTED.
 
 ---
 
@@ -86,6 +86,8 @@ Every turn N has five stages numbered v5.N.0 through v5.N.4:
 - v5.N.2 = Pre-ship
 - v5.N.3 = Ship
 - v5.N.4 = Post-ship
+
+Examples: T07 Pre-base=v5.7.0 (DONE), T07 Base=v5.7.1, T07 Pre-ship=v5.7.2, T07 Ship=v5.7.3, T07 Post-ship=v5.7.4. T08 Pre-base=v5.8.0, T08 Base=v5.8.1, etc.
 
 No stage starts until the prior stage is confirmed on the phone and marked DONE in the ledger.
 
@@ -115,12 +117,13 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Base / PB-DATA activation
-- STATUS: NOT STARTED
-- OUTPUT: (none yet)
-- RTR REPORT: (none yet)
-- NOTES: (none yet)
+- STATUS: DONE — AWAITING DEVICE TEST
+- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 72a80f3765c5, v5.7.1 (doer used v5.7.0 — plan version corrected to v5.7.1; file needs version stamp corrected before device test)
+- RTR REPORT: 21/21 immutables pass, lint clean, log points pass, switch wiring pass, +32 lines additive
+- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features — correct decision, plan did not account for this. Version stamp in file says v5.7.0, needs correction to v5.7.1 before device test.
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 72a80f3765c5, v5.7.1 (stamped v5.7.0 — needs correction). PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
 - 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
 - 2026-06-30 T06 Post-ship — DONE. v5.6.4, sha prefix a73aecbf, 4780 lines. Device gate pass.
 - 2026-06-30 T06 Ship — DONE. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
@@ -182,12 +185,13 @@ The doer writes here after every release. The manager reads here.
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Base / PB-DATA activation
-- STATUS: NOT STARTED
-- OUTPUT: (none yet)
-- RTR REPORT: (none yet)
-- NOTES: (none yet)
+- STATUS: DONE — AWAITING DEVICE TEST
+- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 72a80f3765c5, v5.7.1 (doer used v5.7.0 — plan version corrected to v5.7.1; file needs version stamp corrected before device test)
+- RTR REPORT: 21/21 immutables pass, lint clean, log points pass, switch wiring pass, +32 lines additive
+- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features — correct decision, plan did not account for this. Version stamp in file says v5.7.0, needs correction to v5.7.1 before device test.
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 72a80f3765c5, v5.7.1 (stamped v5.7.0 — needs correction). PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
 - 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
 - 2026-06-30 T06 Post-ship — DONE. 17 modules dormant. v5.6.4, sha prefix a73aecbf. 4780 lines. Device gate pass.
 - 2026-06-30 T06 Ship — DONE. 7 modules dormant. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
@@ -225,7 +229,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 **Test (positive):** Open on phone. Overlay shows cards via old renderer. Debug log shows PB-DATA.norm:in/out for each card. Card objects in log show categories[] not catalogIds. Call and transcript unaffected.
 
 ### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn07-pre-ship.html, v5.7.1
+**Deliver:** bridge-turn07-pre-ship.html, v5.7.2
 **Work:** Activate PB-SYNC and PB-USAGE.
 - Wire PB-SYNC.pull(myLang, theirLang) into enterCall — fetches highest-versioned phrasebook-{src}-{tgt}-{NNNN>=1000}.json, replaces cache wholesale, no merge. Flag use.PB_SYNC → true.
 - Wire PB-SYNC.writeBack() into hangUp and dirty overlay-close — conditional on dirty flag only. Clean → log pbsync_skipped_no_changes, do nothing.
@@ -242,7 +246,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - G6: edit card, hang up offline → pbsync_upload_pending; restore network → pbsync_upload_completed.
 
 ### Ship — Status: NOT STARTED
-**Deliver:** bridge-turn07-ship.html, v5.7.2
+**Deliver:** bridge-turn07-ship.html, v5.7.3
 **Work:** Activate PB-QUERY, PB-RENDER, COMPOSE-SEAM. PB-RENDER.renderCard replaces pbBubbleHtml (removed). PB-RENDER.renderRow for search rows. PB-QUERY drives all search — one engine for both overlay and compose drawer. COMPOSE-SEAM: / and .. open slide-up drawer, guarded on BOTH Enter AND send button.
 **References:** Part 4 §4M.14, §4M.15. phrase-desk.html. Part 6 A1–G6, E1–E8.
 **Test (positive):**
@@ -254,7 +258,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - All A1–G6 pass.
 
 ### Post-ship — Status: NOT STARTED
-**Deliver:** bridge-turn07-post-ship.html, v5.7.3
+**Deliver:** bridge-turn07-post-ship.html, v5.7.4
 **Work:** pbAddCard wired; duplicate save (F1); all edge cases closed.
 **Test:** Full A1–G6 + G1–G6 on device. Input to Turn 08 Pre-base.
 
