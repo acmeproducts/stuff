@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.9 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.0 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -737,5 +737,5 @@ Base64-decode the `content` field. Verify sha256 and line count against ledger b
 - GitHub PAT: `tb_gh_pat` in localStorage
 
 ## Version stamp rule
-Every stage bumps the internal version string inside the HTML at two locations (comment + visible span). Input patch + 1 = output patch. Turn 07: v5.7.0 (base) → v5.7.1 (pre-ship) → v5.7.2 (ship) → v5.7.3 (post-ship). A build still showing the input version is not certifiable.
+Every stage bumps the internal version string inside the HTML at two locations (comment + visible span). Input patch + 1 = output patch. Turn 07: v5.7.0 (pre-base) → v5.7.1 (base) → v5.7.2 (pre-ship) → v5.7.3 (ship) → v5.7.4 (post-ship). A build still showing the input version is not certifiable.
 
