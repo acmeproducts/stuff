@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.7.2.2 -->
+<!-- TalkBridge v5.7.2.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -454,7 +454,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
       <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
         <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
         <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
-        <span style="font-size:10px;color:var(--text-muted);">v5.7.2.2</span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.7.2.3</span>
         <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
       </div>
     </div>
@@ -1457,8 +1457,15 @@ function pbGetTags(){try{return JSON.parse(localStorage.getItem(PB_TAGS_K)||'[]'
 function pbSaveTags(a){try{localStorage.setItem(PB_TAGS_K,JSON.stringify(a));}catch(_){}}
 function pbCardKey(c){return (c.sourceLang||'')+'|'+(c.source||'').trim().toLowerCase()+'|'+(c.targetLang||'')+'|'+(c.target||'').trim().toLowerCase();}
 function pbUpsert(card){
-  var cards=pbGetCards();var key=pbCardKey(card);
-  var i=cards.findIndex(function(c){return pbCardKey(c)===key;});
+  // FIX (v5.7.2.3): matched by pbCardKey (content: source+target text), not id.
+  // Any two blank cards have the same key ("" + "") -- a brand-new card from + would
+  // match ANY existing blank card anywhere in the list and overwrite it in place
+  // instead of being added at the front. That's why a new card landed mid-list
+  // instead of at the top: it replaced whatever blank/matching card was already
+  // sitting wherever pbGetCards() happened to return it. Cards have a stable,
+  // unique id from pbNorm — match on that instead.
+  var cards=pbGetCards();
+  var i=cards.findIndex(function(c){return c.id===card.id;});
   var next=pbNorm(card);if(i>=0)cards[i]=next;else cards.unshift(next);
   pbSaveCards(cards);return next;
 }
@@ -1982,8 +1989,10 @@ function pbBubbleFootHtml(card){
     +'<button class="pb-fbt'+(cs.clarifyOpen?' on':'')+'" id="pbfc-'+id+'" onclick="pbTogClarify(\''+id+'\')" title="Clarify">'+ICON_CLARIFY+'</button>';
 }
 function _pbHdrText(card){
-  var cAt=card.createdAt?new Date(card.createdAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'—';
-  var uAt=card.updatedAt?new Date(card.updatedAt).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'}):'—';
+  // FIX (v5.7.2.3): date only, no time — added per explicit direction.
+  var fmt=function(ms){return ms?new Date(ms).toLocaleDateString([],{month:'short',day:'numeric',year:'2-digit'})+' '+new Date(ms).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'—';};
+  var cAt=fmt(card.createdAt);
+  var uAt=fmt(card.updatedAt);
   var cBy=card.createdBy||card.savedBy||'—';
   var uBy=card.updatedBy||card.savedBy||'—';
   return 'Created '+cBy+' · '+cAt+'  —  Modified '+uBy+' · '+uAt;
@@ -2091,12 +2100,21 @@ function pbCommitSrcEdit(id){
   var card=pbGetCardById(id);if(!card||!newSrc)return;
   var changed=newSrc!==card.source;
   var oldSrc=card.source;
+  var isFirstFill=!oldSrc; // FIX (v5.7.2.3): a blank->text transition is card
+  // creation being finished, not an edit — pbAddCard already logged "Card created".
+  // Logging "Was: " (blank) + "Verdict reset" here on top of that was confusing a
+  // brand-new entry with modifying an existing one. Only genuine edits (oldSrc
+  // already had content) get the Was/reset pair now.
   card.clarifyChain=card.clarifyChain||[];
-  if(changed)card.clarifyChain.push({text:'Was: '+oldSrc,author:'system',timestamp:pbNow()});
-  var oldVerdict=(card.backtranslate||{}).verdict||'';
-  if(!card.backtranslate)card.backtranslate={};
-  card.backtranslate.verdict='pending';
-  card.clarifyChain.push({text:'Verdict reset to pending'+(oldVerdict&&oldVerdict!=='pending'?' (was '+oldVerdict+')':''),author:'system',timestamp:pbNow()});
+  if(!isFirstFill){
+    if(changed)card.clarifyChain.push({text:'Was: '+oldSrc,author:'system',timestamp:pbNow()});
+    var oldVerdict=(card.backtranslate||{}).verdict||'';
+    if(!card.backtranslate)card.backtranslate={};
+    card.backtranslate.verdict='pending';
+    card.clarifyChain.push({text:'Verdict reset to pending'+(oldVerdict&&oldVerdict!=='pending'?' (was '+oldVerdict+')':''),author:'system',timestamp:pbNow()});
+  }else if(!card.backtranslate){
+    card.backtranslate={verdict:'pending'};
+  }
   card.source=newSrc;card.updatedAt=pbNow();card.updatedBy='tb';
   if(changed)delete card._targetOverride;
   pbSaveCard(card);
@@ -2117,16 +2135,21 @@ function pbCommitTgtEdit(id){
   // FIX (v5.7.2.2): this logged nothing at all — editing the target silently changed
   // the card with no clarify trail, unlike source edits. Mirrors pbCommitSrcEdit now:
   // logs "Target was: X" and resets verdict to pending with its own logged entry.
+  // FIX (v5.7.2.3): skip that pair when the target was blank (first fill on a new
+  // card) — same "creation isn't an edit" reasoning as the source-field fix.
   var el=document.getElementById('pbtgt-'+id);if(!el)return;
   var newTgt=(el.textContent||'').trim();
   var card=pbGetCardById(id);if(!card||!newTgt||newTgt===card.target)return;
   var oldTgt=card.target;
+  var isFirstFill=!oldTgt;
   card.clarifyChain=card.clarifyChain||[];
-  card.clarifyChain.push({text:'Target was: '+oldTgt,author:'system',timestamp:pbNow()});
-  var oldVerdict=(card.backtranslate||{}).verdict||'';
-  if(!card.backtranslate)card.backtranslate={};
-  card.backtranslate.verdict='pending';
-  card.clarifyChain.push({text:'Verdict reset to pending'+(oldVerdict&&oldVerdict!=='pending'?' (was '+oldVerdict+')':''),author:'system',timestamp:pbNow()});
+  if(!isFirstFill){
+    card.clarifyChain.push({text:'Target was: '+oldTgt,author:'system',timestamp:pbNow()});
+    var oldVerdict=(card.backtranslate||{}).verdict||'';
+    if(!card.backtranslate)card.backtranslate={};
+    card.backtranslate.verdict='pending';
+    card.clarifyChain.push({text:'Verdict reset to pending'+(oldVerdict&&oldVerdict!=='pending'?' (was '+oldVerdict+')':''),author:'system',timestamp:pbNow()});
+  }
   card.target=newTgt;card._targetOverride=true;card.updatedAt=pbNow();card.updatedBy='tb';
   pbSaveCard(card);
   pbReRenderBubbleHeader(id);
@@ -2575,6 +2598,11 @@ function pbAddCard(opts){
     createdBy:'tb',updatedBy:'tb',
     createdAt:pbNow(),updatedAt:pbNow()
   });
+  // FIX (v5.7.2.3): new cards had no creation entry of their own, so the first time
+  // someone typed a source and hit Enter, pbCommitSrcEdit's edit-tracking logic fired
+  // and logged "Was: " (blank) + "Verdict reset to pending" -- both nonsensical for
+  // something that was just created, no prior state to speak of. One clear entry now.
+  card.clarifyChain=[{text:'Card created',author:'system',timestamp:card.createdAt}];
   pbUpsert(card);
   if(document.getElementById('pb-overlay').style.display!=='flex')pbOpenOverlay();
   else{pbRenderOverlayFilter();pbRenderOverlay();}
