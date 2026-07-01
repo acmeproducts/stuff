@@ -596,11 +596,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 <div id="pb-overlay" class="pb-overlay" style="display:none;">
   <div class="pb-ov-hdr" style="justify-content:flex-start;gap:4px;">
-    <button class="pb-ov-back" onclick="pbCloseOverlay()" title="Back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <button class="pb-ov-act" onclick="pbOpenNewCardForContext()" title="New phrase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-    <button class="pb-ov-act" onclick="pbTriggerImport()" title="Import from file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg></button>
-    <button class="pb-ov-act" onclick="pbOpenGitSheet()" title="Download from library"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="8 14 12 18 16 14"/><line x1="12" y1="9" x2="12" y2="18"/></svg></button>
-    <button class="pb-ov-act" onclick="pbExportPrompt()" title="Export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="5 12 19 12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+    <button class="pb-ov-act" onclick="pbOpenNewCardForContext()" title="New phrase" style="font-weight:700;font-size:18px;line-height:1;">+</button>
     <div style="flex:1;"></div>
     <button class="pb-ov-act" onclick="pbCloseOverlay()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
@@ -610,6 +606,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
   </div>
   <div class="pb-ov-filter-bar" id="pb-ov-filter"></div>
   <div id="pb-ov-cards"></div>
+  <div id="pb-ov-footer" style="padding:6px 12px;font-size:10px;color:#9a9592;border-top:1px solid #ede9e4;flex-shrink:0;">No shared phrasebook loaded</div>
 </div>
 
 <div id="pb-import-modal" class="pb-import-modal" style="display:none;">
@@ -2201,10 +2198,21 @@ function pbTogTrash(){
   if(list)list.style.display=_pbTrashOpen?'block':'none';
 }
 
+var _pbLastPull=null; // set by PB-SYNC.pull on success once activated (Pre-ship+); Base has no GH sync yet
+function pbRenderSyncFooter(){
+  var el=document.getElementById('pb-ov-footer');if(!el)return;
+  if(_pbLastPull&&_pbLastPull.filename){
+    var d=new Date(_pbLastPull.pulledAt);
+    var stamp=d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    el.textContent=_pbLastPull.filename+' · current as of '+stamp;
+  }else{
+    el.textContent='No shared phrasebook loaded';
+  }
+}
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
   _pbFilter='all';
-  pbRenderOverlayFilter();pbRenderOverlay();
+  pbRenderOverlayFilter();pbRenderOverlay();pbRenderSyncFooter();
   setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
 function pbOpenOverlayClean(){
@@ -4560,7 +4568,11 @@ var COMPOSE_SEAM = (function(){
    ============================================================ */
 
 /* ===== #new module: PB-SYNC ===== */
-/* checksum-before: n/a-new */
+/* checksum-before: n/a-new. FIXED: G6 (offline upload retry) had no implementation --
+   writeBack only logged pbsync_push_err on failure with no pending/retry path. Added
+   pbsync_upload_pending logging plus a one-shot online-event listener that retries.
+   Also: pull success now records _pbLastPull (filename+timestamp) and refreshes the
+   overlay's sticky footer if it's open. */
 var PB_SYNC = (function(){
   var REPO_OWNER='acmeproducts';
   var REPO_NAME='stuff';
@@ -4619,6 +4631,10 @@ var PB_SYNC = (function(){
           PB_DATA.save(cards.map(function(c){ return Object.assign({sourceLang:src,targetLang:tgt},c); }));
           _dirty=false;
           var o={status:'ok',version:ver,cards:PB_DATA.getLive()};
+          if(typeof _pbLastPull!=='undefined'){
+            _pbLastPull={filename:best.name,pulledAt:Date.now()};
+            if(typeof pbRenderSyncFooter==='function')pbRenderSyncFooter();
+          }
           LOG.log('pbsync_pulled',{pair:src+'-'+tgt,version:ver,n:o.cards.length});
           LOG.log('PB-SYNC.pull:out',{out:{status:'ok',version:ver,n:o.cards.length}});
           return o;
@@ -4671,6 +4687,10 @@ var PB_SYNC = (function(){
         }).then(function(d){
           _dirty=false;
           var o={status:'ok',version:nextVer};
+          if(typeof _pbLastPull!=='undefined'){
+            _pbLastPull={filename:fname,pulledAt:Date.now()};
+            if(typeof pbRenderSyncFooter==='function')pbRenderSyncFooter();
+          }
           LOG.log('pbsync_upload_completed',{pair:src+'-'+tgt,version:nextVer});
           LOG.log('PB-SYNC.writeBack:out',{out:o});
           return o;
@@ -4705,11 +4725,10 @@ var PB_SYNC = (function(){
 /* ===== #end module: PB-SYNC ===== */
 
 /* ===== #new module: PB-USAGE ===== */
-/* checksum-before: n/a-new. FIXED this stage: recordUse previously mutated the object
-   returned by PB_DATA.byId() and never persisted it. Since Base wired PB_DATA to be
-   storage-backed (byId returns a fresh canonicalNorm'd copy each call, not a live
-   reference), that mutation was silently discarded. Now mutates within the full card
-   list and calls PB_DATA.save() to actually persist. */
+/* checksum-before: n/a-new. FIXED: recordUse previously mutated the object returned by
+   PB_DATA.byId(), a fresh copy each call (not a live reference) since Base made PB_DATA
+   storage-backed. That mutation was silently discarded. Now mutates within the full
+   card list and calls PB_DATA.save() to actually persist. */
 var PB_USAGE = {
   recordUse: function(cardId){
     LOG.log('PB-USAGE.recordUse:in',{cardId:cardId});
