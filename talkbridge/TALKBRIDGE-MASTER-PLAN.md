@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 3.1 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 3.2 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -135,133 +135,169 @@ The doer writes here after every run. The manager reads here. The tester never r
 ---
 
 ## TURN 07 — PB Activation
-Input: bridge-turn07-pre-base.html (= bridge-turn06-post-ship.html, 4780 lines, sha prefix a73aecbf). Output series: bridge-turn07-{stage}.html. Version: v5.7.x.
+Input chain: Turn 06 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
 
-### Base (BANKED)
-bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-for-byte. Already confirmed. See RUN HISTORY.
+### Pre-base
+**Input:** bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
+**Action:** copy byte-for-byte to bridge-turn07-pre-base.html. No code changes.
+**Gate:** sha256 and line count of bridge-turn07-pre-base.html == Turn 06 Post-ship ledger entry exactly. Mismatch → STOP.
+**Output:** bridge-turn07-pre-base.html. Bank, then proceed to Base.
+
+### Base
+**Input:** bridge-turn07-pre-base.html.
+**Action:** verify byte-identical to Pre-base. No code changes. No new device test (content already device-gated as Turn 06 Post-ship).
+**Gate:** sha256 and line count match Pre-base exactly.
+**Output:** bridge-turn07-base.html (same content, new name). Bank, then proceed to Pre-ship. *(Already banked — see RUN HISTORY.)*
 
 ### Pre-ship — PB Engine Activation
-**What activates:** PB-DATA, PB-SYNC, PB-USAGE.
-**What stays dormant:** PB-QUERY, PB-RENDER, COMPOSE-SEAM, all engine modules.
-**Approach (adapt, not delete):** `pbBubbleHtml` (old renderer) stays live because PB-RENDER is not yet active. Old storage functions (pbGetCards, pbSaveCards, pbNorm) are replaced by redirects to PB-DATA so old callers get new schema. The card renderer and overlay structure are untouched.
+**Input:** bridge-turn07-base.html. **Output:** bridge-turn07-pre-ship.html, v5.7.1.
+**What activates:** PB-DATA, PB-SYNC, PB-USAGE. Flags: use.PB_DATA, use.PB_SYNC, use.PB_USAGE → true.
+**What stays dormant:** PB-QUERY, PB-RENDER, COMPOSE-SEAM, all nine engine modules.
+**Approach:** pbBubbleHtml (old renderer) stays live — PB-RENDER not active yet. Old storage functions (pbGetCards, pbSaveCards, pbNorm) redirected to PB-DATA so existing callers get new schema. Card renderer and overlay structure untouched.
 **Wiring:**
-- `enterCall`: call `PB-SYNC.pull(myLang, theirLang)` — replaces cache wholesale (no merge). `use.PB_DATA`, `use.PB_SYNC` flags true.
-- `hangUp`: call `PB-SYNC.writeBack()` if dirty.
-- dirty-close (overlay close while dirty): call `PB-SYNC.writeBack()`.
-- pb-use action: call `PB-USAGE.recordUse(cardId)`. `use.PB_USAGE` flag true.
-**PB-SYNC.pull contract:** lists `/phrasebook/`, filters `phrasebook-{src}-{tgt}-{NNNN>=1000}.json`, sorts desc, fetches highest (highest-sequence rule). On success: REPLACES cache via PB-DATA.save (no merge), logs `pbsync_pulled`. No PAT → `{status:'no-pat'}`, no throw, call still connects. No file → toast "No shared phrasebook yet", `{status:'no-pair-file'}`, call connects. Error → `pbsync_pull_err` logged, `{status:'error'}`, call connects.
-**PB-SYNC.writeBack contract:** conditional on dirty flag. If clean → log `pbsync_skipped_no_changes`, return. If dirty → list dir, determine next version (current highest + 1), PUT new file at `phrasebook-{src}-{tgt}-{NNNN+1}.json`, log `pbsync_upload_completed`. Error → `pbsync_push_err` logged, `{status:'error'}`.
-**Output:** bridge-turn07-pre-ship.html, v5.7.1.
+- enterCall: call PB-SYNC.pull(myLang, theirLang) — replaces cache wholesale, no merge.
+- hangUp: call PB-SYNC.writeBack() conditionally (only if dirty).
+- Overlay dirty-close: call PB-SYNC.writeBack() conditionally.
+- pb-use action: call PB-USAGE.recordUse(cardId).
+**PB-SYNC.pull:** list /phrasebook/, filter phrasebook-{src}-{tgt}-{NNNN>=1000}.json, sort desc, fetch highest. On success: PB-DATA.save (replace, no merge), log pbsync_pulled. No PAT → {status:'no-pat'}, call connects. No file → toast "No shared phrasebook yet", call connects. Error → pbsync_pull_err, call connects.
+**PB-SYNC.writeBack:** conditional on dirty. Clean → log pbsync_skipped_no_changes, return. Dirty → list dir, next version = highest + 1, PUT phrasebook-{src}-{tgt}-{NNNN+1}.json, log pbsync_upload_completed. Error → pbsync_push_err.
 **Device gate (G1–G6):**
-- G1: enter en-th call, file exists → log shows `pbsync_pulled`; cards visible in overlay.
+- G1: enter en-th call, file exists → pbsync_pulled in log; cards visible in overlay.
 - G2: no file → toast "No shared phrasebook yet"; call connects.
-- G3: no changes, hang up → log shows `pbsync_skipped_no_changes`.
-- G4: edit a card, hang up → log shows `pbsync_upload_completed`; new versioned file in GitHub.
-- G5: edit a card, close overlay → write-back fires immediately.
-- G6: upload fails → log shows `pbsync_upload_pending`; retries on reconnect → `pbsync_upload_completed`.
+- G3: no changes, hang up → pbsync_skipped_no_changes in log.
+- G4: edit card, hang up → pbsync_upload_completed in log; new versioned file in GitHub.
+- G5: close overlay while dirty → write-back fires immediately.
+- G6: upload fails → pbsync_upload_pending; retries on reconnect → pbsync_upload_completed.
 
 ### Ship — PB Core UI Activation
-**What activates:** PB-QUERY, PB-RENDER (renderRow + renderCard), COMPOSE-SEAM.
-**PB-RENDER becomes the only card renderer** — `pbBubbleHtml` removed after this stage banks.
-**COMPOSE-SEAM:** the `/` and `..` seam wired at its one call site. Guard on BOTH Enter AND send so predicate never reaches transcript.
-**Output:** bridge-turn07-ship.html, v5.7.2.
-**Device gate:** overlay shows cards from pull; search filters correctly; card send lands correctly; `/` opens drawer, guarded on Enter AND send (E5, E6 from Part 6).
+**Input:** bridge-turn07-pre-ship.html. **Output:** bridge-turn07-ship.html, v5.7.2.
+**What activates:** PB-QUERY, PB-RENDER (renderRow + renderCard), COMPOSE-SEAM. pbBubbleHtml removed after this banks.
+**COMPOSE-SEAM:** wired at one call site. Guard on BOTH Enter AND send — predicate never reaches transcript.
+**Device gate:** overlay shows cards from pull; search filters correctly; card send correct; /search opens drawer and is guarded on Enter AND send (E5, E6).
 
 ### Post-ship — PB Behaviors
-All A1–G6 behavioral cases pass on device. Enter-in-source KEYDOWN; conditional verdict reset (B cases); clarify el.focus(); dedup on save (F1); pbAddCard.
-**Output:** bridge-turn07-post-ship.html, v5.7.3. Merge to main. Input to Turn 08.
+**Input:** bridge-turn07-ship.html. **Output:** bridge-turn07-post-ship.html, v5.7.3.
+All A1–G6 behavioral cases pass on device. Enter-in-source KEYDOWN (not onblur); conditional verdict reset (B cases); clarify el.focus(); dedup on save (F1); pbAddCard.
+Merge to main. Input to Turn 08 Pre-base.
 
 ---
 
 ## TURN 08 — Shell Merge + PWA
-Input: copy turn07-post-ship → bridge-turn08-pre-base. Verify sha matches banked Turn 07 Post-ship before starting Pre-ship.
+Input chain: Turn 07 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
+
+### Pre-base
+**Input:** bridge-turn07-post-ship.html.
+**Action:** copy byte-for-byte to bridge-turn08-pre-base.html. No code changes.
+**Gate:** sha256 and line count == Turn 07 Post-ship ledger entry. Mismatch → STOP.
+**Output:** bridge-turn08-pre-base.html. Bank.
 
 ### Base
-Byte-identical copy of Turn 07 Post-ship. No rebuild, no device test.
+**Input:** bridge-turn08-pre-base.html.
+**Action:** verify byte-identical. No code changes. No new device test.
+**Gate:** sha256 and line count match Pre-base.
+**Output:** bridge-turn08-base.html. Bank.
 
 ### Pre-ship — Remaining Engine Activation + PWA
-Flip CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE all live in one pass. Old paths deleted. Service worker registered; app installable to home screen.
-**Gate:** call connects through modules; transcript appears; app installs on phone.
+**Input:** bridge-turn08-base.html. **Output:** bridge-turn08-pre-ship.html, v5.8.1.
+Flip CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE all live — one pass, old paths deleted. Service worker registered; app installable to home screen.
+**Device gate:** call connects through modules; transcript appears; app installs on phone.
 
 ### Ship — Shell Merge
-test.html is the host. Bridge call engine mounts as a screen from Thread. Surfaces: Room List (initiator), Room Creation (chat-only vs chat+call), Thread, Call (chat+call rooms only), Room Info/Dispose.
-- Room List → Room Creation → share link/QR.
-- Joiner lands in Thread directly (no Room List).
-- Call button present in DOM only for chat+call rooms.
-- Hang up → CALL.unmount → Thread with "call ended" marker.
+**Input:** bridge-turn08-pre-ship.html. **Output:** bridge-turn08-ship.html, v5.8.2.
+test.html is the host. Bridge call engine mounts as a screen from Thread. Five surfaces live: Room List (initiator only), Room Creation (chat-only vs chat+call), Thread, Call (chat+call rooms only — call button ABSENT from DOM in chat-only rooms), Room Info/Dispose.
+- Hang up → CALL.unmount → Thread + "call ended" marker. Not showThankYou.
 - Push notifications wired to correct room.
-**Gate:** create both room types; joiner asymmetry holds; call escalates and returns to thread; notification opens correct room; PB works inside call.
+- Joiner lands in Thread directly; cannot reach Room List or Room Creation.
+**Device gate:** create both room types; joiner asymmetry holds; call escalates and returns to thread; notification opens correct room; PB works inside call.
 
 ### Post-ship — Polish + Regression
-All Turn 07 PB cases pass inside merged app. Joiner cannot reach Room Creation. Dispose confirmation. Merge to main.
+**Input:** bridge-turn08-ship.html. **Output:** bridge-turn08-post-ship.html, v5.8.3.
+All Turn 07 PB A1–G6 cases pass inside merged app. Dispose confirmation. Merge to main. Input to Turn 09 Pre-base.
 
 ---
 
 ## TURN 09 — Single Translation Path
-Input: copy turn08-post-ship → bridge-turn09-pre-base. Verify sha.
+Input chain: Turn 08 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
+
+### Pre-base
+Copy bridge-turn08-post-ship.html → bridge-turn09-pre-base.html. Verify sha. Bank.
 
 ### Base
-Byte-identical copy. No rebuild.
+Verify byte-identical. bridge-turn09-base.html. Bank.
 
 ### Pre-ship
-NORMALIZE is the single entry point for chat AND call translation. Z→X→Y in both paths.
+NORMALIZE is the single entry for chat AND call translation. Z→X→Y in both paths.
+**Device gate:** spoken + typed translation identical; Z→X→Y confirmed.
 
 ### Ship
-PB use/send/search through the same path. Dead translation routes removed. Type/speak any language → correct output both sides; original never shown.
+PB use/send/search through same path. Dead translation routes removed.
+**Device gate:** type/speak any language → correct output both sides; original never shown.
 
 ### Post-ship
-Log shows one event per translated message. Merge to main.
+Log shows one event per translated message. Merge to main. Input to Turn 10 Pre-base.
 
 ---
 
 ## TURN 10 — Token Identity + Multi-device
-Input: copy turn09-post-ship → bridge-turn10-pre-base. Verify sha.
+Input chain: Turn 09 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
+
+### Pre-base
+Copy bridge-turn09-post-ship.html → bridge-turn10-pre-base.html. Verify sha. Bank.
 
 ### Base
-Byte-identical copy. No rebuild.
+Verify byte-identical. bridge-turn10-base.html. Bank.
 
 ### Pre-ship
-Token is sole identity; name-derived identity audited out.
+Token is sole identity everywhere; name-derived identity audited out.
 
 ### Ship
 Multi-device chat join. Cross-device call rings and answers.
 
 ### Post-ship
-Edge cases (drop mid-call, rejoin). Merge to main.
+Edge cases (drop mid-call, rejoin). Merge to main. Input to Turn 11 Pre-base.
 
 ---
 
 ## TURN 11 — Presence, Waiting, Room Disposal
-Input: copy turn10-post-ship → bridge-turn11-pre-base. Verify sha.
+Input chain: Turn 10 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
+
+### Pre-base
+Copy bridge-turn10-post-ship.html → bridge-turn11-pre-base.html. Verify sha. Bank.
 
 ### Base
-Byte-identical copy. No rebuild.
+Verify byte-identical. bridge-turn11-base.html. Bank.
 
 ### Pre-ship
-Relay-side presence contract. Disposal policy: unjoined rooms expire after 30 days; joined rooms never silently expire; dispose retires token and purges.
+Relay-side presence contract. Disposal policy: unjoined rooms expire 30 days; joined rooms never silently expire; dispose retires token and purges.
 
 ### Ship
-Waiting indicator survives offline. Unread/last-message preview in Room List. Dispose cleans relay. Gate: offline → waiting → clears on join; dispose removes room everywhere.
+Waiting indicator survives offline. Unread/last-message in Room List. Dispose cleans relay.
+**Device gate:** offline → waiting → clears on join; dispose removes room everywhere.
 
 ### Post-ship
-Edge cases (dispose during waiting, re-create). Merge to main.
+Edge cases. Merge to main. Input to Turn 12 Pre-base.
 
 ---
 
 ## TURN 12 — Design System + Pilot Readiness
-Input: copy turn11-post-ship → bridge-turn12-pre-base. Verify sha.
+Input chain: Turn 11 Post-ship → Pre-base → Base → Pre-ship → Ship → Post-ship.
+
+### Pre-base
+Copy bridge-turn11-post-ship.html → bridge-turn12-pre-base.html. Verify sha. Bank.
 
 ### Base
-Byte-identical copy. No rebuild.
+Verify byte-identical. bridge-turn12-base.html. Bank.
 
 ### Pre-ship
 All hardcoded color/size/spacing → CONFIG token keys.
 
 ### Ship
-Two independent persisted axes: font size and theme preset (separate, not coupled). Uniform design across all surfaces + PB. Gate: change font/theme independently; both persist across reinstall; every surface coherent in default and each theme.
+Two independent persisted axes: font size and theme preset. Uniform design across all surfaces + PB.
+**Device gate:** change font/theme independently; both persist across reinstall; every surface coherent.
 
 ### Post-ship
-Full regression on Galaxy and iPhone. Configurability proof: change theme/font/labels/default capability via CONFIG with no code rebuild. Gate passes → DONE. Merge to main.
+Full regression Galaxy + iPhone. Configurability proof: change theme/font/labels/default capability via CONFIG, no code rebuild. Gate passes → **DONE**. Merge to main.
+
 
 ---
 
