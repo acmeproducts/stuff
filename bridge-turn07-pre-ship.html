@@ -600,8 +600,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 
 <div id="pb-overlay" class="pb-overlay" style="display:none;">
   <div class="pb-ov-hdr" style="justify-content:flex-start;gap:4px;">
+    <span id="pb-ov-pair-label" style="font-size:12px;color:#5a5552;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;"></span>
     <button class="pb-ov-act" onclick="pbOpenNewCardForContext()" title="New phrase" style="font-weight:700;font-size:18px;line-height:1;">+</button>
-    <div style="flex:1;"></div>
+    <button class="pb-ov-act" onclick="pbManualSave()" title="Save now"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg></button>
+    <span id="pb-ov-sync-dot" title="Sync status" style="width:8px;height:8px;border-radius:50%;background:#9a9592;display:inline-block;margin:0 2px;flex-shrink:0;align-self:center;transition:background .2s;"></span>
     <button class="pb-ov-act" onclick="pbCloseOverlay()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="pb-ov-searchbar" style="position:relative;">
@@ -1433,7 +1435,7 @@ function pbGetCards(){return _pbDataActive()?PB_DATA.getLive():pbGetAllCards().f
 function pbSaveCards(a){
   if(!_pbDataActive()){try{localStorage.setItem(PB_CARDS,JSON.stringify(a));}catch(_){toast('Storage full');}return;}
   var out=PB_DATA.save(a);if((a||[]).length&&out.count===0){toast('Storage full');}
-  if(_pbSyncActive())PB_SYNC.markDirty();
+  if(_pbSyncActive()){PB_SYNC.markDirty();if(typeof pbOvUpdateSyncDot==='function')pbOvUpdateSyncDot('dirty');}
 }
 function pbGetCats(){try{return JSON.parse(localStorage.getItem(PB_CATS)||'[]');}catch(_){return[];}}
 function pbSaveCats(a){try{localStorage.setItem(PB_CATS,JSON.stringify(a));}catch(_){}}
@@ -2204,10 +2206,35 @@ function pbRenderSyncFooter(){
     el.textContent='No shared phrasebook loaded';
   }
 }
+function pbOvUpdatePairLabel(){
+  var el=document.getElementById('pb-ov-pair-label');if(!el)return;
+  var src=room.myLang,tgt=room.theirLang;
+  if(!src||!tgt){el.textContent='';return;}
+  el.textContent=pbLangFlag(src)+' '+src.toUpperCase()+' → '+pbLangFlag(tgt)+' '+tgt.toUpperCase();
+}
+function pbOvUpdateSyncDot(status){
+  var el=document.getElementById('pb-ov-sync-dot');if(!el)return;
+  var colors={idle:'#9a9592',dirty:'#e0a030',saved:'#2e9e5b',error:'#c0392b'};
+  el.style.background=colors[status]||colors.idle;
+  if(status==='saved'){
+    setTimeout(function(){ if(_pbSyncActive()&&!PB_SYNC.isDirty()) pbOvUpdateSyncDot('idle'); },1600);
+  }
+}
+function pbManualSave(){
+  if(!_pbSyncActive()){toast('Sync not active');return;}
+  if(!PB_SYNC.isDirty()){toast('Nothing to save');return;}
+  pbOvUpdateSyncDot('dirty');
+  PB_SYNC.writeBack().then(function(r){
+    if(r&&r.status==='ok'){pbOvUpdateSyncDot('saved');toast('Saved to shared phrasebook');}
+    else if(r&&r.status==='pending'){pbOvUpdateSyncDot('error');toast('Offline — will retry automatically');}
+    else if(r&&r.status==='no-pat'){toast('No GitHub token set');}
+  });
+}
 function pbOpenOverlay(){
   var d=document.getElementById('pb-overlay');if(d)d.style.display='flex';
   _pbFilter='all';
-  pbRenderOverlayFilter();pbRenderOverlay();pbRenderSyncFooter();
+  pbRenderOverlayFilter();pbRenderOverlay();pbRenderSyncFooter();pbOvUpdatePairLabel();
+  if(_pbSyncActive())pbOvUpdateSyncDot(PB_SYNC.isDirty()?'dirty':'idle');
   setTimeout(function(){var si=document.getElementById('pb-ov-search');if(si)si.focus();},60);
 }
 function pbOpenOverlayClean(){
@@ -4604,6 +4631,7 @@ var PB_SYNC = (function(){
           if(typeof _pbLastPull!=='undefined'){
             _pbLastPull={filename:best.name,pulledAt:Date.now()};
             if(typeof pbRenderSyncFooter==='function')pbRenderSyncFooter();
+            if(typeof pbOvUpdateSyncDot==='function')pbOvUpdateSyncDot('idle');
           }
           LOG.log('pbsync_pulled',{pair:src+'-'+tgt,version:ver,n:o.cards.length});
           LOG.log('PB-SYNC.pull:out',{out:{status:'ok',version:ver,n:o.cards.length}});
@@ -4660,6 +4688,7 @@ var PB_SYNC = (function(){
           if(typeof _pbLastPull!=='undefined'){
             _pbLastPull={filename:fname,pulledAt:Date.now()};
             if(typeof pbRenderSyncFooter==='function')pbRenderSyncFooter();
+            if(typeof pbOvUpdateSyncDot==='function')pbOvUpdateSyncDot('saved');
           }
           LOG.log('pbsync_upload_completed',{pair:src+'-'+tgt,version:nextVer});
           LOG.log('PB-SYNC.writeBack:out',{out:o});
@@ -4669,6 +4698,7 @@ var PB_SYNC = (function(){
         LOG.log('pbsync_push_err',{e:String(e)},'warn');
         LOG.log('pbsync_upload_pending',{e:String(e)});
         armReconnectRetry();
+        if(typeof pbOvUpdateSyncDot==='function')pbOvUpdateSyncDot('error');
         LOG.log('PB-SYNC.writeBack:err',{in:{},e:String(e)},'warn');
         return {status:'pending'};
       });
