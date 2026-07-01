@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.0 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.1 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -183,21 +183,6 @@ Stop. Name the exact gap and which section it belongs in. Do not guess.
 
 The doer writes here after every release. The manager reads here.
 
-## CURRENT RUN
-- RELEASE: Turn 07 / Base / PB-DATA activation
-- STATUS: DONE — AWAITING DEVICE TEST
-- OUTPUT: bridge-turn07-base.html, 4812 lines, sha256 prefix 72a80f3765c5, v5.7.1 (doer used v5.7.0 — plan version corrected to v5.7.1; file needs version stamp corrected before device test)
-- RTR REPORT: 21/21 immutables pass, lint clean, log points pass, switch wiring pass, +32 lines additive
-- NOTES: Pre-base was missing from repo despite ledger saying DONE — doer banked it first. Doer retained legacy fields (relatedIntents, fingerprint, catalogIds etc) as load-bearing for existing features — correct decision, plan did not account for this. Version stamp in file says v5.7.0, needs correction to v5.7.1 before device test.
-
-## RUN HISTORY (append-only, newest first)
-- 2026-07-01 T07 Base — DONE pending device test. bridge-turn07-base.html, 4812 lines, sha prefix 72a80f3765c5, v5.7.1 (stamped v5.7.0 — needs correction). PB-DATA active, legacy fields retained as load-bearing, 21/21 immutables, lint clean.
-- 2026-07-01 T07 Pre-base — DONE. bridge-turn07-pre-base.html = bridge-turn06-post-ship.html byte-identical. 4780 lines, sha prefix a73aecbf. Negative test pass.
-- 2026-06-30 T06 Post-ship — DONE. 17 modules dormant. v5.6.4, sha prefix a73aecbf. 4780 lines. Device gate pass.
-- 2026-06-30 T06 Ship — DONE. 7 modules dormant. v5.6.3. 21/21 immutables. Fixtures pass. Device gate pass.
-- 2026-06-30 T06 Pre-ship — DONE. 9 engine modules dormant. v5.6.2. 21/21 immutables. Device gate pass.
-
----
 
 # PART 3 — TURN SPECS
 
