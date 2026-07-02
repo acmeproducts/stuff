@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.0 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.1 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -128,6 +128,7 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | # | Item | Note |
 |---|---|---|
 | 5 | PB-RENDER (renderCard/renderRow) not activated | Scaffolded modules use a different design system than the live, approved cards — would break pixel parity if turned on. Needs a rebuild-to-match pass against the current live markup before it can replace the working renderer |
+| 9 | Category-match dropdown not built | When a search matches multiple categories, show a dropdown below the search box with each category name + match count; tapping one filters to that category in place. Depends on cleaning up source PB category data first |
 
 ## CLOSED (Turn 07 Post-ship, 2026-07-01)
 | # | Item | Resolution |
@@ -601,7 +602,8 @@ Versioned GitHub pull/push.
 ## 4M.14 PB-QUERY
 Search and filter. One engine for both the inline search drawer and the PB overlay.
 - `query({text,pair,cards})→{cards,total}`.
-- Text supports `-exclude` prefix. Searches source, target, and categories fields.
+- Text supports `-exclude` prefix. Searches source, target, tags, clarify text, and categories fields — not phrase text alone.
+- **Category-match dropdown (spec added 2026-07-02, not yet built):** if a query's matches span more than one category, show a dropdown under the search box listing each matching category by name with its match count. Tapping a category filters results to that category only, staying in the same search view — no navigation away.
 
 ## 4M.15 PB-RENDER
 Pure card-to-DOM. No storage. No globals.
