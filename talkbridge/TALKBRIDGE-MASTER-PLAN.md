@@ -1,7 +1,28 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.9 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.0 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
+
+
+# PART UC — USE-CASE MAP (owner-driven, 2026-07-02). What we build = what we test. DEV PAUSED until this map is confirmed.
+
+**UC1 — Open an existing chat+call room (either role).** Presence updates on entry; my status dot turns green; partner's dot reflects their live status. Full room transcript shown, newest at the bottom next to the compose strip. Every chat message shows sent / received / read (test.html behavior). User can chat normally or tap the phone or video icon at the top.
+**UC2 — Video call.** Tap video icon → bridge call experience opens over the room (2vid look, no floating windows): live speech transcript + translation, PB exactly as banked. Hang up → back in the room chat; the call's transcript is woven into the room history with a "call ended" marker.
+**UC3 — Voice call.** Same as UC2 with no video surface — the live transcript/translation IS the screen.
+**UC4 — PB in chat.** "/" or ".." in the compose strip opens the bridge search (bridge row layout); PB overlay reachable from chat; save-to-PB from bubbles; PB look, behavior, data, and sync exactly as banked. No redesign, ever.
+**UC5 — PB in call.** Exactly as banked bridge.
+**UC6 — Create a room (host).** + → type (chat / chat+call), name, both languages → link + QR immediately → room in list.
+**UC7 — Host first-run setup.** Credentials live behind the existing control icon; key verify; one-time. Creating a call room without keys raises it.
+**UC8 — Joiner via link.** Lands in that room's chat only. No room list, no creation, no keys, no path to them.
+**UC9 — Message lifecycle.** Sent → received → read states; queued while partner unreachable, delivered when reachable; unread accrues on the room card.
+**UC10 — Presence & waiting.** Green when partner present; waiting indicator pre-join; live updates both directions.
+**UC11 — Per-room mute.** Mute incoming call ring / message notifications per room; unread still accrues silently.
+**UC12 — Notifications (app open/backgrounded).** Message or incoming call → OS notification → tap opens the correct room. Fully-closed-app push = Turn 11.
+**UC13 — Install.** Add to home screen; opens standalone with TB icon.
+**UC14 — Dispose room.** One confirmation → room gone from list, link dead, relay cleaned.
+**UC15 — Multi-room.** Switching rooms keeps transcripts, presence, language pair, and PB pairing isolated per room.
+
+Every stage test from here forward cites UC numbers. A surface not covered by a UC does not get built.
 
 # PART 0 — WHAT WE'RE BUILDING AND WHERE WE ARE
 
