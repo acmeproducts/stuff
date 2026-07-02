@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.7 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.8 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -132,6 +132,8 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 3 | Duplicate PB card save gives no feedback | Now toasts "Already saved" and stays exactly where the user was — no more jump to the PB surface. Also counts as a use (usage/lastUsed refresh), per spec |
 | 4 | PB GitHub write-back timing was wrong | Write-back now fires once, at call end, only. Overlay close no longer writes. Dirty state now survives an unclean close, and is flushed to GitHub at the start of the next call, before that call's phrasebook loads |
 | 6 | Tag/clarify footer icons showed a third, wrong-looking color state after closing | Was a stuck touch-tap shading effect, not a real third state — fixed so closed always matches true neutral |
+| 7 | BT manual-refresh icon was still present | First pass only removed it from the new-card sheet; it was also on every live card's back-translate row. Now removed everywhere |
+| 8 | New card from transcript logged a false "verdict reset" entry | A focus/blur right after creation was wrongly treated as an edit. Now only logs when the text actually changes |
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Post-ship — v5.7.4
