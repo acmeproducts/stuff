@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.6 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.7 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -50,6 +50,13 @@ Real people won't personally set up Deepgram/Cloudflare/GitHub accounts to becom
 - Unjoined rooms expire after 30 days and are purged relay-side.
 - Joined/active rooms never expire silently — only explicit initiator-driven disposal removes them.
 - Disposal is a real relay-side cleanup: token retired, waiting flag cleared, room record purged. Not just hidden client-side.
+
+## Architecture rails (owner-confirmed 2026-07-02, end-state-backwards)
+1. The room record is the spine — list card, thread, call, unread, notifications, mute all key off it.
+2. The relay connection is an app-level service from Base onward (not call-scoped): chat sync, waiting flags, incoming-call ring, presence all ride one channel.
+3. Per-room controls (mute calls, mute notifications, names, languages) live in Room Info.
+4. One design system across all surfaces from Base.
+5. Call, PB, notifications are attachments mounted over the Thread, never separate destinations.
 
 ## The five screens — no more, no fewer
 1. **Room List** — initiator's home. Never shown to a joiner.
@@ -518,7 +525,7 @@ Input: bridge-turn10-post-ship.html. (GT-WA v2.3 §Turn 11 + §Turn 12/13/14.)
 
 ### Base — Status: NOT STARTED
 **Deliver:** bridge-turn11-base.html, v5.11.1
-**Work:** Relay presence contract live. Disposal policy: unjoined rooms expire 30 days, joined rooms never silently expire, dispose retires token + purges relay. Waiting indicator in Thread for initiator pre-join, survives backgrounding.
+**Work:** Relay presence contract live. Per-room mute enforced (muted room: no ring on incoming call, no message notification; unread state still accrues silently). Disposal policy: unjoined rooms expire 30 days, joined rooms never silently expire, dispose retires token + purges relay. Waiting indicator in Thread for initiator pre-join, survives backgrounding.
 **Test (positive — GT-WA §Turn 11 acceptance criteria):**
 - A messages B while B offline → waiting flag set relay-side.
 - B opens app → flag retrieved and cleared.
@@ -883,6 +890,7 @@ Reuses base IDs verbatim. Not rebuilt:
 
 ## Surface 5 — Room Info / Dispose `#room-info` (Turn 08 Ship)
 - `#ri-created` | `#ri-cap` | `#ri-name` — read-only.
+- `#ri-mute-calls`, `#ri-mute-notifs` — per-room toggles (owner decision 2026-07-02): mute incoming call ring / mute message notifications for this room only, persisted per room. Toggles built Turn 08 Ship; enforced against live presence/push in Turn 11.
 - `#ri-dispose` — destructive. → `#ri-confirm` (one confirmation) → `ROOM.dispose(id)`.
 
 ## Shared surfaces (base IDs, not rebuilt)
