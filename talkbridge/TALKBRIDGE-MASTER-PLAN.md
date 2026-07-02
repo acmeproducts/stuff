@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.6 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.7 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -127,10 +127,11 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 ## CLOSED (Turn 07 Post-ship, 2026-07-01)
 | # | Item | Resolution |
 |---|---|---|
-| 1 | "tb" author initials should read "TB" | Fixed everywhere it's written as an author value |
+| 1 | "tb" author initials should read "TB" | Fixed everywhere it's written as an author value. Note: only affects cards saved from now on — existing already-saved cards keep their old value |
 | 2 | Remove BT manual-refresh icon | Removed from the new-card save sheet; back-translate result stays always visible, no toggle needed |
 | 3 | Duplicate PB card save gives no feedback | Now toasts "Already saved" and stays exactly where the user was — no more jump to the PB surface. Also counts as a use (usage/lastUsed refresh), per spec |
 | 4 | PB GitHub write-back timing was wrong | Write-back now fires once, at call end, only. Overlay close no longer writes. Dirty state now survives an unclean close, and is flushed to GitHub at the start of the next call, before that call's phrasebook loads |
+| 6 | Tag/clarify footer icons showed a third, wrong-looking color state after closing | Was a stuck touch-tap shading effect, not a real third state — fixed so closed always matches true neutral |
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Post-ship — v5.7.4
@@ -495,7 +496,7 @@ Input: bridge-turn10-post-ship.html. (GT-WA v2.3 §Turn 11 + §Turn 12/13/14.)
 
 ### Pre-ship — Status: NOT STARTED
 **Deliver:** bridge-turn11-pre-ship.html, v5.11.2
-**Work:** All hardcoded color/size/spacing → CONFIG token keys. This stage touches frozen surfaces BY DESIGN — the stage spec here declares ALL registered §SFR regions in-scope for token substitution only; the deterministic acceptance criterion is: default settings render identical to prior release (test below). §SFR re-baselined at Post-ship. Two independent persisted axes: font scale and theme preset.
+**Work:** All hardcoded color/size/spacing → CONFIG token keys — explicitly including every visible surface: bubble/card body, footer, header, icons, and all text, across every state (neutral/open/hover/active), not just base colors. Confirmed already in scope as of this plan version; called out explicitly here per owner direction so there's no ambiguity. This stage touches frozen surfaces BY DESIGN — the stage spec here declares ALL registered §SFR regions in-scope for token substitution only; the deterministic acceptance criterion is: default settings render identical to prior release (test below). §SFR re-baselined at Post-ship. Two independent persisted axes: font scale and theme preset — both user-adjustable and persisted.
 **Test (positive):** Change font size → all surfaces larger. Change theme → all surfaces recolor. Reset one → other unchanged. Close and reopen → both persist. Default settings look identical to prior release.
 
 ### Ship — Status: NOT STARTED
