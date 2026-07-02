@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.4 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.5 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -69,8 +69,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 07 / Ship — PB-QUERY unification + renderer contract cleanup**
-T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, device-confirmed at v5.7.2.8 (bridge-turn07-pre-ship.html; patch series closed). Ship scope re-cut 2026-07-01 — see Turn 07 Ship below.
+**CURRENT STAGE: Turn 07 / Ship — DONE pending device test**
+T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, device-confirmed — actual final patch was v5.7.2.11, not v5.7.2.8 as previously logged (ledger corrected). T07 Ship: DONE pending device test, bridge-turn07-ship.html v5.7.3. PB-QUERY and COMPOSE-SEAM activated; PB-RENDER stays dormant (see note below) — flagged, not silently dropped.
 
 ---
 
@@ -126,14 +126,18 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 2 | Remove BT (back-translate) manual-refresh icon | Obsolete — back-translate now auto-refreshes on any source/target edit |
 | 3 | Duplicate PB card save gives no feedback | Card already exists → should toast "Already saved," stay in place. Currently silently redirects to search/PB surface — was present and correct in earlier versions, regressed |
 | 4 | PB GitHub write-back timing is wrong | Every add/edit/delete during a call should stay local-only until one batched write at call end (not on every change, not merely on overlay close). If the tab/app closes without a normal hang-up, next startup must check local storage for an unwritten PB payload and flush it to GitHub BEFORE that call's PB loads — GitHub must stay source of truth |
+| 5 | PB-RENDER (renderCard/renderRow) not activated | Scaffolded modules use a different design system than the live, approved cards — would break pixel parity if turned on. Needs a rebuild-to-match pass against the current live markup before it can replace the working renderer |
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Ship — v5.7.3
-- STATUS: NOT STARTED. Input: bridge-turn07-pre-ship.html v5.7.2.8 (DONE, device-confirmed). Fetch fresh, verify sha/lines against RUN HISTORY before building.
-- PRIOR: Turn 07 Pre-ship DONE at v5.7.2.8 after extended patch series v5.7.2.1–v5.7.2.8 (series CLOSED; never repeat — graveyard G16)
+- STATUS: DONE pending device test. Output: bridge-turn07-ship.html, 5096 lines, sha256 prefix 272f9f9d5372.
+- WORK DONE: PB-QUERY.query extended to exactly replicate pbSearch's existing filter (source/target/notes/tags/clarify/backtranslate/langs, verdict:/tag: prefixes); pbSearch now delegates to it — one real engine under both overlay and compose-drawer search, zero output change (diff-verified against input). COMPOSE_SEAM wired into chatGo — same predicate guard (/ and ..), same single call site Enter and Send both already used, so both are guarded; found and fixed a real pre-existing gap where ".." typed and submitted was never guarded (was going out as a literal chat message).
+- NOT DONE — PB-RENDER left dormant on purpose: renderCard/renderRow as scaffolded do not match the live, approved card/row markup (different design system entirely — Tailwind/lucide vs the shipped dark-theme CSS). Activating either would break pixel parity. Needs a dedicated rebuild-to-match pass before it can be turned on; not attempted this stage. Added to Open Items.
+- VERIFIED: 21/21 immutable functions byte-identical (sha12 match). Lint clean. Full diff against input confirms no change outside the three wired areas + version stamp.
+- PRIOR: Turn 07 Pre-ship DONE (final patch v5.7.2.11). Patch series CLOSED; never repeat — graveyard G16.
 - FIXED THIS SERIES: Enter-on-source commit; verdict as radio pills; tag/clarify inputs keep focus on Enter; every card change logs to clarify; creation vs edit no longer conflated in clarify log; new card at top (upsert was matching by content, overwrote unrelated blanks); header shows created/modified with time; verified-tag removal resets verdict AND visibly unchecks; three historical clarify field formats all render; send button (Go) respects /search same as Enter; search-open lag removed; "tap to use" removed everywhere; send chevron never cut off; search rows no longer compress/overlap; footer toggles resolve white when open; compose X inside input; overlay search X shows with query; trash pinned bottom; BT icon/label removed; transcript-save dedupes and clears stale search; focus outline removed.
 - PROCESS RULE (locked, per owner): NO MORE PATCH RELEASES. All work follows stage structure: pre-base → base → pre-ship → ship → post-ship, each turn's post-ship feeds the next turn's pre-base. Master plan updated every release.
-- NEXT: Turn 07 Ship.
+- NEXT: device test of bridge-turn07-ship.html, then Turn 07 Post-ship.
 
 ## §DELTAS — RESOLVED 2026-07-01 (v4.2 realignment). Kept for the record; all four dispositions below are now law in this plan.
 1. RESOLVED — §SHIP-RECOVERED content: most built during patch series. PB-QUERY unification is now the core of Turn 07 Ship. Category assignment UI: DEFERRED out of Phase 2 (owner decision 2026-07-01) — categories[] stays schema-only with 'unassigned'; building assignment UI before pilot is scope creep.
@@ -142,6 +146,7 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Ship -- DONE pending device test. bridge-turn07-ship.html, 5096 lines, sha256 prefix 272f9f9d5372, v5.7.3. PB-QUERY is now the real filter engine (pbSearch delegates to it, output diff-verified identical). COMPOSE-SEAM wired into chatGo; closed a real pre-existing gap (".." predicate was unguarded on submit). PB-RENDER stays dormant — scaffold doesn't match live design, needs its own rebuild pass, logged to Open Items rather than forced. 21/21 immutables verified, lint clean, full diff reviewed.
 - 2026-07-01 T07 Pre-ship -- DONE, device-confirmed at v5.7.2.8 (bridge-turn07-pre-ship.html). Patch series v5.7.2.1-v5.7.2.8 closed permanently (graveyard G16). Plan v4.2 realignment same day: Ship re-cut, initiator decision placed in T08 Base, Surface Freeze Registry (Part 5 SFR) added, version stamps T08-T11 corrected.
 - 2026-07-01 T07 Base+Pre-ship -- card renderer pulled forward from Ship per explicit direction: catalog chips structurally deleted, footer 4->3 icons, BT+verdict always visible as full-width pills. Base sha 0ccda6ef (still v5.7.1), Pre-ship rebuilt on top sha d0c27309 (v5.7.2). Diffed to confirm no drift beyond the PB-SYNC/PB-USAGE layer.
 - 2026-07-01 T07 Pre-ship -- full rebuild from corrected Base (not a patch). 4870 lines, sha prefix 6bcbdf455264, v5.7.2. PB-SYNC + PB-USAGE active, sync footer wired to real pull/writeBack state, 21/21 immutables, lint clean.
@@ -200,7 +205,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - G5: edit card, close overlay → write-back fires immediately.
 - G6: edit card, hang up offline → pbsync_upload_pending; restore network → pbsync_upload_completed.
 
-### Ship — Status: NOT STARTED (scope RE-CUT 2026-07-01 — the v5.7.2.x patch series already built most of §SHIP-RECOVERED's display surface; do NOT rebuild what is working)
+### Ship — Status: DONE pending device test (scope RE-CUT 2026-07-01 — the v5.7.2.x patch series already built most of §SHIP-RECOVERED's display surface; do NOT rebuild what is working)
 **Deliver:** bridge-turn07-ship.html, v5.7.3
 **Input:** bridge-turn07-pre-ship.html v5.7.2.8 — the working, device-approved PB surface. The acceptance bar for everything visual is PIXEL-IDENTICAL to v5.7.2.8. Any visible change to the PB cards, overlay, ribbon, or compose strip = reject.
 **Work (exactly three items, nothing else):**
