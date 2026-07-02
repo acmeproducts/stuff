@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.8 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.9 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -434,10 +434,17 @@ The merge approach (from GT-WA v2.3 §7.7):
 **References:** test.html (architecture authority, read-only), 2vid.html (call-overlay visual), phrase-desk.html (PB), Part 4 contracts, Part 5 §IMM/§SFR, INITIATOR-DECISION.md.
 **Test (positive):** Fresh device: first-run setup accepts credentials, key verifies. Create chat-only and chat+call rooms (capability + name + both languages) → link/QR immediately. Room List shows both. Thread: send chat, /-search opens PB drawer, PB overlay opens from chat with no call running. Chat+call Thread shows call icons; chat-only has none. Joiner link lands in Thread only. App installs to home screen.
 
-### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn08-pre-ship.html, v5.8.2
-**Work:** Engine migration: call engine + PB system lifted from bridge-turn08-pre-base into the container. Nine engine modules activated during migration. Call mounts as overlay over Thread (2vid visual, no floating windows); hang-up unmounts → Thread + "call ended" marker. PB works in-call AND from plain chat via the shared compose strip.
-**References:** Part 7 (UI element map). test.html, 2vid.html.
+### Pre-ship — Status: SPECIFIED 2026-07-02 — THE TRANSPLANT
+**Deliver:** container-turn08-pre-ship.html, v5.8.2
+**Governing rule:** banked bridge surfaces move VERBATIM. Nothing banked is re-imagined, re-styled, or re-implemented in the container's idiom. Byte-identity of §IMM/§SFR content is verified in the container exactly as it was in the bridge. The container's own overlapping legacy features are DELETED, not kept alongside.
+
+**Transplant steps (each = one edit pass, lint, verify, then next):**
+- **P1 — PB system verbatim.** Move from bridge-turn08-pre-base: PB data/store, card layout (phrase-desk authority), overlay, search-row layout as in the call transcript search, tags, sync (PB-DATA/PB-SYNC/PB-USAGE/PB-QUERY/PB-RENDER modules + all §SFR functions), CSS for those surfaces. DELETE the shell's legacy phrasebook (catalog screen, its card CRUD, its new-card overlay) and the T08-Base stand-in inline search. Storage: bridge PB store is authoritative; shell's legacy cards are not migrated.
+- **P2 — Compose strip verbatim.** The bridge call-surface compose strip (source field + controls + `/` and `..` search drawer + /bank guard + COMPOSE-SEAM) replaces the shell composer in the Thread. Same strip, both places; drawer rows use the bridge search-row layout.
+- **P3 — Call engine verbatim.** All 21 §IMM functions + engine modules + call UI (2vid visual: call overlay over the Thread, no floating windows) mounted behind the ribbon call icon for chatcall rooms. Keys read from First-Run Setup store. Hang-up unmounts overlay → Thread + "call ended" marker. Bridge lobby/goodbye screens are NOT transplanted.
+- **P4 — Reconcile.** One translation path shared (NORMALIZE seam noted for Turn 09), one relay line, one diag log. Remove dead shell code orphaned by P1–P3.
+**Gate after each step on device; a red step rolls back that step only.**
+**References:** Part 7 (UI element map), Part 5 §IMM/§SFR, phrase-desk.html, 2vid.html.
 **Test (positive — GT-WA §7.8 acceptance criteria):**
 - Create chat-only room → link/QR immediately → Thread has no call button anywhere in DOM.
 - Create chat+call room → link/QR immediately → Thread has visible call button.
