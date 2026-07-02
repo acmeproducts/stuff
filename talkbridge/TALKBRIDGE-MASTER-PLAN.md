@@ -1,32 +1,46 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 6.1 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
 
-# PART UC — USE CASES (v2, scenario form). Actors: **Ann** — host, English speaker, has the keys. **Boon** — guest, Thai speaker, has only a link. DEV PAUSED until confirmed.
+# PART UC v3 — FLOW PERMUTATION MATRIX. DEV PAUSED until confirmed.
 
-**UC1 — Ann sets up for the first time.** Ann opens the app, gives her name, taps the control icon, pastes her three keys, sees the speech key verify. She never does this again. *Pass: keys survive restart; creating call rooms never asks again.*
+**Core principle (owner, 2026-07-02): ONE TRANSCRIPT.** The room's chat surface and the call transcript are the same surface. A call adds a live-media layer on top of the room; everything spoken lands in the same stream, translated, newest at bottom, next to the same compose strip. There is no separate call transcript anywhere.
 
-**UC2 — Ann starts a chat with Boon, face to face.** Ann taps +, picks Chat only, English↔Thai, shows Boon the QR. Boon scans, lands straight in the room, no questions asked. Ann types "Where are you from?" — Boon sees it in Thai with the English underneath, replies in Thai, Ann reads it in English. Each message on Ann's side walks through sent → received → read as Boon gets and views it. *Pass: both read everything in their own language; receipts progress; Boon never saw a setup screen.*
+**Surfaces:** LIST (room list) · ROOM (the one transcript + compose strip + header w/ presence + call icons) · MEDIA (call layer over ROOM: video, voice-only, controls) · PB (search drawer + overlay, banked bridge product) · KEYS (control-icon credentials) · SYS (OS notifications, install, badge).
 
-**UC3 — Ann invites Boon remotely to a call-capable room.** Ann creates Chat + Call, texts Boon the link. Boon opens it hours later — the room's history is there, and when both are in the room each sees the other's dot go green. Phone and video icons sit at the top for both. *Pass: late join works; presence live both ways; icons present only because this room is call-capable.*
+| # | Flow | Role | Surfaces | Pass |
+|---|---|---|---|---|
+| F1 | First open, set name + keys | host | KEYS | one-time; persists |
+| F2 | Create room (chat / chat+call) | host | LIST→ROOM | link+QR immediate; call icons only if call-capable |
+| F3 | Join via link/QR (fresh or late) | guest | ROOM only | history visible; no LIST/KEYS path |
+| F4 | Open existing room | both | LIST→ROOM | presence dots go green both ways; transcript newest-at-bottom; per-msg sent/received/read |
+| F5 | Chat, both present | both | ROOM | each reads own language; receipts advance to read |
+| F6 | Chat, partner absent | both | ROOM | queued→delivered on return; unread accrues on LIST card |
+| F7 | Type in third language | both | ROOM | normalized to own language then partner's; original never shown |
+| F8 | PB search from compose ("/" or "..") | both | ROOM+PB | banked rows/behavior; works with no call |
+| F9 | PB overlay open/edit/save | both | PB | banked product, unchanged |
+| F10 | Save partner's line to PB | both | ROOM→PB | from bubble; dup → "Already saved" |
+| F11 | Escalate to video call | both | ROOM→MEDIA | ring → accept → media over ROOM; speech lands in the SAME transcript, translated live |
+| F12 | Escalate to voice call | both | ROOM→MEDIA | as F11, no video; transcript is the view |
+| F13 | Switch video↔voice mid-call | both | MEDIA | seamless; transcript unbroken |
+| F14 | PB during call | both | MEDIA+PB | banked behavior |
+| F15 | Hang up | both | MEDIA→ROOM | media layer gone; "call ended" marker; spoken lines remain in stream |
+| F16 | Call partner: no answer / reject | caller | ROOM | ring times out or declined marker; room unaffected |
+| F17 | Incoming call while in another room | callee | SYS→ROOM | ring/notification routes to right room |
+| F18 | Incoming call, room muted | callee | ROOM | no ring; missed-call marker; unread accrues |
+| F19 | Mute / unmute room | both | LIST or ROOM info | silences notifs+ring only |
+| F20 | Message arrives, app backgrounded | both | SYS | notification → tap → correct ROOM; unread clears |
+| F21 | Connection drops mid-call | both | MEDIA | auto-recovery as banked engine; transcript continuity |
+| F22 | Exit room / switch rooms | both | ROOM→LIST | per-room isolation: history, languages, presence, PB pair |
+| F23 | Delete room → recycle | host | LIST | recoverable; link suspended |
+| F24 | Recover room | host | LIST | intact history; link live again |
+| F25 | Permanently delete / dispose | host | LIST | one confirm; relay purged; link dead forever |
+| F26 | Install to home screen | both | SYS | standalone, own icon |
+| F27 | Reopen app (host) | host | LIST | all rooms, unread badges, no re-setup |
 
-**UC4 — Chat escalates to a video call.** Mid-chat, Ann taps the video icon. Boon gets the incoming call and accepts. The call opens over the room: they see each other, and everything spoken appears as live captions in the listener's language. Boon hangs up; both land back in the chat, the spoken conversation is woven into the room history, marked where the call ended. *Pass: call over the room, live translated captions both ways, transcript preserved in chat, no dead-end screens.*
-
-**UC5 — Voice-only call.** Same as UC4 via the phone icon — no video, the live translated transcript is the screen. *Pass: identical to UC4 minus video.*
-
-**UC6 — Boon uses a saved phrase mid-conversation.** Boon types "/" and a word; the phrasebook search opens exactly as in the call product — same rows, same feel. He taps a phrase; it goes out. Later Ann says something worth keeping; Boon saves it from the bubble into the phrasebook. *Pass: search look and behavior identical to the banked product; save works from chat; works with no call running.*
-
-**UC7 — Phrasebook during a call.** While talking, either opens the phrasebook, searches, uses, saves — exactly as banked. *Pass: indistinguishable from the banked call product.*
-
-**UC8 — Boon misses messages.** Boon's phone is in his pocket; Ann writes. Boon gets a notification, taps it, lands in the right room, unread clears. Ann muted a chatty room earlier — it stays silent but its unread count still climbs. *Pass: notification opens the correct room; mute silences without losing count.*
-
-**UC9 — Ann runs several rooms.** Ann switches between rooms; each keeps its own history, languages, presence, and phrasebook pairing. She disposes a dead room: one confirmation, it's gone, its link is dead. *Pass: no bleed between rooms; disposed link refuses entry.*
-
-**UC10 — Install.** Either adds the app to the home screen; it opens standalone with its own icon. *Pass: launches full-screen from the icon.*
-
-Every stage test cites UC numbers. Anything not needed by a UC does not get built.
+Stage tests cite F-numbers. Nothing outside the matrix gets built.
 
 # PART 0 — WHAT WE'RE BUILDING AND WHERE WE ARE
 
