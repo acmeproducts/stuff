@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.1 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.2 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -65,8 +65,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 07 / Pre-ship — PB-SYNC + PB-USAGE activation**
-T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, awaiting device test (bridge-turn07-pre-ship.html, v5.7.2, sha256 prefix 0e5105000619).
+**CURRENT STAGE: Turn 07 / Ship — PB-QUERY unification + renderer contract cleanup**
+T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, device-confirmed at v5.7.2.8 (bridge-turn07-pre-ship.html; patch series closed). Ship scope re-cut 2026-07-01 — see Turn 07 Ship below.
 
 ---
 
@@ -116,20 +116,21 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 # PART 2 — STATUS LEDGER
 
 ## CURRENT RUN
-- RELEASE: Turn 07 / Pre-ship — extended patch series v5.7.2.1–v5.7.2.8 (user-driven fix cycle; patching now CLOSED per explicit direction)
-- STATUS: v5.7.2.8 pushed, awaiting device confirmation
-- OUTPUT: bridge-turn07-pre-ship.html v5.7.2.8
+- RELEASE: Turn 07 / Ship — v5.7.3
+- STATUS: NOT STARTED. Input: bridge-turn07-pre-ship.html v5.7.2.8 (DONE, device-confirmed). Fetch fresh, verify sha/lines against RUN HISTORY before building.
+- PRIOR: Turn 07 Pre-ship DONE at v5.7.2.8 after extended patch series v5.7.2.1–v5.7.2.8 (series CLOSED; never repeat — graveyard G16)
 - FIXED THIS SERIES: Enter-on-source commit; verdict as radio pills; tag/clarify inputs keep focus on Enter; every card change logs to clarify; creation vs edit no longer conflated in clarify log; new card at top (upsert was matching by content, overwrote unrelated blanks); header shows created/modified with time; verified-tag removal resets verdict AND visibly unchecks; three historical clarify field formats all render; send button (Go) respects /search same as Enter; search-open lag removed; "tap to use" removed everywhere; send chevron never cut off; search rows no longer compress/overlap; footer toggles resolve white when open; compose X inside input; overlay search X shows with query; trash pinned bottom; BT icon/label removed; transcript-save dedupes and clears stale search; focus outline removed.
-- PROCESS RULE (locked, per owner): NO MORE PATCH RELEASES. After v5.7.2.8 confirms on device, all work returns to stage structure: pre-base → base → pre-ship → ship → post-ship, each turn's post-ship feeds the next turn's pre-base. Master plan updated every release.
-- NEXT: owner-led resequencing of remaining turns (see §DELTAS below), then Turn 07 Ship.
+- PROCESS RULE (locked, per owner): NO MORE PATCH RELEASES. All work follows stage structure: pre-base → base → pre-ship → ship → post-ship, each turn's post-ship feeds the next turn's pre-base. Master plan updated every release.
+- NEXT: Turn 07 Ship.
 
-## §DELTAS — catalog of spec-vs-plan gaps found 2026-07-01
-1. TB-TURN06-MASTER.md (project knowledge) held the full PB display spec — recovered into §SHIP-RECOVERED, most now built during the patch series. Remaining unbuilt from it: PB-QUERY as the single search engine; category assignment UI (categories[] exists, only 'unassigned' populated).
-2. TB-GT-WA v2.1/v2.3 (project knowledge) define a DIFFERENT Phase-2 turn sequence (Turn 07 = shell consolidation/rooms/capability, 08 = language normalization, 09 = token addressing, 10 = multi-device, 11 = presence/disposal, 12 = design system, 13 = installable, 14 = pilot) than this plan's Turns 08–12. These must be reconciled in the owner's resequencing pass — v2.3 is the newer product direction (rooms-first, chat-first, call as module).
-3. Old talkbridge-master.md changelog references O-Ring, TM, PB Central telemetry, PWA in Turn 06 — v2.3 explicitly moves O-Ring/TM/telemetry OUT of Phase 2. Plan should adopt v2.3's out-of-scope list.
-4. Ship stage (this plan) still lists PB-RENDER/PB-QUERY/COMPOSE-SEAM activation — much of that surface was pulled forward into the patch series. Ship scope needs re-cut before execution: what remains is PB-QUERY unification, module-contract cleanup (retire legacy render path formally), and the 17-item device gate run clean.
+## §DELTAS — RESOLVED 2026-07-01 (v4.2 realignment). Kept for the record; all four dispositions below are now law in this plan.
+1. RESOLVED — §SHIP-RECOVERED content: most built during patch series. PB-QUERY unification is now the core of Turn 07 Ship. Category assignment UI: DEFERRED out of Phase 2 (owner decision 2026-07-01) — categories[] stays schema-only with 'unassigned'; building assignment UI before pilot is scope creep.
+2. RESOLVED — GT-WA v2.3 sequence mapped onto this plan's Turns 07–11: GT-WA 07A (initiator designation) → Turn 08 Base foundational work; GT-WA 07B (shell) → Turn 08 Pre-ship/Ship; GT-WA 08 (normalization) → Turn 09; GT-WA 09/10 (token, multi-device) → Turn 10; GT-WA 11 (presence/disposal) → Turn 11 Base; GT-WA 12/13/14 (design, installable, pilot) → Turn 11 Pre-ship/Ship/Post-ship + PWA install in Turn 08 Base. This plan's turn specs are the single execution sequence; GT-WA v2.3 remains the product-intent contract.
+3. RESOLVED — GT-WA v2.3 out-of-scope list adopted: O-Ring, Translation Memory, PB Central live telemetry, industrial infra hardening, post-creation capability change, encryption at rest — all OUT of Phase 2. Also deferred: category assignment UI (per #1).
+4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T07 Pre-ship -- DONE, device-confirmed at v5.7.2.8 (bridge-turn07-pre-ship.html). Patch series v5.7.2.1-v5.7.2.8 closed permanently (graveyard G16). Plan v4.2 realignment same day: Ship re-cut, initiator decision placed in T08 Base, Surface Freeze Registry (Part 5 SFR) added, version stamps T08-T11 corrected.
 - 2026-07-01 T07 Base+Pre-ship -- card renderer pulled forward from Ship per explicit direction: catalog chips structurally deleted, footer 4->3 icons, BT+verdict always visible as full-width pills. Base sha 0ccda6ef (still v5.7.1), Pre-ship rebuilt on top sha d0c27309 (v5.7.2). Diffed to confirm no drift beyond the PB-SYNC/PB-USAGE layer.
 - 2026-07-01 T07 Pre-ship -- full rebuild from corrected Base (not a patch). 4870 lines, sha prefix 6bcbdf455264, v5.7.2. PB-SYNC + PB-USAGE active, sync footer wired to real pull/writeBack state, 21/21 immutables, lint clean.
 - 2026-07-01 T07 Base -- corrected at the root (still v5.7.1): pbRenderOverlay cats.length bug fixed, ribbon reduced to + and close only, dead catalog/CDN buttons removed, sticky sync footer added. sha prefix 900df96ff3ba. 21/21 immutables re-verified.
@@ -164,14 +165,14 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 **Work:** Copy bridge-turn06-post-ship.html byte-for-byte. No code changes.
 **Test (negative):** Open on phone. Call connects, transcript works, PB overlay opens — identical to T06 post-ship. Any difference → stop.
 
-### Base — Status: NOT STARTED
+### Base — Status: DONE (device-confirmed)
 **Deliver:** bridge-turn07-base.html, v5.7.1
 **Work:** Activate PB-DATA. Wire old storage functions (pbGetCards, pbSaveCards, pbNorm) to redirect into PB-DATA. All callers now receive cards in the new canonical schema. Old fields stripped on load: catalogIds, intentId, fingerprint, relatedIntents, confidence, semanticRelationships, parentCategory, primaryTag. pbBubbleHtml (old renderer) stays live — PB-RENDER not active yet.
 **References:** Part 4 §4M.12 (canonical schema). Part 5 §IMM.
 **Test (positive):** Open on phone. Overlay shows cards via old renderer. Debug log shows PB-DATA.norm:in/out for each card. Card objects in log show categories[] not catalogIds. Call and transcript unaffected.
 
-### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn07-pre-ship.html, v5.7.2
+### Pre-ship — Status: DONE (device-confirmed at v5.7.2.8; patch series closed)
+**Deliver:** bridge-turn07-pre-ship.html, v5.7.2 (final: v5.7.2.8)
 **Work:** Activate PB-SYNC and PB-USAGE.
 - Wire PB-SYNC.pull(myLang, theirLang) into enterCall — fetches highest-versioned phrasebook-{src}-{tgt}-{NNNN>=1000}.json, replaces cache wholesale, no merge. Flag use.PB_SYNC → true.
 - Wire PB-SYNC.writeBack() into hangUp and dirty overlay-close — conditional on dirty flag only. Clean → log pbsync_skipped_no_changes, do nothing.
@@ -187,22 +188,25 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - G5: edit card, close overlay → write-back fires immediately.
 - G6: edit card, hang up offline → pbsync_upload_pending; restore network → pbsync_upload_completed.
 
-### Ship — Status: NOT STARTED
+### Ship — Status: NOT STARTED (scope RE-CUT 2026-07-01 — the v5.7.2.x patch series already built most of §SHIP-RECOVERED's display surface; do NOT rebuild what is working)
 **Deliver:** bridge-turn07-ship.html, v5.7.3
-**Work:** Activate PB-QUERY, PB-RENDER, COMPOSE-SEAM. PB-RENDER.renderCard replaces pbBubbleHtml (removed). PB-RENDER.renderRow for search rows. PB-QUERY drives all search — one engine for both overlay and compose drawer. COMPOSE-SEAM: / and .. open slide-up drawer, guarded on BOTH Enter AND send button.
-**References:** Part 4 §4M.14, §4M.15. phrase-desk.html. Part 6 A1–G6, E1–E8. §SHIP-RECOVERED below — full layout/wiring spec recovered from TB-TURN06-MASTER.md (project knowledge), which was never carried into this plan when it was rewritten. Treat §SHIP-RECOVERED as authoritative detail for this stage; the summary above is not sufficient on its own.
+**Input:** bridge-turn07-pre-ship.html v5.7.2.8 — the working, device-approved PB surface. The acceptance bar for everything visual is PIXEL-IDENTICAL to v5.7.2.8. Any visible change to the PB cards, overlay, ribbon, or compose strip = reject.
+**Work (exactly three items, nothing else):**
+1. **PB-QUERY activation — one search engine.** Overlay search and the compose /-drawer both route through PB-QUERY.query({text,pair,cards}). Ad-hoc/duplicate search paths deleted. -exclude prefix works. Flag use.PB_QUERY → true.
+2. **Renderer contract formalization.** The card/row rendering built during the patch series moves under the PB-RENDER module contract (renderCard/renderRow, module log points per Part 4). Any remaining pbBubbleHtml/legacy render path deleted. Output HTML is byte-identical to what v5.7.2.8 produces for the same card — this is verifiable, not aesthetic. Flag use.PB_RENDER → true.
+3. **COMPOSE-SEAM contract check.** No new build expected — the /-drawer and guards were built in the patch series. Verify E1–E8 pass and the seam logs per contract; wire log points if missing. Flag use.COMPOSE_SEAM → true.
+**Explicitly NOT in this stage:** any layout change, any new UI element, category assignment UI (deferred out of Phase 2), pbAddCard rework (Post-ship item F1 only if broken).
+**References:** Part 4 §4M.14, §4M.15. §SHIP-RECOVERED remains the historical detail record for what the patch series built — use it to verify, not to rebuild.
 **Test (positive):**
-- Cards show source, target, back-translate, verdict pills, footer icons, tag drawer, clarify drawer per phrase-desk.html.
-- Overlay search → rows; clear → cards return.
-- /bank + Enter in chat → NOT sent; overlay opens searching "bank".
-- /bank + tap Send → NOT sent.
-- Normal message → sends normally.
-- All A1–G6 pass. Also run the 17-item acceptance table in §SHIP-RECOVERED.
+- Overlay search → rows; clear → cards return. Search results identical before/after for the same query set.
+- /bank + Enter in chat → NOT sent; overlay opens searching "bank". /bank + tap Send → NOT sent. Normal message sends.
+- Full 17-item table in §SHIP-RECOVERED passes. All A1–G6 pass.
+- Rendering spot-check: three cards (one with tags, one with clarify entries, one flagged) render identical to v5.7.2.8.
 
 ### Post-ship — Status: NOT STARTED
 **Deliver:** bridge-turn07-post-ship.html, v5.7.4
-**Work:** pbAddCard wired (full spec in §SHIP-RECOVERED — replaces the deleted NC/new-card system entirely, not a stub); duplicate save (F1); all edge cases closed.
-**Test:** Full A1–G6 + G1–G6 on device. Input to Turn 08 Pre-base.
+**Work:** Duplicate save (F1) verified/closed; remaining edge cases closed (pbAddCard was built during the patch series — verify against §SHIP-RECOVERED spec, fix only what fails). **Then: populate the PB Surface Freeze Registry (Part 5 §SFR)** — compute and record sha12 for every pb* function, the PB_DATA/PB_SYNC/PB_USAGE/PB_QUERY/PB_RENDER module blocks, and the overlay HTML region. From this point the PB surface is frozen: later turns may not change these checksums unless their spec declares the region in-scope with deterministic acceptance criteria.
+**Test:** Full A1–G6 + G1–G6 on device. §SFR table populated and pushed in the same commit as the ledger update. Input to Turn 08 Pre-base.
 
 ---
 
@@ -361,14 +365,16 @@ The merge approach (from GT-WA v2.3 §7.7):
 **Test (negative):** Identical to T07 post-ship.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn08-base.html, v5.8.0
-**Work:** Activate the nine engine modules — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — in one pass. Old hardcoded paths removed. Service worker registered; app installable.
-**References:** Part 4 §4M.1–§4M.8. Part 5 §IMM.
-**Test (positive):** Call connects, transcript appears, translation correct — now through modules. Debug log shows module events. App installs to home screen.
+**Deliver:** bridge-turn08-base.html, v5.8.1 + `talkbridge/INITIATOR-DECISION.md`
+**Work (two foundational items, both required before Pre-ship can start):**
+1. **Initiator designation decision (GT-WA v2.3 §2B-1 / Turn 07A).** Evaluate the candidate directions (local secret store, credential authority, self-issued install-time credential, prior art) against no-signup/no-email/no-phone and no-centralization. Build a spike proving the credential boundary holds under deliberate probing (URL editing, cleared local state, replayed links). Write `talkbridge/INITIATOR-DECISION.md`: chosen direction, rejected options with reasons, multi-device implications for Turn 10. NOT in scope: encryption at rest. The shell merge (Pre-ship) is built against this document — it does not start without it.
+2. **Nine engine modules** — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — activated in one pass. Old hardcoded paths removed. Service worker registered; app installable.
+**References:** Part 4 §4M.1–§4M.8. Part 5 §IMM, §SFR (PB surface frozen — modules must not alter frozen PB checksums). GT-WA v2.3 §2B-1, §Turn 07A.
+**Test (positive):** Call connects, transcript appears, translation correct — now through modules. Debug log shows module events. App installs to home screen. Spike: joiner probing tests all fail to reach room creation. INITIATOR-DECISION.md exists in repo.
 
 ### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn08-pre-ship.html, v5.8.1
-**Work:** Shell merged. Five screens live per the five-screen inventory (Part 0). Initiator → Room List. Joiner → Thread directly, no Room List visible, no path to Room Creation. Room capability gates call button presence in DOM. Hang-up → Thread + "call ended" marker.
+**Deliver:** bridge-turn08-pre-ship.html, v5.8.2
+**Work:** Shell merged per INITIATOR-DECISION.md (Base deliverable — required input). Five screens live per the five-screen inventory (Part 0). Initiator → Room List. Joiner → Thread directly, no Room List visible, no path to Room Creation. Room capability gates call button presence in DOM. Hang-up → Thread + "call ended" marker.
 **References:** Part 7 (UI element map). test.html, 2vid.html.
 **Test (positive — GT-WA §7.8 acceptance criteria):**
 - Create chat-only room → link/QR immediately → Thread has no call button anywhere in DOM.
@@ -380,17 +386,17 @@ The merge approach (from GT-WA v2.3 §7.7):
 - PB works inside call.
 
 ### Ship — Status: NOT STARTED
-**Deliver:** bridge-turn08-ship.html, v5.8.2
-**Work:** Push notifications wired to correct room Thread. Dispose flow: confirmation → relay-side cleanup (token retired, waiting flag cleared, room purged — not just hidden). Room Info screen complete.
+**Deliver:** bridge-turn08-ship.html, v5.8.3
+**Work:** Push notifications wired to correct room Thread. Room Info screen complete with dispose flow: one confirmation → dispose call issued and room removed from Room List + join link invalidated. (Full relay-side lifecycle policy — expiry windows, orphan-free cleanup verification — is Turn 11 Base scope; this stage builds the screen and the dispose call, Turn 11 owns the policy.)
 **Test (positive):**
 - App backgrounded → notification → opens correct Thread.
 - Dispose → one confirmation → room gone from Room List, relay cleaned up, join link returns error.
 - Two-device full call: Galaxy initiator + iPhone joiner, translation + PB both work.
 
 ### Post-ship — Status: NOT STARTED
-**Deliver:** bridge-turn08-post-ship.html, v5.8.3
-**Work:** Full regression. All T07 A1–G6 + G1–G6 pass inside merged app. Edge cases.
-**Test:** Full two-device regression all surfaces. Input to Turn 09 Pre-base.
+**Deliver:** bridge-turn08-post-ship.html, v5.8.4
+**Work:** Full regression. All T07 A1–G6 + G1–G6 pass inside merged app. Edge cases. **Then: extend §SFR** — freeze the call engine surface, the nine engine module blocks, and the five shell surfaces (checksums recorded and pushed with the ledger update).
+**Test:** Full two-device regression all surfaces. §SFR updated. Input to Turn 09 Pre-base.
 
 ---
 
@@ -402,23 +408,23 @@ Input: bridge-turn08-post-ship.html. (GT-WA v2.3 §Turn 08 — language normaliz
 **Test (negative):** Identical to T08 post-ship.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn09-base.html, v5.9.0
+**Deliver:** bridge-turn09-base.html, v5.9.1
 **Work:** NORMALIZE is sole translation entry for chat AND call. Z→X→Y at one shared place. Dead parallel routes removed.
 **Test (positive):** Speak → correct. Type → correct. Third language → routes through your preferred language first. Original never shown. One log event per translation.
 
 ### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn09-pre-ship.html, v5.9.1
+**Deliver:** bridge-turn09-pre-ship.html, v5.9.2
 **Work:** PB card send, use, search all through NORMALIZE. No duplicate events.
 **Test (positive):** Send PB card → one translation event in log. Chat and call translation log shape identical.
 
 ### Ship — Status: NOT STARTED
-**Deliver:** bridge-turn09-ship.html, v5.9.2
+**Deliver:** bridge-turn09-ship.html, v5.9.3
 **Work:** All dead routes removed. Full regression.
 **Test:** Full A1–G6 + G1–G6. Every translation → exactly one event through NORMALIZE.
 
 ### Post-ship — Status: NOT STARTED
-**Deliver:** bridge-turn09-post-ship.html, v5.9.3
-**Work:** Edge cases. Input to Turn 10 Pre-base.
+**Deliver:** bridge-turn09-post-ship.html, v5.9.4
+**Work:** Edge cases. §SFR re-baseline: translation-path regions declared in-scope this turn get new frozen checksums recorded. Input to Turn 10 Pre-base.
 
 ---
 
@@ -430,23 +436,23 @@ Input: bridge-turn09-post-ship.html. (GT-WA v2.3 §Turn 09/10.)
 **Test (negative):** Identical to T09 post-ship.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn10-base.html, v5.10.0
+**Deliver:** bridge-turn10-base.html, v5.10.1
 **Work:** Token is sole identity. pairKey name-concatenation fully removed. Room ownership, joiner recognition, routing all keyed on token only.
 **Test (positive):** Create room on Galaxy, open join link on iPhone → recognized as joiner by token. Debug log shows no name-derived routing anywhere.
 
 ### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn10-pre-ship.html, v5.10.1
+**Deliver:** bridge-turn10-pre-ship.html, v5.10.2
 **Work:** Two-device chat sync. Messages from either device appear on both Threads in real time.
 **Test (positive):** Galaxy sends → iPhone sees it. iPhone sends → Galaxy sees it. Both speaker-centric.
 
 ### Ship — Status: NOT STARTED
-**Deliver:** bridge-turn10-ship.html, v5.10.2
+**Deliver:** bridge-turn10-ship.html, v5.10.3
 **Work:** Cross-device call. Ring on second device. Answer from either.
 **Test (positive):** Galaxy in room → iPhone joins → Galaxy calls → iPhone rings → answer → call connects with translation both directions.
 
 ### Post-ship — Status: NOT STARTED
-**Deliver:** bridge-turn10-post-ship.html, v5.10.3
-**Work:** Drop mid-call, rejoin, re-create edge cases. Full regression. Input to Turn 11 Pre-base.
+**Deliver:** bridge-turn10-post-ship.html, v5.10.4
+**Work:** Drop mid-call, rejoin, re-create edge cases. Full regression. §SFR re-baseline for identity/routing regions declared in-scope this turn. Input to Turn 11 Pre-base.
 
 ---
 
@@ -458,7 +464,7 @@ Input: bridge-turn10-post-ship.html. (GT-WA v2.3 §Turn 11 + §Turn 12/13/14.)
 **Test (negative):** Identical to T10 post-ship.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn11-base.html, v5.11.0
+**Deliver:** bridge-turn11-base.html, v5.11.1
 **Work:** Relay presence contract live. Disposal policy: unjoined rooms expire 30 days, joined rooms never silently expire, dispose retires token + purges relay. Waiting indicator in Thread for initiator pre-join, survives backgrounding.
 **Test (positive — GT-WA §Turn 11 acceptance criteria):**
 - A messages B while B offline → waiting flag set relay-side.
@@ -468,18 +474,18 @@ Input: bridge-turn10-post-ship.html. (GT-WA v2.3 §Turn 11 + §Turn 12/13/14.)
 - Dispose → confirmation → token retired, no orphaned relay state, join link returns error.
 
 ### Pre-ship — Status: NOT STARTED
-**Deliver:** bridge-turn11-pre-ship.html, v5.11.1
-**Work:** All hardcoded color/size/spacing → CONFIG token keys. Two independent persisted axes: font scale and theme preset.
+**Deliver:** bridge-turn11-pre-ship.html, v5.11.2
+**Work:** All hardcoded color/size/spacing → CONFIG token keys. This stage touches frozen surfaces BY DESIGN — the stage spec here declares ALL registered §SFR regions in-scope for token substitution only; the deterministic acceptance criterion is: default settings render identical to prior release (test below). §SFR re-baselined at Post-ship. Two independent persisted axes: font scale and theme preset.
 **Test (positive):** Change font size → all surfaces larger. Change theme → all surfaces recolor. Reset one → other unchanged. Close and reopen → both persist. Default settings look identical to prior release.
 
 ### Ship — Status: NOT STARTED
-**Deliver:** bridge-turn11-ship.html, v5.11.2
+**Deliver:** bridge-turn11-ship.html, v5.11.3
 **Work:** Push notifications when app fully closed. Unread counts + last-message preview in Room List live. Design consistent across all five surfaces and PB.
 **Test (positive):** Force-close app. Message arrives. Notification → correct Thread opens. Unread dot → read → clears. All surfaces visually coherent.
 
 ### Post-ship — Status: NOT STARTED
-**Deliver:** bridge-turn11-post-ship.html, v5.11.3
-**Work:** Full regression T07–T11, Galaxy + iPhone. GT-WA §Turn 14 pilot criteria: full lifecycle (create → capability → invite → joiner lands → async message → call if applicable → second device → closed → notified → reopened). Configurability proof: change theme/font/labels/capability via CONFIG, no code rebuild.
+**Deliver:** bridge-turn11-post-ship.html, v5.11.4
+**Work:** Full §SFR re-baseline (final). Full regression T07–T11, Galaxy + iPhone. GT-WA §Turn 14 pilot criteria: full lifecycle (create → capability → invite → joiner lands → async message → call if applicable → second device → closed → notified → reopened). Configurability proof: change theme/font/labels/capability via CONFIG, no code rebuild.
 **Test (positive — GT-WA §Turn 14 acceptance criteria):**
 - Every step of full lifecycle holds on real devices.
 - Chat-only room: no call affordance anywhere in that room's UI.
@@ -626,6 +632,21 @@ These 21 functions are byte-frozen. Never rewrite them. Wrap them behind module 
 
 Tier-2 (may change ONLY at one named insertion point): `enterCall`, `hangUp`, `joinerProceed`, `createRoom`. Never wrap `enterCall` in async. One `<script>` block only.
 
+## §SFR — Surface Freeze Registry
+Purpose: once a surface passes its final gate for a turn and is approved on device, its code regions are checksum-registered here so every later stage PROVES it did not touch approved work. This does not block planned rework — it forces planned rework to be declared.
+
+**Rules:**
+1. Checksum method: identical to §IMM (sha256 first 12 hex, function-body extraction; HTML regions hashed between named boundary comments).
+2. A stage may change a frozen region ONLY if that turn's spec names the region as in-scope AND states a deterministic acceptance criterion for it. Otherwise: any registered sha12 that differs from this table = automatic NOT READY at §PDG.
+3. §PDG gains item 9: recompute every registered checksum; every mismatch must map to an in-scope declaration in the current stage spec.
+4. Re-baselining: when a turn legitimately changes frozen regions, the new checksums are recorded here at that turn's Post-ship, in the same commit as the ledger update. The old values move to a REBASED note (date + turn), never silently overwritten.
+5. Population schedule: PB surface → T07 Post-ship. Call engine + nine engine modules + five shell surfaces → T08 Post-ship. Translation path → T09 Post-ship. Identity/routing → T10 Post-ship. Final full re-baseline → T11 Post-ship.
+
+**Registry (empty until T07 Post-ship populates it):**
+| Surface | Region | sha12 | Frozen at | Rebased |
+|---|---|---|---|---|
+| (populated at T07 Post-ship) | | | | |
+
 ## §AF — Atomic Module Format
 No grep-and-replace. No editing live function bodies. Every module is a self-contained drop-in block:
 
@@ -667,6 +688,7 @@ Run this script before any device test. All items must be green:
 6. **Line delta:** additive stages must not reduce line count.
 7. **Fixtures:** norm.json, query.json, render.json deep-equal against live executed code.
 8. **Version stamp:** internal version == this stage's declared output version.
+9. **Surface freeze (§SFR):** recompute every registered surface checksum. Every mismatch must map to an explicit in-scope declaration in the current stage spec. Undeclared mismatch = NOT READY.
 
 ## §RTR — Ready-to-Test Report
 The doer emits this report before any device test. If any item is not PASS, the device test does not happen.
