@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.7 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.8 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -157,8 +157,9 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 8 | New card from transcript logged a false "verdict reset" entry | A focus/blur right after creation was wrongly treated as an edit. Now only logs when the text actually changes |
 
 ## CURRENT RUN
-- RELEASE: Turn 08 / Base (re-cut) — container build IN PROGRESS
-- STATUS: First Base attempt FAILED device gate (lang-model status stuck amber on Pages hosting; creation blocked). Rolled back per owner; not retried — failing surface is deleted under the re-cut scope. bridge-turn08-base.html remains in repo as reference only; NOT a baseline. Baseline = bridge-turn08-pre-base.html.
+- RELEASE: Turn 08 / Base (re-cut) — v5.8.1
+- STATUS: DONE pending device test. Output: container-turn08-base.html, 5275 lines, sha256 prefix 12ca81708709. Foundation: test.html (untouched, reference). Additions: (1) First-Run Setup modal — Deepgram key with live verify, TURN credentials, optional PAT, stored under frozen key names; reachable from Settings and auto-raised when creating a chat+call room without keys; (2) room capability choice at creation (Chat only / Chat + Call), persisted on the session record; (3) call seam — video icon in the ribbon exists in DOM only for chat+call rooms, opens the overlay mount point (engine lands Pre-ship); (4) composer PB seam — "/" or ".." opens inline phrasebook search over the composer, tap inserts, guarded on Enter AND send; (5) service worker registration + manifest (start_url now points at the container); (6) v5.8.1 stamps (head comment + settings footer). Lint clean. Prior failed bridge-based Base file stays in repo as reference only.
+- BASELINE NOTE: rolled-back engine baseline remains bridge-turn08-pre-base.html for the Pre-ship engine migration.
 - PRIOR-ATTEMPT RECORD (for the file that failed):
 - STATUS-WAS: DONE pending device test. Output: bridge-turn08-base.html, 5147 lines, sha256 prefix 2b9b12b9f7f3. Companion files: sw.js, manifest.webmanifest (repo root), talkbridge/INITIATOR-DECISION.md.
 - WORK: Nine engine modules (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE) activated — use.* flags true, exactly one CONFIG.get('use.X') switch site per module (§PDG item 4 verified 9/9). Switch sites: enterCall tail (single tier-2 insertion point — RELAY.connect + STT.reconcile), handleRelay peer-join (RTC.start), sendChat (LANGDETECT.detect + TRANSLATE.translate), saveGhPat (STORE.set), log-overlay buttons via uiLog shim (LOG), boot marker (CONFIG), flag check inside NORMALIZE. NORMALIZE.normalize implemented for real (Z→X→Y via LANGDETECT+TRANSLATE, 150ms race with unicode fallback, original never surfaced) — no caller yet; Turn 09 wires it as sole path. TRANSLATE.translate delegation corrected from single-shot to retry path. Service worker registered at boot (network-first, cached-shell offline fallback), manifest with icons — installable when served over HTTPS. Frozen speech-pipeline call sites (inside byte-frozen functions) remain direct by design; Turn 09 owns translation-path unification.
@@ -183,6 +184,7 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-02 T08 Base (re-cut) -- DONE pending device test. container-turn08-base.html v5.8.1, 5275 lines, sha 12ca81708709. test.html foundation + first-run keys setup + capability + call seam + composer PB seam + install support. Lint clean.
 - 2026-07-02 T08 Base (attempt 1) -- FAILED device gate. Lang-model indicator stuck amber on acmeproducts.github.io hosting; room creation blocked. Owner rolled back and re-cut Base scope (container-first, new first-run onboarding, shared compose strip, call-as-overlay). Graveyard G17. Baseline stands at bridge-turn08-pre-base.html.
 - 2026-07-01 T08 Base -- DONE pending device test. bridge-turn08-base.html v5.8.1, 5147 lines. Nine engine modules activated flag-guarded; NORMALIZE implemented; SW + manifest + INITIATOR-DECISION.md pushed. 21/21 immutables, all SFR PB regions byte-identical, lint clean. SFR pbCommitSrcEdit entry rebased (see registry) — registry value predated the two T07 post-ship correction commits; function is byte-identical to the device-confirmed T07 final.
 - 2026-07-01 T08 Pre-base -- DONE pending device negative test. bridge-turn08-pre-base.html byte-identical to bridge-turn07-post-ship.html final (5111 lines, sha 5713b5b41eab). Ledger sha for T07 Post-ship corrected (was stale pre-correction value).
@@ -422,7 +424,7 @@ The merge approach (from GT-WA v2.3 §7.7):
 **Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
 **Test (negative):** Identical to T07 post-ship.
 
-### Base — Status: RE-CUT 2026-07-02 (first attempt failed gate, graveyard G17) — IN PROGRESS
+### Base — Status: DONE pending device test (delivered 2026-07-02)
 **Deliver:** container-turn08-base.html, v5.8.1 (new file — the container/shell, not a bridge edit)
 **Work:**
 1. **Container X:** new single-file app on test.html's architecture — Room List, Room Creation (capability + name + both languages), Thread with the shared compose strip (/-search + PB access live in plain chat), Room Info/Dispose, joiner routing (link → Thread only).
