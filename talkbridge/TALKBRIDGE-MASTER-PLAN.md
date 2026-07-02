@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.3 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.4 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -904,3 +904,6 @@ Base64-decode the `content` field. Verify sha256 and line count against ledger b
 Every stage bumps the internal version string inside the HTML at two locations (comment + visible span). Input patch + 1 = output patch. Turn 07: v5.7.0 (pre-base) → v5.7.1 (base) → v5.7.2 (pre-ship) → v5.7.3 (ship) → v5.7.4 (post-ship). A build still showing the input version is not certifiable.
 
 
+### user entered open items ###
+1. there is an issue with saving a PB entry after the tab is closed it's not being committed to local storage and a local storage being compared to SOT on GH 
+2. when you tap the plus icon in the PB surface it creates an empty PB card if you tap it again it creates a second empty PB card this is problematic for a number of reasons
