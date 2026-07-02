@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.1 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -129,6 +129,8 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 |---|---|---|
 | 5 | PB-RENDER (renderCard/renderRow) not activated | Scaffolded modules use a different design system than the live, approved cards — would break pixel parity if turned on. Needs a rebuild-to-match pass against the current live markup before it can replace the working renderer |
 | 9 | Category-match dropdown not built | When a search matches multiple categories, show a dropdown below the search box with each category name + match count; tapping one filters to that category in place. Depends on cleaning up source PB category data first |
+| 10 | PB search needs a speed strategy for scale | Flat search is fine at ~250 cards but needs to stay real-time-usable in a live conversation as the set grows toward 1500+. Open question: would grouping by starts-with/contains/ends-with (or similar) help, or is a different approach better |
+| 11 | Only EN-TH phrasebook exists | PB team to build the reverse pair (TH-EN) next, then EN + top 5 languages and their reverse pairs, then a 10-phase program targeting high-value pairs. Not building every possible language combination |
 
 ## CLOSED (Turn 07 Post-ship, 2026-07-01)
 | # | Item | Resolution |
