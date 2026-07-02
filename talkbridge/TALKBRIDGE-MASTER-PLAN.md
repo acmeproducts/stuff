@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.4 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.5 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -74,8 +74,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 08 / Base — Pre-base DONE pending device negative test. Turn 07 is CLOSED, device-confirmed 2026-07-01.**
-T08 Pre-base: bridge-turn08-pre-base.html pushed, byte-identical to bridge-turn07-post-ship.html (5111 lines, sha256 prefix 5713b5b41eab). Awaiting negative device test, then Base starts.
+**CURRENT STAGE: Turn 08 / Base — DONE pending device test (Pre-base gate folded into this test per owner "proceed", 2026-07-01). Turn 07 is CLOSED, device-confirmed.**
+T08 Base: bridge-turn08-base.html v5.8.1 pushed — nine engine modules activated (flag-guarded, per-module instant rollback), NORMALIZE implemented, service worker + manifest pushed (sw.js, manifest.webmanifest), INITIATOR-DECISION.md recorded. Awaiting device test.
 
 ---
 
@@ -144,8 +144,11 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 8 | New card from transcript logged a false "verdict reset" entry | A focus/blur right after creation was wrongly treated as an edit. Now only logs when the text actually changes |
 
 ## CURRENT RUN
-- RELEASE: Turn 08 / Pre-base — v5.8.0
-- STATUS: DONE pending device negative test. Output: bridge-turn08-pre-base.html, 5111 lines, sha256 prefix 5713b5b41eab — byte-identical to bridge-turn07-post-ship.html.
+- RELEASE: Turn 08 / Base — v5.8.1
+- STATUS: DONE pending device test. Output: bridge-turn08-base.html, 5147 lines, sha256 prefix 2b9b12b9f7f3. Companion files: sw.js, manifest.webmanifest (repo root), talkbridge/INITIATOR-DECISION.md.
+- WORK: Nine engine modules (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE) activated — use.* flags true, exactly one CONFIG.get('use.X') switch site per module (§PDG item 4 verified 9/9). Switch sites: enterCall tail (single tier-2 insertion point — RELAY.connect + STT.reconcile), handleRelay peer-join (RTC.start), sendChat (LANGDETECT.detect + TRANSLATE.translate), saveGhPat (STORE.set), log-overlay buttons via uiLog shim (LOG), boot marker (CONFIG), flag check inside NORMALIZE. NORMALIZE.normalize implemented for real (Z→X→Y via LANGDETECT+TRANSLATE, 150ms race with unicode fallback, original never surfaced) — no caller yet; Turn 09 wires it as sole path. TRANSLATE.translate delegation corrected from single-shot to retry path. Service worker registered at boot (network-first, cached-shell offline fallback), manifest with icons — installable when served over HTTPS. Frozen speech-pipeline call sites (inside byte-frozen functions) remain direct by design; Turn 09 owns translation-path unification.
+- VERIFIED: lint clean, 21/21 immutables byte-identical, all §SFR PB module regions byte-identical to device-confirmed input, overlay HTML region byte-identical, switch wiring 9/9, version stamp v5.8.1 both locations, line delta +36 (additive). Fixtures: all fixture-covered PB code is byte-identical to the T07 device-confirmed input, so T07 fixture passes carry over by construction.
+- NOTE: bridge-turn08-pre-base.html (v5.8.0) pushed same session, byte-identical to T07 Post-ship (5111 lines, sha 5713b5b41eab); owner directed proceed — Pre-base negative test folds into the Base device test.
 - NOTE: T07 Post-ship ledger previously recorded 5109 lines / sha 8b7aee8fe55d; two post-ship correction commits (CLOSED items 6 and 7) landed after that entry. True final T07 Post-ship: 5111 lines, sha 5713b5b41eab, device-confirmed 2026-07-01.
 
 ## PRIOR RUN (Turn 07 Post-ship — CLOSED)
@@ -165,6 +168,7 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T08 Base -- DONE pending device test. bridge-turn08-base.html v5.8.1, 5147 lines. Nine engine modules activated flag-guarded; NORMALIZE implemented; SW + manifest + INITIATOR-DECISION.md pushed. 21/21 immutables, all SFR PB regions byte-identical, lint clean. SFR pbCommitSrcEdit entry rebased (see registry) — registry value predated the two T07 post-ship correction commits; function is byte-identical to the device-confirmed T07 final.
 - 2026-07-01 T08 Pre-base -- DONE pending device negative test. bridge-turn08-pre-base.html byte-identical to bridge-turn07-post-ship.html final (5111 lines, sha 5713b5b41eab). Ledger sha for T07 Post-ship corrected (was stale pre-correction value).
 - 2026-07-01 T07 Post-ship -- CLOSED, device-confirmed by owner. Final file 5111 lines, sha 5713b5b41eab after two correction commits (CLOSED items 6-7).
 - 2026-07-01 T07 Ship -- DONE pending device test. bridge-turn07-ship.html, 5096 lines, sha256 prefix 272f9f9d5372, v5.7.3. PB-QUERY is now the real filter engine (pbSearch delegates to it, output diff-verified identical). COMPOSE-SEAM wired into chatGo; closed a real pre-existing gap (".." predicate was unguarded on submit). PB-RENDER stays dormant — scaffold doesn't match live design, needs its own rebuild pass, logged to Open Items rather than forced. 21/21 immutables verified, lint clean, full diff reviewed.
@@ -402,13 +406,13 @@ The merge approach (from GT-WA v2.3 §7.7):
 **Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
 **Test (negative):** Identical to T07 post-ship.
 
-### Base — Status: NOT STARTED
+### Base — Status: DONE pending device test
 **Deliver:** bridge-turn08-base.html, v5.8.1
 **Work (one foundational item, required before Pre-ship can start):**
 1. **Nine engine modules only.** Initiator designation is DECIDED — see below. No spike, no decision doc needed in this stage.
 2. **Nine engine modules** — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — activated in one pass. Old hardcoded paths removed. Service worker registered; app installable.
 **References:** Part 4 §4M.1–§4M.8. Part 5 §IMM, §SFR (PB surface frozen — modules must not alter frozen PB checksums). GT-WA v2.3 §2B-1, §Turn 07A.
-**Test (positive):** Call connects, transcript appears, translation correct — now through modules. Debug log shows module events. App installs to home screen. Spike: joiner probing tests all fail to reach room creation. INITIATOR-DECISION.md exists in repo.
+**Test (positive):** Call connects, transcript appears, translation correct — now through modules. Debug log shows module events (RELAY/STT on call entry, RTC on peer join, TRANSLATE/LANGDETECT on chat send, engine_modules_active + sw_registered at boot). App installs to home screen (requires HTTPS hosting with sw.js + manifest.webmanifest served alongside the HTML). Joiner probing tests all fail to reach room creation (existing credential mechanism, unchanged — see talkbridge/INITIATOR-DECISION.md). INITIATOR-DECISION.md exists in repo.
 
 ### Pre-ship — Status: NOT STARTED
 **Deliver:** bridge-turn08-pre-ship.html, v5.8.2
@@ -695,7 +699,7 @@ Purpose: once a surface passes its final gate for a turn and is approved on devi
 | PB function | pbSaveCard | 66b8b73df318 | T07 Post-ship | |
 | PB function | pbSaveNewCard | 63856442fb78 | T07 Post-ship | |
 | PB function | pbBubbleHtml | 215406b987a0 | T07 Post-ship | |
-| PB function | pbCommitSrcEdit | cf4bfcd7e0ed | T07 Post-ship | |
+| PB function | pbCommitSrcEdit | f0050e64d146 | T07 Post-ship | REBASED 2026-07-01 T08 Base: registry value cf4bfcd7e0ed predated T07 post-ship correction commits (CLOSED items 6-7); f0050e64d146 is the device-confirmed T07 final |
 | PB function | pbSearch | b0251853bd33 | T07 Post-ship | |
 | PB function | pbRenderOverlay | 569436a97900 | T07 Post-ship | |
 | PB function | pbCloseOverlay | 15a0f73bc9f4 | T07 Post-ship | |
