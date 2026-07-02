@@ -514,6 +514,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
       <!-- Footer: reset + info -->
       <div class="lsd-section" style="border-bottom:none;">
         <div style="padding:8px 14px 10px;display:flex;flex-direction:column;gap:6px;">
+          <button class="lsd-btn" style="width:100%;margin-bottom:8px;" onclick="openKeysModal()">Calling &amp; sync keys</button>
           <button class="lsd-btn danger" style="width:100%;" onclick="resetAllSettings()">Reset all settings</button>
           <div style="display:flex;gap:6px;">
             <button class="lsd-btn secondary" style="flex:1;" onclick="openInfoModal('about')">About</button>
@@ -931,6 +932,62 @@ var TBGATE=(function(){
 })();
 try{TBGATE.boot();}catch(e){}
 /* ===== #end module: TBCONFIG ===== */
+
+/* ===== #existing surface: FIRST-RUN KEYS (verbatim from cleared container Base) ===== */
+// ════════════════════════════════════════════════════════
+// FIRST-RUN SETUP — calling & sync keys (Turn 08 Base)
+// Frozen storage key names: tb_dg_key, tb_cf_tid, tb_cf_tok, tb_gh_pat
+// ════════════════════════════════════════════════════════
+var _keysAfter=null,_keysDgTimer=null,_keysDgVerified=false;
+function hasCallCreds(){
+  return !!((localStorage.getItem('tb_dg_key')||'').trim()&&(localStorage.getItem('tb_cf_tid')||'').trim()&&(localStorage.getItem('tb_cf_tok')||'').trim());
+}
+function openKeysModal(after){
+  _keysAfter=after||null;
+  var m=document.getElementById('keys-modal');if(!m)return;
+  document.getElementById('keys-dg').value=(localStorage.getItem('tb_dg_key')||'');
+  document.getElementById('keys-tid').value=(localStorage.getItem('tb_cf_tid')||'');
+  document.getElementById('keys-tok').value=(localStorage.getItem('tb_cf_tok')||'');
+  document.getElementById('keys-pat').value=(localStorage.getItem('tb_gh_pat')||'');
+  _keysDgVerified=!!(localStorage.getItem('tb_dg_key')||'').trim();
+  setKeysDgStatus(_keysDgVerified?'· saved':'','');
+  document.getElementById('keys-error').textContent='';
+  m.hidden=false;
+  addDiagLog('keys modal opened');
+}
+function closeKeysModal(){var m=document.getElementById('keys-modal');if(m)m.hidden=true;_keysAfter=null;}
+function setKeysDgStatus(t,color){var el=document.getElementById('keys-dg-status');if(el){el.textContent=t;el.style.color=color||'var(--ink-dim)';}}
+function keysDgInput(){
+  _keysDgVerified=false;clearTimeout(_keysDgTimer);
+  var k=(document.getElementById('keys-dg').value||'').trim();
+  if(!k){setKeysDgStatus('','');return;}
+  setKeysDgStatus('· verifying…','var(--amber)');
+  _keysDgTimer=setTimeout(function(){keysVerifyDg(k);},800);
+}
+function keysVerifyDg(key){
+  var url='wss://api.deepgram.com/v1/listen?model=nova-3&language=en-US&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=true&endpointing=400';
+  var vws,done=false;
+  try{vws=new WebSocket(url,['token',key]);}catch(e){setKeysDgStatus('· could not verify','var(--red)');return;}
+  var timer=setTimeout(function(){try{vws.close();}catch(_){}if(!done){done=true;setKeysDgStatus('· timed out — check key','var(--red)');}},8000);
+  vws.onopen=function(){if(done)return;done=true;clearTimeout(timer);try{vws.close();}catch(_){}_keysDgVerified=true;setKeysDgStatus('· verified ✓','var(--teal)');addDiagLog('deepgram key verified');};
+  vws.onerror=function(){};
+  vws.onclose=function(ev){clearTimeout(timer);if(!done){done=true;setKeysDgStatus('· invalid ('+ev.code+')','var(--red)');}};
+}
+function saveKeysModal(){
+  var dg=(document.getElementById('keys-dg').value||'').trim();
+  var tid=(document.getElementById('keys-tid').value||'').trim();
+  var tok=(document.getElementById('keys-tok').value||'').trim();
+  var pat=(document.getElementById('keys-pat').value||'').trim();
+  var err=document.getElementById('keys-error');
+  if(!dg||!tid||!tok){if(err)err.textContent='Speech key and both call-connectivity values are required.';return;}
+  lsW('tb_dg_key',dg);lsW('tb_cf_tid',tid);lsW('tb_cf_tok',tok);
+  if(pat)lsW('tb_gh_pat',pat);else localStorage.removeItem('tb_gh_pat');
+  addDiagLog('call/sync keys saved dg=1 tid=1 tok=1 pat='+(pat?'1':'0'));
+  toast('Keys saved');
+  var after=_keysAfter;closeKeysModal();
+  if(after)setTimeout(after,50);
+}
+/* ===== #end surface: FIRST-RUN KEYS ===== */
 'use strict';
 // ════════════════════════════════════════════════════════
 // CONSTANTS
@@ -5137,6 +5194,25 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 </script>
 <div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.1 - Turn 08 Base - Jul 2, 2026</div>
+<div class="new-chat-modal" id="keys-modal" hidden onclick="if(event.target===this)closeKeysModal()">
+  <div class="new-chat-card">
+    <div class="new-chat-title-wrap"><div class="new-chat-title">Calling &amp; sync keys</div></div>
+    <div style="font-size:12px;color:var(--ink-mid);line-height:1.4;">One-time setup for the room host. Guests never need this — your invite link carries what they need.</div>
+    <label class="field-label" style="margin-top:2px;">Deepgram API key <span id="keys-dg-status" style="font-weight:600;"></span></label>
+    <input class="field-input" id="keys-dg" type="password" placeholder="Speech-to-text key" oninput="keysDgInput()">
+    <label class="field-label">Cloudflare TURN token ID</label>
+    <input class="field-input" id="keys-tid" type="password" placeholder="Call connectivity — token ID">
+    <label class="field-label">Cloudflare TURN API token</label>
+    <input class="field-input" id="keys-tok" type="password" placeholder="Call connectivity — API token">
+    <label class="field-label">GitHub token <span style="font-weight:400;color:var(--ink-dim);">(phrasebook sync — optional)</span></label>
+    <input class="field-input" id="keys-pat" type="password" placeholder="Optional">
+    <div class="onboarding-error" id="keys-error"></div>
+    <div class="new-chat-actions">
+      <button class="sheet-btn secondary" type="button" onclick="closeKeysModal()">Cancel</button>
+      <button class="sheet-btn primary" type="button" onclick="saveKeysModal()">Save</button>
+    </div>
+  </div>
+</div>
 <script id="tb-bridge-js" type="text/tb-dormant">
 'use strict';
 var RELAY_BASE='talk-signal.myacctfortracking.workers.dev/signal';
