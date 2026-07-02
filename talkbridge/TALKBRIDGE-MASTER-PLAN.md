@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.8 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.9 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -69,7 +69,7 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 07 / Post-ship — DONE pending device test. Turn 07 complete once confirmed.**
+**CURRENT STAGE: Turn 08 / Pre-base — not yet started. Turn 07 is CLOSED, device-confirmed.**
 T07 Pre-base/Base/Pre-ship/Ship all DONE. T07 Post-ship: DONE pending device test, bridge-turn07-post-ship.html v5.7.4. Closes Open Items 1-4 (TB capitalization, BT icon, dup-save toast, write-back batching). PB Surface Freeze Registry populated below — PB surface is now frozen.
 
 ---
@@ -226,7 +226,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - Full 17-item table in §SHIP-RECOVERED passes. All A1–G6 pass.
 - Rendering spot-check: three cards (one with tags, one with clarify entries, one flagged) render identical to v5.7.2.8.
 
-### Post-ship — Status: DONE, pending device confirmation
+### Post-ship — Status: DONE, device-confirmed. TURN 07 CLOSED.
 **Deliver:** bridge-turn07-post-ship.html, v5.7.4
 **Work done:** Open Items 1-4 closed (TB capitalization, BT icon removed, dup-save toast with no context switch, write-back batched to call-end + startup flush). §SFR populated below — PB surface is frozen.
 **Test:** Device confirmation pending. Input to Turn 08 Pre-base once confirmed.
