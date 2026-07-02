@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 5.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.3 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -74,8 +74,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 08 / Pre-base — not yet started. Turn 07 is CLOSED, device-confirmed.**
-T07 Pre-base/Base/Pre-ship/Ship all DONE. T07 Post-ship: DONE pending device test, bridge-turn07-post-ship.html v5.7.4. Closes Open Items 1-4 (TB capitalization, BT icon, dup-save toast, write-back batching). PB Surface Freeze Registry populated below — PB surface is now frozen.
+**CURRENT STAGE: Turn 08 / Base — Pre-base DONE pending device negative test. Turn 07 is CLOSED, device-confirmed 2026-07-01.**
+T08 Pre-base: bridge-turn08-pre-base.html pushed, byte-identical to bridge-turn07-post-ship.html (5111 lines, sha256 prefix 5713b5b41eab). Awaiting negative device test, then Base starts.
 
 ---
 
@@ -144,8 +144,13 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 8 | New card from transcript logged a false "verdict reset" entry | A focus/blur right after creation was wrongly treated as an edit. Now only logs when the text actually changes |
 
 ## CURRENT RUN
+- RELEASE: Turn 08 / Pre-base — v5.8.0
+- STATUS: DONE pending device negative test. Output: bridge-turn08-pre-base.html, 5111 lines, sha256 prefix 5713b5b41eab — byte-identical to bridge-turn07-post-ship.html.
+- NOTE: T07 Post-ship ledger previously recorded 5109 lines / sha 8b7aee8fe55d; two post-ship correction commits (CLOSED items 6 and 7) landed after that entry. True final T07 Post-ship: 5111 lines, sha 5713b5b41eab, device-confirmed 2026-07-01.
+
+## PRIOR RUN (Turn 07 Post-ship — CLOSED)
 - RELEASE: Turn 07 / Post-ship — v5.7.4
-- STATUS: DONE pending device test. Output: bridge-turn07-post-ship.html, 5109 lines, sha256 prefix 8b7aee8fe55d.
+- STATUS: DONE, device-confirmed 2026-07-01. Output: bridge-turn07-post-ship.html, 5111 lines, sha256 prefix 5713b5b41eab (final, incl. corrections for CLOSED items 6-7).
 - WORK DONE: Closed Open Items 1-4 — see CLOSED table above. PB surface checksummed into §SFR below; frozen as of this release.
 - VERIFIED: 21/21 immutable functions byte-identical. Lint clean.
 - PRIOR: Turn 07 Ship DONE (bridge-turn07-ship.html, v5.7.3). Turn 07 Pre-ship DONE (final patch v5.7.2.11). Patch series CLOSED — graveyard G16.
@@ -160,6 +165,8 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-01 T08 Pre-base -- DONE pending device negative test. bridge-turn08-pre-base.html byte-identical to bridge-turn07-post-ship.html final (5111 lines, sha 5713b5b41eab). Ledger sha for T07 Post-ship corrected (was stale pre-correction value).
+- 2026-07-01 T07 Post-ship -- CLOSED, device-confirmed by owner. Final file 5111 lines, sha 5713b5b41eab after two correction commits (CLOSED items 6-7).
 - 2026-07-01 T07 Ship -- DONE pending device test. bridge-turn07-ship.html, 5096 lines, sha256 prefix 272f9f9d5372, v5.7.3. PB-QUERY is now the real filter engine (pbSearch delegates to it, output diff-verified identical). COMPOSE-SEAM wired into chatGo; closed a real pre-existing gap (".." predicate was unguarded on submit). PB-RENDER stays dormant — scaffold doesn't match live design, needs its own rebuild pass, logged to Open Items rather than forced. 21/21 immutables verified, lint clean, full diff reviewed.
 - 2026-07-01 T07 Pre-ship -- DONE, device-confirmed at v5.7.2.8 (bridge-turn07-pre-ship.html). Patch series v5.7.2.1-v5.7.2.8 closed permanently (graveyard G16). Plan v4.2 realignment same day: Ship re-cut, initiator decision placed in T08 Base, Surface Freeze Registry (Part 5 SFR) added, version stamps T08-T11 corrected.
 - 2026-07-01 T07 Base+Pre-ship -- card renderer pulled forward from Ship per explicit direction: catalog chips structurally deleted, footer 4->3 icons, BT+verdict always visible as full-width pills. Base sha 0ccda6ef (still v5.7.1), Pre-ship rebuilt on top sha d0c27309 (v5.7.2). Diffed to confirm no drift beyond the PB-SYNC/PB-USAGE layer.
@@ -390,7 +397,7 @@ The merge approach (from GT-WA v2.3 §7.7):
 6. Call button → mount call module → hang up → unmount → return to Thread with "call ended" marker.
 7. Room capability flag is a real gate, not styling. Call module conditionally absent from DOM in chat-only rooms.
 
-### Pre-base — Status: NOT STARTED
+### Pre-base — Status: DONE pending device negative test
 **Deliver:** bridge-turn08-pre-base.html
 **Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
 **Test (negative):** Identical to T07 post-ship.
@@ -895,4 +902,5 @@ Base64-decode the `content` field. Verify sha256 and line count against ledger b
 
 ## Version stamp rule
 Every stage bumps the internal version string inside the HTML at two locations (comment + visible span). Input patch + 1 = output patch. Turn 07: v5.7.0 (pre-base) → v5.7.1 (base) → v5.7.2 (pre-ship) → v5.7.3 (ship) → v5.7.4 (post-ship). A build still showing the input version is not certifiable.
+
 
