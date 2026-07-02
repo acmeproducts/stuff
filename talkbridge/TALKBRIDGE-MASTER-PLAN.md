@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.2 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.3 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -114,6 +114,12 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 ---
 
 # PART 2 — STATUS LEDGER
+
+## OPEN ITEMS (not scheduled — parked for later disposition)
+| # | Item | Note |
+|---|---|---|
+| 1 | "tb" author initials should read "TB" | capitalization fix, PB clarify/card author tag |
+| 2 | Remove BT (back-translate) manual-refresh icon | Obsolete — back-translate now auto-refreshes on any source/target edit |
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Ship — v5.7.3
