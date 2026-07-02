@@ -1,28 +1,32 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 6.0 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.1 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
 
-# PART UC — USE-CASE MAP (owner-driven, 2026-07-02). What we build = what we test. DEV PAUSED until this map is confirmed.
+# PART UC — USE CASES (v2, scenario form). Actors: **Ann** — host, English speaker, has the keys. **Boon** — guest, Thai speaker, has only a link. DEV PAUSED until confirmed.
 
-**UC1 — Open an existing chat+call room (either role).** Presence updates on entry; my status dot turns green; partner's dot reflects their live status. Full room transcript shown, newest at the bottom next to the compose strip. Every chat message shows sent / received / read (test.html behavior). User can chat normally or tap the phone or video icon at the top.
-**UC2 — Video call.** Tap video icon → bridge call experience opens over the room (2vid look, no floating windows): live speech transcript + translation, PB exactly as banked. Hang up → back in the room chat; the call's transcript is woven into the room history with a "call ended" marker.
-**UC3 — Voice call.** Same as UC2 with no video surface — the live transcript/translation IS the screen.
-**UC4 — PB in chat.** "/" or ".." in the compose strip opens the bridge search (bridge row layout); PB overlay reachable from chat; save-to-PB from bubbles; PB look, behavior, data, and sync exactly as banked. No redesign, ever.
-**UC5 — PB in call.** Exactly as banked bridge.
-**UC6 — Create a room (host).** + → type (chat / chat+call), name, both languages → link + QR immediately → room in list.
-**UC7 — Host first-run setup.** Credentials live behind the existing control icon; key verify; one-time. Creating a call room without keys raises it.
-**UC8 — Joiner via link.** Lands in that room's chat only. No room list, no creation, no keys, no path to them.
-**UC9 — Message lifecycle.** Sent → received → read states; queued while partner unreachable, delivered when reachable; unread accrues on the room card.
-**UC10 — Presence & waiting.** Green when partner present; waiting indicator pre-join; live updates both directions.
-**UC11 — Per-room mute.** Mute incoming call ring / message notifications per room; unread still accrues silently.
-**UC12 — Notifications (app open/backgrounded).** Message or incoming call → OS notification → tap opens the correct room. Fully-closed-app push = Turn 11.
-**UC13 — Install.** Add to home screen; opens standalone with TB icon.
-**UC14 — Dispose room.** One confirmation → room gone from list, link dead, relay cleaned.
-**UC15 — Multi-room.** Switching rooms keeps transcripts, presence, language pair, and PB pairing isolated per room.
+**UC1 — Ann sets up for the first time.** Ann opens the app, gives her name, taps the control icon, pastes her three keys, sees the speech key verify. She never does this again. *Pass: keys survive restart; creating call rooms never asks again.*
 
-Every stage test from here forward cites UC numbers. A surface not covered by a UC does not get built.
+**UC2 — Ann starts a chat with Boon, face to face.** Ann taps +, picks Chat only, English↔Thai, shows Boon the QR. Boon scans, lands straight in the room, no questions asked. Ann types "Where are you from?" — Boon sees it in Thai with the English underneath, replies in Thai, Ann reads it in English. Each message on Ann's side walks through sent → received → read as Boon gets and views it. *Pass: both read everything in their own language; receipts progress; Boon never saw a setup screen.*
+
+**UC3 — Ann invites Boon remotely to a call-capable room.** Ann creates Chat + Call, texts Boon the link. Boon opens it hours later — the room's history is there, and when both are in the room each sees the other's dot go green. Phone and video icons sit at the top for both. *Pass: late join works; presence live both ways; icons present only because this room is call-capable.*
+
+**UC4 — Chat escalates to a video call.** Mid-chat, Ann taps the video icon. Boon gets the incoming call and accepts. The call opens over the room: they see each other, and everything spoken appears as live captions in the listener's language. Boon hangs up; both land back in the chat, the spoken conversation is woven into the room history, marked where the call ended. *Pass: call over the room, live translated captions both ways, transcript preserved in chat, no dead-end screens.*
+
+**UC5 — Voice-only call.** Same as UC4 via the phone icon — no video, the live translated transcript is the screen. *Pass: identical to UC4 minus video.*
+
+**UC6 — Boon uses a saved phrase mid-conversation.** Boon types "/" and a word; the phrasebook search opens exactly as in the call product — same rows, same feel. He taps a phrase; it goes out. Later Ann says something worth keeping; Boon saves it from the bubble into the phrasebook. *Pass: search look and behavior identical to the banked product; save works from chat; works with no call running.*
+
+**UC7 — Phrasebook during a call.** While talking, either opens the phrasebook, searches, uses, saves — exactly as banked. *Pass: indistinguishable from the banked call product.*
+
+**UC8 — Boon misses messages.** Boon's phone is in his pocket; Ann writes. Boon gets a notification, taps it, lands in the right room, unread clears. Ann muted a chatty room earlier — it stays silent but its unread count still climbs. *Pass: notification opens the correct room; mute silences without losing count.*
+
+**UC9 — Ann runs several rooms.** Ann switches between rooms; each keeps its own history, languages, presence, and phrasebook pairing. She disposes a dead room: one confirmation, it's gone, its link is dead. *Pass: no bleed between rooms; disposed link refuses entry.*
+
+**UC10 — Install.** Either adds the app to the home screen; it opens standalone with its own icon. *Pass: launches full-screen from the icon.*
+
+Every stage test cites UC numbers. Anything not needed by a UC does not get built.
 
 # PART 0 — WHAT WE'RE BUILDING AND WHERE WE ARE
 
