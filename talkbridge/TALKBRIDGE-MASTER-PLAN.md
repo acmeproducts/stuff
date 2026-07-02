@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.9 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 5.0 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -36,6 +36,11 @@ Eventually I have several rooms — one per relationship, each with its own phra
 - It cannot be changed later. If you want calling and made a chat-only room, make a new room.
 - In a chat-only room, the call button is **absent from the DOM entirely** — not hidden, not grayed out.
 - A chat-only room never negotiates WebRTC at all.
+
+## Initiator designation — DECIDED 2026-07-02
+Current mechanism stands as final for pilot: an initiator is whoever holds the working API credentials on their device. A joiner never receives them (session-only, never persisted), so they can't create rooms even if they manipulate the URL. This already works and needs no further changes.
+
+Real people won't personally set up Deepgram/Cloudflare/GitHub accounts to become initiators. That's solved by a separate, out-of-scope companion tool (not part of Turns 07-11) that hands a new initiator their working credentials in one step. Explicitly out of scope for this plan — does not block Turn 08 or any later turn.
 
 ## Identity model
 - The room/token is the sole real identity — not the name. Names (initiator's, partner's) are editable display labels only; changing a name never breaks or re-routes an existing connection.
@@ -388,9 +393,9 @@ The merge approach (from GT-WA v2.3 §7.7):
 **Test (negative):** Identical to T07 post-ship.
 
 ### Base — Status: NOT STARTED
-**Deliver:** bridge-turn08-base.html, v5.8.1 + `talkbridge/INITIATOR-DECISION.md`
-**Work (two foundational items, both required before Pre-ship can start):**
-1. **Initiator designation decision (GT-WA v2.3 §2B-1 / Turn 07A).** Evaluate the candidate directions (local secret store, credential authority, self-issued install-time credential, prior art) against no-signup/no-email/no-phone and no-centralization. Build a spike proving the credential boundary holds under deliberate probing (URL editing, cleared local state, replayed links). Write `talkbridge/INITIATOR-DECISION.md`: chosen direction, rejected options with reasons, multi-device implications for Turn 10. NOT in scope: encryption at rest. The shell merge (Pre-ship) is built against this document — it does not start without it.
+**Deliver:** bridge-turn08-base.html, v5.8.1
+**Work (one foundational item, required before Pre-ship can start):**
+1. **Nine engine modules only.** Initiator designation is DECIDED — see below. No spike, no decision doc needed in this stage.
 2. **Nine engine modules** — CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE — activated in one pass. Old hardcoded paths removed. Service worker registered; app installable.
 **References:** Part 4 §4M.1–§4M.8. Part 5 §IMM, §SFR (PB surface frozen — modules must not alter frozen PB checksums). GT-WA v2.3 §2B-1, §Turn 07A.
 **Test (positive):** Call connects, transcript appears, translation correct — now through modules. Debug log shows module events. App installs to home screen. Spike: joiner probing tests all fail to reach room creation. INITIATOR-DECISION.md exists in repo.
