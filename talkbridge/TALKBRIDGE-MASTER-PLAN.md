@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.3 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.4 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -20,7 +20,7 @@ Eventually I have several rooms — one per relationship, each with its own phra
 **The test against every UI decision:** does this still feel like "I made a room, here's a link, they'll get to it" — or does it start feeling like setting up an account on yet another app.
 
 ## UX philosophy — few choices, mostly non-destructive
-- **Room creation has exactly one consequential choice: capability.** Chat-only or chat+call. No name entry, no settings, no setup screen before you get your link/QR.
+- **Room creation asks capability, the initiator's name, the initiator's language, and the partner's language — nothing else.** These four are the actual one-time setup (corrected 2026-07-01; superseded the earlier "capability only, no name field" draft, which did not match the working reference implementation). No account, no settings screen, no other fields.
 - **Everything else is reversible or harmless.** The only two destructive actions in the whole app — disposing a room and hard-deleting a phrasebook card — are the only places a confirmation step belongs.
 - **The call button is a single tap.** No call-setup screen. If a room allows calling, one button from the thread escalates.
 - **No screen the person didn't ask for.** Never interrupt with a decision gate before letting them continue looking.
@@ -37,6 +37,10 @@ Eventually I have several rooms — one per relationship, each with its own phra
 - In a chat-only room, the call button is **absent from the DOM entirely** — not hidden, not grayed out.
 - A chat-only room never negotiates WebRTC at all.
 
+## Identity model
+- The room/token is the sole real identity — not the name. Names (initiator's, partner's) are editable display labels only; changing a name never breaks or re-routes an existing connection.
+- Name + language are captured once at room creation as initial values, then remain editable from within the room at any time.
+
 ## Room disposal policy
 - Unjoined rooms expire after 30 days and are purged relay-side.
 - Joined/active rooms never expire silently — only explicit initiator-driven disposal removes them.
@@ -44,14 +48,14 @@ Eventually I have several rooms — one per relationship, each with its own phra
 
 ## The five screens — no more, no fewer
 1. **Room List** — initiator's home. Never shown to a joiner.
-2. **Room Creation** — one choice: chat-only or chat+call. Immediate link+QR. No other setup.
+2. **Room Creation** — capability choice + initiator name + initiator language + partner language. Immediate link+QR. No other setup.
 3. **Thread** — chat, used by both. Call button present only in chat+call rooms. Joiner lands here directly.
 4. **Call Screen** — bridge engine, reached only from a chat+call Thread.
 5. **Room Info / Dispose** — read-only info + one destructive action with one confirmation.
 
 ## What exists today
 - `bridge-turn06-post-ship.html` (v5.6.4) — working call engine, STT, translation, 17 dormant modules. The floor.
-- `test.html` — shell architecture authority (room list, thread, async chat).
+- `test.html` — shell architecture and flow authority (room list, thread, async chat, room-creation flow, identity model). **READ-ONLY — reference only, never built on or modified. Turn 08 Base builds bridge-turn08-base.html from bridge-turn07-post-ship.html, following test.html's patterns.**
 - `phrase-desk.html` — phrasebook card layout authority.
 - `talkbridge/fixtures/` — norm, query, render fixtures.
 
@@ -120,6 +124,8 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 |---|---|---|
 | 1 | "tb" author initials should read "TB" | capitalization fix, PB clarify/card author tag |
 | 2 | Remove BT (back-translate) manual-refresh icon | Obsolete — back-translate now auto-refreshes on any source/target edit |
+| 3 | Duplicate PB card save gives no feedback | Card already exists → should toast "Already saved," stay in place. Currently silently redirects to search/PB surface — was present and correct in earlier versions, regressed |
+| 4 | PB GitHub write-back timing is wrong | Every add/edit/delete during a call should stay local-only until one batched write at call end (not on every change, not merely on overlay close). If the tab/app closes without a normal hang-up, next startup must check local storage for an unwritten PB payload and flush it to GitHub BEFORE that call's PB loads — GitHub must stay source of truth |
 
 ## CURRENT RUN
 - RELEASE: Turn 07 / Ship — v5.7.3
@@ -547,7 +553,7 @@ The Z→X→Y rule. Single entry point for all translation normalization.
 
 ## 4M.9 ROOM
 Room lifecycle.
-- `create(capability)→room` (capability: 'chat' | 'chatcall') | `join(token)→roomView` | `dispose(id)` | `listForOwner()→rooms` | `get(id)→room`.
+- `create(capability,name,myLang,theirLang)→room` (capability: 'chat' | 'chatcall'; name/langs editable post-creation, token is the real identity) | `join(token)→roomView` | `dispose(id)` | `listForOwner()→rooms` | `get(id)→room` | `rename(id,name)` | `setLang(id,myLang,theirLang)`.
 - Capability is fixed at creation. Owner-scoped: a joiner cannot enumerate other rooms.
 
 ## 4M.10 THREAD
@@ -787,10 +793,12 @@ Every element by surface. IDs marked NEW are created in the build turn noted. ID
 
 ## Surface 2 — Room Creation `#room-create` (Turn 08 Ship)
 - `#rc-title` — "New room".
-- `#rc-choice-chat` — "Chat only". → `ROOM.create('chat')`.
-- `#rc-choice-call` — "Chat + Call". → `ROOM.create('chatcall')`.
-- No name field. No language picker. Language comes from first-run setup only.
-- `#rc-share`, `#rc-link`, `#rc-qr`, `#rc-copy` — appear immediately after choice. → system share.
+- `#rc-choice-chat` — "Chat only". → sets capability.
+- `#rc-choice-call` — "Chat + Call". → sets capability.
+- `#rc-name` — initiator's name for this room (editable later from the Thread/Room Info, per Identity model in Part 0).
+- `#rc-my-lang`, `#rc-their-lang` — initiator's language, partner's language. Editable later; token stays the real identity, never these fields.
+- On submit (capability + name + both languages set) → `ROOM.create(capability, name, myLang, theirLang)`.
+- `#rc-share`, `#rc-link`, `#rc-qr`, `#rc-copy` — appear immediately after submit. → system share.
 
 ## Surface 3 — Thread `#thread` (Turn 08 Ship)
 - `#th-header`: other-party name `#th-name` | info `#th-info-btn` | call button `#th-call-btn` (chat+call rooms only — ABSENT from DOM in chat-only rooms).
