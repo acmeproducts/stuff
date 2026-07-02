@@ -1,5 +1,5 @@
 # TALKBRIDGE MASTER PLAN
-**Version: 4.5 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 4.6 | 2026-07-01 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -69,8 +69,8 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 07 / Ship — DONE pending device test**
-T07 Pre-base: DONE. T07 Base: DONE (device-confirmed, v5.7.1). T07 Pre-ship: DONE, device-confirmed — actual final patch was v5.7.2.11, not v5.7.2.8 as previously logged (ledger corrected). T07 Ship: DONE pending device test, bridge-turn07-ship.html v5.7.3. PB-QUERY and COMPOSE-SEAM activated; PB-RENDER stays dormant (see note below) — flagged, not silently dropped.
+**CURRENT STAGE: Turn 07 / Post-ship — DONE pending device test. Turn 07 complete once confirmed.**
+T07 Pre-base/Base/Pre-ship/Ship all DONE. T07 Post-ship: DONE pending device test, bridge-turn07-post-ship.html v5.7.4. Closes Open Items 1-4 (TB capitalization, BT icon, dup-save toast, write-back batching). PB Surface Freeze Registry populated below — PB surface is now frozen.
 
 ---
 
@@ -122,22 +122,25 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 ## OPEN ITEMS (not scheduled — parked for later disposition)
 | # | Item | Note |
 |---|---|---|
-| 1 | "tb" author initials should read "TB" | capitalization fix, PB clarify/card author tag |
-| 2 | Remove BT (back-translate) manual-refresh icon | Obsolete — back-translate now auto-refreshes on any source/target edit |
-| 3 | Duplicate PB card save gives no feedback | Card already exists → should toast "Already saved," stay in place. Currently silently redirects to search/PB surface — was present and correct in earlier versions, regressed |
-| 4 | PB GitHub write-back timing is wrong | Every add/edit/delete during a call should stay local-only until one batched write at call end (not on every change, not merely on overlay close). If the tab/app closes without a normal hang-up, next startup must check local storage for an unwritten PB payload and flush it to GitHub BEFORE that call's PB loads — GitHub must stay source of truth |
 | 5 | PB-RENDER (renderCard/renderRow) not activated | Scaffolded modules use a different design system than the live, approved cards — would break pixel parity if turned on. Needs a rebuild-to-match pass against the current live markup before it can replace the working renderer |
 
+## CLOSED (Turn 07 Post-ship, 2026-07-01)
+| # | Item | Resolution |
+|---|---|---|
+| 1 | "tb" author initials should read "TB" | Fixed everywhere it's written as an author value |
+| 2 | Remove BT manual-refresh icon | Removed from the new-card save sheet; back-translate result stays always visible, no toggle needed |
+| 3 | Duplicate PB card save gives no feedback | Now toasts "Already saved" and stays exactly where the user was — no more jump to the PB surface. Also counts as a use (usage/lastUsed refresh), per spec |
+| 4 | PB GitHub write-back timing was wrong | Write-back now fires once, at call end, only. Overlay close no longer writes. Dirty state now survives an unclean close, and is flushed to GitHub at the start of the next call, before that call's phrasebook loads |
+
 ## CURRENT RUN
-- RELEASE: Turn 07 / Ship — v5.7.3
-- STATUS: DONE pending device test. Output: bridge-turn07-ship.html, 5096 lines, sha256 prefix 272f9f9d5372.
-- WORK DONE: PB-QUERY.query extended to exactly replicate pbSearch's existing filter (source/target/notes/tags/clarify/backtranslate/langs, verdict:/tag: prefixes); pbSearch now delegates to it — one real engine under both overlay and compose-drawer search, zero output change (diff-verified against input). COMPOSE_SEAM wired into chatGo — same predicate guard (/ and ..), same single call site Enter and Send both already used, so both are guarded; found and fixed a real pre-existing gap where ".." typed and submitted was never guarded (was going out as a literal chat message).
-- NOT DONE — PB-RENDER left dormant on purpose: renderCard/renderRow as scaffolded do not match the live, approved card/row markup (different design system entirely — Tailwind/lucide vs the shipped dark-theme CSS). Activating either would break pixel parity. Needs a dedicated rebuild-to-match pass before it can be turned on; not attempted this stage. Added to Open Items.
-- VERIFIED: 21/21 immutable functions byte-identical (sha12 match). Lint clean. Full diff against input confirms no change outside the three wired areas + version stamp.
-- PRIOR: Turn 07 Pre-ship DONE (final patch v5.7.2.11). Patch series CLOSED; never repeat — graveyard G16.
+- RELEASE: Turn 07 / Post-ship — v5.7.4
+- STATUS: DONE pending device test. Output: bridge-turn07-post-ship.html, 5109 lines, sha256 prefix 8b7aee8fe55d.
+- WORK DONE: Closed Open Items 1-4 — see CLOSED table above. PB surface checksummed into §SFR below; frozen as of this release.
+- VERIFIED: 21/21 immutable functions byte-identical. Lint clean.
+- PRIOR: Turn 07 Ship DONE (bridge-turn07-ship.html, v5.7.3). Turn 07 Pre-ship DONE (final patch v5.7.2.11). Patch series CLOSED — graveyard G16.
 - FIXED THIS SERIES: Enter-on-source commit; verdict as radio pills; tag/clarify inputs keep focus on Enter; every card change logs to clarify; creation vs edit no longer conflated in clarify log; new card at top (upsert was matching by content, overwrote unrelated blanks); header shows created/modified with time; verified-tag removal resets verdict AND visibly unchecks; three historical clarify field formats all render; send button (Go) respects /search same as Enter; search-open lag removed; "tap to use" removed everywhere; send chevron never cut off; search rows no longer compress/overlap; footer toggles resolve white when open; compose X inside input; overlay search X shows with query; trash pinned bottom; BT icon/label removed; transcript-save dedupes and clears stale search; focus outline removed.
 - PROCESS RULE (locked, per owner): NO MORE PATCH RELEASES. All work follows stage structure: pre-base → base → pre-ship → ship → post-ship, each turn's post-ship feeds the next turn's pre-base. Master plan updated every release.
-- NEXT: device test of bridge-turn07-ship.html, then Turn 07 Post-ship.
+- NEXT: device test of bridge-turn07-post-ship.html. Once confirmed, Turn 07 is complete — move to Turn 08.
 
 ## §DELTAS — RESOLVED 2026-07-01 (v4.2 realignment). Kept for the record; all four dispositions below are now law in this plan.
 1. RESOLVED — §SHIP-RECOVERED content: most built during patch series. PB-QUERY unification is now the core of Turn 07 Ship. Category assignment UI: DEFERRED out of Phase 2 (owner decision 2026-07-01) — categories[] stays schema-only with 'unassigned'; building assignment UI before pilot is scope creep.
@@ -205,7 +208,7 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - G5: edit card, close overlay → write-back fires immediately.
 - G6: edit card, hang up offline → pbsync_upload_pending; restore network → pbsync_upload_completed.
 
-### Ship — Status: DONE pending device test (scope RE-CUT 2026-07-01 — the v5.7.2.x patch series already built most of §SHIP-RECOVERED's display surface; do NOT rebuild what is working)
+### Ship — Status: DONE, device-confirmed (scope RE-CUT 2026-07-01 — the v5.7.2.x patch series already built most of §SHIP-RECOVERED's display surface; do NOT rebuild what is working)
 **Deliver:** bridge-turn07-ship.html, v5.7.3
 **Input:** bridge-turn07-pre-ship.html v5.7.2.8 — the working, device-approved PB surface. The acceptance bar for everything visual is PIXEL-IDENTICAL to v5.7.2.8. Any visible change to the PB cards, overlay, ribbon, or compose strip = reject.
 **Work (exactly three items, nothing else):**
@@ -220,10 +223,10 @@ Input: bridge-turn06-post-ship.html (4780 lines, sha prefix a73aecbf).
 - Full 17-item table in §SHIP-RECOVERED passes. All A1–G6 pass.
 - Rendering spot-check: three cards (one with tags, one with clarify entries, one flagged) render identical to v5.7.2.8.
 
-### Post-ship — Status: NOT STARTED
+### Post-ship — Status: DONE, pending device confirmation
 **Deliver:** bridge-turn07-post-ship.html, v5.7.4
-**Work:** Duplicate save (F1) verified/closed; remaining edge cases closed (pbAddCard was built during the patch series — verify against §SHIP-RECOVERED spec, fix only what fails). **Then: populate the PB Surface Freeze Registry (Part 5 §SFR)** — compute and record sha12 for every pb* function, the PB_DATA/PB_SYNC/PB_USAGE/PB_QUERY/PB_RENDER module blocks, and the overlay HTML region. From this point the PB surface is frozen: later turns may not change these checksums unless their spec declares the region in-scope with deterministic acceptance criteria.
-**Test:** Full A1–G6 + G1–G6 on device. §SFR table populated and pushed in the same commit as the ledger update. Input to Turn 08 Pre-base.
+**Work done:** Open Items 1-4 closed (TB capitalization, BT icon removed, dup-save toast with no context switch, write-back batched to call-end + startup flush). §SFR populated below — PB surface is frozen.
+**Test:** Device confirmation pending. Input to Turn 08 Pre-base once confirmed.
 
 ---
 
@@ -659,10 +662,32 @@ Purpose: once a surface passes its final gate for a turn and is approved on devi
 4. Re-baselining: when a turn legitimately changes frozen regions, the new checksums are recorded here at that turn's Post-ship, in the same commit as the ledger update. The old values move to a REBASED note (date + turn), never silently overwritten.
 5. Population schedule: PB surface → T07 Post-ship. Call engine + nine engine modules + five shell surfaces → T08 Post-ship. Translation path → T09 Post-ship. Identity/routing → T10 Post-ship. Final full re-baseline → T11 Post-ship.
 
-**Registry (empty until T07 Post-ship populates it):**
+**Registry (populated at T07 Post-ship, 2026-07-01):**
 | Surface | Region | sha12 | Frozen at | Rebased |
 |---|---|---|---|---|
-| (populated at T07 Post-ship) | | | | |
+| PB module | PB-DATA | 3ec2efe5526f | T07 Post-ship | |
+| PB module | PB-SYNC | 15b171e435ea | T07 Post-ship | |
+| PB module | PB-USAGE | 40ca5ebb18af | T07 Post-ship | |
+| PB module | PB-QUERY | a00d36e7208b | T07 Post-ship | |
+| PB module | PB-RENDER (dormant) | 4c9986b20ce1 | T07 Post-ship | |
+| PB module | COMPOSE-SEAM | fa641f39d320 | T07 Post-ship | |
+| PB function | pbAddCard | ecf022ff261d | T07 Post-ship | |
+| PB function | pbUpsert | 5e9d618565c5 | T07 Post-ship | |
+| PB function | pbSaveCard | 66b8b73df318 | T07 Post-ship | |
+| PB function | pbSaveNewCard | 63856442fb78 | T07 Post-ship | |
+| PB function | pbBubbleHtml | 215406b987a0 | T07 Post-ship | |
+| PB function | pbCommitSrcEdit | cf4bfcd7e0ed | T07 Post-ship | |
+| PB function | pbSearch | b0251853bd33 | T07 Post-ship | |
+| PB function | pbRenderOverlay | 569436a97900 | T07 Post-ship | |
+| PB function | pbCloseOverlay | 15a0f73bc9f4 | T07 Post-ship | |
+| PB function | _pbSyncOnEnter | f8c163eb6158 | T07 Post-ship | |
+| PB function | _pbSyncOnLeave | 6ac07ee9da22 | T07 Post-ship | |
+| PB function | pbIRowHtml | af260741be9a | T07 Post-ship | |
+| PB function | pbOvRowHtml | 70351602ae58 | T07 Post-ship | |
+| PB function | pbAddTag | bde6ed340333 | T07 Post-ship | |
+| PB function | pbRemoveTag | ef876676a045 | T07 Post-ship | |
+| PB function | trSaveToPb | bdd2d352bbc1 | T07 Post-ship | |
+| PB surface | overlay HTML (lines 610-642) | 7733c116de06 | T07 Post-ship | |
 
 ## §AF — Atomic Module Format
 No grep-and-replace. No editing live function bodies. Every module is a self-contained drop-in block:
