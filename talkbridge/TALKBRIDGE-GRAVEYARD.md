@@ -35,3 +35,7 @@ Gates flipped with adapter glue: invented controls (back arrow, call button) nev
 
 ## G2 — 2026-07-03 — T08 Pre-ship v5.8.8
 Search overlay rendered blank rows, live speech-to-text was dropped in a redesign pass and never restored, video icon didn't reliably appear on existing sessions. Owner verdict: nothing testable, rollback. Rule reinforced: every UI regression must be walked end-to-end against a real saved session before push, not just a fresh one.
+
+
+## G3 — 2026-07-03 — T08 Pre-ship v5.8.9 (attempt 5)
+Only the video icon rendered; compose strip and all chat function gone; old rooms broken. Deployed content did not match last verified build (site-serving lag). Owner verdict: rollback. Attempt-count subversioning adopted from this point.
