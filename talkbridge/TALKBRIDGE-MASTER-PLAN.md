@@ -986,3 +986,28 @@ Each retry within the same stage appends a 5th version digit = attempt count (e.
 
 ## ATTEMPT NUMBERING (canonical, added 2026-07-03)
 Every stage version gets a trailing attempt counter: MAJOR.MINOR.PATCH.ATTEMPT. First try at a stage = .1; every rebuild of that same stage after a failed gate increments the last number. Resets to .1 only when moving to a new stage. Applies to all turns going forward.
+
+
+## TURN 08 PRE-SHIP — REPLAN (2026-07-03, series 5.8, stage 2, attempt 7)
+
+Reason: prior six attempts patched symptoms one at a time; fixes did not survive the next change. This replan freezes every module going in, with checksums locked before any code is written, and documents what each module is allowed to expect from and hand to the shell.
+
+### Modules going in (frozen, checksummed at insertion)
+- chat surface + compose (sendChat/chatGo/appendTrDom): 5fa3cd4881b3, bf8e6b33a5da, a8f990efd79b
+- phrasebook search+render (pbRenderOverlay/pbSearch/pbOpenOverlaySearch): 569436a97900, b0251853bd33, 493343a1ace2
+- speech pickup (startDeepgram/stopDeepgram/onDGFinal): 3e7d074881ee, 0d613db74bd6, d1febfbade02
+- call/video (enterCall/setupPC/cleanUp): 524531943363, 5470a4ebb5b7, 099e2e7dbb66
+- relay (connectRelay/relaySend): 1c773f9bdcf6, 74bf6900dfdd
+
+### Contracts (in / out)
+- Chat surface + compose: IN — a room is open and identified; language pair known. OUT — messages appended to the one shared transcript; nothing else touches the shell's own message list.
+- Phrasebook: IN — the bridge's phrasebook data is fully loaded before first render, no partial state. OUT — the same search box also handles chat send; results always carry visible text.
+- Speech pickup: IN — a room is open and keys exist. OUT — spoken words appear as chat lines, on or off a call, no video required.
+- Call/video: IN — user starts a call from the video icon next to the names, camera off by default (voice) or on (video). OUT — ending the call returns to the chat surface intact, same transcript.
+- Relay: unchanged from confirmed bridge behavior; owns the room's live connection.
+
+### Gate for this stage (unchanged from before)
+Splash/landing page, chat surface with working compose strip, live speech pickup with no call needed, working phrasebook search with visible results, video icon starting a real call, all on both a new room and an already-existing one, before this is offered for testing again.
+
+### Process change (binding)
+No push for testing until every item above is verified against a full pass — new room and existing room both — in one sitting, not incrementally.
