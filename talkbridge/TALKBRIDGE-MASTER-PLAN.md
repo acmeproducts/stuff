@@ -982,3 +982,7 @@ Every stage bumps the internal version string inside the HTML at two locations (
 
 ## CANONICAL: sub-version attempt counter
 Each retry within the same stage appends a 5th version digit = attempt count (e.g. 5.8.9 attempt 1 = 5.8.9.1, attempt 2 = 5.8.9.2). The 4-part version (5.8.9) names the stage; the 5th digit is the attempt. Resets to .1 on the next stage's first version. Adopted 2026-07-03 after repeated pre-ship failures.
+
+
+## ATTEMPT NUMBERING (canonical, added 2026-07-03)
+Every stage version gets a trailing attempt counter: MAJOR.MINOR.PATCH.ATTEMPT. First try at a stage = .1; every rebuild of that same stage after a failed gate increments the last number. Resets to .1 only when moving to a new stage. Applies to all turns going forward.
