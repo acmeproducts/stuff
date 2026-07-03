@@ -27,3 +27,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 
 ## RULE
 Any new failure that triggers the exit condition (build outline §VI-2) is appended here with its signature, and this file is updated in project knowledge so it persists across sessions. The graveyard is scanned at workflow step 3 and before any retry. A match = forbidden path, full stop.
+
+
+## G1 — 2026-07-02 — T08 Pre-ship v5.8.2 (dcb0dcb284cb)
+Gates flipped with adapter glue: invented controls (back arrow, call button) never in the frozen module; bridge screens overlaid shell instead of room opening into the 2vid chat surface. Owner verdict: Frankenstein, unusable. Rule reinforced: room entry must land on the frozen bridge surface exactly as 2vid (minus floating video), compose strip IS the search, no invented UI.
