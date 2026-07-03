@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.8.5 - Turn 08 Pre-ship - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
+<!-- TalkBridge v5.8.6 - Turn 08 Pre-ship - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
 <!-- Talk + Say v4.1 · April 19, 2026 · language pair flags on session cards, mic silence timer, lang routing fix -->
 <html lang="en">
 <head>
@@ -427,7 +427,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 #tb-bridge-host.tb-chatmode .call-videos{display:none!important;}
 #tb-bridge-host.tb-chatmode .call-transcript{flex:1 1 auto!important;max-height:none!important;}
 #tb-bridge-host.tb-chatmode #subtitle-area,#tb-bridge-host.tb-chatmode #solo-banner,#tb-bridge-host.tb-chatmode #partner-speaking-indicator{display:none!important;}
-#tb-bridge-host.tb-nocall #top-mic-btn,#tb-bridge-host.tb-nocall #top-cam-btn,#tb-bridge-host.tb-nocall .vc-btn.end{display:none!important;}
+#tb-bridge-host.tb-nocall #top-cam-btn,#tb-bridge-host.tb-nocall .vc-btn.end{display:none!important;}
 #tb-bridge-host.tb-chatmode:not(.tb-nocall) .vc-btn.end{display:none!important;}
 
 </style>
@@ -1248,7 +1248,8 @@ var TBCONFIG=(function(){
   function all(){var r={},k;for(k in D)r[k]=get(k);return r;}
   return {get:get,set:set,all:all,defaults:D};
 })();
-/* Organ promoter (Turn 08 Pre-ship v5.8.4): bridge organs live inside shell chat pane; shell duplicates gated off. */
+/* Organ promoter (Turn 08 Pre-ship v5.8.6) */
+var TB_SPLIT='/* ===== #new module: CONFIG ===== */';
 var TBGATE=(function(){
   var mounted=false;
   function promote(){
@@ -1256,21 +1257,45 @@ var TBGATE=(function(){
     var cssEl=document.getElementById('tb-bridge-css'),jsEl=document.getElementById('tb-bridge-js');
     if(!cssEl||!jsEl)return;
     var st=document.createElement('style');st.id='tb-bridge-style';st.textContent=cssEl.textContent;document.head.appendChild(st);
-    var sc=document.createElement('script');sc.id='tb-bridge-run';sc.textContent=jsEl.textContent;document.body.appendChild(sc);
+    var full=jsEl.textContent,cut=full.indexOf(TB_SPLIT);
+    var mods=cut>=0?full.slice(cut):'';var main=cut>=0?full.slice(0,cut):full;
+    var s1=document.createElement('script');s1.id='tb-bridge-mods';s1.textContent=mods;document.body.appendChild(s1);
+    var s2=document.createElement('script');s2.id='tb-bridge-main';s2.textContent=main;document.body.appendChild(s2);
     afterPromote();
   }
   function afterPromote(){
-    try{document.getElementById('lobby').classList.add('hidden');}catch(e){}
+    /* condemned screens out of the DOM entirely */
+    ['lobby','create-room-backdrop','joining-screen','thankyou-page','joiner-landing'].forEach(function(id){var el=document.getElementById(id);if(el&&el.parentNode)el.parentNode.removeChild(el);});
+    /* test-look theme over the surface (bubble layout untouched) */
+    var th=document.createElement('style');th.id='tb-theme';
+    th.textContent='#tb-bridge-host{--bg:#FDFAF7;--surface:#F5F1EC;--surface2:#E2DDD8;--text:#1A1714;--text-dim:#5A5552;--text-muted:#9A9592;--red:#C0392B;--green:#2E7D4F;font-family:inherit;}'
+      +'#tb-bridge-host .call{background:var(--bg)!important;}'
+      +'#tb-bridge-host .call-transcript{background:var(--bg)!important;border-top:1px solid var(--surface2)!important;}'
+      +'#tb-bridge-host .chat-compose-strip{background:var(--surface)!important;border-top:1px solid var(--surface2)!important;}'
+      +'#tb-bridge-host .call-transcript-header{background:var(--surface)!important;}'
+      +'#tb-bridge-host .vc-btn{background:rgba(0,0,0,.06);color:#5A5552;}'
+      +'#tb-bridge-host .call-videos{background:#000!important;}';
+    document.head.appendChild(th);
     window.TB_BRIDGE_READY=true;
     /* ending media never leaves the room */
     window.hangUp=function(){try{pbIClose()}catch(_){}try{_pbSyncOnLeave()}catch(_){}try{relaySend({type:'hangup'})}catch(_){}tbMediaDown('local_hangup');try{toast('Call ended')}catch(_){}};
     window.showThankYou=function(){tbMediaDown('partner_hangup');try{toast('Call ended')}catch(_){}};
     var _origClean=window.cleanUp;
-    window.cleanUp=function(){try{_origClean()}catch(_){}try{document.getElementById('lobby').classList.add('hidden')}catch(_){}if(window._tbCid){try{tbEnterRoom(window._tbCid)}catch(_){}}};
-    /* frozen strip controls start the call in call-capable rooms */
+    window.cleanUp=function(){try{_origClean()}catch(_){}if(window._tbCid){try{tbEnterRoom(window._tbCid)}catch(_){}}};
+    /* mic = live speech toggle (no call needed); cam starts video call */
     var _mic=window.toggleMic,_cam=window.toggleCam;
-    window.toggleMic=function(){if(window._tbCid&&typeof callPhase!=='undefined'&&callPhase==='idle'&&!tbHost().classList.contains('tb-nocall')){tbStartCall(false);return;}_mic();};
-    window.toggleCam=function(){if(window._tbCid&&typeof callPhase!=='undefined'&&callPhase==='idle'&&!tbHost().classList.contains('tb-nocall')){tbStartCall(true);return;}_cam();};
+    window.toggleMic=function(){
+      var inCall=(typeof callPhase!=='undefined'&&callPhase!=='idle');
+      if(inCall){_mic();return;}
+      if(window._tbSpeech){tbSpeechStop();return;}
+      tbSpeechStart();
+    };
+    window.toggleCam=function(){
+      var inCall=(typeof callPhase!=='undefined'&&callPhase!=='idle');
+      if(inCall){_cam();return;}
+      if(tbHost().classList.contains('tb-nocall'))return;
+      tbStartCall(true);
+    };
   }
   function boot(){
     var a=TBCONFIG.all(),any=false,k;
@@ -1282,11 +1307,28 @@ var TBGATE=(function(){
   return {boot:boot};
 })();
 function tbHost(){return document.getElementById('tb-bridge-host');}
+function tbMicUI(on){try{var b=document.getElementById('top-mic-btn');if(b)b.classList.toggle('active',!!on);}catch(_){}}
+function tbSpeechStart(){
+  var key=(localStorage.getItem('tb_dg_key')||'').trim();
+  if(!key){openKeysModal(function(){tbSpeechStart();});return;}
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    window._tbSpeech=true;
+    try{if(!videoStream)videoStream=stream;window._tbSpeechStream=stream;}catch(_){}
+    try{micMutedByUser=false;dgDesired=true;startDeepgram();}catch(_){}
+    tbMicUI(true);toast('Listening');
+  }).catch(function(){toast('Mic unavailable');});
+}
+function tbSpeechStop(){
+  window._tbSpeech=false;
+  try{dgDesired=false;stopDeepgram();}catch(_){}
+  try{var st=window._tbSpeechStream;if(st){st.getTracks().forEach(function(t){t.stop();});}if(videoStream===st)videoStream=null;window._tbSpeechStream=null;}catch(_){}
+  tbMicUI(false);toast('Mic off');
+}
 function tbMediaDown(reason){
   try{teardownSession('to_room','tb_'+reason)}catch(_){}
   try{setCallPhase('idle','tb_'+reason)}catch(_){}
+  window._tbSpeech=false;window._tbSpeechStream=null;tbMicUI(false);
   try{tbHost().classList.add('tb-chatmode');}catch(_){}
-  try{document.getElementById('lobby').classList.add('hidden')}catch(_){}
   try{var cs=document.getElementById('call-screen');if(cs&&window._tbCid)cs.classList.add('active');}catch(_){}
   try{if(window._tbCid&&room&&room.id){connectRelay();}}catch(_){}
 }
@@ -1302,31 +1344,38 @@ function tbEnterRoom(cid){
   room.name=(sess.myName||'');
   transcript=loadTr()||[];
   try{_chatOutbox.clear();_chatReceived.clear();}catch(_){}
-  try{_pbAutoLoad();}catch(_){}
-  try{_pbSyncOnEnter();}catch(_){}
   var host=tbHost();host.classList.add('tb-open','tb-chatmode');
   host.classList.toggle('tb-nocall',(sess.capability!=='chatcall'));
-  try{document.getElementById('lobby').classList.add('hidden');}catch(_){}
   var cs=document.getElementById('call-screen');if(cs)cs.classList.add('active');
   var sb=document.getElementById('strip-share-btn');if(sb)sb.style.display=room.role==='creator'?'':'none';
   var ci=document.getElementById('chat-input');if(ci)ci.placeholder='Enter chat or /Search';
   try{renderTr();}catch(_){}
-  try{connectRelay();}catch(_){}
   try{showScreen('chat-screen');}catch(_){}
   try{closeLeftPanel();}catch(_){}
+  setTimeout(function(){
+    try{_pbAutoLoad();}catch(_){}
+    try{_pbSyncOnEnter();}catch(_){}
+    try{connectRelay();}catch(_){}
+  },0);
 }
 function tbLeaveRoom(){
-  try{if(typeof callPhase!=='undefined'&&callPhase!=='idle'){window.hangUp();}}catch(_){}
-  try{saveTr();}catch(_){}
-  try{_pbSyncOnLeave();}catch(_){}
-  try{if(_relayWs){_relayWs.close();_relayWs=null;}}catch(_){}
-  window._tbCid=null;try{room.id=null;}catch(_){}
+  var wasCall=(typeof callPhase!=='undefined'&&callPhase!=='idle');
   var host=tbHost();if(host)host.classList.remove('tb-open');
   var cs=document.getElementById('call-screen');if(cs)cs.classList.remove('active');
+  var cid=window._tbCid;window._tbCid=null;
+  setTimeout(function(){
+    try{if(wasCall){window.hangUp();}}catch(_){}
+    try{if(window._tbSpeech)tbSpeechStop();}catch(_){}
+    try{saveTr();}catch(_){}
+    try{_pbSyncOnLeave();}catch(_){}
+    try{if(_relayWs){_relayWs.close();_relayWs=null;}}catch(_){}
+    try{room.id=null;}catch(_){}
+  },0);
 }
 function tbStartCall(withVideo){
   if(typeof callPhase!=='undefined'&&callPhase!=='idle')return;
   if(!hasCallCreds()){openKeysModal(function(){tbStartCall(withVideo);});return;}
+  try{if(window._tbSpeech)tbSpeechStop();}catch(_){}
   try{camOn=(withVideo!==false);}catch(_){}
   tbHost().classList.remove('tb-chatmode');
   enterCall();
@@ -5599,7 +5648,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(canSpeak&&_isIos){document.addEventListener('touchstart',warmTTS,{once:true,passive:true});}
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.5 - Turn 08 Pre-ship - Jul 2, 2026</div>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.6 - Turn 08 Pre-ship - Jul 2, 2026</div>
 <div class="new-chat-modal" id="keys-modal" hidden onclick="if(event.target===this)closeKeysModal()">
   <div class="new-chat-card">
     <div class="new-chat-title-wrap"><div class="new-chat-title">Calling &amp; sync keys</div></div>
