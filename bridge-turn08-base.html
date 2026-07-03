@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.8.1 - Turn 08 Base - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
+<!-- TalkBridge v5.8.3 - Turn 08 Base - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
 <!-- Talk + Say v4.1 · April 19, 2026 · language pair flags on session cards, mic silence timer, lang routing fix -->
 <html lang="en">
 <head>
@@ -628,7 +628,12 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 <div class="new-chat-modal" id="new-chat-modal" hidden onclick="if(event.target===this)closeNewChatModal(true)">
   <div class="new-chat-card">
     <div class="new-chat-title-wrap"><div class="new-chat-title">Start new chat</div></div>
-    <label class="field-label" style="margin-top:2px;">Your language</label>
+    <label class="field-label" style="margin-top:2px;">Room type</label>
+    <select class="field-select" id="new-chat-capability">
+      <option value="chat" selected>Chat only</option>
+      <option value="chatcall">Chat + Call</option>
+    </select>
+    <label class="field-label">Your language</label>
     <select class="field-select" id="new-chat-my-lang"></select>
     <label class="field-label">Partner language</label>
     <select class="field-select" id="new-chat-partner-lang"></select>
@@ -1111,6 +1116,7 @@ function normalizeSession(sess){
   var legacyPartnerIdentity=String(raw.partnerIdentityId||partnerRaw.identityId||'');
   var out={
     convId:raw.convId||uid(),
+    capability:(raw.capability==='chatcall')?'chatcall':'chat',
     myHandle:myHandle,
     partnerHandle:partnerHandle,
     myName:myHandle,
@@ -2521,6 +2527,9 @@ function submitNewChatModal(){
   var mySel=document.getElementById('new-chat-my-lang');
   var peerSel=document.getElementById('new-chat-partner-lang');
   var ar=document.getElementById('new-chat-autoread');
+  var capSel=document.getElementById('new-chat-capability');
+  var capVal=(capSel&&capSel.value==='chatcall')?'chatcall':'chat';
+  if(capVal==='chatcall'&&!hasCallCreds()){openKeysModal(function(){submitNewChatModal();});return;}
   var myVal=(mySel&&mySel.value)||'auto';
   var peerVal=(peerSel&&peerSel.value)||'auto';
   // Persist choices so next openNewChatModal() pre-fills them
@@ -2529,7 +2538,7 @@ function submitNewChatModal(){
   p.partnerLang=peerVal==='auto'?'en':peerVal;
   p.autoSpeakIncoming=!(ar&&!ar.checked);
   savePrefs(p);
-  var opts={myLang:myVal,partnerLang:peerVal,autoRead:!(ar&&!ar.checked)};
+  var opts={myLang:myVal,partnerLang:peerVal,autoRead:!(ar&&!ar.checked),capability:capVal};
   closeNewChatModal(false);
   createNewSession(false,opts);
 }
@@ -2539,7 +2548,7 @@ function createNewSession(silent,opts){
     var cid=uid();var now=Date.now();
     var myLang=(opts.myLang&&opts.myLang!=='auto')?opts.myLang:'';
     var peerLang=(opts.partnerLang&&opts.partnerLang!=='auto')?opts.partnerLang:'';
-    var sess=normalizeSession({convId:cid,myHandle:name,myName:name,partnerHandle:'',peerName:'',ownerLangMode:(myLang?'fixed':'auto'),ownerFixedLang:myLang||'',partnerLangMode:(peerLang?'fixed':'auto'),partnerFixedLang:peerLang||'',autoSpeakIncoming:(opts.autoRead!==false),createdAt:now,lastActivity:now,lastViewedAt:now});
+    var sess=normalizeSession({convId:cid,capability:(opts.capability==='chatcall')?'chatcall':'chat',myHandle:name,myName:name,partnerHandle:'',peerName:'',ownerLangMode:(myLang?'fixed':'auto'),ownerFixedLang:myLang||'',partnerLangMode:(peerLang?'fixed':'auto'),partnerFixedLang:peerLang||'',autoSpeakIncoming:(opts.autoRead!==false),createdAt:now,lastActivity:now,lastViewedAt:now});
     state.autoSpeakIncoming=!!sess.autoSpeakIncoming;
     updateAutoReadBtn();
     putSession(sess);
@@ -5193,7 +5202,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(canSpeak&&_isIos){document.addEventListener('touchstart',warmTTS,{once:true,passive:true});}
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.1 - Turn 08 Base - Jul 2, 2026</div>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.3 - Turn 08 Base - Jul 2, 2026</div>
 <div class="new-chat-modal" id="keys-modal" hidden onclick="if(event.target===this)closeKeysModal()">
   <div class="new-chat-card">
     <div class="new-chat-title-wrap"><div class="new-chat-title">Calling &amp; sync keys</div></div>
