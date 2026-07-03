@@ -43,3 +43,7 @@ Only the video icon rendered; compose strip and all chat function gone; old room
 
 ## G3 — 2026-07-03 — T08 Pre-ship v5.8.9
 Chat surface itself failed to load — only the video icon appeared, no compose strip, all rooms broken. Owner verdict: rollback.
+
+
+## G4 — 2026-07-03 — T08 Pre-ship attempts 1-6 (v5.8.0.1 through v5.8.2.6)
+Repeated patch-on-patch cycle: each fix targeted the last reported symptom without re-verifying the whole surface, so old defects resurfaced (blank search, dead speech pickup, missing compose strip) even after being fixed once already. Owner verdict: stop patching, full replan with checksummed module gates and documented contracts before next attempt.
