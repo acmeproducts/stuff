@@ -978,3 +978,7 @@ Every stage bumps the internal version string inside the HTML at two locations (
 ### user entered open items ###
 1. there is an issue with saving a PB entry after the tab is closed it's not being committed to local storage and a local storage being compared to SOT on GH 
 2. when you tap the plus icon in the PB surface it creates an empty PB card if you tap it again it creates a second empty PB card this is problematic for a number of reasons
+
+
+## CANONICAL: sub-version attempt counter
+Each retry within the same stage appends a 5th version digit = attempt count (e.g. 5.8.9 attempt 1 = 5.8.9.1, attempt 2 = 5.8.9.2). The 4-part version (5.8.9) names the stage; the 5th digit is the attempt. Resets to .1 on the next stage's first version. Adopted 2026-07-03 after repeated pre-ship failures.
