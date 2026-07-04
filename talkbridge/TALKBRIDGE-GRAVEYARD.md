@@ -1,4 +1,4 @@
-<!-- v5.8.2.16 -->
+<!-- v5.8.2.17 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -80,3 +80,7 @@ Three real root causes drove every failure, found only after stopping the patch 
 2. The base file had a stale broken copy baked into it, so the page kept running old code no matter what was fixed.
 3. The room-list app was designed to jump straight into the last room on open and to slide the panel over the welcome screen — directly defeating the splash requirement.
 All three fixed. Current build (v5.8.2.15 + splash fix) awaiting device confirmation.
+
+
+## G12 — 2026-07-04 — v5.8.2.15 field test (v5.8.2.17)
+Three failures: mic icon wrongly on splash header; original landing behavior was broken by my change (correct rule: welcome only when no rooms exist, otherwise open last room); entering a room gave a dead surface. Verdict: swap-in-place keeps failing. Moving to a two-track strategy.
