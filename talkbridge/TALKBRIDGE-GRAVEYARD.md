@@ -1,4 +1,4 @@
-<!-- v5.8.2.11 -->
+<!-- v5.8.2.13 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -60,3 +60,7 @@ Splash overlay broke the page underneath it (attempt 8 of this stage). Rolled ba
 
 ## G7 — 2026-07-03 — T08 Pre-ship v5.8.2.10
 Splash was full-screen again instead of confined to the right panel. Pattern across attempts: trying to land chat+voice+phrasebook+video all at once keeps breaking each other. Scope cut for next attempt: chat surface + voice pickup + phrasebook only, no video/call, no splash beyond the right panel's own empty state.
+
+
+## G8 — 2026-07-03 — T08 Pre-ship v5.8.2.12
+Owner still saw a brief flash before the welcome screen settled. Rolled back.
