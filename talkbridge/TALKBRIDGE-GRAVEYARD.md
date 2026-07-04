@@ -1,4 +1,4 @@
-<!-- v5.8.2.20 -->
+<!-- v5.8.2.21 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -104,3 +104,7 @@ Bridge inline but its lobby screen was showing instead of the chat surface on ro
 
 ## G15 — 2026-07-04 — v5.8.2.19
 Chat surface showed but app jumped straight into last room instead of welcome screen, and relay never connected. Two separate issues: boot still auto-opening last room, and relay call missing from room-entry path.
+
+
+## G16 — 2026-07-04 — v5.8.2.20
+Diagnosis: jsdom passes because it has no real browser rendering. On device, the bridge's own startup code runs at parse time and takes over the screen before the shell gets to show the welcome state. The fix of clearing localStorage at boot is not enough — the bridge app itself boots independently the moment its script tag is parsed, shows its own lobby, and the shell never gets a turn. The inline-JS approach cannot work without completely suppressing the bridge's own boot sequence and replacing it with one that only fires when tbEnterRoom is called.
