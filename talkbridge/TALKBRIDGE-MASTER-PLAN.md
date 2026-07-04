@@ -1048,3 +1048,22 @@ Confidence: 2 / 2.5. Below the bar. Needs one more planning pass before build re
 
 ## v5.8.2.15 — root cause fixed, confidence 2.5/2.5
 Room screen verified complete and correct standing alone. Proceeding to the one clean swap into the room list.
+
+
+## TWO-TRACK STRATEGY v5.8.2.17 (2026-07-04)
+
+Track A (current app) stays exactly as test.html behaves today — untouched, fully working. Landing rule restored: welcome screen only if no rooms exist; otherwise open the last used room. No mic or video icons anywhere in Track A.
+
+Track B (new room surface) rides along in the same file, fingerprinted, switched OFF. It cannot affect Track A while off.
+
+Swap: one switch turns B on, which reroutes room-opening to the new surface. The old surface stays present but bypassed. Flip back = instant restore.
+
+Removal: only after B passes its gate on real devices does a later release delete the old surface.
+
+Acceptance gates (each deterministic, each must pass before the next step):
+1. A-intact: with B off, app byte-identical in behavior to today's test.html — landing rule, rooms, chat all work; fingerprints of B blocks recorded and matching.
+2. B-alive: with B on, opening a room shows the new surface: typing sends, speaking transcribes and translates, phrasebook search returns visible results, video icon appears only in call-capable rooms, mic/video icons exist only inside a room.
+3. Swap-proof: flipping B off restores step-1 behavior exactly.
+4. Removal (separate release): old surface deleted, gate 2 re-passed.
+
+Confidence: 2.5/2.5 — Track A requires no surgery, which is what kept failing.
