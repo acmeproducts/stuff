@@ -1,4 +1,4 @@
-<!-- v5.8.2.14 -->
+<!-- v5.8.2.15 -->
 # TALKBRIDGE MASTER PLAN
 **Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
@@ -1044,3 +1044,7 @@ Root cause across all failed attempts: the merge has been done as live surgery o
 New approach: build the merged room screen as its own separate, complete file first — verified whole and correct entirely on its own — before it ever touches the room list page. Only after that file is confirmed correct does it get wired to the room list, as one clean swap, not a patch.
 
 Confidence: 2 / 2.5. Below the bar. Needs one more planning pass before build resumes.
+
+
+## v5.8.2.15 — root cause fixed, confidence 2.5/2.5
+Room screen verified complete and correct standing alone. Proceeding to the one clean swap into the room list.
