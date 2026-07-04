@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TalkBridge v5.8.2.21 - Turn 08 Pre-ship - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
+<!-- TalkBridge v5.8.2.23 - Turn 08 Pre-ship - Jul 4, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
 <!-- Talk + Say v4.1 · April 19, 2026 · language pair flags on session cards, mic silence timer, lang routing fix -->
 <html lang="en">
 <head>
@@ -3422,7 +3422,52 @@ function addDiagLog(msg,level){
     body.textContent=diagLog.join('\n');
     body.scrollTop=body.scrollHeight;
   }
+  _diagRemoteSchedule(level==='err');
 }
+
+// ── Remote diagnostic upload — auto-captures crashes and ships the log to GitHub
+// so a build can be diagnosed without needing the device in hand. Overwrites one
+// rolling file per device; safe to skip silently if no GitHub token is set. ──
+var _diagDeviceId=(function(){
+  var k='tb_diag_device_id';var v=localStorage.getItem(k);
+  if(!v){v='dev-'+Math.random().toString(36).slice(2,10);localStorage.setItem(k,v);}
+  return v;
+})();
+var _diagRemoteTimer=null;var _diagRemoteInFlight=false;var _diagRemoteDirty=false;
+function _diagRemoteSchedule(urgent){
+  _diagRemoteDirty=true;
+  if(urgent){_diagRemotePush();return;}
+  if(_diagRemoteTimer)return;
+  _diagRemoteTimer=setTimeout(function(){_diagRemoteTimer=null;_diagRemotePush();},4000);
+}
+function _diagRemotePush(){
+  if(_diagRemoteInFlight||!_diagRemoteDirty)return;
+  var pat=localStorage.getItem('tb_gh_pat')||'';
+  if(!pat)return; // no token on this device — skip, don't nag
+  _diagRemoteInFlight=true;_diagRemoteDirty=false;
+  var payload={device:_diagDeviceId,updatedAt:new Date().toISOString(),version:'v5.8.2.23',url:location.href,activeConvId:state.activeConvId||null,log:diagLog.slice(-MAX_DIAG)};
+  var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload,null,2))));
+  var path='talkbridge/device-logs/'+_diagDeviceId+'.json';
+  var url='https://api.github.com/repos/acmeproducts/stuff/contents/'+path;
+  fetch(url,{headers:{'Authorization':'token '+pat,'Accept':'application/vnd.github.v3+json'}})
+    .then(function(r){return r.ok?r.json():null;})
+    .catch(function(){return null;})
+    .then(function(existing){
+      var body={message:'diag log '+_diagDeviceId+' '+payload.updatedAt,content:content,branch:'main'};
+      if(existing&&existing.sha)body.sha=existing.sha;
+      return fetch(url,{method:'PUT',headers:{'Authorization':'token '+pat,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+    })
+    .catch(function(){/* offline or blocked — will retry on next scheduled push */})
+    .then(function(){_diagRemoteInFlight=false;if(_diagRemoteDirty)_diagRemoteSchedule(false);});
+}
+window.addEventListener('error',function(e){
+  addDiagLog('window.onerror: '+String(e&&e.message||e)+(e&&e.filename?(' @'+e.filename+':'+e.lineno):''),'err');
+});
+window.addEventListener('unhandledrejection',function(e){
+  addDiagLog('unhandledrejection: '+String(e&&e.reason&&(e.reason.stack||e.reason.message||e.reason)),'err');
+});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')_diagRemotePush();});
+window.addEventListener('pagehide',function(){_diagRemotePush();});
 function openDiagModal(cid){
   diagCurrentSess=cid||state.activeConvId;
   var label=document.getElementById('diag-sess-label');
@@ -5546,7 +5591,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(canSpeak&&_isIos){document.addEventListener('touchstart',warmTTS,{once:true,passive:true});}
 });
 </script>
-<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.2.21 - Turn 08 Pre-ship - Jul 2, 2026</div>
+<div style="text-align:center;padding:4px 0 max(4px,env(safe-area-inset-bottom));font-size:9px;color:var(--ink-dim);opacity:.5;">TalkBridge v5.8.2.23 - Turn 08 Pre-ship - Jul 4, 2026</div>
 <div class="new-chat-modal" id="keys-modal" hidden onclick="if(event.target===this)closeKeysModal()">
   <div class="new-chat-card">
     <div class="new-chat-title-wrap"><div class="new-chat-title">Calling &amp; sync keys</div></div>
