@@ -84,3 +84,11 @@ All three fixed. Current build (v5.8.2.15 + splash fix) awaiting device confirma
 
 ## G12 — 2026-07-04 — v5.8.2.15 field test (v5.8.2.17)
 Three failures: mic icon wrongly on splash header; original landing behavior was broken by my change (correct rule: welcome only when no rooms exist, otherwise open last room); entering a room gave a dead surface. Verdict: swap-in-place keeps failing. Moving to a two-track strategy.
+
+
+## G12 — 2026-07-04 — T08 Pre-ship v5.8.2.15, pattern autopsy (v5.8.2.17)
+Screenshots confirm the core architectural problem: the bridge organs are being grafted onto the shell via a flag-flip and async injection. The room opens before the bridge is ready, so the user sees the shell compose strip but no live connection, no mic, no relay. The mic icon also bleeds onto the welcome screen where it does not belong.
+
+Root cause is not a bug in any one line — it is the merge strategy itself. Injecting a second app's JS at runtime after the room opens guarantees a race condition. The bridge must be fully initialized before tbEnterRoom is ever callable.
+
+New strategy: parallel track. The bridge organs are bundled into the shell at build time as inert code (not injected at runtime). A single gate enables them. The shell's own compose, transcript, and relay are disabled by that same gate. Switching is a build-time decision, not a runtime injection. This eliminates the race and removes the dual-surface problem permanently.
