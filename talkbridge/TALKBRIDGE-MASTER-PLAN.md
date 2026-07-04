@@ -1,4 +1,4 @@
-<!-- v5.8.2.13 -->
+<!-- v5.8.2.14 -->
 # TALKBRIDGE MASTER PLAN
 **Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
@@ -1035,3 +1035,12 @@ Replanning before next build. Confidence must clear 90% before execution resumes
 
 ## T08 Pre-ship — plan confirmed v5.8.2.13 (92% confidence)
 Build verified deterministic across 3 independent passes, identical checksum each time. No separate splash element used — welcome screen is the room panel's own built-in state. Proceeding to build.
+
+
+## T08 Pre-ship — REPLAN v5.8.2.14 (2026-07-03)
+
+Root cause across all failed attempts: the merge has been done as live surgery on one giant page — grafting one app's markup into another's page in place, patch after patch. Every fix has re-broken something already fixed, because nothing in that approach can be checked as a whole before it's shown.
+
+New approach: build the merged room screen as its own separate, complete file first — verified whole and correct entirely on its own — before it ever touches the room list page. Only after that file is confirmed correct does it get wired to the room list, as one clean swap, not a patch.
+
+Confidence: 2 / 2.5. Below the bar. Needs one more planning pass before build resumes.
