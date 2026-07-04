@@ -1011,3 +1011,7 @@ Splash/landing page, chat surface with working compose strip, live speech pickup
 
 ### Process change (binding)
 No push for testing until every item above is verified against a full pass — new room and existing room both — in one sitting, not incrementally.
+
+
+## T08 Pre-ship — rollback to attempt 9 (2026-07-03)
+Attempt 8 (v5.8.2.9) rolled back. Next attempt: v5.8.2.10.
