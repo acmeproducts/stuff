@@ -1067,3 +1067,26 @@ Acceptance gates (each deterministic, each must pass before the next step):
 4. Removal (separate release): old surface deleted, gate 2 re-passed.
 
 Confidence: 2.5/2.5 — Track A requires no surgery, which is what kept failing.
+
+
+## T08 Pre-ship — fingerprint-gated parallel track plan (v5.8.2.17)
+
+Strategy: bridge modules go into the shell at build time as inert code alongside the shell's own organs. A single build-time gate decides which set runs. No runtime injection. No race.
+
+Acceptance is fingerprint-gated: fingerprints are calculated from the confirmed source before build. After injection, fingerprints are recalculated from what landed. If they don't match, build is rejected automatically — graveyard bumped, plan bumped, rollback, retry.
+
+### Locked fingerprints (source of truth, bridge-fixed-order.html)
+| module | fingerprint |
+|---|---|
+| chatGo | bf8e6b33a5daf489 |
+| sendChat | 5fa3cd4881b3ba84 |
+| pbRenderOverlay | 569436a97900a6d4 |
+| pbSearch | b0251853bd3387af |
+| startDeepgram | 3e7d074881ee5fff |
+| onDGFinal | d1febfbade02152d |
+| connectRelay | 1c773f9bdcf629a2 |
+| cleanUp | 099e2e7dbb663d8b |
+| translate | f9bc542ee9bdf6b1 |
+| bjs_full | f0cd62c8e5b44591 |
+
+Build proceeds only when all fingerprints match. Any mismatch = automatic rollback.
