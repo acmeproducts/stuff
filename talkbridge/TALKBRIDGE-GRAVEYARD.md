@@ -1,4 +1,4 @@
-<!-- v5.8.2.23 -->
+<!-- v5.8.2.24 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -125,3 +125,12 @@ phrasebook GitHub-token mechanism. One rolling file per device under
 talkbridge/device-logs/. Purpose: let Claude read what actually happened on a
 real device without needing the device in hand — same approach that closed
 Turn 07.
+
+
+## Attempt v5.8.2.24 — unified logging, success checkpoints added
+Root cause of blind spots: the app had two separate logging systems, and only
+one fed the GitHub upload added in v5.8.2.23. The call/relay engine logged into
+a stream Claude never saw. Fixed: both streams now feed one log, all uploaded.
+Added explicit checkpoints for boot start, boot destination, room entry, and
+relay connect success/failure — so a stalled flow shows exactly where it
+stopped, not just that it crashed.
