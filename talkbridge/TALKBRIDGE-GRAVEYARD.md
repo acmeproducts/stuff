@@ -1,4 +1,4 @@
-<!-- v5.8.2.13 -->
+<!-- v5.8.2.14 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -64,3 +64,7 @@ Splash was full-screen again instead of confined to the right panel. Pattern acr
 
 ## G8 — 2026-07-03 — T08 Pre-ship v5.8.2.12
 Owner still saw a brief flash before the welcome screen settled. Rolled back.
+
+
+## G9 — 2026-07-03 — T08 Pre-ship v5.8.2.13
+Welcome screen still not confined to the right panel; chat surface, compose, mic, and phrasebook search all missing or blank. Root cause: live DOM surgery merging two separate apps into one page is too fragile — each fix reopens prior breaks elsewhere. Rolled back.
