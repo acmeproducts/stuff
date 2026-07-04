@@ -1,6 +1,6 @@
-<!-- v5.8.2.24 -->
+<!-- v5.8.2.25 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.3 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.4 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -152,6 +152,9 @@ Every turn N has five stages numbered v5.N.0 through v5.N.4:
 Examples: T07 Pre-base=v5.7.0 (DONE), T07 Base=v5.7.1, T07 Pre-ship=v5.7.2, T07 Ship=v5.7.3, T07 Post-ship=v5.7.4. T08 Pre-base=v5.8.0, T08 Base=v5.8.1, etc.
 
 No stage starts until the prior stage is confirmed on the phone and marked DONE in the ledger.
+
+## §PIECE — Ordered piece gate (why the last 40 attempts failed)
+When a stage spec lists ordered pieces (e.g. Turn 08 Base B1–B9), they are built strictly in order. One piece at a time. A piece is DONE only when the human did the action on the phone and saw the pass result — never because it lints or passes jsdom. "Compiles" is not "works." The next piece does not start until the current one is confirmed on the phone. A failing piece is fixed in place before anything later is touched; you never jump ahead to a later piece to work around an earlier one. This is the single discipline whose absence caused the repeated Turn 08 failures: the spec was always complete; the build skipped around inside it and gated on lint instead of on the phone.
 
 ## §WF — Workflow (execute in order, never skip)
 1. READ — quote the relevant Part 4 contract verbatim.
@@ -459,26 +462,62 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 **Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
 **Test (negative):** Identical to T07 post-ship.
 
-### Base — Status: IN PROGRESS
-**Deliver:** container-turn08-base.html, v5.8.1 (new file — the unified room container)
-**Core work: Define and build the room container**
-- **Structure:** Room List (initiator view), Room Creation, Thread (initiator + joiner view).
-- **Thread surface:** Chat input + compose strip (test model) at bottom. Transcript above (unified, grows as messages and calls happen). No surface switch when call starts or ends.
-- **Call overlay:** When call active in a chat+call room, 2vid-style video/audio overlay appears over the Thread. Phrasebook accessible during call. Hang up → overlay unmounts, returns to Thread with "call ended" marker in transcript.
-- **Phrasebook:** Accessible in plain chat via compose-strip `/` search. Same card set visible during call. No capability gate — fully available.
-- **Call button location:** Chat+call Thread header has call icon. Chat-only Thread never shows call affordance.
-- **Single transcript:** All messages (chat + call markers) in one chronological list. One source of truth.
+### Base — Status: IN PROGRESS — BUILT PIECE BY PIECE, PHONE-GATED
 
-**References:** test.html (Room List + Thread architecture), 2vid.html (overlay visual), bridge (call engine — not yet wired, stubs only), phrase-desk.html (PB cards).
+**Deliver:** container-turn08-base.html, v5.8.1
 
-**Test (positive):** 
-- Create chat-only room → no call button anywhere in Thread.
-- Create chat+call room → call button visible in Thread header.
-- Send chat messages → appear in transcript.
-- Start call → 2vid-style overlay appears over Thread (no navigation away). Phrasebook works during call.
-- Hang up → overlay unmounts, "call ended" message in transcript. Transcript intact.
-- Joiner lands in Thread only (no Room List visible).
-- Surface never switches between chat and call states — same Thread throughout.
+**How this is built — the process fix.** The container is built one small piece at a time. Each piece is a single thing you can see and do on the phone. A piece is not started until the piece before it passed on the phone. No piece is "done because it lints" — done means you did the action and saw the result. If a piece fails, it is fixed in place before anything after it is touched. This is the whole change: small, ordered, phone-tested, no jumping ahead.
+
+**The pieces, in build order. Each has what you'll see, what you do, and what counts as pass.**
+
+**B1 — Splash always.**
+- See: open the app cold, you land on the room list every time.
+- Do: close and reopen with rooms already there.
+- Pass: never drops you into the last room; always the list.
+
+**B2 — Make a room, two kinds.**
+- See: a "+" makes a room; you pick chat-only or chat+call; a link and QR appear right away.
+- Do: make one of each.
+- Pass: both appear in the list with the right small icon; link/QR shown instantly, no wait screen.
+
+**B3 — Enter a room = the one surface.**
+- See: tapping a room opens the transcript with the compose strip at the bottom. Same surface every room.
+- Do: enter one room, back out, enter another.
+- Pass: identical surface each time; no theme flip, no second layout, no jump.
+
+**B4 — Leave a room by the hamburger.**
+- See: the left panel opens from the hamburger; picking another room switches to it.
+- Do: open panel, switch rooms.
+- Pass: that is the way out of a room; entering a room never auto-switches you anywhere.
+
+**B5 — Chat lands in the transcript.**
+- See: what you send appears in the one transcript, newest at the bottom.
+- Do: send a few messages.
+- Pass: they stack in order in the same surface; nothing opens a separate view.
+
+**B6 — Call icon only where it belongs.**
+- See: a chat+call room shows a call icon in the header; a chat-only room shows none.
+- Do: open one of each.
+- Pass: chat-only has no call affordance anywhere; chat+call has a visible one.
+
+**B7 — Call is a layer over the transcript (stub).**
+- See: tapping the call icon brings the video/voice layer over the same transcript, not a new screen. (Engine itself is wired in Pre-ship; Base proves the layer mounts and unmounts over the one surface.)
+- Do: open the call layer, close it.
+- Pass: transcript stays put underneath; closing leaves a "call ended" marker in the same stream; the surface never switched.
+
+**B8 — Phrasebook reachable from the strip.**
+- See: "/" or ".." from the compose strip opens phrasebook search in the room.
+- Do: open it with no call running.
+- Pass: it opens over the transcript and closes back to it; no call needed.
+
+**B9 — Joiner sees one room only.**
+- See: opening a join link lands straight in that room's transcript.
+- Do: open a join link; try to reach the room list or make a room.
+- Pass: no path to the list or to room-making exists from a joined room.
+
+**References:** test.html (list + room surface), 2vid.html (call-layer look), phrase-desk.html (phrasebook), bridge call engine (wired in Pre-ship, stubbed here).
+
+**Base is done when B1–B9 each passed on the phone, in order.**
 
 ### Pre-ship — Status: SPECIFIED 2026-07-02 — THE TRANSPLANT
 **Deliver:** container-turn08-pre-ship.html, v5.8.2
