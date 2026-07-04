@@ -1,6 +1,6 @@
 <!-- v5.8.2.24 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.3 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -447,32 +447,38 @@ Remove chips wired to the deleted functions: `pbOpenNewCardForContext` (if still
 
 ---
 
-## TURN 08 — Shell Merge + PWA
-Input: bridge-turn07-post-ship.html.
+## TURN 08 — Room Container Design + Build
+Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html (call-overlay visual).
 
-The merge approach (from GT-WA v2.3 §7.7):
-1. test.html becomes the base file — the shell that hosts everything.
-2. Bridge's call engine is extracted as a self-contained module: WebRTC setup/teardown, recovery state machine, call-screen UI, phrasebook overlay. Bridge's lobby/goodbye screens are discarded — the shell's Room List and Thread replace those roles.
-3. Both shell and call engine share one translation path (reconciled here, formalized in Turn 09).
-4. Bridge's old pairKey name-concatenation is deleted. Room/token from the shell is the single identity.
-5. Two distinct views built off one room data model: Room List (owner only) and Thread (owner + joiner). Routing enforced at data layer — joiner session cannot query other rooms.
-6. Call button → mount call module → hang up → unmount → return to Thread with "call ended" marker.
-7. Room capability flag is a real gate, not styling. Call module conditionally absent from DOM in chat-only rooms.
+**Root problem solved by this turn:** Bridge and test exist as separate applications. No unified container definition exists for what a "room" is, how chat/call/transcript/phrasebook live together, or what surfaces exist in what states. This turn defines and builds that container.
+
+**The room container:** A unified chat surface (from test/2vid) that can optionally overlay a call (from bridge's engine) without surface switching. One transcript. One compose. Phrasebook accessible from both. Call is an overlay that mounts on top of the Thread, not a separate screen.
 
 ### Pre-base — Status: DONE pending device negative test
 **Deliver:** bridge-turn08-pre-base.html
 **Work:** Copy bridge-turn07-post-ship.html byte-for-byte.
 **Test (negative):** Identical to T07 post-ship.
 
-### Base — Status: DONE pending device test (delivered 2026-07-02)
-**Deliver:** container-turn08-base.html, v5.8.1 (new file — the container/shell, not a bridge edit)
-**Work:**
-1. **Container X:** new single-file app on test.html's architecture — Room List, Room Creation (capability + name + both languages), Thread with the shared compose strip (/-search + PB access live in plain chat), Room Info/Dispose, joiner routing (link → Thread only).
-2. **First-Run Setup (new design):** one-time initiator credential surface (Deepgram key with verify, TURN credentials, PAT). Joiners never see it (credentials arrive session-only via invite link).
-3. **Call overlay seam:** video/phone icons in chat+call Thread header; overlay mount/unmount stubs wired (engine migration lands Pre-ship). Chat-only rooms: no call affordance in DOM.
-4. Service worker + manifest retained; installable.
-**References:** test.html (architecture authority, read-only), 2vid.html (call-overlay visual), phrase-desk.html (PB), Part 4 contracts, Part 5 §IMM/§SFR, INITIATOR-DECISION.md.
-**Test (positive):** Fresh device: first-run setup accepts credentials, key verifies. Create chat-only and chat+call rooms (capability + name + both languages) → link/QR immediately. Room List shows both. Thread: send chat, /-search opens PB drawer, PB overlay opens from chat with no call running. Chat+call Thread shows call icons; chat-only has none. Joiner link lands in Thread only. App installs to home screen.
+### Base — Status: IN PROGRESS
+**Deliver:** container-turn08-base.html, v5.8.1 (new file — the unified room container)
+**Core work: Define and build the room container**
+- **Structure:** Room List (initiator view), Room Creation, Thread (initiator + joiner view).
+- **Thread surface:** Chat input + compose strip (test model) at bottom. Transcript above (unified, grows as messages and calls happen). No surface switch when call starts or ends.
+- **Call overlay:** When call active in a chat+call room, 2vid-style video/audio overlay appears over the Thread. Phrasebook accessible during call. Hang up → overlay unmounts, returns to Thread with "call ended" marker in transcript.
+- **Phrasebook:** Accessible in plain chat via compose-strip `/` search. Same card set visible during call. No capability gate — fully available.
+- **Call button location:** Chat+call Thread header has call icon. Chat-only Thread never shows call affordance.
+- **Single transcript:** All messages (chat + call markers) in one chronological list. One source of truth.
+
+**References:** test.html (Room List + Thread architecture), 2vid.html (overlay visual), bridge (call engine — not yet wired, stubs only), phrase-desk.html (PB cards).
+
+**Test (positive):** 
+- Create chat-only room → no call button anywhere in Thread.
+- Create chat+call room → call button visible in Thread header.
+- Send chat messages → appear in transcript.
+- Start call → 2vid-style overlay appears over Thread (no navigation away). Phrasebook works during call.
+- Hang up → overlay unmounts, "call ended" message in transcript. Transcript intact.
+- Joiner lands in Thread only (no Room List visible).
+- Surface never switches between chat and call states — same Thread throughout.
 
 ### Pre-ship — Status: SPECIFIED 2026-07-02 — THE TRANSPLANT
 **Deliver:** container-turn08-pre-ship.html, v5.8.2
