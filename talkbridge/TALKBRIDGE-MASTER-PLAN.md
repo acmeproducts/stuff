@@ -1,4 +1,4 @@
-<!-- v5.8.2.10 -->
+<!-- v5.8.2.11 -->
 # TALKBRIDGE MASTER PLAN
 **Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
@@ -1016,3 +1016,14 @@ No push for testing until every item above is verified against a full pass — n
 
 ## T08 Pre-ship — rollback to attempt 9 (2026-07-03)
 Attempt 8 (v5.8.2.9) rolled back. Next attempt: v5.8.2.10.
+
+
+## T08 Pre-ship — REPLAN v5.8.2.11 (2026-07-03)
+
+Cause of repeated failure: each attempt tried to land chat, phrasebook, voice, and video together. Fixing one broke another.
+
+New approach: split pre-ship into two smaller deliveries.
+- Delivery A (this attempt): chat surface + voice pickup + phrasebook, working end to end, on new and existing rooms. No video, no call, no separate splash — the panel's own existing welcome screen is the landing state, left panel closed by default.
+- Delivery B (next attempt, after A is confirmed solid): video call added on top of A, untouched.
+
+Gate for Delivery A: open a room, type and send, speak and see it transcribed and translated, search the phrasebook and see real results, on both a brand-new room and one made earlier — all working together before this is shown for testing.
