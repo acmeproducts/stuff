@@ -1094,3 +1094,6 @@ Build proceeds only when all fingerprints match. Any mismatch = automatic rollba
 
 ## v5.8.2.18 — inline bridge but defer its startup until shell DOMContentLoaded fires
 Same fingerprint gate. Bridge JS inlined but wrapped so its startup calls only run after the shell has fully booted.
+
+
+## v5.8.2.19 — hide all bridge screens at parse time via CSS; only tbEnterRoom reveals the chat surface
