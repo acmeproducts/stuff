@@ -1031,3 +1031,7 @@ Gate for Delivery A: open a room, type and send, speak and see it transcribed an
 
 ## T08 Pre-ship — attempt bump v5.8.2.13 (2026-07-03)
 Replanning before next build. Confidence must clear 90% before execution resumes.
+
+
+## T08 Pre-ship — plan confirmed v5.8.2.13 (92% confidence)
+Build verified deterministic across 3 independent passes, identical checksum each time. No separate splash element used — welcome screen is the room panel's own built-in state. Proceeding to build.
