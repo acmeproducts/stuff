@@ -1,4 +1,4 @@
-<!-- v5.8.2.22 -->
+<!-- v5.8.2.23 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -116,3 +116,12 @@ Diagnosis: jsdom passes because it has no real browser rendering. On device, the
 **Fix:** continueStartup() now always calls showEmptyShell() on cold boot when there is no invite link. Room list is always the landing surface; entering a room requires an explicit tap.
 **Confirmed NOT present in bridge-turn08-pre-ship.html** — that merged build already lands on the empty shell unconditionally.
 **Status:** fixed in test.html, pushed, awaiting device confirmation.
+
+
+## Attempt v5.8.2.23 — remote diagnostic capture added to pre-ship
+Added automatic crash capture (uncaught errors, unhandled rejections) and
+automatic upload of the device diagnostic log to GitHub, reusing the existing
+phrasebook GitHub-token mechanism. One rolling file per device under
+talkbridge/device-logs/. Purpose: let Claude read what actually happened on a
+real device without needing the device in hand — same approach that closed
+Turn 07.
