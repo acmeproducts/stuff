@@ -1,4 +1,4 @@
-<!-- v5.8.2.15 -->
+<!-- v5.8.2.16 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -72,3 +72,11 @@ Welcome screen still not confined to the right panel; chat surface, compose, mic
 
 ## G10 — 2026-07-03 — root cause found, v5.8.2.15
 The confirmed call app itself had a startup-order bug — a piece of it ran before it was ready, which silently broke chat, phrasebook, and search every time it was merged. Fixed and verified standing alone before touching anything else.
+
+
+## G11 — 2026-07-03 — T08 Pre-ship attempts 1-15, pattern summary (v5.8.2.16)
+Three real root causes drove every failure, found only after stopping the patch cycle:
+1. The call app itself shipped with a startup fault that silently killed chat, search, and phrasebook whenever it was merged.
+2. The base file had a stale broken copy baked into it, so the page kept running old code no matter what was fixed.
+3. The room-list app was designed to jump straight into the last room on open and to slide the panel over the welcome screen — directly defeating the splash requirement.
+All three fixed. Current build (v5.8.2.15 + splash fix) awaiting device confirmation.
