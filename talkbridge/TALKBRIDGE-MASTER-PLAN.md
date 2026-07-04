@@ -1,4 +1,4 @@
-<!-- v5.8.2.11 -->
+<!-- v5.8.2.13 -->
 # TALKBRIDGE MASTER PLAN
 **Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
@@ -1027,3 +1027,7 @@ New approach: split pre-ship into two smaller deliveries.
 - Delivery B (next attempt, after A is confirmed solid): video call added on top of A, untouched.
 
 Gate for Delivery A: open a room, type and send, speak and see it transcribed and translated, search the phrasebook and see real results, on both a brand-new room and one made earlier — all working together before this is shown for testing.
+
+
+## T08 Pre-ship — attempt bump v5.8.2.13 (2026-07-03)
+Replanning before next build. Confidence must clear 90% before execution resumes.
