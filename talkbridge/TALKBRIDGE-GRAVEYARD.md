@@ -1,4 +1,4 @@
-<!-- v5.8.2.19 -->
+<!-- v5.8.2.20 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -100,3 +100,7 @@ Bridge JS inlined directly into page — crashed on load because the bridge's ow
 
 ## G14 — 2026-07-04 — v5.8.2.18
 Bridge inline but its lobby screen was showing instead of the chat surface on room entry. The bridge's own screen-switching ran before tbEnterRoom could redirect it.
+
+
+## G15 — 2026-07-04 — v5.8.2.19
+Chat surface showed but app jumped straight into last room instead of welcome screen, and relay never connected. Two separate issues: boot still auto-opening last room, and relay call missing from room-entry path.
