@@ -1100,3 +1100,7 @@ Same fingerprint gate. Bridge JS inlined but wrapped so its startup calls only r
 
 
 ## v5.8.2.20 — fix boot auto-open + verify relay connects on room entry
+
+
+## v5.8.2.21 — suppress bridge boot completely; only tbEnterRoom activates it
+Bridge script tag is inlined but its own DOMContentLoaded and startup calls are stripped out entirely. The bridge only wakes when the shell explicitly calls tbEnterRoom. This is the only way to prevent it taking over the screen at parse time.
