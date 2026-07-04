@@ -1,4 +1,4 @@
-<!-- v5.8.2.17 -->
+<!-- v5.8.2.18 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -92,3 +92,7 @@ Screenshots confirm the core architectural problem: the bridge organs are being 
 Root cause is not a bug in any one line — it is the merge strategy itself. Injecting a second app's JS at runtime after the room opens guarantees a race condition. The bridge must be fully initialized before tbEnterRoom is ever callable.
 
 New strategy: parallel track. The bridge organs are bundled into the shell at build time as inert code (not injected at runtime). A single gate enables them. The shell's own compose, transcript, and relay are disabled by that same gate. Switching is a build-time decision, not a runtime injection. This eliminates the race and removes the dual-surface problem permanently.
+
+
+## G13 — 2026-07-04 — v5.8.2.17
+Bridge JS inlined directly into page — crashed on load because the bridge's own startup sequence runs immediately at parse time and collides with the shell's already-running code. Need to defer bridge startup until after shell is fully booted.
