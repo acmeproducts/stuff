@@ -51,3 +51,7 @@ Repeated patch-on-patch cycle: each fix targeted the last reported symptom witho
 
 ## G5 — 2026-07-03 — T08 Pre-ship v5.8.2.7
 Splash was a floating overlay instead of living inside the room panel as the correct starting screen; closing the side panel left it showing an old chat, nothing else. Owner verdict: 1000% fail.
+
+
+## G6 — 2026-07-03 — T08 Pre-ship v5.8.2.9
+Splash overlay broke the page underneath it (attempt 8 of this stage). Rolled back per process, not patched.
