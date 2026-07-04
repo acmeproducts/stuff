@@ -1097,3 +1097,6 @@ Same fingerprint gate. Bridge JS inlined but wrapped so its startup calls only r
 
 
 ## v5.8.2.19 — hide all bridge screens at parse time via CSS; only tbEnterRoom reveals the chat surface
+
+
+## v5.8.2.20 — fix boot auto-open + verify relay connects on room entry
