@@ -1,4 +1,4 @@
-<!-- v5.8.2.16 -->
+<!-- v5.8.2.23 -->
 # TALKBRIDGE MASTER PLAN
 **Version: 6.2 | 2026-07-02 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
