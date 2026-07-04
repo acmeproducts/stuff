@@ -1,4 +1,4 @@
-<!-- v5.8.2.21 -->
+<!-- v5.8.2.22 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -108,3 +108,11 @@ Chat surface showed but app jumped straight into last room instead of welcome sc
 
 ## G16 — 2026-07-04 — v5.8.2.20
 Diagnosis: jsdom passes because it has no real browser rendering. On device, the bridge's own startup code runs at parse time and takes over the screen before the shell gets to show the welcome state. The fix of clearing localStorage at boot is not enough — the bridge app itself boots independently the moment its script tag is parsed, shows its own lobby, and the shell never gets a turn. The inline-JS approach cannot work without completely suppressing the bridge's own boot sequence and replacing it with one that only fires when tbEnterRoom is called.
+
+
+## G-2026-07-04-A — Shell auto-opened last/most-recent room on cold boot
+**Symptom:** Confi reports that whenever any rooms already exist, opening the app skips the room list and jumps straight into the most recently active room. With zero rooms, the landing page correctly shows.
+**Root cause confirmed:** test.html continueStartup() checked for a saved active-conversation id (or fell back to the newest session) and called openSession() unconditionally on cold boot, bypassing the room list.
+**Fix:** continueStartup() now always calls showEmptyShell() on cold boot when there is no invite link. Room list is always the landing surface; entering a room requires an explicit tap.
+**Confirmed NOT present in bridge-turn08-pre-ship.html** — that merged build already lands on the empty shell unconditionally.
+**Status:** fixed in test.html, pushed, awaiting device confirmation.
