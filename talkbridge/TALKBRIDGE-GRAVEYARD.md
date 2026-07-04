@@ -1,4 +1,4 @@
-<!-- v5.8.2.18 -->
+<!-- v5.8.2.19 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -96,3 +96,7 @@ New strategy: parallel track. The bridge organs are bundled into the shell at bu
 
 ## G13 — 2026-07-04 — v5.8.2.17
 Bridge JS inlined directly into page — crashed on load because the bridge's own startup sequence runs immediately at parse time and collides with the shell's already-running code. Need to defer bridge startup until after shell is fully booted.
+
+
+## G14 — 2026-07-04 — v5.8.2.18
+Bridge inline but its lobby screen was showing instead of the chat surface on room entry. The bridge's own screen-switching ran before tbEnterRoom could redirect it.
