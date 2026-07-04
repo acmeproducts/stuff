@@ -1104,3 +1104,7 @@ Same fingerprint gate. Bridge JS inlined but wrapped so its startup calls only r
 
 ## v5.8.2.21 — suppress bridge boot completely; only tbEnterRoom activates it
 Bridge script tag is inlined but its own DOMContentLoaded and startup calls are stripped out entirely. The bridge only wakes when the shell explicitly calls tbEnterRoom. This is the only way to prevent it taking over the screen at parse time.
+
+
+## v5.8.2.21 build record
+Module fingerprint locked and matched after injection: 82879653b94b90dd. Kill switch verified both ways (on=bridge, off=pure shell). Full gate passed: boot with stored room lands on welcome, panel closed, chat, search, listening, video icon, leave-room all pass.
