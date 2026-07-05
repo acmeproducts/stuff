@@ -532,41 +532,25 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 
 **Base is done when B1–B9 each passed on the phone, in order.**
 
-### Pre-ship — Status: IN PROGRESS — CALL-LAYER WAKE, PHONE-GATED PIECES (supersedes the 2026-07-02 TRANSPLANT spec; the transplant already happened at Base via the sealed module)
+### Pre-ship — Status: IN PROGRESS — OVERLAP KILL, THEN CALL-LAYER WAKE (owner redirection 2026-07-04)
 **Deliver:** bridge-turn08-pre-ship.html, v5.8.2.x
-**Input:** bridge-turn08-base.html (confirmed). The bridge organs are already in the file, sealed and inert. Pre-ship = waking them, one observable piece at a time, per §PIECE. Every piece is verified two ways: the action on the phone, and the checkpoint lines in the uploaded device log. A red piece is fixed in place; nothing later starts first.
+**Owner rulings (locked):**
+- **R1 — No plan weight until the overlap dies.** The shell's legacy phrasebook and any duplicate chat/compose organs are DELETED. The bridge phrasebook (the banked, device-confirmed product) is the only phrasebook, reachable from the chat compose strip with no call running.
+- **R2 — Chat surface is text-only.** Typed messages translate (unchanged). Voice transcription is NOT wired into the plain chat surface. Voice and video live entirely inside the call layer.
+- **R3 — One transcript, realized at hang-up.** The call layer transcribes/translates live in its own view; on hang-up every spoken line sits permanently in the room's chat surface. The merge-back is the hat trick — smaller lift than wiring live STT into the chat surface.
+- **R4 — One theme.** Light mode everywhere. No light chat / dark call context switch. Call layer restyled to the shell's light system before it ships.
 
-**B7a — Relay alive on room entry.**
-- See: enter a room; nothing visibly changes yet.
-- Pass: device log shows relay connected for that room; second device in the same room shows presence green both ways.
+**Pieces, in order (phone-gated per §PIECE):**
+- **B7-0 — Overlap kill.** Shell legacy PB deleted; "/" and ".." from compose open the BRIDGE phrasebook (banked cards, search, overlay). One phrasebook, one store. Pass: old PB unreachable anywhere; bridge PB opens from chat with no call.
+- **B7a — Relay alive on room entry.** Presence green both ways; log checkpoint.
+- **B7b — Cross-device chat with translation.** Typed both directions, reader's language only.
+- **B7c — Ring.** Call icon rings partner's device in the right room; accept/decline/timeout markers.
+- **B7d — Voice call.** Media layer over the room, camera off default, live translated transcript inside the call layer. Light theme (R4).
+- **B7e — Video toggle + hang up + merge-back.** Toggle seamless; hang up unmounts; ALL spoken lines now sit in the room's chat surface with a "call ended" marker (R3).
+- **B9 — Joiner sees one room only.** Data/routing enforced.
 
-**B7b — Cross-device chat with translation.**
-- See: message typed on one phone lands on the other phone in the one transcript, in the reader's language, newest at bottom.
-- Pass: both directions work; original language never shown to the reader; log shows send/receive checkpoints.
-
-**B7c — Mic without a call.**
-- See: mic from the compose strip; speak; your line lands live-transcribed and translated in the same transcript. No call running.
-- Pass: spoken line appears on both devices translated; log shows STT start/stop.
-
-**B7d — Ring.**
-- See: call icon rings the partner's device in the correct room; accept and decline both leave the right marker in the transcript.
-- Pass: ring, accept path, decline path, timeout path each verified; room unaffected on decline/timeout.
-
-**B7e — Voice call connects.**
-- See: accepted call mounts the media layer OVER the transcript (2vid look, minus floating windows), camera off by default. Speech both ways lands translated in the SAME transcript.
-- Pass: two-device voice call with live translated transcript; transcript never switches surface.
-
-**B7f — Video toggle + hang up.**
-- See: video on/off mid-call is seamless; hang up unmounts the layer, "call ended" marker in the stream, spoken lines remain.
-- Pass: toggle both ways; hang up from either side returns both to the Thread cleanly; no goodbye screen.
-
-**B9 — Joiner sees one room only.**
-- See: join link lands straight in that room's transcript; no path to the room list or room creation exists (data/routing layer, not hidden buttons).
-- Pass: URL editing, back button, navigation all fail to escape the room.
-
-**Per-piece process:** graveyard scan → one build → lint → module fingerprint verified → push → phone test → log check → ledger update. Rollback of that piece only on red.
-**References:** Part 7, Part 5 §IMM/§SFR, 2vid.html (call-layer look), phrase-desk.html.
-**Pre-ship is done when B7a–B7f and B9 each passed on the phone, in order. Then run the F-matrix subset: F3, F4, F5, F7, F8, F11, F12, F13, F15, F16, F22.**
+**Per-piece process:** graveyard scan → one build → lint → fingerprint → push → phone test → log check → ledger. Rollback that piece only on red.
+**Done when B7-0 through B9 each passed on the phone, in order, then F-matrix subset: F3, F4, F5, F7, F8, F11, F12, F13, F15, F16, F22.**
 
 ### Ship — Status: NOT STARTED
 **Deliver:** bridge-turn08-ship.html, v5.8.3
