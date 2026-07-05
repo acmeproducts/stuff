@@ -1,6 +1,6 @@
-<!-- v5.8.2.27 -->
+<!-- v5.8.2.28 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.6 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.7 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -468,6 +468,8 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 
 **How this is built — the process fix.** The container is built one small piece at a time. Each piece is a single thing you can see and do on the phone. A piece is not started until the piece before it passed on the phone. No piece is "done because it lints" — done means you did the action and saw the result. If a piece fails, it is fixed in place before anything after it is touched. This is the whole change: small, ordered, phone-tested, no jumping ahead.
 
+**LOCKED STANDARD (approved on phone 2026-07-04):** The app always opens to the start screen on the right, with the left panel closed. It never auto-opens a room. This is the confirmed baseline; all further work builds on top of it and must not regress it.
+
 **The pieces, in build order. Each has what you'll see, what you do, and what counts as pass.**
 
 **B1 — Splash always. [DONE on phone]**
@@ -480,17 +482,17 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 - Do: make one.
 - Pass: it appears in the list; link/QR shown instantly, no wait screen. Every room can call — no room-type choice.
 
-**B3 — Enter a room = the one surface.**
+**B3 — Enter a room = the one surface. [DONE on phone]**
 - See: tapping a room opens the transcript with the compose strip at the bottom. Same surface every room.
 - Do: enter one room, back out, enter another.
 - Pass: identical surface each time; no theme flip, no second layout, no jump.
 
-**B4 — Leave a room by the hamburger.**
+**B4 — Leave a room by the hamburger. [DONE on phone]**
 - See: the left panel opens from the hamburger; picking another room switches to it.
 - Do: open panel, switch rooms.
 - Pass: that is the way out of a room; entering a room never auto-switches you anywhere.
 
-**B5 — Chat lands in the transcript.**
+**B5 — Chat lands in the transcript. [DONE on phone]**
 - See: what you send appears in the one transcript, newest at the bottom.
 - Do: send a few messages.
 - Pass: they stack in order in the same surface; nothing opens a separate view.
@@ -505,7 +507,7 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 - Do: open the call layer, close it.
 - Pass: transcript stays put underneath; closing leaves a "call ended" marker in the same stream; the surface never switched.
 
-**B8 — Phrasebook reachable from the strip.**
+**B8 — Phrasebook reachable from the strip. [DONE on phone]**
 - See: "/" or ".." from the compose strip opens phrasebook search in the room.
 - Do: open it with no call running.
 - Pass: it opens over the transcript and closes back to it; no call needed.
