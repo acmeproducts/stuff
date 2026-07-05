@@ -1,6 +1,6 @@
-<!-- v1.0.0 -->
+<!-- v1.0.1 -->
 # TALKBRIDGE UI ELEMENT INVENTORY
-**Version 1.0.0 | 2026-07-05 | Extracted verbatim from source. Drives mockups, catalog, and build. An element not here = reject. An element here missing from a build = reject.**
+**Version 1.0.1 | 2026-07-05 | Extracted verbatim from source. Drives mockups, catalog, and build. An element not here = reject. An element here missing from a build = reject.**
 Sources: test.html (shell), bridge-turn07-post-ship.html (bridge), 2vid.html (call reference).
 Owner rulings applied: bridge look wins · one light theme · one transcript · no room-name field · keys behind gear · panel top row = gear only · receipts shown in final bubble · bubble appearance user-configurable · call seamlessly integrated, no floating window · incoming-call surface UNDEFINED (blocked).
 
@@ -31,12 +31,12 @@ No name field (name captured at first run S0). No room-name field (ruling).
 0.1 "Hi, let's get ready to chat! What's your name?" · 0.2 name input (40 max) · 0.3 Continue · 0.4 inline error line
 
 ## S4 ROOM SURFACE — ONE TRANSCRIPT (bridge canonical)
-4.1 Header: hamburger · self ✎ ↔ partner · presence (online/waiting) · video-call icon · audio-call icon (both dimmed until partner has joined)
+4.1 Header: hamburger · self ✎ ↔ partner · presence (online/waiting) · video-call icon · audio-call icon (always active — solo call allowed)
 4.2 Invite card (until partner joins): "Invite {name}" · QR · link (tap copies) · Copy · Share (system share)
 4.3 Bubble (side-by-side, bridge canonical):
   a container: mine right / theirs left, corner-tucked, appearance user-configurable (colors, font, size, width per side)
   b body grid: my-language column | 1px divider | partner-language column — BOTH always shown, my language always left for each viewer
-  c meta line (bottom right, one rule): origin mark (mic = spoken, none = typed) · time · receipts on own messages only (✓ sent · ✓✓ delivered · teal ✓✓ read; tap opens status detail)
+  c meta line (bottom right, one rule): origin mark (mic = spoken, none = typed) · time · receipts on own messages only, dots: small black dot = sent · two small black dots = delivered · larger blue dots = read; tap opens status detail
   d tap a language column → hear it (TTS)
   e long-press bubble → actions: Save to phrasebook · Delete (confirm) · Clarify
   f attachment inside bubble: clip icon + filename (tap opens S12 viewer) · image preview inline · remove (own only)
@@ -77,7 +77,7 @@ No name field (name captured at first run S0). No room-name field (ruling).
 9.1 Video band mounts at top of S4; transcript and compose unchanged beneath
 9.2 Band: remote video (placeholder 👤 when no video) · local PiP thumbnail · partner name + duration · connection dot
 9.3 Controls on band: mic toggle · camera toggle (red slash off; off = voice call, default) · red end
-9.4 Partner states: "Camera off" · "Partner has disconnected / waiting to reconnect" · solo "Waiting for partner to join…" · speaking indicator
+9.4 Partner states: "Camera off" · "Partner has disconnected / waiting to reconnect" · speaking indicator. Solo call: start alone, speech transcribes+translates into transcript; joiner joins the call in progress and can read the entire transcript
 9.5 Speech → live translated lines in the SAME transcript, mic origin mark; permanent after hang-up
 9.6 Hang up: band unmounts · "call ended" marker · dirty PB write-back fires
 9.7 Auto-recovery on drop (banked engine) · entry-heal for tab-closure ends (Ship scope)
