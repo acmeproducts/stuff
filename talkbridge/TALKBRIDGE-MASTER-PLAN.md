@@ -1,6 +1,6 @@
-<!-- v5.8.2.25 -->
+<!-- v5.8.2.26 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.4 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.5 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -475,10 +475,10 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 - Do: close and reopen with rooms already there.
 - Pass: never drops you into the last room; always the list.
 
-**B2 — Make a room, two kinds.**
-- See: a "+" makes a room; you pick chat-only or chat+call; a link and QR appear right away.
-- Do: make one of each.
-- Pass: both appear in the list with the right small icon; link/QR shown instantly, no wait screen.
+**B2 — Make a room.**
+- See: a "+" makes a room; a link and QR appear right away.
+- Do: make one.
+- Pass: it appears in the list; link/QR shown instantly, no wait screen. Every room can call — no room-type choice.
 
 **B3 — Enter a room = the one surface.**
 - See: tapping a room opens the transcript with the compose strip at the bottom. Same surface every room.
@@ -495,10 +495,10 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 - Do: send a few messages.
 - Pass: they stack in order in the same surface; nothing opens a separate view.
 
-**B6 — Call icon only where it belongs.**
-- See: a chat+call room shows a call icon in the header; a chat-only room shows none.
-- Do: open one of each.
-- Pass: chat-only has no call affordance anywhere; chat+call has a visible one.
+**B6 — Call icon always present.**
+- See: every room shows a call icon in the header.
+- Do: open a room.
+- Pass: call icon is there; every room can call.
 
 **B7 — Call is a layer over the transcript (stub).**
 - See: tapping the call icon brings the video/voice layer over the same transcript, not a new screen. (Engine itself is wired in Pre-ship; Base proves the layer mounts and unmounts over the one surface.)
