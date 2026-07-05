@@ -1,6 +1,16 @@
-<!-- v5.8.2.28 -->
+<!-- v5.8.2.29 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.7 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 7.0 (PLAN RESET) | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+
+---
+
+# §SOT — SINGLE SOURCE OF TRUTH (declared at reset, 2026-07-04)
+After 50+ Turn-08 attempts, authority is consolidated. Exactly three living documents:
+1. **This plan** — execution SOT: current stage, specs, ledger. If a session memory, chat summary, or older document disagrees with this file, this file wins.
+2. **talkbridge/TALKBRIDGE-GRAVEYARD.md** — failure SOT. Scanned before every build.
+3. **talkbridge/device-logs/** — runtime truth. Every device run uploads its unified log; diagnosis reads the log, never guesses.
+
+Superseded / reference-only: TB-TURN06-MASTER.md (historical), TB-GT-WA v2.1 (historical), TB-GT-WA v2.3 (product intent only, not execution), container-turn08-base.html (abandoned lineage, kept as reference), test.html / 2vid.html / phrase-desk.html (read-only pattern authorities), all prior chat sessions (context only, never authority).
 
 ---
 
@@ -121,16 +131,19 @@ Turn 11  Presence + design + pilot — waiting indicator, disposal, design syste
 ```
 
 ## Where we are right now
-**CURRENT STAGE: Turn 08 / Base — REBUILDING per owner redirection 2026-07-02. Rolled back; baseline = bridge-turn08-pre-base.html (byte-identical to device-confirmed T07 Post-ship).**
-First Base attempt (engine-module activation inside the bridge file) FAILED its device gate — language-model status stuck amber on Pages hosting, room creation blocked. Not retried: the failing surface (bridge lobby/onboarding) is scheduled for deletion under the redirected Base scope below. Graveyard G17.
+**CURRENT STAGE: Turn 08 / Pre-ship — CALL-LAYER WAKE (v5.8.2.x). File staged: bridge-turn08-pre-ship.html (byte-copy of confirmed Base). Next build: piece B7a.**
 
-**OWNER REDIRECTION (2026-07-02) — Turn 08 approach re-cut:**
-1. The shell is the app. Build "Container X": a new single-file app following test.html's architecture (test.html itself stays read-only reference). The bridge is only the call engine and gets migrated INTO the container — never the other way around.
-2. **First-Run Setup must be designed and built new.** test.html has no credential onboarding, yet calls and PB depend on those credentials. This is now an explicit Base deliverable: a first-run surface for Deepgram key / TURN credentials / GitHub PAT (initiator only, one-time, per Identity model + INITIATOR-DECISION.md).
-3. **One compose strip everywhere.** The Thread's chat compose is the SAME strip as the call's, with the same behaviors: /-search, PB drawer, PB overlay access — usable in plain chat with no call running. (Supersedes the earlier "Thread compose is plain chat only" rule — Part 7 Surface 3 updated.)
-4. **Call is an overlay on the chat room** (2vid.html visual reference, minus floating windows): video/phone icons in the Thread header of chat+call rooms mount the call overlay above the Thread; hang-up unmounts back to the Thread with a "call ended" marker.
+**The architecture that finally holds (locked after attempts 1–28):**
+- One file. The shell (test.html lineage: room list, rooms, invites, QR, async chat, presence) is the host.
+- The ENTIRE bridge product (call engine, STT, translation, transcript surface, compose strip, phrasebook — the confirmed T07 Post-ship organs, startup-order bug fixed at source) is bundled INTO the file at build time as one sealed, inert module behind a single gate. Its own self-boot is stripped; it wakes only when a room is entered.
+- No runtime injection, no DOM surgery, no dual boot. Switching bridge organs on is a build-time decision. This killed the race conditions that caused every prior failure (graveyard G10–G16, 2026-07-03/04 entries).
+- Every device run auto-uploads a unified diagnostic log with boot/room-entry/relay checkpoints to talkbridge/device-logs/ — device truth is readable without the device in hand.
 
----
+**Confirmed on the phone (2026-07-04):** B1 splash-always · B2 make-a-room · B3 one surface per room · B4 hamburger navigation · B5 chat lands in transcript · B6 call icon in every room · B8 "/" and ".." open phrasebook from compose. Locked standard: app always opens to the start screen, left panel closed, never auto-opens a room.
+
+**Remaining in Turn 08:** B7 (call layer, decomposed into B7a–B7f below — Pre-ship), B9 (joiner isolation — Pre-ship), then Ship (wiring: receipts, entry-heal, PB refresh on entry, notifications, dispose), then Post-ship (full regression + SFR freeze).
+
+**Files of record:** bridge-turn08-base.html (confirmed Base host, ~10,016 lines) · bridge-turn08-pre-ship.html (staged) · bridge-turn08-pre-base.html (byte-identical T07 Post-ship — source of bridge organs) · bridge-turn07-post-ship.html (the floor; full working call product).
 
 # PART 1 — DOER PROTOCOL
 
@@ -200,15 +213,10 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 | 8 | New card from transcript logged a false "verdict reset" entry | A focus/blur right after creation was wrongly treated as an edit. Now only logs when the text actually changes |
 
 ## CURRENT RUN
-- RELEASE: Turn 08 / Base (re-cut) — v5.8.1
-- STATUS: DONE pending device test. Output: container-turn08-base.html, 5275 lines, sha256 prefix 12ca81708709. Foundation: test.html (untouched, reference). Additions: (1) First-Run Setup modal — Deepgram key with live verify, TURN credentials, optional PAT, stored under frozen key names; reachable from Settings and auto-raised when creating a chat+call room without keys; (2) room capability choice at creation (Chat only / Chat + Call), persisted on the session record; (3) call seam — video icon in the ribbon exists in DOM only for chat+call rooms, opens the overlay mount point (engine lands Pre-ship); (4) composer PB seam — "/" or ".." opens inline phrasebook search over the composer, tap inserts, guarded on Enter AND send; (5) service worker registration + manifest (start_url now points at the container); (6) v5.8.1 stamps (head comment + settings footer). Lint clean. Prior failed bridge-based Base file stays in repo as reference only.
-- BASELINE NOTE: rolled-back engine baseline remains bridge-turn08-pre-base.html for the Pre-ship engine migration.
-- PRIOR-ATTEMPT RECORD (for the file that failed):
-- STATUS-WAS: DONE pending device test. Output: bridge-turn08-base.html, 5147 lines, sha256 prefix 2b9b12b9f7f3. Companion files: sw.js, manifest.webmanifest (repo root), talkbridge/INITIATOR-DECISION.md.
-- WORK: Nine engine modules (CONFIG, LOG, STORE, RELAY, RTC, STT, TRANSLATE, LANGDETECT, NORMALIZE) activated — use.* flags true, exactly one CONFIG.get('use.X') switch site per module (§PDG item 4 verified 9/9). Switch sites: enterCall tail (single tier-2 insertion point — RELAY.connect + STT.reconcile), handleRelay peer-join (RTC.start), sendChat (LANGDETECT.detect + TRANSLATE.translate), saveGhPat (STORE.set), log-overlay buttons via uiLog shim (LOG), boot marker (CONFIG), flag check inside NORMALIZE. NORMALIZE.normalize implemented for real (Z→X→Y via LANGDETECT+TRANSLATE, 150ms race with unicode fallback, original never surfaced) — no caller yet; Turn 09 wires it as sole path. TRANSLATE.translate delegation corrected from single-shot to retry path. Service worker registered at boot (network-first, cached-shell offline fallback), manifest with icons — installable when served over HTTPS. Frozen speech-pipeline call sites (inside byte-frozen functions) remain direct by design; Turn 09 owns translation-path unification.
-- VERIFIED: lint clean, 21/21 immutables byte-identical, all §SFR PB module regions byte-identical to device-confirmed input, overlay HTML region byte-identical, switch wiring 9/9, version stamp v5.8.1 both locations, line delta +36 (additive). Fixtures: all fixture-covered PB code is byte-identical to the T07 device-confirmed input, so T07 fixture passes carry over by construction.
-- NOTE: bridge-turn08-pre-base.html (v5.8.0) pushed same session, byte-identical to T07 Post-ship (5111 lines, sha 5713b5b41eab); owner directed proceed — Pre-base negative test folds into the Base device test.
-- NOTE: T07 Post-ship ledger previously recorded 5109 lines / sha 8b7aee8fe55d; two post-ship correction commits (CLOSED items 6 and 7) landed after that entry. True final T07 Post-ship: 5111 lines, sha 5713b5b41eab, device-confirmed 2026-07-01.
+- RELEASE: Turn 08 / Pre-ship — v5.8.2.x (attempt numbering continues; next build increments)
+- STATUS: STAGED. bridge-turn08-pre-ship.html pushed 2026-07-04 as byte-copy of confirmed Base; call-layer wake (B7) not yet built. Build resumes at B7a per the Pre-ship spec below.
+- BASE (input): bridge-turn08-base.html — B1–B6, B8 each confirmed on phone 2026-07-04. Sealed bridge module bundled inert; unified diagnostics + crash capture uploading to talkbridge/device-logs/ (one rolling file per device).
+- SUPERSEDED LINEAGE: container-turn08-base.html (v5.8.1 re-cut of 2026-07-02) — abandoned; its useful decisions (first-run keys surface, compose PB seam, install support) carry forward as spec, not as code. bridge-turn08-base.html 5147-line engine-activation attempt — failed device gate, graveyard G17; filename since reused by the current confirmed Base.
 
 ## PRIOR RUN (Turn 07 Post-ship — CLOSED)
 - RELEASE: Turn 07 / Post-ship — v5.7.4
@@ -227,6 +235,9 @@ If anything is ambiguous: stop, name the gap, name the section it belongs in.
 4. RESOLVED — Turn 07 Ship re-cut in place (see Turn 07 Ship spec).
 
 ## RUN HISTORY (append-only, newest first)
+- 2026-07-04 T08 Pre-ship -- STAGED. bridge-turn08-pre-ship.html byte-copy of confirmed Base. Call-layer wake begun, not completed; resumes at B7a under plan v7.0 spec.
+- 2026-07-04 T08 Base -- CONFIRMED ON PHONE piece by piece: B1, B2, B3, B4, B5, B6, B8 all passed device gates. Single room type locked (every room can call). Start-screen standard locked. Crash capture + unified device-log upload added (v5.8.2.23/.24). Sealed-bridge-module architecture proven (fingerprint 82879653b94b90dd at v5.8.2.21).
+- 2026-07-03/04 T08 Pre-ship attempts 1-28 -- FAILED, buried (graveyard 2026-07-03/04 entries). Three root causes found and fixed: bridge startup-order bug, stale dormant block in base, shell auto-open-last-room. Runtime-injection merge strategy abandoned permanently in favor of build-time sealed module.
 - 2026-07-02 T08 Base (re-cut) -- DONE pending device test. container-turn08-base.html v5.8.1, 5275 lines, sha 12ca81708709. test.html foundation + first-run keys setup + capability + call seam + composer PB seam + install support. Lint clean.
 - 2026-07-02 T08 Base (attempt 1) -- FAILED device gate. Lang-model indicator stuck amber on acmeproducts.github.io hosting; room creation blocked. Owner rolled back and re-cut Base scope (container-first, new first-run onboarding, shared compose strip, call-as-overlay). Graveyard G17. Baseline stands at bridge-turn08-pre-base.html.
 - 2026-07-01 T08 Base -- DONE pending device test. bridge-turn08-base.html v5.8.1, 5147 lines. Nine engine modules activated flag-guarded; NORMALIZE implemented; SW + manifest + INITIATOR-DECISION.md pushed. 21/21 immutables, all SFR PB regions byte-identical, lint clean. SFR pbCommitSrcEdit entry rebased (see registry) — registry value predated the two T07 post-ship correction commits; function is byte-identical to the device-confirmed T07 final.
@@ -521,25 +532,41 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 
 **Base is done when B1–B9 each passed on the phone, in order.**
 
-### Pre-ship — Status: SPECIFIED 2026-07-02 — THE TRANSPLANT
-**Deliver:** container-turn08-pre-ship.html, v5.8.2
-**Governing rule:** banked bridge surfaces move VERBATIM. Nothing banked is re-imagined, re-styled, or re-implemented in the container's idiom. Byte-identity of §IMM/§SFR content is verified in the container exactly as it was in the bridge. The container's own overlapping legacy features are DELETED, not kept alongside.
+### Pre-ship — Status: IN PROGRESS — CALL-LAYER WAKE, PHONE-GATED PIECES (supersedes the 2026-07-02 TRANSPLANT spec; the transplant already happened at Base via the sealed module)
+**Deliver:** bridge-turn08-pre-ship.html, v5.8.2.x
+**Input:** bridge-turn08-base.html (confirmed). The bridge organs are already in the file, sealed and inert. Pre-ship = waking them, one observable piece at a time, per §PIECE. Every piece is verified two ways: the action on the phone, and the checkpoint lines in the uploaded device log. A red piece is fixed in place; nothing later starts first.
 
-**Transplant steps (each = one edit pass, lint, verify, then next):**
-- **P1 — PB system verbatim.** Move from bridge-turn08-pre-base: PB data/store, card layout (phrase-desk authority), overlay, search-row layout as in the call transcript search, tags, sync (PB-DATA/PB-SYNC/PB-USAGE/PB-QUERY/PB-RENDER modules + all §SFR functions), CSS for those surfaces. DELETE the shell's legacy phrasebook (catalog screen, its card CRUD, its new-card overlay) and the T08-Base stand-in inline search. Storage: bridge PB store is authoritative; shell's legacy cards are not migrated.
-- **P2 — Compose strip verbatim.** The bridge call-surface compose strip (source field + controls + `/` and `..` search drawer + /bank guard + COMPOSE-SEAM) replaces the shell composer in the Thread. Same strip, both places; drawer rows use the bridge search-row layout.
-- **P3 — Call engine verbatim.** All 21 §IMM functions + engine modules + call UI (2vid visual: call overlay over the Thread, no floating windows) mounted behind the ribbon call icon for chatcall rooms. Keys read from First-Run Setup store. Hang-up unmounts overlay → Thread + "call ended" marker. Bridge lobby/goodbye screens are NOT transplanted.
-- **P4 — Reconcile.** One translation path shared (NORMALIZE seam noted for Turn 09), one relay line, one diag log. Remove dead shell code orphaned by P1–P3.
-**Gate after each step on device; a red step rolls back that step only.**
-**References:** Part 7 (UI element map), Part 5 §IMM/§SFR, phrase-desk.html, 2vid.html.
-**Test (positive — GT-WA §7.8 acceptance criteria):**
-- Create chat-only room → link/QR immediately → Thread has no call button anywhere in DOM.
-- Create chat+call room → link/QR immediately → Thread has visible call button.
-- Joiner opens link → lands in Thread directly, no setup, message history visible.
-- Joiner cannot reach Room List or Room Creation by any means (URL editing, back button, navigation).
-- Initiator opens app fresh → Room List shows all created rooms.
-- Call in chat+call room → connects → hang up → Thread shows "call ended" marker, not goodbye screen.
-- PB works inside call.
+**B7a — Relay alive on room entry.**
+- See: enter a room; nothing visibly changes yet.
+- Pass: device log shows relay connected for that room; second device in the same room shows presence green both ways.
+
+**B7b — Cross-device chat with translation.**
+- See: message typed on one phone lands on the other phone in the one transcript, in the reader's language, newest at bottom.
+- Pass: both directions work; original language never shown to the reader; log shows send/receive checkpoints.
+
+**B7c — Mic without a call.**
+- See: mic from the compose strip; speak; your line lands live-transcribed and translated in the same transcript. No call running.
+- Pass: spoken line appears on both devices translated; log shows STT start/stop.
+
+**B7d — Ring.**
+- See: call icon rings the partner's device in the correct room; accept and decline both leave the right marker in the transcript.
+- Pass: ring, accept path, decline path, timeout path each verified; room unaffected on decline/timeout.
+
+**B7e — Voice call connects.**
+- See: accepted call mounts the media layer OVER the transcript (2vid look, minus floating windows), camera off by default. Speech both ways lands translated in the SAME transcript.
+- Pass: two-device voice call with live translated transcript; transcript never switches surface.
+
+**B7f — Video toggle + hang up.**
+- See: video on/off mid-call is seamless; hang up unmounts the layer, "call ended" marker in the stream, spoken lines remain.
+- Pass: toggle both ways; hang up from either side returns both to the Thread cleanly; no goodbye screen.
+
+**B9 — Joiner sees one room only.**
+- See: join link lands straight in that room's transcript; no path to the room list or room creation exists (data/routing layer, not hidden buttons).
+- Pass: URL editing, back button, navigation all fail to escape the room.
+
+**Per-piece process:** graveyard scan → one build → lint → module fingerprint verified → push → phone test → log check → ledger update. Rollback of that piece only on red.
+**References:** Part 7, Part 5 §IMM/§SFR, 2vid.html (call-layer look), phrase-desk.html.
+**Pre-ship is done when B7a–B7f and B9 each passed on the phone, in order. Then run the F-matrix subset: F3, F4, F5, F7, F8, F11, F12, F13, F15, F16, F22.**
 
 ### Ship — Status: NOT STARTED
 **Deliver:** bridge-turn08-ship.html, v5.8.3
