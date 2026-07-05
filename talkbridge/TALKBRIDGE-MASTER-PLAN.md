@@ -1,6 +1,6 @@
-<!-- v5.8.2.26 -->
+<!-- v5.8.2.27 -->
 # TALKBRIDGE MASTER PLAN
-**Version: 6.5 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
+**Version: 6.6 | 2026-07-04 | Governing document. Repo: github.com/acmeproducts/stuff, path: talkbridge/TALKBRIDGE-MASTER-PLAN.md**
 
 ---
 
@@ -470,12 +470,12 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 
 **The pieces, in build order. Each has what you'll see, what you do, and what counts as pass.**
 
-**B1 — Splash always.**
+**B1 — Splash always. [DONE on phone]**
 - See: open the app cold, you land on the room list every time.
 - Do: close and reopen with rooms already there.
 - Pass: never drops you into the last room; always the list.
 
-**B2 — Make a room.**
+**B2 — Make a room. [DONE on phone]**
 - See: a "+" makes a room; a link and QR appear right away.
 - Do: make one.
 - Pass: it appears in the list; link/QR shown instantly, no wait screen. Every room can call — no room-type choice.
@@ -495,7 +495,7 @@ Input: bridge-turn07-post-ship.html (call engine), test.html (shell), 2vid.html 
 - Do: send a few messages.
 - Pass: they stack in order in the same surface; nothing opens a separate view.
 
-**B6 — Call icon always present.**
+**B6 — Call icon always present. [DONE on phone]**
 - See: every room shows a call icon in the header.
 - Do: open a room.
 - Pass: call icon is there; every room can call.
