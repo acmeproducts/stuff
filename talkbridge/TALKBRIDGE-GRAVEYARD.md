@@ -140,3 +140,11 @@ Keys button in the 3-button modal inert (About/Privacy worked). Cause class: inc
 
 ## 5.8.pre-ship.4 · P3 · FAILED GATE · Jul 5 2026
 Device showed call surface on boot — bridge organ not inert; startup race not contained. Root: doer let the bridge wake on load instead of only on room entry. Rollback to P2 output (972eca6). Cost: multiple retry tokens burned. Lesson: doer must verify inert-on-boot in deterministic checks (console trace showing zero bridge init before room entry) — this is now mandatory acceptance criterion for P3.
+
+
+---
+
+# ══════ METHOD CHANGE — EXTRACTION ERA BEGINS ══════
+
+**Date:** 2026-07-06
+**Ruling:** All entries above this line belong to the injection era (shell-first injection, merge, dormant-app approaches). That method is abandoned, not refined. Delivery now follows `talkbridge/TALKBRIDGE-HOW-WE-PREVAIL.md`: Plan → Execute → Test, extraction under single ownership. Every new graveyard entry below this line must also add an automatic gate check that enforces the lesson on all future builds.
