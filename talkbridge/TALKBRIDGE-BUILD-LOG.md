@@ -1,4 +1,4 @@
-<!-- v5.8.pre-ship.1 -->
+<!-- v5.8.pre-ship.1g -->
 # TALKBRIDGE BUILD LOG
 Doer writes here. One entry per attempt. Manager reviews before any proceed.
 
@@ -32,3 +32,6 @@ Doer writes here. One entry per attempt. Manager reviews before any proceed.
 - Blockers / anything unclear (STOPPED at): none
 - Certification: "All due diligence done; release ready for device test." Y
 
+
+### GATE · 5.8.pre-ship.1 · P1 · Jul 5, 26 10:10 AM PT
+Owner device test: PASS (boots to start, shell flows unchanged, nothing new visible). P1 done. Output path ruling: living pre-ship file at repo root is the deployed output for all pieces.
