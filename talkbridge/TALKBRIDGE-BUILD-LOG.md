@@ -78,3 +78,19 @@ Keys button inert in S13 modal; About/Privacy OK; everything else passed. Rollba
 
 ### GATE · 5.8.pre-ship.3 · P2 · PASS · Jul 5, 26 10:35 AM PT
 All P2 criteria met including keys button tap path. P2 done.
+
+### 5.8.pre-ship.4 · P3 Bridge organ injection · 2026-07-05 ~10:55 PT
+- Golden baseline verify: PASS (3/3)
+- Steps executed: bridge module (M2+M4, 4375 lines) injected as sealed IIFE with getElementById safety override during boot; bridge HTML surfaces added (transcript, compose strip, PB overlay, invite card, clarify modal, attachment modal); bridge CSS converted to light theme; shell bubble renderer and composer deleted; shell room-entry wired to TB_BRIDGE.enterRoom(); shell room-exit wired to TB_BRIDGE.leaveRoom(); shell toast element renamed to avoid ID conflict
+- Deterministic acceptance (Part 7 P3):
+  - fingerprint match: PASS (ed6a44d8…)
+  - zero shell-bubble selectors remain: PASS (7 checked, all 0)
+  - S4/S4-B/S5/S6/S7/S8 inventory elements present by ID: PASS (11 bridge elements, all present)
+  - lint clean: PASS
+- Do-not-touch regression: PASS (8 elements verified present)
+- Module fingerprint locked/recomputed: match Y
+- Output: bridge-turn08-pre-ship.html · 9c217cb4baa555c0fef81363d785090a26d48a6fd7d9e742dfdb59657fb52bac · commit 77608a7103360e39c39102616e77cc7ea397e42a · byte-verify PASS
+- Rollback point: P2 output f1164f1a0ea1ddb80f9db4a41fab70f421791211c53e400f6ca1061f89b33169
+- Architecture note: bridge module boots inside a sealed IIFE with a safe getElementById override that returns dummy elements for missing DOM during auto-boot (lobby stubs not needed). Override is restored after boot. Bridge relay connection is independent of shell relay — both connect to the same room but serve different purposes (bridge: message rendering; shell: metadata sync). The bridge's lobby DOM is present but hidden. Call engine (M3) is present but dormant (no video stream requested until P4).
+- Blockers: none
+- Certification: "All due diligence done; release ready for device test." Y
