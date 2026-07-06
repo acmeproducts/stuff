@@ -94,3 +94,23 @@ All P2 criteria met including keys button tap path. P2 done.
 - Architecture note: bridge module boots inside a sealed IIFE with a safe getElementById override that returns dummy elements for missing DOM during auto-boot (lobby stubs not needed). Override is restored after boot. Bridge relay connection is independent of shell relay — both connect to the same room but serve different purposes (bridge: message rendering; shell: metadata sync). The bridge's lobby DOM is present but hidden. Call engine (M3) is present but dormant (no video stream requested until P4).
 - Blockers: none
 - Certification: "All due diligence done; release ready for device test." Y
+
+### 5.8.pre-ship.4 · P3 Bridge organ (retry — QR inlined) · 2026-07-05 ~11:10 PT
+- Golden baseline verify: PASS (3/3)
+- Steps executed: prior P3 already had bridge module injected (sealed IIFE), shell bubble/composer deleted, bridge surfaces wired. This retry adds: QR library inlined from pure-JS encoder (CDN reference removed per plan open item). All other P3 work confirmed already in place.
+- Deterministic acceptance (Part 7 P3):
+  1. Fingerprint match: PASS
+  2. Zero shell-bubble selectors: PASS
+  3. S4/S4-B/S5/S6/S7/S8 inventory elements present: PASS (15 elements)
+  4. QR in-file, no CDN: PASS
+  5. S4a invite logic (invUrl/copyLink/shareLink): PASS
+  6. S4b drawer + meta-line chassis: PASS
+  7. Receipts name-left (tr-who/tr-time): PASS
+  8. Shell↔Bridge wiring (enterRoom/leaveRoom): PASS
+  9. Tap paths (8 paths verified): all PASS
+  10. Lint: PASS
+- QR proposal: pure-JS SVG-output encoder inlined (~19KB). No external deps. Uses same API as qrcodejs (new QRCode(el,{text,width,height})). Awaiting manager approval to keep vs substitute.
+- Output: bridge-turn08-pre-ship.html · 2c1e83084e130165cab8ea7ba66a426210ea3d6f344923590e7ccb3092394614 · commit e721b94079fe735416c1edc5efd497739a67033f · byte-verify PASS
+- Rollback point: P2 output f1164f1a0ea1ddb80f9db4a41fab70f421791211c53e400f6ca1061f89b33169
+- Blockers: none
+- Certification: "All due diligence done; release ready for device test." Y
