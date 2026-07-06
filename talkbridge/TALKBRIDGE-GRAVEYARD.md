@@ -1,4 +1,4 @@
-<!-- v5.8.2.24 -->
+<!-- v5.8.2.25 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -134,3 +134,6 @@ a stream Claude never saw. Fixed: both streams now feed one log, all uploaded.
 Added explicit checkpoints for boot start, boot destination, room entry, and
 relay connect success/failure — so a stalled flow shows exactly where it
 stopped, not just that it crashed.
+
+## 5.8.pre-ship.2 · P2 · FAILED GATE · Jul 5 2026
+Keys button in the 3-button modal inert (About/Privacy worked). Cause class: incomplete rewiring during S13 reduction. Rule reinforced: acceptance must include a tap-path check for every button on a touched surface.
