@@ -54,3 +54,24 @@ Owner device test: PASS (boots to start, shell flows unchanged, nothing new visi
 
 ### GATE · 5.8.pre-ship.2 · P2 · FAIL · Jul 5, 26 10:25 AM PT
 Keys button inert in S13 modal; About/Privacy OK; everything else passed. Rollback to P1 output ordered.
+
+### 5.8.pre-ship.3 · P2 Shell trim + S13 + S11 (retry) · 2026-07-05 ~10:30 PT
+- Golden baseline verify: PASS (3/3)
+- Rollback: restored P1 output (07808f…), pushed, byte-verified before rebuilding
+- Steps executed: retired surfaces removed (panel PB + globe buttons, catalog screen, settings drawer); panel top row rebuilt (blank square + clock); S13 three-button modal built; S11 keys overlay built with four password fields reading/writing same localStorage keys as bridge; S4b drawer chassis + meta-line plumbing installed dormant
+- Deterministic acceptance (Part 7 P2):
+  - retired element selectors return zero matches: PASS (11 checked)
+  - every S1–S3 inventory element present by ID: PASS (20 checked)
+  - fingerprint pass: PASS
+- Tap paths verified:
+  - S2 blank square long-press → S13 modal opens: PASS
+  - S13 "Calling & sync keys" → S11 keys overlay opens: PASS
+  - S11 each input → saves to localStorage on typing: PASS
+  - S11 Done → closes overlay: PASS
+  - S13 About → info modal: PASS
+  - S13 Privacy → info modal: PASS
+- Lint: PASS
+- Output: bridge-turn08-pre-ship.html · f1164f1a0ea1ddb80f9db4a41fab70f421791211c53e400f6ca1061f89b33169 · commit 972eca68f0591d2a70f98b5c02d32ec6e97a83a2 · byte-verify PASS
+- Rollback point: P1 output 07808f0e…
+- Blockers: none
+- Certification: "All due diligence done; release ready for device test." Y
