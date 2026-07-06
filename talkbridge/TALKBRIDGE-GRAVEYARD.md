@@ -137,3 +137,6 @@ stopped, not just that it crashed.
 
 ## 5.8.pre-ship.2 · P2 · FAILED GATE · Jul 5 2026
 Keys button in the 3-button modal inert (About/Privacy worked). Cause class: incomplete rewiring during S13 reduction. Rule reinforced: acceptance must include a tap-path check for every button on a touched surface.
+
+## 5.8.pre-ship.4 · P3 · FAILED GATE · Jul 5 2026
+Device showed call surface on boot — bridge organ not inert; startup race not contained. Root: doer let the bridge wake on load instead of only on room entry. Rollback to P2 output (972eca6). Cost: multiple retry tokens burned. Lesson: doer must verify inert-on-boot in deterministic checks (console trace showing zero bridge init before room entry) — this is now mandatory acceptance criterion for P3.
