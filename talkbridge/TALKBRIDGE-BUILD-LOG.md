@@ -75,3 +75,6 @@ Keys button inert in S13 modal; About/Privacy OK; everything else passed. Rollba
 - Rollback point: P1 output 07808f0e…
 - Blockers: none
 - Certification: "All due diligence done; release ready for device test." Y
+
+### GATE · 5.8.pre-ship.3 · P2 · PASS · Jul 5, 26 10:35 AM PT
+All P2 criteria met including keys button tap path. P2 done.
