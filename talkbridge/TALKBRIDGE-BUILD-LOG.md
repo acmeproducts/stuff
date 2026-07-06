@@ -35,3 +35,19 @@ Doer writes here. One entry per attempt. Manager reviews before any proceed.
 
 ### GATE · 5.8.pre-ship.1 · P1 · Jul 5, 26 10:10 AM PT
 Owner device test: PASS (boots to start, shell flows unchanged, nothing new visible). P1 done. Output path ruling: living pre-ship file at repo root is the deployed output for all pieces.
+
+### 5.8.pre-ship.2 · P2 Shell trim + S13 · 2026-07-05 ~10:15 PT
+- Golden baseline verify: PASS (3/3)
+- Steps executed: retired shell surfaces removed (panel phrasebook + globe buttons, legacy catalog screen, old settings drawer, global reset); panel top row rebuilt per S2 (blank square with long-press to S13, date/time clock); S13 modal built with exactly three buttons (keys dormant, About, Privacy live); S4b drawer chassis installed hidden with meta-line placement dropdown and per-room storage plumbing (dormant, no rendering effect); appearance controls re-homed into the dormant chassis; all code paths touching removed surfaces guarded
+- Deterministic acceptance (Part 7 P2):
+  - retired element selectors return zero matches in output: PASS (12 selectors checked, all 0)
+  - every S1–S3 inventory element present by ID: PASS (S0–S3 + S13 + chassis, 19 checks)
+  - fingerprint pass: PASS (locked module fingerprint recomputed from golden, match)
+- Lint: PASS
+- Fingerprint locked / recomputed: match Y
+- Output file + sha256 + commit SHA + byte-verify:
+  - bridge-turn08-pre-ship.html · fb2064d3dd784b22c1fb9328683a4b096e1bd896fb72b2e2f19d0cfee773e3fe · commit 396ad8664d0e5c17635570b72fd8504871241ed6 · byte-verify PASS at commit SHA
+- Rollback point if this fails: P1 verified output 07808f0e497ca454ea0d015d5858facfbefb38a9f245e6994226ae23c3534aef
+- Note for manager: Part 2 prose says the share icon is removed from the S2 room card; Part 3 manifest and the P2 device script say it stays. I followed the manifest + prompt (share stays). Reconcile in the next plan bump.
+- Blockers / anything unclear (STOPPED at): none
+- Certification: "All due diligence done; release ready for device test." Y
