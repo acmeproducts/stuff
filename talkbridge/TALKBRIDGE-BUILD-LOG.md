@@ -114,3 +114,6 @@ All P2 criteria met including keys button tap path. P2 done.
 - Rollback point: P2 output f1164f1a0ea1ddb80f9db4a41fab70f421791211c53e400f6ca1061f89b33169
 - Blockers: none
 - Certification: "All due diligence done; release ready for device test." Y
+
+### GATE · 5.8.pre-ship.4 · P3 · FAIL · Jul 5 2026 19:35 PT
+Call surface appeared on boot — bridge woke at load, not on room entry. Rollback to P2 972eca6 ordered.
