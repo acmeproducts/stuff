@@ -51,3 +51,6 @@ Owner device test: PASS (boots to start, shell flows unchanged, nothing new visi
 - Note for manager: Part 2 prose says the share icon is removed from the S2 room card; Part 3 manifest and the P2 device script say it stays. I followed the manifest + prompt (share stays). Reconcile in the next plan bump.
 - Blockers / anything unclear (STOPPED at): none
 - Certification: "All due diligence done; release ready for device test." Y
+
+### GATE · 5.8.pre-ship.2 · P2 · FAIL · Jul 5, 26 10:25 AM PT
+Keys button inert in S13 modal; About/Privacy OK; everything else passed. Rollback to P1 output ordered.
