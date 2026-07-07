@@ -163,3 +163,11 @@ Root cause: the dormant surfaces were held in an ordinary container; real-browse
 Process failure: E-01 and E-02 were patched forward onto the same file instead of rebuilding clean — the exact violation the plan forbids.
 Automatic checks added: spec-exact parse check (same rules as Chrome) proving all dormant content stays sealed; candidate builds must be produced by one scripted pass from the banked base, never by cumulative edits.
 Action: rebuild as 5.9.execute.5 via single build script.
+
+
+## E-03 (extraction era) — P1 5.9.execute.5 device gate FAIL — 2026-07-06
+Symptoms: created room absent from the room list and lost on reload; "/" opened the full phrasebook surface instead of staying as in-chat search; search results not clickable; stale version stamp.
+Root causes: (1) engine rooms and the shell room list are two separate worlds — never joined; (2) controls built at runtime carry actions that were never wired to the outside — static wiring only covered controls present at load; (3) headless rig cannot exercise runtime-built controls or reload persistence realistically.
+Lesson: seam coverage, not surface coverage, is the gap. Every runtime-generated control and every cross-boundary state (rooms, reload) needs a named owner and a real-browser check.
+Automatic checks added: room appears in the room list after create and survives reload; every search-result row responds to tap; version stamp matches build.
+Status: 5.9.execute.5 FAILED. No forward patching. Replan in progress.
