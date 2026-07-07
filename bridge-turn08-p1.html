@@ -419,7 +419,6 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 </style>
-<style id='tb-dormant-hide'>#tb-bridge-root{display:none !important;visibility:hidden !important;}</style>
 <style id='tb-retired-suppress'>#tb-bridge-root #lobby,#tb-bridge-root #lobby-waiting,#tb-bridge-root #thankyou-page{display:none !important;}</style>
 </head>
 <body>
@@ -529,7 +528,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="left-body" id="left-body">
       <div id="session-list"></div>
       <div id="recycle-bin"></div>
-      <button class="fab-plus" onclick="TBFRONT.newChat()" title="New chat">+</button>
+      <button class="fab-plus" onclick="openNewChatModal()" title="New chat">+</button>
     </div>
   </aside>
 
@@ -937,7 +936,6 @@ var TBGATE=(function(){
   return {boot:boot};
 })();
 try{TBGATE.boot();}catch(e){}
-
 /* ===== #new module: TBPROMOTE (Package 1 — organ promotion at room entry only) ===== */
 var TBPROMOTE=(function(){
   var promoted=false;
@@ -947,7 +945,6 @@ var TBPROMOTE=(function(){
     css=css.replace(/(^|\})\s*html\s*,\s*body\s*\{/g,'$1 #tb-bridge-root{');
     css=css.replace(/(^|\})\s*body\s*\{/g,'$1 #tb-bridge-root{');
     css=css.replace(/(^|\})\s*html\s*\{/g,'$1 #tb-bridge-root{');
-    /* prefix every remaining top-level selector */
     css=css.replace(/(^|\})([^@{}]+)\{/g,function(_,a,sel){
       if(/^\s*#tb-bridge-root/.test(sel))return a+sel+'{';
       var parts=sel.split(',').map(function(s){s=s.trim();return s?'#tb-bridge-root '+s:s;});
@@ -955,25 +952,28 @@ var TBPROMOTE=(function(){
     });
     return css;
   }
+  function TBLOGP(m){try{console.log('[TBPROMOTE]',m);}catch(e){}}
   function promote(){
     if(promoted)return true;
     try{
       var jsN=document.getElementById('tb-bridge-js');
       var cssN=document.getElementById('tb-bridge-css');
-      var root=document.getElementById('tb-bridge-root');
-      if(!jsN||!cssN||!root){TBLOGP('promote_missing_nodes');return false;}
-      /* checksum guard: dormant text length must match freeze */
+      var tpl=document.getElementById('tb-bridge-tpl');
+      if(!jsN||!cssN||!tpl){TBLOGP('promote_missing_nodes');return false;}
       if(jsN.textContent.length!==window.__TB_DORMANT_JS_LEN||cssN.textContent.length!==window.__TB_DORMANT_CSS_LEN){TBLOGP('promote_checksum_mismatch');return false;}
+      var root=document.createElement('div');root.id='tb-bridge-root';
+      root.appendChild(tpl.content.cloneNode(true));
+      document.body.appendChild(root);
       var st=document.createElement('style');st.id='tb-bridge-style';st.textContent=scopeCss(cssN.textContent);document.head.appendChild(st);
-      var hd=document.getElementById('tb-dormant-hide'); if(hd)hd.parentNode.removeChild(hd);
-      root.removeAttribute('hidden'); root.style.display='';
-      /* sealed IIFE: donor globals stay inside; expose only inline-handler names */
-      /* Execution-order adaptation (documented): donor defines engine modules AFTER its init code in file order; on a fresh device init would touch modules before they exist. We run the byte-identical module blocks first, then the byte-identical remainder. Zero character changes; lengths re-verified. */
+      /* Execution-order adaptation (documented): donor's engine modules are defined after its
+         startup code in file order; on a fresh device startup would touch them before they exist.
+         We run the byte-identical module blocks first, then the byte-identical remainder. */
       var src=jsN.textContent;
       var MODRE=/\/\* ===== #(?:new|existing) module: ([A-Z-]+[A-Za-z.]*)[^=]*===== \*\/[\s\S]*?\/\* ===== #end module: \1 ===== \*\//g;
       var mods=[],rest=src.replace(MODRE,function(m){mods.push(m);return '';});
       var joined=mods.join('\n')+'\n'+rest;
-      /* Documented adaptations (plan: chat-first rooms, call optional). Each patch is exact-match; missing match aborts promotion. */
+      if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
+      /* Documented adaptations (plan: chat-first rooms, call optional). Exact-match; missing match aborts. */
       var PATCHES=[
         ["createRoom camera-optional",
          "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}\n  var url=invUrl();",
@@ -987,7 +987,7 @@ var TBPROMOTE=(function(){
         ["joiner camera-optional",
          "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).then(function(s){\n    if(captureEpoch!==sessionEpoch){log('joiner_stale_media',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;",
          "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).catch(function(){return null;}).then(function(s){\n    if(captureEpoch!==sessionEpoch){if(s)s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;"],
-        ["joiner media-denied path unreachable-safe",
+        ["joiner media-denied toast removed",
          ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n    toast('Camera access required');\n  });",
          ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n  });"],
         ["STT only when mic exists",
@@ -995,67 +995,39 @@ var TBPROMOTE=(function(){
          "connectRelay();\n  dgDesired=!!videoStream;"]
       ];
       for(var pi=0;pi<PATCHES.length;pi++){
-        var nm=PATCHES[pi][0],from=PATCHES[pi][1],to=PATCHES[pi][2];
-        var cnt=joined.split(from).length-1;
-        if(cnt!==1){TBLOGP('patch_fail:'+nm+':matches='+cnt);return false;}
-        joined=joined.replace(from,to);TBLOGP('patch_ok:'+nm);
+        var cnt=joined.split(PATCHES[pi][1]).length-1;
+        if(cnt!==1){TBLOGP('patch_fail:'+PATCHES[pi][0]+':matches='+cnt);return false;}
+        joined=joined.replace(PATCHES[pi][1],PATCHES[pi][2]);TBLOGP('patch_ok:'+PATCHES[pi][0]);
       }
-
-      if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
       var code='(function(){\n'+joined+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
       var s=document.createElement('script');s.id='tb-bridge-live';s.textContent=code;document.body.appendChild(s);
+      /* single-owner: shell conversation organs off from this point (persisted) */
       var GK=['transcript','compose','pb','translate','langdetect','tts','relay','diag'];
       for(var gi=0;gi<GK.length;gi++){TBCONFIG.set('use.shell.'+GK[gi],false);TBCONFIG.set('use.bridge.'+GK[gi],true);}
       TBCONFIG.set('use.bridge.call',true);
       promoted=true;TBLOGP('promote_ok');return true;
     }catch(e){TBLOGP('promote_err:'+String(e).slice(0,120));return false;}
   }
-  function TBLOGP(m){try{console.log('[TBPROMOTE]',m);}catch(e){}}
   return {promote:promote,isPromoted:function(){return promoted;}};
 })();
 /* ===== #end module: TBPROMOTE ===== */
 /* ===== #new module: TBROUTE (Package 1 — front door: shell -> bridge) ===== */
 var TBROUTE=(function(){
+  function setSel(el,v){ if(!el)return; var has=false,i; for(i=0;i<el.options.length;i++){ if(el.options[i].value===v){has=true;break;} } if(!has){ var o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o);} el.value=v; }
   function createRoom(myLang,theirLang){
     if(!TBPROMOTE.promote())return;
     var ml=(myLang&&myLang!=='auto')?myLang:'en';
     var tl=(theirLang&&theirLang!=='auto')?theirLang:'th';
-    function setSel(el,v){ if(!el)return; var has=false,i; for(i=0;i<el.options.length;i++){ if(el.options[i].value===v){has=true;break;} } if(!has){ var o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o);} el.value=v; }
     setSel(document.getElementById('my-lang'),ml); setSel(document.getElementById('their-lang'),tl);
     setSel(document.getElementById('modal-my-lang'),ml); setSel(document.getElementById('modal-their-lang'),tl);
     try{window.confirmCreateRoom();}catch(e){}
   }
   function bootJoinCheck(){
-    try{
-      var h=(location.hash||'');
-      if(h.indexOf('j=')>=0){ TBPROMOTE.promote(); }
-    }catch(e){}
+    try{ if((location.hash||'').indexOf('j=')>=0){ TBPROMOTE.promote(); } }catch(e){}
   }
   return {createRoom:createRoom,bootJoinCheck:bootJoinCheck};
 })();
 /* ===== #end module: TBROUTE ===== */
-/* ===== #new module: TBFRONT (Package 1 — front door: shell routes conversation to promoted engine) ===== */
-var TBFRONT=(function(){
-  var BRIDGE_OWNS = true; /* Package 1 ruling: bridge owns conversation */
-  function newChat(){
-    if(!BRIDGE_OWNS){openNewChatModal();return;}
-    if(!TBPROMOTE.promote()){openNewChatModal();return;}
-    try{openCreateRoomModal();}catch(e){openNewChatModal();}
-  }
-  function bootRoute(){
-    /* Joiner invite links use the engine's own format; promote and let it handle the hash. */
-    try{
-      var h=String(location.hash||'');
-      if(BRIDGE_OWNS && h.indexOf('j=')>=0){TBPROMOTE.promote();}
-    }catch(e){}
-  }
-  /* Shell's own conversation relay stays closed while bridge owns conversation. */
-  function shellRelayAllowed(){return !BRIDGE_OWNS;}
-  return {newChat:newChat,bootRoute:bootRoute,shellRelayAllowed:shellRelayAllowed};
-})();
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){try{TBFRONT.bootRoute();}catch(e){}});}else{try{TBFRONT.bootRoute();}catch(e){}}
-/* ===== #end module: TBFRONT ===== */
-
 
 /* ===== #end module: TBCONFIG ===== */
 
@@ -2296,7 +2268,7 @@ function transportConnect(convId,opts){
   if(!TBCONFIG.get('use.shell.relay')){addDiagLog('shell relay disabled by organ gate');return;}
   setSocketState('connecting');
   addDiagLog('CONNECTED session='+convId.slice(0,8));
-  if(window.TBFRONT&&!TBFRONT.shellRelayAllowed()){setSocketState('offline');return;} try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
+  try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
   var ref=ws;
   var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'connect-timeout');},8000);
   ws.onopen=function(){
@@ -5348,7 +5320,7 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 </div>
-<div id="tb-bridge-root" hidden style="display:none">
+<template id="tb-bridge-tpl">
 
 <div class="lobby" id="lobby">
   <div class="lobby-card">
@@ -5658,7 +5630,7 @@ document.addEventListener('DOMContentLoaded',function(){
 <div id="toast"></div>
 
 
-</div>
+</template>
 <script>window.__TB_DORMANT_JS_LEN=262247;window.__TB_DORMANT_CSS_LEN=41944;</script>
 <script id="tb-bridge-js" type="text/tb-dormant">
 'use strict';
