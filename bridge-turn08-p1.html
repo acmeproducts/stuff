@@ -528,7 +528,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="left-body" id="left-body">
       <div id="session-list"></div>
       <div id="recycle-bin"></div>
-      <button class="fab-plus" onclick="openNewChatModal()" title="New chat">+</button>
+      <button class="fab-plus" onclick="TBFRONT.newChat()" title="New chat">+</button>
     </div>
   </aside>
 
@@ -1009,6 +1009,28 @@ var TBPROMOTE=(function(){
   return {promote:promote,isPromoted:function(){return promoted;}};
 })();
 /* ===== #end module: TBPROMOTE ===== */
+/* ===== #new module: TBFRONT (Package 1 — front door: shell routes conversation to promoted engine) ===== */
+var TBFRONT=(function(){
+  var BRIDGE_OWNS = true; /* Package 1 ruling: bridge owns conversation */
+  function newChat(){
+    if(!BRIDGE_OWNS){openNewChatModal();return;}
+    if(!TBPROMOTE.promote()){openNewChatModal();return;}
+    try{openCreateRoomModal();}catch(e){openNewChatModal();}
+  }
+  function bootRoute(){
+    /* Joiner invite links use the engine's own format; promote and let it handle the hash. */
+    try{
+      var h=String(location.hash||'');
+      if(BRIDGE_OWNS && h.indexOf('j=')>=0){TBPROMOTE.promote();}
+    }catch(e){}
+  }
+  /* Shell's own conversation relay stays closed while bridge owns conversation. */
+  function shellRelayAllowed(){return !BRIDGE_OWNS;}
+  return {newChat:newChat,bootRoute:bootRoute,shellRelayAllowed:shellRelayAllowed};
+})();
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){try{TBFRONT.bootRoute();}catch(e){}});}else{try{TBFRONT.bootRoute();}catch(e){}}
+/* ===== #end module: TBFRONT ===== */
+
 
 /* ===== #end module: TBCONFIG ===== */
 
@@ -2248,7 +2270,7 @@ function transportConnect(convId,opts){
     +'&client='+encodeURIComponent(DEVICE_ID);
   setSocketState('connecting');
   addDiagLog('CONNECTED session='+convId.slice(0,8));
-  try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
+  if(window.TBFRONT&&!TBFRONT.shellRelayAllowed()){setSocketState('offline');return;} try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
   var ref=ws;
   var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'connect-timeout');},8000);
   ws.onopen=function(){
