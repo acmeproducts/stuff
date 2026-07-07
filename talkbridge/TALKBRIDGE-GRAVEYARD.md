@@ -155,3 +155,11 @@ Symptoms on device: dormant-app fields bled onto the start screen; "+" produced 
 Root causes: (1) flipping the organ-gate defaults at boot disturbed shell startup — gates must flip at promotion time, not at load; (2) hiding the dormant surfaces by one inline style is too weak — must be enforced with priority CSS until promotion; (3) old rooms still route to the shell's old conversation organs — duplicate ownership not fully closed.
 Automatic checks added (run before any future device gate): cold load shows zero dormant-app fields; "+" opens the new-chat modal; opening any pre-existing room must not expose the old phrasebook surface.
 Action: rolled back, rebuilt as 5.9.execute.4.
+
+
+## E-02 (extraction era) — P1 5.9.execute.4 device gate FAIL — 2026-07-06
+Symptom on desktop Chrome: dormant-app screens rendered raw over the whole page.
+Root cause: the dormant surfaces were held in an ordinary container; real-browser parsing let them escape it. The headless rig uses a different parser and could not see it.
+Process failure: E-01 and E-02 were patched forward onto the same file instead of rebuilding clean — the exact violation the plan forbids.
+Automatic checks added: spec-exact parse check (same rules as Chrome) proving all dormant content stays sealed; candidate builds must be produced by one scripted pass from the banked base, never by cumulative edits.
+Action: rebuild as 5.9.execute.5 via single build script.
