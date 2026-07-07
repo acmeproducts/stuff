@@ -419,6 +419,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 </style>
+<style id='tb-dormant-hide'>#tb-bridge-root{display:none !important;visibility:hidden !important;}</style>
 <style id='tb-retired-suppress'>#tb-bridge-root #lobby,#tb-bridge-root #lobby-waiting,#tb-bridge-root #thankyou-page{display:none !important;}</style>
 </head>
 <body>
@@ -914,11 +915,11 @@ var TBCONFIG=(function(){
   var D={
     'relay.base':'talk-signal.myacctfortracking.workers.dev/signal',
     'relay.app':'talk-say-v1',
-    'use.shell.transcript':false,'use.shell.compose':false,'use.shell.pb':false,'use.shell.translate':false,
-    'use.shell.langdetect':false,'use.shell.tts':false,'use.shell.relay':false,'use.shell.diag':false,
-    'use.bridge.transcript':true,'use.bridge.compose':true,'use.bridge.pb':true,'use.bridge.translate':true,
-    'use.bridge.langdetect':true,'use.bridge.tts':true,'use.bridge.relay':true,'use.bridge.diag':true,
-    'use.bridge.call':true
+    'use.shell.transcript':true,'use.shell.compose':true,'use.shell.pb':true,'use.shell.translate':true,
+    'use.shell.langdetect':true,'use.shell.tts':true,'use.shell.relay':true,'use.shell.diag':true,
+    'use.bridge.transcript':false,'use.bridge.compose':false,'use.bridge.pb':false,'use.bridge.translate':false,
+    'use.bridge.langdetect':false,'use.bridge.tts':false,'use.bridge.relay':false,'use.bridge.diag':false,
+    'use.bridge.call':false
   };
   var O={};try{O=JSON.parse(localStorage.getItem(K)||'{}')||{};}catch(e){O={};}
   function get(k){return Object.prototype.hasOwnProperty.call(O,k)?O[k]:D[k];}
@@ -964,7 +965,8 @@ var TBPROMOTE=(function(){
       /* checksum guard: dormant text length must match freeze */
       if(jsN.textContent.length!==window.__TB_DORMANT_JS_LEN||cssN.textContent.length!==window.__TB_DORMANT_CSS_LEN){TBLOGP('promote_checksum_mismatch');return false;}
       var st=document.createElement('style');st.id='tb-bridge-style';st.textContent=scopeCss(cssN.textContent);document.head.appendChild(st);
-      root.style.display='';
+      var hd=document.getElementById('tb-dormant-hide'); if(hd)hd.parentNode.removeChild(hd);
+      root.removeAttribute('hidden'); root.style.display='';
       /* sealed IIFE: donor globals stay inside; expose only inline-handler names */
       /* Execution-order adaptation (documented): donor defines engine modules AFTER its init code in file order; on a fresh device init would touch modules before they exist. We run the byte-identical module blocks first, then the byte-identical remainder. Zero character changes; lengths re-verified. */
       var src=jsN.textContent;
@@ -1002,6 +1004,9 @@ var TBPROMOTE=(function(){
       if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
       var code='(function(){\n'+joined+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
       var s=document.createElement('script');s.id='tb-bridge-live';s.textContent=code;document.body.appendChild(s);
+      var GK=['transcript','compose','pb','translate','langdetect','tts','relay','diag'];
+      for(var gi=0;gi<GK.length;gi++){TBCONFIG.set('use.shell.'+GK[gi],false);TBCONFIG.set('use.bridge.'+GK[gi],true);}
+      TBCONFIG.set('use.bridge.call',true);
       promoted=true;TBLOGP('promote_ok');return true;
     }catch(e){TBLOGP('promote_err:'+String(e).slice(0,120));return false;}
   }
@@ -2657,7 +2662,7 @@ function submitNewChatModal(){
   savePrefs(p);
   var opts={myLang:myVal,partnerLang:peerVal,autoRead:!(ar&&!ar.checked),capability:capVal};
   closeNewChatModal(false);
-  if(TBCONFIG.get('use.bridge.relay')){ TBROUTE.createRoom(myVal,peerVal); return; }
+  if(true){ TBROUTE.createRoom(myVal,peerVal); return; } /* bridge owns conversation in P1 */
   createNewSession(false,opts);
 }
 function createNewSession(silent,opts){
@@ -4324,7 +4329,7 @@ function composerInput(){
   var v=ta?ta.value:'';
   if(v==='/'||v==='..'){
     ta.value='';autoResize();updateSendBtn();
-    openPhrasebookModal();
+    if(TBCONFIG.get('use.shell.pb')){openPhrasebookModal();}else{addDiagLog('old PB disabled by organ gate');}
     return;
   }
   if(!localTypingActive){localTypingActive=true;sendTyping('start');}
@@ -4345,6 +4350,7 @@ function showTyping(n,kind){
 }
 
 async function sendMessage(){
+  if(!TBCONFIG.get('use.shell.compose')){addDiagLog('shell composer disabled by organ gate');return;}
   var ta=document.getElementById('msg-input');var text=ta.value.trim();if(!text)return;
   if(localTypingActive){localTypingActive=false;sendTyping('stop');}
   if(typingStopTimer){clearTimeout(typingStopTimer);typingStopTimer=null;}
@@ -5342,7 +5348,7 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 </div>
-<div id="tb-bridge-root" style="display:none">
+<div id="tb-bridge-root" hidden style="display:none">
 
 <div class="lobby" id="lobby">
   <div class="lobby-card">
