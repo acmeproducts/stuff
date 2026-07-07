@@ -971,6 +971,34 @@ var TBPROMOTE=(function(){
       var MODRE=/\/\* ===== #(?:new|existing) module: ([A-Z-]+[A-Za-z.]*)[^=]*===== \*\/[\s\S]*?\/\* ===== #end module: \1 ===== \*\//g;
       var mods=[],rest=src.replace(MODRE,function(m){mods.push(m);return '';});
       var joined=mods.join('\n')+'\n'+rest;
+      /* Documented adaptations (plan: chat-first rooms, call optional). Each patch is exact-match; missing match aborts promotion. */
+      var PATCHES=[
+        ["createRoom camera-optional",
+         "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}\n  var url=invUrl();",
+         "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){videoStream=null}\n  var url=invUrl();"],
+        ["enterCall camera-optional",
+         "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){toast('Camera needed');return}\n  }",
+         "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){videoStream=null}\n  }"],
+        ["local video tolerates no media",
+         "$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();",
+         "if(videoStream)$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();"],
+        ["joiner camera-optional",
+         "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).then(function(s){\n    if(captureEpoch!==sessionEpoch){log('joiner_stale_media',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;",
+         "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).catch(function(){return null;}).then(function(s){\n    if(captureEpoch!==sessionEpoch){if(s)s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;"],
+        ["joiner media-denied path unreachable-safe",
+         ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n    toast('Camera access required');\n  });",
+         ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n  });"],
+        ["STT only when mic exists",
+         "connectRelay();\n  dgDesired=true;",
+         "connectRelay();\n  dgDesired=!!videoStream;"]
+      ];
+      for(var pi=0;pi<PATCHES.length;pi++){
+        var nm=PATCHES[pi][0],from=PATCHES[pi][1],to=PATCHES[pi][2];
+        var cnt=joined.split(from).length-1;
+        if(cnt!==1){TBLOGP('patch_fail:'+nm+':matches='+cnt);return false;}
+        joined=joined.replace(from,to);TBLOGP('patch_ok:'+nm);
+      }
+
       if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
       var code='(function(){\n'+joined+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
       var s=document.createElement('script');s.id='tb-bridge-live';s.textContent=code;document.body.appendChild(s);
