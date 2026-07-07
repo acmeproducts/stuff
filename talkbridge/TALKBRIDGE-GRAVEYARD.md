@@ -148,3 +148,10 @@ Device showed call surface on boot — bridge organ not inert; startup race not 
 
 **Date:** 2026-07-06
 **Ruling:** All entries above this line belong to the injection era (shell-first injection, merge, dormant-app approaches). That method is abandoned, not refined. Delivery now follows `talkbridge/TALKBRIDGE-HOW-WE-PREVAIL.md`: Plan → Execute → Test, extraction under single ownership. Every new graveyard entry below this line must also add an automatic gate check that enforces the lesson on all future builds.
+
+
+## E-01 (extraction era) — P1 5.9.execute.3 device gate FAIL — 2026-07-06
+Symptoms on device: dormant-app fields bled onto the start screen; "+" produced no new-chat modal; "/" inside an existing room opened the old phrasebook surface.
+Root causes: (1) flipping the organ-gate defaults at boot disturbed shell startup — gates must flip at promotion time, not at load; (2) hiding the dormant surfaces by one inline style is too weak — must be enforced with priority CSS until promotion; (3) old rooms still route to the shell's old conversation organs — duplicate ownership not fully closed.
+Automatic checks added (run before any future device gate): cold load shows zero dormant-app fields; "+" opens the new-chat modal; opening any pre-existing room must not expose the old phrasebook surface.
+Action: rolled back, rebuilt as 5.9.execute.4.
