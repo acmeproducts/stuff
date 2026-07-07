@@ -528,7 +528,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
     <div class="left-body" id="left-body">
       <div id="session-list"></div>
       <div id="recycle-bin"></div>
-      <button class="fab-plus" onclick="TBFRONT.newChat()" title="New chat">+</button>
+      <button class="fab-plus" onclick="openNewChatModal()" title="New chat">+</button>
     </div>
   </aside>
 
@@ -976,9 +976,9 @@ var TBPROMOTE=(function(){
         ["createRoom camera-optional",
          "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}\n  var url=invUrl();",
          "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){videoStream=null}\n  var url=invUrl();"],
-        ["enterCall camera-optional",
+        ["enterCall chat-first (no media request at room entry)",
          "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){toast('Camera needed');return}\n  }",
-         "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){videoStream=null}\n  }"],
+         "if(!videoStream){videoStream=null}"],
         ["local video tolerates no media",
          "$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();",
          "if(videoStream)$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();"],
@@ -990,7 +990,13 @@ var TBPROMOTE=(function(){
          ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n  });"],
         ["STT only when mic exists",
          "connectRelay();\n  dgDesired=true;",
-         "connectRelay();\n  dgDesired=!!videoStream;"]
+         "connectRelay();\n  dgDesired=!!videoStream;"],
+        ["room share owned by shell",
+         "var sb=$('strip-share-btn');if(sb)sb.style.display=room.role==='creator'?'':'none';",
+         "var sb=$('strip-share-btn');if(sb)sb.style.display='none';"],
+        ["back exits to shell when chat-only",
+         "if(lobbyState===LS.call){\n    // Back during call \u2192 PiP mode, re-push so back again works\n    pipEnter();\n    history.pushState({tbView:'call'},'',location.href);\n    return;\n  }",
+         "if(lobbyState===LS.call){\n    if(!videoStream&&!remoteStream){if(window.TB_SHELL_EXIT)window.TB_SHELL_EXIT();return;}\n    pipEnter();\n    history.pushState({tbView:'call'},'',location.href);\n    return;\n  }"]
       ];
       for(var pi=0;pi<PATCHES.length;pi++){
         var nm=PATCHES[pi][0],from=PATCHES[pi][1],to=PATCHES[pi][2];
@@ -1000,7 +1006,9 @@ var TBPROMOTE=(function(){
       }
 
       if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
-      var code='(function(){\n'+joined+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
+      var ADAPTER=';window.TB_ENTER=function(spec){try{room.id=spec.id;room.myLang=spec.myLang;room.theirLang=spec.theirLang;room.name=spec.name||"";room.role=spec.role||"creator";lastSessionContext.role=room.role;lastSessionContext.myLang=room.myLang;lastSessionContext.theirLang=room.theirLang;lastSessionContext.roomName=room.name;lastSessionContext.roomId=room.id;enterCall();}catch(e){console.log("[TBPROMOTE]","enter_err:"+String(e).slice(0,160));}};'
+        +'window.TB_LEAVE=function(){try{teardownSession("leave","shell_back");}catch(e){}try{$("call-screen").classList.remove("active");lobbyState=LS.setup;room.id=null;room.role=null;}catch(e){}};';
+      var code='(function(){\n'+joined+'\n'+ADAPTER+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
       var s=document.createElement('script');s.id='tb-bridge-live';s.textContent=code;document.body.appendChild(s);
       promoted=true;TBLOGP('promote_ok');return true;
     }catch(e){TBLOGP('promote_err:'+String(e).slice(0,120));return false;}
@@ -1009,28 +1017,6 @@ var TBPROMOTE=(function(){
   return {promote:promote,isPromoted:function(){return promoted;}};
 })();
 /* ===== #end module: TBPROMOTE ===== */
-/* ===== #new module: TBFRONT (Package 1 — front door: shell routes conversation to promoted engine) ===== */
-var TBFRONT=(function(){
-  var BRIDGE_OWNS = true; /* Package 1 ruling: bridge owns conversation */
-  function newChat(){
-    if(!BRIDGE_OWNS){openNewChatModal();return;}
-    if(!TBPROMOTE.promote()){openNewChatModal();return;}
-    try{openCreateRoomModal();}catch(e){openNewChatModal();}
-  }
-  function bootRoute(){
-    /* Joiner invite links use the engine's own format; promote and let it handle the hash. */
-    try{
-      var h=String(location.hash||'');
-      if(BRIDGE_OWNS && h.indexOf('j=')>=0){TBPROMOTE.promote();}
-    }catch(e){}
-  }
-  /* Shell's own conversation relay stays closed while bridge owns conversation. */
-  function shellRelayAllowed(){return !BRIDGE_OWNS;}
-  return {newChat:newChat,bootRoute:bootRoute,shellRelayAllowed:shellRelayAllowed};
-})();
-if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){try{TBFRONT.bootRoute();}catch(e){}});}else{try{TBFRONT.bootRoute();}catch(e){}}
-/* ===== #end module: TBFRONT ===== */
-
 
 /* ===== #end module: TBCONFIG ===== */
 
@@ -2270,7 +2256,7 @@ function transportConnect(convId,opts){
     +'&client='+encodeURIComponent(DEVICE_ID);
   setSocketState('connecting');
   addDiagLog('CONNECTED session='+convId.slice(0,8));
-  if(window.TBFRONT&&!TBFRONT.shellRelayAllowed()){setSocketState('offline');return;} try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
+  try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
   var ref=ws;
   var ct=setTimeout(function(){if(ws===ref&&ws.readyState===0)ws.close(4001,'connect-timeout');},8000);
   ws.onopen=function(){
@@ -2670,7 +2656,7 @@ function openInviteScreen(cid){
   addInviteMessage(cid);
   document.getElementById('shell-empty').style.display='none';
   document.getElementById('messages').style.display='flex';
-  document.getElementById('composer').style.display='flex';
+  document.getElementById('composer').style.display='none';
   updatePartnerHeader(sess);
   updateAutoReadBtn();
   resetActivePresence(cid);
@@ -2741,21 +2727,22 @@ function openSession(cid){
   if(stampExistingMessageNames(state.messages,sess))saveMsgs(cid,state.messages);
   setActiveConvId(cid);markViewed(cid);
   document.getElementById('shell-empty').style.display='none';
-  document.getElementById('messages').style.display='flex';
-  document.getElementById('composer').style.display='flex';
+  document.getElementById('messages').style.display='none';
+  document.getElementById('composer').style.display='none';
   updatePartnerHeader(sess);
   updateAutoReadBtn();
   resetActivePresence(cid);
   transportConnect(cid);
-  state.pendingInviteId=cid;
-  addInviteMessage(cid);
-  renderAllMessages();
-  scrollBottom();
-  setTimeout(function(){var ta=document.getElementById('msg-input');if(ta&&!document.hidden)ta.focus();},100);
   if(!document.hidden)scheduleMarkSessionRead(cid);
   showScreen('chat-screen');
   updateLangPill();
   refreshActiveSessionChrome(cid);
+  if(!(window.TBPROMOTE&&TBPROMOTE.promote())){addDiagLog('engine promote failed','error');toast('Room engine failed to start');showEmptyShell();return;}
+  var _ns=normalizeSession(sess);
+  var _myL=getSessionFixedLang(sess)||getPrefs().myLang||'en';
+  var _thL=(typeof getEffectiveTargetLang==='function'?(getEffectiveTargetLang(sess)||''):'')||'';
+  if(!_thL||_thL===_myL)_thL=(_myL==='en')?'th':'en';
+  window.TB_ENTER({id:cid,myLang:_myL,theirLang:_thL,name:getSessionLabel(sess)||'',role:(_ns.localRole==='partner')?'joiner':'creator'});
 }
 
 function updatePartnerHeader(sess){
@@ -2784,6 +2771,13 @@ function startCallFromRibbon(){
   toast('Calling lands in the next build');
 }
 
+window.TB_SHELL_EXIT=function(){
+  try{if(window.TB_LEAVE)window.TB_LEAVE();}catch(e){}
+  try{transportDisconnect({preserveQueue:true});}catch(e){}
+  try{setActiveConvId('');}catch(e){}
+  showEmptyShell();
+  try{renderSessionList();}catch(e){}
+};
 function showEmptyShell(){
   state.activeConvId=null;
   document.getElementById('shell-empty').style.display='flex';
