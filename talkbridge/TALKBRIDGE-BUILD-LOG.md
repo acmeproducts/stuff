@@ -117,3 +117,19 @@ All P2 criteria met including keys button tap path. P2 done.
 
 ### GATE · 5.8.pre-ship.4 · P3 · FAIL · Jul 5 2026 19:35 PT
 Call surface appeared on boot — bridge woke at load, not on room entry. Rollback to P2 972eca6 ordered.
+
+
+### Package 1 completion · front door wired · 2026-07-06 ~20:20 PT
+- Base: bridge-turn08-p1.html (promotion architecture; donor bytes untouched, all changes in TBPROMOTE + shell)
+- Steps: shell room entry (openSession) promotes engine once and hands the room to it (TB_ENTER adapter inside sealed IIFE); room entry is chat-first — no camera request, no permission prompt; STT stays off without a mic; shell transcript+composer permanently off inside rooms (engine is sole transcript/composer owner); invite screen keeps invite card, composer hidden; donor in-room share hidden (shell room-card share owns invites); browser back in a chat-only room exits cleanly to shell start screen (TB_SHELL_EXIT); with live call media, back still goes to PiP
+- Runtime patch table: 8 patches, each byte-verified exactly-once against donor source before apply; any mismatch aborts promotion
+- Automated acceptance (headless, jsdom):
+  - Cold load: bridge hidden, no live engine, no engine sockets, no adapter, start screen shows — 6/6 PASS
+  - Promotion: patches apply, engine live, adapters + handlers exposed, donor lobby suppressed — 8/8 PASS
+  - Room lifecycle: enter via front door, engine relay joins room, share hidden, leave closes surface — 4/4 PASS
+  - End-to-end shell path: create session -> invite screen (composer hidden) -> open from list -> engine owns room -> exactly two relay owners (shell metadata + engine, distinct clients) -> back-exit to start screen — 9/9 PASS
+  - Syntax: shell blocks + fully assembled engine — PASS
+- Output: bridge-turn08-p1.html · sha256 8184a02787a75d9c84d0e6d72fdb13b0ff7967f2d585b83ce6b0f2b54d40de8e · commit 958a50751f10f01e139de8d545a3aa4fcb3ee9b7 · byte-verify PASS at commit SHA
+- Rollback point: prior p1 banked WIP (commit before 958a507)
+- Blockers: none
+- Certification: "All due diligence done; release ready for device test." Y
