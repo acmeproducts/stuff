@@ -108,3 +108,30 @@ Rule of interpretation: where the plan's Part 3 spec and the pre-base page agree
 1 verify shell → 2 relay room path proven with two devices (bare) → 3 pre-base chat surface replaces old → 4 bilingual messages flowing through it → 6 PB data cycle in → 5 "/" search wired → 7 keys modal untouched check → full 16-step gate.
 
 Any step failing = stop, roll back to last banked build, graveyard + automatic check added, resume from clean.
+
+---
+
+# AUDIT ADDENDUM & PROMOTION SPEC (map v1.3) — 2026-07-06
+
+## Decisive findings
+1. `bridge-turn08-pre-base.html` is **byte-identical** to `bridge-turn07-post-ship.html` (md5 match). One donor, device-gated.
+2. `bridge-turn08-base.html` = shell (active) + the **entire donor app laid in dormant, byte-preserved** (inert script regions), with a config gate: shell organs ON, bridge organs OFF. The gate promoter is intentionally empty in Base.
+3. All 19 named engine modules inside the dormant region are **byte-identical** to the donor. Nothing needs transplanting — it's already aboard.
+4. The dormant region also carries the donor's own retired lobby/start surfaces. **Activating the whole dormant app boots a second app with a retired lobby — this is the mechanism behind the historical failures.**
+
+## Why the correct chat/PB behavior isn't showing in base
+The shell's own old organs (transcript, compose, PB, translate, relay) currently own the surfaces. The correct behavior sits dormant beside them. The job is ownership transfer, not code transport.
+
+## Package 1 = selective organ promotion
+- Promote **only the 19 delimited modules** from the dormant region (definitions only — verified loadable with zero boot side-effects).
+- The donor's lobby/boot code is **never executed**. Retired surfaces stay dead.
+- Shell remains the router and start screen (S0/S1/S2 unchanged — already device-gated).
+- On room entry only: bridge organs take transcript/compose/PB/translate/relay; shell's old organs for those concerns are switched off by the same gate. One owner per concern, enforced by the gate, not by discipline.
+- Keys modal: shell's, untouched.
+
+## Automatic checks added to the gate (graveyard-derived)
+- Dormant region byte-checksum unchanged by promotion.
+- No bridge activity before room entry (no relay socket, no media, no bridge DOM) on cold load.
+- Boot lands on start screen.
+- After room entry: exactly one transcript, one composer, one relay owner (shell's disabled).
+- Keys modal byte-identical.
