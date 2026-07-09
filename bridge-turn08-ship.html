@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- TALKBRIDGE APP · 09-Jul-26 plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v7.1.2)
-     Build A4 · 2026-07-07 · Package: conversation product (S0-S8, S10, S11, S13, S4b core)
+<!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v7.1.2)
+     Build A6 · 2026-07-07 · Package: conversation product (S0-S8, S10, S11, S13, S4b core)
      Runtime foundation: THIS FILE ONLY. Donors quarried (inert helpers + look only):
        bridge-turn08-pre-base.html -> relay protocol, chat pipeline, translation, PB sync cycle, invite enc
        bridge-turn08-base.html     -> light theme tokens, keys modal storage contract (tb_dg_key/tb_cf_tid/tb_cf_tok/tb_gh_pat)
@@ -502,7 +502,7 @@ button.vpill{cursor:pointer}
 <script>
 "use strict";
 /* ════════════ CORE / STATE ════════════ */
-var VERSION='A4 · plan v7.1.2';
+var VERSION='A6 · plan v7.1.2';
 var RELAY_WS='wss://talk-signal.myacctfortracking.workers.dev/signal';
 var RELAY_APP='talk-say-v1';
 var HEARTBEAT_MS=30000, PRESENCE_TTL=75000;
@@ -929,7 +929,7 @@ function pbPull(){
   var url='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/?ref=main';
   return fetch(url,{headers:ghHeaders()}).then(function(r){
     if(!r.ok)throw new Error('list HTTP '+r.status);return r.json();
-  }).then(function(files){
+  },function(e){throw new Error('list network: '+String(e&&e.message||e))}).then(function(files){
     var best=null,bestVer=-1,bestPrefix=null;
     (files||[]).forEach(function(f){
       prefixes.forEach(function(pre){
@@ -940,8 +940,15 @@ function pbPull(){
       });
     });
     if(!best){PB.lastPull={status:'no-pair-file',at:Date.now()};renderPbStatus();return{status:'no-pair-file'}}
-    return fetch(best.download_url||('https://raw.githubusercontent.com/'+PB_REPO.owner+'/'+PB_REPO.name+'/main/'+PB_REPO.dir+'/'+best.name),{headers:ghHeaders()}).then(function(r2){
-      if(!r2.ok)throw new Error('fetch HTTP '+r2.status);return r2.json();
+    var fileUrl='https://api.github.com/repos/'+PB_REPO.owner+'/'+PB_REPO.name+'/contents/'+PB_REPO.dir+'/'+encodeURIComponent(best.name)+'?ref=main';
+    return fetch(fileUrl,{headers:ghHeaders()}).then(function(r2){
+      if(!r2.ok)throw new Error('file HTTP '+r2.status);return r2.json();
+    }).then(function(meta){
+      if(meta&&meta.content)return JSON.parse(decodeURIComponent(escape(atob(String(meta.content).replace(/\s/g,'')))));
+      if(meta&&meta.git_url)return fetch(meta.git_url,{headers:ghHeaders()}).then(function(r3){
+        if(!r3.ok)throw new Error('blob HTTP '+r3.status);return r3.json();
+      }).then(function(blob){return JSON.parse(decodeURIComponent(escape(atob(String(blob.content).replace(/\s/g,'')))))});
+      throw new Error('no content in API response');
     }).then(function(data){
       var cards=Array.isArray(data)?data:(data.cards||[]);
       PB.cards=cards;PB.version=bestVer;
@@ -952,7 +959,13 @@ function pbPull(){
       renderPbStatus();
       return{status:'ok',version:bestVer,n:cards.length};
     });
-  }).catch(function(e){log('pb_pull_err',{e:String(e)},'warn');PB.lastPull={status:'error',detail:String(e),at:Date.now()};renderPbStatus();return{status:'error',detail:String(e)}});
+  }).catch(function(e){
+    var d=String(e&&e.message||e);
+    log('pb_pull_err',{e:d},'warn');
+    var st=/HTTP 401|HTTP 403/.test(d)?'auth':'error';
+    PB.lastPull={status:st,detail:d,at:Date.now()};renderPbStatus();
+    return{status:st,detail:d};
+  });
 }
 var _pbRetryArmed=false;
 function pbWriteBack(){
@@ -1094,6 +1107,7 @@ function enterRoom(id){
     if(!r)return;
     if(r.status==='no-pair-file')toast('No shared phrasebook yet');
     else if(r.status==='no-pat')toast('Phrasebook: add GitHub PAT in Calling & sync keys');
+    else if(r.status==='auth')toast('Phrasebook: GitHub rejected the PAT — check it in Calling & sync keys');
     else if(r.status==='error')toast(location.protocol==='file:'?'Phrasebook can\'t sync from file:// — use the deployed URL':'Phrasebook sync failed: '+(r.detail||''));
     else if(r.status==='ok')toast('Phrasebook loaded · '+r.n+' phrases (v'+r.version+')');
   });
@@ -1456,6 +1470,7 @@ function renderPbStatus(){
   if(!pat){el.textContent='Local only — add a GitHub PAT (long-press square → Calling & sync keys) to sync';return}
   if(!lp){el.textContent='Not synced yet this session';return}
   if(lp.status==='ok')el.textContent='Synced · '+lp.file+' · '+lp.n+' phrases · pulled '+fmtTime(lp.at);
+  else if(lp.status==='auth')el.textContent='GitHub rejected the PAT ('+lp.detail+') — check the token has repo read access';
   else if(lp.status==='no-pair-file')el.textContent='No shared phrasebook file on GitHub yet for this pair — first save will create one';
   else if(location.protocol==='file:')el.textContent='Sync blocked: file:// pages cannot call the GitHub API (CORS). Open the deployed URL to sync.';
   else el.textContent='Sync failed: '+(lp.detail||lp.status)+' · '+fmtTime(lp.at);
@@ -1566,7 +1581,12 @@ function pbTrashSectionHtml(trashed){
 function renderPbList(){
   var host=$('pb-ov-cards');if(!host)return;
   var q=norm($('pb-search').value||'');
-  var live=PB.live().slice().sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0)});
+  var ts=function(x){var n=+x||(x?+new Date(x):0);return isNaN(n)?0:n};
+  var live=PB.live().slice().sort(function(a,b){
+    var ea=pbCardEmpty(a)?1:0,eb=pbCardEmpty(b)?1:0;
+    if(ea!==eb)return eb-ea; // blank/new cards pinned to the top (S8)
+    return ts(b.createdAt)-ts(a.createdAt);
+  });
   var html='';
   if(!live.length&&!PB.trash().length){
     html='<div style="padding:32px 16px;text-align:center;color:#9a9592;font-size:14px;line-height:1.6;">No phrasebook loaded.</div>';
@@ -1590,7 +1610,7 @@ function pbRerenderCard(id){
 }
 function pbLogChain(c,text){
   c.clarifyChain=c.clarifyChain||[];
-  c.clarifyChain.push({text:text,author:'system',timestamp:Date.now()});
+  c.clarifyChain.push({text:text,author:S.user.name||'me',timestamp:Date.now()});
 }
 function pbTouch(c){c.updatedAt=Date.now();c.updatedBy='local';PB.save();PB.markDirty();pbSyncDot('dirty')}
 function pbRunBT(c){
@@ -1605,21 +1625,27 @@ function pbRunBT(c){
 function pbCommitEdit(id,field,value){
   var c=pbCardById(id);if(!c)return;
   var v=norm(value);
-  if(v===norm(c[field]||''))return;
-  var wasEmpty=pbCardEmpty(c);
+  var changed=(v!==norm(c[field]||''));
   c[field]=v;
   if(field==='source'){
-    var bt=c.backtranslate=c.backtranslate||{};
-    if(bt.verdict){bt.verdict='';pbLogChain(c,'Verdict reset to pending (source changed)')} // G8: conditional reset only
-    c.tags=(c.tags||[]).filter(function(t){return t!=='✓Verified'});
-    if(wasEmpty&&v&&!norm(c.target)){ // S8 new card: Enter translates + fills inline
-      translateWithRetry(v,c.sourceLang,c.targetLang,1).then(function(r){
-        if(r.ok){c.target=r.text;pbTouch(c);pbRunBT(c)}
-      });
+    if(changed){
+      var bt=c.backtranslate=c.backtranslate||{};
+      if(bt.verdict){bt.verdict='';pbLogChain(c,'Verdict reset to pending (source changed)')} // G8: conditional reset only
+      c.tags=(c.tags||[]).filter(function(t){return t!=='✓Verified'});
+      pbTouch(c);
     }
+    if(!v){pbRerenderCard(id);return}
+    // owner ruling: Enter in source, changed or not, re-translates target and re-runs BT
+    translateWithRetry(v,c.sourceLang,c.targetLang,1).then(function(r){
+      if(r.ok&&norm(r.text)!==norm(c.target||'')){c.target=norm(r.text);pbTouch(c)}
+      return pbRunBT(c);
+    });
+    pbRerenderCard(id);
+    return;
   }
-  if(v&&norm(c.target))pbRunBT(c);
-  pbTouch(c);pbRerenderCard(id);
+  // target edited by hand: keep it, re-run BT
+  if(changed){pbTouch(c);if(v)pbRunBT(c)}
+  pbRerenderCard(id);
 }
 function pbSetVerdict(id,v){
   var c=pbCardById(id);if(!c)return;
