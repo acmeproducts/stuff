@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OC Scraper v1.2 — Multi-Method Deduplication</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#15212e; --panel2:#1b2b3a; --line:#26384a;
+    --txt:#dce7f0; --muted:#7e93a6; --accent:#22c55e; --accent2:#38bdf8;
+    --warn:#f59e0b; --bad:#ef4444; --ok:#22c55e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--txt);min-height:100vh;line-height:1.4}
+  header{padding:18px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,#0f1722,#13202c)}
+  header h1{font-size:20px;color:var(--accent)}
+  header p{color:var(--muted);font-size:13px;margin-top:4px}
+  nav{display:flex;gap:6px;padding:10px 16px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-wrap:wrap}
+  nav button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    padding:9px 16px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  nav button.active{background:var(--accent);color:#06251a;border-color:var(--accent)}
+  .tab{display:none;padding:18px 20px;max-width:1500px;margin:0 auto}
+  .tab.active{display:block}
+  h2{font-size:17px;color:var(--accent2);margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 5px}
+  input[type=text],input[type=password],textarea,select{width:100%;background:var(--panel2);
+    color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;
+    font-family:inherit}
+  
+  textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;min-height:280px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .btn{background:var(--accent);color:#06251a;border:none;padding:10px 18px;border-radius:8px;
+    font-weight:700;cursor:pointer;font-size:14px}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn.blue{background:var(--accent2);color:#04222e}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .chk{display:inline-flex;align-items:center;gap:7px;font-size:14px;margin:6px 14px 6px 0}
+  .chk input{width:16px;height:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+  .pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-right:6px}
+  .pill.fire{background:#0e2a3a;color:var(--accent2)}
+  .pill.proxy{background:#13351f;color:var(--ok)}
+  .pill.jina{background:#33240e;color:var(--warn)}
+  .pill.fail{background:#3a1414;color:var(--bad)}
+  .src-item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:10px;background:var(--panel2)}
+  .src-item .meta{flex:1}
+  .src-item .meta b{font-size:15px}
+  .src-item .meta small{display:block;color:var(--muted);font-size:12px;word-break:break-all}
+  .prog{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:8px}
+  .prog>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+  
+  .log{background:#0a1119;border:1px solid var(--line);border-radius:10px;padding:12px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;height:220px;overflow:auto;color:#9fb3c6}
+  .stats{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 18px}
+  .stat b{display:block;font-size:24px;color:var(--accent2)}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tabs button{padding:7px 14px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--txt);border-radius:20px;cursor:pointer;font-size:13px;font-weight:600}
+  .tabs button.active{background:var(--accent2);color:#04222e;border-color:var(--accent2)}
+  .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{position:sticky;top:0;background:var(--panel);cursor:pointer;user-select:none;z-index:2}
+  th:hover{color:var(--accent2)}
+  tr:hover td{background:var(--panel2)}
+  td a{color:var(--accent2);text-decoration:none}
+  .ok{color:var(--ok)} .missing{color:var(--muted)}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--accent);
+    border-left:4px solid var(--accent);padding:12px 18px;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.4);z-index:50}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .grid-note{font-size:12px;color:var(--muted);margin:8px 0}
+  .version-badge{display:inline-block;background:var(--accent2);color:#04222e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📍 OC Scraper — Multi-Method <span class="version-badge">v1.2</span></h1>
+  <p>Advanced Extract & Deduplication · Multi-Source Linking · CSS Selector Driven</p>
+</header>
+
+<nav>
+  <button data-tab="settings" class="active">⚙️ Settings</button>
+  <button data-tab="rules">📝 Rules</button>
+  <button data-tab="scrape">⚡ Scrape</button>
+  <button data-tab="data">📊 Data</button>
+</nav>
+
+<section id="tab-settings" class="tab active">
+  <h2>Configuration</h2>
+  <div class="card">
+    <label>Firecrawl API Key (optional — works without key for limited requests)</label>
+    <input type="password" id="apiKey" placeholder="fc-xxxxxxxxxxxxxxxx">
+    <div class="row">
+      <button class="btn sec" onclick="saveApiKey()">Save Key</button>
+      <label class="chk"><input type="checkbox" id="useKey"> Use my API key (more reliable)</label>
+    </div>
+    <div class="note">Free tier: 500 credits/month (resets 1st). 1 credit ≈ 1 page. Use <b>Fast</b> mode to save credits.</div>
+  </div>
+
+  <div class="card">
+    <label>Default method order (primary → tertiary)</label>
+    <select id="methodOrder">
+      <option value="firecrawl,cors-proxy,jina">Firecrawl → CORS-proxy → Jina</option>
+      <option value="cors-proxy,jina,firecrawl">CORS-proxy → Jina → Firecrawl</option>
+      <option value="jina,cors-proxy,firecrawl">Jina → CORS-proxy → Firecrawl</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <label>Scrape mode</label>
+    <div class="row">
+      <label class="chk"><input type="radio" name="mode" value="fast"> Fast (listing only)</label>
+      <label class="chk"><input type="radio" name="mode" value="full" checked> Full (fetch detail pages for attributes)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Database</h2>
+    <div class="row">
+      <button class="btn sec" onclick="exportJSON()">Export JSON</button>
+      <button class="btn sec" onclick="exportCSV()">Export CSV</button>
+      <button class="btn sec" onclick="importJSON()">Import JSON</button>
+      <button class="btn sec" onclick="clearData()" style="border-color:var(--bad);color:var(--bad)">Clear All</button>
+    </div>
+    <div class="note" id="dbMeta">Records: 0</div>
+  </div>
+</section>
+
+<section id="tab-rules" class="tab">
+  <h2>Scraping Rules (JSON)</h2>
+  <div class="card">
+    <textarea id="rulesJson"></textarea>
+    <div class="row">
+      <button class="btn" onclick="saveRules()">💾 Save</button>
+      <button class="btn sec" onclick="copyRules()">📋 Copy</button>
+      <button class="btn sec" onclick="resetRules()">↺ Defaults</button>
+    </div>
+    <div class="note">Regexes removed from defaults. The system now uses robust CSS parsing logic built directly into the engine for accurate deduping and attribute targeting.</div>
+  </div>
+</section>
+
+<section id="tab-scrape" class="tab">
+  <h2>Execute Scrape</h2>
+  <div class="card" id="sourceList"></div>
+  <div class="row">
+    <button class="btn" id="scrapeBtn" onclick="startScrape()">🚀 Start Scraping</button>
+    <button class="btn sec" id="cancelBtn" onclick="cancelScrape()" disabled>⛔ Cancel</button>
+    <label class="chk"><input type="checkbox" id="verbose"> Show verbose logs</label>
+  </div>
+  <div class="log" id="log"></div>
+  <div class="card" id="scrapeSummary" style="display:none"></div>
+</section>
+
+<section id="tab-data" class="tab">
+  <h2>Results</h2>
+  <div class="stats" id="statsBar"></div>
+  <div class="toolbar">
+    <div class="tabs" id="srcTabs"></div>
+    <input type="text" id="search" placeholder="🔍 Search all fields…" style="flex:1;min-width:220px" oninput="renderGrid()">
+  </div>
+  <div class="grid-note">Profiles are dynamically merged across sources by exact Height/Weight & Name Similarity (>75%).</div>
+  <div class="grid-wrap">
+    <table id="grid">
+      <thead><tr id="gridHead"></tr></thead>
+      <tbody id="gridBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div id="toastBox"></div>
+
+<script>
+const LS = {
+  apiKey:'oc_apikey', useKey:'oc_usekey', rules:'oc_rules',
+  records:'oc_records', methods:'oc_methods', order:'oc_order', mode:'oc_mode'
+};
+function load(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
+function save(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+
+// Simplified rules: Engine now dictates specific extraction logic natively
+const DEFAULT_RULES = {
+  defaultMethodOrder: ["firecrawl","cors-proxy","jina"],
+  corsProxies: [
+    "https://api.allorigins.win/raw?url=",
+    "https://corsproxy.io/?url=",
+    "https://api.codetabs.com/v1/proxy/?quest="
+  ],
+  sources: [
+    {
+      id:"cakdolls", name:"CakDolls", domain:"cakdolls.com",
+      listingUrl:"https://cakdolls.com/oc/"
+    },
+    {
+      id:"get9irl", name:"Get9IRL", domain:"get9irl.com",
+      listingUrl:"https://get9irl.com/index.php?route=product/category&path=2_11"
+    },
+    {
+      id:"topangels", name:"TopAngels", domain:"topangels.ch",
+      listingUrl:"https://topangels.ch/incall-escorts/orange-county/"
+    }
+  ]
+};
+
+const state = {
+  records: load(LS.records, []),
+  rules: load(LS.rules, null),
+  methods: load(LS.methods, {}),
+  sort: {col:'date_last_seen', dir:'desc'},
+  filter:'all', search:''
+};
+
+function ensureValidRules(){
+  if (!state.rules || !Array.isArray(state.rules.sources)) {
+    state.rules = JSON.parse(JSON.stringify(DEFAULT_RULES));
+    save(LS.rules, state.rules);
+  }
+}
+ensureValidRules();
+
+let _worker=null, _seq=0; const _waiters={};
+function getWorker(){
+  if(_worker!==null) return _worker;
+  try{
+    const code = "self.onmessage=async function(e){"
+      + "var id=e.data.id,url=e.data.url,headers=e.data.headers||{};"
+      + "try{var r=await fetch(url,{headers:headers});var t=await r.text();"
+      + "self.postMessage({id:id,ok:true,text:t});}"
+      + "catch(err){self.postMessage({id:id,ok:false,error:String(err&&err.message||err)});}};";
+    const blob=new Blob([code],{type:'application/javascript'});
+    _worker=new Worker(URL.createObjectURL(blob));
+    _worker.onmessage=function(e){
+      const d=e.data, w=_waiters[d.id];
+      if(w){ delete _waiters[d.id]; d.ok?w.resolve(d.text):w.reject(new Error(d.error)); }
+    };
+  }catch(err){ _worker=false; }
+  return _worker;
+}
+function workerFetch(url, headers){
+  const w=getWorker();
+  if(!w) return fetch(url,{headers:headers||{}}).then(r=>r.text());
+  return new Promise((resolve,reject)=>{
+    const id=++_seq; _waiters[id]={resolve,reject};
+    w.postMessage({id,url,headers});
+    setTimeout(()=>{ if(_waiters[id]){ delete _waiters[id]; reject(new Error('worker timeout')); } }, 30000);
+  });
+}
+
+async function methodFirecrawl(url){
+  const key = (document.getElementById('useKey').checked) ? document.getElementById('apiKey').value.trim() : '';
+  const headers={'Content-Type':'application/json'};
+  if(key) headers['Authorization']='Bearer '+key;
+  const body=JSON.stringify({ url, pageOptions:{ includeHtml:true, includeMarkdown:true } });
+  const r=await fetch('https://api.firecrawl.dev/v1/scrape',{method:'POST',headers,body});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  if(j.error) throw new Error(j.error);
+  const d=j.data||{};
+  return { html:d.html||'', markdown:d.markdown||'', text:d.markdown||d.html||'' };
+}
+async function methodCorsProxy(url, rules){
+  const proxies = (rules && Array.isArray(rules.corsProxies)) ? rules.corsProxies : DEFAULT_RULES.corsProxies;
+  for(const base of proxies){
+    try{
+      const txt=await workerFetch(base+encodeURIComponent(url));
+      if(txt && txt.length>500) return { html:txt, markdown:'', text:txt };
+    }catch(e){ /* try next proxy */ }
+  }
+  throw new Error('all CORS proxies failed');
+}
+async function methodJina(url){
+  const txt=await workerFetch('https://r.jina.ai/'+url);
+  if(!txt || txt.length<200) throw new Error('jina empty');
+  return { html:'', markdown:txt, text:txt };
+}
+const METHODS={
+  firecrawl:{ fn:methodFirecrawl, label:'Firecrawl', cls:'fire' },
+  'cors-proxy':{ fn:methodCorsProxy, label:'CORS-proxy', cls:'proxy' },
+  jina:{ fn:methodJina, label:'Jina', cls:'jina' }
+};
+async function fetchAny(url, order, rules){
+  let lastErr;
+  for(const m of order){
+    try{
+      log('  ↳ trying '+METHODS[m].label+'…');
+      const res=await METHODS[m].fn(url, rules);
+      if(res && (res.html||res.markdown)) return {res, method:m};
+      lastErr=new Error('empty result');
+    }catch(e){ lastErr=e; log('  ✗ '+METHODS[m].label+' failed: '+e.message); }
+  }
+  throw lastErr||new Error('no method succeeded');
+}
+
+// Calculate string similarity (Token Overlap & basic Levenshtein approximation)
+function getSimilarity(s1, s2) {
+    if (!s1 || !s2) return 0;
+    let longer = s1.toLowerCase(); let shorter = s2.toLowerCase();
+    if (s1.length < s2.length) { longer = s2.toLowerCase(); shorter = s1.toLowerCase(); }
+    if (longer.length === 0) return 1.0;
+    let costs = new Array();
+    for (let i = 0; i <= longer.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= shorter.length; j++) {
+            if (i === 0) costs[j] = j;
+            else if (j > 0) {
+                let newValue = costs[j - 1];
+                if (longer.charAt(i - 1) !== shorter.charAt(j - 1))
+                    newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                costs[j - 1] = lastValue; lastValue = newValue;
+            }
+        }
+        if (i > 0) costs[shorter.length] = lastValue;
+    }
+    return (longer.length - costs[shorter.length]) / longer.length;
+}
+
+// Clean and deduplicate name tokens
+function cleanName(str) {
+    if (!str) return '';
+    str = str.replace(/\([^)]*\)/g, ''); // Remove parentheticals "(start 7/22)"
+    str = str.replace(/\b(image|photo)\b/gi, ''); // Remove explicit garbage words
+    let words = str.match(/\b[A-Za-z]+\b/g) || [];
+    let uniqueWords = Array.from(new Set(words.map(w => w.toLowerCase()))); // Deduplicate "Suri Suri"
+    let titleCased = uniqueWords.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return titleCased.trim();
+}
+
+function parseHeight(str) {
+    let m = str.match(/(\d+)'(\d+)/);
+    if(m) return { text: `${m[1]}'${m[2]}"`, inches: parseInt(m[1])*12 + parseInt(m[2]) };
+    return null;
+}
+function parseWeight(str) {
+    let m = str.match(/(\d+)\s*(?:lbs|lb)/i);
+    if(m) return parseInt(m[1]);
+    return null;
+}
+
+function extractListings(content, source){
+  const out = []; const seen = new Set();
+  if(!content.html) return out;
+  const doc = new DOMParser().parseFromString(content.html, 'text/html');
+
+  const push = (name, url) => {
+    name = cleanName(name);
+    if(!name || seen.has(url)) return;
+    seen.add(url);
+    out.push({ name, profile_url: url });
+  };
+
+  doc.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    let text = a.textContent.trim();
+    const img = a.querySelector('img');
+    if(img && img.alt) text = img.alt.trim();
+
+    // Use CSS targeting strategies dependent on the Source logic constraints
+    if (source.id === 'get9irl') {
+        // Direct SEO profile URLs have no path structures or queries
+        if(/^https:\/\/get9irl\.com\/[^\/\?\#]+$/.test(href) && !['login','register','contact'].includes(href.split('/').pop())) {
+            push(text, href);
+        }
+    } else if (source.id === 'topangels') {
+        if(href.includes('/topangel/')) push(text, href);
+    } else if (source.id === 'cakdolls') {
+        if(href.includes('/escort/')) push(text, href);
+    }
+  });
+
+  return out;
+}
+
+function parseDetail(content, source){
+  const txt = (content.html||content.markdown||'').replace(/\s+/g,' ');
+  const res = { age: null, height: null, heightInches: null, weight: null, cup: null, services: [], pricing: [], location: null, terms: '' };
+
+  if (source.id === 'get9irl') {
+      // Direct explicit data block targeting via Regex on Text output
+      let hm = txt.match(/Height\s*[:\-]\s*(\d+'\d+)/i);
+      if(hm) { let hp = parseHeight(hm[1]); if(hp) { res.height = hp.text; res.heightInches = hp.inches; } }
+      
+      let wm = txt.match(/Weight\s*[:\-]\s*(\d+)\s*lbs/i);
+      if(wm) res.weight = parseInt(wm[1]);
+      
+      let cm = txt.match(/Breast Cup\s*[:\-]\s*([a-zA-Z0-9]+)/i);
+      if(cm) res.cup = cm[1].toUpperCase();
+      
+      let sm = txt.match(/Service\s*[:\-]\s*([^<♥]+)/i);
+      if(sm) {
+         res.services = sm[1].split(',').map(s=>s.trim()).filter(s=>s.length>0);
+      }
+      
+      // ♥ Extract Pricing blocks
+      let pBlocks = txt.match(/♥[^♥]+/g) || [];
+      pBlocks.forEach(block => {
+          let pClean = block.replace('♥', '').trim();
+          // Filter arbitrary text captures by limiting length check
+          if(pClean.length > 3 && pClean.length < 150) res.pricing.push(pClean);
+      });
+  }
+  else if (source.id === 'topangels' || source.id === 'cakdolls') {
+      // e.g., "Irvine, Orange County Stats: 5'4", natural 34B, 100lbs. Services: GFE/PSE"
+      let statsMatch = txt.match(/(.*?)\s*Stats:\s*(.*?)(?:\.\s*Services:|\s*Services:)(.*)/i);
+      let statsStr = "", svcsStr = "";
+      
+      if (statsMatch) {
+          res.location = statsMatch[1].trim();
+          statsStr = statsMatch[2];
+          svcsStr = statsMatch[3];
+      } else {
+          // Alternative fallback matching
+          let sm2 = txt.match(/Stats:\s*(.*?)(?:\.\s*Services:|\s*Services:)(.*)/i);
+          if(sm2) { statsStr = sm2[1]; svcsStr = sm2[2]; }
+      }
+
+      let am = txt.match(/Age:\s*(\d+)/i);
+      if(am) res.age = parseInt(am[1]);
+
+      if (statsStr) {
+          let hm = parseHeight(statsStr);
+          if(hm) { res.height = hm.text; res.heightInches = hm.inches; }
+          let wm = parseWeight(statsStr);
+          if(wm) res.weight = wm;
+          let cupm = statsStr.match(/(?:natural\s+)?(\d{2}[A-Z]{1,2})(?:\s+natural)?/i);
+          if(cupm) res.cup = cupm[1].toUpperCase();
+      }
+
+      if (svcsStr) {
+          let cleanSvc = svcsStr.split(/\.|Phone:|Contact:/)[0];
+          res.services = cleanSvc.split(/[\/\,]/).map(s=>s.trim()).filter(s=>s.length>0);
+      }
+  }
+  return res;
+}
+
+function upsert(rec){
+  const today = new Date().toISOString().slice(0,10);
+  
+  // 1. Migrate older schema arrays inline if missing 'sources' array
+  state.records.forEach(r => {
+     if(!r.sources) {
+         r.sources = [{ site: r.sourceName || r.source || 'Unknown', url: r.profile_url, date: r.date_first_seen || today }];
+     }
+  });
+
+  // 2. Exact match by known URL
+  let ex = state.records.find(r => r.sources.some(s => s.url === rec.profile_url));
+
+  // 3. Deduplication Logic: Match by explicit height, weight, and >75% name similarity
+  if(!ex && rec.heightInches && rec.weight) {
+      ex = state.records.find(r => {
+          return r.heightInches === rec.heightInches &&
+                 r.weight === rec.weight &&
+                 getSimilarity(r.name, rec.name) > 0.75;
+      });
+  }
+
+  if(ex){
+    // Merge existing profile fields retaining earliest truths
+    ex.age = ex.age || rec.age;
+    ex.height = ex.height || rec.height;
+    ex.heightInches = ex.heightInches || rec.heightInches;
+    ex.weight = ex.weight || rec.weight;
+    ex.cup = ex.cup || rec.cup;
+    ex.location = ex.location || rec.location;
+
+    // Concat & Dedup Services
+    let svcSet = new Set(ex.services || []);
+    (rec.services || []).forEach(s => svcSet.add(s));
+    ex.services = Array.from(svcSet);
+
+    // Concat & Dedup Pricing
+    let prcSet = new Set(ex.pricing || []);
+    (rec.pricing || []).forEach(p => prcSet.add(p));
+    ex.pricing = Array.from(prcSet);
+
+    // Bind new source if entirely unseen
+    if(!ex.sources.some(s => s.url === rec.profile_url)) {
+        ex.sources.push({ site: rec.sourceName, url: rec.profile_url, date: today });
+    }
+    
+    ex.date_last_seen = today;
+  } else {
+    // Scaffold completely new record
+    rec.date_first_seen = today;
+    rec.date_last_seen = today;
+    rec.sources = [{ site: rec.sourceName, url: rec.profile_url, date: today }];
+    state.records.push(rec);
+  }
+}
+
+let _cancel=false;
+async function startScrape(){
+  ensureValidRules();
+  const order=(document.getElementById('methodOrder').value.split(',')).filter(Boolean);
+  const mode=document.querySelector('input[name=mode]:checked')?.value || 'fast';
+  const sources = Array.isArray(state.rules.sources) ? state.rules.sources : DEFAULT_RULES.sources;
+  const enabled=sources.filter(s=>document.getElementById('en_'+s.id)?.checked);
+  
+  if(enabled.length===0){ toast('Select at least one source','bad'); return; }
+  
+  _cancel=false;
+  document.getElementById('scrapeBtn').disabled=true;
+  document.getElementById('cancelBtn').disabled=false;
+  document.getElementById('scrapeSummary').style.display='none';
+  clearLog();
+  log('Starting scrape — mode: '+mode);
+  
+  let initialLen = state.records.length;
+  
+  for(const src of enabled){
+    if(_cancel) break;
+    const tried=[];
+    if(state.methods[src.id]) tried.push(state.methods[src.id]);
+    order.forEach(m=>{ if(!tried.includes(m)) tried.push(m); });
+    
+    log('● '+src.name+' ('+src.listingUrl+')');
+    let ok=false, usedMethod=null, content=null;
+    
+    for(const m of tried){
+      try{
+        const r=await fetchAny(src.listingUrl, [m], state.rules);
+        const listings=extractListings(r.res, src);
+        if(listings.length>0){ ok=true; usedMethod=m; content=r.res; break; }
+        log('  (0 listings via '+METHODS[m].label+')');
+      }catch(e){ /* next */ }
+      if(_cancel) break;
+    }
+    
+    if(!ok){ log('✗ '+src.name+' failed all methods'); continue; }
+    state.methods[src.id]=usedMethod; save(LS.methods, state.methods);
+    log('✓ '+src.name+' OK via '+METHODS[usedMethod].label);
+    
+    const listings=extractListings(content, src);
+    log('  found '+listings.length+' potential profiles');
+    
+    for(const item of listings){
+      if(_cancel) break;
+      const rec = { name:item.name, profile_url:item.profile_url, sourceName:src.name, location:'Orange County' };
+      
+      if(mode==='full'){
+        try{
+          const dr=await fetchAny(item.profile_url, [usedMethod], state.rules);
+          const det=parseDetail(dr.res, src);
+          Object.assign(rec, det);
+        }catch(e){ /* proceed using listing basic attributes */ }
+      }
+      
+      upsert(rec);
+    }
+    save(LS.records, state.records);
+    renderSummary(src, listings.length, usedMethod);
+  }
+  
+  save(LS.records, state.records);
+  document.getElementById('scrapeBtn').disabled=false;
+  document.getElementById('cancelBtn').disabled=true;
+  updateDbMeta(); renderGrid(); renderSrcTabs();
+  
+  const modified = state.records.length - initialLen;
+  toast('Scrape complete — '+modified+' net new profiles discovered','ok');
+  showTab('data');
+}
+function cancelScrape(){ _cancel=true; log('⛔ Cancel requested…'); }
+
+function showTab(t){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
+  document.querySelectorAll('.tab').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='data'){ renderGrid(); renderSrcTabs(); }
+  if(t==='scrape') renderSourceList();
+  if(t==='rules'){
+    const ta=document.getElementById('rulesJson');
+    if(!ta.value) ta.value=JSON.stringify(state.rules||DEFAULT_RULES,null,2);
+  }
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+function renderSourceList(){
+  const box=document.getElementById('sourceList'); box.innerHTML='';
+  const sources = Array.isArray(state.rules.sources) ? state.rules.sources : DEFAULT_RULES.sources;
+  sources.forEach(s=>{
+    const mem=state.methods[s.id];
+    const div=document.createElement('div'); div.className='src-item';
+    div.innerHTML=`<div class="meta"><b>${s.name}</b><small>${s.listingUrl}</small>
+      ${mem?`<span class="pill ${METHODS[mem].cls}">last: ${METHODS[mem].label}</span>`:'<span class="pill fail">no method yet</span>'}</div>
+      <label class="chk"><input type="checkbox" id="en_${s.id}" ${mem?'checked':''}> enable</label>`;
+    box.appendChild(div);
+  });
+}
+function renderSummary(src, n, method){
+  const el=document.getElementById('scrapeSummary');
+  el.style.display='block';
+  el.innerHTML=`<h2 style="margin-top:0">Last run: ${src.name}</h2>
+    <p>Profiles Checked: <b>${n}</b> · Method: <span class="pill ${METHODS[method].cls}">${METHODS[method].label}</span></p>`;
+}
+function log(m){ const l=document.getElementById('log'); l.textContent+=m+'\n'; l.scrollTop=l.scrollHeight; }
+function clearLog(){ document.getElementById('log').textContent=''; }
+function toast(m,type){ const t=document.createElement('div'); t.className='toast'; t.textContent=m;
+  t.style.borderLeftColor = type==='bad'?'var(--bad)':'var(--accent)';
+  document.getElementById('toastBox').appendChild(t); setTimeout(()=>t.remove(),3500); }
+
+const COLS=[
+  {k:'sources',l:'Links'},{k:'date_first_seen',l:'First Seen'},
+  {k:'name',l:'Name'},{k:'age',l:'Age'},{k:'height',l:'Height'},{k:'weight',l:'Weight'},
+  {k:'cup',l:'Cup'},{k:'location',l:'Location'},{k:'services',l:'Services'},{k:'pricing',l:'Pricing'}
+];
+function renderGrid(){
+  const head=document.getElementById('gridHead'); head.innerHTML='';
+  COLS.forEach(c=>{
+    const th=document.createElement('th');
+    const arrow = state.sort.col===c.k ? (state.sort.dir==='asc'?' ▲':' ▼') : '';
+    th.textContent=c.l+arrow; 
+    th.onclick=()=>{
+      if(state.sort.col===c.k) state.sort.dir=state.sort.dir==='asc'?'desc':'asc';
+      else { state.sort.col=c.k; state.sort.dir='asc'; }
+      renderGrid();
+    };
+    head.appendChild(th);
+  });
+  
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  
+  // Filtering logic that understands the sources array
+  let rows=state.records.filter(r=> {
+      if(state.filter !== 'all') {
+         if(!r.sources || !r.sources.some(s => s.site === state.filter)) return false;
+      }
+      return true;
+  });
+
+  if(q) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  
+  const col=state.sort.col, dir=state.sort.dir==='asc'?1:-1;
+  rows.sort((a,b)=>{
+    let x=a[col]??'', y=b[col]??'';
+    if(col==='sources') { x=a.sources?a.sources.length:0; y=b.sources?b.sources.length:0; }
+    if(typeof x==='string') x=x.toLowerCase();
+    if(typeof y==='string') y=y.toLowerCase();
+    return (x<y?-1:x>y?1:0)*dir;
+  });
+
+  const body=document.getElementById('gridBody'); body.innerHTML='';
+  if(rows.length===0){ body.innerHTML='<tr><td colspan="10" class="empty">No data yet. Run Scrape first.</td></tr>'; return; }
+  
+  rows.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    
+    // Format Multi-Sources HTML block
+    let sourceHtml = (r.sources || []).map(s => `<a href="${s.url}" target="_blank" title="View Source">🔗 ${s.site}</a>`).join('<br>');
+    
+    // Format Services
+    let svcText = '';
+    if (r.services && r.services.length) {
+        svcText = r.services.slice(0,3).join(', ');
+        if(r.services.length > 3) svcText += '...';
+    }
+
+    // Format Pricing
+    let prcText = '';
+    if(r.pricing && r.pricing.length){
+        prcText = r.pricing[0]; 
+        if(r.pricing.length > 1) prcText += ' +more';
+    }
+
+    const cells=[
+      sourceHtml, r.date_first_seen||'', r.name||'',
+      r.age??'', r.height||'', (r.weight?r.weight+' lbs':''),
+      r.cup||'', r.location||'', svcText, prcText
+    ];
+    
+    cells.forEach((v,idx)=>{
+      const td=document.createElement('td');
+      if([3,4,5,6].includes(idx) && !v) td.className='missing';
+      if(idx === 0) td.innerHTML = v; else td.textContent = v;
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
+function renderSrcTabs(){
+  const tabs=document.getElementById('srcTabs'); tabs.innerHTML='';
+  const counts={all:state.records.length};
+  
+  state.records.forEach(r => {
+      if(r.sources) r.sources.forEach(s => counts[s.site] = (counts[s.site]||0)+1);
+  });
+
+  const mk=(key,label)=>{ 
+    const b=document.createElement('button'); 
+    b.textContent=label+' ('+(counts[label]||counts[key]||0)+')';
+    b.className=state.filter===key?'active':''; 
+    b.onclick=()=>{ state.filter=key; renderGrid(); renderSrcTabs(); }; 
+    tabs.appendChild(b); 
+  };
+  mk('all','All');
+  
+  const sources = Array.isArray(state.rules.sources) ? state.rules.sources : DEFAULT_RULES.sources;
+  sources.forEach(s=>mk(s.name,s.name));
+}
+function updateDbMeta(){ document.getElementById('dbMeta').textContent='Merged Entities: '+state.records.length; }
+
+function exportCSV(){
+  const cols=['name','age','height','weight','cup','location','services','pricing','sources'];
+  const lines=[cols.join(',')];
+  state.records.forEach(r=>{
+      let out = [...cols];
+      out[6] = (r.services||[]).join(' | ');
+      out[7] = (r.pricing||[]).join(' | ');
+      out[8] = (r.sources||[]).map(s=>s.url).join(' | ');
+      lines.push(out.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','));
+  });
+  download(new Blob([lines.join('\n')],{type:'text/csv'}),'oc-models-merged.csv');
+}
+function exportJSON(){ download(new Blob([JSON.stringify(state.records,null,2)],{type:'application/json'}),'oc-models.json'); }
+function importJSON(){
+  const f=document.createElement('input'); f.type='file'; f.accept='.json';
+  f.onchange=()=>{ const rd=new FileReader(); rd.onload=()=>{ try{
+    const arr=JSON.parse(rd.result); if(Array.isArray(arr)){ arr.forEach(r=>upsert(r)); save(LS.records,state.records); }
+    updateDbMeta(); renderGrid(); renderSrcTabs(); toast('Imported '+(arr?.length||0)+' records','ok');
+  }catch(e){ toast('Invalid JSON','bad'); } }; rd.readAsText(f.files[0]); };
+  f.click();
+}
+function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+function clearData(){ if(confirm('Clear all scraped data?')){ state.records=[]; save(LS.records,[]); updateDbMeta(); renderGrid(); renderSrcTabs(); toast('Cleared','ok'); } }
+
+function saveApiKey(){ save(LS.apiKey,document.getElementById('apiKey').value.trim());
+  save(LS.useKey,document.getElementById('useKey').checked); toast('API key saved','ok'); }
+function saveOrder(){ save(LS.order,document.getElementById('methodOrder').value); }
+function saveRules(){ try{ state.rules=JSON.parse(document.getElementById('rulesJson').value);
+  ensureValidRules(); save(LS.rules,state.rules); toast('Rules saved','ok'); renderSourceList(); renderSrcTabs();
+}catch(e){ toast('Invalid JSON: '+e.message,'bad'); } }
+function copyRules(){ navigator.clipboard.writeText(document.getElementById('rulesJson').value); toast('Copied','ok'); }
+function resetRules(){ state.rules=JSON.parse(JSON.stringify(DEFAULT_RULES)); save(LS.rules,state.rules);
+  document.getElementById('rulesJson').value=JSON.stringify(DEFAULT_RULES,null,2); toast('Defaults restored','ok'); }
+
+(function init(){
+  document.getElementById('apiKey').value=load(LS.apiKey,'');
+  document.getElementById('useKey').checked=load(LS.useKey,false);
+  document.getElementById('methodOrder').value=(load(LS.order,null)||'firecrawl,cors-proxy,jina');
+  document.getElementById('methodOrder').onchange=saveOrder;
+  const ta=document.getElementById('rulesJson');
+  if(!ta.value) ta.value=JSON.stringify(state.rules||DEFAULT_RULES,null,2);
+  
+  // Force migration on load
+  state.records.forEach(r => {
+     if(!r.sources) r.sources = [{ site: r.sourceName || r.source || 'Unknown', url: r.profile_url, date: r.date_first_seen }];
+  });
+  
+  updateDbMeta(); renderSourceList(); renderSrcTabs();
+})();
+</script>
+</body>
+</html>
