@@ -171,3 +171,6 @@ Root causes: (1) engine rooms and the shell room list are two separate worlds �
 Lesson: seam coverage, not surface coverage, is the gap. Every runtime-generated control and every cross-boundary state (rooms, reload) needs a named owner and a real-browser check.
 Automatic checks added: room appears in the room list after create and survives reload; every search-result row responds to tap; version stamp matches build.
 Status: 5.9.execute.5 FAILED. No forward patching. Replan in progress.
+
+## Section B (b1) · REJECTED DIRECTION · Jul 26 2026
+Chat-mic-to-waiting-messages, single AudioEngine with cloned call tracks, in-call ribbon transform to [MIC][VOICE][HEAR][TTS], VOICE/HEAR toggles, TTS voicing spoken lines. Owner rejected. Mode & Capability ruling replaces it: chat mic = voice typing only; Ear/TTS in S4b drawer; total mute; control-strip controls. Never rebuild this.
