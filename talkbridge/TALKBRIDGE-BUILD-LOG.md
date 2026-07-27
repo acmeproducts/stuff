@@ -142,3 +142,6 @@ Owner baseline ruling: runtime baseline = bridge-turn08-base.html (v5.8.3) — o
 
 ### PLAN · v7.4.0 · Jul 26 2026 PT
 Gates extended G0-G7. New: G1 Phrasebook<->Phase Desk compatibility (contract talkbridge/BRIDGE-PB-COMPAT-v1.md, six acceptance tests incl. round-trip with unknown-field preservation); G2 transcript bubble parity (baseline bubble old-style; reference image talkbridge/reference/bubble-current-style.png — header-tap save/delete/comment, sent/received/read, call-ended pill). G6 notifications: Web Push over existing relay; iOS delivers push only to home-screen PWAs (documented limitation). Mode spec updated with ring-delivery section.
+
+### PLAN · v7.5.0 · Jul 26 2026 PT
+Mockups brought current: S4 rebuilt (top ribbon with chat/phone/video mode icons, control strip, canonical bubble with header-tap actions, receipt dots, per-side TTS, date + call-ended pills). New S4-M mockrow: phone connected, phone muted (total mute), video (camera band), incoming call (answer/decline). Rendered and visually verified before push.
