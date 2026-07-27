@@ -133,3 +133,6 @@ Call surface appeared on boot — bridge woke at load, not on room entry. Rollba
 - Rollback point: prior p1 banked WIP (commit before 958a507)
 - Blockers: none
 - Certification: "All due diligence done; release ready for device test." Y
+
+### PLAN · v7.2.0 · Jul 26 2026 PT
+Root cause found in the plan file itself: Parts 3-13 duplicated ~65x (6.3MB). Deduplicated to one clean copy (156KB). Updates: STATE refreshed (Claude resumed as executor, Codex handoff closed); baseline truth table gains turn08-pre-base row + owner review note (Link-a-device QR missing from turn08-base; deliver per L4); Part 2 opens with the Mode & Capability Ruling 2026-07-26 (calls are real calls with ring/accept/decline/missed; sender mute is total; receiver Ear default-on-in-call + TTS default-off, both binary, in room drawer; control strip layout locked); Features delivered vs remaining table added before Part 7; L4b Room themes layer added (token pass, per-room theme block, drawer presets + font stepper). Commit c795f2108, byte-verified at commit SHA.
