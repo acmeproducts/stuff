@@ -148,3 +148,8 @@ Mockups brought current: S4 rebuilt (top ribbon with chat/phone/video mode icons
 
 ### PLAN · v7.5.1 · Jul 26 2026 PT
 S4b corrected per owner: room-level Auto-read/TTS control removed everywhere (both S4b mock instances, S4b item table, Part 3 inventory, S3 create-room seed toggle, C2 config default now off, M6 global toggle note, S1 ribbon speaker removed). S4b rebuilt with Ear + TTS environment toggles (ear default on in-call, tts default off), flat rows, zero tables/gridlines/native inputs per standing mockup ruling. Mike muted pill added to S4-M connected mock; caption notes [Name] muted/unmuted mirroring. DOM-verified: 0 selects/inputs/tables inside any phone mock, 0 live Auto-read controls.
+
+### PLAN · v7.6.1 · Jul 26 2026 PT
+S1 splash mock now shows the flags.png band per asset ruling (opaque, background-size contain + repeat = maximum flags visible, welcome text on cream plates). Merged with v7.6.0 (Part 14 dispatch contract: Section A 55 items binding with enumerated supersessions; Section B rejected; receipts adopted per item 18 one-dot gray->teal->check; column-tap-to-compose per item 16). EXECUTION BEGINS: G0 device gate issued on bridge-turn08-base.html as-is.
+### GRAVEYARD NOTE · Jul 26 2026
+Section B (b1) direction — chat-mic waiting messages, AudioEngine cloned tracks, [MIC][VOICE][HEAR][TTS] ribbon — rejected by owner; forbidden approach.
