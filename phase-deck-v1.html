@@ -1,0 +1,2146 @@
+<!-- TalkBridge Curation Desk-v9.25-2026-06-13
+     v9.1 fixes:
+     - Tags: replaced synthetic KeyboardEvent dispatch with direct commitTag() calls
+     - Tags: fixed duplicate card IDs from Date.now() in synchronous map
+     - Job Mgmt: deduplicates jobs by owner+repo+source+target
+     - Job Mgmt: stats computed from card state, not stale DOM text
+
+     v9.2 fixes (RCA: inline handler string escaping — systemic):
+     - ROOT CAUSE: every inline event handler that passed a card ID as a JS string
+       argument was silently broken. In a JS single-quoted string, \' produces a
+       literal backslash+apostrophe in the rendered HTML attribute. The browser
+       executes e.g. onclick="fn(\'pb-th-001\',val)" where \' before a string
+       argument is a JS syntax error — the handler fires but throws before doing
+       anything. This affected addTag, addClarify, handleSourceEnter, handleVerdict,
+       toggleDrawer, softDeletePhrase, restorePhrase, permDeletePhrase, removeTag,
+       and TTS buttons — every interactive element on every card.
+     - FIX: card IDs are now NEVER passed as string arguments in inline handlers.
+       Every interactive element carries data-cardid (and data-tagidx, data-drawer,
+       data-side, data-lang as needed). Handlers read these via getAttribute() or
+       the cardId(el) walker. No string escaping anywhere in event attributes.
+     - WHY IT TOOK 4 ATTEMPTS: each prior fix addressed one handler while leaving
+       others broken. The linter verifies functions exist but cannot catch a runtime
+       syntax error inside an HTML attribute value. Only rendering a card and
+       inspecting the parsed attribute text reveals this class of bug.
+     - New functions: cardId(el), verdictChange, ttsBtnClick, toggleDrawerEl,
+       removeTagEl, commitTagFromEl, onClarifyKeydown, onTagInput, onTagKeydown
+
+     v9.3 fixes:
+     - Tag Enter advancing to next card: added activeElement guard in onTagKeydown
+     - Lang dropdowns no longer default to en/es — user must explicitly select both
+     - File picker now strict-direction only (src→tgt), no reverse match
+     - Job dedup now handles old records missing owner/repo fields
+     - Job stats now written on load (not only on successful GitHub save)
+
+     v9.11 fixes:
+     - Drawer open no longer autofocuses input (user may be reading)
+     - addClarifyEntry() helper added — all state changes now log to clarify chain:
+         phrase created, tag added, tag removed, verdict changed, source edited
+     - Omni search: datalist autocomplete from uniqueTags; match count shown after render
+     - Debug bar removed from tag drawer
+
+     v9.10 fixes:
+     - Tag input now built entirely via createElement (not innerHTML+wire)
+       This is the kanban.html pattern — guarantees keydown/keyup fire on
+       mobile iOS/Android. Added keyup as IME fallback. Added enterkeyhint="done".
+       Drawer shell also createElement so the element exists before event binding.
+
+     v9.9 fixes:
+     - Tag Enter focus: removed 60ms setTimeout deferral — synchronous focus()
+       prevents keyboard dismissal and eliminates cursor jump to next card source
+     - commitTag: also synchronous focus (was deferred 60ms unnecessarily)
+     - Added tagDebug logging to generateCardEl keydown for diagnostics
+
+     v9.8 fixes:
+     - ROOT FIX: replaced innerHTML+post-wire hybrid with generateCardEl() which
+       returns a real DOM element. All tag input and clarify textarea events are
+       wired directly via addEventListener during element construction — no inline
+       attrs, no post-render wiring loop, no _wired flag. Identical pattern to
+       kanban.html which works correctly on mobile.
+     - Source textarea also wired via addEventListener in generateCardEl.
+       el.blur() removed from handleSourceEnter (spec 4.3.2: no focus loss).
+     - Drawer state from appState.openDrawers still drives hidden/visible class
+       on render — drawer never self-closes.
+
+     v9.11 fixes:
+     - Drawer open no longer autofocuses input (user may be reading)
+     - addClarifyEntry() helper added — all state changes now log to clarify chain:
+         phrase created, tag added, tag removed, verdict changed, source edited
+     - Omni search: datalist autocomplete from uniqueTags; match count shown after render
+     - Debug bar removed from tag drawer
+
+     v9.10 fixes:
+     - Tag input now built entirely via createElement (not innerHTML+wire)
+       This is the kanban.html pattern — guarantees keydown/keyup fire on
+       mobile iOS/Android. Added keyup as IME fallback. Added enterkeyhint="done".
+       Drawer shell also createElement so the element exists before event binding.
+
+     v9.9 fixes:
+     - Tag Enter focus: removed 60ms setTimeout deferral — synchronous focus()
+       prevents keyboard dismissal and eliminates cursor jump to next card source
+     - commitTag: also synchronous focus (was deferred 60ms unnecessarily)
+     - Added tagDebug logging to generateCardEl keydown for diagnostics
+
+     v9.8 fixes:
+     - SSOT audit performed (spec 3.3.3, 3.3.4, 4.3.2)
+     - Tag Enter no longer jumps focus to next card source textarea:
+       stopImmediatePropagation() added to wireTagInput keydown handler;
+       inp.focus() deferred 60ms to survive iOS/Android layout reflow
+     - commitTagFromEl path also deferred focus 60ms
+     - handleSourceEnter: added stopPropagation/stopImmediatePropagation so
+       source Enter cannot bubble and trigger other card handlers
+
+     v9.6 fixes:
+     - GitHub rate limit mitigation: debounce extended from 2500ms to 8000ms,
+       collapsing burst edits (translations, tag adds) into single API calls
+
+     v9.5 fixes:
+     - ROOT FIX for tag Enter and clarify Enter on mobile: switched from inline
+       oninput/onkeydown HTML attributes to addEventListener wiring post-render.
+       Inline attribute handlers on dynamically injected innerHTML are unreliable
+       on iOS/Android soft keyboard. Pattern copied from working kanban.html.
+     - Source Enter now always re-translates when backtranslate is missing or pending
+     - No UI changes
+
+     v9.4 fixes:
+     - ROOT FIX for tags: removed activeElement guard introduced in v9.3 which
+       killed Enter on mobile (browser briefly shifts activeElement during keyboard
+       interaction before keydown fires). Guard was wrong approach.
+     - Auto-commit when exactly one suggestion remains and input is empty on Enter
+     - Added clear (×) button inside tag input field to cancel entry in progress
+     - In-app diagnostic bar retained in tag drawer (tiny grey line) for field QA -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>TalkBridge Phrase Deck v1</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
+.hide-scrollbar::-webkit-scrollbar{display:none;}
+.hide-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
+.pb-input{width:100%;background:transparent;border:none;outline:none;resize:none;overflow:hidden;word-wrap:break-word;white-space:pre-wrap;line-height:1.4;}
+.verdict-radio{display:none;}
+.verdict-label{cursor:pointer;padding:8px 14px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#94a3b8;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;flex:1;}
+.verdict-label:hover{border-color:#cbd5e1;color:#475569;}
+.radio-good:checked+.verdict-label{background:#ecfdf5;border-color:#10b981;color:#10b981;}
+.radio-flag:checked+.verdict-label{background:#fef2f2;border-color:#ef4444;color:#ef4444;}
+.wizard-step{display:none;animation:fadeIn .2s ease-in-out;}
+.wizard-step.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulseSync{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.6;transform:scale(1.1);}}
+.syncing{animation:pulseSync 1s infinite;background-color:#eab308!important;}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden overscroll-none flex flex-col">
+
+<!-- SETUP -->
+<div id="view-setup" class="flex-1 overflow-y-auto flex flex-col items-center p-4 hidden">
+  <div class="w-full max-w-lg bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-2 md:mt-8">
+    <div class="flex border-b border-slate-200 bg-slate-50 shrink-0">
+      <button class="flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600" onclick="switchSetupTab('create')" id="tab-create">Assignment Wizard</button>
+      <button class="flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:bg-slate-100" onclick="switchSetupTab('manage')" id="tab-manage">Job Management</button>
+    </div>
+
+    <div id="panel-create" class="p-6">
+      <div class="flex justify-between items-center mb-6 px-2">
+        <div id="dot-1" class="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center">1</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-2" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">2</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-3" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">3</div>
+        <div class="flex-1 h-0.5 bg-slate-200 mx-1"></div>
+        <div id="dot-4" class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center">4</div>
+      </div>
+
+      <div id="auth-error" class="hidden mb-4 bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 break-words font-medium"></div>
+
+      <!-- Step 1: Auth -->
+      <div id="step-1" class="wizard-step active space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="key" class="w-4 h-4 text-teal-600"></i> Authentication</h3>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Personal Access Token (PAT)</label>
+          <input type="password" id="cfg-pat" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="ghp_...">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Username / Org</label>
+            <input type="text" id="cfg-owner" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="acmeproducts"></div>
+          <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Repository</label>
+            <input type="text" id="cfg-repo" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" value="stuff"></div>
+        </div>
+        <button onclick="fetchPhrasebooks()" id="btn-fetch" class="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Connect & Fetch</button>
+      </div>
+
+      <!-- Step 2: Language Pair -->
+      <div id="step-2" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="languages" class="w-4 h-4 text-teal-600"></i> Language Pair</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Source language</label>
+            <select id="src-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target language</label>
+            <select id="tgt-lang-select" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="onLangSelectChange()"></select>
+          </div>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(1)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="findMatchingFiles()" id="btn-lang-next" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm" disabled>Next</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Source File -->
+      <div id="step-3" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="book" class="w-4 h-4 text-teal-600"></i> Select Source File</h3>
+        <p class="text-xs text-slate-500" id="step3-sub"></p>
+        <div><select id="cfg-source" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500 cursor-pointer" onchange="autoSuggestTarget()"></select></div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(2)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="advanceWizard(4)" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-sm">Next</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Target + Initials -->
+      <div id="step-4" class="wizard-step space-y-4">
+        <h3 class="font-bold text-slate-800 flex items-center gap-2 text-sm"><i data-lucide="target" class="w-4 h-4 text-teal-600"></i> Assignment Details</h3>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target Version Filename</label>
+          <input type="text" id="cfg-target" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="phrasebook-en-es-v2.json">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reviewer Initials</label>
+          <input type="text" id="cfg-initials" class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="e.g. JD">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="advanceWizard(3)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
+          <button onclick="generateJob()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-1 shadow-sm">Go <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Job Management -->
+    <div id="panel-manage" class="p-6 hidden bg-slate-50 min-h-[350px]">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-bold text-slate-800 text-sm">Deployments</h2>
+        <button onclick="syncJobsFromGH()" class="flex items-center gap-1 text-[11px] uppercase tracking-wide font-bold text-teal-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md hover:bg-slate-50 shadow-sm"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync</button>
+      </div>
+      <div id="jobs-list" class="space-y-3 max-h-[55vh] overflow-y-auto pr-1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="view-loading" class="flex-1 flex flex-col items-center justify-center hidden">
+  <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-teal-600 mb-4"></i>
+  <h2 class="font-bold text-slate-700" id="loading-msg">Loading...</h2>
+</div>
+
+<!-- MAIN APP -->
+<div id="view-app" class="flex-1 flex flex-col hidden bg-slate-100 min-h-0 overflow-hidden">
+  <datalist id="all-tags"></datalist>
+
+  <div class="bg-white border-b border-slate-200 shadow-sm px-4 py-2.5 flex justify-between items-center z-40 shrink-0 flex-wrap gap-2">
+    <div class="flex items-center gap-2">
+      <button onclick="goToSetup()" class="text-slate-400 hover:text-teal-600" title="Back"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+      <div class="font-bold text-slate-800 text-sm whitespace-nowrap" id="workspace-title">Curation Desk <span class="text-xs font-normal text-slate-400 ml-1">v9.25</span></div>
+    </div>
+    <div class="flex-1 min-w-[180px] max-w-md relative">
+      <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+      <input type="text" id="omni-search" oninput="runSearch()" onfocus="showSearchDropdown()" onblur="hideSearchDropdown()" placeholder="Search (* wildcard, -exclude)..." class="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-400 rounded-full pl-9 pr-8 py-2 text-xs outline-none" autocomplete="off">
+      <button id="omni-clear" onclick="clearSearch()" class="hidden absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 p-0.5"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+      <div id="omni-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto"></div>
+    </div>
+    <span id="search-match-count" class="hidden text-[11px] text-teal-700 font-bold whitespace-nowrap"></span>
+    <div class="flex gap-2 overflow-x-auto hide-scrollbar">
+      <button onclick="filterCards('all')" class="stat-chip bg-teal-50 border-teal-600 text-teal-700 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border" id="filter-all"><i data-lucide="layers" class="w-3.5 h-3.5"></i> All <span id="count-total">0</span></button>
+      <button onclick="filterCards('pending')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50" id="filter-pending"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Pend <span id="count-pending">0</span></button>
+      <button onclick="filterCards('good')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50" id="filter-good"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 text-green-500"></i> <span id="count-good">0</span></button>
+      <button onclick="filterCards('flag')" class="stat-chip bg-white border-slate-200 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex items-center gap-1 border hover:bg-slate-50" id="filter-flag"><i data-lucide="flag" class="w-3.5 h-3.5 text-red-500"></i> <span id="count-flag">0</span></button>
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0 ml-2">
+      <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg border border-transparent hover:border-teal-200" title="Add Phrase" onclick="addNewPhrase()"><i data-lucide="plus" class="w-4 h-4"></i></button>
+      <button class="p-1.5 bg-slate-100 hover:bg-teal-50 text-teal-600 rounded-lg border border-transparent hover:border-teal-200" title="Sync to GitHub" onclick="forceSaveToGitHub()" id="btn-sync"><i data-lucide="save" class="w-4 h-4"></i></button>
+      <div class="w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm" id="sync-status"></div>
+    </div>
+  </div>
+
+  <div class="bg-white border-b border-slate-200 px-4 flex shrink-0" role="tablist" aria-label="Phrasebook workspace">
+    <button id="workspace-tab-curation" role="tab" aria-selected="true" onclick="switchWorkspaceTab('curation')" class="px-4 py-2 text-xs font-bold text-teal-700 border-b-2 border-teal-600">Curation</button>
+    <button id="workspace-tab-maintenance" role="tab" aria-selected="false" onclick="switchWorkspaceTab('maintenance')" class="px-4 py-2 text-xs font-bold text-slate-500 border-b-2 border-transparent">Maintenance</button>
+  </div>
+
+  <div id="bulk-action-bar" class="hidden bg-teal-50 border-b border-teal-100 p-2 shadow-inner z-30 shrink-0">
+    <div class="max-w-4xl mx-auto flex items-center gap-2">
+      <span class="text-xs font-bold text-teal-800 whitespace-nowrap pl-1"><i data-lucide="tags" class="w-3.5 h-3.5 inline mr-1"></i>Bulk Tag:</span>
+      <input type="text" list="all-tags" id="bulk-tag" placeholder="Tag to apply..." class="flex-1 text-xs px-2 py-1.5 border border-teal-200 rounded outline-none focus:border-teal-500">
+      <button onclick="applyBulkTag()" class="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded whitespace-nowrap shadow-sm">Apply to All Visible</button>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-y-auto overscroll-contain px-3 py-4 md:px-6 relative" id="workspace-scroll">
+    <div class="max-w-4xl mx-auto flex flex-col pb-24">
+      <div id="save-error-banner" class="hidden bg-red-50 text-red-700 text-xs font-bold p-3 rounded-lg mb-4 shadow-sm border border-red-200 flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+        <span id="save-error-msg">Commit cannot be completed right now. Uncommitted updates are saved locally. Please try again later.</span>
+      </div>
+      <div id="deleted-section" class="hidden mb-4 shrink-0">
+        <button onclick="toggleDeleted()" class="w-full flex justify-between items-center bg-white border border-slate-200 p-3 rounded-lg shadow-sm text-sm font-bold text-slate-500 hover:bg-slate-50">
+          <div class="flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Soft Deleted (<span id="count-deleted">0</span>)</div>
+          <i data-lucide="chevron-down" id="del-chevron" class="w-4 h-4 transition-transform"></i>
+        </button>
+        <div id="deleted-container" class="hidden mt-2 flex-col gap-2"></div>
+      </div>
+      <div id="cards-container" class="flex flex-col gap-4"></div>
+    </div>
+  </div>
+  <div id="maintenance-panel" class="hidden flex-1 overflow-y-auto overscroll-contain px-3 py-4 md:px-6 bg-slate-100">
+    <div class="max-w-5xl mx-auto space-y-4 pb-24">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+        <div class="flex flex-wrap justify-between gap-3 items-start">
+          <div><h2 class="font-bold text-slate-800">Mass phrasebook maintenance</h2><p class="text-xs text-slate-500 mt-1">Select cards, preview a change, apply it once, then write a new bumped phrasebook version.</p></div>
+          <div class="flex gap-2"><button onclick="maintenanceSelectVisible(true)" class="text-xs font-bold border border-slate-200 rounded px-3 py-2">Select visible</button><button onclick="maintenanceSelectVisible(false)" class="text-xs font-bold border border-slate-200 rounded px-3 py-2">Clear</button></div>
+        </div>
+        <div class="grid md:grid-cols-4 gap-3 mt-4">
+          <input id="maintenance-search" oninput="renderMaintenance()" class="md:col-span-2 border border-slate-200 rounded-lg px-3 py-2 text-xs" placeholder="Find phrase, tag, category, or note">
+          <select id="maintenance-scope" onchange="renderMaintenance()" class="border border-slate-200 rounded-lg px-3 py-2 text-xs"><option value="live">Live cards</option><option value="unassigned">Unassigned categories</option><option value="good">Verified / good</option><option value="flag">Flagged</option><option value="pending">Pending</option><option value="all">All including deleted</option></select>
+          <div class="rounded-lg bg-teal-50 text-teal-800 px-3 py-2 text-xs font-bold"><span id="maintenance-selected-count">0</span> selected · <span id="maintenance-visible-count">0</span> visible</div>
+        </div>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+        <h3 class="text-xs uppercase tracking-wide font-bold text-slate-500 mb-3">Batch operation</h3>
+        <div class="grid md:grid-cols-4 gap-3">
+          <select id="maintenance-operation" onchange="maintenanceOperationChanged()" class="border border-slate-200 rounded-lg px-3 py-2 text-xs"><option value="unverify">Unverify verdicts</option><option value="verdict">Set verdict</option><option value="category-add">Add category</option><option value="category-replace">Replace categories</option><option value="category-remove">Remove category</option><option value="tag-add">Add tag</option><option value="tag-remove">Remove tag</option></select>
+          <input id="maintenance-value" list="maintenance-values" class="md:col-span-2 border border-slate-200 rounded-lg px-3 py-2 text-xs" placeholder="Value (not needed for unverify)"><datalist id="maintenance-values"></datalist>
+          <button onclick="previewMaintenance()" class="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-3 py-2 text-xs font-bold">Preview changes</button>
+        </div>
+        <div id="maintenance-preview" class="hidden mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"></div>
+        <div class="flex justify-end gap-2 mt-3"><button id="maintenance-undo" onclick="undoMaintenance()" disabled class="border border-slate-200 rounded px-3 py-2 text-xs font-bold disabled:opacity-40">Undo last batch</button><button id="maintenance-apply" onclick="applyMaintenance()" disabled class="bg-slate-800 text-white rounded px-3 py-2 text-xs font-bold disabled:opacity-40">Apply preview</button></div>
+      </div>
+      <div id="maintenance-list" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div id="share-modal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center hidden p-4 backdrop-blur-sm">
+  <div class="bg-white rounded-xl w-full max-w-sm p-6 relative shadow-2xl flex flex-col items-center">
+    <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <h3 class="font-bold text-lg text-slate-800 mb-4">Job Created</h3>
+    <img id="modal-qr" src="" class="w-40 h-40 border border-slate-200 rounded p-2 mb-4 shadow-sm bg-white">
+    <div class="relative w-full">
+      <input type="text" id="modal-link" class="w-full bg-slate-50 border border-slate-200 text-teal-600 text-xs p-3 pr-10 rounded-lg outline-none" readonly>
+      <button onclick="copyModalLink()" class="absolute right-1 top-1 p-2 text-teal-600 hover:bg-teal-50 rounded"><i data-lucide="copy" class="w-4 h-4"></i></button>
+    </div>
+  </div>
+</div>
+
+<div class="bg-white border-t border-slate-200 text-center py-1.5 text-[10px] text-slate-400 z-50 shrink-0 font-mono">
+  TalkBridge Phrase Deck v1 | <span id="footer-ts"></span>
+</div>
+
+<script>
+setInterval(()=>{var el=document.getElementById('footer-ts');if(el)el.textContent=new Date().toLocaleString();},1000);
+
+var LANGS=[
+  {code:'en',label:'English',flag:'🇺🇸'},{code:'es',label:'Spanish',flag:'🇪🇸'},
+  {code:'th',label:'Thai',flag:'🇹🇭'},{code:'ja',label:'Japanese',flag:'🇯🇵'},
+  {code:'ko',label:'Korean',flag:'🇰🇷'},{code:'zh',label:'Chinese',flag:'🇨🇳'},
+  {code:'fr',label:'French',flag:'🇫🇷'},{code:'de',label:'German',flag:'🇩🇪'},
+  {code:'vi',label:'Vietnamese',flag:'🇻🇳'},{code:'id',label:'Indonesian',flag:'🇮🇩'},
+  {code:'ms',label:'Malay',flag:'🇲🇾'},{code:'pt',label:'Portuguese',flag:'🇧🇷'},
+  {code:'ar',label:'Arabic',flag:'🇸🇦'},{code:'hi',label:'Hindi',flag:'🇮🇳'},
+  {code:'tl',label:'Filipino',flag:'🇵🇭'},{code:'ru',label:'Russian',flag:'🇷🇺'}
+];
+
+// CONTRACT v1.5 §5.2 / §7.1 item 5 — banned tone/mood tags and the
+// content-free meta-label "phrase". Tried and explicitly abandoned in an
+// earlier schema iteration. Rejected at point of entry, not left for a
+// downstream tool to catch — by the time PB sees it, it has already shipped.
+var BANNED_TAGS=['polite','neutral','formal','warm','romantic','urgent','curious','reflective','apologetic','phrase'];
+
+var appState={
+  config:{owner:'acmeproducts',repo:'stuff',path:'phrasebook',source:'',target:'',pat:'',initials:'JD'},
+  jobId:null,
+  pbData:{cards:[]},
+  uniqueTags:new Set(),
+  targetSha:null,
+  langPair:{source:'',target:''},
+  allFiles:[],
+  matchedFiles:[],
+  searchQuery:'',
+  currentFilter:'all',
+  openDrawers:{},
+  activeWorkspaceTab:'curation',
+  maintenanceSelection:new Set(),
+  maintenanceUndo:null,
+  dirty:false,
+  latestPulledVersion:null
+};
+var ghDebounceTimer=null;
+var LOCAL_CONFIG_KEY='tb_cfg8';
+var LOCAL_JOBS_KEY='tb_jobs8';
+
+if(window.lucide)lucide.createIcons();
+else{var lr=0;var lw=setInterval(function(){lr++;if(window.lucide){lucide.createIcons();clearInterval(lw);}else if(lr>20)clearInterval(lw);},250);}
+
+function toB64(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(m,p1){return String.fromCharCode('0x'+p1);}));}
+function fromB64(str){return decodeURIComponent(atob(str).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}
+function setLoadMsg(m){document.getElementById('loading-msg').innerText=m;}
+function getLocalJobs(){return JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY)||'[]');}
+function flagFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.flag:'🏳️';}
+function labelFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.label:code;}
+
+// --- Init ---
+function init(){
+  var saved=localStorage.getItem(LOCAL_CONFIG_KEY);
+  if(saved){
+    var c=JSON.parse(saved);
+    if(c.owner)document.getElementById('cfg-owner').value=c.owner;
+    if(c.repo)document.getElementById('cfg-repo').value=c.repo;
+    if(c.pat)document.getElementById('cfg-pat').value=c.pat;
+    if(c.initials)document.getElementById('cfg-initials').value=c.initials;
+  }
+  renderLangGrids();
+
+  var params=new URLSearchParams(window.location.search);
+  if(params.has('owner')&&params.has('pat')&&params.has('jobId')){
+    appState.config={owner:params.get('owner'),repo:params.get('repo'),path:'phrasebook',
+      source:params.get('source'),target:params.get('target'),pat:params.get('pat'),
+      initials:params.get('initials')||'JD'};
+    appState.langPair={source:params.get('srcLang')||'',target:params.get('tgtLang')||''};
+    appState.jobId=params.get('jobId');
+    // Replace history so back button doesn't expose onboarding
+    window.history.replaceState({},'',window.location.href);
+    switchView('view-loading');
+    startCurationLifecycle();
+  }else{
+    switchView('view-setup');
+  }
+}
+
+function renderLangGrids(){
+  var src=document.getElementById('src-lang-select');
+  var tgt=document.getElementById('tgt-lang-select');
+  var opts=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+' ('+l.code+')</option>';}).join('');
+  src.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+  tgt.innerHTML='<option value="" disabled selected>— select —</option>'+opts;
+  // No default — user must explicitly choose both languages
+  appState.langPair={source:'',target:''};
+  document.getElementById('btn-lang-next').disabled=true;
+}
+function onLangSelectChange(){
+  appState.langPair.source=document.getElementById('src-lang-select').value;
+  appState.langPair.target=document.getElementById('tgt-lang-select').value;
+  var btn=document.getElementById('btn-lang-next');
+  btn.disabled=!(appState.langPair.source&&appState.langPair.target&&appState.langPair.source!==appState.langPair.target);
+}
+
+// --- View handlers ---
+function switchView(id){['view-setup','view-loading','view-app'].forEach(function(v){document.getElementById(v).classList.add('hidden');});document.getElementById(id).classList.remove('hidden');}
+function goToSetup(){var url=new URL(window.location.href.split('?')[0]);window.history.replaceState({},'',url);switchSetupTab('manage');switchView('view-setup');}
+function switchSetupTab(tab){
+  var active="flex-1 p-3 text-sm font-bold text-teal-600 border-b-2 border-teal-600";
+  var inactive="flex-1 p-3 text-sm font-bold text-slate-500 border-b-2 border-transparent hover:bg-slate-100";
+  document.getElementById('tab-create').className=tab==='create'?active:inactive;
+  document.getElementById('tab-manage').className=tab==='manage'?active:inactive;
+  document.getElementById('panel-create').classList.toggle('hidden',tab!=='create');
+  document.getElementById('panel-manage').classList.toggle('hidden',tab!=='manage');
+  if(tab==='manage')renderJobsDashboard();
+}
+
+function advanceWizard(step){
+  [1,2,3,4].forEach(function(s){
+    document.getElementById('step-'+s).classList.remove('active');
+    var dot=document.getElementById('dot-'+s);
+    dot.className=s<=step
+      ?"w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center shadow-sm"
+      :"w-7 h-7 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center";
+  });
+  document.getElementById('step-'+step).classList.add('active');
+}
+
+// --- Step 1: fetch directory ---
+async function fetchPhrasebooks(){
+  var errDiv=document.getElementById('auth-error');
+  try{
+  var p=document.getElementById('cfg-pat').value.trim();
+  var o=document.getElementById('cfg-owner').value.trim()||'acmeproducts';
+  var r=document.getElementById('cfg-repo').value.trim()||'stuff';
+  var path='phrasebook';
+  errDiv.classList.add('hidden');
+  if(!p||!o||!r){errDiv.textContent="PAT, Username, and Repo required.";errDiv.classList.remove('hidden');return;}
+  appState.config={...appState.config,pat:p,owner:o,repo:r,path:path};
+  localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));
+  var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/'+path,{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
+  if(!res.ok){
+    var body='';try{body=(await res.json()).message||'';}catch(_){}
+    throw new Error('HTTP '+res.status+(body?(': '+body):'')+' — check Owner/Repo/PAT.');
+  }
+  var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
+  if(!files.length)throw new Error("No JSON phrasebooks found in /phrasebook.");
+  appState.allFiles=files.map(function(f){return f.name;});
+  advanceWizard(2);
+  }catch(e){
+    console.error('fetchPhrasebooks error:',e);
+    errDiv.textContent=(e&&e.message)?e.message:String(e);
+    errDiv.classList.remove('hidden');
+  }
+}
+
+// --- Step 2->3: filter files by lang pair ---
+function parseLangsFromFilename(name){
+  var m=name.match(/-([a-z]{2})-([a-z]{2})-/i)||name.match(/-([a-z]{2})_to_([a-z]{2})/i)||name.match(/-([a-z]{2})-([a-z]{2})\.json$/i);
+  if(!m)return null;
+  return {a:m[1].toLowerCase(),b:m[2].toLowerCase()};
+}
+function findMatchingFiles(){
+  var src=appState.langPair.source, tgt=appState.langPair.target;
+  var matches=appState.allFiles.filter(function(name){
+    var pair=parseLangsFromFilename(name);
+    if(!pair)return false;
+    return (pair.a===src&&pair.b===tgt);  // strict direction — no reverse match
+  });
+  var fellBack=false;
+  if(!matches.length){matches=appState.allFiles.slice();fellBack=true;}
+  matches.sort().reverse();
+  appState.matchedFiles=matches;
+  var sel=document.getElementById('cfg-source');
+  sel.innerHTML=matches.map(function(f){return '<option value="'+f+'">'+f+'</option>';}).join('');
+  var sub=flagFor(src)+' '+labelFor(src)+' \u2192 '+flagFor(tgt)+' '+labelFor(tgt);
+  sub+=fellBack?(' \u2014 no filename matched this pair; showing all '+matches.length+' file(s).'):(' \u00b7 '+matches.length+' matching file(s).');
+  document.getElementById('step3-sub').textContent=sub;
+  autoSuggestTarget();
+  advanceWizard(3);
+}
+// CONTRACT v1.5 §7.1 item 1 — parse trailing integer from
+// phrasebook-{src}-{tgt}-{integer}.json, increment by 1. Legacy filenames
+// that don't match this pattern (e.g. "-default.json", "-newtag.json")
+// fall back to a starting integer of 999, so the first version produced
+// under this scheme is 1000.
+function autoSuggestTarget(){
+  var src=document.getElementById('cfg-source').value;
+  if(!src)return;
+  appState.config.source=src;
+  var fname=src.split('/').pop();
+  var m=fname.match(/^(phrasebook-[a-z]+-[a-z]+-)(\d+)\.json$/i);
+  var nextVersion, prefix;
+  if(m){
+    prefix=m[1];
+    nextVersion=parseInt(m[2],10)+1;
+  }else{
+    // Legacy filename — derive prefix from current lang pair, start at 1000
+    var sl=appState.langPair.source||'xx',tl=appState.langPair.target||'xx';
+    prefix='phrasebook-'+sl+'-'+tl+'-';
+    nextVersion=1000;
+  }
+  var tgt=prefix+nextVersion+'.json';
+  document.getElementById('cfg-target').value=tgt;
+}
+
+// --- Job generation ---
+async function generateJob(){
+  var src=document.getElementById('cfg-source').value;
+  var target=document.getElementById('cfg-target').value.trim();
+  var initials=document.getElementById('cfg-initials').value.trim()||'JD';
+  if(!src||!target){alert("Source and Target required.");return;}
+  appState.config.source=src;appState.config.target=target;appState.config.initials=initials;
+  localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));
+
+  var jobs=getLocalJobs();
+  // Deduplicate: if a job with same owner+repo+source+target already exists, reuse it
+  // Dedup by target filename — also catches old records missing owner/repo
+  var existing=jobs.find(function(j){
+    var ownerMatch=!j.owner||j.owner===appState.config.owner;
+    var repoMatch=!j.repo||j.repo===appState.config.repo;
+    return ownerMatch&&repoMatch&&j.source===src&&j.target===target;
+  });
+
+  var jobId=existing?existing.jobId:'job-'+Date.now();
+  var url=new URL(window.location.href.split('?')[0]);
+  ['owner','repo','source','target','pat','initials'].forEach(function(k){ var v=appState.config[k]; if(v!==undefined&&v!==null&&v!=='undefined') url.searchParams.set(k,v); });
+  url.searchParams.set('srcLang',appState.langPair.source);
+  url.searchParams.set('tgtLang',appState.langPair.target);
+  url.searchParams.set('jobId',jobId);
+  var linkStr=url.toString();
+
+  if(existing){
+    existing.url=linkStr;existing.initials=initials;existing.lastUpdated=Date.now();
+    existing.langPair={...appState.langPair};
+  }else{
+    var newJob={jobId:jobId,owner:appState.config.owner,repo:appState.config.repo,
+      initials:initials,source:src,target:target,langPair:{...appState.langPair},
+      url:linkStr,stats:{total:0,pending:0,good:0,flag:0,deleted:0},lastUpdated:Date.now()};
+    jobs.push(newJob);
+  }
+  localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(jobs));
+  pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
+
+  document.getElementById('modal-link').value=linkStr;
+  document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(linkStr);
+  document.getElementById('share-modal').classList.remove('hidden');
+}
+function closeShareModal(){document.getElementById('share-modal').classList.add('hidden');switchSetupTab('manage');}
+function copyModalLink(){var el=document.getElementById('modal-link');el.select();document.execCommand('copy');}
+
+// --- Job dashboard ---
+function renderJobsDashboard(){
+  // Second layer of defense — filter out any ghost/incomplete job records
+  // before rendering, even if they somehow made it into local storage.
+  var jobs=getLocalJobs().filter(isValidJobRecord);
+  var container=document.getElementById('jobs-list');
+  if(!jobs.length){
+    container.innerHTML='';
+    var p=document.createElement('p'); p.className='text-sm text-slate-500'; p.textContent='No active jobs.';
+    container.appendChild(p); return;
+  }
+  container.innerHTML='';
+  jobs.sort(function(a,b){return b.lastUpdated-a.lastUpdated;}).forEach(function(j){
+    var good=j.stats.good||0,total=j.stats.total||0;
+    var pct=total===0?0:Math.round((good/total)*100);
+    var lp=j.langPair?(flagFor(j.langPair.source)+' → '+flagFor(j.langPair.target)):'';
+
+    var card=document.createElement('div');
+    card.className='bg-white p-4 rounded-xl border border-slate-200 shadow-sm';
+
+    var header=document.createElement('div');
+    header.className='flex justify-between items-start mb-3';
+    var titleWrap=document.createElement('div'); titleWrap.className='pr-2';
+    var h3=document.createElement('h3'); h3.className='font-bold text-sm text-slate-800 break-all'; h3.textContent=j.target.split('/').pop();
+    var meta=document.createElement('p'); meta.className='text-[10px] text-slate-500 uppercase tracking-wide mt-1'; meta.textContent=lp+' · Reviewer: '+j.initials;
+    titleWrap.appendChild(h3); titleWrap.appendChild(meta);
+    var actions=document.createElement('div'); actions.className='flex items-center gap-2';
+    var pctBadge=document.createElement('span'); pctBadge.className='text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md border border-teal-100'; pctBadge.textContent=pct+'%';
+    var shareBtn=document.createElement('button'); shareBtn.type='button'; shareBtn.className='p-1.5 rounded-md bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600';
+    shareBtn.innerHTML='<i data-lucide="share-2" class="w-4 h-4"></i>';
+    shareBtn.addEventListener('click',function(){ openShareModal(j.jobId); });
+    var delBtn=document.createElement('button'); delBtn.type='button'; delBtn.className='p-1.5 rounded-md bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-600';
+    delBtn.innerHTML='<i data-lucide="x" class="w-4 h-4"></i>';
+    delBtn.addEventListener('click',function(){ deleteJob(j.jobId); });
+    var insightBtn=document.createElement('button'); insightBtn.type='button'; insightBtn.className='p-1.5 rounded-md bg-slate-50 hover:bg-amber-50 text-slate-500 hover:text-amber-600';
+    insightBtn.innerHTML='<i data-lucide="lightbulb" class="w-4 h-4"></i>';
+    insightBtn.addEventListener('click',function(){ openInsightModal(j); });
+    actions.appendChild(pctBadge); actions.appendChild(insightBtn); actions.appendChild(shareBtn); actions.appendChild(delBtn);
+    header.appendChild(titleWrap); header.appendChild(actions);
+
+    var stats=document.createElement('div'); stats.className='flex gap-2 mb-3';
+    [['All',total,'bg-slate-50 text-slate-800'],['Pend',j.stats.pending||0,'bg-white border border-slate-100 text-slate-600'],['Good',good,'bg-green-50 text-green-700'],['Flag',j.stats.flag||0,'bg-red-50 text-red-700']].forEach(function(s){
+      var cell=document.createElement('div'); cell.className='flex-1 rounded p-1.5 text-center '+s[2];
+      var lbl=document.createElement('div'); lbl.className='text-[9px] font-bold uppercase opacity-60'; lbl.textContent=s[0];
+      var val=document.createElement('div'); val.className='text-xs font-bold'; val.textContent=s[1];
+      cell.appendChild(lbl); cell.appendChild(val); stats.appendChild(cell);
+    });
+
+    var launch=document.createElement('button'); launch.type='button';
+    launch.className='w-full py-2 bg-slate-100 text-slate-700 hover:bg-teal-600 hover:text-white text-xs font-bold rounded-lg';
+    launch.textContent='Launch Desk';
+    launch.addEventListener('click',function(){
+      if(!isValidJobRecord(j)){alert('This job record is incomplete and cannot be opened.');return;}
+      window.location.href=j.url;
+    });
+
+    card.appendChild(header); card.appendChild(stats); card.appendChild(launch);
+    container.appendChild(card);
+  });
+  if(window.lucide)lucide.createIcons();
+}
+function deleteJob(jobId){
+  if(!confirm("Delete this job? This only removes it from the dashboard, not the GitHub file."))return;
+  var jobs=getLocalJobs().filter(function(j){return j.jobId!==jobId;});
+  localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(jobs));
+  pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
+  renderJobsDashboard();
+}
+function openShareModal(jobId){
+  var job=getLocalJobs().find(function(j){return j.jobId===jobId;});
+  if(!job)return;
+  document.getElementById('modal-link').value=job.url;
+  document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(job.url);
+  document.getElementById('share-modal').classList.remove('hidden');
+}
+// A job record is only valid if it has a non-empty target filename, source
+// file, owner, and repo. Records failing this are ghost/incomplete jobs —
+// often produced during pump-priming before a phrasebook file actually
+// existed — and must never be merged into local storage or rendered.
+function isValidJobRecord(j){
+  return !!(j && typeof j==='object'
+    && j.jobId
+    && j.target && String(j.target).trim() && String(j.target).trim()!=='undefined'
+    && j.source && String(j.source).trim() && String(j.source).trim()!=='undefined'
+    && j.owner && String(j.owner).trim()!=='undefined'
+    && j.repo && String(j.repo).trim()!=='undefined');
+}
+async function syncJobsFromGH(){
+  var o=appState.config.owner,r=appState.config.repo,p=appState.config.pat;
+  if(!o||!r||!p){alert("Missing credentials to sync.");return;}
+  try{
+    var res=await fetch('https://api.github.com/repos/'+o+'/'+r+'/contents/curation-jobs.json',{headers:{'Authorization':'token '+p,'Accept':'application/vnd.github.v3+json'}});
+    if(res.ok){
+      var data=await res.json();
+      var remote=JSON.parse(fromB64(data.content));
+      var local=getLocalJobs().filter(isValidJobRecord);
+      var byId={};local.forEach(function(j){byId[j.jobId]=j;});
+      var rejected=0;
+      remote.forEach(function(j){
+        if(!isValidJobRecord(j)){rejected++;return;}
+        if(!byId[j.jobId]||((j.lastUpdated||0)>(byId[j.jobId].lastUpdated||0)))byId[j.jobId]=j;
+      });
+      var merged=Object.values(byId);
+      localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(merged));
+      renderJobsDashboard();
+      if(rejected>0){console.warn('Sync: rejected '+rejected+' malformed/incomplete job record(s) — not merged.');}
+    }else{
+      pushJobsToGitHub(getLocalJobs().filter(isValidJobRecord),o,r,p);
+      alert("No jobs file on GitHub yet — pushed local jobs.");
+    }
+  }catch(e){console.error(e);}
+}
+async function pushJobsToGitHub(jobsArray,owner,repo,pat){
+  if(!pat)return;
+  try{
+    var sha=null;
+    var getRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{headers:{'Authorization':'token '+pat,'Accept':'application/vnd.github.v3+json'}});
+    if(getRes.ok)sha=(await getRes.json()).sha;
+    await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{
+      method:'PUT',headers:{'Authorization':'token '+pat,'Content-Type':'application/json'},
+      body:JSON.stringify({message:'Update Job Tracking',content:toB64(JSON.stringify(jobsArray,null,2)),sha:sha,branch:'main'})
+    });
+  }catch(e){}
+}
+async function updateJobStatsCentral(){
+  if(!appState.jobId)return;
+  // Compute stats directly from card state — never trust DOM counts
+  var good=0,flag=0,pending=0,deleted=0;
+  appState.pbData.cards.forEach(function(c){
+    if(c.deletedAt){deleted++;return;}
+    var v=(c.backtranslate&&c.backtranslate.verdict)||'pending';
+    if(v==='good')good++;else if(v==='flag')flag++;else pending++;
+  });
+  var curStats={total:good+flag+pending,pending:pending,good:good,flag:flag,deleted:deleted};
+
+  var localJobs=getLocalJobs();
+  var idx=localJobs.findIndex(function(j){return j.jobId===appState.jobId;});
+  if(idx>-1){localJobs[idx].stats=curStats;localJobs[idx].lastUpdated=Date.now();}
+  else{
+    localJobs.push({jobId:appState.jobId,owner:appState.config.owner,repo:appState.config.repo,
+      initials:appState.config.initials,source:appState.config.source,target:appState.config.target,
+      langPair:{...appState.langPair},url:window.location.href,stats:curStats,lastUpdated:Date.now()});
+  }
+  localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(localJobs));
+  pushJobsToGitHub(localJobs,appState.config.owner,appState.config.repo,appState.config.pat);
+}
+
+// --- Curation lifecycle ---
+async function startCurationLifecycle(){
+  try{
+    setLoadMsg("Loading target...");
+    var owner=appState.config.owner,repo=appState.config.repo,path=appState.config.path,pat=appState.config.pat,target=appState.config.target,source=appState.config.source;
+    var targetRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path+'/'+target,{headers:{'Authorization':'token '+pat}});
+    if(targetRes.ok){
+      var data=await targetRes.json();
+      appState.targetSha=data.sha;
+      appState.pbData=JSON.parse(fromB64(data.content));
+    }else{
+      setLoadMsg("Bootstrapping from source...");
+      var sourceRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path+'/'+source,{headers:{'Authorization':'token '+pat}});
+      if(!sourceRes.ok)throw new Error("Source file missing.");
+      appState.pbData=JSON.parse(fromB64((await sourceRes.json()).content));
+      appState.targetSha=null;
+    }
+    if(!Array.isArray(appState.pbData.cards))appState.pbData.cards=[];
+    var loadedName=targetRes.ok?target:source;var loadedVersion=(loadedName||'').match(/-(\d+)\.json$/);appState.latestPulledVersion=loadedVersion?parseInt(loadedVersion[1],10):null;
+
+    // language pair: wizard selection always wins; file/filename only used as last-resort fallback
+    if(!appState.langPair.source||!appState.langPair.target){
+      if(appState.pbData.langPair&&appState.pbData.langPair.source&&appState.pbData.langPair.target){appState.langPair=appState.pbData.langPair;}
+      else{
+        var p=parseLangsFromFilename(target)||parseLangsFromFilename(source);
+        if(p)appState.langPair={source:p.a,target:p.b};
+        else appState.langPair={source:'en',target:'es'};
+      }
+    }
+
+    appState.uniqueTags.clear();
+    var _seenIds={};
+    appState.pbData.cards=appState.pbData.cards.map(function(original,idx){
+      // Compatibility rule: normalize known aliases without discarding Bridge fields or future fields.
+      var c=Object.assign({},original);
+      c.source=c.source||c.src||(c.representation&&c.representation.source)||c.en||'';
+      c.target=c.target||c.tgt||(c.representation&&c.representation.target)||'';
+      c.tags=Array.isArray(c.tags)?c.tags.slice():[];
+      c.categories=normalizeCategories(c.categories);
+      c.clarifyChain=Array.isArray(c.clarifyChain)?c.clarifyChain.slice():[];
+      c.backtranslate=Object.assign({},c.backtranslate||{});
+      c.backtranslate.resultText=c.backtranslate.resultText||c.back||'';
+      c.backtranslate.verdict=normalizeVerdict(c.backtranslate.verdict);
+      c.sourceLang=c.sourceLang||appState.langPair.source;
+      c.targetLang=c.targetLang||appState.langPair.target;
+      c.deletedAt=c.deletedAt||null;
+      c.tags.forEach(function(t){appState.uniqueTags.add(t);});
+      var rawId=String(c.id||c.intentId||'');
+      if(!rawId||_seenIds[rawId])rawId='pb-'+(idx+1)+'-'+Math.random().toString(36).slice(2,8);
+      _seenIds[rawId]=true;c.id=rawId;
+      return c;
+    }).filter(function(c){return String(c.source||'').trim()!==''||c.deletedAt;});
+
+    refreshDatalist();
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' \u2192 '+flagFor(appState.langPair.target)+' '+target.split('/').pop()+' <span class="text-xs font-normal text-slate-400 ml-1">v9.25</span>';
+    if(appState.pbData.cards.length===0)addNewPhrase();
+    renderAll();
+    switchView('view-app');
+    updateJobStatsCentral();  // stamp initial card count immediately on load
+  }catch(e){
+    alert("Error loading data: "+e.message);
+    switchView('view-setup');
+  }
+}
+
+function refreshDatalist(){document.getElementById('all-tags').innerHTML=Array.from(appState.uniqueTags).map(function(t){return '<option value="'+t+'">';}).join('');}
+
+function triggerDebouncedSave(){
+  appState.dirty=true;
+  var status=document.getElementById('sync-status');
+  status.className="w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
+  clearTimeout(ghDebounceTimer);
+  ghDebounceTimer=setTimeout(forceSaveToGitHub,8000);
+}
+async function forceSaveToGitHub(){
+  var status=document.getElementById('sync-status'),errBanner=document.getElementById('save-error-banner');
+  status.className="w-2.5 h-2.5 rounded-full ml-1.5 shadow-sm syncing";
+  try{
+    var owner=appState.config.owner,repo=appState.config.repo,path=appState.config.path,pat=appState.config.pat;
+    var pair=appState.langPair.source+'-'+appState.langPair.target;
+    var listRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path,{headers:{'Authorization':'token '+pat}});
+    if(!listRes.ok)throw new Error('Unable to verify the latest phrasebook before write-back.');
+    var files=await listRes.json(),prefix='phrasebook-'+pair+'-',max=999;
+    files.forEach(function(f){var m=f.name&&f.name.match(new RegExp('^'+prefix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\d+)\\.json$'));if(m)max=Math.max(max,parseInt(m[1],10));});
+    if(appState.latestPulledVersion!==null&&max>appState.latestPulledVersion)throw new Error('A newer phrasebook exists. Reload it before saving to avoid a stale write.');
+    var next=max+1,version=String(next);while(version.length<4)version='0'+version;
+    var target=prefix+version+'.json',now=new Date().toISOString();
+    appState.pbData.type='phrasebook';appState.pbData.pair=pair;appState.pbData.langPair={source:appState.langPair.source,target:appState.langPair.target};
+    appState.pbData.version=next;appState.pbData.updatedAt=now;appState.pbData.updatedBy=appState.config.initials||'phrase-deck';
+    var body={message:'Phrasebook '+pair+' bump '+version,content:toB64(JSON.stringify(appState.pbData,null,2)),branch:'main'};
+    var res=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path+'/'+target,{method:'PUT',headers:{'Authorization':'token '+pat,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok)throw new Error('GitHub rejected the bumped phrasebook.');
+    appState.config.target=target;appState.latestPulledVersion=next;appState.dirty=false;
+    status.className="w-2.5 h-2.5 rounded-full bg-green-500 ml-1.5 shadow-sm";errBanner.classList.add('hidden');
+    document.getElementById('workspace-title').innerHTML=flagFor(appState.langPair.source)+' → '+flagFor(appState.langPair.target)+' '+target+' <span class="text-xs font-normal text-slate-400 ml-1">v1</span>';
+    updateJobStatsCentral();
+  }catch(e){status.className="w-2.5 h-2.5 rounded-full bg-red-500 ml-1.5 shadow-sm";document.getElementById('save-error-msg').textContent=e.message||'Commit cannot be completed right now.';errBanner.classList.remove('hidden');}
+}
+
+// --- Stats / search / filters ---
+function updateStats(){
+  var good=0,flag=0,pending=0,deleted=0;
+  appState.pbData.cards.forEach(function(c){
+    if(c.deletedAt){deleted++;return;}
+    var v=(c.backtranslate&&c.backtranslate.verdict)||'pending';
+    if(v==='good')good++;else if(v==='flag')flag++;else pending++;
+  });
+  document.getElementById('count-total').innerText=good+flag+pending;
+  document.getElementById('count-pending').innerText=pending;
+  document.getElementById('count-good').innerText=good;
+  document.getElementById('count-flag').innerText=flag;
+  document.getElementById('count-deleted').innerText=deleted;
+  document.getElementById('deleted-section').classList.toggle('hidden',deleted===0);
+}
+function runSearch(){
+  appState.searchQuery=document.getElementById('omni-search').value.trim();
+  document.getElementById('omni-clear').classList.toggle('hidden',!appState.searchQuery);
+  buildSearchDropdown(appState.searchQuery);
+  renderAll();
+}
+function refreshSearchDatalist(){}  // no-op, dropdown built on demand
+function showSearchDropdown(){
+  var inp=document.getElementById('omni-search');
+  var dd=document.getElementById('omni-dropdown');
+  if(!dd)return;
+  buildSearchDropdown(inp.value);
+  if(dd.children.length>0) dd.classList.remove('hidden');
+}
+function hideSearchDropdown(){
+  setTimeout(function(){
+    var dd=document.getElementById('omni-dropdown');
+    if(dd)dd.classList.add('hidden');
+  },150); // delay so tap registers before hide
+}
+function buildSearchDropdown(query){
+  var dd=document.getElementById('omni-dropdown');
+  if(!dd)return;
+  var q=(query||'').trim().toLowerCase();
+  if(!q){dd.innerHTML='';dd.classList.add('hidden');return;}
+  var cards=appState.pbData.cards.filter(function(c){return !c.deletedAt;});
+  var re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
+
+  // 1. Matching source phrases (unique, single match = no count, multiple = impossible since source is unique per card)
+  var phraseMatches=cards.filter(function(c){return re.test(c.source||'');}).map(function(c){return {text:c.source.trim(),count:0};});
+
+  // 2. Matching tags with their card counts
+  var tagMap={};
+  cards.forEach(function(c){
+    (c.tags||[]).forEach(function(t){
+      if(re.test(t)){
+        tagMap[t]=(tagMap[t]||0)+1;
+      }
+    });
+  });
+  var tagMatches=Object.keys(tagMap).sort().map(function(t){return {text:t,count:tagMap[t]};});
+
+  // 3. Matching clarify notes (unique text snippets, deduplicated)
+  var notesSeen={};
+  var noteMatches=[];
+  cards.forEach(function(c){
+    (c.clarifyChain||[]).forEach(function(cl){
+      if(re.test(cl.txt||'')){
+        var key=cl.txt.trim().toLowerCase();
+        if(!notesSeen[key]){
+          notesSeen[key]=true;
+          noteMatches.push({text:cl.txt.trim(),count:0});
+        }
+      }
+    });
+  });
+
+  // Combine all, deduplicate by text, alpha sort — no cap, no type ordering
+  var seen={};
+  var all=phraseMatches.concat(tagMatches).concat(noteMatches).filter(function(item){
+    var key=item.text.toLowerCase();
+    if(seen[key]) return false;
+    seen[key]=true;
+    return true;
+  }).sort(function(a,b){return a.text.toLowerCase().localeCompare(b.text.toLowerCase());});
+  if(!all.length){dd.innerHTML='';dd.classList.add('hidden');return;}
+
+  dd.innerHTML='';
+  all.forEach(function(item){
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='w-full text-left px-3 py-2 text-xs hover:bg-teal-50 flex justify-between items-center gap-2';
+    var span=document.createElement('span');
+    span.className='truncate';
+    span.textContent=item.text;
+    btn.appendChild(span);
+    if(item.count>1){
+      var badge=document.createElement('span');
+      badge.className='text-slate-400 shrink-0';
+      badge.textContent=item.count;
+      btn.appendChild(badge);
+    }
+    btn.addEventListener('mousedown',function(e){e.preventDefault();});
+    btn.addEventListener('click',function(){selectSearchTerm(item.text);});
+    dd.appendChild(btn);
+  });
+  dd.classList.remove('hidden');
+}
+function selectSearchTerm(term){
+  var inp=document.getElementById('omni-search');
+  if(inp)inp.value=term;
+  var dd=document.getElementById('omni-dropdown');
+  if(dd)dd.classList.add('hidden');
+  document.getElementById('omni-clear').classList.remove('hidden');
+  appState.searchQuery=term;
+  renderAll();
+}
+function updateSearchMatchCount(n){
+  var el=document.getElementById('search-match-count');
+  if(!el)return;
+  if(!appState.searchQuery){el.classList.add('hidden');return;}
+  el.textContent=n+' match'+(n===1?'':'es');
+  el.classList.remove('hidden');
+}
+function clearSearch(){
+  document.getElementById('omni-search').value='';
+  appState.searchQuery='';
+  document.getElementById('omni-clear').classList.add('hidden');
+  renderAll();
+}
+function matchesSearch(c){
+  if(!appState.searchQuery)return true;
+  var terms=appState.searchQuery.toLowerCase().split(/\s+/);
+  var blob=[c.source,c.target,(c.backtranslate&&c.backtranslate.resultText)||'',...(c.tags||[]),...(c.clarifyChain||[]).map(function(l){return (l.txt||'')+' '+(l.ts||'');})].join(' ').toLowerCase();
+  for(var i=0;i<terms.length;i++){
+    var term=terms[i];if(!term)continue;
+    if(term.startsWith('-')){
+      var exclude=term.substring(1).replace(/\*/g,'.*');
+      if(exclude&&new RegExp(exclude).test(blob))return false;
+    }else{
+      var include=term.replace(/\*/g,'.*');
+      if(include&&!new RegExp(include).test(blob))return false;
+    }
+  }
+  return true;
+}
+function filterCards(type){
+  appState.currentFilter=type;
+  document.querySelectorAll('.stat-chip').forEach(function(el){
+    el.classList.remove('bg-teal-50','border-teal-600','text-teal-700');
+    el.classList.add('bg-white','border-slate-200','text-slate-600');
+  });
+  var activeEl=document.getElementById('filter-'+type);
+  activeEl.classList.remove('bg-white','border-slate-200','text-slate-600');
+  activeEl.classList.add('bg-teal-50','border-teal-600','text-teal-700');
+  renderAll();
+}
+function toggleDeleted(){
+  var list=document.getElementById('deleted-container');
+  var chev=document.getElementById('del-chevron');
+  var showing=list.classList.contains('hidden');
+  list.classList.toggle('hidden',!showing);
+  list.classList.toggle('flex',showing);
+  chev.style.transform=showing?'rotate(180deg)':'rotate(0deg)';
+}
+function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+function playTTS(text,lang){
+  if(!text||text==='...')return;
+  var u=new SpeechSynthesisUtterance(text);
+  u.lang=lang==='en'?'en-US':lang==='th'?'th-TH':lang;
+  window.speechSynthesis.speak(u);
+}
+
+// --- Card rendering ---
+// ARCHITECTURAL RULE: card IDs are NEVER passed as string arguments in inline
+// event handlers. Instead every interactive element carries data-cardid and
+// handlers read it from the element or its closest ancestor with that attribute.
+// This eliminates the \\' escaping bug that broke every version through v9.1.
+
+function cardId(el){
+  // Walk up the DOM to find the nearest data-cardid attribute
+  var node=el;
+  while(node&&node!==document){
+    var id=node.getAttribute&&node.getAttribute('data-cardid');
+    if(id)return id;
+    node=node.parentElement;
+  }
+  return null;
+}
+
+function generateCardHTML(card,isDeleted){
+  var id=card.id;  // convenience alias
+
+  if(isDeleted){
+    return '<div class="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-lg shadow-sm mb-2" data-cardid="'+id+'">'
+      +'<span class="text-xs text-slate-500 truncate pr-4">'+(card.source||'Empty Phrase')+'</span>'
+      +'<div class="flex gap-1 shrink-0">'
+      +'<button class="p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600 rounded" title="Restore" onclick="restorePhrase(cardId(this))"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>'
+      +'<button class="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded" title="Permanent Delete" onclick="permDeletePhrase(cardId(this))"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
+      +'</div></div>';
+  }
+
+  var tagsHtml=(card.tags||[]).map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono" data-cardid="'+id+'" data-tagidx="'+i+'">'
+      +t+'<button type="button" class="ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold" onclick="removeTagEl(this)">&times;</button></span>';
+  }).join('');
+
+  var clarifyHtml=(card.clarifyChain||[]).map(function(c){
+    return '<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+      +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
+      +'<span>'+(c.ini||'?')+'</span><span>'+(c.ts||'')+'</span></div>'
+      +'<div class="text-xs text-slate-700 leading-snug">'+c.txt+'</div>'
+      +'</div>';
+  }).join('');
+
+  var backTxt=(card.backtranslate&&card.backtranslate.resultText)||'';
+  var verdict=(card.backtranslate&&card.backtranslate.verdict)||'pending';
+  var tagOpen=!!appState.openDrawers['tags-'+id];
+  var clarifyOpen=!!appState.openDrawers['clarify-'+id];
+  var srcLang=appState.langPair.source;
+  var tgtLang=appState.langPair.target;
+
+  return '<div class="pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible" data-status="'+verdict+'" data-cardid="'+id+'" id="card-'+id+'">'
+
+    // Row 1: Source | Target
+    +'<div class="flex border-b border-slate-100">'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start border-r border-slate-100">'
+        +'<textarea class="pb-input font-medium text-slate-800 text-sm flex-1" id="src-'+id+'" data-cardid="'+id+'" rows="1"'
+          +' oninput="autoResize(this)"'
+          +' onkeydown="handleSourceEnter(event,this)">'+(card.source||'')+'</textarea>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" data-action="tts">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
+        +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+id+'">'+(card.target||'...')+'</div>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" data-action="tts">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+    +'</div>'
+
+    // Row 2: Back-translate
+    +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
+      +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+id+'">'+(backTxt||'...')+'</div>'
+      +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" data-action="tts">'
+        +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+    +'</div>'
+
+    // Row 3: Verdict
+    +'<div class="flex gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50" data-cardid="'+id+'">'
+      +'<input type="radio" name="v-'+id+'" id="vg-'+id+'" class="verdict-radio radio-good" value="good" '+(verdict==='good'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vg-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 mr-1"></i>Sounds Good</label>'
+      +'<input type="radio" name="v-'+id+'" id="vf-'+id+'" class="verdict-radio radio-flag" value="flag" '+(verdict==='flag'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vf-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-3.5 h-3.5 mr-1"></i>Flag</label>'
+    +'</div>'
+
+    // Row 4: Footer
+    +'<div class="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50" data-cardid="'+id+'">'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="tags"'
+        +' class="py-1.5 flex justify-center items-center '+(tagOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' onclick="toggleDrawerEl(this)"><i data-lucide="hash" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="clarify"'
+        +' class="py-1.5 flex justify-center items-center '+(clarifyOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' onclick="toggleDrawerEl(this)"><i data-lucide="message-square" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'"'
+        +' class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50"'
+        +' onclick="softDeletePhrase(cardId(this))"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
+    +'</div>'
+
+    // Tag drawer
+    +'<div id="drawer-tags-'+id+'" class="'+(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div class="flex flex-wrap gap-1 mb-1.5" id="tags-container-'+id+'">'+tagsHtml+'</div>'
+      +'<div class="relative">'
+        +'<input type="text" autocomplete="off" id="in-tags-'+id+'" data-cardid="'+id+'"'
+          +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500"'
+          +' placeholder="Type tag + Enter to add"'
+          +' oninput="onTagInput(this)"'
+          +' onkeydown="onTagKeydown(event,this)" onkeyup="onTagKeyup(event,this)">'
+        +'<button type="button" data-cardid="'+id+'"'
+          +' class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold"'
+          +' onmousedown="event.preventDefault()"'
+          +' onclick="clearTagInput(this.dataset.cardid)">&times;</button>'
+        +'</div>'
+      +'<div id="tag-suggestions-'+id+'" class="flex flex-wrap gap-1 mt-1.5"></div>'
+      +'<div id="tag-debug-'+id+'" class="hidden"></div>'
+    +'</div>'
+
+    // Clarify drawer
+    +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div id="clarify-container-'+id+'" class="max-h-48 overflow-y-auto">'+clarifyHtml+'</div>'
+      +'<input type="text" autocomplete="off" id="in-clarify-'+id+'" data-cardid="'+id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1"'
+        +' placeholder="Add note + Enter to log..."'
+        +' onkeydown="onClarifyKeydown(event,this)">'
+    +'</div>'
+
+
+  +'</div>';
+}
+
+// Toggle drawer without full re-render — purely surgical DOM show/hide
+function toggleDrawer(id,type){
+  var key=type+'-'+id;
+  var was=!!appState.openDrawers[key];
+  appState.openDrawers[key]=!was;
+  var drawer=document.getElementById('drawer-'+type+'-'+id);
+  if(!drawer)return;
+  drawer.classList.toggle('hidden',was);
+  // Update footer button highlight
+  var card=document.getElementById('card-'+id);
+  if(card){
+    var btns=card.querySelectorAll('.grid.grid-cols-3 button');
+    var idx=type==='tags'?0:type==='clarify'?1:2;
+    if(btns[idx]){
+      if(!was){btns[idx].classList.remove('text-slate-400','hover:text-teal-600','hover:bg-slate-100');btns[idx].classList.add('text-teal-600','bg-teal-50');}
+      else{btns[idx].classList.add('text-slate-400','hover:text-teal-600','hover:bg-slate-100');btns[idx].classList.remove('text-teal-600','bg-teal-50');}
+    }
+  }
+  // No autofocus on open — user may just be reading
+}
+
+// generateCardEl — returns a real DOM element with addEventListener wiring.
+// Replaces the innerHTML+post-wire approach which is unreliable on mobile iOS/Android.
+function generateCardEl(card){
+  var id=card.id;
+  var backTxt=(card.backtranslate&&card.backtranslate.resultText)||'';
+  var verdict=(card.backtranslate&&card.backtranslate.verdict)||'pending';
+  var tagOpen=!!appState.openDrawers['tags-'+id];
+  var clarifyOpen=!!appState.openDrawers['clarify-'+id];
+  var srcLang=appState.langPair.source;
+  var tgtLang=appState.langPair.target;
+
+  // Build outer card div via innerHTML for static structure, then wire inputs
+  var wrap=document.createElement('div');
+  wrap.className='pb-card bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible';
+  wrap.setAttribute('data-status',verdict);
+  wrap.setAttribute('data-cardid',id);
+  wrap.id='card-'+id;
+
+  wrap.innerHTML=
+    // Row 1
+    '<div class="flex border-b border-slate-100">'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start border-r border-slate-100">'
+        +'<textarea class="pb-input font-medium text-slate-800 text-sm flex-1" id="src-'+id+'" data-cardid="'+id+'" rows="1"></textarea>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="src" data-lang="'+srcLang+'" data-action="tts">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+      +'<div class="w-1/2 min-w-0 px-3 py-2 flex items-start bg-slate-50/50">'
+        +'<div class="pb-input font-medium text-teal-700 text-sm flex-1" id="tgt-'+id+'">'+(card.target||'...')+'</div>'
+        +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+          +' data-cardid="'+id+'" data-side="tgt" data-lang="'+tgtLang+'" data-action="tts">'
+          +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+      +'</div>'
+    +'</div>'
+    // Row 2
+    +'<div class="px-3 py-2 border-b border-slate-100 flex items-start bg-slate-50/30">'
+      +'<div class="pb-input italic text-slate-500 text-sm flex-1" id="bck-'+id+'">'+(backTxt||'...')+'</div>'
+      +'<button type="button" class="shrink-0 ml-1.5 p-0.5 text-slate-300 hover:text-teal-500 self-start mt-0.5"'
+        +' data-cardid="'+id+'" data-side="bck" data-lang="'+srcLang+'" data-action="tts">'
+        +'<i data-lucide="volume-2" class="w-3 h-3"></i></button>'
+    +'</div>'
+    // Row 3
+    +'<div class="flex gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50" data-cardid="'+id+'">'
+      +'<input type="radio" name="v-'+id+'" id="vg-'+id+'" class="verdict-radio radio-good" value="good" '+(verdict==='good'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vg-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 mr-1"></i>Sounds Good</label>'
+      +'<input type="radio" name="v-'+id+'" id="vf-'+id+'" class="verdict-radio radio-flag" value="flag" '+(verdict==='flag'?'checked':'')+' onchange="verdictChange(this)">'
+      +'<label for="vf-'+id+'" class="verdict-label text-xs font-bold"><i data-lucide="flag" class="w-3.5 h-3.5 mr-1"></i>Flag</label>'
+    +'</div>'
+    // Row 4 footer
+    +'<div class="grid grid-cols-3 divide-x divide-slate-200 bg-slate-50" data-cardid="'+id+'">'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="tags"'
+        +' class="py-1.5 flex justify-center items-center '+(tagOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' data-action="toggle-drawer"><i data-lucide="hash" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'" data-drawer="clarify"'
+        +' class="py-1.5 flex justify-center items-center '+(clarifyOpen?'text-teal-600 bg-teal-50':'text-slate-400 hover:text-teal-600 hover:bg-slate-100')+'"'
+        +' data-action="toggle-drawer"><i data-lucide="message-square" class="w-3.5 h-3.5"></i></button>'
+      +'<button type="button" data-cardid="'+id+'"'
+        +' class="py-1.5 flex justify-center items-center text-slate-400 hover:text-red-600 hover:bg-red-50"'
+        +' data-action="soft-delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>'
+    +'</div>'
+    // Clarify drawer shell (textarea wired below via addEventListener)
+    +'<div id="drawer-clarify-'+id+'" class="'+(clarifyOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100">'
+      +'<div id="clarify-container-'+id+'" class="max-h-48 overflow-y-auto"></div>'
+      +'<input type="text" autocomplete="off" id="in-clarify-'+id+'" data-cardid="'+id+'"'
+        +' class="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 mt-1"'
+        +' placeholder="Add note + Enter to log...">'
+    +'</div>';
+
+  // Wire TTS buttons via addEventListener
+  wrap.querySelectorAll('[data-action="tts"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); ttsBtnClick(btn); });
+  });
+
+  // Populate source textarea value (not in innerHTML to avoid encoding issues)
+  var srcTA=wrap.querySelector('#src-'+id);
+  if(srcTA){
+    srcTA.value=card.source||'';
+    srcTA.addEventListener('input',function(){autoResize(srcTA);});
+    srcTA.addEventListener('keydown',function(e){
+      if(!(e.key==='Enter'&&!e.shiftKey))return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      handleSourceEnter(e,srcTA);
+    });
+  }
+
+  // Build tag drawer entirely via createElement (not innerHTML) — guarantees keydown fires on mobile
+  (function(){
+    var tagDrawer=document.createElement('div');
+    tagDrawer.id='drawer-tags-'+id;
+    tagDrawer.className=(tagOpen?'':'hidden')+' bg-slate-50 px-3 py-2 border-t border-slate-100';
+
+    var tagsCont=document.createElement('div');
+    tagsCont.id='tags-container-'+id;
+    tagsCont.className='flex flex-wrap gap-1 mb-1.5';
+    tagsCont.appendChild(buildTagChips(id,card.tags||[]));
+
+    var inputWrap=document.createElement('div');
+    inputWrap.className='relative';
+
+    var tagInp=document.createElement('input');
+    tagInp.type='text';
+    tagInp.autocomplete='off';
+    tagInp.id='in-tags-'+id;
+    tagInp.setAttribute('data-cardid',id);
+    tagInp.setAttribute('enterkeyhint','done');
+    tagInp.className='w-full bg-white border border-slate-200 rounded px-2 py-1.5 pr-6 text-xs outline-none focus:border-teal-500';
+    tagInp.placeholder='Type tag + Enter to add';
+
+    var clrBtn=document.createElement('button');
+    clrBtn.type='button';
+    clrBtn.id='tag-clear-'+id;
+    clrBtn.className='absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 leading-none text-sm font-bold';
+    clrBtn.textContent='×';
+
+    var sugBox=document.createElement('div');
+    sugBox.id='tag-suggestions-'+id;
+    sugBox.className='flex flex-wrap gap-1 mt-1.5';
+
+    var dbg=document.createElement('div');
+    dbg.id='tag-debug-'+id;
+    dbg.className='hidden'; // debug bar removed per v9.10
+
+    function doCommit(){
+      var val=tagInp.value.trim();
+      if(val){
+        tagDebug(id,'ENTER: committing "'+val+'"');
+        val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
+      } else {
+        var btns=sugBox.querySelectorAll('button');
+        if(btns.length===1){ tagDebug(id,'ENTER: auto sole suggestion'); commitTagFromEl(btns[0]); }
+        else { tagDebug(id,'ENTER: empty, '+btns.length+' suggestions'); }
+      }
+      if(wrap._stampCommit) wrap._stampCommit();
+      tagInp.focus();
+    }
+
+    tagInp.addEventListener('input',function(){ onTagInput(tagInp); });
+    tagInp.addEventListener('keydown',function(e){
+      if(e.key!=='Enter') return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      doCommit();
+    });
+    tagInp.addEventListener('keyup',function(e){
+      // fallback for mobile IME where keydown may not fire
+      if(e.key!=='Enter') return;
+      if(tagInp.value.trim()==='' && sugBox.querySelectorAll('button').length===0) return; // already committed
+      doCommit();
+    });
+    clrBtn.addEventListener('mousedown',function(e){ e.preventDefault(); });
+    clrBtn.addEventListener('click',function(){ clearTagInput(id); });
+
+    inputWrap.appendChild(tagInp);
+    inputWrap.appendChild(clrBtn);
+    tagDrawer.appendChild(tagsCont);
+    tagDrawer.appendChild(inputWrap);
+    tagDrawer.appendChild(sugBox);
+    tagDrawer.appendChild(dbg);
+    // Insert before clarify drawer so order is: footer → tags → clarify
+    var clarifyDrawer=wrap.querySelector('#drawer-clarify-'+id);
+    if(clarifyDrawer){ wrap.insertBefore(tagDrawer, clarifyDrawer); }
+    else { wrap.appendChild(tagDrawer); }
+  })();
+
+  // Populate clarify chain
+  var clarifyCont=wrap.querySelector('#clarify-container-'+id);
+  if(clarifyCont){
+    (card.clarifyChain||[]).forEach(function(cl,idx){
+      clarifyCont.appendChild(buildClarifyEntry(cl.ini,cl.ts,cl.txt,function(el){
+        var c=getCard(id); if(!c) return;
+        c.clarifyChain.splice(idx,1);
+        el.remove();
+        triggerDebouncedSave();
+      }));
+    });
+  }
+
+  // Wire clarify textarea — pure addEventListener
+  var clarTA=wrap.querySelector('#in-clarify-'+id);
+  if(clarTA){
+    clarTA.addEventListener('keydown',function(e){
+      if(!(e.key==='Enter'&&!e.shiftKey)) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      var txt=clarTA.value.trim(); if(!txt) return;
+      var c=getCard(id); if(!c) return;
+      if(!c.clarifyChain) c.clarifyChain=[];
+      var ini=appState.config.initials||'?';
+      var ts=clarifyTs();
+      c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
+      c.updatedAt=Date.now();
+      var cont=document.getElementById('clarify-container-'+id);
+      if(cont){
+        var _idx2=(c.clarifyChain.length-1);
+        cont.appendChild(buildClarifyEntry(ini,ts,txt,function(el){
+          c.clarifyChain.splice(_idx2,1);
+          el.remove();
+          triggerDebouncedSave();
+        }));
+        cont.scrollTop=cont.scrollHeight;
+      }
+      clarTA.value=''; autoResize(clarTA);
+      if(wrap._stampCommit) wrap._stampCommit();
+      setTimeout(function(){ clarTA.focus(); },60);
+      triggerDebouncedSave();
+    });
+  }
+
+  // Wire footer buttons via addEventListener with ghost-tap guard (300ms cooldown after keyboard commit)
+  var lastCommitAt=0;
+  function guardedToggle(btn){
+    if(Date.now()-lastCommitAt<300){ return; }
+    toggleDrawerEl(btn);
+  }
+  wrap.querySelectorAll('[data-action="toggle-drawer"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); guardedToggle(btn); });
+  });
+  wrap.querySelectorAll('[data-action="soft-delete"]').forEach(function(btn){
+    btn.addEventListener('click',function(e){ e.stopPropagation(); softDeletePhrase(cardId(btn)); });
+  });
+  // Expose lastCommitAt setter so tag/clarify commit can stamp it
+  wrap._stampCommit=function(){ lastCommitAt=Date.now(); };
+
+  return wrap;
+}
+
+
+function renderAll(){
+  var aCont=document.getElementById('cards-container');
+  var dCont=document.getElementById('deleted-container');
+  aCont.innerHTML='';dCont.innerHTML='';
+  var anyVisible=false;
+  appState.pbData.cards.forEach(function(c){
+    if(c.deletedAt){dCont.insertAdjacentHTML('beforeend',generateCardHTML(c,true));return;}
+    var verdict=(c.backtranslate&&c.backtranslate.verdict)||'pending';
+    var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
+    if(matchesFilter&&matchesSearch(c)){anyVisible=true;aCont.appendChild(generateCardEl(c));}
+  });
+  updateSearchMatchCount(aCont.children.length);
+  if(window.lucide)lucide.createIcons();
+  setTimeout(function(){document.querySelectorAll('textarea').forEach(function(el){autoResize(el);});},0);
+  updateStats();
+  document.getElementById('bulk-action-bar').classList.toggle('hidden',!(appState.searchQuery.length>0&&anyVisible));
+  var emptyEl=document.getElementById('empty-state-msg');
+  if(!anyVisible&&(appState.currentFilter!=='all'||appState.searchQuery)){
+    if(!emptyEl){
+      emptyEl=document.createElement('div');
+      emptyEl.id='empty-state-msg';
+      emptyEl.className='text-center text-slate-400 text-sm py-16';
+      emptyEl.textContent='No items for this filter — change your filters and try again.';
+      aCont.appendChild(emptyEl);
+    }
+  }else if(emptyEl){emptyEl.remove();}
+}
+
+function getCard(id){
+  var c=appState.pbData.cards.find(function(c){return c.id===String(id);});
+  if(!c)console.warn('getCard: no card found for id='+id);
+  return c||null;
+}
+
+// Element-based handlers — read card ID from data-cardid, never from string args
+function verdictChange(radio){
+  var id=cardId(radio);
+  handleVerdict(id,radio.value);
+}
+function ttsBtnClick(btn){
+  var id=btn.getAttribute('data-cardid');
+  var side=btn.getAttribute('data-side');
+  var lang=btn.getAttribute('data-lang');
+  var el=document.getElementById(side+'-'+id);
+  var text=el?(side==='src'?el.value:el.innerText):'';
+  playTTS(text,lang);
+}
+function toggleDrawerEl(btn){
+  var id=btn.getAttribute('data-cardid');
+  var type=btn.getAttribute('data-drawer');
+  toggleDrawer(id,type);
+}
+function removeTagEl(btn){
+  var span=btn.parentElement;
+  var id=span.getAttribute('data-cardid');
+  var idx=parseInt(span.getAttribute('data-tagidx'),10);
+  removeTag(id,idx);
+}
+
+// ── TAG SYSTEM ──────────────────────────────────────────────────────────────
+// No synthetic events, no dispatchEvent, no datalist.
+// All paths call commitTag(id, value) directly.
+
+function renderTagChips(id,tags){
+  // Legacy: returns HTML string for generateCardHTML (deleted cards). Use replaceTagChips() for live cards.
+  return (tags||[]).map(function(t,i){
+    return '<span class="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono" data-cardid="'+id+'" data-tagidx="'+i+'">'
+      +t+'<button type="button" class="ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold" onclick="removeTagEl(this)">&times;</button></span>';
+  }).join('');
+}
+function buildTagChips(id,tags){
+  // Returns a DocumentFragment with proper addEventListener (no inline onclick)
+  var frag=document.createDocumentFragment();
+  (tags||[]).forEach(function(t,i){
+    var span=document.createElement('span');
+    span.className='inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-teal-700 px-1.5 py-0.5 rounded text-[11px] font-mono';
+    span.setAttribute('data-cardid',id);
+    span.setAttribute('data-tagidx',String(i));
+    span.appendChild(document.createTextNode(t));
+    var x=document.createElement('button');
+    x.type='button';
+    x.className='ml-0.5 text-slate-400 hover:text-red-500 leading-none font-bold';
+    x.textContent='×';
+    x.addEventListener('click',function(e){ e.stopPropagation(); removeTag(id,i); });
+    span.appendChild(x);
+    frag.appendChild(span);
+  });
+  return frag;
+}
+function replaceTagChips(id,tags){
+  var container=document.getElementById('tags-container-'+id);
+  if(!container) return;
+  container.innerHTML='';
+  container.appendChild(buildTagChips(id,tags));
+}
+
+function clearTagInput(id){
+  var inp=document.getElementById('in-tags-'+id);
+  if(inp){inp.value='';inp.focus();}
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(box)box.innerHTML='';
+  tagDebug(id,'');
+}
+function tagDebug(id,msg){
+  var el=document.getElementById('tag-debug-'+id);
+  if(el)el.textContent=msg;
+}
+// Wire tag input with addEventListener after innerHTML injection (mobile-safe pattern from kanban.html)
+function wireTagInput(inp){
+  if(inp._wired) return;
+  inp._wired=true;
+  // Remove inline attrs to prevent double-firing
+  inp.removeAttribute('oninput');
+  inp.removeAttribute('onkeydown');
+  inp.removeAttribute('onkeyup');
+  inp.addEventListener('input', function(){ onTagInput(inp); });
+  inp.addEventListener('keydown', function(e){
+    if(e.key!=='Enter') return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    var id=inp.getAttribute('data-cardid');
+    var c=getCard(id);
+    if(!c){ tagDebug(id,'ENTER: card not found'); return; }
+    var val=inp.value.trim();
+    if(val){
+      val.split(',').forEach(function(part){ var t=part.trim(); if(t) commitTag(id,t); });
+    } else {
+      var box=document.getElementById('tag-suggestions-'+id);
+      var btns=box?box.querySelectorAll('button'):[];
+      if(btns.length===1){ commitTagFromEl(btns[0]); tagDebug(id,'ENTER: auto sole suggestion'); }
+    }
+    // Deferred focus — prevents iOS/Android layout reflow from stealing focus back to source textarea
+    setTimeout(function(){ inp.focus(); }, 60);
+  });
+  // Wire the × clear button in same wrapper
+  var wrap=inp.parentNode;
+  if(wrap){
+    var clr=wrap.querySelector('button[data-cardid]');
+    if(clr && !clr._wired){
+      clr._wired=true;
+      clr.removeAttribute('onclick');
+      clr.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      clr.addEventListener('click', function(){ clearTagInput(inp.getAttribute('data-cardid')); });
+    }
+  }
+}
+function wireClarifyInput(ta){
+  if(ta._wired) return;
+  ta._wired=true;
+  ta.removeAttribute('oninput');
+  ta.removeAttribute('onkeydown');
+  ta.addEventListener('input', function(){ autoResize(ta); });
+  ta.addEventListener('keydown', function(e){
+    if(!(e.key==='Enter'&&!e.shiftKey)) return;
+    e.preventDefault();
+    var id=ta.getAttribute('data-cardid');
+    var txt=ta.value.trim();
+    if(!txt) return;
+    var c=getCard(id);
+    if(!c) return;
+    if(!c.clarifyChain) c.clarifyChain=[];
+    var ini=appState.reviewerInitials||'?';
+    c.clarifyChain.push({ini:ini,ts:clarifyTs(),txt:txt});
+    c.updatedAt=Date.now();
+    var cont=document.getElementById('clarify-container-'+id);
+    if(cont){
+      var entry='<div class="bg-white border border-slate-100 rounded px-2 py-1.5 mb-1">'
+        +'<div class="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">'
+        +'<span>'+ini+'</span><span>'+clarifyTs()+'</span></div>'
+        +'<div class="text-xs text-slate-700 leading-snug">'+txt+'</div></div>';
+      cont.insertAdjacentHTML('beforeend',entry);
+    }
+    ta.value=''; autoResize(ta); ta.focus();
+    triggerDebouncedSave();
+  });
+}
+function onTagInput(el){
+  var id=el.getAttribute('data-cardid');
+  var val=el.value;
+  var c=getCard(id);
+  tagDebug(id,'id='+id.slice(0,12)+' cards='+appState.pbData.cards.length+' card='+(c?'FOUND':'NULL'));
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(!box)return;
+  var q=(val||'').trim().toLowerCase();
+  if(!q){box.innerHTML='';return;}
+  var card=getCard(id);
+  var existing=(card&&card.tags)||[];
+  var matches=Array.from(appState.uniqueTags)
+    .filter(function(t){return t.toLowerCase().indexOf(q)>=0&&existing.indexOf(t)<0;})
+    .slice(0,8);
+  // Use data-cardid and data-tag — no string escaping in onclick
+  box.innerHTML='';
+  matches.forEach(function(t){
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='text-[11px] bg-white border border-slate-200 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-50 hover:border-teal-300';
+    btn.textContent=t;
+    btn.addEventListener('mousedown',function(e){e.preventDefault();});
+    btn.addEventListener('click',function(){ commitTag(id,t); });
+    box.appendChild(btn);
+  });
+}
+
+function onTagKeydown(e,el){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  e.stopPropagation();
+  var id=el.getAttribute('data-cardid');
+  var c=getCard(id);
+  if(!c){
+    tagDebug(id,'ENTER: getCard NULL — id='+id.slice(0,12)+' cards='+appState.pbData.cards.length);
+    return;
+  }
+  var val=el.value.trim();
+  if(!val){
+    // If exactly one suggestion visible, commit it automatically
+    var box=document.getElementById('tag-suggestions-'+id);
+    var btns=box?box.querySelectorAll('button'):[];
+    if(btns.length===1){
+      commitTagFromEl(btns[0]);
+      tagDebug(id,'ENTER: auto-committed sole suggestion');
+    }else{
+      tagDebug(id,'ENTER: empty value, '+btns.length+' suggestions');
+    }
+    return;
+  }
+  tagDebug(id,'ENTER: committing "'+val+'"');
+  val.split(',').forEach(function(part){
+    var t=part.trim();
+    if(t)commitTag(id,t);
+  });
+}
+
+// Mobile IME fallback — keydown Enter may not fire reliably on Android/iOS soft keyboard
+function onTagKeyup(e,el){
+  if(e.key!=='Enter')return;
+  // Only act if keydown didn't already commit (input will be empty if it did)
+  var id=el.getAttribute('data-cardid');
+  var val=el.value.trim();
+  if(!val){
+    var box=document.getElementById('tag-suggestions-'+id);
+    var btns=box?box.querySelectorAll('button'):[];
+    if(btns.length===1){commitTagFromEl(btns[0]);tagDebug(id,'KEYUP: auto-committed sole suggestion');}
+    return;
+  }
+  var c=getCard(id);
+  if(!c)return;
+  tagDebug(id,'KEYUP: committing "'+val+'"');
+  val.split(',').forEach(function(part){var t=part.trim();if(t)commitTag(id,t);});
+}
+
+// Called from suggestion chip onclick — reads id and tag from data attributes
+function commitTagFromEl(el){
+  var id=el.getAttribute('data-cardid');
+  var tag=el.getAttribute('data-tag');
+  commitTag(id,tag);
+}
+
+function clarifyTs(){
+  var d=new Date();
+  return d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+function buildClarifyEntry(ini,ts,txt,onDelete){
+  var wrap=document.createElement('div');
+  wrap.className='bg-white border border-slate-100 rounded px-2 py-1.5 mb-1 relative';
+  var header=document.createElement('div');
+  header.className='flex justify-between text-[10px] text-slate-400 font-bold mb-0.5 pr-4';
+  var iniEl=document.createElement('span'); iniEl.textContent=ini||'?';
+  var tsEl=document.createElement('span'); tsEl.textContent=ts||'';
+  header.appendChild(iniEl); header.appendChild(tsEl);
+  var body=document.createElement('div');
+  body.className='text-xs text-slate-700 leading-snug pr-4';
+  body.textContent=txt||'';
+  if(onDelete){
+    var x=document.createElement('button');
+    x.type='button';
+    x.className='absolute top-1.5 right-1.5 text-slate-300 hover:text-red-400 text-xs leading-none font-bold';
+    x.textContent='×';
+    x.addEventListener('click',function(){ onDelete(wrap); });
+    wrap.appendChild(x);
+  }
+  wrap.appendChild(header); wrap.appendChild(body);
+  return wrap;
+}
+function addClarifyEntry(c,txt){
+  if(!c)return;
+  if(!c.clarifyChain)c.clarifyChain=[];
+  var ini=appState.config.initials||'?';
+  var ts=clarifyTs();
+  c.clarifyChain.push({ini:ini,ts:ts,txt:txt});
+  // Append to DOM if clarify container is rendered
+  var cont=document.getElementById('clarify-container-'+c.id);
+  if(cont){
+    var _idx=(c.clarifyChain.length-1);
+    cont.appendChild(buildClarifyEntry(ini,ts,txt,function(el){
+      c.clarifyChain.splice(_idx,1);
+      el.remove();
+      triggerDebouncedSave();
+    }));
+    cont.scrollTop=cont.scrollHeight;
+  }
+}
+
+function commitTag(id,tag){
+  tag=(tag||'').trim().toLowerCase();
+  if(!tag)return;
+  var c=getCard(id);
+  if(!c)return;
+  if(BANNED_TAGS.indexOf(tag)>=0){
+    var inp0=document.getElementById('in-tags-'+id);
+    if(inp0){inp0.value='';}
+    var box0=document.getElementById('tag-suggestions-'+id);
+    if(box0)box0.innerHTML='';
+    addClarifyEntry(c,'Rejected tag "'+tag+'" — tone/mood tags are banned per taxonomy (contract §5.2)');
+    triggerDebouncedSave();
+    return;
+  }
+  if(!c.tags)c.tags=[];
+  if(c.tags.indexOf(tag)>=0){
+    // already exists — just clear input and suggestions
+    var inp=document.getElementById('in-tags-'+id);
+    if(inp)inp.value='';
+    var box=document.getElementById('tag-suggestions-'+id);
+    if(box)box.innerHTML='';
+    return;
+  }
+  c.tags.push(tag);
+  appState.uniqueTags.add(tag);
+  c.updatedAt=Date.now();
+  // update chips
+  replaceTagChips(id,c.tags);
+  // clear input + suggestions
+  var inp=document.getElementById('in-tags-'+id);
+  if(inp){inp.value='';inp.focus();}
+  var box=document.getElementById('tag-suggestions-'+id);
+  if(box)box.innerHTML='';
+  refreshDatalist();
+  addClarifyEntry(c,'Tag added: '+tag);
+  triggerDebouncedSave();
+}
+
+function removeTag(id,idx){
+  var c=getCard(id);
+  if(!c||!c.tags)return;
+  var removed=c.tags[idx]||'?';
+  c.tags.splice(idx,1);
+  c.updatedAt=Date.now();
+  replaceTagChips(id,c.tags);
+  addClarifyEntry(c,'Tag removed: '+removed);
+  triggerDebouncedSave();
+}
+// ── END TAG SYSTEM ───────────────────────────────────────────────────────────
+function onClarifyKeydown(e,el){
+  if(!(e.key==='Enter'&&!e.shiftKey))return;
+  e.preventDefault();e.stopPropagation();
+  var id=el.getAttribute('data-cardid');
+  var v=el.value.trim();if(!v)return;
+  var c=getCard(id);if(!c)return;
+  if(!c.clarifyChain)c.clarifyChain=[];
+  var log={ini:appState.config.initials,ts:clarifyTs(),txt:v};
+  c.clarifyChain.push(log);
+  c.updatedAt=Date.now();
+  el.value='';
+  var _cc=document.getElementById('clarify-container-'+id);
+  if(_cc){
+    var _idx3=(c.clarifyChain.length-1);
+    _cc.appendChild(buildClarifyEntry(log.ini,log.ts,log.txt,function(el){
+      c.clarifyChain.splice(_idx3,1); el.remove(); triggerDebouncedSave();
+    }));
+    _cc.scrollTop=_cc.scrollHeight;
+  }
+  triggerDebouncedSave();
+  el.focus();
+}
+
+function handleVerdict(id,verdict){
+  var c=getCard(id);
+  if(!c.backtranslate)c.backtranslate={};
+  var prev=c.backtranslate.verdict||'pending';
+  c.backtranslate.verdict=verdict;
+  syncVerifiedTag(c);
+  c.updatedAt=Date.now();
+  document.getElementById('card-'+id).setAttribute('data-status',verdict);
+  updateStats();
+  addClarifyEntry(c,'Verdict: '+prev+' → '+verdict);
+  if(appState.currentFilter!=='all'&&verdict!==appState.currentFilter)renderAll();
+  triggerDebouncedSave();
+}
+
+function softDeletePhrase(id){var c=getCard(id);c.deletedAt=Date.now();renderAll();triggerDebouncedSave();}
+function restorePhrase(id){var c=getCard(id);delete c.deletedAt;renderAll();triggerDebouncedSave();}
+function permDeletePhrase(id){
+  if(!confirm("Permanently delete this card?"))return;
+  appState.pbData.cards=appState.pbData.cards.filter(function(c){return String(c.id)!==String(id);});
+  renderAll();triggerDebouncedSave();
+}
+function addNewPhrase(){
+  var blank=appState.pbData.cards.find(function(c){return !c.deletedAt&&c.source.trim()==='';});
+  if(blank){
+    appState.currentFilter='all';filterCards('all');
+    appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
+    renderAll();
+    setTimeout(function(){
+      var el=document.getElementById('src-'+blank.id);
+      if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();}
+    },50);
+    return;
+  }
+  var newId='pb-new-'+Math.random().toString(36).slice(2,10);
+  var ini=appState.config.initials||'?';
+  var ts=clarifyTs();
+  // CONTRACT v1.5 §4 Stage 1 — XL birth: categories=["unassigned"], createdBy="xl",
+  // empty O-ring fields, verdict="pending". Real backtranslation runs when the
+  // curator enters source text and hits Enter (handleSourceEnter pipeline) —
+  // there is no source text yet at this point for a translation to run against.
+  appState.pbData.cards.unshift({
+    id:newId,
+    sourceLang:appState.langPair.source||'',
+    targetLang:appState.langPair.target||'',
+    source:"",target:"",
+    categories:['unassigned'],
+    tags:[],
+    intentId:null,fingerprint:null,relatedIntents:[],
+    usage:0,lastUsed:null,
+    backtranslate:{resultText:"",verdict:"pending"},
+    clarifyChain:[{ini:ini,ts:ts,txt:'Created'}],
+    createdAt:Date.now(),createdBy:'xl',
+    updatedAt:Date.now(),updatedBy:'xl',
+    deletedAt:null
+  });
+  appState.currentFilter='all';filterCards('all');
+  appState.searchQuery='';document.getElementById('omni-search').value='';document.getElementById('omni-clear').classList.add('hidden');
+  renderAll();
+  var ws=document.getElementById('workspace-scroll');
+  if(ws)ws.scrollTo({top:0,behavior:'smooth'});
+  setTimeout(function(){var el=document.getElementById('src-'+newId);if(el)el.focus();},50);
+  triggerDebouncedSave();
+}
+
+function applyBulkTag(){
+  var input=document.getElementById('bulk-tag');
+  var tag=input.value.trim().toLowerCase();if(!tag)return;
+  if(BANNED_TAGS.indexOf(tag)>=0){
+    alert('"'+tag+'" is a banned tone/mood tag and cannot be applied (contract §5.2).');
+    input.value='';
+    return;
+  }
+  // Route through commitTag — single guarded entry point for all tag writes
+  appState.pbData.cards.forEach(function(c){
+    if(c.deletedAt)return;
+    var verdict=(c.backtranslate&&c.backtranslate.verdict)||'pending';
+    var matchesFilter=appState.currentFilter==='all'||verdict===appState.currentFilter;
+    if(matchesFilter&&matchesSearch(c)){
+      commitTag(c.id,tag);
+    }
+  });
+  refreshDatalist();
+  input.value='';
+  renderAll();
+  triggerDebouncedSave();
+}
+
+// --- Translation pipeline ---
+async function handleSourceEnter(e,el){
+  // Called from generateCardEl's keydown handler which already checked Enter+stopPropagation
+  var id=el.getAttribute('data-cardid');
+  var v=el.value.trim();
+  // Do not blur — spec 4.3.2: no scroll/focus loss on Enter
+  var c=getCard(id);
+  if(!v)return;
+
+  // Only skip re-translation if source unchanged AND target AND backtranslate all exist
+  var btText=c.backtranslate&&c.backtranslate.resultText;
+  if(c.source===v&&c.target&&btText&&(c.backtranslate&&c.backtranslate.verdict!=='pending')){
+    if(c.backtranslate)c.backtranslate.verdict='pending';
+    var vg=document.getElementById('vg-'+id),vf=document.getElementById('vf-'+id);
+    if(vg)vg.checked=false;if(vf)vf.checked=false;
+    document.getElementById('card-'+id).setAttribute('data-status','pending');
+    c.updatedAt=Date.now();
+    addClarifyEntry(c,'Reset to pending');
+    updateStats();triggerDebouncedSave();return;
+  }
+
+  var prevSrc=c.source;
+  c.source=v;c.updatedAt=Date.now();
+  if(prevSrc&&prevSrc!==v) addClarifyEntry(c,'Was: '+prevSrc);
+  var tEl=document.getElementById('tgt-'+id);
+  var bEl=document.getElementById('bck-'+id);
+  tEl.innerHTML='<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>';
+  bEl.innerHTML='<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-teal-600"></i>';
+  if(window.lucide)lucide.createIcons();
+
+  if(c.backtranslate)c.backtranslate.verdict='pending';
+  var vg2=document.getElementById('vg-'+id),vf2=document.getElementById('vf-'+id);
+  if(vg2)vg2.checked=false;if(vf2)vf2.checked=false;
+  document.getElementById('card-'+id).setAttribute('data-status','pending');
+  updateStats();
+
+  try{
+    var em='tb_'+Math.floor(Math.random()*1000)+'@tb.com';
+    var src=appState.langPair.source,tgt=appState.langPair.target;
+    var resT=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(v)+'&langpair='+src+'|'+tgt+'&de='+em);
+    var tJson=await resT.json();
+    var tgtText=tJson.responseData.translatedText;
+    // MyMemory failure mode: returns source text unchanged when rate-limited or no match
+    if(!tgtText||tgtText.trim().toLowerCase()===v.trim().toLowerCase()||tJson.responseStatus===403){
+      tEl.innerText='[Translation failed — retry]';
+      bEl.innerText='';
+      if(!c.backtranslate)c.backtranslate={};
+      c.backtranslate.resultText='';
+      c.backtranslate.verdict='pending';
+      var cardEl=document.getElementById('card-'+id);
+      if(cardEl)cardEl.setAttribute('data-status','pending');
+      addClarifyEntry(c,'Translation failed — reset to pending');
+      updateStats();
+      triggerDebouncedSave();
+      return;
+    }
+    c.target=tgtText;tEl.innerText=tgtText;
+
+    var resB=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(tgtText)+'&langpair='+tgt+'|'+src+'&de='+em);
+    var bck=(await resB.json()).responseData.translatedText;
+    if(!c.backtranslate)c.backtranslate={};
+    c.backtranslate.resultText=bck;bEl.innerText=bck;
+    triggerDebouncedSave();
+  }catch(err){
+    if(!c.backtranslate)c.backtranslate={};
+    c.backtranslate.verdict='pending';
+    var cardEl=document.getElementById('card-'+id);
+    if(cardEl)cardEl.setAttribute('data-status','pending');
+    tEl.innerText='[Translation error — retry]';bEl.innerText='';
+    addClarifyEntry(c,'Translation error: '+(err.message||'unknown')+' — reset to pending');
+    updateStats();
+    triggerDebouncedSave();
+  }
+}
+
+function closeInsightModal(){
+  document.getElementById('insight-modal').classList.add('hidden');
+}
+function openInsightModal(job){
+  var modal=document.getElementById('insight-modal');
+  var body=document.getElementById('insight-body');
+  modal.classList.remove('hidden');
+  body.innerHTML='';
+
+  var cards=appState.pbData.cards.filter(function(c){return !c.deletedAt;});
+  var total=cards.length;
+  var good=cards.filter(function(c){return (c.backtranslate&&c.backtranslate.verdict)==='good';}).length;
+  var flagged=cards.filter(function(c){return (c.backtranslate&&c.backtranslate.verdict)==='flag';}).length;
+  var pending=cards.filter(function(c){return !c.backtranslate||c.backtranslate.verdict==='pending';}).length;
+
+  // ── Stats bar ──────────────────────────────────────────────────────────────
+  var statsDiv=document.createElement('div');
+  statsDiv.className='grid grid-cols-4 gap-2 mb-4';
+  [[good,'Approved','text-green-700 bg-green-50'],[flagged,'Flagged','text-red-700 bg-red-50'],[pending,'Pending','text-slate-600 bg-slate-50'],[total,'Total','text-teal-700 bg-teal-50']].forEach(function(s){
+    var cell=document.createElement('div'); cell.className='rounded-lg p-2 text-center '+s[2];
+    var val=document.createElement('div'); val.className='text-lg font-bold'; val.textContent=s[0];
+    var lbl=document.createElement('div'); lbl.className='text-[10px] font-bold uppercase opacity-70'; lbl.textContent=s[1];
+    cell.appendChild(val); cell.appendChild(lbl); statsDiv.appendChild(cell);
+  });
+  body.appendChild(statsDiv);
+
+  // ── Collect and parse all clarify entries ──────────────────────────────────
+  // ts format: "Jun 13, 2026 8:45 PM" — parse to Date for real time math
+  function parseTs(ts){
+    if(!ts) return null;
+    try{ var d=new Date(ts); return isNaN(d.getTime())?null:d; }catch(e){ return null; }
+  }
+  var allEntries=[];
+  cards.forEach(function(c){
+    (c.clarifyChain||[]).forEach(function(cl){
+      var d=parseTs(cl.ts);
+      if(d) allEntries.push({date:d,ini:cl.ini||'?',txt:cl.txt||'',cardId:c.id});
+    });
+  });
+  allEntries.sort(function(a,b){return a.date-b.date;});
+
+  // ── Session bucketing — gap > 45 min = new session ─────────────────────────
+  var SESSION_GAP_MS=45*60*1000;
+  var sessions=[];
+  var cur=null;
+  allEntries.forEach(function(e){
+    if(!cur){
+      cur={start:e.date,end:e.date,actions:[e]};
+    } else {
+      var gap=e.date-cur.end;
+      if(gap>SESSION_GAP_MS){
+        sessions.push({session:cur,gapAfterMs:gap});
+        cur={start:e.date,end:e.date,actions:[e]};
+      } else {
+        cur.end=e.date;
+        cur.actions.push(e);
+      }
+    }
+  });
+  if(cur) sessions.push({session:cur,gapAfterMs:0});
+
+  // ── Curator breakdown across all entries ───────────────────────────────────
+  var curatorMap={};
+  allEntries.forEach(function(e){ curatorMap[e.ini]=(curatorMap[e.ini]||0)+1; });
+
+  // ── Activity replay header ─────────────────────────────────────────────────
+  var hdr=document.createElement('div');
+  hdr.className='text-[10px] font-bold uppercase text-amber-700 mb-2';
+  hdr.textContent='Curator Activity Replay — '+allEntries.length+' logged actions'
+    +(Object.keys(curatorMap).length?' · '+Object.keys(curatorMap).map(function(k){return k+': '+curatorMap[k];}).join(', '):'');
+  body.appendChild(hdr);
+
+  if(sessions.length===0){
+    var empty=document.createElement('div');
+    empty.className='text-xs text-slate-400 italic';
+    empty.textContent='No clarify entries found — activity log is empty.';
+    body.appendChild(empty);
+    return;
+  }
+
+  // ── Render session blocks with gap markers ─────────────────────────────────
+  function fmtDuration(ms){
+    if(ms<60000) return Math.round(ms/1000)+'s';
+    if(ms<3600000) return Math.round(ms/60000)+' min';
+    var h=Math.floor(ms/3600000),m=Math.round((ms%3600000)/60000);
+    return h+'h'+(m>0?' '+m+'m':'');
+  }
+  function fmtGap(ms){
+    if(ms<3600000) return Math.round(ms/60000)+' min lapse';
+    if(ms<86400000) return Math.round(ms/3600000)+' hr lapse';
+    return Math.round(ms/86400000)+' day lapse';
+  }
+  function fmtDate(d){
+    return d.toLocaleDateString([],{month:'short',day:'numeric'})
+      +' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+
+  sessions.forEach(function(item,i){
+    var s=item.session;
+    var durationMs=s.end-s.start;
+    var count=s.actions.length;
+    var rateStr='';
+    if(durationMs>60000){
+      var rate=count/(durationMs/3600000);
+      rateStr=' · '+Math.round(rate)+'/hr';
+    }
+    // Session card
+    var card=document.createElement('div');
+    card.className='bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-1';
+    var top=document.createElement('div');
+    top.className='flex justify-between items-baseline';
+    var summary=document.createElement('span');
+    summary.className='text-xs font-bold text-slate-800';
+    summary.textContent=count+' action'+(count!==1?'s':'')+' · '+fmtDuration(durationMs)+rateStr;
+    var dateRange=document.createElement('span');
+    dateRange.className='text-[10px] text-slate-400';
+    dateRange.textContent=fmtDate(s.start)+(durationMs>60000?' – '+fmtDate(s.end):'');
+    top.appendChild(summary); top.appendChild(dateRange);
+    card.appendChild(top);
+    // Per-curator in session
+    var iniMap={};
+    s.actions.forEach(function(a){ iniMap[a.ini]=(iniMap[a.ini]||0)+1; });
+    if(Object.keys(iniMap).length>0){
+      var who=document.createElement('div');
+      who.className='text-[10px] text-slate-500 mt-0.5';
+      who.textContent=Object.keys(iniMap).map(function(k){return k+': '+iniMap[k];}).join(' · ');
+      card.appendChild(who);
+    }
+    body.appendChild(card);
+    // Gap marker
+    if(item.gapAfterMs>SESSION_GAP_MS){
+      var gap=document.createElement('div');
+      gap.className='text-center text-[10px] text-slate-400 my-1 tracking-wide';
+      gap.textContent='— '+fmtGap(item.gapAfterMs)+' —';
+      body.appendChild(gap);
+    }
+  });
+
+  // ── Total summary footer ───────────────────────────────────────────────────
+  if(allEntries.length>0){
+    var totalMs=allEntries[allEntries.length-1].date-allEntries[0].date;
+    var footer=document.createElement('div');
+    footer.className='mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500';
+    footer.textContent='Total span: '+fmtDuration(totalMs)
+      +' · '+sessions.length+' session'+(sessions.length!==1?'s':'')
+      +' · first entry '+fmtDate(allEntries[0].date);
+    body.appendChild(footer);
+  }
+}
+
+
+function normalizeVerdict(v){return v==='good'||v==='flag'?v:'pending';}
+function syncVerifiedTag(c){if(!Array.isArray(c.tags))c.tags=[];c.tags=c.tags.filter(function(t){return t!=='✓Verified';});if(normalizeVerdict(c.backtranslate&&c.backtranslate.verdict)==='good')c.tags.push('✓Verified');}
+function normalizeCategories(v){
+  var out=Array.isArray(v)?v:(typeof v==='string'?[v]:[]);
+  out=out.map(function(x){return String(x).trim().toLowerCase();}).filter(Boolean);
+  return Array.from(new Set(out.length?out:['unassigned']));
+}
+function compatibilityClarify(c,text){
+  if(!Array.isArray(c.clarifyChain))c.clarifyChain=[];
+  var now=Date.now(),who=appState.config.initials||'phrase-deck';
+  c.clarifyChain.push({text:text,author:who,timestamp:now,ini:who,ts:new Date(now).toISOString(),txt:text});
+}
+function switchWorkspaceTab(tab){
+  appState.activeWorkspaceTab=tab;
+  var maintenance=tab==='maintenance';
+  document.getElementById('workspace-scroll').classList.toggle('hidden',maintenance);
+  document.getElementById('bulk-action-bar').classList.toggle('hidden',maintenance||appState.currentFilter!=='all');
+  document.getElementById('maintenance-panel').classList.toggle('hidden',!maintenance);
+  ['curation','maintenance'].forEach(function(name){var b=document.getElementById('workspace-tab-'+name),active=name===tab;b.setAttribute('aria-selected',String(active));b.className='px-4 py-2 text-xs font-bold border-b-2 '+(active?'text-teal-700 border-teal-600':'text-slate-500 border-transparent');});
+  if(maintenance)renderMaintenance();
+}
+function maintenanceVisibleCards(){
+  var scope=document.getElementById('maintenance-scope').value,q=document.getElementById('maintenance-search').value.trim().toLowerCase();
+  return appState.pbData.cards.filter(function(c){
+    var verdict=normalizeVerdict(c.backtranslate&&c.backtranslate.verdict),cats=normalizeCategories(c.categories);
+    if(scope==='live'&&c.deletedAt)return false;if(scope==='unassigned'&&(c.deletedAt||cats.indexOf('unassigned')<0))return false;
+    if(['good','flag','pending'].indexOf(scope)>=0&&(c.deletedAt||verdict!==scope))return false;
+    if(!q)return true;var notes=(c.clarifyChain||[]).map(function(n){return n.text||n.txt||'';});
+    return [c.source,c.target].concat(c.tags||[],cats,notes).join(' ').toLowerCase().indexOf(q)>=0;
+  });
+}
+function maintenanceSelectVisible(on){maintenanceVisibleCards().forEach(function(c){if(on)appState.maintenanceSelection.add(String(c.id));else appState.maintenanceSelection.delete(String(c.id));});renderMaintenance();}
+function maintenanceToggle(id,on){if(on)appState.maintenanceSelection.add(String(id));else appState.maintenanceSelection.delete(String(id));renderMaintenance();}
+function renderMaintenance(){
+  var cards=maintenanceVisibleCards(),list=document.getElementById('maintenance-list');if(!list)return;
+  document.getElementById('maintenance-selected-count').textContent=appState.maintenanceSelection.size;document.getElementById('maintenance-visible-count').textContent=cards.length;
+  var values=new Set();appState.pbData.cards.forEach(function(c){normalizeCategories(c.categories).forEach(function(x){values.add(x);});});document.getElementById('maintenance-values').innerHTML=Array.from(values).sort().map(function(x){return '<option value="'+escapeHtml(x)+'">';}).join('');
+  list.innerHTML=cards.map(function(c){var selected=appState.maintenanceSelection.has(String(c.id));return '<label class="flex gap-3 bg-white border '+(selected?'border-teal-400':'border-slate-200')+' rounded-lg p-3 shadow-sm"><input type="checkbox" class="mt-1" '+(selected?'checked':'')+' onchange="maintenanceToggle(this.value,this.checked)" value="'+escapeHtml(String(c.id))+'"><span class="min-w-0 flex-1"><span class="block text-sm font-bold text-slate-800">'+escapeHtml(c.source||'(empty)')+'</span><span class="block text-xs text-teal-700 mt-1">'+escapeHtml(c.target||'')+'</span><span class="block text-[11px] text-slate-500 mt-1">Categories: '+escapeHtml(normalizeCategories(c.categories).join(', '))+' · Verdict: '+normalizeVerdict(c.backtranslate&&c.backtranslate.verdict)+'</span></span></label>';}).join('')||'<div class="text-center text-sm text-slate-500 p-8">No cards match this maintenance scope.</div>';
+}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function maintenanceOperationChanged(){var op=document.getElementById('maintenance-operation').value,inp=document.getElementById('maintenance-value');inp.disabled=op==='unverify';inp.placeholder=op==='verdict'?'good, flag, or pending':op==='unverify'?'No value required':'Category or tag';document.getElementById('maintenance-apply').disabled=true;document.getElementById('maintenance-preview').classList.add('hidden');}
+function maintenanceSpec(){return {op:document.getElementById('maintenance-operation').value,value:document.getElementById('maintenance-value').value.trim().toLowerCase(),ids:Array.from(appState.maintenanceSelection)};}
+function previewMaintenance(){
+  var spec=maintenanceSpec(),box=document.getElementById('maintenance-preview');if(!spec.ids.length){box.textContent='Select at least one card.';box.classList.remove('hidden');return;}
+  if(spec.op!=='unverify'&&!spec.value){box.textContent='Enter a value for this operation.';box.classList.remove('hidden');return;}
+  if(spec.op==='verdict'&&['good','flag','pending'].indexOf(spec.value)<0){box.textContent='Verdict must be good, flag, or pending.';box.classList.remove('hidden');return;}
+  box.textContent='Preview: '+spec.op+' will be applied to '+spec.ids.length+' selected card'+(spec.ids.length===1?'':'s')+(spec.value?' using “'+spec.value+'”.':'.')+' No phrasebook data has changed yet.';box.classList.remove('hidden');document.getElementById('maintenance-apply').disabled=false;
+}
+function applyMaintenance(){
+  var spec=maintenanceSpec();if(!spec.ids.length)return;var before=[];
+  appState.pbData.cards.forEach(function(c){if(spec.ids.indexOf(String(c.id))<0)return;before.push({id:c.id,categories:(c.categories||[]).slice(),tags:(c.tags||[]).slice(),backtranslate:Object.assign({},c.backtranslate||{}),updatedAt:c.updatedAt,updatedBy:c.updatedBy,clarifyChain:(c.clarifyChain||[]).slice()});var cats=normalizeCategories(c.categories),tags=Array.isArray(c.tags)?c.tags:[];
+    if(spec.op==='unverify'||spec.op==='verdict'){if(!c.backtranslate)c.backtranslate={};c.backtranslate.verdict=spec.op==='unverify'?'pending':spec.value;syncVerifiedTag(c);}
+    if(spec.op==='category-add'){c.categories=Array.from(new Set(cats.filter(function(x){return x!=='unassigned';}).concat(spec.value)));}
+    if(spec.op==='category-replace')c.categories=[spec.value];
+    if(spec.op==='category-remove'){c.categories=cats.filter(function(x){return x!==spec.value;});c.categories=normalizeCategories(c.categories);}
+    if(spec.op==='tag-add'&&tags.indexOf(spec.value)<0)c.tags=tags.concat(spec.value);
+    if(spec.op==='tag-remove')c.tags=tags.filter(function(x){return x!==spec.value;});
+    c.updatedAt=Date.now();c.updatedBy=appState.config.initials||'phrase-deck';compatibilityClarify(c,'Maintenance: '+spec.op+(spec.value?' '+spec.value:''));
+  });
+  appState.maintenanceUndo=before;document.getElementById('maintenance-undo').disabled=!before.length;document.getElementById('maintenance-apply').disabled=true;document.getElementById('maintenance-preview').textContent='Applied to '+before.length+' cards. Review the list, undo if needed, or sync to create a bumped version.';updateStats();renderMaintenance();triggerDebouncedSave();
+}
+function undoMaintenance(){var before=appState.maintenanceUndo;if(!before)return;before.forEach(function(snapshot){var c=getCard(snapshot.id);if(!c)return;c.categories=snapshot.categories;c.tags=snapshot.tags;c.backtranslate=snapshot.backtranslate;c.updatedAt=snapshot.updatedAt;c.updatedBy=snapshot.updatedBy;c.clarifyChain=snapshot.clarifyChain;});appState.maintenanceUndo=null;document.getElementById('maintenance-undo').disabled=true;updateStats();renderMaintenance();triggerDebouncedSave();}
+
+init();
+</script>
+<div id="insight-modal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-0">
+  <div class="bg-white w-full max-w-lg rounded-t-2xl shadow-2xl flex flex-col max-h-[85vh]">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+      <span class="font-bold text-sm text-slate-800">PB Insights</span>
+      <button type="button" onclick="closeInsightModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold leading-none p-1">&times;</button>
+    </div>
+    <div id="insight-body" class="flex-1 overflow-y-auto px-4 py-3 text-sm text-slate-700 space-y-3"></div>
+  </div>
+</div>
+</body>
+</html>
