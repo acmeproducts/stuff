@@ -139,3 +139,6 @@ Root cause found in the plan file itself: Parts 3-13 duplicated ~65x (6.3MB). De
 
 ### PLAN · v7.3.0 · Jul 26 2026 PT
 Owner baseline ruling: runtime baseline = bridge-turn08-base.html (v5.8.3) — only Turn 08 flavor with all device-confirmed organs (bilingual engine, phrasebook, relay, WebRTC, shell). pre/ship/post-ship trio (151-159KB, no phrasebook, failed gates) demoted to behavioral reference for their delivered features (S4b, Link-a-device QR, call lifecycle, notifications). Build sequence reframed as G0 baseline gate then G1-G5. Mode spec artifact in-repo (talkbridge-mode-capability-spec.html) matching the ruling: call=real call, Ear default on, total mute.
+
+### PLAN · v7.4.0 · Jul 26 2026 PT
+Gates extended G0-G7. New: G1 Phrasebook<->Phase Desk compatibility (contract talkbridge/BRIDGE-PB-COMPAT-v1.md, six acceptance tests incl. round-trip with unknown-field preservation); G2 transcript bubble parity (baseline bubble old-style; reference image talkbridge/reference/bubble-current-style.png — header-tap save/delete/comment, sent/received/read, call-ended pill). G6 notifications: Web Push over existing relay; iOS delivers push only to home-screen PWAs (documented limitation). Mode spec updated with ring-delivery section.
