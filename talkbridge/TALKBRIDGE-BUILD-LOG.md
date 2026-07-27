@@ -145,3 +145,6 @@ Gates extended G0-G7. New: G1 Phrasebook<->Phase Desk compatibility (contract ta
 
 ### PLAN · v7.5.0 · Jul 26 2026 PT
 Mockups brought current: S4 rebuilt (top ribbon with chat/phone/video mode icons, control strip, canonical bubble with header-tap actions, receipt dots, per-side TTS, date + call-ended pills). New S4-M mockrow: phone connected, phone muted (total mute), video (camera band), incoming call (answer/decline). Rendered and visually verified before push.
+
+### PLAN · v7.5.1 · Jul 26 2026 PT
+S4b corrected per owner: room-level Auto-read/TTS control removed everywhere (both S4b mock instances, S4b item table, Part 3 inventory, S3 create-room seed toggle, C2 config default now off, M6 global toggle note, S1 ribbon speaker removed). S4b rebuilt with Ear + TTS environment toggles (ear default on in-call, tts default off), flat rows, zero tables/gridlines/native inputs per standing mockup ruling. Mike muted pill added to S4-M connected mock; caption notes [Name] muted/unmuted mirroring. DOM-verified: 0 selects/inputs/tables inside any phone mock, 0 live Auto-read controls.
