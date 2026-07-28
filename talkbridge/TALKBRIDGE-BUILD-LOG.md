@@ -171,3 +171,9 @@ Scope: phrasebook <-> Phase Desk compatibility per talkbridge/BRIDGE-PB-COMPAT-v
 5. Stale-write refusal: if the pair was bumped by another client since our pull, the write is refused, local edits stay dirty, user is told to pull. Verdict/✓Verified invariant completed (pending now drops the tag; tag removal sets 'pending' not '').
 Verification: 14/14 acceptance fixtures pass (talkbridge/fixtures/g1-pb-compat.test.js) covering all six contract acceptance tests plus normalization, verdict, soft-delete and id-stability rules. JS syntax check PASS. parse5 node count identical to baseline (1162). Diff audit: 15 hunks, +90/-11 lines, every removed line inside the intended functions.
 Status: awaiting device gate.
+
+### PLAN · v7.7.0 · Jul 26 2026 PT — FRAGMENTATION CLOSED
+Three sources were diverging: this session's spec, the master plan, and the cowork a7r2 session's 79-item list. Reconciled into ONE list — Part 14, items 1-83, continuous stable numbering, every item badged (SUPERSEDED / ADOPTED / REJECTED / MOVED / CLOSED / RESOLVED / CANCELLED / OPEN / NEW). Nothing dropped silently. Added items 80-83: PB<->Phase Desk compatibility, room themes, flag asset ruling, splash as first-class surface.
+Part 15 records the lineage problem and the ruling: turn08-base (631KB, G0 PASS, deep PB with categories) vs a7r2 (159KB, current architecture + QR/ring/missed/PiP, but 26 PB functions and ZERO category support, never device-gated). Next action is A0 — device-gate a7r2 against items 1-55. Pass = a7r2 becomes spine and the phrasebook organ transplants in at G1. Fail = a7r2 graveyarded, bridge-g1.html stays spine, a7r2 features rebuilt onto it as reference. Gate sequence and acceptance unchanged either way.
+Authority order fixed permanently: Part 14 list > Mode spec > Part 3 inventory/mockups > pre-base for look/feel > BRIDGE-PB-COMPAT-v1.md.
+a7r2 banked in repo as talkbridge-app-a7r2.html.
