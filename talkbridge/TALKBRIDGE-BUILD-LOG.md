@@ -156,3 +156,18 @@ Section B (b1) direction — chat-mic waiting messages, AudioEngine cloned track
 
 ### G0 · PASS · Jul 26 2026 PT (owner device confirmation)
 Baseline locked: bridge-turn08-base.html · sha256 5adeccae796b086391a2efcc07f7ba0bf7eead780b1d8cf82aa09be0a9a3f83b · 631310 bytes. Rollback floor for all gates. G1 (PB compat) begins.
+
+### G0 · PASS · Jul 26 2026 PT
+Baseline device-confirmed by owner: bridge-turn08-base.html (v5.8.3).
+LOCKED ROLLBACK FLOOR — sha256 5adeccae796b086391a2efcc07f7ba0bf7eead780b1d8cf82aa09be0a9a3f83b · git blob 9296f916c38ac272866df77aa4b783cda0190b60 · 631310 bytes.
+Every later gate rolls back to this exact file on failure.
+
+### G1 · BUILT · Jul 26 2026 PT · bridge-g1.html
+Scope: phrasebook <-> Phase Desk compatibility per talkbridge/BRIDGE-PB-COMPAT-v1.md. Five changes, all inside PB-DATA / PB-SYNC / verdict handlers:
+1. Card normalization now clones the source card and overlays known fields — unknown/extension properties round-trip untouched (was: reconstructed reduced object, dropped them).
+2. Categories normalized everywhere: array of trimmed lowercase de-duped strings, never empty, 'unassigned' sentinel yields to real categories; addCat/removeCat helpers exposed.
+3. Write-back emits the canonical envelope (type/pair/langPair/version/updatedAt/updatedBy/cards) preserving unrecognised top-level properties from the pull (was: bare card array).
+4. Write-back sends ALL cards including soft-deleted (was: getLive(), which silently destroyed Phase Desk delete history).
+5. Stale-write refusal: if the pair was bumped by another client since our pull, the write is refused, local edits stay dirty, user is told to pull. Verdict/✓Verified invariant completed (pending now drops the tag; tag removal sets 'pending' not '').
+Verification: 14/14 acceptance fixtures pass (talkbridge/fixtures/g1-pb-compat.test.js) covering all six contract acceptance tests plus normalization, verdict, soft-delete and id-stability rules. JS syntax check PASS. parse5 node count identical to baseline (1162). Diff audit: 15 hunks, +90/-11 lines, every removed line inside the intended functions.
+Status: awaiting device gate.
