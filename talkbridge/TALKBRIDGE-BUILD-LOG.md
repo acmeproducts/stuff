@@ -177,3 +177,10 @@ Three sources were diverging: this session's spec, the master plan, and the cowo
 Part 15 records the lineage problem and the ruling: turn08-base (631KB, G0 PASS, deep PB with categories) vs a7r2 (159KB, current architecture + QR/ring/missed/PiP, but 26 PB functions and ZERO category support, never device-gated). Next action is A0 — device-gate a7r2 against items 1-55. Pass = a7r2 becomes spine and the phrasebook organ transplants in at G1. Fail = a7r2 graveyarded, bridge-g1.html stays spine, a7r2 features rebuilt onto it as reference. Gate sequence and acceptance unchanged either way.
 Authority order fixed permanently: Part 14 list > Mode spec > Part 3 inventory/mockups > pre-base for look/feel > BRIDGE-PB-COMPAT-v1.md.
 a7r2 banked in repo as talkbridge-app-a7r2.html.
+
+### RELEASE DEFINITION · a7r3 · Jul 26 2026 PT
+SOT: master plan = scope+acceptance · talkbridge-app-a7r2.html = the code · Mode & Capability spec = the UI being built. Nothing older is a base or donor.
+a7r3 = a7r2 + mode ribbon, control strip, real-call semantics (ring/answer/decline/missed), total mute with muted/unmuted pills, Ear+TTS in the drawer (ear default on in-call, tts default off), video band over the transcript, drawer Share room + Link a device QR rows, categories field on the card schema, defect D1, item 84.
+Owner rulings: phrasebook stays as-is in a7r2 - categories FIELD only, no transplant, no surface work. Import/export dropped as defunct. Notifications DEFERRED to their own release (only remaining item needing a service worker plus a relay change; cannot be gated alongside other work; iOS home-screen PWA caveat).
+Questions answered: chat icon during a call = no-op; camera off stays in video with avatar; Share persists after join and re-issues the room link.
+NOT in a7r3: import/export, themes, notifications, appearance-table changes, any turn08-base sourcing.
