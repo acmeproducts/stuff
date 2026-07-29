@@ -214,3 +214,7 @@ talkbridge-app-a7r4.html · 177250 bytes · sha256 4551b4be1af05b4dc34bd0907c21b
 5. TTS toggle on create relabeled: 'Auto-read for your partner' with sub-label explaining it sets the joiner's starting state.
 6. Drawer cleanup: Ear+TTS get info-icon buttons with toast text; 'Meta line' renamed 'Chat bubble header'; name/title save+close on Enter keydown; name-change pill prefixed with [Mon 29 Jul, 00:30] timestamp.
 Status: awaiting device gate.
+
+### a7r4 · FIX · Jul 29 2026 PT
+talkbridge-app-a7r4.html · 177255 bytes · sha256 e3107bf2cc242e130a82a52694d5d5f254f1869f657a3652041dabb84c1345ed
+Root cause: call-ctl bar deletion removed one </div> too many — the closing div of parent <div id="call-band">. All content after call-band (transcript, compose, drawer, modals) remained structurally inside it, collapsing the page. Fix: restored </div> after call-videos and before the S4b drawer comment. 23/23 conformance checks pass. div delta=0. Syntax clean.
