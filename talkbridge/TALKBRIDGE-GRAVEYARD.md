@@ -174,3 +174,15 @@ Status: 5.9.execute.5 FAILED. No forward patching. Replan in progress.
 
 ## Section B (b1) · REJECTED DIRECTION · Jul 26 2026
 Chat-mic-to-waiting-messages, single AudioEngine with cloned call tracks, in-call ribbon transform to [MIC][VOICE][HEAR][TTS], VOICE/HEAR toggles, TTS voicing spoken lines. Owner rejected. Mode & Capability ruling replaces it: chat mic = voice typing only; Ear/TTS in S4b drawer; total mute; control-strip controls. Never rebuild this.
+
+## a7r4 attempt 1 - Jul 29 2026 - PAGE COLLAPSE
+Scope was 6 items (languages, flags, TTS label, drawer cleanup, single strip, categories). Two structural failures: (1) call-ctl removal left <div id="call-band"> unclosed, orphaning the transcript, compose, drawer and all modals inside it; (2) the repair used a depth-walk delete that removed the sibling transcript div and compose strip entirely. Page rendered blank. Owner verdict: complete bust. NEVER use as a base.
+
+## a7r4 attempt 2 - Jul 29 2026 - HALF THE RULING
+Built from clean a7r3. Merged ctl2 into the ribbon (single strip achieved) and removed the redundant in-video call bar. Structurally sound - syntax, div balance, wire check and runtime stub all passed. But it delivered only half the chrome-strip ruling: no zone model, mic not pinned to centre, no level meter, no timer-as-text, exit icon still in chat. Owner verdict: Frankenstein. Never device-gated, so never a release. NEVER use as a base.
+
+## PROCESS FAILURES RECORDED THE SAME DAY
+1. Depth-walk / brace-matching deletes on HTML. Root cause of both a7r4 structural failures. Exact-bounds string replacement only, with assertions that critical siblings (transcript, compose) are NOT inside the block before cutting.
+2. Logging a successful push as SHIPPED. A gate is passed only by a confirmed phone test. Part 18 marked a7r4 SHIPPED when it had never been tested - corrected in v7.14.0.
+3. Splitting one ruling across two releases. The chrome strip was split a7r4/a7r5, producing a deliberate half-implementation. One ruling, one release.
+4. Creating standalone spec artifacts. The plan is the only SOT. A chrome-strip spec file was created and had to be folded into Part 17 and deleted.
