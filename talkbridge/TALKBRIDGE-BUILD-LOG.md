@@ -218,3 +218,7 @@ Status: awaiting device gate.
 ### a7r4 · FIX · Jul 29 2026 PT
 talkbridge-app-a7r4.html · 177255 bytes · sha256 e3107bf2cc242e130a82a52694d5d5f254f1869f657a3652041dabb84c1345ed
 Root cause: call-ctl bar deletion removed one </div> too many — the closing div of parent <div id="call-band">. All content after call-band (transcript, compose, drawer, modals) remained structurally inside it, collapsing the page. Fix: restored </div> after call-videos and before the S4b drawer comment. 23/23 conformance checks pass. div delta=0. Syntax clean.
+
+### a7r4 · FIX 2 · Jul 29 2026 PT
+sha256 605dfa32d8f3cfb7b09a3e54c7bbe038673e99e3a3a1b7e9d19c53fa663911d9 · 178407 bytes
+Root cause confirmed: call-ctl deletion in Item 2 was a brace-matching delete that ate the sibling transcript div and compose strip too (they followed call-ctl in the DOM sequence). Both restored from a7r3. div delta=0. All 18 conformance checks pass. Wire check: 0 missing static IDs (left-scrim is dynamically created in boot(), not static HTML — confirmed same in a7r3).
