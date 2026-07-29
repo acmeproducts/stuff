@@ -248,3 +248,16 @@ OFF STATES: mic and camera both slashed + red. Mute is total.
 Chrome strip spec folded into the master plan as PART 17 and the standalone file DELETED. The plan is the only SOT; no separate spec artifacts.
 Part 17 is the layout authority for the strip and supersedes the strip sections of the Mode & Capability spec.
 Content: zone model (left identity / centre broadcast / right lifecycle / ...), mic pinned to true centre with reserved camera slot, three rendered modes, mic level meter with 7 states, off/degraded states, decision table.
+
+### PLAN v7.13.0 - Jul 29 2026 PT - RELEASE ROADMAP
+Part 18 added. Every remaining item now has a named release:
+a7r4 SHIPPED single chrome strip (ctl2 deleted, controls merged, chat icon + in-video bar removed)
+a7r5 Part 17 zone model: mic pinned centre + reserved camera slot, mic level meter w/ amber, timer-as-text connection state, slashed off states, exit removed from chat
+a7r6 Donor ports: 21 languages + no-phrasebook toast + flag motif five surfaces (all verbatim from turn08-base) + categories schema field
+a7r7 Drawer: TTS create label, Ear/TTS info icons, Chat bubble header rename, Enter-to-save, datetime pill, S4b appearance table
+a7r8 Room themes: CSS token pass then per-room theme block (depends on a7r7 appearance table)
+a7r9 Notifications: service worker + relay Web Push + iOS install prompt (own release - only item modifying the relay)
+a7r10 Polish: receipt popup, S11 key indicators, S9 partner-state
+a7r11 Certification: full 85-item two-phone walkthrough, pixel diff, byte-verified deploy
+Confirmed already delivered (off roadmap): link-device QR + Share room, receipts, phrasebook, call engine, ring/missed pills, PiP, drawer skeleton, keys modal.
+Standing rules recorded in Part 18: build from last shipped file; exact-bounds string replace only (depth-walk delete caused the a7r4 destruction); pre-push gates = syntax + div balance + wire check + runtime stub; only a phone test passes a gate; on failure roll back, never patch forward.
