@@ -261,3 +261,9 @@ a7r10 Polish: receipt popup, S11 key indicators, S9 partner-state
 a7r11 Certification: full 85-item two-phone walkthrough, pixel diff, byte-verified deploy
 Confirmed already delivered (off roadmap): link-device QR + Share room, receipts, phrasebook, call engine, ring/missed pills, PiP, drawer skeleton, keys modal.
 Standing rules recorded in Part 18: build from last shipped file; exact-bounds string replace only (depth-walk delete caused the a7r4 destruction); pre-push gates = syntax + div balance + wire check + runtime stub; only a phone test passes a gate; on failure roll back, never patch forward.
+
+### PLAN v7.14.0 - Jul 29 2026 PT - ROADMAP CORRECTION
+Owner correction accepted. Two errors in v7.13.0 fixed:
+(a) a7r4 was marked SHIPPED. It was never device-gated. A push is not a gate pass. Both a7r4 attempts are now graveyarded and the roadmap states plainly that talkbridge-app-a7r4.html is NOT a release and must not be used as a build base.
+(b) The chrome strip was split across a7r4 and a7r5, which guaranteed a half-implementation. Now ONE release - a7r4 rebuild from a7r3 - delivers the complete Part 17 strip: ctl2 deleted and merged, mic pinned centre with reserved camera slot, level meter with amber, timer-as-text connection state, slashed off states, chat icon and chat exit icon removed, redundant in-video bar removed.
+BASELINE: a7r3 (last device-confirmed). Roadmap resequenced: a7r4 strip / a7r5 donor ports / a7r6 drawer / a7r7 themes / a7r8 notifications / a7r9 polish / a7r10 certification.
