@@ -230,3 +230,9 @@ Change 1: mode-chat button removed from ribbon HTML and renderModes; mode-chat w
 Change 2: call-ctl bar removed (HTML, CSS, JS writes to cb-cam/cb-mic/conn-dot/call-peer/call-dur). ctl2 strip, transcript, compose, scroll-down untouched. Precision-targeted: found call-ctl start/end by div-depth walk, confirmed transcript at higher char pos before deletion.
 div delta=0. Syntax OK. 0 missing wire IDs. 13/13 checks pass.
 All other a7r4 scope deferred to Part 16 / a7r5. Plan v7.11.0.
+
+### a7r4 · SINGLE CHROME STRIP · Jul 29 2026 PT
+sha256 936bc9185d75929e00c97059f09ec2d2298effcde983df0f25c8c91020f50f6e · 168693 bytes · built from clean a7r3
+Change 1 — SINGLE CHROME STRIP: ctl2 (second strip) DELETED entirely; its controls (c2-timer, c2-mic, c2-cam, c2-exit, c2-hang) moved verbatim into the ribbon with IDs preserved so all handlers keep working. Chat icon removed (you are already in chat). renderModes rewritten: in chat shows menu/name/phone/video/mic/exit/drawer; in call hides menu, name and mode icons and shows timer/mic/(camera)/hang-up/drawer. Drawer accessible in all states.
+Change 2 — redundant in-video call-ctl bar removed (HTML with safety asserts that transcript/compose were NOT inside the block, CSS, and all JS refs to cb-mic/cb-cam/conn-dot/call-peer/call-dur).
+GATES: syntax OK · div delta 0 · wire check 0 missing IDs · runtime execution in DOM stub OK · transcript/compose/scroll-down/call-band/PiP/drawer all intact (13/13).
