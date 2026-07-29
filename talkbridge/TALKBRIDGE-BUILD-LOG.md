@@ -243,3 +243,8 @@ ZONE MODEL: left=identity, centre=broadcast (what I am sending), right=call life
 RULINGS: no chat icon; no exit icon in chat (menu + system back already do it), which frees red to mean exactly one thing forever - end the call, stay in the room; menu and red are mutually exclusive so the strip announces its own context; presence dot becomes the timer in call, carrying connection state as text (Connecting/0:07/Reconnecting) - no pulse, a loop lies; name persists in all modes; video glyph does double duty (escalate + camera toggle) as in WhatsApp, state carried by slash.
 MIC = LEVEL METER: fill rises from bottom clipped to the capsule, log mapping, fast attack ~200ms release. Empty-while-speaking is an unambiguous hardware/permission failure signal that colour could not give. AMBER fill = audio fine but transcription not landing (Deepgram dropped) - meter carries level and transcription health as two facts without a second icon.
 OFF STATES: mic and camera both slashed + red. Mute is total.
+
+### PLAN v7.12.0 - Jul 29 2026 PT
+Chrome strip spec folded into the master plan as PART 17 and the standalone file DELETED. The plan is the only SOT; no separate spec artifacts.
+Part 17 is the layout authority for the strip and supersedes the strip sections of the Mode & Capability spec.
+Content: zone model (left identity / centre broadcast / right lifecycle / ...), mic pinned to true centre with reserved camera slot, three rendered modes, mic level meter with 7 states, off/degraded states, decision table.
