@@ -203,3 +203,14 @@ a7r3 shipped and confirmed. a7r4 = a7r3 + six items:
 5. TTS toggle on create stays — sets joiner starting state, labeled clearly, changeable in drawer, persists.
 6. Drawer: Ear+TTS get info icons (i); Meta line renamed Chat bubble header; name/title fields save+close on Enter or blur; name-change pill prefixed with datetime [Mon 28 Jul, 22:33] X is now Y.
 NOT in a7r4: import/export, themes, notifications, appearance-table changes.
+
+### a7r4 · BUILT · Jul 29 2026 PT
+talkbridge-app-a7r4.html · 177250 bytes · sha256 4551b4be1af05b4dc34bd0907c21b3267a7f587a445f1f24e7ba4575f6921b49
+23/23 conformance checks pass. Syntax clean. Items delivered:
+1. Single chrome strip: ribbon transforms in-place during call (.in-call class); call-ctl-inline div holds timer+mic+hang-up/camera; mode icons hidden in-call; ctl2 hidden always but kept for internal state.
+2. Redundant call-ctl bar removed: HTML, CSS, and JS writes to cb-mic/cb-cam/conn-dot/call-peer/call-dur.
+3. 21 language pairs (verbatim from turn08-base): LANGS+TTS_LOCALE+DG_LANGS extended; both selects rebuilt; no-phrasebook toast on openPb.
+4. Flag motif on five surfaces: welcome-flag-bg and create-flag-bg CSS classes with flags.gif/flags.png layered backgrounds; S0 and create-room modal use light wash (0.58); joiner-wrap CSS extended with dark wash (0.82).
+5. TTS toggle on create relabeled: 'Auto-read for your partner' with sub-label explaining it sets the joiner's starting state.
+6. Drawer cleanup: Ear+TTS get info-icon buttons with toast text; 'Meta line' renamed 'Chat bubble header'; name/title save+close on Enter keydown; name-change pill prefixed with [Mon 29 Jul, 00:30] timestamp.
+Status: awaiting device gate.
