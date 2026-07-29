@@ -184,3 +184,12 @@ a7r3 = a7r2 + mode ribbon, control strip, real-call semantics (ring/answer/decli
 Owner rulings: phrasebook stays as-is in a7r2 - categories FIELD only, no transplant, no surface work. Import/export dropped as defunct. Notifications DEFERRED to their own release (only remaining item needing a service worker plus a relay change; cannot be gated alongside other work; iOS home-screen PWA caveat).
 Questions answered: chat icon during a call = no-op; camera off stays in video with avatar; Share persists after join and re-issues the room link.
 NOT in a7r3: import/export, themes, notifications, appearance-table changes, any turn08-base sourcing.
+
+### a7r3 · CANDIDATE REVIEWED · Jul 26 2026 PT
+talkbridge-app-a7r3.html · sha256 27ddd56e38c250dceea261c0797b0d4d8712ed56c8f0bb9107966d571ff16ee5
+Plan conformance PASS. All ten scope items present: categories field w/ unassigned default; Ear+TTS in drawer (Ear default ON at call mount; single mic switch = total mute); mode ribbon; control strip; call lifecycle w/ muted + missed pills; Share room + Link a device QR rows; camera toggle. D1 fixed. Item 84 fixed.
+No scope creep: no service worker, no push, no themes, no PB import/export.
+### INFRA DEFECT RECORD · Jul 26 2026 PT
+Pages publishes via Actions workflow (build_type=workflow), not branch-serving. File pushes and .deploy-nudge did NOT republish the served site — plan sat at v7.1.2 while repo was correct at v7.9.0. All prior 'verified live' claims were verified against repo bytes (raw.githubusercontent.com), not the served site. Container cannot reach the Pages domain (egress allowlist). Reporting error, corrected.
+REMEDY: owner elected to switch Pages source to 'Deploy from a branch: main / (root)'. Once set, pushes serve within ~1 min and repo-byte verification matches reality.
+Ready for device gate: https://acmeproducts.github.io/stuff/talkbridge-app-a7r3.html
