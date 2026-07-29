@@ -222,3 +222,11 @@ Root cause: call-ctl bar deletion removed one </div> too many — the closing di
 ### a7r4 · FIX 2 · Jul 29 2026 PT
 sha256 605dfa32d8f3cfb7b09a3e54c7bbe038673e99e3a3a1b7e9d19c53fa663911d9 · 178407 bytes
 Root cause confirmed: call-ctl deletion in Item 2 was a brace-matching delete that ate the sibling transcript div and compose strip too (they followed call-ctl in the DOM sequence). Both restored from a7r3. div delta=0. All 18 conformance checks pass. Wire check: 0 missing static IDs (left-scrim is dynamically created in boot(), not static HTML — confirmed same in a7r3).
+
+### a7r4 · RESET + FINAL · Jul 29 2026 PT
+REGRESSION VERDICT: prior a7r4 attempts (3 pushes) caused page-blank and DOM corruption. Root cause: call-ctl removal was a brace-match delete that swallowed sibling elements (transcript, compose) on second attempt, and an unclosed call-band div on the first. Scope reset by owner to 2 changes only.
+talkbridge-app-a7r4.html · 169174 bytes · sha256 9da9593de19b1a562623392d3a08de3628d104093acb428eb77aed9ee01e9a93
+Change 1: mode-chat button removed from ribbon HTML and renderModes; mode-chat wire listener removed. Phone and video remain.
+Change 2: call-ctl bar removed (HTML, CSS, JS writes to cb-cam/cb-mic/conn-dot/call-peer/call-dur). ctl2 strip, transcript, compose, scroll-down untouched. Precision-targeted: found call-ctl start/end by div-depth walk, confirmed transcript at higher char pos before deletion.
+div delta=0. Syntax OK. 0 missing wire IDs. 13/13 checks pass.
+All other a7r4 scope deferred to Part 16 / a7r5. Plan v7.11.0.
