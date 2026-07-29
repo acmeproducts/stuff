@@ -193,3 +193,13 @@ No scope creep: no service worker, no push, no themes, no PB import/export.
 Pages publishes via Actions workflow (build_type=workflow), not branch-serving. File pushes and .deploy-nudge did NOT republish the served site — plan sat at v7.1.2 while repo was correct at v7.9.0. All prior 'verified live' claims were verified against repo bytes (raw.githubusercontent.com), not the served site. Container cannot reach the Pages domain (egress allowlist). Reporting error, corrected.
 REMEDY: owner elected to switch Pages source to 'Deploy from a branch: main / (root)'. Once set, pushes serve within ~1 min and repo-byte verification matches reality.
 Ready for device gate: https://acmeproducts.github.io/stuff/talkbridge-app-a7r3.html
+
+### RELEASE DEFINITION · a7r4 · Jul 28 2026 PT
+a7r3 shipped and confirmed. a7r4 = a7r3 + six items:
+1. Single chrome strip always — chat shows phone+video+mic+exit+...; call/video transforms the strip in place (timer+mic+hang-up or timer+mic+camera+hang-up); exit only available in chat; ... always accessible.
+2. Remove redundant call-ctl bar (cb-mic, cb-cam, cb-end, conn-dot, call-peer, call-dur and CSS); remove two call-connect writes to cb-cam/cb-mic; ctl2 strip untouched.
+3. 21 language pairs verbatim from bridge-turn08-base.html with flag emojis and TTS locale map. No phrasebook = toast, never blocks chat.
+4. Flag motif on five surfaces verbatim from bridge-turn08-base.html (flags.gif over flags.png; light wash 0.58 on onboarding/new-chat/empty; dark wash 0.82 on joiner/thank-you).
+5. TTS toggle on create stays — sets joiner starting state, labeled clearly, changeable in drawer, persists.
+6. Drawer: Ear+TTS get info icons (i); Meta line renamed Chat bubble header; name/title fields save+close on Enter or blur; name-change pill prefixed with datetime [Mon 28 Jul, 22:33] X is now Y.
+NOT in a7r4: import/export, themes, notifications, appearance-table changes.
