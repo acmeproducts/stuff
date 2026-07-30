@@ -186,3 +186,9 @@ Built from clean a7r3. Merged ctl2 into the ribbon (single strip achieved) and r
 2. Logging a successful push as SHIPPED. A gate is passed only by a confirmed phone test. Part 18 marked a7r4 SHIPPED when it had never been tested - corrected in v7.14.0.
 3. Splitting one ruling across two releases. The chrome strip was split a7r4/a7r5, producing a deliberate half-implementation. One ruling, one release.
 4. Creating standalone spec artifacts. The plan is the only SOT. A chrome-strip spec file was created and had to be folded into Part 17 and deleted.
+
+## a7r4 attempt 3 (Part 17 rebuild) · FAILED DEVICE GATE · Jul 29 2026
+Symptoms on device: mic does not toggle and does not transcribe in chat; phone and video icons rendered with wrong SVG glyphs (iOS mic-style icons instead of the correct phone/video glyphs); in call mode no hang-up button; mic toggle works but no audio detection therefore no transcription or translation; phone and video icons visible during call when they should be gone.
+Root causes identified: (1) New ribbon replaced the SVG for mode-phone and mode-video with the mic-meter SVG path (the CAM_SVG and MIC_METER_SVG strings were inserted via Python f-strings into the wrong button slots). (2) The c2-mic button is now a contenteditable SVG element that lost its click->setMic() wiring when ctl2 was deleted — the wire() call that bound it no longer found it. (3) renderModes() references to S.dgConnected and CALL.hangingUp which are not defined in a7r3's scope. (4) The rb-centre absolute positioning broke the ribbon layout on iOS (icons pushed out of tap zone).
+Verdict: Approach of rebuilding the ribbon HTML from scratch is too risky for a surgical release. The correct approach is incremental changes to the existing ribbon/ctl2 with exact-string replacements and a DOM rendering check.
+NEVER use this file as a base. a7r3 is the baseline.
