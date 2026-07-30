@@ -280,3 +280,8 @@ Full Part 17 chrome strip in one pass:
 - Redundant in-video call-ctl bar removed (HTML, CSS, all JS refs) with safety assertions
 - Dead JS refs cleaned: c2-exit->comment, call-peer->room-head-title-call, conn-dot->timer text Reconnecting
 GATES: syntax OK · div delta 0 · wire NONE · runtime OK
+
+### a7r4 attempt 3 · FAILED DEVICE GATE · Jul 29 2026 PT · ROLLED BACK
+Device symptoms: mic non-functional, wrong SVG glyphs on phone/video icons, no hang-up in call, no audio detection.
+a7r4 slot restored to a7r3 bytes (sha256 27ddd56e38c250dceea261c0797b0d4d8712ed56c8f0bb9107966d571ff16ee5). a7r3 is again the live file.
+Approach change: complete ribbon rebuild is too risky. Next attempt will make the minimum possible structural changes to the working a7r3 ribbon — hiding elements with CSS/JS, not replacing HTML.
