@@ -162,74 +162,90 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 </div>
 
 <div style="background:#1A1714;color:#fff;border-radius:14px;padding:22px 26px;margin-bottom:24px;">
-<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#8FC4C4;margin-bottom:6px;">PLAN VERSION 8.1.0 · CORRECTED AFTER STRUCTURAL AUDIT · 2026-07-30</div>
-<div style="font-size:19px;font-weight:700;margin-bottom:8px;">v8.0.0 was written without inspecting the baseline file's actual structure. This corrects it.</div>
-<div style="font-size:14px;line-height:1.6;color:#e8e4df;">v8.0.0's release breakdown grouped features by feel, not by which part of the system owns the change. It also referenced control IDs that don't exist in this file, assumed a drawer row (Ear) that was never built, silently dropped Notifications and three polish items, and mislabeled a regression pass as a release. All corrected below.</div>
+<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#8FC4C4;margin-bottom:6px;"><div style="background:#1A1714;color:#fff;border-radius:12px;padding:14px 16px;margin:12px 0 20px">
+  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#7fd4c8;margin-bottom:6px;">PLAN VERSION 8.2.0 · RELEASE STRUCTURE REVISED · 2026-07-30</div>
+  <div style="font-size:13px;margin:2px 0">v8.1.0's seven releases collapsed to four, based on system ownership and real dependency analysis.</div>
+  <div style="font-size:13px;margin:2px 0"><b>Changes from v8.1.0:</b> R1 (audio engine) dissolved — chat mic reuses the existing Deepgram call pipeline, no new module needed. R2 scope extended to own both the strip states and the chat mic wire-up. R4+R5+R7 merged — schema patch, content, and polish share no risky surface and have no interdependency. Release ceremony reduced accordingly.</div>
+  <div style="font-size:13px;margin:2px 0"><b>Mic state rule:</b> mic state is saved before call escalation and restored exactly on hang-up — not reset, not auto-resumed blindly.</div>
+  <div style="font-size:13px;margin:2px 0"><b>Strip anatomy confirmed by owner (2026-07-30):</b> one row, three CSS states — Chat: ☰·dot·name | mic | call·video | ⋯ — Phone: name+timer | mic | hang-up | ⋯ — Video: name+timer | mic·camera | hang-up | ⋯</div>
 </div>
 
-<h1 id="rb-top" style="font-size:22px;margin-bottom:4px;">TalkBridge — Current Plan</h1>
-<div style="font-size:13px;color:var(--dim);margin-bottom:22px;">Baseline: bridge-turn08-ship.html · v8.1.1 · 2026-07-30</div>
+<h2 id="current-plan">▶ CURRENT PLAN — v8.2.0</h2>
 
-<h2 id="rb-baseline">Baseline</h2>
-<div class="rule"><b>bridge-turn08-ship.html.</b> 156,315 bytes, sha256 8e96dd5f…71ef. Used exactly as it exists in the repo.</div>
+<p>Baseline: <code>bridge-turn08-ship.html</code> · 156,315 bytes · sha256 8e96dd5f…71ef · used exactly as it exists in the repo. Do not use any other file as a starting point.</p>
 
-<h2 id="rb-audit">Structural audit — what is actually in this file, confirmed by direct inspection</h2>
-<div class="rule">
-<table style="margin-top:6px">
-<tr><th style="width:24%">Area</th><th>Confirmed state</th></tr>
-<tr><td class="k">Ribbon</td><td>☰ (<code>room-menu-btn</code>) · presence dot · name · <code>head-mid</code> wrapper containing <code>btn-video</code> and <code>btn-call</code> · <code>btn-drawer</code>. No chat mic control anywhere in the ribbon.</td></tr>
-<tr><td class="k">In-call controls</td><td>Separate bar, <code>id="call-ctl"</code>, containing <code>cb-mic</code>, <code>cb-cam</code>, <code>cb-end</code> — the same redundant second-strip pattern found in every prior file this session.</td></tr>
-<tr><td class="k">Chat mic</td><td>Does not exist. Not a dead button, not a placeholder — no element, no function, nothing. Confirmed by searching the entire file for any mic-related id outside the call bar.</td></tr>
-<tr><td class="k">Drawer</td><td>Exists (<code>drawer-s4b</code>), contains <code>s4b-autoread</code> (TTS) and <code>s4b-meta</code>. Does <b>not</b> contain an Ear toggle, Share row, or Link-a-device row.</td></tr>
-<tr><td class="k">Languages</td><td><code>LANGS</code> has exactly two entries, en and th. Confirms D1 is required as written.</td></tr>
-<tr><td class="k">Phrasebook</td><td>Substantial: <code>clarifyChain</code>, <code>verdict</code>, <code>pbAddCard</code> all present. No <code>categories</code> field. Confirms G1 is required, scoped correctly as a schema-only addition.</td></tr>
-<tr><td class="k">Notifications</td><td>No service worker, no push. Confirmed absent — this is real, undropped scope, restored below.</td></tr>
-<tr><td class="k">Receipts</td><td><b>Already matches item 18 exactly</b> — gray dot sent, teal dot delivered, checkmark read (<code>receiptHtml()</code>, confirmed CSS). No work needed; removed from scope.</td></tr>
-<tr><td class="k">Header-tap bubble actions</td><td><b>Already matches item 17 exactly</b> — tapping the message header toggles reveal of Save/Clarify/Delete, all three wired to real functions (<code>pbAddCard</code>, <code>openClarify</code>, delete). No work needed; removed from scope.</td></tr>
-<tr><td class="k">Receipt status popup</td><td>Exists and functions, but shows only the word Sent/Delivered/Read with no timestamp. Narrower gap than assumed — Release 7 corrected below to "add a timestamp," not "build a popup."</td></tr>
+<h3>RELEASE 1 — Strip States + Chat Mic</h3>
+<p><strong>Owner:</strong> the single chrome row and its CSS state machine, plus one new chat-mode mic button wired to the existing Deepgram pipeline.</p>
+<p><strong>What the baseline has:</strong> a ribbon and a separate <code>call-ctl</code> bar below it. The call-ctl bar is deleted entirely. The ribbon becomes one row that transforms across three states via CSS class.</p>
+<p><strong>Three states, confirmed anatomy:</strong></p>
+<table>
+<tr><th>State</th><th>Left zone</th><th>Center zone</th><th>Right zone</th><th>Far right</th></tr>
+<tr><td>Chat</td><td>☰ · presence dot · room name</td><td>Mic</td><td>Call icon · Video icon</td><td>⋯</td></tr>
+<tr><td>Phone</td><td>Room name + timer</td><td>Mic</td><td>Hang-up</td><td>⋯</td></tr>
+<tr><td>Video</td><td>Room name + timer</td><td>Mic · Camera</td><td>Hang-up</td><td>⋯</td></tr>
 </table>
-</div>
+<p><strong>Chat mic behavior:</strong> reuses the existing Deepgram call pipeline — no new module. Spoken text routes into the same bubble path typed text uses. Mic state (on/off) is stored before any call escalation and restored exactly on hang-up. If chat mic is on when a call starts, it auto-stops for the duration of the call; on hang-up it resumes. If it was off, it stays off after hang-up.</p>
+<p><strong>Mute rule (unchanged from Mode ruling):</strong> mic off = total mute — no transcription, no transmission, no bubbles. No partial state.</p>
+<p><strong>Escalation/de-escalation:</strong> tapping the call or video icon escalates from chat state to the appropriate call state. Hang-up de-escalates back to chat state. Strip returns to its exact pre-call layout, no exceptions.</p>
+<p><strong>Phone-test gate — all must pass on physical devices, two phones:</strong></p>
+<ul>
+<li>Chat state shows exactly the five elements above — no extra icons, no call-ctl bar anywhere.</li>
+<li>Tap chat mic, speak — mic-marked bubble appears on both phones in both languages.</li>
+<li>Tap mic again — transcription stops, no bubble emitted while off.</li>
+<li>Escalate to phone call — strip transforms to phone state correctly; chat mic auto-stops.</li>
+<li>Speak during call — live bubbles both directions.</li>
+<li>Mute during call — slash shown, transcription and transmission both stop.</li>
+<li>Unmute — resumes.</li>
+<li>Hang up — strip returns to exact chat layout; mic is in the state it was in before the call.</li>
+<li>Escalate to video call — strip shows video state with camera slot; camera toggle and slash work.</li>
+<li>At no point is more than one row of controls visible.</li>
+</ul>
 
-<h2 id="rb-releases">Releases, grouped by system ownership</h2>
-<div class="rule">Each release below is scoped to ONE part of the system — one owner, one risk profile, one thing that can go wrong. Nothing is grouped because it seemed to fit; it's grouped because the same code, the same file region, or the same shared risk (like touching the relay) applies to everything inside it.</div>
+<h3>RELEASE 2 — Room Drawer</h3>
+<p><strong>Owner:</strong> the drawer surface only (<code>drawer-s4b</code>). No dependency on Release 1.</p>
+<p><strong>What the baseline has:</strong> drawer exists with TTS (<code>s4b-autoread</code>) and meta. Missing: Ear toggle, Share QR, Link-a-device QR, Room themes, name field, export.</p>
+<p><strong>Scope:</strong> build every item in the S4b inventory exactly as specified — Ear toggle (default ON during a call), TTS row, meta placement, mute, Go-button toggle, appearance table, export transcript, Link-a-device QR, debug modal, name field (saves on Enter/blur, emits a forward-only name-change pill with datetime stamp).</p>
+<p><strong>Phone-test gate — two phones:</strong></p>
+<ul>
+<li>Ear toggle exists, defaults on during a call, ⓘ shows correct text.</li>
+<li>TTS ⓘ shows correct text.</li>
+<li>Share and Link-a-device each render a working QR with Copy and Share.</li>
+<li>Two rooms with different themes show the correct theme on entry and survive a reload.</li>
+<li>Typing a new name and pressing Enter saves, closes the drawer, and emits a datetime-stamped pill on both phones.</li>
+</ul>
 
-<div class="rule"><b>RELEASE 1 — Audio Engine.</b> Owner: a new, standalone module. Risk: shared by every surface that will consume it, so this is built and gated completely alone first, before any UI references it.
-<div style="margin-top:8px;">One capture path, one Deepgram connection, usable by chat, phone, and video without any of them owning it directly. Interface: start(surface, room), stop(), isActive(), currentSurface(), on(event, fn). This is genuinely new work — confirmed above, there is no chat-mic code to repurpose in this file, only the call-only <code>cb-mic</code> pattern to retire.</div>
-<div style="margin-top:8px;"><b>Test, one phone, no UI needed beyond a throwaway harness:</b> start, speak, transcript received. Start while already active — refused, no second connection. Stop — mic indicator off. Stop twice — no error. Five repeat cycles — no leaked streams, no duplicate sockets.</div>
-</div>
+<h3>RELEASE 3 — Phrasebook, Content, and Polish</h3>
+<p><strong>Owner:</strong> three independent patches with no shared surface risk, combined to avoid release ceremony overhead. No dependency on Releases 1 or 2.</p>
+<p><strong>Phrasebook (from v8.1.0 R4):</strong> <code>categories</code> field added to card schema — array of strings, defaults to <code>["unassigned"]</code>. Enter-in-source defect fixed (focus stays in field, retranslates; verdict resets only on source text change).</p>
+<p><strong>Content &amp; Assets (from v8.1.0 R5):</strong> 21 language pairs verbatim from <code>bridge-turn08-base.html</code> (LANGS, DG_LANGS, TTS_LOCALE, both selects rebuilt). "No phrasebook available" toast when a selected pair has no file. Flag motif on five surfaces verbatim from <code>bridge-turn08-base.html</code>, opaque, max flags visible. Create-room TTS toggle relabeled "Auto-read for your partner."</p>
+<p><strong>Polish (from v8.1.0 R7):</strong> Receipt status popup adds a timestamp to the existing Sent/Delivered/Read text. Key verify/status indicators in the Calling &amp; sync keys screen. Partner-state labels (reconnecting, speaking) in the room header.</p>
+<p><strong>Phone-test gate — two phones:</strong></p>
+<ul>
+<li>A card can be assigned a category and it persists through save and reload.</li>
+<li>Enter in source field keeps focus and retranslates; verdict resets only on text change.</li>
+<li>All 21 pairs selectable and functional for both translation and transcription.</li>
+<li>Real flag artwork visible and correctly opaque on all five surfaces.</li>
+<li>Tapping a receipt shows the existing status word plus a correct timestamp.</li>
+<li>Key screen shows live verify/status per key.</li>
+<li>Header reflects reconnecting/speaking state during a call.</li>
+</ul>
 
-<div class="rule"><b>RELEASE 2 — Call &amp; Chat Surface UI.</b> Owner: the ribbon, the call-ctl bar, and the chat bubble rendering. Depends on Release 1's interface existing (not necessarily finished — see the parallel-build note below).
-<div style="margin-top:8px;">Delete the <code>call-ctl</code> bar (<code>cb-mic</code>/<code>cb-cam</code>/<code>cb-end</code>) entirely. Rebuild the ribbon to Part 17's zone model: chat state shows ☰/dot/name (left), mic (center, new — this file has never had one), <code>btn-call</code>/<code>btn-video</code> (right), <code>btn-drawer</code> (far right). Call state replaces left with name+timer-as-text, center keeps mic (+camera if video), right becomes hang-up. Mic holds one fixed screen position across all three states, renders as a live level meter, shows a red slash when off. Camera shows a red slash when off. Chat mic wired to Release 1, routing spoken text into the same bubble rendering typed text uses.</div>
-<div style="margin-top:8px;"><b>Test, two phones:</b> chat strip shows the five elements above, no extra icons. Tap chat mic, speak, mic-marked bubble appears both directions. Place a voice call, strip transforms correctly, speak, live bubbles both directions, mute shows the slash and stops transcription, unmute resumes, hang up returns to the exact chat layout with a correct-duration end pill. Repeat for video, confirming camera slot, toggle, slash state, and PiP. At every point, confirm only one row of controls is ever visible. Confirm a call starting while chat mic is on auto-stops the chat mic without conflict, and it does not auto-resume after hang-up.</div>
-</div>
+<h3>RELEASE 4 — Notifications</h3>
+<p><strong>Owner:</strong> a new service worker plus a targeted change to the Cloudflare relay. Deliberately last and alone — the only release that touches shared infrastructure.</p>
+<p><strong>Scope:</strong> service worker registered from the same file. Relay extended to send Web Push. Locked/backgrounded device receives incoming-call notification and opens the incoming-call screen on tap. Missed-call notification. Mute-room suppresses both. iOS install-to-home-screen prompt included — Apple delivers Web Push only to installed PWAs.</p>
+<p><strong>Phone-test gate — two phones, one locked. iOS device must be installed to home screen before this gate can run:</strong></p>
+<ul>
+<li>Call placed to the locked phone produces a notification.</li>
+<li>Tapping it opens the app directly to the incoming-call screen.</li>
+<li>Unanswered call on a locked phone produces a missed-call notification.</li>
+<li>Muting the room suppresses both.</li>
+</ul>
 
-<div class="rule"><b>RELEASE 3 — Room Drawer.</b> Owner: the drawer surface, entirely self-contained, no dependency on Releases 1 or 2. Combines everything that lives in this one surface — correctly grouped this time, because it is genuinely one owner: <b>Ear toggle (build new — confirmed absent above), TTS row info icon, Meta-line rename to "Chat bubble header", Share room QR, Link a device QR, Room theme and attributes (accent/bubble/font color/size/width, presets, font stepper), name and title fields save on Enter/blur, name-change pill with a datetime-stamp prefix.</b>
-<div style="margin-top:8px;"><b>Test, two phones:</b> Ear toggle exists, defaults on during a call, its ⓘ shows the correct text. TTS ⓘ shows its text. Label reads "Chat bubble header." Share and Link a device each render a working QR with Copy and Share. Two rooms with two different themes show the correct theme on entry to each and the default theme outside any room, surviving a reload. Typing a new name and pressing Enter saves and closes the drawer immediately. The resulting name-change pill carries a correct datetime stamp on both phones.</div>
-</div>
+<h3>FINAL GATE</h3>
+<p>Every test case from Releases 1 through 4, re-run together in one sitting. Two phones (three for Release 4's locked-device case). Cold load. Nothing skipped. This concludes the plan; it does not add scope.</p>
 
-<div class="rule"><b>RELEASE 4 — Phrasebook Schema.</b> Owner: the phrasebook subsystem, independent of everything else.
-<div style="margin-top:8px;"><code>categories</code> field added to the card schema — array of strings, defaults to <code>["unassigned"]</code>. No other phrasebook change. Separately: the Enter-in-source defect — focus jumping to the card header and an unchanged source failing to retranslate — fixed together, since both live in the same input handler.</div>
-<div style="margin-top:8px;"><b>Test, two phones:</b> a card can be assigned a category and it persists through save and reload. Pressing Enter in the source field, changed or not, keeps focus in the field and retranslates; verdict resets only when the source text actually changed.</div>
-</div>
+<div class="rule warn">Before any code push: syntax check · HTML div-balance check · wire check (every JS element ID reference has a matching DOM element) · runtime stub execution. All four, every time. A push is not a gate pass. Only a confirmed physical-device test is.</div>
 
-<div class="rule"><b>RELEASE 5 — Content &amp; Assets.</b> Owner: static configuration and asset files, not behavior. Independent of every other release.
-<div style="margin-top:8px;">21 language pairs verbatim from bridge-turn08-base.html (LANGS, DG_LANGS, TTS_LOCALE, both selects rebuilt); a "No phrasebook available" toast when a selected pair has no file. Flag motif on five surfaces verbatim from bridge-turn08-base.html (S0, S1 welcome, S3 create-room, S10 joiner, thank-you), correct wash per surface. Create-room TTS toggle relabeled "Auto-read for your partner" with its sub-label.</div>
-<div style="margin-top:8px;"><b>Test, two phones:</b> all 21 pairs selectable and functional for both translation and transcription. Real flag artwork visible and correctly washed on all five surfaces — no CSS stripe substitutes remaining anywhere. Create-room dialog shows the new label; the joiner's starting TTS state reflects what the creator set.</div>
-</div>
-
-<div class="rule"><b>RELEASE 6 — Notifications.</b> Owner: a new service worker plus a change to the Cloudflare relay. Isolated deliberately — this is the only release that touches shared infrastructure, and it cannot be gated alongside anything else because proving it requires a locked phone and a second device.
-<div style="margin-top:8px;">Service worker registered from the same file. Relay extended to send Web Push. A locked or backgrounded device receives a call notification and opens the incoming-call screen on tap. Missed-call notification. Mute-room suppresses. iOS install-to-home-screen prompt, since Apple delivers Web Push only to installed PWAs.</div>
-<div style="margin-top:8px;"><b>Test, two phones, one locked:</b> a call placed to the locked phone produces a notification; tapping it opens the app directly to the incoming-call screen. An unanswered call on a locked phone produces a missed-call notification. Muting the room suppresses both.</div>
-</div>
-
-<div class="rule"><b>RELEASE 7 — Interaction Polish.</b> Owner: small, independent UI-text and state-label changes with no shared risk and no dependency on anything else. Previously dropped from the plan without being said; restored here.
-<div style="margin-top:8px;">Receipt status popup: add a timestamp to the existing Sent/Delivered/Read text (popup itself already exists and works — confirmed by direct inspection). Key verify/status indicators in the Calling &amp; sync keys screen. Partner-state labels (reconnecting, speaking) in the room header.</div>
-<div style="margin-top:8px;"><b>Test, two phones:</b> tapping a receipt shows the existing status word plus a correct timestamp. Key screen shows live verify/status per key. Header reflects the partner's reconnecting/speaking state correctly during a call.</div>
-</div>
-
-<div class="rule"><b>Build order.</b> Release 1 alone first — its gate must pass before Release 2 begins. Release 2 depends on Release 1's interface (not its finished gate — Release 2's UI work can start once the function signatures are fixed, running in parallel with Release 1's own gating, exactly as the earlier stub-first correction argued). Releases 3, 4, 5, and 7 have no dependency on 1 or 2 or each other and may run in any order or in parallel. Release 6 is deliberately last and alone, isolated by its shared-infrastructure risk.</div>
-
-<div class="rule warn"><b>FINAL GATE — not a release.</b> Every test case from Releases 1 through 7, re-run together in one sitting, two phones (three for Release 6's locked-device case), cold load, nothing skipped. This concludes the plan; it does not add scope.</div>
 
 <hr style="margin:36px 0;border:none;border-top:2px solid var(--bd);">
 <div style="background:#3A3734;color:#fff;border-radius:12px;padding:18px 22px;margin-bottom:20px;">
