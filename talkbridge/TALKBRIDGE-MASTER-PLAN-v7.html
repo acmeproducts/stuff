@@ -139,6 +139,7 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <tr><td><code>bridge-turn08-pre-ship / ship / post-ship .html</code></td><td>Compact rebuild experiments</td><td>Failed device gates — regressions; no phrasebook</td><td>~151–159KB each</td><td>No — reference only</td><td>Consult for the features they delivered (S4b drawer, Link-a-device QR, incoming/missed-call, notifications, multi-room sockets); re-implement on the baseline per spec.</td></tr></table>
 
 <div class="tocbox">
+<a href="#rb-top"><b>▶ CURRENT PLAN — start here (v8.0.0)</b></a>
 <a href="#p1">Part 1 · Vision &amp; intent</a>
 <a href="#p2">Part 2 · UX walkthrough by role (with mockups)</a>
 <a href="#p3">Part 3 · Surface &amp; element inventory v1.3.0</a>
@@ -158,6 +159,85 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <a href="#p21"><b>Part 21 · CORRECTION — chat mic is a missing feature</b></a>
 <a href="#p22"><b>Part 22 · REBUILD BUILD PLAN — full developer spec</b></a>
 <a href="#p22a"><b>Part 22a · CORRECTION — layout built first, wired last</b></a>
+</div>
+
+<div style="background:#1A1714;color:#fff;border-radius:14px;padding:22px 26px;margin-bottom:24px;">
+<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#8FC4C4;margin-bottom:6px;">PLAN VERSION 8.0.0 · RE-BASELINE · 2026-07-30</div>
+<div style="font-size:19px;font-weight:700;margin-bottom:8px;">This is the current plan. Everything below this section is a superseded historical appendix — kept for record, not for building.</div>
+<div style="font-size:14px;line-height:1.6;color:#e8e4df;">a7r2 and a7r3, and every plan section that referenced them (old Parts 14 through 22a), are rejected. This section replaces all of it with one baseline, one scope, one release progression.</div>
+</div>
+
+<h1 id="rb-top" style="font-size:22px;margin-bottom:4px;">TalkBridge — Current Plan</h1>
+<div style="font-size:13px;color:var(--dim);margin-bottom:22px;">Baseline: bridge-turn08-ship.html · Re-issued 2026-07-30</div>
+
+<h2 id="rb-baseline">Baseline</h2>
+<div class="rule"><b>bridge-turn08-ship.html.</b> 156,315 bytes, sha256 8e96dd5f…71ef. This is the starting file. Nothing precedes it. It is used exactly as it exists in the repo today.</div>
+<div class="rule"><b>Confirmed by direct inspection before writing this plan:</b> the file has a working <code>onDGFinal</code> transcription handler used during calls, but chat-only voice transcription was never implemented — no standalone microphone path exists outside of an active call. Share room, Link a device, and the <code>categories</code> phrasebook field are also absent. These absences are not defects to patch — they are the scope of the releases below.</div>
+
+<h2 id="rb-scope">Scope, in order</h2>
+<div class="rule">
+<ol style="margin-left:18px;font-size:14px;line-height:1.8;">
+<li><b>Chat / voice / video controls, built correctly — Part 17.</b> This is the first and largest piece of work: one chrome strip, one audio engine serving all three surfaces, correct in every state.</li>
+<li><b>Share room and Link a device</b> — QR codes in the room drawer.</li>
+<li><b>Room theme and attributes</b> — per-room appearance.</li>
+<li><b>Part 16 items D1–D5 and G1</b> — language pairs, flag motif, TTS create-label, drawer polish, the source-retranslate defect, and the categories schema field. Reproduced verbatim below so nothing already decided is lost.</li>
+</ol>
+</div>
+
+<h2 id="rb-p16">Part 16 items — carried forward verbatim, unchanged</h2>
+<div class="rule">
+<div style="margin-bottom:10px;"><b>D1. Language pairs.</b> 21 pairs verbatim from bridge-turn08-base.html. LANGS + DG_LANGS + TTS_LOCALE extended; both selects rebuilt. No phrasebook toast on openPb when a pair has no file. The base file is the source of truth.</div>
+<div style="margin-bottom:10px;"><b>D2. Flag motif.</b> Five surfaces verbatim from bridge-turn08-base.html (S0, S1 welcome, S3 create-room, S10 joiner, thank-you). flags.gif over flags.png; light cream wash (rgba 253,250,247,.58) on S0/S1/S3; dark wash (rgba 10,10,10,.82) on S10 joiner landing. Replace all CSS flagband stripe substitutes. This asset source was already decided and does not change with the re-baseline — bridge-turn08-base.html remains the flag donor even though bridge-turn08-ship.html is the app baseline.</div>
+<div style="margin-bottom:10px;"><b>D3. TTS toggle on create.</b> Relabeled for the joiner: "Auto-read for your partner", sub-label "Sets how your partner hears messages when they join".</div>
+<div style="margin-bottom:10px;"><b>D4. Drawer, five sub-items.</b> (a) Ear row: add ⓘ, info toast "Hear their voice during a call or video call." (b) TTS row: add ⓘ, info toast "Reads the other person's messages aloud in your language." (c) "Meta line" → "Chat bubble header". (d) Name and title fields: Enter or blur saves and closes the drawer. (e) Name-change pill: prefix datetime stamp, format [Mon 28 Jul, 22:33] X is now Y.</div>
+<div style="margin-bottom:10px;"><b>D5.</b> Enter in the source field moves focus to the card header instead of staying in the field, and an unchanged source does not retranslate. Both must be fixed together.</div>
+<div><b>G1 — Category field.</b> The phrasebook stays exactly as it is in the baseline. The only change is a <code>categories</code> field on the card schema — array of strings, defaults to <code>["unassigned"]</code>. No transplant, no surface work, no import/export.</div>
+</div>
+
+<h2 id="rb-releases">Release progression</h2>
+
+<div class="rule"><b>R1 — Chrome strip, built correctly (Part 17).</b>
+<div style="margin-top:8px;">One strip, not two. Chat state: menu, dot, name (left) — mic (center) — phone, video (right) — overflow (far right). No chat icon, no exit icon. Call state: name, timer-as-text (left) — mic, plus camera if video (center) — hang-up (right) — overflow (far right). Timer reads Connecting… then a running duration then Reconnecting…, no pulse. Mic holds one fixed screen position across all three states and shows a live level meter — filling with voice, empty when silent, slashed red when off. Camera slashed red when off. Chat-only voice transcription is built here as a real, standalone capture path independent of the call engine — both consume the same underlying audio module.</div>
+<div style="margin-top:8px;"><b>Test, two physical phones:</b>
+<ol style="margin-left:18px;">
+<li>Cold load both phones, confirm boot behavior unchanged from baseline.</li>
+<li>Create room on A, join on B. Type both directions, confirm translation unchanged from baseline.</li>
+<li>Inspect the strip with no call active: menu, dot, name, mic, phone, video, overflow — in that order, no chat icon, no exit icon.</li>
+<li>Tap the chat mic. Speak. Confirm a mic-marked translated bubble appears, both directions between phones. Tap again, confirm capture stops.</li>
+<li>Place a voice call from A. Confirm B rings with accept/decline.</li>
+<li>B accepts. Confirm the strip transforms to name/timer/mic/hang-up/overflow on both phones. Confirm the timer shows connecting text then counts.</li>
+<li>Both speak in turn. Confirm live translated mic-marked bubbles on both phones, both speakers.</li>
+<li>Confirm the mic icon visibly changes between speaking and silent.</li>
+<li>A mutes. Confirm the mic shows the slashed state immediately and nothing transcribes. Unmute, confirm resume.</li>
+<li>A hangs up. Confirm the call-ended pill shows correct duration, both strips return exactly to the chat-state layout from step 3.</li>
+<li>Repeat steps 5–10 for a video call. Additionally confirm the camera icon appears beside the mic, toggling shows the slashed state correctly, and PiP behaves as in the baseline.</li>
+<li>At every point in steps 3–11, confirm never more than one row of controls is visible.</li>
+<li>If a call arrives while chat mic is active, confirm chat mic auto-stops with no conflict, and does not auto-resume after hang-up.</li>
+</ol>
+</div>
+</div>
+
+<div class="rule"><b>R2 — Share room and Link a device.</b>
+<div style="margin-top:8px;">Two rows in the drawer, each opening a QR code with copy-link and system share.</div>
+<div style="margin-top:8px;"><b>Test, two phones:</b> open Share room, confirm QR renders, Copy and Share both work. Open Link a device, confirm the same. Confirm both re-issue correctly if reopened.</div>
+</div>
+
+<div class="rule"><b>R3 — Room theme and attributes.</b>
+<div style="margin-top:8px;">Per-room accent color, bubble color, font color/size/width, presets, font stepper in the drawer. Applied on room entry, cleared on exit, default theme outside rooms, persists across reload and Link a device.</div>
+<div style="margin-top:8px;"><b>Test, two phones:</b> set two different themes on two rooms, confirm correct theme shows on entry to each, default theme shows outside any room, themes survive a reload.</div>
+</div>
+
+<div class="rule"><b>R4 — Part 16 completion: D1–D5 and G1.</b>
+<div style="margin-top:8px;">D1 language pairs, D2 flag motif, D3 TTS create-label, D4 drawer polish (five sub-items), D5 phrasebook Enter/retranslate fix, G1 categories field — as specified verbatim above.</div>
+<div style="margin-top:8px;"><b>Test, two phones:</b> all 21 language pairs selectable and functional; real flag artwork visible on all five surfaces with correct wash per surface; create-room TTS toggle shows the new label and sets the joiner's state correctly; drawer shows ⓘ icons with correct toast text on Ear and TTS, "Chat bubble header" label, name/title save on Enter or blur, name-change pill carries a correct datetime stamp; phrasebook Enter in source retranslates and keeps focus regardless of whether the text changed; a card can be given a category and it persists through a save/reload cycle.</div>
+</div>
+
+<div class="rule warn"><b>Final gate — R5.</b> Every test case from R1 through R4 re-run in one sitting, two phones, cold load, no shortcuts. The application is not complete until every item above reports pass on physical devices.</div>
+
+<hr style="margin:36px 0;border:none;border-top:2px solid var(--bd);">
+<div style="background:#3A3734;color:#fff;border-radius:12px;padding:18px 22px;margin-bottom:20px;">
+<div style="font-size:15px;font-weight:700;margin-bottom:6px;">APPENDIX — everything below this line is superseded (plan v7.x, Parts 1–22a)</div>
+<div style="font-size:13px;line-height:1.6;color:#ddd;">Kept for historical record only. Do not build from anything below this banner. a7r2 and a7r3 are rejected as baselines. The Chrome Strip zone-model specification inside old Part 17 remains a valid design reference and is what "Part 17" refers to throughout the current plan above — everything else below is superseded by the release progression above.</div>
 </div>
 
 <h2 id="p1">Part 1 · Vision &amp; intent</h2>
