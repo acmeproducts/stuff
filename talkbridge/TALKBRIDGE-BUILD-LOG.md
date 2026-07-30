@@ -285,3 +285,9 @@ GATES: syntax OK · div delta 0 · wire NONE · runtime OK
 Device symptoms: mic non-functional, wrong SVG glyphs on phone/video icons, no hang-up in call, no audio detection.
 a7r4 slot restored to a7r3 bytes (sha256 27ddd56e38c250dceea261c0797b0d4d8712ed56c8f0bb9107966d571ff16ee5). a7r3 is again the live file.
 Approach change: complete ribbon rebuild is too risky. Next attempt will make the minimum possible structural changes to the working a7r3 ribbon — hiding elements with CSS/JS, not replacing HTML.
+
+### a7r4 attempt 4 · CSS-only approach · Jul 29 2026 PT · awaiting device gate
+sha256 57eaeb7bc9cf6acf862e31ae47978a599e129de3f460d00afc9a9fae88f21a08 · 172016 bytes · built from clean a7r3
+Approach change from attempts 1-3: ZERO JS wiring changes. All existing event listeners, IDs and functions preserved intact.
+Changes: (1) CSS hides mode-chat button. (2) ctl2 div physically moved from below the ribbon to inside it (before btn-drawer) via DOM string replacement with safety asserts. (3) renderModes adds .in-call/.in-chat class to scr-room; CSS uses those classes to show/hide the correct zones. (4) call-ctl bar removed (HTML+CSS+dead JS refs). (5) call-peer JS nullified with comment.
+GATES: syntax OK · div delta 0 · wire 0 missing IDs · runtime OK.
