@@ -312,3 +312,11 @@ Part 21 written: chat mic deferred to its own isolated future release (provision
 talkbridge-app-a7r3.html sha256 701218638c8c6a5f8bf7a96c6f11465929d6786082af0f81e2185f7c52b16e24 - Changes 1-3 (Part 19) unchanged and untouched. Only the toast string changed.
 GATES: syntax OK, div delta 0, wire NONE.
 Device gate reduced to 5 items (chat voice removed from scope): chat text both directions, voice call transcription+mute+hangup, video call transcription+camera+PiP+hangup, drawer Share+Link QR.
+
+### a7r3 REAL FIX · Jul 30 2026 PT · chat mic built · awaiting device gate
+sha256 bdda76a9311de7c75a23786d1902d82ecb5547636006e5813c2ae923a3157e6c · 164563 bytes · built from a7r2
+Built the actual missing capability instead of deferring it. New: CHATMIC={stream,active} state object; chatMicStart()/chatMicStop() acquire/release a standalone getUserMedia audio stream independent of CALL.
+startDeepgram() widened (guard, stream source, onopen check, watchdog, auto-restart) to accept EITHER CALL.active OR CHATMIC.active — every change is an OR-widen of an existing condition, nothing removed. pump() keeps CALL.micOn gating call audio exactly as before; chat mode has no partial-mute (mic button IS the mute).
+btn-mic wired to chatMicStart/Stop, disabled no-op while CALL.active (call owns the mic). CALL.start and CALL.accept both call chatMicStop() first so a chat mic never overlaps a call mic.
+onDGFinal chat routing (Part 19) + Share/Link drawer rows (Part 19) both reapplied as verified checkpoints before this work.
+GATES: syntax OK, div delta 0, wire NONE, runtime OK. Integrity check: toggleMic/CALL.start/CALL.accept function signatures byte-identical to a7r2 — call path structurally unmodified.
