@@ -297,3 +297,11 @@ ROOT CAUSE: a7r3 broke call transcription. a7r2 onDGFinal guard: if(!room||!CALL
 BASELINE DECISION: a7r2 (158937 bytes sha256 8cb4640b2e0f6c36) is the real baseline. Call transcription confirmed working in a7r2 device log 2026-07-30. Chat transcription is missing (a stub that returns silently if !CALL.active).
 Part 19 contains the EXACT three changes needed — verbatim strings, verified — to produce the correct a7r3: (1) add chat sendChat path to onDGFinal without touching the call path, (2) add Share room + Link a device drawer rows, (3) add CSS and JS for QR boxes.
 Process change: no building without Part 19 instructions being read first. Every string quoted verbatim. If any quoted string is not found exactly, STOP.
+
+### a7r3 REBUILD · Jul 30 2026 PT · awaiting device gate
+talkbridge-app-a7r3.html · 163251 bytes · sha256 e929f4f5c01ffda70d349a8612b1e5c4ef3ef7f389faafa6f1e108959a49f64c
+Base: talkbridge-app-a7r2.html (158937 bytes). Three changes per Part 19, nothing else:
+1. onDGFinal guard: replaced 'if(!room||!CALL.active)return' (first occurrence only — startDeepgram guard identical string left intact) with 'if(!room)return + if(!CALL.active){ sendChat(); return; }'. Call transcription path unchanged.
+2. Share room + Link a device HTML rows + dq-share/dq-link QR boxes inserted before s4b-export in drawer.
+3. CSS for drawer-qr-box, drawerQrUrl() and toggleDrawerQr() JS functions, s4b-share/s4b-link wire listeners added.
+GATES: syntax OK · div delta 0 · wire NONE · runtime OK. Awaiting device gate.
