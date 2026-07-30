@@ -141,6 +141,7 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <a href="#current-plan"><b>Release 2 · Room drawer</b></a>
 <a href="#current-plan"><b>Release 3 · Phrasebook + content + polish</b></a>
 <a href="#current-plan"><b>Release 4 · Notifications</b></a>
+<a href="#current-plan"><b>Credential &amp; Error Trap Audit</b></a>
 <a href="#current-plan"><b>Final Gate</b></a>
 <a href="#p1" style="color:var(--dim)">Appendix: Part 1 · Vision &amp; intent</a>
 <a href="#p2" style="color:var(--dim)">Appendix: Part 2 · UX walkthrough</a>
@@ -203,6 +204,15 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <h3>RELEASE 3 — Phrasebook, Content, and Polish</h3>
 <p><strong>Owner:</strong> three independent patches with no shared surface risk, combined to avoid release ceremony overhead. No dependency on Releases 1 or 2.</p>
 <p><strong>Phrasebook (from v8.1.0 R4):</strong> <code>categories</code> field added to card schema — array of strings, defaults to <code>["unassigned"]</code>. Enter-in-source defect fixed (focus stays in field, retranslates; verdict resets only on source text change).</p>
+<div class="rule">
+<b>SCOPE RULING (2026-07-30, owner-confirmed):</b> the phrasebook is TWO separate books per language pair &#x2014; one per direction. EN&#x2192;TH and TH&#x2192;EN are different files, never merged. This matches existing code behavior exactly and is now the binding rule. Any language elsewhere in this document describing a single shared pair-scoped book is superseded and incorrect &#x2014; ignore it.
+</div>
+<div class="rule warn">
+<b>KNOWN DEFECT &#x2014; not yet scoped into a release, requires a decision before Release 3 build:</b> tapping a saved phrase to load it into the message box (a routine "Use") currently marks the entire book as edited. On the next call end, this triggers an unnecessary write-back and bumps the shared version number, even though no card's content changed. What the user sees today: the version number climbs steadily from ordinary use, not from editing. Open question for the owner: should "Use" ever count as a change, or should only actual edits (add / edit text / delete / tag / clarify) mark the book dirty?
+</div>
+<div class="rule warn">
+<b>KNOWN DEFECT &#x2014; data-loss risk, requires a decision before Release 3 build:</b> every successful phrasebook pull (room entry, reconnect, reload) unconditionally replaces local cards with whatever is on GitHub and clears any pending local changes, with no warning. What the user sees today: nothing &#x2014; if you edited a card and then re-entered the room (or the app reloaded) before the edit was written back, the edit is silently gone. Open question for the owner: should a pull ever be allowed to discard unsaved local edits, or should a dirty local copy block/warn before a pull overwrites it?
+</div>
 <p><strong>Content &amp; Assets (from v8.1.0 R5):</strong> 21 language pairs verbatim from <code>bridge-turn08-base.html</code> (LANGS, DG_LANGS, TTS_LOCALE, both selects rebuilt). "No phrasebook available" toast when a selected pair has no file. Flag motif on five surfaces verbatim from <code>bridge-turn08-base.html</code>, opaque, max flags visible. Create-room TTS toggle relabeled "Auto-read for your partner."</p>
 <p><strong>Polish (from v8.1.0 R7):</strong> Receipt status popup adds a timestamp to the existing Sent/Delivered/Read text. Key verify/status indicators in the Calling &amp; sync keys screen. Partner-state labels (reconnecting, speaking) in the room header.</p>
 <p><strong>Phone-test gate — two phones:</strong></p>
@@ -226,6 +236,22 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <li>Unanswered call on a locked phone produces a missed-call notification.</li>
 <li>Muting the room suppresses both.</li>
 </ul>
+
+<h3>ADDENDUM &#x2014; Credential &amp; Error Trap Audit (2026-07-30)</h3>
+<p>Direct inspection of <code>bridge-turn08-ship.html</code> found that credential failures are inconsistently surfaced to the user. Some are toasted clearly; others fail completely silently, with the only trace being a debug-log entry a normal user would never check. This is the leading explanation for "works on desktop, fails silently on mobile" &#x2014; each device stores its own copy of each credential, so a bad paste or truncated value on one device with no error path produces exactly this symptom.</p>
+<table>
+<tr><th>Credential</th><th>Missing</th><th>Invalid / rejected by server</th><th>What the user currently sees on invalid</th></tr>
+<tr><td>Deepgram key (speech)</td><td>Toasted: "Deepgram key missing"</td><td>Connection refused, silently retried every 2 seconds for the whole call</td><td>Nothing. No toast, no indicator. Call proceeds with total silence where transcription should be.</td></tr>
+<tr><td>Cloudflare TURN token</td><td>Not confirmed by inspection</td><td>Not confirmed by inspection</td><td>Not confirmed &#x2014; likely produces degraded/failed video connection with no explanation</td></tr>
+<tr><td>GitHub PAT (phrasebook sync)</td><td>Toasted: "add GitHub PAT in Calling &amp; sync keys"</td><td>Toasted distinctly: "GitHub rejected the PAT"</td><td>Correctly surfaced &#x2014; this one already works as it should</td></tr>
+</table>
+<p><b>Open questions for the owner, to be answered before this becomes a release:</b></p>
+<ul>
+<li>Should every credential failure &#x2014; missing or invalid &#x2014; produce a visible, specific toast naming which credential and which state?</li>
+<li>Should an invalid Deepgram key stop retrying after some number of attempts and surface a persistent state (not just a toast that can be missed), so a call doesn't run indefinitely with no working transcription and no way to know it?</li>
+<li>Should the Calling &amp; sync keys screen show a live pass/fail indicator per credential (tested on save), instead of only failing silently later during a call?</li>
+</ul>
+<p>This is not yet assigned to a release. It becomes one once the owner answers the above.</p>
 
 <h3>FINAL GATE</h3>
 <p>Every test case from Releases 1 through 4, re-run together in one sitting. Two phones (three for Release 4's locked-device case). Cold load. Nothing skipped. This concludes the plan; it does not add scope.</p>
