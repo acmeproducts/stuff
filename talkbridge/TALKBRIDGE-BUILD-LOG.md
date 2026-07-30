@@ -267,3 +267,16 @@ Owner correction accepted. Two errors in v7.13.0 fixed:
 (a) a7r4 was marked SHIPPED. It was never device-gated. A push is not a gate pass. Both a7r4 attempts are now graveyarded and the roadmap states plainly that talkbridge-app-a7r4.html is NOT a release and must not be used as a build base.
 (b) The chrome strip was split across a7r4 and a7r5, which guaranteed a half-implementation. Now ONE release - a7r4 rebuild from a7r3 - delivers the complete Part 17 strip: ctl2 deleted and merged, mic pinned centre with reserved camera slot, level meter with amber, timer-as-text connection state, slashed off states, chat icon and chat exit icon removed, redundant in-video bar removed.
 BASELINE: a7r3 (last device-confirmed). Roadmap resequenced: a7r4 strip / a7r5 donor ports / a7r6 drawer / a7r7 themes / a7r8 notifications / a7r9 polish / a7r10 certification.
+
+### a7r4 REBUILD · Jul 29 2026 PT · awaiting device gate
+sha256 0e72b3dbb5f1c0c4e9280dafeb0181a08025525ab3d1dbf3909278b1b164cee6 · 171158 bytes · built from clean a7r3
+Full Part 17 chrome strip in one pass:
+- ctl2 (second strip) deleted; its c2-mic/c2-cam/c2-hang buttons moved into the ribbon with IDs preserved
+- Zone model: rb-left (identity/timer), rb-centre (mic pinned to true centre via position:absolute+translateX(-50%), camera reserved slot), rb-right (lifecycle)
+- Mic SVG level meter: rect#mic-fill rises from bottom clipped to mic capsule; line#mic-slash shown when off; updateMicMeter() driven by S.micLevel (log scale, fast attack/200ms release); amber fill when S.dgConnected false during call
+- Timer in rb-left-call carries connection state as text: Connecting/0:07/Reconnecting; fmtDur() added
+- Camera slash: line#cam-slash shown when CALL.camOn false
+- Chat icon (mode-chat) removed; exit icon removed from chat; rb-right-chat shows phone+video; rb-right-call shows hang-up only
+- Redundant in-video call-ctl bar removed (HTML, CSS, all JS refs) with safety assertions
+- Dead JS refs cleaned: c2-exit->comment, call-peer->room-head-title-call, conn-dot->timer text Reconnecting
+GATES: syntax OK · div delta 0 · wire NONE · runtime OK
