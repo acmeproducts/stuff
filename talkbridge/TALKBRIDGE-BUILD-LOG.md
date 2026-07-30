@@ -305,3 +305,10 @@ Base: talkbridge-app-a7r2.html (158937 bytes). Three changes per Part 19, nothin
 2. Share room + Link a device HTML rows + dq-share/dq-link QR boxes inserted before s4b-export in drawer.
 3. CSS for drawer-qr-box, drawerQrUrl() and toggleDrawerQr() JS functions, s4b-share/s4b-link wire listeners added.
 GATES: syntax OK · div delta 0 · wire NONE · runtime OK. Awaiting device gate.
+
+### PART 20 CAUGHT AND CORRECTED BEFORE SHIP · Jul 30 2026 PT
+Part 20 proposed wiring btn-mic to setMic(!S.micOn). Before writing that code, traced the full chain per the new mandatory procedure and found setMic() does not exist in this codebase (belongs to graveyarded a7r3 lineage). Traced further: CALL.toggleMic operates on CALL.stream, which only exists during an active call; startDeepgram() hard-requires CALL.active. CONCLUSION: chat-only voice transcription is not a wiring bug, it is a missing feature — a7r2 never had a standalone audio capture path outside of a call.
+Part 21 written: chat mic deferred to its own isolated future release (provisional a7r-voice), named on the roadmap so it cannot be rediscovered as a surprise. Only change shipped: btn-mic toast text corrected from a misleading promise to an honest 'not yet available'.
+talkbridge-app-a7r3.html sha256 701218638c8c6a5f8bf7a96c6f11465929d6786082af0f81e2185f7c52b16e24 - Changes 1-3 (Part 19) unchanged and untouched. Only the toast string changed.
+GATES: syntax OK, div delta 0, wire NONE.
+Device gate reduced to 5 items (chat voice removed from scope): chat text both directions, voice call transcription+mute+hangup, video call transcription+camera+PiP+hangup, drawer Share+Link QR.
