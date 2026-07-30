@@ -237,16 +237,16 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 #subtitle-area{position:absolute;left:8px;right:98px;bottom:8px;z-index:3;display:flex;flex-direction:column;gap:4px}
 .subtitle-line{background:rgba(0,0,0,.55);color:#fff;font-size:13px;border-radius:8px;padding:4px 8px;align-self:flex-start;max-width:100%}
 .subtitle-line.mine{align-self:flex-end;background:rgba(46,139,139,.78)}
-#call-ctl{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#181d1f}
-#call-ctl .cinfo{flex:1;min-width:0;color:#dfe7e9;font-size:12.5px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+
+
 #conn-dot{width:8px;height:8px;border-radius:50%;background:#8a8a8a;flex-shrink:0}
 #conn-dot.live{background:#2ecc71}#conn-dot.bad{background:#e67e22}
-.cbtn{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;background:#2c3438;color:#fff;position:relative;flex-shrink:0}
-.cbtn.off::after{content:'';position:absolute;width:26px;height:2.5px;background:#e74c3c;transform:rotate(-45deg);border-radius:2px}
-.cbtn.end{background:var(--red)}
+
+
+
 #scr-room.pip #call-band{position:absolute;right:10px;top:64px;width:118px;z-index:45;border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
 #scr-room.pip #call-band .videos{height:198px}
-#scr-room.pip #call-ctl,#scr-room.pip #subtitle-area,#scr-room.pip #local-video{display:none}
+#scr-room.pip #scr-room.pip #subtitle-area,#scr-room.pip #local-video{display:none}
 #pip-x{display:none;position:absolute;top:4px;right:4px;z-index:5;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff;border:none;line-height:0;cursor:pointer;font-size:14px}
 #scr-room.pip #pip-x{display:flex;align-items:center;justify-content:center}
 #ring-overlay{position:absolute;inset:0;background:rgba(14,17,18,.97);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:30px}
@@ -300,6 +300,60 @@ button.vpill{cursor:pointer}
 .drawer-qr-box svg{width:130px;height:130px}
 .dq-btns{display:flex;gap:8px;margin-top:8px}
 .dq-btns .btn{padding:8px;font-size:13px}
+
+/* a7r4: Part 17 chrome strip — CSS-only zone model, wiring untouched */
+
+/* Hide the chat icon — you are already in chat */
+#mode-chat { display: none !important; }
+
+/* The ribbon becomes a single unified strip */
+.ribbon {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  background: var(--cream); z-index: 5; min-height: 52px;
+}
+
+/* Left zone: identity in chat, name+timer in call */
+.room-head-name { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+#room-menu-btn  { flex-shrink: 0; }
+
+/* Centre: mode icons (chat) or empty (call — hidden by renderModes) */
+.mode-c { flex: 1; display: flex; justify-content: center; }
+.mode-c-inner { display: flex; gap: 18px; align-items: center; }
+
+/* ctl2 moves to sit inside the ribbon row visually.
+   It was below the ribbon; now we make it flex-inline. */
+#ctl2 {
+  display: flex !important; align-items: center; gap: 8px;
+  background: none; border: none; padding: 0;
+  /* override any existing block/positioning */
+  position: static !important; height: auto !important;
+}
+#ctl2-left  { display: flex; align-items: center; }
+#ctl2-center { display: flex; align-items: center; }
+#ctl2-inner { display: flex; align-items: center; gap: 8px; }
+/* spacer on the right of ctl2 — no longer needed in inline mode */
+#ctl2 > div[style*="min-width:64px"] { display: none !important; }
+
+/* In CHAT: hide the call controls, keep mode icons */
+.in-chat #c2-timer { display: none !important; }
+.in-chat #c2-hang  { display: none !important; }
+.in-chat .mode-c   { flex: 1; }
+
+/* In CALL: hide the mode icons, show call controls */
+.in-call .mode-c   { display: none !important; }
+.in-call #c2-exit  { display: none !important; }
+/* Timer text instead of pulse+dur */
+.in-call #c2-pulse { display: none !important; }
+
+/* Timer as text — styled inline */
+#c2-timer { font-size: 12.5px; font-weight: 700; color: var(--ink-mid, #5A5552);
+             font-variant-numeric: tabular-nums; }
+#c2-dur   { font-size: 12.5px; }
+
+/* c2-mic: the mic button stays exactly where it is (ctl2-inner) */
+/* Ribbon: put ctl2 after the mode-c, before the drawer button */
+/* Achieved by DOM order: ribbon has menu → name → mode-c → [ctl2 will be moved by renderModes into view] */
 </style>
 </head>
 <body>
@@ -339,9 +393,7 @@ button.vpill{cursor:pointer}
         <button class="mode-btn" id="mode-phone" aria-label="Phone call"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
         <button class="mode-btn" id="mode-video" aria-label="Video call"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l7-4v12l-7-4z"/></svg></button>
       </div></div>
-      <button class="icon-btn" id="btn-drawer" aria-label="Room settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
-    </div>
-    <div id="ctl2">
+      <div id="ctl2">
       <div id="ctl2-left"><span id="c2-timer"><span id="c2-pulse"></span><span id="c2-dur">0:00</span></span></div>
       <div id="ctl2-center"><div id="ctl2-inner" class="n2">
         <button class="c2btn slash" id="c2-mic" aria-label="Mic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
@@ -351,6 +403,9 @@ button.vpill{cursor:pointer}
       </div></div>
       <div style="min-width:64px"></div>
     </div>
+      <button class="icon-btn" id="btn-drawer" aria-label="Room settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+    </div>
+    
     <div id="call-band">
       <button id="pip-x">✕</button>
       <div class="videos" id="call-videos">
@@ -359,12 +414,7 @@ button.vpill{cursor:pointer}
         <video id="local-video" autoplay playsinline muted></video>
         <div id="subtitle-area"></div>
       </div>
-      <div id="call-ctl">
-        <div class="cinfo"><span id="conn-dot"></span><span id="call-peer"></span><span id="call-dur"></span></div>
-        <button class="cbtn" id="cb-mic" aria-label="Mic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
-        <button class="cbtn off" id="cb-cam" aria-label="Camera"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l7-4v12l-7-4z"/></svg></button>
-        <button class="cbtn end" id="cb-end" aria-label="End call"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" transform="rotate(135)"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
-      </div>
+      
     </div>
     <div id="transcript"></div>
     <button class="scroll-down" id="scroll-down"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
@@ -2218,8 +2268,7 @@ var CALL={
     this.kind=kind;this.caller=true;this.active=true;
     this.mount(room);
     relaySend({type:'call-start',kind:kind,name:room.myName||S.user.name});
-    $('call-peer').textContent='Calling '+(room.partnerName||'partner')+'…';
-    var self=this;
+        var self=this;
     this.callerTimer=setTimeout(function(){
       if(self.active&&!self.pc){addSysPill('Missed call');relaySend({type:'call-end',reason:'missed'});self.teardown()}
     },30000);
@@ -2270,7 +2319,7 @@ var CALL={
   onAccepted:function(room){
     clearTimeout(this.callerTimer);this.callerTimer=null;
     if(!this.active)return;
-    $('call-peer').textContent=room.partnerName||'Partner';
+    /* call-peer element removed; partner name shown in room header */
     if(room.role==='creator')this.setupPC();
   },
   onDeclined:function(room){
@@ -2291,11 +2340,8 @@ var CALL={
       // phone: no video surface — transcript + strip carry the call
     }else{
       $('call-band').classList.add('on');
-      $('call-peer').textContent=room.partnerName||'Partner';
       $('local-video').srcObject=this.stream;
       $('local-video').style.display=this.camOn?'':'none';
-      $('cb-cam').classList.toggle('off',!this.camOn);
-      $('cb-mic').classList.remove('off');
       $('remote-ph').style.display='';
       if(!this.pushed){try{history.pushState({tbCall:1},'',location.href)}catch(_){}this.pushed=true}
     }
@@ -2345,7 +2391,7 @@ var CALL={
       var s2=pc.connectionState;
       log('rtc_conn',{s:s2},s2==='connected'?'ok':'info');
       if(s2==='connected'){
-        $('conn-dot').classList.add('live');$('conn-dot').classList.remove('bad');startDeepgram();
+        startDeepgram();
         ringRowHide();
         if(!self._startedPill){self._startedPill=true;addSysPill('Call started')}
         var lv=$('local-video'); // preview freeze fix: rebind + play retry on connect
@@ -2353,9 +2399,8 @@ var CALL={
         try{if(lv)lv.play()}catch(_){}
         try{$('remote-video').play()}catch(_){}
       }
-      if(s2==='disconnected'){$('conn-dot').classList.add('bad')}
+      /* conn-dot removed */
       if(s2==='failed'&&self.active){
-        $('conn-dot').classList.add('bad');
         try{pc.close()}catch(_){}
         self.pc=null;self.savedOffer=null;self.seenCand=new Set();self.pendingCandidates=[];
         if(room.role==='creator')setTimeout(function(){if(self.active)self.setupPC()},1500);
@@ -2459,8 +2504,7 @@ var CALL={
     $('c2-dur').textContent='0:00';
     renderModes();
     $('remote-video').srcObject=null;$('local-video').srcObject=null;
-    $('call-dur').textContent='';
-    if(this.pip)this.exitPip();
+        if(this.pip)this.exitPip();
     $('scr-room').classList.remove('pip');
     if(PB.pk&&PB.isDirty())pbWriteBack('call-end'); // PB write-back on call end (plan rule)
     log('call_end',{},'ok');
@@ -2603,6 +2647,9 @@ setMic._t=0;
 function renderModes(){
   var r=activeRoom();if(!r)return;
   var mode=CALL.active?(CALL.kind==='video'?'video':'phone'):'chat';
+  // Part 17: single strip — add class to scr-room so CSS zones activate
+  var sr=$('scr-room');if(sr){sr.classList.toggle('in-call',mode!=='chat');sr.classList.toggle('in-chat',mode==='chat');}
+  // mode-chat hidden via CSS; keep act toggle for state but it has no visual effect
   $('mode-chat').classList.toggle('act',mode==='chat');
   $('mode-phone').classList.toggle('act',mode==='phone');
   $('mode-video').classList.toggle('act',mode==='video');
