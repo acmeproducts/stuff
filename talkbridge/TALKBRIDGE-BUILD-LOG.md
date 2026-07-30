@@ -291,3 +291,9 @@ sha256 57eaeb7bc9cf6acf862e31ae47978a599e129de3f460d00afc9a9fae88f21a08 · 17201
 Approach change from attempts 1-3: ZERO JS wiring changes. All existing event listeners, IDs and functions preserved intact.
 Changes: (1) CSS hides mode-chat button. (2) ctl2 div physically moved from below the ribbon to inside it (before btn-drawer) via DOM string replacement with safety asserts. (3) renderModes adds .in-call/.in-chat class to scr-room; CSS uses those classes to show/hide the correct zones. (4) call-ctl bar removed (HTML+CSS+dead JS refs). (5) call-peer JS nullified with comment.
 GATES: syntax OK · div delta 0 · wire 0 missing IDs · runtime OK.
+
+### PLAN v7.16.0 - Jul 30 2026 PT - ROOT CAUSE + EXPLICIT BUILD INSTRUCTIONS
+ROOT CAUSE: a7r3 broke call transcription. a7r2 onDGFinal guard: if(!room||!CALL.active)return — call path always fires. a7r3 changed guard to if(!room||!S.micOn)return and added dual-socket cross-suppress. In a call, EN socket clears TH socket's 250ms hold timer then calls onDGFinal with English text. That hits the call branch, detectLang sees English, normalization to Thai fails, no bubble. dg_final fires in the log but dg_cross_suppress eats the result.
+BASELINE DECISION: a7r2 (158937 bytes sha256 8cb4640b2e0f6c36) is the real baseline. Call transcription confirmed working in a7r2 device log 2026-07-30. Chat transcription is missing (a stub that returns silently if !CALL.active).
+Part 19 contains the EXACT three changes needed — verbatim strings, verified — to produce the correct a7r3: (1) add chat sendChat path to onDGFinal without touching the call path, (2) add Share room + Link a device drawer rows, (3) add CSS and JS for QR boxes.
+Process change: no building without Part 19 instructions being read first. Every string quoted verbatim. If any quoted string is not found exactly, STOP.
