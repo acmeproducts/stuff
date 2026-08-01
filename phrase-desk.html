@@ -223,7 +223,7 @@ body{font-family:'Inter',sans-serif;}
         </div>
         <div class="flex gap-2 pt-2">
           <button onclick="advanceWizard(3)" class="flex-1 bg-white border border-slate-300 text-slate-700 font-bold py-2.5 rounded-lg text-sm hover:bg-slate-50">Back</button>
-          <button onclick="generateJob()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-1 shadow-sm">Go <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+          <button onclick="generateJob()" id="btn-generate" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-1 shadow-sm disabled:opacity-50">Go <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
         </div>
       </div>
     </div>
@@ -306,7 +306,7 @@ body{font-family:'Inter',sans-serif;}
   <div class="bg-white rounded-xl w-full max-w-sm p-6 relative shadow-2xl flex flex-col items-center">
     <button onclick="closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
     <h3 class="font-bold text-lg text-slate-800 mb-4">Job Created</h3>
-    <img id="modal-qr" src="" class="w-40 h-40 border border-slate-200 rounded p-2 mb-4 shadow-sm bg-white">
+    <p id="modal-qr" class="text-xs text-slate-500 mb-4">For privacy, copy this link into a trusted, local QR-code generator if a QR code is required.</p>
     <div class="relative w-full">
       <input type="text" id="modal-link" class="w-full bg-slate-50 border border-slate-200 text-teal-600 text-xs p-3 pr-10 rounded-lg outline-none" readonly>
       <button onclick="copyModalLink()" class="absolute right-1 top-1 p-2 text-teal-600 hover:bg-teal-50 rounded"><i data-lucide="copy" class="w-4 h-4"></i></button>
@@ -361,11 +361,61 @@ else{var lr=0;var lw=setInterval(function(){lr++;if(window.lucide){lucide.create
 function toB64(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,function(m,p1){return String.fromCharCode('0x'+p1);}));}
 function fromB64(str){return decodeURIComponent(atob(str).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}
 function setLoadMsg(m){document.getElementById('loading-msg').innerText=m;}
-function getLocalJobs(){return JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY)||'[]');}
+var SECRET_KEYS=['pat','token','access_token','authorization'];
+var TOKEN_VALUE_RE=/(?:ghp_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)/i;
+function isSecretKey(key){return SECRET_KEYS.indexOf(String(key).toLowerCase())!==-1;}
+function sanitizeAssignmentUrl(value){
+  try{
+    var url=new URL(String(value),window.location.href);
+    Array.from(url.searchParams.keys()).forEach(function(k){if(isSecretKey(k))url.searchParams.delete(k);});
+    var hash=new URLSearchParams(url.hash.replace(/^#/,''));
+    Array.from(hash.keys()).forEach(function(k){if(isSecretKey(k))hash.delete(k);});
+    url.hash=hash.toString();
+    return url.toString();
+  }catch(_){return '';}
+}
+function sanitizeValue(value,key){
+  if(isSecretKey(key))return undefined;
+  if(typeof value==='string'){
+    if(key==='url')return sanitizeAssignmentUrl(value);
+    return TOKEN_VALUE_RE.test(value)?undefined:value;
+  }
+  if(Array.isArray(value))return value.map(function(v){return sanitizeValue(v,'');}).filter(function(v){return v!==undefined;});
+  if(value&&typeof value==='object'){
+    var clean={};Object.keys(value).forEach(function(k){var v=sanitizeValue(value[k],k);if(v!==undefined)clean[k]=v;});return clean;
+  }
+  return value;
+}
+function sanitizeAssignmentRecord(record){return sanitizeValue(record,'');}
+function containsToken(value){return TOKEN_VALUE_RE.test(JSON.stringify(value||{}));}
+function normalizeAssignments(records){
+  var jobs=[],rejected=[];
+  (Array.isArray(records)?records:[]).forEach(function(raw){
+    var clean=sanitizeAssignmentRecord(raw),id=clean&&clean.jobId;
+    if(id==='job-1781296977018'){rejected.push(id);return;}
+    if(containsToken(clean)||!isValidJobRecord(clean)){rejected.push(id||'unknown record');return;}
+    jobs.push(clean);
+  });
+  return {jobs:jobs,rejected:rejected};
+}
+function migrateLocalJobs(){
+  var raw=[];try{raw=JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY)||'[]');}catch(_){}
+  var result=normalizeAssignments(raw);localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(result.jobs));return result;
+}
+function getLocalJobs(){return migrateLocalJobs().jobs;}
+function captureAndSanitizeBrowserUrl(){
+  var url=new URL(window.location.href),hash=new URLSearchParams(url.hash.replace(/^#/,''));
+  var captured='';
+  hash.forEach(function(v,k){if(String(k).toLowerCase()==='pat'&&!captured)captured=v;});
+  url.searchParams.forEach(function(v,k){if(String(k).toLowerCase()==='pat'&&!captured)captured=v;});
+  Array.from(url.searchParams.keys()).forEach(function(k){if(isSecretKey(k))url.searchParams.delete(k);});
+  Array.from(hash.keys()).forEach(function(k){if(isSecretKey(k))hash.delete(k);});
+  url.hash=hash.toString();window.history.replaceState({},'',url.toString());return captured;
+}
 function showSyncMessage(message,isError){
   var el=document.getElementById('jobs-sync-message');
   if(!el)return;
-  var text=String(message||''),pat=appState.config.pat;
+  var text=String(message||'').replace(TOKEN_VALUE_RE,'[redacted]'),pat=appState.config.pat;
   el.textContent=pat?text.split(pat).join('[redacted]'):text;
   el.className='mb-3 rounded-lg border px-3 py-2 text-xs font-medium '+(isError?'bg-red-50 text-red-700 border-red-200':'bg-teal-50 text-teal-700 border-teal-200');
   var authError=document.getElementById('auth-error'),createPanel=document.getElementById('panel-create');
@@ -385,19 +435,20 @@ function init(){
     if(c.pat)document.getElementById('cfg-pat').value=c.pat;
     if(c.initials)document.getElementById('cfg-initials').value=c.initials;
   }
+  var capturedPat=captureAndSanitizeBrowserUrl();
+  if(capturedPat){appState.config.pat=capturedPat;localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));document.getElementById('cfg-pat').value=capturedPat;}
+  var migration=migrateLocalJobs();
+  if(migration.rejected.length)showSyncMessage('Quarantined malformed or unsafe assignment(s): '+migration.rejected.join(', '),true);
   renderLangGrids();
-
   var params=new URLSearchParams(window.location.search);
-  if(params.has('owner')&&params.has('pat')&&params.has('jobId')){
-    appState.config={owner:params.get('owner'),repo:params.get('repo'),path:'phrasebook',
-      source:params.get('source'),target:params.get('target'),pat:params.get('pat'),
-      initials:params.get('initials')||'JD'};
+  if(params.has('owner')&&params.has('jobId')){
+    appState.config={...appState.config,owner:params.get('owner'),repo:params.get('repo'),path:'phrasebook',
+      source:params.get('source'),target:params.get('target'),initials:params.get('initials')||'JD'};
     appState.langPair={source:params.get('srcLang')||'',target:params.get('tgtLang')||''};
     appState.jobId=params.get('jobId');
-    // Replace history so back button doesn't expose onboarding
-    window.history.replaceState({},'',window.location.href);
-    switchView('view-loading');
-    startCurationLifecycle();
+    localStorage.setItem(LOCAL_CONFIG_KEY,JSON.stringify(appState.config));
+    if(appState.config.pat){switchView('view-loading');startCurationLifecycle();}
+    else{switchView('view-setup');showSyncMessage('Authentication is required to open this assignment.',true);}
   }else{
     switchView('view-setup');
   }
@@ -465,6 +516,7 @@ async function fetchPhrasebooks(){
   if(!files.length)throw new Error("No JSON phrasebooks found in /phrasebook.");
   appState.allFiles=files.map(function(f){return f.name;});
   await syncJobsFromGH();
+  if(appState.jobId){switchView('view-loading');await startCurationLifecycle();return;}
   advanceWizard(2);
   }catch(e){
     console.error('fetchPhrasebooks error:',e);
@@ -525,6 +577,8 @@ function autoSuggestTarget(){
 
 // --- Job generation ---
 async function generateJob(){
+  var go=document.getElementById('btn-generate');go.disabled=true;
+  try{
   var src=document.getElementById('cfg-source').value;
   var target=document.getElementById('cfg-target').value.trim();
   var initials=document.getElementById('cfg-initials').value.trim()||'JD';
@@ -542,12 +596,14 @@ async function generateJob(){
   });
 
   var jobId=existing?existing.jobId:'job-'+Date.now();
-  var url=new URL(window.location.href.split('?')[0]);
-  ['owner','repo','source','target','pat','initials'].forEach(function(k){ var v=appState.config[k]; if(v!==undefined&&v!==null&&v!=='undefined') url.searchParams.set(k,v); });
+  var url=new URL(window.location.href);url.search='';url.hash='';
+  ['owner','repo','source','target','initials'].forEach(function(k){ var v=appState.config[k]; if(v!==undefined&&v!==null&&v!=='undefined') url.searchParams.set(k,v); });
   url.searchParams.set('srcLang',appState.langPair.source);
   url.searchParams.set('tgtLang',appState.langPair.target);
   url.searchParams.set('jobId',jobId);
-  var linkStr=url.toString();
+  var linkStr=sanitizeAssignmentUrl(url.toString());
+  var onboardingUrl=new URL(linkStr);onboardingUrl.hash=new URLSearchParams({pat:appState.config.pat}).toString();
+  var handoffLink=onboardingUrl.toString();
 
   if(existing){
     Object.assign(existing,{owner:appState.config.owner,repo:appState.config.repo,
@@ -559,12 +615,13 @@ async function generateJob(){
       url:linkStr,stats:{total:0,pending:0,good:0,flag:0,deleted:0},lastUpdated:Date.now()};
     jobs.push(newJob);
   }
+  jobs=normalizeAssignments(jobs).jobs;
   localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(jobs));
-  pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
-
-  document.getElementById('modal-link').value=linkStr;
-  document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(linkStr);
+  var published=await pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
+  if(!published){showSyncMessage('Assignment saved only on this device; it is not yet available on other devices.',true);return;}
+  document.getElementById('modal-link').value=handoffLink;
   document.getElementById('share-modal').classList.remove('hidden');
+  }finally{go.disabled=false;}
 }
 function closeShareModal(){document.getElementById('share-modal').classList.add('hidden');switchSetupTab('manage');}
 function copyModalLink(){var el=document.getElementById('modal-link');el.select();document.execCommand('copy');}
@@ -642,8 +699,7 @@ function deleteJob(jobId){
 function openShareModal(jobId){
   var job=getLocalJobs().find(function(j){return j.jobId===jobId;});
   if(!job)return;
-  document.getElementById('modal-link').value=job.url;
-  document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(job.url);
+  document.getElementById('modal-link').value=sanitizeAssignmentUrl(job.url);
   document.getElementById('share-modal').classList.remove('hidden');
 }
 function isValidJobRecord(j){
@@ -658,9 +714,8 @@ function isValidJobRecord(j){
 }
 function recordTime(j){return Math.max(Number(j&&j.lastUpdated)||0,Number(j&&j.deletedAt)||0);}
 function mergeJobs(local,remote){
-  var byId={},rejected=[];
-  local.concat(remote).forEach(function(j){
-    if(!isValidJobRecord(j)){rejected.push(j&&j.jobId?j.jobId:'unknown record');return;}
+  var byId={},normalized=normalizeAssignments((local||[]).concat(remote||[])),rejected=normalized.rejected;
+  normalized.jobs.forEach(function(j){
     if(!byId[j.jobId]||recordTime(j)>recordTime(byId[j.jobId])
       ||(recordTime(j)===recordTime(byId[j.jobId])&&j.deletedAt&&!byId[j.jobId].deletedAt))byId[j.jobId]=j;
   });
@@ -668,7 +723,14 @@ function mergeJobs(local,remote){
 }
 async function githubError(res){
   var message='';try{message=(await res.json()).message||'';}catch(_){}
+  message=String(message).replace(TOKEN_VALUE_RE,'[redacted]');
   return 'GitHub HTTP '+res.status+(message?' — '+message:'');
+}
+function isRetryableConflict(status,message){
+  if(status!==409)return false;
+  var text=String(message||'').toLowerCase();
+  if(/secret scanning|push protection|repository rule|ruleset|permission|policy/.test(text))return false;
+  return /sha|conflict|does not match|changed|update/.test(text);
 }
 async function syncJobsFromGH(){
   var o=appState.config.owner,r=appState.config.repo,p=appState.config.pat;
@@ -686,7 +748,7 @@ async function syncJobsFromGH(){
     }else{
       throw new Error(await githubError(res));
     }
-  }catch(e){console.error('Assignment sync failed:',e);showSyncMessage('Assignment sync failed: '+((e&&e.message)||e),true);}
+  }catch(e){console.error('Assignment sync failed.');showSyncMessage('Assignment sync failed: '+((e&&e.message)||e),true);}
 }
 async function pushJobsToGitHub(jobsArray,owner,repo,pat){
   if(!pat){showSyncMessage('Assignment sync failed: missing credentials.',true);return false;}
@@ -698,18 +760,22 @@ async function pushJobsToGitHub(jobsArray,owner,repo,pat){
     else if(getRes.status!==404)throw new Error(await githubError(getRes));
     var result=mergeJobs(jobsArray,remote);
     localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(result.jobs));
-    var body={message:'Update Job Tracking',content:toB64(JSON.stringify(result.jobs,null,2)),branch:'main'};
+    var outbound=normalizeAssignments(result.jobs);
+    if(outbound.rejected.length)throw new Error('Outbound assignments contain malformed or unsafe records.');
+    var payload=JSON.stringify(outbound.jobs,null,2);
+    if(TOKEN_VALUE_RE.test(payload)||/[?&#](?:pat|token|access_token|authorization)=/i.test(payload))throw new Error('Outbound assignments contain credentials; publication refused.');
+    var body={message:'Update Job Tracking',content:toB64(payload),branch:'main'};
     if(sha)body.sha=sha;
     var putRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{
       method:'PUT',headers:{'Authorization':'token '+pat,'Content-Type':'application/json'},
       body:JSON.stringify(body)
     });
     if(putRes.ok){showSyncMessage(result.rejected.length?'Saved; quarantined malformed assignment(s): '+result.rejected.join(', '):'Assignments saved to GitHub.',result.rejected.length>0);renderJobsDashboard();return true;}
-    if((putRes.status===409||putRes.status===422)&&attempt<3)continue;
-    throw new Error(await githubError(putRes));
+    var putError=await githubError(putRes);
+    if(isRetryableConflict(putRes.status,putError)&&attempt<3)continue;
+    throw new Error(putError);
     }catch(e){
-      if(attempt<3&&/HTTP (409|422)/.test((e&&e.message)||''))continue;
-      console.error('Assignment save failed:',e);showSyncMessage('Assignment save failed: '+((e&&e.message)||e),true);return false;
+      console.error('Assignment save failed.');showSyncMessage('Assignment save failed: '+String((e&&e.message)||e).replace(TOKEN_VALUE_RE,'[redacted]'),true);return false;
     }
   }
   return false;
@@ -731,7 +797,7 @@ async function updateJobStatsCentral(){
   else{
     localJobs.push({jobId:appState.jobId,owner:appState.config.owner,repo:appState.config.repo,
       initials:appState.config.initials,source:appState.config.source,target:appState.config.target,
-      langPair:{...appState.langPair},url:window.location.href,stats:curStats,lastUpdated:Date.now()});
+      langPair:{...appState.langPair},url:sanitizeAssignmentUrl(window.location.href),stats:curStats,lastUpdated:Date.now()});
   }
   localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(localJobs));
   pushJobsToGitHub(localJobs,appState.config.owner,appState.config.repo,appState.config.pat);
@@ -747,13 +813,13 @@ async function startCurationLifecycle(){
       var data=await targetRes.json();
       appState.targetSha=data.sha;
       appState.pbData=JSON.parse(fromB64(data.content));
-    }else{
+    }else if(targetRes.status===404){
       setLoadMsg("Bootstrapping from source...");
       var sourceRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path+'/'+source,{headers:{'Authorization':'token '+pat}});
-      if(!sourceRes.ok)throw new Error("Source file missing.");
+      if(!sourceRes.ok)throw new Error('Unable to load source (GitHub HTTP '+sourceRes.status+').');
       appState.pbData=JSON.parse(fromB64((await sourceRes.json()).content));
       appState.targetSha=null;
-    }
+    }else throw new Error('Unable to load target (GitHub HTTP '+targetRes.status+').');
     if(!Array.isArray(appState.pbData.cards))appState.pbData.cards=[];
 
     // language pair: wizard selection always wins; file/filename only used as last-resort fallback
