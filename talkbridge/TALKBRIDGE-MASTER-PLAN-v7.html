@@ -116,7 +116,7 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 
 <div class="state">
 <div><b>STATE — CURRENT (2026-07-30)</b></div>
-<div>Plan: <b>v8.4.5</b> · 2026-07-30 · Single source of truth</div>
+<div>Plan: <b>v8.4.6</b> · 2026-07-30 · Single source of truth</div>
 <div>Runtime baseline: <b>bridge-turn08-ship.html</b> — OWNER RULING 2026-07-30. 157,781 bytes. Do not use bridge-turn08-base.html, any a7r* file, or any pre/ship/post-ship variant as a build base.</div>
 <div>Reference donor (never a build base): bridge-turn08-base.html — extract Deepgram pipeline mechanics and flag motif assets only.</div>
 <div>Build sequence: Release 1 (strip states + chat mic) → Release 2 (room drawer) → Release 3 (phrasebook + content + polish) → Release 4 (notifications, last and alone).</div>
@@ -138,7 +138,7 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 <tr><td><code>bridge-turn08-pre-ship / ship / post-ship .html</code></td><td>Compact rebuild experiments</td><td>Failed device gates — regressions; no phrasebook</td><td>~151–159KB each</td><td>No — reference only</td><td>Consult for the features they delivered (S4b drawer, Link-a-device QR, incoming/missed-call, notifications, multi-room sockets); re-implement on the baseline per spec.</td></tr></table>
 
 <div class="tocbox">
-<a href="#current-plan"><b>▶ CURRENT PLAN — start here (v8.4.5)</b></a>
+<a href="#current-plan"><b>▶ CURRENT PLAN — start here (v8.4.6)</b></a>
 <a href="#current-plan"><b>Release 1 · Strip states + chat mic</b></a>
 <a href="#current-plan"><b>Release 2 · Room drawer</b></a>
 <a href="#current-plan"><b>Release 3 · Phrasebook + content + polish</b></a>
@@ -162,7 +162,7 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
   <div style="font-size:13px;margin:2px 0;color:#fff;"><b style="color:#7fd4c8;">Strip anatomy (owner-confirmed 2026-07-30):</b> one row, three CSS states. Chat: &#x2630;&#xB7;dot&#xB7;name | mic | call&#xB7;video | &#x22EF; &#x2014; Phone: name+timer | mic | hang-up | &#x22EF; &#x2014; Video: name+timer | mic&#xB7;camera | hang-up | &#x22EF;</div>
 </div>
 
-<h2 id="current-plan">▶ CURRENT PLAN — v8.4.5</h2>
+<h2 id="current-plan">▶ CURRENT PLAN — v8.4.6</h2>
 <div class="rule warn">
 <b>v8.4.1 changelog (2026-07-31):</b> Release 2 (bridge-turn09-pre-base.html) attempt 1 failed device gate — reported transcription regression on calls (root cause NOT found; automated replay of the exact reported session against the shipped file could not reproduce it — see TALKBRIDGE-GRAVEYARD.md), plus three real UI defects: info-icon taps rendered as a bottom toast instead of a popover anchored at the icon, the Debug tab's actions closed the whole drawer, and the Appearance table's absence (deliberately scoped to Release 2.5 per the build-sequence table below) was rejected by the owner and needs an explicit decision before the next attempt. Rolled back to the Release 1 output; rebuilding as attempt 2.
 </div>
@@ -177,6 +177,9 @@ code{background:var(--paper);border:1px solid var(--bd);border-radius:4px;paddin
 </div>
 <div class="rule warn">
 <b>v8.4.5 changelog (2026-08-01):</b> Full resequencing of Releases 4–10 with real filenames, following the established turn-family naming cycle. Restricted-tier room creation dropped from OI-3 — elevation is global-only (owner ruling: an on/off trust decision doesn't need a middle tier, and it also fixes the "which of several grantors" ambiguity). OI-2 gets a pilot-scale note: no revoke, mitigation is disabling the credential + a phrasebook-scoped PAT; realigning to a real backend is flagged as future work past ~20 users, not actionable now. Two new standing rules: release number + description bumped in code comments every release, and the app itself displays its release number and build datetime in the S13a Calling & sync keys modal. Every OPEN ITEMS bug/default/appearance item now tagged with its assigned release (4, 5, or 6) per the owner's clean-up a/b/c grouping. BACKLOG B1/B2/B3 also tagged. Stale "Release 4 is Notifications, no fifth release" statement in BACKLOG is superseded — flagged inline, not deleted, so the history stays visible.
+</div>
+<div class="rule warn">
+<b>v8.4.6 changelog (2026-08-01):</b> Release 4 pushed, pending device gate. New OI-7 added: migrate localStorage to IndexedDB — a real architectural fix (not deferred), found while investigating a "Storage full" toast that turned out to be a different app at the same origin, which exposed a genuine bridge exposure (localStorage's small per-origin cap, shared across every app at this origin, isolated only by key-naming convention today). Scoped as its own dedicated release given how many call sites it touches — sequencing not yet decided.
 </div>
 
 <div class="rule" style="background:#1A1714;color:#fff;border:none">
@@ -428,6 +431,14 @@ The room ribbon's default layout stays untouched &#x2014; owner is deliberately 
 <li>Font size range needs to extend from the current 12&#x2013;20 to 10&#x2013;32.</li>
 <li>The Customize drawer should display who you're talking to (partner's name) somewhere visible — CORRECTION 2026-07-31: not the room name, that field already exists in the drawer (General tab).</li>
 </ul>
+</div>
+
+<div class="rule">
+<b>OI-7 (real architectural fix, needs its own dedicated release &#x2014; NOT deferred like the OI-2 future-backend note) &#x2014; migrate localStorage to IndexedDB.</b> Found 2026-08-01 while investigating a "Storage full" toast (traced to a different app, <code>test.html</code>, sharing the same origin &#x2014; not a bridge bug, but it exposed a real bridge exposure). Root cause: classic <code>localStorage</code> has its own small, fixed per-origin cap in Chrome (roughly 5&#x2013;10MB) that is completely separate from the much larger Storage API quota shown in DevTools (that panel reflects IndexedDB/Cache Storage capacity, not localStorage) &#x2014; so bridge can hit a real, silent ceiling with DevTools appearing to show enormous headroom. Worse, that small cap is shared with every other app hosted at the same origin (<code>acmeproducts.github.io</code>), not isolated to bridge, and today nothing but a naming convention (<code>tba_</code>/<code>tb_</code> key prefixes) keeps bridge's data separate from any other app's keys in that same flat namespace.
+<br><br>
+IndexedDB fixes both: quota tracks actual device storage rather than a fixed old cap, and a uniquely-named database (e.g. <code>talkbridge-v1</code>) gives bridge genuine structural isolation, not just a naming convention, from every other app in the repo. (IndexedDB is still origin-scoped, not per-app &#x2014; the overall quota pool is still shared &#x2014; but the practical headroom and the key-collision risk are both real improvements.)
+<br><br>
+Scoped as its own release, not folded into anything else: IndexedDB is asynchronous, and every current <code>lsGet</code>/<code>lsSet</code> call site (transcript load/save, room list, phrasebook cache, user prefs, device id) is written synchronously today &#x2014; this touches most of the app's data layer and needs a migration path for existing users' current localStorage data, not a drop-in swap. Exactly the kind of cross-cutting change that becomes a Frankenstein patch if bolted onto an unrelated release. Sequencing (which release number, where in the 4&#x2013;10 order) not yet decided.
 </div>
 
 <h3>ADDENDUM &#x2014; Credential &amp; Error Trap Audit (2026-07-30)</h3>
