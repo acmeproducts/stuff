@@ -234,6 +234,7 @@ body{font-family:'Inter',sans-serif;}
         <h2 class="font-bold text-slate-800 text-sm">Deployments</h2>
         <button onclick="syncJobsFromGH()" class="flex items-center gap-1 text-[11px] uppercase tracking-wide font-bold text-teal-600 bg-white border border-slate-200 px-2.5 py-1.5 rounded-md hover:bg-slate-50 shadow-sm"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sync</button>
       </div>
+      <div id="jobs-sync-message" role="status" aria-live="polite" class="hidden mb-3 rounded-lg border px-3 py-2 text-xs font-medium"></div>
       <div id="jobs-list" class="space-y-3 max-h-[55vh] overflow-y-auto pr-1"></div>
     </div>
   </div>
@@ -361,6 +362,15 @@ function toB64(str){return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/
 function fromB64(str){return decodeURIComponent(atob(str).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''));}
 function setLoadMsg(m){document.getElementById('loading-msg').innerText=m;}
 function getLocalJobs(){return JSON.parse(localStorage.getItem(LOCAL_JOBS_KEY)||'[]');}
+function showSyncMessage(message,isError){
+  var el=document.getElementById('jobs-sync-message');
+  if(!el)return;
+  var text=String(message||''),pat=appState.config.pat;
+  el.textContent=pat?text.split(pat).join('[redacted]'):text;
+  el.className='mb-3 rounded-lg border px-3 py-2 text-xs font-medium '+(isError?'bg-red-50 text-red-700 border-red-200':'bg-teal-50 text-teal-700 border-teal-200');
+  var authError=document.getElementById('auth-error'),createPanel=document.getElementById('panel-create');
+  if(isError&&authError&&createPanel&&!createPanel.classList.contains('hidden')){authError.textContent=el.textContent;authError.classList.remove('hidden');}
+}
 function flagFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.flag:'🏳️';}
 function labelFor(code){var l=LANGS.find(function(x){return x.code===code;});return l?l.label:code;}
 
@@ -369,6 +379,7 @@ function init(){
   var saved=localStorage.getItem(LOCAL_CONFIG_KEY);
   if(saved){
     var c=JSON.parse(saved);
+    appState.config={...appState.config,...c};
     if(c.owner)document.getElementById('cfg-owner').value=c.owner;
     if(c.repo)document.getElementById('cfg-repo').value=c.repo;
     if(c.pat)document.getElementById('cfg-pat').value=c.pat;
@@ -453,6 +464,7 @@ async function fetchPhrasebooks(){
   var files=(await res.json()).filter(function(f){return f.name.endsWith('.json');});
   if(!files.length)throw new Error("No JSON phrasebooks found in /phrasebook.");
   appState.allFiles=files.map(function(f){return f.name;});
+  await syncJobsFromGH();
   advanceWizard(2);
   }catch(e){
     console.error('fetchPhrasebooks error:',e);
@@ -526,7 +538,7 @@ async function generateJob(){
   var existing=jobs.find(function(j){
     var ownerMatch=!j.owner||j.owner===appState.config.owner;
     var repoMatch=!j.repo||j.repo===appState.config.repo;
-    return ownerMatch&&repoMatch&&j.source===src&&j.target===target;
+    return !j.deletedAt&&ownerMatch&&repoMatch&&j.source===src&&j.target===target;
   });
 
   var jobId=existing?existing.jobId:'job-'+Date.now();
@@ -538,8 +550,9 @@ async function generateJob(){
   var linkStr=url.toString();
 
   if(existing){
-    existing.url=linkStr;existing.initials=initials;existing.lastUpdated=Date.now();
-    existing.langPair={...appState.langPair};
+    Object.assign(existing,{owner:appState.config.owner,repo:appState.config.repo,
+      source:src,target:target,url:linkStr,initials:initials,langPair:{...appState.langPair},
+      stats:existing.stats||{total:0,pending:0,good:0,flag:0,deleted:0},lastUpdated:Date.now()});
   }else{
     var newJob={jobId:jobId,owner:appState.config.owner,repo:appState.config.repo,
       initials:initials,source:src,target:target,langPair:{...appState.langPair},
@@ -560,7 +573,7 @@ function copyModalLink(){var el=document.getElementById('modal-link');el.select(
 function renderJobsDashboard(){
   // Second layer of defense — filter out any ghost/incomplete job records
   // before rendering, even if they somehow made it into local storage.
-  var jobs=getLocalJobs().filter(isValidJobRecord);
+  var jobs=getLocalJobs().filter(function(j){return isValidJobRecord(j)&&!j.deletedAt;});
   var container=document.getElementById('jobs-list');
   if(!jobs.length){
     container.innerHTML='';
@@ -618,8 +631,10 @@ function renderJobsDashboard(){
   if(window.lucide)lucide.createIcons();
 }
 function deleteJob(jobId){
-  if(!confirm("Delete this job? This only removes it from the dashboard, not the GitHub file."))return;
-  var jobs=getLocalJobs().filter(function(j){return j.jobId!==jobId;});
+  if(!confirm("Delete this job from all synchronized dashboards?"))return;
+  var jobs=getLocalJobs(),job=jobs.find(function(j){return j.jobId===jobId;});
+  if(!job)return;
+  job.deletedAt=Date.now();job.lastUpdated=job.deletedAt;
   localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(jobs));
   pushJobsToGitHub(jobs,appState.config.owner,appState.config.repo,appState.config.pat);
   renderJobsDashboard();
@@ -631,17 +646,29 @@ function openShareModal(jobId){
   document.getElementById('modal-qr').src='https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='+encodeURIComponent(job.url);
   document.getElementById('share-modal').classList.remove('hidden');
 }
-// A job record is only valid if it has a non-empty target filename, source
-// file, owner, and repo. Records failing this are ghost/incomplete jobs —
-// often produced during pump-priming before a phrasebook file actually
-// existed — and must never be merged into local storage or rendered.
 function isValidJobRecord(j){
   return !!(j && typeof j==='object'
     && j.jobId
     && j.target && String(j.target).trim() && String(j.target).trim()!=='undefined'
     && j.source && String(j.source).trim() && String(j.source).trim()!=='undefined'
     && j.owner && String(j.owner).trim()!=='undefined'
-    && j.repo && String(j.repo).trim()!=='undefined');
+    && j.repo && String(j.repo).trim()!=='undefined'
+    && j.url && j.langPair && j.langPair.source && j.langPair.target
+    && j.initials && j.stats && Number.isFinite(Number(j.lastUpdated)));
+}
+function recordTime(j){return Math.max(Number(j&&j.lastUpdated)||0,Number(j&&j.deletedAt)||0);}
+function mergeJobs(local,remote){
+  var byId={},rejected=[];
+  local.concat(remote).forEach(function(j){
+    if(!isValidJobRecord(j)){rejected.push(j&&j.jobId?j.jobId:'unknown record');return;}
+    if(!byId[j.jobId]||recordTime(j)>recordTime(byId[j.jobId])
+      ||(recordTime(j)===recordTime(byId[j.jobId])&&j.deletedAt&&!byId[j.jobId].deletedAt))byId[j.jobId]=j;
+  });
+  return {jobs:Object.values(byId),rejected:rejected};
+}
+async function githubError(res){
+  var message='';try{message=(await res.json()).message||'';}catch(_){}
+  return 'GitHub HTTP '+res.status+(message?' — '+message:'');
 }
 async function syncJobsFromGH(){
   var o=appState.config.owner,r=appState.config.repo,p=appState.config.pat;
@@ -651,34 +678,41 @@ async function syncJobsFromGH(){
     if(res.ok){
       var data=await res.json();
       var remote=JSON.parse(fromB64(data.content));
-      var local=getLocalJobs().filter(isValidJobRecord);
-      var byId={};local.forEach(function(j){byId[j.jobId]=j;});
-      var rejected=0;
-      remote.forEach(function(j){
-        if(!isValidJobRecord(j)){rejected++;return;}
-        if(!byId[j.jobId]||((j.lastUpdated||0)>(byId[j.jobId].lastUpdated||0)))byId[j.jobId]=j;
-      });
-      var merged=Object.values(byId);
-      localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(merged));
+      if(!Array.isArray(remote))throw new Error('The remote jobs file is not an array.');
+      var result=mergeJobs(getLocalJobs(),remote);
+      localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(result.jobs));
       renderJobsDashboard();
-      if(rejected>0){console.warn('Sync: rejected '+rejected+' malformed/incomplete job record(s) — not merged.');}
+      showSyncMessage(result.rejected.length?'Synchronized. Quarantined malformed assignment(s): '+result.rejected.join(', '):'Assignments synchronized.',result.rejected.length>0);
     }else{
-      pushJobsToGitHub(getLocalJobs().filter(isValidJobRecord),o,r,p);
-      alert("No jobs file on GitHub yet — pushed local jobs.");
+      throw new Error(await githubError(res));
     }
-  }catch(e){console.error(e);}
+  }catch(e){console.error('Assignment sync failed:',e);showSyncMessage('Assignment sync failed: '+((e&&e.message)||e),true);}
 }
 async function pushJobsToGitHub(jobsArray,owner,repo,pat){
-  if(!pat)return;
-  try{
-    var sha=null;
+  if(!pat){showSyncMessage('Assignment sync failed: missing credentials.',true);return false;}
+  for(var attempt=1;attempt<=3;attempt++){
+    try{
+    var sha=null,remote=[];
     var getRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{headers:{'Authorization':'token '+pat,'Accept':'application/vnd.github.v3+json'}});
-    if(getRes.ok)sha=(await getRes.json()).sha;
-    await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{
+    if(getRes.ok){var existing=await getRes.json();sha=existing.sha;remote=JSON.parse(fromB64(existing.content));if(!Array.isArray(remote))throw new Error('The remote jobs file is not an array.');}
+    else if(getRes.status!==404)throw new Error(await githubError(getRes));
+    var result=mergeJobs(jobsArray,remote);
+    localStorage.setItem(LOCAL_JOBS_KEY,JSON.stringify(result.jobs));
+    var body={message:'Update Job Tracking',content:toB64(JSON.stringify(result.jobs,null,2)),branch:'main'};
+    if(sha)body.sha=sha;
+    var putRes=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/curation-jobs.json',{
       method:'PUT',headers:{'Authorization':'token '+pat,'Content-Type':'application/json'},
-      body:JSON.stringify({message:'Update Job Tracking',content:toB64(JSON.stringify(jobsArray,null,2)),sha:sha,branch:'main'})
+      body:JSON.stringify(body)
     });
-  }catch(e){}
+    if(putRes.ok){showSyncMessage(result.rejected.length?'Saved; quarantined malformed assignment(s): '+result.rejected.join(', '):'Assignments saved to GitHub.',result.rejected.length>0);renderJobsDashboard();return true;}
+    if((putRes.status===409||putRes.status===422)&&attempt<3)continue;
+    throw new Error(await githubError(putRes));
+    }catch(e){
+      if(attempt<3&&/HTTP (409|422)/.test((e&&e.message)||''))continue;
+      console.error('Assignment save failed:',e);showSyncMessage('Assignment save failed: '+((e&&e.message)||e),true);return false;
+    }
+  }
+  return false;
 }
 async function updateJobStatsCentral(){
   if(!appState.jobId)return;
