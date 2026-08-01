@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.5)
-     Release 4 · 2026-08-01 · Clean-up (a): fresh-vs-existing-room defect family (stale DG socket
-       identity race — root cause), chat-mic leak on room exit, PB staleness check, transcript
-       history sync (backfills a newly-connected peer), storage-quota write failures now surfaced,
-       call-pill timestamps, no-answer call labeling, Auto-read defaults off.
+<!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.7)
+     Release 4 · 2026-08-01 · Clean-up (a): stale DG socket identity race (root cause), chat-mic
+       leak on room exit, PB staleness check, transcript history sync, storage-quota write
+       failures surfaced, call-pill timestamps + kind differentiation, no-answer call labeling,
+       Auto-read defaults off, proactive relay reconnect on tab-visibility-return, name-change
+       pill double-timestamp fix.
      Runtime foundation: THIS FILE ONLY. Donors quarried (inert helpers + look only):
        bridge-turn08-pre-base.html -> relay protocol, chat pipeline, translation, PB sync cycle, invite enc
        bridge-turn08-base.html     -> light theme tokens, keys modal storage contract (tb_dg_key/tb_cf_tid/tb_cf_tok/tb_gh_pat)
@@ -613,7 +614,7 @@ function lsSet(k,v){
     }
   }
 }
-var BUILD_INFO={release:'Release 4',builtAt:'2026-08-01T09:30:00Z'}; // must match the header comment — bump together, every release
+var BUILD_INFO={release:'Release 4',builtAt:'2026-08-01T14:15:00Z'}; // must match the header comment — bump together, every release
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=(crypto.randomUUID?crypto.randomUUID():uid());localStorage.setItem('tb_dev',id);return id})();
 
 var LANGS={
@@ -1603,8 +1604,7 @@ function commitRoomName(){
   var old=r.myName||S.user.name;
   if(!v||v===old)return;
   r.myName=v;saveRooms();
-  var now=Date.now(),stamp='['+fmtDate(now)+' '+fmtTime(now)+'] ';
-  var text=stamp+old+' is now '+v;
+  var text=old+' is now '+v;
   var pillId='sp-'+uid();
   addSysPill(text,pillId);
   relaySend({type:'sys-pill',text:text,pillId:pillId,newName:v});
@@ -2301,6 +2301,10 @@ function wire(){
     if(!document.hidden&&S.view==='room'){
       var r=activeRoom();if(r&&r.unread){r.unread=0;saveRooms();renderPanel()}
       sendReadReceipts();
+      if(!_relayWs||_relayWs.readyState!==1){ // don't wait for a possibly browser-suspended close event to eventually arrive
+        clearTimeout(wsReconnectTimer);wsReconnectTimer=null;
+        relayConnect();
+      }
     }
   });
   window.addEventListener('beforeunload',function(){if(PB.pk&&PB.isDirty())pbWriteBack()});
@@ -2518,7 +2522,7 @@ var CALL={
     $('rz-timer').textContent='Connecting…';
     var self=this;
     this.callerTimer=setTimeout(function(){
-      if(self.active&&!self.pc){addSysPill('Missed call');relaySend({type:'call-end',reason:'missed'});self.teardown()}
+      if(self.active&&!self.pc){addSysPill('Missed '+(self.kind==='video'?'video':'voice')+' call');relaySend({type:'call-end',reason:'missed'});self.teardown()}
     },30000);
     log('call_start',{kind:kind},'ok');
   },
@@ -2533,7 +2537,7 @@ var CALL={
     RING.start();
     osNotify(this.ringPending.name+' · TalkBridge','Incoming call…',room.id);
     var self=this;
-    this.ringTimer=setTimeout(function(){self.stopRing();bgAddPill(self.ringPending?self.ringPending.roomId:room.id,'Missed call');self.ringPending=null;renderIfActive(room.id)},30000);
+    this.ringTimer=setTimeout(function(){self.stopRing();bgAddPill(self.ringPending?self.ringPending.roomId:room.id,'Missed '+((self.ringPending&&self.ringPending.kind==='video')?'video':'voice')+' call');self.ringPending=null;renderIfActive(room.id)},30000);
     log('call_ring',{room:room.id},'ok');
   },
   stopRing:function(){RING.stop();$('ring-overlay').classList.remove('show');clearTimeout(this.ringTimer);this.ringTimer=null},
@@ -2559,7 +2563,7 @@ var CALL={
     this.stopRing();this.ringPending=null;
     var m={type:'call-decline'};
     if(S.roomId===p.roomId)relaySend(m);else LISTEN.send(p.roomId,m);
-    bgAddPill(p.roomId,'Call declined');renderIfActive(p.roomId);
+    bgAddPill(p.roomId,(p.kind==='video'?'Video':'Voice')+' call declined');renderIfActive(p.roomId);
   },
   onAccepted:function(room){
     clearTimeout(this.callerTimer);this.callerTimer=null;
@@ -2569,10 +2573,10 @@ var CALL={
   },
   onDeclined:function(room){
     if(!this.active)return;
-    clearTimeout(this.callerTimer);addSysPill('Call declined');this.teardown();
+    clearTimeout(this.callerTimer);addSysPill((this.kind==='video'?'Video':'Voice')+' call declined');this.teardown();
   },
   onRemoteEnd:function(room,d){
-    if(this.ringPending&&this.ringPending.roomId===room.id){this.stopRing();this.ringPending=null;bgAddPill(room.id,'Missed call');renderIfActive(room.id);return}
+    if(this.ringPending&&this.ringPending.roomId===room.id){this.stopRing();bgAddPill(room.id,'Missed '+(this.ringPending.kind==='video'?'video':'voice')+' call');this.ringPending=null;renderIfActive(room.id);return}
     if(!this.active)return;
     this.endPill();this.teardown();
   },
@@ -2735,9 +2739,10 @@ var CALL={
     if(!this.pushed){try{history.pushState({tbCall:1},'',location.href)}catch(_){}this.pushed=true}
   },
   endPill:function(){
-    if(this.caller&&!this.accepted){addSysPill('Call canceled — no answer');return}
+    var kindLabel=this.kind==='video'?'Video call':'Voice call';
+    if(this.caller&&!this.accepted){addSysPill(kindLabel+' canceled — no answer');return}
     var s=Math.floor((Date.now()-this.startTs)/1000);
-    addSysPill('Call ended · '+(s>=60?Math.floor(s/60)+' min':s+' sec'));
+    addSysPill(kindLabel+' ended · '+(s>=60?Math.floor(s/60)+' min':s+' sec'));
   },
   hangUp:function(send){
     if(!this.active)return;
@@ -3142,7 +3147,7 @@ var LISTEN={
     }
     if(d.type==='call-start'){CALL.onIncoming(room,d);return}
     if(d.type==='call-end'){
-      if(CALL.ringPending&&CALL.ringPending.roomId===roomId){CALL.stopRing();CALL.ringPending=null;bgAddPill(roomId,'Missed call');room.unread=(room.unread||0)+1;saveRooms();renderPanel();if(!room.muted)osNotify((d.name||room.partnerName||'TalkBridge'),'Missed call',roomId)}
+      if(CALL.ringPending&&CALL.ringPending.roomId===roomId){var mk=CALL.ringPending.kind==='video'?'video':'voice';CALL.stopRing();CALL.ringPending=null;bgAddPill(roomId,'Missed '+mk+' call');room.unread=(room.unread||0)+1;saveRooms();renderPanel();if(!room.muted)osNotify((d.name||room.partnerName||'TalkBridge'),'Missed '+mk+' call',roomId)}
       return;
     }
   }
