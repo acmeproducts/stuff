@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.9)
-     Release 6 · 2026-08-01 · Room card component (OI-1): shared 5-column/2-row grid, tap-to-reveal
-       truncation, real flags, mixed-mode elapsed time; three-way missed-activity tracking (chat/
-       call/video counted separately); room creation gets a name field; tapping the partner's name
-       in the ribbon shows a popup with the room/thread name. Input is bridge-turn09-post-ship.html
-       (Release 5's real output) — old Release 6 (cosmetic icon rebuild) deferred to backlog.
+     Release 6 · 2026-08-01 · Room card component (OI-1), refined: room name/participant rows and
+       the activity-icon row now share ONE grid (not two independent ones) so the dot and the
+       phone icon are structurally, not coincidentally, aligned; symmetric fixed outer columns
+       reserve room for the delete X without shifting center; popover redesigned as a white
+       bordered chat-bubble anchored above the tapped field with a tail pointing at it, auto-
+       dismisses after ~1.6s, and only activates when text is genuinely truncated.
      Runtime foundation: THIS FILE ONLY. Donors quarried (inert helpers + look only):
        bridge-turn08-pre-base.html -> relay protocol, chat pipeline, translation, PB sync cycle, invite enc
        bridge-turn08-base.html     -> light theme tokens, keys modal storage contract (tb_dg_key/tb_cf_tid/tb_cf_tok/tb_gh_pat)
@@ -71,22 +72,22 @@ button{font-family:inherit}
 .left-body{flex:1;overflow-y:auto;padding:8px 12px 90px;position:relative}
 .room-card{display:block;background:#fff;border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;cursor:pointer;user-select:none;position:relative}
 .room-card:active{border-color:var(--teal-mid)}
-.rc-row1{display:grid;grid-template-columns:1fr auto auto auto 1fr;align-items:baseline;gap:4px;font-size:15px;color:var(--ink);line-height:1.3;padding-right:44px}
-.rc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;cursor:pointer}
-.rc-dot{color:var(--ink-dim)}
-.rc-people{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.rc-grid{display:grid;grid-template-columns:26px 1fr auto auto auto 1fr 26px;grid-template-rows:auto auto;row-gap:7px;align-items:center}
+.rc-name{grid-row:1;grid-column:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:15px;color:var(--ink);align-self:baseline}
+.rc-dot{grid-row:1;grid-column:4;color:var(--ink-dim);text-align:center;align-self:baseline}
+.rc-people{grid-row:1;grid-column:6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;color:var(--ink);align-self:baseline}
 .rc-people .rc-slash{color:var(--ink-dim)}
-.rc-row2{display:grid;grid-template-columns:1fr auto auto auto 1fr;align-items:center;margin-top:7px;font-size:12px;color:var(--ink-mid)}
-.rc-time{text-align:left;white-space:nowrap}
-.rc-acts{display:flex;justify-content:center;gap:10px}
+.rc-time{grid-row:2;grid-column:2;text-align:left;white-space:nowrap;font-size:12px;color:var(--ink-mid)}
+.rc-acts{grid-row:2;grid-column:3 / span 3;display:flex;justify-content:center;gap:10px}
 .rc-act{display:flex;align-items:center;gap:3px;color:var(--ink-mid);line-height:0}
 .rc-act.zero{color:var(--border)}
 .rc-act-badge{background:var(--teal);color:#fff;border-radius:7px;padding:0 5px;font-size:10px;font-weight:700;line-height:1.5}
-.rc-flags{text-align:right;font-size:13px;white-space:nowrap}
-.rc-x{position:absolute;top:9px;right:8px;background:none;border:none;color:var(--ink-dim);cursor:pointer;padding:4px;line-height:0;border-radius:6px;z-index:2}
-.rc-pop{display:none;position:absolute;left:12px;right:12px;top:100%;margin-top:4px;background:#2c2c2c;color:#fff;font-size:12.5px;line-height:1.4;border-radius:8px;padding:7px 10px;z-index:6}
+.rc-flags{grid-row:2;grid-column:6;text-align:right;font-size:13px;white-space:nowrap;color:var(--ink-mid)}
+.rc-x{grid-row:1;grid-column:7;justify-self:end;background:none;border:none;color:var(--ink-dim);cursor:pointer;padding:4px;line-height:0;border-radius:6px}
+.rc-bell{grid-row:1;grid-column:1;color:var(--ink-dim);line-height:0}
+.rc-pop{display:none;position:absolute;bottom:100%;margin-bottom:9px;background:#fff;border:1px solid var(--border);color:var(--ink);font-size:12.5px;line-height:1.4;border-radius:10px;padding:7px 11px;z-index:8;box-shadow:0 4px 16px rgba(0,0,0,.14);white-space:nowrap;max-width:min(80vw,320px);overflow:hidden;text-overflow:ellipsis}
 .rc-pop.show{display:block}
-.rc-bell{position:absolute;top:11px;right:34px;color:var(--ink-dim);line-height:0}
+.rc-pop::after{content:'';position:absolute;top:100%;left:var(--tail-left,18px);width:9px;height:9px;background:#fff;border-right:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg) translateY(-5px)}
 .rc-title{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rhn-pop{display:none;position:absolute;top:100%;left:38px;margin-top:4px;background:#2c2c2c;color:#fff;font-size:12.5px;line-height:1.4;border-radius:8px;padding:6px 10px;z-index:20;white-space:nowrap;max-width:70%;overflow:hidden;text-overflow:ellipsis}
 .rhn-pop.show{display:block}
@@ -636,7 +637,7 @@ function lsSet(k,v){
     }
   }
 }
-var BUILD_INFO={release:'Release 6',builtAt:'2026-08-01T18:30:00Z'}; // must match the header comment — bump together, every release
+var BUILD_INFO={release:'Release 6',builtAt:'2026-08-01T20:45:00Z'}; // must match the header comment — bump together, every release
 var deviceId=localStorage.getItem('tb_dev')||(function(){var id=(crypto.randomUUID?crypto.randomUUID():uid());localStorage.setItem('tb_dev',id);return id})();
 
 var LANGS={
@@ -1322,20 +1323,18 @@ function renderPanel(){
     var nm=roomTitle(r),me=r.myName||S.user.name||'Me',pn=r.partnerName||'?';
     var cChat=r.unreadChat||0,cCall=r.unreadCall||0,cVideo=r.unreadVideo||0;
     h+='<div class="room-card" data-room="'+r.id+'">'
-      +bell
-      +'<button class="rc-x" data-del="'+r.id+'" aria-label="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
-      +'<div class="rc-row1">'
+      +'<div class="rc-grid">'
+        +bell
         +'<div class="rc-name" data-full="'+esc(nm)+'">'+esc(nm)+'</div>'
-        +'<div class="rc-dot">&middot;</div><div></div><div></div>'
+        +'<div class="rc-dot">&middot;</div>'
         +'<div class="rc-people" data-full="'+esc(me)+'/'+esc(pn)+'">'+esc(me)+'<span class="rc-slash">/</span>'+esc(pn)+'</div>'
-      +'</div>'
-      +'<div class="rc-row2">'
-        +'<div class="rc-time">'+fmtAgo(r.lastAt||r.createdAt)+'</div><div></div>'
+        +'<button class="rc-x" data-del="'+r.id+'" aria-label="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+        +'<div class="rc-time">'+fmtAgo(r.lastAt||r.createdAt)+'</div>'
         +'<div class="rc-acts">'
           +'<span class="rc-act'+(cChat?'':' zero')+'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'+(cChat?'<span class="rc-act-badge">'+cChat+'</span>':'')+'</span>'
           +'<span class="rc-act'+(cCall?'':' zero')+'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'+(cCall?'<span class="rc-act-badge">'+cCall+'</span>':'')+'</span>'
           +'<span class="rc-act'+(cVideo?'':' zero')+'"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l7-4v12l-7-4z"/></svg>'+(cVideo?'<span class="rc-act-badge">'+cVideo+'</span>':'')+'</span>'
-        +'</div><div></div>'
+        +'</div>'
         +'<div class="rc-flags">'+gL(r.myLang).flag+'<span class="rc-slash">/</span>'+gL(r.theirLang).flag+'</div>'
       +'</div>'
       +'<div class="rc-pop"></div>'
@@ -1357,10 +1356,17 @@ function renderPanel(){
     el.addEventListener('click',function(ev){
       if(ev.target.closest('.rc-x'))return;
       var tap=ev.target.closest('.rc-name,.rc-people');
-      if(tap){
+      if(tap&&tap.scrollWidth>tap.clientWidth+1){ // only tappable when genuinely truncated — no work for the user otherwise
         var pop=el.querySelector('.rc-pop');
-        if(pop.classList.contains('show')&&pop.textContent===tap.dataset.full){pop.classList.remove('show');return}
-        pop.textContent=tap.dataset.full;pop.classList.add('show');
+        clearTimeout(pop._t);
+        pop.textContent=tap.dataset.full;
+        var tapRect=tap.getBoundingClientRect(),cardRect=el.getBoundingClientRect();
+        var popLeft=Math.max(0,Math.min(cardRect.width-160,(tapRect.left-cardRect.left)));
+        var tailLeft=Math.max(14,Math.min(cardRect.width-popLeft-24,(tapRect.left-cardRect.left)-popLeft+14));
+        pop.style.left=popLeft+'px';pop.style.right='auto';
+        pop.style.setProperty('--tail-left',tailLeft+'px');
+        pop.classList.add('show');
+        pop._t=setTimeout(function(){pop.classList.remove('show')},1600);
         return;
       }
       closePanel();enterRoom(el.dataset.room);
