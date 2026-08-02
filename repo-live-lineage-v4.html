@@ -149,6 +149,13 @@
 
     .field { display: grid; gap: 5px; }
     .field.inline { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field-help { margin: 0; color: var(--muted); font-size: .76rem; line-height: 1.35; }
+    .search-help { margin-top: 2px; }
+    .search-help summary { padding: 9px 11px; font-size: .78rem; }
+    .search-help .setup-content { font-size: .79rem; color: var(--muted); }
+    .search-help dl { margin: 0; display: grid; gap: 8px; }
+    .search-help dt { color: var(--text); font-weight: 800; }
+    .search-help dd { margin: 1px 0 0; }
     label { color: var(--muted); text-transform: uppercase; letter-spacing: .07em; font-size: .72rem; font-weight: 800; }
     input, select, textarea {
       width: 100%;
@@ -424,6 +431,16 @@
       .compare-cell { border-right: 0; border-bottom: 1px solid var(--border); }
     }
 
+    @media (max-width: 980px) and (orientation: landscape) {
+      html, body, .app, .main { height: 100dvh; min-height: 0; overflow: hidden; }
+      .workspace { flex: 1; min-height: 0; overflow: hidden; }
+      #comparePanel { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+      #comparePanel .compare-grid { flex: 0 0 auto; min-height: calc(100dvh - 150px); grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: visible; }
+      #comparePanel .compare-cell { min-height: calc(100dvh - 150px); border-right: 1px solid var(--border); border-bottom: 0; }
+      #comparePanel .compare-cell:last-child { border-right: 0; }
+      #comparePanel .compare-frame { min-height: 55vh; }
+    }
+
     @media (max-width: 600px) {
       .field.inline { grid-template-columns: 1fr; }
       .brand-row[style], .topbar .brand-row { padding-left: 0 !important; }
@@ -469,13 +486,29 @@
                 <input id="branchInput" type="text" value="main" placeholder="main" autocomplete="off" />
               </div>
               <div class="field">
-                <label for="patternInput">Wildcard</label>
-                <input id="patternInput" type="text" value="bridge*" placeholder="bridge*" autocomplete="off" />
+                <label for="patternInput">File patterns</label>
+                <input id="patternInput" type="text" value="bridge*" placeholder="*.html, *.md" autocomplete="off" />
+                <p class="field-help">Comma-separated wildcards are combined with OR.</p>
                 <details id="searchHistoryDetails" class="setup-details" style="margin-top:8px;">
                   <summary>Prior searches</summary>
                   <div id="searchHistoryList" class="setup-content"></div>
                 </details>
               </div>
+            </div>
+
+            <div class="field inline">
+              <div class="field">
+                <label for="dateFromInput">From date</label>
+                <input id="dateFromInput" type="date" />
+              </div>
+              <div class="field">
+                <label for="dateToInput">Through date</label>
+                <input id="dateToInput" type="date" />
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="july2026PresetBtn" class="btn small" type="button">July 2026 · HTML + Markdown</button>
             </div>
 
             <div class="field">
@@ -487,15 +520,31 @@
               <div class="field">
                 <label for="maxPagesInput">Commit pages</label>
                 <input id="maxPagesInput" type="text" value="0" title="0 means scan until GitHub returns no more pages" />
+                <p class="field-help">0 scans every available page; otherwise this caps pages per file.</p>
               </div>
               <div class="field">
                 <label for="concurrencyInput">Concurrency</label>
                 <input id="concurrencyInput" type="text" value="6" />
+                <p class="field-help">Simultaneous GitHub commit-detail requests (1–12), not search threads.</p>
               </div>
             </div>
 
+            <details class="setup-details search-help">
+              <summary>What do these search fields mean?</summary>
+              <div class="setup-content">
+                <dl>
+                  <div><dt>Branch</dt><dd>The Git branch whose commit history is scanned.</dd></div>
+                  <div><dt>File patterns</dt><dd>Matches full paths or file names. Use <code>*</code> for any text and <code>?</code> for one character; separate alternatives with commas.</dd></div>
+                  <div><dt>From / through date</dt><dd>Limits commits by UTC calendar date. Blank means no limit.</dd></div>
+                  <div><dt>Commit pages</dt><dd>GitHub returns up to 100 commits per page. 0 continues until no pages remain.</dd></div>
+                  <div><dt>Concurrency</dt><dd>The number of commit-detail API requests allowed at once. A higher value can scan faster but uses the GitHub API rate limit more quickly.</dd></div>
+                  <div><dt>Omni search</dt><dd>Filters the timeline already loaded below; it does not make another GitHub request.</dd></div>
+                </dl>
+              </div>
+            </details>
+
             <div class="button-row">
-              <button id="scanBtn" class="btn primary" type="button">Build wildcard timeline</button>
+              <button id="scanBtn" class="btn primary" type="button">Build timeline</button>
               <button id="cancelScanBtn" class="btn danger" type="button" disabled>Cancel</button>
               <button id="saveDefaultsBtn" class="btn" type="button">Save defaults</button>
             </div>
@@ -648,6 +697,8 @@
       branch: '',
       defaultBranch: '',
       pattern: 'bridge*',
+      dateFrom: '',
+      dateTo: '',
       allVariants: [],
       shownVariants: [],
       selectedId: '',
@@ -661,6 +712,7 @@
     const els = {
       appShell: $('appShell'), sidebar: $('sidebar'), sidebarToggleBtn: $('sidebarToggleBtn'), setupDetails: $('setupDetails'), toggleRailBtn: $('toggleRailBtn'),
       ownerInput: $('ownerInput'), repoInput: $('repoInput'), branchInput: $('branchInput'), patternInput: $('patternInput'), tokenInput: $('tokenInput'),
+      dateFromInput: $('dateFromInput'), dateToInput: $('dateToInput'), july2026PresetBtn: $('july2026PresetBtn'),
       maxPagesInput: $('maxPagesInput'), concurrencyInput: $('concurrencyInput'), scanBtn: $('scanBtn'), cancelScanBtn: $('cancelScanBtn'), saveDefaultsBtn: $('saveDefaultsBtn'),
       scanStatus: $('scanStatus'), omniInput: $('omniInput'), timeline: $('timeline'), statVariants: $('statVariants'), statFiles: $('statFiles'), statCommits: $('statCommits'),
       searchHistoryDetails: $('searchHistoryDetails'), searchHistoryList: $('searchHistoryList'),
@@ -706,20 +758,25 @@
       return btoa(binary);
     }
 
-    function wildcardToRegExp(pattern) {
-      const raw = String(pattern || '*').trim() || '*';
-      const escaped = raw.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
-      return new RegExp('^' + escaped + '$', 'i');
+    function parsePatterns(patterns) {
+      return String(patterns || '*').split(',').map((pattern) => pattern.trim()).filter(Boolean);
+    }
+
+    function wildcardToRegExps(patterns) {
+      return parsePatterns(patterns).map((pattern) => {
+        const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+        return new RegExp('^' + escaped + '$', 'i');
+      });
     }
 
     function basename(path) {
       return String(path || '').split('/').pop() || '';
     }
 
-    function matchesPattern(file, patternRegex) {
+    function matchesPattern(file, patternRegexes) {
       const full = String(file || '');
       const base = basename(full);
-      return patternRegex.test(full) || patternRegex.test(base);
+      return patternRegexes.some((patternRegex) => patternRegex.test(full) || patternRegex.test(base));
     }
 
     function formatDate(value) {
@@ -794,6 +851,8 @@
         repo: els.repoInput.value.trim() || 'stuff',
         branch: els.branchInput.value.trim() || 'main',
         pattern: els.patternInput.value.trim() || 'bridge*',
+        dateFrom: els.dateFromInput.value,
+        dateTo: els.dateToInput.value,
         maxPages: els.maxPagesInput.value.trim() || '0',
         concurrency: els.concurrencyInput.value.trim() || '6'
       };
@@ -815,6 +874,8 @@
         els.repoInput.value = s.repo || 'stuff';
         els.branchInput.value = s.branch || 'main';
         els.patternInput.value = s.pattern || 'bridge*';
+        els.dateFromInput.value = s.dateFrom || '';
+        els.dateToInput.value = s.dateTo || '';
         els.maxPagesInput.value = s.maxPages || '0';
         els.concurrencyInput.value = s.concurrency || '6';
         const token = readSharedToken();
@@ -834,6 +895,8 @@
       if (params.has('repo')) els.repoInput.value = params.get('repo') || 'stuff';
       if (params.has('branch')) els.branchInput.value = params.get('branch') || 'main';
       if (params.has('pattern')) els.patternInput.value = params.get('pattern') || 'bridge*';
+      if (params.has('from')) els.dateFromInput.value = params.get('from') || '';
+      if (params.has('to')) els.dateToInput.value = params.get('to') || '';
       if (params.has('token')) els.tokenInput.value = params.get('token') || '';
       setStatus(els.scanStatus, '', 'info');
     }
@@ -875,11 +938,21 @@
     }
 
     function normalizePattern(input) {
-      let value = String(input || '').trim().toLowerCase();
-      if (!value) value = 'bridge*';
-      if (!value.includes('.')) value += '.html';
-      if (!value.includes('*')) value = `*${value}*`;
-      return value;
+      const values = parsePatterns(input || 'bridge*').map((pattern) => {
+        let value = pattern.toLowerCase();
+        if (!value.includes('.')) value += '.html';
+        if (!value.includes('*') && !value.includes('?')) value = `*${value}*`;
+        return value;
+      });
+      return values.join(', ');
+    }
+
+    function variantIsInDateRange(variant) {
+      const stamp = Date.parse(variant.date || '');
+      if (!Number.isFinite(stamp)) return !state.dateFrom && !state.dateTo;
+      const from = state.dateFrom ? Date.parse(`${state.dateFrom}T00:00:00.000Z`) : -Infinity;
+      const through = state.dateTo ? Date.parse(`${state.dateTo}T23:59:59.999Z`) : Infinity;
+      return stamp >= from && stamp <= through;
     }
 
     function readSearchHistory() {
@@ -930,6 +1003,9 @@
     }
 
     async function tryHydrateFromRepoLineage() {
+      // Bounded historical searches must not inherit an unrelated cache's newest
+      // date, which would move GitHub's `since` cursor past the requested range.
+      if (state.dateFrom || state.dateTo) return null;
       const loaded = await readRepoJson(REPO_SCAN_LINEAGE_KEY, state.branch);
       if (!loaded || !loaded.json) return null;
       const payload = loaded.json;
@@ -960,6 +1036,12 @@
       state.repo = els.repoInput.value.trim() || 'stuff';
       state.branch = els.branchInput.value.trim() || 'main';
       state.pattern = normalizePattern(els.patternInput.value.trim() || 'bridge*');
+      state.dateFrom = els.dateFromInput.value;
+      state.dateTo = els.dateToInput.value;
+      if (state.dateFrom && state.dateTo && state.dateFrom > state.dateTo) {
+        setStatus(els.scanStatus, 'From date must be on or before the through date.', 'error');
+        return;
+      }
       els.patternInput.value = state.pattern;
       els.ownerInput.value = state.owner;
       els.repoInput.value = state.repo;
@@ -991,10 +1073,10 @@
         const maxPages = Number.isFinite(maxPagesRaw) && maxPagesRaw > 0 ? maxPagesRaw : Infinity;
         const concurrencyRaw = parseInt(els.concurrencyInput.value, 10);
         const concurrency = Math.max(1, Math.min(Number.isFinite(concurrencyRaw) ? concurrencyRaw : 6, 12));
-        const patternRegex = wildcardToRegExp(state.pattern);
+        const patternRegexes = wildcardToRegExps(state.pattern);
         const commitSummaries = [];
         const since = hydrateState?.latestDateIso || null;
-        const scopedPaths = await resolveScopedPaths(state.pattern, patternRegex);
+        const scopedPaths = await resolveScopedPaths(state.pattern, patternRegexes);
 
         if (scopedPaths.length) {
           setStatus(els.scanStatus, `Found ${scopedPaths.length} matching files. Loading commit history…`, 'info', true);
@@ -1005,6 +1087,8 @@
               setStatus(els.scanStatus, `Loading commits for ${path} (${pathIndex + 1}/${scopedPaths.length}) page ${page}…`, 'info', true);
               const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch, path });
               if (since) query.set('since', since);
+              else if (state.dateFrom) query.set('since', `${state.dateFrom}T00:00:00.000Z`);
+              if (state.dateTo) query.set('until', `${state.dateTo}T23:59:59.999Z`);
               const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
               if (!Array.isArray(pageData) || pageData.length === 0) break;
               commitSummaries.push(...pageData);
@@ -1018,6 +1102,8 @@
             setStatus(els.scanStatus, `Loading commit page ${page}…`, 'info', true);
             const query = new URLSearchParams({ per_page: '100', page: String(page), sha: state.branch });
             if (since) query.set('since', since);
+            else if (state.dateFrom) query.set('since', `${state.dateFrom}T00:00:00.000Z`);
+            if (state.dateTo) query.set('until', `${state.dateTo}T23:59:59.999Z`);
             const pageData = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/commits?${query.toString()}`);
             if (!Array.isArray(pageData) || pageData.length === 0) break;
             commitSummaries.push(...pageData);
@@ -1046,10 +1132,13 @@
           for (const file of files) {
             const fileName = file.filename || '';
             const previous = file.previous_filename || '';
-            const matchedCurrent = matchesPattern(fileName, patternRegex);
-            const matchedPrevious = previous && matchesPattern(previous, patternRegex);
+            const matchedCurrent = matchesPattern(fileName, patternRegexes);
+            const matchedPrevious = previous && matchesPattern(previous, patternRegexes);
             if (!matchedCurrent && !matchedPrevious) continue;
             const date = detail.commit?.committer?.date || detail.commit?.author?.date || summary.commit?.committer?.date || summary.commit?.author?.date || '';
+            const dateStamp = Date.parse(date);
+            if (state.dateFrom && dateStamp < Date.parse(`${state.dateFrom}T00:00:00.000Z`)) continue;
+            if (state.dateTo && dateStamp > Date.parse(`${state.dateTo}T23:59:59.999Z`)) continue;
             const pathForContent = fileName || previous;
             const id = detail.sha + ':' + pathForContent;
             variants.push({
@@ -1126,21 +1215,21 @@
     }
 
 
-    async function resolveScopedPaths(pattern, patternRegex) {
+    async function resolveScopedPaths(pattern, patternRegexes) {
       const scoped = isRootHtmlWildcard(pattern);
       if (!scoped) return [];
       const tree = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/git/trees/${encodeURIComponent(state.branch)}?recursive=1`);
       const nodes = Array.isArray(tree.tree) ? tree.tree : [];
       return nodes
-        .filter((node) => node && node.type === 'blob' && typeof node.path === 'string' && !node.path.includes('/'))
+        .filter((node) => node && node.type === 'blob' && typeof node.path === 'string')
         .map((node) => node.path)
-        .filter((filePath) => matchesPattern(filePath, patternRegex));
+        .filter((filePath) => matchesPattern(filePath, patternRegexes));
     }
 
     function isRootHtmlWildcard(pattern) {
       const value = (pattern || '').trim().toLowerCase();
-      if (!value || value.includes('/')) return false;
-      return value.endsWith('*.html') || value === '*.html';
+      if (!value) return false;
+      return parsePatterns(value).every((item) => item.endsWith('*.html') || item.endsWith('*.md'));
     }
     async function runPool(items, limit, worker) {
       let index = 0;
@@ -1155,7 +1244,7 @@
 
     function applyOmniFilter() {
       const q = els.omniInput.value.trim().toLowerCase();
-      state.shownVariants = q ? state.allVariants.filter(v => variantSearchText(v).includes(q)) : state.allVariants.slice();
+      state.shownVariants = state.allVariants.filter((v) => variantIsInDateRange(v) && (!q || variantSearchText(v).includes(q)));
       renderTimeline();
       updateStats();
       fillCompareSelectors();
@@ -1506,6 +1595,8 @@
         branch: els.branchInput.value.trim() || 'main',
         pattern: els.patternInput.value.trim() || 'bridge*'
       });
+      if (els.dateFromInput.value) params.set('from', els.dateFromInput.value);
+      if (els.dateToInput.value) params.set('to', els.dateToInput.value);
       const url = `${location.origin}${location.pathname}?${params.toString()}`;
       await navigator.clipboard.writeText(url);
       setStatus(els.scanStatus, 'View link copied. Token is not included.', 'success');
@@ -1518,6 +1609,8 @@
           repo: state.repo,
           branch: state.branch,
           pattern: state.pattern,
+          dateFrom: state.dateFrom,
+          dateTo: state.dateTo,
           defaultBranch: state.defaultBranch,
           savedAt: new Date().toISOString(),
           variants: state.allVariants
@@ -1538,10 +1631,14 @@
         state.branch = saved.branch || els.branchInput.value.trim();
         state.defaultBranch = saved.defaultBranch || state.branch || 'main';
         state.pattern = saved.pattern || els.patternInput.value.trim() || 'bridge*';
+        state.dateFrom = els.dateFromInput.value || saved.dateFrom || '';
+        state.dateTo = els.dateToInput.value || saved.dateTo || '';
         if (!els.ownerInput.value && state.owner) els.ownerInput.value = state.owner;
         if (!els.repoInput.value && state.repo) els.repoInput.value = state.repo;
         if (!els.branchInput.value && state.branch) els.branchInput.value = state.branch;
         if (!els.patternInput.value && state.pattern) els.patternInput.value = state.pattern;
+        if (!els.dateFromInput.value && state.dateFrom) els.dateFromInput.value = state.dateFrom;
+        if (!els.dateToInput.value && state.dateTo) els.dateToInput.value = state.dateTo;
         state.allVariants = saved.variants.slice().sort((a, b) => {
           const byDate = new Date(b.date || 0) - new Date(a.date || 0);
           if (byDate) return byDate;
@@ -1578,6 +1675,12 @@
       els.scanBtn.addEventListener('click', buildWildcardTimeline);
       els.cancelScanBtn.addEventListener('click', () => { state.cancelScan = true; setStatus(els.scanStatus, 'Canceling after current requests finish…', 'warn', true); });
       els.saveDefaultsBtn.addEventListener('click', saveSettings);
+      els.july2026PresetBtn.addEventListener('click', () => {
+        els.patternInput.value = '*.html, *.md';
+        els.dateFromInput.value = '2026-07-01';
+        els.dateToInput.value = '2026-07-31';
+        setStatus(els.scanStatus, 'July 2026 HTML + Markdown search is ready. Select Build timeline to run it.', 'success');
+      });
       els.omniInput.addEventListener('input', applyOmniFilter);
       els.exportJsonBtn.addEventListener('click', exportJson);
       els.exportCsvBtn.addEventListener('click', exportCsv);
