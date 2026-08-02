@@ -35,8 +35,10 @@ These outrank every individual requirement. A build that satisfies a requirement
 - Nothing waiting: "You have 8 active rooms, there are no waiting messages."
 - Things waiting: "Of 8 active rooms there are 6 waiting messages, 2 chats and 4 video calls."
 - Counts equal the sum of the badges on the cards below.
-- A room name on a card is tappable and opens that room directly; doing so dismisses that card from the home screen.
-- A card can be dismissed without opening it.
+- The home screen shows cards only for rooms with waiting activity. With no waiting activity it shows no room cards.
+- Home cards reuse the exact three-row, two-column component in §4; the panel remains the persistent list of all rooms.
+- Tapping a home card opens that room and persistently dismisses only its home-summary card. A home card can also be persistently dismissed without opening it.
+- Dismissal never clears the room's underlying badges or removes the room from the panel. A later, genuinely new waiting-activity episode may create a new home-summary card for that room.
 
 ---
 
@@ -97,7 +99,6 @@ Three rows, two columns, left column left-justified, right column right-justifie
 - Elapsed time is mixed-mode: minutes, then hours, then days.
 - Flags read own-language-first from each viewer's perspective.
 - The three activity counts are tracked and displayed separately — a missed chat, a missed voice call and a missed video call are three different things.
-- Cards also carry Share and Diagnostics icons.
 - Delete is a soft delete and is recoverable.
 
 ---
@@ -138,7 +139,7 @@ Three rows, two columns, left column left-justified, right column right-justifie
 
 ## 7. Appearance
 
-Per side, independently, for own messages and partner messages: preset (Light / Medium / Dark) · tone within the preset · bubble color · font color · font size 10–32 · column width. Plus a room-wide header text size and colour applying to both sides' header rows. Plus **Reset appearance**. All of it survives a cold reload.
+Per side, independently, for own messages and partner messages: preset (Light / Medium / Dark) · tone within the preset · bubble color · font color · font size 10–32 · column width. Plus a room-wide header text size and colour applying to both sides' header rows. There is no Reset appearance control: a person returns to a known look by choosing a preset and adjusts font size for their own eyesight. All of it survives a cold reload.
 
 ---
 
@@ -208,9 +209,13 @@ Shared between both people in a language pair. Loads on room entry, and re-fetch
 
 **Overlay:** pair label · new card · save now · sync indicator · search supporting `-term` exclusion · category chips with counts · trash section, restorable · footer showing count and last sync.
 
-**Search from compose:** "/" or ".." filters live, newest first, capped at 40 results, with a "No matching phrases." empty state.
+**Search from compose:** "/" or ".." filters live with turn09 ship's exact scoring and ordering, capped at 30 inline results, with a "No matching phrases" empty state. With an empty query it orders by usage and then creation time; with a query it uses the turn09 relevance score. The full phrasebook surface retains its own turn09 behavior.
 
 **Saving.** A change is saved locally and it is done — indicator green, no pending state (P3). Writing to the central store is a separate step that happens on call end, on closing with unsaved changes, and on save-now, retrying on reconnect. If that write fails the person sees "trouble updating GitHub, check the debug log" and the log explains what actually happened (P1). If the central copy is newer, the write is refused, the person is told, and it retries — local data is never overwritten.
+
+**File identity and version.** Each directional language pair has one stable, unversioned filename. The version is a field inside that JSON document; the app never creates a new filename to represent a new version. Display direction is independent of file identity: each viewer still sees their own language on the left, but reversing the columns for a joiner must not accidentally select or create a different central file.
+
+**Cache and staleness.** Room entry loads the locally cached book immediately. Entry itself is not a phrasebook change, never marks the book dirty, never increments its JSON version, and never causes a blind full download. A lightweight remote metadata/version check may run; the full JSON is fetched only when there is no usable cache or the remote fixed file is proven newer. A dirty local book is never silently replaced. Before writing, the app obtains the current remote identity/SHA and refuses a stale write. A cache write is part of a successful load: quota or persistence failure is surfaced explicitly rather than causing an unexplained download on every later entry.
 
 Categories and all other card fields survive every edit path. The phrasebook is shared with another application, and neither app loses the other's changes.
 
@@ -236,11 +241,11 @@ At expiry those stored credentials are removed. The room-creation control disapp
 
 The prose in this document wins on **what must be true**. The referenced code wins on **exact behavior, wording, states, and edge cases**, which prose reliably loses.
 
-### UI and interaction — `bridge-turn10-pre-base.html` *(most recent, Aug 1)*
+### UI and interaction — `bridge-turn09-ship.html` *(accepted baseline)*
 
-The interface is essentially right in this file. Read it for: the chrome/ribbon strip and its call states · the four-tab room drawer · the full appearance system · 21 languages and flag rendering · the compose strip including the exact `/` and `..` search behavior, the `//` escape, and the Enter/Go escalation to the full phrasebook · the incoming-call ring overlay · bubble structure, receipt dots, system pills · the phrasebook card, overlay, and search surfaces · credential live-verification.
+The interface and interaction baseline is this file. Read it for: the chrome/ribbon strip and its call states · the four-tab room drawer · the appearance system · the compose strip including the exact phrase-search triggers, filtering, ordering, caps, escape behavior, and Enter/Go behavior · the incoming-call ring overlay · bubble structure, receipt dots, system pills · every phrasebook card, overlay, search, Use/send/TTS, close, and usage-count interaction · credential live-verification. For search and phrasebook interaction, this file wins over any conflicting shorthand elsewhere in this document until a later product decision explicitly supersedes it.
 
-**Do not take from it:** the room card layout (§4 supersedes it), the home screen (§1 supersedes it), the mic's position in the ribbon (§8 requires dead centre), or anything in §15 below.
+**Do not take from it:** the room card layout (§4 supersedes it), the home screen (§1 supersedes it), the mic's position in the ribbon (§8 requires dead centre), the phrasebook fetch/version filename behavior clarified below, or anything in §15 below. `bridge-turn09-post-ship.html` is explanatory lineage only. `bridge-turn10*` and `bridge-turn11*` are off the table and are not donors, authorities, or build bases.
 
 ### The engine — where the working versions live
 
@@ -273,7 +278,7 @@ These were considered and rejected. An agent must not reintroduce them: bridge l
 
 Attachment viewer (name, download, close) · clarify-reply modal (original and translation quoted, editable input with live back-translation, sends as a chat message) · import-phrases modal (select and deselect all, list, progress) · diagnostics and log overlay (copy, clear, close) · toasts · receipt status detail popup.
 
-All of these exist in `bridge-turn10-pre-base.html` — read them there (§14).
+Where present, read their exact interaction in `bridge-turn09-ship.html` (§14). A surface absent there belongs in the matrix's not-implemented column; it is not a reason to consult turn10 or turn11.
 
 ---
 
@@ -512,9 +517,9 @@ The "Grant initiator status" toggle at room creation (W2.2) is therefore not a t
 Two triggers, identical behavior. Either one turns the compose strip into a phrase search without ever leaving it.
 
 - 7.3.B.1 **Trigger.** A "/" as the very first character, or ".." as the first two characters, switches the compose strip into search mode on the keystroke. Nothing is submitted; nothing is sent.
-- 7.3.B.2 **Escape hatch.** Exactly "//" is *not* search — that is how a literal slash gets typed and sent as an ordinary message.
+- 7.3.B.2 **Escape hatch.** Exactly "//" is *not* search and is handled as ordinary compose text, exactly as turn09 ship does it.
 - 7.3.B.3 **The query is what follows the trigger.** "/coffee" and "..coffee" both search for *coffee*. The trigger characters are never part of the search.
-- 7.3.B.4 **The inline search drawer opens over the transcript**, showing the room's language pair, filtering live on every keystroke. `-word` excludes. Newest first, capped at 40. Empty state: "No matching phrases."
+- 7.3.B.4 **The inline search drawer opens over the transcript**, showing the room's language pair and filtering live on every keystroke. `-word` excludes. Turn09 ship owns scoring and ordering: relevance while querying, otherwise usage then creation time, capped at 30 inline results. Empty state: "No matching phrases".
 - 7.3.B.5 **Deleting back past the trigger closes it.** Remove the "/" and the drawer closes, the strip is an ordinary composer again, whatever is typed remains. Escape also closes it and clears the strip.
 
 **7.3.B.6 — Then one of three things happens:**
@@ -567,7 +572,7 @@ Two triggers, identical behavior. Either one turns the compose strip into a phra
 
 ### W9. SAVING A PHRASE — inside any of the above
 
-**9.1** Long-press a bubble → Save to phrasebook · Delete · Clarify.
+**9.1** Long-press a bubble → Save to phrasebook · Clarify · Delete.
 
 **9.2** Saves.
 
@@ -750,6 +755,10 @@ Elevation is trust. When it lapses, the trust lapses with it.
 | T2-10 | Dismiss a card without opening → card gone, unread counts intact |
 | T2-11 | App always boots to the start screen with the panel closed — never auto-opens a room |
 | T2-12 | First ever open → name prompt, 40 char max, inline error on invalid |
+| T2-13 | No waiting activity → no room cards on the home screen; all rooms remain in the panel |
+| T2-14 | Dismiss a home card, cold-reload → that summary card remains dismissed, room and badges remain in the panel |
+| T2-15 | New activity arrives after a prior dismissal → a new home-summary card may appear for the new waiting episode |
+| T2-16 | Home and panel render the same three-row/two-column room-card component |
 
 ## T3. Room card
 
@@ -762,6 +771,7 @@ Elevation is trust. When it lapses, the trust lapses with it.
 | T3-5 | Elapsed time shows minutes, then hours, then days |
 | T3-6 | Each viewer sees their own flag first |
 | T3-7 | Mic icon's measured centre equals the ribbon's measured centre |
+| T3-8 | Room card contains no Share or Diagnostics icon inherited from `test.html` |
 
 ## T4. Room lifecycle
 
@@ -840,9 +850,9 @@ Elevation is trust. When it lapses, the trust lapses with it.
 |---|---|
 | T8-1 | "/" as first character → search mode opens on the keystroke |
 | T8-2 | ".." as first two characters → identical behavior |
-| T8-3 | Exactly "//" → NOT search; sends a literal slash |
+| T8-3 | Exactly "//" → NOT search; remains ordinary compose text and follows turn09 ship's send behavior |
 | T8-4 | "/coffee" and "..coffee" both search for *coffee* — trigger chars never part of the query |
-| T8-5 | Filters live on every keystroke; `-word` excludes; newest first; capped at 40; "No matching phrases." when empty |
+| T8-5 | Filters live on every keystroke; `-word` excludes; queried results use turn09 relevance scoring, empty-query results order by usage then creation; capped at 30 inline results; "No matching phrases" when empty |
 | T8-6 | Delete back past the trigger → search closes, remaining text intact |
 | T8-7 | Escape → closes and clears |
 | T8-8 | **Enter while in search does NOT send — it opens the full phrasebook, pre-filtered by what was typed** |
@@ -908,6 +918,13 @@ Elevation is trust. When it lapses, the trust lapses with it.
 | T10-25 | Central copy newer → write refused, person informed, retried, local never overwritten |
 | T10-26 | Edit in the other application, then in this one → neither loses the other's change |
 | T10-27 | Write-back fires on call end, on closing with unsaved changes, and on save-now |
+| T10-28 | Repeated writes update one stable directional-pair filename; no versioned filename is created |
+| T10-29 | The fixed file's JSON version changes only for a real accepted content change, never for entry or display-direction reversal |
+| T10-30 | Joiner display reverses columns to put their language left without selecting or creating the wrong central file |
+| T10-31 | Cached book exists and remote metadata/version is unchanged → no full JSON download |
+| T10-32 | Remote fixed file is newer and local is clean → one full fetch, cache persists, subsequent entry does not fetch again |
+| T10-33 | Local book is dirty and remote is newer → local is not overwritten; conflict is explicit and retryable |
+| T10-34 | Cache persistence/quota failure → named storage error, local dirty state retained, no false stale-download loop |
 
 ## T11. Notifications and elevation
 
@@ -941,3 +958,118 @@ Before building: state the expected diff. After building: compare actual.
 - **Over 10% variance** → full scrutiny before anything proceeds.
 
 This exists because a single unreviewed commit once deleted 9,759 lines and the project spent a month rebuilding around the hole.
+
+---
+
+# PART FOUR — BASELINE AND STATIC LIFECYCLE AUDIT
+
+This part records what survived, what deliberately supersedes it, and what must be proven before a build plan is written. It is not permission to backport or graft donor code. `stuff-_.html, _.md-lineage.json` is the definitive chronology; behavioral authority is assigned below rather than inferred from the newest filename.
+
+## 17. Coherent baseline matrix
+
+| Accepted from `bridge-turn09-ship.html` | Explicitly superseded | Plumbing that must be proven | Not implemented correctly yet |
+|---|---|---|---|
+| Transcript appearance and interaction | Start/home screen behavior (§1) | Room exit, switch, re-entry, and late-callback isolation | Final flag motif on every required surface |
+| Compose strip and all transcript/phrasebook search behavior | Existing room-card layout (§4) | Deepgram socket ownership and media teardown | Device-level notifications and locked-device ring delivery |
+| Phrasebook card, overlay, Use/send/TTS, close, search, and usage behavior | Share/Diagnostics controls inherited from `test.html` — rejected | Relay teardown, reconnect, background listeners, receipts, and badges | Waiting-activity home surface and persistent dismissals |
+| Bubble layout, receipts, system pills, room drawer, and appearance controls | Mic position: it is pinned to the strip's true centre, not centred inside a changing group | Transcript rehydration, history merge/dedupe, and call-to-transcript continuity | Three-row/two-column room card and true-centre mic geometry |
+| Call and in-room video interaction present in turn09 ship | Reset Appearance — rejected | Joiner room identity, language direction, and base-URL return | Stable PB filename, JSON-internal version, and cache-first stale check |
+| Turn09 wording and edge behavior | Any turn10/turn11 behavior or donor claim | PB dirty state, cache persistence, conflict refusal, and write-back boundaries | Storage capable of retaining PB cache and supported attachments |
+
+**Authority rule.** Column 1 is the user-interaction baseline. Column 2 is normative product correction. Column 3 is not satisfied by visual similarity or a happy-path demonstration; each seam needs lifecycle evidence. Column 4 is honest unfinished scope, not permission to hide a stub behind working UI. Turn06/turn07 are lifecycle evidence only and must not be copied wholesale into turn09.
+
+## 18. Static lifecycle audit
+
+### 18.1 The lifecycle contract recovered from turn06 and turn07
+
+Turn06 made session ownership explicit through a monotonically increasing session epoch, a call-phase state machine, preserved last-session context, desired-versus-actual microphone/transcription state, and one unified teardown. Turn07 carried that contract forward and added phrasebook write-back at the leave/hangup boundary.
+
+The reusable contract is:
+
+1. Every asynchronous session captures the room ID and a generation/owner token when it begins.
+2. A room switch, exit, hangup, or replacement session invalidates the prior token before starting new work.
+3. A late result checks both token and room ID before touching global state, UI, transcript, sockets, media, or phrasebook.
+4. Teardown stops Deepgram, all owned media tracks, audio helpers and contexts, peer connection, keepalive/heartbeat, relay socket, reconnect/recovery timers, pending signaling state, and meters; it saves durable state before clearing identity.
+5. Post-session routing captures the role, room, language pair, and reason before live state is cleared.
+6. Phrasebook write-back starts while the correct pair/room identity still exists. It does not authorize clearing dirty state until the remote write succeeds.
+
+Call/session rejoin, ordinary room re-entry, foreground reconnect, and restore-after-soft-delete are four different events. They reuse the same room identity but have different state transitions and must not be collapsed into one `rejoin` path.
+
+### 18.2 What turn09 ship demonstrably retains
+
+- `enterRoom()` loads the selected room's transcript before rendering and calls `leaveRoomInternals()` when changing rooms.
+- `leaveRoomInternals()` ends an active call, stops an active chat mic, disconnects the foreground relay, initiates dirty PB write-back, and clears active room/transcript state.
+- The foreground relay uses a socket-local identity check, so callbacks from a superseded relay socket cannot own current connection state.
+- Foreground return proactively reconnects a missing relay instead of waiting for a browser-delayed close event.
+- Background LISTEN sockets are keyed by room ID, route messages into that room's stored transcript, and check socket identity before scheduling a reconnect.
+- The primary Deepgram socket uses a socket-local identity guard. Its stale close event is ignored instead of tearing down a replacement connection.
+- Call mount records whether chat mic was on, stops the old transcription pipeline before binding call media, and teardown restores the exact prior chat-mic state.
+- Call teardown stops Deepgram, meter, peer connection and local tracks; clears signaling collections and timers; unmounts call media; and starts PB write-back at call end.
+- Spoken call content creates its durable transcript row before translation, then patches that row when translation arrives. A translation failure therefore cannot erase the spoken line.
+- Remote subtitle handlers reject a room whose ID is not currently active, and history/chat receive paths dedupe by stable message ID.
+
+These are retained strengths, not proof that the entire lifecycle is safe.
+
+### 18.3 Static gaps and unproven races in turn09 ship
+
+**A. No application-wide generation token.** Turn09 has good identity checks for the foreground relay and primary Deepgram socket, but no session epoch covering every asynchronous operation. Safety is therefore resource-specific and incomplete.
+
+**B. Pending media acquisition.** Call and chat-mic `getUserMedia()` requests do not capture a room/generation token. If a request resolves after exit or room switch, its returned tracks must be stopped and must never become the new room's stream.
+
+**C. Secondary Deepgram socket.** The secondary-language socket does not mirror the primary socket's complete identity guard. Its message/error/close callbacks can observe or mutate shared state after replacement. The audio pump also reads the global secondary socket rather than the secondary socket paired with the captured primary session.
+
+**D. AudioWorklet fallback.** The asynchronous worklet installation checks the primary socket before success, but its failure fallback can call the script-processor setup after ownership has changed. Both success and failure paths must verify the same captured session and captured audio context.
+
+**E. Translation completion.** Typed, clarification, phrase-card, and speech translations are asynchronous. Call speech captures a room object but later patches the global active transcript and sends through the current foreground relay. Every completion must be tied to the originating room/message; leaving A for B while A translates must not patch or relay into B.
+
+**F. PB pull and write completion.** `enterRoom()` starts a dirty flush followed by a pull, while room exit can clear or replace `PB.pk`. Responses must be committed only to the pair that initiated them. Dirty state must be pair-scoped; a late success for pair A must not clear pair B, and a late pull for A must not replace B.
+
+**G. Exit does not await PB write-back.** Starting write-back and immediately clearing room identity is safe only if the operation captured an immutable pair, cards, version and remote identity before exit. This is not yet established as a contract.
+
+**H. FileReader and attachments.** A file read may finish after room switch. Its completion must retain the originating room/message destination or be discarded, never append to whichever transcript is active later.
+
+**I. Call signaling generation.** Delayed TURN credential fetches, offers, answers, ICE candidates, accept retries, recovery timers, ring timers and peer-connection callbacks need one call-generation guard. `CALL.active` alone cannot distinguish an old call from a newer active call.
+
+**J. Timed Deepgram restart.** Watchdog and close-handler restart timers test whether some mic/call is active, but must also prove it is the same captured transcription session. An old timer must not start an extra socket for a new room or call.
+
+**K. Background/foreground handoff.** Entering a room must close its background LISTEN socket before the foreground socket becomes authoritative, and leaving must create exactly one background listener. No interval or delayed reconnect may create duplicates.
+
+**L. Read receipts on in-app entry.** Returning through in-app navigation does not generate `visibilitychange`. Room entry itself must send read receipts and reconcile unread state; foreground handling is a recovery path, not the sole trigger.
+
+**M. History merge ownership.** History chunks must name the room, dedupe by stable ID, flip sender perspective exactly once, ignore local-only system context where appropriate, sort deterministically, and never merge into the currently visible room merely because it is current when a chunk arrives.
+
+**N. Teardown is distributed.** Turn09 cleanup is split across room, call, chat-mic, relay, Deepgram, meter, LISTEN, and PB functions. Every exit path must call one idempotent lifecycle boundary or prove an equivalent complete sequence. Repeated teardown must be harmless.
+
+**O. Page lifecycle.** `beforeunload` cannot guarantee completion of an asynchronous GitHub write. Durable local dirty state must be recorded synchronously first and retried on the next start/online event.
+
+### 18.4 Required lifecycle invariants for the build plan
+
+1. At most one foreground relay, one call generation, one owned mic stream, and one primary/secondary Deepgram pair may own the active room.
+2. Every resource has an explicit owner `{roomId, sessionGeneration, callGeneration}` and checks it in every asynchronous callback.
+3. Changing rooms invalidates old ownership before loading the new transcript or acquiring new media.
+4. No callback originating in room A may mutate room B's DOM, transcript, receipts, PB, media, or relay.
+5. Teardown is idempotent and leaves no live track, audio context, processor, WebSocket, peer connection, heartbeat, watchdog, retry, ring, duration, presence, or recovery timer owned by the departed foreground session.
+6. Chat mic → call → chat mic restores the exact prior state. Room exit always releases capture regardless of icon state.
+7. One spoken utterance creates one durable row before translation; later translation patches that same row in its originating room.
+8. Re-entry loads complete local history first, merges remote missing history without loss or duplication, reconnects once, sends pending receipts, and never bumps or dirties the PB.
+9. PB operations capture immutable pair identity. One fixed filename represents that direction; JSON version and remote SHA govern staleness/conflicts.
+10. Local persistence failure is visible and leaves recoverable dirty state. Network failure never discards local transcript or PB changes.
+
+## T14. Lifecycle and re-entry gates
+
+| ID | PASS IF |
+|---|---|
+| T14-1 | Start media in room A, immediately switch to B before permission resolves → A's late tracks stop and B receives no A callback |
+| T14-2 | Rapid A → B → A switching → exactly one foreground relay and one background listener per other room |
+| T14-3 | Close an old primary or secondary Deepgram socket after its replacement opens → replacement continues transcribing |
+| T14-4 | Old watchdog/retry timer fires during a new session → it performs no action |
+| T14-5 | Speak in A, switch to B before translation finishes → A's row updates in A only; nothing appears or relays in B |
+| T14-6 | Begin attachment read in A, switch to B → result stays with A or is explicitly canceled |
+| T14-7 | Dirty pair A, switch to pair B while A writes → A completion cannot clear or replace B state |
+| T14-8 | Enter the same room repeatedly → no duplicate transcript rows, handlers, sockets, history chunks, or PB download |
+| T14-9 | Chat mic on → call → hang up restores chat mic on; starting off restores off |
+| T14-10 | Leave a room with chat mic/call active → OS microphone becomes available to another app |
+| T14-11 | Enter through in-app navigation without a visibility event → pending read receipts send immediately |
+| T14-12 | Kill network, change rooms, restore network → only current owners reconnect; undelivered messages remain in their originating rooms |
+| T14-13 | Local PB cache write fails → explicit storage error and retryable state; next entry is not misreported as a remote-staleness change |
+| T14-14 | Run teardown twice from competing exit paths → no exception, duplicate marker, duplicate write, or resurrected resource |
