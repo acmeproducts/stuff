@@ -1,15 +1,19 @@
 <!DOCTYPE html>
-<!-- TALKBRIDGE — NEW LINEAGE (2026-08-01) — Release 1: bridge-turn08-base.html adopted as the new foundation,
-     replacing the turn08-ship-derived lineage (turn09/turn10 series, preserved untouched for reference and
-     donor material). Root cause: turn08-ship was an already-~75%-compressed derivative of this file, missing
-     a proven call-reliability layer (state machine, epoch tracking, recovery, real track-recreate-on-mute),
-     real WASM language detection, and full 4-language dual-socket code-switching — all confirmed present and
-     intact here. This release changes nothing functionally: confirms this file boots cleanly against the
-     real live infrastructure (relay, TURN, GitHub phrasebook repo all verified matching) before anything is
-     built on top of it. Output: bridge-turn11-pre-base.html.
-     Product decisions from the old lineage's Releases 1-6 (credentials screen, 4-tab drawer, appearance
-     system, 21 languages + real flags, phrasebook version-management, room card, 3-way activity tracking)
-     get re-applied deliberately in subsequent releases — not assumed to carry over as code. -->
+<!-- TALKBRIDGE — NEW LINEAGE (2026-08-01) — Release 1, CORRECTED: bridge-turn08-p1.html adopted as the
+     real foundation, replacing an earlier mistaken push of bridge-turn08-base.html. base is an intentionally
+     inert shell — every bridge organ (transcript, compose, phrasebook, translate, langdetect, tts, relay,
+     call) defaults to false, and its own gate function is a no-op when true, by design ("Base: all bridge
+     gates false - no-op by design"). p1 has the actual organ-promotion wiring (TBPROMOTE), which dynamically
+     patches and activates the dormant bridge code when a room is created or joined.
+     This file is BYTE-IDENTICAL to bridge-turn08-p1.html, zero functional changes. An attempt to fix the
+     phrasebook version-numbering bug in this same release tripped an internal checksum integrity check on
+     the dormant bridge source — TBPROMOTE.promote() returned false with promote_checksum_mismatch — caught
+     by verification before push, reverted. That fix needs its own release, applied through this file's own
+     patch mechanism (the PATCHES array TBPROMOTE already uses), not direct text replacement.
+     Verified: promote() returns true, all 6 patches match exactly once, zero runtime errors before or after
+     promotion, relay/TURN/GitHub endpoints confirmed identical to live production infrastructure.
+     Replaces the turn08-ship-derived lineage (turn09/turn10 series, preserved untouched for reference).
+     Output: bridge-turn11-pre-base.html. -->
 <!-- TalkBridge v5.8.3 - Turn 08 Base - Jul 2, 2026 - config layer (TBCONFIG) + organ gates (shell ON / bridge DORMANT) + full bridge laid in dormant, byte-preserved. Negative test: app behaves as shell. -->
 <!-- Talk + Say v4.1 · April 19, 2026 · language pair flags on session cards, mic silence timer, lang routing fix -->
 <html lang="en">
@@ -430,6 +434,7 @@ input::placeholder,textarea::placeholder{color:var(--ink-dim);opacity:.7;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 </style>
+<style id='tb-retired-suppress'>#tb-bridge-root #lobby,#tb-bridge-root #lobby-waiting,#tb-bridge-root #thankyou-page{display:none !important;}</style>
 </head>
 <body>
 <div id="app">
@@ -946,6 +951,99 @@ var TBGATE=(function(){
   return {boot:boot};
 })();
 try{TBGATE.boot();}catch(e){}
+/* ===== #new module: TBPROMOTE (Package 1 — organ promotion at room entry only) ===== */
+var TBPROMOTE=(function(){
+  var promoted=false;
+  var EXPOSE=["attModalClose","chatGo","chatInputEvt","chatKeydown","clearLogText","closeCreateRoomModal","closeLog","closeRoomTr","confirmCreateRoom","copyLink","copyLogText","handleChatFile","hangUp","joinerProceed","onCfTurnInput","onDgKeyInput","openCreateRoomModal","openLog","pbAddCard","pbCloseGitSheet","pbCloseImportModal","pbCloseOverlay","pbConfirmImport","pbHandleFile","pbImportProgressClose","pbManualSave","pbNcCancel","pbNcSetVerdict","pbNcSpeakSrc","pbNcSpeakTgt","pbNcSrcKeydown","pbNcTagKey","pbNcTagSugg","pbNcTogPanel","pbOpenOverlayClean","pbOvClearSearch","pbOvSearch","pbSaveNewCard","pbSearchExit","pbSelectAllImport","pipClose","pipExpand","rejoinCall","saveGhPat","scrollToLatest","shareLink","syncModalBtn","toggleCam","toggleKeysPanel","toggleMic","toggleTranscript","toggleTranscriptTts","trSendClarify"];
+  function scopeCss(css){
+    css=css.replace(/:root\b/g,'#tb-bridge-root');
+    css=css.replace(/(^|\})\s*html\s*,\s*body\s*\{/g,'$1 #tb-bridge-root{');
+    css=css.replace(/(^|\})\s*body\s*\{/g,'$1 #tb-bridge-root{');
+    css=css.replace(/(^|\})\s*html\s*\{/g,'$1 #tb-bridge-root{');
+    css=css.replace(/(^|\})([^@{}]+)\{/g,function(_,a,sel){
+      if(/^\s*#tb-bridge-root/.test(sel))return a+sel+'{';
+      var parts=sel.split(',').map(function(s){s=s.trim();return s?'#tb-bridge-root '+s:s;});
+      return a+parts.join(',')+'{';
+    });
+    return css;
+  }
+  function TBLOGP(m){try{console.log('[TBPROMOTE]',m);}catch(e){}}
+  function promote(){
+    if(promoted)return true;
+    try{
+      var jsN=document.getElementById('tb-bridge-js');
+      var cssN=document.getElementById('tb-bridge-css');
+      var tpl=document.getElementById('tb-bridge-tpl');
+      if(!jsN||!cssN||!tpl){TBLOGP('promote_missing_nodes');return false;}
+      if(jsN.textContent.length!==window.__TB_DORMANT_JS_LEN||cssN.textContent.length!==window.__TB_DORMANT_CSS_LEN){TBLOGP('promote_checksum_mismatch');return false;}
+      var root=document.createElement('div');root.id='tb-bridge-root';
+      root.appendChild(tpl.content.cloneNode(true));
+      document.body.appendChild(root);
+      var st=document.createElement('style');st.id='tb-bridge-style';st.textContent=scopeCss(cssN.textContent);document.head.appendChild(st);
+      /* Execution-order adaptation (documented): donor's engine modules are defined after its
+         startup code in file order; on a fresh device startup would touch them before they exist.
+         We run the byte-identical module blocks first, then the byte-identical remainder. */
+      var src=jsN.textContent;
+      var MODRE=/\/\* ===== #(?:new|existing) module: ([A-Z-]+[A-Za-z.]*)[^=]*===== \*\/[\s\S]*?\/\* ===== #end module: \1 ===== \*\//g;
+      var mods=[],rest=src.replace(MODRE,function(m){mods.push(m);return '';});
+      var joined=mods.join('\n')+'\n'+rest;
+      if(mods.map(function(m){return m.length;}).reduce(function(a,b){return a+b;},0)+rest.length!==src.length){TBLOGP('promote_reorder_len_mismatch');return false;}
+      /* Documented adaptations (plan: chat-first rooms, call optional). Exact-match; missing match aborts. */
+      var PATCHES=[
+        ["createRoom camera-optional",
+         "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){toast('Camera needed');return}\n  var url=invUrl();",
+         "try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}catch(_){videoStream=null}\n  var url=invUrl();"],
+        ["enterCall camera-optional",
+         "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){toast('Camera needed');return}\n  }",
+         "if(!videoStream){\n    try{videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()})}\n    catch(_){videoStream=null}\n  }"],
+        ["local video tolerates no media",
+         "$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();",
+         "if(videoStream)$('local-video').srcObject=videoStream;syncMic();syncCam();updateCallChip();"],
+        ["joiner camera-optional",
+         "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).then(function(s){\n    if(captureEpoch!==sessionEpoch){log('joiner_stale_media',{captureEpoch:captureEpoch,current:sessionEpoch},'warn');s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;",
+         "navigator.mediaDevices.getUserMedia({video:true,audio:getMicConstraints()}).catch(function(){return null;}).then(function(s){\n    if(captureEpoch!==sessionEpoch){if(s)s.getTracks().forEach(function(t){t.stop();});$('joining-screen').classList.remove('show');return;}\n    videoStream=s;"],
+        ["joiner media-denied toast removed",
+         ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n    toast('Camera access required');\n  });",
+         ".catch(function(){\n    $('joining-screen').classList.remove('show');$('joiner-landing').classList.add('show');\n    setCallPhase('prejoin','media_denied');\n  });"],
+        ["STT only when mic exists",
+         "connectRelay();\n  dgDesired=true;",
+         "connectRelay();\n  dgDesired=!!videoStream;"]
+      ];
+      for(var pi=0;pi<PATCHES.length;pi++){
+        var cnt=joined.split(PATCHES[pi][1]).length-1;
+        if(cnt!==1){TBLOGP('patch_fail:'+PATCHES[pi][0]+':matches='+cnt);return false;}
+        joined=joined.replace(PATCHES[pi][1],PATCHES[pi][2]);TBLOGP('patch_ok:'+PATCHES[pi][0]);
+      }
+      var code='(function(){\n'+joined+'\n;(function(){var E=['+EXPOSE.map(function(n){return '"'+n+'"';}).join(',')+'];for(var i=0;i<E.length;i++){try{if(typeof eval(E[i])==="function")window[E[i]]=eval(E[i]);}catch(e){}}})();\n})();';
+      var s=document.createElement('script');s.id='tb-bridge-live';s.textContent=code;document.body.appendChild(s);
+      /* single-owner: shell conversation organs off from this point (persisted) */
+      var GK=['transcript','compose','pb','translate','langdetect','tts','relay','diag'];
+      for(var gi=0;gi<GK.length;gi++){TBCONFIG.set('use.shell.'+GK[gi],false);TBCONFIG.set('use.bridge.'+GK[gi],true);}
+      TBCONFIG.set('use.bridge.call',true);
+      promoted=true;TBLOGP('promote_ok');return true;
+    }catch(e){TBLOGP('promote_err:'+String(e).slice(0,120));return false;}
+  }
+  return {promote:promote,isPromoted:function(){return promoted;}};
+})();
+/* ===== #end module: TBPROMOTE ===== */
+/* ===== #new module: TBROUTE (Package 1 — front door: shell -> bridge) ===== */
+var TBROUTE=(function(){
+  function setSel(el,v){ if(!el)return; var has=false,i; for(i=0;i<el.options.length;i++){ if(el.options[i].value===v){has=true;break;} } if(!has){ var o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o);} el.value=v; }
+  function createRoom(myLang,theirLang){
+    if(!TBPROMOTE.promote())return;
+    var ml=(myLang&&myLang!=='auto')?myLang:'en';
+    var tl=(theirLang&&theirLang!=='auto')?theirLang:'th';
+    setSel(document.getElementById('my-lang'),ml); setSel(document.getElementById('their-lang'),tl);
+    setSel(document.getElementById('modal-my-lang'),ml); setSel(document.getElementById('modal-their-lang'),tl);
+    try{window.confirmCreateRoom();}catch(e){}
+  }
+  function bootJoinCheck(){
+    try{ if((location.hash||'').indexOf('j=')>=0){ TBPROMOTE.promote(); } }catch(e){}
+  }
+  return {createRoom:createRoom,bootJoinCheck:bootJoinCheck};
+})();
+/* ===== #end module: TBROUTE ===== */
+
 /* ===== #end module: TBCONFIG ===== */
 
 /* ===== #existing surface: FIRST-RUN KEYS (verbatim from cleared container Base) ===== */
@@ -2182,6 +2280,7 @@ function transportConnect(convId,opts){
     +'?app='+encodeURIComponent(RELAY_APP)
     +'&session='+encodeURIComponent(convId)
     +'&client='+encodeURIComponent(DEVICE_ID);
+  if(!TBCONFIG.get('use.shell.relay')){addDiagLog('shell relay disabled by organ gate');return;}
   setSocketState('connecting');
   addDiagLog('CONNECTED session='+convId.slice(0,8));
   try{ws=new WebSocket(url);}catch(e){scheduleReconnect();return;}
@@ -2550,6 +2649,7 @@ function submitNewChatModal(){
   savePrefs(p);
   var opts={myLang:myVal,partnerLang:peerVal,autoRead:!(ar&&!ar.checked),capability:capVal};
   closeNewChatModal(false);
+  if(true){ TBROUTE.createRoom(myVal,peerVal); return; } /* bridge owns conversation in P1 */
   createNewSession(false,opts);
 }
 function createNewSession(silent,opts){
@@ -4216,7 +4316,7 @@ function composerInput(){
   var v=ta?ta.value:'';
   if(v==='/'||v==='..'){
     ta.value='';autoResize();updateSendBtn();
-    openPhrasebookModal();
+    if(TBCONFIG.get('use.shell.pb')){openPhrasebookModal();}else{addDiagLog('old PB disabled by organ gate');}
     return;
   }
   if(!localTypingActive){localTypingActive=true;sendTyping('start');}
@@ -4237,6 +4337,7 @@ function showTyping(n,kind){
 }
 
 async function sendMessage(){
+  if(!TBCONFIG.get('use.shell.compose')){addDiagLog('shell composer disabled by organ gate');return;}
   var ta=document.getElementById('msg-input');var text=ta.value.trim();if(!text)return;
   if(localTypingActive){localTypingActive=false;sendTyping('stop');}
   if(typingStopTimer){clearTimeout(typingStopTimer);typingStopTimer=null;}
@@ -5234,6 +5335,318 @@ document.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 </div>
+<template id="tb-bridge-tpl">
+
+<div class="lobby" id="lobby">
+  <div class="lobby-card">
+    <div class="lobby-brand">TalkBridge</div>
+    <div id="lobby-setup" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div style="flex:1;overflow-y:auto;padding-bottom:8px;">
+        <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:4px;">
+          <button class="lobby-btn" onclick="openCreateRoomModal()">＋ Create new room</button>
+          <input type="hidden" id="room-name" value="">
+          <select id="my-lang" style="display:none"></select>
+          <select id="their-lang" style="display:none"></select>
+        </div>
+        <div id="keys-panel" style="display:none;flex-direction:column;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--surface2);">
+          <div><div class="lobby-label" style="margin-bottom:6px;">Deepgram API key</div>
+          <input class="lobby-input" id="dg-key" type="password" placeholder="Paste key — stored locally" oninput="onDgKeyInput()">
+          <div id="dg-key-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+          <div><div class="lobby-label" style="margin-bottom:6px;">Cloudflare TURN token ID</div>
+          <input class="lobby-input" id="cf-turn-id" type="password" placeholder="Paste token ID — stored locally" oninput="onCfTurnInput()">
+          <div class="lobby-label" style="margin-bottom:6px;margin-top:10px;">Cloudflare TURN API token</div>
+          <input class="lobby-input" id="cf-turn-tok" type="password" placeholder="Paste API token — stored locally" oninput="onCfTurnInput()">
+          <div id="cf-turn-status" style="font-size:11px;min-height:16px;margin-top:4px;padding-left:2px;transition:color .2s;"></div></div>
+          <div><div class="lobby-label" style="margin-bottom:6px;">GitHub PAT <span style="font-size:10px;opacity:.6;">(repo write — optional)</span></div>
+          <input class="lobby-input" id="gh-pat-inp" type="password" placeholder="ghp_… — stored locally" oninput="saveGhPat()">
+          </div>
+          </div>
+        </div>
+        <div class="recent-rooms" id="recent-rooms" style="display:none;margin-top:14px;">
+          <div class="recent-title">Recent rooms</div>
+          <div class="recent-rooms-scroll" id="recent-rooms-list"></div>
+        </div>
+      </div>
+      <div class="lobby-footer" style="flex-shrink:0;border-top:1px solid var(--surface2);padding-top:6px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
+        <button class="lobby-footer-btn" onclick="openLog()" title="Debug log">🪲</button>
+        <span id="ft-lobby-status" class="ft-status-pill"><span class="ft-status-dot loading" id="ft-dot"></span><span id="ft-label">Lang model loading…</span></span>
+        <span style="font-size:10px;color:var(--text-muted);">v5.7.4</span>
+        <button class="lobby-footer-btn" onclick="toggleKeysPanel()" id="keys-gear-btn" title="API keys">⚙️</button>
+      </div>
+    </div>
+    <div id="lobby-waiting" style="display:none;">
+      <div style="font-size:14px;color:var(--text-dim);text-align:center;margin-bottom:10px;" id="room-name-display"></div>
+      <div class="lobby-link-box" id="lobby-link" onclick="copyLink()">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="create-room-backdrop">
+  <div class="modal-card">
+    <div style="font-family:'Lora',serif;font-size:18px;font-weight:600;color:var(--text);">Create new room</div>
+    <div><div class="lobby-label" style="margin-bottom:6px;">Room name (optional)</div>
+    <input class="lobby-input" id="modal-room-name" placeholder="e.g. Doctor visit" maxlength="60"></div>
+    <div><div class="lobby-label" style="margin-bottom:6px;">I speak</div>
+    <select class="lobby-select" id="modal-my-lang" onchange="syncModalBtn()"></select></div>
+    <div><div class="lobby-label" style="margin-bottom:6px;">They speak</div>
+    <select class="lobby-select" id="modal-their-lang" onchange="syncModalBtn()"></select></div>
+    <div style="display:flex;gap:10px;">
+      <button class="lobby-btn secondary" style="flex:1;" onclick="closeCreateRoomModal()">Cancel</button>
+      <button class="lobby-btn" style="flex:1;" id="modal-create-btn" onclick="confirmCreateRoom()" disabled>OK</button>
+    </div>
+  </div>
+</div>
+<div class="joining-screen" id="joining-screen">
+  <div class="joining-spinner"></div>
+  <div class="joining-label">Joining call…</div>
+</div>
+
+<div class="log-overlay" id="log-overlay">
+  <div class="log-header">
+    <span class="log-title">🪲 Debug Log</span>
+    <div class="log-actions">
+      <button class="log-btn" onclick="copyLogText()">Copy</button>
+      <button class="log-btn" onclick="clearLogText()">Clear</button>
+      <button class="log-btn" onclick="closeLog()"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close</button>
+    </div>
+  </div>
+  <div class="log-body" id="log-body"></div>
+</div>
+
+<div class="log-overlay" id="room-tr-overlay">
+  <div class="log-header">
+    <span class="log-title" id="room-tr-title">Transcript</span>
+    <div class="log-actions">
+      <button class="log-btn" onclick="closeRoomTr()" title="Close"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Close</button>
+    </div>
+  </div>
+  <div class="log-body" id="room-tr-body" style="font-family:'DM Sans',sans-serif;font-size:13px;"></div>
+</div>
+
+<div class="joiner-landing" id="joiner-landing">
+  <div class="joiner-lang-pill" id="joiner-lang-pill"></div>
+  <div class="joiner-room-name" id="joiner-room-name">You are invited to join a call</div>
+  <div class="joiner-flags" id="joiner-flags"></div>
+  <button class="joiner-join-btn" id="joiner-join-btn" onclick="joinerProceed()">Join Call</button>
+  <div class="joiner-sub" id="joiner-sub">Tap to allow camera &amp; microphone access</div>
+</div>
+<div class="thankyou-page" id="thankyou-page">
+  <div class="thankyou-page-bg"></div>
+  <div class="thankyou-title" id="thankyou-title">Thanks for calling.</div>
+  <button class="thankyou-btn" id="thankyou-rejoin-btn" onclick="rejoinCall()" style="display:none">Rejoin</button>
+  <div class="thankyou-sub" id="thankyou-sub" style="margin-top:auto;padding-top:16px;">You can close this tab.</div>
+</div>
+<div class="call" id="call-screen">
+  <div class="call-videos" id="call-videos">
+    <video id="remote-video" autoplay playsinline></video>
+    <video id="local-video" autoplay muted playsinline></video>
+    <div class="no-video-placeholder" id="no-video-msg">👤</div>
+    <div class="remote-cam-off" id="remote-cam-off"><div class="remote-cam-off-icon">👤</div><div class="remote-cam-off-label" id="remote-cam-off-label">Camera off</div></div>
+    <div class="partner-disconnected-overlay" id="partner-disconnected-overlay"><div style="font-size:36px;">📵</div><div class="partner-disconnected-label" id="partner-disconnected-label">Partner has disconnected</div><div class="partner-disconnected-sub" id="partner-disconnected-sub">Waiting to reconnect…</div></div>
+    <div class="solo-banner" id="solo-banner" style="display:none;">
+      <div class="solo-banner-text">Waiting for partner to join…</div>
+    </div>
+    <div class="partner-speaking-indicator" id="partner-speaking-indicator" aria-hidden="true">…</div>
+    <div class="subtitle-area" id="subtitle-area"></div>
+  </div>
+  <div class="call-transcript" id="call-transcript">
+    <div class="call-transcript-header" style="justify-content:space-between;">
+      <div class="call-transcript-actions">
+        <button class="call-transcript-btn" id="transcript-toggle-btn" onclick="toggleTranscript()" title="Collapse" aria-label="Collapse transcript" aria-expanded="true">
+          <svg class="chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="call-transcript-btn" id="transcript-tts-toggle" onclick="toggleTranscriptTts()" title="TTS" aria-pressed="false">
+          <svg class="tts-on" viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18 7a7 7 0 0 1 0 10"/></svg>
+          <svg class="tts-off" viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><line x1="3" y1="21" x2="21" y2="3" stroke="#e74c3c" stroke-width="2.5"/></svg>
+        </button>
+        <button class="call-transcript-btn" id="strip-share-btn" onclick="shareLink()" title="Share" style="display:none;">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.8 10.8l6.4-3.6M8.8 13.2l6.4 3.6"/></svg>
+        </button>
+      </div>
+      <span style="flex:1;"></span>
+      <button class="call-transcript-btn" onclick="pbOpenOverlayClean()" title="Phrasebook">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
+      <span style="flex:1;"></span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="vc-btn" id="top-mic-btn" onclick="toggleMic()" title="Mic">
+          <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+        <button class="vc-btn" id="top-cam-btn" onclick="toggleCam()" title="Cam">
+          <svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </button>
+        <button class="vc-btn end" onclick="hangUp()" title="End">
+          <svg viewBox="0 0 24 24"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.11 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.59 3.4z" transform="rotate(135 12 12)"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="transcript-body"><div class="tr-empty">Speak or type to see transcript here.</div></div>
+    <div class="transcript-more-indicator" id="transcript-more-indicator" onclick="scrollToLatest()" title="Jump to latest">↓</div>
+  </div>
+  <div id="pb-inline-panel"></div>
+  <div class="chat-compose-strip" id="chat-compose-strip">
+    <input type="file" id="chat-file-input" accept=".pdf,.html,.txt,text/*,application/pdf" style="display:none" onchange="handleChatFile(event)">
+    <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Attach file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+    <div style="flex:1;position:relative;display:flex;">
+      <textarea class="chat-compose-ta" id="chat-input" placeholder="Enter chat or /Search" rows="1" style="padding-right:30px;width:100%;" oninput="chatInputEvt()" onkeydown="chatKeydown(event)"></textarea>
+      <button class="chat-search-x" id="chat-search-x" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);" onclick="pbSearchExit()" title="Clear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <button class="chat-send-btn" id="chat-send-btn" onclick="chatGo()" disabled title="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+<!-- PiP overlay -->
+<div id="pip-overlay">
+  <div class="pip-tap-target" onclick="pipExpand()"></div>
+  <video id="pip-remote" autoplay playsinline muted></video>
+  <video id="pip-local" autoplay muted playsinline style="transform:scaleX(-1);"></video>
+  <div class="pip-controls">
+    <button class="pip-btn" onclick="pipExpand()" title="Expand"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+    <button class="pip-btn" onclick="pipClose()" title="End call"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+</div>
+<!-- Attachment modal -->
+<div id="att-modal">
+  <div id="att-modal-inner">
+    <div id="att-modal-hdr">
+      <span id="att-modal-name"></span>
+      <a id="att-modal-dl" href="#" download style="color:var(--teal-bright);font-size:12px;margin-right:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg></a>
+      <button onclick="attModalClose()" style="background:none;border:none;cursor:pointer;color:var(--text-dim);line-height:0;padding:4px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="att-modal-body"></div>
+  </div>
+</div>
+<!-- ══ PHRASEBOOK v2 ══ -->
+<div id="pb-drawer" class="pb-drawer"><div id="pb-drawer-content"></div></div>
+
+<div id="pb-overlay" class="pb-overlay" style="display:none;">
+  <div class="pb-ov-hdr" style="justify-content:flex-start;gap:4px;">
+    <span id="pb-ov-pair-label" style="font-size:12px;color:#5a5552;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;"></span>
+    <button class="pb-ov-act" onclick="pbAddCard({})" title="New phrase" style="font-weight:700;font-size:18px;line-height:1;">+</button>
+    <button class="pb-ov-act" onclick="pbManualSave()" title="Save now"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg></button>
+    <span id="pb-ov-sync-dot" title="Sync status" style="width:8px;height:8px;border-radius:50%;background:#9a9592;display:inline-block;margin:0 2px;flex-shrink:0;align-self:center;transition:background .2s;"></span>
+    <button class="pb-ov-act" onclick="pbCloseOverlay()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  </div>
+  <div class="pb-ov-searchbar" style="position:relative;">
+    <input id="pb-ov-search" class="pb-ov-si" placeholder="Search all phrases… (-word to exclude)" oninput="pbOvSearch();pbOvSearchX()" style="padding-right:28px;">
+    <button id="pb-ov-search-x" onclick="pbOvClearSearch()" style="display:none;position:absolute;right:20px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9a9592;font-size:16px;line-height:1;padding:2px 4px;" title="Clear search">×</button>
+  </div>
+  <div id="pb-ov-cat-summary" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px;border-bottom:1px solid #e0dbd6;"></div>
+  <div id="pb-trash-host" style="flex-shrink:0;max-height:30vh;overflow-y:auto;"></div>
+  <div id="pb-ov-cards" style="flex:1;overflow-y:auto;min-height:0;"></div>
+  <div id="pb-ov-footer" style="padding:6px 12px;font-size:10px;color:#9a9592;border-top:1px solid #ede9e4;flex-shrink:0;">No shared phrasebook loaded</div>
+</div>
+
+<div id="pb-import-modal" class="pb-import-modal" style="display:none;">
+  <div class="pb-im-hdr">
+    <span class="pb-im-title">Import Phrases</span>
+    <button class="pb-im-x" onclick="pbCloseImportModal()">×</button>
+  </div>
+  <div class="pb-im-sel-bar">
+    <button class="pb-im-sel-btn" onclick="pbSelectAllImport(true)">Select all</button>
+    <button class="pb-im-sel-btn" onclick="pbSelectAllImport(false)">Deselect all</button>
+  </div>
+  <div id="pb-import-list"></div>
+  <div class="pb-im-footer">
+    <button class="pb-im-cancel" onclick="pbCloseImportModal()">Cancel</button>
+    <button class="pb-im-ok" id="pb-import-ok" onclick="pbConfirmImport()">Import</button>
+  </div>
+</div>
+
+<div id="pb-new-card-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:35;align-items:center;justify-content:center;">
+<div id="pb-new-card-sheet" class="pb-bubble" style="width:min(480px,94vw);max-height:90vh;overflow-y:auto;margin:0;">
+  <div class="pb-bbl-hdr">
+    <span id="pbnc-pair-label" class="pb-bbl-pair"></span>
+    <input type="text" id="pbnc-attr" placeholder="From…" oninput="_pbNcAttr=this.value;_pbNcDirty=true" style="border:none;background:none;font-size:11px;color:#5a5552;outline:none;font-family:'DM Sans',sans-serif;width:72px;min-width:0;flex-shrink:1;">
+    <span id="pbnc-ts" class="pb-bbl-ts" style="text-align:right;white-space:nowrap;"></span>
+    <button class="pb-nc-x" onclick="pbNcCancel()">×</button>
+  </div>
+  <div class="pb-bbl-body">
+    <div class="pb-bbl-col">
+      <div id="pbnc-src" class="pb-bbl-txt pb-nc-editable" contenteditable="true" data-placeholder="Source phrase…" onblur="pbNcOnSrcBlur()" onkeydown="pbNcSrcKeydown(event)" spellcheck="false" style="min-height:48px;outline:none;"></div>
+      <div class="pb-bbl-acts">
+        <button class="pb-tts-btn" onclick="pbNcSpeakSrc()" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>
+      </div>
+    </div>
+    <div class="pb-bbl-div"></div>
+    <div class="pb-bbl-col">
+      <div id="pbnc-tgt" class="pb-bbl-txt pb-nc-editable" contenteditable="true" data-placeholder="Translation…" spellcheck="false" oninput="_pbNcDirty=true" style="min-height:48px;outline:none;"></div>
+      <div class="pb-bbl-acts">
+        <button class="pb-tts-btn" onclick="pbNcSpeakTgt()" title="Play"><svg viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div class="pb-bbl-foot" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:5px 8px;">
+    <button class="pb-fbt" onclick="pbSaveNewCard()" title="Save"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg></button>
+    <button class="pb-fbt on" id="pbnc-ftags" onclick="pbNcTogPanel('tags')" title="Tags">#</button>
+    <button class="pb-fbt on" id="pbnc-fclarify" onclick="pbNcTogPanel('clarify')" title="Clarify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></button>
+  </div>
+  <div id="pbnc-panel-tags" style="padding:8px 12px;border-top:1px solid #e0dbd6;">
+    <div id="pbnc-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:20px;margin-bottom:4px;"></div>
+    <div style="position:relative;">
+      <input id="pbnc-tag-inp" class="pb-nc-inp" placeholder="Add tag…" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="pbNcTagSugg()" onkeydown="pbNcTagKey(event)">
+      <div id="pbnc-tag-sugg" style="display:none;background:#fdfaf7;border:1px solid #e0dbd6;border-radius:6px;max-height:160px;overflow-y:auto;margin-top:2px;position:absolute;left:0;right:0;top:100%;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.12);"></div>
+    </div>
+  </div>
+  <div id="pbnc-panel-clarify" style="padding:8px 12px;border-top:1px solid #e0dbd6;">
+    <input id="pbnc-clarify" class="pb-nc-inp" type="text" placeholder="Clarify note (optional)" style="width:100%;box-sizing:border-box;" oninput="_pbNcDirty=true">
+  </div>
+  <div id="pbnc-panel-bt" style="padding:8px 12px;border-top:1px solid #e0dbd6;display:block;">
+    <div id="pbnc-bt-result" style="font-size:13px;color:#5a5552;min-height:16px;margin-bottom:4px;"></div>
+    <div id="pbnc-bt-verdict" style="display:none;gap:8px;margin-top:6px;">
+      <button class="pb-nc-verdict-btn" id="pbnc-vgood" onclick="pbNcSetVerdict('good')">✓ Good</button>
+      <button class="pb-nc-verdict-btn" id="pbnc-vflag" onclick="pbNcSetVerdict('flag')">⚑ Flag</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="pb-books-modal" style="position:fixed;inset:0;background:#fdfaf7;z-index:45;display:none;flex-direction:column;font-family:'DM Sans',sans-serif;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #e0dbd6;background:#fff;flex-shrink:0;">
+    <span style="flex:1;font-size:17px;font-weight:600;color:#1a1714;">Phrasebooks</span>
+    <button onclick="document.getElementById('pb-books-modal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#5a5552;">×</button>
+  </div>
+  <div id="pb-books-list" style="flex:1;overflow-y:auto;padding:10px 14px;"></div>
+  <div style="padding:12px 14px;border-top:1px solid #e0dbd6;background:#fff;color:#9a9592;font-size:11px;">Import a phrasebook to add it here. Default cannot be deleted.</div>
+</div>
+<input id="pb-file-input" type="file" accept=".json" style="display:none" onchange="pbHandleFile(event)">
+<div id="pb-git-sheet" class="pb-nc-sheet">
+  <div class="pb-nc-hdr">
+    <span class="pb-nc-title">Fetch from GitHub</span>
+    <button class="pb-nc-x" onclick="pbCloseGitSheet()">×</button>
+  </div>
+  <div id="pb-git-body" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:12px;"></div>
+</div>
+<div id="pb-import-progress" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;align-items:center;justify-content:center;">
+  <div style="background:#fdfaf7;border-radius:12px;padding:24px 28px;min-width:280px;font-family:'DM Sans',sans-serif;">
+    <div id="pb-imp-title" style="font-size:14px;font-weight:700;color:#1a1714;margin-bottom:12px;"></div>
+    <div style="background:#e0dbd6;border-radius:999px;height:6px;margin-bottom:10px;">
+      <div id="pb-imp-bar" style="background:#2e8b8b;height:6px;border-radius:999px;width:0;transition:width .1s;"></div>
+    </div>
+    <div id="pb-imp-stats" style="font-size:12px;color:#5a5552;"></div>
+    <div id="pb-imp-skipped" style="font-size:11px;color:#c0392b;margin-top:6px;max-height:80px;overflow-y:auto;"></div>
+    <button id="pb-imp-done" style="display:none;margin-top:14px;width:100%;" class="pb-nc-save" onclick="pbImportProgressClose()">Done</button>
+  </div>
+</div>
+<div id="tr-clarify-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:36;align-items:center;justify-content:center;">
+  <div style="background:#fdfaf7;border-radius:14px;width:min(440px,94vw);padding:20px 24px;font-family:'DM Sans',sans-serif;">
+    <div style="font-weight:700;font-size:15px;margin-bottom:12px;color:#1a1714;">Clarify translation</div>
+    <div id="tr-clar-orig" style="font-size:13px;color:#5a5552;margin-bottom:8px;"></div>
+    <textarea id="tr-clar-inp" style="width:100%;min-height:72px;border:1px solid #e0dbd6;border-radius:8px;padding:8px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;resize:vertical;" placeholder="Your corrected translation…"></textarea>
+    <div id="tr-clar-bt" style="font-size:12px;color:#7a7672;min-height:16px;margin-top:4px;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="pb-nc-save" onclick="trSendClarify()" style="flex:1;">Send</button>
+      <button class="pb-nc-act" onclick="document.getElementById('tr-clarify-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+
+</template>
+<script>window.__TB_DORMANT_JS_LEN=262247;window.__TB_DORMANT_CSS_LEN=41944;</script>
 <script id="tb-bridge-js" type="text/tb-dormant">
 'use strict';
 var RELAY_BASE='talk-signal.myacctfortracking.workers.dev/signal';
@@ -10023,5 +10436,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:"DM Sans"
 .pb-strip-btn:hover{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
 .pb-strip-btn.active{color:var(--teal-bright);border-color:rgba(63,193,193,.35);}
 </script>
+<script>try{TBROUTE.bootJoinCheck();}catch(e){}</script>
 </body>
 </html>
