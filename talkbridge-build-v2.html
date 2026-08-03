@@ -23,9 +23,22 @@ input,textarea,select{font:inherit}
 .ribbon .names{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:600}
 .ribbon .names .nm{max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ribbon .names input{border:none;background:var(--teal-dim);border-radius:8px;padding:2px 6px;max-width:34vw}
-.ribbon .rb-centre{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px}
-.mic-meter{width:24px;height:24px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;position:relative}
+.rz-left{flex:1;min-width:0;display:flex;align-items:center;gap:6px}
+.rz-center{display:flex;align-items:center;flex-shrink:0;gap:8px}
+.rz-right{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:16px}
+.rz-slot.cam-slot{visibility:hidden}
+.rz-slot.call-mic-slot{visibility:hidden}
+#scr-room.st-video .rz-slot.cam-slot{visibility:visible}
+#scr-room.st-phone .rz-slot.call-mic-slot,#scr-room.st-video .rz-slot.call-mic-slot{visibility:visible}
+#scr-room.st-phone #btn-call,#scr-room.st-phone #btn-video,#scr-room.st-video #btn-call,#scr-room.st-video #btn-video{display:none}
+#rb-hangup{display:none;width:34px;height:34px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;line-height:0;align-items:center;justify-content:center;flex-shrink:0;transform:rotate(135deg)}
+#scr-room.st-phone #rb-hangup,#scr-room.st-video #rb-hangup{display:flex}
+.meter-btn{background:none;border:none;cursor:pointer;line-height:0;color:var(--ink-mid);padding:0;display:flex}
+.meter-btn:not(.off) .cam-slash,.meter-btn:not(.off) .mic-slash{display:none}
+.meter-btn.off .cam-slash,.meter-btn.off .mic-slash{display:block}
+.mic-meter{width:24px;height:24px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;color:var(--ink)}
 .mic-meter .lvl{position:absolute;inset:2px;border-radius:50%;background:var(--teal);transform:scale(0);transition:transform .06s}
+.mic-meter svg{position:relative;z-index:1}
 
 .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--ink-dim);background:
  radial-gradient(circle at 20% 20%,#0e8a860d,transparent 40%),
@@ -101,8 +114,9 @@ input,textarea,select{font:inherit}
 .sr-side button{background:none;border:none;color:var(--teal)}
 
 /* ═ call band ═ */
-.call-band{display:none;position:relative;background:#000;flex-shrink:0}
-.call-band.on{display:block}
+.call-band{display:none;position:relative;background:#000;flex-shrink:0;height:0}
+.call-band.on{display:block;height:38vh;min-height:220px}
+.videos{position:absolute;inset:0}
 .call-band .cb-video-wrap{position:relative;width:100%;height:0;padding-bottom:56%;background:#111}
 #remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#111}
 #local-video{position:absolute;width:26%;bottom:8px;right:8px;border-radius:10px;object-fit:cover;border:2px solid #fff3}
@@ -1365,6 +1379,7 @@ var CallEngine=(function(){
     var rv=$('remote-video');if(rv)rv.muted=(room.ear===false);
     $('call-band').classList.add('on');
     $('call-band').classList.toggle('is-video',kind==='video');
+    var scrRoom=$('scr-room');if(scrRoom)scrRoom.classList.add(kind==='video'?'st-video':'st-phone');
     $('local-video').srcObject=stream; // Item 8 — real MediaStream bound via srcObject
     $('local-video').style.display=(kind==='video'&&camOn)?'':'none';
     $('rb-cam').classList.toggle('off',!camOn);
@@ -1501,6 +1516,7 @@ var CallEngine=(function(){
     if(stream){stream.getTracks().forEach(function(t){try{t.stop()}catch(_){}});stream=null} // genuinely releases the mic
     remoteStream=null;savedOffer=null;savedCandidates=[];pendingCandidates=[];seenCand=new Set();
     $('call-band').classList.remove('on');
+    var scrRoom2=$('scr-room');if(scrRoom2)scrRoom2.classList.remove('st-phone','st-video');
     var t=$('rz-timer');if(t)t.textContent='';
     $('rb-mic').classList.add('off');$('rb-cam').classList.add('off');
     $('remote-video').srcObject=null;$('local-video').srcObject=null;
@@ -1747,7 +1763,6 @@ UI.renderRoomHead=function(){
   $('rh-my').textContent=r.myName||AppUser.name();
   $('rh-partner').textContent=r.partnerName||'';
   $('rh-partner').classList.toggle('hidden',!r.partnerName);
-  $('rb-hear').classList.toggle('off',r.ear===false);
 };
 
 UI.renderInviteCard=function(){
@@ -2407,28 +2422,32 @@ var APP_HTML=
 +'</div>'
 
 +'<div id="scr-room" class="screen">'
-  +'<div class="ribbon">'
-    +'<button class="icon-btn" id="rb-hamburger">☰</button>'
-    +'<div class="names"><span class="nm" id="rh-my"></span><span>↔</span><span class="nm hidden" id="rh-partner"></span><span id="presence" style="width:8px;height:8px;border-radius:50%;background:#ccc" ></span></div>'
-    +'<div class="rb-centre"><div class="mic-meter" id="btn-chatmic"><div class="lvl" id="mic-lvl"></div>🎙</div></div>'
-    +'<button class="icon-btn" id="rb-video">📹</button>'
-    +'<button class="icon-btn" id="rb-audio">📞</button>'
-    +'<button class="icon-btn" id="rb-drawer">⋯</button>'
+  +'<div class="ribbon" id="room-ribbon">'
+    +'<div class="rz-left">'
+      +'<button class="icon-btn" id="rb-hamburger" aria-label="Rooms"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>'
+      +'<div class="names"><span class="presence-dot" id="presence" style="width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block;margin-right:4px"></span><span class="nm" id="rh-my"></span><span>↔</span><span class="nm hidden" id="rh-partner"></span></div>'
+      +'<span class="rz-timer" id="rz-timer"></span>'
+    +'</div>'
+    +'<div class="rz-center">'
+      +'<div class="rz-slot mic-slot"><div class="mic-meter" id="btn-chatmic"><div class="lvl" id="mic-lvl"></div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></div></div>'
+      +'<div class="rz-slot call-mic-slot"><button class="meter-btn off" id="rb-mic" aria-label="Mute mic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line class="mic-slash" x1="3" y1="3" x2="21" y2="21" stroke-width="2.2" stroke="var(--red)"/></svg></button></div>'
+      +'<div class="rz-slot cam-slot"><button class="meter-btn off" id="rb-cam" aria-label="Camera"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l7-4v12l-7-4z"/><line class="cam-slash" x1="3" y1="3" x2="21" y2="21" stroke-width="2.2" stroke="var(--red)"/></svg></button></div>'
+    +'</div>'
+    +'<div class="rz-right">'
+      +'<button class="icon-btn" id="btn-call" aria-label="Voice call"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>'
+      +'<button class="icon-btn" id="btn-video" aria-label="Video call"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l7-4v12l-7-4z"/></svg></button>'
+      +'<button id="rb-hangup" aria-label="End call"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>'
+    +'</div>'
+    +'<button class="icon-btn" id="rb-drawer" aria-label="Room settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>'
   +'</div>'
   +'<div id="dg-fail-banner" class="dg-fail-banner">Transcription keeps failing — check your Deepgram key in Calling &amp; sync keys</div>'
   +'<div class="call-band" id="call-band">'
-    +'<div class="cb-video-wrap">'
+    +'<button id="pip-x" aria-label="Minimize">✕</button>'
+    +'<div class="videos" id="call-videos">'
+      +'<div id="remote-ph"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
       +'<video id="remote-video" autoplay playsinline></video>'
-      +'<div id="remote-ph">No video</div>'
       +'<video id="local-video" autoplay playsinline muted></video>'
-      +'<div class="cb-info" id="rz-timer"></div>'
       +'<div class="caption-layer" id="caption-layer"></div>'
-      +'<div class="cb-controls">'
-        +'<button id="rb-mic" class="off">🎙</button>'
-        +'<button id="rb-cam" class="off">📷</button>'
-        +'<button id="rb-hear">👂</button>'
-        +'<button id="rb-hangup" class="end">⏹</button>'
-      +'</div>'
     +'</div>'
   +'</div>'
   +'<div class="transcript-wrap" id="transcript-wrap"></div>'
@@ -2610,11 +2629,10 @@ function wire(){
   });
   wireAppearance();
 
-  $('rb-video').addEventListener('click',function(){CallEngine.start('video')});
-  $('rb-audio').addEventListener('click',function(){CallEngine.start('voice')});
+  $('btn-video').addEventListener('click',function(){if(!CallEngine.isActive())CallEngine.start('video')});
+  $('btn-call').addEventListener('click',function(){if(!CallEngine.isActive())CallEngine.start('voice')});
   $('rb-mic').addEventListener('click',function(){CallEngine.toggleMic()});
   $('rb-cam').addEventListener('click',function(){CallEngine.toggleCam()});
-  $('rb-hear').addEventListener('click',function(){var r=RoomStore.active();if(!r)return;r.ear=r.ear===false?true:false;RoomStore.save();UI.renderRoomHead();var rv=$('remote-video');if(rv)rv.muted=(r.ear===false)});
   $('rb-hangup').addEventListener('click',function(){CallEngine.hangUp(true)});
   $('btn-chatmic').addEventListener('click',function(){if(AudioEngine.isChatMicOn())AudioEngine.stopChatMic();else AudioEngine.startChatMic()});
   $('ring-acc').addEventListener('click',function(){CallEngine.accept()});
