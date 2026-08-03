@@ -14,7 +14,7 @@ These outrank every individual requirement. A build that satisfies a requirement
 
 **P2 — No lag.** Nothing waits. Presence reflects reality now. Video appears now. A microphone that is on is transcribing now. Where a person would perceive a delay, that is a defect, not a tuning value.
 
-**P3 — Stateless.** An action happens and it is done. Nothing accumulates a pending state that must later be unwound. A saved phrase is saved regardless of what happens to the room it came from.
+**P3 — Durable completion, no orphaned action debt.** A completed user action is durable and does not depend on its originating room remaining open; saved phrases remain saved after leaving that room. Offline messages, phrasebook writes, and receipts may remain pending until acknowledged externally. Pending delivery or synchronization state is durable, visible where relevant, scoped to its originating room or language pair, survives reload, retries without duplication, and is never silently discarded or applied elsewhere. “Stateless” means no orphaned transient in-memory action debt requiring manual unwinding; it does not override durability, retry, or no-data-loss requirements.
 
 **P4 — One transcript.** Text, voice, and video all write to the same transcript in the same room. Calls are a live layer over it, never a separate surface with its own record.
 
@@ -211,11 +211,13 @@ Shared between both people in a language pair. Loads on room entry, and re-fetch
 
 **Search from compose:** "/" or ".." filters live with turn09 ship's exact scoring and ordering, capped at 30 inline results, with a "No matching phrases" empty state. With an empty query it orders by usage and then creation time; with a query it uses the turn09 relevance score. The full phrasebook surface retains its own turn09 behavior.
 
-**Saving.** A change is saved locally and it is done — indicator green, no pending state (P3). Writing to the central store is a separate step that happens on call end, on closing with unsaved changes, and on save-now, retrying on reconnect. If that write fails the person sees "trouble updating GitHub, check the debug log" and the log explains what actually happened (P1). If the central copy is newer, the write is refused, the person is told, and it retries — local data is never overwritten.
+**Saving.** A change is saved locally and it is done; leaving the room cannot undo it (P3). Writing to the central store is a separate, visibly pending step that happens on call end, on closing with unsaved changes, and on save-now, retrying on reconnect without duplication. If that write fails the person sees "trouble updating GitHub, check the debug log" and the log explains what actually happened (P1). If the central copy is newer, the write is refused, the person is told, and it retries — local data is never overwritten.
 
 **File identity and version.** Each directional language pair has one stable, unversioned filename. The version is a field inside that JSON document; the app never creates a new filename to represent a new version. Display direction is independent of file identity: each viewer still sees their own language on the left, but reversing the columns for a joiner must not accidentally select or create a different central file.
 
 **Cache and staleness.** Room entry loads the locally cached book immediately. Entry itself is not a phrasebook change, never marks the book dirty, never increments its JSON version, and never causes a blind full download. A lightweight remote metadata/version check may run; the full JSON is fetched only when there is no usable cache or the remote fixed file is proven newer. A dirty local book is never silently replaced. Before writing, the app obtains the current remote identity/SHA and refuses a stale write. A cache write is part of a successful load: quota or persistence failure is surfaced explicitly rather than causing an unexplained download on every later entry.
+
+Every phrasebook operation captures immutable pair identity, so a late pull or write for pair A cannot alter pair B. Cache-write failure leaves explicit, recoverable state. Unload does not promise asynchronous write-back completion: dirty state is stored durably first and retried later.
 
 Categories and all other card fields survive every edit path. The phrasebook is shared with another application, and neither app loses the other's changes.
 
@@ -245,7 +247,7 @@ The prose in this document wins on **what must be true**. The referenced code wi
 
 The interface and interaction baseline is this file. Read it for: the chrome/ribbon strip and its call states · the four-tab room drawer · the appearance system · the compose strip including the exact phrase-search triggers, filtering, ordering, caps, escape behavior, and Enter/Go behavior · the incoming-call ring overlay · bubble structure, receipt dots, system pills · every phrasebook card, overlay, search, Use/send/TTS, close, and usage-count interaction · credential live-verification. For search and phrasebook interaction, this file wins over any conflicting shorthand elsewhere in this document until a later product decision explicitly supersedes it.
 
-**Do not take from it:** the room card layout (§4 supersedes it), the home screen (§1 supersedes it), the mic's position in the ribbon (§8 requires dead centre), the phrasebook fetch/version filename behavior clarified below, or anything in §15 below. `bridge-turn09-post-ship.html` is explanatory lineage only. `bridge-turn10*` and `bridge-turn11*` are off the table and are not donors, authorities, or build bases.
+**Only these agreed exceptions supersede it:** the start/home screen; the three-row/two-column room card; the microphone pinned to the ribbon's true centre; phrasebook stable-filename, internal-version, cache, and staleness plumbing; explicitly rejected behavior in §15 and the matrix; and genuinely unfinished features in the recovery matrix. `bridge-turn09-post-ship.html` is explanatory lineage only. `bridge-turn10*` and `bridge-turn11*` are off the table and are not donors, authorities, or build bases. Do not reconstruct turn09's current compose, transcript-search, or phrasebook behavior from memory or later turns.
 
 ### The engine — where the working versions live
 
@@ -309,13 +311,14 @@ Where present, read their exact interaction in `bridge-turn09-ship.html` (§14).
 
 **CASE 1.3.B — Rooms exist, nothing waiting**
 - "You have 8 active rooms, there are no waiting messages"
-- Room cards listed below
+- No room cards appear on home; all rooms remain in the panel
 
 **CASE 1.3.C — Rooms exist, things waiting**
 - "Of 8 active rooms there are 6 waiting messages, 2 chats and 4 video calls"
 - Room cards listed below, each with its own chat / phone / video badges
-- Tapping a room name opens it and dismisses that card from the home screen
+- Tapping a room card opens it and persistently dismisses only that summary card from the home screen
 - A card can be dismissed without opening it
+- Either dismissal leaves its room badges intact and the room in the panel; genuinely new later waiting activity may create a new summary card
 
 **1.4** Is there a **+** button?
 
@@ -671,7 +674,7 @@ Both text fields on a card are directly editable. Enter commits. This cycle is e
 **10.3** Clear transcript:
 - 10.3.1 Prompt offers export first, **export is the default action.**
 - 10.3.2 Declining export is possible, but deliberate.
-- 10.3.3 It clears **their own copy, on their own device.** The other person's transcript is untouched. Stateless — the action happens where it was taken, and it is done (P3).
+- 10.3.3 It clears **their own copy, on their own device.** The other person's transcript is untouched. The completed action is durable and scoped to the device where it was taken (P3).
 - 10.3.4 The room remains. **Saved phrases are untouched** (P3).
 
 ---
@@ -959,6 +962,8 @@ Before building: state the expected diff. After building: compare actual.
 
 This exists because a single unreviewed commit once deleted 9,759 lines and the project spent a month rebuilding around the hole.
 
+**These release-process rules remain active requirements, not historical commentary.** The named regression gates run on every release; any failure requires rollback rather than forward patching. The diff-variance guardrail and its existing thresholds remain active. A future process change must explicitly amend this specification—silence in a prompt or plan does not supersede it.
+
 ---
 
 # PART FOUR — BASELINE AND STATIC LIFECYCLE AUDIT
@@ -989,7 +994,7 @@ The reusable contract is:
 1. Every asynchronous session captures the room ID and a generation/owner token when it begins.
 2. A room switch, exit, hangup, or replacement session invalidates the prior token before starting new work.
 3. A late result checks both token and room ID before touching global state, UI, transcript, sockets, media, or phrasebook.
-4. Teardown stops Deepgram, all owned media tracks, audio helpers and contexts, peer connection, keepalive/heartbeat, relay socket, reconnect/recovery timers, pending signaling state, and meters; it saves durable state before clearing identity.
+4. Teardown is idempotent and completely releases owned tracks, audio resources, primary and secondary Deepgram sockets, relay sockets, peer connections, listeners, heartbeats, watchdogs, retries, ringing, duration timers, signaling state, and meters; it saves durable state before clearing identity.
 5. Post-session routing captures the role, room, language pair, and reason before live state is cleared.
 6. Phrasebook write-back starts while the correct pair/room identity still exists. It does not authorize clearing dirty state until the remote write succeeds.
 
@@ -1054,6 +1059,12 @@ These are retained strengths, not proof that the entire lifecycle is safe.
 8. Re-entry loads complete local history first, merges remote missing history without loss or duplication, reconnects once, sends pending receipts, and never bumps or dirties the PB.
 9. PB operations capture immutable pair identity. One fixed filename represents that direction; JSON version and remote SHA govern staleness/conflicts.
 10. Local persistence failure is visible and leaves recoverable dirty state. Network failure never discards local transcript or PB changes.
+
+### 18.5 Readiness and output artifact
+
+This document is a coherent requirements and recovery baseline, not yet an executable build plan. The lifecycle audit already supplies an architecture contract—single ownership, captured generations, stale-result rejection, idempotent teardown, and durable room/pair-scoped retry state—so “races were found but there is no architecture” is inaccurate. What remains missing is the implementation architecture: the final module/owner mapping and sequenced build plan. Before implementation, that plan must assign every resource and store to one runtime owner, map every audit finding to an invariant and acceptance gate, and sequence foundation work before unfinished UI.
+
+The final output HTML artifact filename has not been selected in the recorded product decisions. This is a real open build-plan decision, not an internal requirements contradiction. `bridge-turn09-ship.html` is a protected behavioral reference and must not be overwritten; a builder must not invent the output filename or infer it from a new turn number.
 
 ## T14. Lifecycle and re-entry gates
 
