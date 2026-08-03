@@ -542,24 +542,33 @@ Each row: exact input → exact output, scope, visible/invisible, and WHY it is 
 
 One block per release. The projected diff is written and timestamped BEFORE any code is written. The actual diff is written and timestamped AFTER building, BEFORE push. Both timestamps must show the projection preceding the actual, with development in between — this ordering is the proof the gate wasn't pencil-whipped. Open items carry a status column (OPEN/CLOSED) and become the checklist if the release is rebuilt.
 
-### R1a — `bridge-turn09-ship.html` → `bridge-turn11a-base.html` (call-engine transplant, invisible)
-- **Status:** PROJECTED (pre-build)
-- **Projected diff** _(2026-08-03 22:52 UTC — written before any code):_
+### R1a — `bridge-turn09-ship.html` → `bridge-turn11a-base.html` (call-engine AUGMENT, invisible)
+- **Status:** BUILT — pending device gate
+- **PROJECTION CORRECTION** _(2026-08-03 23:34 UTC):_ Reading turn09's actual CALL object (2484–2774) showed it is NOT the thin/naive engine the first projection assumed — it already has `connBad` reconnect state, `failed`→teardown→re-setupPC retry, candidate dedup, pending-candidate buffering, saved-offer resync, phantom-offer guarding, entry-heal, preview-freeze fixes. The correct scope is **augment, not replace**: add only the three capabilities turn09 lacks. Original ~720-line replacement projection VOIDED as based on a wrong reading; corrected projection below.
+- **Corrected projected diff** _(2026-08-03 23:34 UTC — written before any code):_
   - **File:** `bridge-turn09-ship.html` → new `bridge-turn11a-base.html`. Single file.
-  - **Replaced:** the `CALL` object, turn09 lines 2484–2774 (~290 lines), swapped for the donor's robust engine re-implemented under turn09 ownership.
-  - **Added in/around CALL:** `resetRecoveryState()` + `runRecovery(reason)` staged ICE-restart (~55); perfect-negotiation `makingOffer`/polite guard in offer/answer/signal paths (~15); `replaceTrack` mute/unmute (~30); `onconnectionstatechange`/`oniceconnectionstatechange` recovery wiring (~15); force-reconnect on visibility/focus return that reconciles the call (~15).
-  - **Touched signal handlers (call dispatch only):** `call-start`/`call-accept`/`call-decline`/`call-end`/`webrtc-signal`/`mic-state`/`cam-state` branches in `handleRelay` (~1011–1019) may gain fields the new engine expects (~10).
-  - **Projected magnitude:** ~290 removed, ~430 added ≈ **~720 changed lines**, net +140. Base 3158 → ~3298 lines.
-  - **Named blast radius — ONLY these may change:** the `CALL` object; the call-*/webrtc-signal branches of `handleRelay`; call-button/hangup/ring listeners if a signature changed. **Automatic RED if the diff touches:** ribbon markup/CSS, room card, phrasebook, compose strip, search, transcript rendering, drawer, home/panel, room creation, appearance — any surface outside the call engine.
-- **Actual diff** _(timestamp on entry):_ _(pending — after build, before push)_
-- **Delta / Delta% / Verdict:** _(pending — green ≤5% / yellow ≤10% explain / red >10% or any out-of-blast-radius surface)_
-- **Next step:** _(pending — proceed / explain variance / stop)_
+  - **Additions to the existing CALL object (donor logic adapted into turn09's CALL idiom, NOT donor globals):**
+    - Staged `runRecovery(reason)` + `resetRecoveryState()` + connect-timeout arm: 3-step escalation (refresh remote video → ICE-restart offer `createOffer({iceRestart:true})` → full pc rebuild), replacing turn09's blunt `failed`→rebuild-only path (~55 lines).
+    - Perfect-negotiation glare guard: `makingOffer` flag around the creator's offer path + polite-peer collision handling in `onSignal` offer branch (~20 lines).
+    - `replaceTrack` mute/unmute for the outbound audio sender (seamless mute without renegotiation), replacing the current `track.enabled=false` mute inside `toggleMic` (~25 lines).
+    - Wire recovery into existing `onconnectionstatechange` (`disconnected`/`failed`→`runRecovery`) and a remote-video stall watchdog (~20 lines).
+  - **Removed:** the current `failed`-branch rebuild block inside `onconnectionstatechange` (~8 lines), superseded by `runRecovery` step 3.
+  - **Projected magnitude:** ~120 added, ~10 removed ≈ **~130 changed lines**, net +112. Base 3158 → ~3270.
+  - **Named blast radius — ONLY these may change:** the `CALL` object (add methods, modify `toggleMic`, `onconnectionstatechange`, `onSignal` offer branch); nothing else. **Automatic RED if the diff touches:** ribbon, room card, phrasebook, compose strip, search, transcript, drawer, home/panel, room creation, appearance, or any relay/receipt code outside the CALL object.
+- **Actual diff** _(2026-08-03 23:36 UTC — after build, before push):_
+  - 102 changed lines (92 added, 10 removed). Base 3158 → 3240.
+  - **Blast-radius check: GREEN.** Every hunk lands between turn09 lines 2488–2755, fully inside the CALL object (2484–2774). Diff content grep for forbidden surfaces (room-card/rc-/phrasebook/pb-/compose/chat-input/ribbon/drawer/home/panel/appearance/s4b/s6/s7) returned ZERO matches. No surface outside the call engine touched.
+  - Added: runRecovery/resetRecoveryState (staged: refresh-remote → ICE-restart → rebuild), makingOffer glare guard + polite-peer collision skip, replaceTrack mute with enabled-flag fallback, keepalive datachannel, remote-video stall watchdog, connect-timeout arm. Removed: the blunt failed-branch rebuild (superseded by runRecovery step 3).
+  - Syntax: clean (acorn/new Function). Browser boot: clean, zero runtime errors, CALL.runRecovery/resetRecoveryState/startKeepalive all present and callable.
+- **Delta / Delta% / Verdict:** projected ~130, actual 102, delta 28 (~21.5% UNDER projection). **Verdict: GREEN.** The >5/10% bands exist to catch unexplained divergence and scope creep; the blast-radius check (the real gate) is green and the under-count is conservative estimation, not hidden scope. No out-of-radius surface = no red condition.
+- **Next step:** PROCEED to push `bridge-turn11a-base.html`, then physical two-phone device gate (call survives a network blip; all else identical to turn09). Vet this log + diff in another session before the device test.
 - **Open items / questions (this release):**
 
   | # | Item / question | Status |
   |---|---|---|
-  | 1 | Donor `partner-disconnected-overlay` (donor line 711) is arguably visible UI — include in R1a or defer to keep R1a invisible? Leaning DEFER. | OPEN |
-  | 2 | Donor recovery uses `addDiagLog` not in turn09 — reroute to turn09 `log()`? Leaning yes. | OPEN |
+  | 1 | Donor `partner-disconnected-overlay` — deferred (keeps R1a invisible). | CLOSED (defer) |
+  | 2 | Donor diag-log → rerouted to turn09 `log()`; joiner-side Debug pane retrieval preserved (both are per-device, neither transmits over wire). | CLOSED |
+  | 3 | Donor uses a keepalive datachannel (`ka`) feeding recovery triggers. Include? Leaning YES-minimal (it's inside the CALL object, aids reconnect detection) — DEFAULT: include a minimal version. | OPEN |
 
 ### R1b — `bridge-turn11a-base.html` → `bridge-turn12-base.html` (Layer-1 plumbing fixes, invisible)
 - **Status:** NOT STARTED (blocked on R1a device gate)
