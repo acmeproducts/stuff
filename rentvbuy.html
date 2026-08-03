@@ -4,24 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rent vs Buy Analyzer</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- 1. React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel for in-browser JSX compilation -->
+    <!-- 2. Babel (for parsing JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Recharts - Pinned to stable version with prop-types to fix UMD ForwardRef bug -->
+
+    <!-- 3. Recharts & Dependencies -->
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
-    
-    <!-- Firebase V8 Compat for simpler in-browser HTML usage -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 
     <style>
       @media print {
@@ -39,12 +34,21 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // Safely extract React hooks and components from the global object
         const { useState, useEffect, useRef, useMemo } = React;
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, Area, AreaChart } = window.Recharts;
+        const { 
+          LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, 
+          Legend, ResponsiveContainer, Area, AreaChart 
+        } = window.Recharts;
+
+        // Constants for Local Storage
+        const STORAGE_KEY_CONFIG = 'analyzer_pro_config_openrouter';
+        const STORAGE_KEY_LIBRARY = 'analyzer_pro_library_analyses';
+        const generateId = () => Math.random().toString(36).substr(2, 9);
 
         const Menu = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>;
         const Settings = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
-        const Calculator = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><line x1="8" y1="10" x2="8" y2="10.01"></line><line x1="12" y1="10" x2="12" y2="10.01"></line><line x1="16" y1="10" x2="16" y2="10.01"></line><line x1="8" y1="14" x2="8" y2="14.01"></line><line x1="12" y1="14" x2="12" y2="14.01"></line><line x1="8" y1="18" x2="8" y2="18.01"></line><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>;
+        const CalculatorIcon = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><line x1="8" y1="10" x2="8" y2="10.01"></line><line x1="12" y1="10" x2="12" y2="10.01"></line><line x1="16" y1="10" x2="16" y2="10.01"></line><line x1="8" y1="14" x2="8" y2="14.01"></line><line x1="12" y1="14" x2="12" y2="14.01"></line><line x1="8" y1="18" x2="8" y2="18.01"></line><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>;
         const Sparkles = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>;
         const BookOpen = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
         const ChevronRight = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><polyline points="9 18 15 12 9 6"></polyline></svg>;
@@ -57,12 +61,6 @@
         const Home = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
         const Clock = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { projectId: "demo" };
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
         const runFinancialAnalysis = (params) => {
           const {
             homePrice, downPaymentPct, mortgageRate, taxRate, hoa, insurance, appreciation,
@@ -74,7 +72,7 @@
           let initialDownPayment = currentHomeValue - loanBalance;
           
           let monthlyRate = (parseFloat(mortgageRate) / 100) / 12;
-          let totalMonths = 30 * 12;
+          let totalMonths = 30 * 12; // Assuming standard 30 year fixed
           
           let monthlyMortgage = 0;
           if (monthlyRate > 0) {
@@ -84,7 +82,7 @@
           }
 
           let currentRent = parseFloat(rentPrice);
-          let portfolio = initialDownPayment; 
+          let portfolio = initialDownPayment; // Renter invests the exact same initial cash layout
 
           let monthlyInvRate = (parseFloat(investmentReturn) / 100) / 12;
           let annualApprecRate = parseFloat(appreciation) / 100;
@@ -93,6 +91,7 @@
           let chartData = [];
           let buyTotalCashSpent = initialDownPayment;
           let rentTotalCashSpent = 0; 
+
           let year1BuyMonthly = 0;
           let year1RentMonthly = 0;
           let finalBuyMonthly = 0;
@@ -108,6 +107,7 @@
 
           for (let m = 1; m <= years * 12; m++) {
             let yearIndex = Math.floor((m - 1) / 12);
+            
             let monthlyTax = (currentHomeValue * (parseFloat(taxRate) / 100)) / 12;
             let inflatedHoa = parseFloat(hoa) * Math.pow(1.03, yearIndex);
             let inflatedIns = parseFloat(insurance) * Math.pow(1.03, yearIndex);
@@ -127,13 +127,16 @@
             buyTotalCashSpent += buyMonthlyCost;
             rentTotalCashSpent += actualRentCost;
 
+            // THE DELTA EQUALIZER: 
             let delta = buyMonthlyCost - actualRentCost;
             portfolio = portfolio * (1 + monthlyInvRate) + delta;
 
+            // Amortization
             let interest = loanBalance * monthlyRate;
             let principal = monthlyMortgage - interest;
             loanBalance = Math.max(0, loanBalance - principal);
             
+            // Appreciation
             currentHomeValue *= Math.pow(1 + annualApprecRate, 1/12);
 
             if (m % 12 === 0) {
@@ -158,7 +161,7 @@
               finalBuyMonthly,
               finalRentMonthly,
               buyTotalCashSpent,
-              rentTotalCashSpent, 
+              rentTotalCashSpent,
               finalBuyWealth,
               finalRentWealth,
               netAdvantage: finalBuyWealth - finalRentWealth,
@@ -171,7 +174,7 @@
         const Toast = ({ message, type = 'success', onClose }) => {
           if (!message) return null;
           return (
-            <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
+            <div className="fixed bottom-4 right-4 z-50">
               <div className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium text-white ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
                 {type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
                 {message}
@@ -209,31 +212,20 @@
           </div>
         );
 
-        const ConfigStep = ({ user, setToast }) => {
+        const ConfigStep = ({ setToast }) => {
           const [apiKey, setApiKey] = useState('');
           const [isLoading, setIsLoading] = useState(false);
 
           useEffect(() => {
-            if (!user) return;
-            const fetchConfig = async () => {
-              const docRef = db.doc(`artifacts/${appId}/users/${user.uid}/config/openrouter`);
-              const docSnap = await docRef.get();
-              if (docSnap.exists && docSnap.data().key) {
-                setApiKey(docSnap.data().key);
-              }
-            };
-            fetchConfig();
-          }, [user]);
+            const savedKey = localStorage.getItem(STORAGE_KEY_CONFIG);
+            if (savedKey) setApiKey(savedKey);
+          }, []);
 
-          const saveConfig = async () => {
-            if (!user) return;
+          const saveConfig = () => {
             setIsLoading(true);
             try {
-              await db.doc(`artifacts/${appId}/users/${user.uid}/config/openrouter`).set({
-                key: apiKey,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-              });
-              setToast({ message: 'API Key saved securely.', type: 'success' });
+              localStorage.setItem(STORAGE_KEY_CONFIG, apiKey);
+              setToast({ message: 'API Key saved securely locally.', type: 'success' });
             } catch (error) {
               setToast({ message: 'Error saving config.', type: 'error' });
             }
@@ -249,7 +241,6 @@
                   <p className="text-sm text-gray-500">Set up your API keys to enable automated ad analysis.</p>
                 </div>
               </div>
-              
               <div className="space-y-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">OpenRouter API Key</label>
@@ -260,7 +251,7 @@
                     placeholder="sk-or-v1-..."
                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-md text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Stored securely in your database profile.</p>
+                  <p className="text-xs text-gray-400 mt-1">This key is stored securely in your browser's local storage and never shared.</p>
                 </div>
                 <button
                   onClick={saveConfig}
@@ -281,6 +272,7 @@
 
           return (
             <div className="space-y-8 animate-in fade-in duration-500 print-wrapper">
+              
               <div className="flex justify-between items-center border-b pb-4 hide-on-print">
                 <h2 className="text-xl font-bold text-gray-900">Analysis Results</h2>
                 <div className="flex gap-2">
@@ -389,7 +381,7 @@
           );
         };
 
-        const ManualAnalysisStep = ({ user, setToast }) => {
+        const ManualAnalysisStep = ({ setToast }) => {
           const [activeTab, setActiveTab] = useState('setup');
           const [isSaving, setIsSaving] = useState(false);
           const [analysisResult, setAnalysisResult] = useState(null);
@@ -406,17 +398,20 @@
             setActiveTab('results');
           };
 
-          const handleCommit = async () => {
-            if (!user || !analysisResult) return;
+          const handleCommit = () => {
+            if (!analysisResult) return;
             setIsSaving(true);
             try {
-              await db.collection(`artifacts/${appId}/users/${user.uid}/analyses`).add({
+              const newAnalysis = {
+                id: generateId(),
                 type: 'manual',
                 title: `Manual Analysis - ${new Date().toLocaleDateString()}`,
                 params: analysisResult.params,
                 summary: analysisResult.summary,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-              });
+                timestamp: Date.now()
+              };
+              const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_LIBRARY) || '[]');
+              localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify([newAnalysis, ...existing]));
               setToast({ message: 'Analysis saved to library.', type: 'success' });
             } catch (err) {
               setToast({ message: 'Failed to save analysis.', type: 'error' });
@@ -432,7 +427,7 @@
               </div>
 
               {activeTab === 'setup' && (
-                <div className="flex-1 animate-in fade-in space-y-8">
+                <div className="flex-1 space-y-8">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm space-y-4">
                       <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 border-b pb-2"><Home size={20} className="text-blue-600"/> Purchase Scenario</h3>
@@ -461,7 +456,7 @@
                           onClick={handleCalculate}
                           className="w-full flex justify-center items-center gap-2 px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg shadow-sm transition-colors"
                         >
-                          <Calculator size={18} /> Run Analysis
+                          <CalculatorIcon size={18} /> Run Analysis
                         </button>
                       </div>
                     </div>
@@ -476,7 +471,7 @@
           );
         };
 
-        const AutoAnalysisStep = ({ user, setToast }) => {
+        const AutoAnalysisStep = ({ setToast }) => {
           const [activeTab, setActiveTab] = useState('setup');
           const [inputData, setInputData] = useState('');
           const [isProcessing, setIsProcessing] = useState(false);
@@ -485,12 +480,10 @@
 
           const processAd = async () => {
             if (!inputData.trim()) return setToast({ message: 'Please enter ad text or link.', type: 'error' });
-            if (!user) return setToast({ message: 'Authentication required.', type: 'error' });
 
             setIsProcessing(true);
             try {
-              const docSnap = await db.doc(`artifacts/${appId}/users/${user.uid}/config/openrouter`).get();
-              const apiKey = docSnap.exists ? docSnap.data().key : null;
+              const apiKey = localStorage.getItem(STORAGE_KEY_CONFIG);
               
               if (!apiKey) {
                 setIsProcessing(false);
@@ -559,18 +552,21 @@
             setIsProcessing(false);
           };
 
-          const handleCommit = async () => {
-            if (!user || !analysisResult) return;
+          const handleCommit = () => {
+            if (!analysisResult) return;
             setIsSaving(true);
             try {
-              await db.collection(`artifacts/${appId}/users/${user.uid}/analyses`).add({
+              const newAnalysis = {
+                id: generateId(),
                 type: 'auto',
                 title: `AI Extracted Analysis - ${new Date().toLocaleDateString()}`,
                 params: analysisResult.params,
                 summary: analysisResult.summary,
                 sourceText: inputData.substring(0, 100),
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-              });
+                timestamp: Date.now()
+              };
+              const existing = JSON.parse(localStorage.getItem(STORAGE_KEY_LIBRARY) || '[]');
+              localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify([newAnalysis, ...existing]));
               setToast({ message: 'Analysis saved to library.', type: 'success' });
             } catch (err) {
               setToast({ message: 'Failed to save analysis.', type: 'error' });
@@ -586,7 +582,7 @@
               </div>
 
               {activeTab === 'setup' && (
-                <div className="flex-1 animate-in fade-in max-w-2xl mx-auto w-full mt-8">
+                <div className="flex-1 max-w-2xl mx-auto w-full mt-8">
                   <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-sm text-center">
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full mb-6">
                       <Sparkles size={32} />
@@ -623,33 +619,32 @@
           );
         };
 
-        const LibraryStep = ({ user, setToast }) => {
+        const LibraryStep = ({ setToast }) => {
           const [analyses, setAnalyses] = useState([]);
           const [loading, setLoading] = useState(true);
           const [viewingResult, setViewingResult] = useState(null);
 
           useEffect(() => {
-            if (!user) return;
-            const unsubscribe = db.collection(`artifacts/${appId}/users/${user.uid}/analyses`)
-              .orderBy('timestamp', 'desc')
-              .onSnapshot((snapshot) => {
-                const items = [];
-                snapshot.forEach((doc) => items.push({ id: doc.id, ...doc.data() }));
-                setAnalyses(items);
-                setLoading(false);
-              }, (error) => {
-                console.error(error);
-                setLoading(false);
-                setToast({ message: 'Error loading library.', type: 'error' });
-              });
-            return () => unsubscribe();
-          }, [user]);
+            try {
+              const items = JSON.parse(localStorage.getItem(STORAGE_KEY_LIBRARY) || '[]');
+              items.sort((a, b) => b.timestamp - a.timestamp);
+              setAnalyses(items);
+            } catch (error) {
+              console.error(error);
+              setToast({ message: 'Error loading library.', type: 'error' });
+            } finally {
+              setLoading(false);
+            }
+          }, []);
 
-          const handleDelete = async (id, e) => {
+          const handleDelete = (id, e) => {
             e.stopPropagation();
             if (!window.confirm('Delete this saved analysis?')) return;
             try {
-              await db.doc(`artifacts/${appId}/users/${user.uid}/analyses/${id}`).delete();
+              const items = JSON.parse(localStorage.getItem(STORAGE_KEY_LIBRARY) || '[]');
+              const updatedItems = items.filter(item => item.id !== id);
+              localStorage.setItem(STORAGE_KEY_LIBRARY, JSON.stringify(updatedItems));
+              setAnalyses(updatedItems);
               setToast({ message: 'Deleted successfully.', type: 'success' });
               if (viewingResult?.id === id) setViewingResult(null);
             } catch (err) {
@@ -692,7 +687,7 @@
                     >
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
-                          {item.type === 'auto' ? <Sparkles size={16} className="text-indigo-500" /> : <Calculator size={16} className="text-blue-500" />}
+                          {item.type === 'auto' ? <Sparkles size={16} className="text-indigo-500" /> : <CalculatorIcon size={16} className="text-blue-500" />}
                           <h3 className="font-semibold text-gray-900">{item.title}</h3>
                         </div>
                         <button 
@@ -726,31 +721,13 @@
         };
 
         function App() {
-          const [user, setUser] = useState(null);
           const [sidebarOpen, setSidebarOpen] = useState(true);
           const [currentStep, setCurrentStep] = useState('manual');
           const [toast, setToast] = useState(null);
 
-          useEffect(() => {
-            const initAuth = async () => {
-              try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                  await auth.signInWithCustomToken(__initial_auth_token);
-                } else {
-                  await auth.signInAnonymously();
-                }
-              } catch (err) {
-                console.error("Auth init error", err);
-              }
-            };
-            initAuth();
-            const unsubscribe = auth.onAuthStateChanged(setUser);
-            return () => unsubscribe();
-          }, []);
-
           const steps = [
             { id: 'config', label: 'Configuration', icon: Settings },
-            { id: 'manual', label: 'Manual Analysis', icon: Calculator },
+            { id: 'manual', label: 'Manual Analysis', icon: CalculatorIcon },
             { id: 'auto', label: 'Auto Analysis', icon: Sparkles },
             { id: 'library', label: 'Library', icon: BookOpen },
           ];
@@ -765,7 +742,7 @@
                   <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1 hover:bg-gray-800 rounded-md transition-colors text-gray-300">
                     <Menu size={24} />
                   </button>
-                  {sidebarOpen && <span className="ml-3 font-bold tracking-wide">Analyzer Pro</span>}
+                  {sidebarOpen && <span className="ml-3 font-bold tracking-wide whitespace-nowrap">Analyzer Pro</span>}
                 </div>
                 
                 <nav className="flex-1 py-4 flex flex-col gap-1 overflow-y-auto">
@@ -798,16 +775,10 @@
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 lg:p-8 relative">
-                  {user === null ? (
-                    <div className="flex items-center justify-center h-full text-gray-400">Authenticating...</div>
-                  ) : (
-                    <>
-                      {currentStep === 'config' && <ConfigStep user={user} setToast={setToast} />}
-                      {currentStep === 'manual' && <ManualAnalysisStep user={user} setToast={setToast} />}
-                      {currentStep === 'auto' && <AutoAnalysisStep user={user} setToast={setToast} />}
-                      {currentStep === 'library' && <LibraryStep user={user} setToast={setToast} />}
-                    </>
-                  )}
+                  {currentStep === 'config' && <ConfigStep setToast={setToast} />}
+                  {currentStep === 'manual' && <ManualAnalysisStep setToast={setToast} />}
+                  {currentStep === 'auto' && <AutoAnalysisStep setToast={setToast} />}
+                  {currentStep === 'library' && <LibraryStep setToast={setToast} />}
                 </main>
               </div>
               
