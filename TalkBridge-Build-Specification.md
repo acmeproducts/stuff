@@ -916,7 +916,7 @@ Elevation is trust. When it lapses, the trust lapses with it.
 | T10-20 | Tag input suggests from tags already used anywhere in this phrasebook |
 | T10-21 | Categories survive edit, comment, use, and soft-delete-then-restore |
 | T10-22 | Soft-delete → appears in trash section, restorable with all fields |
-| T10-23 | Edit a card offline → saved locally, indicator green, no pending state shown |
+| T10-23 | Edit a card offline → edit saved locally and remains available; sync indicator visibly dirty/pending; pending synchronization survives reload and retries when connectivity returns without duplicating the edit |
 | T10-24 | Force the central write to fail → "trouble updating GitHub, check the debug log"; log explains the real cause; local change intact |
 | T10-25 | Central copy newer → write refused, person informed, retried, local never overwritten |
 | T10-26 | Edit in the other application, then in this one → neither loses the other's change |
