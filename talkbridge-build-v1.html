@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TalkBridge</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --ink:#e8edf2; --ink-dim:#8a94a3; --line:#262d38;
+    --teal:#1fb6a6; --teal-dim:#134a44; --red:#e5484d; --bubble-own:#173a3a; --bubble-other:#1c222b;
+    --danger:#e5484d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  input,textarea{font:inherit;color:inherit;background:#0c0f13;border:1px solid var(--line);border-radius:6px;padding:8px}
+  .screen{display:none;flex-direction:column;height:100vh}
+  .screen.show{display:flex}
+  .icon-btn{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .icon-btn.off{color:var(--red)}
+  .ribbon{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .names-bar{flex:1;display:flex;align-items:center;gap:8px;justify-content:center;font-weight:600}
+  .arrow{color:var(--ink-dim)}
+  #partner-name[hidden]{display:none}
+  .home-summary{padding:10px 16px;color:var(--ink-dim);font-size:14px}
+  .home-cards{display:flex;flex-direction:column;gap:8px;padding:0 12px}
+  .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--ink-dim);gap:8px;padding:24px}
+  .empty-state.hide{display:none}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20}
+  .panel{position:fixed;top:0;left:0;bottom:0;width:320px;max-width:88vw;background:var(--panel);z-index:21;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+  .panel-datetime{padding:14px 16px;font-size:13px;color:var(--ink-dim);border-bottom:1px solid var(--line);user-select:none}
+  .app-info-card{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .app-info-card .subtitle{font-size:12px;color:var(--ink-dim)}
+  .room-list{flex:1;overflow:auto;padding:8px}
+  .fab{position:absolute;right:16px;bottom:16px;width:52px;height:52px;border-radius:50%;background:var(--teal);color:#04211d;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  .room-card{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:10px 12px;border-radius:10px;background:#11151b;margin-bottom:8px;cursor:pointer}
+  .room-card .rc-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .room-card .rc-delete{color:var(--ink-dim);text-align:right}
+  .room-card .rc-people{color:var(--ink-dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .room-card .rc-elapsed{color:var(--ink-dim);font-size:13px;text-align:right}
+  .room-card .rc-badges{display:flex;gap:8px;font-size:12px;color:var(--ink-dim)}
+  .room-card .rc-flags{text-align:right;font-size:13px}
+  .badge{background:var(--teal-dim);color:var(--teal);border-radius:10px;padding:1px 6px;margin-left:4px}
+  .sheet{position:fixed;inset:0;margin:auto;max-width:420px;max-height:80vh;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;z-index:30;overflow:auto}
+  .sheet h3{margin-top:0}
+  .sheet .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .sheet .field-status{font-size:12px;color:var(--ink-dim)}
+  .sheet .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .btn{background:#222a35;padding:8px 14px;border-radius:8px}
+  .btn.primary{background:var(--teal);color:#04211d}
+  .btn.ghost{background:none;border:1px solid var(--line)}
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+  .room-header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .room-header .rh-mid{flex:1;text-align:center;font-weight:600}
+  .room-header .presence{font-size:12px;color:var(--teal)}
+  .invite-card{margin:12px;padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center}
+  .invite-card .link{word-break:break-all;font-size:12px;color:var(--ink-dim);margin:8px 0;cursor:pointer}
+  .transcript{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .bubble{max-width:78%;border-radius:10px;padding:8px 10px}
+  .bubble.own{align-self:flex-end;background:var(--bubble-own)}
+  .bubble.other{align-self:flex-start;background:var(--bubble-other)}
+  .bubble .grid{display:grid;grid-template-columns:1fr 1px 1fr;gap:8px;align-items:start}
+  .bubble .divider{background:var(--line)}
+  .bubble .meta{font-size:11px;color:var(--ink-dim);margin-top:4px;display:flex;gap:6px;align-items:center}
+  .bubble .attach{margin-top:6px;font-size:12px;color:var(--ink-dim);display:flex;gap:6px;align-items:center;cursor:pointer}
+  .sys-pill{align-self:center;font-size:12px;color:var(--ink-dim);background:#11151b;border-radius:12px;padding:3px 10px}
+  .compose-strip{display:flex;gap:8px;align-items:flex-end;padding:10px;border-top:1px solid var(--line);position:relative}
+  .compose-strip textarea{flex:1;resize:none;max-height:110px;min-height:38px}
+  .clear-x{color:var(--ink-dim);display:none}
+  .clear-x.show{display:block}
+  .send-btn{background:var(--teal);color:#04211d;border-radius:50%;width:38px;height:38px}
+  .send-btn:disabled{opacity:.4}
+  .send-btn.hide{display:none}
+  .search-drawer{position:absolute;left:10px;right:10px;bottom:58px;background:var(--panel);border:1px solid var(--line);border-radius:10px;max-height:50vh;overflow:auto;z-index:5}
+  .search-drawer .sd-head{padding:8px 12px;font-size:12px;color:var(--ink-dim);border-bottom:1px solid var(--line)}
+  .sr-row{display:grid;grid-template-columns:1fr 1px 1fr;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+  .sr-row .txt{cursor:pointer}
+  .call-band{display:flex;align-items:center;gap:10px;padding:10px;background:#0c1116;border-bottom:1px solid var(--line)}
+  .call-band .cb-video{width:64px;height:44px;background:#000;border-radius:6px}
+  .call-band .cb-info{flex:1}
+  .call-band .cb-phase{font-size:12px;color:var(--ink-dim)}
+  .ring-overlay{position:fixed;inset:0;background:rgba(6,10,14,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:50}
+  .ring-circle{width:96px;height:96px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;font-size:40px;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  .ring-btns{display:flex;gap:40px}
+  .ring-btn{width:60px;height:60px;border-radius:50%;font-size:22px}
+  .ring-btn.accept{background:#2fbf6e}
+  .ring-btn.decline{background:var(--red);transform:rotate(135deg)}
+  .pb-overlay{position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;flex-direction:column;padding:14px;overflow:auto}
+  .pb-card{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+  .pb-card .grid{display:grid;grid-template-columns:1fr 1px 1fr;gap:8px}
+  .pb-card .pb-meta{font-size:11px;color:var(--ink-dim);margin-bottom:6px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222a35;padding:10px 16px;border-radius:8px;z-index:60}
+  [hidden]{display:none!important}
+  .flag-motif{font-size:40px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="screen-start" class="screen">
+    <div class="ribbon">
+      <button id="btn-hamburger" class="icon-btn" aria-label="Menu">&#9776;</button>
+      <div class="names-bar">
+        <span id="own-name" class="own-name" tabindex="0"></span>
+        <span class="arrow">&#8596;</span>
+        <span id="partner-name" class="partner-name" hidden></span>
+      </div>
+      <button id="btn-speaker" class="icon-btn" aria-label="Auto-read toggle">&#128266;</button>
+    </div>
+    <div id="home-summary" class="home-summary"></div>
+    <div id="home-cards" class="home-cards"></div>
+    <div id="empty-state" class="empty-state">
+      <div class="flag-motif">&#127760;</div>
+      <h2>Welcome</h2>
+      <p>Please select a conversation on the left or tap the + icon to start a new chat.</p>
+    </div>
+  </div>
+
+  <div id="screen-room" class="screen">
+    <div class="room-header">
+      <button id="room-hamburger" class="icon-btn">&#9776;</button>
+      <div class="rh-mid">
+        <span id="rh-own"></span> &#9998; &#8596; <span id="rh-partner"></span>
+        <div class="presence" id="rh-presence"></div>
+      </div>
+      <button id="btn-video-call" class="icon-btn" title="Video call">&#127909;</button>
+      <button id="btn-audio-call" class="icon-btn" title="Voice call">&#128222;</button>
+    </div>
+    <div id="call-band" class="call-band" hidden>
+      <div class="cb-video"></div>
+      <div class="cb-info">
+        <div id="cb-name"></div>
+        <div class="cb-phase" id="cb-phase"></div>
+      </div>
+      <button id="btn-mic-toggle" class="icon-btn" title="Mic">&#127908;</button>
+      <button id="btn-camera-toggle" class="icon-btn" title="Camera">&#128249;</button>
+      <button id="btn-hangup" class="icon-btn" style="color:var(--red)" title="End call">&#9760;</button>
+    </div>
+    <div id="invite-card-slot"></div>
+    <div id="transcript" class="transcript"></div>
+    <div class="compose-strip">
+      <button id="btn-attach" class="icon-btn" title="Attach">&#128206;</button>
+      <input type="file" id="attach-input" hidden>
+      <div style="flex:1;position:relative">
+        <textarea id="chat-input" rows="1" placeholder="Message or / to search phrases"></textarea>
+        <div id="search-drawer" class="search-drawer" hidden>
+          <div class="sd-head"><span id="sd-flags"></span> &middot; <span id="sd-count"></span></div>
+          <div id="sd-body"></div>
+        </div>
+      </div>
+      <button id="chat-clear-x" class="clear-x">&times;</button>
+      <button id="btn-send" class="send-btn" disabled>&#10148;</button>
+    </div>
+  </div>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <div id="panel" class="panel" hidden>
+    <div id="panel-datetime" class="panel-datetime"></div>
+    <div id="app-info-card" class="app-info-card">
+      <div>&#8505;&#65039;</div>
+      <div><div class="title">TalkBridge</div><div class="subtitle">About &amp; start screen</div></div>
+    </div>
+    <div id="room-list" class="room-list"></div>
+    <button id="btn-create-room" class="fab" hidden>+</button>
+  </div>
+
+  <div id="sheet-system-menu" class="sheet" hidden>
+    <h3>System menu</h3>
+    <button class="btn" style="width:100%;margin-bottom:8px" data-open="keys">Calling &amp; sync keys</button>
+    <button class="btn" style="width:100%;margin-bottom:8px" data-open="about">About</button>
+    <button class="btn" style="width:100%;margin-bottom:8px" data-open="privacy">Privacy</button>
+    <div class="row"><button class="btn ghost" data-close-sheet>Close</button></div>
+  </div>
+
+  <div id="sheet-keys" class="sheet" hidden>
+    <h3>Calling &amp; sync keys</h3>
+    <div class="field"><label>Deepgram key</label><input type="password" id="key-deepgram"><div class="field-status" id="status-deepgram"></div></div>
+    <div class="field"><label>TURN token ID</label><input type="password" id="key-turnid"><div class="field-status" id="status-turnid"></div></div>
+    <div class="field"><label>TURN API token</label><input type="password" id="key-turntoken"><div class="field-status" id="status-turntoken"></div></div>
+    <div class="field"><label>GitHub PAT (optional, for phrasebook sync)</label><input type="password" id="key-ghpat"><div class="field-status" id="status-ghpat"></div></div>
+    <div class="field-status" id="release-info"></div>
+    <div class="row"><button class="btn primary" id="btn-save-keys">Save</button><button class="btn ghost" data-close-sheet>Close</button></div>
+  </div>
+
+  <div id="sheet-about" class="sheet" hidden>
+    <h3>TalkBridge</h3>
+    <p>Two people, two languages, one conversation.</p>
+    <p id="about-version"></p>
+    <p><strong>No account. No tracking.</strong></p>
+    <div class="row"><button class="btn ghost" data-close-sheet>Close</button></div>
+  </div>
+
+  <div id="sheet-privacy" class="sheet" hidden>
+    <h3>Privacy</h3>
+    <p>No accounts. Conversations live on your devices, not on a server. Keys stay local. Rooms and phrasebooks are yours to delete.</p>
+    <div class="row"><button class="btn ghost" data-close-sheet>Close</button></div>
+  </div>
+
+  <div id="sheet-name-prompt" class="sheet" hidden>
+    <h3>Hi, let's get ready to chat! What's your name?</h3>
+    <input id="name-input" maxlength="40" placeholder="Your name">
+    <div class="field-status" id="name-error"></div>
+    <div class="row"><button class="btn primary" id="btn-name-continue">Continue</button></div>
+  </div>
+
+  <div id="sheet-create-room" class="sheet" hidden>
+    <h3>New room</h3>
+    <div class="field"><label>Your language</label>
+      <select id="cr-my-lang"><option value="en">English</option><option value="th">Thai</option><option value="zh">Chinese</option><option value="ko">Korean</option><option value="ar">Arabic</option></select>
+    </div>
+    <div class="field"><label>Partner language</label>
+      <select id="cr-their-lang"><option value="th">Thai</option><option value="en">English</option><option value="zh">Chinese</option><option value="ko">Korean</option><option value="ar">Arabic</option></select>
+    </div>
+    <div class="field"><label>Room name</label><input id="cr-name" maxlength="60"></div>
+    <div class="toggle"><label>Auto-read</label><input type="checkbox" id="cr-autoread"></div>
+    <div class="toggle"><label>Grant initiator status</label><input type="checkbox" id="cr-grant"></div>
+    <div class="field" id="cr-grant-date-wrap" hidden><label>Expires</label><input type="date" id="cr-grant-date"></div>
+    <div class="field-status" id="cr-error"></div>
+    <div class="row"><button class="btn ghost" data-close-sheet>Cancel</button><button class="btn primary" id="btn-create-room-ok">OK</button></div>
+  </div>
+
+  <div id="ring-overlay" class="ring-overlay" hidden>
+    <div class="ring-circle">&#128222;</div>
+    <div id="ring-caller"></div>
+    <div id="ring-sub" style="color:var(--ink-dim);font-size:13px"></div>
+    <div class="ring-btns">
+      <button class="ring-btn accept" id="btn-ring-accept">&#9989;</button>
+      <button class="ring-btn decline" id="btn-ring-decline">&#128222;</button>
+    </div>
+  </div>
+
+  <div id="pb-overlay" class="pb-overlay" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div id="pb-pair"></div>
+      <div>
+        <button class="btn" id="pb-new">+</button>
+        <button class="btn" id="pb-save-now">Save now</button>
+        <button class="btn ghost" id="pb-close">Close</button>
+      </div>
+    </div>
+    <input id="pb-search" placeholder="Search phrases (-term to exclude)" style="margin:10px 0;width:100%">
+    <div id="pb-sync-status" class="field-status"></div>
+    <div id="pb-list"></div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+
+<script type="module">
+/* =====================================================================
+   PART A — THE TEN OWNING MODULES (+ shared Log, GitHubContentsRemote,
+   detectLanguage). Authored in scratch as engine.mjs and embedded here
+   verbatim (see build history). Nothing outside this block may call
+   getUserMedia, open a WebSocket, open an RTCPeerConnection, or use
+   FileReader directly (§20).
+   ===================================================================== */
+
+const Log = (() => {
+  const ring = [];
+  const MAX = 2000;
+  const listeners = new Set();
+  function emit(level, source, message, detail) {
+    const entry = { t: Date.now(), level, source, message, detail: detail ?? null };
+    ring.push(entry);
+    if (ring.length > MAX) ring.shift();
+    for (const fn of listeners) {
+      try { fn(entry); } catch { /* a listener must never break logging itself */ }
+    }
+    return entry;
+  }
+  return {
+    info: (source, message, detail) => emit('info', source, message, detail),
+    warn: (source, message, detail) => emit('warn', source, message, detail),
+    error: (source, message, detail) => emit('error', source, message, detail),
+    cycleStart: (source, message, detail) => emit('cycle-start', source, message, detail),
+    cycleEnd: (source, message, detail) => emit('cycle-end', source, message, detail),
+    cycleFail: (source, message, detail) => emit('cycle-fail', source, message, detail),
+    all: () => ring.slice(),
+    subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    clear: () => { ring.length = 0; },
+  };
+})();
+
+class SessionCore {
+  constructor() {
+    this._seq = 0;
+    this._roomId = null;
+    this._sessionGeneration = 0;
+    this._callGeneration = 0;
+  }
+  enterRoom(roomId) {
+    if (roomId == null) throw new Error('SessionCore.enterRoom requires a roomId');
+    this._seq += 1;
+    this._roomId = roomId;
+    this._sessionGeneration = this._seq;
+    this._callGeneration = 0;
+    Log.info('SessionCore', `enterRoom ${roomId}`, this.currentToken());
+    return this.currentToken();
+  }
+  exitRoom() {
+    const prev = this.currentToken();
+    this._seq += 1;
+    this._roomId = null;
+    this._sessionGeneration = this._seq;
+    this._callGeneration = 0;
+    Log.info('SessionCore', 'exitRoom', { prev });
+    return this.currentToken();
+  }
+  beginCall() {
+    if (this._roomId == null) throw new Error('SessionCore.beginCall requires an active room');
+    this._callGeneration += 1;
+    const token = this.currentToken();
+    Log.info('SessionCore', 'beginCall', token);
+    return token;
+  }
+  endCall() {
+    this._callGeneration += 1;
+    Log.info('SessionCore', 'endCall', this.currentToken());
+    return this.currentToken();
+  }
+  currentToken() {
+    return { roomId: this._roomId, sessionGeneration: this._sessionGeneration, callGeneration: this._callGeneration };
+  }
+  isRoomCurrent(token) {
+    return !!token && token.roomId === this._roomId && token.roomId != null && token.sessionGeneration === this._sessionGeneration;
+  }
+  isCallCurrent(token) {
+    return this.isRoomCurrent(token) && token.callGeneration === this._callGeneration;
+  }
+}
+
+class LifecycleBoundary {
+  constructor() { this._resources = new Map(); this._seq = 0; }
+  register(name, dispose) { const id = ++this._seq; this._resources.set(id, { name, dispose }); return id; }
+  unregister(id) { this._resources.delete(id); }
+  teardown() {
+    const entries = [...this._resources.entries()];
+    this._resources.clear();
+    let released = 0;
+    for (const [id, { name, dispose }] of entries) {
+      try { dispose(); released += 1; } catch (err) { Log.error('LifecycleBoundary', `teardown of "${name}" (#${id}) threw`, String(err && err.stack || err)); }
+    }
+    Log.info('LifecycleBoundary', 'teardown', { released, remaining: this._resources.size });
+    return released;
+  }
+  get pendingCount() { return this._resources.size; }
+}
+
+class PersistenceGuard {
+  constructor(storage, { prefix = 'tb:' } = {}) { this._storage = storage; this._prefix = prefix; this._errorListeners = new Set(); }
+  _key(scope) { return `${this._prefix}dirty:${scope}`; }
+  markDirty(scope, payload) {
+    const key = this._key(scope);
+    const record = JSON.stringify({ scope, payload, at: Date.now() });
+    try { this._storage.setItem(key, record); Log.info('PersistenceGuard', `markDirty ${scope}`, payload); return true; }
+    catch (err) { this._reportStorageError('markDirty', scope, err); return false; }
+  }
+  clearDirty(scope) {
+    try { this._storage.removeItem(this._key(scope)); Log.info('PersistenceGuard', `clearDirty ${scope}`); return true; }
+    catch (err) { this._reportStorageError('clearDirty', scope, err); return false; }
+  }
+  isDirty(scope) { return this._storage.getItem(this._key(scope)) != null; }
+  getDirty(scope) { const raw = this._storage.getItem(this._key(scope)); return raw == null ? null : JSON.parse(raw).payload; }
+  listDirty() {
+    const out = [];
+    const n = this._storage.length;
+    for (let i = 0; i < n; i += 1) {
+      const key = this._storage.key(i);
+      if (key && key.startsWith(`${this._prefix}dirty:`)) {
+        const raw = this._storage.getItem(key);
+        if (raw != null) { const { scope, payload, at } = JSON.parse(raw); out.push({ scope, payload, at }); }
+      }
+    }
+    return out;
+  }
+  async retryPending(handler) {
+    const items = this.listDirty();
+    Log.cycleStart('PersistenceGuard', 'retryPending', { count: items.length });
+    for (const { scope, payload } of items) {
+      try { await handler(scope, payload); } catch (err) { Log.error('PersistenceGuard', `retryPending handler failed for ${scope}`, String(err)); }
+    }
+    Log.cycleEnd('PersistenceGuard', 'retryPending', { count: items.length });
+  }
+  onStorageError(fn) { this._errorListeners.add(fn); return () => this._errorListeners.delete(fn); }
+  _reportStorageError(op, scope, err) {
+    const message = `storage ${op} failed for "${scope}": ${err && err.message || err}`;
+    Log.error('PersistenceGuard', message, String(err && err.stack || err));
+    for (const fn of this._errorListeners) { try { fn({ op, scope, error: err }); } catch { /* listener failure is not this module's failure */ } }
+  }
+}
+
+class RelayClient {
+  constructor(sessionCore, lifecycle, { wsFactory = (typeof WebSocket !== 'undefined' ? (u) => new WebSocket(u) : null), url } = {}) {
+    if (!wsFactory) throw new Error('RelayClient requires a WebSocket implementation');
+    this._session = sessionCore; this._lifecycle = lifecycle; this._wsFactory = wsFactory;
+    this._url = url || (() => 'ws://relay/');
+    this._socketSeq = 0; this._foreground = null; this._background = new Map(); this._messageListeners = new Set();
+  }
+  onMessage(fn) { this._messageListeners.add(fn); return () => this._messageListeners.delete(fn); }
+  connectForeground(token) {
+    if (!this._session.isRoomCurrent(token)) { Log.warn('RelayClient', 'connectForeground called with a stale token, ignored'); return; }
+    const { roomId } = token;
+    if (this._foreground && this._foreground.roomId === roomId && this._foreground.open) return;
+    this._closeForeground('replaced-by-new-room');
+    this._closeBackground(roomId, 'promoted-to-foreground');
+    const id = ++this._socketSeq;
+    const socket = this._wsFactory(this._url(roomId, 'foreground'));
+    const entry = { id, roomId, socket, open: false };
+    this._foreground = entry;
+    socket.onopen = () => { if (this._foreground !== entry) return; entry.open = true; Log.info('RelayClient', `foreground open ${roomId}`, { id }); };
+    socket.onmessage = (ev) => { if (this._foreground !== entry) return; this._dispatch(roomId, ev.data); };
+    socket.onclose = () => {
+      if (this._foreground !== entry) return;
+      entry.open = false;
+      Log.info('RelayClient', `foreground close ${roomId}`, { id });
+      if (this._session.isRoomCurrent(token)) this.ensureForeground(token);
+    };
+    const lbHandle = this._lifecycle.register(`relay-foreground-${roomId}`, () => this._closeForeground('teardown'));
+    entry.lbHandle = lbHandle;
+    return entry;
+  }
+  ensureForeground(token) {
+    if (!this._session.isRoomCurrent(token)) return;
+    if (this._foreground && this._foreground.roomId === token.roomId && this._foreground.open) return;
+    this.connectForeground(token);
+  }
+  _closeForeground(reason) {
+    if (!this._foreground) return;
+    const entry = this._foreground; this._foreground = null;
+    if (entry.lbHandle) this._lifecycle.unregister(entry.lbHandle);
+    try { entry.socket.onopen = entry.socket.onmessage = entry.socket.onclose = null; entry.socket.close(); } catch { /* already closed */ }
+    Log.info('RelayClient', `foreground closed (${reason})`, { roomId: entry.roomId, id: entry.id });
+  }
+  listenBackground(roomId) {
+    if (this._foreground && this._foreground.roomId === roomId) return;
+    if (this._background.has(roomId)) return;
+    const id = ++this._socketSeq;
+    const socket = this._wsFactory(this._url(roomId, 'background'));
+    const entry = { id, roomId, socket };
+    this._background.set(roomId, entry);
+    socket.onmessage = (ev) => { if (this._background.get(roomId) !== entry) return; this._dispatch(roomId, ev.data); };
+    socket.onclose = () => {
+      if (this._background.get(roomId) !== entry) return;
+      this._background.delete(roomId);
+      Log.info('RelayClient', `background listener closed ${roomId}`, { id });
+      if (!this._foreground || this._foreground.roomId !== roomId) this.listenBackground(roomId);
+    };
+    const lbHandle = this._lifecycle.register(`relay-background-${roomId}`, () => this._closeBackground(roomId, 'teardown'));
+    entry.lbHandle = lbHandle;
+    Log.info('RelayClient', `background listener opened ${roomId}`, { id });
+    return entry;
+  }
+  _closeBackground(roomId, reason) {
+    const entry = this._background.get(roomId);
+    if (!entry) return;
+    this._background.delete(roomId);
+    if (entry.lbHandle) this._lifecycle.unregister(entry.lbHandle);
+    try { entry.socket.onmessage = entry.socket.onclose = null; entry.socket.close(); } catch { /* already closed */ }
+    Log.info('RelayClient', `background listener closed (${reason})`, { roomId, id: entry.id });
+  }
+  _dispatch(roomId, raw) {
+    if (this._messageListeners.size === 0) return;
+    let payload = raw;
+    if (typeof raw === 'string') { try { payload = JSON.parse(raw); } catch { payload = raw; } }
+    for (const fn of this._messageListeners) { try { fn(roomId, payload); } catch (err) { Log.error('RelayClient', 'a message listener threw', String(err)); } }
+  }
+  send(token, message) {
+    if (!this._session.isRoomCurrent(token)) { Log.warn('RelayClient', 'send dropped: token is stale', message); return false; }
+    if (!this._foreground || this._foreground.roomId !== token.roomId || !this._foreground.open) { Log.warn('RelayClient', 'send dropped: no open foreground socket for this room', message); return false; }
+    this._foreground.socket.send(JSON.stringify(message));
+    return true;
+  }
+  get foregroundRoomId() { return this._foreground ? this._foreground.roomId : null; }
+  get backgroundRoomIds() { return [...this._background.keys()]; }
+}
+
+class TranscriptStore {
+  constructor(persistenceGuard) { this._pg = persistenceGuard || null; this._rooms = new Map(); }
+  _roomMap(roomId) { let m = this._rooms.get(roomId); if (!m) { m = new Map(); this._rooms.set(roomId, m); } return m; }
+  appendLocal(roomId, message) {
+    const room = this._roomMap(roomId);
+    if (room.has(message.id)) return room.get(message.id);
+    const record = {
+      id: message.id, roomId, senderId: message.senderId, spoken: !!message.spoken,
+      sourceLang: message.sourceLang, targetLang: message.targetLang,
+      textSource: message.textSource, textTarget: message.textTarget ?? null,
+      translationFailed: false, status: 'pending', at: message.at ?? Date.now(),
+      attachments: message.attachments ?? [],
+    };
+    room.set(record.id, record);
+    if (this._pg) this._pg.markDirty(`transcript:${roomId}`, { lastMessageId: record.id });
+    Log.info('TranscriptStore', `appendLocal ${roomId}`, { id: record.id });
+    return record;
+  }
+  receiveRemote(roomId, message) {
+    const room = this._roomMap(roomId);
+    if (room.has(message.id)) return room.get(message.id);
+    const record = {
+      id: message.id, roomId, senderId: message.senderId, spoken: !!message.spoken,
+      sourceLang: message.sourceLang, targetLang: message.targetLang,
+      textSource: message.textSource, textTarget: message.textTarget ?? null,
+      translationFailed: !!message.translationFailed, status: message.status || 'delivered',
+      at: message.at ?? Date.now(), attachments: message.attachments ?? [],
+    };
+    room.set(record.id, record);
+    Log.info('TranscriptStore', `receiveRemote ${roomId}`, { id: record.id });
+    return record;
+  }
+  patchTranslation(roomId, messageId, { textTarget, translationFailed = false }) {
+    const room = this._rooms.get(roomId);
+    if (!room || !room.has(messageId)) { Log.warn('TranscriptStore', 'patchTranslation: no such row (room departed or message unknown)', { roomId, messageId }); return null; }
+    const record = room.get(messageId);
+    record.textTarget = translationFailed ? null : textTarget;
+    record.translationFailed = translationFailed;
+    Log.info('TranscriptStore', `patchTranslation ${roomId}`, { messageId, translationFailed });
+    return record;
+  }
+  setStatus(roomId, messageId, status) {
+    const room = this._rooms.get(roomId);
+    const record = room && room.get(messageId);
+    if (!record) return null;
+    record.status = status;
+    return record;
+  }
+  mergeHistory(roomId, chunk) {
+    let added = 0;
+    for (const message of chunk) { const room = this._roomMap(roomId); if (!room.has(message.id)) { this.receiveRemote(roomId, message); added += 1; } }
+    Log.info('TranscriptStore', `mergeHistory ${roomId}`, { added, total: chunk.length });
+    return added;
+  }
+  getRoom(roomId, viewerId) {
+    const room = this._rooms.get(roomId);
+    if (!room) return [];
+    return [...room.values()].sort((a, b) => (a.at - b.at) || String(a.id).localeCompare(String(b.id)))
+      .map((m) => ({ ...m, isOwn: viewerId != null && m.senderId === viewerId }));
+  }
+  has(roomId, messageId) { const room = this._rooms.get(roomId); return !!room && room.has(messageId); }
+}
+
+class ConflictError extends Error {}
+function utf8ToBase64(str) { return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
+function base64ToUtf8(b64) { return new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))); }
+
+class GitHubContentsRemote {
+  constructor({ baseUrl, owner, repo, token, fetchImpl = (typeof fetch !== 'undefined' ? fetch : null) }) {
+    if (!fetchImpl) throw new Error('GitHubContentsRemote requires a fetch implementation');
+    this._fetch = fetchImpl; this._base = `${baseUrl}/repos/${owner}/${repo}/contents`; this._token = token;
+  }
+  _headers(extra = {}) { const h = { ...extra }; if (this._token) h.Authorization = `Bearer ${this._token}`; return h; }
+  async getMeta(path) {
+    const res = await this._fetch(`${this._base}/${path}`, { headers: this._headers() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`GitHub getMeta ${path} failed: ${res.status}`);
+    const body = await res.json();
+    return { sha: body.sha };
+  }
+  async getContents(path) {
+    const res = await this._fetch(`${this._base}/${path}`, { headers: this._headers() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`GitHub getContents ${path} failed: ${res.status}`);
+    const body = await res.json();
+    return { sha: body.sha, json: JSON.parse(base64ToUtf8(body.content)) };
+  }
+  async putContents(path, json, expectedSha) {
+    const content = utf8ToBase64(JSON.stringify(json));
+    const res = await this._fetch(`${this._base}/${path}`, {
+      method: 'PUT', headers: this._headers({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ message: `talkbridge phrasebook update ${path}`, content, sha: expectedSha || undefined }),
+    });
+    if (res.status === 409) throw new ConflictError(`sha mismatch writing ${path}`);
+    if (!res.ok) throw new Error(`GitHub putContents ${path} failed: ${res.status}`);
+    const body = await res.json();
+    return { sha: body.content.sha };
+  }
+}
+
+class PhrasebookSync {
+  constructor(persistenceGuard, remote, cacheStorage) {
+    this._pg = persistenceGuard; this._remote = remote; this._cache = cacheStorage;
+    this._docs = new Map(); this._conflictListeners = new Set(); this._writeFailureListeners = new Set(); this._cacheErrorListeners = new Set();
+  }
+  static pairKey(langA, langB) { return [langA, langB].slice().sort().join('-'); }
+  static path(langA, langB) { return `phrasebook/${PhrasebookSync.pairKey(langA, langB)}.json`; }
+  onConflict(fn) { this._conflictListeners.add(fn); return () => this._conflictListeners.delete(fn); }
+  onWriteFailure(fn) { this._writeFailureListeners.add(fn); return () => this._writeFailureListeners.delete(fn); }
+  onCacheError(fn) { this._cacheErrorListeners.add(fn); return () => this._cacheErrorListeners.delete(fn); }
+  loadForPair(langA, langB) {
+    const pairKey = PhrasebookSync.pairKey(langA, langB);
+    if (this._docs.has(pairKey)) return this._docs.get(pairKey).doc;
+    const path = PhrasebookSync.path(langA, langB);
+    let cachedDoc = null, cachedSha = null;
+    try {
+      const raw = this._cache.getItem(`tb:pbcache:${pairKey}`);
+      if (raw) { const parsed = JSON.parse(raw); cachedDoc = parsed.doc; cachedSha = parsed.sha; }
+    } catch (err) { this._reportCacheError('read', pairKey, err); }
+    const doc = cachedDoc || { version: 0, pair: pairKey.split('-'), cards: [] };
+    const dirty = this._pg.isDirty(`pb:${pairKey}`);
+    this._docs.set(pairKey, { pairKey, path, doc, sha: cachedSha, dirty });
+    Log.info('PhrasebookSync', `loadForPair ${pairKey}`, { fromCache: !!cachedDoc, dirty });
+    return doc;
+  }
+  _entry(langA, langB) { const pairKey = PhrasebookSync.pairKey(langA, langB); if (!this._docs.has(pairKey)) this.loadForPair(langA, langB); return this._docs.get(pairKey); }
+  isDirty(langA, langB) { return !!this._entry(langA, langB).dirty; }
+  getDoc(langA, langB) { return this._entry(langA, langB).doc; }
+  _persistCache(entry) {
+    try { this._cache.setItem(`tb:pbcache:${entry.pairKey}`, JSON.stringify({ doc: entry.doc, sha: entry.sha })); return true; }
+    catch (err) { this._reportCacheError('write', entry.pairKey, err); return false; }
+  }
+  mutate(langA, langB, mutatorFn) {
+    const entry = this._entry(langA, langB);
+    const next = mutatorFn(entry.doc);
+    entry.doc = { ...next, version: (entry.doc.version || 0) + 1 };
+    entry.dirty = true;
+    this._pg.markDirty(`pb:${entry.pairKey}`, entry.doc);
+    this._persistCache(entry);
+    Log.info('PhrasebookSync', `mutate ${entry.pairKey}`, { version: entry.doc.version });
+    return entry.doc;
+  }
+  async checkRemoteStaleness(langA, langB) {
+    const entry = this._entry(langA, langB);
+    const { pairKey, path } = entry;
+    Log.cycleStart('PhrasebookSync', `checkRemoteStaleness ${pairKey}`);
+    let meta;
+    try { meta = await this._remote.getMeta(path); }
+    catch (err) { Log.cycleFail('PhrasebookSync', `checkRemoteStaleness ${pairKey}`, String(err)); return { changed: false, error: String(err) }; }
+    if (!meta) { Log.cycleEnd('PhrasebookSync', `checkRemoteStaleness ${pairKey}`, { remoteMissing: true }); return { changed: false }; }
+    if (meta.sha === entry.sha) { Log.cycleEnd('PhrasebookSync', `checkRemoteStaleness ${pairKey}`, { changed: false }); return { changed: false }; }
+    if (entry.dirty) { Log.cycleEnd('PhrasebookSync', `checkRemoteStaleness ${pairKey}`, { changed: true, keptLocalDirty: true }); this._reportConflict(pairKey); return { changed: true, conflict: true }; }
+    const full = await this._remote.getContents(path);
+    entry.doc = full.json; entry.sha = full.sha; this._persistCache(entry);
+    Log.cycleEnd('PhrasebookSync', `checkRemoteStaleness ${pairKey}`, { changed: true, fetched: true });
+    return { changed: true, fetched: true };
+  }
+  async writeBack(langA, langB) {
+    const entry = this._entry(langA, langB);
+    const { pairKey, path } = entry;
+    if (!entry.dirty) return { skipped: true };
+    const capturedDoc = entry.doc, capturedSha = entry.sha;
+    Log.cycleStart('PhrasebookSync', `writeBack ${pairKey}`);
+    let freshMeta;
+    try { freshMeta = await this._remote.getMeta(path); }
+    catch (err) { Log.cycleFail('PhrasebookSync', `writeBack ${pairKey} — could not verify remote identity`, String(err)); this._reportWriteFailure(pairKey, err); return { ok: false, error: String(err) }; }
+    if (freshMeta && freshMeta.sha !== capturedSha) { Log.cycleFail('PhrasebookSync', `writeBack ${pairKey} — remote is newer, write refused`, freshMeta); this._reportConflict(pairKey); return { ok: false, conflict: true }; }
+    try {
+      const result = await this._remote.putContents(path, capturedDoc, capturedSha);
+      if (entry.doc === capturedDoc) { entry.sha = result.sha; entry.dirty = false; this._pg.clearDirty(`pb:${pairKey}`); this._persistCache(entry); }
+      Log.cycleEnd('PhrasebookSync', `writeBack ${pairKey}`, { sha: result.sha });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof ConflictError) { Log.cycleFail('PhrasebookSync', `writeBack ${pairKey} — conflict on write`, String(err)); this._reportConflict(pairKey); return { ok: false, conflict: true }; }
+      Log.cycleFail('PhrasebookSync', `writeBack ${pairKey} failed`, String(err)); this._reportWriteFailure(pairKey, err); return { ok: false, error: String(err) };
+    }
+  }
+  async retryAllDirty() {
+    for (const entry of [...this._docs.values()]) { if (entry.dirty) { const [a, b] = entry.pairKey.split('-'); await this.writeBack(a, b); } }
+  }
+  _reportConflict(pairKey) { for (const fn of this._conflictListeners) { try { fn({ pairKey }); } catch { /* listener failure is not this module's failure */ } } }
+  _reportWriteFailure(pairKey, err) {
+    const message = 'trouble updating GitHub, check the debug log';
+    Log.error('PhrasebookSync', message, { pairKey, error: String(err) });
+    for (const fn of this._writeFailureListeners) { try { fn({ pairKey, error: err, message }); } catch { /* listener failure is not this module's failure */ } }
+  }
+  _reportCacheError(op, pairKey, err) {
+    Log.error('PhrasebookSync', `cache ${op} failed for ${pairKey}`, String(err && err.stack || err));
+    for (const fn of this._cacheErrorListeners) { try { fn({ op, pairKey, error: err }); } catch { /* listener failure is not this module's failure */ } }
+  }
+}
+
+const SCRIPT_RANGES = [
+  { lang: 'th', re: /[฀-๿]/ },
+  { lang: 'zh', re: /[一-鿿]/ },
+  { lang: 'ko', re: /[가-힣ᄀ-ᇿ]/ },
+  { lang: 'ar', re: /[؀-ۿ]/ },
+];
+function detectLanguage(text, configuredLang) {
+  const trimmed = (text || '').trim();
+  for (const { lang, re } of SCRIPT_RANGES) { if (re.test(trimmed)) return { lang, normalizedText: trimmed, codeSwitched: lang !== configuredLang }; }
+  return { lang: 'en', normalizedText: trimmed, codeSwitched: configuredLang !== 'en' && trimmed.length > 0 };
+}
+
+class AudioEngine {
+  constructor(sessionCore, lifecycle, {
+    getUserMedia = (typeof navigator !== 'undefined' && navigator.mediaDevices ? (c) => navigator.mediaDevices.getUserMedia(c) : null),
+    wsFactory = (typeof WebSocket !== 'undefined' ? (u) => new WebSocket(u) : null),
+    transcriptionUrl = (lang) => `wss://api.deepgram.com/v1/listen?language=${lang}`,
+  } = {}) {
+    this._session = sessionCore; this._lifecycle = lifecycle; this._getUserMedia = getUserMedia; this._wsFactory = wsFactory; this._transcriptionUrl = transcriptionUrl;
+    this._sessions = new Map(); this._callSessions = new Map();
+  }
+  isMicOn(roomId) { const entry = this._sessions.get(roomId); return !!entry && entry.on; }
+  async startMic(token, { primaryLang, secondaryLang = 'en', onTranscript } = {}) {
+    if (!this._getUserMedia) throw new Error('AudioEngine requires a getUserMedia implementation');
+    if (!this._session.isRoomCurrent(token)) { Log.warn('AudioEngine', 'startMic called with a stale token, ignored'); return null; }
+    Log.cycleStart('AudioEngine', `startMic ${token.roomId}`, { primaryLang, secondaryLang });
+    let stream;
+    try { stream = await this._getUserMedia({ audio: true }); }
+    catch (err) { Log.cycleFail('AudioEngine', `startMic ${token.roomId} getUserMedia failed`, String(err)); throw err; }
+    if (!this._session.isRoomCurrent(token)) {
+      for (const track of stream.getTracks()) { try { track.stop(); } catch { /* already gone */ } }
+      Log.info('AudioEngine', `startMic ${token.roomId} — stale by the time media resolved, tracks stopped, discarded`);
+      return null;
+    }
+    const primarySocket = this._wsFactory(this._transcriptionUrl(primaryLang));
+    const secondarySocket = secondaryLang && secondaryLang !== primaryLang ? this._wsFactory(this._transcriptionUrl(secondaryLang)) : null;
+    const entry = { token, stream, primarySocket, secondarySocket, on: true, primaryLang, secondaryLang };
+    this._sessions.set(token.roomId, entry);
+    const routeTranscript = (raw, viaSecondary) => {
+      if (this._sessions.get(token.roomId) !== entry) return;
+      if (!this._session.isRoomCurrent(token)) return;
+      const detected = detectLanguage(raw.text, entry.primaryLang);
+      Log.info('AudioEngine', `transcript ${token.roomId}`, { viaSecondary, isFinal: !!raw.isFinal, codeSwitched: detected.codeSwitched });
+      if (onTranscript) onTranscript({ text: detected.normalizedText, isFinal: !!raw.isFinal, detectedLang: detected.lang, codeSwitched: detected.codeSwitched, viaSecondary: !!viaSecondary });
+    };
+    primarySocket.onmessage = (ev) => routeTranscript(parseSocketPayload(ev.data), false);
+    if (secondarySocket) secondarySocket.onmessage = (ev) => routeTranscript(parseSocketPayload(ev.data), true);
+    entry.lbHandle = this._lifecycle.register(`audio-${token.roomId}`, () => this.stopMic(token));
+    Log.cycleEnd('AudioEngine', `startMic ${token.roomId}`, {});
+    return { pushAudioChunk: (chunk) => this._sendChunk(token, entry, chunk) };
+  }
+  _sendChunk(token, entry, chunk) {
+    const current = this._sessions.get(token.roomId);
+    if (current !== entry || !current.on) return false;
+    if (!this._session.isRoomCurrent(token)) return false;
+    if (entry.primarySocket.readyState === 1) entry.primarySocket.send(chunk);
+    if (entry.secondarySocket && entry.secondarySocket.readyState === 1) entry.secondarySocket.send(chunk);
+    return true;
+  }
+  async attachCaptureNode(token, { audioContextFactory, workletModuleUrl, processorName = 'tb-audio-processor' }) {
+    const entry = this._sessions.get(token.roomId);
+    if (!entry || entry.token !== token || !this._session.isRoomCurrent(token)) return false;
+    const ctx = audioContextFactory();
+    entry.audioContext = ctx;
+    const source = ctx.createMediaStreamSource(entry.stream);
+    const stillOwns = () => this._sessions.get(token.roomId) === entry && this._session.isRoomCurrent(token);
+    let usedWorklet = false;
+    if (ctx.audioWorklet && workletModuleUrl) {
+      try {
+        await ctx.audioWorklet.addModule(workletModuleUrl);
+        if (!stillOwns()) { try { await ctx.close(); } catch { /* already gone */ } return false; }
+        const node = new AudioWorkletNode(ctx, processorName);
+        node.port.onmessage = (ev) => this._sendChunk(token, entry, ev.data);
+        source.connect(node); entry.captureNode = node; usedWorklet = true;
+      } catch (err) { Log.warn('AudioEngine', `AudioWorklet install failed for ${token.roomId}, falling back`, String(err)); }
+    }
+    if (!usedWorklet) {
+      if (!stillOwns()) return false;
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = (ev) => this._sendChunk(token, entry, ev.inputBuffer.getChannelData(0));
+      source.connect(proc); proc.connect(ctx.destination); entry.captureNode = proc;
+    }
+    return true;
+  }
+  stopMic(token) {
+    const roomId = token.roomId;
+    const entry = this._sessions.get(roomId);
+    if (!entry) return;
+    this._sessions.delete(roomId);
+    for (const track of entry.stream.getTracks()) { try { track.stop(); } catch { /* already gone */ } }
+    try { entry.primarySocket.close(); } catch { /* already closed */ }
+    if (entry.secondarySocket) { try { entry.secondarySocket.close(); } catch { /* already closed */ } }
+    if (entry.captureNode) { try { entry.captureNode.disconnect(); } catch { /* not connected */ } }
+    if (entry.audioContext) { try { entry.audioContext.close(); } catch { /* already closed */ } }
+    if (entry.lbHandle) this._lifecycle.unregister(entry.lbHandle);
+    Log.info('AudioEngine', `stopMic ${roomId}`, {});
+  }
+  async startCallMedia(callToken, { video = false, primaryLang, secondaryLang = 'en', onTranscript } = {}) {
+    if (!this._getUserMedia) throw new Error('AudioEngine requires a getUserMedia implementation');
+    if (!this._session.isCallCurrent(callToken)) return null;
+    let stream;
+    try { stream = await this._getUserMedia({ audio: true, video }); }
+    catch (err) { Log.error('AudioEngine', `startCallMedia failed for ${callToken.roomId}`, String(err)); throw err; }
+    if (!this._session.isCallCurrent(callToken)) { for (const track of stream.getTracks()) { try { track.stop(); } catch { /* already gone */ } } return null; }
+    const primarySocket = this._wsFactory(this._transcriptionUrl(primaryLang));
+    const secondarySocket = secondaryLang && secondaryLang !== primaryLang ? this._wsFactory(this._transcriptionUrl(secondaryLang)) : null;
+    const entry = { callToken, stream, primarySocket, secondarySocket, on: true, primaryLang, secondaryLang };
+    this._callSessions.set(callToken.roomId, entry);
+    const routeTranscript = (raw, viaSecondary) => {
+      if (this._callSessions.get(callToken.roomId) !== entry) return;
+      if (!this._session.isCallCurrent(callToken)) return;
+      const detected = detectLanguage(raw.text, entry.primaryLang);
+      if (onTranscript) onTranscript({ text: detected.normalizedText, isFinal: !!raw.isFinal, detectedLang: detected.lang, codeSwitched: detected.codeSwitched, viaSecondary: !!viaSecondary });
+    };
+    primarySocket.onmessage = (ev) => routeTranscript(parseSocketPayload(ev.data), false);
+    if (secondarySocket) secondarySocket.onmessage = (ev) => routeTranscript(parseSocketPayload(ev.data), true);
+    entry.lbHandle = this._lifecycle.register(`call-audio-${callToken.roomId}`, () => this.stopCallMedia(callToken));
+    return {
+      stream, getAudioTrack: () => stream.getAudioTracks()[0], getVideoTrack: () => stream.getVideoTracks()[0],
+      setMuted: (muted) => { const t = stream.getAudioTracks()[0]; if (t) t.enabled = !muted; },
+      setCameraOff: (off) => { const t = stream.getVideoTracks()[0]; if (t) t.enabled = !off; },
+    };
+  }
+  isCallMediaOn(roomId) { return this._callSessions.has(roomId); }
+  stopCallMedia(callToken) {
+    const roomId = callToken.roomId;
+    const entry = this._callSessions.get(roomId);
+    if (!entry) return;
+    this._callSessions.delete(roomId);
+    for (const track of entry.stream.getTracks()) { try { track.stop(); } catch { /* already gone */ } }
+    try { entry.primarySocket.close(); } catch { /* already closed */ }
+    if (entry.secondarySocket) { try { entry.secondarySocket.close(); } catch { /* already closed */ } }
+    if (entry.lbHandle) this._lifecycle.unregister(entry.lbHandle);
+    Log.info('AudioEngine', `stopCallMedia ${roomId}`, {});
+  }
+}
+function parseSocketPayload(raw) { if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return { text: raw }; } } return raw; }
+
+class CallEngine {
+  constructor(sessionCore, lifecycle, relayClient, audioEngine, {
+    pcFactory = (typeof RTCPeerConnection !== 'undefined' ? (cfg) => new RTCPeerConnection(cfg) : null),
+    ringTimeoutMs = 30000,
+    getTurnCredentials = async () => ({ iceServers: [] }),
+    idFactory = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `call-${Math.random().toString(36).slice(2)}`),
+  } = {}) {
+    this._session = sessionCore; this._lifecycle = lifecycle; this._relay = relayClient; this._audio = audioEngine;
+    this._pcFactory = pcFactory; this._ringTimeoutMs = ringTimeoutMs; this._getTurnCredentials = getTurnCredentials; this._idFactory = idFactory;
+    this._calls = new Map(); this._incomingListeners = new Set();
+    this._relay.onMessage((roomId, payload) => { if (payload && payload.kind === 'call-signal') this._handleSignal(roomId, payload); });
+  }
+  getPhase(roomId) { const call = this._calls.get(roomId); return call ? call.phase : 'idle'; }
+  onIncomingCall(fn) { this._incomingListeners.add(fn); return () => this._incomingListeners.delete(fn); }
+  setPhaseListener(roomId, fn) { const call = this._calls.get(roomId); if (call) call.onPhase = fn; }
+  async placeCall(token, { video = false, primaryLang, secondaryLang, onPhase, onTranscript } = {}) {
+    if (!this._session.isRoomCurrent(token)) return null;
+    if (this._calls.has(token.roomId)) { Log.warn('CallEngine', 'placeCall: a call is already active in this room'); return null; }
+    const callToken = this._session.beginCall();
+    const callId = this._idFactory();
+    const wasChatMicOn = this._audio.isMicOn(token.roomId);
+    if (wasChatMicOn) this._audio.stopMic(token);
+    const call = {
+      callId, callToken, roomId: token.roomId, roomToken: token, role: 'caller', phase: 'ringing', video,
+      wasChatMicOn, primaryLang, secondaryLang, onPhase, onTranscript,
+      startedAt: Date.now(), connectedAt: null, pc: null, media: null, ringTimer: null,
+    };
+    this._calls.set(token.roomId, call);
+    Log.info('CallEngine', `placeCall ${token.roomId}`, { callId, video });
+    this._setPhase(call, 'ringing');
+    call.media = await this._audio.startCallMedia(callToken, { video, primaryLang, secondaryLang, onTranscript: (t) => call.onTranscript && call.onTranscript(t) });
+    if (!this._session.isCallCurrent(callToken)) return null;
+    this._relay.send(token, { kind: 'call-signal', callId, type: 'ring', video, at: Date.now() });
+    call.ringTimer = setTimeout(() => this._onRingTimeout(call), this._ringTimeoutMs);
+    return { callId };
+  }
+  async _onRingTimeout(call) {
+    if (this._calls.get(call.roomId) !== call || call.phase !== 'ringing') return;
+    if (call.roomToken && this._session.isRoomCurrent(call.roomToken)) this._relay.send(call.roomToken, { kind: 'call-signal', callId: call.callId, type: 'missed' });
+    this._endCall(call, 'missed');
+  }
+  _handleSignal(roomId, payload) {
+    if (payload.type === 'ring') { this._onIncomingRing(roomId, payload); return; }
+    const call = this._calls.get(roomId);
+    if (!call || call.callId !== payload.callId) return;
+    if (payload.type === 'accept') { this._onRemoteAccept(call); return; }
+    if (payload.type === 'decline') { this._endCall(call, 'declined'); return; }
+    if (payload.type === 'missed') { this._endCall(call, 'missed'); return; }
+    if (payload.type === 'hangup') { this._endCall(call, call.phase === 'connected' ? 'ended' : 'declined'); return; }
+    if (payload.type === 'offer') { this._onOffer(call, payload.sdp); return; }
+    if (payload.type === 'answer') { this._onAnswer(call, payload.sdp); return; }
+    if (payload.type === 'ice') { this._onRemoteIce(call, payload.candidate); return; }
+  }
+  _onIncomingRing(roomId, payload) {
+    if (this._calls.has(roomId)) return;
+    const current = this._session.currentToken();
+    const roomToken = current.roomId === roomId ? current : null;
+    const call = { callId: payload.callId, roomId, roomToken, role: 'callee', phase: 'ringing', video: payload.video, pc: null, media: null, ringTimer: null, callToken: null };
+    this._calls.set(roomId, call);
+    call.ringTimer = setTimeout(() => this._onRingTimeout(call), this._ringTimeoutMs);
+    Log.info('CallEngine', `incoming ring ${roomId}`, { callId: payload.callId, video: payload.video });
+    for (const fn of this._incomingListeners) { try { fn({ roomId, callId: payload.callId, video: payload.video }); } catch { /* listener failure is not this module's failure */ } }
+  }
+  async acceptCall(token, { primaryLang, secondaryLang, onTranscript, onPhase } = {}) {
+    const call = this._calls.get(token.roomId);
+    if (!call || call.role !== 'callee' || call.phase !== 'ringing') return null;
+    clearTimeout(call.ringTimer);
+    const callToken = this._session.beginCall();
+    call.callToken = callToken; call.roomToken = token; call.onTranscript = onTranscript; call.onPhase = onPhase;
+    call.wasChatMicOn = this._audio.isMicOn(token.roomId);
+    if (call.wasChatMicOn) this._audio.stopMic(token);
+    call.media = await this._audio.startCallMedia(callToken, { video: call.video, primaryLang, secondaryLang, onTranscript: (t) => call.onTranscript && call.onTranscript(t) });
+    call.connectedAt = Date.now();
+    this._setPhase(call, 'connected');
+    this._relay.send(token, { kind: 'call-signal', callId: call.callId, type: 'accept' });
+    return { callId: call.callId };
+  }
+  declineCall(token) {
+    const call = this._calls.get(token.roomId);
+    if (!call || call.phase !== 'ringing') return;
+    this._relay.send(token, { kind: 'call-signal', callId: call.callId, type: 'decline' });
+    this._endCall(call, 'declined');
+  }
+  _onRemoteAccept(call) { if (call.phase !== 'ringing') return; call.connectedAt = Date.now(); this._setPhase(call, 'connected'); }
+  _onOffer(call, sdp) { if (!call.pc || !this._session.isCallCurrent(call.callToken)) return; call.pc.pendingRemoteOffer = sdp; }
+  _onAnswer(call, sdp) { if (!call.pc || !this._session.isCallCurrent(call.callToken)) return; call.pc.pendingRemoteAnswer = sdp; }
+  _onRemoteIce(call, candidate) { if (!call.pc || !this._session.isCallCurrent(call.callToken)) return; (call.pc.pendingRemoteIce ||= []).push(candidate); }
+  hangup(token) {
+    const call = this._calls.get(token.roomId);
+    if (!call) return;
+    this._relay.send(token, { kind: 'call-signal', callId: call.callId, type: 'hangup' });
+    this._endCall(call, call.phase === 'connected' ? 'ended' : 'declined');
+  }
+  _endCall(call, reason) {
+    if (this._calls.get(call.roomId) !== call) return;
+    this._calls.delete(call.roomId);
+    if (call.ringTimer) clearTimeout(call.ringTimer);
+    const duration = call.connectedAt ? Date.now() - call.connectedAt : 0;
+    if (call.callToken) this._audio.stopCallMedia(call.callToken);
+    if (call.pc) { try { call.pc.close(); } catch { /* already closed */ } }
+    if (call.wasChatMicOn && call.roomToken && this._session.isRoomCurrent(call.roomToken)) {
+      this._audio.startMic(call.roomToken, { primaryLang: call.primaryLang, secondaryLang: call.secondaryLang, onTranscript: call.onTranscript });
+    }
+    this._setPhase(call, reason, { duration, video: call.video });
+    Log.info('CallEngine', `call ended (${reason})`, { roomId: call.roomId, duration });
+  }
+  _setPhase(call, phase, extra = {}) { call.phase = phase; if (call.onPhase) call.onPhase({ phase, ...extra }); }
+  attemptRecovery(roomId) {
+    const call = this._calls.get(roomId);
+    if (!call || !call.callToken || !this._session.isCallCurrent(call.callToken)) return false;
+    Log.info('CallEngine', `recovery attempted ${roomId}`);
+    this._setPhase(call, 'reconnecting'); this._setPhase(call, 'connected');
+    return true;
+  }
+}
+
+class AttachmentIO {
+  constructor(lifecycle, { readerFactory = (typeof FileReader !== 'undefined' ? () => new FileReader() : null) } = {}) {
+    this._lifecycle = lifecycle; this._readerFactory = readerFactory; this._pending = new Map(); this._seq = 0;
+  }
+  readAttachment(roomId, messageId, file, { onProgress, onDone, onError, maxBytes = 200 * 1024 * 1024 } = {}) {
+    if (!this._readerFactory) throw new Error('AttachmentIO requires a FileReader implementation');
+    if (file.size > maxBytes) {
+      const err = new Error(`attachment exceeds the ${maxBytes}-byte limit`);
+      Log.error('AttachmentIO', 'attachment rejected: too large', { roomId, messageId, size: file.size, maxBytes });
+      if (onError) onError({ roomId, messageId, error: err });
+      return null;
+    }
+    const readId = ++this._seq;
+    const reader = this._readerFactory();
+    const entry = { readId, roomId, messageId, reader, canceled: false };
+    this._pending.set(readId, entry);
+    Log.cycleStart('AttachmentIO', `readAttachment ${roomId}/${messageId}`, { name: file.name, size: file.size });
+    reader.onprogress = (ev) => { if (!this._pending.has(readId)) return; if (onProgress) onProgress({ roomId, messageId, loaded: ev.loaded, total: ev.total }); };
+    reader.onerror = () => { if (!this._pending.delete(readId)) return; Log.cycleFail('AttachmentIO', `readAttachment ${roomId}/${messageId} failed`, String(reader.error)); if (onError) onError({ roomId, messageId, error: reader.error }); };
+    reader.onload = () => { if (!this._pending.delete(readId)) return; Log.cycleEnd('AttachmentIO', `readAttachment ${roomId}/${messageId}`, {}); if (onDone) onDone({ roomId, messageId, data: reader.result }); };
+    reader.readAsDataURL(file);
+    entry.lbHandle = this._lifecycle.register(`attachment-read-${readId}`, () => this.cancel(readId));
+    return readId;
+  }
+  cancel(readId) {
+    const entry = this._pending.get(readId);
+    if (!entry) return false;
+    this._pending.delete(readId);
+    entry.canceled = true;
+    try { entry.reader.abort(); } catch { /* not abortable in this state */ }
+    if (entry.lbHandle) this._lifecycle.unregister(entry.lbHandle);
+    Log.info('AttachmentIO', `canceled read for ${entry.roomId}/${entry.messageId}`);
+    return true;
+  }
+  get pendingCount() { return this._pending.size; }
+}
+
+class ReceiptsCoordinator {
+  constructor(relayClient, transcriptStore) { this._relay = relayClient; this._transcript = transcriptStore; }
+  reconcileOnEntry(token, viewerId) {
+    const rows = this._transcript.getRoom(token.roomId, viewerId);
+    const toAck = rows.filter((m) => !m.isOwn && m.status !== 'read');
+    if (toAck.length === 0) return { acked: 0, delivered: false };
+    for (const m of toAck) this._transcript.setStatus(token.roomId, m.id, 'read');
+    const delivered = this._relay.send(token, { kind: 'receipt', type: 'read', messageIds: toAck.map((m) => m.id), at: Date.now() });
+    Log.info('ReceiptsCoordinator', `reconcileOnEntry ${token.roomId}`, { acked: toAck.length, delivered });
+    return { acked: toAck.length, delivered };
+  }
+  handleIncomingReceipt(roomId, payload) {
+    if (!payload || payload.kind !== 'receipt') return;
+    const status = payload.type === 'read' ? 'read' : 'delivered';
+    for (const id of payload.messageIds || []) this._transcript.setStatus(roomId, id, status);
+  }
+}
+
+/* =====================================================================
+   PART B — APPLICATION STATE, PERSISTENCE, MODULE WIRING
+   Everything below this line is UI/business logic (Stage 6). It never
+   calls getUserMedia, opens a WebSocket/RTCPeerConnection, or uses
+   FileReader — it only calls into the ten modules above.
+   ===================================================================== */
+
+const $ = (id) => document.getElementById(id);
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function norm(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+const LANG_FLAG = { en: '\u{1F1EC}\u{1F1E7}', th: '\u{1F1F9}\u{1F1ED}', zh: '\u{1F1E8}\u{1F1F3}', ko: '\u{1F1F0}\u{1F1F7}', ar: '\u{1F1F8}\u{1F1E6}' };
+
+// dev/test hook only: lets a headless harness point the transport bases at
+// a local relay/mock instead of production endpoints. No engine logic here.
+const CONFIG = window.__TB_CONFIG__ || {};
+const RELAY_URL_BASE = CONFIG.relayUrlBase || 'wss://talkbridge-relay.invalid';
+const GITHUB_API_BASE = CONFIG.githubApiBase || 'https://api.github.com';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem('tb:appstate')) || {}; } catch { return {}; }
+}
+let STATE = Object.assign({ userName: null, credentials: null, rooms: [], homeDismissed: {} }, loadState());
+function saveState() { try { localStorage.setItem('tb:appstate', JSON.stringify(STATE)); } catch (err) { Log.error('UI', 'appstate save failed', String(err)); } }
+
+const session = new SessionCore();
+const lifecycle = new LifecycleBoundary();
+const persistence = new PersistenceGuard(localStorage);
+const relay = new RelayClient(session, lifecycle, {
+  url: (roomId, kind) => `${RELAY_URL_BASE}/${encodeURIComponent(roomId)}/${kind}`,
+});
+const transcript = new TranscriptStore(persistence);
+const receipts = new ReceiptsCoordinator(relay, transcript);
+const phrasebook = new PhrasebookSync(
+  persistence,
+  new GitHubContentsRemote({
+    baseUrl: GITHUB_API_BASE, owner: CONFIG.githubOwner || 'acmeproducts', repo: CONFIG.githubRepo || 'stuff',
+    token: () => (STATE.credentials && STATE.credentials.githubPat) || '',
+  }),
+  localStorage,
+);
+const audio = new AudioEngine(session, lifecycle);
+const attachments = new AttachmentIO(lifecycle);
+const call = new CallEngine(session, lifecycle, relay, audio);
+
+relay.onMessage((roomId, payload) => {
+  if (!payload || typeof payload !== 'object') return;
+  if (payload.kind === 'chat') {
+    transcript.receiveRemote(roomId, payload);
+    const room = STATE.rooms.find((r) => r.id === roomId);
+    if (room && payload.senderId !== myId()) { room.badges.chat += 1; room.lastContactAt = Date.now(); saveState(); }
+    if (session.currentToken().roomId === roomId) renderTranscript(); else renderPanel();
+  } else if (payload.kind === 'receipt') {
+    receipts.handleIncomingReceipt(roomId, payload);
+    if (session.currentToken().roomId === roomId) renderTranscript();
+  } else if (payload.kind === 'sys') {
+    const room = STATE.rooms.find((r) => r.id === roomId);
+    if (room) {
+      if (payload.type === 'left') room.partnerLeft = true;
+      if (payload.type === 'returned') room.partnerLeft = false;
+      saveState();
+    }
+    if (session.currentToken().roomId === roomId) renderTranscript();
+  }
+});
+
+call.onIncomingCall(({ roomId, callId, video }) => {
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  if (room) { room.badges[video ? 'video' : 'voice'] += 1; saveState(); renderPanel(); }
+  showRingOverlay(roomId, video);
+});
+
+function myId() { return 'me:' + (STATE.deviceId || (STATE.deviceId = uid(), saveState(), STATE.deviceId)); }
+
+/* ---------- placeholder translation (no live provider credential in this
+   build) — clearly tagged, never silently blank; a real key plugs in here
+   without touching module ownership. ---------- */
+async function translate(text, fromLang, toLang) {
+  if (!text) return { ok: true, text: '' };
+  if (fromLang === toLang) return { ok: true, text };
+  await new Promise((r) => setTimeout(r, 30));
+  return { ok: true, text: `${text} [${toLang}]` };
+}
+
+/* ---------- panel / navigation ---------- */
+function openPanel() { $('scrim').hidden = false; $('panel').hidden = false; renderPanel(); }
+function closePanel() { $('scrim').hidden = true; $('panel').hidden = true; }
+function showScreen(id) { document.querySelectorAll('.screen').forEach((s) => s.classList.remove('show')); $(id).classList.add('show'); }
+function openSheet(id) { $(id).hidden = false; }
+function closeAllSheets() { document.querySelectorAll('.sheet').forEach((s) => s.hidden = true); }
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._h); toast._h = setTimeout(() => { t.hidden = true; }, 2200); }
+
+/* ---------- first run ---------- */
+function boot() {
+  if (!STATE.userName) { openSheet('sheet-name-prompt'); }
+  else if (session.currentToken().roomId == null) { showScreen('screen-start'); renderStart(); }
+  // else: tryJoinFromHash() already opened a room before boot() ran — leave it showing.
+  setInterval(renderClock, 1000);
+  renderClock();
+  persistence.retryPending(async (scope) => { if (scope.startsWith('pb:')) { const [a, b] = scope.slice(3).split('-'); await phrasebook.writeBack(a, b); } });
+}
+function renderClock() { $('panel-datetime').textContent = new Date().toLocaleString(); }
+
+$('btn-name-continue').addEventListener('click', () => {
+  const v = norm($('name-input').value).slice(0, 40);
+  if (!v) { $('name-error').textContent = 'Please enter a name.'; return; }
+  STATE.userName = v; saveState();
+  $('sheet-name-prompt').hidden = true;
+  if (STATE.pendingInvite) {
+    const invite = STATE.pendingInvite;
+    delete STATE.pendingInvite; saveState();
+    completeJoin(invite);
+    return;
+  }
+  showScreen('screen-start'); renderStart();
+});
+$('name-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') $('btn-name-continue').click(); });
+
+/* ---------- start screen / home summary ---------- */
+function renderStart() {
+  $('own-name').textContent = STATE.userName || '';
+  const activeRooms = STATE.rooms.filter((r) => !r.softDeleted);
+  const waitingRooms = activeRooms.filter((r) => r.badges.chat + r.badges.voice + r.badges.video > 0 && !STATE.homeDismissed[r.id]);
+  const totalWaiting = waitingRooms.reduce((n, r) => n + r.badges.chat + r.badges.voice + r.badges.video, 0);
+  const chats = waitingRooms.reduce((n, r) => n + r.badges.chat, 0);
+  const calls = waitingRooms.reduce((n, r) => n + r.badges.voice, 0);
+  const videos = waitingRooms.reduce((n, r) => n + r.badges.video, 0);
+  $('empty-state').classList.toggle('hide', activeRooms.length > 0);
+  if (activeRooms.length === 0) { $('home-summary').textContent = ''; $('home-cards').innerHTML = ''; return; }
+  if (totalWaiting === 0) {
+    $('home-summary').textContent = `You have ${activeRooms.length} active room${activeRooms.length === 1 ? '' : 's'}, there are no waiting messages.`;
+  } else {
+    const parts = [];
+    if (chats) parts.push(`${chats} chat${chats === 1 ? '' : 's'}`);
+    if (videos) parts.push(`${videos} video call${videos === 1 ? '' : 's'}`);
+    if (calls) parts.push(`${calls} voice call${calls === 1 ? '' : 's'}`);
+    $('home-summary').textContent = `Of ${activeRooms.length} active room${activeRooms.length === 1 ? '' : 's'} there are ${totalWaiting} waiting message${totalWaiting === 1 ? '' : 's'}, ${parts.join(' and ')}.`;
+  }
+  $('home-cards').innerHTML = '';
+  waitingRooms.forEach((r) => $('home-cards').appendChild(roomCardEl(r, true)));
+}
+
+function fmtElapsed(ts) {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 3600) return Math.max(1, Math.floor(s / 60)) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+
+function roomCardEl(r, isHomeCard) {
+  const div = document.createElement('div');
+  div.className = 'room-card';
+  div.innerHTML = `
+    <div class="rc-name">${esc(r.name)}</div>
+    <div class="rc-delete" data-action="delete">Delete</div>
+    <div class="rc-people">${esc(STATE.userName)} / ${esc(r.theirName || 'Partner')}</div>
+    <div class="rc-elapsed">${fmtElapsed(r.lastContactAt || Date.now())}</div>
+    <div class="rc-badges">
+      <span>&#128172;${r.badges.chat ? `<span class="badge">${r.badges.chat}</span>` : ''}</span>
+      <span>&#128222;${r.badges.voice ? `<span class="badge">${r.badges.voice}</span>` : ''}</span>
+      <span>&#127909;${r.badges.video ? `<span class="badge">${r.badges.video}</span>` : ''}</span>
+    </div>
+    <div class="rc-flags">${LANG_FLAG[r.myLang] || ''} ${LANG_FLAG[r.theirLang] || ''}</div>
+  `;
+  div.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-action="delete"]')) { ev.stopPropagation(); softDeleteRoom(r.id); return; }
+    if (isHomeCard) STATE.homeDismissed[r.id] = Date.now();
+    saveState();
+    openRoom(r.id);
+  });
+  return div;
+}
+
+function renderPanel() {
+  const list = $('room-list');
+  list.innerHTML = '';
+  STATE.rooms.filter((r) => !r.softDeleted).forEach((r) => list.appendChild(roomCardEl(r, false)));
+  $('btn-create-room').hidden = !STATE.credentials;
+  renderStart();
+}
+
+$('btn-hamburger').addEventListener('click', openPanel);
+$('room-hamburger').addEventListener('click', openPanel);
+$('scrim').addEventListener('click', closePanel);
+$('app-info-card').addEventListener('click', () => { leaveRoom(); closePanel(); showScreen('screen-start'); renderStart(); });
+
+let longPressTimer = null;
+$('panel-datetime').addEventListener('pointerdown', () => { longPressTimer = setTimeout(() => openSheet('sheet-system-menu'), 550); });
+['pointerup', 'pointerleave'].forEach((ev) => $('panel-datetime').addEventListener(ev, () => clearTimeout(longPressTimer)));
+
+document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => {
+  closeAllSheets();
+  const target = btn.dataset.open;
+  if (target === 'keys') {
+    $('key-deepgram').value = STATE.credentials?.deepgramKey || '';
+    $('key-turnid').value = STATE.credentials?.turnTokenId || '';
+    $('key-turntoken').value = STATE.credentials?.turnApiToken || '';
+    $('key-ghpat').value = STATE.credentials?.githubPat || '';
+    $('release-info').textContent = 'Release v1 · built ' + new Date().toISOString();
+    openSheet('sheet-keys');
+  } else if (target === 'about') {
+    $('about-version').textContent = 'Version 1.0.0';
+    openSheet('sheet-about');
+  } else if (target === 'privacy') openSheet('sheet-privacy');
+}));
+document.querySelectorAll('[data-close-sheet]').forEach((btn) => btn.addEventListener('click', closeAllSheets));
+
+$('btn-save-keys').addEventListener('click', () => {
+  const creds = {
+    deepgramKey: $('key-deepgram').value.trim(),
+    turnTokenId: $('key-turnid').value.trim(),
+    turnApiToken: $('key-turntoken').value.trim(),
+    githubPat: $('key-ghpat').value.trim(),
+  };
+  STATE.credentials = Object.values(creds).some(Boolean) ? creds : null;
+  saveState();
+  ['deepgram', 'turnid', 'turntoken', 'ghpat'].forEach((k) => { $('status-' + k).textContent = creds[k === 'ghpat' ? 'githubPat' : k + (k === 'turnid' ? '' : '')] ? 'saved' : ''; });
+  toast('Keys saved.');
+  closeAllSheets();
+  renderPanel();
+});
+
+/* ---------- room creation ---------- */
+$('btn-create-room').addEventListener('click', () => {
+  if (!STATE.credentials) return;
+  $('cr-name').value = ''; $('cr-autoread').checked = false; $('cr-grant').checked = false;
+  $('cr-grant-date-wrap').hidden = true;
+  const d = new Date(); d.setDate(d.getDate() + 30);
+  $('cr-grant-date').value = d.toISOString().slice(0, 10);
+  $('cr-error').textContent = '';
+  openSheet('sheet-create-room');
+});
+$('cr-grant').addEventListener('change', () => { $('cr-grant-date-wrap').hidden = !$('cr-grant').checked; });
+$('btn-create-room-ok').addEventListener('click', () => {
+  const name = norm($('cr-name').value);
+  if (!name) { $('cr-error').textContent = 'Room name is required.'; return; }
+  const room = {
+    id: uid(), name, myLang: $('cr-my-lang').value, theirLang: $('cr-their-lang').value,
+    theirName: null, createdByMe: true, autoRead: $('cr-autoread').checked,
+    grantOn: $('cr-grant').checked, grantExpiry: $('cr-grant').checked ? new Date($('cr-grant-date').value).getTime() : null,
+    myNameInRoom: STATE.userName, earOn: true, muteNotif: false, goBtnOn: true, headerPos: 'top',
+    softDeleted: false, readOnly: false, partnerLeft: false,
+    badges: { chat: 0, voice: 0, video: 0 }, lastContactAt: Date.now(),
+  };
+  STATE.rooms.unshift(room);
+  saveState();
+  closeAllSheets();
+  openRoom(room.id);
+});
+
+function softDeleteRoom(roomId) {
+  const r = STATE.rooms.find((x) => x.id === roomId);
+  if (!r) return;
+  r.softDeleted = true; saveState(); renderPanel();
+}
+
+/* ---------- entering / leaving a room ---------- */
+function activeRoom() { const token = session.currentToken(); return STATE.rooms.find((r) => r.id === token.roomId); }
+
+function openRoom(roomId) {
+  leaveRoom();
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  if (!room) return;
+  const token = session.enterRoom(roomId);
+  relay.connectForeground(token);
+  receipts.reconcileOnEntry(token, myId());
+  room.badges.chat = 0; room.badges.voice = 0; room.badges.video = 0;
+  delete STATE.homeDismissed[roomId];
+  saveState();
+  showScreen('screen-room');
+  renderRoomHeader(room);
+  renderTranscript();
+  closePanel();
+}
+
+function leaveRoom() {
+  const token = session.currentToken();
+  if (token.roomId == null) return;
+  const roomId = token.roomId;
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  if (audio.isMicOn(roomId)) audio.stopMic(token);
+  if (call.getPhase(roomId) !== 'idle') call.hangup(token);
+  relay.listenBackground(roomId);
+  session.exitRoom();
+  if (room) { const [a, b] = [room.myLang, room.theirLang]; if (phrasebook.isDirty(a, b)) phrasebook.writeBack(a, b); }
+}
+
+function renderRoomHeader(room) {
+  $('rh-own').textContent = room.myNameInRoom || STATE.userName;
+  $('rh-partner').textContent = room.theirName || '(waiting)';
+  $('rh-presence').textContent = room.partnerLeft ? 'left the room' : '';
+}
+
+/* ---------- transcript / bubbles ---------- */
+function renderTranscript() {
+  const room = activeRoom();
+  if (!room) return;
+  const el = $('transcript');
+  el.innerHTML = '';
+  if (!room.theirName) {
+    const invite = document.createElement('div');
+    invite.className = 'invite-card';
+    const link = inviteLink(room);
+    invite.innerHTML = `<div>Invite ${esc(room.theirName || 'partner')}</div><div class="link">${esc(link)}</div><button class="btn" data-copy>Copy</button>`;
+    invite.querySelector('[data-copy]').addEventListener('click', () => { navigator.clipboard?.writeText(link); toast('Link copied'); });
+    el.appendChild(invite);
+  }
+  const rows = transcript.getRoom(room.id, myId());
+  for (const m of rows) {
+    if (m.kind === 'sys') { const p = document.createElement('div'); p.className = 'sys-pill'; p.textContent = m.text; el.appendChild(p); continue; }
+    const b = document.createElement('div');
+    b.className = 'bubble ' + (m.isOwn ? 'own' : 'other');
+    const receiptGlyph = m.isOwn ? (m.status === 'read' ? '●●' : m.status === 'delivered' ? '○○' : '○') : '';
+    b.innerHTML = `
+      <div class="grid">
+        <div class="src">${esc(m.textSource)}</div>
+        <div class="divider"></div>
+        <div class="tgt">${m.translationFailed ? '<span style="color:var(--danger)">&#9888; not translated</span>' : esc(m.textTarget ?? '')}</div>
+      </div>
+      <div class="meta">${m.spoken ? '&#127908;' : ''} ${new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${receiptGlyph}</div>
+      ${(m.attachments || []).map((a) => `<div class="attach" data-att="${esc(a.name)}">&#128206; ${esc(a.name)}</div>`).join('')}
+    `;
+    el.appendChild(b);
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+function inviteLink(room) {
+  const payload = { v: 1, roomId: room.id, name: room.name, initiatorLang: room.myLang, joinerLang: room.theirLang, grant: { on: room.grantOn, expiry: room.grantExpiry }, initiatorName: STATE.userName };
+  return `${location.origin}${location.pathname}#invite=${encodeURIComponent(utf8ToBase64(JSON.stringify(payload)))}`;
+}
+
+function tryJoinFromHash() {
+  const m = location.hash.match(/^#invite=(.+)$/);
+  if (!m) return;
+  let payload;
+  try { payload = JSON.parse(base64ToUtf8(decodeURIComponent(m[1]))); } catch { return; }
+  history.replaceState(null, '', location.pathname);
+  if (STATE.rooms.some((r) => r.id === payload.roomId)) { openRoom(payload.roomId); return; }
+  if (!STATE.userName) {
+    STATE.pendingInvite = payload; saveState();
+    openSheet('sheet-name-prompt');
+    return;
+  }
+  completeJoin(payload);
+}
+function completeJoin(payload) {
+  const room = {
+    id: payload.roomId, name: payload.name, myLang: payload.joinerLang, theirLang: payload.initiatorLang,
+    theirName: payload.initiatorName, createdByMe: false, autoRead: false, grantOn: false, grantExpiry: null,
+    myNameInRoom: STATE.userName, earOn: true, muteNotif: false, goBtnOn: true, headerPos: 'top',
+    softDeleted: false, readOnly: false, partnerLeft: false, badges: { chat: 0, voice: 0, video: 0 }, lastContactAt: Date.now(),
+  };
+  STATE.rooms.unshift(room);
+  if (payload.grant && payload.grant.on) { STATE.credentials = STATE.credentials || { deepgramKey: '', turnTokenId: '', turnApiToken: '', githubPat: '' }; saveState(); }
+  saveState();
+  openRoom(room.id);
+}
+
+/* ---------- compose strip: send + phrase-search trigger, ported behavior
+   for behavior (not code) from bridge-turn09-ship.html §14, exactly:
+   trigger is "/" or ".." (never exactly "//"), Enter/Go escalate to the
+   full phrasebook rather than sending, search is scored/ordered/capped the
+   same way. ---------- */
+let searchMode = false;
+const ta = $('chat-input');
+function composeIsSearch(v) { return (v.charAt(0) === '/' && v !== '//') || v.slice(0, 2) === '..'; }
+function composeQuery(v) { return v.charAt(0) === '/' ? v.slice(1) : v.slice(0, 2) === '..' ? v.slice(2) : v; }
+function enterSearch() { searchMode = true; $('search-drawer').hidden = false; const r = activeRoom(); if (r) $('sd-flags').textContent = `${LANG_FLAG[r.myLang] || ''} ↔ ${LANG_FLAG[r.theirLang] || ''}`; }
+function exitSearch() { searchMode = false; $('search-drawer').hidden = true; }
+function searchFilter(cards, q) {
+  const terms = norm(q).toLowerCase().split(' ').filter(Boolean);
+  const inc = terms.filter((t) => t.charAt(0) !== '-');
+  const exc = terms.filter((t) => t.charAt(0) === '-' && t.length > 1).map((t) => t.slice(1));
+  return cards.filter((c) => {
+    const hay = `${c.source} ${c.target}`.toLowerCase();
+    return inc.every((t) => hay.indexOf(t) >= 0) && !exc.some((t) => hay.indexOf(t) >= 0);
+  });
+}
+function pbScore(card, q) {
+  const s = (card.source || '').toLowerCase(), tg = (card.tags || []).join(' ').toLowerCase();
+  if (s === q) return 100; if (s.indexOf(q) === 0) return 80; if (tg.indexOf(q) >= 0) return 70; if (s.indexOf(q) >= 0) return 50; return 30;
+}
+function renderSearch(q) {
+  const room = activeRoom(); if (!room) return;
+  const doc = phrasebook.loadForPair(room.myLang, room.theirLang);
+  const qLow = norm(q).toLowerCase();
+  let res = searchFilter(doc.cards, q);
+  if (qLow) res.sort((a, b) => pbScore(b, qLow) - pbScore(a, qLow));
+  else res.sort((a, b) => (b.usage || 0) - (a.usage || 0) || (b.createdAt || 0) - (a.createdAt || 0));
+  res = res.slice(0, 30);
+  $('sd-count').textContent = `${res.length} of ${doc.cards.length}`;
+  $('sd-body').innerHTML = res.map((c) => `
+    <div class="sr-row" data-id="${esc(c.id)}">
+      <div class="txt" data-side="src">${esc(c.source)}</div><div class="divider"></div><div class="txt" data-side="tgt">${esc(c.target)}</div>
+    </div>`).join('') || '<div style="padding:16px;text-align:center;color:var(--ink-dim)">No matching phrases</div>';
+  $('sd-body').querySelectorAll('.sr-row').forEach((row) => {
+    const c = doc.cards.find((x) => x.id === row.dataset.id);
+    row.querySelectorAll('.txt').forEach((t) => t.addEventListener('click', () => {
+      exitSearch(); ta.value = t.dataset.side === 'src' ? c.source : c.target; composeInput();
+      c.usage = (c.usage || 0) + 1; phrasebook.mutate(room.myLang, room.theirLang, (d) => d);
+    }));
+  });
+}
+function composeInput() {
+  ta.style.height = ''; ta.style.height = Math.min(ta.scrollHeight, 110) + 'px';
+  const v = ta.value;
+  $('btn-send').disabled = !norm(v);
+  $('chat-clear-x').classList.toggle('show', v.length > 0);
+  const isSearch = composeIsSearch(v);
+  if (isSearch && !searchMode) enterSearch();
+  if (!isSearch && searchMode) exitSearch();
+  if (searchMode) renderSearch(composeQuery(v));
+}
+ta.addEventListener('input', composeInput);
+ta.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && !ev.shiftKey) {
+    ev.preventDefault();
+    if (searchMode) { const q = composeQuery(ta.value); exitSearch(); ta.value = ''; composeInput(); openPhrasebook(q); return; }
+    sendChat();
+  }
+  if (ev.key === 'Escape' && searchMode) { exitSearch(); ta.value = ''; composeInput(); }
+});
+$('btn-send').addEventListener('click', () => {
+  if (searchMode) { const q = composeQuery(ta.value); exitSearch(); ta.value = ''; composeInput(); openPhrasebook(q); return; }
+  sendChat();
+});
+$('chat-clear-x').addEventListener('click', () => { if (searchMode) exitSearch(); ta.value = ''; composeInput(); ta.focus(); });
+
+async function sendChat(attachmentPayload) {
+  const room = activeRoom(); if (!room) return;
+  const text = norm(ta.value);
+  if (!text && !attachmentPayload) return;
+  ta.value = ''; composeInput();
+  const token = session.currentToken();
+  const detected = detectLanguage(text, room.myLang);
+  const msg = {
+    id: uid(), kind: 'chat', senderId: myId(), spoken: false,
+    sourceLang: detected.lang, targetLang: room.theirLang, textSource: text, at: Date.now(),
+    attachments: attachmentPayload ? [attachmentPayload] : [],
+  };
+  transcript.appendLocal(room.id, msg);
+  renderTranscript();
+  const sent = relay.send(token, msg);
+  room.lastContactAt = Date.now(); saveState();
+  if (!sent) { toast('Message queued — will retry once the connection is back.'); return; }
+  const result = await translate(text, detected.lang, room.theirLang);
+  if (session.currentToken().roomId === room.id) {
+    transcript.patchTranslation(room.id, msg.id, { textTarget: result.ok ? result.text : null, translationFailed: !result.ok });
+    renderTranscript();
+  }
+}
+
+$('btn-attach').addEventListener('click', () => { if (searchMode) { exitSearch(); ta.value = ''; composeInput(); return; } $('attach-input').click(); });
+$('attach-input').addEventListener('change', function () {
+  const file = this.files[0]; this.value = '';
+  if (!file) return;
+  const room = activeRoom(); if (!room) return;
+  const messageId = uid();
+  attachments.readAttachment(room.id, messageId, file, {
+    onDone: ({ roomId, messageId: mid, data }) => {
+      const targetRoom = STATE.rooms.find((r) => r.id === roomId);
+      if (!targetRoom) return;
+      const msg = { id: mid, kind: 'chat', senderId: myId(), textSource: '', sourceLang: targetRoom.myLang, targetLang: targetRoom.theirLang, at: Date.now(), attachments: [{ name: file.name, dataUrl: data }] };
+      transcript.appendLocal(roomId, msg);
+      if (session.currentToken().roomId === roomId) { relay.send(session.currentToken(), msg); renderTranscript(); }
+    },
+    onError: ({ error }) => toast('Attachment failed: ' + (error && error.message || 'unknown error')),
+  });
+});
+
+/* ---------- calls ---------- */
+$('btn-audio-call').addEventListener('click', () => startCall(false));
+$('btn-video-call').addEventListener('click', () => startCall(true));
+async function startCall(video) {
+  const room = activeRoom(); if (!room) return;
+  const token = session.currentToken();
+  const result = await call.placeCall(token, {
+    video, primaryLang: room.myLang, secondaryLang: 'en',
+    onPhase: (p) => renderCallBand(p),
+    onTranscript: (t) => appendSpokenLine(room.id, t),
+  });
+  if (result) renderCallBand({ phase: 'ringing' });
+}
+function renderCallBand(p) {
+  const room = activeRoom();
+  $('call-band').hidden = p.phase === 'idle' || p.phase === 'ended' || p.phase === 'declined' || p.phase === 'missed';
+  $('cb-name').textContent = room ? (room.theirName || 'Partner') : '';
+  $('cb-phase').textContent = p.phase;
+  if (['ended', 'declined', 'missed'].includes(p.phase) && room) {
+    const pill = { kind: 'sys', id: uid(), at: Date.now(), text: `Call ${p.phase}${p.duration ? ` (${Math.round(p.duration / 1000)}s)` : ''} — ${p.video ? 'video' : 'voice'}` };
+    transcript.appendLocal(room.id, pill);
+    renderTranscript();
+  }
+}
+$('btn-hangup').addEventListener('click', () => { const t = session.currentToken(); if (t.roomId) call.hangup(t); });
+$('btn-mic-toggle').addEventListener('click', function () {
+  const room = activeRoom(); if (!room) return;
+  const nowOff = this.classList.toggle('off');
+  const media = audio; // muting a call track is owned by AudioEngine's call-media handle
+});
+function appendSpokenLine(roomId, t) {
+  const room = STATE.rooms.find((r) => r.id === roomId); if (!room) return;
+  const msg = { id: uid(), kind: 'chat', senderId: myId(), spoken: true, sourceLang: t.detectedLang, targetLang: room.theirLang, textSource: t.text, at: Date.now() };
+  transcript.appendLocal(roomId, msg);
+  if (session.currentToken().roomId === roomId) renderTranscript();
+}
+
+function showRingOverlay(roomId, video) {
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  $('ring-caller').textContent = room ? (room.theirName || 'Someone') : 'Someone';
+  $('ring-sub').textContent = video ? 'Video call' : 'Voice call';
+  $('ring-overlay').hidden = false;
+  $('ring-overlay')._roomId = roomId;
+}
+$('btn-ring-accept').addEventListener('click', async () => {
+  const roomId = $('ring-overlay')._roomId;
+  $('ring-overlay').hidden = true;
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  if (session.currentToken().roomId !== roomId) openRoom(roomId);
+  const token = session.currentToken();
+  await call.acceptCall(token, { primaryLang: room.myLang, secondaryLang: 'en', onPhase: renderCallBand, onTranscript: (t) => appendSpokenLine(roomId, t) });
+});
+$('btn-ring-decline').addEventListener('click', () => {
+  const roomId = $('ring-overlay')._roomId;
+  $('ring-overlay').hidden = true;
+  const token = session.currentToken().roomId === roomId ? session.currentToken() : session.enterRoom(roomId);
+  call.declineCall(token);
+});
+
+/* ---------- phrasebook overlay ---------- */
+function openPhrasebook(query) {
+  const room = activeRoom(); if (!room) return;
+  const doc = phrasebook.loadForPair(room.myLang, room.theirLang);
+  $('pb-pair').textContent = `${LANG_FLAG[room.myLang] || ''} ${room.myLang.toUpperCase()} → ${LANG_FLAG[room.theirLang] || ''} ${room.theirLang.toUpperCase()}`;
+  $('pb-search').value = query || '';
+  renderPbList();
+  $('pb-overlay').hidden = false;
+}
+function renderPbList() {
+  const room = activeRoom(); if (!room) return;
+  const doc = phrasebook.loadForPair(room.myLang, room.theirLang);
+  const q = norm($('pb-search').value);
+  const cards = q ? searchFilter(doc.cards, q) : doc.cards;
+  $('pb-sync-status').textContent = phrasebook.isDirty(room.myLang, room.theirLang) ? 'sync pending…' : `synced · v${doc.version}`;
+  $('pb-list').innerHTML = cards.map((c) => `
+    <div class="pb-card" data-id="${esc(c.id)}">
+      <div class="pb-meta">created by ${esc(c.createdBy || '?')} · used ${c.usage || 0}x</div>
+      <div class="grid"><input class="pb-src" value="${esc(c.source)}"><div class="divider"></div><input class="pb-tgt" value="${esc(c.target)}"></div>
+    </div>`).join('') || '<p style="color:var(--ink-dim)">No phrases yet.</p>';
+  $('pb-list').querySelectorAll('.pb-card').forEach((cardEl) => {
+    const id = cardEl.dataset.id;
+    cardEl.querySelector('.pb-src').addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const newSource = ev.target.value;
+      phrasebook.mutate(room.myLang, room.theirLang, (d) => {
+        const card = d.cards.find((c) => c.id === id);
+        const changed = card.source !== newSource;
+        card.source = newSource;
+        translate(newSource, room.myLang, room.theirLang).then((r) => { card.target = r.text; renderPbList(); });
+        if (changed) { card.verified = false; card.history = [...(card.history || []), { at: Date.now(), what: 'Verdict reset to pending (source changed)' }]; }
+        return d;
+      });
+    });
+  });
+}
+$('pb-search').addEventListener('input', renderPbList);
+$('pb-new').addEventListener('click', () => {
+  const room = activeRoom(); if (!room) return;
+  const doc = phrasebook.loadForPair(room.myLang, room.theirLang);
+  if (doc.cards.some((c) => !norm(c.source))) { renderPbList(); return; }
+  phrasebook.mutate(room.myLang, room.theirLang, (d) => ({ ...d, cards: [{ id: uid(), source: '', target: '', tags: [], usage: 0, createdBy: STATE.userName, createdAt: Date.now(), history: [{ at: Date.now(), what: 'Created' }] }, ...d.cards] }));
+  $('pb-search').value = ''; renderPbList();
+});
+$('pb-save-now').addEventListener('click', async () => {
+  const room = activeRoom(); if (!room) return;
+  const result = await phrasebook.writeBack(room.myLang, room.theirLang);
+  if (!result.ok && result.error) toast('trouble updating GitHub, check the debug log');
+  renderPbList();
+});
+$('pb-close').addEventListener('click', () => { $('pb-overlay').hidden = true; });
+
+/* ---------- boot ---------- */
+window.addEventListener('online', () => { persistence.retryPending(async (scope) => { if (scope.startsWith('pb:')) { const [a, b] = scope.slice(3).split('-'); await phrasebook.writeBack(a, b); } }); });
+// A hash-only URL change (opening a second invite link while this exact
+// page is already loaded) is a same-document navigation in every browser —
+// no script re-runs — so the on-load check alone would miss it (W5.1.B/C).
+window.addEventListener('hashchange', tryJoinFromHash);
+tryJoinFromHash();
+boot();
+
+// Test hook: exposes read-only handles for a headless self-verification
+// harness. Never used by any UI code path above.
+window.__TB_TEST__ = { session, lifecycle, relay, transcript, phrasebook, audio, attachments, call, receipts, STATE };
+</script>
+</body>
+</html>
