@@ -124,6 +124,7 @@
         <span id="rh-own"></span> &#9998; &#8596; <span id="rh-partner"></span>
         <div class="presence" id="rh-presence"></div>
       </div>
+      <button id="btn-appearance" class="icon-btn" title="Appearance">&#127912;</button>
       <button id="btn-video-call" class="icon-btn" title="Video call">&#127909;</button>
       <button id="btn-audio-call" class="icon-btn" title="Voice call">&#128222;</button>
     </div>
@@ -180,7 +181,14 @@
     <div class="field"><label>TURN API token</label><input type="password" id="key-turntoken"><div class="field-status" id="status-turntoken"></div></div>
     <div class="field"><label>GitHub PAT (optional, for phrasebook sync)</label><input type="password" id="key-ghpat"><div class="field-status" id="status-ghpat"></div></div>
     <div class="field-status" id="release-info"></div>
+    <div class="row" style="justify-content:flex-start"><button class="btn ghost" id="btn-open-diagnostics">View debug log</button></div>
     <div class="row"><button class="btn primary" id="btn-save-keys">Save</button><button class="btn ghost" data-close-sheet>Close</button></div>
+  </div>
+
+  <div id="sheet-diagnostics" class="sheet" hidden>
+    <h3>Diagnostics &amp; log</h3>
+    <pre id="diag-log" style="max-height:50vh;overflow:auto;font-size:11px;white-space:pre-wrap;background:#0c0f13;border:1px solid var(--line);border-radius:6px;padding:8px"></pre>
+    <div class="row"><button class="btn" id="btn-diag-copy">Copy</button><button class="btn" id="btn-diag-clear">Clear</button><button class="btn ghost" id="btn-diag-close">Close</button></div>
   </div>
 
   <div id="sheet-about" class="sheet" hidden>
@@ -242,6 +250,50 @@
     <input id="pb-search" placeholder="Search phrases (-term to exclude)" style="margin:10px 0;width:100%">
     <div id="pb-sync-status" class="field-status"></div>
     <div id="pb-list"></div>
+  </div>
+
+  <div id="bubble-menu" class="sheet" style="position:fixed;max-width:220px;padding:6px;text-align:left" hidden>
+    <button class="btn ghost" style="width:100%;text-align:left" id="bm-save">Save to phrasebook</button>
+    <button class="btn ghost" style="width:100%;text-align:left" id="bm-clarify">Clarify</button>
+    <button class="btn ghost" style="width:100%;text-align:left;color:var(--danger)" id="bm-delete">Delete</button>
+  </div>
+
+  <div id="sheet-clarify" class="sheet" hidden>
+    <h3>Clarify</h3>
+    <div class="field-status">Original</div>
+    <div id="clarify-original" style="border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px"></div>
+    <div class="field-status">Translation</div>
+    <div id="clarify-translation" style="border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px"></div>
+    <div class="field"><label>Your question</label><textarea id="clarify-input" rows="2"></textarea></div>
+    <div class="field-status">Back-translation (what they'll read)</div>
+    <div id="clarify-backtranslation" style="border:1px solid var(--line);border-radius:6px;padding:8px;min-height:1.4em"></div>
+    <div class="row"><button class="btn ghost" data-close-sheet>Cancel</button><button class="btn primary" id="btn-clarify-send">Send</button></div>
+  </div>
+
+  <div id="sheet-appearance" class="sheet" hidden>
+    <h3>Appearance</h3>
+    <h4 style="margin-bottom:4px">Your messages</h4>
+    <div class="field"><label>Preset</label>
+      <select id="ap-own-preset"><option value="light">Light</option><option value="medium">Medium</option><option value="dark">Dark</option></select>
+    </div>
+    <div class="field"><label>Tone</label><input type="range" min="0" max="4" id="ap-own-tone"></div>
+    <div class="field"><label>Bubble color</label><input type="color" id="ap-own-bubble"></div>
+    <div class="field"><label>Font color</label><input type="color" id="ap-own-font"></div>
+    <div class="field"><label>Font size (10–32)</label><input type="range" min="10" max="32" id="ap-own-size"></div>
+    <div class="field"><label>Column width (px)</label><input type="number" min="80" max="600" id="ap-own-colwidth"></div>
+    <h4 style="margin-bottom:4px">Partner's messages</h4>
+    <div class="field"><label>Preset</label>
+      <select id="ap-partner-preset"><option value="light">Light</option><option value="medium">Medium</option><option value="dark">Dark</option></select>
+    </div>
+    <div class="field"><label>Tone</label><input type="range" min="0" max="4" id="ap-partner-tone"></div>
+    <div class="field"><label>Bubble color</label><input type="color" id="ap-partner-bubble"></div>
+    <div class="field"><label>Font color</label><input type="color" id="ap-partner-font"></div>
+    <div class="field"><label>Font size (10–32)</label><input type="range" min="10" max="32" id="ap-partner-size"></div>
+    <div class="field"><label>Column width (px)</label><input type="number" min="80" max="600" id="ap-partner-colwidth"></div>
+    <h4 style="margin-bottom:4px">Header (both sides)</h4>
+    <div class="field"><label>Header text size</label><input type="range" min="9" max="20" id="ap-header-size"></div>
+    <div class="field"><label>Header color</label><input type="color" id="ap-header-color"></div>
+    <div class="row"><button class="btn ghost" data-close-sheet>Close</button></div>
   </div>
 
   <div id="toast" class="toast" hidden></div>
@@ -536,6 +588,9 @@ class TranscriptStore {
       .map((m) => ({ ...m, isOwn: viewerId != null && m.senderId === viewerId }));
   }
   has(roomId, messageId) { const room = this._rooms.get(roomId); return !!room && room.has(messageId); }
+  // Removes a message from this device's own copy of the transcript only
+  // (§8: "removes the message from this device's transcript only").
+  deleteMessage(roomId, messageId) { const room = this._rooms.get(roomId); return !!room && room.delete(messageId); }
 }
 
 class ConflictError extends Error {}
@@ -1050,14 +1105,34 @@ call.onIncomingCall(({ roomId, callId, video }) => {
 
 function myId() { return 'me:' + (STATE.deviceId || (STATE.deviceId = uid(), saveState(), STATE.deviceId)); }
 
-/* ---------- placeholder translation (no live provider credential in this
-   build) — clearly tagged, never silently blank; a real key plugs in here
-   without touching module ownership. ---------- */
+/* ---------- translation via MyMemory (no key/credential required) ----------
+   A plain fetch — not one of the four owned primitives (§20) — so it lives
+   here in the UI/business-logic layer, not inside a module. A failure of
+   any kind (network, quota, malformed response) resolves to ok:false, which
+   callers render as "⚠ not translated" (P1) — never blank, never silent. */
+const MYMEMORY_BASE = (CONFIG.myMemoryBase || 'https://api.mymemory.translated.net');
 async function translate(text, fromLang, toLang) {
   if (!text) return { ok: true, text: '' };
   if (fromLang === toLang) return { ok: true, text };
-  await new Promise((r) => setTimeout(r, 30));
-  return { ok: true, text: `${text} [${toLang}]` };
+  const url = `${MYMEMORY_BASE}/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(fromLang)}|${encodeURIComponent(toLang)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      Log.error('Translate', `MyMemory HTTP ${res.status}`, { fromLang, toLang });
+      return { ok: false };
+    }
+    const body = await res.json();
+    const translated = body && body.responseData && body.responseData.translatedText;
+    const status = body && Number(body.responseStatus);
+    if (!translated || (status && status !== 200) || /MYMEMORY WARNING/i.test(translated)) {
+      Log.error('Translate', 'MyMemory returned no usable translation', body);
+      return { ok: false };
+    }
+    return { ok: true, text: translated };
+  } catch (err) {
+    Log.error('Translate', 'MyMemory request threw', String(err && err.message || err));
+    return { ok: false };
+  }
 }
 
 /* ---------- panel / navigation ---------- */
@@ -1270,9 +1345,28 @@ function renderRoomHeader(room) {
 }
 
 /* ---------- transcript / bubbles ---------- */
+/* ---------- appearance (§7) ---------- */
+const APPEARANCE_PRESETS = {
+  light: { bubbleColor: '#eef2f5', fontColor: '#12161c' },
+  medium: { bubbleColor: '#3a4552', fontColor: '#f0f3f6' },
+  dark: { bubbleColor: '#173a3a', fontColor: '#e8edf2' },
+};
+function defaultSideAppearance(preset) {
+  const p = APPEARANCE_PRESETS[preset];
+  return { preset, tone: 2, bubbleColor: p.bubbleColor, fontColor: p.fontColor, fontSize: 15, columnWidth: 260 };
+}
+function defaultAppearance() {
+  return { own: defaultSideAppearance('dark'), partner: defaultSideAppearance('medium'), header: { size: 11, color: '#8a94a3' } };
+}
+// Appearance is stored on the room itself, which is part of STATE and
+// therefore already durable via saveState() — it survives a cold reload
+// with no extra plumbing, and there is deliberately no Reset control (§7).
+function getAppearance(room) { if (!room.appearance) room.appearance = defaultAppearance(); return room.appearance; }
+
 function renderTranscript() {
   const room = activeRoom();
   if (!room) return;
+  const ap = getAppearance(room);
   const el = $('transcript');
   el.innerHTML = '';
   if (!room.theirName) {
@@ -1286,22 +1380,172 @@ function renderTranscript() {
   const rows = transcript.getRoom(room.id, myId());
   for (const m of rows) {
     if (m.kind === 'sys') { const p = document.createElement('div'); p.className = 'sys-pill'; p.textContent = m.text; el.appendChild(p); continue; }
+    const side = m.isOwn ? ap.own : ap.partner;
     const b = document.createElement('div');
     b.className = 'bubble ' + (m.isOwn ? 'own' : 'other');
+    b.dataset.id = m.id;
+    b.style.background = side.bubbleColor;
+    b.style.color = side.fontColor;
+    b.style.fontSize = side.fontSize + 'px';
     const receiptGlyph = m.isOwn ? (m.status === 'read' ? '●●' : m.status === 'delivered' ? '○○' : '○') : '';
     b.innerHTML = `
       <div class="grid">
-        <div class="src">${esc(m.textSource)}</div>
+        <div class="src" style="width:${side.columnWidth}px;max-width:100%">${esc(m.textSource)}</div>
         <div class="divider"></div>
-        <div class="tgt">${m.translationFailed ? '<span style="color:var(--danger)">&#9888; not translated</span>' : esc(m.textTarget ?? '')}</div>
+        <div class="tgt" style="width:${side.columnWidth}px;max-width:100%">${m.translationFailed ? '<span style="color:var(--danger)">&#9888; not translated</span>' : esc(m.textTarget ?? '')}</div>
       </div>
-      <div class="meta">${m.spoken ? '&#127908;' : ''} ${new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${receiptGlyph}</div>
+      <div class="meta" style="font-size:${ap.header.size}px;color:${ap.header.color}">${m.spoken ? '&#127908;' : ''} ${new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${receiptGlyph}</div>
       ${(m.attachments || []).map((a) => `<div class="attach" data-att="${esc(a.name)}">&#128206; ${esc(a.name)}</div>`).join('')}
     `;
+    attachLongPress(b, (x, y) => openBubbleMenu(room.id, m.id, x, y));
     el.appendChild(b);
   }
   el.scrollTop = el.scrollHeight;
 }
+
+/* ---------- long-press: Save to phrasebook · Clarify · Delete (§8, W9) ---------- */
+function attachLongPress(el, onLongPress) {
+  let timer = null, startX = 0, startY = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', (ev) => {
+    startX = ev.clientX; startY = ev.clientY;
+    timer = setTimeout(() => onLongPress(ev.clientX, ev.clientY), 550);
+  });
+  el.addEventListener('pointermove', (ev) => { if (timer && (Math.abs(ev.clientX - startX) > 8 || Math.abs(ev.clientY - startY) > 8)) cancel(); });
+  el.addEventListener('pointerup', cancel);
+  el.addEventListener('pointerleave', cancel);
+}
+let bubbleMenuTarget = null;
+function openBubbleMenu(roomId, messageId, x, y) {
+  bubbleMenuTarget = { roomId, messageId };
+  const menu = $('bubble-menu');
+  menu.style.left = Math.min(x, window.innerWidth - 230) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 160) + 'px';
+  menu.hidden = false;
+}
+function closeBubbleMenu() { $('bubble-menu').hidden = true; bubbleMenuTarget = null; }
+document.addEventListener('pointerdown', (ev) => {
+  if (!$('bubble-menu').hidden && !ev.target.closest('#bubble-menu') && !ev.target.closest('.bubble')) closeBubbleMenu();
+});
+$('bm-save').addEventListener('click', () => {
+  if (!bubbleMenuTarget) return;
+  const { roomId, messageId } = bubbleMenuTarget;
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  const msg = transcript.getRoom(roomId, myId()).find((m) => m.id === messageId);
+  closeBubbleMenu();
+  if (!room || !msg) return;
+  const doc = phrasebook.loadForPair(room.myLang, room.theirLang);
+  if (doc.cards.some((c) => c.source === msg.textSource)) { toast('Already saved'); return; }
+  phrasebook.mutate(room.myLang, room.theirLang, (d) => ({ ...d, cards: [{ id: uid(), source: msg.textSource, target: msg.textTarget || '', tags: [], usage: 0, createdBy: STATE.userName, createdAt: Date.now(), history: [{ at: Date.now(), what: 'Created' }] }, ...d.cards] }));
+  toast('Saved to phrasebook');
+});
+$('bm-delete').addEventListener('click', () => {
+  if (!bubbleMenuTarget) return;
+  const { roomId, messageId } = bubbleMenuTarget;
+  closeBubbleMenu();
+  if (!confirm('Delete this message from your transcript?')) return;
+  transcript.deleteMessage(roomId, messageId);
+  if (session.currentToken().roomId === roomId) renderTranscript();
+});
+
+/* ---------- clarify-reply modal (7.3.C, §16) ---------- */
+let clarifyDebounce = null;
+$('bm-clarify').addEventListener('click', () => {
+  if (!bubbleMenuTarget) return;
+  const { roomId, messageId } = bubbleMenuTarget;
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  const msg = transcript.getRoom(roomId, myId()).find((m) => m.id === messageId);
+  closeBubbleMenu();
+  if (!room || !msg) return;
+  $('clarify-original').textContent = msg.textSource;
+  $('clarify-translation').textContent = msg.translationFailed ? '⚠ not translated' : (msg.textTarget || '');
+  $('clarify-input').value = '';
+  $('clarify-backtranslation').textContent = '';
+  $('sheet-clarify').dataset.roomId = roomId;
+  openSheet('sheet-clarify');
+  $('clarify-input').focus();
+});
+$('clarify-input').addEventListener('input', () => {
+  const roomId = $('sheet-clarify').dataset.roomId;
+  const room = STATE.rooms.find((r) => r.id === roomId);
+  const text = $('clarify-input').value;
+  clearTimeout(clarifyDebounce);
+  if (!room || !norm(text)) { $('clarify-backtranslation').textContent = ''; return; }
+  clarifyDebounce = setTimeout(async () => {
+    const result = await translate(text, room.myLang, room.theirLang);
+    if ($('clarify-input').value !== text) return; // superseded by further typing
+    $('clarify-backtranslation').textContent = result.ok ? result.text : '⚠ not translated';
+  }, 300);
+});
+$('btn-clarify-send').addEventListener('click', () => {
+  const roomId = $('sheet-clarify').dataset.roomId;
+  const text = norm($('clarify-input').value);
+  if (!text) return;
+  if (session.currentToken().roomId !== roomId) openRoom(roomId);
+  closeAllSheets();
+  ta.value = text; composeInput();
+  sendChat(); // Send lands it in the transcript as an ordinary chat message (9.C.4)
+});
+
+/* ---------- diagnostics & log overlay (§16) ---------- */
+function renderDiagnostics() {
+  $('diag-log').textContent = Log.all().map((e) => `[${new Date(e.t).toISOString()}] ${e.level.toUpperCase()} ${e.source}: ${e.message}${e.detail != null ? ' ' + JSON.stringify(e.detail) : ''}`).join('\n') || '(no log entries yet)';
+}
+$('btn-open-diagnostics').addEventListener('click', () => { renderDiagnostics(); openSheet('sheet-diagnostics'); });
+$('btn-diag-copy').addEventListener('click', () => { navigator.clipboard?.writeText($('diag-log').textContent); toast('Log copied'); });
+$('btn-diag-clear').addEventListener('click', () => { Log.clear(); renderDiagnostics(); });
+$('btn-diag-close').addEventListener('click', () => { $('sheet-diagnostics').hidden = true; });
+
+/* ---------- appearance sheet wiring (§7) ---------- */
+function openAppearanceSheet() {
+  const room = activeRoom(); if (!room) return;
+  const ap = getAppearance(room);
+  for (const side of ['own', 'partner']) {
+    $(`ap-${side}-preset`).value = ap[side].preset;
+    $(`ap-${side}-tone`).value = ap[side].tone;
+    $(`ap-${side}-bubble`).value = ap[side].bubbleColor;
+    $(`ap-${side}-font`).value = ap[side].fontColor;
+    $(`ap-${side}-size`).value = ap[side].fontSize;
+    $(`ap-${side}-colwidth`).value = ap[side].columnWidth;
+  }
+  $('ap-header-size').value = ap.header.size;
+  $('ap-header-color').value = ap.header.color;
+  openSheet('sheet-appearance');
+}
+$('btn-appearance').addEventListener('click', openAppearanceSheet);
+function applyAppearanceChange() {
+  const room = activeRoom(); if (!room) return;
+  const ap = getAppearance(room);
+  for (const side of ['own', 'partner']) {
+    ap[side].preset = $(`ap-${side}-preset`).value;
+    ap[side].tone = Number($(`ap-${side}-tone`).value);
+    ap[side].bubbleColor = $(`ap-${side}-bubble`).value;
+    ap[side].fontColor = $(`ap-${side}-font`).value;
+    ap[side].fontSize = Number($(`ap-${side}-size`).value);
+    ap[side].columnWidth = Number($(`ap-${side}-colwidth`).value);
+  }
+  ap.header.size = Number($('ap-header-size').value);
+  ap.header.color = $('ap-header-color').value;
+  saveState();
+  renderTranscript(); // changing appearance re-renders the whole transcript immediately (§7)
+}
+['own-preset', 'own-tone', 'own-bubble', 'own-font', 'own-size', 'own-colwidth',
+  'partner-preset', 'partner-tone', 'partner-bubble', 'partner-font', 'partner-size', 'partner-colwidth',
+  'header-size', 'header-color'].forEach((id) => {
+  const el = $('ap-' + id);
+  el.addEventListener('input', applyAppearanceChange);
+  el.addEventListener('change', applyAppearanceChange);
+});
+// Choosing a preset seeds sensible bubble/font-color defaults for that side,
+// which can then still be overridden directly by the color pickers.
+['own', 'partner'].forEach((side) => {
+  $(`ap-${side}-preset`).addEventListener('change', () => {
+    const preset = APPEARANCE_PRESETS[$(`ap-${side}-preset`).value];
+    $(`ap-${side}-bubble`).value = preset.bubbleColor;
+    $(`ap-${side}-font`).value = preset.fontColor;
+    applyAppearanceChange();
+  });
+});
 
 function inviteLink(room) {
   const payload = { v: 1, roomId: room.id, name: room.name, initiatorLang: room.myLang, joinerLang: room.theirLang, grant: { on: room.grantOn, expiry: room.grantExpiry }, initiatorName: STATE.userName };
@@ -1421,7 +1665,10 @@ async function sendChat(attachmentPayload) {
   renderTranscript();
   const sent = relay.send(token, msg);
   room.lastContactAt = Date.now(); saveState();
-  if (!sent) { toast('Message queued — will retry once the connection is back.'); return; }
+  if (!sent) toast('Message queued — will retry once the connection is back.');
+  // Translation into the local (own) bubble happens regardless of relay
+  // delivery status — the two are independent (P1: a failure to translate
+  // must surface even if the message is still pending delivery).
   const result = await translate(text, detected.lang, room.theirLang);
   if (session.currentToken().roomId === room.id) {
     transcript.patchTranslation(room.id, msg.id, { textTarget: result.ok ? result.text : null, translationFailed: !result.ok });
@@ -1570,7 +1817,7 @@ boot();
 
 // Test hook: exposes read-only handles for a headless self-verification
 // harness. Never used by any UI code path above.
-window.__TB_TEST__ = { session, lifecycle, relay, transcript, phrasebook, audio, attachments, call, receipts, STATE };
+window.__TB_TEST__ = { session, lifecycle, relay, transcript, phrasebook, audio, attachments, call, receipts, translate, STATE };
 </script>
 </body>
 </html>
