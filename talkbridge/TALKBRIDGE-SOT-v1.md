@@ -518,21 +518,20 @@ Phase 0 (foundation union) → device gate. Then Layer 1 in full, one module per
 
 ## PART 17 — RELEASE CHAIN (named files, in order)
 
-Each row: exact input file → exact output file, the scope, and whether the change is invisible (plumbing) or visible (named additions). Output of each row is the input of the next. Every output is a fully functional release. Filenames follow the turn-family cycle and are fixed here so the diff gate (0.8) always has a named input to diff against.
+Each row: exact input → exact output, scope, visible/invisible, and WHY it is one release (combined by shared surface, separated by risk). Output of each row is the input of the next. Every output is a fully functional release worth a two-phone test. Releases are combined where they share a surface or gate, separated only where risk genuinely warrants an isolated gate.
 
-| # | Input file | Output file | Scope | Visible? |
+| # | Input → Output | Scope | Visible? | Why one release |
 |---|---|---|---|---|
-| R1 (Phase 0) | `bridge-turn09-ship.html` | `bridge-turn12-base.html` | Surgical remove-and-replace of call/media plumbing: strip thin plumbing, transplant donor `f403d70`'s robust call/video engine (ICE restart, recovery, glare handling, replaceTrack, reconnect) under single ownership | **No** — zero visible change |
-| R2 (Layer 1) | `bridge-turn12-base.html` | `bridge-turn12-ship.html` | Invisible plumbing fixes: fresh-vs-existing-room transcription death, PB version-mgmt + no-data-loss + staleness, joiner history backfill, receipts on re-entry, proactive reconnect, silent-cred surfacing, mute honored, pill call-kinds + single name-stamp, enter-in-source caret | **No** — zero visible change |
-| R3 (Layer 2a) | `bridge-turn12-ship.html` | `bridge-turn13-base.html` | Room card (§4 three-row/two-col, 3 badges) + home screen (§1) + in-app waiting/badge/summary/mute system (Part 8B) — one release, they depend on each other | **Yes** — named |
-| R4 (Layer 2b) | `bridge-turn13-base.html` | `bridge-turn13-ship.html` | Room-name-at-creation field + tap-partner-name-in-ribbon popup; appearance tone + font-color per side | **Yes** — named |
-| R5 (Layer 2c) | `bridge-turn13-ship.html` | `bridge-turn14-base.html` | Mic centered in ribbon — **requires written approval before build** | **Yes** — named, gated |
-| R6 (Layer 3a) | `bridge-turn14-base.html` | `bridge-turn14-ship.html` | Joiner full shell / parity (the reason they'll install the app) | **Yes** — named |
-| R7 (Layer 3b) | `bridge-turn14-ship.html` | `bridge-turn15-base.html` | Initiator elevation + grant/credential-removal model (Part 13) — isolated, highest-trust surface | **Yes** — named |
-| R8 (Layer 3c) | `bridge-turn15-base.html` | `bridge-turn15-ship.html` | Per-room export/delete + delete/restore "left the chat"/"rejoined" send-lock | **Yes** — named |
-| R9 (Layer 3d) | `bridge-turn15-ship.html` | `bridge-turn16-base.html` | localStorage → IndexedDB migration (architectural, own release, migration path for existing data) | **No** — invisible |
-| R10 (Layer 3e) | `bridge-turn16-base.html` | `bridge-turn16-ship.html` | OS device push, locked/backgrounded (service worker + relay change + iOS PWA) — the standalone final release | **Yes** — named |
-| Deferred | — | — | Cosmetic-only: icon-graphics/flag-motif polish, two-graphic mute icons + bubble-header icon convention, Ear/TTS/Mute wording — behind the critical releases | Cosmetic |
+| **R1** | `bridge-turn09-ship.html` → `bridge-turn12-base.html` | **All plumbing, invisible, one gate.** Surgical remove-and-replace of the call/media plumbing (transplant donor `f403d70`'s robust call/video engine: ICE restart, recovery, glare handling, replaceTrack, reconnect) AND the Layer-1 plumbing fixes (fresh-vs-existing-room transcription death, PB version-mgmt + no-data-loss + staleness, joiner history backfill, receipts on re-entry, proactive reconnect, silent-cred surfacing, mute honored, pill call-kinds + single name-stamp, enter-in-source caret). | **No** | Both are invisible plumbing tested by one identical gate: looks byte-identical to turn09, calls survive a network blip, fresh-vs-revisited-room bug is dead, prior history shows on join. No reason to test "looks the same" twice. |
+| **R2** | `bridge-turn12-base.html` → `bridge-turn12-ship.html` | **The room card + everything that lives on it.** Restyle the existing room-card renderer to §4 (three rows, two columns) + three separately-tracked chat/voice/video badges + home summary line that counts those badges + waiting-only home cards + dismissal rules. Rides along (same dialog/surface, trivial): room-name field at creation (net-new — turn09 has none) so the card has a name to show; appearance tone + font-color per side. | **Yes** | Badges are pointless without the card; the summary only sums badges; the name field exists to feed the card. One surface, one gate. |
+| **R3** | `bridge-turn12-ship.html` → `bridge-turn13-base.html` | **Joiner parity — the full shell.** The joiner gets the complete app shell (room list, cards, drawer, phrasebook, transcript) at parity with the initiator. This is the release that makes them install the app. **Mic-centered-in-ribbon rides here** (one-line ribbon change, on written approval) since this release already touches the shell. | **Yes** | Isolated because parity is a large, real surface and deserves its own gate. Mic move folds in rather than being its own release. |
+| **R4** | `bridge-turn13-base.html` → `bridge-turn13-ship.html` | **Initiator elevation, full (Part 13).** The grant toggle at room creation (net-new, rides here because it's meaningless without elevation) + credential-carrying grant link + expiry picker + credential-removal-drives-everything mechanism (+ disappears, STT/translation stop as consequences). Plus per-room export/delete + delete/restore send-lock ("left the chat"/"rejoined"), which shares the room-control surface. | **Yes** | Highest-trust/security surface — deliberately isolated for its own hard gate. Grant toggle and room delete/restore share this surface. |
+| **R5** | `bridge-turn13-ship.html` → `bridge-turn14-base.html` | **OS device push — the standalone finale.** Locked/backgrounded push: service worker registered from the file + relay change + iOS home-screen PWA install. | **Yes** | The only release needing the relay modification and a locked-phone gate. Always was the last, standalone release. |
+| **later, if wanted** | — | localStorage → IndexedDB (invisible architectural, its own release when scale demands); deferred cosmetics (icon-graphics/flag-motif polish, two-graphic mute icons, Ear/TTS/Mute wording). | mixed | Not in the critical path; sequenced only if/when needed, not part of the 5 you test. |
+
+**Five releases you test, not ten.** Two invisible plumbing gates folded into one (R1); card + badges + summary + name-field + appearance as one surface (R2); joiner parity with the mic move folded in (R3); elevation with its grant toggle and room delete/restore (R4); OS push alone (R5).
+
+**Rule:** these filenames are fixed. A failed device gate rolls back and rebuilds to the SAME output filename from the SAME input — the chain does not renumber on failure, and that release's open-items list (Part 18) is the rebuild checklist.
 
 **Rule:** these filenames are fixed. If a release fails its device gate, it rolls back and rebuilds to the SAME output filename from the SAME input — the chain does not renumber on failure, and the open-items list for that release (Part 18) is the rebuild checklist.
 
@@ -542,10 +541,10 @@ Each row: exact input file → exact output file, the scope, and whether the cha
 
 One block per release. The projected diff is written and timestamped BEFORE any code is written. The actual diff is written and timestamped AFTER building, BEFORE push. Both timestamps must show the projection preceding the actual, with development in between — this ordering is the proof the gate wasn't pencil-whipped. Open items carry a status column (OPEN/CLOSED) and become the checklist if the release is rebuilt.
 
-### R1 (Phase 0) — `bridge-turn09-ship.html` → `bridge-turn12-base.html`
+### R1 — `bridge-turn09-ship.html` → `bridge-turn12-base.html` (all plumbing, invisible)
 - **Status:** NOT STARTED
-- **Projected diff** _(timestamp on entry):_ _(to be written before coding: files touched, ± line estimate, named functions/surfaces — plumbing only, zero UI)_
-- **Actual diff** _(timestamp on entry):_ _(to be written after build, before push)_
+- **Projected diff** _(timestamp on entry):_ _(written before coding: files touched, ± line estimate, named functions/surfaces — plumbing only, zero UI)_
+- **Actual diff** _(timestamp on entry):_ _(written after build, before push)_
 - **Variance & verdict:** _(green ≤5% / yellow ≤10% explain / red >10% stop; any unplanned surface = red)_
 - **Open items / questions (this release):**
 
@@ -553,7 +552,7 @@ One block per release. The projected diff is written and timestamped BEFORE any 
   |---|---|---|
   | _(none logged yet)_ | | |
 
-### R2 (Layer 1) — `bridge-turn12-base.html` → `bridge-turn12-ship.html`
+### R2 — `bridge-turn12-base.html` → `bridge-turn12-ship.html` (room card + badges + summary + name field + appearance)
 - **Status:** NOT STARTED
 - **Projected diff:** _(pending)_
 - **Actual diff:** _(pending)_
@@ -564,7 +563,7 @@ One block per release. The projected diff is written and timestamped BEFORE any 
   |---|---|---|
   | _(none logged yet)_ | | |
 
-### R3–R10
-- **Status:** NOT STARTED. Build-log blocks (projected diff, actual diff, variance, open-items table) are created at the start of each release, same structure as R1/R2 above. Not pre-stubbed here to avoid implying work not yet done.
+### R3–R5
+- **Status:** NOT STARTED. Build-log blocks (projected diff, actual diff, variance, open-items table) are created at the start of each release. Not pre-stubbed to avoid implying work not yet done.
 
 **End of SOT v1.**
