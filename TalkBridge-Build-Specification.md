@@ -1084,3 +1084,45 @@ The final output HTML artifact filename has not been selected in the recorded pr
 | T14-12 | Kill network, change rooms, restore network → only current owners reconnect; undelivered messages remain in their originating rooms |
 | T14-13 | Local PB cache write fails → explicit storage error and retryable state; next entry is not misreported as a remote-staleness change |
 | T14-14 | Run teardown twice from competing exit paths → no exception, duplicate marker, duplicate write, or resurrected resource |
+
+---
+
+# PART FIVE — MODULE OWNERSHIP AND BUILD SEQUENCE
+
+*Closes the gap §18.5 named: the audit supplied the contract, this supplies the map and the order.*
+
+## 19. Output artifact
+
+`talkbridge-build-v1.html` — a new file, not a turn-lineage name, at the repo root. `bridge-turn09-ship.html` stays a protected read-only reference and is never edited.
+
+## 20. Module and ownership map
+
+Ten modules. Nothing outside this list may call `getUserMedia`, open a WebSocket, open an `RTCPeerConnection`, or use `FileReader` directly — every UI surface is a consumer of these, never an owner.
+
+| Module | Owns | Resolves (§18.3) |
+|---|---|---|
+| SessionCore | Issues and invalidates `{roomId, sessionGeneration, callGeneration}`. Every other module checks it before any async callback touches shared state. | A — root dependency for B,C,D,E,F,H,I,J,M |
+| AudioEngine | `getUserMedia`, primary + secondary Deepgram sockets, AudioWorklet/script-processor fallback, meter. Socket/track identity captured at creation, gated on SessionCore. | B, C, D, J |
+| RelayClient | Foreground socket + per-room background LISTEN sockets, keyed by room id. | K |
+| CallEngine | Peer connection, TURN credentials, offer/answer/ICE, ring/accept/decline/recovery timers, tagged with `callGeneration`. | I |
+| TranscriptStore | Durable per-room message log. Patches a translation result only into its originating row. Owns history merge/dedupe/sort. | E, M |
+| PhrasebookSync | Local cache, dirty flag, remote SHA/version check, write-back queue. Every operation captures immutable pair identity. | F, G |
+| AttachmentIO | `FileReader` lifecycle. A stale read is discarded or redirected by its captured room/message id. | H |
+| LifecycleBoundary | One idempotent teardown. Every exit path — room switch, hangup, chat-mic off, background/unload — calls it. Releases everything above. Safe to call twice. | N |
+| ReceiptsCoordinator | Fires read-receipt reconciliation on room entry directly, not only on `visibilitychange`. | L |
+| PersistenceGuard | Writes dirty state synchronously to durable local storage before any async network call; retried on next start/online event. | O |
+
+## 21. Sequenced build plan
+
+Staged construction inside **one coherent release** — Part One's rule that transcript, compose/search, and phrasebook ship together still holds. No stage below is a partial ship; Stages 0–6 are internal build checkpoints, not shipping milestones.
+
+| Stage | Delivers | Provable when |
+|---|---|---|
+| 0 | SessionCore, LifecycleBoundary, PersistenceGuard | Generation tokens issue and invalidate correctly under rapid switching — one device, no UI, no network |
+| 1 | RelayClient, TranscriptStore | Typed messages send/receive/merge/dedupe across two devices |
+| 2 | PhrasebookSync | Cache-first load, staleness check, conflict refusal, write-back retry — headless against the GitHub store |
+| 3 | AudioEngine | Mic on/off, transcription, code-switching — chat mode only, no calls |
+| 4 | CallEngine, on Stages 1 + 3 | Voice and video lifecycle: ring, accept, decline, missed, recovery |
+| 5 | AttachmentIO, ReceiptsCoordinator | Attachment survives a room switch mid-read; receipts fire on in-app entry |
+| 6 | Full UI — home, room card, transcript/bubble, compose+search, phrasebook overlay, drawer, elevation/invite flow | No new engine logic introduced; UI wires to the modules already gated above |
+| 7 | Full T0–T14 pass | Two physical devices — the only real gate |
