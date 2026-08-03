@@ -522,7 +522,8 @@ Each row: exact input → exact output, scope, visible/invisible, and WHY it is 
 
 | # | Input → Output | Scope | Visible? | Why one release |
 |---|---|---|---|---|
-| **R1** | `bridge-turn09-ship.html` → `bridge-turn12-base.html` | **All plumbing, invisible, one gate.** Surgical remove-and-replace of the call/media plumbing (transplant donor `f403d70`'s robust call/video engine: ICE restart, recovery, glare handling, replaceTrack, reconnect) AND the Layer-1 plumbing fixes (fresh-vs-existing-room transcription death, PB version-mgmt + no-data-loss + staleness, joiner history backfill, proactive reconnect, silent-cred surfacing, mute honored, pill call-kinds + single name-stamp, enter-in-source caret). **Includes the full presence / delivered / read reliability fix** (see note below) — not the one-line B6 patch, but the whole "know when you left a room view and when you returned" model, so messages stop sitting delivered-but-never-read and presence stops going stale. | **No** | Both are invisible plumbing tested by one identical gate: looks byte-identical to turn09, calls survive a network blip, fresh-vs-revisited-room bug is dead, prior history shows on join, and receipts/presence reconcile correctly on leaving and re-entering a room. |
+| **R1a** | `bridge-turn09-ship.html` → `bridge-turn11a-base.html` | **Call-engine transplant ONLY, invisible.** Rip out turn09's thin ~290-line CALL object (2484–2774) and rebuild the donor `f403d70`'s robust call/video engine under turn09's single ownership: staged ICE-restart recovery (`runRecovery`), perfect-negotiation glare handling (`makingOffer`/polite peer), `replaceTrack` mute/unmute, force-reconnect on visibility/focus return, heartbeat-timeout reconnect. **Blast radius is the CALL object and its webrtc-signal handlers ONLY.** | **No** | One concern: restore call robustness. Diff confined to the call engine so the variance guardrail actually works. Any touched line outside the CALL object + its signal handlers = automatic red. |
+| **R1b** | `bridge-turn11a-base.html` → `bridge-turn12-base.html` | **Layer-1 plumbing fixes, invisible.** Fresh-vs-existing-room transcription death; presence/delivered/read leave-return reliability (6.6); PB version-mgmt + no-data-loss + staleness; joiner history backfill; proactive relay reconnect; silent-cred surfacing; mute honored; pill call-kinds + single name-stamp; enter-in-source caret. | **No** | Plumbing fixes, each contained. Separate gate from the call transplant so a failure rolls back a contained change, not a 500-line tangle. |
 | **R2** | `bridge-turn12-base.html` → `bridge-turn12-ship.html` | **The room card + everything on it — LIFTED FROM `bridge-turn10-pre-base.html`, NOT rebuilt.** turn10 already contains the finished §4 card (7-col × 2-row CSS grid, bold name + delete Row 1, elapsed + Me/Partner, three separately-tracked chat/voice/video badges greyed when zero, own/theirs flags, flat SVG icons, tap-to-reveal `rc-pop` popover) AND its badge tracking (`unreadChat/unreadCall/unreadVideo`). Transplant the card component + tracking + home summary + waiting-only home cards + dismissal rules. Rides along: room-name field at creation (net-new); appearance tone + font-color per side. **CAUTION: turn10 as a whole was a bust — lift only the card component and its tracking, do NOT adopt turn10 as a base.** | **Yes** | Card, badges, summary, name field are one surface. The card is a transplant of finished work, not a rebuild — same discipline as the phrasebook. |
 | **R3** | `bridge-turn12-ship.html` → `bridge-turn13-base.html` | **Joiner parity — the full shell.** The joiner gets the complete app shell (room list, cards, drawer, phrasebook, transcript) at parity with the initiator. This is the release that makes them install the app. **Mic-centered-in-ribbon rides here** (one-line ribbon change, on written approval) since this release already touches the shell. | **Yes** | Isolated because parity is a large, real surface and deserves its own gate. Mic move folds in rather than being its own release. |
 | **R4** | `bridge-turn13-base.html` → `bridge-turn13-ship.html` | **Initiator elevation, full (Part 13).** The grant toggle at room creation (net-new, rides here because it's meaningless without elevation) + credential-carrying grant link + expiry picker + credential-removal-drives-everything mechanism (+ disappears, STT/translation stop as consequences). Plus per-room export/delete + delete/restore send-lock ("left the chat"/"rejoined"), which shares the room-control surface. | **Yes** | Highest-trust/security surface — deliberately isolated for its own hard gate. Grant toggle and room delete/restore share this surface. |
@@ -541,29 +542,36 @@ Each row: exact input → exact output, scope, visible/invisible, and WHY it is 
 
 One block per release. The projected diff is written and timestamped BEFORE any code is written. The actual diff is written and timestamped AFTER building, BEFORE push. Both timestamps must show the projection preceding the actual, with development in between — this ordering is the proof the gate wasn't pencil-whipped. Open items carry a status column (OPEN/CLOSED) and become the checklist if the release is rebuilt.
 
-### R1 — `bridge-turn09-ship.html` → `bridge-turn12-base.html` (all plumbing, invisible)
-- **Status:** NOT STARTED
-- **Projected diff** _(timestamp on entry):_ _(written before coding: files touched, ± line estimate, named functions/surfaces — plumbing only, zero UI)_
-- **Actual diff** _(timestamp on entry):_ _(written after build, before push)_
-- **Variance & verdict:** _(green ≤5% / yellow ≤10% explain / red >10% stop; any unplanned surface = red)_
+### R1a — `bridge-turn09-ship.html` → `bridge-turn11a-base.html` (call-engine transplant, invisible)
+- **Status:** PROJECTED (pre-build)
+- **Projected diff** _(2026-08-03 22:52 UTC — written before any code):_
+  - **File:** `bridge-turn09-ship.html` → new `bridge-turn11a-base.html`. Single file.
+  - **Replaced:** the `CALL` object, turn09 lines 2484–2774 (~290 lines), swapped for the donor's robust engine re-implemented under turn09 ownership.
+  - **Added in/around CALL:** `resetRecoveryState()` + `runRecovery(reason)` staged ICE-restart (~55); perfect-negotiation `makingOffer`/polite guard in offer/answer/signal paths (~15); `replaceTrack` mute/unmute (~30); `onconnectionstatechange`/`oniceconnectionstatechange` recovery wiring (~15); force-reconnect on visibility/focus return that reconciles the call (~15).
+  - **Touched signal handlers (call dispatch only):** `call-start`/`call-accept`/`call-decline`/`call-end`/`webrtc-signal`/`mic-state`/`cam-state` branches in `handleRelay` (~1011–1019) may gain fields the new engine expects (~10).
+  - **Projected magnitude:** ~290 removed, ~430 added ≈ **~720 changed lines**, net +140. Base 3158 → ~3298 lines.
+  - **Named blast radius — ONLY these may change:** the `CALL` object; the call-*/webrtc-signal branches of `handleRelay`; call-button/hangup/ring listeners if a signature changed. **Automatic RED if the diff touches:** ribbon markup/CSS, room card, phrasebook, compose strip, search, transcript rendering, drawer, home/panel, room creation, appearance — any surface outside the call engine.
+- **Actual diff** _(timestamp on entry):_ _(pending — after build, before push)_
+- **Delta / Delta% / Verdict:** _(pending — green ≤5% / yellow ≤10% explain / red >10% or any out-of-blast-radius surface)_
+- **Next step:** _(pending — proceed / explain variance / stop)_
 - **Open items / questions (this release):**
 
   | # | Item / question | Status |
   |---|---|---|
-  | _(none logged yet)_ | | |
+  | 1 | Donor `partner-disconnected-overlay` (donor line 711) is arguably visible UI — include in R1a or defer to keep R1a invisible? Leaning DEFER. | OPEN |
+  | 2 | Donor recovery uses `addDiagLog` not in turn09 — reroute to turn09 `log()`? Leaning yes. | OPEN |
 
-### R2 — `bridge-turn12-base.html` → `bridge-turn12-ship.html` (room card + badges + summary + name field + appearance)
-- **Status:** NOT STARTED
-- **Projected diff:** _(pending)_
-- **Actual diff:** _(pending)_
-- **Variance & verdict:** _(pending)_
+### R1b — `bridge-turn11a-base.html` → `bridge-turn12-base.html` (Layer-1 plumbing fixes, invisible)
+- **Status:** NOT STARTED (blocked on R1a device gate)
+- **Projected diff:** _(written before R1b coding begins)_
+- **Actual diff / Delta / Verdict / Next step:** _(pending)_
 - **Open items / questions:**
 
   | # | Item / question | Status |
   |---|---|---|
   | _(none logged yet)_ | | |
 
-### R3–R5
-- **Status:** NOT STARTED. Build-log blocks (projected diff, actual diff, variance, open-items table) are created at the start of each release. Not pre-stubbed to avoid implying work not yet done.
+### R2–R5
+- **Status:** NOT STARTED. Build-log blocks created at the start of each release, same structure. Not pre-stubbed.
 
 **End of SOT v1.**
