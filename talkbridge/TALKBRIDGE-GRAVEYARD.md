@@ -214,3 +214,10 @@ Device gate reported four defects:
 
 Replacement: (a) do not touch onDGFinal/addSpeech/CALL.mount/startDeepgram at all in the rebuild — that code is not implicated by anything in this release's actual diff, and guessing at a change there without a reproducible signal would repeat exactly the mistake being called out. Ask the owner for a minimal, isolated repro (fresh room entry → immediate call → speak → hang up → export, nothing else in the session) before touching that code again. (b) Info-icon taps must render as a small popover/callout anchored to the icon itself, not a bottom toast. (c) Debug tab actions (Debug, Export transcript) must never close the drawer — only the header X and Enter-on-name-field close it. (d) Appearance-in-Release-2 is an open question for the owner, not something to silently resolve either way.
 Rollback executed: bridge-turn09-pre-base.html reverted to its unmodified Release 1 input, bridge-turn08-post-ship.html (commit 2cc08cfa1c39beab8085145f5277a3d8cab53a95).
+
+## R1d rolled back — 2026-08-04
+- **File:** `bridge-turn12c-base.html` (dual-socket English secondary for all non-en rooms)
+- **Failed device gate.** The one-line gate change (Thai-only → any-non-en) opened the English secondary socket, but real-device testing showed the code-switch/call experience is still a mess: calls transcribe but do NOT normalize/translate to the room language (chat does, calls don't); dual-socket makes results spotty/inconsistent across voice/video/chat.
+- **Root insight:** the defect is NOT the dual-socket gate alone. Call-path transcription lacks the normalization step that chat has. R1d treated a symptom.
+- **Rollback target:** `bridge-turn12b-base.html` (R1c) — last passing build. R1c (fastText detection) stands.
+- **Next:** re-diagnose call-path normalization before rebuilding. Do not re-attempt R1d as a one-line gate change.
