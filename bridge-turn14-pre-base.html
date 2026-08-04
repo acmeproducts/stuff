@@ -2658,11 +2658,14 @@ var CALL={
     },1000);
     MicMeter.attach(this.stream);
     startDeepgram();
-    var self2=this;
+  },
+  armConnectTimeout:function(){
+    var self=this;
     clearTimeout(this.connectTimeoutTimer);
+    // arm only once signaling has begun; fire only if still not connected after a generous window
     this.connectTimeoutTimer=setTimeout(function(){
-      if(self2.active&&(!self2.pc||self2.pc.connectionState!=='connected'))self2.runRecovery('connect_timeout');
-    },12000);
+      if(self.active&&self.pc&&self.pc.connectionState!=='connected'&&self.pc.connectionState!=='completed')self.runRecovery('connect_timeout');
+    },20000);
   },
   setupPC:async function(){
     if(this.pc)return;
@@ -2685,7 +2688,7 @@ var CALL={
           self.savedCandidates=[];
           await pc.setLocalDescription(await pc.createOffer());
           var offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};
-          relaySend(offer);self.savedOffer=offer;log('rtc_offer',{},'ok');
+          relaySend(offer);self.savedOffer=offer;log('rtc_offer',{},'ok');self.armConnectTimeout();
         }catch(e){log('rtc_offer_err',{e:String(e)},'error')}
         finally{self.makingOffer=false}
       };
@@ -2749,7 +2752,7 @@ var CALL={
           await this.flushCands();
           await this.pc.setLocalDescription(await this.pc.createAnswer());
           relaySend({type:'webrtc-signal',transient:true,signal:{description:this.pc.localDescription}});
-          log('rtc_answered',{},'ok');
+          log('rtc_answered',{},'ok');this.armConnectTimeout();
         }else if(desc.type==='answer'){
           if(!this.pc)return;
           await this.pc.setRemoteDescription(desc);
@@ -3019,7 +3022,6 @@ function replaceMsgDom(e){
 function onRemoteSubtitle(d,room){
   if(room.id!==S.roomId)return;
   var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
-  // provisional carries the sender's source language — record but do NOT flash on CC; only the translated -update shows.
   addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
 function onRemoteSubtitleUpdate(d,room){
