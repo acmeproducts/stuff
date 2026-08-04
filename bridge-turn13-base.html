@@ -2486,6 +2486,7 @@ var CALL={
   pc:null,stream:null,remoteStream:null,
   pendingCandidates:[],savedOffer:null,savedCandidates:[],seenCand:new Set(),
   ringPending:null,ringTimer:null,callerTimer:null,durTimer:null,pushed:false,
+  makingOffer:false,recoveryLock:false,recoveryStep:0,recoveryTimer:null,connectTimeoutTimer:null,vWatchTimer:null,vLastTime:0,vStallCount:0,kaChannel:null,kaTimer:null,
   micConstraints:function(){return{echoCancellation:true,noiseSuppression:true,autoGainControl:true}},
   keys:function(){
     return{
@@ -2610,6 +2611,11 @@ var CALL={
     },1000);
     MicMeter.attach(this.stream);
     startDeepgram();
+    var self2=this;
+    clearTimeout(this.connectTimeoutTimer);
+    this.connectTimeoutTimer=setTimeout(function(){
+      if(self2.active&&(!self2.pc||self2.pc.connectionState!=='connected'))self2.runRecovery('connect_timeout');
+    },12000);
   },
   setupPC:async function(){
     if(this.pc)return;
@@ -2628,14 +2634,18 @@ var CALL={
     if(room.role==='creator'){
       pc.onnegotiationneeded=async function(){
         try{
+          self.makingOffer=true;
           self.savedCandidates=[];
           await pc.setLocalDescription(await pc.createOffer());
           var offer={type:'webrtc-signal',transient:true,signal:{description:pc.localDescription}};
           relaySend(offer);self.savedOffer=offer;log('rtc_offer',{},'ok');
         }catch(e){log('rtc_offer_err',{e:String(e)},'error')}
+        finally{self.makingOffer=false}
       };
     }else{pc.onnegotiationneeded=function(){}}
+    pc.ondatachannel=function(e){if(e.channel&&e.channel.label==='ka'){e.channel.onmessage=function(){};try{self.kaChannel=e.channel;self.startKeepalive()}catch(_){}}};
     (this.stream?this.stream.getTracks():[]).forEach(function(t){pc.addTrack(t,self.stream)});
+    try{this.kaChannel=pc.createDataChannel('ka',{ordered:false,maxRetransmits:0});this.startKeepalive()}catch(_){}
     pc.onicecandidate=function(e){
       if(e.candidate){
         if(String(e.candidate.candidate||'').indexOf('.local')!==-1)return;
@@ -2645,21 +2655,19 @@ var CALL={
     };
     pc.onconnectionstatechange=function(){
       var s2=pc.connectionState;
-      log('rtc_conn',{s:s2},s2==='connected'?'ok':'info');
+      log('rtc_conn',{s:s2},s2==='connected'?'ok':s2==='failed'?'error':'info');
       if(s2==='connected'){
-        self.connBad=false;startDeepgram();
+        self.connBad=false;self.recoveryStep=0;
+        clearTimeout(self.connectTimeoutTimer);self.connectTimeoutTimer=null;
+        startDeepgram();
+        self.startVideoWatchdog();
         var lv=$('local-video'); // preview freeze fix: rebind + play retry on connect
         if(lv&&self.stream&&lv.srcObject!==self.stream)lv.srcObject=self.stream;
         try{if(lv)lv.play()}catch(_){}
         try{$('remote-video').play()}catch(_){}
       }
-      if(s2==='disconnected'){self.connBad=true}
-      if(s2==='failed'&&self.active){
-        self.connBad=true;
-        try{pc.close()}catch(_){}
-        self.pc=null;self.savedOffer=null;self.seenCand=new Set();self.pendingCandidates=[];
-        if(room.role==='creator')setTimeout(function(){if(self.active)self.setupPC()},1500);
-      }
+      if(s2==='disconnected'&&self.active){self.connBad=true;self.runRecovery('disconnected')}
+      if(s2==='failed'&&self.active){self.connBad=true;self.runRecovery('failed')}
     };
     pc.ontrack=function(e){
       if(!self.remoteStream)self.remoteStream=new MediaStream();
@@ -2678,6 +2686,9 @@ var CALL={
       if(d.signal.description){
         var desc=d.signal.description;
         if(desc.type==='offer'){
+          // perfect-negotiation glare: the impolite peer (creator) ignores a colliding inbound offer
+          var collision=(this.makingOffer||(this.pc&&this.pc.signalingState!=='stable'));
+          if(collision&&room.role==='creator'){log('rtc_glare_ignored',{},'warn');return}
           if(!this.active){ // call joined in progress (entry heal): mount on offer
             if(this.endedAt&&Date.now()-this.endedAt<5000){log('rtc_offer_ignored_postend',{},'warn');return} // no phantom calls from late offers
             if(!(await this.acquire('voice')))return;
@@ -2717,9 +2728,79 @@ var CALL={
   resendOffer:function(){
     if(this.savedOffer){relaySend(this.savedOffer);this.savedCandidates.forEach(function(cm){relaySend(cm)});log('rtc_offer_resent',{},'ok')}
   },
+  resetRecoveryState:function(){
+    this.recoveryLock=false;this.recoveryStep=0;
+    clearTimeout(this.recoveryTimer);this.recoveryTimer=null;
+    clearTimeout(this.connectTimeoutTimer);this.connectTimeoutTimer=null;
+    clearInterval(this.vWatchTimer);this.vWatchTimer=null;
+    this.vLastTime=0;this.vStallCount=0;
+  },
+  runRecovery:async function(reason){
+    var self=this,room=activeRoom();
+    if(this.recoveryLock||!this.active||!room)return;
+    this.recoveryLock=true;this.vStallCount=0;this.vLastTime=-1;
+    this.recoveryStep=Math.min(this.recoveryStep+1,3);
+    var step=this.recoveryStep;
+    log('rtc_recovery_step',{step:step,why:reason},'warn');
+    try{
+      if(step===1){
+        var rv=$('remote-video');if(rv&&self.remoteStream){try{rv.srcObject=self.remoteStream;rv.play()}catch(_){}}
+        log('rtc_recovery_done',{step:step},'ok');
+      }else if(step===2){
+        if(self.pc&&self.pc.connectionState!=='closed'&&room.role==='creator'){
+          self.makingOffer=true;
+          try{
+            await self.pc.setLocalDescription(await self.pc.createOffer({iceRestart:true}));
+            var msg={type:'webrtc-signal',transient:true,signal:{description:self.pc.localDescription}};
+            self.savedOffer=msg;relaySend(msg);log('rtc_recovery_ice_restart',{},'ok');
+          }catch(e){log('rtc_recovery_ice_err',{e:String(e)},'error')}
+          finally{self.makingOffer=false}
+        }
+      }else{
+        if(self.pc){try{self.pc.close()}catch(_){}self.pc=null}
+        self.savedOffer=null;self.savedCandidates=[];self.pendingCandidates=[];self.seenCand=new Set();
+        self.remoteStream=null;var rv2=$('remote-video');if(rv2)rv2.srcObject=null;
+        if(room.role==='creator'){await self.setupPC()}
+        log('rtc_recovery_rebuild',{},'ok');
+      }
+    }catch(e){log('rtc_recovery_err',{step:step,e:String(e)},'error')}
+    finally{
+      clearTimeout(this.recoveryTimer);
+      var s=step;this.recoveryTimer=setTimeout(function(){self.recoveryLock=false},s===3?5000:800);
+    }
+  },
+  startKeepalive:function(){
+    var self=this;this.stopKeepalive();
+    this.kaTimer=setInterval(function(){if(self.kaChannel&&self.kaChannel.readyState==='open'){try{self.kaChannel.send('k')}catch(_){}}},4000);
+  },
+  stopKeepalive:function(){clearInterval(this.kaTimer);this.kaTimer=null},
+  startVideoWatchdog:function(){
+    var self=this;clearInterval(this.vWatchTimer);
+    if(this.kind!=='video')return;
+    this.vWatchTimer=setInterval(function(){
+      if(!self.active||self.recoveryLock)return;
+      var rv=$('remote-video');if(!rv||!rv.srcObject)return;
+      if(!self.remoteStream||!self.remoteStream.getVideoTracks().length)return;
+      var now=rv.currentTime||0;
+      if(now<=self.vLastTime+0.01)self.vStallCount++;else self.vStallCount=0;
+      self.vLastTime=now;
+      if(self.vStallCount>=4){log('rtc_watchdog_stall',{t:now},'warn');self.runRecovery('video_stall')}
+    },1000);
+  },
   toggleMic:function(){
     this.micOn=!this.micOn;
-    (this.stream?this.stream.getAudioTracks():[]).forEach(function(t){t.enabled=CALL.micOn});
+    var self=this;
+    // seamless mute via replaceTrack on the audio sender; enabled-flag as fallback
+    var did=false;
+    if(this.pc){
+      var snd=(this.pc.getSenders?this.pc.getSenders():[]).filter(function(s){return s.track&&s.track.kind==='audio'})[0];
+      var at=(this.stream?this.stream.getAudioTracks():[])[0];
+      if(snd&&at&&snd.replaceTrack){
+        try{snd.replaceTrack(self.micOn?at:null);did=true;log('mic_replacetrack',{on:self.micOn},'ok')}
+        catch(e){log('mic_replacetrack_fail',{e:String(e)},'warn')}
+      }
+    }
+    (this.stream?this.stream.getAudioTracks():[]).forEach(function(t){t.enabled=self.micOn});
     $('rb-mic').classList.toggle('off',!this.micOn);
     relaySend({type:'mic-state',micOn:this.micOn,transient:true});
   },
@@ -2753,6 +2834,7 @@ var CALL={
     this.active=false;this.caller=false;this.endedAt=Date.now();
     _remoteMicOn=false;renderPartnerState();
     clearTimeout(this.callerTimer);clearInterval(this.durTimer);this.callerTimer=this.durTimer=null;
+    this.stopKeepalive();this.resetRecoveryState();this.kaChannel=null;
     stopDeepgram();
     MicMeter.detach();
     if(this.pc){try{this.pc.close()}catch(_){}this.pc=null}
@@ -2890,8 +2972,7 @@ function replaceMsgDom(e){
 function onRemoteSubtitle(d,room){
   if(room.id!==S.roomId)return;
   var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
-  // provisional carries the sender's source language — record it in the transcript but do NOT flash it on the CC;
-  // the CC only ever shows the partner text in the viewer's own language, delivered by the -update below.
+  // provisional carries sender's source language — record but do NOT flash on CC; only the translated -update shows.
   addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
 function onRemoteSubtitleUpdate(d,room){
@@ -2914,10 +2995,9 @@ async function onDGFinal(text){
   // in-call: on-video caption overlay (baseline behavior, unchanged) AND fold into the persistent transcript.
   // bubble creation happens FIRST and unconditionally, before any translation call, so a translate/network
   // hiccup mid-call can never silently prevent the spoken line from landing in the transcript.
-  // in-call: normalize FIRST (like chat), THEN display — so the caption/bubble are never shown raw.
+  // in-call: normalize FIRST (like chat), THEN display — caption/bubble never shown raw.
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   var srcText=text;
-  // normalization: if the spoken language differs from the room language, rewrite source to room language BEFORE showing anything
   try{
     var detected=detectLang(text);
     if(detected&&detected!==src){
@@ -2926,10 +3006,8 @@ async function onDGFinal(text){
       else src=detected;
     }
   }catch(e){log('dg_norm_err',{e:String(e)},'warn')}
-  // now display the normalized source — caption + transcript bubble born correct
   showSub(srcText,'mine');
   addSpeech('me',srcText,srcText,src,tgt,ss,false);
-  // send provisional subtitle (normalized source) then the translation
   try{
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
     var tgtText=srcText,failed=false;
