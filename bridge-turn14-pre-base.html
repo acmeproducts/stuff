@@ -3,8 +3,12 @@
      turn14-pre-base · 2026-08-04 · Restored the call/media engine amputated on 2026-07-09:
        staged ICE-restart recovery (runRecovery), perfect-negotiation glare handling (makingOffer/
        polite peer), replaceTrack seamless mute, keepalive datachannel, remote-video stall
-       watchdog. Built on turn09-post-ship (Release 5 cosmetics intact). Engine = the R1a
-       restoration that passed the two-device gate; contaminated turn11-13 chain NOT carried.
+       watchdog. PLUS normalization constructed natively into the Deepgram call path: the spoken
+       source is normalized to the room language FIRST then displayed (matching chat), and the
+       partner CC never flashes the sender's raw source language. Built on turn09-post-ship
+       (Release 5 cosmetics intact). Engine = the R1a restoration that passed the two-device gate;
+       contaminated turn11-13 chain NOT carried. Table stakes restored: robust call reliability +
+       normalization together, as they were before the 2026-07-09 amputation.
      Runtime foundation: THIS FILE ONLY. Donors quarried (inert helpers + look only):
        bridge-turn08-pre-base.html -> relay protocol, chat pipeline, translation, PB sync cycle, invite enc
        bridge-turn08-base.html     -> light theme tokens, keys modal storage contract (tb_dg_key/tb_cf_tid/tb_cf_tok/tb_gh_pat)
@@ -2990,7 +2994,7 @@ function replaceMsgDom(e){
 function onRemoteSubtitle(d,room){
   if(room.id!==S.roomId)return;
   var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
-  if(t&&d.targetLang===room.myLang)showSub(t,'partner');
+  // provisional carries the sender's source language — record but do NOT flash on CC; only the translated -update shows.
   addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
 function onRemoteSubtitleUpdate(d,room){
@@ -3013,24 +3017,30 @@ async function onDGFinal(text){
   // in-call: on-video caption overlay (baseline behavior, unchanged) AND fold into the persistent transcript.
   // bubble creation happens FIRST and unconditionally, before any translation call, so a translate/network
   // hiccup mid-call can never silently prevent the spoken line from landing in the transcript.
+  // in-call: normalize the spoken source to the room language FIRST (like chat), THEN display — never show raw.
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
-  showSub(text,'mine');
-  addSpeech('me',text,text,src,tgt,ss,false);
   var srcText=text;
   try{
     var detected=detectLang(text);
-    if(detected&&detected!==src){ // normalization law: original never displayed
+    if(detected&&detected!==src){
       var n=await translateWithRetry(text,detected,src,2);
-      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase()){srcText=norm(n.text);patchSpeech('me',ss,srcText,false)}
+      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(n.text);
       else src=detected;
     }
+  }catch(e){log('dg_norm_err',{e:String(e)},'warn')}
+  showSub(srcText,'mine');
+  addSpeech('me',srcText,srcText,src,tgt,ss,false);
+  try{
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
-    var tr=await translateWithRetry(srcText,src,tgt,2);
-    var trText=tr.ok?norm(tr.text):srcText,failed=(!tr.ok&&src!==tgt);
-    relaySend({type:'subtitle-update',subtitleSeq:ss,text:trText,sourceText:srcText,sourceLang:src,targetLang:tgt});
-    patchSpeech('me',ss,trText,failed);
+    var tgtText=srcText,failed=false;
+    if(src!==tgt){
+      var tr=await translateWithRetry(srcText,src,tgt,2);
+      if(tr.ok)tgtText=norm(tr.text);else failed=true;
+    }
+    relaySend({type:'subtitle-update',subtitleSeq:ss,text:tgtText,sourceText:srcText,sourceLang:src,targetLang:tgt});
+    patchSpeech('me',ss,tgtText,failed);
   }catch(e){
-    log('dg_final_translate_err',{e:String(e)},'error'); // bubble already landed above even though translation failed
+    log('dg_final_translate_err',{e:String(e)},'error'); // source bubble already landed normalized above
   }
 }
 /* ════════════ DEEPGRAM (quarried: pre-base nova-3 linear16 pipeline) ════════════ */
