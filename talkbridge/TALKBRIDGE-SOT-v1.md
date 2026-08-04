@@ -543,7 +543,7 @@ Each row: exact input → exact output, scope, visible/invisible, and WHY it is 
 One block per release. The projected diff is written and timestamped BEFORE any code is written. The actual diff is written and timestamped AFTER building, BEFORE push. Both timestamps must show the projection preceding the actual, with development in between — this ordering is the proof the gate wasn't pencil-whipped. Open items carry a status column (OPEN/CLOSED) and become the checklist if the release is rebuilt.
 
 ### R1a — `bridge-turn09-ship.html` → `bridge-turn11a-base.html` (call-engine AUGMENT, invisible)
-- **Status:** BUILT — pending device gate
+- **Status:** ✅ PASSED DEVICE GATE (2026-08-03) — first clean push in 500+ attempts. `bridge-turn11a-base.html` is now the R1b input.
 - **PROJECTION CORRECTION** _(2026-08-03 23:34 UTC):_ Reading turn09's actual CALL object (2484–2774) showed it is NOT the thin/naive engine the first projection assumed — it already has `connBad` reconnect state, `failed`→teardown→re-setupPC retry, candidate dedup, pending-candidate buffering, saved-offer resync, phantom-offer guarding, entry-heal, preview-freeze fixes. The correct scope is **augment, not replace**: add only the three capabilities turn09 lacks. Original ~720-line replacement projection VOIDED as based on a wrong reading; corrected projection below.
 - **Corrected projected diff** _(2026-08-03 23:34 UTC — written before any code):_
   - **File:** `bridge-turn09-ship.html` → new `bridge-turn11a-base.html`. Single file.
@@ -570,15 +570,27 @@ One block per release. The projected diff is written and timestamped BEFORE any 
   | 2 | Donor diag-log → rerouted to turn09 `log()`; joiner-side Debug pane retrieval preserved (both are per-device, neither transmits over wire). | CLOSED |
   | 3 | Donor uses a keepalive datachannel (`ka`) feeding recovery triggers. Include? Leaning YES-minimal (it's inside the CALL object, aids reconnect detection) — DEFAULT: include a minimal version. | OPEN |
 
-### R1b — `bridge-turn11a-base.html` → `bridge-turn12-base.html` (Layer-1 plumbing fixes, invisible)
-- **Status:** NOT STARTED (blocked on R1a device gate)
-- **Projected diff:** _(written before R1b coding begins)_
-- **Actual diff / Delta / Verdict / Next step:** _(pending)_
-- **Open items / questions:**
+### R1b — `bridge-turn11a-base.html` → `bridge-turn12-base.html` (log-proven plumbing fixes, invisible)
+- **Status:** BUILT — pending device gate
+- **INVESTIGATION FINDING** _(2026-08-03 23:59 UTC):_ Two device logs from a live R1a session were analyzed against the code. Result: **most of the originally-listed R1b items are ALREADY FIXED in the turn09 baseline** and the logs confirm them working — history-sync (`history_sync_sent n:106`), Deepgram identity guard (`dg_stale_close_ignored code:1005` = working), PB staleness (`pb_pull_unchanged`), receipts-on-entry. The "re-enter room doesn't start mic" observation is NOT a defect — the chat mic is manual (user-tapped), so re-entry correctly does not auto-start it. Only two real defects survive the logs:
+  1. **Connect-timeout arms too early (defect introduced in R1a).** The 12s connect-timeout is armed in `mount()`, before ring/accept/signaling — so it counts setup time as connect time and fires a needless recovery step-1 on every call. Calls still work (log: "just a lag… once it goes it goes"), but the timer should arm when signaling begins, not at mount.
+  2. **PB writeback 409 conflict (`pb_writeback_err put 409`).** `pbWriteBack` fetches fresh SHA then PUTs, but the two aren't atomic and there's no single-flight guard, so concurrent/rapid writebacks race and one gets a 409. The `.catch` retries only on `online`, never on 409 — so the write silently drops.
+- **Projected diff** _(2026-08-03 23:59 UTC — written before any code):_
+  - **File:** `bridge-turn11a-base.html` → new `bridge-turn12-base.html`. Single file.
+  - **Fix 1 (CALL object):** move the connect-timeout arm out of `mount()` to the point signaling starts (caller: after `setupPC`/offer sent; callee: after answer sent). ~8 lines moved/changed, net ~0.
+  - **Fix 2 (`pbWriteBack`):** add a module-level single-flight guard (`_pbWriteInFlight`) so writebacks can't overlap; on a 409, re-fetch SHA once and re-PUT before giving up. ~20 lines added.
+  - **Projected magnitude:** ~28 changed lines, net +20. Base 3240 → ~3260.
+  - **Named blast radius — ONLY:** the `CALL` object's timeout arming (mount + setupPC/onSignal), and `pbWriteBack`. **Automatic RED if the diff touches:** ribbon, room card, transcript, compose, search, drawer, home/panel, room creation, appearance, or the Deepgram/relay/history-sync code (all confirmed already-working).
+- **Actual diff** _(2026-08-04 00:03 UTC — after build, before push):_ 19 changed lines (16 added, 3 removed). Base 3240 → 3253. Blast radius GREEN: only `pbWriteBack` (single-flight guard + 409 re-fetch/re-PUT retry) and the CALL connect-timeout arming (moved out of `mount`, into new `armConnectTimeout` called at offer-sent and answer-sent). Zero forbidden surfaces in diff. Syntax clean, browser boot clean, zero runtime errors.
+- **MISTAKE LOGGED (R1a):** the connect-timeout was armed in `mount()` in R1a — before ring/accept/signaling — causing a needless recovery step-1 on every call (harmless but wrong). R1b corrects the arm point to signaling-start. Recorded here so the SOT history shows the error and its fix.
+- **Delta / Delta% / Verdict:** projected ~28, actual 19, delta 9 (~32% under). **Verdict: GREEN** — blast radius clean, under-count is conservative estimation not hidden scope.
+- **Next step:** PROCEED to push `bridge-turn12-base.html`, then device-test: calls should connect without the spurious 12s recovery, and rapid phrasebook edits should not drop on a 409. Vet log before device test.
+- **Open items / questions (this release):**
 
   | # | Item / question | Status |
   |---|---|---|
-  | _(none logged yet)_ | | |
+  | 1 | Connect-timeout value: keep 12s once armed at the right point, or shorten? DEFAULT: keep 12s (donor's value), just fix the arm point. | OPEN |
+  | 2 | Is the 409 ever legitimate (external release process wrote a higher version mid-session)? If so, retry should re-pull first. DEFAULT: on 409, re-pull highest version, merge dirty local, then re-PUT — never blind-overwrite. | OPEN |
 
 ### R2–R5
 - **Status:** NOT STARTED. Build-log blocks created at the start of each release, same structure. Not pre-stubbed.
