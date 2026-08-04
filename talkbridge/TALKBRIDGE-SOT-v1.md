@@ -613,6 +613,23 @@ One block per release. The projected diff is written and timestamped BEFORE any 
   | 1 | Use the sync-shim `detectLang` (drop-in, matches current call sites) or refactor callers to `await _detectLangAsync` (more accurate, waits for WASM)? DEFAULT: sync-shim now (lower risk, matches call shape); async refactor is a later option if needed. | OPEN |
   | 2 | Preload WASM at boot (model is 938KB) or lazy-load on first detect? DEFAULT: preload at boot so first real message isn't delayed; graceful fallback covers load failure. | OPEN |
 
+### R1d — `bridge-turn12b-base.html` → `bridge-turn12c-base.html` (dual-socket English secondary for all pairs, invisible)
+- **Status:** BUILT — pending device gate
+- **WHY (log-proven):** Device log shows code-switch lag + spotty English detection. Root cause: the secondary English Deepgram socket (`dgWsEn`) that hears English correctly is gated `if(room.myLang==='th')` — it ONLY opens for Thai rooms. For a Spanish room, English speech is mangled by the es model ("code speeching"), then re-detected + re-translated = two round-trips + bad first transcription. The dual-socket robustness exists but is hard-wired to one language pair; the amputation left it Thai-only.
+- **Projected diff** _(before code):_
+  - **File:** `bridge-turn12b-base.html` → `bridge-turn12c-base.html`. Single file.
+  - Change the gate `if(room.myLang==='th')` to open the English secondary for ANY non-English room language (`if(room.myLang!=='en')`), so English code-switching is caught for es/fr/de/etc. ~1-3 lines. Verify the cross-suppression timing still holds.
+  - **Projected magnitude:** ~3-8 changed lines, net ~+3. Blast radius: startDeepgram's secondary-socket gate ONLY. RED if anything outside the DG socket setup changes.
+- **Actual diff** _(2026-08-04 00:38 UTC):_ 2 lines (1 changed: the gate `room.myLang==='th'` → `room.myLang!=='en'`). Blast radius GREEN — only the DG secondary-socket gate. Syntax + boot clean.
+- **Delta / Delta% / Verdict:** projected ~3-8, actual 2. **GREEN** — minimal, exactly the projected one-line gate.
+- **Next step:** PROCEED push `bridge-turn12c-base.html`. Device-test on https: speak English into a Spanish (or any non-en) room during chat AND call — English should transcribe cleanly via the secondary socket (look for `dg_en_open` in log) instead of mangled es, reducing the lag.
+- **Open items / questions:**
+
+  | # | Item / question | Status |
+  |---|---|---|
+  | 1 | Should the secondary always be English, or the pair's OTHER language? Donor did th-primary + en-secondary. For an es room the useful secondary is en (people code-switch INTO English). DEFAULT: secondary = English for any non-en room. | OPEN |
+  | 2 | Does opening a 2nd socket for every call increase Deepgram cost/rate-limit risk? DEFAULT: accept it — it's the robustness the owner built; owner manages cost. | OPEN |
+
 ### R2–R5
 - **Status:** NOT STARTED. Build-log blocks created at the start of each release, same structure. Not pre-stubbed.
 
