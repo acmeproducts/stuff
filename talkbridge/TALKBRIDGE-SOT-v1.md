@@ -592,6 +592,27 @@ One block per release. The projected diff is written and timestamped BEFORE any 
   | 1 | Connect-timeout value: keep 12s once armed at the right point, or shorten? DEFAULT: keep 12s (donor's value), just fix the arm point. | OPEN |
   | 2 | Is the 409 ever legitimate (external release process wrote a higher version mid-session)? If so, retry should re-pull first. DEFAULT: on 409, re-pull highest version, merge dirty local, then re-PUT — never blind-overwrite. | OPEN |
 
+### R1c — `bridge-turn12-base.html` → `bridge-turn12b-base.html` (restore fastText WASM language detection, invisible)
+- **Status:** BUILT — pending device gate
+- **WHY (owner-identified, confirmed real):** turn09's `detectLang` is a 5-line Thai-vs-English character counter. The plumbing the owner built used **fastText WASM (`lid.176.ftz`, 176 languages)** with a script-range fast-path for 7 non-Latin scripts (th/ja/zh/ko/ar/hi/ru) and fastText for Latin-script languages (the Spanish/English / Spanglish case). That richer detector was lost in the amputation — a genuine regression from the owner's baseline, not invented scope. The WASM assets ARE in the repo at `fastType/` (model `fastType/model/lid.176.ftz` 938KB, wrapper `fastType/fasttext-wrapper.umd.js`, wasm `fastType/core/fasttext.wasm`); the donor code merely referenced the wrong path (`/fastText/`).
+- **Projected diff** _(2026-08-04 00:20 UTC — before any code):_
+  - **File:** `bridge-turn12-base.html` → `bridge-turn12b-base.html`. Single file (no asset changes — `fastType/` already in repo).
+  - **Replace** the 5-line `detectLang` (r1b 661–666) with the donor's detector block: `_loadFastText()` (dynamic script + model load, graceful fallback), `_detectLangAsync()` (7 script-range fast-paths + fastText for Latin), `_runFastText()`, and the sync-shim `detectLang(text,fb)` — with paths corrected to `fastType/fasttext-wrapper.umd.js`, `fastType/core/fasttext.wasm`, `fastType/model/lid.176.ftz`, and `addDiagLog`→`log`. ~130 lines added, 5 removed.
+  - **Update** the 2 call sites (r1b 1111, 3016) to pass a fallback arg: `detectLang(text)` → `detectLang(text, room.myLang)` (~2 lines). Kick `_loadFastText()` once at boot so the model preloads.
+  - **Projected magnitude:** ~140 changed lines, net +130. Base 3253 → ~3383.
+  - **Named blast radius — ONLY:** the `detectLang` function + its 2 call sites + one boot preload line. **Automatic RED if the diff touches:** ribbon, room card, transcript, compose, search, drawer, home/panel, room creation, appearance, call engine, relay, PB, receipts.
+- **Actual diff** _(2026-08-04 00:25 UTC — after build):_ 60 changed lines (53 added, 7 removed). Base 3253 → ~3306. Blast radius GREEN: only detectLang block, 2 call sites, 1 boot preload. Zero forbidden surfaces.
+- **MISTAKE CAUGHT IN TEST (not shipped):** ported donor code used the old `predict()` array API; the repo's newer `fasttext-wrapper.umd.js` exposes a clean `detect()` returning an ISO string. Caught in real-browser test (predict returned `{}`), switched to `detect()`, re-verified. Also: WASM can't load over `file://` (ES-module CORS) — works over https (GitHub Pages); verified via local http server.
+- **VERIFIED (real browser, http):** 12/12 languages detect correctly — Latin via fastText WASM (es/fr/de/it/pt/en), non-Latin via script-range (th/zh/ko/ar/ru/hi). `_ftReady:true`. Syntax clean.
+- **Delta / Delta% / Verdict:** projected ~140, actual 60 (~57% under — projection over-estimated the port size; the detect() API is far terser than predict-parsing). **Verdict: GREEN** — blast radius clean, functionally verified across 12 languages, under-count is simpler-than-expected API not hidden scope.
+- **Next step:** PROCEED to push `bridge-turn12b-base.html`. Device-test: mixed-language / non-English-pair messages detect and normalize correctly (the Spanglish case). NOTE: requires deployed https URL — WASM won't load from file://.
+- **Open items / questions (this release):**
+
+  | # | Item / question | Status |
+  |---|---|---|
+  | 1 | Use the sync-shim `detectLang` (drop-in, matches current call sites) or refactor callers to `await _detectLangAsync` (more accurate, waits for WASM)? DEFAULT: sync-shim now (lower risk, matches call shape); async refactor is a later option if needed. | OPEN |
+  | 2 | Preload WASM at boot (model is 938KB) or lazy-load on first detect? DEFAULT: preload at boot so first real message isn't delayed; graceful fallback covers load failure. | OPEN |
+
 ### R2–R5
 - **Status:** NOT STARTED. Build-log blocks created at the start of each release, same structure. Not pre-stubbed.
 
