@@ -20,16 +20,34 @@
     <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
 
     <style>
-      /* Print-specific styling to ensure clean PDF exports */
+      /* Bulletproof Print-specific styling for Mobile & SPAs */
       @media print {
-        body * { visibility: hidden; }
-        .print-wrapper, .print-wrapper * { visibility: visible; }
-        .print-wrapper { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+        /* Hide all UI elements explicitly marked */
         .hide-on-print { display: none !important; }
-        .print-title { display: block !important; margin-bottom: 20px; }
-        .no-page-break { page-break-inside: avoid; }
-        .chart-container { border: none !important; box-shadow: none !important; }
-        @page { margin: 1cm; }
+
+        /* Reset all scrolling, height, and flex constraints so pages can break natively */
+        html, body, #root, .flex, .flex-1, .flex-col, .h-screen, .h-full, .overflow-hidden, .overflow-y-auto {
+          display: block !important;
+          height: auto !important;
+          min-height: auto !important;
+          overflow: visible !important;
+          position: static !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+        }
+
+        .print-wrapper { 
+          display: block !important;
+          width: 100% !important; 
+        }
+
+        .print-title { display: block !important; margin-bottom: 20px; font-size: 24px; font-weight: bold; }
+        .no-page-break { page-break-inside: avoid; break-inside: avoid; }
+        .chart-container { border: none !important; box-shadow: none !important; margin-bottom: 20px; padding: 0 !important; }
+        
+        @page { margin: 0.5in; }
       }
       
       /* Smooth animations */
@@ -61,9 +79,10 @@
         const STORAGE_KEY_LIBRARY = 'analyzer_pro_library_analyses';
         const generateId = () => Math.random().toString(36).substr(2, 9);
         
-        // Locked Free Model for 100% Free Inference
+        // Locked Free Model using OpenRouter's auto-routing free pool
         const FREE_AI_MODEL = 'openrouter/free';
 
+        // SVGs
         const Menu = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>;
         const Settings = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
         const CalculatorIcon = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><line x1="8" y1="10" x2="8" y2="10.01"></line><line x1="12" y1="10" x2="12" y2="10.01"></line><line x1="16" y1="10" x2="16" y2="10.01"></line><line x1="8" y1="14" x2="8" y2="14.01"></line><line x1="12" y1="14" x2="12" y2="14.01"></line><line x1="8" y1="18" x2="8" y2="18.01"></line><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>;
@@ -241,7 +260,7 @@
             return JSON.parse(jsonString);
           } catch (e) {
             console.error("Parse error. Raw text was:", rawText);
-            throw new Error("Failed to parse AI output. Try again.");
+            throw new Error("Failed to parse AI output. Ensure you pasted a valid listing.");
           }
         };
 
@@ -263,7 +282,7 @@
             try {
               if (!apiKey.trim()) throw new Error("API Key cannot be empty.");
               
-              // Perform a live ping to verify the key against the free model
+              // Perform a live ping to verify the key against the free model pool
               const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
@@ -285,7 +304,7 @@
 
               // Key is valid, save to storage
               localStorage.setItem(STORAGE_KEY_CONFIG, apiKey);
-              setSuccessMsg(`API Key validated successfully. The app is locked to the 100% free router: ${FREE_AI_MODEL}`);
+              setSuccessMsg(`API Key validated successfully. The app is locked to the 100% free router pool: ${FREE_AI_MODEL}`);
               setToast({ message: 'Configuration Saved!', type: 'success' });
             } catch (error) {
               setApiError(error.message);
@@ -321,7 +340,7 @@
                   <Sparkles size={20} className="shrink-0 text-emerald-600 mt-0.5" />
                   <div>
                     <strong>100% Free Inference Guaranteed</strong>
-                    <p className="mt-1 opacity-90">This application is hardcoded to route all requests through <code>{FREE_AI_MODEL}</code>. You will never be charged for API usage.</p>
+                    <p className="mt-1 opacity-90">This application is hardcoded to route all requests through <code>{FREE_AI_MODEL}</code>. You will never be charged for AI inference.</p>
                   </div>
                 </div>
 
@@ -371,7 +390,7 @@
                 </div>
               </div>
 
-              <div className="hidden print-title text-2xl font-bold mb-6 text-gray-900">
+              <div className="hidden print-title">
                 Rent vs. Buy Financial Analysis ({analysis.params.years}-Year Outlook)
               </div>
 
@@ -383,7 +402,7 @@
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-page-break">
                 <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
                   <div className="flex items-center gap-2 mb-4 text-blue-700 font-bold"><Home size={18} /> Purchase Scenario</div>
                   <div className="space-y-3">
@@ -404,7 +423,7 @@
                 </div>
               </div>
 
-              <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm chart-container">
+              <div className="p-5 bg-white border border-gray-200 rounded-xl shadow-sm chart-container no-page-break">
                 <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Total Net Worth Over Time</h3>
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -716,7 +735,7 @@
                 2. Extract the price, beds, baths, sqft, address/neighborhood, and monthly HOA (default 0 if unknown).
                 3. Search for 3 plausible, highly realistic comparable properties in the same general market for the OPPOSITE scenario (e.g. if the input is a rental, give me 3 homes for sale nearby).
                 
-                Return ONLY valid JSON in this exact format. DO NOT INCLUDE ANY INTRODUCTORY TEXT OR MARKDOWN. START IMMEDIATELY WITH { AND END WITH }.
+                Return ONLY valid JSON in this exact format. DO NOT INCLUDE ANY INTRODUCTORY TEXT OR MARKDOWN. NO BACKTICKS. START IMMEDIATELY WITH { AND END WITH }.
                 {
                   "source": {
                     "type": "rent" | "buy",
@@ -1038,7 +1057,7 @@
               {/* Mobile Overlay - Clicking this closes the sidebar */}
               {sidebarOpen && (
                 <div 
-                  className="fixed inset-0 bg-black/40 z-30 md:hidden transition-opacity"
+                  className="fixed inset-0 bg-black/40 z-30 md:hidden transition-opacity hide-on-print"
                   onClick={() => setSidebarOpen(false)}
                 ></div>
               )}
@@ -1080,9 +1099,9 @@
               </div>
 
               {/* Main Workspace */}
-              <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative hide-on-print bg-gray-50">
+              <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative bg-gray-50 print-wrapper">
                 {/* Header */}
-                <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0 z-10 w-full gap-3 shadow-sm">
+                <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 shrink-0 z-10 w-full gap-3 shadow-sm hide-on-print">
                   <button 
                     onClick={() => setSidebarOpen(true)} 
                     className="p-2 -ml-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700 md:hidden"
