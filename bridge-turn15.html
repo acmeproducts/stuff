@@ -3233,7 +3233,11 @@ function dgLangParam(room) {
   var _enter = enterRoom, _leave = leaveRoomInternals;
 
   enterRoom = function (id) {
-    if (S.roomId !== id) GEN.bump('room_enter');
+    /* Exactly one advance per room change. Switching rooms goes through the
+       leave path, which advances on its own — advancing here as well would
+       burn two generations for one action and make the log misleading. */
+    var willLeave = !!(S.roomId && S.roomId !== id);
+    if (!willLeave && S.roomId !== id) GEN.bump('room_enter');
     return _enter.apply(this, arguments);
   };
 
@@ -3431,8 +3435,16 @@ function detectByScript(text) {
    Assets ship in the repo alongside the app. Loading is lazy and failure is
    never fatal: if the model cannot load, detection degrades to the room's own
    language rather than to a wrong answer. */
-var FT_BASE = 'fastType/';
-var FT_MODEL = FT_BASE + 'model/lid.176.ftz';
+/* Asset paths must be absolute. The upstream loader resolves a relative model
+   path against its own module URL, not against the page, so a relative string
+   lands a directory too deep, the fetch returns a 404 page, and the runtime
+   aborts on HTML it was handed instead of a model. Resolving against the
+   fastType folder up front removes the ambiguity — this mirrors exactly what
+   the package's own smoke test does, which is the configuration proven to work. */
+var FT_DIR = (typeof location !== 'undefined') ? new URL('fastType/', location.href).href : 'fastType/';
+var FT_WRAPPER = FT_DIR + 'fasttext-wrapper.umd.js';
+var FT_MODEL = FT_DIR + 'model/lid.176.ftz';
+var FT_WASM = FT_DIR + 'core/fasttext.wasm';
 var _ft = null, _ftPromise = null, _ftFailed = false;
 
 /* Only languages this app actually supports are trustworthy answers. Anything
@@ -3444,14 +3456,28 @@ function loadFastText() {
   if (_ft || _ftFailed) return Promise.resolve(_ft);
   if (_ftPromise) return _ftPromise;
   _ftPromise = new Promise(function (resolve) {
-    function fail(why) {
+    function fail(stage, why) {
       _ftFailed = true;
-      try { log('ft_unavailable', { why: String(why) }, 'warn'); } catch (_) {}
+      var detail = (why && (why.stack || why.message)) ? (why.message || String(why)) : String(why);
+      try { log('ft_unavailable', { stage: stage, why: detail }, 'error'); } catch (_) {}
       resolve(null);
     }
     try {
+      /* The runtime asks for its own assets by bare filename; point it at the
+         folder they actually live in. Set before the wrapper loads, as the
+         package requires. */
+      var cfg = {
+        locateFile: function (path) {
+          var name = String(path || '').split('/').pop();
+          return /\.wasm$/i.test(name) ? FT_WASM : FT_DIR + name;
+        }
+      };
+      window.Module = cfg;
+      window.FastTextModule = cfg;
+
       var s = document.createElement('script');
-      s.src = FT_BASE + 'fasttext-wrapper.umd.js';
+      s.src = FT_WRAPPER;
+      s.onerror = function () { fail('wrapper', 'script failed to load'); };
       s.onload = function () {
         try {
           var ft = new window.FastText();
@@ -3459,12 +3485,11 @@ function loadFastText() {
             _ft = ft;
             try { log('ft_ready', {}, 'ok'); } catch (_) {}
             resolve(ft);
-          }).catch(fail);
-        } catch (e) { fail(e); }
+          }).catch(function (e) { fail('model', e); });
+        } catch (e) { fail('init', e); }
       };
-      s.onerror = function () { fail('script load failed'); };
       document.head.appendChild(s);
-    } catch (e) { fail(e); }
+    } catch (e) { fail('setup', e); }
   });
   return _ftPromise;
 }
@@ -3674,6 +3699,8 @@ async function sendChatText(text, attachment, originOverride) {
 /* Test surface — the harness drives these directly. Not referenced by the UI. */
 var TBLANG = {
   detectByScript: detectByScript,
+  paths: function () { return { dir: FT_DIR, wrapper: FT_WRAPPER, model: FT_MODEL, wasm: FT_WASM }; },
+  loadFastText: loadFastText,
   detectLangAsync: detectLangAsync,
   resolveEffectiveLang: resolveEffectiveLang,
   applyNorthernThaiMap: applyNorthernThaiMap,
@@ -4012,7 +4039,7 @@ CALL.setupPC = async function () {
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
 VERSION = 'turn15 · engine restoration';
-BUILD_INFO = { release: 'Release 6 · G1–G6', builtAt: '2026-08-04T21:15:00Z' };
+BUILD_INFO = { release: 'Release 6 · G1–G6', builtAt: '2026-08-04T23:55:00Z' };
 
 </script>
 </body>
