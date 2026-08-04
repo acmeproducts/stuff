@@ -2534,6 +2534,9 @@ var CALL={
   pendingCandidates:[],savedOffer:null,savedCandidates:[],seenCand:new Set(),
   ringPending:null,ringTimer:null,callerTimer:null,durTimer:null,pushed:false,
   makingOffer:false,recoveryLock:false,recoveryStep:0,recoveryTimer:null,connectTimeoutTimer:null,vWatchTimer:null,vLastTime:0,vStallCount:0,kaChannel:null,kaTimer:null,
+  epoch:0,phase:'idle', // epoch: bumped every start/end/teardown; every async callback captures it and no-ops if stale. phase: idle|connecting|live
+  bumpEpoch:function(){this.epoch++;return this.epoch},
+  setPhase:function(p){this.phase=p},
   micConstraints:function(){return{echoCancellation:true,noiseSuppression:true,autoGainControl:true}},
   keys:function(){
     return{
@@ -2563,7 +2566,7 @@ var CALL={
     this._starting=false;
     if(!ok)return;
     if(this.active)return;
-    this.kind=kind;this.caller=true;this.active=true;this.accepted=false;
+    this.kind=kind;this.caller=true;this.active=true;this.accepted=false;this.bumpEpoch();this.setPhase("connecting");
     this.mount(room);
     relaySend({type:'call-start',kind:kind,name:room.myName||S.user.name});
     relaySend({type:'mic-state',micOn:this.micOn,transient:true});
@@ -2599,7 +2602,7 @@ var CALL={
     var ok=await this.acquire(p.kind);
     this._starting=false;
     if(!ok||this.active)return;
-    this.kind=p.kind;this.caller=false;this.active=true;
+    this.kind=p.kind;this.caller=false;this.active=true;this.bumpEpoch();this.setPhase("connecting");
     this.mount(room);
     relaySendWhenOpen({type:'call-accept'});
     relaySendWhenOpen({type:'mic-state',micOn:this.micOn,transient:true});
@@ -2660,11 +2663,11 @@ var CALL={
     startDeepgram();
   },
   armConnectTimeout:function(){
-    var self=this;
+    var self=this,cap=this.epoch;
     clearTimeout(this.connectTimeoutTimer);
-    // arm only once signaling has begun; fire only if still not connected after a generous window
     this.connectTimeoutTimer=setTimeout(function(){
-      if(self.active&&self.pc&&self.pc.connectionState!=='connected'&&self.pc.connectionState!=='completed')self.runRecovery('connect_timeout');
+      if(cap!==self.epoch)return; // stale: a newer call (or teardown) happened; do nothing
+      if(self.active&&self.phase==='connecting'&&self.pc&&self.pc.connectionState!=='connected'&&self.pc.connectionState!=='completed')self.runRecovery('connect_timeout');
     },20000);
   },
   setupPC:async function(){
@@ -2703,11 +2706,13 @@ var CALL={
         self.savedCandidates.push(cm);relaySend(cm);
       }
     };
+    var pcEpoch=self.epoch; // this pc belongs to this call generation
     pc.onconnectionstatechange=function(){
+      if(pcEpoch!==self.epoch)return; // stale pc from an ended call — ignore entirely
       var s2=pc.connectionState;
       log('rtc_conn',{s:s2},s2==='connected'?'ok':s2==='failed'?'error':'info');
       if(s2==='connected'){
-        self.connBad=false;self.recoveryStep=0;
+        self.connBad=false;self.recoveryStep=0;self.setPhase('live');
         clearTimeout(self.connectTimeoutTimer);self.connectTimeoutTimer=null;
         startDeepgram();
         self.startVideoWatchdog();
@@ -2787,7 +2792,7 @@ var CALL={
   },
   runRecovery:async function(reason){
     var self=this,room=activeRoom();
-    if(this.recoveryLock||!this.active||!room)return;
+    if(this.recoveryLock||!this.active||!room||this.phase==='idle')return; // never recover an ended/idle call
     this.recoveryLock=true;this.vStallCount=0;this.vLastTime=-1;
     this.recoveryStep=Math.min(this.recoveryStep+1,3);
     var step=this.recoveryStep;
@@ -2881,7 +2886,7 @@ var CALL={
     this.endPill();this.teardown();
   },
   teardown:function(){
-    this.active=false;this.caller=false;this.endedAt=Date.now();
+    this.active=false;this.caller=false;this.endedAt=Date.now();this.bumpEpoch();this.setPhase("idle");
     _remoteMicOn=false;renderPartnerState();
     clearTimeout(this.callerTimer);clearInterval(this.durTimer);this.callerTimer=this.durTimer=null;
     this.stopKeepalive();this.resetRecoveryState();this.kaChannel=null;
