@@ -2881,11 +2881,6 @@ function patchSpeech(who,ss,trT,failed){
   var e=transcript.find(function(x){return x.id===id});if(!e)return;
   e.translatedText=trT;e.translationFailed=!!failed;saveTr();replaceMsgDom(e);
 }
-function patchSpeechSource(who,ss,srcT){
-  var id='sp-'+(who==='me'?'m':'p')+'-'+ss;
-  var e=transcript.find(function(x){return x.id===id});if(!e)return;
-  e.sourceText=srcT;saveTr();replaceMsgDom(e); // normalization: rewrite the displayed source to the normalized room-language text
-}
 function replaceMsgDom(e){
   var old=document.querySelector('.msg[data-id="'+e.id+'"]');
   if(!old){appendMsgDom(e);return}
@@ -2895,7 +2890,8 @@ function replaceMsgDom(e){
 function onRemoteSubtitle(d,room){
   if(room.id!==S.roomId)return;
   var t=norm(d.text||''),s0=norm(d.sourceText||'')||t;
-  if(t&&d.targetLang===room.myLang)showSub(t,'partner');
+  // provisional carries the sender's source language — record it in the transcript but do NOT flash it on the CC;
+  // the CC only ever shows the partner text in the viewer's own language, delivered by the -update below.
   addSpeech('partner',s0,t,d.sourceLang,d.targetLang,d.subtitleSeq,false);
 }
 function onRemoteSubtitleUpdate(d,room){
@@ -2918,24 +2914,33 @@ async function onDGFinal(text){
   // in-call: on-video caption overlay (baseline behavior, unchanged) AND fold into the persistent transcript.
   // bubble creation happens FIRST and unconditionally, before any translation call, so a translate/network
   // hiccup mid-call can never silently prevent the spoken line from landing in the transcript.
+  // in-call: normalize FIRST (like chat), THEN display — so the caption/bubble are never shown raw.
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
-  showSub(text,'mine');
-  addSpeech('me',text,text,src,tgt,ss,false);
   var srcText=text;
+  // normalization: if the spoken language differs from the room language, rewrite source to room language BEFORE showing anything
   try{
     var detected=detectLang(text);
-    if(detected&&detected!==src){ // normalization law: original never displayed
+    if(detected&&detected!==src){
       var n=await translateWithRetry(text,detected,src,2);
-      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase()){srcText=norm(n.text);patchSpeechSource('me',ss,srcText)}
+      if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(n.text);
       else src=detected;
     }
+  }catch(e){log('dg_norm_err',{e:String(e)},'warn')}
+  // now display the normalized source — caption + transcript bubble born correct
+  showSub(srcText,'mine');
+  addSpeech('me',srcText,srcText,src,tgt,ss,false);
+  // send provisional subtitle (normalized source) then the translation
+  try{
     relaySend({type:'subtitle',subtitleSeq:ss,text:srcText,sourceText:srcText,sourceLang:src,targetLang:tgt,provisional:true});
-    var tr=await translateWithRetry(srcText,src,tgt,2);
-    var trText=tr.ok?norm(tr.text):srcText,failed=(!tr.ok&&src!==tgt);
-    relaySend({type:'subtitle-update',subtitleSeq:ss,text:trText,sourceText:srcText,sourceLang:src,targetLang:tgt});
-    patchSpeech('me',ss,trText,failed);
+    var tgtText=srcText,failed=false;
+    if(src!==tgt){
+      var tr=await translateWithRetry(srcText,src,tgt,2);
+      if(tr.ok)tgtText=norm(tr.text);else failed=true;
+    }
+    relaySend({type:'subtitle-update',subtitleSeq:ss,text:tgtText,sourceText:srcText,sourceLang:src,targetLang:tgt});
+    patchSpeech('me',ss,tgtText,failed);
   }catch(e){
-    log('dg_final_translate_err',{e:String(e)},'error'); // bubble already landed above even though translation failed
+    log('dg_final_translate_err',{e:String(e)},'error'); // source bubble already landed normalized above
   }
 }
 /* ════════════ DEEPGRAM (quarried: pre-base nova-3 linear16 pipeline) ════════════ */
