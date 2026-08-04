@@ -763,3 +763,25 @@ Status: ❌ = not in baseline, needs a home · ✅ = has a home · ⏸ = deliber
 - ❌ `writeBackImpl`
 
 **TOTAL AMPUTATED: 746 functions.** Headline items the owner flagged: `applyNorthernThaiMap` (Northern Thai dialect overlay), the per-side language-mode state machine (`getEffectiveReplyLang`/`resolveEffectiveLang`/`setEffectiveReplyLang`/`normalizeSession`), Deepgram `multi` mode + fastText WASM for 21 languages, and the epoch/`reconcileDeepgramState`/`teardownSession` engine that all of it rode on.
+---
+
+# RECONCILIATION (746 → 6 real gaps)
+
+Cross-referenced every amputated capability against the current baseline (`turn09-post-ship`). Result: the overwhelming majority were **superseded** — the baseline rebuilt them (often better, on Deepgram instead of browser STT). The raw 746-function count collapses to **6 genuinely-missing capability areas.**
+
+## SUPERSEDED / PRESENT (no action — baseline already has these)
+Phrasebook (clarify/verdict/tag/card — 66 refs) · Chat send/translate · Relay/signaling · Deepgram basic transcription · Call/WebRTC basic (offer/answer/ice) · Ring/accept/decline · TTS/speak · Room create/enter/save · Invite/QR/link · History sync · Read receipts · DG watchdog · Backtranslate on bubble. **~740 of the 746 cut functions fall here** — rebuilt in the modern baseline.
+
+## THE 6 REAL GAPS (need a home in the Deepgram baseline)
+| # | Capability | Donor source (mechanism reference) | Home strategy |
+|---|---|---|---|
+| G1 | **Normalization state machine** — per-side language mode (fixed/auto), `EffectiveReplyLang`, `LastSentLang`, `resolveEffectiveLang` | donor `normalizeSession`, `getEffectiveReplyLang`, `resolveEffectiveLang`, `setEffectiveReplyLang` (~lines 1569-1955) | Rebuild native; drives correct normalization target per speaker, persisted in room state |
+| G2 | **Deepgram `multi` mode** — multi-language transcription for 21 langs | donor `startDeepgram` `DG_MULTI_LANGS` + `language=multi` (~8527) | Direct home — pure Deepgram, swap the langCode selection |
+| G3 | **fastText WASM detection** — Latin + Spanglish | donor `_loadFastText`/`_detectLangAsync`/`_runFastText` (~2162-2280); assets already in repo at `fastType/` | Rebuild native; correct the API to the repo wrapper's `detect()` |
+| G4 | **Northern Thai dialect map** | donor `applyNorthernThaiMap` | Lift the mapping table + apply hook |
+| G5 | **Epoch/reconcile/teardown engine** — the session vehicle everything rides on | donor `sessionEpoch`/`bumpSessionEpoch`/`reconcileDeepgramState`/`teardownSession`/`callPhase`/`isActiveCallPhase` (~5767-5870) | Rebuild native; this is the foundation G1-G2 depend on for coherence across join/rejoin/teardown/channel-switch |
+| G6 | **Robust call recovery** — runRecovery, keepalive, ICE-restart, video watchdog | donor `runRecovery`/`startKeepalive`/`resetRecoveryState`/`startRemoteVideoWatchdog` (~8283-8360) | Native rebuild (this is the R1a work, to be redone cleanly on the reconciled base) |
+
+**End state (owner-defined):** all of the above working across **all three modes — chat, video, phone** — for all 21 languages incl. Northern Thai, regardless of whether the donor did it that way. The donor is a mechanism reference, not a behavior spec.
+
+**Dependency order:** G5 (epoch/session vehicle) is the foundation. G2+G3+G4 (transcription: multi-mode, fastText, N.Thai) ride on G5. G1 (normalization state machine) rides on G2/G3. G6 (call recovery) rides on G5. Nothing is a standalone bolt-on — that's why prior piecemeal attempts stayed flaky.
