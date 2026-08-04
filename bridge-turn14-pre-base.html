@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (turn14-pre-base)
-     turn14-pre-base · 2026-08-04 · Restored the call/media engine amputated on 2026-07-09:
+     turn14-pre-base · 2026-08-04 · Restored 6 amputated capabilities: robust call engine (recovery/ICE-restart/glare/replaceTrack/keepalive/watchdog), normalization (normalize-first, all modes), Deepgram multi-mode (21 langs), fastText WASM detection (Latin+Spanglish), Thai script-range. On turn09-post-ship.
        staged ICE-restart recovery (runRecovery), perfect-negotiation glare handling (makingOffer/
        polite peer), replaceTrack seamless mute, keepalive datachannel, remote-video stall
        watchdog. PLUS normalization constructed natively into the Deepgram call path: the spoken
@@ -668,11 +668,35 @@ function saveTr(){if(S.roomId)lsSet(trKey(S.roomId),transcript)}
 function loadTr(id){return lsGet(trKey(id),[])}
 
 /* ════════════ LANGUAGE DETECT + TRANSLATE (quarried: pre-base) ════════════ */
-function detectLang(text){
-  var th=0,total=0;
-  for(var i=0;i<text.length;i++){var c=text.charCodeAt(i);if(c<48)continue;total++;if(c>=0x0E00&&c<=0x0E7F)th++}
-  if(!total)return null;
-  return th/total>0.25?'th':'en';
+// G3: fastText WASM language detection (lid.176.ftz, 176 langs) — Latin + Spanglish; script-range fast-path for non-Latin.
+var _ftModule=null,_ftReady=false,_ftFailed=false;
+function _loadFastText(){
+  if(_ftReady||_ftFailed)return;
+  var s=document.createElement('script');
+  s.src='fastType/fasttext-wrapper.umd.js';
+  s.onerror=function(){_ftFailed=true;log('ft_load_failed',{},'warn')};
+  s.onload=function(){
+    if(typeof FastText==='undefined'){_ftFailed=true;log('ft_undef',{},'warn');return}
+    try{var ft=new FastText();ft.loadModel(new URL('fastType/model/lid.176.ftz',location.href).href).then(function(){_ftModule=ft;_ftReady=true;log('ft_ready',{},'ok')}).catch(function(e){_ftFailed=true;log('ft_model_fail',{e:String(e)},'warn')})}
+    catch(e){_ftFailed=true;log('ft_init_err',{e:String(e)},'warn')}
+  };
+  document.head.appendChild(s);
+}
+function _scriptRange(t){
+  if(/[\u0E00-\u0E7F]/.test(t))return'th';
+  if(/[\u3040-\u30FF]/.test(t))return'ja';
+  if(/[\u4E00-\u9FFF]/.test(t))return'zh';
+  if(/[\uAC00-\uD7AF]/.test(t))return'ko';
+  if(/[\u0600-\u06FF]/.test(t))return'ar';
+  if(/[\u0900-\u097F]/.test(t))return'hi';
+  if(/[\u0400-\u04FF]/.test(t))return'ru';
+  return null;
+}
+function detectLang(text,fb){
+  var t=(text||'').trim();if(!t)return fb||null;
+  var sr=_scriptRange(t);if(sr)return sr; // G4: Thai script (incl. Northern Thai) maps to th
+  if(_ftReady&&_ftModule){try{var lang=_ftModule.detect(t);if(lang&&typeof lang==='string')return lang}catch(_){}}
+  return fb||null;
 }
 var trCache=new Map(),TR_CACHE_MAX=200;
 function cleanTr(t){return norm(String(t||'').replace(/<\/?[a-zA-Z][^>]*>/g,''))}
@@ -1127,7 +1151,7 @@ async function sendChatText(text,attachment,originOverride){
   var room=activeRoom();if(!room)return;
   var src=room.myLang,tgt=room.theirLang,srcText=text,failed=false;
   if(text){
-    var detected=detectLang(text);
+    var detected=detectLang(text,src);
     if(detected&&detected!==src){
       var normed=await translateWithRetry(text,detected,src,2);
       if(normed.ok&&norm(normed.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(normed.text);
@@ -2415,6 +2439,7 @@ function openS11(){
   $('m-s11').classList.add('show');
 }
 function boot(){
+  try{_loadFastText()}catch(_){}
   // build panel chrome
   var panel=document.createElement('div');panel.className='left-panel';panel.id='left-panel';
   panel.innerHTML='<div class="left-top"><div class="left-clock" id="left-clock" style="padding:8px 4px;cursor:pointer"></div></div>'
@@ -3021,7 +3046,7 @@ async function onDGFinal(text){
   var src=room.myLang,tgt=room.theirLang,ss=++localSubSeq;
   var srcText=text;
   try{
-    var detected=detectLang(text);
+    var detected=detectLang(text,src);
     if(detected&&detected!==src){
       var n=await translateWithRetry(text,detected,src,2);
       if(n.ok&&norm(n.text).toLowerCase()!==norm(text).toLowerCase())srcText=norm(n.text);
@@ -3074,7 +3099,8 @@ function startDeepgram(){
   if(dgActive||(dgWs&&dgWs.readyState<2)){log('dg_skip_active',{},'warn');return}
   var stream=micStream();
   if(!stream){log('dg_no_stream',{},'error');return}
-  var langCode=DG_LANGS[room.myLang]||room.myLang||'en-US';
+  var DG_MULTI_LANGS=['en','es','fr','de','pt','it','nl','ru','hi','ja'];
+  var langCode=(DG_MULTI_LANGS.indexOf(room.myLang)>=0)?'multi':(DG_LANGS[room.myLang]||room.myLang||'en-US');
   var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langCode)+'&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
   dgWs=new WebSocket(url,['token',key]);
   var mySocket=dgWs; // ROOT CAUSE FIX (2026-08-01): a prior, superseded socket's async close event
