@@ -4163,8 +4163,8 @@ CALL.setupPC = async function () {
 
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
-VERSION = 'turn23-base · joiner shell';
-BUILD_INFO = { release: 'turn23-base · joiner shell', builtAt: '2026-08-06T04:00:00Z' };
+VERSION = 'turn23-base · joiner shell r2';
+BUILD_INFO = { release: 'turn23-base · joiner shell (language swap fixed)', builtAt: '2026-08-06T04:35:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -4666,8 +4666,8 @@ function renderPanel() {
 /* ═══════════ GAP PART · J-joiner-shell.js ═══════════ */
 /* @contract
    replaces: openPanel
-   wraps: enterRoom, renderPanel, joinRoom
-   adds: hasOwnCredentials, syncCreateControl, applyInvitePayload, jLog, _jEnterRoom, _jRenderPanel, _jJoinRoom
+   wraps: enterRoom, renderPanel, joinRoom, sendChatText
+   adds: hasOwnCredentials, syncCreateControl, applyInvitePayload, jLog, _jSendChatText, _jEnterRoom, _jRenderPanel, _jJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    JOINER SHELL
@@ -4704,12 +4704,21 @@ function syncCreateControl() {
   } catch (e) { jLog('create_control_failed', { e: String(e && e.message || e) }, 'error'); }
 }
 
-/* The invite is the definition of the room. From the joiner's side their own
-   language is the initiator's target and vice versa. */
+/* The invite is the definition of the room, read from the JOINER'S side: their
+   own language is the initiator's target and vice versa.
+
+   It therefore must never be applied to a room this device created. An
+   initiator who opens their own invite link — or any link for a room they
+   created — would otherwise have their two languages swapped, and every message
+   after that translates in the wrong direction on both sides. */
 function applyInvitePayload(p) {
   if (!p || !p.r) return null;
   var room = roomById(p.r);
   if (!room) return null;
+  if (room.role === 'creator') {
+    jLog('payload_refused_own_room', { room: String(p.r).slice(-6), role: room.role }, 'warn');
+    return room;
+  }
   var before = { my: room.myLang, their: room.theirLang, title: room.title };
   if (p.tl) room.myLang = p.tl;
   if (p.ml) room.theirLang = p.ml;
@@ -4772,6 +4781,19 @@ function openPanel() {
 if (typeof document !== 'undefined') {
   setTimeout(function () { try { syncCreateControl(); } catch (_) {} }, 400);
 }
+
+/* Every outgoing message states the direction it is being translated in, so a
+   wrong direction is visible in the log instead of only in the bubble. */
+(function () {
+  var _jSendChatText = sendChatText;
+  sendChatText = function (text, attachment, origin) {
+    try {
+      var r = activeRoom();
+      if (r) jLog('send_direction', { room: String(r.id).slice(-6), from: r.myLang, to: r.theirLang, role: r.role }, 'ok');
+    } catch (_) {}
+    return _jSendChatText.apply(this, arguments);
+  };
+})();
 
 </script>
 </body>
