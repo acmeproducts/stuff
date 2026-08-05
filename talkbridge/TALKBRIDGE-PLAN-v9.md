@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.0.0 -->
-# TALKBRIDGE MASTER PLAN v9.0.0
+<!-- TALKBRIDGE-PLAN v9.0.1 -->
+# TALKBRIDGE MASTER PLAN v9.0.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -190,7 +190,7 @@ screen.
 | 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Remaining invisible plumbing.** Phrasebook version rulings verified against the ruling text — no bump on entry, ingest highest, staleness check before pull, write-back before pull. Proactive relay reconnect on visibility return. Enter-in-source caret. Anything release 2 found outside the call engine. | No |
 | 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Mic level meter** (v7 Part 17, binding). Capsule fills from the bottom with teal, clipped to the capsule shape, tracking live input on a log scale — comfortable speech near half full. Fast attack, ~200ms release. An empty meter while speaking is itself the broken-mic signal. Amber means audio is fine but transcription is not landing. Off is slashed and red; camera uses the same convention. | Yes |
 | 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. | Yes |
-| 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Room card and home screen.** The card in full: shared grid, three rows, own-first flags, ellipsis truncation, tap-to-reveal popover, three separately-tracked chat/voice/video badges greyed at zero. Home screen waiting-only cards, summary line, dismissal rules. Ribbon popup showing the thread name set in release 5. Appearance completeness — tone and font colour per side. **Card and badge tracking are lifted from `bridge-turn10-pre-base.html`, not rebuilt.** turn10 as a whole is a bust: take the component and its tracking only. | Yes |
+| 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Room card and home screen.** The card built to SOT Part 4 — see §6a. Home screen waiting-only cards, summary line, dismissal rules. Ribbon popup showing the thread name set in release 5. Appearance completeness — tone and font colour per side. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column two-row grid with a tap-to-reveal popover, which Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card at all. Build to the spec. | Yes |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. No new-room control: it is credential-gated, so its absence needs no code, only release 5 being correct. Mic centred in the ribbon rides here **on written approval**. | Yes |
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
 | 9 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
@@ -251,6 +251,36 @@ twenty users is future work, not actionable now.
 
 ---
 
+## 6a · RELEASE 6 — the room card, per SOT Part 4
+
+**Three rows, two columns.** Left column left-justified, right column
+right-justified.
+
+| | Left | Right |
+|---|---|---|
+| Row 1 | Room name, **bold**, truncates with ellipsis | Delete |
+| Row 2 | Me / Partner, not bold, truncates with ellipsis | Time since last contact |
+| Row 3 | Chat, phone and video icons, each with its own count badge | Language-pair flags |
+
+**Truncation is not interactive.** Tapping truncated text opens the room, exactly
+like tapping anywhere else on the card. This supersedes every earlier
+"tap-to-reveal popover" description, including the one in v8.5.0 and in this
+plan before v9.0.1.
+
+**Elapsed time** is mixed-mode by magnitude: minutes, then hours, then days.
+
+**Flags** read own-language-first from each viewer's own perspective — always
+mine then theirs, never a fixed absolute order. Real flag glyphs.
+
+**Three separate activity counts.** A missed chat, a missed voice call and a
+missed video call are three distinct, separately tracked and separately
+displayed badges.
+
+**Delete is a soft delete**, recoverable, and carries the notice and send-lock
+behaviour built in release 5.
+
+---
+
 ## 7 · BUILD SYSTEM
 
 The deployed app is one HTML file. It is **never edited** — it is assembled from
@@ -281,6 +311,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.0.1 · 2026-08-05.** Room card corrected to SOT Part 4 — three rows, two
+columns — after the owner flagged the spec in use as stale. Verified directly:
+`bridge-turn10-pre-base.html` carries a seven-column two-row grid with a
+tap-to-reveal popover, which Part 4 supersedes, and `bridge-turn11-pre-base.html`
+has no card. The lift-from-turn10 instruction is removed; release 6 builds to the
+spec. Part 4 added in full as §6a so this cannot go stale again.
 
 **v9.0.0 · 2026-08-05.** Written after turn22 passed. Consolidates the operating
 parameters that had lived only in session memory. Restores the turn-family
