@@ -1,7 +1,7 @@
-<!-- v5.8.2.25 -->
+<!-- v5.8.2.26 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.2 | 2026-07-01 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.3 | 2026-08-04 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -221,3 +221,21 @@ Rollback executed: bridge-turn09-pre-base.html reverted to its unmodified Releas
 - **Root insight:** the defect is NOT the dual-socket gate alone. Call-path transcription lacks the normalization step that chat has. R1d treated a symptom.
 - **Rollback target:** `bridge-turn12b-base.html` (R1c) — last passing build. R1c (fastText detection) stands.
 - **Next:** re-diagnose call-path normalization before rebuilding. Do not re-attempt R1d as a one-line gate change.
+
+## turn15 Release 6 attempt 1 (bridge-turn15.html) · FAILED DEVICE GATE · Aug 4 2026
+Scope: the six catalogued engine gaps (G1–G6) rebuilt onto `bridge-turn09-post-ship.html` as three additive parts — session generation + multi-language transcription, language resolution (detection/normalization/Northern Thai), and call robustness. Assembled rather than edited in place; 46 unit assertions, all four pre-push checks green, byte-verified push.
+
+Device gate reported two defects:
+1. **Language model never loaded.** First device run logged the model as unavailable at boot with a bare numeric error, so every Latin-script line went undetected and nothing normalized. Non-Latin was unaffected (a Hindi utterance normalized to Spanish correctly), which confirms the pipeline was sound and only detection was dead. Root cause: the model path was passed as a relative string. The upstream loader resolves a relative model path against its own module URL, not the page, so it resolved one directory deeper than it should, the fetch returned a 404 HTML page, and the WASM runtime aborted on that HTML — surfacing only as an opaque number. Fixed by resolving all three assets to absolute URLs against the app's location and installing the runtime's asset hook before the wrapper loads, mirroring the package's own smoke test, which is the configuration already proven to work.
+2. **TTS stopped working.** Not diagnosed. Root cause NOT found — logged honestly as unresolved rather than patched over with a guess.
+
+Root cause of the failure class: the parts REPLACED `onDGFinal` and `sendChatText` outright. Those two functions are the path every outgoing message travels, and other behaviour hangs off that path. The replacements returned correct values, so every unit assertion passed and all four structural checks stayed green while something downstream stopped happening. The defect was invisible to inspection and to the harness, and surfaced only on a phone.
+
+Replacement: parts must HOOK the existing message path, not replace it — wrap and call through, so downstream effects are preserved by construction. Outright replacement of a function that other behaviour depends on is forbidden. A new CONTRACT GATE now enforces this mechanically: every part declares up front what it replaces, wraps and adds; the build extracts what it actually did and fails on any undeclared surface, and on any call a replaced function no longer makes (naming the callee explicitly when it has become unreachable anywhere in the build). This runs ahead of the unit tests in every ship.
+
+Verified findings worth carrying forward (do not re-derive):
+- Model asset paths must be absolute and resolved against the app location; a relative path silently lands one level deep and aborts the runtime with an opaque numeric error.
+- Building a peer connection could overlap with itself while awaiting relay credentials, producing two connections competing over one signalling channel. An in-flight guard closes that window.
+- A missing relay was logged as a warning and ignored; on mobile networks that usually means the call cannot connect at all, and it must be surfaced.
+
+Rollback executed: `bridge-turn15.html` removed. `bridge-turn09-post-ship.html` is untouched and remains the base. NEVER rebuild by replacing the outgoing-message functions — hook them.
