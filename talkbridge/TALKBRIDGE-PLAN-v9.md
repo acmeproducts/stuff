@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.1.0 -->
-# TALKBRIDGE MASTER PLAN v9.1.0
+<!-- TALKBRIDGE-PLAN v9.1.1 -->
+# TALKBRIDGE MASTER PLAN v9.1.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -191,8 +191,8 @@ screen.
 |---|---|---|---|---|
 | 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Phrasebook symmetry.** Both columns authoritative: editing either rewrites the other by machine translation, so they cannot drift. Verdict clears on either edit. Card redraws when the translation returns, not only when the edit is submitted. Plus whatever the attached probe finds on the add/edit path. | Yes |
 | 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
-| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. The card from release 2 gains its real room name, its soft-delete notice and its send-lock here. | Yes |
-| 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. No new-room control: it is credential-gated, so its absence needs no code, only release 3 being correct. Mic centred in the ribbon rides here **on written approval**. | Yes |
+| 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. The card from release 2 gains its real room name, its soft-delete notice and its send-lock. The joiner shell from release 3 is where the grant is received, the credentials are written and revoked, and the absent create control is observed. | Yes |
+| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript, reusing release 2's card. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. Mic centred in the ribbon rides here **on written approval**. **This comes before the credential release because the credential mechanism is largely a joiner-side mechanism** — writing a grant to storage, losing it on revocation, and the create control being absent all happen on the joiner's device and cannot be gated without a joiner shell to gate them in. | Yes |
 | 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Call engine completion.** Mute by track replacement so mute is total. Force reconnect on visibility and focus return. Instrument and then fix the ~12s transcription disconnect and the ~30s delivery lag if the cause is inside the call engine. Blast radius: the call object and its signal handlers only. | No |
 | 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Remaining invisible plumbing.** Phrasebook version rulings verified against the ruling text — no bump on entry, ingest highest, staleness check before pull, write-back before pull. Proactive relay reconnect on visibility return. Enter-in-source caret. Anything release 5 found outside the call engine. | No |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
@@ -200,15 +200,19 @@ screen.
 | 9 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
 | later | — | `bridge-turn24-post-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
 
-**Sequencing rationale.** The visible work people actually use comes first: the
-card, then the rooms it represents, then the joiner who has to live in it. The
-two invisible releases sit behind them because the engine already passed a
-two-phone gate at turn22 — it is working, not broken, and the items in them are
-refinements, not blockers. Nothing visible waits on them.
+**Sequencing rationale.** Visible work first, in dependency order. The card is
+the surface everything else is displayed on, so it is built first. The joiner
+shell comes next, because it is the surface the credential mechanism has to be
+observed in — a grant written to storage, credentials revoked on soft delete, the
+create control absent — none of which can be gated without a joiner shell to gate
+them in. The room lifecycle and its credentials then land on both surfaces at
+once. The two invisible releases sit behind all of it because the engine already
+passed a two-phone gate at turn22: it is working, not broken, and what remains in
+them are refinements, not blockers.
 
 ---
 
-## 6 · RELEASE 3 IN FULL — room lifecycle and the credential mechanism
+## 6 · RELEASE 4 IN FULL — room lifecycle and the credential mechanism
 
 **One release because it is one mechanism.** Credentials in local storage are the
 only thing that makes a device initiator-capable. Every capability difference
@@ -286,7 +290,7 @@ missed video call are three distinct, separately tracked and separately
 displayed badges.
 
 **Delete is a soft delete**, recoverable, and carries the notice and send-lock
-behaviour built in release 3.
+behaviour built in release 4.
 
 ---
 
@@ -320,6 +324,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.1.1 · 2026-08-05.** Joiner shell moved ahead of the credential release. The
+credential mechanism is mostly joiner-side — receiving a grant, writing it to
+storage, losing it on revocation, and the create control being absent — so it
+cannot be gated before the joiner shell exists. Ordering was wrong in v9.1.0.
 
 **v9.1.0 · 2026-08-05.** Resequenced: visible work first — card, room lifecycle,
 joiner — with the two invisible releases behind them, because the engine passed a
