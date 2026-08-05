@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.0.1 -->
-# TALKBRIDGE MASTER PLAN v9.0.1
+<!-- TALKBRIDGE-PLAN v9.1.0 -->
+# TALKBRIDGE MASTER PLAN v9.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -168,8 +168,12 @@ the repo model · Northern Thai overlay · speech-sequence continuity across
 reloads · source-language normalization law.
 
 Verified absent in turn22:
-mic level meter · room/thread name field · room card grid and per-kind badge
+room/thread name field · room card three-row layout and per-kind badge
 tracking · elevation, grant link, expiry · per-room export.
+
+The mic level meter **is present and working** — live analyser, clipped fill,
+off state. An earlier draft of this plan listed it as missing; that was a failed
+keyword search reported as a finding, not a verification.
 
 Built but never proven on a phone (they ride the next gate):
 Northern Thai overlay · dual English channel · source-language law.
@@ -186,20 +190,25 @@ screen.
 | # | Input | Output | Scope | Visible |
 |---|---|---|---|---|
 | 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Phrasebook symmetry.** Both columns authoritative: editing either rewrites the other by machine translation, so they cannot drift. Verdict clears on either edit. Card redraws when the translation returns, not only when the edit is submitted. Plus whatever the attached probe finds on the add/edit path. | Yes |
-| 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Call engine completion.** Mute by track replacement so mute is total. Force reconnect on visibility and focus return. Instrument and then fix the ~12s transcription disconnect and the ~30s delivery lag if the cause is inside the call engine. Blast radius: the call object and its signal handlers only. | No |
-| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Remaining invisible plumbing.** Phrasebook version rulings verified against the ruling text — no bump on entry, ingest highest, staleness check before pull, write-back before pull. Proactive relay reconnect on visibility return. Enter-in-source caret. Anything release 2 found outside the call engine. | No |
-| 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Mic level meter** (v7 Part 17, binding). Capsule fills from the bottom with teal, clipped to the capsule shape, tracking live input on a log scale — comfortable speech near half full. Fast attack, ~200ms release. An empty meter while speaking is itself the broken-mic signal. Amber means audio is fine but transcription is not landing. Off is slashed and red; camera uses the same convention. | Yes |
-| 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. | Yes |
-| 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Room card and home screen.** The card built to SOT Part 4 — see §6a. Home screen waiting-only cards, summary line, dismissal rules. Ribbon popup showing the thread name set in release 5. Appearance completeness — tone and font colour per side. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column two-row grid with a tap-to-reveal popover, which Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card at all. Build to the spec. | Yes |
-| 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. No new-room control: it is credential-gated, so its absence needs no code, only release 5 being correct. Mic centred in the ribbon rides here **on written approval**. | Yes |
-| 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
-| 9 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
-| 10 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
-| later | — | `bridge-turn25-*` | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
+| 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
+| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. The card from release 2 gains its real room name, its soft-delete notice and its send-lock here. | Yes |
+| 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. No new-room control: it is credential-gated, so its absence needs no code, only release 3 being correct. Mic centred in the ribbon rides here **on written approval**. | Yes |
+| 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Call engine completion.** Mute by track replacement so mute is total. Force reconnect on visibility and focus return. Instrument and then fix the ~12s transcription disconnect and the ~30s delivery lag if the cause is inside the call engine. Blast radius: the call object and its signal handlers only. | No |
+| 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Remaining invisible plumbing.** Phrasebook version rulings verified against the ruling text — no bump on entry, ingest highest, staleness check before pull, write-back before pull. Proactive relay reconnect on visibility return. Enter-in-source caret. Anything release 5 found outside the call engine. | No |
+| 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
+| 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
+| 9 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
+| later | — | `bridge-turn24-post-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
+
+**Sequencing rationale.** The visible work people actually use comes first: the
+card, then the rooms it represents, then the joiner who has to live in it. The
+two invisible releases sit behind them because the engine already passed a
+two-phone gate at turn22 — it is working, not broken, and the items in them are
+refinements, not blockers. Nothing visible waits on them.
 
 ---
 
-## 6 · RELEASE 5 IN FULL — room lifecycle and the credential mechanism
+## 6 · RELEASE 3 IN FULL — room lifecycle and the credential mechanism
 
 **One release because it is one mechanism.** Credentials in local storage are the
 only thing that makes a device initiator-capable. Every capability difference
@@ -251,7 +260,7 @@ twenty users is future work, not actionable now.
 
 ---
 
-## 6a · RELEASE 6 — the room card, per SOT Part 4
+## 6a · RELEASE 2 — the room card, per SOT Part 4
 
 **Three rows, two columns.** Left column left-justified, right column
 right-justified.
@@ -277,7 +286,7 @@ missed video call are three distinct, separately tracked and separately
 displayed badges.
 
 **Delete is a soft delete**, recoverable, and carries the notice and send-lock
-behaviour built in release 5.
+behaviour built in release 3.
 
 ---
 
@@ -311,6 +320,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.1.0 · 2026-08-05.** Resequenced: visible work first — card, room lifecycle,
+joiner — with the two invisible releases behind them, because the engine passed a
+two-phone gate at turn22 and its remaining items are refinements, not blockers.
+The invented mic-level-meter release is removed: the meter is present and working
+in turn22, and was reported missing on the strength of a keyword search that used
+terms this codebase does not use. Ten releases became nine.
 
 **v9.0.1 · 2026-08-05.** Room card corrected to SOT Part 4 — three rows, two
 columns — after the owner flagged the spec in use as stale. Verified directly:
