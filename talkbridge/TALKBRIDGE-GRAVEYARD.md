@@ -1,7 +1,7 @@
-<!-- v5.8.2.27 -->
+<!-- v5.8.2.28 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.4 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.5 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -252,3 +252,22 @@ Owner ruling on rollback: the whole concern — target-edit rewriting source, ba
 Rollback executed: `bridge-turn23-pre-ship.html` and `bridge-turn22-pbprobe.html` removed from the repo. `bridge-turn22.html` is untouched and remains the baseline. The active chain restarts from turn22 with the room card as release 1.
 
 Carry forward if this is ever rebuilt: symmetric rewriting needs the redraw to happen when the translation returns, not when the edit is submitted — an early redraw is why a committed edit can appear to do nothing. That finding stands independently of the regressions that failed the gate.
+
+## turn23-base — joiner shell parity (bridge-turn23-base.html) · FAILED DEVICE GATE · Aug 5 2026
+Scope: SOT Part 11. Removed the session lockout that refused to open the room list when the app was opened from an invite link, restored the room-switcher control on entry, and gated the create control on credentials in the device's own storage rather than on role.
+
+Device gate: chat did not flow between the two sides. **Root cause NOT found.** Rolled back rather than triaged. Test was two browsers on one machine — a shortcut the owner flagged as non-representative — so the observations below are recorded as observations, not conclusions.
+
+Observed in the logs, unexplained:
+- The relay closed with 1006 on the initiator side repeatedly and continuously — dozens of times over several minutes, reconnecting and dropping again. The joiner side dropped too, less often. Both sides reached `relay_open` on the same room and both sent chat; neither received the other's live messages, though a history sync did deliver a backlog in one direction.
+- Both sides' room records for the shared room carried role `joiner`. If that is real rather than an artefact of an old record, nothing on either side holds the creator role, which the call negotiation and possibly the relay pairing depend on.
+- The joiner now runs background LISTEN sockets for every room it holds, because the shell no longer hides its room list and `LISTEN.sync()` subscribes to every non-active room. That is a real behaviour change this release introduced and did not declare: before it, a locked joiner opened one socket; after it, a joiner with N rooms opens N. Whether it contributed to the relay drops is unknown and was not tested.
+
+Owner ruling captured during this session: **room name is the key negotiation between initiator and joiner.** The initiator specifies the room name at creation; the joiner can only join it; the initiator may rename it later. Without that field there is no stable handle by which the two sides identify a shared room. This is already scheduled as the room-lifecycle release and is a prerequisite for a meaningful joiner test.
+
+Replacement approach when this is rebuilt:
+1. Build the room-name field first. Joiner parity cannot be gated without it.
+2. Declare the LISTEN subscription change explicitly, or scope it — a joiner opening one socket per room is a new load profile on the relay and must be a deliberate decision, not a side effect of unhiding the room list.
+3. Instrument the relay path before touching it. The 1006 storm is undiagnosed and must not be reasoned about.
+
+Rollback executed: `bridge-turn23-base.html` removed. `bridge-turn23-pre-base.html` (room card) is untouched and remains the baseline.
