@@ -1,7 +1,7 @@
-<!-- v5.8.2.26 -->
+<!-- v5.8.2.27 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.3 | 2026-08-04 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.4 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -239,3 +239,16 @@ Verified findings worth carrying forward (do not re-derive):
 - A missing relay was logged as a warning and ignored; on mobile networks that usually means the call cannot connect at all, and it must be surfaced.
 
 Rollback executed: `bridge-turn15.html` removed. `bridge-turn09-post-ship.html` is untouched and remains the base. NEVER rebuild by replacing the outgoing-message functions — hook them.
+
+## turn23-pre-base — phrasebook symmetry (bridge-turn23-pre-ship.html) · FAILED DEVICE GATE · Aug 5 2026
+Scope: owner ruling that both phrasebook columns are authoritative — editing either column rewrites the other by machine translation so the pair cannot drift; verdict clears on either edit; the card redraws when the translation returns rather than only when the edit is submitted. Shipped with a phrasebook probe attached to diagnose a separate, undiagnosed add/edit complaint.
+
+Device gate: **too many regressions to triage.** Individual root causes NOT identified — the release was rolled back rather than picked apart, per the standing rule that a failing gate rolls back instead of being patched forward.
+
+Also of note, and not a code fault: the output file was pushed as `bridge-turn23-pre-ship.html` when the chain's next output was `bridge-turn23-pre-base.html`. The stage-name cycle is positional and must be followed exactly; a build pushed under the wrong stage name is unfindable in the chain.
+
+Owner ruling on rollback: the whole concern — target-edit rewriting source, back-translation, and the clarify stream — moves to BACKLOG. It is not in the active release chain and is not scheduled. Do not re-attempt it as part of another release.
+
+Rollback executed: `bridge-turn23-pre-ship.html` and `bridge-turn22-pbprobe.html` removed from the repo. `bridge-turn22.html` is untouched and remains the baseline. The active chain restarts from turn22 with the room card as release 1.
+
+Carry forward if this is ever rebuilt: symmetric rewriting needs the redraw to happen when the translation returns, not when the edit is submitted — an early redraw is why a committed edit can appear to do nothing. That finding stands independently of the regressions that failed the gate.
