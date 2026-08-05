@@ -1,7 +1,7 @@
-<!-- v5.8.2.28 -->
+<!-- v5.8.2.29 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.5 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.6 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -269,5 +269,24 @@ Replacement approach when this is rebuilt:
 1. Build the room-name field first. Joiner parity cannot be gated without it.
 2. Declare the LISTEN subscription change explicitly, or scope it — a joiner opening one socket per room is a new load profile on the relay and must be a deliberate decision, not a side effect of unhiding the room list.
 3. Instrument the relay path before touching it. The 1006 storm is undiagnosed and must not be reasoned about.
+
+Rollback executed: `bridge-turn23-base.html` removed. `bridge-turn23-pre-base.html` (room card) is untouched and remains the baseline.
+
+## turn23-base — room lifecycle, attempt 2 (bridge-turn23-base.html) · FAILED DEVICE GATE · Aug 5 2026
+Scope: room name at creation, grant toggle with expiry picker, grant link, credentials written to the joiner's storage on opening one, expiry deletion, soft-delete revoke / restore reinstate, left-the-chat and rejoined notices with a send-lock, creator-only rename.
+
+**The dominant finding is not in the release scope at all: the relay does not stay up.** Both sides logged `relay_close 1006` continuously — reconnecting and dropping every ten to thirty seconds, for minutes at a stretch, on a freshly created room and on existing ones. Messages were sent and re-sent and never arrived. **Nothing two-sided can be gated while this is happening**, and every failure below is unverifiable until it stops. Root cause NOT found and not to be reasoned about — the relay path has no instrumentation.
+
+Also found, and real regardless of the relay:
+- **The create control was never gated.** `lc_boot_check` reported `canCreate: null` because the part called `hasOwnCredentials`, which lived in the joiner-shell part that had already been rolled back. It was guarded with a `typeof` check, so instead of failing it silently did nothing. A `typeof` guard around a dependency turns a missing piece into a no-op, which is worse than a crash; the contract gate does not catch it because nothing is replaced or dropped.
+- **The joiner reported `joined_plain` for a room created with the grant toggle on.** Either the share control does not use the granting link builder, or the link used was the plain invite. Unverified.
+- **The initiator shows the partner as "?" and the joiner has a room connected to nothing.** With no shell the joiner cannot act on any of it. This is the structural finding: the room lifecycle and the joiner shell are one mechanism seen from two ends, and there is no intermediate state of the application in which lifecycle is meaningful and the joiner shell is absent. Splitting them produced a release that could not be gated in either order — parity first failed for want of a room name, lifecycle first failed for want of a shell to observe it in.
+
+Owner ruling 2026-08-05: **the room lifecycle and joiner shell parity are one release.** Do not attempt them separately again in either order.
+
+Replacement approach:
+1. The relay drop is a blocker for every two-sided release and is dealt with first, as its own invisible release. Instrument the relay path — open, close, code, retry timing, socket count, subscription set — and read the log before changing anything.
+2. Then lifecycle and joiner parity as a single scoped release, with the surfaces enumerated in the plan before any code is written.
+3. No `typeof` guards around dependencies inside a part. If a part needs a function, that function ships in the same part or the part does not build.
 
 Rollback executed: `bridge-turn23-base.html` removed. `bridge-turn23-pre-base.html` (room card) is untouched and remains the baseline.
