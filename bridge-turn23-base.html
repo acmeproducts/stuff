@@ -4163,8 +4163,8 @@ CALL.setupPC = async function () {
 
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
-VERSION = 'turn23-base · relay probe';
-BUILD_INFO = { release: 'turn23-base · relay instrumentation', builtAt: '2026-08-06T03:30:00Z' };
+VERSION = 'turn23-base · joiner shell';
+BUILD_INFO = { release: 'turn23-base · joiner shell', builtAt: '2026-08-06T04:00:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -4663,219 +4663,114 @@ function renderPanel() {
 })();
 
 
-/* ═══════════ GAP PART · N-relay-probe.js ═══════════ */
+/* ═══════════ GAP PART · J-joiner-shell.js ═══════════ */
 /* @contract
-   wraps: relayConnect, relayDisconnect, relaySend, handleRelay, startHB, LISTEN.open, LISTEN.send, LISTEN.handle
-   adds: RLY, rlyLog, rlyNow, rlySockets, rlyCensus, rlyWatch, _rlyConnect, _rlyDisconnect, _rlySend, _rlyHandle, _rlyStartHB, _rlyOpen, _rlyLSend, _rlyLHandle
+   replaces: openPanel
+   wraps: enterRoom, renderPanel, joinRoom
+   adds: hasOwnCredentials, syncCreateControl, applyInvitePayload, jLog, _jEnterRoom, _jRenderPanel, _jJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
-   RELEASE 2 · RELAY INSTRUMENTATION
+   JOINER SHELL
 
-   No behaviour changes. Every socket the app opens is watched from the outside:
-   when it opened, how long it lived, what closed it, what it had sent and
-   received in between, and how many other sockets were open at the same moment.
+   The joiner gets the full shell and no create control. Nothing about elevation
+   is here.
 
-   This exists because the relay closes with code 1006 every ten to thirty
-   seconds on both sides and nobody knows why. 1006 means the connection went
-   away without a closing handshake, which is what a timeout, a proxy, or a
-   server-side limit looks like from here — indistinguishable without numbers.
-   The numbers that separate them are lifetime, traffic in the gap, and how many
-   sockets this client had open at once.
-
-   Handlers are ADDED to each socket rather than replacing the app's own, so
-   nothing the app does is intercepted or altered.
+   The invite link already carries everything needed: the room, both languages
+   and the room name. The join path used it only when creating a room for the
+   first time, so a room that already existed locally kept whatever it was first
+   given — which is how a joiner ends up transcribing and translating in a
+   language the room was not defined in. The payload is now authoritative on
+   every join, new room or not.
    ───────────────────────────────────────────────────────────────────────────── */
 
-var RLY = {
-  seq: 0,
-  main: null,          /* { id, openedAt, sent, recv, lastRecvAt, lastPingAt } */
-  listen: {},          /* roomId -> same shape */
-  censusTimer: null
-};
-
-function rlyLog(what, data) {
-  try { log('rly_' + what, data || {}, 'info'); } catch (_) {}
+function jLog(what, data, level) {
+  try { log('joiner_' + what, data || {}, level || 'info'); } catch (_) {}
 }
-function rlyNow() { return Date.now(); }
 
-/* Every socket this client currently holds, and what state it is in. The count
-   matters: an initiator with eight rooms holds one live socket plus one per
-   other room, all to the same relay from one client. */
-function rlySockets() {
-  var out = { main: null, listen: [], total: 0 };
+/* The one question that decides whether this device can create a room:
+   credentials in its own storage. A joiner's invite keys live in memory only,
+   so nothing appears, and no role check decides it. */
+function hasOwnCredentials() {
+  try { return !!(localStorage.getItem('tb_dg_key') || '').trim(); }
+  catch (e) { jLog('credential_check_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function syncCreateControl() {
   try {
-    if (typeof _relayWs !== 'undefined' && _relayWs) {
-      out.main = { room: S.roomId, state: _relayWs.readyState };
-      out.total++;
-    }
-    var socks = (typeof LISTEN !== 'undefined' && LISTEN.socks) || {};
-    Object.keys(socks).forEach(function (id) {
-      var ws = socks[id];
-      out.listen.push({ room: id.slice(-6), state: ws ? ws.readyState : -1 });
-      out.total++;
-    });
-  } catch (e) { rlyLog('census_failed', { e: String(e && e.message || e) }); }
-  return out;
+    var fab = $('panel-fab'); if (!fab) return;
+    var allowed = hasOwnCredentials();
+    fab.style.display = allowed ? '' : 'none';
+    jLog('create_control', { shown: allowed }, 'ok');
+  } catch (e) { jLog('create_control_failed', { e: String(e && e.message || e) }, 'error'); }
 }
 
-function rlyCensus(why) {
-  var s = rlySockets();
-  rlyLog('census', {
-    why: why,
-    total: s.total,
-    main: s.main ? s.main.state : 'none',
-    listening: s.listen.length,
-    states: s.listen.map(function (x) { return x.state; }).join(',')
-  });
-}
-
-/* Attaches observation to a socket without touching the app's own handlers. */
-function rlyWatch(ws, kind, roomId) {
-  if (!ws || !ws.addEventListener) return null;
-  var rec = { id: ++RLY.seq, room: roomId, openedAt: rlyNow(), sent: 0, recv: 0, lastRecvAt: 0, lastSentAt: 0, opened: false };
-
-  ws.addEventListener('open', function () {
-    rec.opened = true;
-    rec.openedAt = rlyNow();
-    var s = rlySockets();
-    rlyLog(kind + '_open', { n: rec.id, room: String(roomId).slice(-6), socketsNow: s.total, listening: s.listen.length });
-  });
-
-  ws.addEventListener('message', function () {
-    rec.recv++;
-    rec.lastRecvAt = rlyNow();
-  });
-
-  ws.addEventListener('close', function (ev) {
-    var now = rlyNow();
-    rlyLog(kind + '_close', {
-      n: rec.id,
-      room: String(roomId).slice(-6),
-      code: ev.code,
-      reason: String(ev.reason || '').slice(0, 60),
-      clean: !!ev.wasClean,
-      everOpened: rec.opened,
-      /* The three numbers that tell a timeout from a limit from a network fault. */
-      livedMs: rec.opened ? (now - rec.openedAt) : null,
-      sinceRecvMs: rec.lastRecvAt ? (now - rec.lastRecvAt) : null,
-      sinceSentMs: rec.lastSentAt ? (now - rec.lastSentAt) : null,
-      sent: rec.sent,
-      recv: rec.recv,
-      socketsAtClose: rlySockets().total
-    });
-  });
-
-  ws.addEventListener('error', function () {
-    rlyLog(kind + '_error', { n: rec.id, room: String(roomId).slice(-6), state: ws.readyState, livedMs: rec.opened ? (rlyNow() - rec.openedAt) : null });
-  });
-
-  return rec;
+/* The invite is the definition of the room. From the joiner's side their own
+   language is the initiator's target and vice versa. */
+function applyInvitePayload(p) {
+  if (!p || !p.r) return null;
+  var room = roomById(p.r);
+  if (!room) return null;
+  var before = { my: room.myLang, their: room.theirLang, title: room.title };
+  if (p.tl) room.myLang = p.tl;
+  if (p.ml) room.theirLang = p.ml;
+  if (p.t) room.title = p.t;
+  if (p.n && !room.partnerName) room.partnerName = p.n;
+  saveRooms();
+  var changed = before.my !== room.myLang || before.their !== room.theirLang || before.title !== room.title;
+  jLog('payload_applied', {
+    room: String(p.r).slice(-6),
+    myLang: room.myLang, theirLang: room.theirLang,
+    title: room.title || '', changed: changed,
+    was: changed ? (before.my + '/' + before.their) : undefined
+  }, changed ? 'warn' : 'ok');
+  return room;
 }
 
 (function () {
-  var _rlyConnect = relayConnect;
-  relayConnect = function () {
-    var before = rlySockets().total;
-    var r = _rlyConnect.apply(this, arguments);
+  var _jJoinRoom = joinRoom;
+  joinRoom = function (p) {
+    var r = _jJoinRoom.apply(this, arguments);
+    try { applyInvitePayload(p); } catch (e) { jLog('join_apply_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* Replaced rather than wrapped: the refusal is an early return, and a wrapper
+   cannot remove one. The body is otherwise unchanged. */
+function openPanel() {
+  S.panelOpen = true;
+  renderPanel();
+  $('left-panel').classList.add('open');
+  $('left-scrim').classList.add('show');
+  syncCreateControl();
+  jLog('panel_opened', { rooms: S.rooms.length }, 'ok');
+}
+
+(function () {
+  var _jEnterRoom = enterRoom;
+  enterRoom = function (id) {
+    /* A session opened from an invite carries its payload; apply it before the
+       room is entered so transcription and translation start in the right
+       languages rather than a stale pair. */
+    try { if (S.invitePayload && S.invitePayload.r === id) applyInvitePayload(S.invitePayload); } catch (_) {}
+    var r = _jEnterRoom.apply(this, arguments);
     try {
-      if (typeof _relayWs !== 'undefined' && _relayWs) {
-        RLY.main = rlyWatch(_relayWs, 'main', S.roomId);
-        rlyLog('connect_called', { room: String(S.roomId || '').slice(-6), socketsBefore: before });
-      }
-    } catch (e) { rlyLog('connect_watch_failed', { e: String(e && e.message || e) }); }
+      var btn = $('room-menu-btn');
+      if (btn && btn.style.display === 'none') { btn.style.display = ''; jLog('room_switcher_restored', {}, 'ok'); }
+      var room = roomById(id);
+      if (room) jLog('entered', { room: String(id).slice(-6), myLang: room.myLang, theirLang: room.theirLang, role: room.role }, 'ok');
+    } catch (e) { jLog('enter_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
   };
 })();
 
 (function () {
-  var _rlyDisconnect = relayDisconnect;
-  relayDisconnect = function () {
-    rlyLog('disconnect_called', { sockets: rlySockets().total });
-    return _rlyDisconnect.apply(this, arguments);
-  };
+  var _jRenderPanel = renderPanel;
+  renderPanel = function () { var r = _jRenderPanel.apply(this, arguments); syncCreateControl(); return r; };
 })();
 
-(function () {
-  var _rlySend = relaySend;
-  relaySend = function (m) {
-    var ok = _rlySend.apply(this, arguments);
-    try {
-      if (RLY.main) { RLY.main.sent++; RLY.main.lastSentAt = rlyNow(); }
-      /* Only report the sends that matter; a heartbeat every thirty seconds is
-         noise until it is the last thing before a close, which the close line
-         already reports through sinceSentMs. */
-      if (!m || m.type !== 'ping') rlyLog('send', { type: m && m.type, ok: ok !== false, state: (typeof _relayWs !== 'undefined' && _relayWs) ? _relayWs.readyState : 'none' });
-      else if (RLY.main) RLY.main.lastPingAt = rlyNow();
-    } catch (_) {}
-    return ok;
-  };
-})();
-
-(function () {
-  var _rlyHandle = handleRelay;
-  handleRelay = function (d) {
-    try { rlyLog('rx', { type: d && d.type, seq: d && d.seq }); } catch (_) {}
-    return _rlyHandle.apply(this, arguments);
-  };
-})();
-
-/* The heartbeat interval against the observed close timing is the single most
-   discriminating fact available: a socket that dies before its first heartbeat
-   is being timed out, not dropped. */
-(function () {
-  var _rlyStartHB = startHB;
-  startHB = function () {
-    rlyLog('heartbeat_started', { everyMs: (typeof HEARTBEAT_MS !== 'undefined') ? HEARTBEAT_MS : null });
-    return _rlyStartHB.apply(this, arguments);
-  };
-})();
-
-(function () {
-  var _rlyOpen = LISTEN.open;
-  LISTEN.open = function (room) {
-    var before = rlySockets().total;
-    var r = _rlyOpen.apply(this, arguments);
-    try {
-      var ws = this.socks && this.socks[room.id];
-      if (ws) {
-        RLY.listen[room.id] = rlyWatch(ws, 'listen', room.id);
-        rlyLog('listen_requested', { room: String(room.id).slice(-6), socketsBefore: before });
-      }
-    } catch (e) { rlyLog('listen_watch_failed', { e: String(e && e.message || e) }); }
-    return r;
-  };
-})();
-
-(function () {
-  var _rlyLSend = LISTEN.send;
-  LISTEN.send = function (roomId, m) {
-    var ok = _rlyLSend.apply(this, arguments);
-    try {
-      var rec = RLY.listen[roomId];
-      if (rec) { rec.sent++; rec.lastSentAt = rlyNow(); }
-    } catch (_) {}
-    return ok;
-  };
-})();
-
-(function () {
-  var _rlyLHandle = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    try { rlyLog('listen_rx', { room: String(roomId).slice(-6), type: d && d.type }); } catch (_) {}
-    return _rlyLHandle.apply(this, arguments);
-  };
-})();
-
-/* A standing census, so the socket count over time is on the record even when
-   nothing opens or closes. */
 if (typeof document !== 'undefined') {
-  setTimeout(function () { rlyCensus('boot'); }, 1500);
-  RLY.censusTimer = setInterval(function () { rlyCensus('tick'); }, 20000);
-  try {
-    document.addEventListener('visibilitychange', function () {
-      rlyCensus(document.hidden ? 'hidden' : 'visible');
-    });
-  } catch (_) {}
+  setTimeout(function () { try { syncCreateControl(); } catch (_) {} }, 400);
 }
 
 </script>
