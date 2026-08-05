@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.5.0 -->
-# TALKBRIDGE MASTER PLAN v9.5.0
+<!-- TALKBRIDGE-PLAN v9.6.0 -->
+# TALKBRIDGE MASTER PLAN v9.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,7 +157,7 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn22.html` — device-passed 2026-08-05. Rollback floor.**
+**Baseline: `bridge-turn23-base.html` — device-passed 2026-08-05 (room card, then joiner shell). Rollback floor.**
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -190,10 +190,10 @@ screen.
 | # | Input | Output | Scope | Visible |
 |---|---|---|---|---|
 | 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
-| 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Relay stability.** Invisible. Blocker for everything two-sided. Scope in §6a. | No |
-| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Joiner shell.** The joiner gets the full shell and no create control. No elevation, no grant, no expiry. Scope in §6b. | Yes |
-| 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Room lifecycle, naming, elevation.** The credential mechanism end to end, observed in the shell release 3 built. Scope in §6c. | Yes |
-| 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Call and network robustness.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
+| ~~2~~ | — | — | **Relay stability — dropped.** Instrumented, then overtaken: the joiner shell passed its two-device gate with chat flowing both ways, so the drops seen earlier were not a blocker. Not scheduled. If they return, instrument first. | — |
+| ~~3~~ | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Joiner shell — PASSED 2026-08-05.** Full shell, no create control, credential-gated. The invite is authoritative for both languages and the room name, and is refused for a room this device created. | Yes |
+| **4** | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — NEXT.** The credential mechanism end to end, observed in the shell. Scope in §6c. | Yes |
+| 5 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
 | 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
@@ -261,6 +261,20 @@ The credential mechanism, end to end, now observable in the shell release 3 buil
 - Soft delete writes "left the chat" to the partner's transcript and locks sending.
 - Restore writes "rejoined", and that entry — not the restoration — releases the lock.
 - The compose strip shows the lock rather than failing silently.
+
+**Where granted credentials live — owner ruling 2026-08-05**
+
+Granted credentials are stored under their **own keys**, never over the device's
+own. A device may already be an initiator with its own credentials; if a grant
+were written over them, a later revoke or expiry would delete keys that were
+never granted, and the device would silently lose capability it always had.
+
+- Own credentials: the existing keys, written only by the keys screen.
+- Granted credentials: separate keys, written only by opening a grant link.
+- Reads fall back — own first, granted second — so a device with both keeps
+  working on its own after a grant ends.
+- Revoke and expiry delete **only** the granted keys.
+- The create control is present if either set is valid.
 
 **Forbidden here**
 - Permission flags, role checks, read-only modes.
@@ -367,6 +381,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.6.0 · 2026-08-05.** Joiner shell **passed** its two-device gate: full shell,
+no create control, chat both ways, Spanish/English with normalization working on
+a new room. `bridge-turn23-base.html` is the new baseline. Relay stability is
+**dropped** from the chain — it was instrumented and then overtaken by a passing
+two-device gate, so the earlier drops were not the blocker they appeared to be.
+One regression found and fixed inside the release: the invite payload was applied
+to rooms this device created, swapping the creator's own two languages and
+translating every message backwards on both sides; it is now refused for
+creator-owned rooms. New owner ruling recorded in §6c: **granted credentials get
+their own storage keys**, so a grant never overwrites and a revoke never deletes
+a device's own credentials.
 
 **v9.5.0 · 2026-08-05.** Every turn23 stage now has an explicit bulleted scope
 (§6a–§6d) instead of a pointer to one shared section. Owner ruling: **the joiner
