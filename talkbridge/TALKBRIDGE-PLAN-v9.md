@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.3.0 -->
-# TALKBRIDGE MASTER PLAN v9.3.0
+<!-- TALKBRIDGE-PLAN v9.4.0 -->
+# TALKBRIDGE MASTER PLAN v9.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -190,8 +190,8 @@ screen.
 | # | Input | Output | Scope | Visible |
 |---|---|---|---|---|
 | 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
-| 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Room lifecycle and the credential mechanism.** Full detail in §6. The card from release 1 gains its real room name, its soft-delete notice and its send-lock. **Room name is the key negotiation between the two sides** — the initiator specifies it at creation, the joiner can only join it, and only the initiator may rename it later. Without it there is no stable handle by which the two sides identify a shared room, which is why this now precedes joiner parity. | Yes |
-| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Joiner shell parity.** Full shell — room list, cards, drawer, phrasebook, transcript, reusing release 1's card. Correct book direction from the joiner's own perspective, new room or re-entered. Badges from the joiner side. Mic centred in the ribbon rides here **on written approval**. **Attempted once and rolled back** — chat did not flow between the two sides and the cause was not found; see the graveyard. Two things must be true before it is retried: the room name must exist, because it is the handle the two sides identify a shared room by, and the change in relay subscriptions must be declared rather than inherited. Unhiding the room list makes a joiner open one background socket per room where it previously opened one in total; that is a deliberate decision, not a side effect. | Yes |
+| 2 | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Relay stability.** The relay drops with code 1006 every ten to thirty seconds on both sides, reconnecting and dropping again, on new and existing rooms alike. Messages are sent, re-sent and never arrive. **No two-sided release can be gated until this stops.** Instrument the whole relay path first — connect, close code, retry timing, how many sockets are open and to which rooms — read the log, then fix. Invisible. | No |
+| 3 | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle and joiner parity — one release.** Full scope in §6. Attempted twice, split in both directions, rolled back both times: parity first has no room name to identify a shared room by, lifecycle first has no shell in which its credential half can be observed. There is no intermediate state of the application where one is meaningful without the other. | Yes |
 | 4 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call engine completion.** Mute by track replacement so mute is total. Force reconnect on visibility and focus return. Instrument and then fix the ~12s transcription disconnect and the ~30s delivery lag if the cause is inside the call engine. Blast radius: the call object and its signal handlers only. | No |
 | 5 | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Remaining invisible plumbing.** Phrasebook version rulings verified against the ruling text — no bump on entry, ingest highest, staleness check before pull, write-back before pull. Proactive relay reconnect on visibility return. Enter-in-source caret. Anything release 4 found outside the call engine. | No |
 | 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
@@ -199,69 +199,56 @@ screen.
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
 | later | — | `bridge-turn24-pre-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
 
-**Sequencing rationale.** Visible work first, in dependency order. The card is
-the surface everything else is displayed on, so it is built first. The room
-lifecycle comes next, because the room name is the handle by which an initiator
-and a joiner identify a shared room — without it a joiner test has nothing stable
-to test against, which is what sank the first attempt at parity. The joiner shell
-then follows, and the credential half of the lifecycle is finally observable in
-it. The two invisible releases sit behind all of it because the engine already
-passed a two-phone gate at turn22: it is working, not broken, and what remains in
-them are refinements, not blockers.
+**Sequencing rationale.** The card is the surface everything else is displayed
+on, so it is built first. Relay stability comes next and is not optional: two
+sides that cannot stay connected cannot gate anything, and two attempts were
+spent discovering that the hard way. Then lifecycle and joiner parity together,
+as one mechanism. The remaining invisible releases sit behind them because the
+call engine already passed a two-phone gate at turn22 — it is working, not
+broken, and what remains in them are refinements.
 
 ---
 
-## 6 · RELEASE 2 IN FULL — room lifecycle and the credential mechanism
+## 6 · RELEASE 3 IN FULL — room lifecycle and joiner parity
 
-**One release because it is one mechanism.** Credentials in local storage are the
-only thing that makes a device initiator-capable. Every capability difference
-already flows from that through existing credential-gated code. Build the
-presence and absence of credentials and let the existing checks do the rest.
+**One release, because it is one mechanism seen from two ends.** Credentials in a
+device's own storage are the only thing that makes it initiator-capable. The
+initiator end writes and revokes them; the joiner end receives, holds, loses and
+acts on them. Neither end can be gated alone: that has now been attempted in both
+orders and rolled back both times.
 
-**Creation dialog, complete.** Your language · partner language · room name as a
-real field, the thread topic · auto-read defaulting off · "Grant initiator
-status" toggle with a calendar picker defaulting to 30 days · Cancel · OK.
-The room name lives here because this is where it is set.
+### Surfaces this release touches, and why
 
-**The grant link.** Toggle on turns an ordinary invite into a grant link
-carrying the granter's working credentials plus the chosen expiry. Toggle off
-gives a plain invite with no credentials. A third link type, distinct from the
-plain room invite and from Link-a-device.
+| Surface | Change | Why it is in this release |
+|---|---|---|
+| **Create dialog** | Room name field; auto-read defaulting off; grant toggle with a date picker defaulting to 30 days | The room name is the handle by which the two sides agree they are in the same conversation. The grant decision is made once, here, and the link cannot drift from it afterwards. |
+| **Invite link builder** | A third link type carrying a grant marker and an expiry | The credentials were always in the invite; a grant is that payload made persistent with a lifetime. Nothing new is distributed. |
+| **Share control in the room drawer** | Must emit the granting link for a granting room | Attempt 2 produced a granting room whose joiner reported a plain join. Whichever control the owner actually uses must be the one that carries the grant. |
+| **Join path** | Writes credentials to storage with the expiry when the link is a grant; still memory-only otherwise | This write, and nothing else, is what confers capability. |
+| **Panel / room list** | Opens for a joiner; create control gated on stored credentials | The joiner cannot observe or act on any of the above without a shell. The create control is not role-gated — it follows the credentials, so it needs no change when a grant arrives or expires. |
+| **Room switcher in the ribbon** | Shown for a joiner | Same reason. |
+| **Relay subscriptions** | A joiner with N rooms opens N background sockets where it previously opened one | A real load change, declared deliberately rather than inherited from unhiding the room list. Depends on release 2 having made the relay stable. |
+| **Room card** | Shows the room name; delete carries lifecycle meaning | Built in release 1; this is what puts a real name in it. |
+| **Delete / restore** | Soft delete sends "left the chat" and locks sending, and revokes the grant issued from that room; restore sends "rejoined", which releases the lock, and reinstates the grant | Revocation and reinstatement are the same credential mechanism, and the notices are what make them visible. |
+| **Expiry check** | At boot and on room entry, delete credentials past their date | A device closed past the expiry must find out the moment it opens. |
+| **Compose strip** | Disabled while the send-lock is on | The lock has to be visible or it looks like a failure. |
+| **Rename** | Creator only; ellipsis everywhere, never wraps | Only the initiator owns the name. |
 
-**The joiner's side.** Opening a grant link writes those credentials into the
-joiner's own local storage with the expiry attached. That write — and nothing
-else — makes the device initiator-capable. No flag is set.
+### What this release must not do
 
-**Global, peer to peer.** Granted by whoever currently holds valid credentials.
-No root authority, no registry. Granting is sharing your own working
-credentials, which is the built-in reason to be circumspect. A device that
-received credentials can grant further.
+- No permission flags, no role checks, no read-only modes. Capability is the
+  presence or absence of credentials and nothing else.
+- No `typeof` guard around a function another part provides. If a part needs it,
+  it ships in that part. Attempt 2 silently did nothing because a dependency had
+  been rolled back and the guard swallowed it.
+- No new credential distribution. The invite already carries them.
 
-**Expiry.** When the date passes, the device deletes the credentials. The
-new-room control disappears, transcription stops, translation stops — every one
-a consequence of the deletion, none separately coded.
+### Gate
 
-**Soft delete revokes; restore reinstates.** *Owner ruling 2026-08-05, extending
-SOT 13.4, which had expiry as the only removal path.* Deleting a room revokes
-the joiner's credentials from their local storage, enforced the next time that
-device opens a room or tries to create one. Restoring the room returns them.
-
-**Delete and restore notices.** Deleting logs "left the chat" in the partner's
-transcript and refuses new messages in that room from that point. Restoring logs
-"rejoined", and that entry — not the restoration itself — releases the
-send-lock.
-
-**Rename.** Creator only. Long names ellipsise everywhere they appear — card,
-drawer, ribbon popup — and never wrap.
-
-**Gate:** two phones plus a forced expiry.
-
-**Pilot scale.** No revoke beyond the above, no rotation, no backend. Mitigation
-for a rogue grantee is disabling the credential at source and scoping the shared
-GitHub token to the phrasebook repository only. A real backend past roughly
-twenty users is future work, not actionable now.
-
----
+Two physical devices, not two browsers. Create a named room with the grant on;
+join from the second device; confirm the name matches on both sides, the joiner
+reaches its room list and drawer, and the create control is present there and
+absent on a plain join. Then force an expiry, delete the room, and restore it.
 
 ## 6a · RELEASE 1 — the room card, per SOT Part 4
 
@@ -289,7 +276,7 @@ missed video call are three distinct, separately tracked and separately
 displayed badges.
 
 **Delete is a soft delete**, recoverable, and carries the notice and send-lock
-behaviour built in release 2.
+behaviour built in release 3.
 
 ---
 
@@ -341,6 +328,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.4.0 · 2026-08-05.** `bridge-turn23-base.html` (room lifecycle) failed its
+device gate and was rolled back; graveyard 1.6. Owner ruling: **room lifecycle
+and joiner parity are one release** — attempted in both orders, rolled back both
+times, and there is no intermediate state of the application in which one is
+meaningful without the other. §6 is rewritten as a real scope: every surface the
+release touches, why it is there, what it must not do, and the gate. A new
+release is inserted ahead of it for **relay stability** — the relay drops every
+ten to thirty seconds on both sides, which makes any two-sided gate meaningless,
+and it is undiagnosed. Also recorded: a `typeof` guard around a rolled-back
+dependency turned a missing credential check into a silent no-op; that pattern is
+now forbidden. Nine releases.
 
 **v9.3.0 · 2026-08-05.** `bridge-turn23-base.html` (joiner shell parity) failed
 its device gate — chat did not flow between the two sides, root cause not found —
