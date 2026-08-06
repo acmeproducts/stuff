@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.6.0 -->
-# TALKBRIDGE MASTER PLAN v9.6.0
+<!-- TALKBRIDGE-PLAN v9.7.0 -->
+# TALKBRIDGE MASTER PLAN v9.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,7 +157,7 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn23-base.html` — device-passed 2026-08-05 (room card, then joiner shell). Rollback floor.**
+**Baseline: `bridge-turn23-pre-ship.html` — device-passed 2026-08-06 (room card, joiner shell, room lifecycle and elevation). Rollback floor.**
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -192,8 +192,8 @@ screen.
 | 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
 | ~~2~~ | — | — | **Relay stability — dropped.** Instrumented, then overtaken: the joiner shell passed its two-device gate with chat flowing both ways, so the drops seen earlier were not a blocker. Not scheduled. If they return, instrument first. | — |
 | ~~3~~ | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Joiner shell — PASSED 2026-08-05.** Full shell, no create control, credential-gated. The invite is authoritative for both languages and the room name, and is refused for a room this device created. | Yes |
-| **4** | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — NEXT.** The credential mechanism end to end, observed in the shell. Scope in §6c. | Yes |
-| 5 | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
+| ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
+| **5** | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — NEXT.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
 | 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
@@ -345,6 +345,13 @@ It moves into the chain only by owner ruling.
   must happen when the translation returns, not when the edit is submitted.
 - **Phrasebook: back-translation.** Behaviour, verdict lifecycle, staleness.
 - **Phrasebook: the clarify stream.**
+- **Room name changes do not propagate.** Changing either person's name is
+  reflected on the other side immediately; renaming the room is not. The rename
+  needs the same relay path the person-name change already uses.
+- **Enter should close the room config dialog.** In the create dialog Enter now
+  commits the field rather than dismissing it, which was the fix. In the room
+  config dialog the opposite is wanted: Enter on the person name or the room
+  name should commit and close.
 - **Undiagnosed:** transcription disconnect roughly every 12 seconds during a
   call; approximately 30 second initial delivery lag when the recipient is on
   the home screen. Instrument before touching either.
@@ -381,6 +388,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.7.0 · 2026-08-06.** Room lifecycle, naming and elevation **passed** its
+two-device gate — soft delete and restore confirmed working end to end.
+`bridge-turn23-pre-ship.html` is the new baseline. One fault found and fixed
+inside the release: the invite link was built before the room knew its name or
+that it granted, so the link carried neither; fields are now captured ahead of
+room creation and applied before entry. Two items added to the backlog: room
+renames do not propagate to the other side, and Enter should close the room
+config dialog.
 
 **v9.6.0 · 2026-08-05.** Joiner shell **passed** its two-device gate: full shell,
 no create control, chat both ways, Spanish/English with normalization working on
