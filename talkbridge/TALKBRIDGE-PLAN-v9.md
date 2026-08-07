@@ -435,6 +435,79 @@ transcription socket stops rather than churning.
 
 ---
 
+## 6c · RELEASE 6 — ROOM MENU SURFACE
+
+One surface: the room drawer, plus the transcription lifecycle faults the last
+gate exposed. Nothing outside the drawer changes visually.
+
+### Transcription lifecycle — from the turn23-ship log
+
+- **Stop transcription on mute; start it again on unmute.** Every `1011` close
+  in the gate log happened while muted, roughly every fourteen seconds, and none
+  while the microphone was live. The service closes a socket it is not being fed,
+  and mute now genuinely stops the audio — so the app was holding an open socket
+  starved of input and reopening it for the rest of the call. Mute is total, so
+  transcription should stop, not idle.
+- **Stop reporting network drops as credential failures.** Three
+  `dg_credential_failure` entries during the gate were `1006` closes while the
+  network was down. Any socket closing before it opens is currently blamed on
+  credentials, which is wrong and makes the log lie during exactly the trouble
+  it should describe.
+
+### Drawer restructure
+
+- The two items on the **Share** tab move to the bottom of **General**, so
+  General has room to grow and the share controls stop occupying a tab of their
+  own.
+- The **Debug** tab is renamed **Manage**. It stops being a developer corner and
+  becomes where a person manages what the room holds.
+
+### Manage tab — the full transcript lifecycle
+
+- Export transcript · **Import transcript** · Clear transcript.
+- Export debug log · Clear debug log.
+- Import is what makes the lifecycle whole: without it, export is a one-way
+  door and a cleared or moved transcript is unrecoverable.
+
+### Room name parity
+
+Both sides may rename the room, and the change propagates immediately, exactly
+as person names already do. Parity carries the day: a communications product
+where one party can rename a shared thing and the other cannot is harder to
+explain than one where both can, and the person-name path already works this way
+and is understood.
+
+This closes the standing backlog item that renames do not propagate.
+
+### Also in scope, because it is this surface
+
+- Enter on the person name or the room name in the room config dialog commits
+  and closes the dialog.
+
+### OPEN QUESTIONS — to be answered before any code is written
+
+1. **Import semantics.** Merge into the existing transcript, or replace it?
+   Merging needs a rule for duplicates — message identity is available, so
+   dedupe by it is possible. Replacing is simpler and more predictable.
+2. **Import mismatch.** What happens when an imported transcript's language pair
+   does not match the room's? Refuse, warn and import anyway, or import and
+   leave the entries as they are?
+3. **Clear transcript — whose?** Local only, or both sides? Local only is safe
+   and obvious. Both sides is closer to a shared object but is destructive to
+   someone else's copy, which nothing else in the app does.
+4. **Export format.** A readable text export and a re-importable structured one
+   are different files. One format that is both, or two separate actions?
+5. **Rename conflict.** With both sides able to rename, two renames crossing on
+   the wire need a rule. Last write wins is the simplest and matches how the
+   person name already behaves — confirm that is acceptable.
+6. **Does the Manage tab keep a way into the diagnostics overlay?** The log
+   itself is still needed; only the tab is being renamed.
+
+None of these are blocking questions for the *shape* of the release, but each
+changes what gets built, so all six close before the build starts.
+
+---
+
 ## 6b · BACKLOG — not scheduled, not in the chain
 
 Nothing here is a release. Nothing here is picked up as part of another release.
@@ -534,6 +607,28 @@ installed app, so installability and push were always one piece of work.
 standalone value — a home-screen icon and a full-screen window — independent of
 notifications.
 
+### Never built, and long assumed present
+
+- **PWA install.** There is no manifest and no service worker in the file. It was
+  scheduled in an abandoned turn chain and lost with it. It has been treated as
+  present in conversation since. It is a prerequisite for push on iOS, so it
+  belongs with the notifications release rather than standing alone — recorded
+  here so it stops being assumed.
+- **Real flag graphics.** Flags are currently emoji glyphs. The spec calls for
+  real flag glyphs and a flag motif on the ask screens. Cosmetic release.
+- **Bubble header background colour.** The customize tab themes bubble
+  background and font colour. The header strip inside the bubble has no
+  background colour of its own and was asked for.
+
+### Inventoried but not present in the current build
+
+Found by comparing the UI inventory against `bridge-turn23-ship.html`. Each needs
+an owner ruling on whether it is still wanted:
+
+- Import-phrases modal for the phrasebook (inventory 12.3).
+- Status detail popup from a receipt tap (inventory 12.6).
+- Goodbye screen (referenced in an earlier turn's scope, absent now).
+
 ### Undiagnosed
 - Transcription disconnect roughly every twelve seconds during a call. Reopen
   gaps are now timestamped in the log, which is where the answer will come from.
@@ -584,6 +679,18 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
+the **room menu surface** and written out in full in §6c with six open questions
+to close before the build. It now carries the two transcription-lifecycle faults
+the last gate exposed — transcription starving itself while muted, and network
+drops being reported as credential failures — plus the drawer restructure,
+Manage tab with the full export/import/clear lifecycle, and room name parity in
+both directions. Backlog gains three long-assumed-present items found by
+inspection: **there is no PWA** (no manifest, no service worker — it was lost
+with an abandoned turn chain), flags are emoji rather than real glyphs, and the
+bubble header has no themeable background. Three further inventoried surfaces
+were found absent and need a ruling.
 
 **v9.8.0 · 2026-08-06.** Call and network robustness **passed** its two-device
 gate. `bridge-turn23-ship.html` is the new baseline. Backlog rewritten and
