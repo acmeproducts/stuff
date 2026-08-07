@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.8.0 -->
-# TALKBRIDGE MASTER PLAN v9.8.0
+<!-- TALKBRIDGE-PLAN v9.9.0 -->
+# TALKBRIDGE MASTER PLAN v9.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -194,7 +194,7 @@ screen.
 | ~~3~~ | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Joiner shell — PASSED 2026-08-05.** Full shell, no create control, credential-gated. The invite is authoritative for both languages and the room name, and is refused for a room this device created. | Yes |
 | ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
 | ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
-| **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
+| **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room menu surface — NEXT.** Tab restructure, transcript lifecycle (export / import / clear), room-name parity, and two transcription-lifecycle fixes. Full scope in §6e. | Yes |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
 | later | — | `bridge-turn24-pre-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
@@ -333,6 +333,108 @@ behaviour built in release 3.
 
 ---
 
+## 6e · RELEASE 6 IN FULL — the room menu surface
+
+Everything in this release lives on one surface: the room drawer. That is why
+these items travel together — the tabs are being rearranged, so anything that
+belongs on them is done now rather than touching the surface twice.
+
+### Tab restructure
+
+- **Share tab is removed.** Its two items — *Share room* and *Link a device* —
+  move to the **bottom of General**, which then grows vertically to hold them.
+- **Debug tab is renamed Manage.** "Debug" describes where the controls came
+  from, not what they do.
+- Three tabs remain: **General · Customize · Manage.**
+
+### Manage tab — the full transcript lifecycle
+
+Today Manage holds two exports and nothing else, which is half a lifecycle.
+
+- **Export transcript** — existing.
+- **Import transcript** — new. Restores an exported transcript into the room.
+- **Clear transcript** — new. Empties this room's transcript.
+- **Export debug log** — existing.
+- **Clear debug log** — new.
+
+Delete stays on the room card, where it already works, and is not duplicated
+here. Export before delete is offered from the delete flow, not from Manage.
+
+### Room name parity
+
+Person names already propagate in both directions and are reflected
+immediately. Room names do not — either side can change one and the other side
+never sees it, which is the disconnect being fixed.
+
+**Approach: parity.** Both sides may rename; the change propagates over the same
+relay path the person-name change already uses; last write wins; a system pill
+records who renamed it and to what. See §6f for why, and for the alternative.
+
+### Two transcription-lifecycle fixes
+
+Carried in because they are lifecycle, and the log from the last gate identified
+both precisely.
+
+- **Stop transcription on mute; start it on unmute.** Every `1011` close in the
+  last session happened while muted, roughly every fourteen seconds, and none
+  happened while the microphone was live. The service closes a socket that stops
+  receiving audio; mute is now total, so the socket starves and the app reopens
+  it forever. Holding an open socket fed nothing is the fault. Mute is total —
+  transcription should stop with it.
+- **Stop reporting network failures as credential failures.** Three
+  `dg_credential_failure` entries in the last session were `1006` closes during
+  a network interruption that had already dropped the call. Any socket that
+  closes before opening is currently blamed on credentials, which is wrong
+  whenever the network is down, and it puts a false diagnosis in the log.
+
+### Gate
+
+Two devices. Rename the room from each side and confirm both see it. Export a
+transcript, clear it, import it back. Mute during a call and confirm the
+transcription socket stops rather than churning.
+
+---
+
+## 6f · OPEN QUESTIONS — release 6
+
+**These need answers before the release is built.**
+
+1. **Room name: parity or initiator-only?**
+   The owner's position is parity, and I agree. Two reasons beyond ease of
+   explanation. First, the mechanism already exists and is proven — person names
+   use it today, so parity is the smaller change and read-only is the larger
+   one. Second, read-only would introduce a second capability model sitting
+   beside the credential model, where a joiner is restricted by role rather than
+   by what credentials they hold; that is the thing this project has
+   deliberately avoided everywhere else. **Recommendation: parity.**
+
+2. **Import — merge or replace?**
+   Replacing loses anything said since the export. Merging needs a rule for
+   entries that exist on both sides. **Recommendation: merge by entry
+   identifier, keeping the existing entry on collision, so an import can only
+   ever add.** Needs a ruling.
+
+3. **Import — foreign transcripts?**
+   Should a transcript exported from one room be importable into a different
+   room, or is import restricted to the room it came from? **Recommendation:
+   restrict to the same room**, with a clear message otherwise. Needs a ruling.
+
+4. **Clear transcript — recoverable?**
+   Is clearing final, or does it go somewhere recoverable the way room delete
+   does? **Recommendation: offer an export first**, then clear finally. Needs a
+   ruling.
+
+5. **Does clearing a transcript affect the phrasebook?**
+   They are separate stores and the phrasebook lives on GitHub.
+   **Recommendation: no — clear touches the transcript only.** Confirm.
+
+6. **What does an export contain?**
+   Typed and spoken lines both, in both languages, is assumed. Open: whether
+   attachments are included or referenced, and whether system pills are
+   included.
+
+---
+
 ## 6b · BACKLOG — not scheduled, not in the chain
 
 Nothing here is a release. Nothing here is picked up as part of another release.
@@ -402,6 +504,36 @@ wanted: Enter on the person name or the room name should commit and close.
 - Back-translation behaviour, verdict lifecycle, staleness.
 - The clarify stream.
 
+### Flag motif under-delivered — long-standing
+The flag band is a real image but rendered as a six-pixel strip with a
+cover-crop, where the spec calls for it fully opaque and sized to show the
+maximum number of flags. It is also absent from the room menu and drawer
+entirely. Flagged in a planning session on 2026-08-01 and not built since.
+
+### Bubble header background colour
+The customize tab can change the bubble colour and the font colour. The owner
+asked that the **bubble header** be able to change its background colour, not
+only its font colour. Not built.
+
+### Two-graphic mute icons and the bubble-header icon convention
+Camera mute is still a slash composited over the base icon. It should be two
+complete icon graphics swapped in and out. The bubble header should adopt the
+same convention more broadly: a microphone icon for transcribed chat, a phone
+icon for transcribed voice, a video icon for transcribed video. Long-standing.
+
+### Ear / Auto-read / Mute wording pass
+Owner flagged the current labels for rewording; the wording itself was never
+specified. Long-standing.
+
+### Installability
+The app is not installable on Android or iOS today — there is no manifest and no
+service worker. This is not an oversight in the sense of being lost: the plan
+places both in the push release, because Apple delivers web push only to an
+installed app, so installability and push were always one piece of work.
+**Open question: should installability be pulled forward on its own?** It has
+standalone value — a home-screen icon and a full-screen window — independent of
+notifications.
+
 ### Undiagnosed
 - Transcription disconnect roughly every twelve seconds during a call. Reopen
   gaps are now timestamped in the log, which is where the answer will come from.
@@ -440,6 +572,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
+**the room menu surface** (§6e), with its open questions written down and
+unanswered (§6f) so they are closed before anything is built. Share tab folds
+into General, Debug becomes Manage, the transcript lifecycle gains import and
+clear, room names get parity, and two transcription-lifecycle faults identified
+from the last gate log are carried in — transcription must stop on mute rather
+than starve an open socket, and network failures must stop being reported as
+credential failures. Backlog gains five items found by scanning the historical
+planning documents rather than the current session: the under-delivered flag
+motif, bubble-header background colour, two-graphic mute icons with the
+bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
 
 **v9.8.0 · 2026-08-06.** Call and network robustness **passed** its two-device
 gate. `bridge-turn23-ship.html` is the new baseline. Backlog rewritten and
