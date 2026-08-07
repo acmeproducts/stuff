@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.11.0 -->
-# TALKBRIDGE MASTER PLAN v9.11.0
+<!-- TALKBRIDGE-PLAN v9.11.1 -->
+# TALKBRIDGE MASTER PLAN v9.11.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -518,6 +518,13 @@ speaker. Without that it is decoration for one side and noise for the other.
 
 - The name is stored with the language it was written in, and translated for
   display to a viewer whose language differs.
+- **The popup shows both** — the name as it was written, and the translation —
+  because both carry context. The original is what the other person actually
+  called it, which is worth seeing; the translation is what it means. Showing
+  only one throws away half the information the pair holds, which is the same
+  reason every message shows both.
+- When the viewer's language is the language it was written in, there is only
+  one line to show.
 - Translated on receipt and cached, not on every render — a rename is rare and a
   render is constant.
 - Rename remains last-write-wins in both directions; the localization sits on
@@ -692,6 +699,11 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
+its translation, for the same reason every message shows both — the pair carries
+more context than either half. One line only when the viewer's language is the
+language it was written in.
+
 **v9.11.0 · 2026-08-06.** Three rulings. The receipt popup shows Sent, Received
 and Read, leaving unreached states blank rather than hidden. The room name popup
 opens on a single tap of the ribbon name — and **the room name is localized**,
@@ -722,6 +734,11 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
+its translation, for the same reason every message shows both — the pair carries
+more context than either half. One line only when the viewer's language is the
+language it was written in.
 
 **v9.11.0 · 2026-08-06.** Three rulings. The receipt popup shows Sent, Received
 and Read, leaving unreached states blank rather than hidden. The room name popup
