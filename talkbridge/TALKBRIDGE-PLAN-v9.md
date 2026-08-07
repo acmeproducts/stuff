@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.0.0 -->
-# TALKBRIDGE MASTER PLAN v10.0.0
+<!-- TALKBRIDGE-PLAN v10.1.0 -->
+# TALKBRIDGE MASTER PLAN v10.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -195,18 +195,19 @@ screen.
 | ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
 | ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
 | **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room menu surface — NEXT.** Tab restructure, transcript lifecycle (export / import / clear), room-name parity, and two transcription-lifecycle fixes. Full scope in §6e. | Yes |
-| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA foundation.** Manifest, service worker registered from the file, install prompt on Android, home-screen install path on iOS. Nothing user-visible except the install affordance. **Prerequisite for push** — the service worker is what receives it. | Yes |
-| 8 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: relay change, push subscription, notification tap routing. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room rollup. The only release that modifies the relay. | Yes |
-| 9 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Call surface.** Ribbon strip transformation — microphone fixed at centre, phone and video beside it, hang-up fixed beside video; voice shows mic and hang-up only, video shows mic, camera and hang-up. Call timer visible to the receiver as well as the caller. Multitasking during a call resolved, picture-in-picture being one option. | Yes |
-| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose and transcription.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. | Yes |
-| 11 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **Left panel and room menu.** Home is invoked by a single tap on the clock in the left panel's top ribbon; the room card that currently closes the panel to reach home is removed. Clear-both-sides added to Manage as an initiator-only power. | Yes |
-| 12 | `bridge-turn24-post-ship.html` | `bridge-turn25-pre-base.html` | **Phrasebook behaviour.** Editing the target rewrites the source. Back-translation behaviour, verdict lifecycle and staleness. The clarify stream. | Yes |
-| 13 | `bridge-turn25-pre-base.html` | `bridge-turn25-base.html` | **Phrase-desk reconciliation and import.** Reconcile `phrase-deck-v1` and `phrase-desk`, then build import once for both paths: phrases into the phrasebook, and transcripts from the structured export. Merge-or-replace and language-mismatch are answered here. | Yes |
-| 14 | `bridge-turn25-base.html` | `bridge-turn25-pre-ship.html` | **Appearance.** Real flag graphics and the flag motif on ask screens. Bubble header background colour in the customize tab. Icon-graphics rebuild; camera and mic mute as two complete icons rather than a composited slash, extended to bubble headers. Ear / TTS / Mute wording pass. | Yes |
-| 15 | `bridge-turn25-pre-ship.html` | `bridge-turn25-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last because it touches every call site. | No |
+| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA, OS push, smart home screen, and the call surface.** PWA foundation — manifest, service worker registered from the file, install on Android, home-screen install on iOS — ships here because the service worker is what receives a push and push cannot exist without it. Then locked and backgrounded push: relay change, subscription, notification tap routing. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room rollup. Call surface: ribbon strip transformation — microphone fixed at centre, phone and video beside it, hang-up fixed beside video; voice shows mic and hang-up only, video shows mic, camera and hang-up — and the call timer visible to the receiver as well as the caller. The only release that modifies the relay. | Yes |
+| 8 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Multitasking during a call.** Losing focus mutes the microphone. The back button enters picture-in-picture and **keeps the connection**. This closes the open question directly: the call stays up so multitasking works, and the microphone closes so nothing is picked up by a call the person has stopped looking at. | Yes |
+| 9 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Appearance.** Real flag graphics and the flag motif on ask screens. Bubble header background colour in the customize tab. Icon-graphics rebuild; camera and mic mute as two complete icons rather than a composited slash, extended to bubble headers. Ear / TTS / Mute wording pass. | Yes |
+| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose, transcription, left panel and room menu.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. Home invoked by a single tap on the clock in the left panel's top ribbon, with the room card that currently does it removed. Clear-both-sides added to Manage as an initiator-only power. | Yes |
+| 11 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **Phrasebook, end to end.** Editing the target rewrites the source. Back-translation behaviour, verdict lifecycle and staleness. The clarify stream. Then reconcile `phrase-deck-v1` and `phrase-desk`, and build import once for both paths — phrases into the phrasebook, transcripts from the structured export. Merge-or-replace and language-mismatch are answered here. | Yes |
+| 12 | `bridge-turn24-post-ship.html` | `bridge-turn25-pre-base.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last because it touches every call site. | No |
 
-**After release 15 the backlog is empty.** Nine releases remain after the one
+**After release 12 the backlog is empty.** Six releases remain after the one
 currently built. Nothing is parked without a number.
+
+*PWA is not a release of its own — it ships at the front of release 7 because
+push has no meaning without it. If it should stand alone, say so and it becomes
+release 7 with everything shifting by one.*
 
 **Sequencing rationale.** The card is the surface everything else is displayed
 on, so it is built first. Relay stability comes next and is not optional: two
@@ -823,6 +824,14 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
+releases total, six remaining after the one now built. Multitasking during a call
+becomes its own release and its open question is **closed by ruling** — losing
+focus mutes the microphone, and the back button enters picture-in-picture while
+keeping the connection, so the call survives multitasking and the microphone
+does not. PWA ships at the front of the push release rather than standing alone,
+since push cannot exist without the service worker.
+
 **v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
 item now has a release number and a home organised by separation of concerns:
 PWA foundation (7), OS push and smart home screen (8), call surface (9), compose
@@ -874,6 +883,14 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
+releases total, six remaining after the one now built. Multitasking during a call
+becomes its own release and its open question is **closed by ruling** — losing
+focus mutes the microphone, and the back button enters picture-in-picture while
+keeping the connection, so the call survives multitasking and the microphone
+does not. PWA ships at the front of the push release rather than standing alone,
+since push cannot exist without the service worker.
 
 **v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
 item now has a release number and a home organised by separation of concerns:
