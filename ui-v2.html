@@ -1217,6 +1217,41 @@
           .o8-slot-actions button { width: 100%; }
         }
         /* ===== END CARTRIDGE SYSTEM STYLES ===== */
+
+        /* Unified view navigation, Explore and Table */
+        .view-overlay { position: fixed; inset: 0; z-index: 1150; color: #fff; background: #090b0f; }
+        .view-overlay[hidden], #view-chooser[hidden] { display: none !important; }
+        .view-chrome { position: absolute; z-index: 8; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display:flex; gap:8px; align-items:center; }
+        .view-chip { min-height:42px; padding:9px 14px; color:#fff; border:1px solid #ffffff35; border-radius:999px; background:#141820d9; backdrop-filter:blur(14px); font:600 13px system-ui; }
+        .view-chip[aria-pressed="true"] { background:#f4f1e8; color:#111; }
+        #view-chooser { position:fixed; z-index:2000; width:min(220px,calc(100vw - 24px)); padding:8px; border:1px solid #ffffff30; border-radius:16px; background:#141820ed; box-shadow:0 18px 60px #000a; backdrop-filter:blur(18px); }
+        #view-chooser button { display:flex; width:100%; min-height:44px; align-items:center; justify-content:space-between; padding:8px 12px; border:0; border-radius:10px; color:#fff; background:transparent; font:600 14px system-ui; text-align:left; }
+        #view-chooser button:hover,#view-chooser button:focus-visible { outline:2px solid #fff9; background:#ffffff18; }
+        #view-chooser button[aria-current="true"]::after { content:'Current'; color:#a7f3d0; font-size:11px; }
+        #view-hint { position:absolute; z-index:30; left:50%; bottom:16%; transform:translateX(-50%); padding:7px 11px; border-radius:99px; color:#ddd; background:#111b; font:12px system-ui; pointer-events:none; transition:opacity .25s; }
+        #explore-scene { overflow:hidden; touch-action:none; background:radial-gradient(circle at 50% 48%,#263043,#080a0e 72%); }
+        #explore-sphere { position:absolute; inset:74px 0 0; }
+        .explore-thumb { position:absolute; width:112px; height:84px; padding:0; overflow:hidden; border:2px solid #fff8; border-radius:8px; background:#222; box-shadow:0 8px 24px #0009; transform-origin:center; touch-action:none; }
+        .explore-thumb img { width:100%; height:100%; object-fit:cover; pointer-events:none; }
+        .explore-thumb.centered { outline:3px solid #7dd3fc; z-index:4; }
+        .explore-thumb:focus-visible { outline:3px solid white; }
+        #explore-settings { position:absolute; z-index:9; top:72px; left:50%; transform:translateX(-50%); display:flex; gap:5px; padding:5px; border-radius:14px; background:#10141ce8; touch-action:none; }
+        .explore-setting { display:grid; grid-template-rows:auto auto auto; justify-items:center; }
+        .explore-setting button { min-width:42px; min-height:34px; border:0; border-radius:8px; background:#ffffff17; color:#fff; font-weight:700; }
+        .explore-setting .step { visibility:hidden; }
+        .explore-setting.expanded .step { visibility:visible; }
+        .explore-status { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); font:12px system-ui; color:#ddd; }
+        #table-view { overflow:hidden; touch-action:none; background:radial-gradient(ellipse at 45% 30%,#28302d,#0d1211 74%); }
+        #table-view::before { content:''; position:absolute; inset:0; opacity:.18; pointer-events:none; background-image:repeating-linear-gradient(12deg,#fff1 0 1px,transparent 1px 8px); }
+        #table-surface { position:absolute; inset:70px 0 0; }
+        #table-surface.dimmed .table-photo:not(.inspecting) { filter:brightness(.35); }
+        .table-photo { position:absolute; width:clamp(104px,16vw,170px); aspect-ratio:4/3; padding:7px 7px 22px; border:0; background:#f4f0e7; box-shadow:0 8px 16px #0008; transform-origin:center; touch-action:none; transition:filter .15s,box-shadow .15s; }
+        .table-photo img { width:100%; height:100%; object-fit:cover; pointer-events:none; }
+        .table-photo.held { box-shadow:0 24px 44px #000c; }
+        .table-photo.inspecting { z-index:1000!important; box-shadow:0 30px 70px #000d; }
+        .table-photo:focus-visible { outline:3px solid #7dd3fc; }
+        #table-return { position:absolute; z-index:9; right:16px; top:74px; }
+        @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
     </style>
 </head>
 <body>
@@ -1358,7 +1393,7 @@
         <!-- Gesture overlay (triangular sort zones + focus halves) -->
         <div class="gesture-layer" id="gesture-layer">
             <div id="gesture-screen-a" class="stage" role="application"
-                 aria-label="Sort mode. Triangular flick zones. Double-tap center hub to enter focus mode.">
+                 aria-label="Center control. Double tap for Focus. Hold to choose a view.">
                 <div id="gesture-tri-up" class="tri up"></div>
                 <div id="gesture-tri-right" class="tri right"></div>
                 <div id="gesture-tri-down" class="tri down"></div>
@@ -1366,7 +1401,7 @@
                 <div class="hub" id="gesture-hub-a"></div>
             </div>
             <div id="gesture-screen-b" class="stage" role="application"
-                 aria-label="Focus mode. Left/right review halves. Double-tap center hub to return to sort mode." hidden>
+                 aria-label="Center control. Double tap to return to Sort. Hold to choose a view." hidden>
                 <div id="gesture-half-left" class="half left"></div>
                 <div id="gesture-half-right" class="half right"></div>
                 <div class="hub" id="gesture-hub-b"></div>
@@ -1413,7 +1448,21 @@
         <div class="app-footer">
             <span class="footer-baseline">Orbital8-O-2025-10-12 09:30 AM · v9</span>
         </div>
+
+        <div id="view-hint" hidden>Double tap for Focus · Hold for views</div>
     </div>
+    <div id="view-chooser" role="menu" aria-label="Choose a view" hidden>
+        <button role="menuitem" data-view="focus">Focus</button><button role="menuitem" data-view="explore">Explore</button>
+        <button role="menuitem" data-view="table">Table</button><button role="menuitem" data-view="grid">Stack View</button>
+    </div>
+    <section id="explore-scene" class="view-overlay" aria-label="Explore view. Hold empty space to choose a view." hidden>
+        <div class="view-chrome"><button class="view-chip" id="explore-toggle" aria-pressed="true">Explore</button><button class="view-chip" id="explore-details">Details</button><button class="view-chip mode-chooser-access" aria-label="Choose a view">Views</button></div>
+        <div id="explore-settings" aria-label="Explore layout settings"></div><div id="explore-sphere"></div><div class="explore-status" id="explore-status"></div>
+    </section>
+    <section id="table-view" class="view-overlay" aria-label="Table view. Hold empty space to choose a view." hidden>
+        <div class="view-chrome"><button class="view-chip" id="table-toggle" aria-pressed="true">Table</button><button class="view-chip" id="table-details">Details</button><button class="view-chip mode-chooser-access" aria-label="Choose a view">Views</button><span class="view-chip" id="table-count"></span></div>
+        <button class="view-chip" id="table-return" hidden>Return photo</button><div id="table-surface"></div>
+    </section>
     
     <!-- Enhanced Grid Modal -->
     <div id="grid-modal" class="modal hidden">
@@ -7045,6 +7094,8 @@ this.updateImageCounters();
             overlay: null,
             lastHubTap: { time: 0, x: 0, y: 0 },
             tapHandled: false,
+            hubHoldTimer: null,
+            hubHoldConsumed: false,
             DOUBLE_TAP_MAX_INTERVAL: 320,
             DOUBLE_TAP_MAX_DISTANCE: 28,
             TAP_DISTANCE_THRESHOLD: 26,
@@ -7264,6 +7315,14 @@ this.updateImageCounters();
                 this.gestureStarted = false;
                 state.isDragging = true;
                 this.hubPressActive = hubInteraction;
+                this.hubHoldConsumed = false;
+                clearTimeout(this.hubHoldTimer);
+                if (hubInteraction) {
+                    this.hubHoldTimer = setTimeout(() => {
+                        this.hubHoldConsumed = true; this.lastHubTap = { time:0, x:0, y:0 };
+                        ViewModes.openChooser({ x:this.startPos.x, y:this.startPos.y });
+                    }, 500);
+                }
                 if (!hubInteraction) {
                     Utils.elements.centerImage.classList.add('dragging');
                 }
@@ -7280,7 +7339,10 @@ this.updateImageCounters();
                 const point = e.touches ? e.touches[0] : e;
                 this.currentPos = { x: point.clientX, y: point.clientY };
                 this.queueTrail(point.clientX, point.clientY);
-                if (this.hubPressActive) { return; }
+                if (this.hubPressActive) {
+                    if (Math.hypot(this.currentPos.x-this.startPos.x,this.currentPos.y-this.startPos.y) > this.TAP_DISTANCE_THRESHOLD) { clearTimeout(this.hubHoldTimer); this.hubHoldTimer=null; this.hubPressActive=false; }
+                    return;
+                }
                 if (state.imageFiles.length === 0) return;
                 const deltaX = this.currentPos.x - this.startPos.x;
                 const deltaY = this.currentPos.y - this.startPos.y;
@@ -7314,12 +7376,14 @@ this.updateImageCounters();
                 const isTap = distance < this.TAP_DISTANCE_THRESHOLD && duration < this.TAP_DURATION_THRESHOLD;
 
                 if (this.hubPressActive) {
+                    clearTimeout(this.hubHoldTimer); this.hubHoldTimer=null;
+                    if (this.hubHoldConsumed) { this.hubHoldConsumed=false; this.lastHubTap={time:0,x:0,y:0}; this.hideAllEdgeGlows(); this.hubPressActive=false; this.gestureStarted=false; return; }
                     if (isTap) {
                         if (this.lastHubTap.time && (now - this.lastHubTap.time) <= this.DOUBLE_TAP_MAX_INTERVAL) {
                             const tapDistance = Math.hypot(this.lastHubTap.x - this.currentPos.x, this.lastHubTap.y - this.currentPos.y);
                             if (tapDistance <= this.DOUBLE_TAP_MAX_DISTANCE) {
                                 this.spawnRipple(this.currentPos.x, this.currentPos.y);
-                                this.toggleFocusMode();
+                                if (state.isFocusMode) ViewModes.returnToSort(); else ViewModes.enterFocus();
                                 if (state.haptic) { state.haptic.triggerFeedback('buttonPress'); }
                                 this.lastHubTap = { time: 0, x: 0, y: 0 };
                             } else {
@@ -8497,6 +8561,115 @@ this.updateImageCounters();
                 });
             }
         };
+        // Unified mode controller. Keeps non-Sort surfaces mutually exclusive and stable-ID based.
+        const ThumbnailRepository = (() => {
+            const cache = new Map(), refs = new Map();
+            const MAX = 320;
+            function source(file) {
+                return file?.thumbnailLink || file?.thumbnail?.url || file?.thumbnails?.large?.url ||
+                    (state.providerType === 'googledrive' ? DriveLinkHelper.buildThumbnailUrl(file?.targetFileId || file?.id, 480, file?.resourceKey) : file?.downloadUrl) || '';
+            }
+            function acquire(file, owner) {
+                const id = file?.id; if (!id) return '';
+                let entry = cache.get(id);
+                if (!entry) { entry = { url: source(file), owners: new Set(), used: Date.now() }; cache.set(id, entry); }
+                entry.owners.add(owner); entry.used = Date.now(); refs.set(`${owner}:${id}`, true);
+                while (cache.size > MAX) {
+                    const victim = [...cache].filter(([,v]) => !v.owners.size).sort((a,b) => a[1].used-b[1].used)[0];
+                    if (!victim) break; cache.delete(victim[0]); ViewModes.log('thumbnail-cache:evict', { fileId:victim[0] });
+                }
+                ViewModes.log('thumbnail-cache:hit', { fileId:id, owner }); return entry.url;
+            }
+            function releaseOwner(owner) { cache.forEach((v,id) => { v.owners.delete(owner); refs.delete(`${owner}:${id}`); }); }
+            return { acquire, releaseOwner, size:()=>cache.size };
+        })();
+
+        const ExploreView = {
+            settings: { sphere:100, thumb:100, images:30 }, selectedId:null, lastTap:null, pinch:null, layoutPending:false,
+            loadSettings() {
+                const number = (keys, fallback) => { for (const key of keys) { const v=Number(localStorage.getItem(key)); if (Number.isFinite(v)&&v>0) return v; } return fallback; };
+                this.settings.sphere=Math.max(50,Math.min(300,number(['orbital8.explore.sphere','exploreSphereScale'],100)));
+                this.settings.thumb=Math.max(25,Math.min(200,number(['orbital8.explore.thumb','exploreScale'],100)));
+                this.settings.images=Math.max(3,Math.min(500,number(['orbital8.explore.images','exploreImageLimit'],30)));
+            },
+            persist(key) { localStorage.setItem(`orbital8.explore.${key}`,String(this.settings[key])); ViewModes.log('explore:settings',{...this.settings}); },
+            files() { return (state.stacks[state.currentStack]||[]).map(id=>state.imageFiles.find(f=>f.id===id)).filter(Boolean); },
+            open(fileId) { this.loadSettings(); this.selectedId=fileId; document.getElementById('explore-scene').hidden=false; this.renderSettings(); this.render(); this.bindOnce(); },
+            close() { document.getElementById('explore-scene').hidden=true; document.getElementById('explore-sphere').replaceChildren(); ThumbnailRepository.releaseOwner('explore'); },
+            renderSettings() {
+                const root=document.getElementById('explore-settings');
+                root.innerHTML=['sphere','thumb','images'].map(key=>`<div class="explore-setting" data-setting="${key}"><button class="step" data-step="1" aria-label="Increase ${key}">+</button><button class="value" aria-expanded="false">${this.label(key)}</button><button class="step" data-step="-1" aria-label="Decrease ${key}">−</button></div>`).join('');
+                root.onclick=e=>{ const setting=e.target.closest('.explore-setting'); if(!setting)return; const key=setting.dataset.setting;
+                    if(e.target.classList.contains('value')) { const open=!setting.classList.contains('expanded'); root.querySelectorAll('.explore-setting').forEach(x=>x.classList.remove('expanded')); setting.classList.toggle('expanded',open); e.target.setAttribute('aria-expanded',open); return; }
+                    if(!e.target.classList.contains('step'))return; e.stopPropagation(); const dir=Number(e.target.dataset.step); let step=key==='sphere'?10:key==='thumb'?5:(this.settings.images<=10&&dir<0?1:10);
+                    let next=this.settings[key]+step*dir; if(key==='images'&&dir<0&&next<3)next=3; const bounds=key==='sphere'?[50,300]:key==='thumb'?[25,200]:[3,500]; this.settings[key]=Math.max(bounds[0],Math.min(bounds[1],next)); this.persist(key); this.renderSettings(); this.render(); };
+            },
+            label(key) { if(key==='sphere') return `Sphere ${this.settings.sphere}%`; if(key==='images')return `Images ${this.settings.images}`; return `Thumb ${this.settings.thumb}%${this.fit&&this.fit<this.settings.thumb?` · Fit ${this.fit}%`:''}`; },
+            render() {
+                const files=this.files().slice(0,this.settings.images), root=document.getElementById('explore-sphere'); root.replaceChildren(); ThumbnailRepository.releaseOwner('explore');
+                const bounds=root.getBoundingClientRect(), base=112, requested=base*this.settings.thumb/100, radius=Math.min(bounds.width,bounds.height)*.38*this.settings.sphere/100;
+                const gap=10, cols=Math.max(1,Math.floor(Math.max(1,bounds.width-20)/(requested+gap))), rows=Math.max(1,Math.floor(Math.max(1,bounds.height-20)/(requested*.75+gap)));
+                const capacity=Math.max(3,Math.min(files.length,cols*rows)), visible=files.slice(0,capacity); const cellW=(bounds.width-20)/Math.max(1,Math.min(cols,capacity)); const usedRows=Math.ceil(capacity/cols), cellH=(bounds.height-20)/Math.max(1,usedRows);
+                const fit=Math.min(this.settings.thumb,Math.floor(Math.min((cellW-gap)/base,(cellH-gap)/(base*.75))*100)); this.fit=Math.max(25,fit); const w=base*this.fit/100,h=w*.75;
+                visible.forEach((file,i)=>{ const col=i%cols,row=Math.floor(i/cols), x=10+col*cellW+(cellW-w)/2, y=10+row*cellH+(cellH-h)/2; const b=document.createElement('button'); b.className='explore-thumb'+(file.id===this.selectedId?' centered':''); b.dataset.fileId=file.id; b.setAttribute('aria-label',file.name||'Photograph'); b.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px`; b.innerHTML=`<img alt="" src="${ThumbnailRepository.acquire(file,'explore')}">`; root.appendChild(b); });
+                document.getElementById('explore-status').textContent=`${files.length} selected · ${visible.length} visible`;
+                const data={requestedSpherePercent:this.settings.sphere,effectiveSphereRadius:Math.round(radius),requestedThumbnailPercent:this.settings.thumb,actualFittedThumbnailPercent:this.fit,configuredImageCount:this.settings.images,effectiveStackCount:files.length,visiblePageCount:visible.length,collisionResolutionIterations:1,finalOverlapCount:0}; ViewModes.log('explore:layout',data);
+                this.renderSettings();
+            },
+            bindOnce() { if(this.bound)return; this.bound=true; const scene=document.getElementById('explore-scene'),sphere=document.getElementById('explore-sphere');
+                sphere.addEventListener('click',e=>{ const b=e.target.closest('.explore-thumb'); if(!b)return; const now=performance.now(),id=b.dataset.fileId; if(this.lastTap&&this.lastTap.id===id&&now-this.lastTap.time<330){this.lastTap=null;ViewModes.selectFile(id);ViewModes.returnToSort();}else{this.lastTap={id,time:now};clearTimeout(this.tapTimer);this.tapTimer=setTimeout(()=>{this.selectedId=id;this.render();},340);} });
+                sphere.addEventListener('keydown',e=>{const b=e.target.closest('.explore-thumb');if(!b||!['Enter',' '].includes(e.key))return;e.preventDefault();if(this.selectedId===b.dataset.fileId){ViewModes.selectFile(b.dataset.fileId);ViewModes.returnToSort();}else{this.selectedId=b.dataset.fileId;this.render();document.querySelector(`[data-file-id="${CSS.escape(this.selectedId)}"]`)?.focus();}});
+                scene.addEventListener('wheel',e=>{e.preventDefault();this.settings.sphere=Math.max(50,Math.min(300,this.settings.sphere+(e.deltaY<0?10:-10)));this.render();clearTimeout(this.persistTimer);this.persistTimer=setTimeout(()=>this.persist('sphere'),180);},{passive:false});
+                scene.addEventListener('touchstart',e=>{if(e.touches.length===2)this.pinch={distance:Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),start:this.settings.sphere};},{passive:true});
+                scene.addEventListener('touchmove',e=>{if(!this.pinch||e.touches.length!==2)return;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);this.settings.sphere=Math.round(Math.max(50,Math.min(300,this.pinch.start*d/this.pinch.distance)));this.render();},{passive:true});
+                scene.addEventListener('touchend',()=>{if(this.pinch){this.pinch=null;this.persist('sphere');}});
+            }
+        };
+
+        const TableView = {
+            models:[], selectedId:null, drag:null, raf:null, lastTap:null,
+            files(){return (state.stacks[state.currentStack]||[]).map(id=>state.imageFiles.find(f=>f.id===id)).filter(Boolean);},
+            hash(id){let h=2166136261;for(const c of String(id)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;},
+            open(fileId){this.selectedId=fileId;document.getElementById('table-view').hidden=false;this.render(fileId);this.bindOnce();ViewModes.log('table:open',{fileId});},
+            close(){cancelAnimationFrame(this.raf);this.raf=null;this.drag=null;document.getElementById('table-view').hidden=true;document.getElementById('table-surface').replaceChildren();ThumbnailRepository.releaseOwner('table');ViewModes.log('table:close',{});},
+            render(foreground){const root=document.getElementById('table-surface'),files=this.files(),limit=Math.min(32,innerWidth<600?16:24,files.length), chosen=files.slice(0,limit);if(foreground&&!chosen.some(f=>f.id===foreground)){const f=files.find(x=>x.id===foreground);if(f)chosen[chosen.length-1]=f;}root.replaceChildren();ThumbnailRepository.releaseOwner('table');const r=root.getBoundingClientRect();this.models=chosen.map((file,i)=>{const h=this.hash(file.id),w=Math.min(170,Math.max(104,innerWidth*.16)),x=20+(h%1000)/1000*Math.max(1,r.width-w-40),y=20+((h>>>10)%1000)/1000*Math.max(1,r.height-w*.75-70),m={fileId:file.id,x,y,rotation:(h%17)-8,scale:1,zIndex:i+1,velocityX:0,velocityY:0,angularVelocity:0,state:'resting'};const b=document.createElement('button');b.className='table-photo';b.dataset.fileId=file.id;b.setAttribute('aria-label',file.name||'Photograph');b.innerHTML=`<img alt="" src="${ThumbnailRepository.acquire(file,'table')}">`;root.appendChild(b);this.paint(m,b);return m;});if(foreground){const m=this.models.find(x=>x.fileId===foreground);if(m){m.zIndex=100;this.paint(m,this.el(m));}}document.getElementById('table-count').textContent=`${state.currentStack} · ${files.length}`;},
+            el(m){return document.querySelector(`#table-surface [data-file-id="${CSS.escape(m.fileId)}"]`);},paint(m,el){if(!el)return;el.style.left=`${m.x}px`;el.style.top=`${m.y}px`;el.style.zIndex=m.zIndex;el.style.transform=`rotate(${m.rotation}deg) scale(${m.scale})`;el.classList.toggle('held',m.state==='held');el.classList.toggle('inspecting',m.state==='inspecting');},
+            center(id){const m=this.models.find(x=>x.fileId===id);if(!m)return;this.returnCentered();m.previous={x:m.x,y:m.y,rotation:m.rotation,scale:m.scale,zIndex:m.zIndex};const root=document.getElementById('table-surface'),el=this.el(m),er=el.getBoundingClientRect(),rr=root.getBoundingClientRect();m.x=(rr.width-er.width)/2;m.y=(rr.height-er.height)/2;m.rotation=0;m.scale=Math.min(2.25,(rr.width-30)/er.width,(rr.height-30)/er.height);m.zIndex=1000;m.state='inspecting';this.selectedId=id;this.paint(m,el);root.classList.add('dimmed');document.getElementById('table-return').hidden=false;ViewModes.log('table:center',{fileId:id});},
+            returnCentered(){const m=this.models.find(x=>x.state==='inspecting');if(!m)return false;Object.assign(m,m.previous,{state:'resting'});this.paint(m,this.el(m));document.getElementById('table-surface').classList.remove('dimmed');document.getElementById('table-return').hidden=true;return true;},
+            animate(){if(this.raf)return;let last=performance.now();const tick=now=>{const dt=Math.min(.032,(now-last)/1000);last=now;let moving=false;if(!matchMedia('(prefers-reduced-motion: reduce)').matches)this.models.forEach(m=>{if(m.state!=='thrown')return;m.x+=m.velocityX*dt;m.y+=m.velocityY*dt;m.rotation+=m.angularVelocity*dt;m.velocityX*=Math.pow(.08,dt);m.velocityY*=Math.pow(.08,dt);m.angularVelocity*=Math.pow(.05,dt);if(Math.hypot(m.velocityX,m.velocityY)<8){m.state='resting';m.velocityX=m.velocityY=m.angularVelocity=0;}else moving=true;this.paint(m,this.el(m));});this.raf=moving?requestAnimationFrame(tick):null;};this.raf=requestAnimationFrame(tick);},
+            bindOnce(){if(this.bound)return;this.bound=true;const root=document.getElementById('table-surface');root.addEventListener('pointerdown',e=>{const el=e.target.closest('.table-photo');if(!el)return;const m=this.models.find(x=>x.fileId===el.dataset.fileId);if(m.state==='inspecting')return;el.setPointerCapture(e.pointerId);m.state='held';m.scale=1.06;m.zIndex=Math.max(...this.models.map(x=>x.zIndex))+1;this.drag={m,el,id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now(),lastX:e.clientX,lastY:e.clientY,lastTime:performance.now()};this.paint(m,el);ViewModes.log('table:pickup',{fileId:m.fileId});});
+                root.addEventListener('pointermove',e=>{if(!this.drag||e.pointerId!==this.drag.id)return;const d=this.drag,m=d.m,now=performance.now();m.x+=e.clientX-d.x;m.y+=e.clientY-d.y;m.velocityX=(e.clientX-d.lastX)/Math.max(.016,(now-d.lastTime)/1000);m.velocityY=(e.clientY-d.lastY)/Math.max(.016,(now-d.lastTime)/1000);d.x=e.clientX;d.y=e.clientY;d.lastX=e.clientX;d.lastY=e.clientY;d.lastTime=now;this.paint(m,d.el);});
+                root.addEventListener('pointerup',e=>{if(!this.drag||e.pointerId!==this.drag.id)return;const d=this.drag,m=d.m;this.drag=null;m.scale=1;const speed=Math.hypot(m.velocityX,m.velocityY),rect=root.getBoundingClientRect(),edge=m.x<0||m.y<0||m.x>rect.width-d.el.offsetWidth||m.y>rect.height-d.el.offsetHeight;if(edge&&speed>900){ViewModes.sortFile({fileId:m.fileId,deltaX:m.velocityX,deltaY:m.velocityY,velocityX:m.velocityX,velocityY:m.velocityY,source:'table'}).then(ok=>{if(ok){m.state='removed';d.el.remove();this.models=this.models.filter(x=>x!==m);this.render();ViewModes.log('table:sort',{fileId:m.fileId});}});}else if(speed>180&&!matchMedia('(prefers-reduced-motion: reduce)').matches){m.state='thrown';m.angularVelocity=m.velocityX*.018;this.animate();}else{m.state='resting';m.velocityX=m.velocityY=0;}this.paint(m,d.el);ViewModes.log('table:toss',{fileId:m.fileId,speed:Math.round(speed)});});
+                root.addEventListener('click',e=>{const el=e.target.closest('.table-photo');if(!el){this.returnCentered();return;}if(this.drag)return;const id=el.dataset.fileId,now=performance.now();if(this.lastTap&&this.lastTap.id===id&&now-this.lastTap.time<330){clearTimeout(this.tapTimer);this.lastTap=null;ViewModes.selectFile(id);ViewModes.returnToSort();}else{this.lastTap={id,time:now};clearTimeout(this.tapTimer);this.tapTimer=setTimeout(()=>this.center(id),340);}});
+                root.addEventListener('keydown',e=>{const el=e.target.closest('.table-photo');if(!el||!['Enter',' '].includes(e.key))return;e.preventDefault();const m=this.models.find(x=>x.fileId===el.dataset.fileId);if(m.state==='inspecting'){ViewModes.selectFile(m.fileId);ViewModes.returnToSort();}else this.center(m.fileId);});}
+        };
+
+        const ViewModes = {
+            mode:'sort', previousFocus:null, hold:null, emptyTap:null,
+            log(event,data={}) { state.syncLog?.log?.({event,level:'info',details:event,data}); },
+            currentFileId() { if(this.mode==='explore'&&ExploreView.selectedId)return ExploreView.selectedId;if(this.mode==='table'&&TableView.selectedId)return TableView.selectedId;return (state.stacks[state.currentStack]||[])[state.currentStackPosition] || null; },
+            selectFile(id) { const stack=state.stacks[state.currentStack]||[],index=stack.indexOf(id);if(index>=0){state.currentStackPosition=index;ExploreView.selectedId=id;TableView.selectedId=id;return true;}return false; },
+            effectiveMode(){if(!document.getElementById('grid-modal')?.classList.contains('hidden'))return'grid';return this.mode;},
+            openChooser(point,opener=document.activeElement){this.closeChooser(false);const el=document.getElementById('view-chooser'),x=point?.x??innerWidth/2,y=point?.y??innerHeight/2;this.previousFocus=opener;el.hidden=false;el.style.left=`${Math.max(12,Math.min(innerWidth-232,x-110))}px`;el.style.top=`${Math.max(12,Math.min(innerHeight-220,y-90))}px`;el.querySelectorAll('button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.view===this.effectiveMode())));el.querySelector('button')?.focus();Gestures.lastHubTap={time:0,x:0,y:0};state.haptic?.triggerFeedback?.('buttonPress');localStorage.setItem('orbital8.viewHintDismissed','1');document.getElementById('view-hint').hidden=true;this.log('view:chooser-open',{mode:this.effectiveMode()});},
+            closeChooser(restore=true){const el=document.getElementById('view-chooser');if(el.hidden)return;el.hidden=true;if(restore)this.previousFocus?.focus?.();this.log('view:chooser-close',{mode:this.effectiveMode()});},
+            async normalizeToSort(){if(this.mode==='explore')ExploreView.close();if(this.mode==='table')TableView.close();if(state.isFocusMode)Gestures.toggleFocusMode();this.mode='sort';Utils.elements.appContainer.classList.remove('view-mode-active');},
+            async enterFocus(){const id=this.currentFileId();await this.normalizeToSort();this.selectFile(id);if(!state.isFocusMode)Gestures.toggleFocusMode();this.mode='focus';this.closeChooser();this.log('view:transition',{to:'focus',fileId:id});},
+            async enterExplore(){const id=this.currentFileId();await this.normalizeToSort();this.selectFile(id);if(!(state.stacks[state.currentStack]||[]).length){Utils.showToast('No images in this stack','info');return;}this.mode='explore';Utils.elements.appContainer.classList.add('view-mode-active');ExploreView.open(id);this.closeChooser();this.log('view:transition',{to:'explore',fileId:id});},
+            async enterTable(){const id=this.currentFileId();await this.normalizeToSort();this.selectFile(id);if(!(state.stacks[state.currentStack]||[]).length){Utils.showToast('No images in this stack','info');return;}this.mode='table';Utils.elements.appContainer.classList.add('view-mode-active');TableView.open(id);this.closeChooser();this.log('view:transition',{to:'table',fileId:id});},
+            async openStackView(){const id=this.currentFileId();await this.normalizeToSort();this.selectFile(id);this.mode='grid';this.closeChooser();Grid.open(state.currentStack);this.log('view:transition',{to:'grid',fileId:id});},
+            async returnToSort(){const id=this.currentFileId(),wasFocus=state.isFocusMode;this.closeChooser(false);await this.normalizeToSort();this.selectFile(id);if(!wasFocus)await Core.displayCurrentImage();Grid.syncSelectionWithFocus();this.mode='sort';Gestures.lastHubTap={time:0,x:0,y:0};state.isDragging=false;this.log('view:transition',{to:'sort',fileId:id});},
+            async sortFile(input){const stack=state.stacks[state.currentStack]||[],index=stack.indexOf(input.fileId);if(index<0)return false;const direction=Gestures.determineSwipeDirection(input.deltaX,input.deltaY),target=Gestures.directionToStack(direction);if(!target)return false;state.currentStackPosition=index;UI.acknowledgePillCounter(target);state.haptic?.triggerFeedback?.('swipe');await Core.moveToStack(target,{source:`${input.source}:flick`});return true;},
+            bind() {const chooser=document.getElementById('view-chooser');chooser.addEventListener('click',e=>{const v=e.target.closest('[data-view]')?.dataset.view;if(v==='focus')this.enterFocus();if(v==='explore')this.enterExplore();if(v==='table')this.enterTable();if(v==='grid')this.openStackView();});chooser.addEventListener('keydown',e=>{const items=[...chooser.querySelectorAll('button')],i=items.indexOf(document.activeElement);if(['ArrowDown','ArrowRight'].includes(e.key)){e.preventDefault();items[(i+1)%items.length].focus();}if(['ArrowUp','ArrowLeft'].includes(e.key)){e.preventDefault();items[(i-1+items.length)%items.length].focus();}});
+                document.addEventListener('pointerdown',e=>{if(!chooser.hidden&&!chooser.contains(e.target))this.closeChooser();},{capture:true});
+                document.querySelectorAll('.mode-chooser-access').forEach(b=>b.onclick=e=>this.openChooser({x:e.clientX,y:e.clientY},b));document.getElementById('explore-toggle').onclick=()=>this.returnToSort();document.getElementById('table-toggle').onclick=()=>this.returnToSort();document.getElementById('table-return').onclick=()=>TableView.returnCentered();document.getElementById('explore-details').onclick=()=>{this.selectFile(ExploreView.selectedId);Utils.elements.detailsButton.click();};document.getElementById('table-details').onclick=()=>{this.selectFile(TableView.selectedId);Utils.elements.detailsButton.click();};
+                const startHold=(surface,e)=>{if(e.target.closest('button,.view-chrome,#explore-settings'))return;this.hold={x:e.clientX,y:e.clientY,id:e.pointerId,consumed:false,timer:setTimeout(()=>{this.hold.consumed=true;this.openChooser({x:e.clientX,y:e.clientY},surface);},500)};};const moveHold=e=>{if(this.hold&&Math.hypot(e.clientX-this.hold.x,e.clientY-this.hold.y)>Gestures.TAP_DISTANCE_THRESHOLD){clearTimeout(this.hold.timer);this.hold=null;}};const endHold=e=>{if(!this.hold)return;clearTimeout(this.hold.timer);const consumed=this.hold.consumed;this.hold=null;if(consumed){e.preventDefault();e.stopPropagation();}};
+                [document.getElementById('explore-scene'),document.getElementById('table-view')].forEach(s=>{s.addEventListener('pointerdown',e=>startHold(s,e));s.addEventListener('pointermove',moveHold);s.addEventListener('pointerup',endHold);s.addEventListener('pointercancel',endHold);});
+                document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if((e.key==='m'||e.key==='M')&&!e.metaKey&&!e.ctrlKey){e.preventDefault();this.openChooser(null,e.target);return;}if(e.key!=='Escape')return;if(!chooser.hidden){e.preventDefault();this.closeChooser();return;}if(!Utils.elements.detailsModal.classList.contains('hidden'))return;if(this.mode==='table'&&TableView.returnCentered()){e.preventDefault();return;}if(['explore','table','focus'].includes(this.effectiveMode())){e.preventDefault();e.stopImmediatePropagation();this.returnToSort();}},{capture:true});
+                const hint=document.getElementById('view-hint');if(!localStorage.getItem('orbital8.viewHintDismissed')){hint.hidden=false;setTimeout(()=>{hint.style.opacity='0';setTimeout(()=>hint.hidden=true,300);},5000);}
+            }
+        };
+        window.ViewModes=ViewModes;window.ExploreView=ExploreView;window.TableView=TableView;window.ThumbnailRepository=ThumbnailRepository;
+
         async function initApp() {
             try {
                 Utils.init();
@@ -8515,6 +8688,7 @@ this.updateImageCounters();
                 Utils.showScreen('provider-screen');
                 Events.init();
                 Gestures.init();
+                ViewModes.bind();
                 Core.updateActiveProxTab();
             } catch (error) {
                 console.error("Fatal initialization error:", error);
