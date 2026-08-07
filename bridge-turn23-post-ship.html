@@ -4164,7 +4164,7 @@ CALL.setupPC = async function () {
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
 VERSION = 'turn23-post-ship · room menu surface';
-BUILD_INFO = { release: 'turn23-post-ship r3 · one room name, rename notice, QR fit', builtAt: '2026-08-06T21:00:00Z' };
+BUILD_INFO = { release: 'turn23-post-ship r4 · rename field collision + blank stop', builtAt: '2026-08-06T22:20:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -5470,8 +5470,8 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · M-room-menu.js ═══════════ */
 /* @contract
    replaces: exportTranscript
-   wraps: renderRoomHead, applyBubbleTheme, enterRoom, startDeepgram, wireMsg, handleRelay, LISTEN.handle, CALL.toggleMic
-   adds: RM, rmLog, renameNotice, buildRoomNameField, buildHeaderBgPicker, commitRoomNameField, buildDrawerLayout, exportTranscriptText, exportTranscriptData, clearTranscript, clearDebugLog, showRoomNamePopup, showReceiptPopup, renameRoom, onRoomNameSignal, ROOM_MENU_CSS, _rmExport, _rmRenderHead, _rmApplyTheme, _rmEnterRoom, _rmStartDG, _rmWireMsg, _rmHandleRelay, _rmListen, _rmToggleMic
+   wraps: renderRoomHead, applyBubbleTheme, closeDrawer, enterRoom, startDeepgram, wireMsg, handleRelay, LISTEN.handle, CALL.toggleMic
+   adds: RM, rmLog, renameNotice, roomNameIsBlank, holdOnBlankName, buildRoomNameField, buildHeaderBgPicker, commitRoomNameField, buildDrawerLayout, exportTranscriptText, exportTranscriptData, clearTranscript, clearDebugLog, showRoomNamePopup, showReceiptPopup, renameRoom, onRoomNameSignal, ROOM_MENU_CSS, _rmExport, _rmRenderHead, _rmApplyTheme, _rmCloseDrawer, _rmEnterRoom, _rmStartDG, _rmWireMsg, _rmHandleRelay, _rmListen, _rmToggleMic
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 6 · ROOM MENU SURFACE
@@ -5507,6 +5507,7 @@ var ROOM_MENU_CSS =
   '.rm-rows div{display:flex;justify-content:space-between;gap:18px;padding:2px 0}' +
   '.rm-rows .rm-k{color:var(--ink-dim)}' +
   '.rm-rows .rm-v{font-variant-numeric:tabular-nums}' +
+  '.rm-invalid{border-color:var(--danger,#C0392B) !important}' +
   /* A QR only matters while it is being held up to another phone. It was far
      larger than a camera needs, and the drawer stopped short of showing one
      without scrolling — which defeats the moment it exists for. */
@@ -5581,8 +5582,12 @@ function renameRoom(newName) {
   var text = renameNotice(who, from, v);
   var pillId = 'sp-' + uid();
   addSysPill(text, pillId);
-  relaySend({ type: 'room-name', room: r.id, name: v, from: from, by: who, pillId: pillId, at: Date.now() });
-  rmLog('renamed', { from: from, to: v }, 'ok');
+  /* NOT `from` and NOT `by`: the relay layer stamps its own `from` (the device
+     id) onto every message it sends, so a field of that name is overwritten in
+     flight and arrives as a device id. That is what made the previous attempt's
+     notice read as nonsense on the receiving side. */
+  var sent = relaySend({ type: 'room-name', room: r.id, name: v, wasName: from, byName: who, pillId: pillId, at: Date.now() });
+  rmLog('renamed', { from: from, to: v, sent: sent !== false }, sent === false ? 'error' : 'ok');
   try { renderRoomHead(); renderPanel(); } catch (_) {}
   return true;
 }
@@ -5594,13 +5599,13 @@ function onRoomNameSignal(roomId, d) {
   var r = roomById(roomId || d.room); if (!r) return true;
   var to = String(d.name || '').slice(0, 40);
   if (!to) return true;
-  var from = typeof d.from === 'string' ? d.from : (r.title || '');
+  var from = typeof d.wasName === 'string' ? d.wasName : (r.title || '');
   r.title = to;
   saveRooms();
   if (!(d.pillId && transcript.some(function (x) { return x.id === d.pillId; }))) {
-    addSysPill(renameNotice(d.by || r.partnerName || 'They', from, to), d.pillId);
+    addSysPill(renameNotice(d.byName || r.partnerName || 'They', from, to), d.pillId);
   }
-  rmLog('rename_received', { from: from, to: to, by: d.by || '' }, 'ok');
+  rmLog('rename_received', { from: from, to: to, by: d.byName || '' }, 'ok');
   try { renderRoomHead(); renderPanel(); } catch (_) {}
   return true;
 }
@@ -5768,12 +5773,29 @@ function clearDebugLog() {
    is its control: the existing field, relabelled, and made to propagate.
 
    It commits on blur and on Enter; Enter also closes the drawer. */
+/* A blank room name is a stop, not a warning. The field cannot be left and the
+   drawer cannot be closed until it holds something. Restoring the old value
+   silently would be worse: a person would believe they had cleared it. */
+function roomNameIsBlank() {
+  var el = $('s4b-title');
+  return !!(el && !norm(el.value));
+}
+
+function holdOnBlankName() {
+  if (!roomNameIsBlank()) return false;
+  rmLog('rename_blocked_empty', {}, 'warn');
+  toast('A room needs a name');
+  try { var el = $('s4b-title'); el.focus(); el.classList.add('rm-invalid'); } catch (_) {}
+  return true;
+}
+
 function commitRoomNameField() {
   try {
     var el = $('s4b-title'); if (!el) return false;
     var r = activeRoom(); if (!r) return false;
     var v = norm(el.value).slice(0, 40);
-    if (!v) { el.value = r.title || ''; rmLog('rename_refused_empty_field', {}, 'warn'); toast('A room needs a name'); return false; }
+    if (!v) return false;                      /* held by holdOnBlankName */
+    try { el.classList.remove('rm-invalid'); } catch (_) {}
     if (v === (r.title || '')) return false;
     return renameRoom(v);
   } catch (e) { rmLog('room_name_commit_failed', { e: String(e && e.message || e) }, 'error'); return false; }
@@ -5797,12 +5819,16 @@ function buildRoomNameField() {
     el.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') {
         ev.preventDefault(); ev.stopPropagation();
+        if (holdOnBlankName()) return;
         commitRoomNameField();
         try { el.blur(); } catch (_) {}
         try { closeDrawer(); } catch (_) {}
       }
     });
-    el.addEventListener('blur', commitRoomNameField);
+    el.addEventListener('blur', function () {
+      if (holdOnBlankName()) return;
+      commitRoomNameField();
+    });
     RM.nameFieldBuilt = true;
     rmLog('room_name_field_taken_over', {}, 'ok');
     return true;
@@ -5919,6 +5945,15 @@ function buildDrawerLayout() {
       if (picker) picker.value = bg || '#F5F1EC';
     } catch (e) { rmLog('header_bg_apply_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
+  };
+})();
+
+/* The drawer will not close over a nameless room. */
+(function () {
+  var _rmCloseDrawer = closeDrawer;
+  closeDrawer = function () {
+    if (holdOnBlankName()) { rmLog('drawer_close_blocked_empty_name', {}, 'warn'); return; }
+    return _rmCloseDrawer.apply(this, arguments);
   };
 })();
 
