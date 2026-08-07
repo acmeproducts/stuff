@@ -1,7 +1,7 @@
-<!-- v5.8.2.30 -->
+<!-- v5.8.2.31 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.7 | 2026-08-06 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.8 | 2026-08-06 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -299,3 +299,16 @@ Root cause: **there was no control to change a room name.** The rename path was 
 The lesson is narrow and worth keeping: a mechanism with no way to invoke it passes every unit test, holds every contract, and does nothing. Nothing in the harness asks whether a feature can be reached by a person. When a release adds a behaviour, one of its tests must exercise it through the control a person would actually use.
 
 Rebuilt to the same filename with a room name field in the drawer directly beneath the person name — same kind of thing, so separating them is what invited the confusion — committing on blur and on Enter, with Enter also closing the drawer per ruling.
+
+## turn23-post-ship attempt 2 — room menu surface · FAILED DEVICE GATE · Aug 6 2026
+The rename control worked and the change reached the other side. The release still failed, on something more basic.
+
+**There are two room name fields.** The base already had a room title — the label a person gives a room in their own list — and this release added a second field for the shared room name. The drawer therefore showed "Room name" and "Room title (your list)" one above the other, holding the same value on one device and different values on the other. Two fields for one idea is a design fault, not an implementation one, and no amount of propagation logic fixes it. One name, shared, last write wins.
+
+**A rename left no trace in the conversation.** The app already has a vocabulary for this: a system entry in the transcript when someone leaves the chat, or when a call is missed. A rename is the same kind of event and must read the same way — "Mike changed the room from weekend planning to next weekend planning" — on both sides. Without it a name silently becomes something else and nobody knows who did it or what it was before.
+
+**Localization did not reach the initiator.** One direction translated, the other did not. Not diagnosed. The owner has ruled localization out of this release and onto the backlog, so this is recorded rather than chased.
+
+Also observed, not defects but wrong: the share and link-a-device QR codes are far larger than they need to be, and the drawer does not extend far enough to show one without scrolling — which is the one moment the QR has to be held up to another phone.
+
+Rolled back rather than patched forward, at the owner's instruction, despite the rest of the release being sound.
