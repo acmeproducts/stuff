@@ -1,7 +1,7 @@
-<!-- v5.8.2.29 -->
+<!-- v5.8.2.30 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.6 | 2026-08-05 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.7 | 2026-08-06 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -290,3 +290,12 @@ Replacement approach:
 3. No `typeof` guards around dependencies inside a part. If a part needs a function, that function ships in the same part or the part does not build.
 
 Rollback executed: `bridge-turn23-base.html` removed. `bridge-turn23-pre-base.html` (room card) is untouched and remains the baseline.
+
+## turn23-post-ship attempt 1 — room menu surface · FAILED DEVICE GATE · Aug 6 2026
+Everything in the release was accepted except one thing: the room name did not propagate. The person name did.
+
+Root cause: **there was no control to change a room name.** The rename path was built, sends correctly and localizes on receipt — and nothing could reach it. The drawer's only name field edits the *person's* name; the function that reads it is called `commitRoomName`, which is what made the gap invisible on inspection. A room could be named at creation and never renamed after.
+
+The lesson is narrow and worth keeping: a mechanism with no way to invoke it passes every unit test, holds every contract, and does nothing. Nothing in the harness asks whether a feature can be reached by a person. When a release adds a behaviour, one of its tests must exercise it through the control a person would actually use.
+
+Rebuilt to the same filename with a room name field in the drawer directly beneath the person name — same kind of thing, so separating them is what invited the confusion — committing on blur and on Enter, with Enter also closing the drawer per ruling.
