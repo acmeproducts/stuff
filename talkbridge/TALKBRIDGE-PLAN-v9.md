@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.1.0 -->
-# TALKBRIDGE MASTER PLAN v10.1.0
+<!-- TALKBRIDGE-PLAN v10.2.0 -->
+# TALKBRIDGE MASTER PLAN v10.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -445,6 +445,191 @@ transcription socket stops rather than churning.
 
 ---
 
+## 6c · RELEASE 6 — ROOM MENU SURFACE · attempt 3
+
+Attempts 1 and 2 are in the graveyard. Everything below carries forward except
+the room name, which is redesigned, and localization, which is removed.
+
+### The room name — ONE field
+
+- **There is exactly one room name.** The base's "room title (your list)" and the
+  shared room name are the same idea and collapse into a single field. Two
+  fields holding one concept is what failed attempt 2, and no propagation logic
+  fixes it.
+- **Required at creation.** A room cannot be created without a name.
+- **Cannot be empty afterwards.** Opening the room menu with a blank name is not
+  a reachable state; clearing it is refused rather than accepted.
+- **Either side may rename. Last write wins.**
+- **Not localized in this release.** Ruled onto the backlog. The name shows as
+  written, to both sides.
+
+### A rename is an event in the conversation
+
+The app already has a vocabulary for this — the system entry written when
+someone leaves the chat, or when a call is missed. A rename is the same kind of
+event and reads the same way, on both sides:
+
+> Mike changed the room from *weekend planning* to *next weekend planning*
+
+Whoever renamed it is named. Both the old and the new name appear, because "the
+name changed" without saying from what is not information. If the partner is
+Joe and Joe renames it, both sides read that Joe did.
+
+Without this a name silently becomes something else and nobody knows who did it.
+
+### QR codes
+
+- Both QR codes — share room, and link a device — are **smaller**. They are
+  currently far larger than a phone camera needs.
+- The drawer **extends far enough to show a QR without scrolling.** The single
+  moment a QR matters is when it is being held up to another phone, and having
+  to scroll to keep it in frame defeats it. True for both.
+
+### Carried forward unchanged from attempt 2
+
+- Transcription stops on mute and resumes on unmute; network drops are no longer
+  reported as credential failures.
+- Share's two items at the bottom of General; Debug renamed Manage.
+- Manage: export in two formats, clear transcript (local only), diagnostics with
+  copy and download, clear debug log.
+- Status detail popup on tapping a receipt — Sent, Received, Read, blank where
+  not reached.
+- Room name popup on tapping the ribbon name.
+- Bubble header background colour in the customize tab.
+- Enter commits and closes.
+
+## 6a · RELEASE 1 — the room card, per SOT Part 4
+
+**Three rows, two columns.** Left column left-justified, right column
+right-justified.
+
+| | Left | Right |
+|---|---|---|
+| Row 1 | Room name, **bold**, truncates with ellipsis | Delete |
+| Row 2 | Me / Partner, not bold, truncates with ellipsis | Time since last contact |
+| Row 3 | Chat, phone and video icons, each with its own count badge | Language-pair flags |
+
+**Truncation is not interactive.** Tapping truncated text opens the room, exactly
+like tapping anywhere else on the card. This supersedes every earlier
+"tap-to-reveal popover" description, including the one in v8.5.0 and in this
+plan before v9.0.1.
+
+**Elapsed time** is mixed-mode by magnitude: minutes, then hours, then days.
+
+**Flags** read own-language-first from each viewer's own perspective — always
+mine then theirs, never a fixed absolute order. Real flag glyphs.
+
+**Three separate activity counts.** A missed chat, a missed voice call and a
+missed video call are three distinct, separately tracked and separately
+displayed badges.
+
+**Delete is a soft delete**, recoverable, and carries the notice and send-lock
+behaviour built in release 3.
+
+---
+
+## 6e · RELEASE 6 IN FULL — the room menu surface
+
+Everything in this release lives on one surface: the room drawer. That is why
+these items travel together — the tabs are being rearranged, so anything that
+belongs on them is done now rather than touching the surface twice.
+
+### Tab restructure
+
+- **Share tab is removed.** Its two items — *Share room* and *Link a device* —
+  move to the **bottom of General**, which then grows vertically to hold them.
+- **Debug tab is renamed Manage.** "Debug" describes where the controls came
+  from, not what they do.
+- Three tabs remain: **General · Customize · Manage.**
+
+### Manage tab — the full transcript lifecycle
+
+Today Manage holds two exports and nothing else, which is half a lifecycle.
+
+- **Export transcript** — existing.
+- **Import transcript** — new. Restores an exported transcript into the room.
+- **Clear transcript** — new. Empties this room's transcript.
+- **Export debug log** — existing.
+- **Clear debug log** — new.
+
+Delete stays on the room card, where it already works, and is not duplicated
+here. Export before delete is offered from the delete flow, not from Manage.
+
+### Room name parity
+
+Person names already propagate in both directions and are reflected
+immediately. Room names do not — either side can change one and the other side
+never sees it, which is the disconnect being fixed.
+
+**Approach: parity.** Both sides may rename; the change propagates over the same
+relay path the person-name change already uses; last write wins; a system pill
+records who renamed it and to what. See §6f for why, and for the alternative.
+
+### Two transcription-lifecycle fixes
+
+Carried in because they are lifecycle, and the log from the last gate identified
+both precisely.
+
+- **Stop transcription on mute; start it on unmute.** Every `1011` close in the
+  last session happened while muted, roughly every fourteen seconds, and none
+  happened while the microphone was live. The service closes a socket that stops
+  receiving audio; mute is now total, so the socket starves and the app reopens
+  it forever. Holding an open socket fed nothing is the fault. Mute is total —
+  transcription should stop with it.
+- **Stop reporting network failures as credential failures.** Three
+  `dg_credential_failure` entries in the last session were `1006` closes during
+  a network interruption that had already dropped the call. Any socket that
+  closes before opening is currently blamed on credentials, which is wrong
+  whenever the network is down, and it puts a false diagnosis in the log.
+
+### Gate
+
+Two devices. Rename the room from each side and confirm both see it. Export a
+transcript, clear it, import it back. Mute during a call and confirm the
+transcription socket stops rather than churning.
+
+---
+
+## 6f · OPEN QUESTIONS — release 6
+
+**These need answers before the release is built.**
+
+1. **Room name: parity or initiator-only?**
+   The owner's position is parity, and I agree. Two reasons beyond ease of
+   explanation. First, the mechanism already exists and is proven — person names
+   use it today, so parity is the smaller change and read-only is the larger
+   one. Second, read-only would introduce a second capability model sitting
+   beside the credential model, where a joiner is restricted by role rather than
+   by what credentials they hold; that is the thing this project has
+   deliberately avoided everywhere else. **Recommendation: parity.**
+
+2. **Import — merge or replace?**
+   Replacing loses anything said since the export. Merging needs a rule for
+   entries that exist on both sides. **Recommendation: merge by entry
+   identifier, keeping the existing entry on collision, so an import can only
+   ever add.** Needs a ruling.
+
+3. **Import — foreign transcripts?**
+   Should a transcript exported from one room be importable into a different
+   room, or is import restricted to the room it came from? **Recommendation:
+   restrict to the same room**, with a clear message otherwise. Needs a ruling.
+
+4. **Clear transcript — recoverable?**
+   Is clearing final, or does it go somewhere recoverable the way room delete
+   does? **Recommendation: offer an export first**, then clear finally. Needs a
+   ruling.
+
+5. **Does clearing a transcript affect the phrasebook?**
+   They are separate stores and the phrasebook lives on GitHub.
+   **Recommendation: no — clear touches the transcript only.** Confirm.
+
+6. **What does an export contain?**
+   Typed and spoken lines both, in both languages, is assumed. Open: whether
+   attachments are included or referenced, and whether system pills are
+   included.
+
+---
+
 ## 6c · RELEASE 6 — ROOM MENU SURFACE
 
 One surface: the room drawer, plus the transcription lifecycle faults the last
@@ -548,6 +733,18 @@ speaker. Without that it is decoration for one side and noise for the other.
 
 Every item previously parked here now has a release number in §5. The backlog
 exists as a concept only for things not yet raised.
+
+**Scheduled — added 2026-08-06, awaiting a release number:**
+
+- **Localization, as a family.** The room name, the participant names, the room
+  creation dialog and the room menu itself. Everything a person reads should
+  reach them in their own language, which is the whole premise of the product
+  and the reason the interface leans on icons wherever it can. Room name
+  localization was attempted in release 6 and reached only one side; it is
+  withdrawn and rejoins the family rather than being chased alone.
+- **`&debug=1` launch parameter.** Diagnostics off by default, on only when
+  asked for. Consistent with the privacy-forward promise: a person who never
+  asks for a debug log should not be accumulating one.
 
 **Out of scope by ruling — not scheduled, not coming back:**
 
@@ -824,6 +1021,18 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
+attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
+base's own room title and the shared name are the same idea, and holding both is
+what failed. It is required at creation, cannot be emptied, and last write wins.
+**A rename now writes a system entry into the transcript**, naming who renamed
+it and both the old and new names, in the same vocabulary as leaving a chat or a
+missed call. **Localization is removed from the release** and rejoins the
+backlog as a family: room name, participant names, the creation dialog and the
+room menu. QR codes shrink and the drawer extends far enough to show one without
+scrolling. The `&debug=1` parameter is scheduled rather than noted as direction
+of travel.
+
 **v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
 releases total, six remaining after the one now built. Multitasking during a call
 becomes its own release and its open question is **closed by ruling** — losing
@@ -883,6 +1092,18 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
+attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
+base's own room title and the shared name are the same idea, and holding both is
+what failed. It is required at creation, cannot be emptied, and last write wins.
+**A rename now writes a system entry into the transcript**, naming who renamed
+it and both the old and new names, in the same vocabulary as leaving a chat or a
+missed call. **Localization is removed from the release** and rejoins the
+backlog as a family: room name, participant names, the creation dialog and the
+room menu. QR codes shrink and the drawer extends far enough to show one without
+scrolling. The `&debug=1` parameter is scheduled rather than noted as direction
+of travel.
 
 **v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
 releases total, six remaining after the one now built. Multitasking during a call
