@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.7.0 -->
-# TALKBRIDGE MASTER PLAN v9.7.0
+<!-- TALKBRIDGE-PLAN v9.8.0 -->
+# TALKBRIDGE MASTER PLAN v9.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,7 +157,7 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn23-pre-ship.html` — device-passed 2026-08-06 (room card, joiner shell, room lifecycle and elevation). Rollback floor.**
+**Baseline: `bridge-turn23-ship.html` — device-passed 2026-08-06 (room card, joiner shell, room lifecycle and elevation, call and network robustness). Rollback floor.**
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -193,8 +193,8 @@ screen.
 | ~~2~~ | — | — | **Relay stability — dropped.** Instrumented, then overtaken: the joiner shell passed its two-device gate with chat flowing both ways, so the drops seen earlier were not a blocker. Not scheduled. If they return, instrument first. | — |
 | ~~3~~ | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Joiner shell — PASSED 2026-08-05.** Full shell, no create control, credential-gated. The invite is authoritative for both languages and the room name, and is refused for a room this device created. | Yes |
 | ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
-| **5** | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — NEXT.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
-| 6 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
+| ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
+| **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Per-room export and delete controls.** Two features sharing one surface; delete runs an export first unless skipped. | Yes |
 | 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
 | 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
 | later | — | `bridge-turn24-pre-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
@@ -338,23 +338,75 @@ behaviour built in release 3.
 Nothing here is a release. Nothing here is picked up as part of another release.
 It moves into the chain only by owner ruling.
 
-- **Phrasebook: editing the target rewrites the source.** Owner ruling
-  2026-08-05: if the target column is editable it must be able to correct the
-  source, or the two drift. Attempted as turn23-pre-base and rolled back with
-  too many regressions to triage — see the graveyard. If rebuilt, the redraw
-  must happen when the translation returns, not when the edit is submitted.
-- **Phrasebook: back-translation.** Behaviour, verdict lifecycle, staleness.
-- **Phrasebook: the clarify stream.**
-- **Room name changes do not propagate.** Changing either person's name is
-  reflected on the other side immediately; renaming the room is not. The rename
-  needs the same relay path the person-name change already uses.
-- **Enter should close the room config dialog.** In the create dialog Enter now
-  commits the field rather than dismissing it, which was the fix. In the room
-  config dialog the opposite is wanted: Enter on the person name or the room
-  name should commit and close.
-- **Undiagnosed:** transcription disconnect roughly every 12 seconds during a
-  call; approximately 30 second initial delivery lag when the recipient is on
-  the home screen. Instrument before touching either.
+### Ribbon strip transformation — the largest of these
+The top strip is rearranged so the call controls cluster in the centre with
+fixed positions rather than shifting with state.
+
+- The microphone sits at a **fixed centre position** and never moves.
+- Phone and video icons sit beside it; the hang-up sits beside the video icon
+  and is also fixed.
+- **Voice call:** microphone and hang-up only — no phone or video icon.
+- **Video call:** microphone, camera toggle and hang-up.
+- Three reasons, all of them the point: it moves the video icon away from the
+  room-menu ellipsis, which are currently too easy to confuse; it gives every
+  control one standard place to live; and it frees the left side for the name of
+  the person being spoken to.
+- Supersedes the older "centre the mic in the ribbon" item — that is this.
+
+### Leaving the app during a call
+Navigating away — to check an email, look up an address — currently drops the
+connection and reconnects on return. Both halves of this are defensible and
+neither is obviously right:
+
+- A call should stay open while multitasking, as any phone call does.
+- But with nothing on screen to indicate a live call, someone can forget they
+  are on one and say something in front of an open microphone. That is a real
+  harm, not an inconvenience.
+- One option, not a decision: the back button during a call enters
+  picture-in-picture, keeping the call visible and the fact of it unmistakable.
+  WhatsApp does this.
+- **Needs the use cases thought through before anything is built.**
+
+### Call timer parity
+The receiver of a call has no running timer and therefore no clear indication
+they are on a call. The caller does. Communications state must read the same on
+both sides — the parity principle applies to being on a call, not only to
+surfaces.
+
+### Typing indicator
+The compose strip should show when the other side is typing, so a person knows
+to wait rather than talking over them.
+
+### Short-phrase double transcription
+In a room using the second English channel, a short phrase can be transcribed
+twice — once in the room language and once in English — and both land. The
+arbitration already discards the phonetic duplicate when the English result is
+substantial; short phrases fall below that threshold and both survive. Needs a
+gate for short phrases specifically.
+
+### Room renames do not propagate
+Changing either person's name is reflected on the other side immediately;
+renaming the room is not. The rename needs the same relay path the person-name
+change already uses.
+
+### Enter should close the room config dialog
+In the create dialog Enter now commits the field rather than dismissing it,
+which was the fix for a real fault. In the room config dialog the opposite is
+wanted: Enter on the person name or the room name should commit and close.
+
+### Phrasebook
+- Editing the target rewrites the source. Owner ruling 2026-08-05; attempted as
+  turn23-pre-base and rolled back with too many regressions to triage. If
+  rebuilt, the redraw must happen when the translation returns, not when the
+  edit is submitted.
+- Back-translation behaviour, verdict lifecycle, staleness.
+- The clarify stream.
+
+### Undiagnosed
+- Transcription disconnect roughly every twelve seconds during a call. Reopen
+  gaps are now timestamped in the log, which is where the answer will come from.
+- Roughly thirty second initial delivery lag when the recipient is on the home
+  screen.
 
 ---
 
@@ -388,6 +440,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v9.8.0 · 2026-08-06.** Call and network robustness **passed** its two-device
+gate. `bridge-turn23-ship.html` is the new baseline. Backlog rewritten and
+expanded with five new owner observations: the ribbon strip transformation
+(fixed centre positions for the call controls, which supersedes the older
+mic-centring item), leaving the app during a call, call timer parity for the
+receiver, a typing indicator, and short-phrase double transcription in
+dual-channel rooms.
 
 **v9.7.0 · 2026-08-06.** Room lifecycle, naming and elevation **passed** its
 two-device gate — soft delete and restore confirmed working end to end.
