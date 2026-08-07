@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.9.0 -->
-# TALKBRIDGE MASTER PLAN v9.9.0
+<!-- TALKBRIDGE-PLAN v9.10.0 -->
+# TALKBRIDGE MASTER PLAN v9.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -464,10 +464,12 @@ gate exposed. Nothing outside the drawer changes visually.
 
 ### Manage tab — the full transcript lifecycle
 
-- Export transcript · **Import transcript** · Clear transcript.
-- Export debug log · Clear debug log.
-- Import is what makes the lifecycle whole: without it, export is a one-way
-  door and a cleared or moved transcript is unrecoverable.
+- Export transcript, in **two formats**: a readable one, and a structured one
+  that a future import will read.
+- Clear transcript — **local only**.
+- Diagnostics overlay with copy and download, carried over unchanged from the
+  Debug tab.
+- Clear debug log.
 
 ### Room name parity
 
@@ -484,27 +486,24 @@ This closes the standing backlog item that renames do not propagate.
 - Enter on the person name or the room name in the room config dialog commits
   and closes the dialog.
 
-### OPEN QUESTIONS — to be answered before any code is written
+### Rulings — closed 2026-08-06
 
-1. **Import semantics.** Merge into the existing transcript, or replace it?
-   Merging needs a rule for duplicates — message identity is available, so
-   dedupe by it is possible. Replacing is simpler and more predictable.
-2. **Import mismatch.** What happens when an imported transcript's language pair
-   does not match the room's? Refuse, warn and import anyway, or import and
-   leave the entries as they are?
-3. **Clear transcript — whose?** Local only, or both sides? Local only is safe
-   and obvious. Both sides is closer to a shared object but is destructive to
-   someone else's copy, which nothing else in the app does.
-4. **Export format.** A readable text export and a re-importable structured one
-   are different files. One format that is both, or two separate actions?
-5. **Rename conflict.** With both sides able to rename, two renames crossing on
-   the wire need a rule. Last write wins is the simplest and matches how the
-   person name already behaves — confirm that is acceptable.
-6. **Does the Manage tab keep a way into the diagnostics overlay?** The log
-   itself is still needed; only the tab is being renamed.
+1. **Import is deferred.** Merge-or-replace and language-mismatch behaviour are
+   unanswered, so import moves to the backlog. Export ships without it.
+2. **Export is two formats** — a readable one and a structured one. The
+   structured export is what a future import will read.
+3. **Clear is local only.** Clearing both sides is an initiator-only power and
+   is deferred to the backlog as its own decision.
+4. **Last write wins** on a room rename, matching how the person name already
+   behaves.
+5. **Manage keeps the diagnostics overlay**, with copy and download, exactly as
+   Debug had it. *Direction of travel, not this release:* diagnostics eventually
+   move behind a `&debug=1` launch parameter and are off by default.
 
-None of these are blocking questions for the *shape* of the release, but each
-changes what gets built, so all six close before the build starts.
+### Also in scope, by ruling 2026-08-06
+
+- **Status detail popup** on tapping a receipt dot or check.
+- **Room name popup** on tapping the name in the transcript's top ribbon.
 
 ---
 
@@ -620,14 +619,17 @@ notifications.
   background and font colour. The header strip inside the bubble has no
   background colour of its own and was asked for.
 
-### Inventoried but not present in the current build
+### Deferred by ruling
 
-Found by comparing the UI inventory against `bridge-turn23-ship.html`. Each needs
-an owner ruling on whether it is still wanted:
+- **Transcript import.** Export ships now in both formats; import waits until the
+  merge-or-replace question and the language-mismatch question are answered.
+  Ruled 2026-08-06.
+- **Clear on both sides, initiator only.** Clearing is local-only in release 6.
+  A destructive clear that reaches the other side is an initiator-only power and
+  is its own decision. Ruled 2026-08-06.
 
-- Import-phrases modal for the phrasebook (inventory 12.3).
-- Status detail popup from a receipt tap (inventory 12.6).
-- Goodbye screen (referenced in an earlier turn's scope, absent now).
+*Removed by ruling 2026-08-06: goodbye screen, phrasebook import-phrases modal.
+Neither is wanted.*
 
 ### Undiagnosed
 - Transcription disconnect roughly every twelve seconds during a call. Reopen
@@ -668,6 +670,16 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v9.10.0 · 2026-08-06.** All six release-6 questions closed by ruling. Import
+deferred to the backlog; export ships in two formats, the structured one being
+what a future import reads. Clear is local only, with clear-both-sides recorded
+as an initiator-only power for later. Last write wins on renames. Manage keeps
+the diagnostics overlay with copy and download, with a note that diagnostics
+eventually move behind a launch parameter. Two items added to the release by
+ruling: the status detail popup on tapping a receipt, and a room name popup on
+tapping the name in the ribbon. Goodbye screen and the phrasebook import-phrases
+modal removed from the backlog — neither is wanted.
+
 **v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
 **the room menu surface** (§6e), with its open questions written down and
 unanswered (§6f) so they are closed before anything is built. Share tab folds
@@ -679,6 +691,16 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v9.10.0 · 2026-08-06.** All six release-6 questions closed by ruling. Import
+deferred to the backlog; export ships in two formats, the structured one being
+what a future import reads. Clear is local only, with clear-both-sides recorded
+as an initiator-only power for later. Last write wins on renames. Manage keeps
+the diagnostics overlay with copy and download, with a note that diagnostics
+eventually move behind a launch parameter. Two items added to the release by
+ruling: the status detail popup on tapping a receipt, and a room name popup on
+tapping the name in the ribbon. Goodbye screen and the phrasebook import-phrases
+modal removed from the backlog — neither is wanted.
 
 **v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
 the **room menu surface** and written out in full in §6c with six open questions
