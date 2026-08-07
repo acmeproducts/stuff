@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v9.11.1 -->
-# TALKBRIDGE MASTER PLAN v9.11.1
+<!-- TALKBRIDGE-PLAN v10.0.0 -->
+# TALKBRIDGE MASTER PLAN v10.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -195,9 +195,18 @@ screen.
 | ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
 | ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
 | **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room menu surface — NEXT.** Tab restructure, transcript lifecycle (export / import / clear), room-name parity, and two transcription-lifecycle fixes. Full scope in §6e. | Yes |
-| 7 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: service worker registered from the file, relay change, iOS home-screen install. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room activity rollup. Together, because rich notification content depends on the multi-room data. **The only release that modifies the relay.** Gate needs a locked phone and a second device. | Yes |
-| 8 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last of the functional work because it touches every call site. | No |
-| later | — | `bridge-turn24-pre-ship.html` onward | **Deferred cosmetics.** Icon-graphics rebuild and flag-motif polish. Camera and mic mute as two complete icon graphics rather than a composited slash, extended to bubble headers. Ear/TTS/Mute wording pass. | Yes |
+| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA foundation.** Manifest, service worker registered from the file, install prompt on Android, home-screen install path on iOS. Nothing user-visible except the install affordance. **Prerequisite for push** — the service worker is what receives it. | Yes |
+| 8 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **OS push and smart home screen.** Locked and backgrounded push only: relay change, push subscription, notification tap routing. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room rollup. The only release that modifies the relay. | Yes |
+| 9 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Call surface.** Ribbon strip transformation — microphone fixed at centre, phone and video beside it, hang-up fixed beside video; voice shows mic and hang-up only, video shows mic, camera and hang-up. Call timer visible to the receiver as well as the caller. Multitasking during a call resolved, picture-in-picture being one option. | Yes |
+| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose and transcription.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. | Yes |
+| 11 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **Left panel and room menu.** Home is invoked by a single tap on the clock in the left panel's top ribbon; the room card that currently closes the panel to reach home is removed. Clear-both-sides added to Manage as an initiator-only power. | Yes |
+| 12 | `bridge-turn24-post-ship.html` | `bridge-turn25-pre-base.html` | **Phrasebook behaviour.** Editing the target rewrites the source. Back-translation behaviour, verdict lifecycle and staleness. The clarify stream. | Yes |
+| 13 | `bridge-turn25-pre-base.html` | `bridge-turn25-base.html` | **Phrase-desk reconciliation and import.** Reconcile `phrase-deck-v1` and `phrase-desk`, then build import once for both paths: phrases into the phrasebook, and transcripts from the structured export. Merge-or-replace and language-mismatch are answered here. | Yes |
+| 14 | `bridge-turn25-base.html` | `bridge-turn25-pre-ship.html` | **Appearance.** Real flag graphics and the flag motif on ask screens. Bubble header background colour in the customize tab. Icon-graphics rebuild; camera and mic mute as two complete icons rather than a composited slash, extended to bubble headers. Ear / TTS / Mute wording pass. | Yes |
+| 15 | `bridge-turn25-pre-ship.html` | `bridge-turn25-ship.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last because it touches every call site. | No |
+
+**After release 15 the backlog is empty.** Nine releases remain after the one
+currently built. Nothing is parked without a number.
 
 **Sequencing rationale.** The card is the surface everything else is displayed
 on, so it is built first. Relay stability comes next and is not optional: two
@@ -534,6 +543,121 @@ speaker. Without that it is decoration for one side and noise for the other.
 
 ---
 
+## 6b · BACKLOG — none. Everything is scheduled.
+
+Every item previously parked here now has a release number in §5. The backlog
+exists as a concept only for things not yet raised.
+
+**Out of scope by ruling — not scheduled, not coming back:**
+
+- Goodbye screen. Ruled out 2026-08-06.
+- Phrasebook import-phrases modal as a standalone surface. Ruled out
+  2026-08-06; import itself is release 13, built once for both paths.
+
+**Direction of travel, not a release:** diagnostics eventually move behind a
+`&debug=1` launch parameter and are off by default.
+
+---
+
+## 6c · RELEASE 6 — ROOM MENU SURFACE
+
+One surface: the room drawer, plus the transcription lifecycle faults the last
+gate exposed. Nothing outside the drawer changes visually.
+
+### Transcription lifecycle — from the turn23-ship log
+
+- **Stop transcription on mute; start it again on unmute.** Every `1011` close
+  in the gate log happened while muted, roughly every fourteen seconds, and none
+  while the microphone was live. The service closes a socket it is not being fed,
+  and mute now genuinely stops the audio — so the app was holding an open socket
+  starved of input and reopening it for the rest of the call. Mute is total, so
+  transcription should stop, not idle.
+- **Stop reporting network drops as credential failures.** Three
+  `dg_credential_failure` entries during the gate were `1006` closes while the
+  network was down. Any socket closing before it opens is currently blamed on
+  credentials, which is wrong and makes the log lie during exactly the trouble
+  it should describe.
+
+### Drawer restructure
+
+- The two items on the **Share** tab move to the bottom of **General**, so
+  General has room to grow and the share controls stop occupying a tab of their
+  own.
+- The **Debug** tab is renamed **Manage**. It stops being a developer corner and
+  becomes where a person manages what the room holds.
+
+### Manage tab — the full transcript lifecycle
+
+- Export transcript, in **two formats**: a readable one, and a structured one
+  that a future import will read.
+- Clear transcript — **local only**.
+- Diagnostics overlay with copy and download, carried over unchanged from the
+  Debug tab.
+- Clear debug log.
+
+### Room name parity
+
+Both sides may rename the room, and the change propagates immediately, exactly
+as person names already do. Parity carries the day: a communications product
+where one party can rename a shared thing and the other cannot is harder to
+explain than one where both can, and the person-name path already works this way
+and is understood.
+
+This closes the standing backlog item that renames do not propagate.
+
+### Also in scope, because it is this surface
+
+- Enter on the person name or the room name in the room config dialog commits
+  and closes the dialog.
+
+### Rulings — closed 2026-08-06
+
+1. **Import is deferred.** Merge-or-replace and language-mismatch behaviour are
+   unanswered, so import moves to the backlog. Export ships without it.
+2. **Export is two formats** — a readable one and a structured one. The
+   structured export is what a future import will read.
+3. **Clear is local only.** Clearing both sides is an initiator-only power and
+   is deferred to the backlog as its own decision.
+4. **Last write wins** on a room rename, matching how the person name already
+   behaves.
+5. **Manage keeps the diagnostics overlay**, with copy and download, exactly as
+   Debug had it. *Direction of travel, not this release:* diagnostics eventually
+   move behind a `&debug=1` launch parameter and are off by default.
+
+### Also in scope, by ruling 2026-08-06
+
+**Status detail popup**, on tapping a receipt dot or check. It shows three
+lines — Sent, Received, Read — and leaves the ones not yet reached blank rather
+than hiding them, so the progression is visible at a glance.
+
+**Room name popup**, on a single tap of the name in the transcript's top ribbon.
+The ribbon shows the person being spoken with; the popup shows the room name
+currently assigned.
+
+**The room name is localized, and this is not cosmetic.** The name carries the
+context of the conversation — it is what tells someone which thread they are in
+— so it has to be readable by each side in their own language, exactly like
+every message. A name set in English must appear in Chinese to the Chinese
+speaker. Without that it is decoration for one side and noise for the other.
+
+- The name is stored with the language it was written in, and translated for
+  display to a viewer whose language differs.
+- **The popup shows both** — the name as it was written, and the translation —
+  because both carry context. The original is what the other person actually
+  called it, which is worth seeing; the translation is what it means. Showing
+  only one throws away half the information the pair holds, which is the same
+  reason every message shows both.
+- When the viewer's language is the language it was written in, there is only
+  one line to show.
+- Translated on receipt and cached, not on every render — a rename is rare and a
+  render is constant.
+- Rename remains last-write-wins in both directions; the localization sits on
+  top of that and does not change it.
+- If the translation fails, the original shows rather than a blank. A name in
+  the wrong language is still a handle; nothing is not.
+
+---
+
 ## 6b · BACKLOG — not scheduled, not in the chain
 
 Nothing here is a release. Nothing here is picked up as part of another release.
@@ -699,6 +823,22 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
+item now has a release number and a home organised by separation of concerns:
+PWA foundation (7), OS push and smart home screen (8), call surface (9), compose
+and transcription (10), left panel and room menu (11), phrasebook behaviour (12),
+phrase-desk reconciliation and import (13), appearance (14), IndexedDB (15).
+**PWA is release 7, ahead of push**, because the service worker is what receives
+a push — it was previously assumed present and had no place in the chain at all.
+Deferred now means out of scope and gone; backlog now means scheduled with a
+number. New item scheduled into release 11: home is reached by tapping the clock
+in the left panel's ribbon, and the room card that currently does it is removed.
+Nine releases remain after the one now built.
+
+**Process note.** Release 6 was built from rulings without its scope being
+confirmed back to the owner first. That is the drift this version corrects. No
+release starts before its scope is agreed.
+
 **v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
 its translation, for the same reason every message shows both — the pair carries
 more context than either half. One line only when the viewer's language is the
@@ -734,6 +874,22 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
+item now has a release number and a home organised by separation of concerns:
+PWA foundation (7), OS push and smart home screen (8), call surface (9), compose
+and transcription (10), left panel and room menu (11), phrasebook behaviour (12),
+phrase-desk reconciliation and import (13), appearance (14), IndexedDB (15).
+**PWA is release 7, ahead of push**, because the service worker is what receives
+a push — it was previously assumed present and had no place in the chain at all.
+Deferred now means out of scope and gone; backlog now means scheduled with a
+number. New item scheduled into release 11: home is reached by tapping the clock
+in the left panel's ribbon, and the room card that currently does it is removed.
+Nine releases remain after the one now built.
+
+**Process note.** Release 6 was built from rulings without its scope being
+confirmed back to the owner first. That is the drift this version corrects. No
+release starts before its scope is agreed.
 
 **v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
 its translation, for the same reason every message shows both — the pair carries
