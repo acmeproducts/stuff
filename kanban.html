@@ -452,7 +452,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 </div>
 
 <script>
-const BUILD = "2025-10-28";
+const BUILD = "2026-08-08";
 
 /* ===== NEW: Board Key System ===== */
 const BOARD_KEY_LS   = "kanban_board_key";
@@ -473,7 +473,7 @@ let startupBoardName = "";
 
 
 function _cleanKey(raw){ return (raw||"").trim().replace(/[^A-Za-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"kanban"; }
-function getBoardKey(){ return _cleanKey(urlBoardParamRaw || localStorage.getItem(BOARD_KEY_LS) || "kanban"); }
+function getBoardKey(){ return _cleanKey(urlBoardParamRaw || localStorage.getItem(LAST_SEEN_BOARD_LS) || localStorage.getItem(BOARD_KEY_LS) || "kanban"); }
 function setBoardKey(raw){
   const k=_cleanKey(raw);
   localStorage.setItem(BOARD_KEY_LS, k);
@@ -655,9 +655,14 @@ function persistNow(options={}){
 }
 function scheduleSave(){ if(repoLoadBlocked) return false; dirty=true; clearTimeout(saveTimer); saveTimer=setTimeout(persistNow, 250); return true; }
 function loadState(){
-  // keyed slot first, then legacy
-  let raw = localStorage.getItem(boardLS()) || localStorage.getItem(STABLE_KEY);
-  if(!raw){ for(let i=LEGACY_KEYS.length-1;i>=0;i--){ raw=localStorage.getItem(LEGACY_KEYS[i]); if(raw) break; } if(raw) trySave(boardLS(), raw); }
+  // Never let one named board inherit the global/previous board cache. The
+  // unkeyed values are only migration sources for the original kanban board.
+  let raw = localStorage.getItem(boardLS());
+  if(!raw && canonicalBoardKey(currentBoardKey)==="kanban") raw=localStorage.getItem(STABLE_KEY);
+  if(!raw && canonicalBoardKey(currentBoardKey)==="kanban"){
+    for(let i=LEGACY_KEYS.length-1;i>=0;i--){ raw=localStorage.getItem(LEGACY_KEYS[i]); if(raw) break; }
+    if(raw) trySave(boardLS(), raw);
+  }
   if(raw){ try{ const obj=JSON.parse(raw); if(obj?.cards && obj?.stages && obj?.platforms) return obj; }catch{} }
   return null;
 }
@@ -2230,26 +2235,33 @@ function sanitizeMarkdownImages(s){
   const downloadSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2Zm7-16v9.17l3.09-3.08 1.41 1.41L12 17l-4.5-5.5 1.41-1.41L11 13.17V4h1Z"/></svg>';
   const trashSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>';
     const chevronSvg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 17 5-5-5-5v10Z"/></svg>';
-  function switchToBoard(name){
+  async function switchToBoard(name){
     const key = setBoardKey(name);
     currentBoardKey = key;
     updateKeyLabel();
-    const fresh = loadState();
-    if(fresh){
-      state = fresh;
-      state.collapsed = (state.collapsed && typeof state.collapsed==="object") ? state.collapsed : {};
-      state.cardCollapsed = (state.cardCollapsed && typeof state.cardCollapsed==="object") ? state.cardCollapsed : {};
-      state.archive = Array.isArray(state.archive) ? state.archive : [];
-      state.layout = state.layout || "auto";
-    } else {
-      state.cards=[]; state.archive=[]; state.collapsed={}; state.cardCollapsed={}; state.layout="auto";
-      state.stages=Array.isArray(state.stages)&&state.stages.length?state.stages:["Done","Doing","Next"];
-      state.platforms=Array.isArray(state.platforms)&&state.platforms.length?state.platforms:["Gemini","Claude","ChatGPT","Perplexity"];
+    setStatus(`Loading ${key} from repository…`);
+    try{
+      const remote=await fetchJson(boardFilePath(key));
+      if(!isValidBoardData(remote)) throw new Error("Invalid repo board payload");
+      clearRepoLoadBlocked();
+      applyImportedBoard(remote,"repo");
+      toast("Switched","board: "+key);
+    }catch(err){
+      const cached=loadState();
+      if(!cached){
+        setRepoLoadBlocked(err);
+        toast("Switch failed",`${key}: ${err.message}`,true);
+        setStatus(`Could not load ${key}: ${err.message}`);
+        return false;
+      }
+      clearRepoLoadBlocked();
+      applyImportedBoard(cached,"local cache");
+      toast("Offline board loaded",`Using cached ${key}`,true);
     }
     upsertBoardRecord(key,{ archived:false });
-    render();
     renderBoardManager();
-    toast("Switched","board: "+key);
+    dlg.close();
+    return true;
   }
   function isBoardNameUnique(name, ignoreName=""){
     const key=canonicalBoardKey(name), ignore=canonicalBoardKey(ignoreName);
@@ -2343,7 +2355,6 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
     if(!isBoardNameUnique(raw)){ alert("Board name must be unique."); return; }
     const next=upsertBoardRecord(raw,{ archived:false });
     switchToBoard(next.name);
-    dlg.close();
   });
 
   function setImportSourceUi(){
@@ -2393,14 +2404,14 @@ async function bootstrapBoardsLifecycle(){
   await loadRepoBoardsIndex();
   const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>b && !b.archived);
   boards.sort((a,b)=>Number(b.lastUpdated||0)-Number(a.lastUpdated||0));
-  const requested=canonicalBoardKey((urlBoardParamRaw||"").trim());
-  if(!hasBoardQueryParam){
+  // A query-string selection wins; otherwise restore the last board used on
+  // this device, then the repository's active board, then the newest board.
+  const remembered=(localStorage.getItem(LAST_SEEN_BOARD_LS)||localStorage.getItem(BOARD_KEY_LS)||"").trim();
+  const requested=canonicalBoardKey((urlBoardParamRaw||remembered||repoBoardsIndex.activeBoard||boards[0]?.name||"").trim());
+
+  if(!boards.length){
     state={ cards:[], archive:[], stages:["Done","Doing","Next"], platforms:["Gemini","Claude","ChatGPT","Perplexity"], collapsed:{}, cardCollapsed:{}, layout:"auto", lastModified:Date.now() };
     render();
-    const msg=document.createElement("div");
-    msg.className="empty-boarding";
-    msg.textContent="Welcome. Create a board from Board Manager to get started.";
-    document.getElementById("board").appendChild(msg);
     window.__openBoardManager?.("new-board","list");
     setStatus("Select or create a board to begin");
     boardsBootstrapped=true;
