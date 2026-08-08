@@ -900,6 +900,8 @@ surfaces.
 The compose strip should show when the other side is typing, so a person knows
 to wait rather than talking over them.
 
+## swipe left or right to quote someone
+
 ### Short-phrase double transcription
 In a room using the second English channel, a short phrase can be transcribed
 twice — once in the room language and once in English — and both land. The
