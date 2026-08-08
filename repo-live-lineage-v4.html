@@ -740,6 +740,11 @@
       return String(sha || '').slice(0, 7);
     }
 
+    function githubBlobUrl(variant) {
+      if (!variant || !state.owner || !state.repo || !variant.sha || !variant.path) return '';
+      return `https://github.com/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/blob/${encodeURIComponent(variant.sha)}/${encodePath(variant.path)}`;
+    }
+
     function cleanBase64(input) {
       return String(input || '').replace(/\s+/g, '');
     }
@@ -1157,7 +1162,10 @@
               message: (detail.commit?.message || summary.commit?.message || '').split('\n')[0],
               commitUrl: detail.html_url || summary.html_url || '',
               rawUrl: file.raw_url || '',
-              blobUrl: file.blob_url || '',
+              // Keep the Git object id separately from the commit that contains
+              // it. A blob SHA and a commit SHA identify different objects.
+              blobSha: file.sha || '',
+              blobUrl: githubBlobUrl({ sha: detail.sha, path: pathForContent }),
               additions: file.additions || 0,
               deletions: file.deletions || 0,
               changes: file.changes || 0
@@ -1310,8 +1318,11 @@
       els.currentTitle.textContent = `${v.path} @ ${v.shortSha}`;
       els.commitLink.href = v.commitUrl || '#';
       els.commitLink.hidden = !v.commitUrl;
-      els.blobLink.href = v.blobUrl || '#';
-      els.blobLink.hidden = !v.blobUrl;
+      // Rebuild this from the selected commit and path instead of trusting a
+      // cached API URL, which can belong to a prior repository or file state.
+      const blobUrl = githubBlobUrl(v);
+      els.blobLink.href = blobUrl || '#';
+      els.blobLink.hidden = !blobUrl;
       setPublishDefaults(v);
       try {
         if (!quiet) setStatus(els.scanStatus, `Fetching ${v.path} at ${v.shortSha}…`, 'info', true);
@@ -1368,6 +1379,7 @@
       els.selectedDetails.innerHTML = `
         <div><strong>File:</strong> ${escapeHtml(v.path)}</div>
         <div><strong>Commit:</strong> <code>${escapeHtml(v.sha)}</code></div>
+        ${v.blobSha ? `<div><strong>Blob object:</strong> <code>${escapeHtml(v.blobSha)}</code></div>` : ''}
         <div><strong>Date:</strong> ${escapeHtml(formatDate(v.date))}</div>
         <div><strong>Status:</strong> ${escapeHtml(v.status)}</div>
         <div><strong>Changes:</strong> +${v.additions} / -${v.deletions} / ${v.changes} total</div>
@@ -1381,9 +1393,16 @@
       try {
         const data = await apiFetch(`/repos/${encodeURIComponent(state.owner)}/${encodeURIComponent(state.repo)}/contents/${encodePath(v.path)}?ref=${encodeURIComponent(v.sha)}`);
         if (data && data.type === 'file' && data.content) {
+          if (v.blobSha && data.sha && data.sha !== v.blobSha) {
+            const mismatch = new Error(`GitHub returned blob ${shortSha(data.sha)}, but this version records ${shortSha(v.blobSha)}.`);
+            mismatch.isBlobMismatch = true;
+            throw mismatch;
+          }
+          if (!v.blobSha && data.sha) v.blobSha = data.sha;
           content = decodeBase64Unicode(data.content);
         }
       } catch (error) {
+        if (error.isBlobMismatch) throw error;
         if (!v.rawUrl) throw error;
       }
       if (!content && v.rawUrl) {
