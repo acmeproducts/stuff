@@ -1,7 +1,7 @@
-<!-- v5.8.2.31 -->
+<!-- v5.8.2.32 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.8 | 2026-08-06 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 1.9 | 2026-08-07 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -312,3 +312,12 @@ The rename control worked and the change reached the other side. The release sti
 Also observed, not defects but wrong: the share and link-a-device QR codes are far larger than they need to be, and the drawer does not extend far enough to show one without scrolling — which is the one moment the QR has to be held up to another phone.
 
 Rolled back rather than patched forward, at the owner's instruction, despite the rest of the release being sound.
+
+## turn23-post-ship attempts 3 and 4 — the room rename never crossed the relay · Aug 6–7 2026
+Two attempts sent the rename under a message type of its own, `room-name`. It never arrived. Attempt 4 also corrected a genuine second fault — the previous name was carried in a field called `from`, which the relay stamps with the device id on every message it sends, so it arrived as a device id — and still did not propagate.
+
+**Diagnosed by proof, not by reasoning.** Two independent instances were booted in a harness and wired to each other exactly as the relay does: whatever one sent, the other received through its own incoming handler. The rename applied correctly on the receiving side, with the correct notice, through **both** receive paths — the one used when the room is open, and the background one used when it is not. The handling is correct. The message is not arriving.
+
+**The carrier is the fault.** Every message type observed to cross is one the base already used. The person-name change crosses reliably, and it does not use a type of its own either — it rides `sys-pill` with an extra field. The rename now does the same: the notice text is the pill, and the new and previous names ride alongside it. The receiving hook applies the name and then deliberately returns control so the base still writes and renders the pill, including its own de-duplication.
+
+**DO NOT introduce new relay message types.** The lifecycle signals added in an earlier release — `room-left`, `room-rejoined`, `grant-revoke`, `grant-restore` — are all new types and are, on this evidence, likely not crossing either. They were never verified across two devices; soft delete and restore were confirmed only as local behaviour. Treat them as unproven and move them onto the pill carrier when they are next touched.
