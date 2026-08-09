@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.5.0 -->
-# TALKBRIDGE MASTER PLAN v10.5.0
+<!-- TALKBRIDGE-PLAN v10.6.0 -->
+# TALKBRIDGE MASTER PLAN v10.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -842,6 +842,21 @@ as the caller.
 Every item previously parked here now has a release number in §5. The backlog
 exists as a concept only for things not yet raised.
 
+**Scheduled — added 2026-08-08, awaiting a release number:**
+
+- **Per-room notification alias.** A room may carry an alias used in its place on
+  a lock screen — "haircut 3:30" for a room named *pickleball game*. Deliberate
+  misdirection rather than omission, for screens other people can see. **Blank
+  means silent**: a room with no alias raises no notification, which needs no
+  separate toggle. Needs a field, a home for it, a ruling on whether it is
+  private to the device that set it or shared, and its interaction with muting —
+  a release's worth of surface, not a bolt-on.
+- **Choosing the installed name and icon.** Both are read from the manifest at
+  install and cannot be changed afterwards on either platform. A choice is
+  therefore made *before* installing: ship a small set of prebuilt manifests and
+  point the page at the chosen one before the install prompt fires. Note the
+  browser tab's favicon is a different thing and can already change at runtime.
+
 **Scheduled — added 2026-08-06, awaiting a release number:**
 
 - **Localization, as a family.** The room name, the participant names, the room
@@ -1233,6 +1248,18 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
+line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
+names nobody, quotes nothing and reveals no room, so it is the privacy answer
+and the useful answer at once, and it costs nothing because the counts already
+exist. One line because iOS gives only one; Android's expanded view is a bonus,
+not the design. Composed on the device from counts the worker fetches, so
+nothing but a bare wake ever reaches a push service. Two items to the backlog:
+the **per-room notification alias** (an alias shown in place of the room name,
+blank meaning silent) and **choosing the installed name and icon**, which must
+happen before install because a manifest is read once and cannot be changed
+afterwards.
+
 **v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
 `bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
 changes and read receipts are all prompt. The cause was proven in a
@@ -1338,6 +1365,18 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
+line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
+names nobody, quotes nothing and reveals no room, so it is the privacy answer
+and the useful answer at once, and it costs nothing because the counts already
+exist. One line because iOS gives only one; Android's expanded view is a bonus,
+not the design. Composed on the device from counts the worker fetches, so
+nothing but a bare wake ever reaches a push service. Two items to the backlog:
+the **per-room notification alias** (an alias shown in place of the room name,
+blank meaning silent) and **choosing the installed name and icon**, which must
+happen before install because a manifest is read once and cannot be changed
+afterwards.
 
 **v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
 `bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
