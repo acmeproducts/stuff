@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.6.0 -->
-# TALKBRIDGE MASTER PLAN v10.6.0
+<!-- TALKBRIDGE-PLAN v10.6.1 -->
+# TALKBRIDGE MASTER PLAN v10.6.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -844,6 +844,17 @@ exists as a concept only for things not yet raised.
 
 **Scheduled — added 2026-08-08, awaiting a release number:**
 
+- **Chrome treats the room name as a credential.** Creating a room offers the
+  password autofill popup for the room name field, then offers to save it as a
+  password. That means a password manager stores a room name as a credential,
+  and may autofill a saved password into the field — naming a room after
+  someone's password. The create dialog as a whole is being read as a sign-up
+  form, so the fix is to mark the form and its fields with a real non-credential
+  purpose; `autocomplete="off"` alone is widely ignored. The person-name field
+  is likely read as a username for the same reason. *Observed in the create
+  dialog; whether the drawer's room-name and person-name fields do the same is
+  unconfirmed — different form, possibly different behaviour.*
+
 - **Per-room notification alias.** A room may carry an alias used in its place on
   a lock screen — "haircut 3:30" for a room named *pickleball game*. Deliberate
   misdirection rather than omission, for screens other people can see. **Blank
@@ -1248,6 +1259,11 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
+creation dialog as a sign-up form, offers the password popup for the room name
+and then offers to save it as a password — so a manager may store a room name as
+a credential, or fill a password into the field.
+
 **v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
 line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
 names nobody, quotes nothing and reveals no room, so it is the privacy answer
@@ -1365,6 +1381,11 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
+creation dialog as a sign-up form, offers the password popup for the room name
+and then offers to save it as a password — so a manager may store a room name as
+a credential, or fill a password into the field.
 
 **v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
 line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
