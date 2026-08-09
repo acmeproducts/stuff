@@ -4163,8 +4163,8 @@ CALL.setupPC = async function () {
 
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
-VERSION = 'turn24-base · PWA + push + away record';
-BUILD_INFO = { release: 'turn24-base · PWA, push, while-you-were-away', builtAt: '2026-08-08T01:30:00Z' };
+VERSION = 'turn24-base · PWA, push, call surface';
+BUILD_INFO = { release: 'turn24-base · release 7 complete', builtAt: '2026-08-08T03:10:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -6053,7 +6053,7 @@ function sendReadReceipts() {
 /* @contract
    replaces: homeCards, renderHome
    wraps: renameRoom, onRoomNameSignal, handleRelay, LISTEN.handle, enterRoom
-   adds: PWA, pwaLog, recordEvent, roomEvents, clearRoomEvents, eventCards, registerServiceWorker, promptInstall, subscribeToPush, relayHttpUrl, wireClockNavigation, PWA_CSS, _pRenameRoom, _pOnRoomName, _pHandleRelay, _pListen, _pEnterRoom, _pHomeCards, _pRenderHome
+   adds: PWA, pwaLog, noteSeq, sendWorkerContext, recordEvent, roomEvents, clearRoomEvents, eventCards, registerServiceWorker, promptInstall, subscribeToPush, relayHttpUrl, wireClockNavigation, PWA_CSS, _pRenameRoom, _pOnRoomName, _pHandleRelay, _pListen, _pEnterRoom, _pHomeCards, _pRenderHome
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 7a · PWA, PUSH, AND THE "WHILE YOU WERE AWAY" RECORD
@@ -6177,7 +6177,7 @@ function noteNameChange(roomId, d) {
   var _pHandleRelay = handleRelay;
   handleRelay = function (d) {
     var r = _pHandleRelay.apply(this, arguments);
-    try { noteNameChange(S.roomId, d); } catch (_) {}
+    try { noteNameChange(S.roomId, d); noteSeq(S.roomId, d); } catch (_) {}
     return r;
   };
 })();
@@ -6186,7 +6186,7 @@ function noteNameChange(roomId, d) {
   var _pListen = LISTEN.handle;
   LISTEN.handle = function (roomId, d) {
     var r = _pListen.apply(this, arguments);
-    try { noteNameChange(roomId, d); } catch (_) {}
+    try { noteNameChange(roomId, d); noteSeq(roomId, d); } catch (_) {}
     return r;
   };
 })();
@@ -6200,6 +6200,7 @@ function noteNameChange(roomId, d) {
     try {
       var room = roomById(id);
       if (room) { clearRoomEvents(room); renderHome(); }
+      sendWorkerContext();
     } catch (_) {}
     return r;
   };
@@ -6335,6 +6336,36 @@ function subscribeToPush() {
   });
 }
 
+/* What the worker needs in order to count for itself: where the relay is, who
+   this device is, and which rooms to ask about with a mark of what has already
+   been seen. No names, no text, no content of any kind. */
+/* The relay numbers everything it stores, and its history endpoint takes a mark
+   of where to resume. Recording the highest number seen per room is what lets
+   the worker ask "what have I missed" rather than "what exists". */
+function noteSeq(roomId, d) {
+  try {
+    if (!d || typeof d.seq !== 'number') return;
+    var r = roomById(roomId); if (!r) return;
+    if (!r.lastSeenSeq || d.seq > r.lastSeenSeq) { r.lastSeenSeq = d.seq; saveRooms(); }
+  } catch (_) {}
+}
+
+function sendWorkerContext() {
+  try {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return false;
+    var ctx = {
+      relay: RELAY_WS,
+      app: RELAY_APP,
+      client: deviceId,
+      rooms: (S.rooms || []).filter(function (r) { return !r.deletedAt && !r.muted; })
+        .map(function (r) { return { id: r.id, since: r.lastSeenSeq || 0 }; })
+    };
+    navigator.serviceWorker.controller.postMessage({ type: 'tb-context', context: ctx });
+    pwaLog('context_sent', { rooms: ctx.rooms.length }, 'ok');
+    return true;
+  } catch (e) { pwaLog('context_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
 function promptInstall() {
   if (!PWA.installEvent) { pwaLog('no_install_prompt', {}, 'warn'); return false; }
   PWA.installEvent.prompt();
@@ -6376,9 +6407,152 @@ if (typeof document !== 'undefined') {
   setTimeout(function () {
     try {
       wireClockNavigation();
-      registerServiceWorker().then(function (reg) { if (reg) subscribeToPush(); });
+      registerServiceWorker().then(function (reg) {
+        if (!reg) return;
+        subscribeToPush();
+        sendWorkerContext();
+      });
     } catch (_) {}
   }, 800);
+}
+
+
+/* ═══════════ GAP PART · B2-ribbon.js ═══════════ */
+/* @contract
+   wraps: CALL.mount, CALL.teardown
+   adds: RIBBON, ribLog, buildRibbonLayout, callDurationLabel, startCallClock, stopCallClock, RIBBON_CSS, _rbMount, _rbTeardown
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 7c · CALL SURFACE
+
+   THE STRIP. The call controls cluster in the centre with fixed positions
+   rather than shifting with state. The microphone never moves. Phone and video
+   sit beside it, and the hang-up sits beside the video. A voice call shows the
+   microphone and the hang-up; a video call shows the microphone, the camera and
+   the hang-up.
+
+   Three reasons, all of them the point: the video control moves away from the
+   room menu, which are currently close enough to hit by accident; every control
+   gets one place to live instead of appearing where the previous state left a
+   gap; and the left side is freed for the name of the person being spoken to.
+
+   THE TIMER. It was already running on both sides — and it was being
+   overwritten. Whenever the other person's microphone was live the same slot
+   printed "Speaking…", which during an actual conversation is most of the time,
+   so the duration was almost never on screen. The receiver appeared to have no
+   timer because in practice nobody did. The duration now holds that slot
+   unconditionally and the speaking state is shown by the presence dot, which
+   already exists for exactly this kind of signal.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var RIBBON = { clock: null, built: false };
+
+function ribLog(what, data, level) {
+  try { log('rib_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var RIBBON_CSS =
+  /* One row, centred, with fixed slots. The left grows so the name has the room. */
+  '.ribbon .rz-left{flex:1 1 auto;min-width:0}' +
+  '.ribbon .rz-center{display:flex;align-items:center;gap:14px;flex-shrink:0}' +
+  '.ribbon .rz-right{flex:0 0 auto;min-width:0;gap:14px}' +
+  '.ribbon .rz-slot{width:34px}' +
+  /* Call controls live in the centre, beside the microphone, and keep their
+     places whether or not a call is running. */
+  '.rz-center .rz-callbtn{background:none;border:none;cursor:pointer;line-height:0;color:var(--ink-mid);padding:0;display:flex;align-items:center;justify-content:center;width:34px;flex-shrink:0}' +
+  '#scr-room.st-phone .rz-center #btn-call,#scr-room.st-phone .rz-center #btn-video,' +
+  '#scr-room.st-video .rz-center #btn-call,#scr-room.st-video .rz-center #btn-video{display:none}' +
+  '#scr-room.st-phone .rz-slot.cam-slot{display:none}' +
+  '.rz-center #rb-hangup{display:none}' +
+  '#scr-room.st-phone .rz-center #rb-hangup,#scr-room.st-video .rz-center #rb-hangup{display:flex}' +
+  /* The duration is always readable, never replaced. */
+  '.rz-timer{display:none}' +
+  '#scr-room.st-phone .rz-timer,#scr-room.st-video .rz-timer{display:inline}' +
+  '.presence-dot.speaking{background:var(--teal);animation:tb-speak 1s ease-in-out infinite}' +
+  '@keyframes tb-speak{0%,100%{opacity:.45}50%{opacity:1}}';
+
+/* Moves the call controls into the centre cluster, in fixed order:
+   microphone · phone · video · hang-up. */
+function buildRibbonLayout() {
+  try {
+    if (RIBBON.built) return true;
+    var centre = document.querySelector('#room-ribbon .rz-center');
+    if (!centre || !centre.appendChild) { ribLog('no_centre', {}, 'warn'); return false; }
+
+    ['btn-call', 'btn-video', 'rb-hangup'].forEach(function (id) {
+      var el = $(id);
+      if (!el) { ribLog('missing_control', { id: id }, 'warn'); return; }
+      if (id !== 'rb-hangup') el.classList.add('rz-callbtn');
+      centre.appendChild(el);
+    });
+
+    RIBBON.built = true;
+    ribLog('layout_built', {}, 'ok');
+    return true;
+  } catch (e) { ribLog('layout_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function callDurationLabel(startTs, now) {
+  var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
+  var m = Math.floor(s / 60);
+  return m + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+/* The duration owns its slot. Connection trouble is the one thing worth saying
+   instead, because it explains silence; speaking does not, and has the dot. */
+function startCallClock() {
+  stopCallClock();
+  RIBBON.clock = setInterval(function () {
+    try {
+      if (!CALL.active) { stopCallClock(); return; }
+      var el = $('rz-timer'); if (!el) return;
+      el.textContent = CALL.connBad ? 'Reconnecting…' : callDurationLabel(CALL.startTs);
+      var dot = $('presence');
+      if (dot) dot.classList.toggle('speaking', !!(typeof _remoteMicOn !== 'undefined' && _remoteMicOn));
+    } catch (_) {}
+  }, 1000);
+  ribLog('clock_started', {}, 'ok');
+}
+
+function stopCallClock() {
+  if (RIBBON.clock) { clearInterval(RIBBON.clock); RIBBON.clock = null; }
+  try {
+    var dot = $('presence'); if (dot) dot.classList.remove('speaking');
+  } catch (_) {}
+}
+
+(function () {
+  var _rbMount = CALL.mount;
+  CALL.mount = function (room) {
+    var r = _rbMount.apply(this, arguments);
+    try {
+      buildRibbonLayout();
+      /* Both sides, without exception — the caller and the person answering are
+         equally on a call and the surface should say so identically. */
+      var el = $('rz-timer');
+      if (el) el.textContent = callDurationLabel(this.startTs);
+      startCallClock();
+      ribLog('call_surface_up', { kind: this.kind, caller: !!this.caller }, 'ok');
+    } catch (e) { ribLog('mount_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _rbTeardown = CALL.teardown;
+  CALL.teardown = function () {
+    stopCallClock();
+    return _rbTeardown.apply(this, arguments);
+  };
+})();
+
+if (typeof document !== 'undefined') {
+  try {
+    var st = document.createElement('style');
+    st.textContent = RIBBON_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+  setTimeout(function () { try { buildRibbonLayout(); } catch (_) {} }, 900);
 }
 
 </script>
