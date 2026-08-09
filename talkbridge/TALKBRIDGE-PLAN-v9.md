@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.4.0 -->
-# TALKBRIDGE MASTER PLAN v10.4.0
+<!-- TALKBRIDGE-PLAN v10.5.0 -->
+# TALKBRIDGE MASTER PLAN v10.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,7 +157,11 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn23-post-ship.html` — device-passed 2026-08-07 (room card, joiner shell, room lifecycle and elevation, call and network robustness, room menu surface). Rollback floor.**
+**Baseline: `bridge-turn24-pre-base.html` — device-passed 2026-08-07. Rollback floor.**
+
+Passed to date: room card and home screen · joiner shell · room lifecycle and
+elevation · call and network robustness · room menu surface · read receipt
+delivery.
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -769,7 +773,27 @@ already there and already unused, so the card is redundant weight.
 *This absorbs the item previously scheduled for release 10; the two are the same
 change and are done once, here, where the home screen is already being touched.*
 
-### Update propagation — the real problem underneath
+### Update propagation — RESOLVED 2026-08-07, ahead of the rest of this release
+
+Fixed and device-passed as `bridge-turn24-pre-base.html`. Renames, name changes
+and read receipts are all prompt.
+
+**The cause, proven in a two-instance harness before anything was written:** read
+receipts were marked as sent *before* the send was attempted. Entering a room
+renders the transcript, which is what triggers the receipt — and entering a room
+happens before the relay socket is open. The send failed, the messages were
+already flagged, and nothing retried them. The flag is saved with the
+transcript, so those receipts were lost permanently, which is why re-entering
+the room never settled them.
+
+**The fix:** nothing is flagged until the send succeeds, and any inbound relay
+traffic flushes whatever is still outstanding — inbound traffic being a more
+reliable signal that the socket is live than the socket's own events.
+
+*Note: messages flagged before this fix stay flagged, because the flag was
+persisted. Those specific old messages will not settle.*
+
+### What remains of update propagation
 
 A rename arriving late is a symptom, and the owner has narrowed it: **the
 notification does not appear on the receiving side when the room is entered, or
@@ -792,10 +816,12 @@ Read receipts are the same fault seen from another angle:
 when it arrives, when it is applied, and what runs on entering a room and on
 focus returning. Do not reason about the cause. Fix what the log shows.
 
-The shape of the fix is a **reconciliation on re-entry**: entering a room, or
-returning focus to it, replays whatever arrived while it was not being watched
-and settles anything outstanding. Nothing should depend on having been present
-at the moment a message landed.
+What remains here is only the **away** case, and it is push's job rather than a
+replay's: an event that happens while the app is closed is delivered by the
+service worker, which raises the notification and writes the home-screen entry.
+Reconciliation on return is the fallback for when push genuinely could not
+deliver — permission declined, iOS without a home-screen install, device offline
+throughout. If that fallback is carrying the load, push is not working.
 
 *Carry into this: the lifecycle signals from the elevation release —* left the
 chat, rejoined, grant revoke, grant restore *— are new relay message types and,
@@ -978,7 +1004,27 @@ already there and already unused, so the card is redundant weight.
 *This absorbs the item previously scheduled for release 10; the two are the same
 change and are done once, here, where the home screen is already being touched.*
 
-### Update propagation — the real problem underneath
+### Update propagation — RESOLVED 2026-08-07, ahead of the rest of this release
+
+Fixed and device-passed as `bridge-turn24-pre-base.html`. Renames, name changes
+and read receipts are all prompt.
+
+**The cause, proven in a two-instance harness before anything was written:** read
+receipts were marked as sent *before* the send was attempted. Entering a room
+renders the transcript, which is what triggers the receipt — and entering a room
+happens before the relay socket is open. The send failed, the messages were
+already flagged, and nothing retried them. The flag is saved with the
+transcript, so those receipts were lost permanently, which is why re-entering
+the room never settled them.
+
+**The fix:** nothing is flagged until the send succeeds, and any inbound relay
+traffic flushes whatever is still outstanding — inbound traffic being a more
+reliable signal that the socket is live than the socket's own events.
+
+*Note: messages flagged before this fix stay flagged, because the flag was
+persisted. Those specific old messages will not settle.*
+
+### What remains of update propagation
 
 A rename arriving late is a symptom, and the owner has narrowed it: **the
 notification does not appear on the receiving side when the room is entered, or
@@ -1001,10 +1047,12 @@ Read receipts are the same fault seen from another angle:
 when it arrives, when it is applied, and what runs on entering a room and on
 focus returning. Do not reason about the cause. Fix what the log shows.
 
-The shape of the fix is a **reconciliation on re-entry**: entering a room, or
-returning focus to it, replays whatever arrived while it was not being watched
-and settles anything outstanding. Nothing should depend on having been present
-at the moment a message landed.
+What remains here is only the **away** case, and it is push's job rather than a
+replay's: an event that happens while the app is closed is delivered by the
+service worker, which raises the notification and writes the home-screen entry.
+Reconciliation on return is the fallback for when push genuinely could not
+deliver — permission declined, iOS without a home-screen install, device offline
+throughout. If that fallback is carrying the load, push is not working.
 
 *Carry into this: the lifecycle signals from the elevation release —* left the
 chat, rejoined, grant revoke, grant restore *— are new relay message types and,
@@ -1185,6 +1233,14 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
+`bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
+changes and read receipts are all prompt. The cause was proven in a
+two-instance harness before any code was written: receipts were flagged as sent
+before the send was attempted, and since room entry precedes the socket opening,
+they were lost permanently and never retried. What remains of update propagation
+is only the away case, which is push's job rather than a replay's.
+
 **v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
 `bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
 a rename that sometimes appears instantly and sometimes seems to skip — is
@@ -1282,6 +1338,14 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
+`bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
+changes and read receipts are all prompt. The cause was proven in a
+two-instance harness before any code was written: receipts were flagged as sent
+before the send was attempted, and since room entry precedes the socket opening,
+they were lost permanently and never retried. What remains of update propagation
+is only the away case, which is push's job rather than a replay's.
 
 **v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
 `bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
