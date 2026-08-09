@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.2.0 -->
-# TALKBRIDGE MASTER PLAN v10.2.0
+<!-- TALKBRIDGE-PLAN v10.3.0 -->
+# TALKBRIDGE MASTER PLAN v10.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -195,10 +195,10 @@ screen.
 | ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
 | ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
 | **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room menu surface — NEXT.** Tab restructure, transcript lifecycle (export / import / clear), room-name parity, and two transcription-lifecycle fixes. Full scope in §6e. | Yes |
-| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA, OS push, smart home screen, and the call surface.** PWA foundation — manifest, service worker registered from the file, install on Android, home-screen install on iOS — ships here because the service worker is what receives a push and push cannot exist without it. Then locked and backgrounded push: relay change, subscription, notification tap routing. Smart home screen: room-summary dashboard, tutorials on demand, FAQ, per-room rollup. Call surface: ribbon strip transformation — microphone fixed at centre, phone and video beside it, hang-up fixed beside video; voice shows mic and hang-up only, video shows mic, camera and hang-up — and the call timer visible to the receiver as well as the caller. The only release that modifies the relay. | Yes |
+| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA, OS push, home screen, and the call surface.** Scope detail in §6d. | Yes |
 | 8 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Multitasking during a call.** Losing focus mutes the microphone. The back button enters picture-in-picture and **keeps the connection**. This closes the open question directly: the call stays up so multitasking works, and the microphone closes so nothing is picked up by a call the person has stopped looking at. | Yes |
 | 9 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Appearance.** Real flag graphics and the flag motif on ask screens. Bubble header background colour in the customize tab. Icon-graphics rebuild; camera and mic mute as two complete icons rather than a composited slash, extended to bubble headers. Ear / TTS / Mute wording pass. | Yes |
-| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose, transcription, left panel and room menu.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. Home invoked by a single tap on the clock in the left panel's top ribbon, with the room card that currently does it removed. Clear-both-sides added to Manage as an initiator-only power. | Yes |
+| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose, transcription, left panel and room menu.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. Clear-both-sides added to Manage as an initiator-only power. *(The left-panel navigation change moved to release 7, where the home screen is already being touched.)* | Yes |
 | 11 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **Phrasebook, end to end.** Editing the target rewrites the source. Back-translation behaviour, verdict lifecycle and staleness. The clarify stream. Then reconcile `phrase-deck-v1` and `phrase-desk`, and build import once for both paths — phrases into the phrasebook, transcripts from the structured export. Merge-or-replace and language-mismatch are answered here. | Yes |
 | 12 | `bridge-turn24-post-ship.html` | `bridge-turn25-pre-base.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last because it touches every call site. | No |
 
@@ -699,7 +699,10 @@ This closes the standing backlog item that renames do not propagate.
 
 **Status detail popup**, on tapping a receipt dot or check. It shows three
 lines — Sent, Received, Read — and leaves the ones not yet reached blank rather
-than hiding them, so the progression is visible at a glance.
+than hiding them, so the progression is visible at a glance. **It appears just
+above the message it belongs to**, not pinned to the top of the screen: a popup
+that opens somewhere other than what was tapped is not how anything modern
+behaves, and it breaks the connection between the tap and the answer.
 
 **Room name popup**, on a single tap of the name in the transcript's top ribbon.
 The ribbon shows the person being spoken with; the popup shows the room name
@@ -726,6 +729,69 @@ speaker. Without that it is decoration for one side and noise for the other.
   top of that and does not change it.
 - If the translation fails, the original shows rather than a blank. A name in
   the wrong language is still a handle; nothing is not.
+
+---
+
+## 6d · RELEASE 7 — PWA, PUSH, HOME SCREEN, CALL SURFACE
+
+### PWA foundation
+Manifest, service worker registered from the file, install on Android,
+home-screen install on iOS. Ships at the front of this release because the
+service worker is what receives a push — push cannot exist without it.
+
+### OS push
+Locked and backgrounded push only: relay change, push subscription, notification
+tap routing into the right room. The only release that modifies the relay.
+
+### The home screen becomes the record of what happened while you were away
+
+The home screen already surfaces waiting chats and missed calls. **A name change
+and a room rename are the same kind of event and belong there too** — something
+happened in a room you were not looking at, and you should be able to see it and
+tap straight into that room.
+
+- *Mike is now Miguel* — with date and time, tappable, opens the room.
+- *Mike changed the room from movies to camping* — with date and time, tappable,
+  opens the room.
+- Same card treatment and same dismissal rules as the existing waiting entries.
+
+### The left panel loses its navigation card
+
+The card that says TalkBridge / About / start screen is removed. **A single tap
+on the clock in the panel's top ribbon does exactly what it did** — the clock is
+already there and already unused, so the card is redundant weight.
+
+*This absorbs the item previously scheduled for release 10; the two are the same
+change and are done once, here, where the home screen is already being touched.*
+
+### Update propagation — the real problem underneath
+
+A rename arriving late is a symptom. The wider fault is that state changes are
+not propagating promptly, and read receipts are the clearest case:
+
+- A message is sent and demonstrably read, and the dot in the bubble header does
+  not turn from grey to green — or turns, and re-entering the room never
+  registers the read.
+- The lag is well over a minute, sometimes apparently indefinite.
+- It is not a connectivity failure: in the same session a message crossed, a
+  rename crossed, both transcripts updated correctly — and the receipt still did
+  not settle.
+
+**Instrument the whole receipt path first** — when a read is detected, when it is
+sent, when it arrives, when it is applied, and what it does when the room is
+entered again. Do not reason about the cause. Fix what the log shows.
+
+*Carry into this: the lifecycle signals from the elevation release —* left the
+chat, rejoined, grant revoke, grant restore *— are new relay message types and,
+on the evidence that a new type never crossed, are probably not arriving either.
+They were only ever confirmed as local behaviour. Verify them across two devices
+and move them onto the system-pill carrier if they are not crossing.*
+
+### Call surface
+Ribbon strip transformation — microphone fixed at centre, phone and video beside
+it, hang-up fixed beside video. Voice shows microphone and hang-up only; video
+shows microphone, camera and hang-up. Call timer visible to the receiver as well
+as the caller.
 
 ---
 
@@ -826,7 +892,10 @@ This closes the standing backlog item that renames do not propagate.
 
 **Status detail popup**, on tapping a receipt dot or check. It shows three
 lines — Sent, Received, Read — and leaves the ones not yet reached blank rather
-than hiding them, so the progression is visible at a glance.
+than hiding them, so the progression is visible at a glance. **It appears just
+above the message it belongs to**, not pinned to the top of the screen: a popup
+that opens somewhere other than what was tapped is not how anything modern
+behaves, and it breaks the connection between the tap and the answer.
 
 **Room name popup**, on a single tap of the name in the transcript's top ribbon.
 The ribbon shows the person being spoken with; the popup shows the room name
@@ -853,6 +922,69 @@ speaker. Without that it is decoration for one side and noise for the other.
   top of that and does not change it.
 - If the translation fails, the original shows rather than a blank. A name in
   the wrong language is still a handle; nothing is not.
+
+---
+
+## 6d · RELEASE 7 — PWA, PUSH, HOME SCREEN, CALL SURFACE
+
+### PWA foundation
+Manifest, service worker registered from the file, install on Android,
+home-screen install on iOS. Ships at the front of this release because the
+service worker is what receives a push — push cannot exist without it.
+
+### OS push
+Locked and backgrounded push only: relay change, push subscription, notification
+tap routing into the right room. The only release that modifies the relay.
+
+### The home screen becomes the record of what happened while you were away
+
+The home screen already surfaces waiting chats and missed calls. **A name change
+and a room rename are the same kind of event and belong there too** — something
+happened in a room you were not looking at, and you should be able to see it and
+tap straight into that room.
+
+- *Mike is now Miguel* — with date and time, tappable, opens the room.
+- *Mike changed the room from movies to camping* — with date and time, tappable,
+  opens the room.
+- Same card treatment and same dismissal rules as the existing waiting entries.
+
+### The left panel loses its navigation card
+
+The card that says TalkBridge / About / start screen is removed. **A single tap
+on the clock in the panel's top ribbon does exactly what it did** — the clock is
+already there and already unused, so the card is redundant weight.
+
+*This absorbs the item previously scheduled for release 10; the two are the same
+change and are done once, here, where the home screen is already being touched.*
+
+### Update propagation — the real problem underneath
+
+A rename arriving late is a symptom. The wider fault is that state changes are
+not propagating promptly, and read receipts are the clearest case:
+
+- A message is sent and demonstrably read, and the dot in the bubble header does
+  not turn from grey to green — or turns, and re-entering the room never
+  registers the read.
+- The lag is well over a minute, sometimes apparently indefinite.
+- It is not a connectivity failure: in the same session a message crossed, a
+  rename crossed, both transcripts updated correctly — and the receipt still did
+  not settle.
+
+**Instrument the whole receipt path first** — when a read is detected, when it is
+sent, when it arrives, when it is applied, and what it does when the room is
+entered again. Do not reason about the cause. Fix what the log shows.
+
+*Carry into this: the lifecycle signals from the elevation release —* left the
+chat, rejoined, grant revoke, grant restore *— are new relay message types and,
+on the evidence that a new type never crossed, are probably not arriving either.
+They were only ever confirmed as local behaviour. Verify them across two devices
+and move them onto the system-pill carrier if they are not crossing.*
+
+### Call surface
+Ribbon strip transformation — microphone fixed at centre, phone and video beside
+it, hang-up fixed beside video. Voice shows microphone and hang-up only; video
+shows microphone, camera and hang-up. Call timer visible to the receiver as well
+as the caller.
 
 ---
 
@@ -899,8 +1031,6 @@ surfaces.
 ### Typing indicator
 The compose strip should show when the other side is typing, so a person knows
 to wait rather than talking over them.
-
-## swipe left or right to quote someone
 
 ### Short-phrase double transcription
 In a room using the second English channel, a short phrase can be transcribed
@@ -1023,6 +1153,20 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
+additions. Name changes and room renames become **home screen entries** — same
+kind of event as a waiting chat or a missed call, with date, time and a tap
+straight into the room. The **left panel's navigation card is removed** in favour
+of a single tap on the clock, absorbed here from release 10 since the home
+screen is already being touched. **Update propagation** is named as the real
+problem beneath the late rename: read receipts do not settle, sometimes for
+minutes, in sessions where messages and renames demonstrably crossed —
+instrument the whole receipt path before changing anything. Carried in with it:
+the elevation release's lifecycle signals use new relay message types and are
+probably not crossing either, having only been confirmed as local behaviour.
+Release 6 gains one correction: the **status popup opens just above the message
+it belongs to**, not pinned to the top of the screen.
+
 **v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
 attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
 base's own room title and the shared name are the same idea, and holding both is
@@ -1094,6 +1238,20 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
+additions. Name changes and room renames become **home screen entries** — same
+kind of event as a waiting chat or a missed call, with date, time and a tap
+straight into the room. The **left panel's navigation card is removed** in favour
+of a single tap on the clock, absorbed here from release 10 since the home
+screen is already being touched. **Update propagation** is named as the real
+problem beneath the late rename: read receipts do not settle, sometimes for
+minutes, in sessions where messages and renames demonstrably crossed —
+instrument the whole receipt path before changing anything. Carried in with it:
+the elevation release's lifecycle signals use new relay message types and are
+probably not crossing either, having only been confirmed as local behaviour.
+Release 6 gains one correction: the **status popup opens just above the message
+it belongs to**, not pinned to the top of the screen.
 
 **v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
 attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
