@@ -1,7 +1,7 @@
-<!-- v5.8.2.32 -->
+<!-- v5.8.2.33 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 1.9 | 2026-08-07 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.0 | 2026-08-07 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -321,3 +321,12 @@ Two attempts sent the rename under a message type of its own, `room-name`. It ne
 **The carrier is the fault.** Every message type observed to cross is one the base already used. The person-name change crosses reliably, and it does not use a type of its own either — it rides `sys-pill` with an extra field. The rename now does the same: the notice text is the pill, and the new and previous names ride alongside it. The receiving hook applies the name and then deliberately returns control so the base still writes and renders the pill, including its own de-duplication.
 
 **DO NOT introduce new relay message types.** The lifecycle signals added in an earlier release — `room-left`, `room-rejoined`, `grant-revoke`, `grant-restore` — are all new types and are, on this evidence, likely not crossing either. They were never verified across two devices; soft delete and restore were confirmed only as local behaviour. Treat them as unproven and move them onto the pill carrier when they are next touched.
+
+## CORRECTION to the entry above — the relay does NOT filter message types · Aug 7 2026
+The entry for turn23-post-ship attempts 3 and 4 concluded that new relay message types do not cross, and instructed that none be introduced. **That conclusion was wrong.** The relay source was obtained afterwards: it broadcasts every message it receives, with no allowlist anywhere. Types are only consulted to decide whether a message is persisted or treated as transient.
+
+The rename genuinely did not arrive on the device, and the two-instance harness genuinely showed the handling to be correct — both observations stand. The inference joining them did not. The most likely remaining explanation is that the receiving device was running an earlier build, which was never ruled out.
+
+What to keep: the pill carrier works, is shipped and has passed a gate, so there is no reason to move off it. What to discard: the instruction not to introduce new message types, and the suspicion that the elevation lifecycle signals fail for that reason. They may still be unverified across two devices — that is worth checking — but the transport is not the reason.
+
+**The wider lesson is about this document.** A confident wrong entry here is worse than no entry, because it becomes a constraint nobody revisits. An entry that rests on inference rather than evidence must say so in the entry itself.
