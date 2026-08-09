@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#05070b">
+<title>Particle Life — Multi-Mode Studio</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070b;
+    --panel: rgba(11, 15, 24, 0.94);
+    --panel-2: rgba(20, 26, 39, 0.96);
+    --line: rgba(255,255,255,0.12);
+    --text: #eef3ff;
+    --muted: #9aa7bd;
+    --accent: #8ab4ff;
+    --danger: #ff7a8a;
+    --ok: #78e6ac;
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button, input, select { font: inherit; }
+  button, select, input[type="range"], input[type="text"], input[type="number"] { touch-action: manipulation; }
+
+  #stage { position: fixed; inset: 0; overflow: hidden; background: var(--bg); }
+  #world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  .toolbar {
+    position: fixed;
+    z-index: 20;
+    left: max(10px, env(safe-area-inset-left));
+    top: max(10px, env(safe-area-inset-top));
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 20px);
+  }
+
+  .tool-button, .primary, .secondary, .danger {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 9px 13px;
+    color: var(--text);
+    background: rgba(13, 18, 28, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .tool-button:hover, .secondary:hover { background: rgba(30, 39, 57, 0.9); }
+  .tool-button:active, .primary:active, .secondary:active, .danger:active { transform: translateY(1px); }
+  .primary { background: #dce9ff; color: #08101d; border-color: transparent; }
+  .secondary { background: rgba(255,255,255,0.06); }
+  .danger { background: rgba(255, 76, 98, 0.12); color: #ffd7dc; border-color: rgba(255, 100, 120, 0.3); }
+  .active { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  #stats {
+    position: fixed;
+    z-index: 12;
+    right: max(10px, env(safe-area-inset-right));
+    top: max(10px, env(safe-area-inset-top));
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(7, 10, 16, 0.72);
+    color: var(--muted);
+    font: 600 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-align: right;
+  }
+
+  #panel {
+    position: fixed;
+    z-index: 30;
+    top: 0;
+    right: 0;
+    width: min(430px, 94vw);
+    height: 100%;
+    padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 14px;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    box-shadow: -20px 0 60px rgba(0,0,0,0.42);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: translateX(102%);
+    transition: transform 180ms ease;
+  }
+  #panel.open { transform: translateX(0); }
+
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .panel-head h1 { margin: 0; font-size: 20px; line-height: 1.15; }
+  .panel-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .close { width: 42px; min-width: 42px; padding: 0; }
+
+  details {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.025);
+    margin: 10px 0;
+    overflow: clip;
+  }
+  summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 13px 14px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "›"; color: var(--muted); font-size: 22px; transform: rotate(90deg); transition: transform 120ms ease; }
+  details[open] summary::after { transform: rotate(-90deg); }
+  .section-body { padding: 0 14px 14px; }
+
+  .control { margin: 11px 0 14px; }
+  .control-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .control label { display: block; font-size: 13px; color: #dce5f5; font-weight: 700; }
+  .value { color: var(--accent); font: 700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+  .hint { color: var(--muted); font-size: 11px; line-height: 1.4; margin-top: 4px; }
+  input[type="range"] { width: 100%; margin: 9px 0 0; accent-color: var(--accent); }
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 7px;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(0,0,0,0.24);
+    color: var(--text);
+    padding: 9px 10px;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: rgba(138,180,255,0.75); }
+
+  .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 10px; }
+  .button-grid.three { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .button-grid button { width: 100%; }
+
+  #matrixGrid {
+    display: grid;
+    gap: 5px;
+    margin: 12px 0;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .matrix-label, .matrix-cell {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    font: 800 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .matrix-label { color: #07101e; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
+  .matrix-cell { cursor: pointer; color: white; background: rgba(255,255,255,0.05); }
+  .matrix-cell.selected { outline: 2px solid white; outline-offset: 1px; }
+  #matrixSelection { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+
+  .legend { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin-top: 10px; }
+  .legend-item { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
+
+  #status {
+    position: fixed;
+    z-index: 40;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: translate(-50%, 18px);
+    max-width: min(760px, 92vw);
+    padding: 10px 14px;
+    border-radius: 13px;
+    border: 1px solid var(--line);
+    background: rgba(9, 13, 21, 0.92);
+    color: var(--muted);
+    font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease, transform 150ms ease;
+    white-space: pre-wrap;
+  }
+  #status.show { opacity: 1; transform: translate(-50%, 0); }
+  #status.error { color: #ffd1d8; border-color: rgba(255,90,115,0.4); }
+  #status.ok { color: #c9ffe2; border-color: rgba(80,220,145,0.35); }
+
+  .footer-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 14px 2px 6px; }
+  .kbd { display: inline-block; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: rgba(255,255,255,0.05); color: var(--text); font: 700 10px ui-monospace, monospace; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 700px) {
+    #stats { top: auto; bottom: max(10px, env(safe-area-inset-bottom)); right: max(10px, env(safe-area-inset-right)); }
+    .toolbar { right: 10px; }
+    .tool-button { min-height: 44px; padding: 9px 12px; }
+    #panel { width: 100vw; }
+    .matrix-label, .matrix-cell { width: 38px; height: 38px; border-radius: 9px; }
+  }
+
+
+  /* ===== Multi-mode control architecture ===== */
+  .toolbar .mode-readout { color: var(--accent); }
+
+  #modeGate {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+    padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    background: radial-gradient(circle at 50% 25%, rgba(70,110,190,.18), rgba(5,7,11,.96) 50%);
+    overflow: auto;
+  }
+  #modeGate.closed { display: none; }
+  .gate-shell { width: min(1120px, 100%); }
+  .gate-kicker { color: var(--accent); font: 800 12px/1 ui-monospace, monospace; text-transform: uppercase; letter-spacing: .14em; }
+  .gate-shell h1 { font-size: clamp(28px, 5vw, 58px); line-height: .96; margin: 10px 0 12px; max-width: 820px; }
+  .gate-shell > p { color: var(--muted); max-width: 760px; line-height: 1.55; margin: 0 0 18px; }
+  .mode-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .mode-card {
+    min-height: 190px; text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: 18px;
+    background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.015)); color: var(--text); cursor: pointer;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mode-card:hover { border-color: rgba(138,180,255,.5); transform: translateY(-1px); }
+  .mode-card.selected { outline: 2px solid var(--accent); background: linear-gradient(160deg, rgba(138,180,255,.17), rgba(255,255,255,.025)); }
+  .mode-card .mode-icon { font-size: 28px; line-height: 1; }
+  .mode-card strong { font-size: 17px; }
+  .mode-card span:last-child { color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .gate-launch { margin-top: 14px; display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; align-items: end; }
+  .gate-launch label { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .gate-launch select { margin-top: 6px; }
+  #enterModeBtn { min-height: 48px; padding-inline: 24px; }
+
+  .mode-surface {
+    position: fixed; z-index: 28; border: 1px solid var(--line); background: rgba(10,14,22,.94);
+    box-shadow: 0 20px 70px rgba(0,0,0,.38); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    opacity: 0; pointer-events: none; transition: opacity 150ms ease, transform 170ms ease;
+  }
+  .mode-surface.open { opacity: 1; pointer-events: auto; transform: translate(0,0) !important; }
+  .surface-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .surface-head h2 { margin: 0; font-size: 18px; }
+  .surface-head p { color: var(--muted); margin: 4px 0 0; font-size: 11px; line-height: 1.4; }
+  .surface-close { min-width: 38px; width: 38px; min-height: 38px; padding: 0; }
+
+  /* Explorer: wide bottom cockpit */
+  #explorerSurface { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); border-radius: 20px; padding: 14px; transform: translateY(24px); }
+  .explorer-layout { display: grid; grid-template-columns: 1.2fr repeat(4, minmax(110px,.6fr)); gap: 12px; align-items: center; }
+  .explorer-hero { min-width: 0; }
+  .explorer-hero strong { display: block; font-size: 20px; }
+  .explorer-hero span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+  .macro-control { padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.025); }
+  .macro-control label { font-size: 11px; font-weight: 800; display: flex; justify-content: space-between; gap: 8px; }
+  .macro-control input { margin-top: 8px; }
+  .macro-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* Ecosystem: semantic gene stack from the left */
+  #ecosystemSurface { top: 76px; left: max(12px, env(safe-area-inset-left)); width: min(355px, calc(100vw - 24px)); max-height: calc(100vh - 94px); overflow:auto; border-radius: 22px; padding: 15px; transform: translateX(-24px); }
+  .gene { margin: 10px 0; padding: 11px; border-radius: 14px; background: linear-gradient(90deg, rgba(125,255,121,.05), rgba(86,247,255,.02)); border: 1px solid rgba(125,255,121,.14); }
+  .gene .control-row label { font-size: 12px; }
+  .gene-strip { display: grid; grid-template-columns: repeat(5,1fr); gap: 4px; margin-top: 9px; }
+  .gene-strip span { height: 5px; border-radius: 9px; background: rgba(255,255,255,.12); }
+  .ecosystem-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+
+  /* Conductor: performance console */
+  #conductorSurface { left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); width: min(850px, calc(100vw - 24px)); border-radius: 24px; padding: 15px; transform: translate(-50%, 24px); }
+  #conductorSurface.open { transform: translate(-50%,0) !important; }
+  .performance-grid { display:grid; grid-template-columns: repeat(6,1fr); gap:7px; }
+  .performance-pad { min-height: 64px; border-radius: 14px; border:1px solid var(--line); color:var(--text); background:rgba(255,255,255,.04); font-weight:900; cursor:pointer; }
+  .performance-pad:active { transform:scale(.98); background:rgba(138,180,255,.18); }
+  .conductor-faders { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:11px; }
+  .fader { padding:9px 11px; border-radius:13px; border:1px solid var(--line); }
+  .fader label { font-size:11px; font-weight:800; display:flex; justify-content:space-between; }
+
+  /* Studio: visual swatch board */
+  #studioSurface { top: 76px; right: max(12px, env(safe-area-inset-right)); width:min(390px, calc(100vw - 24px)); border-radius:24px; padding:15px; transform:translateX(24px); }
+  .palette-swatches { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
+  .palette-swatch { min-height:55px; border-radius:13px; border:1px solid var(--line); cursor:pointer; color:white; font-size:10px; font-weight:900; text-shadow:0 1px 4px #000; }
+  .palette-swatch.selected { outline:2px solid white; }
+  .look-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin:10px 0; }
+  .studio-slider { margin:10px 0; }
+  .studio-slider label { font-size:11px; font-weight:800; display:flex; justify-content:space-between; }
+
+  /* Shared preset vault */
+  #presetDrawer {
+    position: fixed; z-index: 80; inset: 50% auto auto 50%; width:min(540px, calc(100vw - 24px)); max-height:min(760px, calc(100vh - 24px)); overflow:auto;
+    border:1px solid var(--line); border-radius:24px; padding:16px; background:rgba(9,13,21,.98); box-shadow:0 30px 100px rgba(0,0,0,.55);
+    transform:translate(-50%,-48%) scale(.98); opacity:0; pointer-events:none; transition:150ms ease;
+  }
+  #presetDrawer.open { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  .vault-row { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+  .vault-actions { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px; }
+  .vault-meta { margin:8px 0 0; color:var(--muted); font-size:11px; line-height:1.45; }
+  .vault-divider { height:1px; background:var(--line); margin:14px 0; }
+
+  @media (max-width: 920px) {
+    .mode-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .mode-card:last-child { grid-column: span 2; min-height: 145px; }
+    .explorer-layout { grid-template-columns: repeat(2,1fr); }
+    .explorer-hero { grid-column:1/-1; }
+    .performance-grid { grid-template-columns: repeat(3,1fr); }
+  }
+  @media (max-width: 600px) {
+    .mode-grid { grid-template-columns: 1fr; }
+    .mode-card, .mode-card:last-child { grid-column:auto; min-height:118px; }
+    .gate-shell h1 { font-size:34px; }
+    .gate-launch { grid-template-columns:1fr; }
+    .explorer-layout { grid-template-columns:1fr 1fr; }
+    #explorerSurface { max-height:58vh; overflow:auto; }
+    .conductor-faders { grid-template-columns:1fr; }
+    .performance-grid { grid-template-columns:repeat(2,1fr); }
+    #conductorSurface { max-height:68vh; overflow:auto; }
+    #studioSurface { top:70px; max-height:calc(100vh - 84px); overflow:auto; }
+    .vault-actions { grid-template-columns:1fr 1fr; }
+  }
+
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="world" aria-label="Interactive particle life simulation"></canvas>
+</div>
+
+<div class="toolbar">
+  <button id="playBtn" class="tool-button" type="button">Pause</button>
+  <button id="randomBtn" class="tool-button" type="button">Randomize</button>
+  <button id="soundBtn" class="tool-button" type="button">Sound off</button>
+  <button id="modeBtn" class="tool-button mode-readout" type="button">Mode: Explorer</button>
+  <button id="panelBtn" class="tool-button" type="button">Controls</button>
+  <button id="presetsBtn" class="tool-button" type="button">Presets</button>
+  <button id="fullBtn" class="tool-button" type="button">Fullscreen</button>
+</div>
+
+<div id="stats">Starting…</div>
+
+<aside id="panel" aria-label="Simulation controls">
+  <div class="panel-head">
+    <div>
+      <h1>Laboratory</h1>
+      <p>Precision surface: full world, force-matrix, physics, appearance, pointer, audio, and transfer controls.</p>
+    </div>
+    <button id="closePanelBtn" class="tool-button close" type="button" aria-label="Close controls">×</button>
+  </div>
+
+  <details open>
+    <summary>World</summary>
+    <div class="section-body">
+      <div class="control">
+        <label for="preset">Preset</label>
+        <select id="preset">
+          <option value="cells">Living cells</option>
+          <option value="hunters">Hunters and prey</option>
+          <option value="symbiosis">Symbiosis</option>
+          <option value="rings">Orbital rings</option>
+          <option value="gentle">Gentle ecology</option>
+          <option value="chaos">Controlled chaos</option>
+        </select>
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="particleCount">Particles</label><span id="particleCountValue" class="value"></span></div>
+        <input id="particleCount" type="range" min="100" max="2400" step="100" value="900">
+        <div class="hint">Higher values demand more CPU. The spatial grid avoids a full all-pairs scan.</div>
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="speciesCount">Species</label><span id="speciesCountValue" class="value"></span></div>
+        <input id="speciesCount" type="range" min="2" max="8" step="1" value="5">
+      </div>
+      <div class="control">
+        <label for="seedInput">Seed</label>
+        <input id="seedInput" type="text" value="open-world-1" maxlength="80" spellcheck="false">
+      </div>
+      <div class="button-grid">
+        <button id="applyWorldBtn" class="primary" type="button">Apply world</button>
+        <button id="reseedBtn" class="secondary" type="button">Reseed positions</button>
+      </div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Interaction matrix</summary>
+    <div class="section-body">
+      <div class="hint">Rows are the affected species. Columns are the species being sensed. Positive values attract; negative values repel. Asymmetry creates chasing.</div>
+      <div id="matrixGrid" aria-label="Species interaction matrix"></div>
+      <div id="matrixSelection">Select a matrix cell.</div>
+      <div class="control">
+        <div class="control-row"><label for="matrixValue">Selected force</label><span id="matrixValueLabel" class="value">0.00</span></div>
+        <input id="matrixValue" type="range" min="-1" max="1" step="0.01" value="0">
+      </div>
+      <div class="button-grid three">
+        <button id="matrixRandomBtn" class="secondary" type="button">Random</button>
+        <button id="matrixSymBtn" class="secondary" type="button">Symmetric</button>
+        <button id="matrixInvertBtn" class="secondary" type="button">Invert</button>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Physics</summary>
+    <div class="section-body">
+      <div class="control">
+        <div class="control-row"><label for="radius">Interaction radius</label><span id="radiusValue" class="value"></span></div>
+        <input id="radius" type="range" min="28" max="150" step="1" value="82">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="coreRatio">Repulsion core</label><span id="coreRatioValue" class="value"></span></div>
+        <input id="coreRatio" type="range" min="0.06" max="0.50" step="0.01" value="0.22">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="forceStrength">Force strength</label><span id="forceStrengthValue" class="value"></span></div>
+        <input id="forceStrength" type="range" min="0.05" max="2.5" step="0.01" value="0.72">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="drag">Momentum retention</label><span id="dragValue" class="value"></span></div>
+        <input id="drag" type="range" min="0.70" max="0.995" step="0.001" value="0.925">
+        <div class="hint">Lower values damp motion more aggressively.</div>
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="maxSpeed">Maximum speed</label><span id="maxSpeedValue" class="value"></span></div>
+        <input id="maxSpeed" type="range" min="0.5" max="12" step="0.1" value="4.5">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="timeScale">Simulation speed</label><span id="timeScaleValue" class="value"></span></div>
+        <input id="timeScale" type="range" min="0.15" max="2" step="0.05" value="1">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="noise">Brownian motion</label><span id="noiseValue" class="value"></span></div>
+        <input id="noise" type="range" min="0" max="0.12" step="0.002" value="0.008">
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Appearance</summary>
+    <div class="section-body">
+      <div class="control">
+        <label for="palette">Palette</label>
+        <select id="palette">
+          <option value="neon">Neon laboratory</option>
+          <option value="spectrum">Spectrum</option>
+          <option value="pastel">Pastel organisms</option>
+          <option value="thermal">Thermal</option>
+          <option value="ocean">Deep ocean</option>
+        </select>
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="particleSize">Particle size</label><span id="particleSizeValue" class="value"></span></div>
+        <input id="particleSize" type="range" min="1" max="6" step="0.1" value="2.5">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="glow">Glow</label><span id="glowValue" class="value"></span></div>
+        <input id="glow" type="range" min="0" max="18" step="1" value="7">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="trails">Trail persistence</label><span id="trailsValue" class="value"></span></div>
+        <input id="trails" type="range" min="0" max="0.94" step="0.01" value="0.28">
+      </div>
+      <div class="control">
+        <label for="blendMode">Blend mode</label>
+        <select id="blendMode">
+          <option value="source-over">Natural</option>
+          <option value="lighter">Additive light</option>
+        </select>
+      </div>
+      <div id="legend" class="legend"></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Touch and mouse</summary>
+    <div class="section-body">
+      <div class="control">
+        <label for="pointerMode">Pointer behavior</label>
+        <select id="pointerMode">
+          <option value="attract">Attract particles</option>
+          <option value="repel">Repel particles</option>
+          <option value="stir">Stir / orbit</option>
+        </select>
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="pointerStrength">Pointer strength</label><span id="pointerStrengthValue" class="value"></span></div>
+        <input id="pointerStrength" type="range" min="0.2" max="5" step="0.1" value="2.2">
+      </div>
+      <div class="hint">Press and drag directly on the simulation. Multi-touch uses the first active contact.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Sound</summary>
+    <div class="section-body">
+      <div class="hint">The synthesizer is generated locally with the Web Audio API. No samples or network requests are used.</div>
+      <div class="control">
+        <div class="control-row"><label for="volume">Master volume</label><span id="volumeValue" class="value"></span></div>
+        <input id="volume" type="range" min="0" max="0.22" step="0.005" value="0.06">
+      </div>
+      <div class="control">
+        <div class="control-row"><label for="audioMotion">Motion sensitivity</label><span id="audioMotionValue" class="value"></span></div>
+        <input id="audioMotion" type="range" min="0.2" max="3" step="0.1" value="1.2">
+      </div>
+      <button id="soundPanelBtn" class="primary" type="button">Enable sound</button>
+    </div>
+  </details>
+
+  <details>
+    <summary>Save and transfer</summary>
+    <div class="section-body">
+      <div class="button-grid">
+        <button id="saveBtn" class="secondary" type="button">Save locally</button>
+        <button id="loadBtn" class="secondary" type="button">Load local save</button>
+        <button id="exportBtn" class="secondary" type="button">Export JSON</button>
+        <button id="importBtn" class="secondary" type="button">Import JSON</button>
+      </div>
+      <input id="importFile" class="hidden" type="file" accept="application/json,.json">
+      <button id="factoryBtn" class="danger" type="button" style="width:100%; margin-top:10px;">Factory reset</button>
+      <div class="footer-note">
+        Keyboard: <span class="kbd">Space</span> pause · <span class="kbd">R</span> randomize · <span class="kbd">S</span> sound · <span class="kbd">C</span> controls · <span class="kbd">F</span> fullscreen.<br><br>
+        Architecture is intentionally separated into configuration, deterministic random generation, physics, spatial indexing, rendering, audio, and UI binding so each layer can be replaced independently.
+      </div>
+    </div>
+  </details>
+</aside>
+
+
+<!-- Explorer: deliberately simplified macro controls -->
+<section id="explorerSurface" class="mode-surface" aria-label="Explorer controls">
+  <div class="surface-head">
+    <div><h2>Explorer</h2><p>Four big levers. Use this when you want interesting worlds without thinking about the force matrix.</p></div>
+    <button class="tool-button surface-close" data-close-surface type="button">×</button>
+  </div>
+  <div class="explorer-layout">
+    <div class="explorer-hero"><strong id="explorerSceneName">Living cells</strong><span>Randomize gives you another viable ecology; macro changes stay live.</span><div class="macro-actions"><button id="explorerNewWorld" class="primary" type="button">New world</button><button id="explorerCalm" class="secondary" type="button">Calm it down</button></div></div>
+    <div class="macro-control"><label>Population <span id="exPopulationValue">900</span></label><input id="exPopulation" type="range" min="200" max="2400" step="100"></div>
+    <div class="macro-control"><label>Energy <span id="exEnergyValue">50%</span></label><input id="exEnergy" type="range" min="0" max="100" step="1"></div>
+    <div class="macro-control"><label>Reach <span id="exReachValue">50%</span></label><input id="exReach" type="range" min="0" max="100" step="1"></div>
+    <div class="macro-control"><label>Wander <span id="exWanderValue">10%</span></label><input id="exWander" type="range" min="0" max="100" step="1"></div>
+  </div>
+</section>
+
+<!-- Ecosystem: semantic matrix generator -->
+<section id="ecosystemSurface" class="mode-surface" aria-label="Ecosystem controls">
+  <div class="surface-head"><div><h2>Ecosystem DNA</h2><p>Describe relationships instead of editing coefficients. Rebuild DNA synthesizes a new asymmetric force matrix.</p></div><button class="tool-button surface-close" data-close-surface type="button">×</button></div>
+  <div class="gene"><div class="control-row"><label>Kin bonding</label><span id="ecoKinValue" class="value">65%</span></div><input id="ecoKin" type="range" min="0" max="100" value="65"><div class="gene-strip"><span></span><span></span><span></span><span></span><span></span></div></div>
+  <div class="gene"><div class="control-row"><label>Cross-species bonding</label><span id="ecoBondValue" class="value">40%</span></div><input id="ecoBond" type="range" min="0" max="100" value="40"><div class="gene-strip"><span></span><span></span><span></span><span></span><span></span></div></div>
+  <div class="gene"><div class="control-row"><label>Predator / prey pressure</label><span id="ecoHuntValue" class="value">55%</span></div><input id="ecoHunt" type="range" min="0" max="100" value="55"><div class="gene-strip"><span></span><span></span><span></span><span></span><span></span></div></div>
+  <div class="gene"><div class="control-row"><label>Territoriality</label><span id="ecoTerritoryValue" class="value">35%</span></div><input id="ecoTerritory" type="range" min="0" max="100" value="35"><div class="gene-strip"><span></span><span></span><span></span><span></span><span></span></div></div>
+  <div class="gene"><div class="control-row"><label>Mutation</label><span id="ecoMutationValue" class="value">20%</span></div><input id="ecoMutation" type="range" min="0" max="100" value="20"><div class="gene-strip"><span></span><span></span><span></span><span></span><span></span></div></div>
+  <div class="ecosystem-actions"><button id="ecoBuildBtn" class="primary" type="button">Rebuild DNA</button><button id="ecoMutateBtn" class="secondary" type="button">Mutate once</button></div>
+</section>
+
+<!-- Conductor: event-driven performance surface -->
+<section id="conductorSurface" class="mode-surface" aria-label="Conductor controls">
+  <div class="surface-head"><div><h2>Conductor</h2><p>Performance mode. Pads perform immediate actions; faders shape tempo, impact, and sound.</p></div><button class="tool-button surface-close" data-close-surface type="button">×</button></div>
+  <div class="performance-grid">
+    <button class="performance-pad" data-performance="pulse" type="button">PULSE</button>
+    <button class="performance-pad" data-performance="burst" type="button">BURST</button>
+    <button class="performance-pad" data-performance="reverse" type="button">REVERSE</button>
+    <button class="performance-pad" data-performance="orbit" type="button">ORBIT TOOL</button>
+    <button class="performance-pad" data-performance="hunt" type="button">HUNT</button>
+    <button class="performance-pad" data-performance="freeze" type="button">FREEZE</button>
+  </div>
+  <div class="conductor-faders">
+    <div class="fader"><label>Tempo <span id="condTempoValue">1.00×</span></label><input id="condTempo" type="range" min="15" max="200" value="100"></div>
+    <div class="fader"><label>Impact <span id="condImpactValue">72%</span></label><input id="condImpact" type="range" min="5" max="250" value="72"></div>
+    <div class="fader"><label>Volume <span id="condVolumeValue">6%</span></label><input id="condVolume" type="range" min="0" max="22" value="6"></div>
+  </div>
+</section>
+
+<!-- Studio: appearance-only surface -->
+<section id="studioSurface" class="mode-surface" aria-label="Studio controls">
+  <div class="surface-head"><div><h2>Visual Studio</h2><p>Leave the ecology alone. Direct the image: color, persistence, light, scale, and compositing.</p></div><button class="tool-button surface-close" data-close-surface type="button">×</button></div>
+  <div id="studioPalettes" class="palette-swatches"></div>
+  <div class="look-grid"><button class="secondary" data-look="crisp" type="button">Crisp</button><button class="secondary" data-look="dream" type="button">Dream</button><button class="secondary" data-look="comet" type="button">Comet</button></div>
+  <div class="studio-slider"><label>Particle scale <span id="studioSizeValue">2.5</span></label><input id="studioSize" type="range" min="10" max="60" value="25"></div>
+  <div class="studio-slider"><label>Light bloom <span id="studioGlowValue">7 px</span></label><input id="studioGlow" type="range" min="0" max="18" value="7"></div>
+  <div class="studio-slider"><label>Persistence <span id="studioTrailsValue">28%</span></label><input id="studioTrails" type="range" min="0" max="94" value="28"></div>
+  <div class="button-grid"><button id="studioNatural" class="secondary" type="button">Natural blend</button><button id="studioAdditive" class="secondary" type="button">Additive light</button></div>
+</section>
+
+<!-- Shared preset vault -->
+<section id="presetDrawer" aria-label="Preset vault">
+  <div class="surface-head"><div><h2>Preset Vault</h2><p>Built-ins are read-only. Your presets capture every control, matrix value, seed, and preferred entrance mode.</p></div><button id="closePresetsBtn" class="tool-button surface-close" type="button">×</button></div>
+  <label for="vaultPresetSelect" class="hint">Preset</label>
+  <select id="vaultPresetSelect"></select>
+  <div id="vaultMeta" class="vault-meta">Choose a preset.</div>
+  <div class="button-grid"><button id="vaultLoadBtn" class="primary" type="button">Load preset</button><button id="vaultExportCurrentBtn" class="secondary" type="button">Export current</button></div>
+  <div class="vault-divider"></div>
+  <label for="vaultName" class="hint">Name this control setup</label>
+  <input id="vaultName" type="text" maxlength="80" placeholder="My particle world">
+  <div class="vault-actions">
+    <button id="vaultSaveNewBtn" class="primary" type="button">Save as new</button>
+    <button id="vaultUpdateBtn" class="secondary" type="button">Update selected</button>
+    <button id="vaultDeleteBtn" class="danger" type="button">Delete selected</button>
+    <button id="vaultExportLibraryBtn" class="secondary" type="button">Export my presets</button>
+  </div>
+  <button id="vaultImportBtn" class="secondary" type="button" style="width:100%;margin-top:8px;">Import preset / library JSON</button>
+  <input id="vaultImportFile" class="hidden" type="file" accept="application/json,.json">
+  <div class="vault-meta">User presets are automatically persisted in this browser. Export the library JSON to move them to another device/browser.</div>
+</section>
+
+<!-- Entrance mode chooser -->
+<section id="modeGate" aria-label="Choose control mode">
+  <div class="gate-shell">
+    <div class="gate-kicker">Particle Life / Entrance</div>
+    <h1>Choose how you want to control the same living world.</h1>
+    <p>Each entrance exposes a different control language. You can switch at any time without resetting the simulation.</p>
+    <div class="mode-grid">
+      <button class="mode-card selected" data-mode="explorer" type="button"><span class="mode-icon">◎</span><strong>Explorer</strong><span>Minimal macro controls: population, energy, reach, wander. Best for discovery.</span></button>
+      <button class="mode-card" data-mode="lab" type="button"><span class="mode-icon">⌗</span><strong>Laboratory</strong><span>Every parameter and the complete asymmetric species force matrix.</span></button>
+      <button class="mode-card" data-mode="ecosystem" type="button"><span class="mode-icon">⌁</span><strong>Ecosystem DNA</strong><span>Describe kinship, bonding, predation, territory, and mutation; synthesize the matrix.</span></button>
+      <button class="mode-card" data-mode="conductor" type="button"><span class="mode-icon">◈</span><strong>Conductor</strong><span>Performance pads and faders for live pulses, bursts, reversals, tempo, and sound.</span></button>
+      <button class="mode-card" data-mode="studio" type="button"><span class="mode-icon">✦</span><strong>Visual Studio</strong><span>Color and light direction only: palette, glow, trails, scale, blend, and visual looks.</span></button>
+    </div>
+    <div class="gate-launch"><div><label for="gatePresetSelect">Start from a preset</label><select id="gatePresetSelect"></select></div><button id="enterModeBtn" class="primary" type="button">Enter Explorer</button></div>
+  </div>
+</section>
+
+<div id="status" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  /*
+    CUSTOMIZATION MAP
+    -----------------
+    1. PALETTES: change or add particle color sets.
+    2. DEFAULT_CONFIG: change startup behavior and control defaults.
+    3. createPresetMatrix(): define species relationships and new presets.
+    4. ParticleLife.step(): change force laws, boundaries, integration, or pointer forces.
+    5. ParticleLife.render(): change particle shapes, trails, glow, and compositing.
+    6. AudioEngine: change the local generative sonification.
+    7. bindUI(): connect additional controls without modifying the simulation core.
+
+    No libraries, modules, external files, network calls, WebAssembly, WebGL, or WebGPU.
+  */
+
+  const VERSION = "2.0.0";
+  const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+  const STORAGE_KEY = "particle-life-customizable-v2-session";
+  const PRESET_STORAGE_KEY = "particle-life-customizable-v2-presets";
+  const MODE_STORAGE_KEY = "particle-life-customizable-v2-mode";
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  const PALETTES = {
+    neon: ["#56f7ff", "#ff4fd8", "#ffe85a", "#7dff79", "#9b7cff", "#ff754f", "#4fa7ff", "#ffffff"],
+    spectrum: ["#ff3b30", "#ff9500", "#ffcc00", "#34c759", "#00c7be", "#007aff", "#5856d6", "#ff2d55"],
+    pastel: ["#a8e6cf", "#ffd3b6", "#ffaaa5", "#dcedc1", "#b5ead7", "#c7ceea", "#e2f0cb", "#ffdac1"],
+    thermal: ["#fff7ae", "#ffd166", "#f8961e", "#f94144", "#d00000", "#9d4edd", "#5a189a", "#240046"],
+    ocean: ["#b8f3ff", "#73e2ff", "#48cae4", "#00b4d8", "#0096c7", "#0077b6", "#5e60ce", "#80ffdb"]
+  };
+
+  const DEFAULT_CONFIG = Object.freeze({
+    preset: "cells",
+    particleCount: 900,
+    speciesCount: 5,
+    seed: "open-world-1",
+    radius: 82,
+    coreRatio: 0.22,
+    forceStrength: 0.72,
+    drag: 0.925,
+    maxSpeed: 4.5,
+    timeScale: 1,
+    noise: 0.008,
+    particleSize: 2.5,
+    glow: 7,
+    trails: 0.28,
+    blendMode: "source-over",
+    palette: "neon",
+    pointerMode: "attract",
+    pointerStrength: 2.2,
+    volume: 0.06,
+    audioMotion: 1.2,
+    matrix: null
+  });
+
+  const UI_MODES = Object.freeze({
+    explorer: { label: "Explorer", surface: "explorerSurface" },
+    lab: { label: "Laboratory", surface: "panel" },
+    ecosystem: { label: "Ecosystem DNA", surface: "ecosystemSurface" },
+    conductor: { label: "Conductor", surface: "conductorSurface" },
+    studio: { label: "Visual Studio", surface: "studioSurface" }
+  });
+
+  const BUILTIN_SCENES = Object.freeze([
+    { id:"builtin:cells", name:"Living Cells", mode:"explorer", description:"Balanced clustering with moderate motion.", config:{ preset:"cells", particleCount:900, speciesCount:5, seed:"cell-garden", radius:82, coreRatio:.22, forceStrength:.72, drag:.925, maxSpeed:4.5, timeScale:1, noise:.008, particleSize:2.5, glow:7, trails:.28, blendMode:"source-over", palette:"neon", pointerMode:"attract", pointerStrength:2.2, volume:.06, audioMotion:1.2 } },
+    { id:"builtin:hunters", name:"Predator Spiral", mode:"ecosystem", description:"Strong asymmetric chase loops and faster motion.", config:{ preset:"hunters", particleCount:1100, speciesCount:6, seed:"predator-spiral", radius:76, coreRatio:.19, forceStrength:.94, drag:.94, maxSpeed:6.2, timeScale:1.15, noise:.005, particleSize:2.2, glow:8, trails:.34, blendMode:"lighter", palette:"spectrum", pointerMode:"stir", pointerStrength:2.6, volume:.07, audioMotion:1.5 } },
+    { id:"builtin:symbiosis", name:"Mutual Bloom", mode:"ecosystem", description:"Paired species form mutual colonies.", config:{ preset:"symbiosis", particleCount:1000, speciesCount:6, seed:"mutual-bloom", radius:94, coreRatio:.24, forceStrength:.62, drag:.918, maxSpeed:4.0, timeScale:.85, noise:.012, particleSize:2.8, glow:9, trails:.38, blendMode:"source-over", palette:"pastel", pointerMode:"attract", pointerStrength:1.7, volume:.05, audioMotion:1.0 } },
+    { id:"builtin:rings", name:"Orbital Neon", mode:"conductor", description:"Directional cycles form streams and orbit-like chains.", config:{ preset:"rings", particleCount:1200, speciesCount:7, seed:"orbital-neon", radius:88, coreRatio:.17, forceStrength:.86, drag:.952, maxSpeed:6.8, timeScale:1.25, noise:.003, particleSize:2.0, glow:12, trails:.58, blendMode:"lighter", palette:"neon", pointerMode:"stir", pointerStrength:3.0, volume:.08, audioMotion:1.8 } },
+    { id:"builtin:gentle", name:"Deep Drift", mode:"studio", description:"Slow, luminous movement tuned for long trails.", config:{ preset:"gentle", particleCount:750, speciesCount:5, seed:"deep-drift", radius:112, coreRatio:.28, forceStrength:.42, drag:.91, maxSpeed:3.0, timeScale:.65, noise:.018, particleSize:3.2, glow:13, trails:.72, blendMode:"lighter", palette:"ocean", pointerMode:"attract", pointerStrength:1.3, volume:.04, audioMotion:.8 } },
+    { id:"builtin:chaos", name:"Reactor", mode:"lab", description:"Dense, fast, randomized interactions for experimentation.", config:{ preset:"chaos", particleCount:1500, speciesCount:8, seed:"reactor-core", radius:64, coreRatio:.16, forceStrength:1.15, drag:.955, maxSpeed:8.2, timeScale:1.35, noise:.02, particleSize:1.8, glow:5, trails:.16, blendMode:"lighter", palette:"thermal", pointerMode:"repel", pointerStrength:3.5, volume:.08, audioMotion:2.0 } }
+  ]);
+
+  function hashString(text) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    h += h << 13; h ^= h >>> 7;
+    h += h << 3; h ^= h >>> 17;
+    h += h << 5;
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function random() {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function matrixIndex(row, col, n) { return row * n + col; }
+
+  function createPresetMatrix(name, n, random) {
+    const m = new Float32Array(n * n);
+    const set = (r, c, v) => { m[matrixIndex(r, c, n)] = clamp(v, -1, 1); };
+
+    if (name === "hunters") {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) set(r, c, -0.18 + random() * 0.18);
+        set(r, r, 0.16 + random() * 0.20);
+        set(r, (r + 1) % n, 0.78 + random() * 0.18);
+        set((r + 1) % n, r, -0.72 - random() * 0.20);
+      }
+    } else if (name === "symbiosis") {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          const samePair = Math.floor(r / 2) === Math.floor(c / 2);
+          set(r, c, r === c ? 0.28 : samePair ? 0.72 : -0.28 + random() * 0.16);
+        }
+      }
+    } else if (name === "rings") {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          const d = (c - r + n) % n;
+          set(r, c, d === 0 ? 0.34 : d === 1 ? 0.82 : d === n - 1 ? -0.80 : -0.22);
+        }
+      }
+    } else if (name === "gentle") {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) set(r, c, -0.38 + random() * 0.88);
+        set(r, r, 0.12 + random() * 0.34);
+      }
+    } else if (name === "chaos") {
+      for (let i = 0; i < m.length; i++) m[i] = random() * 2 - 1;
+    } else {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          let v = -0.36 + random() * 0.42;
+          if (r === c) v = 0.30 + random() * 0.38;
+          if (c === (r + 1) % n) v = 0.42 + random() * 0.44;
+          if (c === (r + n - 1) % n) v = -0.45 - random() * 0.30;
+          set(r, c, v);
+        }
+      }
+    }
+    return m;
+  }
+
+  class ParticleLife {
+    constructor(canvas) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+      if (!this.ctx) throw new Error("Canvas 2D is not available in this browser.");
+
+      this.width = 1;
+      this.height = 1;
+      this.dpr = 1;
+      this.running = true;
+      this.pointer = { active: false, x: 0, y: 0 };
+      this.framePairs = 0;
+      this.lastFrameTime = performance.now();
+      this.fps = 0;
+      this.fpsSmooth = 60;
+      this.frameNumber = 0;
+      this.lastStatsUpdate = 0;
+      this.selectedRow = 0;
+      this.selectedCol = 0;
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(document.documentElement);
+
+      this.config = { ...DEFAULT_CONFIG };
+      this.colors = PALETTES[this.config.palette].slice(0, this.config.speciesCount);
+      this.random = mulberry32(hashString(this.config.seed));
+      this.matrix = createPresetMatrix(this.config.preset, this.config.speciesCount, this.random);
+
+      this.count = 0;
+      this.x = new Float32Array(0);
+      this.y = new Float32Array(0);
+      this.vx = new Float32Array(0);
+      this.vy = new Float32Array(0);
+      this.type = new Uint8Array(0);
+      this.next = new Int32Array(0);
+      this.head = new Int32Array(0);
+      this.gridCols = 1;
+      this.gridRows = 1;
+      this.gridCellSize = this.config.radius;
+      this.speciesSpeed = new Float32Array(8);
+      this.speciesPopulation = new Uint16Array(8);
+
+      this.resize();
+      this.resetParticles();
+      this.bindPointer();
+    }
+
+    resize() {
+      const rect = this.canvas.getBoundingClientRect();
+      const oldW = this.width;
+      const oldH = this.height;
+      this.width = Math.max(1, Math.floor(rect.width));
+      this.height = Math.max(1, Math.floor(rect.height));
+      this.dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+      this.canvas.width = Math.max(1, Math.floor(this.width * this.dpr));
+      this.canvas.height = Math.max(1, Math.floor(this.height * this.dpr));
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this.ctx.fillStyle = "#05070b";
+      this.ctx.fillRect(0, 0, this.width, this.height);
+
+      if (this.count && oldW > 1 && oldH > 1) {
+        const sx = this.width / oldW;
+        const sy = this.height / oldH;
+        for (let i = 0; i < this.count; i++) {
+          this.x[i] *= sx;
+          this.y[i] *= sy;
+        }
+      }
+      this.rebuildGridStorage();
+    }
+
+    rebuildGridStorage() {
+      this.gridCellSize = Math.max(8, this.config.radius);
+      this.gridCols = Math.max(1, Math.ceil(this.width / this.gridCellSize));
+      this.gridRows = Math.max(1, Math.ceil(this.height / this.gridCellSize));
+      this.head = new Int32Array(this.gridCols * this.gridRows);
+      this.next = new Int32Array(this.count);
+    }
+
+    setConfig(nextConfig, options = {}) {
+      const previousSpecies = this.config.speciesCount;
+      const previousCount = this.config.particleCount;
+      const previousRadius = this.config.radius;
+      this.config = { ...this.config, ...nextConfig };
+      this.config.particleCount = Math.round(clamp(Number(this.config.particleCount) || 900, 100, 5000));
+      this.config.speciesCount = Math.round(clamp(Number(this.config.speciesCount) || 5, 2, 8));
+      this.config.radius = clamp(Number(this.config.radius) || 82, 12, 220);
+      this.config.coreRatio = clamp(Number(this.config.coreRatio) || 0.22, 0.03, 0.8);
+      this.config.forceStrength = clamp(Number(this.config.forceStrength) || 0.72, 0.01, 5);
+      this.config.drag = clamp(Number(this.config.drag) || 0.925, 0.5, 0.9999);
+      this.config.maxSpeed = clamp(Number(this.config.maxSpeed) || 4.5, 0.1, 30);
+      this.config.timeScale = clamp(Number(this.config.timeScale) || 1, 0.01, 4);
+      this.config.noise = clamp(Number(this.config.noise) || 0, 0, 0.5);
+      this.config.particleSize = clamp(Number(this.config.particleSize) || 2.5, 0.5, 12);
+      this.config.glow = clamp(Number(this.config.glow) || 0, 0, 30);
+      this.config.trails = clamp(Number(this.config.trails) || 0, 0, 0.98);
+      this.config.pointerStrength = clamp(Number(this.config.pointerStrength) || 2.2, 0, 10);
+      this.config.volume = clamp(Number(this.config.volume) || 0.06, 0, 0.4);
+      this.config.audioMotion = clamp(Number(this.config.audioMotion) || 1.2, 0.1, 8);
+      this.colors = (PALETTES[this.config.palette] || PALETTES.neon).slice(0, this.config.speciesCount);
+
+      const speciesChanged = previousSpecies !== this.config.speciesCount;
+      const countChanged = previousCount !== this.config.particleCount;
+      const radiusChanged = previousRadius !== this.config.radius;
+
+      if (options.matrix) {
+        const expected = this.config.speciesCount * this.config.speciesCount;
+        if (!Array.isArray(options.matrix) && !(options.matrix instanceof Float32Array)) throw new Error("Matrix must be an array.");
+        if (options.matrix.length !== expected) throw new Error(`Matrix requires ${expected} values.`);
+        this.matrix = Float32Array.from(options.matrix, value => clamp(Number(value) || 0, -1, 1));
+      } else if (speciesChanged || options.newPreset || !this.matrix || this.matrix.length !== this.config.speciesCount ** 2) {
+        this.random = mulberry32(hashString(`${this.config.seed}|matrix|${this.config.preset}`));
+        this.matrix = createPresetMatrix(this.config.preset, this.config.speciesCount, this.random);
+      }
+
+      if (speciesChanged || countChanged || options.reseed) {
+        this.resetParticles();
+      } else if (radiusChanged) {
+        this.rebuildGridStorage();
+      }
+    }
+
+    resetParticles() {
+      this.count = this.config.particleCount;
+      this.x = new Float32Array(this.count);
+      this.y = new Float32Array(this.count);
+      this.vx = new Float32Array(this.count);
+      this.vy = new Float32Array(this.count);
+      this.type = new Uint8Array(this.count);
+      this.next = new Int32Array(this.count);
+      this.random = mulberry32(hashString(`${this.config.seed}|particles|${this.count}|${this.config.speciesCount}`));
+
+      const margin = Math.min(40, this.width * 0.08, this.height * 0.08);
+      const usableW = Math.max(1, this.width - margin * 2);
+      const usableH = Math.max(1, this.height - margin * 2);
+      for (let i = 0; i < this.count; i++) {
+        this.x[i] = margin + this.random() * usableW;
+        this.y[i] = margin + this.random() * usableH;
+        this.vx[i] = (this.random() - 0.5) * 0.12;
+        this.vy[i] = (this.random() - 0.5) * 0.12;
+        this.type[i] = i % this.config.speciesCount;
+      }
+      for (let i = this.count - 1; i > 0; i--) {
+        const j = Math.floor(this.random() * (i + 1));
+        const temp = this.type[i]; this.type[i] = this.type[j]; this.type[j] = temp;
+      }
+      this.rebuildGridStorage();
+    }
+
+    bindPointer() {
+      const updatePointer = (event) => {
+        const rect = this.canvas.getBoundingClientRect();
+        this.pointer.x = event.clientX - rect.left;
+        this.pointer.y = event.clientY - rect.top;
+      };
+      this.canvas.addEventListener("pointerdown", (event) => {
+        this.pointer.active = true;
+        updatePointer(event);
+        this.canvas.setPointerCapture?.(event.pointerId);
+      });
+      this.canvas.addEventListener("pointermove", (event) => {
+        if (this.pointer.active) updatePointer(event);
+      });
+      const release = (event) => {
+        this.pointer.active = false;
+        this.canvas.releasePointerCapture?.(event.pointerId);
+      };
+      this.canvas.addEventListener("pointerup", release);
+      this.canvas.addEventListener("pointercancel", release);
+      this.canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    }
+
+    buildGrid() {
+      this.head.fill(-1);
+      const cols = this.gridCols;
+      const rows = this.gridRows;
+      const cs = this.gridCellSize;
+      for (let i = 0; i < this.count; i++) {
+        let cx = Math.floor(this.x[i] / cs);
+        let cy = Math.floor(this.y[i] / cs);
+        cx = ((cx % cols) + cols) % cols;
+        cy = ((cy % rows) + rows) % rows;
+        const cell = cy * cols + cx;
+        this.next[i] = this.head[cell];
+        this.head[cell] = i;
+      }
+    }
+
+    step(frameScale) {
+      this.buildGrid();
+      const n = this.count;
+      const species = this.config.speciesCount;
+      const radius = this.config.radius;
+      const radius2 = radius * radius;
+      const core = this.config.coreRatio;
+      const forceStrength = this.config.forceStrength;
+      const dt = frameScale * this.config.timeScale;
+      const drag = Math.pow(this.config.drag, dt);
+      const maxSpeed = this.config.maxSpeed;
+      const maxSpeed2 = maxSpeed * maxSpeed;
+      const noise = this.config.noise;
+      const cols = this.gridCols;
+      const rows = this.gridRows;
+      const cs = this.gridCellSize;
+      const width = this.width;
+      const height = this.height;
+      const matrix = this.matrix;
+      const pointer = this.pointer;
+      const pointerRadius = Math.max(radius * 1.45, 90);
+      const pointerRadius2 = pointerRadius * pointerRadius;
+      const pointerStrength = this.config.pointerStrength;
+      const pointerMode = this.config.pointerMode;
+      let pairs = 0;
+
+      this.speciesSpeed.fill(0);
+      this.speciesPopulation.fill(0);
+
+      for (let i = 0; i < n; i++) {
+        const xi = this.x[i];
+        const yi = this.y[i];
+        const ti = this.type[i];
+        let ax = 0;
+        let ay = 0;
+        let cx = Math.floor(xi / cs);
+        let cy = Math.floor(yi / cs);
+        cx = ((cx % cols) + cols) % cols;
+        cy = ((cy % rows) + rows) % rows;
+
+        for (let oy = -1; oy <= 1; oy++) {
+          const gy = (cy + oy + rows) % rows;
+          for (let ox = -1; ox <= 1; ox++) {
+            const gx = (cx + ox + cols) % cols;
+            let j = this.head[gy * cols + gx];
+            while (j !== -1) {
+              if (j !== i) {
+                let dx = this.x[j] - xi;
+                let dy = this.y[j] - yi;
+                if (dx > width * 0.5) dx -= width;
+                else if (dx < -width * 0.5) dx += width;
+                if (dy > height * 0.5) dy -= height;
+                else if (dy < -height * 0.5) dy += height;
+                const d2 = dx * dx + dy * dy;
+                if (d2 > 0.0001 && d2 < radius2) {
+                  pairs++;
+                  const d = Math.sqrt(d2);
+                  const r = d / radius;
+                  let f;
+                  if (r < core) {
+                    f = r / core - 1;
+                  } else {
+                    const attraction = matrix[matrixIndex(ti, this.type[j], species)];
+                    const triangle = 1 - Math.abs((2 * r - 1 - core) / (1 - core));
+                    f = attraction * Math.max(0, triangle);
+                  }
+                  const scale = (f * forceStrength) / d;
+                  ax += dx * scale;
+                  ay += dy * scale;
+                }
+              }
+              j = this.next[j];
+            }
+          }
+        }
+
+        if (pointer.active) {
+          let dx = pointer.x - xi;
+          let dy = pointer.y - yi;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > 1 && d2 < pointerRadius2) {
+            const d = Math.sqrt(d2);
+            const falloff = 1 - d / pointerRadius;
+            const p = pointerStrength * falloff / d;
+            if (pointerMode === "repel") {
+              ax -= dx * p;
+              ay -= dy * p;
+            } else if (pointerMode === "stir") {
+              ax += -dy * p;
+              ay += dx * p;
+            } else {
+              ax += dx * p;
+              ay += dy * p;
+            }
+          }
+        }
+
+        if (noise > 0) {
+          ax += (Math.random() - 0.5) * noise;
+          ay += (Math.random() - 0.5) * noise;
+        }
+
+        let vx = (this.vx[i] + ax * dt) * drag;
+        let vy = (this.vy[i] + ay * dt) * drag;
+        const speed2 = vx * vx + vy * vy;
+        if (speed2 > maxSpeed2) {
+          const scale = maxSpeed / Math.sqrt(speed2);
+          vx *= scale;
+          vy *= scale;
+        }
+        let x = xi + vx * dt;
+        let y = yi + vy * dt;
+        if (x < 0) x += width;
+        else if (x >= width) x -= width;
+        if (y < 0) y += height;
+        else if (y >= height) y -= height;
+
+        this.vx[i] = vx;
+        this.vy[i] = vy;
+        this.x[i] = x;
+        this.y[i] = y;
+        this.speciesSpeed[ti] += Math.sqrt(vx * vx + vy * vy);
+        this.speciesPopulation[ti]++;
+      }
+      this.framePairs = pairs;
+    }
+
+    render() {
+      const ctx = this.ctx;
+      const persistence = this.config.trails;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = persistence <= 0.001 ? "#05070b" : `rgba(5,7,11,${(1 - persistence).toFixed(3)})`;
+      ctx.fillRect(0, 0, this.width, this.height);
+
+      ctx.globalCompositeOperation = this.config.blendMode;
+      const size = this.config.particleSize;
+      const glow = this.config.glow;
+      const species = this.config.speciesCount;
+
+      for (let t = 0; t < species; t++) {
+        const color = this.colors[t] || "#ffffff";
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = glow;
+        ctx.beginPath();
+        for (let i = 0; i < this.count; i++) {
+          if (this.type[i] !== t) continue;
+          const x = this.x[i];
+          const y = this.y[i];
+          ctx.moveTo(x + size, y);
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      ctx.globalCompositeOperation = "source-over";
+
+      if (this.pointer.active) {
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(this.pointer.x, this.pointer.y, Math.max(this.config.radius * 1.45, 90), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    animate = (now) => {
+      const elapsed = clamp((now - this.lastFrameTime) / 16.6667, 0.05, 2.2);
+      this.lastFrameTime = now;
+      const instantFps = 60 / elapsed;
+      this.fpsSmooth = lerp(this.fpsSmooth, instantFps, 0.06);
+      this.fps = this.fpsSmooth;
+      if (this.running) this.step(elapsed);
+      this.render();
+      this.frameNumber++;
+      if (now - this.lastStatsUpdate > 350) {
+        this.lastStatsUpdate = now;
+        updateStats(this);
+        audio.update(this);
+      }
+      if (TEST_MODE && this.frameNumber >= 5) {
+        document.documentElement.dataset.test = "passed";
+        return;
+      }
+      requestAnimationFrame(this.animate);
+    };
+  }
+
+  class AudioEngine {
+    constructor() {
+      this.context = null;
+      this.master = null;
+      this.voices = [];
+      this.enabled = false;
+    }
+
+    async enable() {
+      if (!this.context) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) throw new Error("Web Audio is not supported by this browser.");
+        this.context = new AudioContextClass();
+        this.master = this.context.createGain();
+        this.master.gain.value = 0;
+        this.master.connect(this.context.destination);
+        for (let i = 0; i < 8; i++) {
+          const osc = this.context.createOscillator();
+          const gain = this.context.createGain();
+          const filter = this.context.createBiquadFilter();
+          osc.type = i % 3 === 0 ? "triangle" : i % 3 === 1 ? "sine" : "sawtooth";
+          osc.frequency.value = 80 + i * 31;
+          gain.gain.value = 0;
+          filter.type = "lowpass";
+          filter.frequency.value = 700;
+          filter.Q.value = 1.2;
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.master);
+          osc.start();
+          this.voices.push({ osc, gain, filter });
+        }
+      }
+      if (this.context.state === "suspended") await this.context.resume();
+      this.enabled = true;
+      this.master.gain.setTargetAtTime(sim.config.volume, this.context.currentTime, 0.08);
+    }
+
+    disable() {
+      if (!this.context || !this.master) return;
+      this.enabled = false;
+      this.master.gain.setTargetAtTime(0, this.context.currentTime, 0.05);
+    }
+
+    async toggle() {
+      if (this.enabled) this.disable();
+      else await this.enable();
+      syncSoundButtons();
+    }
+
+    update(simulation) {
+      if (!this.enabled || !this.context) return;
+      const now = this.context.currentTime;
+      const species = simulation.config.speciesCount;
+      this.master.gain.setTargetAtTime(simulation.config.volume, now, 0.12);
+      for (let i = 0; i < this.voices.length; i++) {
+        const voice = this.voices[i];
+        if (i >= species) {
+          voice.gain.gain.setTargetAtTime(0, now, 0.15);
+          continue;
+        }
+        const pop = simulation.speciesPopulation[i] || 1;
+        const speed = simulation.speciesSpeed[i] / pop;
+        const motion = clamp(speed * simulation.config.audioMotion, 0, 8);
+        const relation = simulation.matrix[matrixIndex(i, (i + 1) % species, species)];
+        const base = 48 * Math.pow(2, i / 7);
+        const frequency = base * (1 + motion * 0.22) * (1 + relation * 0.10);
+        const gain = simulation.config.volume > 0 ? clamp(0.018 + motion * 0.009, 0.008, 0.065) / Math.sqrt(species) : 0;
+        voice.osc.frequency.setTargetAtTime(frequency, now, 0.12);
+        voice.filter.frequency.setTargetAtTime(240 + motion * 180 + i * 45, now, 0.18);
+        voice.gain.gain.setTargetAtTime(gain, now, 0.18);
+      }
+    }
+  }
+
+  const audio = new AudioEngine();
+  let sim;
+  let statusTimer = 0;
+
+  function showStatus(message, kind = "", duration = 2200) {
+    const status = $("status");
+    status.textContent = message;
+    status.className = `show ${kind}`.trim();
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { status.className = ""; }, duration);
+  }
+
+  function updateStats(simulation) {
+    $("stats").textContent = `${simulation.fps.toFixed(0)} FPS\n${simulation.count} particles · ${simulation.config.speciesCount} species\n${Math.round(simulation.framePairs / 1000)}k neighbor tests\nv${VERSION}`;
+  }
+
+  function coefficientColor(value) {
+    const v = clamp(value, -1, 1);
+    if (v < 0) {
+      const t = -v;
+      return `rgb(${Math.round(28 + 190 * t)}, ${Math.round(36 + 25 * (1 - t))}, ${Math.round(72 + 45 * (1 - t))})`;
+    }
+    const t = v;
+    return `rgb(${Math.round(28 + 30 * (1 - t))}, ${Math.round(52 + 115 * t)}, ${Math.round(80 + 110 * t)})`;
+  }
+
+  function rebuildMatrixUI() {
+    const n = sim.config.speciesCount;
+    sim.selectedRow = clamp(sim.selectedRow, 0, n - 1);
+    sim.selectedCol = clamp(sim.selectedCol, 0, n - 1);
+    const grid = $("matrixGrid");
+    grid.innerHTML = "";
+    grid.style.gridTemplateColumns = `repeat(${n + 1}, 42px)`;
+
+    const corner = document.createElement("div");
+    corner.className = "matrix-label";
+    corner.textContent = "→";
+    corner.title = "Rows receive force from columns";
+    grid.appendChild(corner);
+
+    for (let c = 0; c < n; c++) {
+      const label = document.createElement("div");
+      label.className = "matrix-label";
+      label.style.background = sim.colors[c];
+      label.textContent = `S${c + 1}`;
+      grid.appendChild(label);
+    }
+
+    for (let r = 0; r < n; r++) {
+      const rowLabel = document.createElement("div");
+      rowLabel.className = "matrix-label";
+      rowLabel.style.background = sim.colors[r];
+      rowLabel.textContent = `S${r + 1}`;
+      grid.appendChild(rowLabel);
+      for (let c = 0; c < n; c++) {
+        const value = sim.matrix[matrixIndex(r, c, n)];
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = `matrix-cell${r === sim.selectedRow && c === sim.selectedCol ? " selected" : ""}`;
+        cell.style.background = coefficientColor(value);
+        cell.textContent = value.toFixed(2);
+        cell.title = `Species ${r + 1} response to species ${c + 1}: ${value.toFixed(2)}`;
+        cell.addEventListener("click", () => {
+          sim.selectedRow = r;
+          sim.selectedCol = c;
+          rebuildMatrixUI();
+        });
+        grid.appendChild(cell);
+      }
+    }
+
+    const selected = sim.matrix[matrixIndex(sim.selectedRow, sim.selectedCol, n)];
+    $("matrixValue").value = selected.toFixed(2);
+    $("matrixValueLabel").textContent = selected.toFixed(2);
+    $("matrixSelection").textContent = `Species ${sim.selectedRow + 1} response to species ${sim.selectedCol + 1}`;
+  }
+
+  function rebuildLegend() {
+    const legend = $("legend");
+    legend.innerHTML = "";
+    for (let i = 0; i < sim.config.speciesCount; i++) {
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      item.innerHTML = `<span class="dot" style="background:${sim.colors[i]}; color:${sim.colors[i]}"></span><span>Species ${i + 1}</span>`;
+      legend.appendChild(item);
+    }
+  }
+
+  const rangeBindings = [
+    ["particleCount", "particleCountValue", v => `${Math.round(v)}`],
+    ["speciesCount", "speciesCountValue", v => `${Math.round(v)}`],
+    ["radius", "radiusValue", v => `${Math.round(v)} px`],
+    ["coreRatio", "coreRatioValue", v => Number(v).toFixed(2)],
+    ["forceStrength", "forceStrengthValue", v => Number(v).toFixed(2)],
+    ["drag", "dragValue", v => Number(v).toFixed(3)],
+    ["maxSpeed", "maxSpeedValue", v => Number(v).toFixed(1)],
+    ["timeScale", "timeScaleValue", v => `${Number(v).toFixed(2)}×`],
+    ["noise", "noiseValue", v => Number(v).toFixed(3)],
+    ["particleSize", "particleSizeValue", v => Number(v).toFixed(1)],
+    ["glow", "glowValue", v => `${Math.round(v)} px`],
+    ["trails", "trailsValue", v => `${Math.round(v * 100)}%`],
+    ["pointerStrength", "pointerStrengthValue", v => Number(v).toFixed(1)],
+    ["volume", "volumeValue", v => `${Math.round(v * 100)}%`],
+    ["audioMotion", "audioMotionValue", v => `${Number(v).toFixed(1)}×`]
+  ];
+
+  function syncUIFromConfig() {
+    const c = sim.config;
+    $("preset").value = c.preset;
+    $("particleCount").value = c.particleCount;
+    $("speciesCount").value = c.speciesCount;
+    $("seedInput").value = c.seed;
+    $("radius").value = c.radius;
+    $("coreRatio").value = c.coreRatio;
+    $("forceStrength").value = c.forceStrength;
+    $("drag").value = c.drag;
+    $("maxSpeed").value = c.maxSpeed;
+    $("timeScale").value = c.timeScale;
+    $("noise").value = c.noise;
+    $("particleSize").value = c.particleSize;
+    $("glow").value = c.glow;
+    $("trails").value = c.trails;
+    $("blendMode").value = c.blendMode;
+    $("palette").value = c.palette;
+    $("pointerMode").value = c.pointerMode;
+    $("pointerStrength").value = c.pointerStrength;
+    $("volume").value = c.volume;
+    $("audioMotion").value = c.audioMotion;
+    for (const [inputId, valueId, format] of rangeBindings) {
+      $(valueId).textContent = format(Number($(inputId).value));
+    }
+    rebuildMatrixUI();
+    rebuildLegend();
+    syncPlayButton();
+    syncSoundButtons();
+    if (sim) syncModeControlsFromConfig();
+  }
+
+  function readWorldConfig() {
+    return {
+      preset: $("preset").value,
+      particleCount: Number($("particleCount").value),
+      speciesCount: Number($("speciesCount").value),
+      seed: $("seedInput").value.trim() || "seed"
+    };
+  }
+
+  function getSerializableConfig() {
+    return {
+      version: VERSION,
+      config: { ...sim.config, matrix: Array.from(sim.matrix) }
+    };
+  }
+
+  function applySerializable(payload, message = "Configuration loaded.") {
+    if (!payload || typeof payload !== "object") throw new Error("Invalid configuration object.");
+    const incoming = payload.config || payload;
+    const matrix = incoming.matrix;
+    const clean = { ...DEFAULT_CONFIG, ...incoming };
+    delete clean.matrix;
+    sim.setConfig(clean, { matrix, reseed: true });
+    syncUIFromConfig();
+    showStatus(message, "ok");
+  }
+
+
+  let currentMode = "explorer";
+  let selectedGateMode = "explorer";
+  let userPresets = [];
+
+  function sanitizePresetName(name) {
+    return String(name || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  }
+
+  function newPresetId() {
+    return `user:${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  }
+
+  function loadUserPresetStore() {
+    try {
+      const raw = localStorage.getItem(PRESET_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      userPresets = Array.isArray(parsed) ? parsed.filter(p => p && p.id && p.name && p.config) : [];
+    } catch {
+      userPresets = [];
+    }
+  }
+
+  function persistUserPresets() {
+    localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(userPresets));
+  }
+
+  function getPresetById(id) {
+    const builtin = BUILTIN_SCENES.find(p => p.id === id);
+    if (builtin) return { ...builtin, builtin:true };
+    const user = userPresets.find(p => p.id === id);
+    return user ? { ...user, builtin:false } : null;
+  }
+
+  function snapshotCurrent(name = "Current world", id = newPresetId()) {
+    return {
+      kind: "particle-life-preset",
+      schema: 2,
+      id,
+      name: sanitizePresetName(name) || "Untitled preset",
+      mode: currentMode,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      config: { ...sim.config, matrix: Array.from(sim.matrix) }
+    };
+  }
+
+  function setSelectOptions(select, selectedId) {
+    if (!select) return;
+    const groups = [
+      { label:"Built-in scenes", items:BUILTIN_SCENES },
+      { label:"My presets", items:userPresets }
+    ];
+    select.innerHTML = "";
+    for (const groupDef of groups) {
+      if (!groupDef.items.length) continue;
+      const group = document.createElement("optgroup");
+      group.label = groupDef.label;
+      for (const p of groupDef.items) {
+        const option = document.createElement("option");
+        option.value = p.id;
+        option.textContent = p.name;
+        group.appendChild(option);
+      }
+      select.appendChild(group);
+    }
+    if (selectedId && getPresetById(selectedId)) select.value = selectedId;
+    else if (BUILTIN_SCENES[0]) select.value = BUILTIN_SCENES[0].id;
+  }
+
+  function refreshPresetUI(selectedId) {
+    setSelectOptions($("vaultPresetSelect"), selectedId);
+    setSelectOptions($("gatePresetSelect"), selectedId || $("gatePresetSelect")?.value);
+    updateVaultMeta();
+  }
+
+  function updateVaultMeta() {
+    const select = $("vaultPresetSelect");
+    if (!select) return;
+    const p = getPresetById(select.value);
+    if (!p) { $("vaultMeta").textContent = "No preset selected."; return; }
+    const tag = p.builtin ? "Built-in · read-only" : `User preset · ${p.updatedAt ? new Date(p.updatedAt).toLocaleString() : "saved locally"}`;
+    $("vaultMeta").textContent = `${tag} · ${p.description || `${p.config.particleCount || "?"} particles / ${p.config.speciesCount || "?"} species`} · preferred mode: ${UI_MODES[p.mode]?.label || "Explorer"}`;
+    $("vaultName").value = p.builtin ? p.name : p.name;
+    $("vaultUpdateBtn").disabled = !!p.builtin;
+    $("vaultDeleteBtn").disabled = !!p.builtin;
+  }
+
+  function normalizeImportedPreset(raw) {
+    if (!raw || typeof raw !== "object") throw new Error("Preset data is not an object.");
+    const config = raw.config || raw;
+    if (!config || typeof config !== "object") throw new Error("Preset has no configuration.");
+    return {
+      kind:"particle-life-preset", schema:2,
+      id: String(raw.id || newPresetId()).startsWith("user:") ? String(raw.id || newPresetId()) : newPresetId(),
+      name: sanitizePresetName(raw.name || `Imported ${new Date().toLocaleDateString()}`) || "Imported preset",
+      mode: UI_MODES[raw.mode] ? raw.mode : "explorer",
+      createdAt: raw.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      config: { ...config, matrix: Array.isArray(config.matrix) ? config.matrix.slice() : undefined }
+    };
+  }
+
+  function applyPresetById(id, options = {}) {
+    const p = getPresetById(id);
+    if (!p) throw new Error("Preset not found.");
+    const config = { ...p.config };
+    const matrix = Array.isArray(config.matrix) ? config.matrix : null;
+    delete config.matrix;
+    sim.setConfig(config, { matrix, newPreset: !matrix, reseed:true });
+    syncUIFromConfig();
+    syncModeControlsFromConfig();
+    if (options.usePreferredMode && UI_MODES[p.mode]) setMode(p.mode, true);
+    $("explorerSceneName").textContent = p.name;
+    showStatus(`Loaded preset: ${p.name}`, "ok");
+  }
+
+  function closeAllModeSurfaces() {
+    $("panel").classList.remove("open");
+    for (const id of ["explorerSurface","ecosystemSurface","conductorSurface","studioSurface"]) $(id).classList.remove("open");
+    $("panelBtn").classList.remove("active");
+  }
+
+  function setMode(mode, openSurface = true) {
+    if (!UI_MODES[mode]) mode = "explorer";
+    currentMode = mode;
+    localStorage.setItem(MODE_STORAGE_KEY, mode);
+    closeAllModeSurfaces();
+    $("modeBtn").textContent = `Mode: ${UI_MODES[mode].label}`;
+    if (openSurface) {
+      $(UI_MODES[mode].surface).classList.add("open");
+      $("panelBtn").classList.add("active");
+    }
+    syncModeControlsFromConfig();
+  }
+
+  function toggleCurrentSurface(force) {
+    const surface = $(UI_MODES[currentMode].surface);
+    const open = typeof force === "boolean" ? force : !surface.classList.contains("open");
+    closeAllModeSurfaces();
+    if (open) {
+      surface.classList.add("open");
+      $("panelBtn").classList.add("active");
+    }
+  }
+
+  function openModeGate() {
+    selectedGateMode = currentMode;
+    document.querySelectorAll(".mode-card").forEach(card => card.classList.toggle("selected", card.dataset.mode === selectedGateMode));
+    $("enterModeBtn").textContent = `Enter ${UI_MODES[selectedGateMode].label}`;
+    $("modeGate").classList.remove("closed");
+  }
+
+  function closeModeGate() { $("modeGate").classList.add("closed"); }
+
+  function togglePresetDrawer(force) {
+    const drawer = $("presetDrawer");
+    const open = typeof force === "boolean" ? force : !drawer.classList.contains("open");
+    drawer.classList.toggle("open", open);
+    $("presetsBtn").classList.toggle("active", open);
+    if (open) refreshPresetUI($("vaultPresetSelect").value);
+  }
+
+  function downloadJSON(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+
+  function syncModeControlsFromConfig() {
+    if (!sim) return;
+    const c = sim.config;
+    $("exPopulation").value = c.particleCount;
+    $("exPopulationValue").textContent = c.particleCount;
+    const energy = Math.round(clamp((c.forceStrength - .05) / 2.45 * 100, 0, 100));
+    $("exEnergy").value = energy; $("exEnergyValue").textContent = `${energy}%`;
+    const reach = Math.round(clamp((c.radius - 28) / 122 * 100, 0, 100));
+    $("exReach").value = reach; $("exReachValue").textContent = `${reach}%`;
+    const wander = Math.round(clamp(c.noise / .12 * 100, 0, 100));
+    $("exWander").value = wander; $("exWanderValue").textContent = `${wander}%`;
+
+    $("condTempo").value = Math.round(c.timeScale * 100); $("condTempoValue").textContent = `${c.timeScale.toFixed(2)}×`;
+    $("condImpact").value = Math.round(c.forceStrength * 100); $("condImpactValue").textContent = `${Math.round(c.forceStrength*100)}%`;
+    $("condVolume").value = Math.round(c.volume * 100); $("condVolumeValue").textContent = `${Math.round(c.volume*100)}%`;
+
+    $("studioSize").value = Math.round(c.particleSize * 10); $("studioSizeValue").textContent = c.particleSize.toFixed(1);
+    $("studioGlow").value = Math.round(c.glow); $("studioGlowValue").textContent = `${Math.round(c.glow)} px`;
+    $("studioTrails").value = Math.round(c.trails * 100); $("studioTrailsValue").textContent = `${Math.round(c.trails*100)}%`;
+    rebuildStudioPaletteButtons();
+  }
+
+  function rebuildStudioPaletteButtons() {
+    const box = $("studioPalettes");
+    if (!box || !sim) return;
+    box.innerHTML = "";
+    for (const [name, colors] of Object.entries(PALETTES)) {
+      const b = document.createElement("button");
+      b.type="button"; b.className=`palette-swatch${sim.config.palette===name ? " selected" : ""}`; b.dataset.palette=name;
+      b.textContent=name.toUpperCase();
+      b.style.background=`linear-gradient(135deg, ${colors[0]}, ${colors[1]}, ${colors[2]})`;
+      b.addEventListener("click", () => { sim.setConfig({palette:name}); syncUIFromConfig(); syncModeControlsFromConfig(); });
+      box.appendChild(b);
+    }
+  }
+
+  function buildEcosystemMatrix(mutateOnly = false) {
+    const n = sim.config.speciesCount;
+    const kin = Number($("ecoKin").value)/100;
+    const bond = Number($("ecoBond").value)/100;
+    const hunt = Number($("ecoHunt").value)/100;
+    const territory = Number($("ecoTerritory").value)/100;
+    const mutation = Number($("ecoMutation").value)/100;
+    const rng = mulberry32(hashString(`${sim.config.seed}|eco|${Date.now()}|${kin}|${bond}|${hunt}|${territory}|${mutation}`));
+    const m = mutateOnly ? Float32Array.from(sim.matrix) : new Float32Array(n*n);
+    for (let r=0;r<n;r++) {
+      for (let c=0;c<n;c++) {
+        const idx=matrixIndex(r,c,n);
+        if (mutateOnly) {
+          m[idx]=clamp(m[idx] + (rng()*2-1)*mutation*.22, -1,1);
+          continue;
+        }
+        let v = (bond*.65) - (territory*.55) - .08;
+        if (r===c) v = -.05 + kin*.88;
+        if (c===(r+1)%n) v += hunt*.78;
+        if (r===(c+1)%n) v -= hunt*.86;
+        v += (rng()*2-1) * mutation*.48;
+        m[idx]=clamp(v,-1,1);
+      }
+    }
+    sim.setConfig({ preset:"custom-ecosystem" }, { matrix:m });
+    rebuildMatrixUI();
+    showStatus(mutateOnly ? "Ecosystem mutated." : "Ecosystem DNA synthesized into a new force matrix.", "ok");
+  }
+
+  function bindModeUI() {
+    document.querySelectorAll(".mode-card").forEach(card => card.addEventListener("click", () => {
+      selectedGateMode = card.dataset.mode;
+      document.querySelectorAll(".mode-card").forEach(c => c.classList.toggle("selected", c===card));
+      $("enterModeBtn").textContent = `Enter ${UI_MODES[selectedGateMode].label}`;
+    }));
+    $("enterModeBtn").addEventListener("click", () => {
+      const presetId = $("gatePresetSelect").value;
+      if (presetId) { try { applyPresetById(presetId); } catch (e) { showStatus(e.message,"error"); } }
+      setMode(selectedGateMode, true);
+      closeModeGate();
+    });
+    $("modeBtn").addEventListener("click", openModeGate);
+    document.querySelectorAll("[data-close-surface]").forEach(b => b.addEventListener("click", () => toggleCurrentSurface(false)));
+
+    // Explorer macro mapping
+    $("exPopulation").addEventListener("change", () => { sim.setConfig({particleCount:Number($("exPopulation").value)}, {reseed:true}); syncUIFromConfig(); syncModeControlsFromConfig(); });
+    $("exPopulation").addEventListener("input", () => $("exPopulationValue").textContent=$("exPopulation").value);
+    $("exEnergy").addEventListener("input", () => { const v=Number($("exEnergy").value); $("exEnergyValue").textContent=`${v}%`; sim.setConfig({forceStrength:.05+v/100*2.45, timeScale:.45+v/100*1.35}); syncUIFromConfig(); });
+    $("exReach").addEventListener("input", () => { const v=Number($("exReach").value); $("exReachValue").textContent=`${v}%`; sim.setConfig({radius:28+v/100*122}); syncUIFromConfig(); });
+    $("exWander").addEventListener("input", () => { const v=Number($("exWander").value); $("exWanderValue").textContent=`${v}%`; sim.setConfig({noise:v/100*.12}); syncUIFromConfig(); });
+    $("explorerNewWorld").addEventListener("click", randomizeWorld);
+    $("explorerCalm").addEventListener("click", () => { sim.setConfig({forceStrength:.38,timeScale:.68,noise:.006,drag:.90}); syncUIFromConfig(); syncModeControlsFromConfig(); showStatus("Explorer calm profile applied.","ok"); });
+
+    // Ecosystem semantic controls
+    for (const id of ["ecoKin","ecoBond","ecoHunt","ecoTerritory","ecoMutation"]) {
+      const valueId = `${id}Value`;
+      $(id).addEventListener("input", () => $(valueId).textContent=`${$(id).value}%`);
+    }
+    $("ecoBuildBtn").addEventListener("click", () => buildEcosystemMatrix(false));
+    $("ecoMutateBtn").addEventListener("click", () => buildEcosystemMatrix(true));
+
+    // Conductor performance pads and faders
+    document.querySelectorAll("[data-performance]").forEach(btn => btn.addEventListener("click", async () => {
+      const action=btn.dataset.performance;
+      if (action==="pulse") {
+        for(let i=0;i<sim.count;i++){ const a=Math.atan2(sim.y[i]-sim.height/2,sim.x[i]-sim.width/2); sim.vx[i]+=Math.cos(a)*1.8; sim.vy[i]+=Math.sin(a)*1.8; }
+      } else if (action==="burst") {
+        for(let i=0;i<sim.count;i++){ const a=Math.random()*Math.PI*2, q=.5+Math.random()*2.8; sim.vx[i]+=Math.cos(a)*q; sim.vy[i]+=Math.sin(a)*q; }
+      } else if (action==="reverse") {
+        for(let i=0;i<sim.matrix.length;i++) sim.matrix[i]*=-1; rebuildMatrixUI();
+      } else if (action==="orbit") {
+        sim.setConfig({pointerMode:"stir", pointerStrength:3.2}); syncUIFromConfig();
+      } else if (action==="hunt") {
+        sim.setConfig({preset:"hunters"},{newPreset:true}); rebuildMatrixUI();
+      } else if (action==="freeze") {
+        sim.running=!sim.running; syncPlayButton();
+      }
+      showStatus(`Conductor: ${action.toUpperCase()}`,"ok",1000);
+    }));
+    $("condTempo").addEventListener("input", () => { const v=Number($("condTempo").value)/100; sim.setConfig({timeScale:v}); $("condTempoValue").textContent=`${v.toFixed(2)}×`; syncUIFromConfig(); });
+    $("condImpact").addEventListener("input", () => { const v=Number($("condImpact").value)/100; sim.setConfig({forceStrength:v}); $("condImpactValue").textContent=`${Math.round(v*100)}%`; syncUIFromConfig(); });
+    $("condVolume").addEventListener("input", () => { const v=Number($("condVolume").value)/100; sim.setConfig({volume:v}); $("condVolumeValue").textContent=`${Math.round(v*100)}%`; syncUIFromConfig(); });
+
+    // Studio visual surface
+    $("studioSize").addEventListener("input", () => { const v=Number($("studioSize").value)/10; sim.setConfig({particleSize:v}); $("studioSizeValue").textContent=v.toFixed(1); syncUIFromConfig(); });
+    $("studioGlow").addEventListener("input", () => { const v=Number($("studioGlow").value); sim.setConfig({glow:v}); $("studioGlowValue").textContent=`${v} px`; syncUIFromConfig(); });
+    $("studioTrails").addEventListener("input", () => { const v=Number($("studioTrails").value)/100; sim.setConfig({trails:v}); $("studioTrailsValue").textContent=`${Math.round(v*100)}%`; syncUIFromConfig(); });
+    $("studioNatural").addEventListener("click",()=>{sim.setConfig({blendMode:"source-over"});syncUIFromConfig();});
+    $("studioAdditive").addEventListener("click",()=>{sim.setConfig({blendMode:"lighter"});syncUIFromConfig();});
+    document.querySelectorAll("[data-look]").forEach(btn=>btn.addEventListener("click",()=>{
+      const look=btn.dataset.look;
+      if(look==="crisp") sim.setConfig({particleSize:1.8,glow:2,trails:.08,blendMode:"source-over"});
+      if(look==="dream") sim.setConfig({particleSize:3.1,glow:14,trails:.62,blendMode:"lighter"});
+      if(look==="comet") sim.setConfig({particleSize:2.0,glow:9,trails:.84,blendMode:"lighter"});
+      syncUIFromConfig(); syncModeControlsFromConfig(); showStatus(`Visual look: ${look}`,"ok");
+    }));
+  }
+
+  function bindPresetVault() {
+    $("presetsBtn").addEventListener("click", () => togglePresetDrawer());
+    $("closePresetsBtn").addEventListener("click", () => togglePresetDrawer(false));
+    $("vaultPresetSelect").addEventListener("change", updateVaultMeta);
+    $("vaultLoadBtn").addEventListener("click", () => { try { applyPresetById($("vaultPresetSelect").value,{usePreferredMode:true}); togglePresetDrawer(false); } catch(e){showStatus(e.message,"error");} });
+    $("vaultSaveNewBtn").addEventListener("click", () => {
+      const name=sanitizePresetName($("vaultName").value);
+      if(!name) return showStatus("Give the preset a name first.","error");
+      const p=snapshotCurrent(name); userPresets.push(p); persistUserPresets(); refreshPresetUI(p.id); showStatus(`Saved new preset: ${name}`,"ok");
+    });
+    $("vaultUpdateBtn").addEventListener("click", () => {
+      const id=$("vaultPresetSelect").value; const idx=userPresets.findIndex(p=>p.id===id);
+      if(idx<0) return showStatus("Built-in presets cannot be overwritten. Save as new instead.","error");
+      const old=userPresets[idx]; const name=sanitizePresetName($("vaultName").value)||old.name;
+      const p=snapshotCurrent(name,id); p.createdAt=old.createdAt||p.createdAt; userPresets[idx]=p; persistUserPresets(); refreshPresetUI(id); showStatus(`Updated preset: ${name}`,"ok");
+    });
+    $("vaultDeleteBtn").addEventListener("click", () => {
+      const id=$("vaultPresetSelect").value; const idx=userPresets.findIndex(p=>p.id===id);
+      if(idx<0) return showStatus("Built-in presets cannot be deleted.","error");
+      const [removed]=userPresets.splice(idx,1); persistUserPresets(); refreshPresetUI(); showStatus(`Deleted preset: ${removed.name}`,"ok");
+    });
+    $("vaultExportCurrentBtn").addEventListener("click", () => {
+      const p=snapshotCurrent(sanitizePresetName($("vaultName").value)||"Particle Life preset");
+      downloadJSON(`${p.name.replace(/[^a-z0-9_-]+/gi,"-")}.particle-life.json`,p); showStatus("Current control setup exported.","ok");
+    });
+    $("vaultExportLibraryBtn").addEventListener("click", () => {
+      downloadJSON("particle-life-preset-library.json",{kind:"particle-life-preset-library",schema:2,exportedAt:new Date().toISOString(),presets:userPresets}); showStatus(`Exported ${userPresets.length} user preset${userPresets.length===1?"":"s"}.`,"ok");
+    });
+    $("vaultImportBtn").addEventListener("click",()=>$("vaultImportFile").click());
+    $("vaultImportFile").addEventListener("change",async event=>{
+      const file=event.target.files?.[0]; event.target.value=""; if(!file)return;
+      try{
+        const raw=JSON.parse(await file.text());
+        if(raw.kind==="particle-life-preset-library" && Array.isArray(raw.presets)){
+          let count=0;
+          for(const item of raw.presets){ const p=normalizeImportedPreset(item); p.id=newPresetId(); userPresets.push(p); count++; }
+          persistUserPresets(); refreshPresetUI(userPresets.at(-1)?.id); showStatus(`Imported ${count} presets from ${file.name}.`,"ok");
+        }else if(raw.kind==="particle-life-preset" || raw.name){
+          const p=normalizeImportedPreset(raw); p.id=newPresetId(); userPresets.push(p); persistUserPresets(); refreshPresetUI(p.id); showStatus(`Imported preset: ${p.name}`,"ok");
+        }else{
+          applySerializable(raw,`Imported legacy configuration ${file.name}.`);
+        }
+      }catch(e){showStatus(`Import failed: ${e.message}`,"error",6000);}
+    });
+  }
+
+  function syncPlayButton() {
+    $("playBtn").textContent = sim.running ? "Pause" : "Play";
+    $("playBtn").classList.toggle("active", !sim.running);
+  }
+
+  function syncSoundButtons() {
+    $("soundBtn").textContent = audio.enabled ? "Sound on" : "Sound off";
+    $("soundBtn").classList.toggle("active", audio.enabled);
+    $("soundPanelBtn").textContent = audio.enabled ? "Disable sound" : "Enable sound";
+  }
+
+  function togglePanel(force) {
+    toggleCurrentSurface(force);
+  }
+
+  function randomSeed() {
+    const bytes = new Uint32Array(2);
+    if (crypto?.getRandomValues) crypto.getRandomValues(bytes);
+    else { bytes[0] = Date.now(); bytes[1] = Math.floor(Math.random() * 0xffffffff); }
+    return `${bytes[0].toString(36)}-${bytes[1].toString(36)}`;
+  }
+
+  function randomizeWorld() {
+    const seed = randomSeed();
+    const presets = ["cells", "hunters", "symbiosis", "rings", "gentle", "chaos"];
+    const preset = presets[Math.floor(Math.random() * presets.length)];
+    sim.setConfig({ seed, preset }, { newPreset: true, reseed: true });
+    syncUIFromConfig();
+    showStatus(`Randomized: ${preset} · seed ${seed}`, "ok");
+  }
+
+  function bindUI() {
+    for (const [inputId, valueId, format] of rangeBindings) {
+      const input = $(inputId);
+      const value = $(valueId);
+      const updateLabel = () => { value.textContent = format(Number(input.value)); };
+      input.addEventListener("input", updateLabel);
+      updateLabel();
+    }
+
+    const liveNumeric = ["radius", "coreRatio", "forceStrength", "drag", "maxSpeed", "timeScale", "noise", "particleSize", "glow", "trails", "pointerStrength", "volume", "audioMotion"];
+    for (const id of liveNumeric) {
+      $(id).addEventListener("input", () => {
+        sim.setConfig({ [id]: Number($(id).value) });
+      });
+    }
+    for (const id of ["blendMode", "pointerMode"]) {
+      $(id).addEventListener("change", () => sim.setConfig({ [id]: $(id).value }));
+    }
+    $("palette").addEventListener("change", () => {
+      sim.setConfig({ palette: $("palette").value });
+      rebuildMatrixUI();
+      rebuildLegend();
+    });
+
+    $("applyWorldBtn").addEventListener("click", () => {
+      sim.setConfig(readWorldConfig(), { newPreset: true, reseed: true });
+      syncUIFromConfig();
+      showStatus("World rebuilt from the selected preset.", "ok");
+    });
+    $("reseedBtn").addEventListener("click", () => {
+      sim.setConfig({ seed: $("seedInput").value.trim() || "seed" }, { reseed: true });
+      showStatus("Particle positions reseeded; interaction matrix preserved.", "ok");
+    });
+    $("preset").addEventListener("change", () => {
+      sim.setConfig({ preset: $("preset").value }, { newPreset: true });
+      rebuildMatrixUI();
+      showStatus("Preset matrix loaded. Press Apply world to also rebuild particle positions.", "ok");
+    });
+
+    $("matrixValue").addEventListener("input", () => {
+      const n = sim.config.speciesCount;
+      const index = matrixIndex(sim.selectedRow, sim.selectedCol, n);
+      sim.matrix[index] = Number($("matrixValue").value);
+      $("matrixValueLabel").textContent = sim.matrix[index].toFixed(2);
+      const selectedCell = $("matrixGrid").querySelector(".matrix-cell.selected");
+      if (selectedCell) {
+        selectedCell.textContent = sim.matrix[index].toFixed(2);
+        selectedCell.style.background = coefficientColor(sim.matrix[index]);
+      }
+    });
+    $("matrixRandomBtn").addEventListener("click", () => {
+      const rng = mulberry32(hashString(`${sim.config.seed}|manual-matrix|${Date.now()}`));
+      for (let i = 0; i < sim.matrix.length; i++) sim.matrix[i] = rng() * 2 - 1;
+      rebuildMatrixUI();
+      showStatus("Interaction matrix randomized.", "ok");
+    });
+    $("matrixSymBtn").addEventListener("click", () => {
+      const n = sim.config.speciesCount;
+      for (let r = 0; r < n; r++) {
+        for (let c = r + 1; c < n; c++) {
+          const avg = (sim.matrix[matrixIndex(r, c, n)] + sim.matrix[matrixIndex(c, r, n)]) * 0.5;
+          sim.matrix[matrixIndex(r, c, n)] = avg;
+          sim.matrix[matrixIndex(c, r, n)] = avg;
+        }
+      }
+      rebuildMatrixUI();
+      showStatus("Matrix made symmetric; chasing behavior is reduced.", "ok");
+    });
+    $("matrixInvertBtn").addEventListener("click", () => {
+      for (let i = 0; i < sim.matrix.length; i++) sim.matrix[i] *= -1;
+      rebuildMatrixUI();
+      showStatus("All attraction and repulsion signs inverted.", "ok");
+    });
+
+    $("playBtn").addEventListener("click", () => {
+      sim.running = !sim.running;
+      syncPlayButton();
+    });
+    $("randomBtn").addEventListener("click", randomizeWorld);
+    $("panelBtn").addEventListener("click", () => togglePanel());
+    $("closePanelBtn").addEventListener("click", () => togglePanel(false));
+    $("soundBtn").addEventListener("click", async () => {
+      try { await audio.toggle(); } catch (error) { showStatus(error.message, "error", 5000); }
+    });
+    $("soundPanelBtn").addEventListener("click", async () => {
+      try { await audio.toggle(); } catch (error) { showStatus(error.message, "error", 5000); }
+    });
+    $("fullBtn").addEventListener("click", async () => {
+      try {
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
+      } catch (error) {
+        showStatus(`Fullscreen unavailable: ${error.message}`, "error", 4000);
+      }
+    });
+
+    $("saveBtn").addEventListener("click", () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(getSerializableConfig()));
+      showStatus("Saved to this browser's local storage.", "ok");
+    });
+    $("loadBtn").addEventListener("click", () => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return showStatus("No local save exists yet.", "error");
+      try { applySerializable(JSON.parse(raw), "Local save loaded."); }
+      catch (error) { showStatus(`Load failed: ${error.message}`, "error", 5000); }
+    });
+    $("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(getSerializableConfig(), null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `particle-life-${sim.config.seed.replace(/[^a-z0-9_-]+/gi, "-")}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+      showStatus("Configuration exported as JSON.", "ok");
+    });
+    $("importBtn").addEventListener("click", () => $("importFile").click());
+    $("importFile").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        const payload = JSON.parse(await file.text());
+        applySerializable(payload, `Imported ${file.name}.`);
+      } catch (error) {
+        showStatus(`Import failed: ${error.message}`, "error", 6000);
+      }
+    });
+    $("factoryBtn").addEventListener("click", () => {
+      localStorage.removeItem(STORAGE_KEY);
+      sim.setConfig({ ...DEFAULT_CONFIG }, { newPreset: true, reseed: true });
+      syncUIFromConfig();
+      showStatus("Factory defaults restored.", "ok");
+    });
+
+    window.addEventListener("keydown", async (event) => {
+      if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "")) return;
+      const key = event.key.toLowerCase();
+      if (key === " ") { event.preventDefault(); sim.running = !sim.running; syncPlayButton(); }
+      else if (key === "r") randomizeWorld();
+      else if (key === "c") togglePanel();
+      else if (key === "s") { try { await audio.toggle(); } catch (error) { showStatus(error.message, "error"); } }
+      else if (key === "f") $("fullBtn").click();
+    });
+  }
+
+  window.addEventListener("error", (event) => {
+    showStatus(`Runtime error: ${event.message}\n${event.filename || ""}:${event.lineno || ""}`, "error", 10000);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const message = event.reason?.message || String(event.reason || "Unknown promise rejection");
+    showStatus(`Unhandled error: ${message}`, "error", 10000);
+  });
+
+  try {
+    sim = new ParticleLife($("world"));
+    loadUserPresetStore();
+    bindUI();
+    bindModeUI();
+    bindPresetVault();
+    refreshPresetUI(BUILTIN_SCENES[0].id);
+    syncUIFromConfig();
+    currentMode = UI_MODES[localStorage.getItem(MODE_STORAGE_KEY)] ? localStorage.getItem(MODE_STORAGE_KEY) : "explorer";
+    selectedGateMode = currentMode;
+    document.querySelectorAll(".mode-card").forEach(card => card.classList.toggle("selected", card.dataset.mode === selectedGateMode));
+    $("enterModeBtn").textContent = `Enter ${UI_MODES[selectedGateMode].label}`;
+    $("modeBtn").textContent = `Mode: ${UI_MODES[currentMode].label}`;
+    rebuildStudioPaletteButtons();
+    requestAnimationFrame(sim.animate);
+    showStatus("Particle Life initialized. Choose an entrance mode.", "ok", 2600);
+  } catch (error) {
+    showStatus(`Initialization failed: ${error.message}`, "error", 10000);
+    throw error;
+  }
+})();
+</script>
+</body>
+</html>
