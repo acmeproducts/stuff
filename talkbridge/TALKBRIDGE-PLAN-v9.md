@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.3.0 -->
-# TALKBRIDGE MASTER PLAN v10.3.0
+<!-- TALKBRIDGE-PLAN v10.4.0 -->
+# TALKBRIDGE MASTER PLAN v10.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,7 +157,7 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn23-ship.html` — device-passed 2026-08-06 (room card, joiner shell, room lifecycle and elevation, call and network robustness). Rollback floor.**
+**Baseline: `bridge-turn23-post-ship.html` — device-passed 2026-08-07 (room card, joiner shell, room lifecycle and elevation, call and network robustness, room menu surface). Rollback floor.**
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -445,7 +445,7 @@ transcription socket stops rather than churning.
 
 ---
 
-## 6c · RELEASE 6 — ROOM MENU SURFACE · attempt 3
+## 6c · RELEASE 6 — ROOM MENU SURFACE · PASSED 2026-08-07 (attempt 5)
 
 Attempts 1 and 2 are in the graveyard. Everything below carries forward except
 the room name, which is redesigned, and localization, which is removed.
@@ -743,12 +743,17 @@ service worker is what receives a push — push cannot exist without it.
 Locked and backgrounded push only: relay change, push subscription, notification
 tap routing into the right room. The only release that modifies the relay.
 
-### The home screen becomes the record of what happened while you were away
+### The home screen becomes the *while you were away* summary
 
-The home screen already surfaces waiting chats and missed calls. **A name change
-and a room rename are the same kind of event and belong there too** — something
-happened in a room you were not looking at, and you should be able to see it and
-tap straight into that room.
+This is the organising idea of the release, not a feature within it. **The home
+screen is the record of everything that happened in rooms you were not
+watching** — and anything that qualifies for that record also qualifies as a
+notification, because they answer the same question.
+
+It already surfaces waiting chats and missed calls. A name change and a room
+rename are the same kind of event and belong there too: something happened in a
+room you were not looking at, you should see it, and you should be able to tap
+straight into that room.
 
 - *Mike is now Miguel* — with date and time, tappable, opens the room.
 - *Mike changed the room from movies to camping* — with date and time, tappable,
@@ -766,8 +771,14 @@ change and are done once, here, where the home screen is already being touched.*
 
 ### Update propagation — the real problem underneath
 
-A rename arriving late is a symptom. The wider fault is that state changes are
-not propagating promptly, and read receipts are the clearest case:
+A rename arriving late is a symptom, and the owner has narrowed it: **the
+notification does not appear on the receiving side when the room is entered, or
+when focus returns to it.** Sometimes a rename lands instantly; otherwise it
+appears to skip, and what it is actually doing is waiting for something that
+never re-runs. Entering a room and returning focus to one are the two moments
+that must reconcile whatever arrived while nobody was looking, and they do not.
+
+Read receipts are the same fault seen from another angle:
 
 - A message is sent and demonstrably read, and the dot in the bubble header does
   not turn from grey to green — or turns, and re-entering the room never
@@ -777,9 +788,14 @@ not propagating promptly, and read receipts are the clearest case:
   rename crossed, both transcripts updated correctly — and the receipt still did
   not settle.
 
-**Instrument the whole receipt path first** — when a read is detected, when it is
-sent, when it arrives, when it is applied, and what it does when the room is
-entered again. Do not reason about the cause. Fix what the log shows.
+**Instrument the whole path first** — when a read is detected, when it is sent,
+when it arrives, when it is applied, and what runs on entering a room and on
+focus returning. Do not reason about the cause. Fix what the log shows.
+
+The shape of the fix is a **reconciliation on re-entry**: entering a room, or
+returning focus to it, replays whatever arrived while it was not being watched
+and settles anything outstanding. Nothing should depend on having been present
+at the moment a message landed.
 
 *Carry into this: the lifecycle signals from the elevation release —* left the
 chat, rejoined, grant revoke, grant restore *— are new relay message types and,
@@ -936,12 +952,17 @@ service worker is what receives a push — push cannot exist without it.
 Locked and backgrounded push only: relay change, push subscription, notification
 tap routing into the right room. The only release that modifies the relay.
 
-### The home screen becomes the record of what happened while you were away
+### The home screen becomes the *while you were away* summary
 
-The home screen already surfaces waiting chats and missed calls. **A name change
-and a room rename are the same kind of event and belong there too** — something
-happened in a room you were not looking at, and you should be able to see it and
-tap straight into that room.
+This is the organising idea of the release, not a feature within it. **The home
+screen is the record of everything that happened in rooms you were not
+watching** — and anything that qualifies for that record also qualifies as a
+notification, because they answer the same question.
+
+It already surfaces waiting chats and missed calls. A name change and a room
+rename are the same kind of event and belong there too: something happened in a
+room you were not looking at, you should see it, and you should be able to tap
+straight into that room.
 
 - *Mike is now Miguel* — with date and time, tappable, opens the room.
 - *Mike changed the room from movies to camping* — with date and time, tappable,
@@ -959,8 +980,14 @@ change and are done once, here, where the home screen is already being touched.*
 
 ### Update propagation — the real problem underneath
 
-A rename arriving late is a symptom. The wider fault is that state changes are
-not propagating promptly, and read receipts are the clearest case:
+A rename arriving late is a symptom, and the owner has narrowed it: **the
+notification does not appear on the receiving side when the room is entered, or
+when focus returns to it.** Sometimes a rename lands instantly; otherwise it
+appears to skip, and what it is actually doing is waiting for something that
+never re-runs. Entering a room and returning focus to one are the two moments
+that must reconcile whatever arrived while nobody was looking, and they do not.
+
+Read receipts are the same fault seen from another angle:
 
 - A message is sent and demonstrably read, and the dot in the bubble header does
   not turn from grey to green — or turns, and re-entering the room never
@@ -970,9 +997,14 @@ not propagating promptly, and read receipts are the clearest case:
   rename crossed, both transcripts updated correctly — and the receipt still did
   not settle.
 
-**Instrument the whole receipt path first** — when a read is detected, when it is
-sent, when it arrives, when it is applied, and what it does when the room is
-entered again. Do not reason about the cause. Fix what the log shows.
+**Instrument the whole path first** — when a read is detected, when it is sent,
+when it arrives, when it is applied, and what runs on entering a room and on
+focus returning. Do not reason about the cause. Fix what the log shows.
+
+The shape of the fix is a **reconciliation on re-entry**: entering a room, or
+returning focus to it, replays whatever arrived while it was not being watched
+and settles anything outstanding. Nothing should depend on having been present
+at the moment a message landed.
 
 *Carry into this: the lifecycle signals from the elevation release —* left the
 chat, rejoined, grant revoke, grant restore *— are new relay message types and,
@@ -1153,6 +1185,18 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
+`bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
+a rename that sometimes appears instantly and sometimes seems to skip — is
+narrowed by the owner to a specific cause: the notification does not appear on
+the receiving side **when the room is entered, or when focus returns to it**.
+That is the same fault as the unsettled read receipts, seen from another angle,
+and both are now scoped in release 7 with the shape of the fix stated —
+**reconciliation on re-entry**, so nothing depends on having been present when a
+message landed. The *while you were away* summary is promoted from a feature to
+the organising idea of release 7: anything worth recording there is also worth a
+notification, because they answer the same question.
+
 **v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
 additions. Name changes and room renames become **home screen entries** — same
 kind of event as a waiting chat or a missed call, with date, time and a tap
@@ -1238,6 +1282,18 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
+`bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
+a rename that sometimes appears instantly and sometimes seems to skip — is
+narrowed by the owner to a specific cause: the notification does not appear on
+the receiving side **when the room is entered, or when focus returns to it**.
+That is the same fault as the unsettled read receipts, seen from another angle,
+and both are now scoped in release 7 with the shape of the fix stated —
+**reconciliation on re-entry**, so nothing depends on having been present when a
+message landed. The *while you were away* summary is promoted from a feature to
+the organising idea of release 7: anything worth recording there is also worth a
+notification, because they answer the same question.
 
 **v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
 additions. Name changes and room renames become **home screen entries** — same
