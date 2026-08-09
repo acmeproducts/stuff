@@ -93,6 +93,14 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+/* Android will not offer installation unless the worker handles fetch. This one
+   goes straight to the network and caches nothing — the requirement is that a
+   handler exists, not that it intercepts anything. A caching handler here would
+   serve a stale build, which on this project has cost days. */
+self.addEventListener('fetch', (event) => {
+  return;
+});
+
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     /* If a window is already open and focused, the app is handling this over
