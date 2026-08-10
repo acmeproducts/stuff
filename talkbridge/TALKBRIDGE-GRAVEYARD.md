@@ -1,7 +1,7 @@
-<!-- v5.8.2.36 -->
+<!-- v5.8.2.37 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.3 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.4 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -474,3 +474,58 @@ count) which remains untouched and open.
 
 Device gate is the only thing this cannot self-certify. Awaiting confirmation
 on real hardware, all four items, iOS specifically via Safari.
+
+## Release 7 attempt 3 — bridge-turn24-base.html — ROLLED BACK, self-corrected · Aug 10 2026
+
+Rolled back after one owner report. Two things in that report were misread by
+the builder and are corrected here rather than repeated:
+
+- **"Iphone is now Update Iphone" was never a bug.** It is a correctly working
+  rename notice describing a real test action (a room renamed from "Iphone" to
+  "Update Iphone"). Flagged as a regression without checking what action
+  produced it — an assertion made without verifying against the owner's actual
+  testing steps. Withdrawn.
+- **A "staging URL" was proposed as the fix for repeated live-testing
+  failures and is a non-answer.** The builder cannot render pixels anywhere,
+  staging or production. Moving where a failure is discovered does not reduce
+  how many times a human has to discover it. Not pursued.
+
+**The real diagnostic finding, from triangulation the owner performed, not the
+builder.** The ribbon has now failed identically on the same iPhone across two
+attempts that used **structurally unrelated CSS mechanisms** — flex-grow
+counterweighting in attempt 2, replaced entirely by CSS Grid plus
+`env(safe-area-inset-*)` padding in attempt 3. An identical symptom surviving a
+complete change of mechanism is strong evidence the failure is not in the
+mechanism at all. The far more likely explanation, not checked once across
+four attempts: **an old service worker was still in control on the test
+device.** The fetch handler changed between attempts (a no-op replaced with an
+active passthrough in attempt 3); service workers do not swap the moment new
+code is deployed — the previous one stays active until every tab/instance
+using it is fully closed, and iOS is known to hold onto cached state
+aggressively. It is entirely possible every ribbon "fix" shipped correctly and
+was never once actually loaded on that phone.
+
+**Before any further CSS work:** the device must be brought to a guaranteed
+clean state — icon removed, Safari fully closed, site data cleared for the
+origin, reinstalled fresh — and only then re-tested. If the ribbon is still
+wrong after a confirmed-clean load, the CSS is the real problem. If it is not,
+every ribbon attempt to date was chasing a symptom of a stale service worker,
+not a layout bug, and no further CSS changes should be made until that is
+ruled out first.
+
+**Process lesson, stated plainly.** Every "proof" produced for the ribbon
+across every attempt was structural (CSS rule presence) or logical (sandbox DOM
+stub behavior) — never an actual rendered screenshot. That limitation was
+stated honestly each time and then shipped past anyway, four times. The
+builder does not have a way to visually verify UI and must stop treating
+structural/logical proof as equivalent to visual correctness. Concretely: no
+more than one independently-gateable UI change per release going forward, and
+the service-worker-update-lifecycle possibility must be checked FIRST on any
+future "the fix didn't take" report, before writing new code to fix a symptom
+that may not exist.
+
+Rollback executed. `bridge-turn24-base.html` removed. Baseline reverts to
+`bridge-turn24-pre-base.html`. #1 (hot mic) and #4 (install bridge) remain
+believed-fixed and harness-proven, not implicated in this finding, but are
+rolled back with everything else per no-patch-forward and will re-ship
+together once the ribbon question is actually resolved.
