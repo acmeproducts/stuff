@@ -1,0 +1,115 @@
+name: Session Manager v2.3.5 unified appearance
+on:
+  push:
+    branches: [agent/session-manager-v235-unified-appearance]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/session-manager-v235-unified-appearance
+          fetch-depth: 0
+      - name: Patch and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('session-manager-v3.html'); before=p.read_text(); s=before
+          def sub(pattern,repl,label,count=1,flags=0):
+              global s
+              s2,n=re.subn(pattern,repl,s,count=count,flags=flags)
+              if n!=count: raise SystemExit(f'{label}: {n}/{count}')
+              s=s2
+          def func(text,name):
+              m=re.search(r'(?:async\s+)?function\s+'+re.escape(name)+r'\s*\([^)]*\)\s*\{',text)
+              if not m: raise SystemExit('missing function '+name)
+              i=m.start(); j=m.end(); depth=1; q=None; esc=False
+              while depth:
+                  c=text[j]
+                  if q:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==q: q=None
+                  else:
+                      if c in "'\"`": q=c
+                      elif c=='{': depth+=1
+                      elif c=='}': depth-=1
+                  j+=1
+              return text[i:j]
+          protected=['identity','deviceToken','saveDeviceToken','connectParams','rpc','rejectPending','connect','handleConnectError','schedule','reconnect','hostingDefaultGateway','newChat','beginRename']
+          old={n:func(before,n) for n in protected}
+          if 'v2.3.4' not in s: raise SystemExit('not v2.3.4')
+          s=s.replace('v2.3.4','v2.3.5')
+          sub(r'--system-text:#ffffff;', '--system-text:#ffffff;--chrome-bg:#1b1e22;--chrome-text:#ffffff;--chrome-btn-bg:#101214;--chrome-btn-text:#ffffff;--chrome-btn-hover:#5bc0ff;--chrome-btn-hover-text:#00131f;', 'vars')
+          replacements={
+          r'\.version\{font-size:9px;color:#70707b;':'.version{font-size:9px;color:var(--mu);',
+          r'\.btn\{border:1px solid #383842;':'.btn{border:1px solid var(--ln);',
+          r'\.btn:hover\{background:#25252f\}':'.btn:hover{background:color-mix(in srgb,var(--p2) 78%,var(--am) 22%)}',
+          r'#menu\{position:fixed;top:8px;left:8px;z-index:1000;width:36px;height:36px;padding:0;border:1px solid #383842;background:#15151c;color:var\(--am\);border-radius:7px;font-size:21px;line-height:34px\}':'#menu{position:fixed;top:8px;left:8px;z-index:1000;width:42px;height:42px;padding:0;border:1px solid var(--ln);background:var(--chrome-btn-bg);color:var(--chrome-btn-text);border-radius:10px;font-size:22px;line-height:1;display:grid;place-items:center}#menu:hover{background:var(--chrome-btn-hover);color:var(--chrome-btn-hover-text)}',
+          r'border:1px solid #393943;background:var\(--input-bg\)':'border:1px solid var(--ln);background:var(--input-bg)',
+          r'\.input:focus\{border-color:#806019\}':'.input:focus{border-color:var(--am);box-shadow:0 0 0 2px color-mix(in srgb,var(--am) 20%,transparent)}',
+          r'\.legend\{([^}]*)color:#6f6f7a\}':r'.legend{\1color:var(--mu)}',
+          r'#error\{([^}]*)background:#2b1518;color:#fecaca;border-bottom:1px solid #632b31;':r'#error{\1background:color-mix(in srgb,var(--rd) 14%,var(--p));color:var(--tx);border-bottom:1px solid color-mix(in srgb,var(--rd) 55%,var(--ln));',
+          r'\.time\{font-size:9px;color:#5c5c66;':'.time{font-size:9px;color:var(--mu);',
+          r'\.attHistory\{font-size:10px;color:#bbb;':'.attHistory{font-size:10px;color:var(--mu);',
+          r'\.streaming\{outline:1px solid #274d37\}':'.streaming{outline:1px solid color-mix(in srgb,var(--gr) 55%,var(--ln))}',
+          r'\.stopBtn\{height:46px;min-width:62px;background:#34161a;border-color:#71333a;color:#fecaca\}\.stopBtn:hover\{background:#451c22\}':'.stopBtn{height:46px;min-width:62px;background:color-mix(in srgb,var(--rd) 14%,var(--p2));border-color:color-mix(in srgb,var(--rd) 55%,var(--ln));color:var(--tx)}.stopBtn:hover{background:color-mix(in srgb,var(--rd) 24%,var(--p2))}',
+          r'border:2px solid #3b3b44;border-top-color:var\(--am\)':'border:2px solid var(--ln);border-top-color:var(--am)',
+          r'\.chip\{([^}]*)border:1px solid #454550;background:#1c1c25;':r'.chip{\1border:1px solid var(--ln);background:var(--p2);color:var(--tx);',
+          r'\.chip button\{border:0;background:transparent;color:#fca5a5\}':'.chip button{border:0;background:transparent;color:var(--rd)}',
+          r'\.foot\{([^}]*)color:#62626c;':r'.foot{\1color:var(--mu);',
+          r'#drop\{([^}]*)background:rgba\(11,11,15,\.92\);([^}]*)color:#fbbf24;':r'#drop{\1background:color-mix(in srgb,var(--bg) 90%,transparent);\2color:var(--tx);',
+          r'\.field label\{([^}]*)color:#aaa;':r'.field label{\1color:var(--tx);',
+          r'\.help\{font-size:10px;color:#73737e;':'.help{font-size:10px;color:var(--mu);',
+          r'\.notice\{padding:9px;border:1px solid #4f3c15;background:#211a0b;color:#e6c36c;':'.notice{padding:9px;border:1px solid color-mix(in srgb,var(--yl) 45%,var(--ln));background:color-mix(in srgb,var(--yl) 14%,var(--p));color:var(--tx);',
+          r'\.toast\{background:#24242d;border:1px solid #444;color:#fff;':'.toast{background:var(--p2);border:1px solid var(--ln);color:var(--tx);',
+          r'\.toast\.err\{background:#401a1e\}':'.toast.err{background:color-mix(in srgb,var(--rd) 16%,var(--p2));border-color:color-mix(in srgb,var(--rd) 45%,var(--ln))}',
+          r'\.toast\.ok\{background:#12301f\}':'.toast.ok{background:color-mix(in srgb,var(--gr) 16%,var(--p2));border-color:color-mix(in srgb,var(--gr) 45%,var(--ln))}',
+          r'\.scanNotice\{padding:9px 11px;background:#33280f;color:#f7d58a;':'.scanNotice{padding:9px 11px;background:color-mix(in srgb,var(--yl) 14%,var(--p));color:var(--tx);',
+          r'\.fileRow\.anomaly\{border-left-color:var\(--rd\);background:#2b1518\}':'.fileRow.anomaly{border-left-color:var(--rd);background:color-mix(in srgb,var(--rd) 12%,var(--p))}',
+          r'\.appearancePreview\{([^}]*)box-shadow:0 14px 35px #0005\}':r'.appearancePreview{\1box-shadow:0 14px 35px rgba(0,0,0,.20)}',
+          r'\.previewHead\{padding:11px 13px;background:var\(--p2\);':'.previewHead{padding:11px 13px;background:var(--chrome-bg);color:var(--chrome-text);'
+          }
+          for a,b in replacements.items(): sub(a,b,a[:30])
+          sub(r'\.modalbg\{[^}]*\}\.modal\{[^}]*\}\.mhead,\.mfoot\{[^}]*\}\.mhead\{[^}]*\}\.mfoot\{[^}]*\}', '.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:200;display:grid;place-items:center;padding:15px}.modal{width:min(650px,100%);max-height:92vh;overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:14px}.mhead,.mfoot{padding:12px 14px;display:flex;align-items:center;gap:10px}.mhead{border-bottom:1px solid var(--ln);background:var(--chrome-bg);color:var(--chrome-text);min-height:68px}.mfoot{border-top:1px solid var(--ln);justify-content:flex-end;background:var(--p)}.mhead b{font-size:18px}.mhead .version{margin-left:0}#sc{width:48px;height:48px;padding:0;display:grid;place-items:center;border-color:var(--ln);background:var(--chrome-btn-bg);color:var(--chrome-btn-text);border-radius:11px;font-size:25px;line-height:1}#sc:hover{background:var(--chrome-btn-hover);color:var(--chrome-btn-hover-text)}', 'modal')
+          sub(r'#debugPanel\{[^}]*\}#debugPanel \.bar\{height:40px\}#debugOut\{[^}]*\}', '#debugPanel{position:fixed;right:10px;bottom:10px;width:min(760px,calc(100vw - 20px));height:min(400px,55vh);z-index:180;background:var(--p);border:1px solid var(--ln);border-radius:9px;box-shadow:0 20px 60px rgba(0,0,0,.28);display:flex;flex-direction:column;color:var(--tx)}#debugPanel .bar{height:40px;background:var(--chrome-bg);color:var(--chrome-text)}#debugOut{flex:1;margin:0;overflow:auto;padding:9px;background:var(--code-bg);color:var(--code-text);font:10px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}', 'debug')
+          # normalize + apply appearance
+          sub(r'function normalizeAppearance\(a=\{\}\)\{.*?\}\nfunction hexRgb', "function normalizeAppearance(a={}){let alias={dark:'hc-dark',light:'hc-light',medium:'soft-dark'},preset=alias[a.preset]||a.preset||'hc-dark',b=appearancePreset(preset),d=['compact','normal','comfortable'].includes(a.density)?a.density:b.density,f=['system','verdana','arial','georgia','trebuchet'].includes(a.fontFamily)?a.fontFamily:b.fontFamily;return{...b,...a,preset,density:d,fontFamily:f,chromeBg:a.chromeBg||b.panel2,chromeText:a.chromeText||b.text,chromeBtnBg:a.chromeBtnBg||b.panel,chromeBtnText:a.chromeBtnText||b.text,chromeBtnHover:a.chromeBtnHover||b.accent,systemBg:a.systemBg||b.panel2,systemText:a.systemText||b.text,sidebarWidth:Math.max(290,Math.min(600,Number(a.sidebarWidth||b.sidebarWidth))),userSize:Math.max(12,Math.min(32,Number(a.userSize||b.userSize))),agentSize:Math.max(12,Math.min(32,Number(a.agentSize||b.agentSize))),msgWidth:Math.max(55,Math.min(98,Number(a.msgWidth||b.msgWidth))),baseSize:Math.max(12,Math.min(24,Number(a.baseSize||b.baseSize))),metaSize:Math.max(9,Math.min(20,Number(a.metaSize||b.metaSize))),lineHeight:Math.max(1.25,Math.min(2,Number(a.lineHeight||b.lineHeight)))}}\nfunction hexRgb", 'normalize', flags=re.S)
+          sub(r'function applyAppearance\(\)\{.*?\}\nfunction saveSettings', "function applyAppearance(){let a=normalizeAppearance(state.settings.appearance||{});state.settings.appearance=a;let r=document.documentElement.style,set=(k,v)=>r.setProperty(k,v),tx=ensureContrast(a.text,a.panel,7),muted=ensureContrast(a.muted,a.panel,4.5),uf=ensureContrast(a.userFont,a.userBg,7),af=ensureContrast(a.agentFont,a.agentBg,7),sf=ensureContrast(a.systemText,a.systemBg,7),ct=ensureContrast(a.codeText,a.code,7),ict=ensureContrast(a.inlineCodeText,a.inlineCode,7),pt=ensureContrast(a.pathText,a.pathBg,7),link=ensureContrast(a.link,a.panel,4.5),accentText=ensureContrast('#111111',a.accent,7),chromeText=ensureContrast(a.chromeText,a.chromeBg,7),chromeBtnText=ensureContrast(a.chromeBtnText,a.chromeBtnBg,7),chromeBtnHoverText=ensureContrast(a.chromeBtnText,a.chromeBtnHover,7);for(let [k,v] of Object.entries({'--bg':a.bg,'--p':a.panel,'--p2':a.panel2,'--ln':a.line,'--tx':tx,'--mu':muted,'--am':a.accent,'--accent-text':accentText,'--input-bg':a.input,'--code-bg':a.code,'--code-text':ct,'--inline-code-bg':a.inlineCode,'--inline-code-text':ict,'--path-bg':a.pathBg,'--path-text':pt,'--link-color':link,'--user-bg':a.userBg,'--user-font':uf,'--agent-bg':a.agentBg,'--agent-font':af,'--system-bg':a.systemBg,'--system-text':sf,'--chrome-bg':a.chromeBg,'--chrome-text':chromeText,'--chrome-btn-bg':a.chromeBtnBg,'--chrome-btn-text':chromeBtnText,'--chrome-btn-hover':a.chromeBtnHover,'--chrome-btn-hover-text':chromeBtnHoverText}))set(k,v);set('--user-size',a.userSize+'px');set('--agent-size',a.agentSize+'px');set('--msg-width',a.msgWidth+'%');set('--sidebar-w',a.sidebarWidth+'px');set('--base-size',a.baseSize+'px');set('--meta-size',a.metaSize+'px');set('--meta-color',ensureContrast(a.metaColor,a.panel,4.5));set('--line-height',String(a.lineHeight));set('--ui-font',fontStack(a.fontFamily));set('--session-pad',a.density==='compact'?'8px 10px':a.density==='comfortable'?'15px 14px':'12px 13px')}\nfunction saveSettings", 'apply', flags=re.S)
+          # appearance controls
+          needle='</div></div><div class="appearanceSection"><h3>Messages</h3><div class="sectionHelp">User and agent bubbles are independent. Text contrast is automatically protected against the bubble color.</div><div class="controlGrid">'
+          add='</div></div><div class="appearanceSection"><h3>App chrome & decorations</h3><div class="sectionHelp">Hamburger, dialog title bars and close-button surfaces. Diagnostics and toasts follow the page/panel palette.</div><div class="controlGrid">${color(\'achromebg\',\'Title bar / chrome background\',a.chromeBg)}${color(\'achrometext\',\'Title bar / chrome text\',a.chromeText)}${color(\'achromebtnbg\',\'Chrome button background\',a.chromeBtnBg)}${color(\'achromebtntext\',\'Chrome button text\',a.chromeBtnText)}${color(\'achromebtnhover\',\'Chrome button hover\',a.chromeBtnHover)}</div></div><div class="appearanceSection"><h3>Messages</h3><div class="sectionHelp">User, agent and system-message surfaces are independent. Text contrast is automatically protected.</div><div class="controlGrid">${color(\'asystembg\',\'System message background\',a.systemBg)}${color(\'asystemtext\',\'System message text\',a.systemText)}'
+          if needle not in s: raise SystemExit('appearance insertion point missing')
+          s=s.replace(needle,add,1)
+          s=s.replace("accent:$('aaccent').value,userBg:$('aubg').value", "accent:$('aaccent').value,chromeBg:$('achromebg').value,chromeText:$('achrometext').value,chromeBtnBg:$('achromebtnbg').value,chromeBtnText:$('achromebtntext').value,chromeBtnHover:$('achromebtnhover').value,systemBg:$('asystembg').value,systemText:$('asystemtext').value,userBg:$('aubg').value",1)
+          s=s.replace("aaccent:'accent',aubg:'userBg'", "aaccent:'accent',achromebg:'chromeBg',achrometext:'chromeText',achromebtnbg:'chromeBtnBg',achromebtntext:'chromeBtnText',achromebtnhover:'chromeBtnHover',asystembg:'systemBg',asystemtext:'systemText',aubg:'userBg'",1)
+          # required gates
+          for n,v in old.items():
+              if func(s,n)!=v: raise SystemExit('protected changed '+n)
+          for x in ["const APP_VERSION='2.3.0'","const BUILD_VERSION='2.3.5';","rpc('sessions.create',{label:'New chat'},20000)",'function hostingDefaultGateway()','achromebg','asystembg']:
+              if x not in s: raise SystemExit('missing '+x)
+          if 'renameBtn' in s: raise SystemExit('rename pencil regression')
+          p.write_text(s)
+          print('patch PASS')
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(); js=re.findall(r'<script>(.*?)</script>',s,re.S); assert len(js)==1; Path('/tmp/app.js').write_text(js[0])
+          PY
+          node --check /tmp/app.js
+      - name: Commit candidate and remove builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name acmeproducts
+          git config user.email 182510693+acmeproducts@users.noreply.github.com
+          git rm .github/workflows/session-manager-v235-unified-appearance.yml
+          git add session-manager-v3.html
+          git commit -m 'Session Manager v2.3.5 unify appearance surfaces'
+          git push origin HEAD:agent/session-manager-v235-unified-appearance
