@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'd723885047db-202608101541';
+var BUILD_ID = 'a8c1c745b4fc-202608101629';
 
 var STALE = { notified: false, timer: null };
 
@@ -5643,9 +5643,7 @@ var ROOM_MENU_CSS =
      larger than a camera needs, and the drawer stopped short of showing one
      without scrolling — which defeats the moment it exists for. */
   '.drawer{max-height:94%}' +
-  /* Both QR boxes — share-room and link-a-device — are the same control in
-     two places and both should be sized identically. Intended, declared. */
-  // @affects .drawer-qr-box 2
+  // @affects .drawer-qr-box 2  -- share-room and link-a-device, same control in two places
   '.drawer-qr-box svg{width:168px;height:auto;max-width:58vw}' +
   '.drawer-qr-box{padding:10px}';
 
@@ -6223,11 +6221,8 @@ function pwaLog(what, data, level) {
 var PWA_CSS =
   /* The flag band asks for a .gif that does not exist and falls back to the
      .png. The fallback works; the failed request does not, and it is noise in
-     every console on every load.
-     All four flagbands are the same decorative element on different screens
-     (s0, s10 and two others) and every one of them issues the same failing
-     request, so styling all four is intended — declared rather than narrowed. */
-  // @affects .flagband 4
+     every console on every load. */
+  // @affects .flagband 4  -- same decorative band on four screens, all issuing the same failing request
   '.flagband{background-image:url("./flags.png") !important}' +
   '.home-ev{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 11px;margin-bottom:6px;' +
   'background:#fff;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:13px}' +
@@ -6685,7 +6680,13 @@ var RIBBON_CSS =
      phone while looking fine on a tablet — the clearance has to be a function
      of the cluster, not of the screen. This yields a constant 10px gap at
      every width from 360px to 768px. */
-  '#room-ribbon .rz-left{grid-column:1;min-width:0;max-width:calc(50% - 87px);display:flex;align-items:center;gap:6px;overflow:hidden}' +
+  /* The cap belongs on the NAME, not on the whole left zone. Capping
+     `.rz-left` meant the hamburger (34px), the presence dot (10px) and two
+     6px gaps consumed the budget first, leaving ~52px and truncating "Mike"
+     to "M" on a phone. The zone now sizes naturally and the cap sits on the
+     name itself: half the widest cluster (65) + ribbon padding (12) + the
+     hamburger, dot and gaps (56) + 10px breathing room = 143px. */
+  '#room-ribbon .rz-left{grid-column:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden}' +
   '#room-ribbon .rz-right{grid-column:2;min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
   '#room-ribbon > #btn-drawer{grid-column:3;justify-self:end;flex:0 0 auto}' +
   '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
@@ -6693,7 +6694,7 @@ var RIBBON_CSS =
      is `1fr` and will shrink to fit whatever remains once the fixed-content
      centre column claims its own width — the name never fights the controls
      for space, it simply ellipsises inside whatever it is given. */
-  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  '#room-ribbon .room-head-name{min-width:0;max-width:calc(50% - 143px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
   /* Call controls live in the centre column, beside the microphone, and keep
      their exact place whether or not a call is running — hidden controls are
      `display:none`, which `gap` already excludes from spacing on its own, so
@@ -7067,38 +7068,6 @@ if (typeof document !== 'undefined') {
    wraps: renderHome
    adds: INSTALLUI, iuLog, detectPlatform, installAdvice, renderInstallPrompt, dismissInstallPrompt, INSTALL_CSS, _iuRenderHome
 */
-/* ─────────────────────────────────────────────────────────────────────────────
-   INSTALL GUIDANCE
-
-   WHY THIS EXISTS. The app had `promptInstall()` defined and never called from
-   anywhere — no button, no trigger. On Android the install event was captured
-   and then nothing used it. On iOS there was no guidance at all, and nothing
-   detected which browser the user was in. A person who opened a QR link in
-   Chrome on iOS — the actual reported path — got no prompt, no explanation,
-   and no way to discover that installing was even possible, let alone that it
-   requires Safari specifically.
-
-   PLATFORM REALITY, which the guidance has to reflect honestly:
-
-     Android Chrome / Edge / Samsung  → a real install prompt can be triggered.
-     iOS Safari                       → NO prompt is possible on any iOS
-                                        browser. The only path is
-                                        Share → Add to Home Screen, done by
-                                        hand. Apple provides no API for this.
-     iOS Chrome / Firefox / Edge      → cannot install AT ALL. Every iOS
-                                        browser is Safari underneath by Apple's
-                                        rule, but only Safari itself exposes
-                                        Add to Home Screen. The user must open
-                                        the link in Safari first. Telling them
-                                        "tap Share" here would be wrong — the
-                                        option is not in that menu.
-     Desktop                          → prompt where supported, otherwise the
-                                        browser's own address-bar control.
-
-   Saying the wrong thing is worse than saying nothing, so each case gets its
-   own text rather than one generic message.
-   ───────────────────────────────────────────────────────────────────────────── */
-
 var INSTALLUI = { dismissed: false, shown: false };
 
 function iuLog(what, data, level) {
@@ -7267,32 +7236,6 @@ if (typeof document !== 'undefined') {
    wraps: renderHome
    adds: NOPW, nopwLog, suppressPasswordUI, NOPW_CSS, _npRenderHome
 */
-/* ─────────────────────────────────────────────────────────────────────────────
-   NO-PASSWORD APPLICATION
-
-   THIS APP HAS NO PASSWORDS. It has API keys and a name field. Yet password
-   managers were being triggered constantly — offering to save, offering to
-   autofill, and polluting the owner's vault to the point of interfering with
-   testing.
-
-   ROOT CAUSE, confirmed by reading the built markup rather than guessing:
-   four fields are literally `type="password"` — the Deepgram key, the TURN id,
-   the TURN token and the GitHub PAT. `autocomplete="off"` was already set on
-   all four and does nothing, because **browsers deliberately ignore
-   autocomplete="off" on password fields.** Chrome and Safari override it by
-   design, specifically so password managers keep working. The attribute was
-   never the lever; the input TYPE is.
-
-   THE FIX. Stop using `type="password"` anywhere. Masking is done with a CSS
-   text-security fallback instead, which looks the same to a person and is
-   invisible to a password manager. Every other input is also explicitly
-   marked so neither autofill nor save is offered on any field in the app.
-
-   Applied continuously rather than once, because several inputs are created
-   dynamically after load (the room-name field, the create-room dialog), and a
-   one-time pass at boot would miss them.
-   ───────────────────────────────────────────────────────────────────────────── */
-
 var NOPW = { swept: 0, lastCount: 0 };
 
 function nopwLog(what, data, level) {
@@ -7395,6 +7338,86 @@ if (typeof document !== 'undefined') {
       if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) suppressPasswordUI();
     });
   } catch (_) {}
+}
+
+
+/* ═══════════ GAP PART · LG-legibility.js ═══════════ */
+/* @contract
+   adds: LEGIBILITY_CSS, legLog
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   LEGIBILITY
+
+   Reported on iPhone: the transcript's system entries (missed call, room
+   renamed, "is now") and the room-menu labels are too small to read, while the
+   chat bubbles at 22px are fine.
+
+   MEASURED, not guessed, from the built stylesheet:
+
+       .pill span      11.5px   ← missed call / room change entries
+       .section-label  10px     ← room menu group headings
+       .field-label    11px     ← input labels
+       .drawer-tab     12.5px   ← General / Customize / Manage
+       .rc2-when       12px     ← room card timestamps
+       .he-w           11.5px   ← away-record timestamps
+
+   Two independent causes:
+
+   1. Several of these are simply below a readable size on a dense phone
+      display. 10px is the smallest text in the app and sits on a grey label —
+      low contrast and tiny at once.
+
+   2. `text-size-adjust` was set NOWHERE. Without it, iOS Safari applies its
+      own automatic text inflation heuristics, which scale some text and not
+      others — so sizes drift apart unpredictably between platforms rather
+      than merely being small. This is why the ratio looked wrong (22px
+      readable, 11px "looking like 5") instead of everything being uniformly
+      small.
+
+   Raised to a floor of 13px for body-ish text and 12px for labels, and text
+   scaling pinned so every platform renders the sizes actually specified.
+   Bubble text is deliberately untouched — it is user-configurable and was
+   reported as fine.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+function legLog(what, data, level) {
+  try { log('legibility_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var LEGIBILITY_CSS =
+  /* Pin text scaling. Without this iOS inflates some text and not other text,
+     which is what made the sizes look inconsistent rather than just small. */
+  'html{-webkit-text-size-adjust:100%;text-size-adjust:100%}' +
+
+  /* Transcript system entries — missed calls, room renames, "is now".
+     These carry real information and were the hardest to read. */
+  // @affects .pill 0
+  '.pill span{font-size:13px}' +
+
+  /* Room menu: group headings and input labels. 10px was the smallest text in
+     the app, in a low-contrast grey. */
+  // @affects .section-label 2
+  '.section-label{font-size:12px;letter-spacing:.4px}' +
+  // @affects .field-label 8
+  '.field-label{font-size:12px}' +
+  // @affects .drawer-tab 4
+  '.drawer-tab{font-size:14px}' +
+  // @affects .appear-label 9
+  '.appear-label{font-size:13.5px}' +
+
+  /* Timestamps: room cards and the away-record. */
+  '.rc2-when{font-size:12.5px}' +
+  '.he-w{font-size:12.5px}';
+
+if (typeof document !== 'undefined') {
+  try {
+    var legStyle = document.createElement('style');
+    legStyle.textContent = LEGIBILITY_CSS;
+    document.head.appendChild(legStyle);
+    legLog('applied', {}, 'ok');
+  } catch (e) {
+    legLog('failed', { e: String(e && e.message || e) }, 'error');
+  }
 }
 
 </script>
