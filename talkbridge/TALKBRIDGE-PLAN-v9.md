@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.15.0 -->
-# TALKBRIDGE MASTER PLAN v10.15.0
+<!-- TALKBRIDGE-PLAN v10.16.0 -->
+# TALKBRIDGE MASTER PLAN v10.16.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -1252,6 +1252,32 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
+screenshot shows hamburger and name left, mic/phone/video clustered centre,
+`⋯` at the right edge, single row, correctly spaced. First time in six
+attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
+elements (the room ribbon and the home screen's), so every rule is now scoped
+to `#room-ribbon`, and the room ribbon's four children get four explicit grid
+tracks.
+
+Also shipped and verified in-harness this round, none of it device-confirmed
+yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
+platform-aware install guidance (iOS-Chrome told to open Safari and
+deliberately given no Share steps; iOS-Safari given the three real steps;
+Android/desktop offered a button only when a genuine prompt exists), and the
+no-password fix (four fields shipped as `type="password"`, which browsers
+save regardless of `autocomplete="off"` — now converted to text with CSS
+masking plus manager ignore flags).
+
+**Infrastructure finding worth more than any single fix:** the sandbox's
+`setAttribute` was a no-op, `getAttribute` always returned null,
+`classList.contains` always returned false, and `querySelectorAll` always
+returned `[]`. No test in this project had ever meaningfully verified an
+attribute or iterated real elements — anything that appeared to was passing
+vacuously. The stub now behaves like a real DOM and is seeded from the actual
+source markup. Test count rose to 275 as existing tests began exercising real
+behaviour for the first time.
+
 **v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
 — the new `build/rollback.mjs` in action, and the first rollback in this project
 that did not 404 every existing invite link. Attempt 5 deployed.
@@ -1335,6 +1361,32 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
+screenshot shows hamburger and name left, mic/phone/video clustered centre,
+`⋯` at the right edge, single row, correctly spaced. First time in six
+attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
+elements (the room ribbon and the home screen's), so every rule is now scoped
+to `#room-ribbon`, and the room ribbon's four children get four explicit grid
+tracks.
+
+Also shipped and verified in-harness this round, none of it device-confirmed
+yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
+platform-aware install guidance (iOS-Chrome told to open Safari and
+deliberately given no Share steps; iOS-Safari given the three real steps;
+Android/desktop offered a button only when a genuine prompt exists), and the
+no-password fix (four fields shipped as `type="password"`, which browsers
+save regardless of `autocomplete="off"` — now converted to text with CSS
+masking plus manager ignore flags).
+
+**Infrastructure finding worth more than any single fix:** the sandbox's
+`setAttribute` was a no-op, `getAttribute` always returned null,
+`classList.contains` always returned false, and `querySelectorAll` always
+returned `[]`. No test in this project had ever meaningfully verified an
+attribute or iterated real elements — anything that appeared to was passing
+vacuously. The stub now behaves like a real DOM and is seeded from the actual
+source markup. Test count rose to 275 as existing tests began exercising real
+behaviour for the first time.
 
 **v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
 — the new `build/rollback.mjs` in action, and the first rollback in this project
@@ -1452,6 +1504,32 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
+screenshot shows hamburger and name left, mic/phone/video clustered centre,
+`⋯` at the right edge, single row, correctly spaced. First time in six
+attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
+elements (the room ribbon and the home screen's), so every rule is now scoped
+to `#room-ribbon`, and the room ribbon's four children get four explicit grid
+tracks.
+
+Also shipped and verified in-harness this round, none of it device-confirmed
+yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
+platform-aware install guidance (iOS-Chrome told to open Safari and
+deliberately given no Share steps; iOS-Safari given the three real steps;
+Android/desktop offered a button only when a genuine prompt exists), and the
+no-password fix (four fields shipped as `type="password"`, which browsers
+save regardless of `autocomplete="off"` — now converted to text with CSS
+masking plus manager ignore flags).
+
+**Infrastructure finding worth more than any single fix:** the sandbox's
+`setAttribute` was a no-op, `getAttribute` always returned null,
+`classList.contains` always returned false, and `querySelectorAll` always
+returned `[]`. No test in this project had ever meaningfully verified an
+attribute or iterated real elements — anything that appeared to was passing
+vacuously. The stub now behaves like a real DOM and is seeded from the actual
+source markup. Test count rose to 275 as existing tests began exercising real
+behaviour for the first time.
 
 **v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
 — the new `build/rollback.mjs` in action, and the first rollback in this project
@@ -1705,6 +1783,32 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
+screenshot shows hamburger and name left, mic/phone/video clustered centre,
+`⋯` at the right edge, single row, correctly spaced. First time in six
+attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
+elements (the room ribbon and the home screen's), so every rule is now scoped
+to `#room-ribbon`, and the room ribbon's four children get four explicit grid
+tracks.
+
+Also shipped and verified in-harness this round, none of it device-confirmed
+yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
+platform-aware install guidance (iOS-Chrome told to open Safari and
+deliberately given no Share steps; iOS-Safari given the three real steps;
+Android/desktop offered a button only when a genuine prompt exists), and the
+no-password fix (four fields shipped as `type="password"`, which browsers
+save regardless of `autocomplete="off"` — now converted to text with CSS
+masking plus manager ignore flags).
+
+**Infrastructure finding worth more than any single fix:** the sandbox's
+`setAttribute` was a no-op, `getAttribute` always returned null,
+`classList.contains` always returned false, and `querySelectorAll` always
+returned `[]`. No test in this project had ever meaningfully verified an
+attribute or iterated real elements — anything that appeared to was passing
+vacuously. The stub now behaves like a real DOM and is seeded from the actual
+source markup. Test count rose to 275 as existing tests began exercising real
+behaviour for the first time.
 
 **v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
 — the new `build/rollback.mjs` in action, and the first rollback in this project
