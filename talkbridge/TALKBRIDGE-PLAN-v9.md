@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.6.1 -->
-# TALKBRIDGE MASTER PLAN v10.6.1
+<!-- TALKBRIDGE-PLAN v10.7.0 -->
+# TALKBRIDGE MASTER PLAN v10.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -844,7 +844,17 @@ exists as a concept only for things not yet raised.
 
 **Scheduled — added 2026-08-08, awaiting a release number:**
 
-- **Chrome treats the room name as a credential.** Creating a room offers the
+- **Group conversations — three or more.** Discovered by accident: a phone call
+  and chat ran between three devices at once, because the relay broadcasts to
+  every socket in a session rather than pairing two. The transport already
+  supports it. What does not is everything built on the assumption of two
+  people: language pairs, the two-column transcript, *Talking to X*, the room
+  card's own-first flags, and call negotiation, which assumes one offer and one
+  answer. A large piece of work, and a real product direction rather than a
+  defect.
+- **Chrome treats the room name as a credential.** Also observed asking to save
+  the name entered during onboarding, so the fault is not limited to the create
+  dialog. Creating a room offers the
   password autofill popup for the room name field, then offers to save it as a
   password. That means a password manager stores a room name as a credential,
   and may autofill a saved password into the field — naming a room after
@@ -1259,6 +1269,19 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
+underneath** — Apple requires it — so it can never install a web app nor receive
+web push, whatever is built. iOS testing must be Safari, added to the home
+screen from the Share menu. On Android the cause was ours: the manifest link was
+added by script after load, and install eligibility is decided during parse, so
+the browser never saw it. Head tags are now injected at build time, along with
+the iOS meta tags and touch icon. The ribbon's centre drifted because the first
+attempt collapsed the right zone after moving its buttons into the middle;
+equal growth on both sides centres it regardless of the name. Backlog gains
+**group conversations of three or more** — found by accident, the relay already
+broadcasts to every socket in a session, but everything above it assumes two
+people.
+
 **v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
 creation dialog as a sign-up form, offers the password popup for the room name
 and then offers to save it as a password — so a manager may store a room name as
@@ -1381,6 +1404,19 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
+underneath** — Apple requires it — so it can never install a web app nor receive
+web push, whatever is built. iOS testing must be Safari, added to the home
+screen from the Share menu. On Android the cause was ours: the manifest link was
+added by script after load, and install eligibility is decided during parse, so
+the browser never saw it. Head tags are now injected at build time, along with
+the iOS meta tags and touch icon. The ribbon's centre drifted because the first
+attempt collapsed the right zone after moving its buttons into the middle;
+equal growth on both sides centres it regardless of the name. Backlog gains
+**group conversations of three or more** — found by accident, the relay already
+broadcasts to every socket in a session, but everything above it assumes two
+people.
 
 **v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
 creation dialog as a sign-up form, offers the password popup for the room name
