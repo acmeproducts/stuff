@@ -112,6 +112,12 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors() });
     }
+    /* R7: VAPID public-key discovery. The app cannot subscribe without the
+       application server key, and the key lives only in the worker's secrets —
+       so the worker answers for it. No session required; the key is public. */
+    if (request.method === 'GET' && url.searchParams.get('vapid') === '1') {
+      return json({ vapid: env.VAPID_PUBLIC_KEY || null });
+    }
     const app = (url.searchParams.get('app') || '').trim().slice(0, 64);
     const sessionId = (url.searchParams.get('session') || '').trim().slice(0, 128);
     if (!app) return err('Missing app');
