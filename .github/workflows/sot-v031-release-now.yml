@@ -1,0 +1,161 @@
+name: Release SOT v0.3.1 now
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-v031-release-now.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release on existing infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          OLD='2026.08.10.1'
+          NEW='2026.08.10.2'
+
+          p=Path('project.html')
+          s=p.read_text()
+          assert "const FS_API='/api/fs';" in s
+          assert "const PROJECT_API='/api/projects';" in s
+          assert "const REPORT_API='/api/reports';" in s
+          s=s.replace(OLD, NEW)
+          s=s.replace("const PROJECT_API='/api/projects';", "const PROJECT_API='/api/fs/projects';")
+          s=s.replace("const REPORT_API='/api/reports';", "const REPORT_API='/api/fs/reports';")
+          p.write_text(s)
+
+          p=Path('file_browser.py')
+          s=p.read_text().replace(OLD, NEW)
+          if 'EXISTING_API_MOUNT_COMPAT_V031' not in s:
+              m=re.search(r'(?m)^app\s*=\s*FastAPI\([^\n]*\)\s*$', s)
+              assert m, 'FastAPI app creation not found'
+              block='''\n\n# EXISTING_API_MOUNT_COMPAT_V031\n# Keep the already-established public /api/fs mount and the existing 8081 helper.\n@app.middleware("http")\nasync def existing_api_mount_compat(request, call_next):\n    path = request.scope.get("path", "")\n    if path.startswith("/api/fs/projects"):\n        request.scope["path"] = "/api/projects" + path[len("/api/fs/projects"):]\n    elif path.startswith("/api/fs/reports"):\n        request.scope["path"] = "/api/reports" + path[len("/api/fs/reports"):]\n    return await call_next(request)\n'''
+              s=s[:m.end()]+block+s[m.end():]
+          if '@app.post("/mkdir")' not in s:
+              marker='@app.post("/api/fs/mkdir")'
+              assert marker in s, 'mkdir endpoint not found'
+              s=s.replace(marker, '@app.post("/mkdir")\n'+marker, 1)
+          p.write_text(s)
+
+          p=Path('SOT_PROJECT_VERSION')
+          p.write_text(p.read_text().replace(OLD, NEW))
+          PY
+
+          cat > deploy-sot-project.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          # SOT Project Portal release activation
+          # Version: 0.3.1
+          # Build: 2026.08.10.2
+          # Uses ONLY the already-established report server and 8081 helper.
+          # Does not create/change ports, services, or Tailscale routes.
+          set -euo pipefail
+
+          VERSION="0.3.1"
+          BUILD="2026.08.10.2"
+          RAW="https://raw.githubusercontent.com/acmeproducts/stuff/main"
+          WORK="$HOME/.openclaw/workspace"
+          REPORT="$WORK/https/report/SOT"
+          PORTAL="$REPORT/project.html"
+          HELPER="$WORK/file_browser.py"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+
+          mkdir -p "$REPORT"
+          curl -fsSL "$RAW/project.html" -o "$TMP/project.html"
+          curl -fsSL "$RAW/file_browser.py" -o "$TMP/file_browser.py"
+          grep -q "UI Version: $VERSION" "$TMP/project.html"
+          grep -q "Build: $BUILD" "$TMP/project.html"
+          grep -q "API_VERSION = \"$VERSION\"" "$TMP/file_browser.py"
+          grep -q "BUILD_ID = \"$BUILD\"" "$TMP/file_browser.py"
+          python3 -m py_compile "$TMP/file_browser.py"
+
+          # Existing helper is required; no new helper is ever created.
+          mapfile -t PIDS < <(pgrep -f 'python3 -m uvicorn file_browser:app --host 127.0.0.1 --port 8081' || true)
+          if [[ ${#PIDS[@]} -ne 1 ]]; then
+            echo "FAIL: expected one existing 8081 helper; found ${#PIDS[@]}"
+            exit 1
+          fi
+          PID="${PIDS[0]}"
+          CWD="$(readlink -f "/proc/$PID/cwd")"
+          mapfile -d '' -t CMD < "/proc/$PID/cmdline"
+          UNIT="$(sed -n 's#.*\/\([^/]*\.service\).*#\1#p' "/proc/$PID/cgroup" | tail -1 || true)"
+
+          cp -a "$PORTAL" "$TMP/old-project.html" 2>/dev/null || true
+          cp -a "$HELPER" "$TMP/old-file_browser.py" 2>/dev/null || true
+          install -m 0644 "$TMP/project.html" "$PORTAL.new" && mv -f "$PORTAL.new" "$PORTAL"
+          install -m 0644 "$TMP/file_browser.py" "$HELPER.new" && mv -f "$HELPER.new" "$HELPER"
+
+          if [[ -n "$UNIT" ]] && command -v systemctl >/dev/null 2>&1; then
+            systemctl --user restart "$UNIT"
+          else
+            kill "$PID"
+            for _ in $(seq 1 20); do kill -0 "$PID" 2>/dev/null || break; sleep .25; done
+            cd "$CWD"
+            nohup "${CMD[@]}" >"$WORK/file_browser.log" 2>&1 &
+          fi
+
+          OK=0
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8081/healthz >/dev/null 2>&1; then OK=1; break; fi
+            sleep .5
+          done
+          if [[ $OK -ne 1 ]]; then
+            echo "FAIL: existing 8081 helper did not reload healthy"
+            exit 1
+          fi
+
+          echo "SUCCESS"
+          echo "SOT $VERSION · $BUILD"
+          echo "URL: https://oc-ref.fell-dojo.ts.net/report/SOT/project.html"
+          SCRIPT
+          chmod +x deploy-sot-project.sh
+
+      - name: Release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile file_browser.py
+          bash -n deploy-sot-project.sh
+          grep -q "UI Version: 0.3.1" project.html
+          grep -q "Build: 2026.08.10.2" project.html
+          grep -q "const FS_API='/api/fs';" project.html
+          grep -q "const PROJECT_API='/api/fs/projects';" project.html
+          grep -q "const REPORT_API='/api/fs/reports';" project.html
+          grep -q "function createPathHistory(start='/')" project.html
+          grep -q 'id="addDeviceSource"' project.html
+          grep -q 'showDirectoryPicker' project.html
+          grep -q 'webkitdirectory' project.html
+          grep -q 'files.map' project.html
+          grep -q 'defaultFolderName:state.intake.name.trim()' project.html
+          grep -q '@app.post("/api/fs/mkdir")' file_browser.py
+          grep -q '@app.post("/mkdir")' file_browser.py
+          grep -q 'EXISTING_API_MOUNT_COMPAT_V031' file_browser.py
+          grep -q '2026.08.10.2' SOT_PROJECT_VERSION
+          ! grep -q 'tailscale serve' deploy-sot-project.sh
+          ! grep -q '8082' deploy-sot-project.sh
+
+      - name: Commit release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          rm -f .github/workflows/sot-v031-existing-route-fix.yml
+          git rm -f .github/workflows/sot-v031-release-now.yml
+          git add -A project.html file_browser.py deploy-sot-project.sh SOT_PROJECT_VERSION .github/workflows
+          git commit -m 'Release SOT v0.3.1 build 2026.08.10.2'
+          git pull --rebase origin main
+          git push origin HEAD:main
