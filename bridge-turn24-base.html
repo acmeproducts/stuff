@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = '6b59a94fc74a-202608101507';
+var BUILD_ID = 'e1eab0f42ab7-202608101521';
 
 var STALE = { notified: false, timer: null };
 
@@ -6637,14 +6637,20 @@ var RIBBON_CSS =
      The centre stays centred only if the two side tracks are equal, so the
      right side is `1fr` and the fixed ⋯ button sits in its own `auto` track
      outside that balance. */
-  /* SCOPED TO #room-ribbon, NOT bare .ribbon.
-     `.ribbon` matches TWO elements — the room's ribbon and the home screen's,
-     which holds only a hamburger. Styling the bare class dropped that lone
-     hamburger into a four-column grid and visibly broke the home screen. The
-     grid geometry below is meaningful only for the room ribbon's four
-     children, so it is scoped to that element by id. */
+  /* TRUE CENTRING BY ABSOLUTE POSITION, not by balancing tracks.
+     The previous attempt used `1fr auto 1fr auto` — left track 1fr, but the
+     RIGHT side is 1fr PLUS the ⋯ button. Unequal sides, so the "centre"
+     column was never centred: measured 21px left of true centre at 390px
+     width, which is exactly what the owner saw. Adding tracks cannot fix this;
+     any layout where the centre's position depends on what sits beside it will
+     drift whenever either side changes.
+
+     Taking the cluster out of flow and pinning it to 50% makes its position a
+     function of the ribbon's own width and nothing else — it cannot be pushed
+     by the name on the left or the ⋯ on the right. The remaining children flow
+     normally around it. */
   // @affects .ribbon 2  -- deliberately unstyled by bare class; see #room-ribbon rules below
-  '#room-ribbon{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;column-gap:8px;' +
+  '#room-ribbon{position:relative;display:grid;grid-template-columns:1fr auto auto;align-items:center;column-gap:8px;' +
     /* viewport-fit=cover (set in the document head) opts the whole app into
        iOS edge-to-edge rendering under the notch / Dynamic Island / home
        indicator — and nothing anywhere in this codebase previously reserved
@@ -6653,10 +6659,21 @@ var RIBBON_CSS =
        the exact devices it needs to matter on. */
     'padding-left:max(12px,env(safe-area-inset-left));' +
     'padding-right:max(12px,env(safe-area-inset-right))}' +
-  '#room-ribbon > #btn-drawer{grid-column:4;justify-self:end;flex:0 0 auto}' +
-  '#room-ribbon .rz-left{grid-column:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden}' +
-  '#room-ribbon .rz-center{grid-column:2;display:flex;align-items:center;gap:14px;justify-self:center}' +
-  '#room-ribbon .rz-right{grid-column:3;min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
+  /* Out of flow, pinned to the ribbon's true midpoint. */
+  '#room-ribbon .rz-center{position:absolute;left:50%;transform:translateX(-50%);' +
+    'display:flex;align-items:center;gap:14px}' +
+  /* The name must never reach the centred cluster. Capped short of it so it
+     ellipsises instead of running underneath. */
+  /* The name must never reach the centred cluster. The cap is DERIVED from the
+     cluster's actual width, not guessed: half the widest cluster (3 slots +
+     2 gaps = 130px, so 65px), plus the 12px ribbon padding, plus 10px
+     breathing room. A guessed percentage (34% was tried) overlaps on every
+     phone while looking fine on a tablet — the clearance has to be a function
+     of the cluster, not of the screen. This yields a constant 10px gap at
+     every width from 360px to 768px. */
+  '#room-ribbon .rz-left{grid-column:1;min-width:0;max-width:calc(50% - 87px);display:flex;align-items:center;gap:6px;overflow:hidden}' +
+  '#room-ribbon .rz-right{grid-column:2;min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
+  '#room-ribbon > #btn-drawer{grid-column:3;justify-self:end;flex:0 0 auto}' +
   '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
   /* The name yields rather than pushing the centre column off true. Column 1
      is `1fr` and will shrink to fit whatever remains once the fixed-content
