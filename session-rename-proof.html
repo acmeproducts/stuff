@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OpenClaw Rename Proof</title>
+<style>
+:root{
+  --bg:#0b0b0f;--panel:#13131a;--panel2:#1b1b24;--line:#2b2b34;
+  --text:#e4e4e7;--muted:#8b8b97;--accent:#f59e0b;--ok:#22c55e;
+  --bad:#ef4444;--warn:#facc15;--blue:#3b82f6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding:24px}
+main{width:min(900px,100%);margin:0 auto}
+h1{font-size:20px;margin:0}
+.sub{color:var(--muted);margin-top:5px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-top:16px;overflow:hidden}
+.head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.body{padding:15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field label{display:block;font-size:10px;font-weight:750;color:#a1a1aa;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+input,select,button{font:inherit}
+input,select{width:100%;border:1px solid #393943;background:#0e0e14;color:#fff;border-radius:7px;padding:9px 10px;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+button{border:1px solid #41414b;background:var(--panel2);color:var(--text);border-radius:7px;padding:8px 11px;cursor:pointer;font-weight:650}
+button:hover:not(:disabled){background:#272731}
+button.primary{background:var(--accent);border-color:var(--accent);color:#111}
+button.good{background:#17351f;border-color:#295b36;color:#a7f3d0}
+button:disabled{opacity:.42;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.status{display:flex;align-items:center;gap:8px;font-weight:700}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--bad);flex:0 0 9px}
+.dot.connecting{background:var(--warn)}
+.dot.connected{background:var(--ok)}
+.pill{font-size:10px;padding:4px 7px;border:1px solid #3a3a44;border-radius:999px;color:var(--muted)}
+.scope.ok{color:#86efac}.scope.no{color:#fca5a5}
+.result{margin-top:13px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#0d0d12;white-space:pre-wrap;word-break:break-word}
+.result.pass{border-color:#285f38;background:#102319;color:#bbf7d0}
+.result.fail{border-color:#6d3036;background:#281417;color:#fecaca}
+.result.warn{border-color:#665214;background:#251f0c;color:#fde68a}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:12px}
+.kv .k{color:var(--muted)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+pre{margin:0;max-height:300px;overflow:auto;background:#08080b;padding:12px;border-radius:7px;border:1px solid #25252d;font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+.notice{padding:10px 12px;border:1px solid #564519;background:#201a0d;color:#f5d982;border-radius:8px;margin-top:12px}
+.hidden{display:none!important}
+@media(max-width:700px){body{padding:12px}.grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr}.kv .k{margin-top:4px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>OpenClaw Session Rename Proof <span class="pill">v1.0.0</span></h1>
+  <div class="sub">One job: prove that a session label can be written to the Gateway and read back from <code>sessions.list</code>.</div>
+
+  <section class="card">
+    <div class="head">
+      <div class="status"><span id="dot" class="dot"></span><span id="connText">Disconnected</span></div>
+      <span class="pill" id="scopeSummary">No scopes yet</span>
+    </div>
+    <div class="body">
+      <div class="grid">
+        <div class="field">
+          <label>Gateway WebSocket URL</label>
+          <input id="gateway" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Gateway token (optional if already stored)</label>
+          <input id="token" type="password" autocomplete="off" placeholder="Uses existing Session Manager token if blank">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="connect">Connect requesting operator.admin</button>
+        <button id="reconnect" disabled>Reconnect after approval</button>
+      </div>
+      <div id="pairing" class="notice hidden"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="head"><b>Rename proof</b><span class="pill" id="sessionCount">0 sessions</span></div>
+    <div class="body">
+      <div class="field">
+        <label>Session</label>
+        <select id="sessions" disabled><option>Connect first</option></select>
+      </div>
+
+      <div class="kv" style="margin-top:13px">
+        <div class="k">Session key</div><div><code id="key">—</code></div>
+        <div class="k">Stored label</div><div id="storedLabel">—</div>
+        <div class="k">Displayed name</div><div id="displayName">—</div>
+        <div class="k">Granted admin scope</div><div id="adminScope" class="scope no">No</div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="run" disabled>Run rename proof</button>
+        <button class="good" id="restore" disabled>Restore original name</button>
+        <button id="refresh" disabled>Reload sessions</button>
+      </div>
+
+      <div id="result" class="result">No test run yet.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="head"><b>Protocol log</b><span class="pill">secrets omitted</span></div>
+    <div class="body"><pre id="log"></pre></div>
+  </section>
+</main>
+
+<script>
+(()=>{'use strict';
+
+const PV=4;
+const CID='openclaw-control-ui';
+const CMODE='webchat';
+const CVER='rename-proof-1.0.0';
+const ROLE='operator';
+const SCOPES=['operator.read','operator.write','operator.admin','operator.approvals','operator.pairing'];
+const DEF='wss://oc-ref.fell-dojo.ts.net';
+const TARGET_KEY='agent:default:dashboard:81007b44-9a66-44c7-bccb-4ca0902482d5';
+const K={
+  settings:'oc_custom_chat_settings_v2',
+  identity:'oc_custom_chat_device_identity_v1',
+  device:'oc_custom_chat_device_token_v1',
+  legacy:'openclaw_token',
+  tab:'oc_custom_chat_gateway_token'
+};
+const $=id=>document.getElementById(id);
+const enc=new TextEncoder();
+const state={
+  ws:null,connected:false,pending:new Map(),identity:null,scopes:[],
+  sessions:[],selected:null,originalLabel:null,testLabel:null
+};
+
+function log(msg,data){
+  const line=`${new Date().toISOString()} ${msg}`+(data!==undefined?`\n${JSON.stringify(data,null,2)}`:'');
+  $('log').textContent += ($('log').textContent?'\n':'')+line+'\n';
+  $('log').scrollTop=$('log').scrollHeight;
+}
+function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now().toString(16)+'-'+Math.random().toString(16).slice(2)}
+function b64url(bytes){let a=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes),s='';for(let i=0;i<a.length;i+=32768)s+=String.fromCharCode(...a.subarray(i,i+32768));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function unb64url(t){t=String(t).replace(/-/g,'+').replace(/_/g,'/');t+='='.repeat((4-t.length%4)%4);let s=atob(t);return Uint8Array.from(s,c=>c.charCodeAt(0))}
+function hex(b){return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function loadDefaults(){
+  let s={};try{s=JSON.parse(localStorage.getItem(K.settings)||'{}')}catch{}
+  const pg=location.protocol==='https:'?`wss://${location.host}`:location.protocol==='http:'?`ws://${location.host}`:'';
+  $('gateway').value=s.gatewayUrl||pg||DEF;
+}
+function storedSharedToken(){
+  return (sessionStorage.getItem(K.tab)||localStorage.getItem(K.legacy)||'').trim();
+}
+function setSharedToken(v){
+  v=String(v||'').trim();
+  if(v)sessionStorage.setItem(K.tab,v);
+}
+async function identity(){
+  if(!crypto?.subtle)throw Error('Secure WebCrypto unavailable. Open this page over HTTPS or localhost.');
+  let s=null;try{s=JSON.parse(localStorage.getItem(K.identity)||'null')}catch{}
+  if(s?.deviceId&&s?.publicKey&&s?.privateKeyPkcs8){
+    let pk=await crypto.subtle.importKey('pkcs8',unb64url(s.privateKeyPkcs8),{name:'Ed25519'},false,['sign']);
+    state.identity={...s,privateKey:pk};
+    log('AUTH loaded existing browser identity',{deviceId:s.deviceId});
+    return state.identity;
+  }
+  let p=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
+  let pub=new Uint8Array(await crypto.subtle.exportKey('raw',p.publicKey));
+  let prv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',p.privateKey));
+  let id=hex(await crypto.subtle.digest('SHA-256',pub));
+  let rec={deviceId:id,publicKey:b64url(pub),privateKeyPkcs8:b64url(prv)};
+  localStorage.setItem(K.identity,JSON.stringify(rec));
+  state.identity={...rec,privateKey:p.privateKey};
+  log('AUTH created browser identity',{deviceId:id});
+  return state.identity;
+}
+function deviceToken(){
+  try{
+    let r=JSON.parse(localStorage.getItem(K.device)||'null');
+    if(r?.token&&r.deviceId===state.identity?.deviceId&&r.clientId===CID)return r;
+  }catch{}
+  return null;
+}
+function saveDeviceToken(t,sc){
+  if(!t||!state.identity)return;
+  localStorage.setItem(K.device,JSON.stringify({
+    token:t,scopes:sc||[],deviceId:state.identity.deviceId,clientId:CID,role:ROLE
+  }));
+  log('AUTH stored device token',{scopes:sc});
+}
+async function connectParams(ch){
+  let id=await identity();
+  let entered=$('token').value.trim();
+  if(entered)setSharedToken(entered);
+  let shared=entered||storedSharedToken();
+  let dev=deviceToken();
+  let authToken=shared||dev?.token||'';
+  let nonce=String(ch?.nonce||'');
+  let ts=Number(ch?.ts);
+  if(!Number.isSafeInteger(ts)||ts<0)throw Error('Invalid connect.challenge timestamp');
+  let platform=String(navigator.userAgentData?.platform||navigator.platform||'web').trim().toLowerCase();
+  let family='browser';
+  let payload=['v3',id.deviceId,CID,CMODE,ROLE,SCOPES.join(','),String(ts),authToken,nonce,platform,family].join('|');
+  let sig=await crypto.subtle.sign({name:'Ed25519'},id.privateKey,enc.encode(payload));
+  let auth={};
+  if(shared)auth.token=shared;
+  else if(dev?.token){auth.token=dev.token;auth.deviceToken=dev.token}
+  return{
+    minProtocol:PV,maxProtocol:PV,
+    client:{id:CID,version:CVER,platform,deviceFamily:family,mode:CMODE},
+    role:ROLE,scopes:[...SCOPES],caps:[],commands:[],permissions:{},
+    ...(Object.keys(auth).length?{auth}:{}),
+    locale:navigator.language||'en-US',userAgent:navigator.userAgent,
+    device:{id:id.deviceId,publicKey:id.publicKey,signature:b64url(new Uint8Array(sig)),signedAt:ts,nonce}
+  };
+}
+function rpc(method,params={},timeout=15000,pre=false){
+  if(!state.ws||state.ws.readyState!==WebSocket.OPEN)return Promise.reject(Error('Gateway socket is not open'));
+  if(!pre&&!state.connected)return Promise.reject(Error('Gateway handshake not complete'));
+  let id=uid(),frame={type:'req',id,method,params};
+  log('TX '+method,{id,params});
+  return new Promise((resolve,reject)=>{
+    let timer=setTimeout(()=>{
+      state.pending.delete(id);
+      reject(Error(`${method} timed out after ${timeout} ms`));
+    },timeout);
+    state.pending.set(id,{resolve,reject,timer,method});
+    state.ws.send(JSON.stringify(frame));
+  });
+}
+function rejectPending(err){
+  for(let [id,p] of state.pending){
+    clearTimeout(p.timer);p.reject(err);state.pending.delete(id);
+  }
+}
+function setConnection(mode,text){
+  $('dot').className='dot '+(mode||'');
+  $('connText').textContent=text;
+}
+function updateScopes(){
+  let has=state.scopes.includes('operator.admin');
+  $('adminScope').textContent=has?'YES — operator.admin granted':'NO — operator.admin missing';
+  $('adminScope').className='scope '+(has?'ok':'no');
+  $('scopeSummary').textContent=state.scopes.length?state.scopes.join(' · '):'No scopes yet';
+  updateButtons();
+}
+function updateButtons(){
+  const hasAdmin=state.connected&&state.scopes.includes('operator.admin');
+  const hasSelection=!!state.selected;
+  const reversible=hasSelection&&state.selected.label;
+  $('run').disabled=!(hasAdmin&&hasSelection&&reversible);
+  $('refresh').disabled=!state.connected;
+  $('sessions').disabled=!state.connected;
+}
+function pairingMessage(err){
+  let d=err.gatewayError?.details||{};
+  let rid=d.requestId||d.request_id||'';
+  let cmd=rid?`openclaw devices approve ${rid}`:'openclaw devices list';
+  $('pairing').classList.remove('hidden');
+  $('pairing').innerHTML=
+    `<b>Admin scope approval required.</b><br>`+
+    `${rid?`Request ID: <code>${esc(rid)}</code><br>`:''}`+
+    `Run on the Gateway host: <code>${esc(cmd)}</code><br>`+
+    `Then click <b>Reconnect after approval</b>.`;
+  $('reconnect').disabled=false;
+}
+function connect(){
+  try{state.ws?.close(1000,'new test connection')}catch{}
+  state.connected=false;
+  state.scopes=[];
+  updateScopes();
+  setConnection('connecting','Connecting…');
+  $('pairing').classList.add('hidden');
+  $('reconnect').disabled=true;
+
+  let url=$('gateway').value.trim();
+  if(!/^wss?:\/\//i.test(url)){
+    setConnection('','Disconnected');
+    showResult('Gateway URL must start with ws:// or wss://','fail');
+    return;
+  }
+
+  let ws;
+  try{ws=new WebSocket(url)}catch(e){
+    setConnection('','Disconnected');
+    showResult('WebSocket open failed: '+e.message,'fail');
+    return;
+  }
+  state.ws=ws;
+
+  let challengeTimer=setTimeout(()=>{
+    if(!state.connected){
+      try{ws.close(1008,'challenge timeout')}catch{}
+      showResult('No OpenClaw connect.challenge received.','fail');
+    }
+  },12000);
+
+  ws.onopen=()=>log('WS open; waiting for connect.challenge');
+  ws.onerror=()=>log('WS transport error');
+  ws.onclose=e=>{
+    clearTimeout(challengeTimer);
+    if(state.ws!==ws)return;
+    state.connected=false;
+    setConnection('','Disconnected');
+    rejectPending(Error(`Gateway disconnected (${e.code}${e.reason?': '+e.reason:''})`));
+    updateButtons();
+    log('WS closed',{code:e.code,reason:e.reason||''});
+  };
+  ws.onmessage=async ev=>{
+    let f;
+    try{f=JSON.parse(ev.data)}catch{return}
+    if(f.type==='event'&&f.event==='connect.challenge'){
+      clearTimeout(challengeTimer);
+      try{
+        let params=await connectParams(f.payload||{});
+        let hello=await rpc('connect',params,15000,true);
+        state.connected=true;
+        state.scopes=hello?.auth?.scopes||params.scopes||[];
+        if(hello?.auth?.deviceToken)saveDeviceToken(hello.auth.deviceToken,state.scopes);
+        setConnection('connected','Connected');
+        updateScopes();
+        log('AUTH connected',{protocol:hello?.protocol,scopes:state.scopes});
+        if(!state.scopes.includes('operator.admin')){
+          showResult('Connected, but operator.admin was not granted. Rename proof cannot run yet.','warn');
+        }else{
+          showResult('Connected with operator.admin. Loading sessions…','');
+        }
+        await loadSessions();
+      }catch(e){
+        state.connected=false;
+        setConnection('','Disconnected');
+        let code=e.gatewayError?.code||e.code||'';
+        if(code==='PAIRING_REQUIRED'||/pairing required/i.test(e.message)){
+          pairingMessage(e);
+          showResult('Gateway requires approval for the requested admin-capable device scope.','warn');
+        }else{
+          showResult('Connect failed: '+e.message,'fail');
+        }
+        log('AUTH connect failed',{message:e.message,code,details:e.gatewayError?.details||null});
+      }
+      return;
+    }
+    if(f.type==='res'){
+      let p=state.pending.get(f.id);
+      if(!p)return;
+      state.pending.delete(f.id);clearTimeout(p.timer);
+      if(f.ok){
+        log('RX '+p.method,{id:f.id,ok:true,payload:f.payload});
+        p.resolve(f.payload);
+      }else{
+        log('RX '+p.method,{id:f.id,ok:false,error:f.error});
+        let e=Error(f.error?.message||f.error?.code||'Gateway error');
+        e.gatewayError=f.error;e.code=f.error?.code;
+        p.reject(e);
+      }
+    }
+  };
+}
+function normalize(r){
+  let key=String(r?.key||r?.sessionKey||r?.id||'');
+  return{
+    ...r,key,
+    label:String(r?.label||'').trim(),
+    title:String(r?.derivedTitle||r?.title||r?.displayName||'').trim()
+  };
+}
+function name(s){return s?.label||s?.title||s?.key||'Untitled'}
+async function getSessions(){
+  let r=await rpc('sessions.list',{
+    configuredAgentsOnly:true,
+    includeDerivedTitles:true,
+    includeLastMessage:true
+  },30000);
+  let a=Array.isArray(r)?r:(r?.sessions||r?.items||[]);
+  return a.map(normalize).filter(x=>x.key);
+}
+async function loadSessions(){
+  try{
+    state.sessions=await getSessions();
+    $('sessionCount').textContent=state.sessions.length+' sessions';
+    $('sessions').innerHTML=state.sessions.map(s=>
+      `<option value="${esc(s.key)}">${esc(name(s))} — ${esc(s.key)}</option>`
+    ).join('');
+    let ix=state.sessions.findIndex(s=>s.key===TARGET_KEY);
+    if(ix>=0)$('sessions').selectedIndex=ix;
+    selectSession();
+    updateButtons();
+    showResult(
+      state.scopes.includes('operator.admin')
+        ? `Loaded ${state.sessions.length} sessions. Select a session with an existing stored label, then run the proof.`
+        : `Loaded ${state.sessions.length} sessions, but rename remains blocked until operator.admin is granted.`,
+      state.scopes.includes('operator.admin')?'':'warn'
+    );
+  }catch(e){
+    showResult('sessions.list failed: '+e.message,'fail');
+  }
+}
+function selectSession(){
+  let k=$('sessions').value;
+  state.selected=state.sessions.find(s=>s.key===k)||null;
+  $('key').textContent=state.selected?.key||'—';
+  $('storedLabel').textContent=state.selected?.label||'(none — choose a session with an existing custom label for a reversible test)';
+  $('displayName').textContent=state.selected?name(state.selected):'—';
+  state.originalLabel=null;
+  state.testLabel=null;
+  $('restore').disabled=true;
+  updateButtons();
+}
+function showResult(text,type=''){
+  $('result').className='result'+(type?' '+type:'');
+  $('result').textContent=text;
+}
+async function readBack(key){
+  let rows=await getSessions();
+  return rows.find(s=>s.key===key)||null;
+}
+function makeTestLabel(original){
+  let d=new Date();
+  let t=[d.getHours(),d.getMinutes(),d.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+  return `${original} [RENAME-PROOF ${t}]`;
+}
+async function runProof(){
+  let s=state.selected;
+  if(!s)return;
+  if(!state.scopes.includes('operator.admin')){
+    showResult('Cannot run: operator.admin is not granted.','fail');return;
+  }
+  if(!s.label){
+    showResult('Choose a session that already has a stored label. This keeps the test safely reversible.','warn');return;
+  }
+
+  state.originalLabel=s.label;
+  state.testLabel=makeTestLabel(s.label);
+  $('run').disabled=true;
+  $('restore').disabled=true;
+
+  try{
+    showResult(`STEP 1/2 — writing temporary label:\n${state.testLabel}`,'');
+    await rpc('sessions.patch',{key:s.key,label:state.testLabel},15000);
+
+    showResult('STEP 2/2 — patch returned OK. Reloading sessions.list to verify the datastore…','');
+    let row=await readBack(s.key);
+    if(!row)throw Error('The session disappeared from sessions.list after patch.');
+
+    state.sessions=await getSessions();
+    state.selected=state.sessions.find(x=>x.key===s.key)||row;
+    $('storedLabel').textContent=row.label||'(none)';
+    $('displayName').textContent=name(row);
+
+    if(row.label!==state.testLabel){
+      throw Error(`Read-back mismatch.\nExpected: ${state.testLabel}\nGateway returned: ${row.label||'(empty)'}`);
+    }
+
+    $('restore').disabled=false;
+    showResult(
+      `PASS — datastore rename verified.\n\n`+
+      `sessions.patch returned OK, then a fresh sessions.list returned the exact same label:\n`+
+      `${row.label}\n\n`+
+      `Now open/refresh the official Control UI and confirm this same temporary name appears there. `+
+      `After checking, press "Restore original name".`,
+      'pass'
+    );
+  }catch(e){
+    $('restore').disabled=state.originalLabel?false:true;
+    showResult('FAIL — rename was not proven.\n\n'+e.message,'fail');
+    log('TEST failed',{message:e.message});
+  }finally{
+    updateButtons();
+    if(state.originalLabel)$('restore').disabled=false;
+  }
+}
+async function restore(){
+  if(!state.selected||!state.originalLabel)return;
+  let key=state.selected.key,original=state.originalLabel;
+  $('restore').disabled=true;
+  try{
+    showResult(`Restoring original label:\n${original}`,'');
+    await rpc('sessions.patch',{key,label:original},15000);
+    let row=await readBack(key);
+    if(!row)throw Error('Session not returned by sessions.list after restore.');
+    if(row.label!==original)throw Error(`Restore read-back mismatch. Gateway returned: ${row.label||'(empty)'}`);
+
+    state.sessions=await getSessions();
+    state.selected=state.sessions.find(x=>x.key===key)||row;
+    $('storedLabel').textContent=row.label;
+    $('displayName').textContent=name(row);
+    state.originalLabel=null;state.testLabel=null;
+    showResult(
+      `RESTORED — original label was written and independently read back from sessions.list:\n${row.label}`,
+      'pass'
+    );
+  }catch(e){
+    showResult('RESTORE FAILED.\n\n'+e.message+'\n\nDo not close this page until the original label is restored.','fail');
+    $('restore').disabled=false;
+  }
+}
+
+$('connect').onclick=connect;
+$('reconnect').onclick=connect;
+$('refresh').onclick=loadSessions;
+$('sessions').onchange=selectSession;
+$('run').onclick=runProof;
+$('restore').onclick=restore;
+
+loadDefaults();
+identity().then(()=>connect()).catch(e=>showResult(e.message,'fail'));
+
+})();
+</script>
+</body>
+</html>
