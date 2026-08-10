@@ -1,7 +1,7 @@
 <!-- v5.8.2.34 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.1 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.2 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -342,3 +342,12 @@ Two things found during this testing pass are genuine findings and are kept:
 Replacement approach: release 7 is rebuilt clean from its actual input (`bridge-turn24-pre-base.html`, the read-receipt release, which stands and is unaffected), folding in every fix above as part of the original release rather than as patches on top of a passed one. Re-gated on real hardware from scratch, including iOS via Safari specifically.
 
 `bridge-turn24-base.html` removed from the repo. Baseline reverts to `bridge-turn24-pre-base.html`.
+
+## Release 7 rebuild, attempt 1 — bridge-turn24-base.html — FAILED DEVICE GATE · Aug 10 2026
+Rolled back same day. Two failures, both self-inflicted, neither found by the local gates.
+
+**1 · Clock tap opened the credentials/about modal instead of returning to the start screen.** The navigation card being removed had its handler in the base all along: its tap goes to the start screen, and the long-press on the clock already opened the modal. The tap target was built from an assumption about what the card did instead of reading the one line that says it. Signature: replacing a surface without extracting the exact behaviour of the thing replaced. Replacement: the clock tap calls the same function the card called — lifted from the code, never from memory. A wire that re-routes an existing control must name, in the part, the base line it was lifted from.
+
+**2 · The ribbon centre cluster crowded left on iPhone and hid the partner name.** The rebuild invented new zone CSS — gapless slots, overflow-clipped side zones — when the geometry that passed the hardware gate that same morning already existed in the prior session's record: both side zones `flex:1 1 0; min-width:0`, right zone keeping `justify-content:flex-end`, centre `flex:0 0 auto` with `gap:14px`, every slot `flex:0 0 34px`, and the name yielding with ellipsis instead of being clipped. Not carrying a passed-gate geometry forward is the same burial as the original centre-drift: a layout cannot be proven in the sandbox stub, so the only trustworthy layout is the one that has already passed on the phones. Signature: rebuilding a surface whose passed geometry is on record, without recovering it first. Replacement: recover and adopt the passed geometry verbatim; the structural test asserts that exact geometry, not an invented substitute.
+
+Also recorded: the two-instance harness for this attempt simulated a relay that drops unknown message types — a condition the correction entry above had already withdrawn. Harmless here (the carrier passed under a harsher transport than reality), but the harness must model the relay as documented, not as previously misdiagnosed.
