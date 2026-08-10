@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 SOT Helper Service
-UI/API Version: 0.3.0
-Build: 2026.08.09.1
+UI/API Version: 0.3.1
+Build: 2026.08.10.1
 
 ARCHITECTURE RULE
 -----------------
@@ -41,8 +41,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-API_VERSION = "0.3.0"
-BUILD_ID = "2026.08.09.1"
+API_VERSION = "0.3.1"
+BUILD_ID = "2026.08.10.1"
 SERVICE_PORT = 8081
 DB_PATH = Path(
     os.environ.get(
@@ -81,6 +81,15 @@ def canonical_path(value: str) -> str:
     return os.path.realpath(raw)
 
 
+def canonical_target_path(value: str) -> str:
+    path = Path(canonical_path(value))
+    if not path.exists():
+        raise HTTPException(404, "Target path not found")
+    if not path.is_dir():
+        raise HTTPException(400, "Target path is not a directory")
+    return str(path)
+
+
 def decode_mount_field(value: str) -> str:
     return (
         value.replace("\\040", " ")
@@ -95,10 +104,16 @@ def decode_mount_field(value: str) -> str:
 # ============================================================================
 
 SYSTEM_PREFIXES = ("/proc", "/sys", "/dev", "/run", "/snap")
+WINDOWS_INVALID_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 def discover_mounts() -> list[Path]:
-    """Discover mounts on EVERY request; no cached ALLOWED_ROOTS list."""
+    """Discover mounts on EVERY request; no cached allowed-root list."""
     found: dict[str, Path] = {}
 
     mnt = Path("/mnt")
@@ -204,9 +219,11 @@ def list_directory(path: str = "/") -> JSONResponse:
         roots = build_root_entries()
         return JSONResponse(
             content={
+                "path": "/",
                 "folders": [label for label, _ in roots],
                 "files": [],
                 "paths": {label: str(real) for label, real in roots},
+                "rescanned_at": utcnow(),
             }
         )
 
@@ -236,13 +253,105 @@ def list_directory(path: str = "/") -> JSONResponse:
 
     folders.sort(key=str.casefold)
     files.sort(key=str.casefold)
-    return JSONResponse(content={"folders": folders, "files": files, "path": str(target)})
+    return JSONResponse(
+        content={
+            "path": str(target),
+            "folders": folders,
+            "files": files,
+            "rescanned_at": utcnow(),
+        }
+    )
+
+
+class MkdirRequest(BaseModel):
+    parent_path: Optional[str] = None
+    folder_name: Optional[str] = None
+    # v0.3.1 pre-release compatibility aliases; canonical names are above.
+    parent: Optional[str] = None
+    name: Optional[str] = None
+
+
+def validate_child_name(raw: str) -> str:
+    name = str(raw or "").strip()
+    if not name:
+        raise HTTPException(422, "Target folder name is required")
+    if name in {".", ".."} or ".." in Path(name).parts:
+        raise HTTPException(422, "Target folder name cannot contain path traversal")
+    if WINDOWS_INVALID_NAME.search(name):
+        raise HTTPException(422, "Target folder name contains invalid characters")
+    if name.endswith((" ", ".")):
+        raise HTTPException(422, "Target folder name cannot end with a space or period")
+    stem = name.split(".", 1)[0].upper()
+    if stem in WINDOWS_RESERVED_NAMES:
+        raise HTTPException(422, "Target folder name is reserved")
+    return name
+
+
+def make_target_directory(payload: MkdirRequest) -> dict[str, Any]:
+    parent_raw = payload.parent_path or payload.parent
+    name_raw = payload.folder_name or payload.name
+    if not parent_raw:
+        raise HTTPException(422, "Target parent path is required")
+    parent = resolve_browser_path(parent_raw)
+    if not parent.exists():
+        raise HTTPException(404, "Target parent path not found")
+    if not parent.is_dir():
+        raise HTTPException(400, "Target parent path is not a directory")
+
+    name = validate_child_name(name_raw or "")
+    target = (parent / name).resolve(strict=False)
+    if target.parent != parent.resolve(strict=False):
+        raise HTTPException(422, "Target folder escapes selected parent")
+
+    if target.exists():
+        if not target.is_dir():
+            raise HTTPException(409, "A file already exists with that target name")
+        return {
+            "path": str(target),
+            "parent_path": str(parent),
+            "folder_name": name,
+            "created": False,
+            "already_existed": True,
+        }
+
+    try:
+        target.mkdir()
+    except PermissionError as exc:
+        raise HTTPException(403, "Target parent is not writable") from exc
+    except FileExistsError:
+        if target.is_dir():
+            return {
+                "path": str(target),
+                "parent_path": str(parent),
+                "folder_name": name,
+                "created": False,
+                "already_existed": True,
+            }
+        raise HTTPException(409, "Target name became occupied by a file")
+    except OSError as exc:
+        raise HTTPException(500, f"Unable to create target folder: {exc}") from exc
+
+    if not target.is_dir():
+        raise HTTPException(500, "Target folder creation did not produce a directory")
+    return {
+        "path": str(target),
+        "parent_path": str(parent),
+        "folder_name": name,
+        "created": True,
+        "already_existed": False,
+    }
 
 
 @app.get("/fs")
 @app.get("/api/fs")
 def api_fs(path: str = "/"):
     return list_directory(path)
+
+
+@app.post("/fs/mkdir")
+@app.post("/api/fs/mkdir")
+def api_fs_mkdir(payload: MkdirRequest):
+    return make_target_directory(payload)
 
 
 # ============================================================================
@@ -266,8 +375,15 @@ class PatchProject(BaseModel):
 
 
 class AddSource(BaseModel):
-    path: str
+    path: Optional[str] = None
+    current_path: Optional[str] = None
+    source_type: Optional[str] = None
     operator_label: Optional[str] = None
+    label: Optional[str] = None
+    locator: Optional[str] = None
+    client_source_id: Optional[str] = None
+    source_fingerprint: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class AddTarget(BaseModel):
@@ -290,6 +406,12 @@ def db():
         raise
     finally:
         conn.close()
+
+
+def ensure_column(c: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = {row["name"] for row in c.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def init_db() -> None:
@@ -325,6 +447,10 @@ def init_db() -> None:
               added_at TEXT NOT NULL,
               last_seen_at TEXT NOT NULL,
               fingerprint_evidence_json TEXT,
+              source_type TEXT NOT NULL DEFAULT 'wsl_path',
+              original_locator TEXT,
+              client_source_id TEXT,
+              metadata_json TEXT,
               FOREIGN KEY(project_token) REFERENCES projects(project_token)
             );
             CREATE INDEX IF NOT EXISTS idx_sources_project
@@ -376,6 +502,11 @@ def init_db() -> None:
             );
             """
         )
+        # Migrate existing v0.3.0 databases in place without creating a second DB.
+        ensure_column(c, "project_sources", "source_type", "TEXT NOT NULL DEFAULT 'wsl_path'")
+        ensure_column(c, "project_sources", "original_locator", "TEXT")
+        ensure_column(c, "project_sources", "client_source_id", "TEXT")
+        ensure_column(c, "project_sources", "metadata_json", "TEXT")
 
 
 def project_event(
@@ -418,15 +549,28 @@ def engine_state() -> tuple[bool, str]:
         return False, "Execution engine intentionally disabled until sotctl is installed and enabled"
     if not SOTCTL:
         return False, "SOT_ENGINE_ENABLED=1 but sotctl is not available"
-    return False, "sotctl was found, but project worker orchestration is not implemented in API v0.3.0"
+    return False, "sotctl was found, but project worker orchestration is not implemented in API v0.3.1"
+
+
+def decode_source_row(row: sqlite3.Row) -> dict[str, Any]:
+    out = dict(row)
+    raw = out.get("metadata_json")
+    if raw:
+        try:
+            out["metadata"] = json.loads(raw)
+        except json.JSONDecodeError:
+            out["metadata"] = {"decode_error": True}
+    else:
+        out["metadata"] = {}
+    return out
 
 
 def full_project(c: sqlite3.Connection, token: str) -> dict[str, Any]:
     p = dict(get_project_or_404(c, token))
     p["sources"] = [
-        dict(r)
+        decode_source_row(r)
         for r in c.execute(
-            "SELECT source_id,source_fingerprint,current_path,operator_label,status,added_at,last_seen_at FROM project_sources WHERE project_token=? ORDER BY added_at",
+            "SELECT source_id,source_type,source_fingerprint,current_path,original_locator,client_source_id,operator_label,status,added_at,last_seen_at,metadata_json FROM project_sources WHERE project_token=? ORDER BY added_at",
             (token,),
         ).fetchall()
     ]
@@ -444,20 +588,14 @@ def full_project(c: sqlite3.Connection, token: str) -> dict[str, Any]:
     return p
 
 
-def source_input(item: Any, index: int) -> tuple[str, str]:
-    if isinstance(item, str):
-        return item, f"Source {index + 1}"
-    if isinstance(item, dict):
-        path = item.get("path") or item.get("current_path") or item.get("source_root_path")
-        label = item.get("operator_label") or item.get("label") or f"Source {index + 1}"
-        if path:
-            return str(path), str(label)
-    raise HTTPException(422, f"Invalid source at index {index}")
-
-
 def source_fingerprint(path_value: str) -> dict[str, Any]:
+    original = str(path_value)
     path = Path(canonical_path(path_value))
-    evidence: dict[str, Any] = {"exists": path.exists(), "kind": "folder"}
+    if not path.exists():
+        raise HTTPException(404, f"Source path not found: {original}")
+    if not path.is_dir():
+        raise HTTPException(400, f"Source path is not a directory: {original}")
+    evidence: dict[str, Any] = {"exists": True, "kind": "folder", "source_type": "wsl_path"}
     if path.exists():
         try:
             st = path.stat()
@@ -484,10 +622,99 @@ def source_fingerprint(path_value: str) -> dict[str, Any]:
             pass
         evidence["sample"] = sample
     return {
+        "source_type": "wsl_path",
         "fingerprint": sha256_text(json.dumps(evidence, sort_keys=True, separators=(",", ":"))),
         "current_path": str(path),
+        "original_locator": original,
+        "client_source_id": None,
+        "label": None,
+        "metadata": {},
         "evidence": evidence,
     }
+
+
+def normalize_source(item: Any, index: int) -> dict[str, Any]:
+    default_label = f"Source {index + 1}"
+    if isinstance(item, str):
+        result = source_fingerprint(item)
+        result["label"] = default_label
+        return result
+    if not isinstance(item, dict):
+        raise HTTPException(422, f"Invalid source at index {index}")
+
+    source_type = str(item.get("source_type") or "wsl_path").strip().lower()
+    if source_type == "browser-device":
+        source_type = "browser_local"
+
+    label = str(item.get("operator_label") or item.get("label") or default_label)
+    if source_type == "browser_local":
+        locator = str(item.get("locator") or item.get("current_path") or "").strip()
+        client_source_id = str(item.get("client_source_id") or "").strip()
+        metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+        supplied_fp = str(item.get("source_fingerprint") or "").strip().lower()
+        if supplied_fp and not re.fullmatch(r"[0-9a-f]{64}", supplied_fp):
+            raise HTTPException(422, f"Invalid browser-local fingerprint at index {index}")
+        if not locator:
+            if not client_source_id:
+                raise HTTPException(422, f"Browser-local source {index} needs a locator or client source id")
+            locator = f"device://{client_source_id}"
+        if not supplied_fp:
+            basis = {"source_type": source_type, "locator_name": metadata.get("directory_name"), "metadata": metadata}
+            supplied_fp = sha256_text(json.dumps(basis, sort_keys=True, separators=(",", ":")))
+        evidence = {
+            "kind": "browser_local_directory",
+            "source_type": source_type,
+            "client_source_id": client_source_id or None,
+            "metadata": metadata,
+        }
+        return {
+            "source_type": source_type,
+            "fingerprint": supplied_fp,
+            "current_path": locator,
+            "original_locator": locator,
+            "client_source_id": client_source_id or None,
+            "label": label,
+            "metadata": metadata,
+            "evidence": evidence,
+        }
+
+    path = item.get("path") or item.get("current_path") or item.get("source_root_path")
+    if not path:
+        raise HTTPException(422, f"WSL source at index {index} has no path")
+    result = source_fingerprint(str(path))
+    result["label"] = label
+    return result
+
+
+def insert_source(c: sqlite3.Connection, token: str, src: dict[str, Any], created_at: str) -> str:
+    source_id = "SRC-" + sha256_text(
+        token + src["source_type"] + src["fingerprint"] + src["current_path"]
+    )[:16].upper()
+    c.execute(
+        """
+        INSERT INTO project_sources(
+          source_id,project_token,source_fingerprint,current_path,operator_label,status,
+          added_at,last_seen_at,fingerprint_evidence_json,source_type,original_locator,
+          client_source_id,metadata_json
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            source_id,
+            token,
+            src["fingerprint"],
+            src["current_path"],
+            src["label"],
+            "REGISTERED",
+            created_at,
+            created_at,
+            json.dumps(src["evidence"], sort_keys=True),
+            src["source_type"],
+            src.get("original_locator"),
+            src.get("client_source_id"),
+            json.dumps(src.get("metadata") or {}, sort_keys=True),
+        ),
+    )
+    return source_id
 
 
 # ============================================================================
@@ -561,16 +788,12 @@ def create_project(
     idempotency_header: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ) -> dict[str, Any]:
     created_at = utcnow()
-    source_rows = []
-    for i, item in enumerate(payload.sources):
-        path, label = source_input(item, i)
-        fp = source_fingerprint(path)
-        source_rows.append({"label": label, **fp})
+    source_rows = [normalize_source(item, i) for i, item in enumerate(payload.sources)]
 
-    target = canonical_path(payload.target) if payload.target else None
+    target = canonical_target_path(payload.target) if payload.target else None
     semantic_obj = {
         "name": payload.project_name.strip().casefold(),
-        "source_fingerprints": sorted(x["fingerprint"] for x in source_rows),
+        "sources": sorted((x["source_type"], x["fingerprint"]) for x in source_rows),
         "target": target or "",
     }
     semantic_signature = sha256_text(
@@ -578,7 +801,14 @@ def create_project(
     )
     request_obj = {
         "project_name": payload.project_name.strip(),
-        "sources": [x["current_path"] for x in source_rows],
+        "sources": [
+            {
+                "source_type": x["source_type"],
+                "fingerprint": x["fingerprint"],
+                "current_path": x["current_path"],
+            }
+            for x in source_rows
+        ],
         "target": target,
         "notes": payload.notes or "",
     }
@@ -625,7 +855,7 @@ def create_project(
                 {
                     "created_at": created_at,
                     "name": payload.project_name.strip(),
-                    "sources": sorted(x["fingerprint"] for x in source_rows),
+                    "sources": sorted((x["source_type"], x["fingerprint"]) for x in source_rows),
                     "entropy": secrets.token_hex(16),
                 },
                 sort_keys=True,
@@ -649,23 +879,7 @@ def create_project(
         )
 
         for src in source_rows:
-            source_id = "SRC-" + sha256_text(
-                token + src["fingerprint"] + src["current_path"]
-            )[:16].upper()
-            c.execute(
-                "INSERT INTO project_sources VALUES(?,?,?,?,?,?,?,?,?)",
-                (
-                    source_id,
-                    token,
-                    src["fingerprint"],
-                    src["current_path"],
-                    src["label"],
-                    "REGISTERED",
-                    created_at,
-                    created_at,
-                    json.dumps(src["evidence"], sort_keys=True),
-                ),
-            )
+            insert_source(c, token, src, created_at)
 
         if target:
             target_id = "TGT-" + sha256_text(token + target)[:16].upper()
@@ -685,7 +899,11 @@ def create_project(
             token,
             "PROJECT_CREATED",
             f'Project "{payload.project_name.strip()}" created',
-            details={"source_count": len(source_rows), "target": target},
+            details={
+                "source_count": len(source_rows),
+                "source_types": sorted({x["source_type"] for x in source_rows}),
+                "target": target,
+            },
         )
         return {"project": full_project(c, token), "deduplicated": False}
 
@@ -710,7 +928,7 @@ def patch_project(token: str, payload: PatchProject) -> dict[str, Any]:
             updates.append("project_name=?")
             values.append(name.strip())
         if payload.target is not None:
-            target = canonical_path(payload.target) if payload.target else None
+            target = canonical_target_path(payload.target) if payload.target else None
             updates.append("target_path=?")
             values.append(target)
         if payload.notes is not None:
@@ -737,7 +955,7 @@ def patch_project(token: str, payload: PatchProject) -> dict[str, Any]:
             )
 
         if payload.target is not None:
-            target = canonical_path(payload.target) if payload.target else None
+            target = canonical_target_path(payload.target) if payload.target else None
             if target:
                 target_id = "TGT-" + sha256_text(token + target)[:16].upper()
                 c.execute(
@@ -760,11 +978,7 @@ def delete_project(token: str) -> dict[str, Any]:
     with db() as c:
         p = get_project_or_404(c, token)
         if p["status"] not in {
-            "REGISTERED",
-            "PAUSED",
-            "VERIFIED",
-            "ERROR",
-            "RECONCILED_INTO_SOT",
+            "REGISTERED", "PAUSED", "VERIFIED", "ERROR", "RECONCILED_INTO_SOT"
         }:
             raise HTTPException(409, "Project metadata cannot be deleted while work is active")
         project_event(
@@ -846,49 +1060,33 @@ def promote_project(token: str):
 @app.post("/projects/{token}/sources")
 @app.post("/api/projects/{token}/sources")
 def add_source(token: str, payload: AddSource) -> dict[str, Any]:
-    fp = source_fingerprint(payload.path)
+    src = normalize_source(payload.model_dump(exclude_none=True), 0)
     with db() as c:
         get_project_or_404(c, token)
         existing = c.execute(
-            "SELECT * FROM project_sources WHERE project_token=? AND source_fingerprint=? AND current_path=?",
-            (token, fp["fingerprint"], fp["current_path"]),
+            "SELECT * FROM project_sources WHERE project_token=? AND source_type=? AND source_fingerprint=? AND current_path=?",
+            (token, src["source_type"], src["fingerprint"], src["current_path"]),
         ).fetchone()
         if existing:
-            return {"source": dict(existing), "deduplicated": True}
+            return {"source": decode_source_row(existing), "deduplicated": True}
 
-        source_id = "SRC-" + sha256_text(
-            token + fp["fingerprint"] + fp["current_path"]
-        )[:16].upper()
         now = utcnow()
-        c.execute(
-            "INSERT INTO project_sources VALUES(?,?,?,?,?,?,?,?,?)",
-            (
-                source_id,
-                token,
-                fp["fingerprint"],
-                fp["current_path"],
-                payload.operator_label or "Source",
-                "REGISTERED",
-                now,
-                now,
-                json.dumps(fp["evidence"], sort_keys=True),
-            ),
-        )
+        source_id = insert_source(c, token, src, now)
         project_event(
             c,
             token,
             "SOURCE_ADDED",
-            f"Source added: {fp['current_path']}",
-            details={"source_id": source_id, "fingerprint": fp["fingerprint"]},
+            f"Source added: {src['current_path']}",
+            details={
+                "source_id": source_id,
+                "source_type": src["source_type"],
+                "fingerprint": src["fingerprint"],
+            },
         )
-        return {
-            "source": dict(
-                c.execute(
-                    "SELECT * FROM project_sources WHERE source_id=?", (source_id,)
-                ).fetchone()
-            ),
-            "deduplicated": False,
-        }
+        row = c.execute(
+            "SELECT * FROM project_sources WHERE source_id=?", (source_id,)
+        ).fetchone()
+        return {"source": decode_source_row(row), "deduplicated": False}
 
 
 @app.delete("/projects/{token}/sources/{source_id}")
@@ -908,7 +1106,7 @@ def remove_source(token: str, source_id: str) -> dict[str, Any]:
             token,
             "SOURCE_REMOVED",
             f"Source removed from project: {src['current_path']}",
-            details={"source_id": source_id},
+            details={"source_id": source_id, "source_type": src["source_type"]},
         )
         return {"ok": True}
 
@@ -916,7 +1114,7 @@ def remove_source(token: str, source_id: str) -> dict[str, Any]:
 @app.post("/projects/{token}/targets")
 @app.post("/api/projects/{token}/targets")
 def add_target(token: str, payload: AddTarget) -> dict[str, Any]:
-    target = canonical_path(payload.path)
+    target = canonical_target_path(payload.path)
     with db() as c:
         get_project_or_404(c, token)
         target_id = "TGT-" + sha256_text(token + target)[:16].upper()
@@ -984,12 +1182,13 @@ def aggregate_report() -> dict[str, Any]:
             "sources_total": sources,
             "runs_total": runs,
             "events_total": events_n,
-            "raw_bytes_scanned": 0,
-            "unique_bytes": 0,
-            "exact_duplicate_bytes": 0,
-            "verification_failures": 0,
-            "collisions": 0,
-            "current_sot_bytes": 0,
+            # Engine-derived metrics are unavailable until the engine exists.
+            "raw_bytes_scanned": None,
+            "unique_bytes": None,
+            "exact_duplicate_bytes": None,
+            "verification_failures": None,
+            "collisions": None,
+            "current_sot_bytes": None,
         }
 
 
@@ -1014,7 +1213,7 @@ def project_report(token: str) -> dict[str, Any]:
     with db() as c:
         p = full_project(c, token)
         sources = [
-            dict(r)
+            decode_source_row(r)
             for r in c.execute(
                 "SELECT * FROM project_sources WHERE project_token=? ORDER BY added_at",
                 (token,),
