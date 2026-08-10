@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'ca8832a8c076-202608101737';
+var BUILD_ID = 'f68995023b42-202608101755';
 
 var STALE = { notified: false, timer: null };
 
@@ -6842,7 +6842,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · BR-install-bridge.js ═══════════ */
 /* @contract
    wraps: registerServiceWorker, showJoinerLanding, joinRoom
-   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, buildRestoreLink, copyRestoreLink, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
+   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, buildRestoreLink, copyRestoreLink, renderRestoreEntry, RESTORE_ENTRY_CSS, RESTORE_UI, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    INSTALL-BOUNDARY BRIDGE
@@ -6874,6 +6874,7 @@ if (typeof document !== 'undefined') {
    than the one this fixes.
    ───────────────────────────────────────────────────────────────────────────── */
 
+var RESTORE_UI = null;
 var BRIDGE = { cache: 'tb-install-bridge-v1', key: '/__tb_bridge__', writeTimer: null };
 
 /* The complete, real set of keys this app persists locally, found by reading
@@ -7216,6 +7217,127 @@ function copyRestoreLink() {
   }
 }
 
+/* ── THE DOOR ─────────────────────────────────────────────────────────────
+   The restore link was reachable only from a room's Manage tab — and in a
+   freshly installed app there are no rooms, so the room menu cannot be opened
+   at all. Worse, a standalone Home Screen app has NO ADDRESS BAR, so a URL
+   cannot be pasted into it, and Apple opens links tapped from Messages or
+   Notes in Safari rather than in the installed app.
+
+   So the consume path existed and was unreachable at exactly the moment it
+   was needed. This is the entry point that makes it usable: a paste target on
+   the empty start screen — the one surface that is always visible when there
+   is nothing else. It accepts either the whole restore link or just the token,
+   because a person pasting from a clipboard should not have to know the
+   difference. */
+function renderRestoreEntry() {
+  try {
+    var host = $('scr-s1');
+    if (!host || !host.querySelector) return false;
+
+    var hasRooms = false;
+    try { hasRooms = (S.rooms || []).filter(function (r) { return !r.deletedAt; }).length > 0; } catch (_) {}
+
+    var existing = document.getElementById('tb-restore-entry');
+    /* Only offered when the app is genuinely empty. Once there are rooms it
+       disappears rather than sitting there inviting a destructive paste. */
+    if (hasRooms) { if (existing && existing.remove) existing.remove(); RESTORE_UI = null; return false; }
+    if (existing && RESTORE_UI) return RESTORE_UI;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'tb-restore-entry';
+    wrap.className = 'tb-restore';
+
+    /* Built as real elements rather than an innerHTML blob. Two reasons: the
+       controls can be wired directly instead of looked up afterwards (a lookup
+       that silently returns nothing is how a dead button ships), and it keeps
+       the handler attached to the exact node that is inserted. */
+    var title = document.createElement('div');
+    title.className = 'tb-restore-t';
+    title.textContent = 'Moving from the browser?';
+
+    var sub = document.createElement('div');
+    sub.className = 'tb-restore-s';
+    sub.textContent = 'In Safari open the room menu, choose Manage, then Copy restore link — and paste it below.';
+
+    var input = document.createElement('input');
+    input.className = 'tb-restore-i';
+    input.id = 'tb-restore-in';
+    input.setAttribute('placeholder', 'Paste restore link');
+    input.setAttribute('autocomplete', 'new-password');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+
+    var btn = document.createElement('button');
+    btn.className = 'tb-restore-b';
+    btn.id = 'tb-restore-go';
+    btn.textContent = 'Restore';
+
+    var msg = document.createElement('div');
+    msg.className = 'tb-restore-m';
+    msg.id = 'tb-restore-msg';
+
+    wrap.appendChild(title);
+    wrap.appendChild(sub);
+    wrap.appendChild(input);
+    wrap.appendChild(btn);
+    wrap.appendChild(msg);
+
+    var welcome = host.querySelector('.welcome-wrap');
+    if (welcome && welcome.appendChild) welcome.appendChild(wrap);
+    else host.appendChild(wrap);
+
+    var say = function (t, bad) {
+      msg.textContent = t;
+      try { msg.style.color = bad ? '#C0392B' : 'var(--ink-dim)'; } catch (_) {}
+    };
+
+    btn.addEventListener('click', function () {
+      try {
+        var raw = (input.value || '').trim();
+        if (!raw) { say('Paste the restore link first', true); return; }
+        /* Accept a full link or a bare token — the person should not have to
+           know which part matters. */
+        var m2 = /[#&]r=([A-Za-z0-9\-_]+)/.exec(raw);
+        var token = m2 ? m2[1] : raw.replace(/^.*#/, '');
+        if (!token || token.length < 8) { say('That does not look like a restore link', true); return; }
+
+        if (applyRestoreToken(token)) {
+          say('Restored — reloading…');
+          bridgeLog('restored_via_paste', {}, 'ok');
+          setTimeout(function () { try { location.reload(); } catch (_) {} }, 600);
+        } else {
+          say('Could not read that restore link', true);
+        }
+      } catch (e) {
+        bridgeLog('paste_restore_failed', { e: String(e && e.message || e) }, 'error');
+        say('Could not read that restore link', true);
+      }
+    });
+
+    RESTORE_UI = { wrap: wrap, input: input, button: btn, msg: msg };
+    bridgeLog('restore_entry_shown', {}, 'ok');
+    /* The handles are returned as well as stored, so the path can be exercised
+       directly rather than fished out of a global. */
+    return RESTORE_UI;
+  } catch (e) {
+    bridgeLog('restore_entry_failed', { e: String(e && e.message || e) }, 'error');
+    return false;
+  }
+}
+
+var RESTORE_ENTRY_CSS =
+  '.tb-restore{margin:22px auto 0;max-width:320px;text-align:left;background:#fff;border:1px solid var(--border);' +
+  'border-radius:12px;padding:14px}' +
+  '.tb-restore-t{font-weight:700;font-size:14px;margin-bottom:4px}' +
+  '.tb-restore-s{font-size:12.5px;color:var(--ink-dim);line-height:1.5;margin-bottom:10px}' +
+  '.tb-restore-i{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--border);' +
+  'border-radius:8px;font-size:13px;margin-bottom:8px}' +
+  '.tb-restore-b{background:var(--teal,#2E8B8B);color:#fff;border:none;border-radius:8px;padding:9px 18px;' +
+  'font-size:13px;font-weight:600;cursor:pointer}' +
+  '.tb-restore-m{font-size:12.5px;margin-top:8px;min-height:16px}';
+
 (function () {
   var _brRegisterSW = registerServiceWorker;
   registerServiceWorker = function () {
@@ -7249,6 +7371,17 @@ function copyRestoreLink() {
 })();
 
 if (typeof document !== 'undefined') {
+  try {
+    var reStyle = document.createElement('style');
+    reStyle.textContent = RESTORE_ENTRY_CSS;
+    document.head.appendChild(reStyle);
+  } catch (_) {}
+
+  /* Offered whenever the app is empty — which is precisely the state an
+     installed app starts in, and the state in which the room menu does not
+     exist. */
+  setTimeout(function () { try { renderRestoreEntry(); } catch (_) {} }, 700);
+
   /* An installed iOS app launches at whatever URL was captured. Read the
      restore token FIRST, before anything reads localStorage, so a rescued room
      list is present for the very first render. */
