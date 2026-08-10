@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.9.0 -->
-# TALKBRIDGE MASTER PLAN v10.9.0
+<!-- TALKBRIDGE-PLAN v10.10.0 -->
+# TALKBRIDGE MASTER PLAN v10.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -1236,6 +1236,39 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v10.10.0 · 2026-08-10.** Release 7 rebuilt fresh from
+`bridge-turn24-pre-base.html` as one clean assembly; `bridge-turn24-base.html`
+pushed and byte-verified, **awaiting device gate**. Contents: PWA head block at
+build time (manifest, iOS metas, apple-touch-icon, favicon links — never
+script-injected); new `tb-sw.js` service worker (root `sw.js` untouched) with
+bare-wake push, per-room catch-up over the relay history endpoint, and
+notification-tap routing via `?room=` (acted on as the tap it is, then stripped
+so a reload stays a cold boot); push subscription per room session with the
+VAPID key discovered from the relay (`worker-talk.js` gains a `?vapid=1` route —
+**Cloudflare redeploy required**, the only relay change in the chain); home
+screen away-record cards for person renames and room renames (timestamped,
+tappable, same dismissal as waiting cards); ribbon strip transformation by DOM
+move, never rebuild — mic fixed centre, phone·video beside it, hang-up beside
+video, side zones byte-identical so the cluster cannot drift; the two 404s
+closed (flags.gif dropped from the flag band, real favicon.ico added); the
+elevation lifecycle signals now also ride the system-pill carrier per the
+graveyard's transport finding, typed originals kept for compatibility, one
+event per room per window on receive. Missed-activity root cause closed: a
+newly stored partner message counts exactly when its room is not on screen —
+active path, background path, and history-sync merges, which never counted at
+all; leaving a room now syncs background sockets immediately, which was also
+the undiagnosed thirty-second home-screen lag. The "unresolved double-count
+edge case" was root-caused rather than assumed: an id counted twice across
+paths is structurally impossible in this base (shared dedup set plus persisted
+transcript); the reachable defect was the visibility handler zeroing the legacy
+counter but never the waiting counts — returning to a visible room now settles
+them. Gates run: contract (declared vs extracted surface), syntax, structure,
+wire, full-boot runtime with cold-boot tripwire, 54 behavioural assertions, and
+nine mutations each reintroducing a defect and each caught — including a
+two-instance harness whose relay drops every message type the base did not
+already handle, reproducing the proven hardware transport failure, with the
+lifecycle carrier and the rename away-record still crossing.
 
 **v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
 then patched forward three times on the passed file, which is forbidden
