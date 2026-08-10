@@ -2,7 +2,7 @@
 """
 SOT Helper Service
 UI/API Version: 0.3.1
-Build: 2026.08.10.2
+Build: 2026.08.10.3
 
 ARCHITECTURE RULE
 -----------------
@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 API_VERSION = "0.3.1"
-BUILD_ID = "2026.08.10.2"
+BUILD_ID = "2026.08.10.3"
 SERVICE_PORT = 8081
 DB_PATH = Path(
     os.environ.get(
@@ -100,6 +100,13 @@ def canonical_target_path(value: str) -> str:
     if not path.is_dir():
         raise HTTPException(400, "Target path is not a directory")
     return str(path)
+
+
+def normalize_target_path(value: str) -> str:
+    raw = str(value or "").strip()
+    if raw.startswith("device-target://"):
+        return raw
+    return canonical_target_path(raw)
 
 
 def decode_mount_field(value: str) -> str:
@@ -740,7 +747,9 @@ def startup() -> None:
 
 
 @app.get("/")
-def root_info() -> dict[str, Any]:
+def root_info(path: Optional[str] = Query(default=None)) -> Any:
+    if path is not None:
+        return list_directory(path)
     ready, reason = engine_state()
     return {
         "service": "sot-helper",
@@ -803,7 +812,7 @@ def create_project(
     created_at = utcnow()
     source_rows = [normalize_source(item, i) for i, item in enumerate(payload.sources)]
 
-    target = canonical_target_path(payload.target) if payload.target else None
+    target = normalize_target_path(payload.target) if payload.target else None
     semantic_obj = {
         "name": payload.project_name.strip().casefold(),
         "sources": sorted((x["source_type"], x["fingerprint"]) for x in source_rows),
@@ -941,7 +950,7 @@ def patch_project(token: str, payload: PatchProject) -> dict[str, Any]:
             updates.append("project_name=?")
             values.append(name.strip())
         if payload.target is not None:
-            target = canonical_target_path(payload.target) if payload.target else None
+            target = normalize_target_path(payload.target) if payload.target else None
             updates.append("target_path=?")
             values.append(target)
         if payload.notes is not None:
@@ -968,7 +977,7 @@ def patch_project(token: str, payload: PatchProject) -> dict[str, Any]:
             )
 
         if payload.target is not None:
-            target = canonical_target_path(payload.target) if payload.target else None
+            target = normalize_target_path(payload.target) if payload.target else None
             if target:
                 target_id = "TGT-" + sha256_text(token + target)[:16].upper()
                 c.execute(
@@ -1127,7 +1136,7 @@ def remove_source(token: str, source_id: str) -> dict[str, Any]:
 @app.post("/projects/{token}/targets")
 @app.post("/api/projects/{token}/targets")
 def add_target(token: str, payload: AddTarget) -> dict[str, Any]:
-    target = canonical_target_path(payload.path)
+    target = normalize_target_path(payload.path)
     with db() as c:
         get_project_or_404(c, token)
         target_id = "TGT-" + sha256_text(token + target)[:16].upper()

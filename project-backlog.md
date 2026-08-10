@@ -38,6 +38,12 @@ An owner ruling made in-session must be written into this file in the same sessi
 - If an already-running Python helper requires a reload to pick up a changed `file_browser.py`, that is an operational reload of the existing helper, not a new service or architecture decision; do not perform it as part of a release unless the owner explicitly asks for that operational step.
 - Project creation exists only in **Intake → Enter Project**.
 - Project identity is the immutable `project_token`; project name is mutable.
+- **Accessible storage is one user concept. Intake must not make the user choose implementation type first. WSL/mounted and browser-local locations belong in one location chooser when accessible.**
+- **The location chooser is dual-pane: storage/locations on the left, contents on the right.**
+- **Target selection order is storage/device → optional parent folder → final SOT folder where surviving files will be written.**
+- **Intake must communicate the job immediately: “here is my mess; here is where I have space to build the SOT.” Remove redundant summary panels and implementation-language clutter.**
+- **Operations uses Projects / Status / Detail tabs. Projects owns add/change/delete metadata and locations; Status owns high-level state and real pause/stop/retry controls when the engine exists; Detail owns in-depth source/target/run information.**
+- **Reporting needs further product definition. Until the engine exists, show authoritative project metadata/events only and do not invent reconciliation metrics.**
 - No fake lifecycle state. If the deterministic execution engine is not running, the UI must say so and must not simulate Start/Pause/Resume/Restart/Promote.
 - GitHub `acmeproducts/stuff` is the development source. The deployed HTML target is `/home/support/.openclaw/workspace/https/report/<project>/<filename>`.
 - Deployment convenience commands are `ghdeploy` (GitHub → OpenClaw) and `deploy` (Windows Download → OpenClaw); default report project is `tst`.
@@ -148,6 +154,16 @@ Tailscale routing: unchanged
 
 ---
 
+
+## 1.4 Owner gate — v0.3.1 build 2026.08.10.2 FAILED
+
+The real WSL/Windows gate proved two defects:
+
+1. `GET /api/fs?path=/` returned the helper service-info object, not storage roots. The established public `/api/fs` mount strips its prefix, so that call arrived as `GET /?path=/`; build .2 had repurposed `/` as service information. This is the proven cause of the empty WSL picker.
+2. Intake UX failed the owner gate: separate WSL/device source controls, a single-pane picker, backwards target wording, and a redundant summary card made the setup implementation-centric and unnecessarily difficult.
+
+Build .2 is not accepted. Build `2026.08.10.3` remains v0.3.1 and corrects the same locked Intake/filesystem surface.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
@@ -176,7 +192,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** CANDIDATE BUILT — automated candidate gates PASS; repo readback verified; owner/device gate NOT YET RUN.  
+**Status:** build 2026.08.10.2 FAILED owner gate; build 2026.08.10.3 is the active v0.3.1 candidate.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
@@ -185,7 +201,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 **Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`  
 **Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`  
 **Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.  
-**Owner/device gate:** NOT YET RUN.  
+**Owner/device gate:** build .2 FAIL; build .3 NOT YET RUN.  
 **Surface:** Intake + filesystem/source/target definition.  
 
 **All five items below are mandatory in this release. No silent deferral.**
@@ -347,6 +363,19 @@ At least these defects must be deliberately reintroduced/simulated and caught:
 **Only after this gate passes does v0.3.1 become the new baseline.**
 
 ---
+
+
+## 3.8 Owner-gate rebuild — build 2026.08.10.3
+
+Mandatory corrections within the same v0.3.1 surface:
+
+- Existing public `/api/fs?path=/` returns real storage roots without changing Tailscale or ports.
+- Intake is project name + source locations + SOT workspace + optional notes + Create project.
+- One **Add locations** action handles accessible source types transparently.
+- Dual-pane explorer: locations/storage left, folder/file contents right.
+- Target flow: storage/device → optional parent folder → final SOT folder.
+- Operations tabs: Projects / Status / Detail.
+- Reporting stays limited to authoritative metadata/events pending separate definition and real engine data.
 
 # 4. RELEASE PLAN AFTER v0.3.1
 
@@ -643,6 +672,15 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Replacement:** release installer overwrites only canonical application files. Infrastructure remains untouched unless a separately proven defect leads to an explicit owner-approved operational/infrastructure change.
 
 ---
+
+
+## G-010 — Source-type-first, summary-heavy Intake
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED  
+**Approach:** separate “WSL / mounted source” and “This device” decisions, single-pane browsing, parent-first target language, and a second summary card.  
+**Why buried:** failed the owner gate because it exposes implementation details, reverses the target mental model, and makes a simple storage-reconciliation setup feel difficult.  
+**Replacement:** one Add locations action, dual-pane explorer, target sequence storage → optional parent → final SOT folder, and one streamlined Intake surface.
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
 
