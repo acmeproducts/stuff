@@ -1,4 +1,4 @@
-<!-- v5.8.2.34 -->
+<!-- v5.8.2.35 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
 **Version: 2.2 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
@@ -351,3 +351,65 @@ Rolled back same day. Two failures, both self-inflicted, neither found by the lo
 **2 · The ribbon centre cluster crowded left on iPhone and hid the partner name.** The rebuild invented new zone CSS — gapless slots, overflow-clipped side zones — when the geometry that passed the hardware gate that same morning already existed in the prior session's record: both side zones `flex:1 1 0; min-width:0`, right zone keeping `justify-content:flex-end`, centre `flex:0 0 auto` with `gap:14px`, every slot `flex:0 0 34px`, and the name yielding with ellipsis instead of being clipped. Not carrying a passed-gate geometry forward is the same burial as the original centre-drift: a layout cannot be proven in the sandbox stub, so the only trustworthy layout is the one that has already passed on the phones. Signature: rebuilding a surface whose passed geometry is on record, without recovering it first. Replacement: recover and adopt the passed geometry verbatim; the structural test asserts that exact geometry, not an invented substitute.
 
 Also recorded: the two-instance harness for this attempt simulated a relay that drops unknown message types — a condition the correction entry above had already withdrawn. Harmless here (the carrier passed under a harsher transport than reality), but the harness must model the relay as documented, not as previously misdiagnosed.
+
+## Release 7 attempt 2 — bridge-turn24-base.html — ROLLED BACK, three findings · Aug 10 2026
+
+Deployed after the attempt-1 rollback (see above entry), tested on real hardware,
+and rolled back again. Nothing here is patched forward — this is a full
+rollback, and the next build starts clean from `bridge-turn24-pre-base.html`
+with all three findings folded in from the start.
+
+**1. Hot mic / stuck-on-home regression — confirmed root cause, modeled and
+proven in the harness before any fix was written.** The clock-tap-to-home
+navigation switches the visible screen (`showScreen('s1')`) but never clears
+`S.roomId`, the app's internal "which room am I in" tracker. The base's own
+`CALL.accept()` only navigates into a room if `S.roomId !== incomingRoomId`. If
+a user taps the clock to go home and that same room's partner then calls back,
+the guard sees a stale match, silently skips navigation, and still acquires
+camera and microphone via `mount()`. Result: user is left on the home screen
+with a live camera and microphone and no visible call UI. Reproduced exactly in
+a two-step harness test before writing a fix: confirmed `enterRoom` is never
+called and the screen stays on `'s1'` while the call becomes active. This is a
+direct side effect of the clock-navigation feature added in a prior attempt,
+which changed screen state without also clearing room state. **Fix not yet
+written — the harness proof exists, the fix does not.** Next build must clear
+`S.roomId` (or equivalent) when navigating home via the clock, and add a
+regression test asserting that accepting a call always navigates into the
+room regardless of what the last-visited room was.
+
+**2. Ribbon still not visually consistent across devices, mechanism replaced
+outright rather than tuned.** The prior fix (both side zones `flex:1 1 0`,
+trusting equal flex-grow to centre the middle column) is a real, documented
+source of cross-engine drift: flex-grow's interaction with intrinsic content
+sizing is not identical between Blink and WebKit. That is the most likely
+reason the identical rule looked correct on desktop/Android and produced a
+crowded, left-leaning cluster on iPhone specifically. Replaced with CSS Grid —
+`display:grid;grid-template-columns:1fr auto 1fr` — which uses a fixed,
+engine-consistent proportion with no equivalent ambiguity. Verified
+structurally (rule presence, correct column assignment, old mechanism fully
+removed) and mutation-tested (reverting to the old flex mechanism fails the new
+test). **This proof is structural only — there is no real rendering engine in
+this sandbox, so it cannot confirm actual pixel layout.** Real visual
+confirmation still requires the owner's device. Ship this in the next build,
+but the device gate for it is not optional or assumed.
+
+**3. PWA install unconfirmed on both platforms; the live server's actual
+Content-Type headers could not be verified from this environment.** Manifest
+was moved to the document head at build time in the previous attempt on the
+theory that install eligibility is decided at parse time — that theory is
+untested and may be incomplete. A second, independent and well-documented risk
+exists regardless: GitHub Pages maps Content-Type by file extension, and
+`.webmanifest` is a known weak spot for that mapping — some static hosts serve
+it as `text/plain` or a generic binary type instead of the manifest type Chrome
+requires, which silently blocks install with no visible error anywhere in the
+app. **Not fixed. The most reliable next step is not more guessing from this
+side: open Chrome DevTools → Application → Manifest on the actual device/site
+and read the specific installability criteria it reports failing — that is
+ground truth this environment cannot produce.** Independently, harden the
+manifest against Content-Type ambiguity regardless of what DevTools shows.
+
+Rollback executed. `bridge-turn24-base.html` removed. Baseline reverts to
+`bridge-turn24-pre-base.html`. Next build addresses finding 1 with a real fix
+(not just a proof), ships finding 2's grid rewrite with the device gate treated
+as mandatory, and needs the owner's DevTools reading for finding 3 before
+attempting another blind fix.
