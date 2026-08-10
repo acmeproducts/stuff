@@ -1,0 +1,93 @@
+name: Session Manager v2.3.4 system contrast
+
+on:
+  push:
+    branches:
+      - agent/session-manager-v234-system-contrast
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/session-manager-v234-system-contrast
+          fetch-depth: 0
+
+      - name: Verify exact v2.3.3 input
+        run: test "$(git hash-object session-manager-v3.html)" = "467bcb79d18748dba1ddb7a7adf86d8cab0a147a"
+
+      - name: Apply system-message contrast fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('session-manager-v3.html')
+          before=p.read_text(encoding='utf-8')
+          s=before
+          def one(old,new,label):
+              global s
+              n=s.count(old)
+              if n!=1: raise SystemExit(f'{label}: expected 1, found {n}')
+              s=s.replace(old,new,1)
+
+          if s.count('v2.3.3') < 2: raise SystemExit('v2.3.3 build markers missing')
+          s=s.replace('v2.3.3','v2.3.4')
+          one("const BUILD_VERSION='2.3.3';","const BUILD_VERSION='2.3.4';",'build version')
+
+          one('--agent-bg:#13231b;--agent-font:#fff;--user-size:18px;', '--agent-bg:#13231b;--agent-font:#fff;--system-bg:#121923;--system-text:#ffffff;--user-size:18px;', 'root system vars')
+          one('.msg.system{align-self:center;background:#121923}', '.msg.system{align-self:center;background:var(--system-bg);color:var(--system-text)}', 'system message css')
+
+          # Use the appearance main text choice as the preference, but independently protect it against the system surface.
+          one("af=ensureContrast(a.agentFont,a.agentBg,7),ct=ensureContrast(a.codeText,a.code,7)", "af=ensureContrast(a.agentFont,a.agentBg,7),sf=ensureContrast(a.text,'#121923',7),ct=ensureContrast(a.codeText,a.code,7)", 'system contrast calculation')
+          one("set('--agent-bg',a.agentBg);set('--agent-font',af);set('--user-size'", "set('--agent-bg',a.agentBg);set('--agent-font',af);set('--system-bg','#121923');set('--system-text',sf);set('--user-size'", 'system vars apply')
+
+          # Freeze unrelated critical paths and the just-landed new-chat/rename work.
+          for marker in [
+              "const APP_VERSION='2.3.0'",
+              "rpc('sessions.create',{label:'New chat'},20000)",
+              'id="newChat"',
+              'title="Click to rename" role="button" tabindex="0"',
+              'function hostingDefaultGateway()'
+          ]:
+              if marker not in s: raise SystemExit('required protected marker missing: '+marker)
+          if 'renameBtn' in s: raise SystemExit('pencil rename regression')
+          if '--system-text' not in s or "sf=ensureContrast(a.text,'#121923',7)" not in s:
+              raise SystemExit('system contrast guard missing')
+
+          p.write_text(s,encoding='utf-8',newline='')
+          print('system-message contrast patch PASS')
+          PY
+
+      - name: Syntax gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          assert 'Session Manager <span class="version">v2.3.4</span>' in s
+          assert "const BUILD_VERSION='2.3.4';" in s
+          assert '.msg.system{align-self:center;background:var(--system-bg);color:var(--system-text)}' in s
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)
+          assert len(js)==1
+          Path('/tmp/v234.js').write_text(js[0],encoding='utf-8')
+          PY
+          node --check /tmp/v234.js
+
+      - name: Commit candidate and remove builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git rm .github/workflows/session-manager-v234.yml
+          git add session-manager-v3.html
+          git commit -m 'Session Manager v2.3.4 protect system-message contrast'
+          git push origin HEAD:agent/session-manager-v234-system-contrast
