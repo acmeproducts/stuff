@@ -30,6 +30,30 @@ would have shipped a false pass.
 
 ---
 
+**5. ONE OBJECTION, THEN RESEARCH.** When the owner proposes something and the
+builder disagrees, the builder gets exactly one objection. If the owner holds
+their position, the builder must go and research the competing idea before
+arguing a second time — and must report what was actually found, including when
+it contradicts the builder.
+
+This rule exists because of a specific, expensive failure. The builder asserted
+that Cache Storage is shared between a Safari tab and an installed iOS web app,
+built an entire state-transfer mechanism on it, shipped it, watched it fail on
+the owner's device — and *still* did not search. Three rebuilds and three
+rollbacks later, one search settled it in a single query: Apple gives an
+installed Home Screen web app its own storage, deliberately. The same pattern
+repeated with the manifest and `start_url`.
+
+The cost was not the wrong theory. Wrong theories are cheap. The cost was
+defending it across four exchanges while the owner's test device kept receiving
+builds premised on something false, and the owner's testing time was spent
+disproving what a search would have answered for free.
+
+The asymmetry is the whole point: a search costs seconds, and being wrong in
+public costs the owner hours and their users a broken product. Assertion is not
+research. "I already have a theory" is the moment to search, not the reason to
+skip it.
+
 ## 2 · Process
 
 ### Per release
@@ -97,6 +121,14 @@ silent failure that once cost a week should never be silent again.
 - **A mechanism with no way to invoke it passes every test and does nothing.**
   At least one test must exercise the feature through the control a person uses.
 - **Report results, not process.** No narration of steps, no self-congratulation.
+- **The owner is usually reasoning about the product; the builder is usually
+  reasoning about the code.** When they conflict, the product view is more often
+  the correct frame. The builder's job is then to find the mechanism that serves
+  it, not to explain why it cannot be done.
+- **Prefer what already exists.** Several rounds were spent designing a pairing
+  code and a provisioning record when the invite link — already generated,
+  already shared, already carrying exactly what was needed — was sitting there.
+  Ask what the system already produces before inventing a new artefact.
 
 ---
 
