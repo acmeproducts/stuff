@@ -1,7 +1,7 @@
-<!-- v5.8.2.37 -->
+<!-- v5.8.2.38 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.4 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.5 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -529,3 +529,48 @@ Rollback executed. `bridge-turn24-base.html` removed. Baseline reverts to
 believed-fixed and harness-proven, not implicated in this finding, but are
 rolled back with everything else per no-patch-forward and will re-ship
 together once the ribbon question is actually resolved.
+
+## ROLLBACK METHOD ITSELF IS DEFECTIVE — root cause of the broken share links · Aug 10 2026
+
+Not a build failure. A defect in how this project has been performing rollback,
+found by reading the live code after the owner reported share links returning
+404.
+
+**The mechanism.** `invUrl()` builds every share/invite link from
+`location.href` — the page the user currently has open:
+
+    return location.href.split('?')[0].split('#')[0] + '#j=' + encInv({...})
+
+Rollback, as practiced today, **deletes the deployed filename from the repo.**
+`bridge-turn24-base.html` was created and deleted three separate times in one
+session. Every invite link generated while that file was open — by the owner or
+anyone they shared with — became a permanent 404 the moment rollback ran. The
+links were correct when created. Rollback destroyed their target.
+
+**This is a process defect, not a code defect, and it is the more important of
+the two.** A deployed filename that anyone may have opened must be treated as
+permanently live. Rolling back means **replacing its contents with the previous
+known-good build**, never deleting the file. Deleting breaks every artifact
+anyone generated from it — invite links, QR codes, bookmarks, installed PWA
+`start_url`s. An installed PWA whose `start_url` 404s is bricked with no
+in-app way to recover.
+
+**Second, related defect: nothing detects a stale page.** There is no build/
+version check anywhere. A tab left open from an earlier attempt keeps running
+its original JavaScript indefinitely, unaware the server has moved on. With a
+service worker now registered on some devices this can persist across reloads.
+Across many deploy/rollback cycles in one session, different devices were very
+likely running different, uncoordinated snapshots — none necessarily matching
+the repo. **This makes device test results unreliable as evidence**, and may
+account for symptoms that survived structurally unrelated fix attempts.
+
+**Corrective actions, mandatory going forward:**
+1. **Never delete a deployed file to roll back.** Overwrite it with the
+   previous known-good build. The filename is a permanent public contract.
+2. **Add a build identifier and a staleness check** so a page can tell it is
+   running code older than what the server has, and say so.
+3. **Re-verify prior device findings after (1) and (2) are in place.** Any
+   result gathered during today's delete-based rollback cycles is suspect and
+   must not be treated as settled evidence.
+
+Recorded as its own release rather than folded into a feature build.
