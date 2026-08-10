@@ -14,17 +14,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>TalkBridge</title>
-<!-- R7 · PWA head block — present at build time, never script-injected.
-     The browser decides install eligibility during parse (graveyard 2.1). -->
-<link rel="manifest" href="./tb-manifest.webmanifest">
-<meta name="theme-color" content="#2E8B8B">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="TalkBridge">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
-<link rel="icon" href="./favicon.ico" sizes="any">
 <style>
 :root{
   --teal:#2E8B8B;--teal-mid:#3A9E9E;--teal-light:#E6F4F4;
@@ -327,6 +316,14 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 #chat-clear-x.show{display:block}
 #chat-input{overflow-y:hidden;width:100%}
 </style>
+<link rel="manifest" href="tb-manifest.webmanifest">
+<meta name="theme-color" content="#2E8B8B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TalkBridge">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png" type="image/png">
 </head>
 <body>
 <div id="app">
@@ -4174,8 +4171,8 @@ CALL.setupPC = async function () {
 
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
-VERSION = 'turn23-post-ship · room menu surface';
-BUILD_INFO = { release: 'turn23-post-ship r5 · rename on the pill carrier', builtAt: '2026-08-07T21:30:00Z' };
+VERSION = 'turn24-base · PWA, push, call surface';
+BUILD_INFO = { release: 'turn24-base · manifest in head', builtAt: '2026-08-10T07:40:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -4319,7 +4316,7 @@ var TBPROOF = {
 /* @contract
    replaces: renderPanel
    wraps: handleChatMsg, enterRoom, LISTEN.handle
-   adds: WAIT, waitingOf, waitingTotal, bumpWaiting, clearWaiting, roomCardHtml, wireRoomCards, homeDismissed, saveHomeDismissed, dismissHome, homeCards, homeSummaryText, renderHome, ensureHomeHost, rcLog, _rHandleChat, _rEnterRoom, _rListenHandle, ROOM_CARD_CSS
+   adds: WAIT, roomOnScreen, waitingOf, waitingTotal, bumpWaiting, clearWaiting, roomCardHtml, wireRoomCards, homeDismissed, saveHomeDismissed, dismissHome, homeCards, homeSummaryText, renderHome, ensureHomeHost, rcLog, _rHandleChat, _rEnterRoom, _rListenHandle, ROOM_CARD_CSS
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 1 · ROOM CARD + WAITING SYSTEM + HOME SCREEN
@@ -4344,6 +4341,19 @@ function rcLog(what, data, level) {
    Part 4.5 / 8B.1. A missed chat, a missed voice call and a missed video call
    are three distinct facts and are tracked and displayed separately. */
 var WAIT = ['chat', 'voice', 'video'];
+
+/* Being in a room means looking at it. The base counted a message as missed
+   only when the whole document was hidden, so sitting on the home screen with
+   the app open in front of you counted as being in every room at once — and
+   nothing registered as missed. That is why the same build behaved differently
+   depending on whether the app had been backgrounded or merely navigated away
+   from. */
+function roomOnScreen(r) {
+  if (!r) return false;
+  try {
+    return !document.hidden && S.view === 'room' && S.roomId === r.id;
+  } catch (_) { return false; }
+}
 
 function waitingOf(r) {
   if (!r) return { chat: 0, voice: 0, video: 0 };
@@ -4614,12 +4624,20 @@ function renderPanel() {
   var _rHandleChat = handleChatMsg;
   handleChatMsg = function (d, room) {
     var before = (room && room.unread) || 0;
+    var onScreen = roomOnScreen(room);
     var r = _rHandleChat.apply(this, arguments);
     try {
-      if (room && (room.unread || 0) > before) {
-        room.unread = before;
-        bumpWaiting(room, 'chat');
-        saveRooms();
+      if (room) {
+        var baseCounted = (room.unread || 0) > before;
+        if (baseCounted) room.unread = before;
+        /* Counted once, whether the base noticed or not. The base only counts a
+           hidden document, which misses every case where the app is visible but
+           showing something other than this room. */
+        if (!onScreen) {
+          bumpWaiting(room, 'chat');
+          saveRooms();
+          renderPanel();
+        }
       }
     } catch (e) { rcLog('chat_count_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
@@ -5624,6 +5642,14 @@ function onRoomNameSignal(roomId, d) {
   if (r.title !== to) {
     r.title = to;
     saveRooms();
+    /* An open drawer holds the old name in its field. Left alone it shows the
+       wrong name, and worse: if that field later commits it sends the old name
+       back and quietly undoes the other side's rename. Last-write-wins is
+       subverted by a stale input, so the input is kept current. */
+    try {
+      var f = $('s4b-title');
+      if (f && norm(f.value) !== to) { f.value = to; rmLog('open_field_synced', { to: to }, 'ok'); }
+    } catch (_) {}
     rmLog('rename_received', { from: from, to: to, by: d.byName || '' }, 'ok');
     try { renderRoomHead(); renderPanel(); } catch (_) {}
   }
@@ -6060,792 +6086,552 @@ function sendReadReceipts() {
 })();
 
 
-/* ═══════════ RELEASE 7 · PWA, PUSH, HOME SCREEN, CALL SURFACE ═══════════ */
-
-/* ═══════════ R7 PART · p1-r7-chrome.js ═══════════ */
+/* ═══════════ GAP PART · P-pwa.js ═══════════ */
 /* @contract
-   replaces:
-   wraps:
-   adds: r7cLog, R7_CHROME_CSS, r7ChromeInstall
+   replaces: homeCards, renderHome
+   wraps: renameRoom, onRoomNameSignal, handleRelay, LISTEN.handle, enterRoom
+   adds: PWA, pwaLog, noteSeq, sendWorkerContext, recordEvent, roomEvents, clearRoomEvents, eventCards, registerServiceWorker, promptInstall, subscribeToPush, relayHttpUrl, wireClockNavigation, PWA_CSS, _pRenameRoom, _pOnRoomName, _pHandleRelay, _pListen, _pEnterRoom, _pHomeCards, _pRenderHome
 */
 /* ─────────────────────────────────────────────────────────────────────────────
-   R7 · CHROME — the left panel loses its navigation card; a single tap on the
-   clock does exactly what the card did. Lifted from the base, not from memory:
-   the card's handler is `$('app-info-card').addEventListener('click',
-   exitToStart)` — a tap goes to the start screen. The long-press on the clock
-   already opens the S13 modal in the base and is left alone. The flag band
-   drops its flags.gif reference so the 404 stops; flags.png is the only image
-   it ever loads.
+   RELEASE 7a · PWA, PUSH, AND THE "WHILE YOU WERE AWAY" RECORD
 
-   Nothing is replaced and nothing is wrapped: the panel is built once inside
-   boot(), so this part adjusts the built DOM after boot has run. It registers
-   its own DOMContentLoaded listener, which fires after the base's because it
-   is registered later on the same event.
+   THE ORGANISING IDEA. The home screen is the record of everything that
+   happened in rooms nobody was watching, and anything that belongs on that
+   record also deserves a notification — they answer the same question. Waiting
+   chats and missed calls were already there. Name changes and room renames are
+   the same kind of event and join them, each with a time and a tap that opens
+   the room it happened in.
+
+   WHAT THE PUSH CAN AND CANNOT SAY. The relay sends a bare wake with no
+   payload, so no message content ever enters a push service's queue. The
+   notification therefore says that something happened, not what — and opening
+   the app is what shows the detail. That is a deliberate trade of specificity
+   for not handing conversations to a third party.
    ───────────────────────────────────────────────────────────────────────────── */
-function r7cLog(what, data, level) {
-  try { log('r7c_' + what, data || {}, level || 'info'); } catch (_) {}
+
+var PWA = { swReg: null, installEvent: null, subscribed: false, vapid: null };
+
+function pwaLog(what, data, level) {
+  try { log('pwa_' + what, data || {}, level || 'info'); } catch (_) {}
 }
 
-var R7_CHROME_CSS =
-  /* flags.gif is gone from the load path entirely — png only. */
-  '.flagband{background-image:url(\'./flags.png\')}';
+var PWA_CSS =
+  /* The flag band asks for a .gif that does not exist and falls back to the
+     .png. The fallback works; the failed request does not, and it is noise in
+     every console on every load. */
+  '.flagband{background-image:url("./flags.png") !important}' +
+  '.home-ev{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:9px 11px;margin-bottom:6px;' +
+  'background:#fff;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:13px}' +
+  '.home-ev:active{border-color:var(--teal-mid)}' +
+  '.home-ev .he-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  '.home-ev .he-w{color:var(--ink-dim);font-size:11.5px;white-space:nowrap}' +
+  '.pwa-install{display:none}';
 
-function r7ChromeInstall() {
-  try {
-    var st = document.createElement('style');
-    st.textContent = R7_CHROME_CSS;
-    document.head.appendChild(st);
-  } catch (e) { r7cLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
-  try {
-    var card = $('app-info-card');
-    var row = card && card.parentNode;
-    if (row && row.parentNode) { row.parentNode.removeChild(row); r7cLog('nav_card_removed', {}, 'ok'); }
-    else r7cLog('nav_card_missing', {}, 'warn');
-  } catch (e) { r7cLog('nav_card_failed', { e: String(e && e.message || e) }, 'error'); }
-  try {
-    var clock = $('left-clock');
-    if (clock) {
-      clock.addEventListener('click', function () {
-        try { exitToStart(); } catch (_) {}
-      });
-      r7cLog('clock_wired', {}, 'ok');
-    } else r7cLog('clock_missing', {}, 'warn');
-  } catch (e) { r7cLog('clock_failed', { e: String(e && e.message || e) }, 'error'); }
+/* ── The record ────────────────────────────────────────────────────────────
+   Events live on the room, so they persist with everything else and need no
+   store of their own. Capped, because this is a record of what was missed, not
+   a second transcript. */
+var EVENT_CAP = 20;
+
+function roomEvents(r) {
+  if (!r) return [];
+  if (!r.events) r.events = [];
+  return r.events;
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  try { r7ChromeInstall(); } catch (e) { r7cLog('install_failed', { e: String(e && e.message || e) }, 'error'); }
-});
-
-
-/* ═══════════ R7 PART · p2-r7-ribbon.js ═══════════ */
-/* @contract
-   replaces:
-   wraps:
-   adds: r7rLog, R7_RIBBON_CSS, r7RibbonInstall
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   R7 · CALL SURFACE — the ribbon strip transformation.
-
-   Microphone fixed at centre; phone and video beside it; hang-up fixed beside
-   video. Voice call shows microphone and hang-up only; video call shows
-   microphone, camera and hang-up. The call timer is written by CALL.mount's
-   shared interval, which both the caller path (start) and the receiver path
-   (accept) reach — parity holds by construction and is asserted in tests.
-
-   Nothing is rebuilt from scratch (graveyard: rebuilding the ribbon HTML is
-   buried). The existing, already-wired buttons are MOVED into the centre
-   cluster — a DOM move preserves every listener — and the state rules keep
-   working because they are all id-based.
-
-   The geometry below is the one that PASSED the hardware gate on Aug 10 —
-   recovered from the prior session's record, not reinvented (graveyard 2.2):
-   both side zones grow equally, the centre is a fixed block with breathing
-   room between slots, every slot's width is locked, and the name yields with
-   an ellipsis rather than being clipped or pushing the cluster off centre.
-   ───────────────────────────────────────────────────────────────────────────── */
-function r7rLog(what, data, level) {
-  try { log('r7r_' + what, data || {}, level || 'info'); } catch (_) {}
+function recordEvent(r, kind, text) {
+  if (!r || !text) return null;
+  var list = roomEvents(r);
+  /* A monotonic time, so two events recorded in the same millisecond still
+     order correctly. Wall-clock alone is not fine-grained enough. */
+  var last = list.length ? list[list.length - 1].ts : 0;
+  var now = Date.now();
+  var ev = { id: 'ev-' + uid(), kind: kind, text: text, ts: Math.max(now, last + 1) };
+  list.push(ev);
+  if (list.length > EVENT_CAP) r.events = list.slice(-EVENT_CAP);
+  saveRooms();
+  pwaLog('event_recorded', { room: String(r.id).slice(-6), kind: kind }, 'ok');
+  return ev;
 }
 
-var R7_RIBBON_CSS =
-  /* Both side zones must grow equally or the centre is not the centre. */
-  '#room-ribbon .rz-left{flex:1 1 0;min-width:0}' +
-  '#room-ribbon .rz-right{flex:1 1 0;min-width:0;justify-content:flex-end}' +
-  '#room-ribbon .rz-center{display:flex;align-items:center;gap:14px;flex:0 0 auto}' +
-  '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
-  /* The name yields rather than pushing the controls off centre. */
-  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-  /* Idle shows mic · phone · video (base rules already hide phone/video in
-     call states and reveal hang-up; those are id-based and survive the move). */
-  '#scr-room.st-phone .rz-slot.r7-call-slot,#scr-room.st-phone .rz-slot.r7-video-slot,' +
-  '#scr-room.st-video .rz-slot.r7-call-slot,#scr-room.st-video .rz-slot.r7-video-slot{display:none}';
-
-function r7RibbonInstall() {
-  try {
-    var st = document.createElement('style');
-    st.textContent = R7_RIBBON_CSS;
-    document.head.appendChild(st);
-  } catch (e) { r7rLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
-  try {
-    var center = document.querySelector('#room-ribbon .rz-center');
-    var call = $('btn-call'), video = $('btn-video'), hang = $('rb-hangup');
-    var camSlot = document.querySelector('#room-ribbon .rz-slot.cam-slot');
-    if (!center || !call || !video || !hang || !camSlot) { r7rLog('dom_missing', {}, 'error'); return; }
-    var callSlot = document.createElement('div');
-    callSlot.className = 'rz-slot r7-call-slot';
-    callSlot.appendChild(call);
-    var vidSlot = document.createElement('div');
-    vidSlot.className = 'rz-slot r7-video-slot';
-    vidSlot.appendChild(video);
-    /* Order: mic (already first) · phone · video · camera · hang-up. */
-    center.insertBefore(callSlot, camSlot);
-    center.insertBefore(vidSlot, camSlot);
-    center.appendChild(hang);
-    r7rLog('cluster_installed', {}, 'ok');
-  } catch (e) { r7rLog('move_failed', { e: String(e && e.message || e) }, 'error'); }
+function clearRoomEvents(r) {
+  if (!r || !r.events || !r.events.length) return 0;
+  var n = r.events.length;
+  r.events = [];
+  saveRooms();
+  pwaLog('events_cleared', { room: String(r.id).slice(-6), n: n }, 'ok');
+  return n;
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  try { r7RibbonInstall(); } catch (e) { r7rLog('install_failed', { e: String(e && e.message || e) }, 'error'); }
-});
-
-
-/* ═══════════ R7 PART · p3-r7-missed.js ═══════════ */
-/* @contract
-   replaces:
-   wraps: handleChatMsg, LISTEN.handle, mergeHistorySyncChunk, exitToStart
-   adds: r7mLog, roomOnScreen, _r7Counted, r7MarkCounted, _r7mHandleChat, _r7mListenHandle, _r7mMergeHistory, _r7mExit
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   R7 · MISSED-ACTIVITY COUNTING — root cause proven (graveyard 2.1): the base
-   counts a message as missed only when document.hidden is true. Being anywhere
-   that is not that room — home screen open, app visible — never counted, and
-   messages arriving by history-sync never counted at all.
-
-   THE RULE, made authoritative here: a newly stored partner chat message
-   counts as missed exactly when its room is not the one on screen at the
-   moment it is stored — and each id is counted at most once across this
-   part's own counting sites, tracked in one id-set.
-
-   The known double-count edge, root-caused here rather than assumed: it was
-   never two paths counting one id — both receive paths already share one
-   dedup set and the persisted transcript, which makes an id-double
-   structurally impossible in this base. The reachable defect is the base's
-   visibility handler, which zeroes the legacy counter but never the waiting
-   counts, so a message already seen while visible was counted AGAIN into the
-   badge on the next arrival. Returning to a visible room now settles the
-   waiting counts, and the mutation gate proves the test catches its removal.
-
-   Everything is a wrap that calls through. The originals keep doing exactly
-   what they did; increases they make are reconciled after the fact against
-   the rule, never pre-empted.
-
-   Also here, same root: leaving a room to the home screen previously left the
-   just-left room with no socket for up to a minute (the background sync only
-   ran on a timer), which is the observed "thirty second lag on the home
-   screen". Leaving now syncs the background sockets immediately.
-   ───────────────────────────────────────────────────────────────────────────── */
-function r7mLog(what, data, level) {
-  try { log('r7m_' + what, data || {}, level || 'info'); } catch (_) {}
-}
-
-/* The single on-screen predicate. A room is on screen when the room view is
-   active, it is this room, and the document is visible. */
-function roomOnScreen(roomId) {
-  return S.view === 'room' && S.roomId === roomId && !document.hidden;
-}
-
-/* Ids already counted as missed this session. Reload safety: after a reload
-   the transcript is persisted, so a re-delivered id is dropped by the dedup in
-   both receive paths before any counting runs. */
-var _r7Counted = new Set();
-
-function r7MarkCounted(id) { if (id) _r7Counted.add(id); }
-
-/* ── Active-room path ─────────────────────────────────────────────────────── */
-(function () {
-  var _r7mHandleChat = handleChatMsg;
-  handleChatMsg = function (d, room) {
-    var id = d && d.chatId;
-    var wasKnown = !!(id && (_r7Counted.has(id) || _chatReceived.has(id) ||
-      transcript.some(function (x) { return x.id === id; })));
-    var before = room ? (waitingOf(room).chat || 0) : 0;
-    var r = _r7mHandleChat.apply(this, arguments);
-    try {
-      if (!room || !id || wasKnown) return r;
-      var bumped = (waitingOf(room).chat || 0) > before;
-      if (roomOnScreen(room.id)) {
-        /* On screen: never a missed count. The chain cannot bump here —
-           hidden is false — recorded so no later path counts it either. */
-        r7MarkCounted(id);
-      } else if (bumped) {
-        /* The chain counted it (hidden case). Record the id so no other path
-           can count it again. */
-        r7MarkCounted(id);
-      } else {
-        /* Off screen and the chain did not count — the proven gap. Count it
-           here, once, with the same surface effects the base gives a missed
-           message. osNotify guards itself against on-screen rooms. */
-        bumpWaiting(room, 'chat');
-        saveRooms(); renderPanel();
-        if (!room.muted) {
-          try {
-            osNotify((d.senderName || room.partnerName || 'New message'),
-              norm(d.tgtText || d.srcText || ''), room.id);
-          } catch (_) {}
-        }
-        r7MarkCounted(id);
-        r7mLog('offscreen_counted', { room: room.id, id: id }, 'ok');
-      }
-    } catch (e) { r7mLog('active_count_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-/* ── Background path ──────────────────────────────────────────────────────── */
-(function () {
-  var _r7mListenHandle = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    var id = d && d.type === 'chat-msg' ? d.chatId : null;
-    var room = roomById(roomId);
-    var before = room ? (waitingOf(room).chat || 0) : 0;
-    var r = _r7mListenHandle.apply(this, arguments);
-    try {
-      if (room && id && (waitingOf(room).chat || 0) > before) r7MarkCounted(id);
-    } catch (e) { r7mLog('listen_count_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-/* ── History-sync path — merged messages were never counted at all ────────── */
-(function () {
-  var _r7mMergeHistory = mergeHistorySyncChunk;
-  mergeHistorySyncChunk = function (d, room) {
-    var beforeIds = {};
-    try { transcript.forEach(function (e) { beforeIds[e.id] = true; }); } catch (_) {}
-    var r = _r7mMergeHistory.apply(this, arguments);
-    try {
-      if (!room || roomOnScreen(room.id)) return r;
-      var added = 0;
-      transcript.forEach(function (e) {
-        if (beforeIds[e.id]) return;
-        if (e.who !== 'partner' || e.kind !== 'chat') return;
-        if (_r7Counted.has(e.id)) return;
-        bumpWaiting(room, 'chat');
-        r7MarkCounted(e.id);
-        added++;
-      });
-      if (added) { saveRooms(); renderPanel(); r7mLog('history_counted', { room: room.id, n: added }, 'ok'); }
-    } catch (e) { r7mLog('history_count_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-/* ── Returning to a visible room settles its waiting counts ───────────────── */
-document.addEventListener('visibilitychange', function () {
-  try {
-    if (!document.hidden && S.view === 'room') {
-      var r = activeRoom();
-      if (r && waitingTotal(r)) { clearWaiting(r); saveRooms(); renderPanel(); r7mLog('visible_cleared', { room: r.id }, 'ok'); }
-    }
-  } catch (e) { r7mLog('visible_clear_failed', { e: String(e && e.message || e) }, 'error'); }
-});
-
-/* ── Leaving to the home screen syncs background sockets immediately ──────── */
-(function () {
-  var _r7mExit = exitToStart;
-  exitToStart = function () {
-    var r = _r7mExit.apply(this, arguments);
-    try { LISTEN.sync(); r7mLog('exit_synced', {}, 'ok'); } catch (e) { r7mLog('exit_sync_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-
-/* ═══════════ R7 PART · p4-r7-away.js ═══════════ */
-/* @contract
-   replaces:
-   wraps: handleRelay, LISTEN.handle, renderHome, dismissHome, enterRoom
-   adds: r7aLog, R7_AWAY_KEY, R7_AWAY_CSS, awayEvents, saveAwayEvents, recordAwayEvent, clearAwayEvents, awayCardHtml, renderAwayCards, _r7aRelay, _r7aListen, _r7aRenderHome, _r7aDismiss, _r7aEnter
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   R7 · THE HOME SCREEN IS THE WHILE-YOU-WERE-AWAY RECORD.
-
-   A person rename and a room rename are the same kind of event as a waiting
-   chat: something happened in a room you were not looking at. Both already
-   cross on the system-pill carrier (the only transport proven on hardware) —
-   this part records them when they arrive for a room that is not on screen,
-   and renders them on the home screen with date and time, tappable straight
-   into the room, dismissed under the same rules as the waiting cards: opening
-   the room clears them, and the card's dismissal clears them.
-
-   Recording is once per pill id, and the receive hooks call through — the
-   base still writes and renders the pill in the transcript exactly as it did.
-   ───────────────────────────────────────────────────────────────────────────── */
-function r7aLog(what, data, level) {
-  try { log('r7a_' + what, data || {}, level || 'info'); } catch (_) {}
-}
-
-var R7_AWAY_KEY = 'tb_home_away_events';
-
-var R7_AWAY_CSS =
-  '.r7-away{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:4px;column-gap:10px;align-items:center;' +
-  'background:#fff;border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;cursor:pointer;user-select:none}' +
-  '.r7-away:active{border-color:var(--teal-mid)}' +
-  '.r7-away-room{font-size:13px;font-weight:700;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
-  '.r7-away-line{font-size:14px;grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
-  '.r7-away-when{font-size:12px;color:var(--ink-dim);grid-column:1/-1}' +
-  '.r7-away-x{background:none;border:none;color:var(--ink-dim);cursor:pointer;padding:2px 0 2px 8px;line-height:0;justify-self:end}';
-
-function awayEvents() {
-  try { return lsGet(R7_AWAY_KEY, {}) || {}; }
-  catch (e) { r7aLog('read_failed', { e: String(e && e.message || e) }, 'error'); return {}; }
-}
-function saveAwayEvents(m) {
-  try { lsSet(R7_AWAY_KEY, m); }
-  catch (e) { r7aLog('write_failed', { e: String(e && e.message || e) }, 'error'); }
-}
-
-function recordAwayEvent(roomId, d) {
-  try {
-    if (!roomId || !d || d.type !== 'sys-pill') return false;
-    var isRename = typeof d.newRoomName === 'string';
-    var isNameChange = typeof d.newName === 'string' && d.newName;
-    if (!isRename && !isNameChange) return false;
-    if (roomOnScreen(roomId)) return false;
-    var id = d.pillId || ('ae-' + uid());
-    var m = awayEvents();
-    var list = m[roomId] || [];
-    if (list.some(function (e) { return e.id === id; })) return false;
-    list.push({ id: id, text: String(d.text || '').slice(0, 160), ts: d.ts || Date.now() });
-    if (list.length > 20) list = list.slice(-20);
-    m[roomId] = list;
-    saveAwayEvents(m);
-    r7aLog('recorded', { room: roomId, kind: isRename ? 'room-rename' : 'name-change' }, 'ok');
-    try { renderHome(); } catch (_) {}
-    return true;
-  } catch (e) { r7aLog('record_failed', { e: String(e && e.message || e) }, 'error'); return false; }
-}
-
-function clearAwayEvents(roomId) {
-  try {
-    var m = awayEvents();
-    if (!m[roomId] || !m[roomId].length) return;
-    delete m[roomId];
-    saveAwayEvents(m);
-    r7aLog('cleared', { room: roomId }, 'ok');
-  } catch (e) { r7aLog('clear_failed', { e: String(e && e.message || e) }, 'error'); }
-}
-
-function awayCardHtml(r, ev) {
-  return '<div class="r7-away" data-away-room="' + r.id + '">' +
-    '<div class="r7-away-room">' + esc(roomTitle(r)) + '</div>' +
-    '<button class="r7-away-x" data-away-x="' + r.id + '" aria-label="Dismiss">' +
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
-    '<div class="r7-away-line">' + esc(ev.text || '') + '</div>' +
-    '<div class="r7-away-when">' + fmtDate(ev.ts) + ' · ' + fmtTime(ev.ts) + '</div>' +
-    '</div>';
-}
-
-function renderAwayCards(host) {
-  var m = awayEvents();
-  var h = '';
-  S.rooms.forEach(function (r) {
+/* Every event across every live room, newest first, each knowing its room. */
+function eventCards() {
+  var out = [];
+  (S.rooms || []).forEach(function (r) {
     if (r.deletedAt || r.muted) return;
-    (m[r.id] || []).forEach(function (ev) { h += awayCardHtml(r, ev); });
+    roomEvents(r).forEach(function (ev) { out.push({ room: r, ev: ev }); });
   });
-  if (!h) return 0;
-  var wrap = document.createElement('div');
-  wrap.innerHTML = h;
-  while (wrap.firstChild) host.appendChild(wrap.firstChild);
-  host.querySelectorAll('[data-away-room]').forEach(function (el) {
-    el.addEventListener('click', function (ev) {
-      if (ev.target.closest('[data-away-x]')) return;
-      var id = el.dataset.awayRoom;
-      try { clearAwayEvents(id); dismissHome(id, true); enterRoom(id); }
-      catch (e) { r7aLog('tap_failed', { e: String(e && e.message || e) }, 'error'); }
-    });
-  });
-  host.querySelectorAll('[data-away-x]').forEach(function (el) {
-    el.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      clearAwayEvents(el.dataset.awayX);
-      try { renderHome(); } catch (_) {}
-    });
-  });
-  return 1;
+  return out.sort(function (a, b) { return b.ev.ts - a.ev.ts; });
 }
 
-/* ── Receive hooks — record, then call through ────────────────────────────── */
+/* A rename and a name change are recorded on both sides — the side that made
+   the change and the side that received it. */
 (function () {
-  var _r7aRelay = handleRelay;
-  handleRelay = function (d) {
-    try { if (d) recordAwayEvent(S.roomId, d); } catch (_) {}
-    return _r7aRelay.apply(this, arguments);
-  };
-})();
-
-(function () {
-  var _r7aListen = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    try { if (d) recordAwayEvent(roomId, d); } catch (_) {}
-    return _r7aListen.apply(this, arguments);
-  };
-})();
-
-/* ── Render + dismissal parity with the waiting cards ─────────────────────── */
-(function () {
-  var _r7aRenderHome = renderHome;
-  renderHome = function () {
-    var r = _r7aRenderHome.apply(this, arguments);
+  var _pRenameRoom = renameRoom;
+  renameRoom = function (newName) {
+    var r = activeRoom();
+    var before = r ? (r.title || '') : '';
+    var ok = _pRenameRoom.apply(this, arguments);
     try {
-      var host = $('home-wrap');
-      if (host) renderAwayCards(host);
-    } catch (e) { r7aLog('render_failed', { e: String(e && e.message || e) }, 'error'); }
+      if (ok && r) recordEvent(r, 'rename', renameNotice(r.myName || S.user.name || 'You', before, r.title));
+    } catch (e) { pwaLog('rename_event_failed', { e: String(e && e.message || e) }, 'error'); }
+    return ok;
+  };
+})();
+
+(function () {
+  var _pOnRoomName = onRoomNameSignal;
+  onRoomNameSignal = function (roomId, d) {
+    var r = roomById(roomId || (d && d.room));
+    var before = r ? (r.title || '') : '';
+    var consumed = _pOnRoomName.apply(this, arguments);
+    try {
+      if (r && d && typeof d.newRoomName === 'string' && r.title !== before) {
+        recordEvent(r, 'rename', renameNotice(d.byName || r.partnerName || 'They', before, r.title));
+        renderHome();
+      }
+    } catch (e) { pwaLog('rename_event_failed', { e: String(e && e.message || e) }, 'error'); }
+    return consumed;
+  };
+})();
+
+/* A person renaming themselves arrives on the same carrier. */
+function noteNameChange(roomId, d) {
+  try {
+    if (!d || d.type !== 'sys-pill' || typeof d.newName !== 'string') return;
+    var r = roomById(roomId); if (!r) return;
+    recordEvent(r, 'name', String(d.text || (d.newName + ' changed their name')));
+    renderHome();
+  } catch (e) { pwaLog('name_event_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+(function () {
+  var _pHandleRelay = handleRelay;
+  handleRelay = function (d) {
+    var r = _pHandleRelay.apply(this, arguments);
+    try { noteNameChange(S.roomId, d); noteSeq(S.roomId, d); } catch (_) {}
     return r;
   };
 })();
 
 (function () {
-  var _r7aDismiss = dismissHome;
-  dismissHome = function (roomId, opening) {
-    try { clearAwayEvents(roomId); } catch (_) {}
-    return _r7aDismiss.apply(this, arguments);
+  var _pListen = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    var r = _pListen.apply(this, arguments);
+    try { noteNameChange(roomId, d); noteSeq(roomId, d); } catch (_) {}
+    return r;
   };
 })();
 
+/* Opening a room clears its events — they are a record of what was missed, and
+   once the room is open nothing is being missed. */
 (function () {
-  var _r7aEnter = enterRoom;
+  var _pEnterRoom = enterRoom;
   enterRoom = function (id) {
-    var r = _r7aEnter.apply(this, arguments);
-    try { clearAwayEvents(id); renderHome(); } catch (_) {}
-    return r;
-  };
-})();
-
-(function () {
-  try {
-    var st = document.createElement('style');
-    st.textContent = R7_AWAY_CSS;
-    document.head.appendChild(st);
-  } catch (e) { r7aLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
-})();
-
-
-/* ═══════════ R7 PART · p5-r7-lifecycle-carrier.js ═══════════ */
-/* @contract
-   replaces:
-   wraps: relaySend, LISTEN.send, onLifecycleSignal, handleRelay, LISTEN.handle
-   adds: r7lLog, R7_LC_TYPES, _r7LcSeen, _r7lRelaySend, _r7lListenSend, _r7lSignal, _r7lRelay, _r7lListen, r7LcTwin
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   R7 · LIFECYCLE SIGNALS ON THE PROVEN CARRIER.
-
-   Graveyard finding, applied before the fact rather than rediscovered: a new
-   relay message type never crosses to the receiving device on hardware. The
-   elevation release's lifecycle signals — room-left, room-rejoined,
-   grant-revoke, grant-restore — are exactly that, and were only ever confirmed
-   locally. They now also ride the system-pill carrier, the one transport
-   proven to cross, exactly as the room rename does: an extra field on
-   sys-pill, never a type of its own.
-
-   The original typed sends are kept — harmless, and an older build on the
-   other phone still understands them. The receiving side therefore dedups:
-   one lifecycle event per room within a short window, whichever copy lands
-   first, typed or carried.
-
-   The carried copy is intercepted before the base's sys-pill handling so no
-   empty pill is ever written — the lifecycle handler writes its own pill, as
-   it always did.
-   ───────────────────────────────────────────────────────────────────────────── */
-function r7lLog(what, data, level) {
-  try { log('r7l_' + what, data || {}, level || 'info'); } catch (_) {}
-}
-
-var R7_LC_TYPES = { 'room-left': 1, 'room-rejoined': 1, 'grant-revoke': 1, 'grant-restore': 1 };
-
-function r7LcTwin(m) {
-  var t = {
-    type: 'sys-pill', lifecycle: m.type, room: m.room,
-    pillId: 'lc-' + uid(), text: ''
-  };
-  if (m.type === 'grant-restore') { t.k = m.k; t.tid = m.tid; t.tok = m.tok; t.exp = m.exp; }
-  return t;
-}
-
-/* ── Sender side — every lifecycle send gets a carried twin ───────────────── */
-(function () {
-  var _r7lRelaySend = relaySend;
-  relaySend = function (m) {
-    var r = _r7lRelaySend.apply(this, arguments);
+    var r = _pEnterRoom.apply(this, arguments);
     try {
-      if (m && R7_LC_TYPES[m.type]) {
-        _r7lRelaySend.call(this, r7LcTwin(m));
-        r7lLog('twin_sent', { of: m.type }, 'ok');
-      }
-    } catch (e) { r7lLog('twin_send_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-(function () {
-  var _r7lListenSend = LISTEN.send;
-  LISTEN.send = function (roomId, m) {
-    var r = _r7lListenSend.apply(this, arguments);
-    try {
-      if (m && R7_LC_TYPES[m.type]) {
-        _r7lListenSend.call(this, roomId, r7LcTwin(m));
-        r7lLog('twin_sent_bg', { of: m.type }, 'ok');
-      }
-    } catch (e) { r7lLog('twin_send_bg_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-/* ── One event per room per window, whichever copy lands first ────────────── */
-var _r7LcSeen = {};
-(function () {
-  var _r7lSignal = onLifecycleSignal;
-  onLifecycleSignal = function (roomId, d) {
-    try {
-      if (d && R7_LC_TYPES[d.type]) {
-        var key = (roomId || d.room || '') + '|' + d.type;
-        var now = Date.now();
-        if (_r7LcSeen[key] && now - _r7LcSeen[key] < 5000) {
-          r7lLog('dup_dropped', { type: d.type }, 'ok');
-          return true;
-        }
-        _r7LcSeen[key] = now;
-      }
+      var room = roomById(id);
+      if (room) { clearRoomEvents(room); renderHome(); }
+      sendWorkerContext();
     } catch (_) {}
-    return _r7lSignal.apply(this, arguments);
+    return r;
   };
 })();
 
-/* ── Receiver side — carried copies routed to the lifecycle handler ───────── */
-(function () {
-  var _r7lRelay = handleRelay;
-  handleRelay = function (d) {
-    try {
-      if (d && d.type === 'sys-pill' && d.lifecycle && R7_LC_TYPES[d.lifecycle]) {
-        var clone = {}; for (var k in d) clone[k] = d[k];
-        clone.type = d.lifecycle;
-        onLifecycleSignal(S.roomId, clone);
-        r7lLog('twin_received', { of: d.lifecycle }, 'ok');
-        return; /* the base must not write an empty pill for the carrier copy */
-      }
-    } catch (e) { r7lLog('twin_rx_failed', { e: String(e && e.message || e) }, 'error'); }
-    return _r7lRelay.apply(this, arguments);
-  };
-})();
-
-(function () {
-  var _r7lListen = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    try {
-      if (d && d.type === 'sys-pill' && d.lifecycle && R7_LC_TYPES[d.lifecycle]) {
-        var clone = {}; for (var k in d) clone[k] = d[k];
-        clone.type = d.lifecycle;
-        onLifecycleSignal(roomId, clone);
-        r7lLog('twin_received_bg', { of: d.lifecycle }, 'ok');
-        return;
-      }
-    } catch (e) { r7lLog('twin_rx_bg_failed', { e: String(e && e.message || e) }, 'error'); }
-    return _r7lListen.apply(this, arguments);
-  };
-})();
-
-
-/* ═══════════ R7 PART · p6-r7-pwa.js ═══════════ */
-/* @contract
-   replaces:
-   wraps: enterRoom, ensureNotifPerm, handleRelay, LISTEN.handle
-   adds: r7pLog, R7_SW_URL, R7_RELAY_HTTP, r7SwReg, r7RegisterSW, r7VapidKey, r7FetchVapid, r7EnsurePush, r7PostSubscribe, r7SubscribeAllRooms, r7SyncSwRegistry, r7NoteSeq, r7RouteParam, _r7pEnter, _r7pNotifPerm, _r7pRelay, _r7pListen
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   R7 · PWA SHELL AND OS PUSH.
-
-   The manifest and the iOS meta tags are in the document head at build time —
-   the browser decides install eligibility during parse, which is why they are
-   not here (graveyard 2.1: script injection is why install was never offered).
-   This part does the runtime half: register the service worker, subscribe to
-   push per room session once notification permission is granted, keep the
-   worker's room registry current so a bare wake can find out what it missed,
-   and route a notification tap into the right room.
-
-   Push carries no payload by relay design — the service worker receives a
-   bare wake, reads its room registry, asks the relay's history endpoint what
-   is new, and raises per-room notifications. A tap opens the app with a
-   ?room= parameter; the routing below acts on it exactly as a tap on the
-   in-page notification always has — user intent, then the parameter is
-   stripped so a plain reload never re-opens a room (the cold-boot tripwire
-   stands).
-
-   iOS receives push only as an installed home-screen app, installed from
-   Safari — Chrome on iOS cannot, by Apple's platform rule. Not a defect.
-   ───────────────────────────────────────────────────────────────────────────── */
-function r7pLog(what, data, level) {
-  try { log('r7p_' + what, data || {}, level || 'info'); } catch (_) {}
+/* ── The home screen ─────────────────────────────────────────────────────── */
+function homeCards() {
+  var m = homeDismissed();
+  return (S.rooms || []).filter(function (r) {
+    if (r.deletedAt || r.muted) return false;
+    var t = waitingTotal(r);
+    if (!t) return false;
+    var at = m[r.id];
+    return (typeof at !== 'number') || t > at;
+  }).sort(function (a, b) { return (b.lastAt || b.createdAt) - (a.lastAt || a.createdAt); });
 }
 
-var R7_SW_URL = './tb-sw.js';
-var R7_RELAY_HTTP = RELAY_WS.replace(/^wss:/, 'https:');
-var r7SwReg = null;
-var r7VapidKey = null;
-
-function r7RegisterSW() {
+function renderHome() {
   try {
-    if (location.protocol !== 'https:') { r7pLog('sw_skipped_protocol', { p: location.protocol }, 'warn'); return Promise.resolve(null); }
-    if (!('serviceWorker' in navigator)) { r7pLog('sw_unsupported', {}, 'warn'); return Promise.resolve(null); }
-    return navigator.serviceWorker.register(R7_SW_URL).then(function (reg) {
-      r7SwReg = reg;
-      r7pLog('sw_registered', { scope: reg.scope }, 'ok');
-      r7SyncSwRegistry();
-      return reg;
-    }).catch(function (e) { r7pLog('sw_register_failed', { e: String(e) }, 'error'); return null; });
-  } catch (e) { r7pLog('sw_register_threw', { e: String(e && e.message || e) }, 'error'); return Promise.resolve(null); }
+    var host = ensureHomeHost();
+    if (!host) { rcLog('home_no_host', {}, 'warn'); return; }
+    var cards = homeCards();
+    var events = eventCards();
+
+    var h = '<div class="home-sum">' + esc(homeSummaryText()) + '</div>';
+    cards.forEach(function (r) { h += roomCardHtml(r, 'home'); });
+    events.forEach(function (x) {
+      h += '<div class="home-ev" data-evroom="' + esc(x.room.id) + '">' +
+           '<span class="he-t">' + esc(x.ev.text) + '</span>' +
+           '<span class="he-w">' + esc(fmtDate(x.ev.ts) + ' ' + fmtTime(x.ev.ts)) + '</span>' +
+           '</div>';
+    });
+    host.innerHTML = h;
+
+    var wired = wireRoomCards(host);
+    host.querySelectorAll('[data-evroom]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.dataset.evroom;
+        pwaLog('event_tapped', { room: String(id).slice(-6) }, 'ok');
+        try { enterRoom(id); } catch (e) { pwaLog('event_open_failed', { e: String(e && e.message || e) }, 'error'); }
+      });
+    });
+    rcLog('home_rendered', { cards: cards.length, events: events.length, wired: wired || 0 }, 'ok');
+  } catch (e) {
+    rcLog('home_render_failed', { e: String(e && e.message || e) }, 'error');
+  }
 }
 
-function r7FetchVapid() {
-  /* The deployed relay answers the key ask inside a session: POST
-     {type:'vapid'} with the usual app/session/client addressing. Any live
-     room's session serves; with no rooms there is nothing to subscribe. */
-  if (r7VapidKey) return Promise.resolve(r7VapidKey);
-  var room = S.rooms.filter(function (r) { return !r.deletedAt; })[0];
-  if (!room) { r7pLog('vapid_no_rooms', {}, 'warn'); return Promise.resolve(null); }
-  return fetch(R7_RELAY_HTTP + '?app=' + encodeURIComponent(RELAY_APP) +
-      '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId), {
+/* ── The left panel's clock is the way home ──────────────────────────────── */
+function wireClockNavigation() {
+  try {
+    var panel = $('left-panel'); if (!panel || !panel.querySelector) return false;
+    var clock = $('left-clock');
+    if (!clock) { pwaLog('no_clock', {}, 'warn'); return false; }
+    if (clock.dataset && clock.dataset.pwaWired) return true;
+    clock.style.cursor = 'pointer';
+    clock.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      pwaLog('clock_home', {}, 'ok');
+      try { closePanel(); showScreen('s1'); renderHome(); } catch (e) { pwaLog('clock_home_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+    if (clock.dataset) clock.dataset.pwaWired = '1';
+
+    /* The card that used to do this is redundant weight now. */
+    var card = $('app-info-card');
+    if (card && card.parentNode && card.parentNode.remove) card = card.parentNode;
+    if (card && card.remove) { card.remove(); pwaLog('brand_card_removed', {}, 'ok'); }
+    return true;
+  } catch (e) { pwaLog('clock_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── PWA ─────────────────────────────────────────────────────────────────── */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) { pwaLog('no_sw_support', {}, 'warn'); return Promise.resolve(null); }
+  return navigator.serviceWorker.register('tb-sw.js', { scope: './' }).then(function (reg) {
+    PWA.swReg = reg;
+    pwaLog('sw_registered', { scope: reg.scope }, 'ok');
+    return reg;
+  }).catch(function (e) {
+    pwaLog('sw_register_failed', { e: String(e && e.message || e) }, 'error');
+    return null;
+  });
+}
+
+function relayHttpUrl(roomId) {
+  var base = String(RELAY_WS || '').replace(/^ws/, 'http');
+  return base + '?app=' + encodeURIComponent(RELAY_APP) +
+         '&session=' + encodeURIComponent(roomId) +
+         '&client=' + encodeURIComponent(deviceId);
+}
+
+/* Subscribing is per room, because the relay addresses sessions and a room is a
+   session. A device with several rooms subscribes to each. */
+function subscribeToPush() {
+  if (!PWA.swReg || !PWA.swReg.pushManager) { pwaLog('no_push_manager', {}, 'warn'); return Promise.resolve(false); }
+  var roomId = S.roomId || ((S.rooms && S.rooms[0]) ? S.rooms[0].id : null);
+  if (!roomId) return Promise.resolve(false);
+
+  return fetch(relayHttpUrl(roomId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: 'vapid' })
-  }).then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      r7VapidKey = d && d.vapid || null;
-      if (d && d.push === false) r7pLog('vapid_push_disabled', {}, 'warn');
-      r7pLog(r7VapidKey ? 'vapid_ok' : 'vapid_missing', {}, r7VapidKey ? 'ok' : 'warn');
-      return r7VapidKey;
-    }).catch(function (e) { r7pLog('vapid_fetch_failed', { e: String(e) }, 'warn'); return null; });
-}
+  }).then(function (r) { return r.json(); }).then(function (info) {
+    if (!info || !info.vapid) { pwaLog('no_vapid', {}, 'warn'); return false; }
+    PWA.vapid = info.vapid;
+    if (!info.push) pwaLog('relay_push_disabled', {}, 'warn');
 
-function r7PostSubscribe(roomId, sub) {
-  return fetch(R7_RELAY_HTTP + '?app=' + encodeURIComponent(RELAY_APP) +
-      '&session=' + encodeURIComponent(roomId) + '&client=' + encodeURIComponent(deviceId), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'subscribe', subscription: sub })
-  }).then(function (r) {
-    r7pLog(r.ok ? 'sub_posted' : 'sub_post_rejected', { room: roomId, status: r.status }, r.ok ? 'ok' : 'warn');
-    return r.ok;
-  }).catch(function (e) { r7pLog('sub_post_failed', { room: roomId, e: String(e) }, 'warn'); return false; });
-}
-
-function r7SubscribeAllRooms(sub) {
-  var subJson = sub.toJSON ? sub.toJSON() : sub;
-  var jobs = [];
-  S.rooms.forEach(function (r) { if (!r.deletedAt) jobs.push(r7PostSubscribe(r.id, subJson)); });
-  return Promise.all(jobs);
-}
-
-function r7EnsurePush() {
-  try {
-    if (!r7SwReg || !window.Notification || Notification.permission !== 'granted') return Promise.resolve(false);
-    if (!('pushManager' in r7SwReg)) { r7pLog('push_unsupported', {}, 'warn'); return Promise.resolve(false); }
-    return r7FetchVapid().then(function (key) {
-      if (!key) return false;
-      return r7SwReg.pushManager.getSubscription().then(function (existing) {
+    return Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') { pwaLog('permission_denied', { perm: perm }, 'warn'); return false; }
+      return PWA.swReg.pushManager.getSubscription().then(function (existing) {
         if (existing) return existing;
-        var bytes = (function (s) {
-          s = String(s).replace(/-/g, '+').replace(/_/g, '/');
-          while (s.length % 4) s += '=';
-          var bin = atob(s), out = new Uint8Array(bin.length);
-          for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-          return out;
-        })(key);
-        return r7SwReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
-      }).then(function (sub) {
-        if (!sub) return false;
-        r7pLog('push_subscribed', {}, 'ok');
-        return r7SubscribeAllRooms(sub).then(function () { return true; });
+        return PWA.swReg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: PWA.vapid
+        });
       });
-    }).catch(function (e) { r7pLog('push_subscribe_failed', { e: String(e) }, 'warn'); return false; });
-  } catch (e) { r7pLog('push_threw', { e: String(e && e.message || e) }, 'error'); return Promise.resolve(false); }
+    }).then(function (sub) {
+      if (!sub) return false;
+      var jobs = (S.rooms || []).filter(function (r) { return !r.deletedAt; }).map(function (r) {
+        return fetch(relayHttpUrl(r.id), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'subscribe', subscription: JSON.parse(JSON.stringify(sub)) })
+        });
+      });
+      return Promise.all(jobs).then(function () {
+        PWA.subscribed = true;
+        pwaLog('subscribed', { rooms: jobs.length }, 'ok');
+        return true;
+      });
+    });
+  }).catch(function (e) {
+    pwaLog('subscribe_failed', { e: String(e && e.message || e) }, 'error');
+    return false;
+  });
 }
 
-/* The worker's map of the world: which sessions to ask about on a bare wake,
-   what to call them, and where each one's read position is. */
-function r7SyncSwRegistry() {
+/* What the worker needs in order to count for itself: where the relay is, who
+   this device is, and which rooms to ask about with a mark of what has already
+   been seen. No names, no text, no content of any kind. */
+/* The relay numbers everything it stores, and its history endpoint takes a mark
+   of where to resume. Recording the highest number seen per room is what lets
+   the worker ask "what have I missed" rather than "what exists". */
+function noteSeq(roomId, d) {
   try {
-    if (!r7SwReg || !r7SwReg.active) return;
-    var seqs = lsGet('tb_r7_seq', {}) || {};
-    var rooms = S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) {
-      return { id: r.id, title: roomTitle(r), muted: !!r.muted, since: seqs[r.id] || 0 };
-    });
-    r7SwReg.active.postMessage({
-      tb: 'registry', app: RELAY_APP, relay: R7_RELAY_HTTP,
-      client: deviceId, appUrl: location.pathname.split('/').pop(), rooms: rooms
-    });
-    r7pLog('registry_synced', { n: rooms.length }, 'ok');
-  } catch (e) { r7pLog('registry_failed', { e: String(e && e.message || e) }, 'error'); }
+    if (!d || typeof d.seq !== 'number') return;
+    var r = roomById(roomId); if (!r) return;
+    if (!r.lastSeenSeq || d.seq > r.lastSeenSeq) { r.lastSeenSeq = d.seq; saveRooms(); }
+  } catch (_) {}
 }
 
-/* Read position per room, taken from the relay's own sequence stamps. */
-function r7NoteSeq(roomId, d) {
+function sendWorkerContext() {
   try {
-    if (!d || typeof d.seq !== 'number' || !roomId) return;
-    var seqs = lsGet('tb_r7_seq', {}) || {};
-    if ((seqs[roomId] || 0) < d.seq) { seqs[roomId] = d.seq; lsSet('tb_r7_seq', seqs); }
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return false;
+    var ctx = {
+      relay: RELAY_WS,
+      app: RELAY_APP,
+      client: deviceId,
+      rooms: (S.rooms || []).filter(function (r) { return !r.deletedAt && !r.muted; })
+        .map(function (r) { return { id: r.id, since: r.lastSeenSeq || 0 }; })
+    };
+    navigator.serviceWorker.controller.postMessage({ type: 'tb-context', context: ctx });
+    pwaLog('context_sent', { rooms: ctx.rooms.length }, 'ok');
+    return true;
+  } catch (e) { pwaLog('context_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function promptInstall() {
+  if (!PWA.installEvent) { pwaLog('no_install_prompt', {}, 'warn'); return false; }
+  PWA.installEvent.prompt();
+  PWA.installEvent.userChoice.then(function (c) { pwaLog('install_choice', { outcome: c && c.outcome }, 'ok'); });
+  PWA.installEvent = null;
+  return true;
+}
+
+if (typeof document !== 'undefined') {
+  try {
+    var st = document.createElement('style');
+    st.textContent = PWA_CSS;
+    document.head.appendChild(st);
+
+    window.addEventListener('beforeinstallprompt', function (ev) {
+      ev.preventDefault();
+      PWA.installEvent = ev;
+      pwaLog('install_available', {}, 'ok');
+    });
+
+    /* A push arriving while a window is open but hidden asks it to reconcile,
+       so returning to it is already current. */
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener('message', function (ev) {
+        if (!ev || !ev.data) return;
+        if (ev.data.type === 'tb-push' || ev.data.type === 'tb-notification-open') {
+          pwaLog('worker_message', { type: ev.data.type }, 'ok');
+          try { renderHome(); renderPanel(); } catch (_) {}
+        }
+      });
+    }
+  } catch (e) { pwaLog('install_setup_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  setTimeout(function () {
+    try {
+      wireClockNavigation();
+      registerServiceWorker().then(function (reg) {
+        if (!reg) return;
+        subscribeToPush();
+        sendWorkerContext();
+      });
+    } catch (_) {}
+  }, 800);
+}
+
+
+/* ═══════════ GAP PART · B2-ribbon.js ═══════════ */
+/* @contract
+   wraps: CALL.mount, CALL.teardown, enterRoom
+   adds: RIBBON, ribLog, buildRibbonLayout, callDurationLabel, startCallClock, stopCallClock, RIBBON_CSS, _rbMount, _rbTeardown, _rbRetryEnter
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 7c · CALL SURFACE
+
+   THE STRIP. The call controls cluster in the centre with fixed positions
+   rather than shifting with state. The microphone never moves. Phone and video
+   sit beside it, and the hang-up sits beside the video. A voice call shows the
+   microphone and the hang-up; a video call shows the microphone, the camera and
+   the hang-up.
+
+   Three reasons, all of them the point: the video control moves away from the
+   room menu, which are currently close enough to hit by accident; every control
+   gets one place to live instead of appearing where the previous state left a
+   gap; and the left side is freed for the name of the person being spoken to.
+
+   THE TIMER. It was already running on both sides — and it was being
+   overwritten. Whenever the other person's microphone was live the same slot
+   printed "Speaking…", which during an actual conversation is most of the time,
+   so the duration was almost never on screen. The receiver appeared to have no
+   timer because in practice nobody did. The duration now holds that slot
+   unconditionally and the speaking state is shown by the presence dot, which
+   already exists for exactly this kind of signal.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var RIBBON = { clock: null, built: false };
+
+function ribLog(what, data, level) {
+  try { log('rib_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var RIBBON_CSS =
+  /* Both side zones must grow equally or the centre is not the centre. The
+     first attempt collapsed the right zone — its buttons having moved into the
+     middle — and the cluster drifted by however wide the name happened to be,
+     which is why every platform looked different. Equal growth on both sides
+     centres the cluster regardless of what either side contains. */
+  '.ribbon{position:relative}' +
+  '.ribbon .rz-left{flex:1 1 0;min-width:0}' +
+  '.ribbon .rz-right{flex:1 1 0;min-width:0;justify-content:flex-end}' +
+  '.ribbon .rz-center{display:flex;align-items:center;gap:14px;flex:0 0 auto}' +
+  '.ribbon .rz-slot{width:34px;flex:0 0 34px}' +
+  /* The name yields rather than pushing the controls off centre. */
+  '.ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  /* Call controls live in the centre, beside the microphone, and keep their
+     places whether or not a call is running. */
+  '.rz-center .rz-callbtn{background:none;border:none;cursor:pointer;line-height:0;color:var(--ink-mid);padding:0;display:flex;align-items:center;justify-content:center;width:34px;flex-shrink:0}' +
+  '#scr-room.st-phone .rz-center #btn-call,#scr-room.st-phone .rz-center #btn-video,' +
+  '#scr-room.st-video .rz-center #btn-call,#scr-room.st-video .rz-center #btn-video{display:none}' +
+  '#scr-room.st-phone .rz-slot.cam-slot{display:none}' +
+  '.rz-center #rb-hangup{display:none}' +
+  '#scr-room.st-phone .rz-center #rb-hangup,#scr-room.st-video .rz-center #rb-hangup{display:flex}' +
+  /* The duration is always readable, never replaced. */
+  '.rz-timer{display:none}' +
+  '#scr-room.st-phone .rz-timer,#scr-room.st-video .rz-timer{display:inline}' +
+  '.presence-dot.speaking{background:var(--teal);animation:tb-speak 1s ease-in-out infinite}' +
+  '@keyframes tb-speak{0%,100%{opacity:.45}50%{opacity:1}}';
+
+/* Moves the call controls into the centre cluster, in fixed order:
+   microphone · phone · video · hang-up. */
+function buildRibbonLayout() {
+  try {
+    /* Cheap no-op once genuinely complete — this guard is correct and was
+       never the bug. The bug was that it used to get set to true even when
+       NOT everything succeeded (see below), permanently orphaning whatever
+       control missed the one pass. Restored here; only the completion check
+       beneath it changed. */
+    if (RIBBON.built) return true;
+    var centre = document.querySelector('#room-ribbon .rz-center');
+    if (!centre || !centre.appendChild) { ribLog('no_centre', {}, 'warn'); return false; }
+
+    var ids = ['btn-call', 'btn-video', 'rb-hangup'];
+    var moved = 0;
+    ids.forEach(function (id) {
+      var el = $(id);
+      if (!el) { ribLog('missing_control', { id: id }, 'warn'); return; }
+      /* No parentNode tracking needed for safety here: appendChild on an
+         element that is already this parent's child is a defined no-op
+         re-order, not a duplication, and classList.add on a class already
+         present does nothing. Retrying after a partial failure is therefore
+         safe by the platform's own idempotency, not by anything bespoke here. */
+      if (id !== 'rb-hangup') el.classList.add('rz-callbtn');
+      centre.appendChild(el);
+      moved++;
+    });
+
+    /* THE BUG THIS REPLACES: "built" used to latch true on the first call
+       regardless of whether every element was actually found and moved. On a
+       slow or cold load, one control (commonly btn-video, since it renders
+       later than the mic) would miss the only pass and stay orphaned in the
+       base's original position forever — unstyled, unsized, uncentred. That
+       produced exactly the crowded/misaligned ribbon seen on iPhone.
+       Completion is now judged by what actually moved, not by having been
+       called once, and an incomplete pass is retried rather than abandoned. */
+    var complete = (moved === ids.length);
+    RIBBON.built = complete;
+    ribLog('layout_built', { moved: moved, of: ids.length, complete: complete }, complete ? 'ok' : 'warn');
+    return complete;
+  } catch (e) { ribLog('layout_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* A single deferred call is what caused this: if the room screen was not yet
+   rendered at that moment, there was no second chance. Retried on room entry
+   — cheap, idempotent, and covers slow loads, cold PWA launches, and a call
+   screen that mounts after the ribbon does. */
+(function () {
+  var _rbRetryEnter = enterRoom;
+  enterRoom = function () {
+    var r = _rbRetryEnter.apply(this, arguments);
+    try { if (!RIBBON.built) buildRibbonLayout(); } catch (_) {}
+    return r;
+  };
+})();
+
+function callDurationLabel(startTs, now) {
+  var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
+  var m = Math.floor(s / 60);
+  return m + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+/* The duration owns its slot. Connection trouble is the one thing worth saying
+   instead, because it explains silence; speaking does not, and has the dot. */
+function startCallClock() {
+  stopCallClock();
+  RIBBON.clock = setInterval(function () {
+    try {
+      if (!CALL.active) { stopCallClock(); return; }
+      var el = $('rz-timer'); if (!el) return;
+      el.textContent = CALL.connBad ? 'Reconnecting…' : callDurationLabel(CALL.startTs);
+      var dot = $('presence');
+      if (dot) dot.classList.toggle('speaking', !!(typeof _remoteMicOn !== 'undefined' && _remoteMicOn));
+    } catch (_) {}
+  }, 1000);
+  ribLog('clock_started', {}, 'ok');
+}
+
+function stopCallClock() {
+  if (RIBBON.clock) { clearInterval(RIBBON.clock); RIBBON.clock = null; }
+  try {
+    var dot = $('presence'); if (dot) dot.classList.remove('speaking');
   } catch (_) {}
 }
 
 (function () {
-  var _r7pRelay = handleRelay;
-  handleRelay = function (d) {
-    try { r7NoteSeq(S.roomId, d); } catch (_) {}
-    return _r7pRelay.apply(this, arguments);
-  };
-})();
-
-(function () {
-  var _r7pListen = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    try { r7NoteSeq(roomId, d); } catch (_) {}
-    return _r7pListen.apply(this, arguments);
-  };
-})();
-
-/* Entering a room is a user gesture — the moment iOS allows a subscription —
-   and the moment the registry is worth refreshing. */
-(function () {
-  var _r7pEnter = enterRoom;
-  enterRoom = function (id) {
-    var r = _r7pEnter.apply(this, arguments);
-    try { r7EnsurePush(); r7SyncSwRegistry(); } catch (_) {}
-    return r;
-  };
-})();
-
-(function () {
-  var _r7pNotifPerm = ensureNotifPerm;
-  ensureNotifPerm = function () {
-    var r = _r7pNotifPerm.apply(this, arguments);
+  var _rbMount = CALL.mount;
+  CALL.mount = function (room) {
+    var r = _rbMount.apply(this, arguments);
     try {
-      if (window.Notification && Notification.permission === 'granted') r7EnsurePush();
-    } catch (_) {}
+      buildRibbonLayout();
+      /* Both sides, without exception — the caller and the person answering are
+         equally on a call and the surface should say so identically. */
+      var el = $('rz-timer');
+      if (el) el.textContent = callDurationLabel(this.startTs);
+      startCallClock();
+      ribLog('call_surface_up', { kind: this.kind, caller: !!this.caller }, 'ok');
+    } catch (e) { ribLog('mount_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
   };
 })();
 
-/* A notification tap carries the room in the URL. Acting on it is acting on a
-   tap; the parameter is then stripped so a reload is a cold boot again. */
-function r7RouteParam() {
+(function () {
+  var _rbTeardown = CALL.teardown;
+  CALL.teardown = function () {
+    stopCallClock();
+    return _rbTeardown.apply(this, arguments);
+  };
+})();
+
+if (typeof document !== 'undefined') {
   try {
-    var m = /[?&]room=([^&]+)/.exec(location.search || '');
-    if (!m) return false;
-    var id = decodeURIComponent(m[1]);
-    try { history.replaceState(null, '', location.pathname + location.hash); } catch (_) {}
-    var room = roomById(id);
-    if (!room || room.deletedAt) { r7pLog('route_unknown_room', { id: id }, 'warn'); return false; }
-    r7pLog('route_notification_tap', { id: id }, 'ok');
-    closePanel(); enterRoom(id);
-    return true;
-  } catch (e) { r7pLog('route_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+    var st = document.createElement('style');
+    st.textContent = RIBBON_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+  setTimeout(function () { try { buildRibbonLayout(); } catch (_) {} }, 900);
 }
-
-document.addEventListener('DOMContentLoaded', function () {
-  try {
-    r7RegisterSW().then(function () { r7EnsurePush(); });
-    r7RouteParam();
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', function (e) {
-        var d = e.data;
-        if (d && d.tb === 'open-room' && d.roomId && roomById(d.roomId)) {
-          r7pLog('route_notification_tap', { id: d.roomId, via: 'focus' }, 'ok');
-          closePanel(); enterRoom(d.roomId);
-        }
-      });
-    }
-  } catch (e) { r7pLog('boot_failed', { e: String(e && e.message || e) }, 'error'); }
-});
-
 
 </script>
 </body>
