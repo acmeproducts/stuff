@@ -1,7 +1,7 @@
-<!-- v5.8.2.35 -->
+<!-- v5.8.2.36 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.2 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.3 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -413,3 +413,64 @@ Rollback executed. `bridge-turn24-base.html` removed. Baseline reverts to
 (not just a proof), ships finding 2's grid rewrite with the device gate treated
 as mandatory, and needs the owner's DevTools reading for finding 3 before
 attempting another blind fix.
+
+## Release 7 attempt 2 findings — RESOLVED, deployed as attempt 3 · Aug 10 2026
+
+All three findings from the attempt-2 rollback above, plus a fourth raised
+during the same testing session, are fixed, sourced, proven in the harness
+before deployment, and mutation-tested. Deployed to `bridge-turn24-base.html`
+and `tb-sw.js`.
+
+**1. Hot mic / stuck-on-home — fixed.** `S.roomId` is now cleared when
+navigating home via the clock, reusing the base's own existing
+"leave a room" pattern (`S.roomId=null`) rather than inventing a new one.
+The exact harness reproduction from the rollback entry now confirms
+`enterRoom` fires and the screen reaches `'room'` when a call is answered.
+
+**2. Ribbon crowding on iPhone — two real causes found, not one.** First: the
+prior flex-grow counterweight mechanism was replaced with CSS Grid
+(`1fr auto 1fr`), removing a real, documented cross-engine divergence between
+Blink and WebKit that flex-grow is subject to and Grid's `fr` unit is not.
+Second, and the more likely actual cause on real hardware: the app opts into
+`viewport-fit=cover` (iOS edge-to-edge rendering under the notch / Dynamic
+Island) and reserved zero `env(safe-area-inset-*)` padding anywhere in the
+codebase — confirmed by grep, not assumed. Pixel arithmetic across the full
+real device range (360–428px CSS width) was computed before either fix:
+content needs 244px in the worst case, every real device has 116px+ to
+spare, which rules out "doesn't fit" as an explanation and points at safe-area
+clipping instead. Both fixes shipped together.
+
+**3. PWA install — sourced, not guessed.** Chrome's own developer
+documentation states a no-op `fetch` handler is specifically detected and
+disqualified, citing widespread abuse of empty handlers added purely to game
+the requirement. The handler shipped in the previous attempt was exactly that
+pattern (`return;` with no response). Fixed to call
+`event.respondWith(fetch(event.request))` — an active passthrough that
+satisfies the real requirement while still caching nothing, preserving the
+original no-stale-cache design intent.
+
+**4. iOS credential/room loss on install — new finding, fixed with a real,
+documented mechanism.** Confirmed: the Cache Storage API is shared between a
+Safari tab and an installed home-screen app even though localStorage, cookies
+and IndexedDB are not — a known, documented technique already used in
+production by other PWAs hitting this exact wall. Implemented as a one-time
+bridge: a browser tab periodically writes its meaningful local state (room
+list, all credential and grant keys, found by reading every localStorage call
+site in the codebase) into a fixed Cache Storage entry; an installed app, only
+on first boot and only if it has no room data of its own, reads it, applies
+it, and deletes it. Proven end-to-end in a two-instance harness sharing one
+cache store, simulating the real cross-context guarantee. Both dangerous
+failure modes explicitly tested: an install with real data can never be
+overwritten by a stale rescue copy, and the entry is genuinely deleted, not
+merely blocked from reapplying on the same instance — the first version of
+that second test passed for the wrong reason (an unrelated guard was
+accidentally masking a broken delete), was caught, and was corrected to check
+deletion directly before being trusted.
+
+All four: modeled and proven in a harness before any live push, mutation-
+tested to confirm the fix is actually load-bearing, full suite green except
+one pre-existing, unrelated, already-logged issue (missed-activity double-
+count) which remains untouched and open.
+
+Device gate is the only thing this cannot self-certify. Awaiting confirmation
+on real hardware, all four items, iOS specifically via Safari.
