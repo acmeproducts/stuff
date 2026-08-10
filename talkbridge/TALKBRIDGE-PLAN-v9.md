@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.14.0 -->
-# TALKBRIDGE MASTER PLAN v10.14.0
+<!-- TALKBRIDGE-PLAN v10.15.0 -->
+# TALKBRIDGE MASTER PLAN v10.15.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -815,6 +815,13 @@ as the caller.
 
 ## 6b · BACKLOG — none. Everything is scheduled.
 
+- **Missed-activity double-count.** A message arriving while the app is hidden
+  is counted twice. Pre-existing, predates release 7, unrelated to it. Has been
+  carried as "known/open/untouched" in the graveyard across many attempts
+  without ever being scheduled — recorded here so it is not lost again.
+  Reproduced by the standing test `roomcard › a message arriving with the app
+  hidden counts once, not twice`, which currently fails by design.
+
 Every item previously parked here now has a release number in §5. The backlog
 exists as a concept only for things not yet raised.
 
@@ -1245,6 +1252,28 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
+— the new `build/rollback.mjs` in action, and the first rollback in this project
+that did not 404 every existing invite link. Attempt 5 deployed.
+
+**The iOS install path is now fixed for the real-world route the owner
+described,** which the previous bridge did not handle: Chrome → copy/paste →
+Safari → Add to Home Screen is THREE storage partitions, not two. The previous
+bridge only wrote on a 2-second delay and a 30-second timer, and only once
+meaningful state existed — so a user who opened a link and installed
+immediately had nothing written at all, and the install landed empty. The
+invite payload is now captured the instant it is parsed (hooked at
+`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
+it. The URL is the only thing that survives all three partitions, because the
+user physically carries it across by copy/paste — so the invite itself, not a
+storage snapshot, is what the bridge preserves.
+
+Also added: the **missed-activity double-count is now on the backlog** (§6b)
+rather than only living in graveyard notes.
+
+258 tests, 257 passing; the one failure is that backlogged double-count, failing
+by design. **Not yet device-confirmed.**
+
 **v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
 `bridge-turn24-base.html` (build id stamped, byte-verified).
 
@@ -1306,6 +1335,28 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
+— the new `build/rollback.mjs` in action, and the first rollback in this project
+that did not 404 every existing invite link. Attempt 5 deployed.
+
+**The iOS install path is now fixed for the real-world route the owner
+described,** which the previous bridge did not handle: Chrome → copy/paste →
+Safari → Add to Home Screen is THREE storage partitions, not two. The previous
+bridge only wrote on a 2-second delay and a 30-second timer, and only once
+meaningful state existed — so a user who opened a link and installed
+immediately had nothing written at all, and the install landed empty. The
+invite payload is now captured the instant it is parsed (hooked at
+`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
+it. The URL is the only thing that survives all three partitions, because the
+user physically carries it across by copy/paste — so the invite itself, not a
+storage snapshot, is what the bridge preserves.
+
+Also added: the **missed-activity double-count is now on the backlog** (§6b)
+rather than only living in graveyard notes.
+
+258 tests, 257 passing; the one failure is that backlogged double-count, failing
+by design. **Not yet device-confirmed.**
 
 **v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
 `bridge-turn24-base.html` (build id stamped, byte-verified).
@@ -1401,6 +1452,28 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
+— the new `build/rollback.mjs` in action, and the first rollback in this project
+that did not 404 every existing invite link. Attempt 5 deployed.
+
+**The iOS install path is now fixed for the real-world route the owner
+described,** which the previous bridge did not handle: Chrome → copy/paste →
+Safari → Add to Home Screen is THREE storage partitions, not two. The previous
+bridge only wrote on a 2-second delay and a 30-second timer, and only once
+meaningful state existed — so a user who opened a link and installed
+immediately had nothing written at all, and the install landed empty. The
+invite payload is now captured the instant it is parsed (hooked at
+`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
+it. The URL is the only thing that survives all three partitions, because the
+user physically carries it across by copy/paste — so the invite itself, not a
+storage snapshot, is what the bridge preserves.
+
+Also added: the **missed-activity double-count is now on the backlog** (§6b)
+rather than only living in graveyard notes.
+
+258 tests, 257 passing; the one failure is that backlogged double-count, failing
+by design. **Not yet device-confirmed.**
 
 **v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
 `bridge-turn24-base.html` (build id stamped, byte-verified).
@@ -1632,6 +1705,28 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
+— the new `build/rollback.mjs` in action, and the first rollback in this project
+that did not 404 every existing invite link. Attempt 5 deployed.
+
+**The iOS install path is now fixed for the real-world route the owner
+described,** which the previous bridge did not handle: Chrome → copy/paste →
+Safari → Add to Home Screen is THREE storage partitions, not two. The previous
+bridge only wrote on a 2-second delay and a 30-second timer, and only once
+meaningful state existed — so a user who opened a link and installed
+immediately had nothing written at all, and the install landed empty. The
+invite payload is now captured the instant it is parsed (hooked at
+`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
+it. The URL is the only thing that survives all three partitions, because the
+user physically carries it across by copy/paste — so the invite itself, not a
+storage snapshot, is what the bridge preserves.
+
+Also added: the **missed-activity double-count is now on the backlog** (§6b)
+rather than only living in graveyard notes.
+
+258 tests, 257 passing; the one failure is that backlogged double-count, failing
+by design. **Not yet device-confirmed.**
 
 **v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
 `bridge-turn24-base.html` (build id stamped, byte-verified).
