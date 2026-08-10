@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.10.0 -->
-# TALKBRIDGE MASTER PLAN v10.10.0
+<!-- TALKBRIDGE-PLAN v10.11.0 -->
+# TALKBRIDGE MASTER PLAN v10.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -1236,6 +1236,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 9 · CHANGE LOG
+
+**v10.11.0 · 2026-08-10.** Release 7 rebuild **attempt 1 failed device gate**
+and was rolled back same day; graveyard 2.2. Two failures: the clock tap opened
+the credentials/about modal when the removed card's tap goes to the start
+screen (the handler was one line in the base — built from assumption, the exact
+thing the standard forbids), and the ribbon centre cluster crowded left on
+iPhone hiding the partner name, because the geometry that passed the hardware
+gate that morning was reinvented instead of recovered. Attempt 2 corrects both:
+the clock tap calls the card's own handler, and the ribbon adopts the passed
+geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
+locked 34px slots, name yielding with ellipsis — with the structural test now
+asserting that exact geometry and two new mutations covering both regressions.
+All other release 7 content unchanged and re-gated.
 
 **v10.10.0 · 2026-08-10.** Release 7 rebuilt fresh from
 `bridge-turn24-pre-base.html` as one clean assembly; `bridge-turn24-base.html`
