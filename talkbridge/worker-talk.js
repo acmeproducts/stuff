@@ -18,18 +18,30 @@
    over the existing history endpoint, and decides what to show. The relay never
    sends content to a push service, and the encryption problem disappears.
 
-   VAPID is signed with Web Crypto (ES256). Set two secrets on the worker:
-     VAPID_PUBLIC_KEY    base64url, uncompressed P-256 point
-     VAPID_PRIVATE_KEY   base64url, PKCS#8
-     VAPID_SUBJECT       mailto: address or origin URL
-   With none of them set the worker runs exactly as it does today and simply
-   never pushes.
+   SETUP IS ONE SECRET. The public key and the contact subject are in this file
+   below — the public key is handed to every browser that subscribes, so it is
+   not a secret and keeping it in configuration only makes deployment harder.
+
+     In the worker's settings, add one entry of type Secret:
+        VAPID_PRIVATE_KEY   the base64url PKCS#8 string
+
+   With that secret absent the worker runs exactly as the current one does and
+   simply never pushes, so this file can be deployed before push is wanted.
+
+   The relay is deliberately decoupled from where the app is hosted: nothing
+   here refers to an origin, an account, or a repository.
    ───────────────────────────────────────────────────────────────────────────── */
 
 const MAX_HISTORY = 500;
 const SESSION_TTL_MS = 12 * 60 * 1000;
 const SUB_TTL_MS = 90 * 24 * 60 * 60 * 1000;   /* a subscription unused for this long is dropped */
 const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack']);
+
+/* Public by design — handed to every browser that subscribes. */
+const VAPID_PUBLIC_KEY = 'BCpmWbu3Hdj3LM0tYiPkslNsr2hKUj1ol5VQBt_VLBuvgt4gimV7F0XfJTKlCk7OYxm8bvmIVbB34lRvd3-eIoc';
+
+/* A contact point push services may use. Never shown in the app, never verified. */
+const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
@@ -74,7 +86,7 @@ function bytesToB64url(bytes) {
 const vapidCache = new Map();
 
 async function vapidHeader(env, endpoint) {
-  if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return null;
+  if (!env.VAPID_PRIVATE_KEY) return null;
   const aud = new URL(endpoint).origin;
   const now = Math.floor(Date.now() / 1000);
 
@@ -84,7 +96,7 @@ async function vapidHeader(env, endpoint) {
   const exp = now + 12 * 60 * 60;
   const header = bytesToB64url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const claims = bytesToB64url(new TextEncoder().encode(JSON.stringify({
-    aud, exp, sub: env.VAPID_SUBJECT || 'mailto:admin@example.com'
+    aud, exp, sub: VAPID_SUBJECT
   })));
   const signingInput = `${header}.${claims}`;
 
@@ -98,7 +110,7 @@ async function vapidHeader(env, endpoint) {
   );
 
   const jwt = `${signingInput}.${bytesToB64url(sig)}`;
-  const value = `vapid t=${jwt}, k=${env.VAPID_PUBLIC_KEY}`;
+  const value = `vapid t=${jwt}, k=${VAPID_PUBLIC_KEY}`;
   vapidCache.set(aud, { header: value, exp });
   return value;
 }
@@ -111,12 +123,6 @@ export default {
     }
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors() });
-    }
-    /* R7: VAPID public-key discovery. The app cannot subscribe without the
-       application server key, and the key lives only in the worker's secrets —
-       so the worker answers for it. No session required; the key is public. */
-    if (request.method === 'GET' && url.searchParams.get('vapid') === '1') {
-      return json({ vapid: env.VAPID_PUBLIC_KEY || null });
     }
     const app = (url.searchParams.get('app') || '').trim().slice(0, 64);
     const sessionId = (url.searchParams.get('session') || '').trim().slice(0, 128);
@@ -256,10 +262,15 @@ export class TalkSession {
       let body;
       try { body = await request.json(); } catch (_) { return err('Bad body'); }
 
+      /* The app asks for the public key before it can subscribe at all. */
+      if (body && body.type === 'vapid') {
+        return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
+      }
+
       if (body && body.type === 'subscribe' && body.subscription && body.subscription.endpoint) {
         this.subs[clientId] = { sub: body.subscription, at: Date.now() };
         await this._saveSubs();
-        return json({ ok: true, subscribed: true, vapid: this.env.VAPID_PUBLIC_KEY || null });
+        return json({ ok: true, subscribed: true, vapid: VAPID_PUBLIC_KEY });
       }
 
       if (body && body.type === 'unsubscribe') {
