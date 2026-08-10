@@ -1245,8 +1245,9 @@ script-injected); new `tb-sw.js` service worker (root `sw.js` untouched) with
 bare-wake push, per-room catch-up over the relay history endpoint, and
 notification-tap routing via `?room=` (acted on as the tap it is, then stripped
 so a reload stays a cold boot); push subscription per room session with the
-VAPID key discovered from the relay (`worker-talk.js` gains a `?vapid=1` route —
-**Cloudflare redeploy required**, the only relay change in the chain); home
+VAPID key asked of the relay in-session (the deployed relay already answers it;
+`talkbridge/worker-talk.js` in the repo is now the deployed source verbatim —
+**no Cloudflare redeploy needed**, the one secret `VAPID_PRIVATE_KEY` is set); home
 screen away-record cards for person renames and room renames (timestamped,
 tappable, same dismissal as waiting cards); ribbon strip transformation by DOM
 move, never rebuild — mic fixed centre, phone·video beside it, hang-up beside
