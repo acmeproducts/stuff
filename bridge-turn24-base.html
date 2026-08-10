@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'ec6b208ba61a-202608101701';
+var BUILD_ID = 'ca8832a8c076-202608101737';
 
 var STALE = { notified: false, timer: null };
 
@@ -6061,12 +6061,17 @@ function buildDrawerLayout() {
         d.innerHTML = '<span>' + label + '</span>';
         return d;
       };
+      var restoreRow = mk('s4b-restore-link', 'Copy restore link (for installed app)');
       var dataRow = mk('s4b-export-data', 'Export transcript (data)');
       var clearRow = mk('s4b-clear-tr', 'Clear transcript');
       var clearLog = mk('s4b-clear-log', 'Clear debug log');
+      debugPane.appendChild(restoreRow);
       debugPane.appendChild(dataRow);
       debugPane.appendChild(clearRow);
       debugPane.appendChild(clearLog);
+      restoreRow.addEventListener('click', function () {
+        try { copyRestoreLink(); } catch (e) { rmLog('restore_link_failed', { e: String(e && e.message || e) }, 'error'); }
+      });
       dataRow.addEventListener('click', exportTranscriptData);
       clearRow.addEventListener('click', clearTranscript);
       clearLog.addEventListener('click', clearDebugLog);
@@ -6663,7 +6668,11 @@ var RIBBON_CSS =
      to 768px. Centring the whole cluster instead would leave the mic 48px
      left of the line — the cluster and the mic are not the same thing. */
   '#room-ribbon .rz-center{position:absolute;left:50%;transform:translateX(-17px);' +
-    'display:flex;align-items:center;gap:14px}' +
+    /* Measured from the device: icons sat 59px apart centre-to-centre while the
+     video icon had only 7.6px of edge clearance from the room menu. Tightening
+     the internal gap pulls the cluster in without moving the microphone, which
+     is the first item and therefore stays pinned to 50%. */
+    'display:flex;align-items:center;gap:6px}' +
   /* The camera slot was `visibility:hidden` when idle, which hides it but
      STILL OCCUPIES its full 34px plus a 14px gap — a 48px void between the
      mic and the phone, measured at 96px centre-to-centre. It only collapsed
@@ -6833,7 +6842,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · BR-install-bridge.js ═══════════ */
 /* @contract
    wraps: registerServiceWorker, showJoinerLanding, joinRoom
-   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
+   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, buildRestoreLink, copyRestoreLink, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    INSTALL-BOUNDARY BRIDGE
@@ -7154,6 +7163,56 @@ function prepareIosInstall() {
   } catch (e) {
     bridgeLog('ios_prepare_failed', { e: String(e && e.message || e) }, 'error');
     return false;
+  }
+}
+
+/* ── POST-INSTALL RECOVERY ────────────────────────────────────────────────
+   With the manifest in place (where it belongs), iOS launches the installed
+   app at start_url — app.html, with no fragment — so nothing is carried across
+   installation and the installed app starts empty. That is correct behaviour,
+   not a bug: installation should not be the state-transfer mechanism.
+
+   Recovery therefore happens AFTER the installed app exists. The browser
+   produces a restore link; the installed app consumes it. A link opened from
+   inside a Home Screen web app stays inside that web app, so once the token
+   reaches the installed context it is applied directly.
+
+   This needs no shared storage, no manifest games, and no assumption about
+   what survives an install — only that the person can move a link from one
+   app to another, which they can. */
+function buildRestoreLink() {
+  try {
+    var token = buildRestoreToken();
+    if (!token) return null;
+    var base = location.href.split('#')[0].split('?')[0];
+    /* Always through the stable entry point, so the link keeps working across
+       releases rather than pinning to whatever build produced it. */
+    var dir = base.slice(0, base.lastIndexOf('/') + 1);
+    return dir + 'app.html#r=' + token;
+  } catch (e) {
+    bridgeLog('restore_link_failed', { e: String(e && e.message || e) }, 'error');
+    return null;
+  }
+}
+
+function copyRestoreLink() {
+  var link = buildRestoreLink();
+  if (!link) { try { toast('Nothing to restore yet'); } catch (_) {} return null; }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link);
+      toast('Restore link copied — paste it into the installed app');
+    } else {
+      /* Older iOS Safari has no clipboard API in some contexts; showing the
+         link is still actionable, silently failing is not. */
+      window.prompt('Copy this restore link, then open it inside the installed app:', link);
+    }
+    bridgeLog('restore_link_copied', { bytes: link.length }, 'ok');
+    return link;
+  } catch (e) {
+    bridgeLog('restore_copy_failed', { e: String(e && e.message || e) }, 'error');
+    try { window.prompt('Copy this restore link:', link); } catch (_) {}
+    return link;
   }
 }
 
@@ -7547,7 +7606,7 @@ var LEGIBILITY_CSS =
   /* Transcript system entries — missed calls, room renames, "is now".
      These carry real information and were the hardest to read. */
   // @affects .pill 0
-  '.pill span{font-size:13px}' +
+  '.pill span{font-size:14px}' +
 
   /* Room menu: group headings and input labels. 10px was the smallest text in
      the app, in a low-contrast grey. */
@@ -7559,6 +7618,15 @@ var LEGIBILITY_CSS =
   '.drawer-tab{font-size:14px}' +
   // @affects .appear-label 9
   '.appear-label{font-size:13.5px}' +
+
+  /* COLOUR SWATCHES AS BOXES, NOT OVALS. iOS renders input[type=color] as a
+     rounded pill by default and ignores width/height unless the native
+     appearance is switched off first. Every other platform draws a rectangle,
+     so the control looked wrong only on iPhone. */
+  'input[type=color]{-webkit-appearance:none;appearance:none;border:1px solid var(--border);' +
+    'border-radius:6px;padding:0;width:100%;height:34px;background:none;cursor:pointer}' +
+  'input[type=color]::-webkit-color-swatch-wrapper{padding:2px}' +
+  'input[type=color]::-webkit-color-swatch{border:none;border-radius:4px}' +
 
   /* Timestamps: room cards and the away-record. */
   '.rc2-when{font-size:12.5px}' +
