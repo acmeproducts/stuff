@@ -2,7 +2,7 @@
 """
 SOT Helper Service
 UI/API Version: 0.3.1
-Build: 2026.08.10.1
+Build: 2026.08.10.2
 
 ARCHITECTURE RULE
 -----------------
@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 API_VERSION = "0.3.1"
-BUILD_ID = "2026.08.10.1"
+BUILD_ID = "2026.08.10.2"
 SERVICE_PORT = 8081
 DB_PATH = Path(
     os.environ.get(
@@ -54,6 +54,18 @@ ENGINE_ENABLED = os.environ.get("SOT_ENGINE_ENABLED", "0") == "1"
 SOTCTL = os.environ.get("SOTCTL_PATH") or shutil.which("sotctl")
 
 app = FastAPI(title="SOT Helper Service", version=API_VERSION)
+
+# EXISTING_API_MOUNT_COMPAT_V031
+# Keep the already-established public /api/fs mount and the existing 8081 helper.
+@app.middleware("http")
+async def existing_api_mount_compat(request, call_next):
+    path = request.scope.get("path", "")
+    if path.startswith("/api/fs/projects"):
+        request.scope["path"] = "/api/projects" + path[len("/api/fs/projects"):]
+    elif path.startswith("/api/fs/reports"):
+        request.scope["path"] = "/api/reports" + path[len("/api/fs/reports"):]
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -349,6 +361,7 @@ def api_fs(path: str = "/"):
 
 
 @app.post("/fs/mkdir")
+@app.post("/mkdir")
 @app.post("/api/fs/mkdir")
 def api_fs_mkdir(payload: MkdirRequest):
     return make_target_directory(payload)
