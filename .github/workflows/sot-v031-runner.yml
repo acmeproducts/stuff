@@ -1,0 +1,70 @@
+name: Run SOT v0.3.1 candidate staging
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-v031-runner.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract candidate payloads and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, re
+
+          source = Path('.github/workflows/sot-v031-stage.yml').read_text()
+          targets = {
+              '/tmp/project.b64': 'project.html',
+              '/tmp/backend.b64': 'file_browser.py',
+              '/tmp/deploy.b64': 'deploy-sot-project.sh',
+              '/tmp/test.b64': 'test_sot_v031.py',
+          }
+          for marker, target in targets.items():
+              pattern = rf"cat > {re.escape(marker)} <<'PAYLOAD'\n(.*?)\nPAYLOAD"
+              match = re.search(pattern, source, re.S)
+              if not match:
+                  raise SystemExit(f'payload not found: {marker}')
+              raw = gzip.decompress(base64.b64decode(match.group(1).strip()))
+              Path(target).write_bytes(raw)
+          PY
+
+          cat > SOT_PROJECT_VERSION <<'VERSION'
+          SOT_PROJECT_VERSION=0.3.1
+          SOT_PROJECT_BUILD=2026.08.10.1
+
+          # This file is the repository-level deployment marker.
+          # project.html and file_browser.py must display/report the same version/build.
+          VERSION
+
+          echo '172f2a93eafe96ec31cb282bb1d01da4ee9c743ac8ca22ced6aa17bd2e1f03df  project.html' | sha256sum -c -
+          echo '102d8eed6637bbeb0428c307bb38542c5905ca112845fe2cd6889219ff55fc07  file_browser.py' | sha256sum -c -
+          echo 'bb596eed412cd507c00d22298cb91330c6e586ad3a62e744dc8e681a265324f6  deploy-sot-project.sh' | sha256sum -c -
+          echo '8134b6ab0d3827b784c09a99c5c0be7da32c45b5c07feeffe104f6b80592dbc9  test_sot_v031.py' | sha256sum -c -
+
+          chmod +x deploy-sot-project.sh
+          python3 -m py_compile file_browser.py
+          bash -n deploy-sot-project.sh
+
+      - name: Commit verified candidate and remove staging workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm -f .github/workflows/sot-v031-stage.yml .github/workflows/sot-v031-runner.yml
+          git add project.html file_browser.py deploy-sot-project.sh test_sot_v031.py SOT_PROJECT_VERSION
+          git commit -m 'Build SOT portal v0.3.1 candidate'
+          git pull --rebase origin main
+          git push origin HEAD:main
