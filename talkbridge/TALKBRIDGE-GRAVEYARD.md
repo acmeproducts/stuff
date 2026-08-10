@@ -1,7 +1,7 @@
-<!-- v5.8.2.33 -->
+<!-- v5.8.2.34 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.0 | 2026-08-07 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.1 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -330,3 +330,15 @@ The rename genuinely did not arrive on the device, and the two-instance harness 
 What to keep: the pill carrier works, is shipped and has passed a gate, so there is no reason to move off it. What to discard: the instruction not to introduce new message types, and the suspicion that the elevation lifecycle signals fail for that reason. They may still be unverified across two devices — that is worth checking — but the transport is not the reason.
 
 **The wider lesson is about this document.** A confident wrong entry here is worse than no entry, because it becomes a constraint nobody revisits. An entry that rests on inference rather than evidence must say so in the entry itself.
+
+## Release 7 — bridge-turn24-base.html — PATCHED FORWARD AFTER PASSING GATE (rule violation) · Aug 10 2026
+Release 7 (PWA, push, away-record, call surface) passed its device gate. After the pass, three separate fixes were pushed directly onto the already-passed file rather than through rollback and rebuild: a ribbon centring bug, a `flags.gif`/favicon 404 cleanup, and a missed-activity counting fix (root cause found, one edge case left unresolved when work stopped). None of this should have happened. **A passed release is not a base to patch — a defect found after passing means rollback, graveyard entry, plan bump, rebuild, exactly like any other failure.** There is no size exception.
+
+Two things found during this testing pass are genuine findings and are kept:
+- **Missed-activity counting bug, root cause proven.** The base only counts a message as missed when `document.hidden` is true. Being on the home screen with the app open and visible — not hidden, just not showing that room — never counts. This is what looked like an iOS-only gap; it is not push-related at all, it reproduces on any platform once you are on the home screen with the tab visible.
+- **iOS confusion was a false alarm, not a bug.** Chrome on iOS is Safari under the hood by Apple's requirement — it can never install a PWA or receive web push regardless of what is built. Testing must use Safari → Share → Add to Home Screen on iOS. This was mistaken for a defect and cost a diagnostic cycle.
+- Ribbon centring and the two 404s are trivial and roll into the rebuild.
+
+Replacement approach: release 7 is rebuilt clean from its actual input (`bridge-turn24-pre-base.html`, the read-receipt release, which stands and is unaffected), folding in every fix above as part of the original release rather than as patches on top of a passed one. Re-gated on real hardware from scratch, including iOS via Safari specifically.
+
+`bridge-turn24-base.html` removed from the repo. Baseline reverts to `bridge-turn24-pre-base.html`.
