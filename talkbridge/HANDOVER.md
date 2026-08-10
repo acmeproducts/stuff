@@ -1,7 +1,9 @@
 # To the next instance working on TalkBridge
 
 Read this before you do anything else. Read `TALKBRIDGE-PLAN-v9.md` second, and
-the graveyard third. These are not suggestions.
+the talkbridge/TALKBRIDGE-GRAVEYARD.md third. 
+This letter is a distilled, urgent version of talkbridge/THE-METHOD.md — read that fourth for full context.
+These are not suggestions. These are requirements to be successful in delivering the talkbridge application.
 
 ## What you're picking up
 
