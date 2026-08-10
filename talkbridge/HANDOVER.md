@@ -12,38 +12,60 @@ If anything below conflicts with those three, they win.
 
 ## History
 
-Plan is at v10.9.0. Baseline is `bridge-turn24-pre-base.html` (read receipts),
-device-passed.
+Plan is at v10.11.0. Release 7 has now failed and been rolled back **twice**:
 
-Release 7 (PWA, push, away-record, call surface) passed its gate once, was then
-patched forward directly on the passed file three times, and has been rolled
-back per graveyard 2.1. That is the whole history that matters: **a passed
-release is not a base to patch.** A defect found after passing is rolled back,
-logged, and rebuilt — same as any other failure, no exception for small fixes.
+- **Graveyard 2.1** — passed its gate once, was then patched forward directly on
+  the already-passed file three times. Forbidden regardless of fix size. Rolled
+  back to baseline `bridge-turn24-pre-base.html`.
+- **Graveyard 2.2** — rebuilt fresh per the corrected process, gated with 54
+  behavioural assertions and nine mutation tests, reported as fully verified —
+  and shipped two regressions the owner caught immediately on real hardware: the
+  clock tap went to the wrong screen (should reuse the exact handler the removed
+  nav card used — one line in the base — instead it was reimplemented from the
+  plan's English description and got it wrong), and the ribbon's call controls
+  crowded to the left on iPhone (the fix was reinvented from scratch instead of
+  reading the geometry that had already passed a gate earlier the same day).
+
+**Both regressions share one root cause: replacement UI was written from the
+plan's prose description instead of from reading the exact code being
+replaced.** All the automated gates — contract, syntax, wire, mutation tests —
+passed anyway, because none of them check "does this match what a human
+actually sees." Only the owner's eyes caught it, on the second rollback in a
+row.
+
+**Also learned the hard way this round: "root-caused, not assumed" was stated
+in a report without the evidence attached.** Do not do this. See the new rule
+below.
+
+## Two rules added because of the above — treat as mandatory, not advisory
+
+**1. When removing or replacing existing UI, read the exact current
+implementation first — the actual markup, the actual handler, the actual CSS —
+before writing anything.** Do not reconstruct it from the plan's prose
+description, and do not reconstruct it from memory of what it "should" do.
+`grep`/`view` the real file. If a control is being relocated or its behavior
+preserved, diff your replacement against the original's actual code, not
+against your mental model of it. Both regressions this round happened because
+this step was skipped in favor of building from the spec directly.
+
+**2. Never write "verified," "root-caused," "proven," or similar in a report
+without the evidence in the same message.** A log line, a diff, harness output,
+a screenshot — something pasteable. If you can't paste it, you haven't done it
+yet, and the correct thing to write is "not yet verified" or "assumed, needs
+confirmation" — not a confident claim dressed as fact. The owner has now caught
+overconfident wrong claims enough times that a claim without evidence should be
+read as a red flag, not reassurance.
 
 ## Execution — what happens next
 
-**Release 7 is delivered fresh, from `bridge-turn24-pre-base.html`, as one
-clean build.** Not resumed, not patched onto anything. Everything already known
-gets folded into the build from the start:
-
-- PWA shell, push subscription, away-record home-screen entries, call surface —
-  full original scope.
-- Manifest and iOS meta tags go in the document head at build time. Script
-  injection after load is why install was never offered — the browser decides
-  eligibility during parse.
-- Ribbon: both side zones must grow equally, or the centre drifts by however
-  wide the room name happens to be.
-- Missed-activity counting: a message counts as missed whenever its room is not
-  the one currently on screen — not only when the browser tab is hidden.
-  `document.hidden` alone misses "home screen open, app visible, wrong room."
-  Root cause is proven; there is a known double-count edge case to close and
-  mutation-test before this ships.
-- Fix the `flags.gif` 404 and add a real favicon.
-- Gate on real hardware, one release, all platforms. Test iOS in **Safari**,
-  not Chrome — Chrome on iOS is Safari under the hood by Apple's rule and can
-  never install a PWA or receive push. That is not a defect to chase.
+Release 7 needs a **third** clean build from `bridge-turn24-pre-base.html`.
+Same scope as before — PWA shell, push, away-record, call surface, missed-
+activity counting fix, the two 404 fixes, iOS/Safari testing — plus, this time,
+rule 1 and rule 2 above applied without exception to every piece of UI that
+touches something already live: the clock/nav-card interaction and the ribbon
+layout specifically, since those are the two that broke.
 
 Do the two-instance harness proof for anything crossing the relay before you
 believe it works. Confirm scope against the plan before you start. Roll back,
-never patch, on any failure — including your own.
+never patch, on any failure — including your own. Report only what you can
+show, not what you believe you did.
