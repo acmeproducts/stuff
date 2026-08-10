@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'ebd72ffc335a-202608101901';
+var BUILD_ID = '40759ed11aab-202608101919';
 
 var STALE = { notified: false, timer: null };
 
@@ -6198,7 +6198,7 @@ function sendReadReceipts() {
 /* @contract
    replaces: homeCards, renderHome
    wraps: renameRoom, onRoomNameSignal, handleRelay, LISTEN.handle, enterRoom
-   adds: PWA, pwaLog, noteSeq, sendWorkerContext, recordEvent, roomEvents, clearRoomEvents, eventCards, registerServiceWorker, promptInstall, subscribeToPush, relayHttpUrl, wireClockNavigation, PWA_CSS, _pRenameRoom, _pOnRoomName, _pHandleRelay, _pListen, _pEnterRoom, _pHomeCards, _pRenderHome
+   adds: PWA, pwaLog, vapidKeyToBytes, noteSeq, sendWorkerContext, recordEvent, roomEvents, clearRoomEvents, eventCards, registerServiceWorker, promptInstall, subscribeToPush, relayHttpUrl, wireClockNavigation, PWA_CSS, _pRenameRoom, _pOnRoomName, _pHandleRelay, _pListen, _pEnterRoom, _pHomeCards, _pRenderHome
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 7a · PWA, PUSH, AND THE "WHILE YOU WERE AWAY" RECORD
@@ -6460,10 +6460,37 @@ function relayHttpUrl(roomId) {
 
 /* Subscribing is per room, because the relay addresses sessions and a room is a
    session. A device with several rooms subscribes to each. */
-function subscribeToPush() {
+/* base64url -> Uint8Array. The Push API types applicationServerKey as a
+   BufferSource. Chrome tolerates a base64url string and WebKit does not, so
+   passing the string straight through threw on iOS and no subscription was
+   ever created — push could not have worked there regardless of anything else. */
+function vapidKeyToBytes(base64url) {
+  var pad = '='.repeat((4 - (base64url.length % 4)) % 4);
+  var b64 = (base64url + pad).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(b64);
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+/* Split deliberately: asking for permission needs a user gesture, subscribing
+   does not. Keeping them in one function is what forced the prompt to fire
+   from a load timer, where Safari refuses it outright — and once refused it is
+   never asked again, which poisons every later test on that device. */
+function subscribeToPush(fromUserGesture) {
   if (!PWA.swReg || !PWA.swReg.pushManager) { pwaLog('no_push_manager', {}, 'warn'); return Promise.resolve(false); }
   var roomId = S.roomId || ((S.rooms && S.rooms[0]) ? S.rooms[0].id : null);
   if (!roomId) return Promise.resolve(false);
+
+  var perm = 'default';
+  try { perm = (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported'; } catch (_) {}
+
+  /* Never prompt without a gesture behind it. If permission has not been
+     granted yet and this is not a tap, stop here and let the UI offer it. */
+  if (perm !== 'granted' && !fromUserGesture) {
+    pwaLog('awaiting_user_gesture', { perm: perm }, 'ok');
+    return Promise.resolve(false);
+  }
 
   return fetch(relayHttpUrl(roomId), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -6473,13 +6500,17 @@ function subscribeToPush() {
     PWA.vapid = info.vapid;
     if (!info.push) pwaLog('relay_push_disabled', {}, 'warn');
 
-    return Notification.requestPermission().then(function (perm) {
-      if (perm !== 'granted') { pwaLog('permission_denied', { perm: perm }, 'warn'); return false; }
+    var ensurePerm = (perm === 'granted')
+      ? Promise.resolve('granted')
+      : Notification.requestPermission();
+
+    return ensurePerm.then(function (p) {
+      if (p !== 'granted') { pwaLog('permission_denied', { perm: p }, 'warn'); return false; }
       return PWA.swReg.pushManager.getSubscription().then(function (existing) {
         if (existing) return existing;
         return PWA.swReg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: PWA.vapid
+          applicationServerKey: vapidKeyToBytes(PWA.vapid)
         });
       });
     }).then(function (sub) {
@@ -6570,7 +6601,10 @@ if (typeof document !== 'undefined') {
       wireClockNavigation();
       registerServiceWorker().then(function (reg) {
         if (!reg) return;
-        subscribeToPush();
+        /* No gesture here — this only re-subscribes when permission was
+           already granted on a previous visit. The first grant must come from
+           a tap, or Safari refuses it permanently. */
+        subscribeToPush(false);
         sendWorkerContext();
       });
     } catch (_) {}
@@ -7527,8 +7561,31 @@ function detectPlatform() {
    shown (already installed, or already dismissed). */
 function installAdvice() {
   if (INSTALLUI.dismissed) return null;
-  try { if (typeof isStandalone === 'function' && isStandalone()) return null; }
-  catch (_) {}
+
+  var installed = false;
+  try { installed = (typeof isStandalone === 'function') && isStandalone(); } catch (_) {}
+
+  var notifPerm = 'default';
+  try { notifPerm = (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported'; } catch (_) {}
+
+  /* Checked BEFORE the installed-app early return below. An installed app is
+     exactly the context where push can work and the only context where the
+     permission can usefully be asked for — returning null for every installed
+     app made this branch unreachable, so the permission could never be
+     requested at all. */
+  if (installed) {
+    if (notifPerm === 'default') {
+      return {
+        kind: 'enable-notifications',
+        title: 'Turn on notifications',
+        body: 'So you know when a message arrives while the app is closed.',
+        steps: null,
+        canPrompt: false,
+        canEnableNotifications: true
+      };
+    }
+    return null;   /* installed and already answered — nothing to offer */
+  }
 
   var p = detectPlatform();
 
@@ -7560,6 +7617,7 @@ function installAdvice() {
      available — an install button that does nothing is worse than none. */
   var havePrompt = false;
   try { havePrompt = !!(typeof PWA !== 'undefined' && PWA.installEvent); } catch (_) {}
+
   if (!havePrompt) return null;
 
   return {
@@ -7609,6 +7667,7 @@ function renderInstallPrompt() {
        memory. One tap to copy is the difference between advice and a way
        through. */
     if (advice.kind === 'ios-wrong-browser') html += '<button class="iu-btn" id="iu-copy">Copy link</button>';
+    if (advice.canEnableNotifications) html += '<button class="iu-btn" id="iu-notify">Turn on notifications</button>';
     card.innerHTML = html;
 
     if (host.firstChild) host.insertBefore(card, host.firstChild);
@@ -7621,6 +7680,20 @@ function renderInstallPrompt() {
     if (go) go.addEventListener('click', function () {
       iuLog('prompt_invoked', {}, 'ok');
       try { promptInstall(); } catch (e) { iuLog('prompt_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    var notify = document.getElementById('iu-notify');
+    if (notify) notify.addEventListener('click', function () {
+      /* THE GESTURE. Safari requires a user gesture for the permission
+         prompt; asked from a load timer it is refused, and once refused it is
+         never asked again. This tap is that gesture. */
+      iuLog('notifications_requested', {}, 'ok');
+      try {
+        subscribeToPush(true).then(function (ok) {
+          notify.textContent = ok ? 'Notifications on' : 'Not enabled';
+          if (ok) setTimeout(dismissInstallPrompt, 1200);
+        });
+      } catch (e) { iuLog('notify_failed', { e: String(e && e.message || e) }, 'error'); }
     });
 
     var copy = document.getElementById('iu-copy');
