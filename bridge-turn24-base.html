@@ -14,6 +14,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>TalkBridge</title>
+<!-- R7 · PWA head block — present at build time, never script-injected.
+     The browser decides install eligibility during parse (graveyard 2.1). -->
+<link rel="manifest" href="./tb-manifest.webmanifest">
+<meta name="theme-color" content="#2E8B8B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TalkBridge">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" href="./favicon.ico" sizes="any">
 <style>
 :root{
   --teal:#2E8B8B;--teal-mid:#3A9E9E;--teal-light:#E6F4F4;
@@ -6047,6 +6058,794 @@ function sendReadReceipts() {
     return r;
   };
 })();
+
+
+/* ═══════════ RELEASE 7 · PWA, PUSH, HOME SCREEN, CALL SURFACE ═══════════ */
+
+/* ═══════════ R7 PART · p1-r7-chrome.js ═══════════ */
+/* @contract
+   replaces:
+   wraps:
+   adds: r7cLog, R7_CHROME_CSS, r7ChromeInstall
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · CHROME — the left panel loses its navigation card; a single tap on the
+   clock does exactly what the card did. Lifted from the base, not from memory:
+   the card's handler is `$('app-info-card').addEventListener('click',
+   exitToStart)` — a tap goes to the start screen. The long-press on the clock
+   already opens the S13 modal in the base and is left alone. The flag band
+   drops its flags.gif reference so the 404 stops; flags.png is the only image
+   it ever loads.
+
+   Nothing is replaced and nothing is wrapped: the panel is built once inside
+   boot(), so this part adjusts the built DOM after boot has run. It registers
+   its own DOMContentLoaded listener, which fires after the base's because it
+   is registered later on the same event.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7cLog(what, data, level) {
+  try { log('r7c_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var R7_CHROME_CSS =
+  /* flags.gif is gone from the load path entirely — png only. */
+  '.flagband{background-image:url(\'./flags.png\')}';
+
+function r7ChromeInstall() {
+  try {
+    var st = document.createElement('style');
+    st.textContent = R7_CHROME_CSS;
+    document.head.appendChild(st);
+  } catch (e) { r7cLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+  try {
+    var card = $('app-info-card');
+    var row = card && card.parentNode;
+    if (row && row.parentNode) { row.parentNode.removeChild(row); r7cLog('nav_card_removed', {}, 'ok'); }
+    else r7cLog('nav_card_missing', {}, 'warn');
+  } catch (e) { r7cLog('nav_card_failed', { e: String(e && e.message || e) }, 'error'); }
+  try {
+    var clock = $('left-clock');
+    if (clock) {
+      clock.addEventListener('click', function () {
+        try { exitToStart(); } catch (_) {}
+      });
+      r7cLog('clock_wired', {}, 'ok');
+    } else r7cLog('clock_missing', {}, 'warn');
+  } catch (e) { r7cLog('clock_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  try { r7ChromeInstall(); } catch (e) { r7cLog('install_failed', { e: String(e && e.message || e) }, 'error'); }
+});
+
+
+/* ═══════════ R7 PART · p2-r7-ribbon.js ═══════════ */
+/* @contract
+   replaces:
+   wraps:
+   adds: r7rLog, R7_RIBBON_CSS, r7RibbonInstall
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · CALL SURFACE — the ribbon strip transformation.
+
+   Microphone fixed at centre; phone and video beside it; hang-up fixed beside
+   video. Voice call shows microphone and hang-up only; video call shows
+   microphone, camera and hang-up. The call timer is written by CALL.mount's
+   shared interval, which both the caller path (start) and the receiver path
+   (accept) reach — parity holds by construction and is asserted in tests.
+
+   Nothing is rebuilt from scratch (graveyard: rebuilding the ribbon HTML is
+   buried). The existing, already-wired buttons are MOVED into the centre
+   cluster — a DOM move preserves every listener — and the state rules keep
+   working because they are all id-based.
+
+   The geometry below is the one that PASSED the hardware gate on Aug 10 —
+   recovered from the prior session's record, not reinvented (graveyard 2.2):
+   both side zones grow equally, the centre is a fixed block with breathing
+   room between slots, every slot's width is locked, and the name yields with
+   an ellipsis rather than being clipped or pushing the cluster off centre.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7rLog(what, data, level) {
+  try { log('r7r_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var R7_RIBBON_CSS =
+  /* Both side zones must grow equally or the centre is not the centre. */
+  '#room-ribbon .rz-left{flex:1 1 0;min-width:0}' +
+  '#room-ribbon .rz-right{flex:1 1 0;min-width:0;justify-content:flex-end}' +
+  '#room-ribbon .rz-center{display:flex;align-items:center;gap:14px;flex:0 0 auto}' +
+  '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
+  /* The name yields rather than pushing the controls off centre. */
+  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  /* Idle shows mic · phone · video (base rules already hide phone/video in
+     call states and reveal hang-up; those are id-based and survive the move). */
+  '#scr-room.st-phone .rz-slot.r7-call-slot,#scr-room.st-phone .rz-slot.r7-video-slot,' +
+  '#scr-room.st-video .rz-slot.r7-call-slot,#scr-room.st-video .rz-slot.r7-video-slot{display:none}';
+
+function r7RibbonInstall() {
+  try {
+    var st = document.createElement('style');
+    st.textContent = R7_RIBBON_CSS;
+    document.head.appendChild(st);
+  } catch (e) { r7rLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+  try {
+    var center = document.querySelector('#room-ribbon .rz-center');
+    var call = $('btn-call'), video = $('btn-video'), hang = $('rb-hangup');
+    var camSlot = document.querySelector('#room-ribbon .rz-slot.cam-slot');
+    if (!center || !call || !video || !hang || !camSlot) { r7rLog('dom_missing', {}, 'error'); return; }
+    var callSlot = document.createElement('div');
+    callSlot.className = 'rz-slot r7-call-slot';
+    callSlot.appendChild(call);
+    var vidSlot = document.createElement('div');
+    vidSlot.className = 'rz-slot r7-video-slot';
+    vidSlot.appendChild(video);
+    /* Order: mic (already first) · phone · video · camera · hang-up. */
+    center.insertBefore(callSlot, camSlot);
+    center.insertBefore(vidSlot, camSlot);
+    center.appendChild(hang);
+    r7rLog('cluster_installed', {}, 'ok');
+  } catch (e) { r7rLog('move_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  try { r7RibbonInstall(); } catch (e) { r7rLog('install_failed', { e: String(e && e.message || e) }, 'error'); }
+});
+
+
+/* ═══════════ R7 PART · p3-r7-missed.js ═══════════ */
+/* @contract
+   replaces:
+   wraps: handleChatMsg, LISTEN.handle, mergeHistorySyncChunk, exitToStart
+   adds: r7mLog, roomOnScreen, _r7Counted, r7MarkCounted, _r7mHandleChat, _r7mListenHandle, _r7mMergeHistory, _r7mExit
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · MISSED-ACTIVITY COUNTING — root cause proven (graveyard 2.1): the base
+   counts a message as missed only when document.hidden is true. Being anywhere
+   that is not that room — home screen open, app visible — never counted, and
+   messages arriving by history-sync never counted at all.
+
+   THE RULE, made authoritative here: a newly stored partner chat message
+   counts as missed exactly when its room is not the one on screen at the
+   moment it is stored — and each id is counted at most once across this
+   part's own counting sites, tracked in one id-set.
+
+   The known double-count edge, root-caused here rather than assumed: it was
+   never two paths counting one id — both receive paths already share one
+   dedup set and the persisted transcript, which makes an id-double
+   structurally impossible in this base. The reachable defect is the base's
+   visibility handler, which zeroes the legacy counter but never the waiting
+   counts, so a message already seen while visible was counted AGAIN into the
+   badge on the next arrival. Returning to a visible room now settles the
+   waiting counts, and the mutation gate proves the test catches its removal.
+
+   Everything is a wrap that calls through. The originals keep doing exactly
+   what they did; increases they make are reconciled after the fact against
+   the rule, never pre-empted.
+
+   Also here, same root: leaving a room to the home screen previously left the
+   just-left room with no socket for up to a minute (the background sync only
+   ran on a timer), which is the observed "thirty second lag on the home
+   screen". Leaving now syncs the background sockets immediately.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7mLog(what, data, level) {
+  try { log('r7m_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+/* The single on-screen predicate. A room is on screen when the room view is
+   active, it is this room, and the document is visible. */
+function roomOnScreen(roomId) {
+  return S.view === 'room' && S.roomId === roomId && !document.hidden;
+}
+
+/* Ids already counted as missed this session. Reload safety: after a reload
+   the transcript is persisted, so a re-delivered id is dropped by the dedup in
+   both receive paths before any counting runs. */
+var _r7Counted = new Set();
+
+function r7MarkCounted(id) { if (id) _r7Counted.add(id); }
+
+/* ── Active-room path ─────────────────────────────────────────────────────── */
+(function () {
+  var _r7mHandleChat = handleChatMsg;
+  handleChatMsg = function (d, room) {
+    var id = d && d.chatId;
+    var wasKnown = !!(id && (_r7Counted.has(id) || _chatReceived.has(id) ||
+      transcript.some(function (x) { return x.id === id; })));
+    var before = room ? (waitingOf(room).chat || 0) : 0;
+    var r = _r7mHandleChat.apply(this, arguments);
+    try {
+      if (!room || !id || wasKnown) return r;
+      var bumped = (waitingOf(room).chat || 0) > before;
+      if (roomOnScreen(room.id)) {
+        /* On screen: never a missed count. The chain cannot bump here —
+           hidden is false — recorded so no later path counts it either. */
+        r7MarkCounted(id);
+      } else if (bumped) {
+        /* The chain counted it (hidden case). Record the id so no other path
+           can count it again. */
+        r7MarkCounted(id);
+      } else {
+        /* Off screen and the chain did not count — the proven gap. Count it
+           here, once, with the same surface effects the base gives a missed
+           message. osNotify guards itself against on-screen rooms. */
+        bumpWaiting(room, 'chat');
+        saveRooms(); renderPanel();
+        if (!room.muted) {
+          try {
+            osNotify((d.senderName || room.partnerName || 'New message'),
+              norm(d.tgtText || d.srcText || ''), room.id);
+          } catch (_) {}
+        }
+        r7MarkCounted(id);
+        r7mLog('offscreen_counted', { room: room.id, id: id }, 'ok');
+      }
+    } catch (e) { r7mLog('active_count_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ── Background path ──────────────────────────────────────────────────────── */
+(function () {
+  var _r7mListenHandle = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    var id = d && d.type === 'chat-msg' ? d.chatId : null;
+    var room = roomById(roomId);
+    var before = room ? (waitingOf(room).chat || 0) : 0;
+    var r = _r7mListenHandle.apply(this, arguments);
+    try {
+      if (room && id && (waitingOf(room).chat || 0) > before) r7MarkCounted(id);
+    } catch (e) { r7mLog('listen_count_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ── History-sync path — merged messages were never counted at all ────────── */
+(function () {
+  var _r7mMergeHistory = mergeHistorySyncChunk;
+  mergeHistorySyncChunk = function (d, room) {
+    var beforeIds = {};
+    try { transcript.forEach(function (e) { beforeIds[e.id] = true; }); } catch (_) {}
+    var r = _r7mMergeHistory.apply(this, arguments);
+    try {
+      if (!room || roomOnScreen(room.id)) return r;
+      var added = 0;
+      transcript.forEach(function (e) {
+        if (beforeIds[e.id]) return;
+        if (e.who !== 'partner' || e.kind !== 'chat') return;
+        if (_r7Counted.has(e.id)) return;
+        bumpWaiting(room, 'chat');
+        r7MarkCounted(e.id);
+        added++;
+      });
+      if (added) { saveRooms(); renderPanel(); r7mLog('history_counted', { room: room.id, n: added }, 'ok'); }
+    } catch (e) { r7mLog('history_count_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ── Returning to a visible room settles its waiting counts ───────────────── */
+document.addEventListener('visibilitychange', function () {
+  try {
+    if (!document.hidden && S.view === 'room') {
+      var r = activeRoom();
+      if (r && waitingTotal(r)) { clearWaiting(r); saveRooms(); renderPanel(); r7mLog('visible_cleared', { room: r.id }, 'ok'); }
+    }
+  } catch (e) { r7mLog('visible_clear_failed', { e: String(e && e.message || e) }, 'error'); }
+});
+
+/* ── Leaving to the home screen syncs background sockets immediately ──────── */
+(function () {
+  var _r7mExit = exitToStart;
+  exitToStart = function () {
+    var r = _r7mExit.apply(this, arguments);
+    try { LISTEN.sync(); r7mLog('exit_synced', {}, 'ok'); } catch (e) { r7mLog('exit_sync_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+
+/* ═══════════ R7 PART · p4-r7-away.js ═══════════ */
+/* @contract
+   replaces:
+   wraps: handleRelay, LISTEN.handle, renderHome, dismissHome, enterRoom
+   adds: r7aLog, R7_AWAY_KEY, R7_AWAY_CSS, awayEvents, saveAwayEvents, recordAwayEvent, clearAwayEvents, awayCardHtml, renderAwayCards, _r7aRelay, _r7aListen, _r7aRenderHome, _r7aDismiss, _r7aEnter
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · THE HOME SCREEN IS THE WHILE-YOU-WERE-AWAY RECORD.
+
+   A person rename and a room rename are the same kind of event as a waiting
+   chat: something happened in a room you were not looking at. Both already
+   cross on the system-pill carrier (the only transport proven on hardware) —
+   this part records them when they arrive for a room that is not on screen,
+   and renders them on the home screen with date and time, tappable straight
+   into the room, dismissed under the same rules as the waiting cards: opening
+   the room clears them, and the card's dismissal clears them.
+
+   Recording is once per pill id, and the receive hooks call through — the
+   base still writes and renders the pill in the transcript exactly as it did.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7aLog(what, data, level) {
+  try { log('r7a_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var R7_AWAY_KEY = 'tb_home_away_events';
+
+var R7_AWAY_CSS =
+  '.r7-away{display:grid;grid-template-columns:minmax(0,1fr) auto;row-gap:4px;column-gap:10px;align-items:center;' +
+  'background:#fff;border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;cursor:pointer;user-select:none}' +
+  '.r7-away:active{border-color:var(--teal-mid)}' +
+  '.r7-away-room{font-size:13px;font-weight:700;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
+  '.r7-away-line{font-size:14px;grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
+  '.r7-away-when{font-size:12px;color:var(--ink-dim);grid-column:1/-1}' +
+  '.r7-away-x{background:none;border:none;color:var(--ink-dim);cursor:pointer;padding:2px 0 2px 8px;line-height:0;justify-self:end}';
+
+function awayEvents() {
+  try { return lsGet(R7_AWAY_KEY, {}) || {}; }
+  catch (e) { r7aLog('read_failed', { e: String(e && e.message || e) }, 'error'); return {}; }
+}
+function saveAwayEvents(m) {
+  try { lsSet(R7_AWAY_KEY, m); }
+  catch (e) { r7aLog('write_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+function recordAwayEvent(roomId, d) {
+  try {
+    if (!roomId || !d || d.type !== 'sys-pill') return false;
+    var isRename = typeof d.newRoomName === 'string';
+    var isNameChange = typeof d.newName === 'string' && d.newName;
+    if (!isRename && !isNameChange) return false;
+    if (roomOnScreen(roomId)) return false;
+    var id = d.pillId || ('ae-' + uid());
+    var m = awayEvents();
+    var list = m[roomId] || [];
+    if (list.some(function (e) { return e.id === id; })) return false;
+    list.push({ id: id, text: String(d.text || '').slice(0, 160), ts: d.ts || Date.now() });
+    if (list.length > 20) list = list.slice(-20);
+    m[roomId] = list;
+    saveAwayEvents(m);
+    r7aLog('recorded', { room: roomId, kind: isRename ? 'room-rename' : 'name-change' }, 'ok');
+    try { renderHome(); } catch (_) {}
+    return true;
+  } catch (e) { r7aLog('record_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function clearAwayEvents(roomId) {
+  try {
+    var m = awayEvents();
+    if (!m[roomId] || !m[roomId].length) return;
+    delete m[roomId];
+    saveAwayEvents(m);
+    r7aLog('cleared', { room: roomId }, 'ok');
+  } catch (e) { r7aLog('clear_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+function awayCardHtml(r, ev) {
+  return '<div class="r7-away" data-away-room="' + r.id + '">' +
+    '<div class="r7-away-room">' + esc(roomTitle(r)) + '</div>' +
+    '<button class="r7-away-x" data-away-x="' + r.id + '" aria-label="Dismiss">' +
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+    '<div class="r7-away-line">' + esc(ev.text || '') + '</div>' +
+    '<div class="r7-away-when">' + fmtDate(ev.ts) + ' · ' + fmtTime(ev.ts) + '</div>' +
+    '</div>';
+}
+
+function renderAwayCards(host) {
+  var m = awayEvents();
+  var h = '';
+  S.rooms.forEach(function (r) {
+    if (r.deletedAt || r.muted) return;
+    (m[r.id] || []).forEach(function (ev) { h += awayCardHtml(r, ev); });
+  });
+  if (!h) return 0;
+  var wrap = document.createElement('div');
+  wrap.innerHTML = h;
+  while (wrap.firstChild) host.appendChild(wrap.firstChild);
+  host.querySelectorAll('[data-away-room]').forEach(function (el) {
+    el.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-away-x]')) return;
+      var id = el.dataset.awayRoom;
+      try { clearAwayEvents(id); dismissHome(id, true); enterRoom(id); }
+      catch (e) { r7aLog('tap_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+  });
+  host.querySelectorAll('[data-away-x]').forEach(function (el) {
+    el.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      clearAwayEvents(el.dataset.awayX);
+      try { renderHome(); } catch (_) {}
+    });
+  });
+  return 1;
+}
+
+/* ── Receive hooks — record, then call through ────────────────────────────── */
+(function () {
+  var _r7aRelay = handleRelay;
+  handleRelay = function (d) {
+    try { if (d) recordAwayEvent(S.roomId, d); } catch (_) {}
+    return _r7aRelay.apply(this, arguments);
+  };
+})();
+
+(function () {
+  var _r7aListen = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    try { if (d) recordAwayEvent(roomId, d); } catch (_) {}
+    return _r7aListen.apply(this, arguments);
+  };
+})();
+
+/* ── Render + dismissal parity with the waiting cards ─────────────────────── */
+(function () {
+  var _r7aRenderHome = renderHome;
+  renderHome = function () {
+    var r = _r7aRenderHome.apply(this, arguments);
+    try {
+      var host = $('home-wrap');
+      if (host) renderAwayCards(host);
+    } catch (e) { r7aLog('render_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _r7aDismiss = dismissHome;
+  dismissHome = function (roomId, opening) {
+    try { clearAwayEvents(roomId); } catch (_) {}
+    return _r7aDismiss.apply(this, arguments);
+  };
+})();
+
+(function () {
+  var _r7aEnter = enterRoom;
+  enterRoom = function (id) {
+    var r = _r7aEnter.apply(this, arguments);
+    try { clearAwayEvents(id); renderHome(); } catch (_) {}
+    return r;
+  };
+})();
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.textContent = R7_AWAY_CSS;
+    document.head.appendChild(st);
+  } catch (e) { r7aLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+})();
+
+
+/* ═══════════ R7 PART · p5-r7-lifecycle-carrier.js ═══════════ */
+/* @contract
+   replaces:
+   wraps: relaySend, LISTEN.send, onLifecycleSignal, handleRelay, LISTEN.handle
+   adds: r7lLog, R7_LC_TYPES, _r7LcSeen, _r7lRelaySend, _r7lListenSend, _r7lSignal, _r7lRelay, _r7lListen, r7LcTwin
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · LIFECYCLE SIGNALS ON THE PROVEN CARRIER.
+
+   Graveyard finding, applied before the fact rather than rediscovered: a new
+   relay message type never crosses to the receiving device on hardware. The
+   elevation release's lifecycle signals — room-left, room-rejoined,
+   grant-revoke, grant-restore — are exactly that, and were only ever confirmed
+   locally. They now also ride the system-pill carrier, the one transport
+   proven to cross, exactly as the room rename does: an extra field on
+   sys-pill, never a type of its own.
+
+   The original typed sends are kept — harmless, and an older build on the
+   other phone still understands them. The receiving side therefore dedups:
+   one lifecycle event per room within a short window, whichever copy lands
+   first, typed or carried.
+
+   The carried copy is intercepted before the base's sys-pill handling so no
+   empty pill is ever written — the lifecycle handler writes its own pill, as
+   it always did.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7lLog(what, data, level) {
+  try { log('r7l_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var R7_LC_TYPES = { 'room-left': 1, 'room-rejoined': 1, 'grant-revoke': 1, 'grant-restore': 1 };
+
+function r7LcTwin(m) {
+  var t = {
+    type: 'sys-pill', lifecycle: m.type, room: m.room,
+    pillId: 'lc-' + uid(), text: ''
+  };
+  if (m.type === 'grant-restore') { t.k = m.k; t.tid = m.tid; t.tok = m.tok; t.exp = m.exp; }
+  return t;
+}
+
+/* ── Sender side — every lifecycle send gets a carried twin ───────────────── */
+(function () {
+  var _r7lRelaySend = relaySend;
+  relaySend = function (m) {
+    var r = _r7lRelaySend.apply(this, arguments);
+    try {
+      if (m && R7_LC_TYPES[m.type]) {
+        _r7lRelaySend.call(this, r7LcTwin(m));
+        r7lLog('twin_sent', { of: m.type }, 'ok');
+      }
+    } catch (e) { r7lLog('twin_send_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _r7lListenSend = LISTEN.send;
+  LISTEN.send = function (roomId, m) {
+    var r = _r7lListenSend.apply(this, arguments);
+    try {
+      if (m && R7_LC_TYPES[m.type]) {
+        _r7lListenSend.call(this, roomId, r7LcTwin(m));
+        r7lLog('twin_sent_bg', { of: m.type }, 'ok');
+      }
+    } catch (e) { r7lLog('twin_send_bg_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ── One event per room per window, whichever copy lands first ────────────── */
+var _r7LcSeen = {};
+(function () {
+  var _r7lSignal = onLifecycleSignal;
+  onLifecycleSignal = function (roomId, d) {
+    try {
+      if (d && R7_LC_TYPES[d.type]) {
+        var key = (roomId || d.room || '') + '|' + d.type;
+        var now = Date.now();
+        if (_r7LcSeen[key] && now - _r7LcSeen[key] < 5000) {
+          r7lLog('dup_dropped', { type: d.type }, 'ok');
+          return true;
+        }
+        _r7LcSeen[key] = now;
+      }
+    } catch (_) {}
+    return _r7lSignal.apply(this, arguments);
+  };
+})();
+
+/* ── Receiver side — carried copies routed to the lifecycle handler ───────── */
+(function () {
+  var _r7lRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      if (d && d.type === 'sys-pill' && d.lifecycle && R7_LC_TYPES[d.lifecycle]) {
+        var clone = {}; for (var k in d) clone[k] = d[k];
+        clone.type = d.lifecycle;
+        onLifecycleSignal(S.roomId, clone);
+        r7lLog('twin_received', { of: d.lifecycle }, 'ok');
+        return; /* the base must not write an empty pill for the carrier copy */
+      }
+    } catch (e) { r7lLog('twin_rx_failed', { e: String(e && e.message || e) }, 'error'); }
+    return _r7lRelay.apply(this, arguments);
+  };
+})();
+
+(function () {
+  var _r7lListen = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    try {
+      if (d && d.type === 'sys-pill' && d.lifecycle && R7_LC_TYPES[d.lifecycle]) {
+        var clone = {}; for (var k in d) clone[k] = d[k];
+        clone.type = d.lifecycle;
+        onLifecycleSignal(roomId, clone);
+        r7lLog('twin_received_bg', { of: d.lifecycle }, 'ok');
+        return;
+      }
+    } catch (e) { r7lLog('twin_rx_bg_failed', { e: String(e && e.message || e) }, 'error'); }
+    return _r7lListen.apply(this, arguments);
+  };
+})();
+
+
+/* ═══════════ R7 PART · p6-r7-pwa.js ═══════════ */
+/* @contract
+   replaces:
+   wraps: enterRoom, ensureNotifPerm, handleRelay, LISTEN.handle
+   adds: r7pLog, R7_SW_URL, R7_RELAY_HTTP, r7SwReg, r7RegisterSW, r7VapidKey, r7FetchVapid, r7EnsurePush, r7PostSubscribe, r7SubscribeAllRooms, r7SyncSwRegistry, r7NoteSeq, r7RouteParam, _r7pEnter, _r7pNotifPerm, _r7pRelay, _r7pListen
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   R7 · PWA SHELL AND OS PUSH.
+
+   The manifest and the iOS meta tags are in the document head at build time —
+   the browser decides install eligibility during parse, which is why they are
+   not here (graveyard 2.1: script injection is why install was never offered).
+   This part does the runtime half: register the service worker, subscribe to
+   push per room session once notification permission is granted, keep the
+   worker's room registry current so a bare wake can find out what it missed,
+   and route a notification tap into the right room.
+
+   Push carries no payload by relay design — the service worker receives a
+   bare wake, reads its room registry, asks the relay's history endpoint what
+   is new, and raises per-room notifications. A tap opens the app with a
+   ?room= parameter; the routing below acts on it exactly as a tap on the
+   in-page notification always has — user intent, then the parameter is
+   stripped so a plain reload never re-opens a room (the cold-boot tripwire
+   stands).
+
+   iOS receives push only as an installed home-screen app, installed from
+   Safari — Chrome on iOS cannot, by Apple's platform rule. Not a defect.
+   ───────────────────────────────────────────────────────────────────────────── */
+function r7pLog(what, data, level) {
+  try { log('r7p_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var R7_SW_URL = './tb-sw.js';
+var R7_RELAY_HTTP = RELAY_WS.replace(/^wss:/, 'https:');
+var r7SwReg = null;
+var r7VapidKey = null;
+
+function r7RegisterSW() {
+  try {
+    if (location.protocol !== 'https:') { r7pLog('sw_skipped_protocol', { p: location.protocol }, 'warn'); return Promise.resolve(null); }
+    if (!('serviceWorker' in navigator)) { r7pLog('sw_unsupported', {}, 'warn'); return Promise.resolve(null); }
+    return navigator.serviceWorker.register(R7_SW_URL).then(function (reg) {
+      r7SwReg = reg;
+      r7pLog('sw_registered', { scope: reg.scope }, 'ok');
+      r7SyncSwRegistry();
+      return reg;
+    }).catch(function (e) { r7pLog('sw_register_failed', { e: String(e) }, 'error'); return null; });
+  } catch (e) { r7pLog('sw_register_threw', { e: String(e && e.message || e) }, 'error'); return Promise.resolve(null); }
+}
+
+function r7FetchVapid() {
+  /* The deployed relay answers the key ask inside a session: POST
+     {type:'vapid'} with the usual app/session/client addressing. Any live
+     room's session serves; with no rooms there is nothing to subscribe. */
+  if (r7VapidKey) return Promise.resolve(r7VapidKey);
+  var room = S.rooms.filter(function (r) { return !r.deletedAt; })[0];
+  if (!room) { r7pLog('vapid_no_rooms', {}, 'warn'); return Promise.resolve(null); }
+  return fetch(R7_RELAY_HTTP + '?app=' + encodeURIComponent(RELAY_APP) +
+      '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'vapid' })
+  }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      r7VapidKey = d && d.vapid || null;
+      if (d && d.push === false) r7pLog('vapid_push_disabled', {}, 'warn');
+      r7pLog(r7VapidKey ? 'vapid_ok' : 'vapid_missing', {}, r7VapidKey ? 'ok' : 'warn');
+      return r7VapidKey;
+    }).catch(function (e) { r7pLog('vapid_fetch_failed', { e: String(e) }, 'warn'); return null; });
+}
+
+function r7PostSubscribe(roomId, sub) {
+  return fetch(R7_RELAY_HTTP + '?app=' + encodeURIComponent(RELAY_APP) +
+      '&session=' + encodeURIComponent(roomId) + '&client=' + encodeURIComponent(deviceId), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'subscribe', subscription: sub })
+  }).then(function (r) {
+    r7pLog(r.ok ? 'sub_posted' : 'sub_post_rejected', { room: roomId, status: r.status }, r.ok ? 'ok' : 'warn');
+    return r.ok;
+  }).catch(function (e) { r7pLog('sub_post_failed', { room: roomId, e: String(e) }, 'warn'); return false; });
+}
+
+function r7SubscribeAllRooms(sub) {
+  var subJson = sub.toJSON ? sub.toJSON() : sub;
+  var jobs = [];
+  S.rooms.forEach(function (r) { if (!r.deletedAt) jobs.push(r7PostSubscribe(r.id, subJson)); });
+  return Promise.all(jobs);
+}
+
+function r7EnsurePush() {
+  try {
+    if (!r7SwReg || !window.Notification || Notification.permission !== 'granted') return Promise.resolve(false);
+    if (!('pushManager' in r7SwReg)) { r7pLog('push_unsupported', {}, 'warn'); return Promise.resolve(false); }
+    return r7FetchVapid().then(function (key) {
+      if (!key) return false;
+      return r7SwReg.pushManager.getSubscription().then(function (existing) {
+        if (existing) return existing;
+        var bytes = (function (s) {
+          s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+          while (s.length % 4) s += '=';
+          var bin = atob(s), out = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+          return out;
+        })(key);
+        return r7SwReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
+      }).then(function (sub) {
+        if (!sub) return false;
+        r7pLog('push_subscribed', {}, 'ok');
+        return r7SubscribeAllRooms(sub).then(function () { return true; });
+      });
+    }).catch(function (e) { r7pLog('push_subscribe_failed', { e: String(e) }, 'warn'); return false; });
+  } catch (e) { r7pLog('push_threw', { e: String(e && e.message || e) }, 'error'); return Promise.resolve(false); }
+}
+
+/* The worker's map of the world: which sessions to ask about on a bare wake,
+   what to call them, and where each one's read position is. */
+function r7SyncSwRegistry() {
+  try {
+    if (!r7SwReg || !r7SwReg.active) return;
+    var seqs = lsGet('tb_r7_seq', {}) || {};
+    var rooms = S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) {
+      return { id: r.id, title: roomTitle(r), muted: !!r.muted, since: seqs[r.id] || 0 };
+    });
+    r7SwReg.active.postMessage({
+      tb: 'registry', app: RELAY_APP, relay: R7_RELAY_HTTP,
+      client: deviceId, appUrl: location.pathname.split('/').pop(), rooms: rooms
+    });
+    r7pLog('registry_synced', { n: rooms.length }, 'ok');
+  } catch (e) { r7pLog('registry_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+
+/* Read position per room, taken from the relay's own sequence stamps. */
+function r7NoteSeq(roomId, d) {
+  try {
+    if (!d || typeof d.seq !== 'number' || !roomId) return;
+    var seqs = lsGet('tb_r7_seq', {}) || {};
+    if ((seqs[roomId] || 0) < d.seq) { seqs[roomId] = d.seq; lsSet('tb_r7_seq', seqs); }
+  } catch (_) {}
+}
+
+(function () {
+  var _r7pRelay = handleRelay;
+  handleRelay = function (d) {
+    try { r7NoteSeq(S.roomId, d); } catch (_) {}
+    return _r7pRelay.apply(this, arguments);
+  };
+})();
+
+(function () {
+  var _r7pListen = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    try { r7NoteSeq(roomId, d); } catch (_) {}
+    return _r7pListen.apply(this, arguments);
+  };
+})();
+
+/* Entering a room is a user gesture — the moment iOS allows a subscription —
+   and the moment the registry is worth refreshing. */
+(function () {
+  var _r7pEnter = enterRoom;
+  enterRoom = function (id) {
+    var r = _r7pEnter.apply(this, arguments);
+    try { r7EnsurePush(); r7SyncSwRegistry(); } catch (_) {}
+    return r;
+  };
+})();
+
+(function () {
+  var _r7pNotifPerm = ensureNotifPerm;
+  ensureNotifPerm = function () {
+    var r = _r7pNotifPerm.apply(this, arguments);
+    try {
+      if (window.Notification && Notification.permission === 'granted') r7EnsurePush();
+    } catch (_) {}
+    return r;
+  };
+})();
+
+/* A notification tap carries the room in the URL. Acting on it is acting on a
+   tap; the parameter is then stripped so a reload is a cold boot again. */
+function r7RouteParam() {
+  try {
+    var m = /[?&]room=([^&]+)/.exec(location.search || '');
+    if (!m) return false;
+    var id = decodeURIComponent(m[1]);
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (_) {}
+    var room = roomById(id);
+    if (!room || room.deletedAt) { r7pLog('route_unknown_room', { id: id }, 'warn'); return false; }
+    r7pLog('route_notification_tap', { id: id }, 'ok');
+    closePanel(); enterRoom(id);
+    return true;
+  } catch (e) { r7pLog('route_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    r7RegisterSW().then(function () { r7EnsurePush(); });
+    r7RouteParam();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', function (e) {
+        var d = e.data;
+        if (d && d.tb === 'open-room' && d.roomId && roomById(d.roomId)) {
+          r7pLog('route_notification_tap', { id: d.roomId, via: 'focus' }, 'ok');
+          closePanel(); enterRoom(d.roomId);
+        }
+      });
+    }
+  } catch (e) { r7pLog('boot_failed', { e: String(e && e.message || e) }, 'error'); }
+});
+
 
 </script>
 </body>
