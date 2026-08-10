@@ -54,6 +54,20 @@ public costs the owner hours and their users a broken product. Assertion is not
 research. "I already have a theory" is the moment to search, not the reason to
 skip it.
 
+**6. NO PUSH UNTIL EVERY TEST PASSES. NO EXCEPTIONS.** Not "the failure is
+unrelated". Not "that one is already on the backlog". Not "the deployed build
+is fine anyway". A red suite means nothing ships, full stop.
+
+This exists because the builder pushed while a test was failing, having decided
+the failure was cosmetic — and it was, that time. The point is that the
+judgement should never have been made. The moment "which failures matter" is a
+question the builder answers, the gate has stopped being a gate and become an
+opinion. A suite that is allowed to be red is a suite nobody reads.
+
+The known-failing backlogged test is not an exception to this rule; it is a
+standing violation of it, and the correct fix is to resolve or formally quarantine
+it, not to step over it on every deploy.
+
 ## 2 · Process
 
 ### Per release
