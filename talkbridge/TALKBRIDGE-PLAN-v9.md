@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.8.0 -->
-# TALKBRIDGE MASTER PLAN v10.8.0
+<!-- TALKBRIDGE-PLAN v10.9.0 -->
+# TALKBRIDGE MASTER PLAN v10.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,81 +157,37 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn24-base.html` — device-passed 2026-08-10 (PWA, push, away record, call surface, ribbon centring fix). Rollback floor.**
+**Baseline: `bridge-turn24-pre-base.html` — device-passed 2026-08-07 (read receipts). Rollback floor.**
 
 Passed to date: room card and home screen · joiner shell · room lifecycle and
 elevation · call and network robustness · room menu surface · read receipt
-delivery · PWA, push, away record, call surface (release 7).
+delivery.
 
-**IN PROGRESS — not shipped, not gated:**
-The "missed while looking at the home screen" bug. Root cause confirmed: the
-base only counts a message as missed when `document.hidden` is true, so being
-on the home screen with the app open (not hidden, just not in that room) never
-counts — this is the iPhone gap the owner found. Fix drafted: count a message
-as missed whenever its room is not the one on screen, not only when the tab is
-hidden. **A double-count edge case was found in testing and is unresolved**
-(hidden + not-on-screen both firing). Do not ship until the four tests in
-`roomcard.test.mjs` (search "on screen") pass and are mutation-tested. Also
-queued in the same part: fix the `flags.gif` 404 (falls back to .png, harmless
-but noisy) and add a real favicon (currently 404s).
+**RELEASE 7 — ROLLED BACK 2026-08-10. Not started, not in progress. To be
+delivered fresh.** It passed its gate once, was then patched forward three
+times on the already-passed file — forbidden regardless of fix size — and has
+been rolled back per graveyard 2.1. `bridge-turn24-base.html` no longer exists
+in the repo. There is nothing to resume; this is a from-scratch build against
+`bridge-turn24-pre-base.html`, folding in everything already known rather than
+re-discovering it:
 
-Verified present in turn22 by direct inspection:
-chat mic · strip states · room drawer · phrasebook surface · appearance ·
-Ear / auto-read · call engine with staged recovery, glare handling, keepalive,
-ICE restart · session-generation guard · multi-language transcription ·
-dual English channel with pre-amputation arbitration · language detection via
-the repo model · Northern Thai overlay · speech-sequence continuity across
-reloads · source-language normalization law.
+- PWA shell, push subscription, away-record home-screen entries, call surface —
+  all as originally scoped (§6d).
+- Ribbon: side zones must grow equally or the centre drifts by the width of the
+  room name.
+- Missed-activity counting: count a message as missed whenever its room is not
+  the one on screen, not only when the tab is hidden (`document.hidden` alone
+  misses "home screen open, app visible, wrong room"). Root cause proven; a
+  double-count edge case must be closed and mutation-tested before shipping.
+- Fix the `flags.gif` 404 (falls back to `.png` already, just noisy) and add a
+  real favicon.
+- Manifest and iOS meta tags belong in the document head at build time, not
+  injected by script after load — script injection is why Android never offered
+  install.
+- iOS must be tested in Safari, not Chrome. Chrome on iOS cannot install a PWA
+  or receive push; that is Apple's platform rule, not a defect.
 
-Verified absent in turn22:
-room/thread name field · room card three-row layout and per-kind badge
-tracking · elevation, grant link, expiry · per-room export.
-
-The mic level meter **is present and working** — live analyser, clipped fill,
-off state. An earlier draft of this plan listed it as missing; that was a failed
-keyword search reported as a finding, not a verification.
-
-Built but never proven on a phone (they ride the next gate):
-Northern Thai overlay · dual English channel · source-language law.
-
-Undiagnosed, instrument before fixing:
-transcription disconnect roughly every 12 seconds during a call ·
-approximately 30 second initial delivery lag when the recipient is on the home
-screen.
-
----
-
-## 5 · THE CHAIN
-
-| # | Input | Output | Scope | Visible |
-|---|---|---|---|---|
-| 1 | `bridge-turn22.html` | `bridge-turn23-pre-base.html` | **Room card and home screen.** The card built to Part 4 — see §6a. Three separately-tracked activity counts. Home screen waiting-only cards, summary line, dismissal rules. **Nothing is lifted:** `bridge-turn10-pre-base.html` holds a seven-column grid with a tap-to-reveal popover that Part 4 supersedes, and `bridge-turn11-pre-base.html` has no card. Build to the spec. | Yes |
-| ~~2~~ | — | — | **Relay stability — dropped.** Instrumented, then overtaken: the joiner shell passed its two-device gate with chat flowing both ways, so the drops seen earlier were not a blocker. Not scheduled. If they return, instrument first. | — |
-| ~~3~~ | `bridge-turn23-pre-base.html` | `bridge-turn23-base.html` | **Joiner shell — PASSED 2026-08-05.** Full shell, no create control, credential-gated. The invite is authoritative for both languages and the room name, and is refused for a room this device created. | Yes |
-| ~~4~~ | `bridge-turn23-base.html` | `bridge-turn23-pre-ship.html` | **Room lifecycle, naming, elevation — PASSED 2026-08-06.** Naming, grant link, granted credentials under their own keys, expiry, soft delete revoking and restore reinstating, notices and send-lock. | Yes |
-| ~~5~~ | `bridge-turn23-pre-ship.html` | `bridge-turn23-ship.html` | **Call and network robustness — PASSED 2026-08-06.** Everything that keeps a live session alive, in one place. Scope in §6d. | No |
-| **6** | `bridge-turn23-ship.html` | `bridge-turn23-post-ship.html` | **Room menu surface — NEXT.** Tab restructure, transcript lifecycle (export / import / clear), room-name parity, and two transcription-lifecycle fixes. Full scope in §6e. | Yes |
-| 7 | `bridge-turn23-post-ship.html` | `bridge-turn24-pre-base.html` | **PWA, OS push, home screen, and the call surface.** Scope detail in §6d. | Yes |
-| 8 | `bridge-turn24-pre-base.html` | `bridge-turn24-base.html` | **Multitasking during a call.** Losing focus mutes the microphone. The back button enters picture-in-picture and **keeps the connection**. This closes the open question directly: the call stays up so multitasking works, and the microphone closes so nothing is picked up by a call the person has stopped looking at. | Yes |
-| 9 | `bridge-turn24-base.html` | `bridge-turn24-pre-ship.html` | **Appearance.** Real flag graphics and the flag motif on ask screens. Bubble header background colour in the customize tab. Icon-graphics rebuild; camera and mic mute as two complete icons rather than a composited slash, extended to bubble headers. Ear / TTS / Mute wording pass. | Yes |
-| 10 | `bridge-turn24-pre-ship.html` | `bridge-turn24-ship.html` | **Compose, transcription, left panel and room menu.** Typing indicator on the compose strip. Short-phrase gate so a brief utterance is not transcribed twice in a dual-channel room. Diagnose the roughly thirty second delivery lag when the recipient is on the home screen. Clear-both-sides added to Manage as an initiator-only power. *(The left-panel navigation change moved to release 7, where the home screen is already being touched.)* | Yes |
-| 11 | `bridge-turn24-ship.html` | `bridge-turn24-post-ship.html` | **Phrasebook, end to end.** Editing the target rewrites the source. Back-translation behaviour, verdict lifecycle and staleness. The clarify stream. Then reconcile `phrase-deck-v1` and `phrase-desk`, and build import once for both paths — phrases into the phrasebook, transcripts from the structured export. Merge-or-replace and language-mismatch are answered here. | Yes |
-| 12 | `bridge-turn24-post-ship.html` | `bridge-turn25-pre-base.html` | **localStorage → IndexedDB.** Architectural and isolated, with a migration path for existing data. Last because it touches every call site. | No |
-
-**After release 12 the backlog is empty.** Six releases remain after the one
-currently built. Nothing is parked without a number.
-
-*PWA is not a release of its own — it ships at the front of release 7 because
-push has no meaning without it. If it should stand alone, say so and it becomes
-release 7 with everything shifting by one.*
-
-**Sequencing rationale.** The card is the surface everything else is displayed
-on, so it is built first. Relay stability comes next and is not optional: two
-sides that cannot stay connected cannot gate anything, and two attempts were
-spent discovering that the hard way. Then lifecycle and joiner parity together,
-as one mechanism. The remaining invisible releases sit behind them because the
-call engine already passed a two-phone gate at turn22 — it is working, not
-broken, and what remains in them are refinements.
+Gate this as one release, on real hardware, iOS via Safari specifically.
 
 ---
 
@@ -1281,6 +1237,14 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
+then patched forward three times on the passed file, which is forbidden
+regardless of size. Graveyard 2.1. Baseline reverts to
+`bridge-turn24-pre-base.html`. Release 7 is to be delivered fresh, folding in
+every known fix (ribbon centring, the missed-activity counting bug and its
+unresolved edge case, the two 404s, head-injection for install, iOS/Safari
+testing requirement) as one clean build, not a resumed patch chain.
+
 **v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
 **passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
 centring bug found and fixed same day (side zones must grow equally or the
@@ -1424,6 +1388,14 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
+then patched forward three times on the passed file, which is forbidden
+regardless of size. Graveyard 2.1. Baseline reverts to
+`bridge-turn24-pre-base.html`. Release 7 is to be delivered fresh, folding in
+every known fix (ribbon centring, the missed-activity counting bug and its
+unresolved edge case, the two 404s, head-injection for install, iOS/Safari
+testing requirement) as one clean build, not a resumed patch chain.
 
 **v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
 **passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
