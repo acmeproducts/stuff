@@ -156,11 +156,16 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** LOCKED — next release.  
+**Status:** CANDIDATE BUILT — automated candidate gates PASS; repo readback verified; owner/device gate NOT YET RUN.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
 **Output:** same canonical filenames, versioned internally; no `project-v2.html` proliferation.  
+**Candidate commit:** `17e00575ca8a56c8b69a4c7702fa4d369a0fda1f`  
+**Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`  
+**Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`  
+**Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.  
+**Owner/device gate:** NOT YET RUN.  
 **Surface:** Intake + filesystem/source/target definition.  
 
 **All five items below are mandatory in this release. No silent deferral.**
