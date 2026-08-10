@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'a2fea6066d9d-202608101459';
+var BUILD_ID = '6b59a94fc74a-202608101507';
 
 var STALE = { notified: false, timer: null };
 
@@ -7229,6 +7229,142 @@ if (typeof document !== 'undefined') {
   } catch (e) {
     iuLog('css_failed', { e: String(e && e.message || e) }, 'error');
   }
+}
+
+
+/* ═══════════ GAP PART · NP-no-password.js ═══════════ */
+/* @contract
+   wraps: renderHome
+   adds: NOPW, nopwLog, suppressPasswordUI, NOPW_CSS, _npRenderHome
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   NO-PASSWORD APPLICATION
+
+   THIS APP HAS NO PASSWORDS. It has API keys and a name field. Yet password
+   managers were being triggered constantly — offering to save, offering to
+   autofill, and polluting the owner's vault to the point of interfering with
+   testing.
+
+   ROOT CAUSE, confirmed by reading the built markup rather than guessing:
+   four fields are literally `type="password"` — the Deepgram key, the TURN id,
+   the TURN token and the GitHub PAT. `autocomplete="off"` was already set on
+   all four and does nothing, because **browsers deliberately ignore
+   autocomplete="off" on password fields.** Chrome and Safari override it by
+   design, specifically so password managers keep working. The attribute was
+   never the lever; the input TYPE is.
+
+   THE FIX. Stop using `type="password"` anywhere. Masking is done with a CSS
+   text-security fallback instead, which looks the same to a person and is
+   invisible to a password manager. Every other input is also explicitly
+   marked so neither autofill nor save is offered on any field in the app.
+
+   Applied continuously rather than once, because several inputs are created
+   dynamically after load (the room-name field, the create-room dialog), and a
+   one-time pass at boot would miss them.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var NOPW = { swept: 0, lastCount: 0 };
+
+function nopwLog(what, data, level) {
+  try { log('nopw_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+/* -webkit-text-security is what Safari/Chrome use for masking without a
+   password input. `text-security` is the standard property. Both are set; the
+   fallback letter-spacing keeps the dots legible if neither is supported. */
+var NOPW_CSS =
+  '.nopw-mask{-webkit-text-security:disc;text-security:disc}';
+
+function suppressPasswordUI() {
+  try {
+    if (typeof document === 'undefined' || !document.querySelectorAll) return 0;
+    var fields = document.querySelectorAll('input, textarea');
+    var changed = 0;
+
+    for (var i = 0; i < fields.length; i++) {
+      var el = fields[i];
+      var type = (el.getAttribute && el.getAttribute('type')) || 'text';
+
+      /* File, colour and range inputs are not text entry and are not a
+         password-manager surface — leave them entirely alone. */
+      if (type === 'file' || type === 'color' || type === 'range') continue;
+
+      /* THE ACTUAL FIX: a password-typed field is a password field to every
+         manager on earth, whatever else is set on it. Convert to text and mask
+         visually instead — identical to a person, invisible to a vault. */
+      if (type === 'password') {
+        el.setAttribute('type', 'text');
+        if (el.classList && !el.classList.contains('nopw-mask')) el.classList.add('nopw-mask');
+        changed++;
+      }
+
+      /* `off` is honoured for non-password fields but is widely treated as a
+         hint; `new-password` is the value browsers respect most consistently
+         to mean "do not offer to fill or save this". Combined with the type
+         change above, nothing here reads as a credential. */
+      if (el.getAttribute('autocomplete') !== 'new-password') {
+        el.setAttribute('autocomplete', 'new-password');
+        changed++;
+      }
+      /* Managers and mobile keyboards also key off these. */
+      if (!el.hasAttribute('autocorrect')) el.setAttribute('autocorrect', 'off');
+      if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'off');
+      if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'false');
+      /* 1Password / LastPass / Bitwarden all respect their own ignore flags. */
+      if (!el.hasAttribute('data-1p-ignore')) el.setAttribute('data-1p-ignore', '');
+      if (!el.hasAttribute('data-lpignore')) el.setAttribute('data-lpignore', 'true');
+      if (!el.hasAttribute('data-bwignore')) el.setAttribute('data-bwignore', '');
+    }
+
+    NOPW.swept++;
+    if (changed !== NOPW.lastCount) {
+      nopwLog('swept', { fields: fields.length, changed: changed }, 'ok');
+      NOPW.lastCount = changed;
+    }
+    return changed;
+  } catch (e) {
+    nopwLog('sweep_failed', { e: String(e && e.message || e) }, 'error');
+    return 0;
+  }
+}
+
+/* Re-applied whenever the home screen redraws, since that is the common path
+   back from any dialog that may have created new inputs. */
+(function () {
+  var _npRenderHome = renderHome;
+  renderHome = function () {
+    var r = _npRenderHome.apply(this, arguments);
+    try { suppressPasswordUI(); } catch (_) {}
+    return r;
+  };
+})();
+
+if (typeof document !== 'undefined') {
+  try {
+    var npStyle = document.createElement('style');
+    npStyle.textContent = NOPW_CSS;
+    document.head.appendChild(npStyle);
+  } catch (e) { nopwLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  /* Dynamically-created inputs (room name, create-room dialog) appear after
+     load, so a single boot-time pass would miss them. Watching the DOM catches
+     every one the moment it is inserted. */
+  try {
+    if (typeof MutationObserver !== 'undefined') {
+      var mo = new MutationObserver(function () { suppressPasswordUI(); });
+      mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    }
+  } catch (_) {}
+
+  /* Belt and braces for the pre-observer window and any late injection. */
+  setTimeout(suppressPasswordUI, 0);
+  setTimeout(suppressPasswordUI, 400);
+  setTimeout(suppressPasswordUI, 1200);
+  try {
+    document.addEventListener('focusin', function (ev) {
+      if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) suppressPasswordUI();
+    });
+  } catch (_) {}
 }
 
 </script>
