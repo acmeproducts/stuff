@@ -1,0 +1,84 @@
+name: Session Manager v2.3.2 Pages hosting patch
+
+on:
+  push:
+    branches:
+      - agent/session-manager-v232-pages-hosting
+    paths:
+      - .github/workflows/session-manager-v232-pages.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact v2.3.1 input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object session-manager-v3.html)" = "81057d309ddc36834f542b3bb752a4c31565014b"
+
+      - name: Apply Pages hosting patch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('session-manager-v3.html')
+          s=p.read_text()
+          repl={
+            '<span class="version">v2.3.1</span>':'<span class="version">v2.3.2</span>',
+            '// Session Manager v2.3.1 — accessibility-focused appearance workspace, automatic safe Markdown/HTML rendering, and contrast-protected code/path surfaces.':'// Session Manager v2.3.2 — GitHub Pages hosting bootstrap: public-hosted copies default to the governed Tailnet Gateway while .ts.net-hosted copies may use their own host.',
+            "const BUILD_VERSION='2.3.1';":"const BUILD_VERSION='2.3.2';",
+            "function loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(K.settings)||'{}')}catch{}const pg=location.protocol==='https:'?`wss://${location.host}`:location.protocol==='http:'?`ws://${location.host}`:'';return{gatewayUrl:s.gatewayUrl||pg||DEF,debugEnabled:s.debugEnabled===true,debugText:s.debugText===true,appearance:normalizeAppearance(s.appearance||{})}}":"function hostingDefaultGateway(){let h=String(location.hostname||'').toLowerCase(),proto=location.protocol;if(h.endsWith('.ts.net'))return proto==='https:'?`wss://${location.host}`:proto==='http:'?`ws://${location.host}`:DEF;return DEF}\nfunction loadSettings(){let s={};try{s=JSON.parse(localStorage.getItem(K.settings)||'{}')}catch{}return{gatewayUrl:s.gatewayUrl||hostingDefaultGateway(),debugEnabled:s.debugEnabled===true,debugText:s.debugText===true,appearance:normalizeAppearance(s.appearance||{})}}",
+            "function debugEnvironment(){return[['App version',BUILD_VERSION],['Gateway',state.settings.gatewayUrl],['Connection',state.connected?'Connected':state.connecting?'Connecting':'Disconnected'],['Protocol',String(state.hello?.protocol||PV)],['Scopes',state.scopes.join(', ')||'—'],['Device ID',state.identity?.deviceId||'—'],['Sessions from Gateway',String(state.sessions.length)],['Soft deleted locally',String(Object.keys(trashBucket()).length)],['Subscriptions',String(state.subscriptions.size)]]}":"function debugEnvironment(){return[['App version',BUILD_VERSION],['Page origin',location.origin],['Hosting default Gateway',hostingDefaultGateway()],['Gateway',state.settings.gatewayUrl],['Connection',state.connected?'Connected':state.connecting?'Connecting':'Disconnected'],['Protocol',String(state.hello?.protocol||PV)],['Scopes',state.scopes.join(', ')||'—'],['Device ID',state.identity?.deviceId||'—'],['Sessions from Gateway',String(state.sessions.length)],['Soft deleted locally',String(Object.keys(trashBucket()).length)],['Subscriptions',String(state.subscriptions.size)]]}"
+          }
+          for old,new in repl.items():
+              n=s.count(old)
+              assert n==1, (old[:80], n)
+              s=s.replace(old,new)
+          p.write_text(s)
+          PY
+
+      - name: Gate hosting patch and protected connection code
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -Fq 'v2.3.2' session-manager-v3.html
+          grep -Fq "const BUILD_VERSION='2.3.2';" session-manager-v3.html
+          grep -Fq "h.endsWith('.ts.net')" session-manager-v3.html
+          grep -Fq "return DEF" session-manager-v3.html
+          grep -Fq "['Page origin',location.origin]" session-manager-v3.html
+          grep -Fq "async function identity(){" session-manager-v3.html
+          grep -Fq "async function connectParams(ch){" session-manager-v3.html
+          grep -Fq "function connect(){" session-manager-v3.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text()
+          m=re.search(r'<script>([\s\S]*?)</script>',s)
+          assert m
+          Path('/tmp/session-manager.js').write_text(m.group(1))
+          # Hosting-only release must not change these protected function bodies.
+          base=Path('/tmp/base.html')
+          PY
+          node --check /tmp/session-manager.js
+          git diff -- session-manager-v3.html
+
+      - name: Commit exact candidate and remove builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Session Manager release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/session-manager-v232-pages.yml
+          git add session-manager-v3.html
+          git commit -m 'Session Manager v2.3.2 GitHub Pages hosting bootstrap'
+          git push origin HEAD:agent/session-manager-v232-pages-hosting
