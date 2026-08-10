@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.3.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.4.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.3.0  
+**Governance version:** 1.4.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -352,6 +352,7 @@ Buried. Derived paths must be labeled derived. Physical/unindexed files are only
 - `*.jsonl.jsonl` is evidence to surface, not something to silently normalize.
 - TalkBridge's most transferable appearance lesson is one persisted theme state with coherent presets plus granular overrides.
 - Stabilize one OpenClaw instance before multiplying instances.
+- Before interpreting a runtime failure as an application regression, fingerprint the **served artifact**, not merely the repository artifact. The 2026-08-10 WSL test log identified itself as v2.3.0 but its connect payload/log strings did not match the governed GitHub v2.3 candidate; stale or divergent deployed copies can create false failures.
 
 ---
 
@@ -368,6 +369,7 @@ Buried. Derived paths must be labeled derived. Physical/unindexed files are only
 - **D-009 · 2026-08-10:** `*.jsonl.jsonl` is a first-class diagnostic anomaly; SM-R2 detects but does not repair.
 - **D-010 · 2026-08-10:** Debug moves behind Configuration and becomes tabbed Log / Session Files / Environment.
 - **D-011 · 2026-08-10:** First v2.3 publish `04dcbbc…` rejected during read-back before owner handoff due to a transferred syntax defect. Rebuilt/re-published candidate is commit `b0d70c3f4eeed1a90ddc050b608fe8f4e1e4a8f2`, blob `134466f379e93492c0b7b5e4fe9ec80afe7b42cf`.
+- **D-012 · 2026-08-10:** A WSL test producing `DEVICE_AUTH_SIGNATURE_INVALID` was not accepted as an SM-R2 code failure because the running payload did not fingerprint to the governed GitHub candidate (different platform/deviceFamily fields and a log string absent from the candidate). Deployment fingerprint verification is now required before diagnosing a release regression.
 
 ---
 
