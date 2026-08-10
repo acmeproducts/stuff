@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'f68995023b42-202608101755';
+var BUILD_ID = 'ebd72ffc335a-202608101901';
 
 var STALE = { notified: false, timer: null };
 
@@ -6842,7 +6842,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · BR-install-bridge.js ═══════════ */
 /* @contract
    wraps: registerServiceWorker, showJoinerLanding, joinRoom
-   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, buildRestoreLink, copyRestoreLink, renderRestoreEntry, RESTORE_ENTRY_CSS, RESTORE_UI, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
+   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, RESTORE_TTL_MS, buildRestoreToken, applyRestoreToken, buildRestoreLink, copyRestoreLink, renderRestoreEntry, RESTORE_ENTRY_CSS, RESTORE_UI, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    INSTALL-BOUNDARY BRIDGE
@@ -7056,9 +7056,14 @@ function bridgeConsumeIfInstalled() {
    applies only where it is the thing breaking install. */
 var RESTORE_MAX = 1600;   /* stay well inside safe URL length limits */
 
+/* Tokens carry an issue time so a stale one is refused rather than silently
+   restoring months-old state. The window matches the relay's own session
+   lifetime, so "expired" means the same thing everywhere in the system. */
+var RESTORE_TTL_MS = 12 * 60 * 1000;
+
 function buildRestoreToken() {
   try {
-    var payload = {};
+    var payload = { _t: Date.now() };
     /* Credentials are small and are the part whose loss actually hurts. */
     ['tb_dg_key', 'tb_cf_tid', 'tb_cf_tok', 'tb_grant', 'tb_grant_dg', 'tb_grant_tid', 'tb_grant_tok', 'tba_user']
       .forEach(function (k) {
@@ -7095,10 +7100,19 @@ function applyRestoreToken(token) {
     var b = token.replace(/-/g, '+').replace(/_/g, '/');
     while (b.length % 4) b += '=';
     var payload = JSON.parse(decodeURIComponent(escape(atob(b))));
+
+    /* Expiry is checked before anything is written. An old link found later is
+       inert rather than quietly restoring stale rooms and credentials. */
+    if (payload._t && (Date.now() - payload._t) > RESTORE_TTL_MS) {
+      var mins = Math.round((Date.now() - payload._t) / 60000);
+      bridgeLog('restore_expired', { ageMins: mins }, 'warn');
+      return 'expired';
+    }
+
     var applied = 0;
 
     Object.keys(payload).forEach(function (k) {
-      if (k === 'rooms') return;
+      if (k === 'rooms' || k === '_t') return;
       localStorage.setItem(k, payload[k]); applied++;
     });
 
@@ -7254,25 +7268,29 @@ function renderRestoreEntry() {
        the handler attached to the exact node that is inserted. */
     var title = document.createElement('div');
     title.className = 'tb-restore-t';
-    title.textContent = 'Moving from the browser?';
+    title.textContent = 'Link this device';
 
     var sub = document.createElement('div');
     sub.className = 'tb-restore-s';
-    sub.textContent = 'In Safari open the room menu, choose Manage, then Copy restore link — and paste it below.';
-
-    var input = document.createElement('input');
-    input.className = 'tb-restore-i';
-    input.id = 'tb-restore-in';
-    input.setAttribute('placeholder', 'Paste restore link');
-    input.setAttribute('autocomplete', 'new-password');
-    input.setAttribute('autocorrect', 'off');
-    input.setAttribute('autocapitalize', 'off');
-    input.setAttribute('spellcheck', 'false');
+    sub.textContent = 'Copy your room link, then tap Link. Nothing to type.';
 
     var btn = document.createElement('button');
     btn.className = 'tb-restore-b';
     btn.id = 'tb-restore-go';
-    btn.textContent = 'Restore';
+    btn.textContent = 'Link this device';
+
+    /* Typing is the fallback, not the path. It stays hidden unless reading the
+       clipboard is refused — some browsers deny it, and a dead end there would
+       leave no way through at all. */
+    var input = document.createElement('input');
+    input.className = 'tb-restore-i';
+    input.id = 'tb-restore-in';
+    input.setAttribute('placeholder', 'Or paste the link');
+    input.setAttribute('autocomplete', 'new-password');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.style.display = 'none';
 
     var msg = document.createElement('div');
     msg.className = 'tb-restore-m';
@@ -7280,8 +7298,8 @@ function renderRestoreEntry() {
 
     wrap.appendChild(title);
     wrap.appendChild(sub);
-    wrap.appendChild(input);
     wrap.appendChild(btn);
+    wrap.appendChild(input);
     wrap.appendChild(msg);
 
     var welcome = host.querySelector('.welcome-wrap');
@@ -7293,33 +7311,87 @@ function renderRestoreEntry() {
       try { msg.style.color = bad ? '#C0392B' : 'var(--ink-dim)'; } catch (_) {}
     };
 
+    /* AN INSTALLED APP COMES UP CLEAN. That is the platform, not a defect, and
+       nothing here tries to smuggle state across the install boundary any more.
+       It only needs to be told which rooms are the person's — and the invite
+       link already carries exactly that, plus the keys, and it already exists
+       because sharing a room produced it. No pairing code, no provisioning
+       record, no new artefact: reuse what the system already makes.
+
+       Both link kinds are accepted because a person pasting from a clipboard
+       should not have to know which one they have. */
+    var consume = function (raw) {
+      raw = (raw || '').trim();
+      if (!raw) { say('Copy your room link first', true); return false; }
+
+      /* An invite link — the ordinary thing people already share. */
+      var inv = /[#&]j=([A-Za-z0-9\-_]+)/.exec(raw);
+      if (inv) {
+        try {
+          var p = decInv(inv[1]);
+          if (p && p.r) {
+            say('Linking…');
+            bridgeLog('linked_via_invite', { room: String(p.r).slice(-6) }, 'ok');
+            /* Straight through the app's own join path rather than a parallel
+               one, so a linked device behaves exactly like any other joiner. */
+            S.invitePayload = p;
+            S.roomLocked = true;
+            if (S.user && S.user.name) joinRoom(p); else showJoinerLanding(p);
+            return true;
+          }
+        } catch (e) { bridgeLog('invite_parse_failed', { e: String(e && e.message || e) }, 'error'); }
+        say('That link could not be read', true);
+        return false;
+      }
+
+      /* A restore link, for moving a whole device's worth of rooms at once —
+         or a bare token, since a clipboard may hold either and the person
+         should not have to know the difference. */
+      var m2 = /[#&]r=([A-Za-z0-9\-_]+)/.exec(raw);
+      var token = m2 ? m2[1] : (/^[A-Za-z0-9\-_]{8,}$/.test(raw) ? raw : null);
+      if (token) {
+        var res = applyRestoreToken(token);
+        if (res === 'expired') { say('That link has expired — copy a fresh one', true); return false; }
+        if (res) {
+          say('Linked — reloading…');
+          bridgeLog('restored_via_entry', {}, 'ok');
+          setTimeout(function () { try { location.reload(); } catch (_) {} }, 600);
+          return true;
+        }
+      }
+
+      say('That does not look like a room link', true);
+      return false;
+    };
+
     btn.addEventListener('click', function () {
       try {
-        var raw = (input.value || '').trim();
-        if (!raw) { say('Paste the restore link first', true); return; }
-        /* Accept a full link or a bare token — the person should not have to
-           know which part matters. */
-        var m2 = /[#&]r=([A-Za-z0-9\-_]+)/.exec(raw);
-        var token = m2 ? m2[1] : raw.replace(/^.*#/, '');
-        if (!token || token.length < 8) { say('That does not look like a restore link', true); return; }
-
-        if (applyRestoreToken(token)) {
-          say('Restored — reloading…');
-          bridgeLog('restored_via_paste', {}, 'ok');
-          setTimeout(function () { try { location.reload(); } catch (_) {} }, 600);
-        } else {
-          say('Could not read that restore link', true);
+        /* The whole point: no typing. Clipboard reads need a user gesture,
+           which this tap is. */
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(function (text) {
+            if (!consume(text) && input.style.display === 'none') {
+              input.style.display = '';
+            }
+          }).catch(function () {
+            input.style.display = '';
+            say('Paste the link below and tap again', true);
+            bridgeLog('clipboard_denied', {}, 'warn');
+          });
+          return;
         }
+        input.style.display = '';
+        if (input.value) consume(input.value);
+        else say('Paste the link below and tap again', true);
       } catch (e) {
-        bridgeLog('paste_restore_failed', { e: String(e && e.message || e) }, 'error');
-        say('Could not read that restore link', true);
+        bridgeLog('restore_entry_click_failed', { e: String(e && e.message || e) }, 'error');
+        input.style.display = '';
+        say('Paste the link below and tap again', true);
       }
     });
 
-    RESTORE_UI = { wrap: wrap, input: input, button: btn, msg: msg };
+    RESTORE_UI = { wrap: wrap, input: input, button: btn, msg: msg, consume: consume };
     bridgeLog('restore_entry_shown', {}, 'ok');
-    /* The handles are returned as well as stored, so the path can be exercised
-       directly rather than fished out of a global. */
     return RESTORE_UI;
   } catch (e) {
     bridgeLog('restore_entry_failed', { e: String(e && e.message || e) }, 'error');
@@ -7531,6 +7603,12 @@ function renderInstallPrompt() {
       });
     }
     if (advice.canPrompt) html += '<button class="iu-btn" id="iu-go">Install</button>';
+    /* Chrome/Firefox/Edge on iOS cannot install and cannot receive push —
+       only Safari can, by Apple's rule. Telling someone to "open this in
+       Safari" without giving them the link makes them retype a URL from
+       memory. One tap to copy is the difference between advice and a way
+       through. */
+    if (advice.kind === 'ios-wrong-browser') html += '<button class="iu-btn" id="iu-copy">Copy link</button>';
     card.innerHTML = html;
 
     if (host.firstChild) host.insertBefore(card, host.firstChild);
@@ -7543,6 +7621,23 @@ function renderInstallPrompt() {
     if (go) go.addEventListener('click', function () {
       iuLog('prompt_invoked', {}, 'ok');
       try { promptInstall(); } catch (e) { iuLog('prompt_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    var copy = document.getElementById('iu-copy');
+    if (copy) copy.addEventListener('click', function () {
+      try {
+        var url = location.href.split('#')[0];
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url);
+          copy.textContent = 'Copied — now open Safari and paste';
+        } else {
+          window.prompt('Copy this, then open Safari and paste it:', url);
+        }
+        iuLog('link_copied_for_safari', {}, 'ok');
+      } catch (e) {
+        iuLog('copy_failed', { e: String(e && e.message || e) }, 'error');
+        try { window.prompt('Copy this, then open Safari and paste it:', location.href.split('#')[0]); } catch (_) {}
+      }
     });
 
     INSTALLUI.shown = true;
