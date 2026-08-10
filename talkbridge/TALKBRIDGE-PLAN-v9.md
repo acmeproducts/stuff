@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.11.0 -->
-# TALKBRIDGE MASTER PLAN v10.11.0
+<!-- TALKBRIDGE-PLAN v10.12.0 -->
+# TALKBRIDGE MASTER PLAN v10.12.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,9 +157,15 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline (pending device gate): `bridge-turn24-base.html` — release 7 attempt 3, deployed 2026-08-10, not yet device-confirmed.**
+**Baseline: `bridge-turn24-pre-base.html`** — the only build currently deployed.
 
-**Last confirmed-passed floor: `bridge-turn24-pre-base.html`** (read receipts) — this is the safe rollback target if attempt 3 fails.
+**RELEASE 7 IS BLOCKED. Do not attempt it again until R7.0 below ships.**
+Four attempts failed. The fourth investigation found the reason the previous
+three could not be trusted: rollback was performed by *deleting* the deployed
+file, which (a) 404s every invite link, QR code and installed PWA start_url
+generated from it, and (b) leaves devices running stale in-memory code with no
+way to detect it. Device evidence gathered under those conditions is not
+reliable, including the repeated ribbon failure. See graveyard 2.5.
 
 Passed to date: room card and home screen · joiner shell · room lifecycle and
 elevation · call and network robustness · room menu surface · read receipt
@@ -218,7 +224,39 @@ The joiner gets the shell. Nothing about elevation is in this release.
 - Declare the relay subscription change explicitly: a joiner with N rooms now opens N background sockets where it previously opened one. Whether that is acceptable is answered by release 2's work, and if it is not, the joiner subscribes only to its active room.
 - **Gate:** two devices. The joiner reaches its room list, opens the drawer and the phrasebook, sees all its rooms, and has no plus control. Chat flows both ways.
 
-### 6c · turn23-ship — ROOM LIFECYCLE, NAMING AND ELEVATION · visible
+### R7.0 · DEPLOYMENT INTEGRITY — next release, blocks everything else
+
+Small, isolated, no features. Exists because the deploy/rollback method itself
+is unsound and is corrupting the evidence every other release depends on.
+
+**1. Rollback overwrites, never deletes.**
+A deployed filename is a permanent public contract — invite links, QR codes,
+bookmarks and installed PWA `start_url`s all point at it. Rolling back means
+writing the previous known-good build *into* that filename. The file is never
+removed. (An installed PWA whose `start_url` 404s is bricked with no in-app
+recovery path — that is the failure this prevents.)
+
+**2. Build identity + staleness detection.**
+Every build carries an identifier. The running page checks it against the
+server periodically and on focus, and tells the user plainly when it is running
+code older than what is deployed, with a reload action. Without this, a tab or
+an installed PWA can run arbitrarily old code indefinitely and every device
+test result is unfalsifiable.
+
+**3. Re-verify, do not assume.**
+Once 1 and 2 ship and are device-confirmed, re-test the outstanding release 7
+items on a *known-current* build before writing any new code for them.
+Specifically the ribbon: it survived two structurally unrelated CSS mechanisms
+unchanged, which is more consistent with the fix never loading than with the
+CSS being wrong twice in different ways. That must be ruled out first.
+
+**Gate:** deploy, roll back, and confirm an invite link generated before the
+rollback still opens. Then confirm a deliberately-stale page reports itself as
+stale rather than sitting there silently.
+
+---
+
+## 6c · turn23-ship — ROOM LIFECYCLE, NAMING AND ELEVATION · visible
 
 The credential mechanism, end to end, now observable in the shell release 3 built.
 
@@ -1239,6 +1277,17 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
+blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
+by reading live code after the owner reported 404 share links: rollback was
+being done by deleting the deployed file, which permanently breaks every invite
+link, QR code and installed `start_url` generated from it — and there is no
+staleness detection anywhere, so devices can run arbitrarily old code
+undetected. Both defects mean device evidence gathered during today's cycles is
+unreliable, including the four ribbon failures. R7.0 fixes the deploy method
+first; release 7 items get re-verified on a known-current build afterward
+rather than being re-fixed blind. Graveyard 2.5.
+
 **v10.11.0 · 2026-08-10.** Release 7 rebuild **attempt 1 failed device gate**
 and was rolled back same day; graveyard 2.2. Two failures: the clock tap opened
 the credentials/about modal when the removed card's tap goes to the start
@@ -1251,6 +1300,17 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
+blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
+by reading live code after the owner reported 404 share links: rollback was
+being done by deleting the deployed file, which permanently breaks every invite
+link, QR code and installed `start_url` generated from it — and there is no
+staleness detection anywhere, so devices can run arbitrarily old code
+undetected. Both defects mean device evidence gathered during today's cycles is
+unreliable, including the four ribbon failures. R7.0 fixes the deploy method
+first; release 7 items get re-verified on a known-current build afterward
+rather than being re-fixed blind. Graveyard 2.5.
 
 **v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
 and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
@@ -1297,6 +1357,17 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
+blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
+by reading live code after the owner reported 404 share links: rollback was
+being done by deleting the deployed file, which permanently breaks every invite
+link, QR code and installed `start_url` generated from it — and there is no
+staleness detection anywhere, so devices can run arbitrarily old code
+undetected. Both defects mean device evidence gathered during today's cycles is
+unreliable, including the four ribbon failures. R7.0 fixes the deploy method
+first; release 7 items get re-verified on a known-current build afterward
+rather than being re-fixed blind. Graveyard 2.5.
 
 **v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
 and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
@@ -1479,6 +1550,17 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
+blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
+by reading live code after the owner reported 404 share links: rollback was
+being done by deleting the deployed file, which permanently breaks every invite
+link, QR code and installed `start_url` generated from it — and there is no
+staleness detection anywhere, so devices can run arbitrarily old code
+undetected. Both defects mean device evidence gathered during today's cycles is
+unreliable, including the four ribbon failures. R7.0 fixes the deploy method
+first; release 7 items get re-verified on a known-current build afterward
+rather than being re-fixed blind. Graveyard 2.5.
 
 **v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
 and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
