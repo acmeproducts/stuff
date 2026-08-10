@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.7.0 -->
-# TALKBRIDGE MASTER PLAN v10.7.0
+<!-- TALKBRIDGE-PLAN v10.8.0 -->
+# TALKBRIDGE MASTER PLAN v10.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -157,11 +157,23 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn24-pre-base.html` — device-passed 2026-08-07. Rollback floor.**
+**Baseline: `bridge-turn24-base.html` — device-passed 2026-08-10 (PWA, push, away record, call surface, ribbon centring fix). Rollback floor.**
 
 Passed to date: room card and home screen · joiner shell · room lifecycle and
 elevation · call and network robustness · room menu surface · read receipt
-delivery.
+delivery · PWA, push, away record, call surface (release 7).
+
+**IN PROGRESS — not shipped, not gated:**
+The "missed while looking at the home screen" bug. Root cause confirmed: the
+base only counts a message as missed when `document.hidden` is true, so being
+on the home screen with the app open (not hidden, just not in that room) never
+counts — this is the iPhone gap the owner found. Fix drafted: count a message
+as missed whenever its room is not the one on screen, not only when the tab is
+hidden. **A double-count edge case was found in testing and is unresolved**
+(hidden + not-on-screen both firing). Do not ship until the four tests in
+`roomcard.test.mjs` (search "on screen") pass and are mutation-tested. Also
+queued in the same part: fix the `flags.gif` 404 (falls back to .png, harmless
+but noisy) and add a real favicon (currently 404s).
 
 Verified present in turn22 by direct inspection:
 chat mic · strip states · room drawer · phrasebook surface · appearance ·
@@ -1269,6 +1281,14 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
+**passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
+centring bug found and fixed same day (side zones must grow equally or the
+cluster drifts by the width of the room name). Root cause found for "missed
+activity does not register while the home screen is open": the base only counts
+a hidden tab, not a visible-but-elsewhere one. **Fix is drafted but NOT shipped**
+— a double-count edge case is open. This is the very next task.
+
 **v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
 underneath** — Apple requires it — so it can never install a web app nor receive
 web push, whatever is built. iOS testing must be Safari, added to the home
@@ -1404,6 +1424,14 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
+**passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
+centring bug found and fixed same day (side zones must grow equally or the
+cluster drifts by the width of the room name). Root cause found for "missed
+activity does not register while the home screen is open": the base only counts
+a hidden tab, not a visible-but-elsewhere one. **Fix is drafted but NOT shipped**
+— a double-count edge case is open. This is the very next task.
 
 **v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
 underneath** — Apple requires it — so it can never install a web app nor receive
