@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'fc8437b03da6-202608101637';
+var BUILD_ID = 'ec6b208ba61a-202608101701';
 
 var STALE = { notified: false, timer: null };
 
@@ -7118,29 +7118,29 @@ function prepareIosInstall() {
     var p = detectPlatform();
     if (!p.iosSafari || isStandalone()) return false;
 
-    /* Only trade the manifest away when there is genuinely something to carry.
-       A fresh user installs with the manifest fully intact and gets every
-       manifest-derived behaviour; only a user with rooms or credentials — who
-       would otherwise lose them entirely — makes the trade.
+    /* THE MANIFEST IS NEVER REMOVED. An earlier version stripped it on iOS so
+       that Add to Home Screen would capture the current URL and carry state
+       across install. That made installation itself the state-transfer
+       mechanism, which forced a false choice between push and preserved data.
 
-       THE TRADE, stated plainly because it is not free: with a manifest, iOS
-       launches the installed app at the manifest's fixed start_url, so a
-       static host can never carry state across install. Without one, Safari
-       captures the URL currently being viewed. Standalone display, app name
-       and icon are unaffected — on iOS those come from the
-       apple-mobile-web-app-capable / apple-mobile-web-app-title /
-       apple-touch-icon meta tags, not the manifest.
+       It was wrong on two counts. The manifest should describe the
+       application, not carry per-user state. And on iOS 26 Apple removed the
+       manifest requirement for the standalone Home Screen experience
+       entirely — the user chooses "Open as Web App" during Add to Home
+       Screen, independent of any manifest — so removing it bought nothing and
+       risked push, which belongs to the installed web app's identity.
 
-       UNVERIFIED RISK: whether iOS web push depends on the manifest or accepts
-       the legacy apple meta path. If push turns out to require it, this trade
-       is wrong and the manifest must stay — recorded here rather than assumed
-       away, and it needs a device test to settle. */
+       State is restored AFTER the installed app exists instead: a link opened
+       from inside a Home Screen web app stays inside it, so
+       app.html#r=TOKEN consumed from within the installed app is a clean
+       recovery path. Installation is removed from the problem entirely.
+
+       The token is still maintained in the URL here because it costs nothing
+       and makes that post-install recovery possible — but nothing about
+       installability now depends on it. */
     var hasState = ['tba_rooms', 'tb_dg_key', 'tb_grant', 'tb_grant_dg']
       .some(function (k) { return localStorage.getItem(k) !== null; });
-    if (!hasState) { bridgeLog('ios_manifest_kept_no_state', {}, 'ok'); return false; }
-
-    var link = document.querySelector('link[rel="manifest"]');
-    if (link && link.remove) { link.remove(); bridgeLog('manifest_removed_for_ios', {}, 'ok'); }
+    if (!hasState) return false;
 
     var token = buildRestoreToken();
     if (!token) return false;
@@ -7573,6 +7573,157 @@ if (typeof document !== 'undefined') {
   } catch (e) {
     legLog('failed', { e: String(e && e.message || e) }, 'error');
   }
+}
+
+
+/* ═══════════ GAP PART · DG-diagnostics.js ═══════════ */
+/* @contract
+   adds: DIAG, diagLog, diagFacts, renderInstallDiagnostics, DIAG_CSS
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   INSTALL DIAGNOSTICS
+
+   Exists so the outstanding iOS questions can be answered by looking at the
+   screen instead of inferring from behaviour. Each line corresponds to a
+   specific open question:
+
+     BUILD      — is this Home Screen launch running the CURRENT build, or is a
+                  service worker serving an old cached document? Installation
+                  state and cache state are different things and were being
+                  conflated. A visible immutable build id separates them.
+     STANDALONE — navigator.standalone / display-mode. The restore logic keys
+                  off this, so it must be observable rather than assumed.
+     LAUNCH     — the URL this instance actually started from, which shows
+                  whether start_url resolved to the stable entry point.
+     HASH       — whether a restore token survived the forward through
+                  app.html. A token that silently vanishes is indistinguishable
+                  from one that was never written.
+     PUSH       — notification permission and whether a PushSubscription
+                  exists, because "push did not arrive" has several distinct
+                  causes and they need separating.
+
+   Shown only when explicitly asked for (?diag=1 or a long-press on the clock),
+   never by default — this is an instrument, not furniture.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var DIAG = { shown: false };
+
+function diagLog(what, data, level) {
+  try { log('diag_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var DIAG_CSS =
+  '.diag-panel{position:fixed;left:8px;right:8px;bottom:8px;z-index:10000;background:#1A1714;color:#EDE8E2;' +
+  'font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;padding:12px 14px;border-radius:10px;' +
+  'box-shadow:0 8px 30px rgba(0,0,0,.35);max-height:52vh;overflow:auto}' +
+  '.diag-panel b{color:#7FD6D6;font-weight:600}' +
+  '.diag-row{display:flex;gap:8px;padding:2px 0;word-break:break-all}' +
+  '.diag-k{color:#9C948B;flex:0 0 82px}' +
+  '.diag-x{position:absolute;top:6px;right:10px;background:none;border:none;color:#9C948B;font-size:18px;cursor:pointer}';
+
+/* Every fact gathered directly, none inferred. */
+function diagFacts() {
+  var f = {};
+  try { f.build = (typeof BUILD_ID !== 'undefined') ? BUILD_ID : '(unstamped)'; } catch (_) { f.build = '(error)'; }
+  try {
+    f.standaloneNav = (window.navigator.standalone === true);
+    f.standaloneMedia = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    f.standalone = f.standaloneNav || f.standaloneMedia;
+  } catch (_) { f.standalone = false; }
+  try { f.launch = location.href; } catch (_) { f.launch = '?'; }
+  try { f.hash = location.hash || '(none)'; } catch (_) { f.hash = '?'; }
+  try { f.perm = (typeof Notification !== 'undefined') ? Notification.permission : '(no Notification API)'; }
+  catch (_) { f.perm = '?'; }
+  try { f.manifest = !!document.querySelector('link[rel="manifest"]'); } catch (_) { f.manifest = '?'; }
+  try { f.rooms = (S.rooms || []).length; } catch (_) { f.rooms = '?'; }
+  try { f.creds = !!(localStorage.getItem('tb_dg_key') || localStorage.getItem('tb_grant_dg')); } catch (_) { f.creds = '?'; }
+  return f;
+}
+
+function renderInstallDiagnostics() {
+  try {
+    var existing = document.getElementById('tb-diag');
+    if (existing && existing.remove) { existing.remove(); DIAG.shown = false; return false; }
+
+    var f = diagFacts();
+    var el = document.createElement('div');
+    el.id = 'tb-diag';
+    el.className = 'diag-panel';
+
+    var row = function (k, v) {
+      return '<div class="diag-row"><span class="diag-k">' + k + '</span><span>' + esc(String(v)) + '</span></div>';
+    };
+
+    var html = '<button class="diag-x" id="tb-diag-x" aria-label="Close">&times;</button>' +
+      '<b>INSTALL DIAGNOSTICS</b>' +
+      row('BUILD', f.build) +
+      row('STANDALONE', f.standalone + '  (navigator=' + f.standaloneNav + ' media=' + f.standaloneMedia + ')') +
+      row('MANIFEST', f.manifest ? 'linked' : 'ABSENT') +
+      row('LAUNCH', f.launch) +
+      row('HASH', f.hash) +
+      row('NOTIFY', f.perm) +
+      row('ROOMS', f.rooms) +
+      row('CREDS', f.creds ? 'present' : 'none');
+
+    el.innerHTML = html;
+    document.body.appendChild(el);
+
+    var x = document.getElementById('tb-diag-x');
+    if (x) x.addEventListener('click', function () { try { el.remove(); } catch (_) {} DIAG.shown = false; });
+
+    /* The push subscription is async, so it is filled in once resolved rather
+       than blocking the rest of the panel. */
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          return reg.pushManager ? reg.pushManager.getSubscription() : null;
+        }).then(function (sub) {
+          var live = document.getElementById('tb-diag');
+          if (!live) return;
+          live.insertAdjacentHTML('beforeend',
+            row('PUSH SUB', sub ? 'present' : 'NONE') +
+            row('SW', 'registered'));
+        }).catch(function () {
+          var live = document.getElementById('tb-diag');
+          if (live) live.insertAdjacentHTML('beforeend', row('PUSH SUB', '(unavailable)'));
+        });
+      } else {
+        el.insertAdjacentHTML('beforeend', row('SW', 'NOT SUPPORTED'));
+      }
+    } catch (_) {}
+
+    DIAG.shown = true;
+    diagLog('shown', f, 'ok');
+    return true;
+  } catch (e) {
+    diagLog('failed', { e: String(e && e.message || e) }, 'error');
+    return false;
+  }
+}
+
+if (typeof document !== 'undefined') {
+  try {
+    var dStyle = document.createElement('style');
+    dStyle.textContent = DIAG_CSS;
+    document.head.appendChild(dStyle);
+  } catch (_) {}
+
+  /* Opened deliberately: ?diag=1 in the address, or a long-press on the clock
+     in the left panel. Never shown on its own. */
+  try {
+    if (/[?&]diag=1/.test(location.search)) setTimeout(renderInstallDiagnostics, 600);
+    setTimeout(function () {
+      var clock = $('left-clock');
+      if (!clock || !clock.addEventListener) return;
+      var timer = null;
+      clock.addEventListener('touchstart', function () {
+        timer = setTimeout(renderInstallDiagnostics, 900);
+      });
+      ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) {
+        clock.addEventListener(ev, function () { if (timer) { clearTimeout(timer); timer = null; } });
+      });
+    }, 1000);
+  } catch (e) { diagLog('wire_failed', { e: String(e && e.message || e) }, 'error'); }
 }
 
 </script>
