@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.2.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.3.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.2.0  
+**Governance version:** 1.3.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -331,6 +331,13 @@ Buried for SM-R2. Detect first; repair only after evidence.
 ### G-013 — Claiming a browser-only derived path list is a disk scan
 Buried. Derived paths must be labeled derived. Physical/unindexed files are only claimed when a supported source actually exposes them.
 
+### G-014 — Handing off a published artifact before source read-back
+**Observed 2026-08-10:** commit `04dcbbc9403ee8b94d3c27ea66d8ed6b96b4a955`, blob `561b54b842e0053d3987de82924de96767cf8235`, lost one closing parenthesis in the published Recycle-bin filter even though the local rebuilt source had passed syntax/runtime checks. The defect was caught by GitHub read-back before owner handoff.
+
+**Buried:** treating a successful Contents API response as proof that a manually transferred large source file is runnable.
+
+**Replacement:** read the critical source back from the exact returned blob before handoff. A publish transcription failure is rejected as a failed candidate; rebuild/re-publish from the declared input rather than asking the owner to discover it.
+
 ---
 
 # 6. Lessons learned
@@ -360,6 +367,7 @@ Buried. Derived paths must be labeled derived. Physical/unindexed files are only
 - **D-008 · 2026-08-10:** Permanent delete uses OpenClaw session deletion/archive semantics, never direct source erasure by Session Manager.
 - **D-009 · 2026-08-10:** `*.jsonl.jsonl` is a first-class diagnostic anomaly; SM-R2 detects but does not repair.
 - **D-010 · 2026-08-10:** Debug moves behind Configuration and becomes tabbed Log / Session Files / Environment.
+- **D-011 · 2026-08-10:** First v2.3 publish `04dcbbc…` rejected during read-back before owner handoff due to a transferred syntax defect. Rebuilt/re-published candidate is commit `b0d70c3f4eeed1a90ddc050b608fe8f4e1e4a8f2`, blob `134466f379e93492c0b7b5e4fe9ec80afe7b42cf`.
 
 ---
 
