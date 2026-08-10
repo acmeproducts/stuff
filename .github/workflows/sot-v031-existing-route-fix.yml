@@ -1,0 +1,246 @@
+name: Rebuild SOT v0.3.1 on existing infrastructure
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-v031-existing-route-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch candidate to existing API mount only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          OLD_BUILD='2026.08.10.1'
+          NEW_BUILD='2026.08.10.2'
+
+          # project.html: keep /api/fs as the one already-established public mount.
+          p=Path('project.html')
+          s=p.read_text()
+          assert "const PROJECT_API='/api/projects';" in s
+          assert "const REPORT_API='/api/reports';" in s
+          assert "const FS_API='/api/fs';" in s
+          s=s.replace(OLD_BUILD, NEW_BUILD)
+          s=s.replace("const PROJECT_API='/api/projects';", "const PROJECT_API='/api/fs/projects';")
+          s=s.replace("const REPORT_API='/api/reports';", "const REPORT_API='/api/fs/reports';")
+          p.write_text(s)
+
+          # file_browser.py: preserve direct/local routes and add compatibility for
+          # project/report calls traveling through the existing /api/fs public mount.
+          p=Path('file_browser.py')
+          s=p.read_text()
+          s=s.replace(OLD_BUILD, NEW_BUILD)
+          if 'EXISTING_API_MOUNT_COMPAT_V031' not in s:
+              m=re.search(r'(?m)^app\s*=\s*FastAPI\([^\n]*\)\s*$', s)
+              if not m:
+                  raise SystemExit('FAIL: FastAPI app creation line not found')
+              block='''\n\n# EXISTING_API_MOUNT_COMPAT_V031\n# Public routing already exposes /api/fs to this same 8081 helper. Keep that\n# routing unchanged and tunnel project/report paths through that established\n# mount. If a reverse proxy strips /api/fs, the existing /projects and /reports\n# aliases continue to handle the request.\n@app.middleware("http")\nasync def existing_api_mount_compat(request, call_next):\n    path = request.scope.get("path", "")\n    if path.startswith("/api/fs/projects"):\n        request.scope["path"] = "/api/projects" + path[len("/api/fs/projects"):]\n    elif path.startswith("/api/fs/reports"):\n        request.scope["path"] = "/api/reports" + path[len("/api/fs/reports"):]\n    return await call_next(request)\n'''
+              s=s[:m.end()]+block+s[m.end():]
+
+          # mkdir must also survive a proxy that strips /api/fs to /mkdir.
+          if '@app.post("/mkdir")' not in s:
+              marker='@app.post("/api/fs/mkdir")'
+              if marker not in s:
+                  raise SystemExit('FAIL: mkdir endpoint not found')
+              s=s.replace(marker, '@app.post("/mkdir")\n'+marker, 1)
+          p.write_text(s)
+
+          # Version marker.
+          p=Path('SOT_PROJECT_VERSION')
+          s=p.read_text().replace(OLD_BUILD, NEW_BUILD)
+          p.write_text(s)
+
+          # Test contract: same release, new build, existing /api/fs public namespace.
+          p=Path('test_sot_v031.py')
+          s=p.read_text().replace(OLD_BUILD, NEW_BUILD)
+          extra='''\n\ndef test_existing_public_mount_contract():\n    html = Path("project.html").read_text()\n    backend = Path("file_browser.py").read_text()\n    assert "const FS_API='/api/fs';" in html\n    assert "const PROJECT_API='/api/fs/projects';" in html\n    assert "const REPORT_API='/api/fs/reports';" in html\n    assert "EXISTING_API_MOUNT_COMPAT_V031" in backend\n    assert '@app.post("/mkdir")' in backend\n    assert '8082' not in html\n'''
+          if 'test_existing_public_mount_contract' not in s:
+              s += extra
+          p.write_text(s)
+          PY
+
+      - name: Replace release installer with existing-process activation only
+        shell: bash
+        run: |
+          cat > deploy-sot-project.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          # SOT Project Portal release installer
+          # Release: 0.3.1
+          # Build: 2026.08.10.2
+          #
+          # THIS IS A RELEASE/ACTIVATION SCRIPT, NOT INFRASTRUCTURE SETUP.
+          # It never creates a service, changes a port, or changes Tailscale routing.
+          # It replaces the two release files and reloads the already-running 8081
+          # helper using its existing command/cwd (or its existing user systemd unit).
+          set -euo pipefail
+
+          VERSION="0.3.1"
+          BUILD="2026.08.10.2"
+          REPO_RAW="https://raw.githubusercontent.com/acmeproducts/stuff/main"
+          WORKSPACE="${HOME}/.openclaw/workspace"
+          REPORT_DIR="${WORKSPACE}/https/report/SOT"
+          PORTAL_DST="${REPORT_DIR}/project.html"
+          HELPER_DST="${WORKSPACE}/file_browser.py"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+
+          need(){ command -v "$1" >/dev/null 2>&1 || { echo "FAIL: missing command: $1" >&2; exit 1; }; }
+          need python3
+          need curl
+          need pgrep
+
+          mkdir -p "$REPORT_DIR"
+
+          # Existing helper is a prerequisite. Refuse to invent/start a new topology.
+          mapfile -t PIDS < <(pgrep -f 'python3 -m uvicorn file_browser:app --host 127.0.0.1 --port 8081' || true)
+          if [[ ${#PIDS[@]} -ne 1 ]]; then
+            echo "FAIL: expected exactly one existing SOT helper on 127.0.0.1:8081; found ${#PIDS[@]}"
+            echo "No server/service/port was created or changed."
+            exit 1
+          fi
+          PID="${PIDS[0]}"
+          CWD="$(readlink -f "/proc/${PID}/cwd")"
+          mapfile -d '' -t CMD < "/proc/${PID}/cmdline"
+          UNIT="$(sed -n 's#.*\/\([^/]*\.service\).*#\1#p' "/proc/${PID}/cgroup" | tail -1 || true)"
+
+          curl -fsSL "${REPO_RAW}/project.html" -o "${TMP}/project.html"
+          curl -fsSL "${REPO_RAW}/file_browser.py" -o "${TMP}/file_browser.py"
+          grep -q "UI Version: ${VERSION}" "${TMP}/project.html"
+          grep -q "Build: ${BUILD}" "${TMP}/project.html"
+          grep -q "API_VERSION = \"${VERSION}\"" "${TMP}/file_browser.py"
+          grep -q "BUILD_ID = \"${BUILD}\"" "${TMP}/file_browser.py"
+          python3 -m py_compile "${TMP}/file_browser.py"
+
+          # Rollback bytes for this activation attempt only.
+          [[ -f "$PORTAL_DST" ]] && cp -a "$PORTAL_DST" "${TMP}/old-project.html" || true
+          [[ -f "$HELPER_DST" ]] && cp -a "$HELPER_DST" "${TMP}/old-file_browser.py" || true
+
+          install -m 0644 "${TMP}/project.html" "${PORTAL_DST}.new"
+          mv -f "${PORTAL_DST}.new" "$PORTAL_DST"
+          install -m 0644 "${TMP}/file_browser.py" "${HELPER_DST}.new"
+          mv -f "${HELPER_DST}.new" "$HELPER_DST"
+
+          restart_existing(){
+            if [[ -n "$UNIT" ]] && command -v systemctl >/dev/null 2>&1; then
+              systemctl --user restart "$UNIT"
+            else
+              kill "$PID"
+              for _ in $(seq 1 20); do kill -0 "$PID" 2>/dev/null || break; sleep .25; done
+              cd "$CWD"
+              nohup "${CMD[@]}" >"${WORKSPACE}/file_browser.log" 2>&1 &
+            fi
+          }
+
+          if ! restart_existing; then
+            echo "FAIL: existing helper reload failed"
+            exit 1
+          fi
+
+          READY=0
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8081/healthz >/dev/null 2>&1; then READY=1; break; fi
+            sleep .5
+          done
+
+          if [[ "$READY" -ne 1 ]]; then
+            echo "FAIL: new helper did not become healthy; restoring prior release bytes"
+            [[ -f "${TMP}/old-project.html" ]] && cp -a "${TMP}/old-project.html" "$PORTAL_DST" || true
+            [[ -f "${TMP}/old-file_browser.py" ]] && cp -a "${TMP}/old-file_browser.py" "$HELPER_DST" || true
+            # Reload same established process shape after rollback.
+            if [[ -n "$UNIT" ]] && command -v systemctl >/dev/null 2>&1; then
+              systemctl --user restart "$UNIT" || true
+            else
+              mapfile -t RPIDS < <(pgrep -f 'python3 -m uvicorn file_browser:app --host 127.0.0.1 --port 8081' || true)
+              for RPID in "${RPIDS[@]}"; do kill "$RPID" 2>/dev/null || true; done
+              cd "$CWD"
+              nohup "${CMD[@]}" >"${WORKSPACE}/file_browser.log" 2>&1 &
+            fi
+            exit 1
+          fi
+
+          # Prove the existing helper has the release. No route changes.
+          curl -fsS http://127.0.0.1:8081/healthz >/dev/null
+          curl -fsS http://127.0.0.1:8081/api/projects/health >/dev/null
+          curl -fsS 'http://127.0.0.1:8081/api/fs?path=/' >/dev/null
+
+          echo "SUCCESS"
+          echo "SOT ${VERSION} · ${BUILD}"
+          echo "Existing helper: 127.0.0.1:8081 (same server/port)"
+          echo "Tailscale routing: unchanged"
+          echo "URL: https://oc-ref.fell-dojo.ts.net/report/SOT/project.html"
+          SCRIPT
+          chmod +x deploy-sot-project.sh
+
+      - name: Update governance for corrected candidate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project-backlog.md')
+          s=p.read_text()
+          s=s.replace('**Planned first build:** `2026.08.10.1`', '**Current candidate build:** `2026.08.10.2`')
+          s=s.replace('**Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.', '**Candidate automated gate:** PENDING REBUILD GATE.')
+          s=s.replace('**Candidate commit:** `17e00575ca8a56c8b69a4c7702fa4d369a0fda1f`', '**Candidate commit:** `PENDING_THIS_REBUILD`')
+          s=s.replace('**Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`', '**Candidate UI blob:** `PENDING_READBACK`')
+          s=s.replace('**Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`', '**Candidate helper blob:** `PENDING_READBACK`')
+
+          ruling='- Release activation may reload the already-existing 8081 helper solely to load new Python bytes; this is not infrastructure creation. It must reuse the existing process/service, port, and routing, and must never create a new service/port/route.\n'
+          anchor='- The SOT HTTP helper remains one process on `127.0.0.1:8081`.\n'
+          if ruling not in s:
+              s=s.replace(anchor, anchor+ruling)
+
+          grave='''\n## G-009 — Treating a product release as an infrastructure redesign\n\n**Date buried:** 2026-08-10  \n**Status:** VETOED  \n**Approach:** while preparing a SOT product release, add/change public API mounts, ports, services, or Tailscale topology instead of fitting the release to the already-established runtime.  \n**Why buried:** violates release scope, wastes owner time, and reopens settled architecture without evidence.  \n**Replacement:** release code must fit the existing report server, the existing `/api/fs` public API mount, and the existing 8081 helper. A release activation may reload that same helper process only to load new code.\n\n'''
+          if '## G-009 — Treating a product release as an infrastructure redesign' not in s:
+              s=s.replace('# 8. DONE / CURRENT IMPLEMENTATION LEDGER', grave+'# 8. DONE / CURRENT IMPLEMENTATION LEDGER')
+          p.write_text(s)
+          PY
+
+      - name: Gate candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile file_browser.py test_sot_v031.py
+          bash -n deploy-sot-project.sh
+          python3 test_sot_v031.py
+          grep -q "const PROJECT_API='/api/fs/projects';" project.html
+          grep -q "const REPORT_API='/api/fs/reports';" project.html
+          grep -q 'EXISTING_API_MOUNT_COMPAT_V031' file_browser.py
+          grep -q '@app.post("/mkdir")' file_browser.py
+          grep -q '2026.08.10.2' project.html file_browser.py SOT_PROJECT_VERSION deploy-sot-project.sh
+          ! grep -q 'tailscale serve' deploy-sot-project.sh
+          ! grep -q '8082' deploy-sot-project.sh
+
+      - name: Commit rebuilt candidate and self-clean workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/sot-v031-existing-route-fix.yml
+          git add project.html file_browser.py test_sot_v031.py SOT_PROJECT_VERSION deploy-sot-project.sh project-backlog.md
+          git commit -m 'Rebuild SOT v0.3.1 on existing infrastructure'
+          COMMIT="$(git rev-parse HEAD)"
+          python3 - <<PY
+          from pathlib import Path
+          p=Path('project-backlog.md')
+          s=p.read_text().replace('PENDING_THIS_REBUILD', '${COMMIT}')
+          s=s.replace('**Candidate automated gate:** PENDING REBUILD GATE.', '**Candidate automated gate:** PASS — existing-route compatibility, syntax, API contract, and release-installer gates.')
+          p.write_text(s)
+          PY
+          git add project-backlog.md
+          git commit --amend --no-edit
+          git pull --rebase origin main
+          git push origin HEAD:main
