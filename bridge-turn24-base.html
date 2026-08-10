@@ -6683,10 +6683,20 @@ function r7RegisterSW() {
 }
 
 function r7FetchVapid() {
+  /* The deployed relay answers the key ask inside a session: POST
+     {type:'vapid'} with the usual app/session/client addressing. Any live
+     room's session serves; with no rooms there is nothing to subscribe. */
   if (r7VapidKey) return Promise.resolve(r7VapidKey);
-  return fetch(R7_RELAY_HTTP + '?vapid=1').then(function (r) { return r.ok ? r.json() : null; })
+  var room = S.rooms.filter(function (r) { return !r.deletedAt; })[0];
+  if (!room) { r7pLog('vapid_no_rooms', {}, 'warn'); return Promise.resolve(null); }
+  return fetch(R7_RELAY_HTTP + '?app=' + encodeURIComponent(RELAY_APP) +
+      '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(deviceId), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'vapid' })
+  }).then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
       r7VapidKey = d && d.vapid || null;
+      if (d && d.push === false) r7pLog('vapid_push_disabled', {}, 'warn');
       r7pLog(r7VapidKey ? 'vapid_ok' : 'vapid_missing', {}, r7VapidKey ? 'ok' : 'warn');
       return r7VapidKey;
     }).catch(function (e) { r7pLog('vapid_fetch_failed', { e: String(e) }, 'warn'); return null; });
