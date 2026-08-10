@@ -8,6 +8,11 @@
 3. `talkbridge/TALKBRIDGE-PLAN-v9.md` — current scope, current baseline, what's
    passed, what's next. This is the single source of truth for state.
 
+4. When removing or replacing existing behavior: `grep`/read the exact current
+   implementation being replaced **before** writing the replacement — never
+   reconstruct it from the plan's English description. This is the specific gap
+   both 2.2 regressions shared. (Rule 1 below.)
+
 If anything below conflicts with those three, they win.
 
 ## History
