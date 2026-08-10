@@ -33,6 +33,9 @@ An owner ruling made in-session must be written into this file in the same sessi
 - The next release must contain **all five locked v0.3.1 items** listed below. Do not silently split, defer, or omit one.
 - Do not add a new service, daemon, port, database, or proxy layer when the existing SOT helper can safely own the function.
 - The SOT HTTP helper remains one process on `127.0.0.1:8081`.
+- **Release deployment must use the existing report server, existing SOT helper, existing port 8081, and existing Tailscale routing. A release is not permission to restart, replace, or reconfigure infrastructure.**
+- **`deploy-sot-project.sh` is release-file installation only: overwrite the canonical `project.html` and `file_browser.py` in their already-established locations. It must not create/start/stop/restart servers or alter ports/routes.**
+- If an already-running Python helper requires a reload to pick up a changed `file_browser.py`, that is an operational reload of the existing helper, not a new service or architecture decision; do not perform it as part of a release unless the owner explicitly asks for that operational step.
 - Project creation exists only in **Intake → Enter Project**.
 - Project identity is the immutable `project_token`; project name is mutable.
 - No fake lifecycle state. If the deterministic execution engine is not running, the UI must say so and must not simulate Start/Pause/Resume/Restart/Promote.
@@ -75,6 +78,9 @@ Syntax, unit tests, structural checks, API checks, and local harnesses determine
 
 ### Byte/version verification
 Every candidate must visibly report its UI/API version/build. Repo writes must be read back after write; deployment must verify that the deployed artifact is the intended build, not merely assume the copy succeeded.
+
+### Release deployment is not infrastructure work
+A release may replace application files at their established runtime/served paths. It must not introduce or change topology. Existing services, ports, and routes are presumed authoritative unless an independently proven defect requires an explicit owner-approved infrastructure change.
 
 ---
 
@@ -125,6 +131,20 @@ ONE SOT helper
 ```
 
 No supported SOT architecture includes a second project API service or port 8082.
+
+### Deployment invariant
+
+```text
+GitHub release files
+   ├── project.html
+   └── file_browser.py
+          ↓ overwrite only
+Established served/runtime paths
+
+Servers: unchanged
+Ports: unchanged
+Tailscale routing: unchanged
+```
 
 ---
 
@@ -253,13 +273,15 @@ Requirements:
 - Record enough information for Intake to show exactly what target will be used.
 - Failure is surfaced to the operator; project creation cannot silently continue with a different target.
 
-## 3.5 Item 5 — Deploy and prove the unified project API on 8081
+## 3.5 Item 5 — Prove the unified project API on the existing 8081 helper
 
-The repo implementation is not enough; v0.3.1 must prove the live environment.
+The repo implementation is not enough; v0.3.1 must prove the live environment **without changing infrastructure topology**.
 
 Requirements:
 
-- `/api/fs`, `/api/projects`, and `/api/reports` all resolve to the same helper process on `127.0.0.1:8081`.
+- `/api/fs`, `/api/projects`, and `/api/reports` all resolve through the already-established SOT helper on `127.0.0.1:8081`.
+- Do not create, start, stop, restart, or configure any additional SOT service/port as part of release deployment.
+- Do not modify Tailscale Serve routing as part of release deployment.
 - No SOT listener/service on 8082.
 - `project.html` health indicator shows API live only after a real health response.
 - UI/API versions/builds match and are visible.
@@ -281,7 +303,7 @@ Before owner handoff:
 - Target mkdir tests: new folder, already exists, invalid name, path traversal, unwritable parent.
 - Local-device source reachability test through the actual Intake control.
 - Version/build match test.
-- Port/topology test proving 8081 and proving no supported SOT service on 8082.
+- Topology guard test proving all SOT helper behavior is designed for existing 8081 and that release scripts do not create/reconfigure infrastructure.
 
 ### Required mutation checks
 
@@ -291,7 +313,7 @@ At least these defects must be deliberately reintroduced/simulated and caught:
 - discard returned file entries and confirm files-only-directory gate fails;
 - make mkdir return success without creating/verifying a directory and confirm gate fails;
 - reuse an idempotency key for a different request and confirm conflict gate fires;
-- break project API routing or point it to 8082 and confirm topology gate fails;
+- introduce an 8082 dependency or route-changing deployment behavior and confirm topology gate fails;
 - make the local-device source control unreachable and confirm reachability gate fails.
 
 ## 3.7 v0.3.1 owner/device gate
@@ -318,8 +340,9 @@ At least these defects must be deliberately reintroduced/simulated and caught:
 
 ### Infrastructure
 
-- Confirm API health from the live URL.
+- Confirm the release used the existing report server and existing SOT helper only.
 - Confirm no extra SOT project API service/port was introduced.
+- Confirm release deployment did not alter Tailscale routing.
 
 **Only after this gate passes does v0.3.1 become the new baseline.**
 
@@ -542,6 +565,7 @@ These survive every release unless the owner explicitly changes them.
 13. No extra SOT service/port without a proven technical boundary and explicit owner ruling.
 14. A feature that cannot be invoked through the operator control is not implemented.
 15. A failed owner gate is rolled back, recorded, and rebuilt from the clean input rather than patched forward.
+16. Release deployment may overwrite application files in established locations but must not create/start/stop/restart infrastructure or alter ports/routes without explicit owner approval.
 
 ---
 
@@ -610,6 +634,14 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Why buried:** unnecessary operator steps and duplicate-file confusion.  
 **Replacement:** `ghdeploy` copies the requested GitHub HTML directly to the report project; `deploy` does the same from Windows Download. A repo clone may still be used intentionally for development, but is not required for routine deployment.
 
+## G-009 — Treating an application release as permission to reconfigure infrastructure
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED  
+**Approach:** release script restarts/replaces the existing SOT helper, changes Tailscale child routes, or manages old ports/services while installing application files.  
+**Why buried:** scope violation; infrastructure had already been established and the requested work was an application release, not an architecture migration.  
+**Replacement:** release installer overwrites only canonical application files. Infrastructure remains untouched unless a separately proven defect leads to an explicit owner-approved operational/infrastructure change.
+
 ---
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
@@ -637,13 +669,23 @@ This section prevents already-implemented work from being repeatedly rescheduled
 - [x] Unified 8081 helper architecture implemented in repo.
 - [x] Project DB opens SQLite in WAL mode in current helper code.
 
+## v0.3.1 candidate implemented in repository
+
+- [x] Target parent + editable project-folder convention implemented in candidate.
+- [x] File browser history/rescan/files-visible behavior implemented in candidate.
+- [x] Android/local-device source intake implemented in candidate.
+- [x] `/api/fs/mkdir` implemented in the existing helper code.
+- [x] Unified `/api/projects` + `/api/reports` remain in the same helper code intended for existing 8081.
+- [x] Release installer corrected to file-installation-only; no server/port/Tailscale reconfiguration.
+
 ## Not yet owner-verified live
 
-- [ ] Unified `/api/projects` deployment on the actual WSL helper.
-- [ ] Unified `/api/reports` deployment on the actual WSL helper.
+- [ ] Unified `/api/projects` behavior through the already-running WSL helper.
+- [ ] Unified `/api/reports` behavior through the already-running WSL helper.
 - [ ] UI/API live version match in deployed environment.
+- [ ] Android local-device gate on the actual intended device/browser.
 
-These three are consumed by locked v0.3.1 Item 5 rather than existing as a separate infrastructure release.
+These remain owner/device gate items; they are not grounds for introducing new infrastructure.
 
 ---
 
@@ -682,6 +724,7 @@ This section records external review items so they do not disappear between sess
 4. Confirm the locked scope with the owner before implementation if it has changed.
 5. Scan every planned mechanism against the graveyard.
 6. If a defect cause is unknown, instrument first.
+7. Treat existing ports/services/routes as constants unless a proven defect and explicit owner ruling says otherwise.
 
 ## End every SOT build session
 
@@ -690,6 +733,7 @@ This section records external review items so they do not disappear between sess
 3. Record automated gate result.
 4. Record owner/device gate as PASS / FAIL / NOT YET RUN — never infer it.
 5. On FAIL: restore baseline, add graveyard entry, then rebuild from baseline in the next attempt.
+6. Record whether infrastructure changed. Normal answer for application releases is `NONE`.
 
 ---
 
@@ -789,6 +833,8 @@ GET    /api/reports/timeline
 GET    /api/projects/:project_token/report
 ```
 
+All of these are application routes of the **existing** SOT helper. The release plan does not allocate another server or port for them.
+
 Engine actions remain unavailable until their planned releases implement real deterministic behavior:
 
 ```text
@@ -811,6 +857,7 @@ A release is DONE only when all are true:
 - repo artifacts are read back/verified;
 - deployed version/build is verified;
 - required real-device/real-storage owner gate passes;
-- this file is updated to mark the release baseline and move completed items out of future backlog.
+- this file is updated to mark the release baseline and move completed items out of future backlog;
+- application release did not silently alter infrastructure topology.
 
 “Code written”, “committed”, “linted”, “API returned 200 once”, or “looks right” are not equivalent to DONE.
