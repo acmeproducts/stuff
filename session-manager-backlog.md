@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.6.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.7.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.6.0  
+**Governance version:** 1.7.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -23,108 +23,175 @@ This file is the Session Manager source of truth. Owner/device evidence outranks
 - Diagnostics are read-only unless a separately governed repair release explicitly permits mutation.
 - Every GitHub publish is read back before owner handoff.
 - The owner is the tester. Handoff identifies one filename/version/blob and does not offload architecture diagnosis.
+- Accessibility is functional scope, not cosmetic polish: presets, contrast, typography, path/code readability, and configuration usability are owner-gated behavior.
 
 ---
 
 # 1. AUTHORITATIVE FUNCTIONAL BASELINE
 
-## Owner ruling — 2026-08-10
-
-The owner supplied a file and explicitly reported: **“this works”** and then clarified that it is the **functional baseline** for the next changes.
-
-That file is:
+The owner supplied and explicitly proved working the v2.1.0 Session Manager artifact.
 
 - visible version: **v2.1.0**
-- GitHub blob: **`27ee8fabe42a185d194b4af4d668e81b54a8b8c8`**
-- historical v2.1 commit: `56c91a6ff1da3b1e2049490ca51c40eecf7863f1`
+- exact baseline blob: **`27ee8fabe42a185d194b4af4d668e81b54a8b8c8`**
 - owner-baseline restore commit: `0d5ed4c19ce66c45e5ad6722e84f9ecf13c19875`
 
-Owner-proven baseline behavior includes:
+Owner-proven baseline behavior:
 
 - Gateway connection works;
 - sessions load;
 - chat works;
-- inline session rename works and persists through OpenClaw / official Control UI;
+- inline rename works and persists through OpenClaw / official Control UI;
 - activity-state tracking works.
 
-**This supersedes the prior v1.5 assumption that v2.2 was the rebuild input.** v2.2 remains historical evidence, but the current SM-R2 rebuild input is exact blob `27ee8f...` because it is the file the owner most recently proved working.
+The identity/signature/connect subsystem derived from this baseline remains protected through SM-R2.
 
 ---
 
-# 2. ACTIVE RELEASE — SM-R2 / v2.3.0
+# 2. ACTIVE RELEASE — SM-R2 / visible build v2.3.1
 
-**Input:** exact owner-proven v2.1 blob `27ee8fabe42a185d194b4af4d668e81b54a8b8c8`.  
-**Output:** `session-manager-v3.html`, visibly **v2.3.0**.  
-**Candidate commit:** `23e93bf1f3ac9f5777cc9a7a5faf6302be740d44`  
-**Candidate blob:** `3f55b17975c7c10c27bf3ece87a28734ffeb3358`  
-**Owner gate:** NOT YET RUN.
+**Current GitHub commit:** `4fb047ea5ce521407a46c55c0e2e1985a093d66d`  
+**Current GitHub blob:** `81057d309ddc36834f542b3bb752a4c31565014b`  
+**Owner gate:** NOT YET RUN for v2.3.1.
+
+v2.3.1 is an accessibility/appearance refinement of the governed v2.3 feature line. It does not redesign the Gateway connection contract.
 
 ## 2.1 Protected connection subsystem
 
-The following implementations were compared against the exact owner-proven baseline and passed the pre-publish no-drift guard:
+The following behavior remains frozen from the owner-proven connection line:
 
-- `identity()`;
-- `deviceToken()`;
-- `saveDeviceToken()`;
+- identity persistence/import/generation;
+- Ed25519 key handling;
+- device-token handling;
+- signed connect-payload construction;
+- challenge timestamp/nonce handling;
+- platform/device-family fields used by the signature;
 - `connectParams()`;
-- `rpc()`;
-- `rejectPending()`;
-- `connect()`;
-- `handleConnectError()`;
-- `schedule()`;
-- `reconnect()`.
+- `rpc()` handshake behavior;
+- `connect()` sequencing;
+- connect error handling;
+- reconnect logic.
 
-The visible/client application version advances to v2.3.0. The signed-payload construction, identity storage/import/generation, Ed25519 handling, challenge timestamp/nonce, platform/device-family handling, token/device-token semantics, handshake sequencing, error handling, and reconnect logic remain the owner-proven baseline behavior.
+The guarded release build verified the governed v2.3.0 input blob before applying the accessibility patch and checked the protected connection signatures before publishing v2.3.1.
 
-Any future SM-R2 change that alters those protected functions requires a new explicit cause/evidence ruling before owner handoff.
+## 2.2 Session lifecycle
 
-## 2.2 Soft delete + Recycle bin
-
-- Soft delete is Session Manager local state only.
-- Tombstone is keyed by Gateway + session key.
-- It does not mutate OpenClaw.
-- Deleted sessions disappear from the active list.
-- **Recycle bin is at the TOP of the session list.**
-- Bin is collapsed by default.
-- Restore removes the local tombstone and returns the exact session.
+- Soft delete is local Session Manager state only.
+- Recycle bin is at the **TOP** of the session list.
+- Restore removes only the local tombstone.
 - Tombstones persist across reload.
-- Delete Permanently exists only inside the bin.
+- Delete Permanently exists only in the Recycle bin.
+- Permanent delete uses Gateway `sessions.delete` with `deleteTranscript:true`.
+- OpenClaw owns transcript archive/rename lifecycle.
+- Gateway rejection preserves local state and displays the actual error.
+- No direct `sessions.json` or transcript-file mutation.
 
-## 2.3 Permanent delete
+## 2.3 Accessibility-first Appearance workspace — v2.3.1
 
-- Uses Gateway `sessions.delete` with `deleteTranscript:true`.
-- No `rm`, `unlink`, direct transcript deletion, or `sessions.json` editing.
-- OpenClaw owns archive/rename lifecycle.
-- Tombstone is cleared only after Gateway success.
-- Gateway failure preserves the tombstone and displays the error.
-- Main/protected-session restrictions are not bypassed.
+Appearance is a large configuration workspace, not a cramped control box.
 
-## 2.4 Appearance
+### Presets
 
-Configuration → Appearance includes:
+Required legible presets:
 
-- Light / Medium / Dark presets;
-- accent color;
-- User bubble background/font/font size;
-- Agent bubble background/font/font size;
-- message width;
-- list density compact/normal/comfortable;
+- **High Contrast Dark** — black canvas, white large text, high-contrast surfaces;
+- **High Contrast Light** — white canvas with strong dark text;
+- **Warm Paper** — low-glare warm background with dark readable text;
+- **Soft Dark** — gentler dark surface while maintaining strong contrast;
+- **Large Print** — larger base/message/meta text and generous spacing.
+
+Presets are starting points; granular controls may override them.
+
+### Page/application surfaces
+
+Explicit controls:
+
+- page background;
+- panels/sidebar background;
+- raised cards/header background;
+- input background;
+- borders;
+- main text;
+- secondary text;
+- accent.
+
+The user must be able to change the actual page/background rather than only message bubbles.
+
+### Messages
+
+Independent controls:
+
+- User bubble background;
+- User text color;
+- User text size;
+- Agent bubble background;
+- Agent text color;
+- Agent text size;
+- maximum message width;
+- line spacing.
+
+### Markdown / HTML / code / paths
+
+Code and path presentation are independent surfaces and never blindly inherit message text color.
+
+Explicit controls:
+
+- fenced code-block background;
+- fenced code-block text;
+- inline-code background;
+- inline-code text;
+- filename/path background;
+- filename/path text;
+- link color.
+
+Critical rendered foregrounds use automatic contrast protection. If a selected foreground becomes unreadable against its surface, rendering selects readable black or white while preserving the saved palette choice.
+
+This applies to critical main text, message text, metadata, code, inline code, filenames/paths, links, and primary-button text.
+
+### Typography/layout
+
+Controls:
+
+- application/base text size;
+- metadata size and color;
 - sidebar width;
-- meta/header size and muted color.
+- session-list density;
+- line spacing;
+- font family, including readability-oriented Verdana plus System, Arial, Trebuchet, and Georgia.
 
-Appearance persists and must never reconnect or mutate Gateway/session state. Ready remains blue, Working green, Error yellow.
+### Live preview
+
+Appearance includes a persistent live preview showing:
+
+- session/sidebar card;
+- User message;
+- Agent message;
+- filename/path sample;
+- link sample;
+- code block sample.
+
+Appearance previews live. Closing with × discards unsaved appearance changes; Save persists them.
+
+## 2.4 Automatic message rendering
+
+Rendering mode is automatic; the tester does not select Markdown versus HTML manually.
+
+- Markdown renders automatically.
+- Recognized safe HTML formatting renders automatically.
+- HTML is sanitized before insertion.
+- Supported safe HTML is formatting/content only: headings, paragraphs/divs/spans, emphasis, lists, code/pre, blockquotes, links, tables, line rules/breaks.
+- event handlers, inline styles, executable/embed content, `src`/`srcdoc`, and unsafe attributes are removed.
+- rendered links are limited to safe `http(s)` / `mailto` destinations and open safely.
+- inline Markdown code that looks like a filename/path receives the dedicated path style automatically.
 
 ## 2.5 Diagnostics
 
-Main-header Debug is removed.
-
-Configuration tabs:
+Configuration remains organized as:
 
 - Connection
 - Appearance
 - Diagnostics
 
-Diagnostics opens a tabbed Debug surface:
+Debug tabs remain:
 
 - Log
 - Session Files
@@ -133,69 +200,59 @@ Diagnostics opens a tabbed Debug surface:
 Session Files rules:
 
 - `.jsonl.jsonl` → **ANOMALY**;
-- `.jsonl` → normal;
+- normal `.jsonl` → normal transcript;
 - `.jsonl.deleted.*` → deleted archive;
 - `.jsonl.reset.*` → reset archive;
 - constructed `<sessionId>.jsonl` → **derived / not disk-verified**;
-- browser must not claim a physical WSL disk scan it cannot perform;
+- browser does not claim a WSL disk scan it cannot perform;
 - no repair/mutation in SM-R2.
-
-Environment shows app version, Gateway, connection, protocol, scopes, device ID, session count, local soft-delete count, and subscription count without secrets.
-
-## 2.6 Convenience behavior carried into candidate
-
-The candidate also includes the previously developed convenience behavior expected by the governed gate:
-
-- Markdown rendering;
-- Copy message;
-- Download transcript;
-- Share transcript;
-- Stop active run;
-- attachments;
-- activity state.
-
-These additions were built around the owner-proven connection subsystem rather than replacing it.
 
 ---
 
-# 3. OWNER GATE
+# 3. OWNER GATE — v2.3.1
 
 ## Gate 1 — regression gate FIRST
 
-Before testing new features:
-
-- [ ] page visibly says **v2.3.0**;
+- [ ] page visibly says **v2.3.1**;
 - [ ] Gateway connects;
 - [ ] sessions load;
-- [ ] opening a session loads chat/history;
+- [ ] open session loads history;
 - [ ] send/chat round-trip works;
-- [ ] rename works and persists to official Control UI;
+- [ ] rename persists to official Control UI;
 - [ ] no `DEVICE_AUTH_SIGNATURE_INVALID` regression.
 
-**If any Gate 1 item fails: STOP and roll back to exact baseline blob `27ee8f...`. Do not continue feature testing.**
+If Gate 1 fails: STOP and restore owner-proven baseline; do not continue appearance testing.
 
-## Gate 2 — SM-R2 features
+## Gate 2 — lifecycle / operations
 
-Only after Gate 1 passes:
-
-- [ ] Recycle bin appears at TOP when a session is soft-deleted;
-- [ ] soft delete hides only in Session Manager;
-- [ ] official Control UI still contains the soft-deleted session;
+- [ ] Recycle bin appears at TOP when needed;
+- [ ] soft delete affects only Session Manager;
 - [ ] Restore returns exact session;
 - [ ] tombstone survives reload;
-- [ ] permanent delete uses OpenClaw archive lifecycle;
-- [ ] rejected delete preserves local state;
-- [ ] Light / Medium / Dark work;
-- [ ] User and Agent appearance controls work independently;
-- [ ] appearance persists;
-- [ ] main-header Debug is absent;
-- [ ] Configuration → Diagnostics → Open Debug works;
-- [ ] Debug tabs are Log / Session Files / Environment;
-- [ ] derived paths say not disk-verified;
-- [ ] diagnostics remain read-only;
-- [ ] Copy / Markdown / Download / Share / Stop / attachments / activity show no regression.
+- [ ] Permanent Delete uses OpenClaw lifecycle;
+- [ ] rejected delete preserves state;
+- [ ] Copy / Download / Share / Stop / attachments / activity show no regression.
 
-Only owner PASS promotes v2.3 to baseline.
+## Gate 3 — appearance / accessibility
+
+- [ ] Configuration → Appearance opens as a large usable workspace;
+- [ ] all five presets are visibly legible;
+- [ ] Large Print materially increases readability;
+- [ ] full page background can be changed;
+- [ ] panels, cards, inputs, borders, main/secondary text can be changed independently;
+- [ ] User and Agent colors/sizes are independent;
+- [ ] code block foreground/background are independent;
+- [ ] inline code foreground/background are independent;
+- [ ] filename/path foreground/background are independent;
+- [ ] deliberately choosing an unreadable foreground does **not** produce unreadable rendered text because contrast protection corrects it;
+- [ ] live preview updates while editing;
+- [ ] closing × restores unsaved appearance state;
+- [ ] Save persists appearance across reload;
+- [ ] Markdown renders automatically;
+- [ ] safe HTML renders automatically;
+- [ ] unsafe HTML/script/event handlers do not execute.
+
+Only owner PASS promotes v2.3.1 to baseline.
 
 ---
 
@@ -225,7 +282,7 @@ Named Gateway profiles, explicit URL, isolated auth/device state, safe A → B �
 Multiple Gateways concurrently with isolated sessions/activity/reconnect state.
 
 ## SM-R5 / v2.6.0 — platform-neutral static deployment
-Same unchanged client served statically with explicit Gateway endpoints and proven allowed-origin/Tailscale behavior.
+Same self-contained client served statically with explicit Gateway endpoints and proven allowed-origin/Tailscale behavior.
 
 ## SM-R6 / v2.7.0 — unified operations workspace
 Global search, pins/favorites, health/version summaries, per-instance diagnostics, safe profile import/export, dense desktop/tablet workspace.
@@ -311,32 +368,40 @@ Buried. Derived means not disk-verified.
 Buried after first v2.3 transfer lost syntax before handoff.
 
 ### G-015 — Modify proven auth/connect code for unrelated UI features
-Buried after v2.3 auth regression. Build UI/lifecycle changes around the proven connection subsystem.
+Buried. Build UI/lifecycle changes around the proven connection subsystem.
 
 ### G-016 — Explain away repeated owner failure as deployment mismatch
-Buried. If owner redeploys and the same failure remains, record FAIL and rollback.
+Buried. Repeated owner failure after redeployment is a release FAIL.
 
-### G-017 — Publishing compressed/binary bytes as the HTML artifact
-**Observed 2026-08-10:** an intermediate v2.3 GitHub commit accidentally pointed `session-manager-v3.html` at compressed bytes. Required UTF-8 GitHub read-back immediately failed and the artifact was corrected before owner handoff.
+### G-017 — Publish compressed/binary bytes as the HTML artifact
+Buried after an intermediate publish produced non-UTF-8 content. Literal HTML read-back is mandatory.
 
-**Buried:** treating blob creation success as sufficient when the requested artifact is literal HTML.
+### G-018 — Let message text color leak into code/path surfaces
+**Buried 2026-08-10.** Code, inline code, filenames/paths, and links have dedicated palette roles and contrast protection. A black message font must never make a black code/path surface unreadable.
 
-**Replacement:** publish literal UTF-8 source and require `fetch_file` read-back showing valid HTML, visible version, and expected blob before telling the owner to test.
+### G-019 — Cram Appearance controls into a small generic settings box
+**Buried 2026-08-10.** Appearance is a large coherent workspace grouped by page surfaces, messages, rendered-content surfaces, typography/layout, with a live preview.
+
+### G-020 — Presets without low-vision legibility guarantees
+**Buried 2026-08-10.** Presets must be designed for readable contrast and useful scale. High Contrast Dark, High Contrast Light, Warm Paper, Soft Dark, and Large Print are the governed v2.3.1 set.
+
+### G-021 — Require the user to choose Markdown versus HTML rendering mode
+**Buried 2026-08-10.** Rendering is automatic. Markdown renders as Markdown; recognized safe HTML is sanitized and rendered without an extra mode control.
 
 ---
 
 # 8. LESSONS
 
-- The owner’s most recent demonstrated working artifact is the functional baseline, even if a numerically later historical build existed.
-- A working baseline is an asset; protect unrelated subsystems byte-for-byte where possible.
-- UI/lifecycle work does not justify auth redesign.
-- Connectivity/chat/rename is the first gate and blocks feature testing if broken.
+- The owner’s most recent demonstrated working artifact is the functional baseline.
+- A working baseline is an asset; protect unrelated subsystems.
+- Accessibility failures are functional defects, not cosmetic preferences.
+- Color controls require semantic surface separation: page, panel, message, code, inline code, path, link, metadata.
+- A free-form color picker without contrast protection can create an unusable UI.
+- Low-vision presets need larger typography and spacing as well as contrast.
+- Automatic rendering must be paired with sanitization; convenience must not mean executable arbitrary HTML.
+- A release-tooling/hash mismatch is not an application failure when the source is reproduced and semantic/syntax/read-back gates pass.
 - Source publishing correctness is part of release correctness.
-- A successful GitHub API write is not enough; read back the actual file.
-- Reversible local view state and destructive server lifecycle are different layers.
-- OpenClaw archive history should be preserved.
-- `.jsonl.jsonl` is evidence to expose before repair.
-- Derived browser paths are not a disk inventory.
+- A successful GitHub write is not enough; read back the actual file.
 
 ---
 
@@ -349,12 +414,18 @@ Buried. If owner redeploys and the same failure remains, record FAIL and rollbac
 - **D-005:** Recycle bin belongs at TOP of session list.
 - **D-006:** permanent delete uses OpenClaw lifecycle/archive semantics.
 - **D-007:** `.jsonl.jsonl` is diagnostic-only in SM-R2.
-- **D-008:** Debug moves behind Configuration and is tabbed.
-- **D-009:** prior v2.3 candidates failed and were not promoted.
-- **D-010:** owner supplied v2.1 blob `27ee8f...` and declared it functional; it is now the authoritative SM-R2 rebuild baseline.
-- **D-011:** new v2.3 candidate is commit `23e93bf1f3ac9f5777cc9a7a5faf6302be740d44`, blob `3f55b17975c7c10c27bf3ece87a28734ffeb3358`.
-- **D-012:** protected auth/connect source guard passed against the owner-proven baseline before candidate publish.
-- **D-013:** owner gate for this new v2.3 candidate is NOT YET RUN.
+- **D-008:** Debug remains behind Configuration and tabbed.
+- **D-009:** prior broken v2.3 candidates were not promoted.
+- **D-010:** owner-supplied v2.1 blob `27ee8f...` is the authoritative functional baseline.
+- **D-011:** governed v2.3.0 feature candidate blob was `3f55b17975c7c10c27bf3ece87a28734ffeb3358`.
+- **D-012:** protected auth/connect guard is required for subsequent SM-R2 work.
+- **D-013:** v2.3.1 is an accessibility refinement; visible build version advances while the authenticated client-version marker remains on the proven v2.3 connection value to avoid signature drift.
+- **D-014:** Appearance becomes a large low-vision-oriented workspace with five legible presets and live preview.
+- **D-015:** page/panel/input backgrounds are first-class appearance controls.
+- **D-016:** code, inline code, paths/filenames, and links are independent semantic color surfaces with automatic contrast protection.
+- **D-017:** Markdown and sanitized safe HTML rendering are automatic.
+- **D-018:** guarded GitHub build for v2.3.1 passed governed-input, protected-connection, feature, JavaScript syntax, cleanup, and final source read-back gates.
+- **D-019:** v2.3.1 owner gate is NOT YET RUN.
 
 ---
 
