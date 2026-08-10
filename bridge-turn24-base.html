@@ -322,7 +322,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TalkBridge">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png" type="image/png">
 </head>
 <body>
@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'd09efe25cdc1-202608101635';
+var BUILD_ID = 'fc8437b03da6-202608101637';
 
 var STALE = { notified: false, timer: null };
 
@@ -7118,8 +7118,27 @@ function prepareIosInstall() {
     var p = detectPlatform();
     if (!p.iosSafari || isStandalone()) return false;
 
-    /* Remove the manifest so Safari captures the CURRENT url rather than the
-       manifest's fixed start_url. */
+    /* Only trade the manifest away when there is genuinely something to carry.
+       A fresh user installs with the manifest fully intact and gets every
+       manifest-derived behaviour; only a user with rooms or credentials — who
+       would otherwise lose them entirely — makes the trade.
+
+       THE TRADE, stated plainly because it is not free: with a manifest, iOS
+       launches the installed app at the manifest's fixed start_url, so a
+       static host can never carry state across install. Without one, Safari
+       captures the URL currently being viewed. Standalone display, app name
+       and icon are unaffected — on iOS those come from the
+       apple-mobile-web-app-capable / apple-mobile-web-app-title /
+       apple-touch-icon meta tags, not the manifest.
+
+       UNVERIFIED RISK: whether iOS web push depends on the manifest or accepts
+       the legacy apple meta path. If push turns out to require it, this trade
+       is wrong and the manifest must stay — recorded here rather than assumed
+       away, and it needs a device test to settle. */
+    var hasState = ['tba_rooms', 'tb_dg_key', 'tb_grant', 'tb_grant_dg']
+      .some(function (k) { return localStorage.getItem(k) !== null; });
+    if (!hasState) { bridgeLog('ios_manifest_kept_no_state', {}, 'ok'); return false; }
+
     var link = document.querySelector('link[rel="manifest"]');
     if (link && link.remove) { link.remove(); bridgeLog('manifest_removed_for_ios', {}, 'ok'); }
 
