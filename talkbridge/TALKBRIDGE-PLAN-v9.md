@@ -157,7 +157,9 @@ passed its own gate.
 
 ## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn24-pre-base.html` — device-passed 2026-08-07 (read receipts). Rollback floor.**
+**Baseline (pending device gate): `bridge-turn24-base.html` — release 7 attempt 3, deployed 2026-08-10, not yet device-confirmed.**
+
+**Last confirmed-passed floor: `bridge-turn24-pre-base.html`** (read receipts) — this is the safe rollback target if attempt 3 fails.
 
 Passed to date: room card and home screen · joiner shell · room lifecycle and
 elevation · call and network robustness · room menu surface · read receipt
@@ -1250,6 +1252,18 @@ locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
 
+**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
+and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
+causes (not guesses), proven in a two-instance harness before deployment,
+mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
+CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
+handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
+new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
+(shared across the Safari-tab/installed-app boundary where localStorage is
+not — confirmed, documented, production-proven technique). Graveyard 2.3.
+**Not yet device-confirmed** — this is deployed pending the owner's hardware
+gate, all four items, iOS via Safari specifically.
+
 **v10.10.0 · 2026-08-10.** Release 7 rebuilt fresh from
 `bridge-turn24-pre-base.html` as one clean assembly; `bridge-turn24-base.html`
 pushed and byte-verified, **awaiting device gate**. Contents: PWA head block at
@@ -1283,6 +1297,18 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
+and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
+causes (not guesses), proven in a two-instance harness before deployment,
+mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
+CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
+handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
+new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
+(shared across the Safari-tab/installed-app boundary where localStorage is
+not — confirmed, documented, production-proven technique). Graveyard 2.3.
+**Not yet device-confirmed** — this is deployed pending the owner's hardware
+gate, all four items, iOS via Safari specifically.
 
 **v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
 Graveyard 2.2, three findings, none patched forward:
@@ -1453,6 +1479,18 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
+and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
+causes (not guesses), proven in a two-instance harness before deployment,
+mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
+CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
+handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
+new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
+(shared across the Safari-tab/installed-app boundary where localStorage is
+not — confirmed, documented, production-proven technique). Graveyard 2.3.
+**Not yet device-confirmed** — this is deployed pending the owner's hardware
+gate, all four items, iOS via Safari specifically.
 
 **v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
 Graveyard 2.2, three findings, none patched forward:
