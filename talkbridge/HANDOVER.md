@@ -1,85 +1,49 @@
-# To the next instance working on TalkBridge
+# Handover — TalkBridge
 
-Read this before you do anything else. Read `TALKBRIDGE-PLAN-v9.md` second, and
-the talkbridge/TALKBRIDGE-GRAVEYARD.md third. 
-This letter is a distilled, urgent version of talkbridge/THE-METHOD.md — read that fourth for full context.
-These are not suggestions. These are requirements to be successful in delivering the talkbridge application.
+## Onboarding — read in this order
 
-## What you're picking up
+1. `talkbridge/THE-METHOD.md` — the process. Not optional, not a suggestion.
+2. `talkbridge/TALKBRIDGE-GRAVEYARD.md` — every failed approach and why. Scan it
+   against whatever you're about to build before you build it.
+3. `talkbridge/TALKBRIDGE-PLAN-v9.md` — current scope, current baseline, what's
+   passed, what's next. This is the single source of truth for state.
 
-Plan v10.8.0. Baseline is `bridge-turn24-base.html`, device-passed. Release 7 is
-done. There is one **unfinished, unshipped fix** waiting for you — read the plan's
-"IN PROGRESS" section before touching code. Do not consider it done. Do not
-re-derive it from scratch either — the root cause is already found and proven,
-only the last edge case is unresolved.
+If anything below conflicts with those three, they win.
 
-## Why you will fail if you skip these, stated plainly
+## History
 
-**1. Prove the cause before you design the fix.** Every root cause this project's
-builder declared from reasoning alone was wrong. Every one taken from a log or a
-two-instance harness was right. If you don't know why something is broken,
-instrument it and read the log. Do not theorize. This is not caution, it's the
-single highest-leverage habit available to you.
+Plan is at v10.9.0. Baseline is `bridge-turn24-pre-base.html` (read receipts),
+device-passed.
 
-**2. Roll back, never patch forward.** A failed device gate returns to its input
-and rebuilds to the same filename. If you patch a failure, you will produce a
-lineage nobody can reason about — that is literally how this project lost fifty
-releases before this method existed. There is no exception for "it's a small fix."
+Release 7 (PWA, push, away-record, call surface) passed its gate once, was then
+patched forward directly on the passed file three times, and has been rolled
+back per graveyard 2.1. That is the whole history that matters: **a passed
+release is not a base to patch.** A defect found after passing is rolled back,
+logged, and rebuilt — same as any other failure, no exception for small fixes.
 
-**3. Hook, never replace.** Wrap a function and call through to the original.
-Replacing a function other behavior depends on is the single most expensive
-mistake available to you — it will pass every test you write and still break
-the app, because your test will check the return value, not the side effects
-you silently dropped.
+## Execution — what happens next
 
-**4. Mutation-test every gate you write.** Reintroduce the defect on purpose and
-confirm your test fails. If you don't do this, you don't know if your test
-tests anything. This happened repeatedly — a first-draft test passed while the
-thing it tested did nothing.
+**Release 7 is delivered fresh, from `bridge-turn24-pre-base.html`, as one
+clean build.** Not resumed, not patched onto anything. Everything already known
+gets folded into the build from the start:
 
-**5. A mechanism with no way to invoke it is not a feature.** It passes every
-test and does nothing. If you add a behavior, one of your tests must exercise it
-through the actual control a person uses, not the function directly.
+- PWA shell, push subscription, away-record home-screen entries, call surface —
+  full original scope.
+- Manifest and iOS meta tags go in the document head at build time. Script
+  injection after load is why install was never offered — the browser decides
+  eligibility during parse.
+- Ribbon: both side zones must grow equally, or the centre drifts by however
+  wide the room name happens to be.
+- Missed-activity counting: a message counts as missed whenever its room is not
+  the one currently on screen — not only when the browser tab is hidden.
+  `document.hidden` alone misses "home screen open, app visible, wrong room."
+  Root cause is proven; there is a known double-count edge case to close and
+  mutation-test before this ships.
+- Fix the `flags.gif` 404 and add a real favicon.
+- Gate on real hardware, one release, all platforms. Test iOS in **Safari**,
+  not Chrome — Chrome on iOS is Safari under the hood by Apple's rule and can
+  never install a PWA or receive push. That is not a defect to chase.
 
-**6. Confirm scope with the owner before you build.** Write it into the plan
-first. One release drifted badly because it skipped this step.
-
-**7. Verify claims about the current build before writing them into a plan.** A
-feature was scheduled that already existed, based on a failed keyword search
-reported as a finding. Grep is not verification. Read the actual code.
-
-**8. New relay message types are fine — that was a false alarm we corrected.**
-An earlier entry claimed new message types don't cross the relay. That was
-wrong; the relay broadcasts everything. Don't trust a graveyard entry blindly —
-check its date and whether it was proven or inferred. This document itself could
-be wrong about something; verify, don't just obey.
-
-**9. Two-instance harness by default for anything crossing a wire.** Boot two
-app instances headless, wire them together exactly like the relay does. Prove
-delivery before you believe it. Three separate failures this project would have
-been caught in seconds this way instead of costing a device-testing round trip.
-
-**10. The owner's memory beats your inference, every time.** "This worked fifty
-attempts ago" is information you cannot derive. When the owner tells you
-something used to work, that reframes the entire question from "what's missing"
-to "what changed" — and the second question is almost always cheaper to answer.
-Do not argue with lived history using architecture theory.
-
-## Tone
-
-Report results. Not process, not your own cleverness, not a narration of what
-you did. The owner is technical, impatient with padding, and has been burned by
-overconfident wrong diagnoses more times than either of us would like. Earn
-trust by being right, not by sounding thorough.
-
-## Concretely, right now
-
-1. Read plan §"IN PROGRESS" — the missed-activity counting bug.
-2. Find the double-count edge case. Instrument if you can't see it immediately.
-3. Fix, mutation-test, ship as its own small part.
-4. Fix the flags.gif and favicon 404s in the same part — already scoped, trivial.
-5. Then look at the backlog. Group calls (3+) is the most interesting item there
-   and the most dangerous — it touches nearly everything. Do not start it
-   without confirming scope with the owner first, per rule 6.
-
-Good luck. Don't skip the harness.
+Do the two-instance harness proof for anything crossing the relay before you
+believe it works. Confirm scope against the plan before you start. Roll back,
+never patch, on any failure — including your own.
