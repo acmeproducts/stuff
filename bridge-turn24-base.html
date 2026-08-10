@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded',boot);
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Replaced at assembly time with the real build stamp. */
-var BUILD_ID = 'a8c1c745b4fc-202608101629';
+var BUILD_ID = 'd09efe25cdc1-202608101635';
 
 var STALE = { notified: false, timer: null };
 
@@ -6833,7 +6833,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · BR-install-bridge.js ═══════════ */
 /* @contract
    wraps: registerServiceWorker, showJoinerLanding, joinRoom
-   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
+   adds: BRIDGE, BRIDGE_KEYS, BRIDGE_MEANINGFUL_KEYS, RESTORE_MAX, bridgeLog, isStandalone, hasCacheApi, bridgeCaptureInvite, buildRestoreToken, applyRestoreToken, prepareIosInstall, bridgeWriteIfBrowserTab, bridgeConsumeIfInstalled, _brRegisterSW, _brLanding, _brJoinRoom
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    INSTALL-BOUNDARY BRIDGE
@@ -7022,6 +7022,122 @@ function bridgeConsumeIfInstalled() {
   }
 }
 
+/* ── iOS: THE URL IS THE ONLY THING THAT SURVIVES INSTALL ──────────────────
+   Cache Storage was assumed to be shared between a Safari tab and the
+   installed app. On the owner's device nothing survived Add to Home Screen —
+   not even the room list — so that assumption is wrong on current iOS and the
+   whole cache-bridge approach cannot be relied on there.
+
+   What is documented and verifiable:
+     - With a manifest present, iOS uses the manifest's `start_url`. On static
+       hosting that URL is fixed, so the installed app ALWAYS launches at a
+       blank slate. That is exactly the observed failure.
+     - With NO manifest, Safari's Add to Home Screen captures the URL of the
+       page currently being viewed, hash and all.
+
+   So on iOS the manifest is removed before install and a restore token is kept
+   in the URL. Safari then captures that URL, and the installed app reads its
+   own state out of the address it was launched with. Nothing depends on
+   storage crossing a boundary it evidently does not cross.
+
+   The app name and icon still work on iOS without a manifest — they come from
+   the apple-mobile-web-app-title and apple-touch-icon meta tags, which are
+   already in the document head. Android and desktop keep the manifest; this
+   applies only where it is the thing breaking install. */
+var RESTORE_MAX = 1600;   /* stay well inside safe URL length limits */
+
+function buildRestoreToken() {
+  try {
+    var payload = {};
+    /* Credentials are small and are the part whose loss actually hurts. */
+    ['tb_dg_key', 'tb_cf_tid', 'tb_cf_tok', 'tb_grant', 'tb_grant_dg', 'tb_grant_tid', 'tb_grant_tok', 'tba_user']
+      .forEach(function (k) {
+        var v = localStorage.getItem(k);
+        if (v !== null) payload[k] = v;
+      });
+
+    /* Rooms can be arbitrarily large, so only what is needed to rebuild them
+       travels — never transcripts. If even that will not fit, credentials win:
+       a room can be rejoined from an invite, a lost key cannot. */
+    try {
+      var rooms = JSON.parse(localStorage.getItem('tba_rooms') || '[]');
+      var slim = rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) {
+        return { id: r.id, t: r.title || '', ml: r.myLang, tl: r.theirLang,
+                 mn: r.myName || '', pn: r.partnerName || '', ro: r.role };
+      });
+      var withRooms = JSON.stringify(Object.assign({}, payload, { rooms: slim }));
+      if (encodeURIComponent(withRooms).length <= RESTORE_MAX) payload.rooms = slim;
+      else bridgeLog('restore_rooms_omitted', { rooms: slim.length }, 'warn');
+    } catch (_) {}
+
+    var json = JSON.stringify(payload);
+    var token = btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return token;
+  } catch (e) {
+    bridgeLog('restore_token_failed', { e: String(e && e.message || e) }, 'error');
+    return null;
+  }
+}
+
+function applyRestoreToken(token) {
+  try {
+    var b = token.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    var payload = JSON.parse(decodeURIComponent(escape(atob(b))));
+    var applied = 0;
+
+    Object.keys(payload).forEach(function (k) {
+      if (k === 'rooms') return;
+      localStorage.setItem(k, payload[k]); applied++;
+    });
+
+    if (payload.rooms && localStorage.getItem('tba_rooms') === null) {
+      var now = Date.now();
+      var rooms = payload.rooms.map(function (r) {
+        return { id: r.id, title: r.t, myLang: r.ml, theirLang: r.tl,
+                 myName: r.mn, partnerName: r.pn, role: r.ro,
+                 autoRead: false, muted: false, goBtn: true, meta: 'top', ear: true,
+                 createdAt: now, lastAt: now, joined: true, unread: 0 };
+      });
+      localStorage.setItem('tba_rooms', JSON.stringify(rooms));
+      applied += rooms.length;
+    }
+    bridgeLog('restored_from_url', { applied: applied }, 'ok');
+    return applied > 0;
+  } catch (e) {
+    bridgeLog('restore_apply_failed', { e: String(e && e.message || e) }, 'error');
+    return false;
+  }
+}
+
+/* Keeps the launch URL carrying state, so Add to Home Screen captures it. */
+function prepareIosInstall() {
+  try {
+    if (typeof detectPlatform !== 'function') return false;
+    var p = detectPlatform();
+    if (!p.iosSafari || isStandalone()) return false;
+
+    /* Remove the manifest so Safari captures the CURRENT url rather than the
+       manifest's fixed start_url. */
+    var link = document.querySelector('link[rel="manifest"]');
+    if (link && link.remove) { link.remove(); bridgeLog('manifest_removed_for_ios', {}, 'ok'); }
+
+    var token = buildRestoreToken();
+    if (!token) return false;
+    var base = location.href.split('#')[0].split('?')[0];
+    var next = base + '#r=' + token;
+    if (location.href !== next) {
+      history.replaceState(null, '', next);
+      bridgeLog('restore_token_in_url', { bytes: token.length }, 'ok');
+    }
+    return true;
+  } catch (e) {
+    bridgeLog('ios_prepare_failed', { e: String(e && e.message || e) }, 'error');
+    return false;
+  }
+}
+
 (function () {
   var _brRegisterSW = registerServiceWorker;
   registerServiceWorker = function () {
@@ -7055,6 +7171,26 @@ function bridgeConsumeIfInstalled() {
 })();
 
 if (typeof document !== 'undefined') {
+  /* An installed iOS app launches at whatever URL was captured. Read the
+     restore token FIRST, before anything reads localStorage, so a rescued room
+     list is present for the very first render. */
+  try {
+    var m = /[#&]r=([A-Za-z0-9\-_]+)/.exec(location.hash || '');
+    if (m && localStorage.getItem('tba_rooms') === null) {
+      applyRestoreToken(m[1]);
+      /* Consumed — clear it so a later share of this URL carries nothing. */
+      try { history.replaceState(null, '', location.href.split('#')[0]); } catch (_) {}
+    } else if (m) {
+      bridgeLog('restore_skipped_has_data', {}, 'ok');
+      try { history.replaceState(null, '', location.href.split('#')[0]); } catch (_) {}
+    }
+  } catch (e) { bridgeLog('restore_read_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  /* Keep the launch URL current on iOS, since the user may install at any
+     moment and whatever the URL holds then is what the installed app gets. */
+  setTimeout(function () { try { prepareIosInstall(); } catch (_) {} }, 1500);
+  setInterval(function () { try { prepareIosInstall(); } catch (_) {} }, 20000);
+
   /* A browser tab keeps its rescue copy current, not written once and
      forgotten — the user may grant elevation or join new rooms after the tab
      was first opened and before they get around to installing. */
