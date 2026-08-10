@@ -1284,6 +1284,24 @@ two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
 
+**v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
+Graveyard 2.2, three findings, none patched forward:
+1. Hot-mic/stuck-on-home regression — root cause confirmed and reproduced in
+   the harness (clock-nav clears the screen but not `S.roomId`, so a callback
+   to the same room skips navigation while the mic/camera stay live). Proof
+   exists; fix does not yet.
+2. Ribbon crowding on iPhone — flex-grow counterweight replaced with CSS Grid
+   (fixed, engine-consistent proportions). Structurally verified and mutation-
+   tested; real device confirmation still required, not assumed.
+3. PWA install unconfirmed on both platforms. Cannot verify live server
+   headers from this environment. Needs the owner's Chrome DevTools →
+   Application → Manifest reading before another attempt — that is ground
+   truth this side cannot produce alone.
+
+Next build: fresh from `bridge-turn24-pre-base.html`, folding in a real fix for
+(1), the grid rewrite for (2) gated on hardware, and DevTools findings for (3)
+before touching the manifest again.
+
 **v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
 then patched forward three times on the passed file, which is forbidden
 regardless of size. Graveyard 2.1. Baseline reverts to
@@ -1435,6 +1453,24 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
+Graveyard 2.2, three findings, none patched forward:
+1. Hot-mic/stuck-on-home regression — root cause confirmed and reproduced in
+   the harness (clock-nav clears the screen but not `S.roomId`, so a callback
+   to the same room skips navigation while the mic/camera stay live). Proof
+   exists; fix does not yet.
+2. Ribbon crowding on iPhone — flex-grow counterweight replaced with CSS Grid
+   (fixed, engine-consistent proportions). Structurally verified and mutation-
+   tested; real device confirmation still required, not assumed.
+3. PWA install unconfirmed on both platforms. Cannot verify live server
+   headers from this environment. Needs the owner's Chrome DevTools →
+   Application → Manifest reading before another attempt — that is ground
+   truth this side cannot produce alone.
+
+Next build: fresh from `bridge-turn24-pre-base.html`, folding in a real fix for
+(1), the grid rewrite for (2) gated on hardware, and DevTools findings for (3)
+before touching the manifest again.
 
 **v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
 then patched forward three times on the passed file, which is forbidden
