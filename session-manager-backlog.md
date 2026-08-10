@@ -1,436 +1,373 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.0.0 -->
-# Session Manager — Release Plan, Backlog, Graveyard, and Lessons
+<!-- SESSION-MANAGER-GOVERNANCE v1.2.0 -->
+# Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**File:** `session-manager-backlog.md`  
-**Governance version:** 1.0.0  
-**Started:** 2026-08-10  
+**Governance version:** 1.2.0  
+**Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
-**Owner:** Confi — sole device gate and final scope authority.  
-**Purpose:** one source of truth for what ships next, what waits, what is forbidden, and what we have learned.
+**Owner:** Confi — sole device gate and final scope authority.
 
-This document deliberately combines the release plan, backlog, graveyard, decisions, and lessons learned so Session Manager does not fragment across chats or repeat failed approaches.
-
-Derived from the operating discipline in:
-- `talkbridge/TALKBRIDGE-PLAN-v9.md`
-- `talkbridge/THE-METHOD.md`
+This file is the Session Manager source of truth for release scope, backlog, graveyard, decisions, and lessons. It follows the operating discipline established in `talkbridge/TALKBRIDGE-PLAN-v9.md` and `talkbridge/THE-METHOD.md`.
 
 ---
 
-## 0. Authority and governance
+## 0. Authority and hard rules
 
-When sources disagree, use this order:
+Authority order:
 
-1. **Owner ruling in the current session.** It must be written into this file in the same session.
-2. **Graveyard in this file.** A buried approach cannot be reused unless the owner explicitly reverses the ruling.
-3. **Current release plan in this file.** Defines exact input, output, scope, and gate.
-4. **Current gated artifact.** What is proven to work beats inference about what should work.
-5. **Backlog.** Ideas only; backlog items are not authorization to change the current release.
+1. Owner ruling in the current session, written here in the same session.
+2. Graveyard vetoes.
+3. Active release definition in this file.
+4. Current owner-gated artifact and observed runtime evidence.
+5. Backlog.
 
-### Hard rules
+Hard rules:
 
-1. **Read this file before changing Session Manager.**
-2. **Declare the release before building.** Input, output, exact items, and gate must already be written here.
-3. **The current gated baseline is sacred.** A candidate does not become baseline until the owner passes it on the real environment.
-4. **Fail means rollback, not patch-forward.** Restore the release input, write the failure into the graveyard, update this document, then rebuild the same release from the clean input.
-5. **Prove the cause before designing the fix.** Unknown cause = instrument the whole path and read the evidence. Do not promote a hypothesis to root cause.
-6. **Verify, do not infer.** Syntax checks, lint, and static inspection are necessary but are never proof that the UI is alive or that Gateway behavior works.
-7. **Test reachability through the real control.** A feature with working internals but no functioning button/input/path is a failed feature.
-8. **Hook/minimally extend working behavior; do not casually replace shared functions.** Preserve known-good call paths unless evidence proves they must change.
-9. **One concern surface per release.** If two changes cannot be independently gated, combine them deliberately. Otherwise keep them separate.
-10. **No scope creep while fixing a gate failure.** New ideas go to Backlog.
-11. **Cosmetic work follows functional stability.** Do not mix layout redesign with transport/auth/session correctness unless the UI change is required to invoke the feature.
-12. **Single-file invariant.** The deployable application is one readable, self-contained HTML file with inline CSS/JS. No installers, wrappers, decompression loaders, generated launchers, or secondary runtime assets.
-13. **Repository artifact must remain literal HTML.** `session-manager-v3.html` must begin as normal HTML and remain human-readable source. Encoding used internally by an API transport is not application packaging and must never become the checked-in artifact.
-14. **GitHub write discipline.** Fetch the fresh file SHA immediately before replacement, write plain UTF-8 source, then read the file back from GitHub and verify the expected version and critical controls/logic.
-15. **Do not invent pairing work.** Never tell the owner to approve a device unless the Gateway actually reports a pending pairing/scope-upgrade request. Use the real request ID when one exists.
-16. **Result discipline.** Report what is proven, what is not yet proven, and the next gate. Avoid speculative troubleshooting cycles.
+- Read this file before changing Session Manager.
+- Freeze input, output, scope, exclusions, and gate before a release is pushed.
+- A failed release returns to its declared input and is rebuilt; do not patch-forward.
+- Prove cause before fix. Unknown cause means instrument first.
+- Verify the real user control, not only an internal function or lint result.
+- Preserve working wiring; extend minimally.
+- The deployable client remains one readable self-contained HTML file with inline CSS/JS.
+- No encoded application wrappers, helper daemons, new service, or new port merely to make the client work.
+- Do not directly edit OpenClaw `sessions.json` or delete transcript files when a supported Gateway RPC owns the lifecycle.
+- Diagnostics are read-only unless a separately governed repair release explicitly authorizes mutation.
+- GitHub writes use the fresh blob SHA and are read back after publish.
 
 ---
 
-## 1. Current state
+## 1. Current baseline and owner ruling
 
-### Gated baseline — v2.1.0
+### Historical rollback floor — v2.1.0
 
-**Status:** KNOWN WORKING / rollback floor.  
-**Artifact:** `session-manager-v3.html`  
-**Known-good blob:** `27ee8fabe42a185d194b4af4d668e81b54a8b8c8`  
-**Restore commit:** `9aaa686d930ff02e7720c024ec67890985ef9498`
+Known-good blob: `27ee8fabe42a185d194b4af4d668e81b54a8b8c8`.
 
-Known working behavior before the current release:
-- page starts and controls are live;
-- browser reaches the OpenClaw Gateway;
-- sessions load;
-- chat round-trip works;
-- session subscriptions/activity tracking work;
-- inline rename UI exists;
-- `sessions.patch` reaches the Gateway but rename is blocked when the browser lacks `operator.admin`.
+### Promoted build input — v2.2.0 / SM-R1
 
-The decisive rename failure observed on the working client was:
+Commit: `78a014b4f1168892c9d35c199b353fcff975d112`  
+Blob: `1fe3f05477ab7544f3022e5def4e1f01a6065ff5`
 
-`missing scope: operator.admin`
+Owner evidence on 2026-08-10:
 
-That is evidence that transport, Gateway reachability, RPC, and the rename method itself were functioning at that point. The unresolved area is authorization/recovery, not a reason to redesign the entire client.
+- Session Manager is connected and usable.
+- Session editing/rename works.
+- Renames flow through OpenClaw and appear back in the official Control UI/chat client.
+- Owner explicitly authorized proceeding to the new governed version from this line.
 
-### Current candidate — v2.2.0
-
-**Status:** BUILT / NOT GATED.  
-**Artifact:** `session-manager-v3.html`  
-**Current candidate commit:** `78a014b4f1168892c9d35c199b353fcff975d112`  
-**Current candidate blob:** `1fe3f05477ab7544f3022e5def4e1f01a6065ff5`
-
-This file is not a baseline until the WSL-hosted owner gate passes.
+This owner ruling authorizes v2.2.0 as the input for SM-R2 even though individual SM-R1 convenience-feature checks were not separately enumerated in chat.
 
 ---
 
-## 2. ACTIVE RELEASE — SM-R1 / app v2.2.0
+# 2. ACTIVE RELEASE — SM-R2 / app v2.3.0
 
-### Intent
+**Input:** exact current v2.2.0 blob `1fe3f05477ab7544f3022e5def4e1f01a6065ff5`.  
+**Output:** `session-manager-v3.html`, visibly `v2.3.0`.  
+**Theme:** session lifecycle + controlled appearance + useful diagnostics.
 
-Take the known-working v2.1.0 client and add exactly one known bug fix plus four requested user-facing changes. Nothing else belongs in this release.
+Reference behavior comes from `bridge-turn24-base.html`: reversible soft deletion, a recycle-bin management surface, restrained card hierarchy, and one persisted appearance/theme layer with presets plus granular controls.
 
-### Input
+## 2.1 Soft delete and Recycle bin
 
-`session-manager-v3.html` v2.1.0, blob `27ee8fabe42a185d194b4af4d668e81b54a8b8c8`.
+- A session row gets a local soft-delete control.
+- Soft delete does **not** call OpenClaw mutation RPCs.
+- It stores a Session Manager tombstone keyed by Gateway + session key.
+- The session disappears from the active list but remains untouched in OpenClaw.
+- A collapsible **Recycle bin (N)** contains the soft-deleted rows.
+- Each deleted row has **Restore** and **Delete Permanently**.
+- Restore removes only the local tombstone and returns the exact session.
+- Tombstones survive browser reload.
 
-### Output
+### Owner layout ruling — 2026-08-10
 
-`session-manager-v3.html` showing app version `v2.2.0`.
+**The Recycle-bin / soft-delete chevron is at the TOP of the session list, never at the bottom.**
 
-### Exact release scope — five items only
+When the bin exists it is rendered before all active session cards. It is collapsed by default and expands in place at the top.
 
-1. **Known auth-recovery bug**
-   - Handle the proven Gateway token-mismatch recovery case without an endless reconnect loop.
-   - Follow the Gateway/OpenClaw-supported bounded cached-device-token recovery path.
-   - Do not manufacture a pairing request.
-   - Rename must still use the canonical `sessions.patch` path and must only be called successful when the server accepts it.
+## 2.2 Permanent delete uses OpenClaw archive semantics
 
-2. **Readable transcript + per-message Copy**
-   - Render transcript Markdown into readable HTML.
-   - Preserve the original message text/Markdown for Copy.
-   - Every transcript message block gets a Copy control.
-   - Raw untrusted HTML from messages is not executed.
+- The final action calls Gateway `sessions.delete` with `deleteTranscript: true`.
+- Session Manager does not use `rm`, `unlink`, or direct `sessions.json` editing.
+- On OpenClaw v2026.5.19, `sessions.delete` removes the store entry and archives/renames the transcript using OpenClaw's lifecycle, returning archived paths.
+- Session Manager removes the local tombstone only after Gateway success.
+- Gateway rejection leaves the bin row intact and displays the actual error.
+- Main/protected-session restrictions are not bypassed.
+- Archive paths returned by OpenClaw are retained in the Debug → Session Files view for the current browser session.
 
-3. **Download in selected-session header**
-   - Header Download control appears only when a session is selected.
-   - Export the selected transcript as readable Markdown.
+Gate:
 
-4. **Stop in compose strip while agent is active**
-   - Stop is hidden when no run is active.
-   - Stop appears only for an active selected-session run.
-   - Use the supported Gateway abort path; do not simulate completion in the UI without sending the abort.
+- soft-delete a disposable session;
+- prove official Control UI still has it;
+- restore it;
+- soft-delete again and permanently delete;
+- prove it disappears from OpenClaw session listing;
+- prove OpenClaw returns/creates an archived renamed transcript rather than Session Manager erasing it directly;
+- prove a rejected delete leaves UI/source state intact.
 
-5. **Share next to Download**
-   - Share control appears next to Download for a selected session.
-   - Use native share when available.
-   - Provide a deterministic text-copy fallback where native sharing is unavailable.
+## 2.3 TalkBridge-inspired appearance control
 
-### Explicit non-scope
+Preserve the working application wiring. Appearance is isolated in one persisted theme object and one application function.
 
-Do not add or redesign any of the following in SM-R1:
+Minimum controls behind Configuration → Appearance:
+
+- Preset: Light / Medium / Dark.
+- Accent color.
+- User bubble background, font color, font size.
+- Agent bubble background, font color, font size.
+- Message width.
+- Session list density: compact / normal / comfortable.
+- Sidebar width within safe bounds.
+- Header/meta text size and muted color.
+
+Rules:
+
+- Presets establish coherent values.
+- Granular controls override preset values.
+- Appearance changes never reconnect and never alter Gateway/session data.
+- Ready stays blue, Working green, Error yellow regardless of visual preset.
+- The list/chat surfaces use restrained TalkBridge-style cards, spacing, borders, and hierarchy without copying TalkBridge application semantics.
+
+## 2.4 Debug moves behind the configuration gear
+
+The main chat header no longer contains Debug.
+
+Configuration is organized as:
+
+- Connection
+- Appearance
+- Diagnostics
+
+Diagnostics contains debug-log enablement, message-text logging toggle, and **Open Debug**.
+
+## 2.5 Tabbed Debug window
+
+Required tabs:
+
+### Log
+Existing redacted runtime log with Copy and Clear.
+
+### Session Files
+Read-only session/transcript-path visibility.
+
+Classification:
+
+- `*.jsonl.jsonl` → **ANOMALY**.
+- normal `*.jsonl` → normal transcript.
+- `*.jsonl.deleted.*` → deleted archive.
+- `*.jsonl.reset.*` → reset archive.
+- `<sessionId>.jsonl` constructed only from sessionId → **derived / not disk-verified**.
+
+Path evidence sources, in strength order:
+
+1. explicit file/path metadata returned by the installed Gateway;
+2. raw session-entry metadata returned by successful session mutations such as `sessions.patch` on OpenClaw v2026.5.19;
+3. archive paths returned by `sessions.delete`;
+4. derived `<sessionId>.jsonl` expectation, clearly labeled as derived.
+
+Critical honesty rule: current OpenClaw session-list/describe projections do not guarantee physical `sessionFile` exposure. If the Gateway does not expose the physical path, Session Manager must say the scan is visibility-limited. It must **not** claim that unindexed disk files under the WSL session directory were scanned.
+
+No automatic rename/repair of `*.jsonl.jsonl` in SM-R2.
+
+### Environment
+Show, without secrets:
+
+- app version;
+- Gateway URL;
+- connection state;
+- protocol;
+- scopes;
+- device ID;
+- Gateway session count;
+- local soft-delete count;
+- active subscription count.
+
+## 2.6 Explicit non-scope
+
+Not in v2.3.0:
+
+- automatic repair/rename of `*.jsonl.jsonl`;
+- orphan transcript re-indexing;
+- direct filesystem mutation;
 - multi-instance support;
-- GitHub Pages deployment behavior;
+- GitHub Pages deployment changes;
 - platform abstraction;
-- appearance redesign;
-- session grouping/reordering;
-- new persistence formats;
-- new services, ports, workers, installers, wrappers, or helper apps;
-- broad auth architecture changes beyond the proven mismatch/recovery defect;
-- unrelated refactoring.
+- new service/worker/daemon/port;
+- bulk deletion;
+- session merge;
+- unrelated auth redesign.
 
-### Owner gate — WSL first
+## 2.7 SM-R2 owner gate
 
-Run the exact candidate from the existing WSL-hosted test location before any GitHub Pages deployment experiment.
+- [ ] Recycle-bin chevron appears at the **top** of the list.
+- [ ] Soft delete hides only in Session Manager.
+- [ ] Official Control UI retains the soft-deleted session.
+- [ ] Restore returns the exact session.
+- [ ] Tombstone survives reload.
+- [ ] Permanent delete calls OpenClaw and archives/renames rather than direct-erasing the transcript.
+- [ ] Rejected delete leaves the tombstone/session intact.
+- [ ] Light / Medium / Dark presets work.
+- [ ] User and Agent visual controls work independently.
+- [ ] Appearance survives reload.
+- [ ] Main-header Debug button is gone.
+- [ ] Debug opens from Configuration → Diagnostics.
+- [ ] Debug tabs are Log / Session Files / Environment.
+- [ ] Any real `*.jsonl.jsonl` path exposed by Gateway metadata is highlighted as ANOMALY.
+- [ ] Derived paths are explicitly marked not disk-verified.
+- [ ] Diagnostics do not mutate OpenClaw/session files.
+- [ ] Existing chat, rename, Copy, Download, Share, Stop, attachment, and activity-state behavior remains functional.
 
-SM-R1 passes only when the owner verifies all of these:
-
-- [ ] Page starts; hamburger, settings, refresh, session rows, compose controls respond.
-- [ ] Sessions populate from the existing OpenClaw instance.
-- [ ] Existing chat round-trip still works.
-- [ ] No repeating token/auth reconnect loop.
-- [ ] Rename can complete through the Gateway when the required authorization is actually available, and the new label is visible after refresh / in the official Control UI.
-- [ ] Markdown is visibly rendered in transcript blocks.
-- [ ] Copy copies the original message content.
-- [ ] Download produces the selected transcript as Markdown.
-- [ ] Share works through native share or the defined copy fallback.
-- [ ] Stop appears only during an active run and actually stops that run.
-- [ ] Existing attachment/send/session-selection behavior has not regressed.
-
-### Failure rule
-
-If any SM-R1 gate fails:
-
-1. Restore exact v2.1.0 baseline.
-2. Add a graveyard entry below with the failed candidate commit, symptom, evidence, and buried approach.
-3. Bump this governance document version.
-4. Rebuild SM-R1 from v2.1.0.
-5. Do **not** patch the failed v2.2.0 candidate forward.
-
-A failed candidate remains historical evidence, never the next build input.
+Failure: return to exact v2.2.0 input, record evidence below, rebuild v2.3.0. No patch-forward.
 
 ---
 
-## 3. Planned releases after SM-R1 passes
+# 3. Planned releases after SM-R2
 
-These are ordered releases, not permission to start them early.
+## SM-R3 / v2.4.0 — instance profiles
 
-### SM-R2 / v2.3.0 — explicit instance profiles
-
-**Goal:** make one Session Manager able to target more than one OpenClaw instance without changing URLs, files, or browser windows manually.
-
-Scope:
-- named instance profiles;
-- explicit Gateway URL per profile — never infer an OpenClaw Gateway from the page host;
-- isolated device/auth state per instance so credentials cannot bleed across instances;
-- connect/reconnect/test action per profile;
-- visible connected/disconnected/error state per profile;
-- simple instance selector;
-- one selected instance active in the main session pane at a time.
-
-Gate:
-- two real OpenClaw instances;
+- named OpenClaw instance profiles;
+- explicit Gateway URL per profile;
+- isolated auth/device state;
 - switch A → B → A without reload;
-- correct sessions shown for each;
-- chat round-trip works on both;
-- no cross-instance labels, auth tokens, run states, or subscriptions.
+- correct session/chat state remains isolated.
 
-### SM-R3 / v2.4.0 — simultaneous multi-instance session desk
+## SM-R4 / v2.5.0 — simultaneous multi-instance desk
 
-**Goal:** remove instance-level window hopping.
+- multiple Gateways connected concurrently;
+- sessions grouped by instance;
+- independent activity/run state;
+- reconnect one instance without disturbing another.
 
-Scope:
-- keep multiple configured Gateways connected simultaneously;
-- aggregate sessions in one left pane, grouped/labeled by instance;
-- per-instance connection/activity indicator;
-- select and chat with a session from any connected instance without changing browser tabs;
-- preserve independent run/activity state for sessions on different instances;
-- reconnect one instance without disturbing the others.
+## SM-R5 / v2.6.0 — platform-neutral static deployment
 
-Gate:
-- two instances connected at once;
-- active runs on both at once;
-- session status remains correct for both;
-- disconnect/reconnect one while the other remains usable.
+- same unchanged client served from GitHub Pages;
+- explicit Gateway endpoints;
+- verified allowed-origin setup;
+- Tailscale access to WSL and later other OpenClaw platforms;
+- no platform-specific HTML fork.
 
-### SM-R4 / v2.5.0 — platform-neutral deployment
+## SM-R6 / v2.7.0 — unified operations workspace
 
-**Goal:** the same unchanged client works from a neutral static host and manages OpenClaw across supported platforms on the Tailnet.
+Candidate scope after real multi-instance use:
 
-Scope:
-- GitHub Pages as the preferred static delivery path;
-- explicit Gateway endpoints from SM-R2 profiles;
-- validate OpenClaw allowed-origin requirements for the Pages origin;
-- remove assumptions that the HTML must live beside the Gateway or in WSL;
-- record platform metadata for an instance without changing Gateway protocol behavior;
-- no platform-specific fork of the HTML.
-
-Gate:
-- exact same HTML served from GitHub Pages;
-- connect over Tailscale to the WSL OpenClaw instance;
-- connect to at least one second supported platform/instance;
-- sessions/chat/rename/download/share/stop behave the same as the WSL-hosted gate.
-
-### SM-R5 / v2.6.0 — unified operations workspace
-
-**Goal:** reduce the remaining window hopping after multi-instance chat is proven.
-
-Candidate scope, to be finalized before build:
-- global session search across instances;
-- favorites/pins and recency views;
+- global session search;
+- pins/favorites/recency;
 - instance health/version summary;
-- compact diagnostic access per instance;
-- export/import instance-profile configuration without exporting secrets by default;
-- deliberate desktop/tablet layout for many simultaneous sessions.
-
-This release is intentionally not frozen yet. Its exact scope must be agreed after SM-R3/SM-R4 usage reveals what actually causes window hopping.
+- per-instance diagnostics;
+- secret-safe profile import/export;
+- dense desktop/tablet operations layout.
 
 ---
 
-## 4. Backlog — not yet scheduled
+# 4. Backlog
 
-Items live here until promoted into a numbered release with an input, output, and gate.
+### Session lifecycle
+- bulk soft delete / restore;
+- bulk archive/delete only after single-session semantics are fully gated;
+- archived-transcript browser;
+- archive restoration/re-index only through a proven supported mechanism.
 
-### Session management
-- global search across all configured instances;
-- pinned/favorite sessions;
-- configurable session grouping;
-- bulk transcript export;
-- session metadata/details panel;
-- explicit read-back verification after rename;
-- safe session archive/delete controls only after Gateway semantics are proven.
+### Session-file diagnostics
+- prove the root cause and exact population of `*.jsonl.jsonl`;
+- detect orphan transcripts if a Gateway-native inventory becomes available;
+- repair doubled extension only in a separately governed mutation release;
+- missing referenced transcript detection;
+- duplicate sessionId/file reference detection;
+- archive retention visibility;
+- anomaly-report export.
 
-### Instance management
-- instance add/edit/remove UI;
-- instance nickname, platform, Gateway version, agent count, connection health;
-- connection-profile export/import;
-- secret-safe export mode;
-- per-instance diagnostics download;
-- optional default instance and startup behavior.
-
-### Multi-platform
-- prove browser client against each intended OpenClaw platform one at a time;
-- keep protocol adapter shared; platform differences belong in metadata/configuration unless evidence proves otherwise;
-- document Tailnet and origin prerequisites per deployment surface.
-
-### Transcript/chat UX
-- better fenced-code rendering and copy-code controls;
+### Chat/operations
 - transcript search;
 - jump to latest/unread;
-- message timestamps/details on demand;
-- share as file where browser support is reliable;
-- optional transcript format choices after Markdown export is proven stable.
+- improved code-block controls;
+- message metadata on demand;
+- later global multi-instance search.
 
-### Reliability and test infrastructure
-- startup harness that proves `init()` completes and all required controls are bound;
-- reachability test for every user-visible control;
-- mock Gateway harness for auth challenge, token mismatch, pairing required, scope mismatch, chat send/final/abort, sessions list/patch;
-- two-client harness for simultaneous-session and multi-instance work;
-- mutation tests that deliberately break each gate to prove the test catches it;
-- permanent runtime assertion/logging for previously silent startup/auth failures.
-
-### Deployment
-- GitHub Pages deployment after SM-R1 passes locally;
-- exact origin/allowed-origin verification;
-- cache/version visibility so the owner can prove which build the browser loaded;
-- read-back/hash verification of every published artifact.
+### Test infrastructure
+- startup/control reachability harness;
+- mock Gateway list/patch/delete/chat/abort/auth cases;
+- two-client harness;
+- multi-instance harness;
+- mutation tests that prove each gate actually fails when its defect is reintroduced.
 
 ---
 
-## 5. Graveyard — do not reuse these approaches
+# 5. Graveyard — vetoed approaches
 
-Every entry records a failed approach and its replacement. A graveyard entry is a veto, not a suggestion.
+### G-001 — Patch-forward after a failed candidate
+Buried. Restore declared input and rebuild.
 
-### G-001 — Patch-forward after a failed/inert candidate
+### G-002 — Encoded/self-decompressing application wrapper
+Buried. Checked-in app remains literal readable HTML.
 
-**Buried:** continuing to modify an already failed Session Manager candidate until it appears to work.  
-**Why:** the lineage becomes impossible to reason about and new defects are mixed with the original failure.  
-**Replacement:** restore the gated baseline, record the failure, rebuild the release from the clean input.
+### G-003 — Divergent standalone proof client
+Buried when it does not share the actual client bootstrap/auth path.
 
-### G-002 — Self-decompressing/base64 application wrapper
+### G-004 — Inferring Gateway from static page origin
+Buried. Hosting origin and Gateway endpoint are separate concerns.
 
-**Buried:** shipping the Session Manager as a base64/gzip payload with an `atob()`/decompression loader.  
-**Observed failure:** `Failed to execute 'atob' ... string ... not correctly encoded.`  
-**Why:** it violated the single readable HTML invariant and introduced a new failure layer unrelated to the app.  
-**Replacement:** checked-in artifact is literal, readable HTML/CSS/JS only.
+### G-005 — Blind device approval
+Buried. Only approve a real Gateway pairing/scope request.
 
-### G-003 — Standalone proof client with a divergent connection bootstrap
+### G-006 — Treating generic `INVALID_REQUEST` as root cause
+Buried. Read structured Gateway details.
 
-**Buried:** creating a separate rename/auth proof page that implements its own endpoint/auth bootstrap and then treating its behavior as evidence about the working Session Manager.  
-**Observed result:** the proof page produced transport errors while the actual chat client still completed chat round-trips.  
-**Replacement:** instrument and test the exact working client path, or use a harness that shares the same connection implementation.
+### G-007 — Invented token/device-token auth replacement
+Buried. Use the supported bounded recovery contract.
 
-### G-004 — Page-origin inference as proof of the OpenClaw Gateway endpoint
+### G-008 — Lint/static parse as proof of runtime success
+Buried. Static checks permit publishing; owner runtime gate proves behavior.
 
-**Buried:** assuming the static page host is necessarily the Gateway host.  
-**Why:** a report server or GitHub Pages host can serve the HTML while the browser should connect to a different Tailnet Gateway.  
-**Replacement:** explicit Gateway URL/profile. Preserve the current known-working local configuration until the profile release deliberately changes this.
+### G-009 — Broad refactor while fixing a narrow defect
+Buried. Keep release scope bounded.
 
-### G-005 — Blind `devices approve --latest`
+### G-010 — Custom encoding/chunk/install publishing for one HTML file
+Buried. Plain UTF-8 Contents API replacement and read-back.
 
-**Buried:** instructing the owner to approve a device when the Gateway has not emitted a pairing/scope-upgrade request.  
-**Observed result:** `No pending device pairing requests to approve.`  
-**Replacement:** surface the actual Gateway error. Approval instructions appear only with a real pairing request/request ID.
+### G-011 — Direct physical transcript deletion
+Buried. Final Session Manager deletion uses OpenClaw `sessions.delete` and OpenClaw owns transcript archival/rename.
 
-### G-006 — Treating a top-level `INVALID_REQUEST` as the root cause
+### G-012 — Automatic `*.jsonl.jsonl` repair before visibility/root cause
+Buried for SM-R2. Detect first; repair only after evidence.
 
-**Buried:** stopping at the generic error code.  
-**Why:** the decisive auth evidence was nested in details: `AUTH_TOKEN_MISMATCH` with a recovery recommendation.  
-**Replacement:** inspect structured Gateway error details before choosing recovery behavior.
-
-### G-007 — Replacing the explicit Gateway token with the cached device token as an invented recovery scheme
-
-**Buried:** broad auth redesign where the cached device token becomes the primary token because the shared token mismatched.  
-**Why:** this diverged from the current OpenClaw browser-client recovery behavior and expanded the defect surface.  
-**Replacement:** bounded recovery matching the supported Gateway/client contract; preserve the explicit token contract and use the cached device token only in the supported recovery field/path.
-
-### G-008 — Syntax/lint as proof the browser app works
-
-**Buried:** declaring a release safe because HTML parses and extracted JavaScript passes `node --check`.  
-**Observed failure:** an artifact could pass static checks and still be completely inert.  
-**Replacement:** structural checks plus runtime startup and reachability checks; final proof is the owner gate on the real browser/Gateway path.
-
-### G-009 — Broad refactor bundled with a one-bug fix
-
-**Buried:** redesigning auth, permissions, UI, persistence, or deployment while fixing one known defect and adding a few small controls.  
-**Why:** regression surface becomes much larger than the requested change and makes failure attribution difficult.  
-**Replacement:** start from the known-good baseline; make the smallest change set that satisfies the declared release.
-
-### G-010 — Encoding/packaging detours during repository publishing
-
-**Buried:** turning a straightforward plain-text file replacement into custom blob/base64/chunk/installer machinery.  
-**Why:** publishing mechanics became a new source of corruption and distracted from the application gate.  
-**Replacement:** ordinary plain UTF-8 Contents API replacement with a fresh SHA and immediate read-back verification.
+### G-013 — Claiming a browser-only derived path list is a disk scan
+Buried. Derived paths must be labeled derived. Physical/unindexed files are only claimed when a supported source actually exposes them.
 
 ---
 
-## 6. Lessons learned — Session Manager specific
+# 6. Lessons learned
 
-### L-001 — A working chat round-trip is high-value evidence
-
-If the selected session can send to the agent and receive the response, then browser → WebSocket → Tailscale/TLS → Gateway → session RPC/event flow is substantially proven for that run. Do not restart troubleshooting at DNS/Tailscale/WebSocket merely because rename fails.
-
-### L-002 — The original rename failure was narrow
-
-The working client reached `sessions.patch`; the Gateway rejected it specifically for missing `operator.admin`. That evidence should have constrained the fix to authorization/recovery. The subsequent broad experiments created more problems than the original defect.
-
-### L-003 — Owner history beats builder inference
-
-The owner supplied a working version with one known bug. That fact should have made the working version the immutable input. Reconstructing or broadly rewriting it was lower-quality evidence than the owner's demonstrated working state.
-
-### L-004 — Completely inert means inspect startup before protocol
-
-When every control is dead, first prove whether the page script initialized and handlers were bound. Do not immediately investigate Gateway protocol. A protocol defect does not normally make the hamburger/settings/search controls inert.
-
-### L-005 — Publishing is part of the product path
-
-A correct local file can still become a bad release if the repository write path corrupts, truncates, wraps, or transforms it. Therefore the published file must be read back and checked as an artifact, not assumed correct because the source file was correct.
-
-### L-006 — Exact-path testing beats parallel proof apps
-
-The most useful test is the one that exercises the same HTML, same bootstrap, same stored browser identity, same Gateway URL, and same controls the owner will use. Parallel mini-apps are only useful when they share those exact primitives; otherwise they can create unrelated failures.
-
-### L-007 — Recovery loops need a budget
-
-An auth recovery path that retries the same failed credentials indefinitely is not recovery. It is a loop. Every automatic auth recovery must be bounded and must stop with actionable evidence when the bounded retry fails.
-
-### L-008 — A mechanism is not a feature until it is reachable
-
-Buttons and state transitions must be exercised through the actual control. Internal functions, static presence, or successful unit calls are insufficient.
-
-### L-009 — Keep the deployment model simple
-
-The browser client is a static application. Long term, it should not require a duplicate WSL deployment merely to talk to an OpenClaw Gateway reachable over Tailscale. But deployment-path changes come only after the functional client passes its current WSL gate.
-
-### L-010 — Separate functional stabilization from expansion
-
-First make one client against one known instance boring and reliable. Then add instance profiles. Then simultaneous instances. Then platform-neutral hosting. This order minimizes the number of variables in each failure.
+- Working chat round-trip is strong evidence; do not restart diagnosis at networking for an unrelated mutation failure.
+- Owner-demonstrated working history outranks builder inference.
+- A completely inert UI means startup/control binding first, not Gateway protocol first.
+- Publishing correctness is part of release correctness; read back the exact artifact.
+- A mechanism is not a feature until the real control invokes it.
+- Reversible local view state and destructive server lifecycle are different layers and should remain separate.
+- OpenClaw's transcript archive behavior is useful history and should not be replaced with silent physical erasure.
+- `*.jsonl.jsonl` is evidence to surface, not something to silently normalize.
+- TalkBridge's most transferable appearance lesson is one persisted theme state with coherent presets plus granular overrides.
+- Stabilize one OpenClaw instance before multiplying instances.
 
 ---
 
-## 7. Decision log
+# 7. Decision log
 
-### D-001 — 2026-08-10 — Session Manager goes under governance
-
-Owner ruling: Session Manager work will use a written release plan, backlog, graveyard, and lessons learned, maintained in this single file.
-
-### D-002 — 2026-08-10 — WSL gate precedes GitHub Pages
-
-Owner ruling: test the current client from the known WSL-hosted environment first. GitHub Pages is a later deployment-path test, not part of SM-R1.
-
-### D-003 — 2026-08-10 — Expansion direction
-
-After the single-instance client is stable, evolve toward multiple OpenClaw instances and multiple platforms so the owner can manage sessions from one workspace instead of hopping among windows.
+- **D-001 · 2026-08-10:** Session Manager work is governed by this file.
+- **D-002 · 2026-08-10:** WSL functional gate precedes GitHub Pages deployment-path testing.
+- **D-003 · 2026-08-10:** Expansion order is stable single instance → instance profiles → simultaneous instances → neutral hosting → unified workspace.
+- **D-004 · 2026-08-10:** Session edit/rename round-trip into official OpenClaw Control UI is confirmed.
+- **D-005 · 2026-08-10:** Owner authorizes v2.2.0 as the SM-R2 build input.
+- **D-006 · 2026-08-10:** `bridge-turn24-base.html` is the lifecycle/appearance reference pattern.
+- **D-007 · 2026-08-10:** Recycle-bin chevron is at the **top** of the session list.
+- **D-008 · 2026-08-10:** Permanent delete uses OpenClaw session deletion/archive semantics, never direct source erasure by Session Manager.
+- **D-009 · 2026-08-10:** `*.jsonl.jsonl` is a first-class diagnostic anomaly; SM-R2 detects but does not repair.
+- **D-010 · 2026-08-10:** Debug moves behind Configuration and becomes tabbed Log / Session Files / Environment.
 
 ---
 
-## 8. Maintenance rule
+# 8. Maintenance rule
 
-This file is part of the release, not documentation cleanup.
-
-For every future Session Manager change:
-
-- before code: promote exact backlog items into a numbered release and freeze scope;
-- after new evidence: update Lessons or Graveyard immediately;
-- after owner ruling: update Decision Log in the same session;
-- after failure: graveyard first, rollback second build input, then rebuild — never patch-forward;
-- after owner pass: mark the candidate as the new gated baseline and record its commit/blob;
-- keep unscheduled ideas in Backlog rather than sneaking them into the active release.
+Before code: freeze scope here.  
+After new evidence: update Lessons or Graveyard immediately.  
+After owner ruling: update Decision Log in the same session.  
+After failure: restore declared input and rebuild.  
+After owner pass: record the new commit/blob as baseline.  
+Unscheduled ideas remain backlog items until promoted deliberately.
