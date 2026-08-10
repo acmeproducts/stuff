@@ -1,7 +1,7 @@
-<!-- v5.8.2.38 -->
+<!-- v5.8.2.39 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.5 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.6 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -574,3 +574,59 @@ account for symptoms that survived structurally unrelated fix attempts.
    must not be treated as settled evidence.
 
 Recorded as its own release rather than folded into a feature build.
+
+## `.ribbon` class collision — a whole CATEGORY of defect, not one bug · Aug 10 2026
+
+Owner-found by comparing `bridge-turn24-base.html` against
+`bridge-turn24-pre-base.html`. `.ribbon` matches **two** elements: the room's
+ribbon (4 children) and the home screen's (1 child — a hamburger). A part
+injected `.ribbon{display:grid;grid-template-columns:1fr auto 1fr auto}`,
+dropping the home screen's lone hamburger into a four-column grid.
+
+**The lesson is not "scope that selector."** It is that *any* injected
+bare-class rule makes a silent, unverified claim about how many elements carry
+that class, and nothing in the build was checking. Asked to take the
+contrarian view, an audit of every injected selector found the same category
+twice more before deploy.
+
+**New permanent gate: `build/cssaudit.mjs`,** wired into `ship` and `deploy`.
+For every class selector injected by any part, it counts how many elements in
+the real built markup that selector actually hits, and fails the build when a
+selector hits 2+ elements without an explicit `// @affects .foo N`
+declaration. Mutation-tested: reintroducing the exact `.ribbon` bug fails the
+gate. Findings:
+- `.ribbon` (2) — real defect, fixed by scoping every rule to `#room-ribbon`.
+- `.flagband` (4) — intended (same decorative element on four screens, all
+  issuing the same failing request); declared.
+- `.drawer-qr-box` (2) — intended (same control in two places); declared.
+- `.drawer` — a false positive in the manual grep that preceded the tool; the
+  real selector matches one element. Withdrawn rather than "fixed".
+
+## iOS install guidance did not exist at all · Aug 10 2026
+
+Raised by the owner, who was right to have no confidence in it. Audit of the
+built file found:
+- `promptInstall()` was **defined and never called from anywhere** — no button,
+  no trigger. On Android the `beforeinstallprompt` event was captured and then
+  nothing ever used it. Even where install worked, no user could invoke it.
+- **Zero** detection of which iOS browser the user was in (no `CriOS`/`FxiOS`/
+  `EdgiOS` check anywhere).
+- **No iOS instructions of any kind.** The only "Add to Home Screen" text in
+  the entire build was inside a code comment.
+
+This matters because the reported real-world path is a QR code opened in
+Chrome on iOS. Every iOS browser is Safari underneath by Apple's rule, but only
+Safari exposes Add to Home Screen — so telling a Chrome-on-iOS user to "tap
+Share" is actively wrong advice, not merely unhelpful.
+
+Fixed with platform-specific guidance: Chrome/Firefox/Edge on iOS are told to
+open the page in Safari (and deliberately given **no** Share steps); Safari on
+iOS gets the three real manual steps; Android/desktop get a real button **only
+when a genuine prompt is available**, because a button that does nothing is
+worse than none. iPadOS (which reports as a Mac) is detected via touch. Eight
+tests, mutation-tested on both wrong-advice and dead-button failure modes.
+
+Also caught in-flight during this work: `INSTALL_CSS` was declared and never
+injected — the same "declared but not wired" mistake that produced a phantom
+class earlier in this release. Found by the builder before deploy, not on the
+owner's device.
