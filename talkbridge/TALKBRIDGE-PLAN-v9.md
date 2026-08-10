@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.13.0 -->
-# TALKBRIDGE MASTER PLAN v10.13.0
+<!-- TALKBRIDGE-PLAN v10.14.0 -->
+# TALKBRIDGE MASTER PLAN v10.14.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -1245,6 +1245,36 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
+`bridge-turn24-base.html` (build id stamped, byte-verified).
+
+**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
+`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
+`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
+columns. A fourth child forces an implicit column, destroying the symmetry
+centring depends on, which is why swapping flex-grow for Grid changed nothing:
+both were right about centring and wrong about how many children they were
+centring. Found by counting the real built DOM instead of reasoning about CSS.
+Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
+counts real children against declared tracks so this class cannot recur.
+
+**Deployment defects remediated inside this release, as directed:**
+`build/rollback.mjs` added — rollback now overwrites the target with the
+previous known-good build and structurally cannot issue a DELETE, so invite
+links, QR codes and installed `start_url`s keep resolving. Build identity and
+staleness detection added: every build is stamped with a content-derived id,
+and a running page checks on focus, on visibility change, and periodically,
+telling the user plainly when it is running older code and clearing the service
+worker before reloading. This is what makes future device results falsifiable.
+
+Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
+service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
+and the Cache-Storage install bridge for iOS credential/room persistence.
+
+252 tests, 251 passing. The one failure is the pre-existing, unrelated,
+already-logged missed-activity double-count, untouched. **Not yet
+device-confirmed.**
+
 **v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
 The builder inserted a new release ("R7.0") and marked release 7 blocked
 without owner approval — that is plan drift, not remediation, and is withdrawn.
@@ -1276,6 +1306,36 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
+`bridge-turn24-base.html` (build id stamped, byte-verified).
+
+**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
+`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
+`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
+columns. A fourth child forces an implicit column, destroying the symmetry
+centring depends on, which is why swapping flex-grow for Grid changed nothing:
+both were right about centring and wrong about how many children they were
+centring. Found by counting the real built DOM instead of reasoning about CSS.
+Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
+counts real children against declared tracks so this class cannot recur.
+
+**Deployment defects remediated inside this release, as directed:**
+`build/rollback.mjs` added — rollback now overwrites the target with the
+previous known-good build and structurally cannot issue a DELETE, so invite
+links, QR codes and installed `start_url`s keep resolving. Build identity and
+staleness detection added: every build is stamped with a content-derived id,
+and a running page checks on focus, on visibility change, and periodically,
+telling the user plainly when it is running older code and clearing the service
+worker before reloading. This is what makes future device results falsifiable.
+
+Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
+service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
+and the Cache-Storage install bridge for iOS credential/room persistence.
+
+252 tests, 251 passing. The one failure is the pre-existing, unrelated,
+already-logged missed-activity double-count, untouched. **Not yet
+device-confirmed.**
 
 **v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
 The builder inserted a new release ("R7.0") and marked release 7 blocked
@@ -1341,6 +1401,36 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
+`bridge-turn24-base.html` (build id stamped, byte-verified).
+
+**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
+`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
+`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
+columns. A fourth child forces an implicit column, destroying the symmetry
+centring depends on, which is why swapping flex-grow for Grid changed nothing:
+both were right about centring and wrong about how many children they were
+centring. Found by counting the real built DOM instead of reasoning about CSS.
+Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
+counts real children against declared tracks so this class cannot recur.
+
+**Deployment defects remediated inside this release, as directed:**
+`build/rollback.mjs` added — rollback now overwrites the target with the
+previous known-good build and structurally cannot issue a DELETE, so invite
+links, QR codes and installed `start_url`s keep resolving. Build identity and
+staleness detection added: every build is stamped with a content-derived id,
+and a running page checks on focus, on visibility change, and periodically,
+telling the user plainly when it is running older code and clearing the service
+worker before reloading. This is what makes future device results falsifiable.
+
+Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
+service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
+and the Cache-Storage install bridge for iOS credential/room persistence.
+
+252 tests, 251 passing. The one failure is the pre-existing, unrelated,
+already-logged missed-activity double-count, untouched. **Not yet
+device-confirmed.**
 
 **v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
 The builder inserted a new release ("R7.0") and marked release 7 blocked
@@ -1542,6 +1632,36 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
+`bridge-turn24-base.html` (build id stamped, byte-verified).
+
+**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
+`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
+`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
+columns. A fourth child forces an implicit column, destroying the symmetry
+centring depends on, which is why swapping flex-grow for Grid changed nothing:
+both were right about centring and wrong about how many children they were
+centring. Found by counting the real built DOM instead of reasoning about CSS.
+Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
+counts real children against declared tracks so this class cannot recur.
+
+**Deployment defects remediated inside this release, as directed:**
+`build/rollback.mjs` added — rollback now overwrites the target with the
+previous known-good build and structurally cannot issue a DELETE, so invite
+links, QR codes and installed `start_url`s keep resolving. Build identity and
+staleness detection added: every build is stamped with a content-derived id,
+and a running page checks on focus, on visibility change, and periodically,
+telling the user plainly when it is running older code and clearing the service
+worker before reloading. This is what makes future device results falsifiable.
+
+Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
+service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
+and the Cache-Storage install bridge for iOS credential/room persistence.
+
+252 tests, 251 passing. The one failure is the pre-existing, unrelated,
+already-logged missed-activity double-count, untouched. **Not yet
+device-confirmed.**
 
 **v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
 The builder inserted a new release ("R7.0") and marked release 7 blocked
