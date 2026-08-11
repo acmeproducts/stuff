@@ -29,6 +29,7 @@ An owner ruling made in-session must be written into this file in the same sessi
 
 ## 0.2 Current owner rulings
 
+- **Location selection semantics:** every WSL/mounted volume in the left Locations pane has its own checkbox. Checking it selects the entire volume as a source; clicking its name drills into the volume without selecting it. Folder rows in the center pane use the same pattern: checkbox selects, name drills deeper. The top Add to project action stages all checked volumes/folders into the persistent right-hand Added to project pane.
 - `project-backlog.md` is the one current SOT governance document: release plan + backlog + graveyard.
 - **The deployable SOT application is exactly one self-contained file: `project.html`. No external application JS/CSS/module files may be required by the browser.**
 - **SOT releases deploy `project.html` only. Existing server-side API capability on the production 18080 report server is infrastructure and is not recreated per UI release.**
