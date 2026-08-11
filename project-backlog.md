@@ -47,6 +47,12 @@ An owner ruling made in-session must be written into this file in the same sessi
 - No fake lifecycle state. If the deterministic execution engine is not running, the UI must say so and must not simulate Start/Pause/Resume/Restart/Promote.
 - GitHub `acmeproducts/stuff` is the development source. The deployed HTML target is `/home/support/.openclaw/workspace/https/report/<project>/<filename>`.
 - Deployment convenience commands are `ghdeploy` (GitHub → OpenClaw) and `deploy` (Windows Download → OpenClaw); default report project is `tst`.
+- **Every SOT installation has one configurable authoritative SOT database path. The database location is instance configuration, not hard-coded application state.**
+- **Every SOT installation also has a separately configurable SOT database backup path. Backup and restore of the authoritative database are first-class operational capabilities.**
+- **Source inventory runs record timestamps and scan telemetry per source: started_at, last_progress_at, completed_at, elapsed_seconds, files_seen, bytes_seen, files_per_second, bytes_per_second, and estimated_remaining_seconds when enough evidence exists.**
+- **Scan telemetry is retained as historical evidence so observed inventory speed can inform future scan completion estimates and later consolidation/copy planning. Estimates must be labeled estimates, not promises.**
+- **Target/SOT storage remains deferred until inventory/reconciliation provides a defensible surviving-size/capacity estimate; the database path and database-backup path are independent of the eventual SOT data destination.**
+- **MVP is single-instance. Multi-instance support is explicitly deferred to backlog; do not complicate the current data model or UI to support multiple simultaneous SOT instances.**
 
 ## 0.3 Build rules
 
@@ -393,6 +399,13 @@ Planned items:
 - Durable source IDs and project/source associations.
 - Deterministic recursive scan with stable relative paths.
 - Manifest persistence.
+- Configurable SOT database path exposed through instance settings and persisted outside browser-local state.
+- Configurable SOT database backup path.
+- Database backup command/API with atomic snapshot semantics appropriate to SQLite/WAL.
+- Database restore flow with validation before replacement and automatic safety backup of the current database before restore.
+- Per-source inventory timestamps and performance telemetry: start/progress/completion, files/bytes scanned, observed throughput, elapsed time.
+- Rolling ETA for inventory only when enough progress exists to calculate one; suppress unstable estimates early in a run.
+- Preserve completed inventory-run telemetry for later performance comparison and copy/consolidation planning.
 - Store both `original_path` and `normalized_path` to prevent Windows/WSL path ambiguity.
 - Source fingerprint evidence model.
 - `fingerprint_match_threshold` config, default `0.80` pending gate results.
@@ -546,6 +559,9 @@ Items here are real backlog, but may move when evidence changes. They are not pr
 
 ## Reporting / operator UX
 
+- Source inventory performance view: current elapsed time, files/bytes scanned, observed throughput, ETA confidence/state, and completed-run history.
+- Compare current source scan rate with prior scans of the same source/fingerprint when available.
+- Use inventory performance as one input to later consolidation planning, but keep scan ETA and copy ETA as separate metrics because read/hash/write workloads differ.
 - Filter Aggregate by date/status/source/target/project.
 - Download/export links from the portal.
 - Human-readable review queue for collisions and ambiguous source relinks.
@@ -568,6 +584,7 @@ Items here are real backlog, but may move when evidence changes. They are not pr
 
 ## Future / optional
 
+- **Multi-instance SOT:** support multiple independent SOT databases/configurations on one host, each with its own database path, backup path, projects, and lifecycle. Deferred until single-instance MVP is stable.
 - Near-duplicate/vision analysis extension point.
 - Actual AI image/video similarity model is **not MVP** and must not delay exact reconciliation.
 - Rich HTML dashboard beyond the operational portal.
@@ -594,6 +611,9 @@ These survive every release unless the owner explicitly changes them.
 13. No extra SOT service/port without a proven technical boundary and explicit owner ruling.
 14. A feature that cannot be invoked through the operator control is not implemented.
 15. A failed owner gate is rolled back, recorded, and rebuilt from the clean input rather than patched forward.
+16. The authoritative SOT database path and its backup path are configurable instance settings and are never silently changed by project operations.
+17. Database restore validates the candidate backup before replacement and preserves a safety copy of the current authoritative database.
+18. Scan/copy timing predictions are evidence-based estimates derived from observed telemetry and must never be presented as guaranteed completion times.
 16. Release deployment may overwrite application files in established locations but must not create/start/stop/restart infrastructure or alter ports/routes without explicit owner approval.
 
 ---
@@ -777,6 +797,18 @@ This section records external review items so they do not disappear between sess
 
 # 11. PRODUCT MODEL REFERENCE
 
+## SOT instance configuration
+
+```text
+instance_id              fixed single-instance identifier for MVP
+sot_database_path       configurable authoritative SQLite database path
+sot_database_backup_path configurable backup/restore destination
+created_at
+updated_at
+```
+
+The database configuration belongs to the SOT installation, not to an individual reconciliation project. A project may be created before any final SOT data destination is chosen.
+
 ## Project
 
 ```text
@@ -787,7 +819,7 @@ updated_at
 status
 current_stage
 current_run_id
-current_target_id / target_path
+current_target_id / target_path    nullable until capacity/destination planning
 openclaw_session_key
 notes
 ```
@@ -818,6 +850,28 @@ status
 restart_of_run_id
 checkpoint_state
 ```
+
+## Source inventory run / performance telemetry
+
+```text
+inventory_run_id
+project_token
+source_id
+started_at
+last_progress_at
+completed_at
+elapsed_seconds
+files_seen
+bytes_seen
+files_per_second
+bytes_per_second
+estimated_remaining_seconds
+status
+checkpoint_state
+error_count
+```
+
+Each source inventory run is timestamped independently. Historical runs remain queryable so estimates can be based on observed performance for that source/device/path class rather than a generic guess.
 
 ## Project event
 
