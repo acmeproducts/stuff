@@ -1,0 +1,81 @@
+name: Capture SOT database lifecycle governance
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-governance-db-lifecycle.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update SOT governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project-backlog.md')
+          s=p.read_text()
+
+          rulings='''- **Every SOT installation has one configurable authoritative SOT database path. The database location is instance configuration, not hard-coded application state.**\n- **Every SOT installation also has a separately configurable SOT database backup path. Backup and restore of the authoritative database are first-class operational capabilities.**\n- **Source inventory runs record timestamps and scan telemetry per source: started_at, last_progress_at, completed_at, elapsed_seconds, files_seen, bytes_seen, files_per_second, bytes_per_second, and estimated_remaining_seconds when enough evidence exists.**\n- **Scan telemetry is retained as historical evidence so observed inventory speed can inform future scan completion estimates and later consolidation/copy planning. Estimates must be labeled estimates, not promises.**\n- **Target/SOT storage remains deferred until inventory/reconciliation provides a defensible surviving-size/capacity estimate; the database path and database-backup path are independent of the eventual SOT data destination.**\n- **MVP is single-instance. Multi-instance support is explicitly deferred to backlog; do not complicate the current data model or UI to support multiple simultaneous SOT instances.**\n'''
+          anchor='- Deployment convenience commands are `ghdeploy` (GitHub → OpenClaw) and `deploy` (Windows Download → OpenClaw); default report project is `tst`.\n'
+          if rulings.splitlines()[0] not in s:
+              s=s.replace(anchor, anchor+rulings)
+
+          # Correct the project model so configuration and telemetry have homes.
+          model_anchor='''## Project\n\n```text\nproject_token        immutable primary key\nproject_name         mutable display label\ncreated_at\nupdated_at\nstatus\ncurrent_stage\ncurrent_run_id\ncurrent_target_id / target_path\nopenclaw_session_key\nnotes\n```\n'''
+          model_repl='''## SOT instance configuration\n\n```text\ninstance_id              fixed single-instance identifier for MVP\nsot_database_path       configurable authoritative SQLite database path\nsot_database_backup_path configurable backup/restore destination\ncreated_at\nupdated_at\n```\n\nThe database configuration belongs to the SOT installation, not to an individual reconciliation project. A project may be created before any final SOT data destination is chosen.\n\n## Project\n\n```text\nproject_token        immutable primary key\nproject_name         mutable display label\ncreated_at\nupdated_at\nstatus\ncurrent_stage\ncurrent_run_id\ncurrent_target_id / target_path    nullable until capacity/destination planning\nopenclaw_session_key\nnotes\n```\n'''
+          if '## SOT instance configuration' not in s and model_anchor in s:
+              s=s.replace(model_anchor, model_repl)
+
+          run_anchor='''## Project run\n\n```text\nrun_id\nproject_token\nstarted_at\nended_at\nstatus\nrestart_of_run_id\ncheckpoint_state\n```\n'''
+          run_repl='''## Project run\n\n```text\nrun_id\nproject_token\nstarted_at\nended_at\nstatus\nrestart_of_run_id\ncheckpoint_state\n```\n\n## Source inventory run / performance telemetry\n\n```text\ninventory_run_id\nproject_token\nsource_id\nstarted_at\nlast_progress_at\ncompleted_at\nelapsed_seconds\nfiles_seen\nbytes_seen\nfiles_per_second\nbytes_per_second\nestimated_remaining_seconds\nstatus\ncheckpoint_state\nerror_count\n```\n\nEach source inventory run is timestamped independently. Historical runs remain queryable so estimates can be based on observed performance for that source/device/path class rather than a generic guess.\n'''
+          if '## Source inventory run / performance telemetry' not in s and run_anchor in s:
+              s=s.replace(run_anchor, run_repl)
+
+          # Add concrete v0.4.0 requirements where scan/manifest belongs.
+          v04_anchor='''- Manifest persistence.\n'''
+          v04_items='''- Manifest persistence.\n- Configurable SOT database path exposed through instance settings and persisted outside browser-local state.\n- Configurable SOT database backup path.\n- Database backup command/API with atomic snapshot semantics appropriate to SQLite/WAL.\n- Database restore flow with validation before replacement and automatic safety backup of the current database before restore.\n- Per-source inventory timestamps and performance telemetry: start/progress/completion, files/bytes scanned, observed throughput, elapsed time.\n- Rolling ETA for inventory only when enough progress exists to calculate one; suppress unstable estimates early in a run.\n- Preserve completed inventory-run telemetry for later performance comparison and copy/consolidation planning.\n'''
+          if '- Configurable SOT database path exposed through instance settings' not in s:
+              s=s.replace(v04_anchor, v04_items, 1)
+
+          # Reporting backlog gets performance history.
+          report_anchor='''## Reporting / operator UX\n\n'''
+          report_items='''## Reporting / operator UX\n\n- Source inventory performance view: current elapsed time, files/bytes scanned, observed throughput, ETA confidence/state, and completed-run history.\n- Compare current source scan rate with prior scans of the same source/fingerprint when available.\n- Use inventory performance as one input to later consolidation planning, but keep scan ETA and copy ETA as separate metrics because read/hash/write workloads differ.\n'''
+          if '- Source inventory performance view:' not in s and report_anchor in s:
+              s=s.replace(report_anchor, report_items, 1)
+
+          # Explicit future multi-instance backlog.
+          future_anchor='''## Future / optional\n\n'''
+          future_item='''## Future / optional\n\n- **Multi-instance SOT:** support multiple independent SOT databases/configurations on one host, each with its own database path, backup path, projects, and lifecycle. Deferred until single-instance MVP is stable.\n'''
+          if '- **Multi-instance SOT:**' not in s and future_anchor in s:
+              s=s.replace(future_anchor, future_item, 1)
+
+          # Safety invariants.
+          safety_anchor='''15. A failed owner gate is rolled back, recorded, and rebuilt from the clean input rather than patched forward.\n'''
+          safety_more='''15. A failed owner gate is rolled back, recorded, and rebuilt from the clean input rather than patched forward.\n16. The authoritative SOT database path and its backup path are configurable instance settings and are never silently changed by project operations.\n17. Database restore validates the candidate backup before replacement and preserves a safety copy of the current authoritative database.\n18. Scan/copy timing predictions are evidence-based estimates derived from observed telemetry and must never be presented as guaranteed completion times.\n'''
+          if '16. The authoritative SOT database path' not in s and safety_anchor in s:
+              s=s.replace(safety_anchor, safety_more, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Commit and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT governance builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/sot-governance-db-lifecycle.yml
+          git add project-backlog.md
+          git commit -m 'Define SOT database configuration backup and scan telemetry'
+          git pull --rebase origin main
+          git push origin HEAD:main
