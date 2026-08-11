@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.10.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.9.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.10.0  
+**Governance version:** 1.9.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -496,31 +496,3 @@ The Session Manager now has a browser-to-GitHub persistent source of truth. The 
 **G-026 — Blind whole-state GitHub overwrite.** Buried. Writes must be SHA-guarded merges and retain all previously accepted SOT events.
 
 **G-027 — Syncing secrets.** Buried. PATs, Gateway tokens, OpenClaw device private keys, provider credentials and transcripts are never portable SOT content.
-
-
-# 12. v2.6.0 SESSION DISPOSITION / ORPHAN AMENDMENT — 2026-08-11
-
-BotsChat must account for every session known to the client. The invariant is: **Assigned, Unassigned, Missing, or Soft Deleted — never invisible.**
-
-- **Assigned:** exactly one normal Project owns the live OpenClaw session.
-- **Unassigned:** OpenClaw currently reports the live session but no Project owns it. Unassigned is a system view, not a normal Project.
-- **Missing:** the SOT/client has previously seen the session but the current OpenClaw `sessions.list` does not report it. Missing is a collapsed exception chevron, not a Project.
-- **Soft Deleted:** the session has an explicit Recycle Bin tombstone. It is hidden from Projects/Unassigned/Missing while the OpenClaw source remains untouched.
-- Every discovered live session is retained in the Project-state `known` ledger so an unassigned session can also become Missing rather than disappearing.
-- When an assigned or unassigned session becomes Missing, its label, prior Project, first-missing time, and last-seen metadata are retained.
-- When a Missing session reappears, it goes to **Unassigned**, never silently back to the old Project. Its previous Project is retained as recovery provenance.
-- Restore from Recycle Bin also returns to Unassigned and retains previous-Project provenance.
-- Removing a Project moves its sessions to Unassigned; it never deletes them.
-- A session has at most one normal Project home. Adding/dropping it on another Project is a move, never a copy.
-- Session tabs are HTML5 draggable. Dropping a tab on a Project persists the move to local state and the GitHub SOT. Dropping on Unassigned removes Project membership.
-- The tab `×` is explicitly **Soft Delete → Recycle Bin**, not a temporary close-tab operation.
-- Missing sessions cannot be dragged because the source is not currently live. They may be explicitly soft-deleted from the Missing chevron.
-- Recycle Bin tombstones are now part of the portable GitHub SOT, preserving soft-delete intent across devices.
-
-## Graveyard additions
-
-**G-028 — Invisible orphan sessions.** Buried. Every known session must resolve to one of the four dispositions.
-
-**G-029 — Tab X as local close/remove membership.** Buried. In BotsChat, tab X means governed soft delete to Recycle Bin.
-
-**G-030 — Automatically restoring recovered Missing sessions to their old Project.** Buried. Recovery returns to Unassigned with prior-Project provenance for operator-directed re-homing.
