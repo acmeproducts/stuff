@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.7.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.8.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.7.0  
+**Governance version:** 1.8.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -437,3 +437,37 @@ After owner ruling: update Decision Log in the same session.
 After FAIL: restore exact proven baseline and rebuild.  
 After PASS: record exact commit/blob as new baseline.  
 Unscheduled ideas remain backlog until deliberately promoted.
+
+
+# 10. v2.4.0 WORKSPACE / THEME AMENDMENT — 2026-08-11
+
+Owner ruling supersedes the earlier one-thread simplification. **BotsChat is a client type, not merely a color preset.** The locked hierarchy is:
+
+`Client → Projects → OpenClaw session tabs`
+
+- Left pane contains locally managed **Projects** with `+` creation.
+- Each Project owns an ordered set of real OpenClaw session references.
+- Selecting a Project changes the right-side session tab strip.
+- The tab-strip `+` can add an existing OpenClaw session or create a new one.
+- Closing a tab removes only that Project membership; deleting an OpenClaw session remains a separate governed lifecycle action.
+- Projects never rewrite session keys, transcripts, labels, or OpenClaw storage.
+- Background sessions remain independent and may continue working while another Project/session is viewed.
+- `Standard Session Manager` remains available as a separate Client Type.
+- Appearance and Client Type are independent. Claude, ChatGPT and BotsChat are built-in Appearance presets.
+
+## Custom theme library
+
+- Save the **complete current Appearance state** as a named custom theme.
+- Apply, rename, duplicate and delete custom themes.
+- Export one custom theme or the complete library as JSON.
+- Import validates `session-manager-theme-library` schema/version 1 and normalizes appearance data before storage.
+- Duplicate imported names receive a non-destructive suffix; import never silently overwrites an existing theme.
+- Theme storage is browser-local data and remains independent of `session-manager-v3.html`.
+
+## Graveyard additions
+
+**G-022 — BotsChat as only a palette.** Buried. The reference includes navigation, Projects, tabbed sessions and workspace behavior.
+
+**G-023 — One fixed General thread.** Buried. Owner clarified that multiple Projects on the left are critical and each Project must own multiple session tabs.
+
+**G-024 — Custom themes as hard-coded source edits.** Buried. Custom themes are validated portable data with save/export/import.
