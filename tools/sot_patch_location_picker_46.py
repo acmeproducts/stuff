@@ -1,0 +1,70 @@
+from pathlib import Path
+
+p=Path('project.html')
+s=p.read_text()
+old_build='2026.08.11.4.5'
+new_build='2026.08.11.4.6'
+if old_build not in s:
+    raise SystemExit('FAIL: expected .4.5 input not found')
+s=s.replace(old_build,new_build)
+needle='function openExplorer(mode){'
+if needle not in s:
+    raise SystemExit('FAIL: openExplorer not found')
+s=s.replace(needle,'function openExplorerLegacy(mode){',1)
+
+css='''
+/* OWNER LOCATION PICKER · build 2026.08.11.4.6 */
+.source-modal{width:min(1320px,96vw);height:min(790px,88vh);min-width:860px;min-height:560px;max-width:98vw;max-height:94vh;resize:both;overflow:hidden;border-radius:16px;color:#202938}
+.source-modal .modalhead{cursor:move;padding:18px 22px;background:#fff}
+.source-modal .modalhead h3{font-size:22px;font-weight:720;letter-spacing:-.02em}
+.source-modal .explorer{height:calc(100% - 82px);min-height:0;grid-template-columns:220px minmax(420px,1fr) 300px}
+.source-modal .places{padding:14px 10px;background:#fafbfc}
+.place-line{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;border-radius:9px;margin:2px 0}
+.place-line.active{background:#edf1f6}.place-check,.row-check{width:16px;height:16px;margin:auto;accent-color:#59677a}
+.place-drill{border:0;background:transparent;text-align:left;padding:9px 8px;color:#283445;font-weight:650;min-width:0;border-radius:8px}
+.place-drill:hover{background:#f0f3f7}.place-drill small{display:block;color:#8a94a4;font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-modal .explorerbar{display:grid;grid-template-columns:auto auto minmax(160px,1fr) auto minmax(150px,220px);gap:8px;padding:11px 12px;background:#fbfcfd;align-items:center}
+.source-modal .browserpath{height:38px;display:flex;align-items:center;background:#fff}.source-modal .browserlist{min-height:0;height:100%;overflow:auto;background:#fff}
+.filehead,.source-row{display:grid;grid-template-columns:34px minmax(180px,1fr) 90px;gap:8px;align-items:center}
+.filehead{position:sticky;top:0;z-index:3;background:#f8fafc;border-bottom:1px solid var(--line);padding:8px 13px;color:#667085;font-size:11px;font-weight:800}
+.sortbtn{border:0;background:transparent;text-align:left;padding:0;color:inherit;font-weight:inherit}.source-row{padding:9px 13px;border-bottom:1px solid #edf0f4;min-height:44px}.source-row:hover{background:#fafbfd}
+.row-drill{border:0;background:transparent;text-align:left;padding:0;color:#273345;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row-drill.foldername{font-weight:620}.row-kind{font-size:11px;color:#98a2b3;text-align:right}
+.source-modal .selectedpane{background:#fbfcfd}.source-modal .selectedhead{padding:16px 15px}.source-modal .selectedlist{padding:10px 12px}.source-modal .selectedactions{padding:12px;gap:8px}.source-modal .selecteditem{box-shadow:none}.source-modal .selecteditem .loc{font-size:11px}
+.toolbar-add{background:#526174!important;border-color:#526174!important;color:#fff!important}.toolbar-add:disabled{opacity:.4}
+.searchbox{height:38px;border:1px solid var(--line);border-radius:8px;padding:0 10px;outline:none;min-width:0}.searchbox:focus{border-color:#9ba7b6;box-shadow:0 0 0 3px #f0f2f5}
+.picker-status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 13px;border-top:1px solid var(--line);font-size:11px;color:#6f7a89;background:#fafbfc}.source-modal .resize-corner{position:absolute;right:5px;bottom:4px;color:#a2abb8;font-size:16px;pointer-events:none}
+@media(max-width:900px){.source-modal{min-width:0;width:96vw;height:88vh;resize:none}.source-modal .explorer{grid-template-columns:180px minmax(320px,1fr) 250px}.source-modal .explorerbar{grid-template-columns:auto auto minmax(120px,1fr) auto}.source-modal .searchbox{grid-column:1/-1}}
+'''
+s=s.replace('</style>',css+'\n</style>',1)
+
+source_fn=r'''
+function openExplorer(mode){
+  if(mode!=='source')return openExplorerLegacy(mode);
+  const root=$('#modalRoot');let selectedRoot=null,current=null,folders=[],files=[],history=[],sortDir=1;let staged=[...state.intake.sources];const checked=new Set();let search='';
+  root.innerHTML=`<div class="modalback"><div class="modal source-modal" id="sourceModal"><div class="modalhead" id="dragHead"><div><h3>Add locations</h3><div class="subtle">Check a whole volume or browse into it and check folders. Additions stay visible on the right until you save.</div></div><button class="close" id="x">×</button></div><div class="explorer three"><aside class="places"><div class="places-title">Locations</div><div id="placesList"></div></aside><section class="explorer-main"><div class="explorerbar"><button class="btn small" id="up" disabled>↑ Up</button><button class="btn small" id="rescan">↻ Rescan</button><div class="browserpath" id="path">Select a storage location</div><button class="btn toolbar-add" id="addChecked" disabled>＋ Add to project</button><input class="searchbox" id="locationSearch" placeholder="Search" aria-label="Search current location"></div><div class="browserlist" id="browserList"><div class="empty"><strong>Choose a location</strong>Check a volume to add all of it, or click its name to browse into folders.</div></div><div class="picker-status"><strong id="currentStatus">No location selected</strong><span id="itemCount">0 items</span></div></section><aside class="selectedpane"><div class="selectedhead"><strong>Added to project <span class="badge" id="selectedCount">0</span></strong><span class="subtle">Review before saving</span></div><div class="selectedlist" id="selectedList"></div><div class="selectedactions"><button class="btn primary" id="saveLocations">Save selections</button><button class="btn" id="cancelLocations">Cancel</button></div></aside></div><span class="resize-corner">⌟</span></div></div>`;
+  const initialKeys=state.intake.sources.map(sourceKey).sort().join('\n');const hasUnsaved=()=>staged.map(sourceKey).sort().join('\n')!==initialKeys;const close=(force=false)=>{if(!force&&hasUnsaved()&&!confirm('Discard the source selections you have not saved?'))return false;root.innerHTML='';return true};$('#x').onclick=()=>close(false);
+  const stagedHas=path=>staged.some(x=>sourceKey(x)===sourceKey(path));function updateAddButton(){const b=$('#addChecked');if(!b)return;b.disabled=checked.size===0;b.textContent=checked.size?`＋ Add to project (${checked.size})`:'＋ Add to project'}
+  function toggleChecked(path,on){if(on)checked.add(path);else checked.delete(path);updateAddButton();renderPlaces();renderRows()}
+  function renderPlaces(){const rows=state.roots.map(r=>`<div class="place-line ${selectedRoot?.path===r.path?'active':''}"><input class="place-check" type="checkbox" data-root-check="${esc(r.path)}" ${checked.has(r.path)?'checked':''} aria-label="Select ${esc(r.label)}"><button class="place-drill" data-place="${esc(r.path)}"><span>▣&nbsp; ${esc(r.label)}</span><small>${esc(r.path)}</small></button></div>`).join('');const local=(HAS_DIRECTORY_PICKER||HAS_DIRECTORY_INPUT)?`<div class="place-line"><span style="text-align:center">▯</span><button class="place-drill" id="devicePlace"><span>This device</span><small>Choose a local folder</small></button></div>`:'';$('#placesList').innerHTML=rows+local;document.querySelectorAll('[data-root-check]').forEach(c=>c.onchange=e=>toggleChecked(c.dataset.rootCheck,e.target.checked));document.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>selectRoot(state.roots.find(r=>r.path===b.dataset.place)));$('#devicePlace')?.addEventListener('click',pickLocalSourceAndStage)}
+  function renderSelected(){$('#selectedCount').textContent=String(staged.length);$('#selectedList').innerHTML=staged.length?staged.map((src,i)=>`<div class="selecteditem"><div class="loc">${esc(sourceDisplay(src))}</div><button data-unselect="${i}" title="Remove">×</button></div>`).join(''):'<div class="empty"><strong>Nothing added yet</strong>Check one or more volumes/folders, then use Add to project.</div>';document.querySelectorAll('[data-unselect]').forEach(b=>b.onclick=()=>{staged.splice(Number(b.dataset.unselect),1);renderSelected()})}
+  async function selectRoot(r){if(!r)return;selectedRoot=r;current=r.path;history=[current];search='';$('#locationSearch').value='';renderPlaces();await load(current)}
+  async function load(path){if(!selectedRoot)return;$('#browserList').innerHTML='<div class="empty">Loading…</div>';try{const d=await apiFs(path);current=d.path||path;folders=d.folders||[];files=d.files||[];$('#path').textContent=current;$('#up').disabled=history.length<=1;$('#currentStatus').textContent=current;renderRows()}catch(e){$('#browserList').innerHTML=`<div class="empty"><strong>Unable to browse</strong>${esc(e.message)}</div>`;toast(e.message,'error')}}
+  function renderRows(){if(!$('#browserList'))return;const q=search.trim().toLowerCase();const fs=[...folders].filter(n=>!q||n.toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b)*sortDir);const ff=[...files].filter(n=>!q||n.toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b)*sortDir);const head=`<div class="filehead"><span></span><button class="sortbtn" id="sortName">Name ${sortDir===1?'↑':'↓'}</button><span>Type</span></div>`;const fr=fs.map(n=>{const path=joinPath(current,n);return`<div class="source-row"><input class="row-check" type="checkbox" data-folder-check="${esc(path)}" ${checked.has(path)?'checked':''}><button class="row-drill foldername" data-drill="${esc(n)}">▱&nbsp; ${esc(n)}</button><span class="row-kind">Folder</span></div>`}).join('');const fi=ff.map(n=>`<div class="source-row"><span></span><span class="row-drill">▧&nbsp; ${esc(n)}</span><span class="row-kind">File</span></div>`).join('');$('#browserList').innerHTML=head+(fr+fi||'<div class="empty">No matching items.</div>');$('#itemCount').textContent=`${fs.length+ff.length} item${fs.length+ff.length===1?'':'s'}`;$('#sortName')?.addEventListener('click',()=>{sortDir*=-1;renderRows()});document.querySelectorAll('[data-folder-check]').forEach(c=>c.onchange=e=>toggleChecked(c.dataset.folderCheck,e.target.checked));document.querySelectorAll('[data-drill]').forEach(b=>b.onclick=async()=>{const next=joinPath(current,b.dataset.drill);history.push(next);await load(next)})}
+  $('#addChecked').onclick=()=>{let added=0;for(const path of [...checked]){if(!stagedHas(path)){staged.push(path);added++}}checked.clear();updateAddButton();renderPlaces();renderRows();renderSelected();if(added)toast(`${added} location${added===1?'':'s'} added to project draft.`)};$('#up').onclick=async()=>{if(history.length<=1)return;history.pop();await load(history[history.length-1])};$('#rescan').onclick=()=>current?load(current):checkServices().then(renderPlaces);$('#locationSearch').oninput=e=>{search=e.target.value;renderRows()};$('#saveLocations').onclick=()=>{state.intake.sources=staged;close(true);renderIntake();toast(`${staged.length} location${staged.length===1?'':'s'} saved to draft.`)};$('#cancelLocations').onclick=()=>close(false);
+  async function pickLocalSourceAndStage(){const src=await pickLocalDeviceSource();if(src&&!staged.some(s=>sourceKey(s)===sourceKey(src))){staged.push(src);renderSelected();toast('Device location staged.')}}
+  renderPlaces();renderSelected();updateAddButton();
+}
+'''
+marker='const DEVICE_DB='
+if marker not in s:
+    raise SystemExit('FAIL: DEVICE_DB marker not found')
+s=s.replace(marker,source_fn+'\n'+marker,1)
+p.write_text(s)
+
+g=Path('project-backlog.md')
+text=g.read_text()
+ruling='- **Location selection semantics:** every WSL/mounted volume in the left Locations pane has its own checkbox. Checking it selects the entire volume as a source; clicking its name drills into the volume without selecting it. Folder rows in the center pane use the same pattern: checkbox selects, name drills deeper. The top Add to project action stages all checked volumes/folders into the persistent right-hand Added to project pane.\n'
+anchor='## 0.2 Current owner rulings\n\n'
+if ruling not in text:
+    text=text.replace(anchor,anchor+ruling,1)
+g.write_text(text)
