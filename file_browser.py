@@ -2,7 +2,7 @@
 """
 SOT Helper Service
 UI/API Version: 0.3.1
-Build: 2026.08.10.3
+Build: 2026.08.10.4
 
 ARCHITECTURE RULE
 -----------------
@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 API_VERSION = "0.3.1"
-BUILD_ID = "2026.08.10.3"
+BUILD_ID = "2026.08.10.4"
 SERVICE_PORT = 8081
 DB_PATH = Path(
     os.environ.get(

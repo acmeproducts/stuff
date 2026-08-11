@@ -44,6 +44,11 @@ An owner ruling made in-session must be written into this file in the same sessi
 - **Intake must communicate the job immediately: “here is my mess; here is where I have space to build the SOT.” Remove redundant summary panels and implementation-language clutter.**
 - **Operations uses Projects / Status / Detail tabs. Projects owns add/change/delete metadata and locations; Status owns high-level state and real pause/stop/retry controls when the engine exists; Detail owns in-depth source/target/run information.**
 - **Reporting needs further product definition. Until the engine exists, show authoritative project metadata/events only and do not invent reconciliation metrics.**
+- **Adding locations is a staged draft operation. The explorer shows a third “Added to project” panel with every staged source and an × removal control; nothing is persisted or fingerprinted until Save selections and the later Create project action.**
+- **After Save selections, Intake provides a final Review project surface where project name, sources, and notes can still be changed before authoritative project creation/fingerprinting.**
+- **A final SOT data destination is NOT required at Intake. Required capacity is unknown until inventory/reconciliation establishes the surviving-size requirement.**
+- **Destination planning later includes both primary SOT capacity and backup capacity.**
+- **Long-term SOT maintenance must handle additions, changes, and deletions through reviewed change sets while keeping the backup verified; source disappearance alone never automatically deletes SOT content.**
 - No fake lifecycle state. If the deterministic execution engine is not running, the UI must say so and must not simulate Start/Pause/Resume/Restart/Promote.
 - GitHub `acmeproducts/stuff` is the development source. The deployed HTML target is `/home/support/.openclaw/workspace/https/report/<project>/<filename>`.
 - Deployment convenience commands are `ghdeploy` (GitHub → OpenClaw) and `deploy` (Windows Download → OpenClaw); default report project is `tst`.
@@ -170,6 +175,17 @@ The real WSL/Windows gate proved two defects:
 
 Build .2 is not accepted. Build `2026.08.10.3` remains v0.3.1 and corrects the same locked Intake/filesystem surface.
 
+
+## 1.5 Owner gate — v0.3.1 build 2026.08.10.3 FAILED
+
+Owner review accepted the simplified storage concept but rejected the source commit flow and premature target requirement. Build .4 corrects the same locked Intake surface:
+
+- three-pane Add Locations with visible staged selections and × removal;
+- Save selections commits only to the Intake draft;
+- final Review project before authoritative project creation/fingerprinting;
+- final SOT data destination deferred until capacity is known;
+- later primary SOT + backup planning and ongoing maintenance remain explicit release-plan work.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
@@ -198,7 +214,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** build 2026.08.10.2 FAILED owner gate; build 2026.08.10.3 is the active v0.3.1 candidate.  
+**Status:** builds .2/.3 FAILED owner gate; build 2026.08.10.4 is the active v0.3.1 candidate.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
@@ -207,7 +223,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 **Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`  
 **Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`  
 **Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.  
-**Owner/device gate:** build .2 FAIL; build .3 NOT YET RUN.  
+**Owner/device gate:** builds .2/.3 FAIL; build .4 NOT YET RUN.  
 **Surface:** Intake + filesystem/source/target definition.  
 
 **All five items below are mandatory in this release. No silent deferral.**
@@ -382,6 +398,18 @@ Mandatory corrections within the same v0.3.1 surface:
 - Target flow: storage/device → optional parent folder → final SOT folder.
 - Operations tabs: Projects / Status / Detail.
 - Reporting stays limited to authoritative metadata/events pending separate definition and real engine data.
+
+
+## 3.9 Build .4 owner-flow requirements
+
+- Source explorer is three-pane in source mode: storage, contents, Added to project.
+- Added sources are staged only and removable with ×.
+- Save selections commits only to the Intake draft, not the server.
+- Intake then has an explicit Review project step.
+- Review project shows project name, all source locations, and notes; destination is explicitly deferred.
+- Create project is the first authoritative persistence/fingerprinting action.
+- Project creation sends no target requirement.
+- Operations shows SOT destination as deferred until scan/capacity/backup planning.
 
 # 4. RELEASE PLAN AFTER v0.3.1
 
@@ -701,6 +729,23 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Approach:** separate “WSL / mounted source” and “This device” decisions, single-pane browsing, parent-first target language, and a second summary card.  
 **Why buried:** failed the owner gate because it exposes implementation details, reverses the target mental model, and makes a simple storage-reconciliation setup feel difficult.  
 **Replacement:** one Add locations action, dual-pane explorer, target sequence storage → optional parent → final SOT folder, and one streamlined Intake surface.
+
+
+## G-011 — Requiring the final SOT destination during Intake
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED  
+**Approach:** require final SOT storage before a source project can be created.  
+**Why buried:** surviving size is unknown until inventory/reconciliation, and the primary SOT also needs backup capacity.  
+**Replacement:** create/fingerprint the source project first, measure it, then choose primary SOT + backup before copy execution.
+
+## G-012 — Immediately committing each source click
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED  
+**Approach:** mutate the Intake source list immediately on each folder click.  
+**Why buried:** weak review/undo visibility and accidental inclusion risk.  
+**Replacement:** three-pane staged selection → Save selections → Review project → authoritative Create project/fingerprint.
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
 
