@@ -33,6 +33,8 @@ An owner ruling made in-session must be written into this file in the same sessi
 - **The deployable SOT application is exactly one self-contained file: `project.html`. No external application JS/CSS/module files may be required by the browser.**
 - **SOT releases deploy `project.html` only. Existing server-side API capability on the production 18080 report server is infrastructure and is not recreated per UI release.**
 - **Browser SOT API URLs must stay under the public `/report` mount (`/report/api/sot/*`). Absolute `/api/sot/*` bypasses the report route and hits the OpenClaw root/gateway path.**
+- **UI build ID and backend build ID are independent evidence fields. Compatibility is determined by the API contract/version, not equality of build timestamps. A UI-only release must not falsely report a version mismatch merely because the backend build is older.**
+- **The build shown in the HTML comment, visible UI, Settings, and debug log must come from the same `BUILD_ID` value for every candidate.**
 - The next release must contain **all five locked v0.3.1 items** listed below. Do not silently split, defer, or omit one.
 - **There is one production report/application server: `/usr/bin/node session-server.js`, working directory `/home/support/.openclaw/workspace/https/report`, port `18080`. SOT APIs extend this existing process under `/api/sot/*`.**
 - **Port 8081 / FastAPI / Uvicorn / `file_browser.py` is rejected and removed. Never reintroduce it.**
@@ -214,6 +216,13 @@ The backend itself was proven healthy locally on `127.0.0.1:18080/api/sot/health
 
 Build .4.3 is rebuilt from the exact .3 baseline and reimplements the approved .4 UX with browser API URLs under `/report/api/sot/*`. No server, port, proxy, or backend change is required for this correction.
 
+
+## 1.9 Owner gate — build 2026.08.10.4.3 FAILED
+
+The route correction worked, but the UI exposed two release-evidence defects: the HTML comment identified build `.4.3` while the runtime `BUILD_ID` still reported `.4`, and the UI treated a different backend build timestamp (`.4.2`) as an incompatibility even though both sides report API version `0.3.1`.
+
+The replacement is rebuilt from exact `.3` bytes, reapplies the approved `.4` behavior, uses one authoritative UI build ID, and treats matching API version `0.3.1` as compatible while continuing to display both UI and API build identifiers for traceability.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
@@ -242,7 +251,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** first .4 candidate FAILED owner gate; single-file route-correct rebuild 2026.08.10.4.3 from .3 is the active candidate.  
+**Status:** first .4 candidate FAILED owner gate; build-evidence-correct rebuild 2026.08.11.4.4 from .3 is the active candidate.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
@@ -801,6 +810,15 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Approach:** have `project.html` call `/api/sot/*` directly from the public site.  
 **Why buried:** Tailscale routes `/report` to the production 18080 report server; absolute `/api/*` bypasses that mount and lands on the root/OpenClaw route, producing 404.  
 **Replacement:** the single-file UI calls `/report/api/sot/*`; the existing `/report` proxy delivers those calls to the established 18080 server.
+
+
+## G-016 — Requiring UI and API build IDs to be identical
+
+**Date buried:** 2026-08-11  
+**Status:** VETOED  
+**Approach:** report a version mismatch whenever the UI build timestamp differs from the backend build timestamp.  
+**Why buried:** UI-only releases legitimately change the UI build without changing the API implementation; equal API contract/version is the compatibility boundary.  
+**Replacement:** compare API version/contract for compatibility and display both build IDs separately as trace evidence.
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
 
