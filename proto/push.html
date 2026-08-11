@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Push Proto</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PushProto">
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --fg:#e6edf3; --dim:#8b949e; --acc:#148c96; --ok:#2ea043; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:1rem; font:16px/1.5 -apple-system,system-ui,sans-serif; background:var(--bg); color:var(--fg); max-width:34rem; margin-inline:auto; }
+  h1 { font-size:1.2rem; }
+  .card { background:var(--card); border-radius:.75rem; padding:1rem; margin:.75rem 0; }
+  .card h2 { font-size:.95rem; margin:0 0 .5rem; }
+  button { width:100%; padding:.8rem; font-size:1rem; border:0; border-radius:.6rem; background:var(--acc); color:#fff; }
+  button:disabled { opacity:.4; }
+  input { width:100%; padding:.7rem; font-size:1rem; border:1px solid #30363d; border-radius:.6rem; background:var(--bg); color:var(--fg); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .dim { color:var(--dim); font-size:.85rem; }
+  #log { font:12px/1.5 monospace; white-space:pre-wrap; color:var(--dim); }
+  code { background:#0008; padding:.1em .3em; border-radius:.3em; }
+</style>
+</head>
+<body>
+<h1>Push Proto — minimal iOS Web Push proof</h1>
+
+<div class="card">
+  <h2>Status</h2>
+  <div id="st-https"></div>
+  <div id="st-standalone"></div>
+  <div id="st-sw"></div>
+  <div id="st-perm"></div>
+  <div id="st-sub"></div>
+</div>
+
+<div class="card" id="ios-hint" style="display:none">
+  <h2>iPhone: install first</h2>
+  <div class="dim">Apple only delivers Web Push to installed apps. In Safari: Share → <b>Add to Home Screen</b> → open <b>PushProto</b> from the home screen, then continue there.</div>
+</div>
+
+<div class="card">
+  <h2>Relay</h2>
+  <input id="relay" placeholder="https://push-proto.myacctfortracking.workers.dev">
+  <div class="dim">Your push-proto worker URL. Saved locally.</div>
+</div>
+
+<div class="card">
+  <h2>Receiver (the iPhone)</h2>
+  <input id="code" maxlength="6" style="text-transform:uppercase; text-align:center; letter-spacing:.3em; margin-bottom:.6rem">
+  <button id="btn-enable">Enable notifications on this device</button>
+  <div class="dim">Registers this device under the code above.</div>
+</div>
+
+<div class="card">
+  <h2>Sender (any browser, anywhere)</h2>
+  <button id="btn-send">Send push to that code</button>
+  <div class="dim">Lock the iPhone first. Notification should arrive within seconds.</div>
+</div>
+
+<div class="card"><h2>Log</h2><div id="log"></div></div>
+
+<script>
+'use strict';
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var logEl = $('log');
+  function log(m, cls) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = new Date().toLocaleTimeString() + '  ' + m;
+    logEl.prepend(d);
+  }
+  function relay() { return ($('relay').value || '').trim().replace(/\/+$/, ''); }
+  function code() { return ($('code').value || '').trim().toUpperCase(); }
+
+  /* defaults, persisted */
+  $('relay').value = localStorage.getItem('pp_relay') || 'https://push-proto.myacctfortracking.workers.dev';
+  $('code').value = localStorage.getItem('pp_code') ||
+    Array.from({ length: 4 }, function () { return 'ABCDEFGHJKMNPQRSTUVWXYZ'[Math.floor(Math.random() * 23)]; }).join('');
+  localStorage.setItem('pp_code', $('code').value);
+  $('relay').addEventListener('input', function () { localStorage.setItem('pp_relay', relay()); });
+  $('code').addEventListener('input', function () { localStorage.setItem('pp_code', code()); });
+
+  /* status */
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  $('st-https').innerHTML = location.protocol === 'https:' ? '<span class="ok">✓</span> HTTPS' : '<span class="bad">✗</span> Not HTTPS — push impossible';
+  $('st-standalone').innerHTML = standalone ? '<span class="ok">✓</span> Running installed (home screen)' : (isIOS ? '<span class="bad">✗</span> Not installed — iOS requires home-screen install' : '<span class="dim">–</span> Browser tab (fine on Android/desktop)');
+  if (isIOS && !standalone) $('ios-hint').style.display = '';
+  $('st-perm').innerHTML = ('Notification' in window) ? '<span class="dim">–</span> Permission: ' + Notification.permission : '<span class="bad">✗</span> Notifications unsupported here';
+
+  var swReg = null;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('push-sw.js').then(function (r) {
+      swReg = r;
+      $('st-sw').innerHTML = '<span class="ok">✓</span> Service worker registered';
+      return r.pushManager.getSubscription();
+    }).then(function (s) {
+      $('st-sub').innerHTML = s ? '<span class="ok">✓</span> Subscribed on this device' : '<span class="dim">–</span> Not subscribed yet';
+    }).catch(function (e) {
+      $('st-sw').innerHTML = '<span class="bad">✗</span> SW failed: ' + e;
+    });
+  } else {
+    $('st-sw').innerHTML = '<span class="bad">✗</span> No service worker support';
+  }
+
+  function b64uToBytes(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var b = atob(s), a = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+    return a;
+  }
+
+  $('btn-enable').addEventListener('click', function () {
+    if (!swReg) { log('service worker not ready', 'bad'); return; }
+    if (isIOS && !standalone) { log('install to home screen first — iOS will not grant push in the browser tab', 'bad'); return; }
+    Notification.requestPermission().then(function (p) {
+      $('st-perm').innerHTML = '<span class="' + (p === 'granted' ? 'ok' : 'bad') + '">' + (p === 'granted' ? '✓' : '✗') + '</span> Permission: ' + p;
+      if (p !== 'granted') throw new Error('permission ' + p);
+      return fetch(relay() + '/key').then(function (r) { return r.json(); });
+    }).then(function (k) {
+      return swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(k.key) });
+    }).then(function (sub) {
+      return fetch(relay() + '/sub', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code(), subscription: sub.toJSON() })
+      }).then(function (r) { return r.json(); });
+    }).then(function (r) {
+      if (r.ok) { $('st-sub').innerHTML = '<span class="ok">✓</span> Subscribed as ' + code(); log('subscribed and stored under ' + code(), 'ok'); }
+      else log('store failed: ' + JSON.stringify(r), 'bad');
+    }).catch(function (e) { log('enable failed: ' + e, 'bad'); });
+  });
+
+  $('btn-send').addEventListener('click', function () {
+    fetch(relay() + '/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code() })
+    }).then(function (r) { return r.json(); }).then(function (r) {
+      log('send → push service replied ' + r.pushServiceStatus + (r.ok ? ' (accepted)' : ' ' + (r.detail || r.err || '')), r.ok ? 'ok' : 'bad');
+    }).catch(function (e) { log('send failed: ' + e, 'bad'); });
+  });
+})();
+</script>
+</body>
+</html>
