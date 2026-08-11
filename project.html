@@ -2,7 +2,7 @@
 <!--
   SOT Project Portal
   UI Version: 0.3.1
-  Build: 2026.08.10.4.1
+  Build: 2026.08.10.4.2
   Owner-gate rebuild from v0.3.0 baseline.
 -->
 <html lang="en">
@@ -41,7 +41,7 @@
 <script>
 (()=>{'use strict';
 const APP_VERSION='0.3.1',BUILD_ID='2026.08.10.4';
-const FS_API='/api/fs',PROJECT_API='/api/projects',REPORT_API='/api/reports';
+const FS_API='/api/sot/fs',PROJECT_API='/api/sot/projects',REPORT_API='/api/sot/reports';
 const STAGES=['REGISTERED','SCANNING','HASHING','CRUNCHING','COPY_PLANNED','COPY_IN_PROGRESS','VERIFYING','VERIFIED'];
 const STAGE_LABELS=['Register','Scan','Hash','Crunch','Plan','Copy','Verify','Complete'];
 const HAS_DIRECTORY_PICKER=typeof window.showDirectoryPicker==='function';
@@ -52,7 +52,7 @@ function log(kind,msg,data){if(!state.debugEnabled)return;let line=`${new Date()
 function toast(msg,type=''){const n=document.createElement('div');n.className='toast '+type;n.textContent=msg;$('#toastRoot').appendChild(n);setTimeout(()=>n.remove(),3500)}
 function fmtDate(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString()}
 function fmtBytes(n){if(n===null||n===undefined)return'—';n=Number(n);if(!Number.isFinite(n))return'—';if(n===0)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return`${n.toFixed(n>=10||i===0?0:1)} ${u[i]}`}
-async function request(url,options={},timeout=12000){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);const transport=(url.startsWith(PROJECT_API)||url.startsWith(REPORT_API))?`${FS_API}?route=${encodeURIComponent(url)}`:url;log('TX',`${options.method||'GET'} ${url}`,options.body?JSON.parse(options.body):undefined);try{const r=await fetch(transport,{...options,signal:ctrl.signal,headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});const text=await r.text();let data={};if(text){try{data=JSON.parse(text)}catch{data={message:text}}}log('RX',`${r.status} ${url}`,data);if(!r.ok){const d=data?.detail;const msg=typeof d==='object'?(d.message||JSON.stringify(d)):(d||data.message||`HTTP ${r.status}`);throw new Error(msg)}return data}finally{clearTimeout(timer)}}
+async function request(url,options={},timeout=12000){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),timeout);const transport=url;log('TX',`${options.method||'GET'} ${url}`,options.body?JSON.parse(options.body):undefined);try{const r=await fetch(transport,{...options,signal:ctrl.signal,headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});const text=await r.text();let data={};if(text){try{data=JSON.parse(text)}catch{data={message:text}}}log('RX',`${r.status} ${url}`,data);if(!r.ok){const d=data?.detail;const msg=typeof d==='object'?(d.message||JSON.stringify(d)):(d||data.message||`HTTP ${r.status}`);throw new Error(msg)}return data}finally{clearTimeout(timer)}}
 async function apiFs(path='/'){return request(`${FS_API}?path=${encodeURIComponent(path)}`)}
 async function apiMkdir(parent,folder){return request(`${FS_API}/mkdir`,{method:'POST',body:JSON.stringify({parent_path:parent,folder_name:folder})},15000)}
 async function checkServices(){try{const h=await request(`${PROJECT_API}/health`,{},4000);state.api={live:true,version:h.version||'',build:h.build||'',engineReady:!!h.engine_ready,engineReason:h.engine_reason||''}}catch(e){state.api={live:false,version:'',build:'',engineReady:false,engineReason:e.message}}try{const fs=await apiFs('/');if(!Array.isArray(fs.folders))throw new Error('Storage response did not contain locations');state.fsLive=true;state.roots=(fs.folders||[]).map(label=>({label,path:(fs.paths||{})[label]||label}))}catch(e){state.fsLive=false;state.roots=[];log('ERR','Storage root failed',{message:e.message})}updateChrome()}

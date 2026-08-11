@@ -2,7 +2,7 @@
 
 **Repository:** `acmeproducts/stuff`  
 **Canonical UI:** `project.html`  
-**Canonical helper/backend:** `file_browser.py`  
+**Canonical backend:** existing production `session-server.js` on port 18080 + versioned `sot-api.js` module  
 **Canonical planning/governance document:** `project-backlog.md`  
 **Last governance update:** 2026-08-10  
 
@@ -31,11 +31,11 @@ An owner ruling made in-session must be written into this file in the same sessi
 
 - `project-backlog.md` is the one current SOT governance document: release plan + backlog + graveyard.
 - The next release must contain **all five locked v0.3.1 items** listed below. Do not silently split, defer, or omit one.
-- Do not add a new service, daemon, port, database, or proxy layer when the existing SOT helper can safely own the function.
-- The SOT HTTP helper remains one process on `127.0.0.1:8081`.
-- **Release deployment must use the existing report server, existing SOT helper, existing port 8081, and existing Tailscale routing. A release is not permission to restart, replace, or reconfigure infrastructure.**
-- **`deploy-sot-project.sh` is release-file installation only: overwrite the canonical `project.html` and `file_browser.py` in their already-established locations. It must not create/start/stop/restart servers or alter ports/routes.**
-- If an already-running Python helper requires a reload to pick up a changed `file_browser.py`, that is an operational reload of the existing helper, not a new service or architecture decision; do not perform it as part of a release unless the owner explicitly asks for that operational step.
+- **There is one production report/application server: `/usr/bin/node session-server.js`, working directory `/home/support/.openclaw/workspace/https/report`, port `18080`. SOT APIs extend this existing process under `/api/sot/*`.**
+- **Port 8081 / FastAPI / Uvicorn / `file_browser.py` is rejected and removed. Never reintroduce it.**
+- **OpenClaw Gateway remains independently on 18789 and is unchanged by SOT releases.**
+- **Tailscale `/report` continues to proxy the existing 18080 server. No SOT release may create another server, daemon, port, or proxy.**
+- **Existing session-server routes and behavior are preserved; SOT is additive under `/api/sot/*`.**
 - Project creation exists only in **Intake → Enter Project**.
 - Project identity is the immutable `project_token`; project name is mutable.
 - **Accessible storage is one user concept. Intake must not make the user choose implementation type first. WSL/mounted and browser-local locations belong in one location chooser when accessible.**
@@ -139,17 +139,21 @@ The owner’s last observed `project.html` reported **Project API offline**. The
 ## 1.3 Current architectural topology
 
 ```text
-OpenClaw Gateway       existing port
-Report/static server   existing port
+OpenClaw Gateway
+127.0.0.1:18789                         UNCHANGED
 
-ONE SOT helper
-127.0.0.1:8081
-  ├── /api/fs
-  ├── /api/projects
-  └── /api/reports
+Production report/application server
+127.0.0.1:18080  session-server.js
+  ├── existing session APIs             UNCHANGED
+  ├── existing static /report content   UNCHANGED
+  └── /api/sot/*                        SOT API
+      ├── fs
+      ├── projects
+      ├── reports
+      └── config
 ```
 
-No supported SOT architecture includes a second project API service or port 8082.
+Port 8081 and the standalone Python/FastAPI helper are graveyard architecture.
 
 ### Deployment invariant
 
@@ -195,6 +199,11 @@ The first build .4 UI reached the owner, but authoritative project creation repo
 
 Proven runtime constraint: `/api/fs?path=/` is the already-working public helper mount, while separate public project paths are not dependable. The replacement therefore tunnels project/report operations through the existing `/api/fs` mount at the application layer; no service, port, or routing change is permitted.
 
+
+## 1.7 Runtime architecture correction — owner evidence
+
+Owner diagnostic on 2026-08-10 proved the production report server is `/usr/bin/node session-server.js`, PID observed 172102, port 18080, working directory `/home/support/.openclaw/workspace/https/report`. The extra Python process on 8081 was unnecessary and is rejected. Build .4.2 is rebuilt from .3 and reimplements the approved .4 UX against additive `/api/sot/*` routes in the existing 18080 Node server.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
@@ -223,7 +232,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** first .4 candidate FAILED owner gate; governance-correct rebuild 2026.08.10.4.1 from .3 is the active candidate.  
+**Status:** first .4 candidate FAILED owner gate; architecture-correct rebuild 2026.08.10.4.2 from .3 is the active candidate.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
@@ -764,6 +773,15 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Approach:** treat the failed first .4 candidate as the baseline and make another small route fix on top of it.  
 **Why buried:** explicitly violates the governance rule established to prevent compounding unknown defects.  
 **Replacement:** restore exact .3 bytes from commit `037a0198800f45e616596fc27efb562db5289fa6`, then reapply the reviewed .4 UX delta and the proven existing-route compatibility change as a fresh build.
+
+
+## G-014 — Standalone SOT server on port 8081
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED / REMOVED  
+**Approach:** Python FastAPI/Uvicorn `file_browser.py` on 127.0.0.1:8081.  
+**Why buried:** duplicates application-server responsibility already available in production `session-server.js` on 18080 and created deployment/routing failure modes.  
+**Replacement:** additive `/api/sot/*` routes inside the existing 18080 Node report/application server. Existing session routes remain unchanged.
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
 
