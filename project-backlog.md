@@ -232,6 +232,19 @@ The replacement is rebuilt from exact `.3` bytes, reapplies the approved `.4` be
 
 Owner identified three concrete Intake usability failures: WSL folders did not present an obvious selection control, closing source setup could silently discard staged choices, and the visual system was too small/washed-out to be comfortably readable. Build .4.5 is rebuilt from exact .3 bytes, reapplies the governed cumulative .4 behavior, and corrects these three issues without changing server architecture or API contracts.
 
+
+## Owner gate — build 2026.08.11.4.6 FAILED / rolled back
+
+Build .4.6 is rejected. It replaced the working folder browser behavior and resulted in a picker that could no longer browse folders correctly. The runtime is rolled back to exact build .4.5 from commit `970d56435a84192c74de4d3eb7978ee327d303c4`.
+
+The three-panel model is locked and must not be collapsed or replaced:
+
+1. **Locations / volumes** — visible drives and accessible storage.
+2. **Contents** — folders/files for the selected location, independently scrollable.
+3. **Added to project** — persistent staged-source review with × remove and Save selections.
+
+Next implementation must be rebuilt from .4.5, preserving its working folder enumeration. The correction is limited to selection ergonomics: allow a whole volume or individual folders to be selected without losing browse capability; keep the selection action visible without requiring scrolling to the bottom. Do not patch .4.6 forward.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
