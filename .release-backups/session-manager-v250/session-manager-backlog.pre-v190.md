@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.9.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.8.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.9.0  
+**Governance version:** 1.8.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -471,28 +471,3 @@ Owner ruling supersedes the earlier one-thread simplification. **BotsChat is a c
 **G-023 — One fixed General thread.** Buried. Owner clarified that multiple Projects on the left are critical and each Project must own multiple session tabs.
 
 **G-024 — Custom themes as hard-coded source edits.** Buried. Custom themes are validated portable data with save/export/import.
-
-
-# 11. v2.5.0 CROSS-DEVICE SOT AMENDMENT — 2026-08-11
-
-The Session Manager now has a browser-to-GitHub persistent source of truth. The GitHub file is an **append-only event journal**, not a replacement snapshot.
-
-- Default SOT: `acmeproducts/stuff/session-manager-sot.json` on `main`.
-- Configuration accepts a GitHub PAT and owner/repository/branch/path.
-- PAT is browser-local only and is excluded from the SOT and diagnostics.
-- Portable state includes Client Type, Appearance, custom themes, Projects, and Project-to-OpenClaw-session membership.
-- Gateway tokens, device private keys, OpenClaw transcripts, and credentials are never written to the SOT.
-- Every local portable change is queued as a uniquely identified event.
-- Sync first reads the current blob and SHA, merges unique local events after all existing remote events, then updates with that exact SHA.
-- GitHub 409/422 races force re-read/merge/retry; a stale device may not blindly overwrite the remote SOT.
-- Replaying the journal yields the latest accepted state across devices while retaining prior changes for audit/recovery.
-- Project membership is no longer destroyed just because a session is temporarily absent from one `sessions.list` response.
-- BotsChat has no project hash/emblem decoration; Projects are shown by name only.
-
-## Graveyard additions
-
-**G-025 — Device-local-only project/theme state.** Buried. Portable workspace organization must survive device changes through the GitHub SOT.
-
-**G-026 — Blind whole-state GitHub overwrite.** Buried. Writes must be SHA-guarded merges and retain all previously accepted SOT events.
-
-**G-027 — Syncing secrets.** Buried. PATs, Gateway tokens, OpenClaw device private keys, provider credentials and transcripts are never portable SOT content.
