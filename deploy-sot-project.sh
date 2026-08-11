@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SOT Project Portal release activation
 # Version: 0.3.1
-# Build: 2026.08.10.4
+# Build: 2026.08.10.4.1
 # Uses ONLY the already-established report server and 8081 helper.
 # Does not create/change ports, services, or Tailscale routes.
 set -euo pipefail
 
 VERSION="0.3.1"
-BUILD="2026.08.10.4"
+BUILD="2026.08.10.4.1"
 RAW="https://raw.githubusercontent.com/acmeproducts/stuff/main"
 WORK="$HOME/.openclaw/workspace"
 REPORT="$WORK/https/report/SOT"

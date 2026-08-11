@@ -72,6 +72,8 @@ Claims about the current build must come from the current file, a test, a log, a
 ### Roll back; do not patch a failed release forward
 A failed owner/device gate returns to the release input baseline. Record the failed approach in the graveyard, rebuild the same planned version from the clean input, and gate again. Do not stack fixes onto a failed candidate.
 
+- **No patch-forward means the failed candidate is never the implementation baseline. A replacement candidate must start from the last accepted build bytes and reapply only the reviewed delta. For v0.3.1 build .4, the exact baseline is build .3 commit `037a0198800f45e616596fc27efb562db5289fa6`.**
+
 ### Hook/wrap where downstream behavior exists
 Do not casually replace a function with downstream responsibilities. Preserve call-through behavior unless the replaced function is proven to be a leaf.
 
@@ -186,6 +188,13 @@ Owner review accepted the simplified storage concept but rejected the source com
 - final SOT data destination deferred until capacity is known;
 - later primary SOT + backup planning and ongoing maintenance remain explicit release-plan work.
 
+
+## 1.6 Owner gate — first .4 candidate FAILED / discarded
+
+The first build .4 UI reached the owner, but authoritative project creation reported the project API offline. That candidate is discarded as an implementation baseline. Per the no-patch-forward rule, the replacement .4 is rebuilt from the exact accepted .3 commit `037a0198800f45e616596fc27efb562db5289fa6`.
+
+Proven runtime constraint: `/api/fs?path=/` is the already-working public helper mount, while separate public project paths are not dependable. The replacement therefore tunnels project/report operations through the existing `/api/fs` mount at the application layer; no service, port, or routing change is permitted.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
@@ -214,7 +223,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 
 # 3. LOCKED NEXT RELEASE — v0.3.1
 
-**Status:** builds .2/.3 FAILED owner gate; build 2026.08.10.4 is the active v0.3.1 candidate.  
+**Status:** first .4 candidate FAILED owner gate; governance-correct rebuild 2026.08.10.4.1 from .3 is the active candidate.  
 **Planned version:** `0.3.1`  
 **Planned first build:** `2026.08.10.1`  
 **Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
@@ -223,7 +232,7 @@ Not accepted as complete infrastructure until the unified API is deployed and ow
 **Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`  
 **Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`  
 **Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.  
-**Owner/device gate:** builds .2/.3 FAIL; build .4 NOT YET RUN.  
+**Owner/device gate:** first .4 candidate FAIL; rebuilt .4.1 NOT YET RUN.  
 **Surface:** Intake + filesystem/source/target definition.  
 
 **All five items below are mandatory in this release. No silent deferral.**
@@ -746,6 +755,15 @@ The graveyard records approaches that were tried, proposed, or materially pursue
 **Approach:** mutate the Intake source list immediately on each folder click.  
 **Why buried:** weak review/undo visibility and accidental inclusion risk.  
 **Replacement:** three-pane staged selection → Save selections → Review project → authoritative Create project/fingerprint.
+
+
+## G-013 — Patching a failed .4 candidate forward
+
+**Date buried:** 2026-08-10  
+**Status:** VETOED  
+**Approach:** treat the failed first .4 candidate as the baseline and make another small route fix on top of it.  
+**Why buried:** explicitly violates the governance rule established to prevent compounding unknown defects.  
+**Replacement:** restore exact .3 bytes from commit `037a0198800f45e616596fc27efb562db5289fa6`, then reapply the reviewed .4 UX delta and the proven existing-route compatibility change as a fresh build.
 
 # 8. DONE / CURRENT IMPLEMENTATION LEDGER
 

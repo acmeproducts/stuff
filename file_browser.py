@@ -2,7 +2,7 @@
 """
 SOT Helper Service
 UI/API Version: 0.3.1
-Build: 2026.08.10.4
+Build: 2026.08.10.4.1
 
 ARCHITECTURE RULE
 -----------------
@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 API_VERSION = "0.3.1"
-BUILD_ID = "2026.08.10.4"
+BUILD_ID = "2026.08.10.4.1"
 SERVICE_PORT = 8081
 DB_PATH = Path(
     os.environ.get(
@@ -54,6 +54,19 @@ ENGINE_ENABLED = os.environ.get("SOT_ENGINE_ENABLED", "0") == "1"
 SOTCTL = os.environ.get("SOTCTL_PATH") or shutil.which("sotctl")
 
 app = FastAPI(title="SOT Helper Service", version=API_VERSION)
+
+
+# EXISTING_API_MOUNT_TUNNEL_V031_B4
+# The public environment already exposes only /api/fs to this helper. Project
+# and reporting calls tunnel through that existing mount with ?route=... .
+# No proxy, port, service, or Tailscale change is required.
+@app.middleware("http")
+async def existing_api_mount_tunnel(request, call_next):
+    route = request.query_params.get("route")
+    path = request.scope.get("path", "")
+    if route and path in {"/", "/api/fs", "/fs"} and (route.startswith("/api/projects") or route.startswith("/api/reports")):
+        request.scope["path"] = route
+    return await call_next(request)
 
 # EXISTING_API_MOUNT_COMPAT_V031
 # Keep the already-established public /api/fs mount and the existing 8081 helper.
