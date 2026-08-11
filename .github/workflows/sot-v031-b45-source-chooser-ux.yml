@@ -1,0 +1,111 @@
+name: Rebuild SOT v0.3.1 build .4.5 source chooser UX
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-v031-b45-source-chooser-ux.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild from exact .3 baseline and reapply approved cumulative UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='037a0198800f45e616596fc27efb562db5289fa6'
+          git diff "$BASE" HEAD -- project.html > /tmp/approved-ui.delta || true
+          git show "$BASE":project.html > project.html
+          patch --silent -p1 < /tmp/approved-ui.delta
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('project.html')
+          s=p.read_text()
+
+          # Release identity.
+          s=re.sub(r'Build: 2026\.08\.[0-9.]+','Build: 2026.08.11.4.5',s,1)
+          s=re.sub(r"BUILD_ID='2026\.08\.[0-9.]+'","BUILD_ID='2026.08.11.4.5'",s,1)
+
+          # Modern, higher-contrast, more readable visual system. System fonts only;
+          # project.html remains one self-contained file.
+          modern='''\n/* v0.3.1 build .4.5 readability / modern UI pass */\n:root{--bg:#f6f7f9;--panel:#ffffff;--ink:#101828;--muted:#475467;--line:#d0d5dd;--nav:#101828;--brand:#2563eb;--brand2:#1d4ed8;--green:#067647;--greenbg:#ecfdf3;--amber:#93370d;--amberbg:#fffaeb;--red:#b42318;--redbg:#fef3f2;--shadow:0 8px 24px rgba(16,24,40,.08);--radius:14px;--side:220px}\nbody{font:15.5px/1.55 "Segoe UI Variable","Segoe UI",Roboto,Helvetica,Arial,sans-serif;letter-spacing:-.006em}\n.topbar{height:66px;padding:0 26px;background:#fff}.topbar h1{font-size:20px;font-weight:750}.content{padding:28px;max-width:1380px}.pageintro{margin-bottom:22px}.pageintro h2{font-size:29px;line-height:1.18;letter-spacing:-.025em;margin-bottom:7px}.pageintro p{font-size:15px;color:#475467}.card{border-color:#d8dde6;box-shadow:0 6px 20px rgba(16,24,40,.055)}\n.setup{max-width:1040px}.setup-card{padding:26px 28px}.setup-row{grid-template-columns:46px minmax(0,1fr);gap:18px;padding:22px 0}.setup-row h3{font-size:18px}.setup-row p,.subtle{font-size:13.5px;line-height:1.5}.step{width:38px;height:38px;background:#eff6ff;color:#1d4ed8}.label{font-size:13px}.input,.select,.textarea{font-size:15px;padding:11px 13px;border-color:#cbd5e1}.btn{min-height:40px;padding:9px 14px;border-color:#cbd5e1;border-radius:10px;font-size:14px}.btn.primary{box-shadow:0 1px 2px rgba(16,24,40,.08)}\n.modal{width:min(1180px,96vw);border-radius:16px}.modalhead{padding:18px 20px}.modalhead h3{font-size:19px}.explorer{min-height:570px}.explorer.three{grid-template-columns:230px minmax(420px,1fr) 320px}.places{padding:14px}.place{font-size:14px;padding:11px 12px}.explorerbar{padding:12px}.browserpath{font-size:12px;padding:9px 11px}.row{grid-template-columns:30px minmax(0,1fr) 72px 82px;min-height:48px;padding:9px 14px}.row .name{font-size:14px;font-weight:600}.row .kind{font-size:12px}.folder-add{justify-self:end;min-height:32px;padding:5px 10px;font-size:12px}.explorerfoot{padding:13px 14px}.selectedhead{padding:14px}.selecteditem{padding:10px}.selecteditem .loc,.chip .loc,.reviewrow .loc{font-size:11.5px}.selectedactions{padding:12px}.callout{font-size:13px;padding:12px 14px}.chip{padding:10px 12px;background:#fff}.setup-actions{padding-top:20px}.close{width:38px;height:38px;border-radius:9px;font-size:22px}.close:hover{background:#f2f4f7;color:#101828}\n@media(max-width:900px){.content{padding:20px}.explorer.three{grid-template-columns:190px minmax(330px,1fr) 270px}}\n@media(max-width:650px){body{font-size:15px}.content{padding:16px}.pageintro h2{font-size:25px}.setup-card{padding:20px}.explorer.three{grid-template-columns:1fr}.selectedpane{border-left:0;border-top:1px solid var(--line)}.row{grid-template-columns:28px minmax(0,1fr) 58px 74px}}\n'''
+          s=s.replace('</style>',modern+'</style>',1)
+
+          # Make every visible WSL folder explicitly selectable without navigating into it.
+          old="const fr=folders.map(n=>`<div class=\"row folder\" data-folder=\"${esc(n)}\"><span>📁</span><span class=\"name\">${esc(n)}</span><span class=\"kind\">Folder</span></div>`).join('');"
+          new="const fr=folders.map(n=>`<div class=\"row folder\" data-folder=\"${esc(n)}\"><span>📁</span><span class=\"name\">${esc(n)}</span><span class=\"kind\">Folder</span>${mode==='source'?`<button class=\"btn small folder-add\" data-add-folder=\"${esc(n)}\" title=\"Add this folder to the project\">＋ Add</button>`:'<span></span>'}</div>`).join('');"
+          if old not in s: raise SystemExit('FAIL: folder row baseline not found')
+          s=s.replace(old,new,1)
+
+          oldbind="document.querySelectorAll('[data-folder]').forEach(row=>row.ondblclick=row.onclick=async()=>{const next=joinPath(current,row.dataset.folder);history.push(next);await load(next)});renderFoot()"
+          newbind="document.querySelectorAll('[data-folder]').forEach(row=>{row.ondblclick=async e=>{if(e.target.closest('[data-add-folder]'))return;const next=joinPath(current,row.dataset.folder);history.push(next);await load(next)};row.onclick=async e=>{if(e.target.closest('[data-add-folder]'))return;const next=joinPath(current,row.dataset.folder);history.push(next);await load(next)}});document.querySelectorAll('[data-add-folder]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();const src=joinPath(current,btn.dataset.addFolder);if(src&&!staged.some(x=>sourceKey(x)===sourceKey(src))){staged.push(src);renderSelected();toast('Folder added to project draft.')}});renderFoot()"
+          if oldbind not in s: raise SystemExit('FAIL: folder binding baseline not found')
+          s=s.replace(oldbind,newbind,1)
+
+          # Make the current-folder action unmistakable.
+          s=s.replace('>＋ Add this folder</button>','>＋ Add current folder to project</button>',1)
+
+          # Do not silently discard staged source selections from X or Cancel.
+          oldclose="const close=()=>root.innerHTML='';$('#x').onclick=close;"
+          newclose="const initialKeys=mode==='source'?state.intake.sources.map(sourceKey).sort().join('\\n'):'';const hasUnsaved=()=>mode==='source'&&staged.map(sourceKey).sort().join('\\n')!==initialKeys;const close=(force=false)=>{if(!force&&hasUnsaved()&&!confirm('Discard the source selections you have not saved?'))return false;root.innerHTML='';return true};$('#x').onclick=()=>close(false);"
+          if oldclose not in s: raise SystemExit('FAIL: modal close baseline not found')
+          s=s.replace(oldclose,newclose,1)
+
+          s=s.replace("$('#cancelLocations').onclick=close","$('#cancelLocations').onclick=()=>close(false)",1)
+          s=s.replace("state.intake.sources=staged;close();renderIntake();toast(`${staged.length}","state.intake.sources=staged;close(true);renderIntake();toast(`${staged.length}",1)
+
+          p.write_text(s)
+          PY
+
+      - name: Update governance and owner gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project-backlog.md');s=p.read_text()
+          anchor='- **The build shown in the HTML comment, visible UI, Settings, and debug log must come from the same `BUILD_ID` value for every candidate.**\n'
+          rules='''- **WSL/mounted folder rows must provide an explicit Add control. Clicking a folder to navigate is not sufficient selection affordance. The current folder also retains a clearly labeled “Add current folder to project” action.**\n- **Closing or cancelling Add Locations with unsaved staged changes requires explicit discard confirmation. X must never silently throw away staged source work.**\n- **Primary UI typography and contrast must be comfortably readable on desktop and mobile: modern system sans-serif stack, stronger text contrast, larger core type, clearer controls, and less washed-out surfaces.**\n'''
+          if rules.splitlines()[0] not in s:s=s.replace(anchor,anchor+rules)
+          evidence='''\n## 1.10 Owner gate — build 2026.08.11.4.4 FAILED UX gate\n\nOwner identified three concrete Intake usability failures: WSL folders did not present an obvious selection control, closing source setup could silently discard staged choices, and the visual system was too small/washed-out to be comfortably readable. Build .4.5 is rebuilt from exact .3 bytes, reapplies the governed cumulative .4 behavior, and corrects these three issues without changing server architecture or API contracts.\n\n'''
+          if '## 1.10 Owner gate — build 2026.08.11.4.4 FAILED UX gate' not in s:s=s.replace('# 2. RELEASE CHAIN',evidence+'# 2. RELEASE CHAIN')
+          s=s.replace('build-evidence-correct rebuild 2026.08.11.4.4 from .3 is the active candidate','source-selection/readability rebuild 2026.08.11.4.5 from .3 is the active candidate')
+          p.write_text(s)
+          PY
+
+      - name: Gate candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('project.html').read_text()
+          for x in ['Build: 2026.08.11.4.5',"BUILD_ID='2026.08.11.4.5'","FS_API='/report/api/sot/fs'",'data-add-folder','Add current folder to project','Discard the source selections you have not saved?','Save selections','Review project']:
+              assert x in s,x
+          assert '<link ' not in s.lower()
+          m=re.search(r'<script>(.*?)</script>',s,re.S);assert m;Path('/tmp/project.js').write_text(m.group(1))
+          PY
+          node --check /tmp/project.js
+          ! grep -qiE '8081|uvicorn|fastapi|file_browser' project.html
+
+      - name: Publish and remove transient workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/sot-v031-b45-source-chooser-ux.yml
+          git add project.html project-backlog.md
+          git commit -m 'Rebuild SOT v0.3.1 build .4.5 source chooser UX'
+          git pull --rebase origin main
+          git push origin HEAD:main
