@@ -87,6 +87,32 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
 #cardDialog .note-prev:empty{display:none}
 #cardDialog .note-prev p{margin:0 0 5px}
 .note-pop{position:fixed;z-index:130;max-width:340px;max-height:60vh;overflow:auto;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow);font-size:13px;line-height:1.5}
+/* attachments (kanban parity) */
+.attachment-list{list-style:none;margin:0 0 6px;padding:0;display:grid;gap:4px}
+.attachment-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:12px}
+.attachment-link,.attachment-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--accent);text-decoration:none}
+.attachment-name{color:var(--ink)}
+.attachment-delete{border:0;background:none;color:#999;font-weight:800;cursor:pointer;padding:0 4px;min-height:0;line-height:1}
+.attachment-delete:hover{color:var(--danger)}
+.att-add{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--accent);border:1px dashed var(--line);border-radius:8px;padding:5px 10px}
+.att-add:hover{border-color:var(--accent)}
+.muted{color:var(--muted);font-size:12px}
+/* single-tap EXPANDED card popover — full kanban card, no scroll needed */
+.card-pop{position:fixed;z-index:140;width:min(440px,calc(100vw - 20px));max-height:calc(100dvh - 24px);overflow:auto;display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-left:6px solid var(--ribbon,var(--accent));border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+.card-pop .cp-head{display:flex;align-items:center;gap:8px}
+.card-pop .cp-head .kc-status{width:18px;height:18px}
+.card-pop .cp-title{flex:1;min-width:0;font-weight:800;font-size:16px;border:0;background:none;padding:2px 0}
+.card-pop .cp-x{width:28px;height:28px;min-height:0;border:0;background:transparent;color:var(--muted);font-size:20px;border-radius:8px}
+.card-pop .cp-x:hover{background:var(--bg)}
+.card-pop .dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
+.card-pop .span-2{grid-column:1/-1}
+.card-pop label{display:grid;gap:3px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted)}
+.card-pop input,.card-pop select,.card-pop textarea{min-height:34px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;width:100%}
+.card-pop textarea{min-height:80px;resize:vertical}
+.card-pop .cp-actions{display:flex;align-items:center;gap:8px}
+.card-pop::backdrop{background:transparent}
+.card-scrim{position:fixed;inset:0;z-index:139;background:transparent}
+@media(max-width:520px){.card-pop{left:8px!important;right:8px!important;width:auto}.card-pop .dialog-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -115,7 +141,7 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
   <script>
 (() => {
   "use strict";
-  const FILES={index:"kanban-boards.json",switch:"kanban-switch.json"};
+  const FILES={index:"kanban-boards.json",switch:"kanban-switch.json",matrices:"program-matrices.json"};
   const KEY="program_configuration_v4", TOKEN_KEY="github_pat";
   const AXES=["title","platform","stage","lineage","statusColor","cardColor","dev","live"];
   const DISPLAY=["title","platform","stage","lineage","statusColor","dev","live","tags","notes"];
@@ -129,7 +155,7 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
   const slug=s=>String(s||"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
   const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}};
   const validHex=v=>/^#[0-9a-f]{6}$/i.test(v||"");
-  const defaults=()=>({version:3,portalName:"Program",github:{owner:"acmeproducts",repo:"stuff",branch:"main",pat:localStorage.getItem(TOKEN_KEY)||""},theme:{...THEME},cardColors:PRESETS.map(x=>({...x})),matrices:[],selectedApp:"matrix",selectedMatrix:"",mashupSwap:false,sidebarCollapsed:false});
+  const defaults=()=>({version:3,portalName:"Program",github:{owner:"acmeproducts",repo:"stuff",branch:"main",pat:localStorage.getItem(TOKEN_KEY)||""},theme:{...THEME},cardColors:PRESETS.map(x=>({...x})),matrices:[],matricesUpdatedAt:0,selectedApp:"matrix",selectedMatrix:"",mashupSwap:false,sidebarCollapsed:false});
   let config=defaults(), index={boards:[]}, repoCfg={}, boardData={}, state={}, drag=null, touch=null, saveQueue=Promise.resolve(), toastTimer, pendingImport=null;
 
   function migrate(){
@@ -137,7 +163,15 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
     else {const old=read("program_portal_config_v2",{}),defs=read("program_matrix_definitions_v2",[]);config={...defaults(),portalName:old.portalName||"Mello",github:{...defaults().github,owner:old.owner||"acmeproducts",repo:old.repo||"stuff",branch:old.branch||"main"},cardColors:(old.colors||[]).filter(validHex).map((color,i)=>({name:`Color ${i+1}`,color})),matrices:defs.map(d=>({...d,intersection:d.intersection||"title",fields:d.fields||[],updatedAt:d.updatedAt||d.createdAt||Date.now()}))};}
     if(!config.github.pat)config.github.pat=localStorage.getItem(TOKEN_KEY)||""; persist();
   }
-  function persist(){localStorage.setItem(KEY,JSON.stringify(config));localStorage.setItem(TOKEN_KEY,config.github.pat||"");applyTheme()}
+  /* Matrix definitions are persisted to GitHub (source of truth) AND locally,
+     using the same read(fetch)/write(putJson) method as kanban boards. GitHub
+     wins unless the local copy is newer; we only UPDATE the file, never blindly
+     overwrite it (putJson refuses when the remote copy is newer). */
+  let matricesSnapshot=null, matricesSaveTimer=null;
+  const matricesPath=()=>`${typeof repoCfg.pathPrefix==="string"?repoCfg.pathPrefix:""}${FILES.matrices}`;
+  async function saveMatricesToGithub(){if(!config.github.pat){return;}try{sync("Saving matrices…");await putJson(matricesPath(),{version:1,matrices:config.matrices,lastModified:config.matricesUpdatedAt||Date.now()},"Update matrix definitions");sync("Saved");}catch(e){sync(`Matrix save failed — ${e.message}`,"error");notify(e.message.includes("changed on GitHub")?"Matrices changed on GitHub — reload before editing.":"Matrix save failed.");}}
+  function scheduleMatricesSave(){clearTimeout(matricesSaveTimer);matricesSaveTimer=setTimeout(saveMatricesToGithub,1200);}
+  function persist(){const cur=JSON.stringify(config.matrices||[]);if(matricesSnapshot!==null&&cur!==matricesSnapshot){config.matricesUpdatedAt=Date.now();scheduleMatricesSave();}matricesSnapshot=cur;localStorage.setItem(KEY,JSON.stringify(config));localStorage.setItem(TOKEN_KEY,config.github.pat||"");applyTheme()}
   function applyTheme(){Object.entries(config.theme||{}).forEach(([k,v])=>{const map={sidebar:"sidebar-bg",accentSoft:"accent-soft"};if(validHex(v))document.documentElement.style.setProperty(`--${map[k]||k}`,v)});document.title=`${config.portalName} Portal`}
   function notify(s){const t=$("#toast");t.textContent=s;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600)}
   function sync(s,kind=""){$("#syncState").textContent=s;$("#syncState").className=`sync-state ${kind}`}
@@ -153,7 +187,7 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
   const value=(c,f)=>String(c?.[f]??(f==="stage"?c?.lane:"")).trim()||"Unassigned";
   const activeDefs=()=>config.matrices.filter(d=>!d.deletedAt&&Object.hasOwn(boardData,d.board));
 
-  async function boot(){migrate();repoCfg=await fetchJson(FILES.switch).catch(()=>({}));index=await fetchJson(FILES.index);if(!Array.isArray(index.boards))throw new Error(`${FILES.index} does not contain a boards array.`);const failures=[];await Promise.all(indexedBoards().map(async b=>{const path=boardPath(b.name);try{const data=await fetchJson(path);if(!data||typeof data!=="object"||!Array.isArray(data.cards))throw new Error("invalid board data");boardData[b.name]=data}catch(e){failures.push(`${b.name} (${path}: ${e.message})`)}}));if(!boards().length)throw new Error(`No board data could be loaded.${failures.length?` ${failures.join("; ")}`:""}`);bindShell();setSidebar(!config.sidebarCollapsed);sync(failures.length?`${failures.length} unavailable`:"·",failures.length?"warning":"");$("#syncState").title=failures.join("\n");const query=new URLSearchParams(location.search),app=query.get('app');openApp(APP_NAMES[app]?app:(APP_NAMES[config.selectedApp]?config.selectedApp:"matrix"))}
+  async function boot(){migrate();repoCfg=await fetchJson(FILES.switch).catch(()=>({}));index=await fetchJson(FILES.index);if(!Array.isArray(index.boards))throw new Error(`${FILES.index} does not contain a boards array.`);const failures=[];await Promise.all(indexedBoards().map(async b=>{const path=boardPath(b.name);try{const data=await fetchJson(path);if(!data||typeof data!=="object"||!Array.isArray(data.cards))throw new Error("invalid board data");boardData[b.name]=data}catch(e){failures.push(`${b.name} (${path}: ${e.message})`)}}));if(!boards().length)throw new Error(`No board data could be loaded.${failures.length?` ${failures.join("; ")}`:""}`);const remoteMx=await fetchJson(matricesPath()).catch(()=>null);if(remoteMx&&Array.isArray(remoteMx.matrices)){const rt=Number(remoteMx.lastModified||0),lt=Number(config.matricesUpdatedAt||0);if(rt>lt){config.matrices=remoteMx.matrices;config.matricesUpdatedAt=rt;localStorage.setItem(KEY,JSON.stringify(config));}else if(lt>rt){scheduleMatricesSave();}}else if((config.matrices||[]).length){scheduleMatricesSave();}matricesSnapshot=JSON.stringify(config.matrices||[]);bindShell();setSidebar(!config.sidebarCollapsed);sync(failures.length?`${failures.length} unavailable`:"·",failures.length?"warning":"");$("#syncState").title=failures.join("\n");const query=new URLSearchParams(location.search),app=query.get('app');openApp(APP_NAMES[app]?app:(APP_NAMES[config.selectedApp]?config.selectedApp:"matrix"))}
   function bindShell(){$("#sidebarToggle").onclick=()=>setSidebar(config.sidebarCollapsed);$("#scrim").onclick=()=>setSidebar(false);$$('[data-app]').forEach(b=>b.onclick=()=>openApp(b.dataset.app))}
   function setSidebar(open){config.sidebarCollapsed=!open;persist();$(".portal").classList.toggle("sidebar-collapsed",!open);$("#sidebar").classList.toggle("open",open);$("#scrim").classList.toggle("open",open&&innerWidth<760);const b=$("#sidebarToggle");b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",`${open?"Collapse":"Expand"} application sidebar`)}
   function openApp(app){config.selectedApp=app;persist();$("#headerTitle").textContent=APP_NAMES[app];$("#appControls").replaceChildren();$$('[data-app]').forEach(b=>{const on=b.dataset.app===app;b.classList.toggle("active",on);b.setAttribute("aria-current",on?"page":"false")});if(innerWidth<760)setSidebar(false);state={};({builder:renderBuilder,matrix:renderBoardMatrix,mashup:renderMashup,config:renderConfig}[app])()}
@@ -182,7 +216,9 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
 
   function renderCreate(editId=""){const root=$("#view"),editing=config.matrices.find(d=>d.id===editId),s=editing?{...editing,fields:[...editing.fields]}:{board:boards()[0]?.name||"",x:"platform",y:"stage",z:"",intersection:"title",fields:["platform","stage"]};root.innerHTML=head("Create Matrix","Define and manage reusable matrix definitions.")+`<section class="panel"><form id="defForm"><div class="control"><label>Name<input name="name" required value="${esc(s.name||"")}"></label></div>${matrixControls(s,{save:false,z:true})}</form><div data-message></div><div class="definition-list">${config.matrices.map(d=>`<div class="definition"><span><b>${esc(d.name)}</b><br><small>${esc(d.board)} · ${esc(d.x)} × ${esc(d.y)}${d.deletedAt?" · Deleted":""}</small></span>${d.deletedAt?"":`<button class="btn" data-edit="${d.id}">Edit</button><button class="btn danger" data-delete="${d.id}" aria-label="Soft delete ${esc(d.name)}">×</button>`}</div>`).join("")||'<div class="empty">No saved definitions.</div>'}</div></section>`;$("[data-go]",root).textContent=editing?"Update definition":"Create definition";$("[data-go]",root).onclick=()=>{const e=readMatrixControls(root,s),name=$("[name=name]",root).value.trim();if(e||!name)return showMessage(root,e||"Name is required.");const now=new Date().toISOString();if(editing)Object.assign(editing,s,{name,updatedAt:now});else config.matrices.push({...s,id:uid(),name,createdAt:now,updatedAt:now,deletedAt:null});persist();renderCreate()};$$('[data-edit]',root).forEach(b=>b.onclick=()=>renderCreate(b.dataset.edit));$$('[data-delete]',root).forEach(b=>b.onclick=()=>{const d=config.matrices.find(x=>x.id===b.dataset.delete);d.deletedAt=new Date().toISOString();d.updatedAt=d.deletedAt;persist();renderCreate()})}
   function renderUse(){const root=$("#view"),defs=activeDefs(),id=state.definitionId&&defs.some(d=>d.id===state.definitionId)?state.definitionId:defs[0]?.id,def=defs.find(d=>d.id===id);state.definitionId=id;root.innerHTML=head("Use Matrix","Open a saved definition and move cards.")+`<section class="panel"><div class="toolbar"><div class="control"><label>Saved matrix<select data-def>${options(defs.map(d=>d.id),id).replaceAll(/>([^<]+)</g,(m,v)=>`>${esc(defs.find(d=>d.id===v)?.name||v)}<`)}</select></label></div>${def?.z?`<div class="control"><label>${esc(def.z)} filter<select data-zvalue>${options(matrixValues(cards(def.board),def.z),"")}</select></label></div>`:""}</div><div class="matrix-scroll"><div class="matrix-grid"></div></div></section>`;$("[data-def]",root)?.addEventListener("change",e=>{state.definitionId=e.target.value;renderUse()});const draw=()=>def&&drawMatrix($(".matrix-grid",root),def,$("[data-zvalue]",root)?.value||"");$("[data-zvalue]",root)?.addEventListener("change",draw);draw()}
-  function defSelect(side,defs,id){return `<div class="control"><label>Matrix ${side}<select data-matrix="${side}">${defs.map(d=>`<option value="${d.id}" ${d.id===id?"selected":""}>${esc(d.name)}</option>`).join("")}</select></label></div>`}
+  /* A matrix is a VIEW; group views of the same board together. */
+  function groupedMatrixOptions(defs,selectedId){const byBoard={};defs.forEach(d=>{(byBoard[d.board]??=[]).push(d)});return Object.keys(byBoard).sort((a,b)=>a.localeCompare(b)).map(board=>`<optgroup label="${esc(board)}">`+byBoard[board].map(d=>`<option value="${esc(d.id)}" ${d.id===selectedId?"selected":""}>${esc(d.name)}</option>`).join("")+`</optgroup>`).join("")}
+  function defSelect(side,defs,id){return `<div class="control"><label>Matrix ${side}<select data-matrix="${side}">${groupedMatrixOptions(defs,id)}</select></label></div>`}
   function renderMashup(){const root=$("#view"),defs=activeDefs();state.one=state.one||defs[0]?.id;state.two=state.two||defs[1]?.id||defs[0]?.id;const one=defs.find(d=>d.id===state.one),two=defs.find(d=>d.id===state.two);root.innerHTML=head("Create Matrix Mashup","Move cards—not copies—between independently scrolling matrices.")+`<div class="mashup"><section class="panel">${defSelect("one",defs,state.one)}<div class="matrix-scroll"><div class="matrix-grid" data-grid="one"></div></div></section><section class="panel">${defSelect("two",defs,state.two)}<div class="matrix-scroll"><div class="matrix-grid" data-grid="two"></div></div></section></div>`;$$('[data-matrix]',root).forEach(s=>s.onchange=()=>{state[s.dataset.matrix]=s.value;renderMashup()});if(one)drawMatrix($('[data-grid=one]',root),one,"","mashup");if(two)drawMatrix($('[data-grid=two]',root),two,"","mashup")}
 
   function renderTransfer(){const root=$("#view");state.left=state.left||boards()[0]?.name||"";state.right=state.right||boards().find(b=>b.name!==state.left)?.name||"";root.innerHTML=head("Card Transfer","Tap a card then a destination lane, or drag it.")+`<div class="split"><section class="panel" data-side="left"></section><section class="panel" data-side="right"></section></div>`;["left","right"].forEach(side=>drawPane(root,side));wireCards(root);wireDrops(root,".lane",(el,d)=>transferCard(d.board,el.dataset.board,d.id,el.dataset.stage))}
@@ -233,14 +269,14 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
   /* Program integration: matrix definitions own the ribbon and board management
      is a self-contained page.  The standalone kanban surface can therefore be
      retired without losing board/card workflows. */
-  function matrixRibbon(defs,s){return `<div class="command"><div class="control"><label data-label="Matrix">Matrix<select data-def>${defs.map(d=>`<option value="${d.id}" ${d.id===s.id?'selected':''}>${esc(d.name)}</option>`).join('')}<option value="">＋ New matrix</option></select></label></div><div class="control"><label data-label="Board">Board<select data-board>${boardOptions(s.board)}</select></label></div><div class="control"><label data-label="Columns">Columns<select data-x>${axisOptions(s.x)}</select></label></div><div class="control"><label data-label="Rows">Rows<select data-y>${axisOptions(s.y)}</select></label></div><div class="control"><label data-label="Center">Center<select data-intersection>${options(DISPLAY,s.intersection||'title')}</select></label></div>${fieldsPopover(s.fields)}${s.id?'<button class="btn danger" data-delete-matrix aria-label="Delete matrix">×</button>':''}</div>`}
+  function matrixRibbon(defs,s){return `<div class="command"><div class="control"><label data-label="Matrix">Matrix<select data-def>${groupedMatrixOptions(defs,s.id)}<option value="">＋ New matrix</option></select></label></div><div class="control"><label data-label="Board">Board<select data-board>${boardOptions(s.board)}</select></label></div><div class="control"><label data-label="Columns">Columns<select data-x>${axisOptions(s.x)}</select></label></div><div class="control"><label data-label="Rows">Rows<select data-y>${axisOptions(s.y)}</select></label></div><div class="control"><label data-label="Center">Center<select data-intersection>${options(DISPLAY,s.intersection||'title')}</select></label></div>${fieldsPopover(s.fields)}<button class="btn" data-transpose title="Swap X and Y axes" aria-label="Transpose matrix">⇄ Transpose</button>${s.id?'<button class="btn danger" data-delete-matrix aria-label="Delete matrix">×</button>':''}</div>`}
   function deletedMatrices(){return config.matrices.filter(d=>d.deletedAt)}
   function matrixTrash(){const gone=deletedMatrices();return `<details class="trash-panel panel"><summary>▾ Deleted matrices (${gone.length})</summary>${gone.map(d=>`<div class="trash-item"><span>${esc(d.name)}</span><button class="btn" data-restore-matrix="${d.id}">Restore</button><button class="btn danger" data-purge-matrix="${d.id}">Delete forever</button></div>`).join('')||'<p class="empty">Recycle bin is empty.</p>'}</details>`}
   function renderBoardMatrix(){const root=$("#view"),bar=$("#appControls"),defs=activeDefs();let saved=defs.find(d=>d.id===config.selectedMatrix);if(!saved){saved=defs[0]||{id:'',name:'New matrix',board:defaultBoard(),x:'platform',y:'stage',z:'',intersection:'title',fields:['platform','stage']};config.selectedMatrix=saved.id||''}state.def={...saved,fields:[...(saved.fields||[])]};const s=state.def;bar.innerHTML=matrixRibbon(defs,s);root.innerHTML=matrixTrash()+`<section class="panel matrix-panel"><h1 class="matrix-title"><input data-matrix-name aria-label="Matrix name" value="${esc(s.name)}"></h1><div data-message></div><div class="matrix-scroll"><div class="matrix-grid"></div></div></section>`;
     const commit=()=>{readMatrixControls(bar,s);s.name=$('[data-matrix-name]',root).value.trim()||'Untitled matrix';const error=validateDefinition(s);if(error)return showMessage(root,error);const now=new Date().toISOString();if(!s.id){s.id=uid();s.createdAt=now;s.deletedAt=null;config.matrices.push({...s,fields:[...s.fields]});config.selectedMatrix=s.id}else Object.assign(config.matrices.find(d=>d.id===s.id),s,{updatedAt:now});persist();showMessage(root,'');drawMatrix($('.matrix-grid',root),s)};
-    $$('select,input[type=checkbox]',bar).forEach(el=>el.onchange=commit);$('[data-matrix-name]',root).onchange=commit;$('[data-matrix-name]',root).onblur=commit;$('[data-def]',bar).onchange=e=>{config.selectedMatrix=e.target.value;persist();renderBoardMatrix()};$('[data-delete-matrix]',bar)?.addEventListener('click',()=>confirmAction(`Move ${s.name} to the matrix recycle bin?`,()=>{const d=config.matrices.find(x=>x.id===s.id);d.deletedAt=new Date().toISOString();config.selectedMatrix='';persist();renderBoardMatrix()}));$$('[data-restore-matrix]',root).forEach(b=>b.onclick=()=>{const d=config.matrices.find(x=>x.id===b.dataset.restoreMatrix);d.deletedAt=null;persist();renderBoardMatrix()});$$('[data-purge-matrix]',root).forEach(b=>b.onclick=()=>confirmAction('Permanently delete this matrix? This cannot be undone.',()=>{config.matrices=config.matrices.filter(x=>x.id!==b.dataset.purgeMatrix);persist();renderBoardMatrix()}));if(s.board&&s.x&&s.y)drawMatrix($('.matrix-grid',root),s)}
+    $$('select,input[type=checkbox]',bar).forEach(el=>el.onchange=commit);$('[data-matrix-name]',root).onchange=commit;$('[data-matrix-name]',root).onblur=commit;$('[data-def]',bar).onchange=e=>{config.selectedMatrix=e.target.value;persist();renderBoardMatrix()};$('[data-transpose]',bar)?.addEventListener('click',()=>{const xs=$('[data-x]',bar),ys=$('[data-y]',bar);[xs.value,ys.value]=[ys.value,xs.value];commit()});$('[data-delete-matrix]',bar)?.addEventListener('click',()=>confirmAction(`Move ${s.name} to the matrix recycle bin?`,()=>{const d=config.matrices.find(x=>x.id===s.id);d.deletedAt=new Date().toISOString();config.selectedMatrix='';persist();renderBoardMatrix()}));$$('[data-restore-matrix]',root).forEach(b=>b.onclick=()=>{const d=config.matrices.find(x=>x.id===b.dataset.restoreMatrix);d.deletedAt=null;persist();renderBoardMatrix()});$$('[data-purge-matrix]',root).forEach(b=>b.onclick=()=>confirmAction('Permanently delete this matrix? This cannot be undone.',()=>{config.matrices=config.matrices.filter(x=>x.id!==b.dataset.purgeMatrix);persist();renderBoardMatrix()}));if(s.board&&s.x&&s.y)drawMatrix($('.matrix-grid',root),s)}
   function openBoardSurface(board,newTab=false){const url=`program.html?app=builder&board=${encodeURIComponent(board)}`;if(newTab)return window.open(url,'_blank','noopener');state.manageBoard=board;openApp('builder')}
-  function drawMatrix(root,def,zValue='',context='matrix'){let list=cards(def.board);if(def.z&&zValue)list=list.filter(c=>value(c,def.z)===zValue);const xs=orderedValues(list,def.x,def,'x'),ys=orderedValues(list,def.y,def,'y');if(!xs.length||!ys.length){root.innerHTML='<div class="empty">No cards match this matrix.</div>';return}root.dataset.context=context;root.style.setProperty('--matrix-columns',xs.length);root.style.setProperty('--matrix-rows',ys.length);root.innerHTML=`<div class="matrix-corner"><button class="board-chip" type="button" data-board-axis>${esc(def.board)}</button></div>${xs.map(x=>`<div class="matrix-header" draggable="true" data-axis="x" data-value="${esc(x)}">${esc(x)}</div>`).join('')}`;ys.forEach(y=>{root.insertAdjacentHTML('beforeend',`<div class="matrix-rowhead" draggable="true" data-axis="y" data-value="${esc(y)}">${esc(y)}</div>`);xs.forEach(x=>{const cs=list.filter(c=>value(c,def.x)===x&&value(c,def.y)===y).sort((a,b)=>(a.matrixPosition??a.position??0)-(b.matrixPosition??b.position??0));root.insertAdjacentHTML('beforeend',`<div class="matrix-cell" data-board="${esc(def.board)}" data-x="${esc(x)}" data-y="${esc(y)}">${cs.map(c=>cardMarkup(c,def.board,def)).join('')}</div>`)})});wireCards(root);wireDrops(root,'.matrix-cell',(el,d)=>moveMatrixCard(d,def,el.dataset.x,el.dataset.y));wireAxisOrder(root,def,xs,ys,zValue);let tap;const chip=$('[data-board-axis]',root);chip.onclick=()=>{clearTimeout(tap);tap=setTimeout(()=>{[def.x,def.y]=[def.y,def.x];const saved=config.matrices.find(d=>d.id===def.id);if(saved)Object.assign(saved,{x:def.x,y:def.y,updatedAt:new Date().toISOString()});persist();config.selectedApp==='mashup'?renderMashup():renderBoardMatrix()},240)};chip.ondblclick=e=>{e.preventDefault();clearTimeout(tap);openBoardSurface(def.board,true)}}
+  function drawMatrix(root,def,zValue='',context='matrix'){let list=cards(def.board);if(def.z&&zValue)list=list.filter(c=>value(c,def.z)===zValue);const xs=orderedValues(list,def.x,def,'x'),ys=orderedValues(list,def.y,def,'y');if(!xs.length||!ys.length){root.innerHTML='<div class="empty">No cards match this matrix.</div>';return}root.dataset.context=context;root.style.setProperty('--matrix-columns',xs.length);root.style.setProperty('--matrix-rows',ys.length);root.innerHTML=`<div class="matrix-corner"><button class="board-chip" type="button" data-board-axis>${esc(def.board)}</button></div>${xs.map(x=>`<div class="matrix-header" draggable="true" data-axis="x" data-value="${esc(x)}">${esc(x)}</div>`).join('')}`;ys.forEach(y=>{root.insertAdjacentHTML('beforeend',`<div class="matrix-rowhead" draggable="true" data-axis="y" data-value="${esc(y)}">${esc(y)}</div>`);xs.forEach(x=>{const cs=list.filter(c=>value(c,def.x)===x&&value(c,def.y)===y).sort((a,b)=>(a.matrixPosition??a.position??0)-(b.matrixPosition??b.position??0));root.insertAdjacentHTML('beforeend',`<div class="matrix-cell" data-board="${esc(def.board)}" data-x="${esc(x)}" data-y="${esc(y)}">${cs.map(c=>cardMarkup(c,def.board,def)).join('')}</div>`)})});wireCards(root);wireDrops(root,'.matrix-cell',(el,d)=>moveMatrixCard(d,def,el.dataset.x,el.dataset.y));wireAxisOrder(root,def,xs,ys,zValue);const chip=$('[data-board-axis]',root);chip.title='Open this board (drill down)';chip.onclick=()=>openBoardSurface(def.board);chip.ondblclick=e=>{e.preventDefault();openBoardSurface(def.board,true)}}
   function wireAxisOrder(root,def,xs,ys,zValue){$$('[data-axis]',root).forEach(el=>{el.ondragstart=e=>{state.axisDrag={def,axis:el.dataset.axis,value:el.dataset.value};e.stopPropagation();el.classList.add('axis-dragging')};el.ondragover=e=>{if(state.axisDrag?.axis===el.dataset.axis){e.preventDefault();e.stopPropagation();el.classList.add('axis-drop')}};el.ondragleave=()=>el.classList.remove('axis-drop');el.ondrop=e=>{const moving=state.axisDrag;if(!moving||moving.axis!==el.dataset.axis)return;e.preventDefault();e.stopPropagation();el.classList.remove('axis-drop');if(moving.def.id===def.id){const vals=[...(moving.axis==='x'?xs:ys)],from=vals.indexOf(moving.value),to=vals.indexOf(el.dataset.value);vals.splice(to,0,vals.splice(from,1)[0]);matrixPrefs().matrixOrder[orderKey(def,moving.axis)]=vals;persist();drawMatrix(root,def,zValue,root.dataset.context);return}askAxisTransfer(moving,def,el.dataset.axis)};el.ondragend=()=>{el.classList.remove('axis-dragging');setTimeout(()=>state.axisDrag=null,0)}})}
   function askAxisTransfer(source,target,targetAxis){const d=$("#confirmDialog");d.innerHTML=`<form method="dialog" class="dialog-body"><h2>Transfer ${esc(source.value)}</h2><p>Copy or move this entire ${source.axis==='x'?'column':'row'} into ${esc(target.name)}?</p><div class="dialog-actions"><button class="btn" value="cancel" autofocus>Cancel</button><button class="btn" value="copy">Copy</button><button class="btn primary" value="move">Move</button></div></form>`;d.onclose=()=>{if(d.returnValue==='copy'||d.returnValue==='move')transferAxis(source,target,targetAxis,d.returnValue)};d.showModal()}
   function transferAxis(source,target,targetAxis,mode){const sourceField=source.def[source.axis],targetField=target[targetAxis],matches=cards(source.def.board).filter(c=>value(c,sourceField)===source.value),existing=new Set(cards(target.board).map(c=>value(c,targetField))),qualified=existing.has(source.value)?`${source.value} (${source.def.board})`:source.value,added=[];matches.forEach(c=>{const clone=mode==='copy'?structuredClone(c):c;if(mode==='copy'&&cards(target.board).some(x=>String(x.id)===String(clone.id)))clone.id=`${clone.id}-${slug(source.def.board)}`;setAxis(clone,targetField,qualified);clone.sourceBoard=clone.sourceBoard||source.def.board;clone.position=1;added.push(clone)});if(mode==='move')boardData[source.def.board].cards=cards(source.def.board).filter(c=>!matches.includes(c));cards(target.board).unshift(...added);normalize(source.def.board);normalize(target.board);updateIndex([source.def.board,target.board]);saveBoards(mode==='move'?[source.def.board,target.board]:[target.board],`${mode} ${source.value} from ${source.def.board} to ${target.board}`,true);renderMashup()}
@@ -303,7 +339,12 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
 
   function wireCards(root){$$(".card",root).forEach(el=>{
     const board=el.dataset.board,id=el.dataset.card;
-    const title=$(".card-title",el); if(title)title.onclick=e=>{e.stopPropagation();openCardEditor(board,id);};
+    /* single tap anywhere on the card (except its inline controls/links) → expand */
+    const expand=e=>{if(e.target.closest("[data-kstatus],[data-kcopy],[data-karch],a,.kc-tag,[data-stop],input,select,textarea,button"))return;e.stopPropagation();openCardExpand(board,id,el);};
+    el.addEventListener("click",expand);
+    const title=$(".card-title",el); if(title)title.onclick=e=>{e.stopPropagation();openCardExpand(board,id,el);};
+    /* right-click / long-press context menu → change card color */
+    el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showColorMenu(e.clientX,e.clientY,board,id);};
     const st=$("[data-kstatus]",el); if(st)st.onclick=e=>{e.stopPropagation();showStatusMenu(st,board,id);};
     const cp=$("[data-kcopy]",el); if(cp)cp.onclick=e=>{e.stopPropagation();duplicateCard(board,id);};
     const ar=$("[data-karch]",el); if(ar)ar.onclick=e=>{e.stopPropagation();archiveCard(board,id);};
@@ -340,42 +381,93 @@ html,body{height:100%;overflow:hidden}.portal{height:100dvh}.topbar{height:var(-
     setTimeout(()=>document.addEventListener("pointerdown",function h(e){if(!m.contains(e.target)){m.remove();document.removeEventListener("pointerdown",h);}}),0);
   }
 
+  /* ---- attachments + popover helpers (kanban parity) ---- */
+  function fmtBytes(n){if(typeof n!=="number"||n<0)return"";if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(1)+" KB";return (n/1048576).toFixed(1)+" MB";}
+  function readFileData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
+  function closeCardPop(){document.querySelector(".card-pop")?.remove();document.querySelector(".card-scrim")?.remove();}
+  function positionPop(pop,anchor){const w=pop.offsetWidth,h=pop.offsetHeight;let left=(innerWidth-w)/2,top=(innerHeight-h)/2;if(anchor&&anchor.getBoundingClientRect){const r=anchor.getBoundingClientRect();left=Math.min(Math.max(8,r.left),innerWidth-w-8);top=Math.min(Math.max(8,r.bottom+6),innerHeight-h-8);if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);}pop.style.left=Math.round(left)+"px";pop.style.top=Math.round(top)+"px";}
+
+  /* Shared rich card fields (kanban "rich texture" = the standard for card detail).
+     Used by BOTH the modal editor and the single-tap expand popover so they stay
+     identical and carry every feature: status, platform, stage, lineage, tags with
+     history/suggestions, dev/live, attachments, and markdown notes. */
+  function buildCardFields(c,board){
+    const plats=[...new Set([...(boardData[board]?.platforms||[]),c.platform].filter(Boolean))];
+    let activeTags=(c.tags||[]).map(String);
+    let files=Array.isArray(c.files)?c.files.map(f=>({...f})):[];
+    let dirty=false;
+    const grid=
+      `<div class="control span-2"><label>Title<input name="title" required value="${esc(c.title||"")}"></label></div>`+
+      `<div class="control"><label>Platform<select name="platform">${options(plats,c.platform)}</select></label></div>`+
+      `<div class="control"><label>Stage<select name="stage">${options(stages(board),c.stage||c.lane)}</select></label></div>`+
+      `<div class="control"><label>Lineage<select name="lineage">${options(CARD_LINEAGES,normLineage(c.lineage))}</select></label></div>`+
+      `<div class="control"><label>Status<select name="statusColor">${options(STATUS_COLORS,normStatus(c.statusColor))}</select></label></div>`+
+      `<div class="control span-2"><label>Tags</label><div class="tag-chips" data-chips></div><input data-taginput placeholder="type a tag, press Enter"><div class="tag-suggestions" data-sug aria-label="Previously used tags"></div></div>`+
+      `<div class="control span-2"><label>Development link<input name="dev" type="url" value="${esc(c.dev||"")}"></label></div>`+
+      `<div class="control span-2"><label>Live link<input name="live" type="url" value="${esc(c.live||"")}"></label></div>`+
+      `<div class="control span-2"><label>Attachments</label><ul class="attachment-list" data-attlist></ul><label class="att-add">＋ Add files<input type="file" multiple hidden data-attinput></label></div>`+
+      `<div class="control span-2"><label>Notes (Markdown · text--url shorthand)<textarea name="notes">${esc(c.notes||"")}</textarea></label><div class="note-prev" data-noteprev></div></div>`;
+    function wire(scope){
+      const chipsEl=$("[data-chips]",scope), inputEl=$("[data-taginput]",scope), sugEl=$("[data-sug]",scope), prev=$("[data-noteprev]",scope), attList=$("[data-attlist]",scope), attInput=$("[data-attinput]",scope);
+      const get=n=>$(`[name=${n}]`,scope);
+      const mark=()=>dirty=true;
+      const drawChips=()=>{chipsEl.innerHTML=activeTags.map(t=>`<span class="chip">${esc(t)}<button type="button" data-x="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join("");chipsEl.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{activeTags=activeTags.filter(x=>x!==b.dataset.x);drawChips();drawSug();mark();});};
+      const drawSug=()=>{const q=inputEl.value.trim().toLowerCase(),seen=new Set();sugEl.innerHTML=allKnownTags().filter(t=>{const k=t.toLowerCase();if(activeTags.includes(t)||seen.has(k))return false;if(q&&!k.includes(q))return false;seen.add(k);return true;}).slice(0,14).map(t=>`<span class="chip" data-add="${esc(t)}">${esc(t)}<span class="sx" data-del="${esc(t)}" title="Remove from history">×</span></span>`).join("");sugEl.querySelectorAll("[data-add]").forEach(el=>el.onclick=e=>{if(e.target.dataset.del!==undefined){tagHistDel(el.dataset.add);drawSug();return;}if(!activeTags.includes(el.dataset.add)){activeTags.push(el.dataset.add);drawChips();drawSug();mark();}});};
+      const commitInput=()=>{const raw=inputEl.value.trim();if(!raw){drawSug();return;}raw.split(/[,\n]+/).forEach(p=>{const t=p.trim();if(t&&!activeTags.includes(t))activeTags.push(t);});inputEl.value="";drawChips();drawSug();mark();};
+      const drawAtt=()=>{if(!attList)return;attList.innerHTML="";if(!files.length){const li=document.createElement("li");li.className="muted";li.textContent="No attachments";attList.append(li);return;}files.forEach((f,idx)=>{const li=document.createElement("li");li.className="attachment-item";const meta=[f?.type,typeof f?.size==="number"&&f.size>=0?fmtBytes(f.size):""].filter(Boolean).join(" • ");const name=f?.name||"attachment";if(typeof f?.data==="string"&&f.data){const a=document.createElement("a");a.className="attachment-link";a.href=f.data;a.download=name;a.target="_blank";a.rel="noopener";a.textContent=meta?`${name} (${meta})`:name;a.draggable=false;a.addEventListener("click",e=>e.stopPropagation());li.append(a);}else{const s=document.createElement("span");s.className="attachment-name";s.textContent=meta?`${name} (${meta})`:name;li.append(s);}const rm=document.createElement("button");rm.type="button";rm.className="attachment-delete";rm.textContent="×";rm.title="Remove attachment";rm.setAttribute("aria-label",`Remove ${name}`);rm.addEventListener("click",e=>{e.stopPropagation();files.splice(idx,1);drawAtt();mark();});li.append(rm);attList.append(li);});};
+      if(attInput)attInput.onchange=async e=>{const fl=[...e.target.files];for(const f of fl){try{const data=await readFileData(f);files.push({name:f.name,type:f.type,size:f.size,data});}catch{}}e.target.value="";drawAtt();mark();};
+      inputEl.onkeydown=e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();commitInput();}else if(e.key==="Backspace"&&!inputEl.value&&activeTags.length){activeTags.pop();drawChips();drawSug();mark();}};
+      inputEl.oninput=drawSug; inputEl.onblur=commitInput;
+      scope.addEventListener("input",()=>{mark();if(prev)prev.innerHTML=renderMd(get("notes").value);});
+      drawChips(); drawSug(); drawAtt(); if(prev)prev.innerHTML=renderMd(c.notes||"");
+      const save=()=>{const t=get("title");if(t&&t.reportValidity&&!t.reportValidity())return false;Object.assign(c,{title:(get("title").value||"").trim()||"(untitled)",platform:(get("platform").value||"").trim(),stage:get("stage").value,lineage:get("lineage").value,statusColor:get("statusColor").value,dev:(get("dev").value||"").trim(),live:(get("live").value||"").trim(),notes:get("notes").value||"",tags:activeTags.slice(),files:files.slice(),updatedAt:new Date().toISOString()});if("lane" in c)c.lane=c.stage;tagHistAdd(activeTags);dirty=false;saveBoards([board],`Update ${c.title||c.id}`);return true;};
+      return {save,isDirty:()=>dirty};
+    }
+    return {grid,wire};
+  }
+
   function openCardEditor(board,id){
     const c=cards(board).find(x=>String(x.id)===String(id)); if(!c)return;
-    const d=$("#cardDialog");
-    const plats=[...new Set([...(boardData[board]?.platforms||[]),c.platform].filter(Boolean))];
-    let activeTags=(c.tags||[]).map(String), dirty=false;
-    d.innerHTML=`<form method="dialog" class="dialog-body" novalidate><div class="dialog-head"><h2>Edit card</h2><button class="icon-btn" value="close" aria-label="Save and close">×</button></div>`+
-      `<div class="dialog-grid">`+
-        `<div class="control span-2"><label>Title<input name="title" required value="${esc(c.title)}"></label></div>`+
-        `<div class="control"><label>Platform<select name="platform">${options(plats,c.platform)}</select></label></div>`+
-        `<div class="control"><label>Stage<select name="stage">${options(stages(board),c.stage||c.lane)}</select></label></div>`+
-        `<div class="control"><label>Lineage<select name="lineage">${options(CARD_LINEAGES,normLineage(c.lineage))}</select></label></div>`+
-        `<div class="control"><label>Status<select name="statusColor">${options(STATUS_COLORS,normStatus(c.statusColor))}</select></label></div>`+
-        `<div class="control span-2"><label>Tags</label><div class="tag-chips" data-chips></div><input data-taginput placeholder="type a tag, press Enter"><div class="tag-suggestions" data-sug aria-label="Previously used tags"></div></div>`+
-        `<div class="control span-2"><label>Development link<input name="dev" type="url" value="${esc(c.dev)}"></label></div>`+
-        `<div class="control span-2"><label>Live link<input name="live" type="url" value="${esc(c.live)}"></label></div>`+
-        `<div class="control span-2"><label>Notes (Markdown · text--url shorthand)<textarea name="notes">${esc(c.notes)}</textarea></label><div class="note-prev" data-noteprev></div></div>`+
-      `</div>`+
-      `<div class="dialog-actions"><button class="btn primary" value="close">Save &amp; close</button><button type="button" class="btn" data-dup>Duplicate</button><span style="flex:1"></span><button type="button" class="btn danger" data-archive>Archive</button></div>`+
-    `</form>`;
-    const form=$("form",d), chipsEl=$("[data-chips]",d), inputEl=$("[data-taginput]",d), sugEl=$("[data-sug]",d), prev=$("[data-noteprev]",d);
-    const mark=()=>dirty=true;
-    const drawChips=()=>{chipsEl.innerHTML=activeTags.map(t=>`<span class="chip">${esc(t)}<button type="button" data-x="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join("");chipsEl.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{activeTags=activeTags.filter(x=>x!==b.dataset.x);drawChips();drawSug();mark();});};
-    const drawSug=()=>{const q=inputEl.value.trim().toLowerCase(),seen=new Set();sugEl.innerHTML=allKnownTags().filter(t=>{const k=t.toLowerCase();if(activeTags.includes(t)||seen.has(k))return false;if(q&&!k.includes(q))return false;seen.add(k);return true;}).slice(0,14).map(t=>`<span class="chip" data-add="${esc(t)}">${esc(t)}<span class="sx" data-del="${esc(t)}" title="Remove from history">×</span></span>`).join("");sugEl.querySelectorAll("[data-add]").forEach(el=>el.onclick=e=>{if(e.target.dataset.del!==undefined){tagHistDel(el.dataset.add);drawSug();return;}if(!activeTags.includes(el.dataset.add)){activeTags.push(el.dataset.add);drawChips();drawSug();mark();}});};
-    const commitInput=()=>{const raw=inputEl.value.trim();if(!raw){drawSug();return;}raw.split(/[,\n]+/).forEach(p=>{const t=p.trim();if(t&&!activeTags.includes(t))activeTags.push(t);});inputEl.value="";drawChips();drawSug();mark();};
-    inputEl.onkeydown=e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();commitInput();}else if(e.key==="Backspace"&&!inputEl.value&&activeTags.length){activeTags.pop();drawChips();drawSug();mark();}};
-    inputEl.oninput=drawSug; inputEl.onblur=commitInput;
-    const save=()=>{if(!form.reportValidity())return false;const f=new FormData(form);Object.assign(c,{title:(f.get("title")||"").trim()||"(untitled)",platform:(f.get("platform")||"").trim(),stage:f.get("stage"),lineage:f.get("lineage"),statusColor:f.get("statusColor"),dev:(f.get("dev")||"").trim(),live:(f.get("live")||"").trim(),notes:f.get("notes")||"",tags:activeTags.slice(),updatedAt:new Date().toISOString()});if("lane" in c)c.lane=c.stage;tagHistAdd(activeTags);dirty=false;saveBoards([board],`Update ${c.title||c.id}`);return true;};
-    form.addEventListener("input",()=>{mark();if(prev)prev.innerHTML=renderMd($("[name=notes]",form).value);});
-    form.addEventListener("focusout",e=>{if(!form.contains(e.relatedTarget)&&dirty)save();});
-    $("[data-dup]",d).onclick=()=>{if(dirty)save();d.close();duplicateCard(board,id);};
+    const d=$("#cardDialog"); const {grid,wire}=buildCardFields(c,board);
+    d.innerHTML=`<form method="dialog" class="dialog-body" novalidate><div class="dialog-head"><h2>Edit card</h2><button class="icon-btn" value="close" aria-label="Save and close">×</button></div><div class="dialog-grid">${grid}</div><div class="dialog-actions"><button class="btn primary" value="close">Save &amp; close</button><button type="button" class="btn" data-dup>Duplicate</button><span style="flex:1"></span><button type="button" class="btn danger" data-archive>Archive</button></div></form>`;
+    const form=$("form",d), ctl=wire(form);
+    form.addEventListener("focusout",e=>{if(!form.contains(e.relatedTarget)&&ctl.isDirty())ctl.save();});
+    $("[data-dup]",d).onclick=()=>{if(ctl.isDirty())ctl.save();d.close();duplicateCard(board,id);};
     $("[data-archive]",d).onclick=()=>{d.close("archive");};
-    d.onclose=()=>{if(d.returnValue==="archive"){archiveCard(board,id);return;}if(dirty)save();rerender();};
-    d.showModal(); drawChips(); drawSug(); if(prev)prev.innerHTML=renderMd(c.notes||"");
+    d.onclose=()=>{if(d.returnValue==="archive"){archiveCard(board,id);return;}if(ctl.isDirty())ctl.save();rerender();};
+    d.showModal();
+  }
+
+  /* Single tap on a matrix (or lane) card → expand to the full kanban card in a
+     floating popover anchored to the card: no page scroll, every feature intact. */
+  function openCardExpand(board,id,anchor){
+    closeCardPop();
+    const c=cards(board).find(x=>String(x.id)===String(id)); if(!c)return;
+    const {grid,wire}=buildCardFields(c,board);
+    const scrim=document.createElement("div"); scrim.className="card-scrim";
+    const pop=document.createElement("div"); pop.className="card-pop";
+    pop.style.setProperty("--ribbon",c.cardColor||STATUS_MAP[normStatus(c.statusColor)]);
+    pop.innerHTML=`<div class="cp-head"><span class="kc-status" title="Status: ${esc(normStatus(c.statusColor))}"><span class="kc-dot" data-cpdot style="background:${esc(STATUS_MAP[normStatus(c.statusColor)])}"></span></span><span class="cp-title">${esc(c.title||"(untitled)")}</span><button class="cp-x" type="button" data-x aria-label="Close">×</button></div><div class="dialog-grid">${grid}</div><div class="cp-actions"><button class="btn" type="button" data-dup>Duplicate</button><button class="btn" type="button" data-color>Color</button><span style="flex:1"></span><button class="btn danger" type="button" data-archive>Archive</button></div>`;
+    document.body.append(scrim,pop);
+    positionPop(pop,anchor);
+    const ctl=wire(pop);
+    const titleInput=$("[name=title]",pop), cpTitle=$(".cp-title",pop);
+    if(titleInput&&cpTitle)titleInput.addEventListener("input",()=>cpTitle.textContent=titleInput.value||"(untitled)");
+    const statusSel=$("[name=statusColor]",pop), dot=$("[data-cpdot]",pop);
+    if(statusSel&&dot)statusSel.addEventListener("change",()=>{dot.style.background=STATUS_MAP[normStatus(statusSel.value)];pop.style.setProperty("--ribbon",c.cardColor||STATUS_MAP[normStatus(statusSel.value)]);});
+    const onKey=e=>{if(e.key==="Escape"){e.preventDefault();close();}};
+    function close(after){if(ctl.isDirty())ctl.save();document.removeEventListener("keydown",onKey);scrim.remove();pop.remove();if(after)after();else rerender();}
+    document.addEventListener("keydown",onKey);
+    scrim.onclick=()=>close();
+    $("[data-x]",pop).onclick=()=>close();
+    $("[data-dup]",pop).onclick=()=>close(()=>duplicateCard(board,id));
+    $("[data-archive]",pop).onclick=()=>close(()=>archiveCard(board,id));
+    $("[data-color]",pop).onclick=()=>{const r=(anchor&&anchor.getBoundingClientRect?anchor:pop).getBoundingClientRect();close(()=>showColorMenu(r.left,r.bottom,board,id));};
+    (titleInput||pop).focus?.();
   }
 
   window.addEventListener("keydown",e=>{if(e.key==="Escape"){$(".color-menu")?.remove();document.querySelector(".status-menu")?.remove();document.querySelector(".note-pop")?.remove();}});
+  window.addEventListener("resize",()=>{const pop=document.querySelector(".card-pop");if(pop)positionPop(pop,null);});
   boot().catch(e=>{sync("Portal failed to load","error");$("#view").innerHTML=`<div class="panel empty"><b>Mello could not start.</b><br>${esc(e.message)}</div>`;bindShell()});
 })();
 
