@@ -1,0 +1,51 @@
+name: Session Manager v2.6.0 orphan reconciliation
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v260.py'
+      - '.github/workflows/session-manager-v260-orphans.yml'
+permissions:
+  contents: write
+concurrency:
+  group: session-manager-v260-orphans
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Rebase current main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+      - name: Verify and back up v2.5 baseline
+        run: |
+          grep -q "const BUILD_VERSION='2.5.0'" session-manager-v3.html
+          mkdir -p .release-backups/session-manager-v260
+          cp session-manager-v3.html .release-backups/session-manager-v260/session-manager-v3.v250.html
+          cp session-manager-backlog.md .release-backups/session-manager-v260/session-manager-backlog.pre-v110.md
+      - name: Build v2.6.0
+        run: python3 .github/scripts/session-manager-v260.py
+      - name: Syntax and semantic gates
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('session-manager-v3.html',encoding='utf-8').read()
+          m=re.search(r'<script>\s*(.*?)\s*</script>',s,re.S); assert m
+          open('/tmp/sm260.js','w',encoding='utf-8').write(m.group(1))
+          for x in ["const BUILD_VERSION='2.6.0'","const UNASSIGNED_ID='__unassigned__'","function unassignedSessionKeys()","function moveSessionToProject(","Missing (${missing.length})","Soft delete → Recycle Bin","trash.snapshot","draggable=\"true\""]: assert x in s,x
+          assert "const APP_VERSION='2.3.0'" in s
+          assert "p.sessions=p.sessions.filter(k=>known.has(k))" not in s
+          g=open('session-manager-backlog.md',encoding='utf-8').read(); assert 'SESSION-MANAGER-GOVERNANCE v1.10.0' in g and 'G-030' in g
+          print('semantic gates passed')
+          PY
+          node --check /tmp/sm260.js
+      - name: Publish and remove temporary builder
+        run: |
+          rm -f .github/scripts/session-manager-v260.py .github/workflows/session-manager-v260-orphans.yml
+          git add session-manager-v3.html session-manager-backlog.md .release-backups/session-manager-v260 .github/scripts/session-manager-v260.py .github/workflows/session-manager-v260-orphans.yml
+          git commit -m 'Release Session Manager v2.6.0 session reconciliation'
+          git push origin HEAD:main
