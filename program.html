@@ -227,7 +227,14 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
   function matrixValues(list,f){return [...new Set(list.map(c=>value(c,f)))].sort((a,b)=>a.localeCompare(b))}
   function drawMatrix(root,def,zValue="",context="matrix"){let list=cards(def.board);if(def.z&&zValue)list=list.filter(c=>value(c,def.z)===zValue);const xs=matrixValues(list,def.x),ys=matrixValues(list,def.y);if(!xs.length||!ys.length){root.innerHTML='<div class="empty">No cards match this matrix.</div>';return}root.dataset.context=context;root.style.setProperty("--matrix-columns",xs.length);root.style.setProperty("--matrix-rows",ys.length);root.innerHTML=`<div class="matrix-corner" title="${esc(def.y)} by ${esc(def.x)}">${esc(def.y)} ↓ / ${esc(def.x)} →</div>${xs.map(x=>`<div class="matrix-header" title="${esc(x)}">${esc(x)}</div>`).join("")}`;ys.forEach(y=>{root.insertAdjacentHTML("beforeend",`<div class="matrix-rowhead" title="${esc(y)}">${esc(y)}</div>`);xs.forEach(x=>{const cs=list.filter(c=>value(c,def.x)===x&&value(c,def.y)===y).sort((a,b)=>(a.matrixPosition??a.position??0)-(b.matrixPosition??b.position??0));root.insertAdjacentHTML("beforeend",`<div class="matrix-cell" data-board="${esc(def.board)}" data-x="${esc(x)}" data-y="${esc(y)}" data-context="${context}" aria-label="${esc(x)}, ${esc(y)}: ${cs.length} cards">${cs.map(c=>cardMarkup(c,def.board,def)).join("")}</div>`)})});wireCards(root);wireDrops(root,".matrix-cell",(el,d)=>moveMatrixCard(d,def,el.dataset.x,el.dataset.y))}
   function legacyWireCards(){}
-  function wireDrops(root,selector,fn){$$(selector,root).forEach(el=>{el.ondragover=e=>{e.preventDefault();el.classList.add("over")};el.ondragleave=()=>el.classList.remove("over");el.ondrop=e=>{e.preventDefault();el.classList.remove("over");if(drag)fn(el,drag)};el.onclick=e=>{if(touch&&!e.target.closest(".card")){const d=touch;touch=null;fn(el,d)}}})}
+  function wireDrops(root,selector,fn){root.__dropSel=selector;root.__dropFn=fn;$$(selector,root).forEach(el=>{el.ondragover=e=>{e.preventDefault();el.classList.add("over")};el.ondragleave=()=>el.classList.remove("over");el.ondrop=e=>{e.preventDefault();el.classList.remove("over");if(drag)fn(el,drag)};el.onclick=e=>{if(touch&&!e.target.closest(".card")){const d=touch;touch=null;fn(el,d)}}})}
+  /* shared drag helpers: find the drop container, and edge auto-scroll (rAF) */
+  function dropContainer(el){let n=el&&el.parentElement;while(n){if(n.__dropFn)return n;n=n.parentElement;}return null;}
+  let dragScroll={x:0,y:0,on:false,raf:0};
+  function autoScrollNear(x,y){const el=document.elementFromPoint(x,y);const sc=el&&el.closest?el.closest('.matrix-scroll,.board-kanban,.mini-board,.view'):null;if(!sc)return;const r=sc.getBoundingClientRect(),M=44,S=14;if(x<r.left+M)sc.scrollLeft-=S;else if(x>r.right-M)sc.scrollLeft+=S;if(y<r.top+M)sc.scrollTop-=S;else if(y>r.bottom-M)sc.scrollTop+=S;}
+  function dragScrollTo(x,y){dragScroll.x=x;dragScroll.y=y;if(dragScroll.on)return;dragScroll.on=true;const step=()=>{if(!dragScroll.on)return;autoScrollNear(dragScroll.x,dragScroll.y);dragScroll.raf=requestAnimationFrame(step)};dragScroll.raf=requestAnimationFrame(step);}
+  function dragScrollStop(){dragScroll.on=false;cancelAnimationFrame(dragScroll.raf);}
+  const CARD_CTRL_SEL="[data-kstatus],[data-kcopy],[data-karch],a,.kc-tag,[data-stop],input,select,textarea";
   function setAxis(card,field,val){if(field==="stage"){card.stage=val;if("lane" in card)card.lane=val}else card[field]=val}
   function normalize(board){const by={};cards(board).forEach(c=>(by[c.stage||c.lane||"Backlog"]??=[]).push(c));Object.values(by).forEach(list=>list.sort((a,b)=>(a.position??a.pos??0)-(b.position??b.pos??0)).forEach((c,i)=>{c.position=i+1;if("pos" in c)c.pos=i+1}))}
   function updateIndex(names){const now=Date.now();names.forEach(n=>{const b=index.boards.find(x=>x.name===n);if(b){b.cardCount=cards(n).length;b.lastUpdated=now}})}
@@ -321,12 +328,12 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
         const t=axisTargetAt(ev.clientX,ev.clientY,axis);
         ghost.classList.toggle('cross',!!(t&&t.closest('.matrix-grid')!==srcGrid));
         ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
-        setDrop(t);
+        setDrop(t);dragScrollTo(ev.clientX,ev.clientY);
       };
       const up=ev=>{
         el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);
         try{el.releasePointerCapture(ev.pointerId)}catch{}
-        el.classList.remove('axis-dragging');ghost&&ghost.remove();
+        dragScrollStop();el.classList.remove('axis-dragging');ghost&&ghost.remove();
         const t=axisTargetAt(ev.clientX,ev.clientY,axis)||last;last&&last.classList.remove('axis-drop');
         if(!started||!t)return;
         const tgtGrid=t.closest('.matrix-grid');
@@ -412,7 +419,7 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
     const shown=new Set(["title",def.intersection,"platform","lineage","tags","stage"]);
     const extra=(def.fields||[]).filter(f=>!shown.has(f)).map(f=>`<span class="chip">${esc(f)}: ${esc(value(c,f))}</span>`).join("");
     const tags=(c.tags||[]).map(t=>`<span class="chip kc-tag" data-tag="${esc(t)}" title="${esc(t)}">${esc(t)}</span>`).join("");
-    return `<article class="card kcard" draggable="true" tabindex="0" data-card="${esc(c.id)}" data-board="${esc(board)}" style="--ribbon:${esc(ribbon)}">`+
+    return `<article class="card kcard" tabindex="0" data-card="${esc(c.id)}" data-board="${esc(board)}" style="--ribbon:${esc(ribbon)}">`+
       `<div class="kc-line">`+
         `<button class="kc-status" type="button" data-kstatus title="Status: ${esc(status)}"><span class="kc-dot" style="background:${esc(STATUS_MAP[status])}"></span></button>`+
         `<button class="card-title" type="button" title="${esc(primary)}">${esc(primary)}</button>`+
@@ -426,20 +433,50 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
 
   function wireCards(root){$$(".card",root).forEach(el=>{
     const board=el.dataset.board,id=el.dataset.card;
-    /* single tap anywhere on the card (except its inline controls/links) → expand */
-    const expand=e=>{if(e.target.closest("[data-kstatus],[data-kcopy],[data-karch],a,.kc-tag,[data-stop],input,select,textarea,button"))return;e.stopPropagation();openCardExpand(board,id,el);};
-    el.addEventListener("click",expand);
-    const title=$(".card-title",el); if(title)title.onclick=e=>{e.stopPropagation();openCardExpand(board,id,el);};
-    /* right-click / long-press context menu → change card color */
+    /* right-click (desktop) / long-press context menu → change card color */
     el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showColorMenu(e.clientX,e.clientY,board,id);};
     const st=$("[data-kstatus]",el); if(st)st.onclick=e=>{e.stopPropagation();showStatusMenu(st,board,id);};
     const cp=$("[data-kcopy]",el); if(cp)cp.onclick=e=>{e.stopPropagation();duplicateCard(board,id);};
     const ar=$("[data-karch]",el); if(ar)ar.onclick=e=>{e.stopPropagation();archiveCard(board,id);};
-    $$("[data-stop]",el).forEach(a=>{a.addEventListener("click",e=>e.stopPropagation());a.addEventListener("pointerdown",e=>e.stopPropagation());a.addEventListener("dragstart",e=>e.stopPropagation());});
+    $$("[data-stop]",el).forEach(a=>{a.addEventListener("click",e=>e.stopPropagation());a.addEventListener("pointerdown",e=>e.stopPropagation());});
     $$(".kc-tag",el).forEach(tg=>tg.addEventListener("click",e=>{e.stopPropagation();notify("Tag: "+tg.dataset.tag);}));
-    el.ondragstart=e=>{drag={board,id};el.classList.add("selected");if(e.dataTransfer)e.dataTransfer.effectAllowed="move";};
-    el.ondragend=()=>{drag=null;el.classList.remove("selected");};
+    el.addEventListener("pointerdown",e=>startCardDrag(e,el,board,id));
   });}
+
+  /* Mobile-first card drag: long-press to pick up on touch (so lists still
+     scroll and a quick tap still expands); move-threshold to pick up on mouse.
+     Drop into a matrix cell, a lane, or another board row. */
+  function startCardDrag(e,el,board,id){
+    if(e.button&&e.button!==0)return;
+    if(e.target.closest(CARD_CTRL_SEL))return;
+    const isTouch=e.pointerType!=='mouse',sx=e.clientX,sy=e.clientY,pid=e.pointerId;
+    let mode=0,moved=false,ghost=null,over=null,timer=0;
+    const setOver=t=>{if(t!==over){over&&over.classList.remove('over');over=t;t&&t.classList.add('over');}};
+    const begin=()=>{mode=1;try{el.setPointerCapture(pid)}catch{}drag={board,id};el.classList.add('selected');ghost=document.createElement('div');ghost.className='axis-ghost';ghost.textContent=(cards(board).find(c=>String(c.id)===String(id))||{}).title||'card';document.body.append(ghost);ghost.style.left=sx+'px';ghost.style.top=sy+'px';};
+    if(isTouch)timer=setTimeout(()=>{if(!moved)begin();},300);
+    const cleanup=()=>{clearTimeout(timer);dragScrollStop();el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancelFn);};
+    const move=ev=>{
+      const dist=Math.hypot(ev.clientX-sx,ev.clientY-sy);
+      if(mode!==1){if(isTouch){if(dist>10){moved=true;clearTimeout(timer);}}else if(dist>6){begin();}if(mode!==1)return;}
+      ev.preventDefault();
+      ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
+      const cont=dropContainer(el),under=document.elementFromPoint(ev.clientX,ev.clientY);
+      setOver(cont&&under?under.closest(cont.__dropSel):null);
+      dragScrollTo(ev.clientX,ev.clientY);
+    };
+    const up=ev=>{
+      cleanup();
+      if(mode===1){try{el.releasePointerCapture(pid)}catch{}ghost&&ghost.remove();el.classList.remove('selected');over&&over.classList.remove('over');
+        const cont=dropContainer(el),under=document.elementFromPoint(ev.clientX,ev.clientY);
+        const cell=cont&&under?under.closest(cont.__dropSel):null,bDrop=under?under.closest('[data-board-drop]'):null;
+        if(cell&&cont.__dropFn)cont.__dropFn(cell,{board,id});
+        else if(bDrop&&bDrop.dataset.boardDrop!==board){transferCard(board,bDrop.dataset.boardDrop,id,stages(bDrop.dataset.boardDrop)[0]||'Backlog');state.manageBoard=bDrop.dataset.boardDrop;renderBuilder();}
+        drag=null;
+      }else if(!moved){setTimeout(()=>openCardExpand(board,id,el),0);}
+    };
+    const cancelFn=()=>{cleanup();if(mode===1){ghost&&ghost.remove();el.classList.remove('selected');over&&over.classList.remove('over');drag=null;}};
+    el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',cancelFn);
+  }
 
   function duplicateCard(board,id){
     const o=cards(board).find(c=>String(c.id)===String(id)); if(!o)return;
