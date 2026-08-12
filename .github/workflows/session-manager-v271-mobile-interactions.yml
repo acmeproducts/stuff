@@ -1,0 +1,44 @@
+name: Session Manager v2.7.1 mobile interactions
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/patches/session-manager-v271-mobile-interactions.patch'
+      - '.github/workflows/session-manager-v271-mobile-interactions.yml'
+permissions:
+  contents: write
+concurrency:
+  group: session-manager-v271-mobile-interactions
+  cancel-in-progress: false
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git apply --check .github/patches/session-manager-v271-mobile-interactions.patch
+          git apply .github/patches/session-manager-v271-mobile-interactions.patch
+      - name: Validate
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('session-manager-v3.html',encoding='utf-8').read()
+          gates=["const BUILD_VERSION='2.7.1'",'LONG_PRESS_MS=550','DRAG_ARM_MS=220','LONG_PRESS_MOVE=12',"['touch','pen'].includes(e.pointerType)",'elementFromPoint','fakeDrop(project','fakeDrop(tab','oncontextmenu']
+          for gate in gates: assert gate in s, gate
+          scripts=re.findall(r'<script>\s*(.*?)\s*</script>',s,re.S)
+          assert len(scripts)>=2
+          for i,js in enumerate(scripts): open(f'/tmp/sm-{i}.js','w',encoding='utf-8').write(js)
+          print('semantic gates passed')
+          PY
+          for f in /tmp/sm-*.js; do node --check "$f"; done
+      - name: Publish
+        run: |
+          rm -f .github/patches/session-manager-v271-mobile-interactions.patch .github/workflows/session-manager-v271-mobile-interactions.yml
+          git add session-manager-v3.html .github/patches/session-manager-v271-mobile-interactions.patch .github/workflows/session-manager-v271-mobile-interactions.yml
+          git commit -m 'Patch ProjectChat v2.7.1 mobile tab interactions'
+          git push origin HEAD:main
