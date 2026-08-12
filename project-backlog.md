@@ -259,6 +259,22 @@ Rebuilt from exact working `.4.5` baseline; `.4.6` is rejected and is not an imp
 - Search and Name sort are available in the contents panel.
 - No backend/server/port/routing change is part of this UI build.
 
+
+## Owner gate — .4.7 rejected; .4.8 screenshot-layout rebuild
+
+Build `.4.7` is rejected as an implementation direction because it retained the stale browser presentation and effectively bolted the third pane onto it. Do not patch `.4.7` forward. `.4.8` is rebuilt from exact working `.4.5` browser behavior and applies the owner-approved screenshot layout.
+
+Locked source-picker presentation for `.4.8`:
+
+- Fixed/stable modal geometry; selecting or browsing a drive/folder must not change modal dimensions or cause layout jumps.
+- Three full-height panes: **Locations**, **folder/file browser**, **Added to project**.
+- Toolbar across the top: Up, Rescan, current path, Add to project, New folder, help.
+- Left pane shows all available volumes/locations. Each volume has a checkbox for whole-volume selection; clicking the volume name browses it without selecting it.
+- Center pane is an independently scrolling table with Name / Type / Size / Modified and per-folder `+` staging action. Folder name drills into the folder.
+- Right pane persistently shows staged sources with remove controls plus Save selections / Cancel.
+- The screenshot supplied by the owner is the visual authority for this picker.
+- Preserve `.4.5` filesystem enumeration/API behavior; no new server, port, route, or backend architecture.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
