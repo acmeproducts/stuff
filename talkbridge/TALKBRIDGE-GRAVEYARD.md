@@ -1,7 +1,7 @@
-<!-- v5.8.2.39 -->
+<!-- v5.8.2.40 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.6 | 2026-08-10 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.7 | 2026-08-11 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -630,3 +630,43 @@ Also caught in-flight during this work: `INSTALL_CSS` was declared and never
 injected — the same "declared but not wired" mistake that produced a phantom
 class earlier in this release. Found by the builder before deploy, not on the
 owner's device.
+
+## P-pwa REPLACED renderHome instead of wrapping it — the lost home page · Aug 11 2026
+
+Owner-found by testing `bridge-turn24-pre-base.html` against
+`bridge-turn24-base.html`: pre-base updates the home page correctly between
+devices, base does not.
+
+**Root cause, from the part's own contract line:**
+
+    P-pwa.js  @contract  replaces: homeCards, renderHome
+
+`renderHome` was **replaced, not wrapped** — a direct violation of the standing
+rule. The room-card implementation that renders missed chats, calls and videos
+was discarded and substituted with a PWA version that also renders rename and
+name-change events. Everything the room card provided went with it.
+
+**Second defect inside the replacement.** It calls `.forEach` directly on the
+result of `querySelectorAll`, which returns a NodeList. `NodeList.forEach` is
+not universally available and throws on older WebKit. The surrounding
+`try/catch` swallows it — but `host.innerHTML = h` has already run by then, so
+the home page renders and then dies mid-render with no visible error. That is
+the reported symptom exactly.
+
+**Ribbon: nothing was lost.** The ribbon CSS is byte-identical between base and
+pre-base. The spacing the owner likes IS the original layout. What broke it in
+release 7 was a separate ribbon part that moved the phone and video buttons
+into the centre cluster; that part is not in the R8 build, so no recovery work
+is needed there.
+
+**Rolled back.** `bridge-turn24-base.html` and `bridge-turn24-pre-ship.html`
+both overwritten with `bridge-turn24-pre-base.html`. All release 8 work is
+rolled back with them — twelve items, no patching forward.
+
+**Before release 8 is rebuilt:** P-pwa must wrap `renderHome` and append its
+event cards to what the room card produced, never replace it. And the contract
+gate must be extended: it currently verifies that a declared `replaces` matches
+what the code does, but does not question whether replacing was permissible at
+all. A part declaring `replaces` on a function another part owns should fail
+the build, which would have caught this at the moment it was written rather
+than three releases later on the owner's device.
