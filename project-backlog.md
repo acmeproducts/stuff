@@ -6,9 +6,9 @@
 **Status:** **PLANNING / DESIGN ONLY — NO CODE**  
 **Last governance update:** 2026-08-12
 
-This document is the single current authority for the SOT project. The prior UI implementation attempts are rejected as product candidates. We are intentionally returning to planning/design with a clean UX slate while preserving the plumbing, data-safety rules, execution modes, and SOT lineage requirements that have already been established.
+This document is the single current authority for the SOT project. No implementation work resumes until the owner explicitly accepts the design.
 
-No implementation work resumes until the owner explicitly accepts this design plan.
+The current implementation candidates are rejected. The planning reset does **not** authorize simplification by deleting required workflow capability. The three-panel source-selection model remains required and is redesigned here for fewer clicks, less friction, better information density, and mobile usability.
 
 ---
 
@@ -17,89 +17,90 @@ No implementation work resumes until the owner explicitly accepts this design pl
 ## 0.1 Authority order
 
 1. Current owner ruling.
-2. This document's locked product/design rules.
+2. Locked requirements in this document.
 3. Graveyard vetoes in this document.
-4. Current release plan and acceptance gates.
+4. Release plan and gates in this document.
 5. Older PRDs, prototypes, screenshots, and implementation history.
 
-## 0.2 Current owner ruling — design reset
+If a proposed design reduces capability or changes a locked interaction, it requires explicit owner approval. Implementation convenience is not a valid reason to descope UX or product requirements.
 
-The current implementation is rejected.
+## 0.2 Current owner ruling — planning/design only
 
-Reasons proven in the latest owner review:
+The current implementation is rejected because:
 
-- Configuration backup selection invoked a browser **upload/read-directory** prompt. That is the wrong interaction for choosing a backup destination.
-- The current release is a UI mock-up, not a useful SOT workflow.
-- Fingerprinting is not implemented.
-- Folder/source selection is too difficult and too indirect.
-- Too much effort has gone into incremental UI patching instead of completing the product workflow.
+- source selection is too difficult and too indirect;
+- the current Configuration backup picker incorrectly invokes a directory-read/upload flow;
+- the three-panel picker was simplified in a way that increased clicks and removed required utility;
+- fingerprinting is the substantive operation and must be treated as the primary Operations workflow;
+- the UI has not yet delivered enough operational value.
 
-**Effective immediately:**
+Effective immediately:
 
-- Planning and design only.
-- No `project.html` changes.
-- No backend/API changes.
-- No release candidate builds.
-- No GitHub Pages test handoffs.
-- Update this document until the workflow, UX, data model, release scope, and gates are accepted.
+- planning and design only;
+- no `project.html` changes;
+- no backend/API changes;
+- no release candidate builds;
+- no GitHub Pages test handoffs;
+- this plan must be accepted before coding resumes.
 
-## 0.3 Established plumbing — keep, do not redesign casually
+## 0.3 Established plumbing — keep
 
-There are two valid execution modes.
+There are two valid execution modes using the same logical product model.
 
 ### Browser/mobile mode
 
 - Runs from GitHub Pages or another static HTTPS host.
-- A browser/mobile project may be created, operated, completed, administered, reported, and eventually reconciled without WSL.
-- Browser/mobile project authority is persistent browser storage, currently planned as IndexedDB.
-- `localStorage` is preferences only, never authoritative project data.
-- Local source access comes from browser-granted file/folder access.
-- WSL migration is optional.
+- A browser/mobile project may be created, fingerprinted where browser capability permits, operated, administered, reported, and completed without WSL.
+- Browser/mobile project authority uses persistent IndexedDB or a later approved equivalent.
+- `localStorage` is UI preferences only.
+- Local source access comes from browser-granted folder/file access.
+- Migration to WSL is optional.
 
 ### WSL mode
 
-- Existing production application/report server is `session-server.js` on port 18080.
+- Existing production application/report server remains `session-server.js` on port 18080.
 - Browser reaches SOT APIs through the existing `/report/api/sot/*` mount.
-- WSL mode has broader filesystem access and is preferred for large attached drives / higher-throughput processing.
-- No extra SOT web service, no FastAPI/Uvicorn helper, no 8081/8082, no Tailscale topology changes.
+- WSL has broader filesystem access and is preferred for large attached drives and higher-throughput processing.
+- No extra SOT web service.
+- No FastAPI/Uvicorn helper.
+- No 8081/8082.
+- No Tailscale topology changes.
 
-### Same product, two execution adapters
+### One product, two execution adapters
 
-Browser/mobile and WSL use the same logical project/source/run/lineage model. The UI should not feel like two different applications. Only filesystem authority, storage adapter, and processing throughput differ.
+The UX, project model, source model, fingerprint model, run model, dedup model, lineage model, and reporting model are the same. Only filesystem authority, storage adapter, and processing throughput differ.
 
 ---
 
 # 1. PRODUCT PURPOSE
 
-The product is a **Source of Truth (SOT) reconciliation harness**.
+The product is a **Source of Truth reconciliation harness**.
 
-Its job is to take one or more physical/logical sources, identify and inventory them, fingerprint and reconcile content, determine the surviving authoritative set, plan a target SOT, perform verified copy-only promotion, and permanently preserve lineage so today's SOT can become tomorrow's source without losing ancestry.
-
-The lifecycle is:
+Its job is to:
 
 ```text
-Configure authority
-    ↓
+Configure project authority
+        ↓
 Define project + sources
-    ↓
-Fingerprint / inventory
-    ↓
+        ↓
+Fingerprint sources + inventory content
+        ↓
 Dedup / analyze / recommend
-    ↓
-Approve surviving set
-    ↓
-Choose target SOT + backup target
-    ↓
-Generate copy plan / scripts
-    ↓
+        ↓
+Approve surviving authoritative set
+        ↓
+Choose Target SOT + backup target
+        ↓
+Generate deterministic copy plan/scripts
+        ↓
 Copy + verify
-    ↓
-Promote target to SOT generation
-    ↓
-Maintain / reuse promoted SOT as a future source
+        ↓
+Promote verified target to SOT generation
+        ↓
+Reuse promoted SOT as a future source without losing lineage
 ```
 
-### Core lineage rule
+### Lineage invariant
 
 ```text
 Source A + Source B
@@ -111,110 +112,107 @@ Source A + Source B
       SOT 3
 ```
 
-Every generation remains traceable backward through project, source, fingerprint, manifest, dedup decision, copy plan, verification, and promotion records.
+Every generation must remain traceable backward through project, source, fingerprint, manifest, dedup decision, approved copy plan, copy execution, verification, and promotion.
 
 ---
 
-# 2. UX PRINCIPLES — LOCKED DESIGN DIRECTION
+# 2. GLOBAL UX PRINCIPLES — LOCKED
 
-## 2.1 The operator should never have to understand the plumbing
+## 2.1 Improve the workflow; do not amputate it
 
-The application should present the job in human terms:
+The goal is fewer clicks, less friction, clearer hierarchy, and better information density **without removing required capability**.
 
-- Where should this project record live?
-- What sources belong to this project?
-- What has been measured?
-- What is duplicated?
-- What is unique?
-- What should survive?
-- Where should the new SOT go?
-- Has it been copied and verified?
+## 2.2 Three-panel source selection is required
 
-Ports, APIs, IndexedDB, SQLite, browser adapters, and WSL adapters belong in diagnostics/configuration details, not the normal workflow.
+The three-panel source model is not optional and must not be replaced by repeated one-folder-at-a-time selection.
 
-## 2.2 Every screen has one primary job
+It exists because an operator frequently needs to:
 
-Avoid multi-purpose configuration cards, duplicate summaries, tutorial panels, and decorative chrome.
+- choose one volume;
+- inspect many folders from that same volume;
+- select several folders in one pass;
+- search and sort a large folder list;
+- review selected sources before creating the project.
 
-Primary actions must be obvious and few.
+## 2.3 Minimalism means less chrome, not less function
 
-## 2.3 Native file/folder selection beats custom browsing when available
+Remove decoration, tutorial cards, redundant labels, oversized headers, duplicate summaries, and unnecessary transitions.
 
-The application should use the platform's native folder picker whenever that is the simplest and most reliable source-selection method.
+Do not remove:
 
-A custom filesystem browser is only justified where the platform exposes a real browsable filesystem, such as WSL/server mode.
+- multi-folder selection;
+- select-all/deselect behavior;
+- search;
+- sort;
+- source notes;
+- path visibility;
+- persistent staged-source review;
+- resize/collapse controls where required.
 
-## 2.4 Never pretend a read picker is a write destination picker
+## 2.4 Mobile must be functional, not merely squeezed
 
-The browser prompt shown in build 5.2 — “Upload 2,013 files to this site?” — occurred because a directory **input/read** control was being used to simulate selecting a backup destination.
+Portrait and landscape must both work.
 
-That behavior is prohibited.
+The same logical three panels are retained. On narrow viewports they may stack or use a panel-switcher pattern, but the operator must be able to move among all three without losing selection state or repeating source selection.
 
-Backup/export is a separate concept:
+## 2.5 No fake capability
 
-- **Browser/mobile:** default to **Export Project Database / Export Backup** which creates a downloadable backup package. If a browser has a proven writable-directory API, an optional “Save to folder” enhancement may be offered later, but it cannot be required.
-- **WSL:** select/write a real server-visible backup directory.
+The UI displays only real evidence and real actions.
 
-## 2.5 Mobile-first means the entire workflow works in portrait
+- No fake fingerprint completion.
+- No fake progress percentage.
+- No fake ETC.
+- No fake dedup result.
+- No fake copy/promotion state.
 
-Landscape may improve density, but nothing essential may require rotation.
+## 2.6 Configuration must not misuse read access as backup destination selection
 
-No three-column control should be forced onto a portrait screen merely to preserve desktop geometry.
+A browser directory-read/upload prompt is not a valid backup-location chooser.
 
-## 2.6 Progressive disclosure
-
-The user should see what is needed at the current stage, not every future control at once.
-
-Examples:
-
-- Target SOT selection does not appear before surviving capacity is known.
-- Dedup details do not appear before inventory exists.
-- Copy controls do not appear before a plan is approved.
+Browser backup/export and WSL backup-directory selection are separate designs.
 
 ---
 
 # 3. GLOBAL APPLICATION SHELL
 
-## 3.1 Persistent navigation
-
-A fixed hamburger remains permanently anchored top-left.
-
-Expanded navigation:
+## 3.1 Left navigation — locked order
 
 1. **Configuration**
-2. **Projects**
-3. **Operations**
-4. **Database**
-5. **Reports**
+2. **Project Setup**
+3. **Fingerprinting**
+4. **Database Administration**
+5. **SOT Build & Promotion**
+6. **Reporting**
 
-This is intentionally simpler than the previous menu.
+### Why “Fingerprinting” replaces “Operations”
 
-### Why these five
+Fingerprinting is the first substantive operation. A project cannot be meaningfully analyzed, deduplicated, recommended, or promoted until its sources are fingerprinted/inventoried.
 
-- **Configuration** — define the authority and backup/export policy.
-- **Projects** — create/edit the project definition and sources.
-- **Operations** — all lifecycle execution: fingerprint, inventory, dedup, recommendation, build, verification, promotion.
-- **Database** — inspect/administer the authoritative metadata store.
-- **Reports** — evidence, lineage, audit, project summaries.
+The Fingerprinting section therefore owns:
 
-Dedup and SOT Build are not separate left-nav destinations; they are stages inside Operations for a selected project.
+- source fingerprinting;
+- inventory;
+- progress;
+- stop/continue;
+- downstream dedup/analysis/recommendation for the selected project.
 
-## 3.2 Navigation behavior
+## 3.2 Global hamburger — locked
 
-- Hamburger never moves.
-- Desktop: expanded sidebar or compact icon rail.
-- Mobile portrait: sidebar becomes an overlay/drawer.
-- Selection persists only as UI preference.
-- Contrast is light/neutral and readable.
-- No dark low-contrast rail.
+- Permanently fixed top-left.
+- Never moves between breakpoints.
+- Expands/collapses left navigation.
+- Expanded/collapsed state persists.
+- Desktop collapsed state is a readable icon rail.
+- Mobile opens an overlay/drawer; no unreadable dark sliver.
+- Contrast stays light/neutral/readable.
 
 ---
 
-# 4. CONFIGURATION — DESIGNED FROM SCRATCH
+# 4. CONFIGURATION — FINAL DESIGN DIRECTION
 
-Configuration should be simple because most users should configure it once and then rarely return.
+Configuration answers one question: **where does the authoritative project/fingerprint database live and how is it protected?**
 
-## 4.1 Browser/mobile configuration
+## 4.1 Browser/mobile
 
 ### Project database
 
@@ -222,7 +220,7 @@ Display:
 
 **Project database**  
 `On this device`  
-Status: `Ready` / `Not initialized`
+Status: `Ready` / `Not initialized` / `Needs migration` / `Error`
 
 Primary action:
 
@@ -230,39 +228,39 @@ Primary action:
 
 Behavior:
 
-- Creates the browser-authoritative DB automatically if it does not exist.
-- Validates schema and writable state.
-- No fake path field like `IndexedDB://...` is required in the normal UI.
-- Advanced diagnostics may show the adapter/storage identity separately.
+- automatically creates the browser-authoritative IndexedDB database if it does not exist;
+- validates schema version;
+- validates read/write access;
+- does not show a fake filesystem path to IndexedDB in the normal UI.
 
-### Backup
-
-Display:
-
-**Project database backup**
+### Backup / restore
 
 Primary actions:
 
 - **Export backup**
 - **Import backup**
 
-Export creates one portable project-database backup package containing schema version + project/source/run/lineage metadata available at that stage.
+Export creates a portable backup package of the authoritative SOT metadata database.
 
-No folder-upload prompt.
+Import validates schema/version before replacing or merging data.
 
-A future browser capability may add **Save backup to folder**, but only if real writable-directory access is proven on the target browser/device.
+No “choose backup folder” control is shown unless the browser supports a proven writable-directory API and we explicitly approve that flow later.
 
-## 4.2 WSL configuration
+### Configuration acceptance gate
 
-Display two rows:
+No browser prompt may say “Upload N files to this site?” as a result of selecting a backup destination.
+
+## 4.2 WSL
+
+Rows:
 
 **Project database**  
-`/path/to/sot.sqlite`  `[Choose…]`
+`/path/to/sot.sqlite` `[Choose…]`
 
 **Backup folder**  
-`/path/to/backups`  `[Choose…]`
+`/path/to/backups` `[Choose…]`
 
-`Choose…` opens a compact inline/server filesystem browser because WSL exposes a real filesystem.
+`Choose…` uses the same efficient folder-browser component family described below, but in single-path selection mode.
 
 Actions:
 
@@ -270,48 +268,20 @@ Actions:
 - **Backup now**
 - **Restore…**
 
-## 4.3 Configuration acceptance criteria
-
-The user can understand, without technical explanation:
-
-- where project metadata is stored;
-- whether the DB exists and is healthy;
-- how to back it up;
-- how to restore/import it.
-
 ---
 
-# 5. PROJECTS — PROJECT DEFINITION WORKFLOW
+# 5. PROJECT SETUP — FLAT ONE-SURFACE DESIGN
 
-This replaces the rejected complicated three-panel source selector as the default experience.
+Project Setup, Project Definition, and source selection are one page.
 
-## 5.1 Projects landing page
+There is no Add Locations modal.
 
-Shows project cards/rows:
+## 5.1 Project header
 
-- Project name
-- Created date
-- Status: Pending / WIP / Closed
-- Active / Inactive
-- Source count
-- Last activity
-
-Primary action: **New Project**
-
-Secondary actions per project:
-
-- Open
-- Duplicate definition (future)
-- Archive / Restore
-
-## 5.2 New Project — one simple page
-
-### Header fields
-
-One compact row on desktop, stacked on mobile:
+One compact row on desktop; stacked on narrow mobile:
 
 - **Project name** — required
-- **Project note** — optional
+- **Project note / description** — optional
 
 New project defaults:
 
@@ -319,188 +289,262 @@ New project defaults:
 - Status = Pending
 - created_at = now
 
-### Sources section
+No status control during creation.
 
-Header:
+## 5.2 Inline source builder — required three-panel interaction
 
-**Sources**        `[+ Add source]`
+The source builder appears immediately under Project Name / Note.
 
-Every selected source becomes one card/row containing:
+It is a fixed-height, internally scrollable component.
 
-- source name;
-- full path/locator shown compactly;
-- optional source note;
-- source type badge: Device / WSL / Promoted SOT;
-- permission/availability status;
-- Remove.
-
-There is no second or third staging panel.
-
-### Add Source — browser/mobile
-
-`+ Add source` invokes the platform-native folder chooser.
-
-After the folder is chosen:
-
-- it appears immediately as a **draft source card**;
-- operator can add an optional note;
-- operator can add another source by repeating `+ Add source`.
-
-No custom in-app folder tree is shown unless the browser platform later provides a proven simpler mechanism.
-
-Important: selecting a folder grants read access to the folder for source processing. It is not described as uploading the folder to GitHub Pages.
-
-### Add Source — WSL
-
-`+ Add source` opens a lightweight source chooser optimized for a real filesystem.
-
-Proposed WSL chooser:
+Wide desktop/tablet:
 
 ```text
-┌ Add source ───────────────────────────────┐
-│ Location:  [C:] [D:] [WSL Home] [...]   │
-│ Path: /mnt/d/photos/2024                  │
-│                                          │
-│  ▱ Family                                │
-│  ▱ July Picnic                           │
-│  ▱ RAW                                   │
-│                                          │
-│ [Use current folder]            [Cancel] │
-└──────────────────────────────────────────┘
+┌ Source Drives ───────┬ Source(s) ────────────────────────┬ <Project Name> ──────────────┐
+│ Root                 │ [Select all ✓] [Search ________] │ selected source 1            │
+│   C:                 │ Name ▲▼  Size ▲▼  Updated ▲▼     │ /full/path/...               │
+│   D:                 │                                  │ note                          │
+│   WSL Home           │ ☑ folder A     14 GB   Aug 11   │                              │
+│   This device        │ ☑ folder B      8 GB   Aug 09   │ selected source 2            │
+│                      │ ☐ folder C      2 GB   Jul 30   │ /full/path/...               │
+│                      │ ...                              │                              │
+│                      │ [Add selected]                   │                              │
+└──────────────────────┴──────────────────────────────────┴──────────────────────────────┘
 ```
+
+### Panel 1 — Source Drives
+
+Required behavior:
+
+- First entry is **Root**.
+- Clicking Root lists **all currently available source volumes/roots**, including local/browser-authorized roots that are currently available.
+- Browser/mobile shows only browser-visible sources.
+- WSL shows server-visible drives/mounts plus browser-local source access where available.
+- Clicking a volume/root loads that source into Panel 2.
+- Panel 1 is navigation only; no volume checkbox is required.
+- Panel 1 has its own hamburger/collapse control.
+- Collapse state persists.
+- On collapse, Panel 2 expands into the freed space without losing state.
+
+### Panel 2 — Source(s) — primary working panel
+
+This panel is the core source-selection surface and must be highly efficient.
+
+#### Required list header
+
+Sticky header contains:
+
+- **Select all** checkbox — **checked by default** when a root/volume is opened.
+- Search field.
+- Sortable columns:
+  - **Name** ascending/descending;
+  - **Size** ascending/descending;
+  - **Last Updated** ascending/descending.
+
+Search and sort are table-stakes requirements and may not be deferred.
+
+#### Select-all semantics
+
+When a root is opened:
+
+- Select All defaults ON.
+- All visible/selectable top-level folders are selected.
+- Operator may deselect individual folders.
+- Search filters the visible rows without silently destroying selections outside the filter.
+- Select All applies to the current logical folder scope; its exact filtered-vs-all semantics must be explicit in the UI and tested.
+
+Recommended default rule for owner review:
+
+- **Select All = all folders in the current folder scope, not merely the current search result.**
+- Search is a view filter only.
+- A small count such as `18 of 24 selected` remains visible.
+
+This recommendation reduces accidental omission when search is used. It is a UX improvement suggestion, not a scope reduction.
+
+#### Folder rows
+
+Each folder row contains:
+
+- checkbox;
+- folder name;
+- size;
+- last updated;
+- optional compact type/state indicator only if useful.
+
+Clicking the **folder name** drills into that folder without altering its checkbox state.
+
+A breadcrumb/path bar is always visible above the list.
+
+Up/back navigation is always visible.
+
+#### Add selected
+
+- Sticky at bottom or in persistent toolbar.
+- Adds all currently selected folder paths to Panel 3 in one action.
+- Does not require reopening/reselecting the volume for additional folders.
+- After Add, Panel 2 remains on the same root/path with current search/sort state intact so the operator can make another selection pass if desired.
+
+### Panel 3 — Project Name / staged sources
+
+The heading is the current project name; if blank, `Project`.
+
+Each staged-source tile/row shows:
+
+- source/folder name;
+- truncated path;
+- full path on hover/tap/details;
+- optional source note;
+- remove ×.
+
+Clicking a source row opens the optional note editor.
+
+Example note:
+
+`July picnic`
+
+No duplicate source list appears elsewhere on Project Setup.
+
+### Builder resize / layout persistence
+
+Required:
+
+- overall source-builder height is resizable on capable desktop/tablet layouts;
+- height persists;
+- pane separators are draggable left/right on capable wide layouts;
+- pane widths persist;
+- Panel 1 collapsed state persists;
+- selection/search/sort state persists while the operator remains on Project Setup.
+
+## 5.3 Responsive mobile behavior — three logical panels retained
+
+### Portrait
+
+Do **not** force three tiny columns.
+
+Use a compact three-stage panel switcher inside the same inline source-builder surface:
+
+`[Drives] [Source(s)] [Project]`
 
 Rules:
 
-- One location/path at a time.
-- Click folder to drill.
-- Back/Up is always visible.
-- **Use current folder** adds the currently displayed path.
-- To add multiple source folders, repeat `+ Add source`.
+- one panel is primary at a time;
+- switching panels is one tap;
+- state never resets;
+- Add selected in Source(s) can optionally advance to Project panel after adding, but this should be tested against staying in Source(s) for rapid multi-selection;
+- panel headers and actions remain sticky;
+- no landscape requirement.
 
-This deliberately trades multi-select cleverness for simplicity and correctness.
+### Landscape / tablet
 
-### Why no three-panel picker
+Use three columns if minimum usable widths are satisfied. Otherwise use the same panel-switcher design.
 
-The three-panel concept created too much UI state and too many possible selection semantics, especially on mobile. Source selection is not the main job of the product; it should be a short setup step.
+## 5.4 Create Project
 
-The accepted simplification is:
-
-**choose one source folder → add it → repeat as needed.**
-
-## 5.3 Save/Create semantics
-
-Bottom action:
+Single final action:
 
 **Create Project**
 
-Before creating, show a compact summary:
+It persists:
 
-- project name;
-- number of sources;
-- source notes count;
-- no target SOT yet.
+- project definition;
+- staged sources;
+- source notes;
+- source canonical path/locator;
+- creation timestamp;
+- source registration timestamps;
+- active/pending state.
 
-Create Project persists the definition in the active authoritative DB.
-
-No fingerprinting happens merely because a source was selected. Fingerprinting begins in Operations.
+Fingerprinting does **not** silently start during project creation unless later explicitly approved. Project creation completes definition; Fingerprinting is the next primary stage.
 
 ---
 
-# 6. OPERATIONS — THE MAIN PRODUCT WORKSPACE
+# 6. FINGERPRINTING — PRIMARY OPERATIONS WORKSPACE
 
-Operations is project-centric and stage-driven.
+The left navigation item is **Fingerprinting**, not generic Operations.
+
+This section is project-centric and owns the first real processing work plus downstream analysis/recommendation.
 
 ## 6.1 Layout
 
-### Desktop
+### Desktop/tablet
 
-```text
-┌ Projects ───────┬─────────────────────────────────────────────┐
-│ Project A       │ Project A                                  │
-│ Project B       │ Pending · created Aug 12 · 3 sources       │
-│ Project C       │                                             │
-│                 │ [1 Define] [2 Inventory] [3 Dedup] ...     │
-│ Deleted ▸       │                                             │
-│                 │ stage content                               │
-└─────────────────┴─────────────────────────────────────────────┘
-```
+Left project rail + main fingerprint workspace.
+
+Left rail:
+
+- Deleted / Restore disclosure first;
+- active projects sorted by latest activity by default;
+- project name;
+- created date;
+- compact status indicator;
+- soft-delete ×;
+- hover/focus/tap details reveal project note + source paths/source notes.
+
+Main workspace shows selected project.
 
 ### Mobile portrait
 
-Project selector becomes a compact top dropdown/sheet. The selected project's stage workspace fills the screen.
+Project rail becomes a project selector/sheet. Main fingerprint workspace uses full width.
 
-No narrow permanent left pane on portrait.
+## 6.2 Project status header
 
-## 6.2 Project lifecycle stages
-
-The Operations workspace uses one horizontal/scrollable stage ribbon:
-
-1. **Sources**
-2. **Fingerprint & Inventory**
-3. **Dedup & Analysis**
-4. **Recommendation**
-5. **Build Plan**
-6. **Copy & Verify**
-7. **Promote**
-
-Stages unlock progressively when prerequisite evidence exists.
-
-## 6.3 Operations status header
-
-Always visible for selected project:
+Always visible:
 
 - Status: Pending / WIP / Closed
 - Created date
-- Last activity
-- Current stage
-- Progress % when measurable
-- Start time when running
-- ETC only when evidence supports it
+- Activity state
+- **Fingerprint progress %** — this is the primary progress percentage
+- Start time
+- ETC only when statistically defensible
 - `[Run / Continue]`
 - `[Stop]`
-- `[Close Project]` only when appropriate
+- Reporting chip
 
-No Restart control initially. Run means start or continue from checkpoint.
+### Run semantics
 
-## 6.4 Stage 1 — Sources
+- Pending + Run → start fingerprint/inventory.
+- WIP → Run is disabled.
+- WIP → Stop is enabled.
+- Stopped/Pending with checkpoint → Run means **Continue**.
+- No Restart control in initial design. It may be added only if a distinct destructive restart use case is proven.
 
-Shows:
+## 6.3 Fingerprint progress — definition
 
-- every source;
-- source note;
-- availability;
-- fingerprint status;
-- last seen;
-- file/byte totals when inventoried;
-- reconnect/relink action when necessary.
+The progress bar represents real fingerprint/inventory work, not generic stage completion.
 
-## 6.5 Stage 2 — Fingerprint & Inventory
+Suggested evidence model:
 
-This is the first substantive processing stage and must not be skipped in the next real implementation release.
+```text
+progress = completed inventory/fingerprint work / known current run work
+```
 
-For each source, capture at minimum:
+Progress calculation must be derived from actual discovered/processed files/bytes and checkpoint evidence. It must not be fabricated from UI stages.
 
-### Source fingerprint evidence
+## 6.4 Source fingerprinting
 
-A source fingerprint is not merely a path. It should combine stable evidence sufficient to recognize/relink a previously registered source.
+Fingerprinting answers: **is this the same source we registered before, even if its mount/path changes?**
 
-Planned fingerprint evidence includes:
+Fingerprint record must contain sufficient durable evidence. Candidate evidence includes:
 
-- source type;
-- volume/device identity where available;
-- normalized root locator/path;
-- total file count after inventory;
-- total bytes after inventory;
-- deterministic sample/content evidence defined by the engine;
+- source_id;
+- source_type;
+- volume/device identity where platform exposes it;
+- normalized root/path locator;
+- file count;
+- byte count;
+- deterministic inventory/sample signature;
+- fingerprint version;
 - fingerprint_created_at;
-- last_verified_at.
+- last_verified_at;
+- source availability/relink state.
 
-Exact fingerprint algorithm remains an open technical design item and must be resolved before coding the engine.
+The exact fingerprint algorithm remains a technical design item to resolve before engine coding.
 
-### Inventory manifest
+## 6.5 Inventory manifest
 
-For every file:
+Per-file evidence includes at minimum:
 
+- project_token;
 - source_id;
 - relative path;
 - normalized relative path;
@@ -510,28 +554,54 @@ For every file:
 - modified timestamp;
 - created timestamp where reliably available;
 - inventory timestamp;
-- later hash/content ID fields.
+- later content hash/content ID fields.
 
-### Run telemetry
+## 6.6 Fingerprint/inventory run telemetry
 
-- run ID;
-- source ID;
-- started_at;
-- last_progress_at;
-- completed_at;
-- files_seen;
-- bytes_seen;
-- files/sec;
-- bytes/sec;
-- estimated remaining time when statistically defensible;
-- checkpoint state;
-- error count.
+```text
+run_id
+project_token
+source_id
+started_at
+last_progress_at
+completed_at
+elapsed_seconds
+files_seen
+bytes_seen
+files_per_second
+bytes_per_second
+estimated_remaining_seconds
+status
+checkpoint_state
+error_count
+```
 
-## 6.6 Stage 3 — Dedup & Analysis
+Scan throughput and copy throughput remain separate measurements.
 
-Evidence-driven views:
+## 6.7 Project source status inside Fingerprinting
 
-**Summary**
+For every source show:
+
+- source name/path;
+- note;
+- available / missing / needs relink;
+- fingerprinted yes/no;
+- fingerprint timestamp;
+- file count;
+- bytes;
+- last seen;
+- current progress if running;
+- relink/reconnect when needed.
+
+---
+
+# 7. DEDUP / ANALYSIS / RECOMMENDATION — INSIDE FINGERPRINTING
+
+These are not separate left-nav items. They become available inside the selected project after fingerprint/inventory prerequisites are met.
+
+## 7.1 Dedup summary
+
+Show only evidence-backed values:
 
 - Raw bytes
 - Unique bytes
@@ -539,646 +609,593 @@ Evidence-driven views:
 - Exact duplicate count
 - Conflict count
 
-**Duplicate groups**
+## 7.2 Duplicate groups
 
-Each group shows candidate copies and recommended survivor.
+Each group shows:
 
-**Conflicts / different**
+- content identity/hash;
+- candidate copies;
+- source/path;
+- size;
+- timestamps;
+- recommended survivor;
+- operator override if needed.
 
-Same-name/different-content, path collisions, or ambiguous canonical choice.
+## 7.3 Different / conflicts list
 
-No near-duplicate media analysis is required for MVP exact reconciliation.
+Required separate view for:
 
-## 6.7 Stage 4 — Recommendation
+- same-name/different-content;
+- path collisions;
+- ambiguous canonical choice;
+- metadata conflicts where relevant.
 
-The system produces an operator-reviewable recommendation:
+## 7.4 Recommendation
+
+System produces an operator-reviewable recommendation:
 
 - canonical surviving set;
-- duplicate removals from the copy plan (not source deletion);
-- unresolved conflicts requiring owner choice;
+- duplicate copies excluded from target copy plan, not deleted from sources;
+- unresolved conflicts;
 - surviving byte total;
-- recommended minimum primary SOT capacity;
+- minimum recommended Target SOT capacity;
 - recommended backup capacity.
 
-Owner approves the recommendation before target selection.
+Owner approves recommendation before SOT Build & Promotion becomes executable.
 
-## 6.8 Stage 5 — Build Plan
+---
 
-Only now choose:
+# 8. DATABASE ADMINISTRATION
+
+Database Administration is a practical metadata administration tool, not a decorative table.
+
+## 8.1 Table navigation
+
+Allowlisted logical tables/views include, as they exist by release stage:
+
+- projects;
+- sources;
+- fingerprints;
+- fingerprint_runs;
+- inventory_files / manifests;
+- duplicate_groups;
+- dedup_decisions;
+- copy_plans;
+- verification;
+- sot_generations;
+- lineage;
+- admin_events.
+
+## 8.2 Grid capabilities
+
+Required:
+
+- column headers;
+- sort ascending/descending;
+- search/filter;
+- row selection;
+- pagination/virtualization for large tables;
+- editable mutable cells;
+- immutable identity cells locked/read-only;
+- soft delete/restore where semantically valid;
+- bulk active/inactive project flag update;
+- source/project note and metadata edits;
+- audit event for administrative changes.
+
+No arbitrary SQL console in MVP.
+
+---
+
+# 9. SOT BUILD & PROMOTION
+
+This section becomes actionable only after recommendation approval.
+
+## 9.1 Target planning
+
+Choose:
 
 - Target SOT;
 - backup target.
 
-Generate:
+Display:
 
-- destination mapping;
-- collision-safe path plan;
-- deterministic copy script/command plan;
-- required capacity / available capacity;
-- dry-run results.
+- surviving bytes required;
+- free space;
+- reserve/headroom;
+- filesystem/path constraints;
+- target suitability.
 
-## 6.9 Stage 6 — Copy & Verify
+## 9.2 Build plan
 
-Rules:
+Generate deterministic copy plan/scripts from the approved surviving set.
 
+Plan contains:
+
+- source_id;
+- source relative path;
+- destination relative path;
+- expected size;
+- expected content/hash evidence when available;
+- collision behavior;
+- copy order/batches;
+- verification requirement.
+
+## 9.3 Copy
+
+- explicit Execute;
 - copy-only;
-- never move/delete sources;
-- resumable checkpoints;
-- content verification;
-- failed verification blocks promotion;
-- copy throughput is measured separately from inventory throughput.
+- no source move/delete;
+- checkpoint/resume;
+- source disconnect handling;
+- separate copy throughput/progress.
 
-## 6.10 Stage 7 — Promote
+## 9.4 Verify
 
-A verified target becomes a named SOT generation.
+Verification must pass before promotion.
 
-Persist:
+## 9.5 Promote
 
-- generation ID;
-- originating project/run;
-- target location;
-- verification evidence;
-- promotion timestamp;
-- parent source/content lineage.
+Promotion writes a new SOT generation record and full provenance chain.
 
-The promoted SOT can then be registered as a source in another project.
+A promoted SOT may then appear as a source candidate in Project Setup for a later project.
 
 ---
 
-# 7. DATABASE ADMINISTRATION
+# 10. REPORTING
 
-Database Administration is for inspecting and correcting metadata, not running reconciliation.
+Reporting is schema/evidence-backed only.
 
-## 7.1 Browser/mobile
+## 10.1 Project reporting
 
-Operate against the browser-authoritative database.
+- project metadata;
+- source definitions/notes;
+- fingerprint state;
+- fingerprint progress/history;
+- file/byte inventory totals;
+- errors;
+- current status.
 
-## 7.2 WSL
+## 10.2 Dedup reporting
 
-Operate against the configured SQLite SOT DB through allowlisted application APIs.
-
-## 7.3 UX
-
-Top controls:
-
-- Table selector
-- Search/filter
-- Export current view
-- Backup database
-
-Table/grid supports:
-
-- column headers;
-- sorting;
-- filtering;
-- pagination/virtualization;
-- editable mutable fields;
-- immutable key fields visibly locked;
-- soft-delete/restore where permitted.
-
-### Minimum managed datasets
-
-- Projects
-- Sources
-- Runs
-- Inventory runs
-- Events / audit
-- Later: files/content index/duplicate groups/copy plans/verifications/SOT generations/lineage
-
-### Bulk operations
-
-Safe bulk actions:
-
-- Active → Inactive
-- Inactive → Active
-- Add/change tags/classification when implemented
-
-Never bulk-edit identity keys or lineage keys.
-
----
-
-# 8. REPORTING
-
-Reporting is evidence-only and grows with the schema.
-
-## 8.1 Project summary
-
-- project identity/name;
-- status/current stage;
-- created/updated timestamps;
-- source list/notes;
-- source availability;
-- latest run summary.
-
-## 8.2 Inventory report
-
-- files / bytes by source;
-- inventory duration;
-- error count;
-- throughput history.
-
-## 8.3 Dedup report
-
-- raw / unique / duplicate bytes;
+- unique/duplicate bytes;
 - duplicate groups;
-- conflicts;
-- recommended surviving capacity.
+- different/conflict list;
+- recommendation;
+- operator overrides.
 
-## 8.4 Build/verification report
+## 10.3 Build/promotion reporting
 
-- approved copy plan;
-- target;
-- copy results;
-- verification failures/success;
-- promotion state.
+- target plan;
+- generated copy plan;
+- copied bytes/files;
+- verification status;
+- promotion history;
+- lineage.
 
-## 8.5 Lineage report
+## 10.4 Aggregate reporting
 
-For any promoted SOT:
-
-```text
-SOT generation
-  ← promotion
-  ← verified copy job
-  ← approved copy plan
-  ← dedup decisions
-  ← content/file manifests
-  ← source fingerprints
-  ← original project sources
-```
+- Pending / WIP / Closed project counts;
+- active/inactive/deleted counts;
+- fingerprinted/unfingerprinted sources;
+- total indexed bytes/files;
+- historical throughput where evidence exists.
 
 ---
 
-# 9. LOGICAL DATA MODEL
+# 11. LOGICAL DATA MODEL
 
-The browser/mobile and WSL adapters implement the same logical schema.
+Browser authority and WSL authority share the same logical schema.
 
-## 9.1 Instance / authority
-
-```text
-instance_id
-storage_adapter            browser_indexeddb | sqlite
-schema_version
-created_at
-updated_at
-backup_policy
-```
-
-## 9.2 Project
+## 11.1 Project
 
 ```text
-project_token              immutable
+project_token           immutable
 project_name
-project_note
-active                     boolean
-status                     Pending | WIP | Closed
-current_stage
+active
 created_at
 updated_at
-deleted_at                 nullable
-current_run_id             nullable
+status                  Pending | WIP | Closed
+current_stage
+current_run_id
+notes
+deleted_at
 ```
 
-## 9.3 Source
+## 11.2 Source
 
 ```text
-source_id                  immutable
+source_id
 project_token
-source_type                browser_folder | wsl_path | promoted_sot
-original_locator
-normalized_locator
+source_type             browser_local | wsl_path | promoted_sot
+original_path_or_locator
+normalized_path_or_locator
 operator_label
 operator_note
 registered_at
 last_seen_at
 source_status
-fingerprint_id             nullable until fingerprinted
-parent_sot_generation_id   nullable
+parent_sot_generation_id
 ```
 
-## 9.4 Source fingerprint
+## 11.3 Fingerprint
 
 ```text
 fingerprint_id
 source_id
 fingerprint_version
 fingerprint_value/evidence
-created_at
-verified_at
+file_count
+byte_count
+fingerprint_created_at
+last_verified_at
 ```
 
-## 9.5 Runs
+## 11.4 Run
 
 ```text
 run_id
 project_token
-stage
-status
+run_type                fingerprint_inventory | hash | copy | verify | future
 started_at
-last_progress_at
+stopped_at
 completed_at
+status
 checkpoint_state
-progress_percent
-estimated_completion_at
-error_count
 ```
 
-## 9.6 Inventory
+## 11.5 Inventory file
 
 ```text
-inventory_run_id
+inventory_file_id
 run_id
-source_id
-files_seen
-bytes_seen
-files_per_second
-bytes_per_second
-```
-
-## 9.7 File manifest
-
-```text
-file_id
 source_id
 relative_path
 normalized_relative_path
 filename
+extension
 size
 modified_at
 created_at
-inventory_run_id
-content_id/hash_id         nullable until hashed
+inventory_at
+content_hash
+content_id
 ```
 
-## 9.8 Dedup / content
+## 11.6 Planned downstream datasets
 
 ```text
-content_id
-hash_algorithm
-hash_value
-byte_size
-
-duplicate_group_id
-content_id
-recommended_survivor_file_id
-decision_status
-```
-
-## 9.9 Copy / verification / lineage
-
-```text
-copy_plan_id
-project_token
-approved_at
-
-target_id
-copy_job_id
-verification_id
-
-sot_generation_id
-promoted_at
-parent_project_token
-
-lineage_id
-from_entity_type
-from_entity_id
-to_entity_type
-to_entity_id
-relationship
+duplicate_groups
+dedup_decisions
+conflicts
+recommendations
+copy_plans
+copy_jobs
+verification
+sot_generations
+lineage
+admin_events
 ```
 
 ---
 
-# 10. BACKUP / EXPORT DESIGN
+# 12. RELEASE PLAN — DESIGN BASELINE RESET
 
-## 10.1 Browser/mobile authority backup
+No code is authorized until this design is accepted.
 
-Primary UX:
+## Design Gate D0 — UX / workflow acceptance
 
-- **Export backup** → one downloadable portable backup package.
-- **Import backup** → validate version/schema then restore or import.
+Must be explicitly accepted before implementation.
 
-The backup package must contain enough metadata to recreate the authoritative project database and lineage available at that schema version.
+D0 covers:
 
-The browser should never ask to “upload every file in a backup folder” merely to choose a destination.
+- left navigation and Fingerprinting naming;
+- Configuration model;
+- required three-panel source builder;
+- Root → volumes behavior;
+- Panel 1 collapse;
+- Panel 2 Select All default ON;
+- Panel 2 search;
+- Panel 2 Name / Size / Last Updated asc/desc sort;
+- multi-folder selection without reopening the same volume;
+- Panel 3 staged-source review + notes;
+- mobile portrait panel-switcher behavior;
+- Fingerprinting progress semantics;
+- Dedup/Analysis/Recommendation integrated into Fingerprinting;
+- Database Administration CRUD direction;
+- SOT Build/Promotion stage;
+- Reporting.
 
-## 10.2 WSL authority backup
+## v0.4.0 — Project Definition + Real Fingerprinting Foundation
 
-- Choose writable backup directory.
-- Create SQLite-safe snapshot/backup.
-- Validate backup integrity.
-- Restore only after validation.
-- Preserve safety copy of current DB before replacement.
-
----
-
-# 11. RELEASE PLAN — RESET
-
-No code release is currently authorized. The next release sequence begins only after this plan is accepted.
-
-## DESIGN GATE D0 — Product/UX plan
-
-**Status:** CURRENT
-
-Scope:
-
-- approve navigation;
-- approve Configuration behavior;
-- approve simplified source-selection model;
-- approve Operations stage model;
-- approve DB Administration concept;
-- approve Reporting concept;
-- approve logical schema direction;
-- resolve fingerprint algorithm and browser permission constraints that affect implementation.
-
-**Exit:** owner explicitly accepts this document.
-
----
-
-## v0.4.0 — Authority + Project Definition + Real Source Registration
-
-This becomes the first new implementation release after design acceptance.
+This is the first implementation release after D0 acceptance.
 
 ### Scope
 
-- global shell/navigation;
-- browser IndexedDB authority initialization + export/import backup;
-- WSL SQLite authority configuration + backup path;
-- Projects list/new/edit/archive/restore;
-- simplified `+ Add source` flow;
-- browser native folder selection;
-- WSL compact folder chooser;
-- project/source metadata persistence;
-- Operations shell with stage ribbon;
-- Source stage showing real registered sources and availability;
-- **real source fingerprint foundation**, not a mock placeholder.
+**Configuration**
 
-### Test gates
+- browser Initialize/Validate;
+- browser Export/Import backup metadata DB;
+- WSL DB path + backup folder + create-if-missing + integrity.
 
-- browser DB create/validate/persist/export/import;
-- WSL DB create/validate/backup;
-- project create/reopen;
-- source registration survives project reopen;
-- browser folder picker does not generate a fake backup-upload workflow;
-- WSL folder selection adds exact canonical path;
-- source note persists;
-- source fingerprint record is produced according to the approved algorithm;
-- portrait phone complete workflow;
-- no fake inventory/dedup/copy states.
+**Project Setup**
 
----
+- inline required three-panel builder;
+- Root lists available roots/volumes;
+- collapsible Source Drives panel;
+- Select All default ON;
+- search;
+- Name/Size/Last Updated sort asc/desc;
+- multi-folder checkbox selection;
+- Add selected;
+- staged sources + notes;
+- responsive portrait switcher;
+- persisted height/pane widths/collapse state where applicable;
+- Create Project.
 
-## v0.4.1 — Inventory / Manifest / Checkpoints
+**Fingerprinting**
 
-Scope:
+- project rail;
+- Pending/WIP/Closed status;
+- real Run/Continue + Stop;
+- source inventory;
+- fingerprint evidence v1;
+- fingerprint timestamps;
+- manifest persistence;
+- real progress %;
+- checkpoint/restart continuation;
+- file/byte telemetry.
 
-- recursive inventory;
-- file manifest;
-- run telemetry;
-- pause/stop/continue checkpoints;
-- reconnect/relink;
-- source fingerprint verification/refinement;
-- Operations progress with real evidence.
+**Database Administration**
 
-Gates:
+- projects/sources/fingerprints/runs/manifests views;
+- sort/search/filter;
+- mutable metadata editing;
+- bulk project active/inactive;
+- soft delete/restore;
+- immutable ID protection.
 
-- interruption/resume;
-- source disconnect/reconnect;
-- file/byte totals reconcile;
-- path normalization;
-- historical run telemetry retained.
+**Reporting**
 
----
+- project/source/fingerprint/inventory basics from real DB evidence.
 
-## v0.5.0 — Exact Dedup + Analysis + Recommendation
+### v0.4.0 automated gates
 
-Scope:
+- source-builder Root enumerates only actually available roots;
+- Panel 1 collapse does not reset Panel 2 or Panel 3;
+- Select All defaults ON when a folder scope loads;
+- individual deselect works;
+- search does not destroy off-filter selection state;
+- Name asc/desc works;
+- Size asc/desc works;
+- Last Updated asc/desc works;
+- multiple selected folders add to Panel 3 in one action;
+- second selection pass from same root does not require reopening/re-authorizing root;
+- long paths remain intact while visually truncated;
+- source note round trip;
+- portrait switcher preserves selection state;
+- project create survives refresh;
+- fingerprint run produces real progress;
+- Stop preserves checkpoint;
+- Continue resumes same project/run lineage;
+- fingerprint timestamp/source link persists;
+- manifest file/byte totals reconcile to displayed totals;
+- no fake dedup/copy evidence;
+- browser backup export does not trigger directory upload prompt;
+- WSL mode uses existing server only; no 8081/8082/FastAPI.
+
+### v0.4.0 owner/device gates
+
+**Desktop**
+
+- resize source-builder height and refresh → persists;
+- drag pane separators and refresh → persists;
+- collapse Source Drives and restore → state works;
+- select one root, search/sort/deselect/add many folders without reopening root;
+- source list remains readable.
+
+**Mobile portrait**
+
+- Drives / Source(s) / Project switcher works one-handed;
+- no landscape requirement;
+- search/sort/select-all available in Source(s);
+- add selected and staged-source review require no repeated root authorization;
+- Create Project works;
+- Fingerprinting Run/Stop/Continue works with actual evidence available to the browser.
+
+**WSL**
+
+- same UX model;
+- server-visible roots load from real API;
+- large folder metadata loads without blocking UI;
+- fingerprint progress tied to real WSL scan.
+
+## v0.5.0 — Dedup / Analysis / Recommendation
+
+Inside Fingerprinting for selected project:
 
 - content hashing;
-- exact duplicate groups;
-- conflict detection;
-- canonical survivor recommendation;
-- raw/unique/duplicate bytes;
-- surviving capacity;
-- target + backup capacity recommendation;
-- operator approval workflow.
+- exact duplicate confirmation;
+- duplicate groups;
+- different/conflict list;
+- unique/duplicate byte accounting;
+- canonical recommendation;
+- surviving-size estimate;
+- target/backup capacity recommendation;
+- operator approval/override.
 
-Gates:
+## v0.6.0 — SOT Build Plan + Generated Scripts
 
-- known duplicate corpus;
-- same-size/different-content mutation;
-- collision fixtures;
-- interrupted hash/resume;
-- accounting reconciliation.
-
----
-
-## v0.6.0 — Build Plan + Generated Copy Scripts
-
-Scope:
-
-- select targets;
-- generate copy plan/scripts/commands;
-- collision-safe mapping;
-- dry run/preflight;
-- plan approval;
-- persist plan to SOT DB.
-
----
+- choose Target SOT + backup target;
+- generated deterministic copy plan/scripts;
+- collision-safe destination mapping;
+- free-space/preflight;
+- dry run;
+- approved plan persistence.
 
 ## v0.7.0 — Copy + Verify
 
-Scope:
-
 - copy-only execution;
-- checkpoints/resume;
+- checkpoint/resume;
+- separate copy progress/throughput;
 - verification;
-- separate copy performance telemetry;
-- failure handling.
-
----
+- corruption/failure handling.
 
 ## v0.8.0 — Promote + Lineage
 
-Scope:
+- verified target → promoted SOT generation;
+- promoted SOT can become later source;
+- lineage across generations retained and reportable.
 
-- promote verified target;
-- create SOT generation identity;
-- write complete lineage;
-- allow promoted SOT as future source;
-- lineage reporting.
+## v0.9.0 — Reporting / OpenClaw orchestration expansion
 
----
-
-## v0.9.0 — Maintenance + OpenClaw orchestration
-
-Scope:
-
-- recurring maintenance/change sets;
-- additions/changes/deletions review;
-- OpenClaw orchestration through the same deterministic contracts;
-- reporting/export expansion.
-
----
+- exports;
+- lineage visualization;
+- aggregate audit reporting;
+- OpenClaw orchestration through same deterministic contracts.
 
 ## v1.0.0 — MVP hardening
 
-- multi-TB corpus;
+- multi-TB corpus testing;
+- millions-of-files scenarios;
+- browser persistence/reconnect testing;
+- WSL throughput/locking tests;
 - crash/restart fault injection;
-- source removal/replacement;
-- browser/mobile persistence/reconnect tests;
-- SQLite/WAL throughput/locking tests;
-- corruption/verification mutation;
-- full SOT1 → SOT2 → SOT3 lineage test.
+- source-removal/relink testing;
+- verification corruption mutation;
+- owner end-to-end reconciliation.
 
 ---
 
-# 12. DESIGN DECISIONS STILL OPEN
+# 13. OPEN TECHNICAL DESIGN ITEMS
 
-These must be resolved before implementation where they affect architecture or gates.
+These require resolution before their implementation stage begins:
 
-## O-001 — Source fingerprint algorithm
-
-Need a deterministic definition of the source-level fingerprint that is strong enough to recognize a known source even when path/mount changes, without requiring full-file hashing just to identify the source.
-
-Candidate evidence to evaluate:
-
-- filesystem/device identity where available;
-- root metadata;
-- inventory count/bytes;
-- deterministic sampled paths/sizes/timestamps;
-- sampled content hashes;
-- versioned fingerprint schema.
-
-## O-002 — Browser folder permission persistence
-
-Need exact target-device behavior defined for:
-
-- Android Chrome;
-- Samsung Internet if supported;
-- desktop Chrome/Edge;
-- refresh/reopen;
-- device reboot;
-- PWA-installed vs normal tab.
-
-UX must assume reauthorization can be required unless proven otherwise.
-
-## O-003 — Browser database backup package format
-
-Need choose portable format:
-
-- JSON package;
-- structured ZIP bundle;
-- SQLite-compatible export generated client-side;
-- other versioned package.
-
-Primary requirement is reliable restore/migration, not human readability.
-
-## O-004 — Browser content hashing implementation
-
-Need choose a chunked/streaming exact hash implementation appropriate for large files without loading entire files into memory.
-
-## O-005 — Copy execution in browser/mobile mode
-
-Need determine exact supported target-writing mechanism and browser/device limits before claiming browser-mode SOT promotion can write an arbitrary target filesystem.
-
-Until proven, browser/mobile can fully own project definition, inventory, analysis, and DB authority; physical target copy capability is a separately gated feature.
-
-## O-006 — Project completion semantics
-
-Clarify difference between:
-
-- administrative Close Project;
-- operational Promote SOT / complete reconciliation.
-
-A Closed project must never imply copy/verification/promotion occurred if those stages were not executed.
+- exact source fingerprint algorithm and versioning;
+- how folder size is obtained efficiently before full inventory in browser/mobile mode;
+- how folder size and last-updated metadata are cached/refreshed in WSL mode;
+- Select All semantics under an active search filter — recommended rule is current folder scope, not only visible search matches;
+- browser folder-handle persistence/reconnect behavior across Chrome/Android versions;
+- browser DB backup package format;
+- exact hash strategy and worker concurrency;
+- exact copy-script technology by execution adapter;
+- audit-event granularity for metadata changes.
 
 ---
 
-# 13. LIVE BACKLOG
+# 14. OPTIONAL UX IMPROVEMENTS — SUGGESTIONS ONLY
 
-- schema migration/version tooling for browser and SQLite adapters;
-- browser backup export/import;
-- audit event history;
-- tags / sidecar metadata;
+These are not authorized scope changes; they are candidate improvements for owner review.
+
+1. **Selection count in Panel 2:** `18 of 24 selected`, always visible beside Select All.
+2. **Quick filters:** `All | Selected | Unselected` in Panel 2 to reduce friction when pruning a large root.
+3. **Remember search/sort per root during the current project-definition session.**
+4. **Keyboard/desktop affordances:** Shift-click range selection when available, without changing mobile behavior.
+5. **Panel 3 duplicate prevention:** if the same canonical path is added twice, focus/highlight the existing staged row rather than silently duplicating it.
+6. **Source summary badge in Panel 3:** folder count and, once available, estimated bytes—informational only.
+
+None of these replaces or weakens the locked requirements above.
+
+---
+
+# 15. LIVE BACKLOG
+
+- schema/version migration tooling for IndexedDB and SQLite;
+- browser DB export/import backup;
+- source relink/reconnect workflow;
+- tags/sidecar metadata;
 - encrypted/sensitive classification;
-- source relink/reconnect review;
+- historical fingerprint/scan throughput;
 - network-share reconnect handling;
-- scan/copy performance history;
 - Android background/sleep interruption handling;
+- near-duplicate image/video analysis after exact dedup;
 - lineage visualization;
 - cold/warm/hot tier reporting;
-- near-duplicate media analysis after exact dedup;
 - multi-instance SOT support — future only.
 
 ---
 
-# 14. SAFETY / DATA INVARIANTS
+# 16. SAFETY / DATA INVARIANTS
 
 1. Sources are read-only inputs.
-2. SOT construction is copy-only; never automatically move/delete source files.
-3. Human validation is required before physical source retirement.
-4. Project token is immutable; project name is mutable.
-5. Source identity is durable and can be relinked when location changes.
-6. Every run/checkpoint belongs to the same immutable project identity.
-7. No fake progress, ETC, inventory, duplicate, copy, or verification evidence.
-8. Target selection occurs only after surviving capacity is known.
-9. Verification failure blocks promotion.
-10. Scan throughput and copy throughput are distinct measurements.
-11. Soft-delete/archive never destroys lineage/history.
-12. Promoted SOT lineage survives future use as a source.
-13. Browser/mobile and WSL adapters implement the same logical identity model.
-14. Backup destination selection must never be implemented using a source/upload directory picker.
+2. Copy-only; no automatic source move/delete.
+3. Human validation before physical source retirement.
+4. `project_token` immutable; project name mutable.
+5. Soft delete preserves lineage/history.
+6. Project completion never implies unperformed dedup/copy work.
+7. UI never invents fingerprint/inventory/dedup/hash/copy evidence.
+8. Verification failure blocks SOT promotion.
+9. Scan and copy throughput are separate measurements.
+10. Promoted SOT lineage survives future use as a source.
+11. Browser/mobile and WSL use the same logical project/source/fingerprint/run model.
+12. Failed owner/device candidates are never patch-forward baselines.
 
 ---
 
-# 15. GRAVEYARD — DO NOT REINTRODUCE
+# 17. GRAVEYARD — DO NOT REINTRODUCE
 
-- **G-001** Separate FastAPI/Uvicorn/file_browser.py SOT server.
-- **G-002** SOT ports 8081/8082.
-- **G-003** Release-driven Tailscale/server topology changes.
-- **G-004** `localStorage` as authoritative project DB.
-- **G-005** Fake lifecycle controls/status/progress.
-- **G-006** Final SOT target required during initial Project Setup.
-- **G-007** Source-selection modal as the default project setup workflow.
-- **G-008** Dedicated Dedup/Analysis top-level navigation.
-- **G-009** Complex three-panel source selector as a mandatory source-add workflow.
-- **G-010** Mobile workflow requiring landscape orientation.
-- **G-011** Decorative/tutorial-heavy source browser.
-- **G-012** Moving/disappearing global hamburger.
-- **G-013** GitHub Pages showing WSL/server-only drives.
-- **G-014** Test URL before exact served-build verification.
-- **G-015** Ephemeral/self-triggering workflow files as routine patch mechanism.
-- **G-016** Destructive project delete instead of archive/restore.
-- **G-017** Patch-forward from failed owner candidate.
-- **G-018** Losing lineage when promoted SOT becomes a later source.
-- **G-019** Requiring browser/mobile project migration to WSL before it can be authoritative.
-- **G-020** Disabling browser/mobile Configuration simply because no WSL server exists.
-- **G-021** Using `<input type=file webkitdirectory>` or equivalent read/upload chooser to represent a backup/write destination.
-- **G-022** Treating selected source folders as “uploaded to GitHub Pages”; they are browser-authorized local sources.
-- **G-023** Coding before the current design gate is explicitly accepted.
+- **G-001:** separate FastAPI/Uvicorn/file_browser.py SOT server.
+- **G-002:** ports 8081/8082 SOT service.
+- **G-003:** release-driven Tailscale/server topology changes.
+- **G-004:** `localStorage` as authoritative project database.
+- **G-005:** fake lifecycle/progress/status.
+- **G-006:** final SOT target required during Project Setup.
+- **G-007:** source-selection modal.
+- **G-008:** separate Dedup/Analysis left-nav section.
+- **G-009:** Panel 1 volume checkbox/direct add semantics.
+- **G-010:** landscape-required source selection.
+- **G-011:** decorative/tutorial-heavy source browser.
+- **G-012:** moving/disappearing global hamburger.
+- **G-013:** GitHub Pages showing WSL/server-only drives.
+- **G-014:** test URL before exact served-build verification.
+- **G-015:** ephemeral/self-triggering workflows as routine patch mechanism.
+- **G-016:** destructive project delete instead of soft-delete/restore.
+- **G-017:** patch-forward from failed owner candidate.
+- **G-018:** losing lineage when promoted SOT becomes a later source.
+- **G-019:** requiring browser/mobile project migration to WSL before it can be authoritative.
+- **G-020:** disabling browser/mobile project DB initialization because the app is on GitHub Pages.
+- **G-021:** using a directory-read/upload picker as a backup destination selector.
+- **G-022:** replacing the required three-panel source builder with repeated one-folder-at-a-time native selection.
+- **G-023:** removing multi-folder selection from one root in order to simplify implementation.
+- **G-024:** deferring Panel 2 search.
+- **G-025:** deferring Panel 2 Name/Size/Last Updated sort.
+- **G-026:** generic stage-completion percentage masquerading as Fingerprinting progress.
 
 ---
 
-# 16. DEFINITION OF DONE FOR DESIGN GATE D0
+# 18. DESIGN / RELEASE HANDOFF TEMPLATE
 
-Planning is accepted only when the owner agrees that this document correctly defines:
+Before coding resumes:
 
-- application navigation;
-- Configuration UX;
-- source-selection UX for browser and WSL;
-- Project definition workflow;
-- Operations stages;
-- fingerprint/inventory purpose;
-- dedup/recommendation workflow;
-- target/copy/verify/promotion workflow;
-- Database Administration scope;
-- Reporting scope;
-- logical data model;
-- browser backup/export behavior;
-- release sequence;
-- test gates;
-- graveyard constraints;
-- remaining open decisions.
+**Design gate:** D0  
+**Owner decision:** ACCEPT / REVISE / REJECT  
+**Locked UX:** explicit  
+**Open design items:** explicit  
+**Optional suggestions accepted:** explicit
 
-Until then: **no code.**
+After coding resumes, every release handoff must include:
+
+**Release:**  
+**Baseline:**  
+**Scope:**  
+**Automated gates:** PASS/FAIL  
+**Deployment:** exact commit + result  
+**Verified test URL:** only after exact served build is verified  
+**Owner/device gates:** ordered sequence  
+**Known limitations:** explicit  
+**Owner result:** PASS / FAIL
+
+---
+
+# 19. DEFINITION OF DONE
+
+A release is DONE only when:
+
+- locked scope is implemented without silent descope;
+- automated gates pass;
+- mutation tests prove critical gates catch regressions;
+- repository artifact is read back and verified;
+- exact served build is verified before test handoff;
+- owner/device gate passes;
+- this governance document is updated to mark the accepted baseline;
+- no infrastructure topology change occurred without explicit approval;
+- owner result is explicitly PASS.
