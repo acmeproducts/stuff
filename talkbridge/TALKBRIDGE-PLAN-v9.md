@@ -1,35 +1,151 @@
-<!-- TALKBRIDGE-PLAN v10.18.0 -->
-# TALKBRIDGE MASTER PLAN v10.18.0
+<!-- TALKBRIDGE-PLAN v11.0.0 -->
+# TALKBRIDGE MASTER PLAN v11.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
-**Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
-Part 17 release chain. Both remain in the repo as history; where they conflict
-with this document, **this document wins.**
-
 **Owner:** Confi — sole decision-maker, runs every device gate.
 **Builder:** Claude — builds, gates, pushes, maintains this plan and the graveyard.
 
----
-
-## 0 · READ FIRST — the authority order
-
-When sources disagree, resolve in this order and stop at the first that answers:
-
-1. **The graveyard** (`TALKBRIDGE-GRAVEYARD.md`) — vetoes any approach buried there.
-2. **This plan** — sequence, scope, naming, protocol.
-3. **`TALKBRIDGE-SOT-v1.md`** — behaviour of surfaces, parts 1–14.
-4. **`TALKBRIDGE-MASTER-PLAN-v7.html`** — Part 3 element inventory, Part 14 item
-   list 1–83, Part 17 chrome/mic spec.
-5. **`TalkBridge-Build-Specification.md`** — principles P1–P8.
-6. **`AMPUTATION-INVENTORY.md`** — what was lost on 2026-07-09 and what has been
-   recovered.
-
-An owner ruling in session outranks all six, and must be written into this
-document in the same session or it does not exist.
+**v11.0.0 is a structural rewrite.** The previous plan had grown to 2305 lines
+with §6a, §6c, §6d, §6e, §6f and the backlog each appearing two or three times,
+because section inserts duplicated rather than replaced. Nothing could be told
+apart. This version has one home for every item and no duplicated sections.
 
 ---
 
-## 1 · OPERATING PARAMETERS — the things that keep this safe
+## 1 · RELEASES — feature, status
+
+**Last owner-approved build: `bridge-turn24-pre-base.html`.**
+`bridge-turn24-base.html` is deployed but has never passed a device gate.
+
+| # | Release | Feature | Status |
+|---|---|---|---|
+| 1 | turn23-pre-base | Room card and home screen | **PASSED** 2026-08-05 |
+| 2 | turn23-base | Joiner shell parity | **PASSED** 2026-08-05 |
+| 3 | turn23-pre-ship | Room lifecycle, naming, elevation | **PASSED** 2026-08-06 |
+| 4 | turn23-ship | Call and network robustness | **PASSED** 2026-08-06 |
+| 5 | turn23-post-ship | Room menu surface | **PASSED** 2026-08-07 |
+| 6 | turn24-pre-base | Read receipt delivery | **PASSED** 2026-08-07 |
+| 7 | turn24-base | PWA, push, away-record, call surface | **PAUSED** — blocked on iOS push/install, unresolved after 6 attempts |
+| 8 | turn24-ship | **NEXT — fine touches.** Scope in §2 | Proposed |
+| 9 | — | Per-room export and delete | Not started |
+| 10 | — | Smart home screen (dashboard, tutorials, FAQ) | Not started |
+| 11 | — | Phrasebook behaviour and phrase-desk import | Not started |
+| 12 | — | localStorage → IndexedDB | Not started |
+| 13 | — | Appearance and icon graphics | Not started |
+
+---
+
+## 2 · RELEASE 8 — FINE TOUCHES (next, proposed)
+
+Chosen because none of it depends on iOS push or install, so it can proceed
+while the notification prototype is resolved separately.
+
+**2.1 Flag motif.** Under-delivered against spec. Real flag graphics rather
+than emoji glyphs, and the motif applied on ask screens as specified.
+
+**2.2 Two-graphic mute icons.** Camera mute is currently a slash composited
+over the base icon. Replace with two complete icon graphics swapped in and out.
+Same for the microphone.
+
+**2.3 Bubble-header icon convention.** The header adopts the same convention
+more broadly: a microphone icon for transcribed chat, a phone icon for
+transcribed voice, a video icon for transcribed video. Long-standing.
+
+**2.4 Room menu icon set.** Three distinct controls, currently conflated:
+- **Ear** — hear phone/video audio
+- **Headset** — hear translation
+- **Mute** — phone/video ringer on/off
+
+*Notify on/off belongs in this group but is NOT built now — it waits for
+notifications to work.*
+
+**2.5 Leaving the app during a call.** Losing focus mutes the microphone; the
+back button enters picture-in-picture and keeps the connection. **Status
+unverified** — believed partly built in release 4, must be confirmed before
+being counted as done.
+
+**2.6 Picture-in-picture interaction.** Tap the video to swap to PIP; tap PIP to
+swap back to video.
+
+**2.7 PIP draggable.**
+
+**Gate:** two devices. Every icon distinguishable at a glance; PIP swap and drag
+work under a real call; call survives leaving the app with the microphone muted.
+
+---
+
+## 3 · BACKLOG — not scheduled, not picked up inside another release
+
+Moves into the chain only by owner ruling.
+
+**Deferred until notifications work (ruling 2026-08-11)**
+- **R8 · Responsive layout and collision safety.** 727 hard-coded pixel values
+  across 79 distinct values, zero media queries, 102 globals with no collision
+  check, 19 unmanaged z-index values. Slices by surface, converted end to end —
+  spacing and sizing are one job, since a named scale of fixed pixels is still
+  fixed pixels. Too risky to run while notifications are unproven.
+
+**Call and conversation**
+- **Call timer parity** — the receiver has no running timer.
+- **Typing indicator** on the compose strip.
+- **Short-phrase double transcription** — a brief utterance is transcribed twice
+  in a dual-channel room; the arbitration threshold misses the short end.
+- **Group conversations, three or more.** The relay already broadcasts to every
+  socket in a session; everything above it assumes two people — language pairs,
+  the two-column transcript, "Talking to X", call negotiation.
+
+**Room and menu**
+- **Room renames do not propagate** — *believed fixed in release 5; needs
+  confirmation before closing.*
+- **Enter should close the room config dialog.**
+- **Per-room notification alias** — an alias shown in place of the room name on
+  a lock screen; blank means silent.
+- **Clear on both sides, initiator only** — clearing is local-only today.
+
+**Phrasebook**
+- Editing the target rewrites the source; back-translation, verdict lifecycle,
+  staleness; the clarify stream.
+- **Transcript and phrase import** — built once for both paths when
+  `phrase-deck-v1` and `phrase-desk` are reconciled.
+
+**Appearance**
+- **Bubble header background colour** — *believed shipped in release 5; needs
+  confirmation.*
+- **Ear / Auto-read / Mute wording pass.**
+
+**Platform**
+- **Choosing the installed name and icon** — must happen before install, since a
+  manifest is read once and cannot change afterwards.
+- **Chrome treats the room name as a credential** — the create dialog is read as
+  a sign-up form; observed on the room name and the onboarding name field.
+- **`&debug=1` launch parameter** — diagnostics off by default.
+
+---
+
+## 4 · OPEN ITEMS TO BE RESOLVED
+
+Not features. Questions that must be answered before dependent work can start.
+
+- **Does iOS push work at all?** Being resolved by an isolated prototype at
+  `proto/push.html`. Everything in release 7 is blocked on the answer. If the
+  prototype's structure is adopted, other releases may need resequencing.
+- **Does TalkBridge's push differ from the prototype's?** The prototype always
+  shows a notification; TalkBridge returns early and shows nothing when a window
+  is visible. Apple revokes push from apps that stay silent — a strong candidate
+  for the failure.
+- **Missed-activity surface on iOS** — the home page shows no incoming or missed
+  call surface. Reported 2026-08-11, undiagnosed.
+- **Room name does not arrive from the partner on a linked device.** Reported
+  2026-08-11, undiagnosed.
+- **Transcription disconnect roughly every twelve seconds during a call.**
+  Reopen gaps are timestamped in the log; not yet read.
+- **Roughly thirty second initial delivery lag** when the recipient is on the
+  home screen.
+
+---
+
+## 5 · IMMUTABLE WORKING RULES
+
 
 These are not aspirations. Each is either mechanically enforced by the build, or
 it is a hard stop.
@@ -122,7 +238,33 @@ or variable names in prose, no self-congratulation about process.
 
 ---
 
-## 2 · FIXED INFRASTRUCTURE — never modify
+
+---
+
+## 6 · APPENDIX
+
+### 6.1 Authority order
+
+
+When sources disagree, resolve in this order and stop at the first that answers:
+
+1. **The graveyard** (`TALKBRIDGE-GRAVEYARD.md`) — vetoes any approach buried there.
+2. **This plan** — sequence, scope, naming, protocol.
+3. **`TALKBRIDGE-SOT-v1.md`** — behaviour of surfaces, parts 1–14.
+4. **`TALKBRIDGE-MASTER-PLAN-v7.html`** — Part 3 element inventory, Part 14 item
+   list 1–83, Part 17 chrome/mic spec.
+5. **`TalkBridge-Build-Specification.md`** — principles P1–P8.
+6. **`AMPUTATION-INVENTORY.md`** — what was lost on 2026-07-09 and what has been
+   recovered.
+
+An owner ruling in session outranks all six, and must be written into this
+document in the same session or it does not exist.
+
+---
+
+
+### 6.2 Fixed infrastructure — never modify
+
 
 | Thing | Value |
 |---|---|
@@ -140,7 +282,7 @@ exact commit SHA returned. Large files need the two-step fetch.
 
 ---
 
-## 3 · NAMING AND THE CHAIN
+#### Naming and the chain (detail)
 
 Stage names cycle within a turn family: `pre-base` → `base` → `pre-ship` →
 `ship` → `post-ship`, then the next turn number begins again.
@@ -155,1140 +297,26 @@ passed its own gate.
 
 ---
 
-## 4 · BASELINE AND VERIFIED STATE
 
-**Baseline: `bridge-turn24-pre-base.html`** — the only build currently deployed.
+### 6.3 Naming and the chain
 
-**RELEASE 7 IS ACTIVE — attempt 4.** Three attempts rolled back. Two real
-defects found along the way that corrupt test evidence and must be remediated
-*inside* release 7, not as a separate release: rollback-by-deletion 404s every
-invite link and installed `start_url` (fix: overwrite, never delete), and there
-is no staleness detection so a device can run old code undetected. Both are
-graveyard 2.5. They are remediation within this release, not a reason to defer
-it.
 
-Passed to date: room card and home screen · joiner shell · room lifecycle and
-elevation · call and network robustness · room menu surface · read receipt
-delivery.
+Stage names cycle within a turn family: `pre-base` → `base` → `pre-ship` →
+`ship` → `post-ship`, then the next turn number begins again.
 
-**RELEASE 7 — ROLLED BACK 2026-08-10. Not started, not in progress. To be
-delivered fresh.** It passed its gate once, was then patched forward three
-times on the already-passed file — forbidden regardless of fix size — and has
-been rolled back per graveyard 2.1. `bridge-turn24-base.html` no longer exists
-in the repo. There is nothing to resume; this is a from-scratch build against
-`bridge-turn24-pre-base.html`, folding in everything already known rather than
-re-discovering it:
+**Every stage name is a real, running, gated release output.** It is not a phase
+inside a release, and not a reference-only donor file. One release produces one
+output file. The names carry no meaning beyond position — they exist so the
+chain reads in order and so any build can be reached by editing the address bar.
 
-- PWA shell, push subscription, away-record home-screen entries, call surface —
-  all as originally scoped (§6d).
-- Ribbon: side zones must grow equally or the centre drifts by the width of the
-  room name.
-- Missed-activity counting: count a message as missed whenever its room is not
-  the one on screen, not only when the tab is hidden (`document.hidden` alone
-  misses "home screen open, app visible, wrong room"). Root cause proven; a
-  double-count edge case must be closed and mutation-tested before shipping.
-- Fix the `flags.gif` 404 (falls back to `.png` already, just noisy) and add a
-  real favicon.
-- Manifest and iOS meta tags belong in the document head at build time, not
-  injected by script after load — script injection is why Android never offered
-  install.
-- iOS must be tested in Safari, not Chrome. Chrome on iOS cannot install a PWA
-  or receive push; that is Apple's platform rule, not a defect.
-
-Gate this as one release, on real hardware, iOS via Safari specifically.
+A release is built only from its named input, and only after that input has
+passed its own gate.
 
 ---
 
-## 6 · RELEASE SCOPE — turn23 base, pre-ship, ship, post-ship
 
-### 6a · turn23-base — RELAY STABILITY · invisible
+### 6.4 Build system
 
-- Instrument the whole relay path before changing anything: connect, close code, close reason, retry interval and backoff, how many sockets are open at once and to which rooms, and whether a close belongs to the current room or a background subscription.
-- Read the log from a two-device session. Do not reason about the cause first.
-- Fix what the log shows. The observed behaviour is a close with code 1006 every ten to thirty seconds on both sides, on new and existing rooms, with messages sent, re-sent and never delivered.
-- Known suspect, to be confirmed or ruled out by the log, not assumed: an initiator holds one live room socket plus one background socket per other room, so eight rooms means eight sockets against one relay from one client.
-- Nothing else ships in this release. No UI, no features.
-- **Gate:** two devices, one room, ten minutes with no drop, and a message delivered in both directions.
-
-### 6b · turn23-pre-ship — JOINER SHELL · visible
-
-The joiner gets the shell. Nothing about elevation is in this release.
-
-- Remove the session lockout that refuses to open the room list when the app was opened from an invite link.
-- Restore the room-switcher control in the ribbon for a joiner.
-- The joiner reaches the full shell: room list, room cards, drawer, phrasebook, transcript.
-- **No create control.** Gated on credentials being present in this device's own storage — not on role, not on a session flag. A joiner holds invite credentials in memory only, so nothing appears, and no code decides that.
-- The gating function ships in this release. Nothing may reference it through a type check from another part.
-- Book direction from the joiner's own perspective, new room or re-entered.
-- Waiting counts and home cards work from the joiner side.
-- Declare the relay subscription change explicitly: a joiner with N rooms now opens N background sockets where it previously opened one. Whether that is acceptable is answered by release 2's work, and if it is not, the joiner subscribes only to its active room.
-- **Gate:** two devices. The joiner reaches its room list, opens the drawer and the phrasebook, sees all its rooms, and has no plus control. Chat flows both ways.
-
-### 6c · turn23-ship — ROOM LIFECYCLE, NAMING AND ELEVATION · visible
-
-The credential mechanism, end to end, now observable in the shell release 3 built.
-
-**Naming**
-- Room name as a real field in the create dialog, set by the initiator at creation.
-- The name travels with the invite so both sides call the room the same thing.
-- Only the creator may rename. Long names truncate with ellipsis everywhere and never wrap.
-- Auto-read defaults off.
-
-**Granting**
-- Grant toggle in the create dialog with a date picker defaulting to 30 days.
-- A granting room produces a third link type carrying a grant marker and the expiry. The credentials were always in the invite; a grant makes them persistent and gives them a lifetime.
-- Whichever share control the owner actually uses must emit the granting link for a granting room.
-- Opening a grant link writes the credentials into the receiving device's own storage with the expiry attached. That write is what confers capability. No flag is set, no role is rewritten.
-- A device holding valid credentials can grant further.
-
-**Losing it**
-- Expiry deletes the credentials. Checked at boot and on room entry, so a device closed past the date finds out the moment it opens.
-- The create control disappears, transcription stops and translation stops as consequences of the deletion — none of it separately coded.
-- Soft delete revokes the grant issued from that room; restore reinstates it. A revocation is matched against the room that granted it.
-- An initiator's own keys are never touched by any of this.
-
-**Notices**
-- Soft delete writes "left the chat" to the partner's transcript and locks sending.
-- Restore writes "rejoined", and that entry — not the restoration — releases the lock.
-- The compose strip shows the lock rather than failing silently.
-
-**Where granted credentials live — owner ruling 2026-08-05**
-
-Granted credentials are stored under their **own keys**, never over the device's
-own. A device may already be an initiator with its own credentials; if a grant
-were written over them, a later revoke or expiry would delete keys that were
-never granted, and the device would silently lose capability it always had.
-
-- Own credentials: the existing keys, written only by the keys screen.
-- Granted credentials: separate keys, written only by opening a grant link.
-- Reads fall back — own first, granted second — so a device with both keeps
-  working on its own after a grant ends.
-- Revoke and expiry delete **only** the granted keys.
-- The create control is present if either set is valid.
-
-**Forbidden here**
-- Permission flags, role checks, read-only modes.
-- Any new credential distribution.
-
-- **Gate:** two devices. Named room with grant on; join from the second device; name matches on both sides; create control present after a grant and absent after a plain join. Then force an expiry, delete the room, and restore it.
-
-### 6d · turn23-post-ship — CALL AND NETWORK ROBUSTNESS · invisible
-
-Everything that keeps a live session alive, in one release rather than scattered.
-
-- Mute by track replacement, so mute is total — the microphone track leaves the connection rather than being flagged silent.
-- Force reconnect on visibility and focus return.
-- Proactive relay reconnect on visibility return, rather than waiting for a suspended socket's close event to eventually arrive. **Moved here from the plumbing release** — it is network robustness, not plumbing.
-- Diagnose the transcription disconnect that recurs roughly every twelve seconds during a call. Instrument first.
-- Diagnose the roughly thirty second initial delivery lag when the recipient is on the home screen. Instrument first.
-- **Gate:** two devices, a call surviving a network interruption on one side, and a backgrounded device receiving promptly on return.
-
-### Verified, and therefore NOT in any release
-
-Checked directly against `bridge-turn23-pre-base.html` rather than carried forward from an older list:
-
-- **Phrasebook version is not bumped on entry.** The version is read from the cache and only written on write-back. A staleness check already skips the fetch entirely when the local copy is already at the highest version. Closed.
-- **Enter in the source field keeps the caret.** The commit records which field it came from and restores focus with the caret collapsed to the end after the card redraws. Closed.
-- **Write-back before pull** is present. Closed.
-
-What remains for the plumbing release is therefore smaller than previously stated: it is now whatever release 2 and release 5 instrumentation turns up outside their own surfaces, and nothing else. If that is empty, the release is dropped rather than padded.
-
-## 6a · RELEASE 1 — the room card, per SOT Part 4
-
-**Three rows, two columns.** Left column left-justified, right column
-right-justified.
-
-| | Left | Right |
-|---|---|---|
-| Row 1 | Room name, **bold**, truncates with ellipsis | Delete |
-| Row 2 | Me / Partner, not bold, truncates with ellipsis | Time since last contact |
-| Row 3 | Chat, phone and video icons, each with its own count badge | Language-pair flags |
-
-**Truncation is not interactive.** Tapping truncated text opens the room, exactly
-like tapping anywhere else on the card. This supersedes every earlier
-"tap-to-reveal popover" description, including the one in v8.5.0 and in this
-plan before v9.0.1.
-
-**Elapsed time** is mixed-mode by magnitude: minutes, then hours, then days.
-
-**Flags** read own-language-first from each viewer's own perspective — always
-mine then theirs, never a fixed absolute order. Real flag glyphs.
-
-**Three separate activity counts.** A missed chat, a missed voice call and a
-missed video call are three distinct, separately tracked and separately
-displayed badges.
-
-**Delete is a soft delete**, recoverable, and carries the notice and send-lock
-behaviour built in release 3.
-
----
-
-## 6e · RELEASE 6 IN FULL — the room menu surface
-
-Everything in this release lives on one surface: the room drawer. That is why
-these items travel together — the tabs are being rearranged, so anything that
-belongs on them is done now rather than touching the surface twice.
-
-### Tab restructure
-
-- **Share tab is removed.** Its two items — *Share room* and *Link a device* —
-  move to the **bottom of General**, which then grows vertically to hold them.
-- **Debug tab is renamed Manage.** "Debug" describes where the controls came
-  from, not what they do.
-- Three tabs remain: **General · Customize · Manage.**
-
-### Manage tab — the full transcript lifecycle
-
-Today Manage holds two exports and nothing else, which is half a lifecycle.
-
-- **Export transcript** — existing.
-- **Import transcript** — new. Restores an exported transcript into the room.
-- **Clear transcript** — new. Empties this room's transcript.
-- **Export debug log** — existing.
-- **Clear debug log** — new.
-
-Delete stays on the room card, where it already works, and is not duplicated
-here. Export before delete is offered from the delete flow, not from Manage.
-
-### Room name parity
-
-Person names already propagate in both directions and are reflected
-immediately. Room names do not — either side can change one and the other side
-never sees it, which is the disconnect being fixed.
-
-**Approach: parity.** Both sides may rename; the change propagates over the same
-relay path the person-name change already uses; last write wins; a system pill
-records who renamed it and to what. See §6f for why, and for the alternative.
-
-### Two transcription-lifecycle fixes
-
-Carried in because they are lifecycle, and the log from the last gate identified
-both precisely.
-
-- **Stop transcription on mute; start it on unmute.** Every `1011` close in the
-  last session happened while muted, roughly every fourteen seconds, and none
-  happened while the microphone was live. The service closes a socket that stops
-  receiving audio; mute is now total, so the socket starves and the app reopens
-  it forever. Holding an open socket fed nothing is the fault. Mute is total —
-  transcription should stop with it.
-- **Stop reporting network failures as credential failures.** Three
-  `dg_credential_failure` entries in the last session were `1006` closes during
-  a network interruption that had already dropped the call. Any socket that
-  closes before opening is currently blamed on credentials, which is wrong
-  whenever the network is down, and it puts a false diagnosis in the log.
-
-### Gate
-
-Two devices. Rename the room from each side and confirm both see it. Export a
-transcript, clear it, import it back. Mute during a call and confirm the
-transcription socket stops rather than churning.
-
----
-
-## 6f · OPEN QUESTIONS — release 6
-
-**These need answers before the release is built.**
-
-1. **Room name: parity or initiator-only?**
-   The owner's position is parity, and I agree. Two reasons beyond ease of
-   explanation. First, the mechanism already exists and is proven — person names
-   use it today, so parity is the smaller change and read-only is the larger
-   one. Second, read-only would introduce a second capability model sitting
-   beside the credential model, where a joiner is restricted by role rather than
-   by what credentials they hold; that is the thing this project has
-   deliberately avoided everywhere else. **Recommendation: parity.**
-
-2. **Import — merge or replace?**
-   Replacing loses anything said since the export. Merging needs a rule for
-   entries that exist on both sides. **Recommendation: merge by entry
-   identifier, keeping the existing entry on collision, so an import can only
-   ever add.** Needs a ruling.
-
-3. **Import — foreign transcripts?**
-   Should a transcript exported from one room be importable into a different
-   room, or is import restricted to the room it came from? **Recommendation:
-   restrict to the same room**, with a clear message otherwise. Needs a ruling.
-
-4. **Clear transcript — recoverable?**
-   Is clearing final, or does it go somewhere recoverable the way room delete
-   does? **Recommendation: offer an export first**, then clear finally. Needs a
-   ruling.
-
-5. **Does clearing a transcript affect the phrasebook?**
-   They are separate stores and the phrasebook lives on GitHub.
-   **Recommendation: no — clear touches the transcript only.** Confirm.
-
-6. **What does an export contain?**
-   Typed and spoken lines both, in both languages, is assumed. Open: whether
-   attachments are included or referenced, and whether system pills are
-   included.
-
----
-
-## R8 · RESPONSIVE LAYOUT AND COLLISION SAFETY — BACKLOG, NOT SCHEDULED
-
-**Owner ruling 2026-08-11: deferred until notifications work.** Not started, not
-approved, not to be picked up as part of another release. Revisited only once
-iOS push and install are proven.
-
-**Why.** An independent assessment of `bridge-turn24-base.html` found two
-structural conditions that explain a large share of this session's failures:
-
-- **727 hard-coded pixel values, 79 distinct, and zero media queries.** Every
-  ribbon failure was a number computed correct for one screen width and wrong
-  at another — a percentage resolving against the wrong containing block, a
-  cluster centred where the microphone should have been, a reserve sized for
-  390px that collapsed at 360px. Six separate diagnoses, one absent
-  abstraction.
-- **102 globals in a single namespace, with nothing checking for collisions.**
-  The contract gate verifies what each part *declares*, not whether two parts
-  declare the same name. `.ribbon` hitting two elements, `renderHome` wrapped
-  by four parts, a function calling into a part that had been rolled back —
-  all the same condition.
-
-Also found: **19 distinct z-index values across 22 declarations**, unmanaged.
-
-**Sequencing note (owner ruling).** Spacing and sizing are not separate jobs.
-A named scale of fixed pixels is still fixed pixels. Every value in a converted
-surface becomes viewport-derived — spacing, sizing and positioning together —
-or the halves disagree in the middle, which is how the ribbon kept breaking.
-Slices are therefore **by surface, converted end to end**, never by property
-type.
-
-### R8.0 — Collision gate (do first)
-A build-time check failing any build where two parts declare the same top-level
-name. Roughly five lines in `build/contract.mjs`. No device test: the gate
-either catches a deliberately planted collision or it does not. Protects every
-slice after it.
-
-### R8.1 — Ribbon, complete
-23 px declarations. The most broken surface and the most instrumented, so a
-regression is visible immediately. Converts sizing, spacing and positioning to
-viewport-derived units in one pass.
-
-### R8.2 — Transcript and bubbles
-28 px declarations. Includes the font sizes already flagged as unreadable on
-iPhone, so the owner's eyes are the gate.
-
-### R8.3 — Drawer and modals
-56 px declarations — the largest surface. Includes the Customize tab density
-redesign already requested (colour/background/size on one row, Me/Partner side
-by side, roughly 50% savings).
-
-### R8.4 — Room cards and home screen
-48 px declarations.
-
-### R8.5 — Stacking order
-19 z-index values reduced to a named scale.
-
-**Gate for each slice:** the converted surface renders correctly at 320, 360,
-390 and 428px, and on the owner's real devices. No slice ships while any test
-is red (method rule 6).
-
-**Not in scope.** Anything touching iOS push or install — that is blocked on
-the separate prototype at `proto/push.html`, and Release 7 stays paused until
-that POC resolves. If the prototype's structure is adopted, R8.1–R8.4 may need
-resequencing, so this plan is reviewed again at that point.
-
----
-
-## 6c · RELEASE 6 — ROOM MENU SURFACE · PASSED 2026-08-07 (attempt 5)
-
-Attempts 1 and 2 are in the graveyard. Everything below carries forward except
-the room name, which is redesigned, and localization, which is removed.
-
-### The room name — ONE field
-
-- **There is exactly one room name.** The base's "room title (your list)" and the
-  shared room name are the same idea and collapse into a single field. Two
-  fields holding one concept is what failed attempt 2, and no propagation logic
-  fixes it.
-- **Required at creation.** A room cannot be created without a name.
-- **Cannot be empty afterwards.** Opening the room menu with a blank name is not
-  a reachable state; clearing it is refused rather than accepted.
-- **Either side may rename. Last write wins.**
-- **Not localized in this release.** Ruled onto the backlog. The name shows as
-  written, to both sides.
-
-### A rename is an event in the conversation
-
-The app already has a vocabulary for this — the system entry written when
-someone leaves the chat, or when a call is missed. A rename is the same kind of
-event and reads the same way, on both sides:
-
-> Mike changed the room from *weekend planning* to *next weekend planning*
-
-Whoever renamed it is named. Both the old and the new name appear, because "the
-name changed" without saying from what is not information. If the partner is
-Joe and Joe renames it, both sides read that Joe did.
-
-Without this a name silently becomes something else and nobody knows who did it.
-
-### QR codes
-
-- Both QR codes — share room, and link a device — are **smaller**. They are
-  currently far larger than a phone camera needs.
-- The drawer **extends far enough to show a QR without scrolling.** The single
-  moment a QR matters is when it is being held up to another phone, and having
-  to scroll to keep it in frame defeats it. True for both.
-
-### Carried forward unchanged from attempt 2
-
-- Transcription stops on mute and resumes on unmute; network drops are no longer
-  reported as credential failures.
-- Share's two items at the bottom of General; Debug renamed Manage.
-- Manage: export in two formats, clear transcript (local only), diagnostics with
-  copy and download, clear debug log.
-- Status detail popup on tapping a receipt — Sent, Received, Read, blank where
-  not reached.
-- Room name popup on tapping the ribbon name.
-- Bubble header background colour in the customize tab.
-- Enter commits and closes.
-
-## 6a · RELEASE 1 — the room card, per SOT Part 4
-
-**Three rows, two columns.** Left column left-justified, right column
-right-justified.
-
-| | Left | Right |
-|---|---|---|
-| Row 1 | Room name, **bold**, truncates with ellipsis | Delete |
-| Row 2 | Me / Partner, not bold, truncates with ellipsis | Time since last contact |
-| Row 3 | Chat, phone and video icons, each with its own count badge | Language-pair flags |
-
-**Truncation is not interactive.** Tapping truncated text opens the room, exactly
-like tapping anywhere else on the card. This supersedes every earlier
-"tap-to-reveal popover" description, including the one in v8.5.0 and in this
-plan before v9.0.1.
-
-**Elapsed time** is mixed-mode by magnitude: minutes, then hours, then days.
-
-**Flags** read own-language-first from each viewer's own perspective — always
-mine then theirs, never a fixed absolute order. Real flag glyphs.
-
-**Three separate activity counts.** A missed chat, a missed voice call and a
-missed video call are three distinct, separately tracked and separately
-displayed badges.
-
-**Delete is a soft delete**, recoverable, and carries the notice and send-lock
-behaviour built in release 3.
-
----
-
-## 6e · RELEASE 6 IN FULL — the room menu surface
-
-Everything in this release lives on one surface: the room drawer. That is why
-these items travel together — the tabs are being rearranged, so anything that
-belongs on them is done now rather than touching the surface twice.
-
-### Tab restructure
-
-- **Share tab is removed.** Its two items — *Share room* and *Link a device* —
-  move to the **bottom of General**, which then grows vertically to hold them.
-- **Debug tab is renamed Manage.** "Debug" describes where the controls came
-  from, not what they do.
-- Three tabs remain: **General · Customize · Manage.**
-
-### Manage tab — the full transcript lifecycle
-
-Today Manage holds two exports and nothing else, which is half a lifecycle.
-
-- **Export transcript** — existing.
-- **Import transcript** — new. Restores an exported transcript into the room.
-- **Clear transcript** — new. Empties this room's transcript.
-- **Export debug log** — existing.
-- **Clear debug log** — new.
-
-Delete stays on the room card, where it already works, and is not duplicated
-here. Export before delete is offered from the delete flow, not from Manage.
-
-### Room name parity
-
-Person names already propagate in both directions and are reflected
-immediately. Room names do not — either side can change one and the other side
-never sees it, which is the disconnect being fixed.
-
-**Approach: parity.** Both sides may rename; the change propagates over the same
-relay path the person-name change already uses; last write wins; a system pill
-records who renamed it and to what. See §6f for why, and for the alternative.
-
-### Two transcription-lifecycle fixes
-
-Carried in because they are lifecycle, and the log from the last gate identified
-both precisely.
-
-- **Stop transcription on mute; start it on unmute.** Every `1011` close in the
-  last session happened while muted, roughly every fourteen seconds, and none
-  happened while the microphone was live. The service closes a socket that stops
-  receiving audio; mute is now total, so the socket starves and the app reopens
-  it forever. Holding an open socket fed nothing is the fault. Mute is total —
-  transcription should stop with it.
-- **Stop reporting network failures as credential failures.** Three
-  `dg_credential_failure` entries in the last session were `1006` closes during
-  a network interruption that had already dropped the call. Any socket that
-  closes before opening is currently blamed on credentials, which is wrong
-  whenever the network is down, and it puts a false diagnosis in the log.
-
-### Gate
-
-Two devices. Rename the room from each side and confirm both see it. Export a
-transcript, clear it, import it back. Mute during a call and confirm the
-transcription socket stops rather than churning.
-
----
-
-## 6f · OPEN QUESTIONS — release 6
-
-**These need answers before the release is built.**
-
-1. **Room name: parity or initiator-only?**
-   The owner's position is parity, and I agree. Two reasons beyond ease of
-   explanation. First, the mechanism already exists and is proven — person names
-   use it today, so parity is the smaller change and read-only is the larger
-   one. Second, read-only would introduce a second capability model sitting
-   beside the credential model, where a joiner is restricted by role rather than
-   by what credentials they hold; that is the thing this project has
-   deliberately avoided everywhere else. **Recommendation: parity.**
-
-2. **Import — merge or replace?**
-   Replacing loses anything said since the export. Merging needs a rule for
-   entries that exist on both sides. **Recommendation: merge by entry
-   identifier, keeping the existing entry on collision, so an import can only
-   ever add.** Needs a ruling.
-
-3. **Import — foreign transcripts?**
-   Should a transcript exported from one room be importable into a different
-   room, or is import restricted to the room it came from? **Recommendation:
-   restrict to the same room**, with a clear message otherwise. Needs a ruling.
-
-4. **Clear transcript — recoverable?**
-   Is clearing final, or does it go somewhere recoverable the way room delete
-   does? **Recommendation: offer an export first**, then clear finally. Needs a
-   ruling.
-
-5. **Does clearing a transcript affect the phrasebook?**
-   They are separate stores and the phrasebook lives on GitHub.
-   **Recommendation: no — clear touches the transcript only.** Confirm.
-
-6. **What does an export contain?**
-   Typed and spoken lines both, in both languages, is assumed. Open: whether
-   attachments are included or referenced, and whether system pills are
-   included.
-
----
-
-## 6c · RELEASE 6 — ROOM MENU SURFACE
-
-One surface: the room drawer, plus the transcription lifecycle faults the last
-gate exposed. Nothing outside the drawer changes visually.
-
-### Transcription lifecycle — from the turn23-ship log
-
-- **Stop transcription on mute; start it again on unmute.** Every `1011` close
-  in the gate log happened while muted, roughly every fourteen seconds, and none
-  while the microphone was live. The service closes a socket it is not being fed,
-  and mute now genuinely stops the audio — so the app was holding an open socket
-  starved of input and reopening it for the rest of the call. Mute is total, so
-  transcription should stop, not idle.
-- **Stop reporting network drops as credential failures.** Three
-  `dg_credential_failure` entries during the gate were `1006` closes while the
-  network was down. Any socket closing before it opens is currently blamed on
-  credentials, which is wrong and makes the log lie during exactly the trouble
-  it should describe.
-
-### Drawer restructure
-
-- The two items on the **Share** tab move to the bottom of **General**, so
-  General has room to grow and the share controls stop occupying a tab of their
-  own.
-- The **Debug** tab is renamed **Manage**. It stops being a developer corner and
-  becomes where a person manages what the room holds.
-
-### Manage tab — the full transcript lifecycle
-
-- Export transcript, in **two formats**: a readable one, and a structured one
-  that a future import will read.
-- Clear transcript — **local only**.
-- Diagnostics overlay with copy and download, carried over unchanged from the
-  Debug tab.
-- Clear debug log.
-
-### Room name parity
-
-Both sides may rename the room, and the change propagates immediately, exactly
-as person names already do. Parity carries the day: a communications product
-where one party can rename a shared thing and the other cannot is harder to
-explain than one where both can, and the person-name path already works this way
-and is understood.
-
-This closes the standing backlog item that renames do not propagate.
-
-### Also in scope, because it is this surface
-
-- Enter on the person name or the room name in the room config dialog commits
-  and closes the dialog.
-
-### Rulings — closed 2026-08-06
-
-1. **Import is deferred.** Merge-or-replace and language-mismatch behaviour are
-   unanswered, so import moves to the backlog. Export ships without it.
-2. **Export is two formats** — a readable one and a structured one. The
-   structured export is what a future import will read.
-3. **Clear is local only.** Clearing both sides is an initiator-only power and
-   is deferred to the backlog as its own decision.
-4. **Last write wins** on a room rename, matching how the person name already
-   behaves.
-5. **Manage keeps the diagnostics overlay**, with copy and download, exactly as
-   Debug had it. *Direction of travel, not this release:* diagnostics eventually
-   move behind a `&debug=1` launch parameter and are off by default.
-
-### Also in scope, by ruling 2026-08-06
-
-**Status detail popup**, on tapping a receipt dot or check. It shows three
-lines — Sent, Received, Read — and leaves the ones not yet reached blank rather
-than hiding them, so the progression is visible at a glance. **It appears just
-above the message it belongs to**, not pinned to the top of the screen: a popup
-that opens somewhere other than what was tapped is not how anything modern
-behaves, and it breaks the connection between the tap and the answer.
-
-**Room name popup**, on a single tap of the name in the transcript's top ribbon.
-The ribbon shows the person being spoken with; the popup shows the room name
-currently assigned.
-
-**The room name is localized, and this is not cosmetic.** The name carries the
-context of the conversation — it is what tells someone which thread they are in
-— so it has to be readable by each side in their own language, exactly like
-every message. A name set in English must appear in Chinese to the Chinese
-speaker. Without that it is decoration for one side and noise for the other.
-
-- The name is stored with the language it was written in, and translated for
-  display to a viewer whose language differs.
-- **The popup shows both** — the name as it was written, and the translation —
-  because both carry context. The original is what the other person actually
-  called it, which is worth seeing; the translation is what it means. Showing
-  only one throws away half the information the pair holds, which is the same
-  reason every message shows both.
-- When the viewer's language is the language it was written in, there is only
-  one line to show.
-- Translated on receipt and cached, not on every render — a rename is rare and a
-  render is constant.
-- Rename remains last-write-wins in both directions; the localization sits on
-  top of that and does not change it.
-- If the translation fails, the original shows rather than a blank. A name in
-  the wrong language is still a handle; nothing is not.
-
----
-
-## 6d · RELEASE 7 — PWA, PUSH, HOME SCREEN, CALL SURFACE
-
-### PWA foundation
-Manifest, service worker registered from the file, install on Android,
-home-screen install on iOS. Ships at the front of this release because the
-service worker is what receives a push — push cannot exist without it.
-
-### OS push
-Locked and backgrounded push only: relay change, push subscription, notification
-tap routing into the right room. The only release that modifies the relay.
-
-### The home screen becomes the *while you were away* summary
-
-This is the organising idea of the release, not a feature within it. **The home
-screen is the record of everything that happened in rooms you were not
-watching** — and anything that qualifies for that record also qualifies as a
-notification, because they answer the same question.
-
-It already surfaces waiting chats and missed calls. A name change and a room
-rename are the same kind of event and belong there too: something happened in a
-room you were not looking at, you should see it, and you should be able to tap
-straight into that room.
-
-- *Mike is now Miguel* — with date and time, tappable, opens the room.
-- *Mike changed the room from movies to camping* — with date and time, tappable,
-  opens the room.
-- Same card treatment and same dismissal rules as the existing waiting entries.
-
-### The left panel loses its navigation card
-
-The card that says TalkBridge / About / start screen is removed. **A single tap
-on the clock in the panel's top ribbon does exactly what it did** — the clock is
-already there and already unused, so the card is redundant weight.
-
-*This absorbs the item previously scheduled for release 10; the two are the same
-change and are done once, here, where the home screen is already being touched.*
-
-### Update propagation — RESOLVED 2026-08-07, ahead of the rest of this release
-
-Fixed and device-passed as `bridge-turn24-pre-base.html`. Renames, name changes
-and read receipts are all prompt.
-
-**The cause, proven in a two-instance harness before anything was written:** read
-receipts were marked as sent *before* the send was attempted. Entering a room
-renders the transcript, which is what triggers the receipt — and entering a room
-happens before the relay socket is open. The send failed, the messages were
-already flagged, and nothing retried them. The flag is saved with the
-transcript, so those receipts were lost permanently, which is why re-entering
-the room never settled them.
-
-**The fix:** nothing is flagged until the send succeeds, and any inbound relay
-traffic flushes whatever is still outstanding — inbound traffic being a more
-reliable signal that the socket is live than the socket's own events.
-
-*Note: messages flagged before this fix stay flagged, because the flag was
-persisted. Those specific old messages will not settle.*
-
-### What remains of update propagation
-
-A rename arriving late is a symptom, and the owner has narrowed it: **the
-notification does not appear on the receiving side when the room is entered, or
-when focus returns to it.** Sometimes a rename lands instantly; otherwise it
-appears to skip, and what it is actually doing is waiting for something that
-never re-runs. Entering a room and returning focus to one are the two moments
-that must reconcile whatever arrived while nobody was looking, and they do not.
-
-Read receipts are the same fault seen from another angle:
-
-- A message is sent and demonstrably read, and the dot in the bubble header does
-  not turn from grey to green — or turns, and re-entering the room never
-  registers the read.
-- The lag is well over a minute, sometimes apparently indefinite.
-- It is not a connectivity failure: in the same session a message crossed, a
-  rename crossed, both transcripts updated correctly — and the receipt still did
-  not settle.
-
-**Instrument the whole path first** — when a read is detected, when it is sent,
-when it arrives, when it is applied, and what runs on entering a room and on
-focus returning. Do not reason about the cause. Fix what the log shows.
-
-What remains here is only the **away** case, and it is push's job rather than a
-replay's: an event that happens while the app is closed is delivered by the
-service worker, which raises the notification and writes the home-screen entry.
-Reconciliation on return is the fallback for when push genuinely could not
-deliver — permission declined, iOS without a home-screen install, device offline
-throughout. If that fallback is carrying the load, push is not working.
-
-*Carry into this: the lifecycle signals from the elevation release —* left the
-chat, rejoined, grant revoke, grant restore *— are new relay message types and,
-on the evidence that a new type never crossed, are probably not arriving either.
-They were only ever confirmed as local behaviour. Verify them across two devices
-and move them onto the system-pill carrier if they are not crossing.*
-
-### Call surface
-Ribbon strip transformation — microphone fixed at centre, phone and video beside
-it, hang-up fixed beside video. Voice shows microphone and hang-up only; video
-shows microphone, camera and hang-up. Call timer visible to the receiver as well
-as the caller.
-
----
-
-## 6b · BACKLOG — none. Everything is scheduled.
-
-- **Missed-activity double-count.** A message arriving while the app is hidden
-  is counted twice. Pre-existing, predates release 7, unrelated to it. Has been
-  carried as "known/open/untouched" in the graveyard across many attempts
-  without ever being scheduled — recorded here so it is not lost again.
-  Reproduced by the standing test `roomcard › a message arriving with the app
-  hidden counts once, not twice`, which currently fails by design.
-
-Every item previously parked here now has a release number in §5. The backlog
-exists as a concept only for things not yet raised.
-
-**Scheduled — added 2026-08-08, awaiting a release number:**
-
-- **Group conversations — three or more.** Discovered by accident: a phone call
-  and chat ran between three devices at once, because the relay broadcasts to
-  every socket in a session rather than pairing two. The transport already
-  supports it. What does not is everything built on the assumption of two
-  people: language pairs, the two-column transcript, *Talking to X*, the room
-  card's own-first flags, and call negotiation, which assumes one offer and one
-  answer. A large piece of work, and a real product direction rather than a
-  defect.
-- **Chrome treats the room name as a credential.** Also observed asking to save
-  the name entered during onboarding, so the fault is not limited to the create
-  dialog. Creating a room offers the
-  password autofill popup for the room name field, then offers to save it as a
-  password. That means a password manager stores a room name as a credential,
-  and may autofill a saved password into the field — naming a room after
-  someone's password. The create dialog as a whole is being read as a sign-up
-  form, so the fix is to mark the form and its fields with a real non-credential
-  purpose; `autocomplete="off"` alone is widely ignored. The person-name field
-  is likely read as a username for the same reason. *Observed in the create
-  dialog; whether the drawer's room-name and person-name fields do the same is
-  unconfirmed — different form, possibly different behaviour.*
-
-- **Per-room notification alias.** A room may carry an alias used in its place on
-  a lock screen — "haircut 3:30" for a room named *pickleball game*. Deliberate
-  misdirection rather than omission, for screens other people can see. **Blank
-  means silent**: a room with no alias raises no notification, which needs no
-  separate toggle. Needs a field, a home for it, a ruling on whether it is
-  private to the device that set it or shared, and its interaction with muting —
-  a release's worth of surface, not a bolt-on.
-- **Choosing the installed name and icon.** Both are read from the manifest at
-  install and cannot be changed afterwards on either platform. A choice is
-  therefore made *before* installing: ship a small set of prebuilt manifests and
-  point the page at the chosen one before the install prompt fires. Note the
-  browser tab's favicon is a different thing and can already change at runtime.
-
-**Scheduled — added 2026-08-06, awaiting a release number:**
-
-- **Localization, as a family.** The room name, the participant names, the room
-  creation dialog and the room menu itself. Everything a person reads should
-  reach them in their own language, which is the whole premise of the product
-  and the reason the interface leans on icons wherever it can. Room name
-  localization was attempted in release 6 and reached only one side; it is
-  withdrawn and rejoins the family rather than being chased alone.
-- **`&debug=1` launch parameter.** Diagnostics off by default, on only when
-  asked for. Consistent with the privacy-forward promise: a person who never
-  asks for a debug log should not be accumulating one.
-
-**Out of scope by ruling — not scheduled, not coming back:**
-
-- Goodbye screen. Ruled out 2026-08-06.
-- Phrasebook import-phrases modal as a standalone surface. Ruled out
-  2026-08-06; import itself is release 13, built once for both paths.
-
-**Direction of travel, not a release:** diagnostics eventually move behind a
-`&debug=1` launch parameter and are off by default.
-
----
-
-## 6c · RELEASE 6 — ROOM MENU SURFACE
-
-One surface: the room drawer, plus the transcription lifecycle faults the last
-gate exposed. Nothing outside the drawer changes visually.
-
-### Transcription lifecycle — from the turn23-ship log
-
-- **Stop transcription on mute; start it again on unmute.** Every `1011` close
-  in the gate log happened while muted, roughly every fourteen seconds, and none
-  while the microphone was live. The service closes a socket it is not being fed,
-  and mute now genuinely stops the audio — so the app was holding an open socket
-  starved of input and reopening it for the rest of the call. Mute is total, so
-  transcription should stop, not idle.
-- **Stop reporting network drops as credential failures.** Three
-  `dg_credential_failure` entries during the gate were `1006` closes while the
-  network was down. Any socket closing before it opens is currently blamed on
-  credentials, which is wrong and makes the log lie during exactly the trouble
-  it should describe.
-
-### Drawer restructure
-
-- The two items on the **Share** tab move to the bottom of **General**, so
-  General has room to grow and the share controls stop occupying a tab of their
-  own.
-- The **Debug** tab is renamed **Manage**. It stops being a developer corner and
-  becomes where a person manages what the room holds.
-
-### Manage tab — the full transcript lifecycle
-
-- Export transcript, in **two formats**: a readable one, and a structured one
-  that a future import will read.
-- Clear transcript — **local only**.
-- Diagnostics overlay with copy and download, carried over unchanged from the
-  Debug tab.
-- Clear debug log.
-
-### Room name parity
-
-Both sides may rename the room, and the change propagates immediately, exactly
-as person names already do. Parity carries the day: a communications product
-where one party can rename a shared thing and the other cannot is harder to
-explain than one where both can, and the person-name path already works this way
-and is understood.
-
-This closes the standing backlog item that renames do not propagate.
-
-### Also in scope, because it is this surface
-
-- Enter on the person name or the room name in the room config dialog commits
-  and closes the dialog.
-
-### Rulings — closed 2026-08-06
-
-1. **Import is deferred.** Merge-or-replace and language-mismatch behaviour are
-   unanswered, so import moves to the backlog. Export ships without it.
-2. **Export is two formats** — a readable one and a structured one. The
-   structured export is what a future import will read.
-3. **Clear is local only.** Clearing both sides is an initiator-only power and
-   is deferred to the backlog as its own decision.
-4. **Last write wins** on a room rename, matching how the person name already
-   behaves.
-5. **Manage keeps the diagnostics overlay**, with copy and download, exactly as
-   Debug had it. *Direction of travel, not this release:* diagnostics eventually
-   move behind a `&debug=1` launch parameter and are off by default.
-
-### Also in scope, by ruling 2026-08-06
-
-**Status detail popup**, on tapping a receipt dot or check. It shows three
-lines — Sent, Received, Read — and leaves the ones not yet reached blank rather
-than hiding them, so the progression is visible at a glance. **It appears just
-above the message it belongs to**, not pinned to the top of the screen: a popup
-that opens somewhere other than what was tapped is not how anything modern
-behaves, and it breaks the connection between the tap and the answer.
-
-**Room name popup**, on a single tap of the name in the transcript's top ribbon.
-The ribbon shows the person being spoken with; the popup shows the room name
-currently assigned.
-
-**The room name is localized, and this is not cosmetic.** The name carries the
-context of the conversation — it is what tells someone which thread they are in
-— so it has to be readable by each side in their own language, exactly like
-every message. A name set in English must appear in Chinese to the Chinese
-speaker. Without that it is decoration for one side and noise for the other.
-
-- The name is stored with the language it was written in, and translated for
-  display to a viewer whose language differs.
-- **The popup shows both** — the name as it was written, and the translation —
-  because both carry context. The original is what the other person actually
-  called it, which is worth seeing; the translation is what it means. Showing
-  only one throws away half the information the pair holds, which is the same
-  reason every message shows both.
-- When the viewer's language is the language it was written in, there is only
-  one line to show.
-- Translated on receipt and cached, not on every render — a rename is rare and a
-  render is constant.
-- Rename remains last-write-wins in both directions; the localization sits on
-  top of that and does not change it.
-- If the translation fails, the original shows rather than a blank. A name in
-  the wrong language is still a handle; nothing is not.
-
----
-
-## 6d · RELEASE 7 — PWA, PUSH, HOME SCREEN, CALL SURFACE
-
-### PWA foundation
-Manifest, service worker registered from the file, install on Android,
-home-screen install on iOS. Ships at the front of this release because the
-service worker is what receives a push — push cannot exist without it.
-
-### OS push
-Locked and backgrounded push only: relay change, push subscription, notification
-tap routing into the right room. The only release that modifies the relay.
-
-### The home screen becomes the *while you were away* summary
-
-This is the organising idea of the release, not a feature within it. **The home
-screen is the record of everything that happened in rooms you were not
-watching** — and anything that qualifies for that record also qualifies as a
-notification, because they answer the same question.
-
-It already surfaces waiting chats and missed calls. A name change and a room
-rename are the same kind of event and belong there too: something happened in a
-room you were not looking at, you should see it, and you should be able to tap
-straight into that room.
-
-- *Mike is now Miguel* — with date and time, tappable, opens the room.
-- *Mike changed the room from movies to camping* — with date and time, tappable,
-  opens the room.
-- Same card treatment and same dismissal rules as the existing waiting entries.
-
-### The left panel loses its navigation card
-
-The card that says TalkBridge / About / start screen is removed. **A single tap
-on the clock in the panel's top ribbon does exactly what it did** — the clock is
-already there and already unused, so the card is redundant weight.
-
-*This absorbs the item previously scheduled for release 10; the two are the same
-change and are done once, here, where the home screen is already being touched.*
-
-### Update propagation — RESOLVED 2026-08-07, ahead of the rest of this release
-
-Fixed and device-passed as `bridge-turn24-pre-base.html`. Renames, name changes
-and read receipts are all prompt.
-
-**The cause, proven in a two-instance harness before anything was written:** read
-receipts were marked as sent *before* the send was attempted. Entering a room
-renders the transcript, which is what triggers the receipt — and entering a room
-happens before the relay socket is open. The send failed, the messages were
-already flagged, and nothing retried them. The flag is saved with the
-transcript, so those receipts were lost permanently, which is why re-entering
-the room never settled them.
-
-**The fix:** nothing is flagged until the send succeeds, and any inbound relay
-traffic flushes whatever is still outstanding — inbound traffic being a more
-reliable signal that the socket is live than the socket's own events.
-
-*Note: messages flagged before this fix stay flagged, because the flag was
-persisted. Those specific old messages will not settle.*
-
-### What remains of update propagation
-
-A rename arriving late is a symptom, and the owner has narrowed it: **the
-notification does not appear on the receiving side when the room is entered, or
-when focus returns to it.** Sometimes a rename lands instantly; otherwise it
-appears to skip, and what it is actually doing is waiting for something that
-never re-runs. Entering a room and returning focus to one are the two moments
-that must reconcile whatever arrived while nobody was looking, and they do not.
-
-Read receipts are the same fault seen from another angle:
-
-- A message is sent and demonstrably read, and the dot in the bubble header does
-  not turn from grey to green — or turns, and re-entering the room never
-  registers the read.
-- The lag is well over a minute, sometimes apparently indefinite.
-- It is not a connectivity failure: in the same session a message crossed, a
-  rename crossed, both transcripts updated correctly — and the receipt still did
-  not settle.
-
-**Instrument the whole path first** — when a read is detected, when it is sent,
-when it arrives, when it is applied, and what runs on entering a room and on
-focus returning. Do not reason about the cause. Fix what the log shows.
-
-What remains here is only the **away** case, and it is push's job rather than a
-replay's: an event that happens while the app is closed is delivered by the
-service worker, which raises the notification and writes the home-screen entry.
-Reconciliation on return is the fallback for when push genuinely could not
-deliver — permission declined, iOS without a home-screen install, device offline
-throughout. If that fallback is carrying the load, push is not working.
-
-*Carry into this: the lifecycle signals from the elevation release —* left the
-chat, rejoined, grant revoke, grant restore *— are new relay message types and,
-on the evidence that a new type never crossed, are probably not arriving either.
-They were only ever confirmed as local behaviour. Verify them across two devices
-and move them onto the system-pill carrier if they are not crossing.*
-
-### Call surface
-Ribbon strip transformation — microphone fixed at centre, phone and video beside
-it, hang-up fixed beside video. Voice shows microphone and hang-up only; video
-shows microphone, camera and hang-up. Call timer visible to the receiver as well
-as the caller.
-
----
-
-## 6b · BACKLOG — not scheduled, not in the chain
-
-Nothing here is a release. Nothing here is picked up as part of another release.
-It moves into the chain only by owner ruling.
-
-### Ribbon strip transformation — the largest of these
-The top strip is rearranged so the call controls cluster in the centre with
-fixed positions rather than shifting with state.
-
-- The microphone sits at a **fixed centre position** and never moves.
-- Phone and video icons sit beside it; the hang-up sits beside the video icon
-  and is also fixed.
-- **Voice call:** microphone and hang-up only — no phone or video icon.
-- **Video call:** microphone, camera toggle and hang-up.
-- Three reasons, all of them the point: it moves the video icon away from the
-  room-menu ellipsis, which are currently too easy to confuse; it gives every
-  control one standard place to live; and it frees the left side for the name of
-  the person being spoken to.
-- Supersedes the older "centre the mic in the ribbon" item — that is this.
-
-### Leaving the app during a call
-Navigating away — to check an email, look up an address — currently drops the
-connection and reconnects on return. Both halves of this are defensible and
-neither is obviously right:
-
-- A call should stay open while multitasking, as any phone call does.
-- But with nothing on screen to indicate a live call, someone can forget they
-  are on one and say something in front of an open microphone. That is a real
-  harm, not an inconvenience.
-- One option, not a decision: the back button during a call enters
-  picture-in-picture, keeping the call visible and the fact of it unmistakable.
-  WhatsApp does this.
-- **Needs the use cases thought through before anything is built.**
-
-### Call timer parity
-The receiver of a call has no running timer and therefore no clear indication
-they are on a call. The caller does. Communications state must read the same on
-both sides — the parity principle applies to being on a call, not only to
-surfaces.
-
-### Typing indicator
-The compose strip should show when the other side is typing, so a person knows
-to wait rather than talking over them.
-
-### Short-phrase double transcription
-In a room using the second English channel, a short phrase can be transcribed
-twice — once in the room language and once in English — and both land. The
-arbitration already discards the phonetic duplicate when the English result is
-substantial; short phrases fall below that threshold and both survive. Needs a
-gate for short phrases specifically.
-
-### Room renames do not propagate
-Changing either person's name is reflected on the other side immediately;
-renaming the room is not. The rename needs the same relay path the person-name
-change already uses.
-
-### Enter should close the room config dialog
-In the create dialog Enter now commits the field rather than dismissing it,
-which was the fix for a real fault. In the room config dialog the opposite is
-wanted: Enter on the person name or the room name should commit and close.
-
-### Phrasebook
-- Editing the target rewrites the source. Owner ruling 2026-08-05; attempted as
-  turn23-pre-base and rolled back with too many regressions to triage. If
-  rebuilt, the redraw must happen when the translation returns, not when the
-  edit is submitted.
-- Back-translation behaviour, verdict lifecycle, staleness.
-- The clarify stream.
-
-### Flag motif under-delivered — long-standing
-The flag band is a real image but rendered as a six-pixel strip with a
-cover-crop, where the spec calls for it fully opaque and sized to show the
-maximum number of flags. It is also absent from the room menu and drawer
-entirely. Flagged in a planning session on 2026-08-01 and not built since.
-
-### Bubble header background colour
-The customize tab can change the bubble colour and the font colour. The owner
-asked that the **bubble header** be able to change its background colour, not
-only its font colour. Not built.
-
-### Two-graphic mute icons and the bubble-header icon convention
-Camera mute is still a slash composited over the base icon. It should be two
-complete icon graphics swapped in and out. The bubble header should adopt the
-same convention more broadly: a microphone icon for transcribed chat, a phone
-icon for transcribed voice, a video icon for transcribed video. Long-standing.
-
-### Ear / Auto-read / Mute wording pass
-Owner flagged the current labels for rewording; the wording itself was never
-specified. Long-standing.
-
-### Installability
-The app is not installable on Android or iOS today — there is no manifest and no
-service worker. This is not an oversight in the sense of being lost: the plan
-places both in the push release, because Apple delivers web push only to an
-installed app, so installability and push were always one piece of work.
-**Open question: should installability be pulled forward on its own?** It has
-standalone value — a home-screen icon and a full-screen window — independent of
-notifications.
-
-### Never built, and long assumed present
-
-- **PWA install.** There is no manifest and no service worker in the file. It was
-  scheduled in an abandoned turn chain and lost with it. It has been treated as
-  present in conversation since. It is a prerequisite for push on iOS, so it
-  belongs with the notifications release rather than standing alone — recorded
-  here so it stops being assumed.
-- **Real flag graphics.** Flags are currently emoji glyphs. The spec calls for
-  real flag glyphs and a flag motif on the ask screens. Cosmetic release.
-- **Bubble header background colour.** The customize tab themes bubble
-  background and font colour. The header strip inside the bubble has no
-  background colour of its own and was asked for.
-
-### Deferred by ruling
-
-- **Transcript import.** Export ships now in both formats; import waits. It will
-  be bolted on alongside the **import into phrase-desk**, when `phrase-deck-v1`
-  and `phrase-desk` are reconciled — the two import paths share the same
-  questions and should be answered once, not twice. The merge-or-replace and
-  language-mismatch rulings are part of that work. Ruled 2026-08-06.
-- **Clear on both sides, initiator only.** Clearing is local-only in release 6.
-  A destructive clear that reaches the other side is an initiator-only power and
-  is its own decision. Ruled 2026-08-06.
-
-*Removed by ruling 2026-08-06: goodbye screen, phrasebook import-phrases modal.
-Neither is wanted.*
-
-### Undiagnosed
-- Transcription disconnect roughly every twelve seconds during a call. Reopen
-  gaps are now timestamped in the log, which is where the answer will come from.
-- Roughly thirty second initial delivery lag when the recipient is on the home
-  screen.
-
----
-
-## 7 · BUILD SYSTEM
 
 The deployed app is one HTML file. It is **never edited** — it is assembled from
 separate parts, so a broken part is deleted and rebuilt rather than patched.
@@ -1304,7 +332,9 @@ Green means allowed to push. It never means done.
 
 ---
 
-## 8 · DO-NOT-TOUCH — retested at every gate
+
+### 6.5 Do-not-touch — retested at every gate
+
 
 - Boots to the start screen, panel closed, no room auto-opens.
 - Side-by-side bubbles, viewer's language on the left, both languages always visible.
@@ -1317,7 +347,19 @@ Green means allowed to push. It never means done.
 
 ---
 
-## 9 · CHANGE LOG
+
+---
+
+## 7 · CHANGE LOG
+
+**v11.0.0 · 2026-08-11.** Structural rewrite. The plan had reached 2305
+lines with six sections duplicated two or three times, because inserts
+duplicated rather than replaced — nothing could be told apart. Restructured
+to releases / backlog / open items / rules / appendix, one home per item.
+Release 7 paused pending the iOS push prototype. Release 8 (fine touches)
+proposed as next, chosen because none of it depends on push or install.
+R8 responsive layout deferred to backlog by owner ruling.
+
 
 **v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
 layout work is too risky to run while notifications are unproven, and touching
@@ -1338,968 +380,3 @@ collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
 and sizing are one job, not two — slices are by surface, converted end to end,
 because a named scale of fixed pixels is still fixed pixels.
 
-**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
-screenshot shows hamburger and name left, mic/phone/video clustered centre,
-`⋯` at the right edge, single row, correctly spaced. First time in six
-attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
-elements (the room ribbon and the home screen's), so every rule is now scoped
-to `#room-ribbon`, and the room ribbon's four children get four explicit grid
-tracks.
-
-Also shipped and verified in-harness this round, none of it device-confirmed
-yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
-platform-aware install guidance (iOS-Chrome told to open Safari and
-deliberately given no Share steps; iOS-Safari given the three real steps;
-Android/desktop offered a button only when a genuine prompt exists), and the
-no-password fix (four fields shipped as `type="password"`, which browsers
-save regardless of `autocomplete="off"` — now converted to text with CSS
-masking plus manager ignore flags).
-
-**Infrastructure finding worth more than any single fix:** the sandbox's
-`setAttribute` was a no-op, `getAttribute` always returned null,
-`classList.contains` always returned false, and `querySelectorAll` always
-returned `[]`. No test in this project had ever meaningfully verified an
-attribute or iterated real elements — anything that appeared to was passing
-vacuously. The stub now behaves like a real DOM and is seeded from the actual
-source markup. Test count rose to 275 as existing tests began exercising real
-behaviour for the first time.
-
-**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
-— the new `build/rollback.mjs` in action, and the first rollback in this project
-that did not 404 every existing invite link. Attempt 5 deployed.
-
-**The iOS install path is now fixed for the real-world route the owner
-described,** which the previous bridge did not handle: Chrome → copy/paste →
-Safari → Add to Home Screen is THREE storage partitions, not two. The previous
-bridge only wrote on a 2-second delay and a 30-second timer, and only once
-meaningful state existed — so a user who opened a link and installed
-immediately had nothing written at all, and the install landed empty. The
-invite payload is now captured the instant it is parsed (hooked at
-`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
-it. The URL is the only thing that survives all three partitions, because the
-user physically carries it across by copy/paste — so the invite itself, not a
-storage snapshot, is what the bridge preserves.
-
-Also added: the **missed-activity double-count is now on the backlog** (§6b)
-rather than only living in graveyard notes.
-
-258 tests, 257 passing; the one failure is that backlogged double-count, failing
-by design. **Not yet device-confirmed.**
-
-**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
-`bridge-turn24-base.html` (build id stamped, byte-verified).
-
-**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
-`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
-`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
-columns. A fourth child forces an implicit column, destroying the symmetry
-centring depends on, which is why swapping flex-grow for Grid changed nothing:
-both were right about centring and wrong about how many children they were
-centring. Found by counting the real built DOM instead of reasoning about CSS.
-Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
-counts real children against declared tracks so this class cannot recur.
-
-**Deployment defects remediated inside this release, as directed:**
-`build/rollback.mjs` added — rollback now overwrites the target with the
-previous known-good build and structurally cannot issue a DELETE, so invite
-links, QR codes and installed `start_url`s keep resolving. Build identity and
-staleness detection added: every build is stamped with a content-derived id,
-and a running page checks on focus, on visibility change, and periodically,
-telling the user plainly when it is running older code and clearing the service
-worker before reloading. This is what makes future device results falsifiable.
-
-Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
-service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
-and the Cache-Storage install bridge for iOS credential/room persistence.
-
-252 tests, 251 passing. The one failure is the pre-existing, unrelated,
-already-logged missed-activity double-count, untouched. **Not yet
-device-confirmed.**
-
-**v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
-The builder inserted a new release ("R7.0") and marked release 7 blocked
-without owner approval — that is plan drift, not remediation, and is withdrawn.
-**Release 7 remains the active release, now attempt 4**, with the two
-deployment defects from graveyard 2.5 (rollback-by-deletion breaking invite
-links; no staleness detection) remediated *within* it. Expected results are
-unchanged and already agreed; the plan stands.
-
-**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
-blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
-by reading live code after the owner reported 404 share links: rollback was
-being done by deleting the deployed file, which permanently breaks every invite
-link, QR code and installed `start_url` generated from it — and there is no
-staleness detection anywhere, so devices can run arbitrarily old code
-undetected. Both defects mean device evidence gathered during today's cycles is
-unreliable, including the four ribbon failures. R7.0 fixes the deploy method
-first; release 7 items get re-verified on a known-current build afterward
-rather than being re-fixed blind. Graveyard 2.5.
-
-**v10.11.0 · 2026-08-10.** Release 7 rebuild **attempt 1 failed device gate**
-and was rolled back same day; graveyard 2.2. Two failures: the clock tap opened
-the credentials/about modal when the removed card's tap goes to the start
-screen (the handler was one line in the base — built from assumption, the exact
-thing the standard forbids), and the ribbon centre cluster crowded left on
-iPhone hiding the partner name, because the geometry that passed the hardware
-gate that morning was reinvented instead of recovered. Attempt 2 corrects both:
-the clock tap calls the card's own handler, and the ribbon adopts the passed
-geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
-locked 34px slots, name yielding with ellipsis — with the structural test now
-asserting that exact geometry and two new mutations covering both regressions.
-All other release 7 content unchanged and re-gated.
-
-**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
-layout work is too risky to run while notifications are unproven, and touching
-727 values across live surfaces during an unresolved release is exactly the
-setup that produced this session's rollbacks. Revisited only once iOS push and
-install are working.
-
-**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
-install, which are being resolved separately via an isolated prototype at
-`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
-device gate; the last owner-approved build remains
-`bridge-turn24-pre-base.html`.
-
-**R8 proposed and awaiting approval** (§ above): responsive layout and collision
-safety, prompted by an independent assessment finding 727 hard-coded pixels
-across 79 distinct values with zero media queries, 102 globals with no
-collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
-and sizing are one job, not two — slices are by surface, converted end to end,
-because a named scale of fixed pixels is still fixed pixels.
-
-**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
-screenshot shows hamburger and name left, mic/phone/video clustered centre,
-`⋯` at the right edge, single row, correctly spaced. First time in six
-attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
-elements (the room ribbon and the home screen's), so every rule is now scoped
-to `#room-ribbon`, and the room ribbon's four children get four explicit grid
-tracks.
-
-Also shipped and verified in-harness this round, none of it device-confirmed
-yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
-platform-aware install guidance (iOS-Chrome told to open Safari and
-deliberately given no Share steps; iOS-Safari given the three real steps;
-Android/desktop offered a button only when a genuine prompt exists), and the
-no-password fix (four fields shipped as `type="password"`, which browsers
-save regardless of `autocomplete="off"` — now converted to text with CSS
-masking plus manager ignore flags).
-
-**Infrastructure finding worth more than any single fix:** the sandbox's
-`setAttribute` was a no-op, `getAttribute` always returned null,
-`classList.contains` always returned false, and `querySelectorAll` always
-returned `[]`. No test in this project had ever meaningfully verified an
-attribute or iterated real elements — anything that appeared to was passing
-vacuously. The stub now behaves like a real DOM and is seeded from the actual
-source markup. Test count rose to 275 as existing tests began exercising real
-behaviour for the first time.
-
-**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
-— the new `build/rollback.mjs` in action, and the first rollback in this project
-that did not 404 every existing invite link. Attempt 5 deployed.
-
-**The iOS install path is now fixed for the real-world route the owner
-described,** which the previous bridge did not handle: Chrome → copy/paste →
-Safari → Add to Home Screen is THREE storage partitions, not two. The previous
-bridge only wrote on a 2-second delay and a 30-second timer, and only once
-meaningful state existed — so a user who opened a link and installed
-immediately had nothing written at all, and the install landed empty. The
-invite payload is now captured the instant it is parsed (hooked at
-`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
-it. The URL is the only thing that survives all three partitions, because the
-user physically carries it across by copy/paste — so the invite itself, not a
-storage snapshot, is what the bridge preserves.
-
-Also added: the **missed-activity double-count is now on the backlog** (§6b)
-rather than only living in graveyard notes.
-
-258 tests, 257 passing; the one failure is that backlogged double-count, failing
-by design. **Not yet device-confirmed.**
-
-**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
-`bridge-turn24-base.html` (build id stamped, byte-verified).
-
-**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
-`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
-`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
-columns. A fourth child forces an implicit column, destroying the symmetry
-centring depends on, which is why swapping flex-grow for Grid changed nothing:
-both were right about centring and wrong about how many children they were
-centring. Found by counting the real built DOM instead of reasoning about CSS.
-Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
-counts real children against declared tracks so this class cannot recur.
-
-**Deployment defects remediated inside this release, as directed:**
-`build/rollback.mjs` added — rollback now overwrites the target with the
-previous known-good build and structurally cannot issue a DELETE, so invite
-links, QR codes and installed `start_url`s keep resolving. Build identity and
-staleness detection added: every build is stamped with a content-derived id,
-and a running page checks on focus, on visibility change, and periodically,
-telling the user plainly when it is running older code and clearing the service
-worker before reloading. This is what makes future device results falsifiable.
-
-Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
-service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
-and the Cache-Storage install bridge for iOS credential/room persistence.
-
-252 tests, 251 passing. The one failure is the pre-existing, unrelated,
-already-logged missed-activity double-count, untouched. **Not yet
-device-confirmed.**
-
-**v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
-The builder inserted a new release ("R7.0") and marked release 7 blocked
-without owner approval — that is plan drift, not remediation, and is withdrawn.
-**Release 7 remains the active release, now attempt 4**, with the two
-deployment defects from graveyard 2.5 (rollback-by-deletion breaking invite
-links; no staleness detection) remediated *within* it. Expected results are
-unchanged and already agreed; the plan stands.
-
-**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
-blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
-by reading live code after the owner reported 404 share links: rollback was
-being done by deleting the deployed file, which permanently breaks every invite
-link, QR code and installed `start_url` generated from it — and there is no
-staleness detection anywhere, so devices can run arbitrarily old code
-undetected. Both defects mean device evidence gathered during today's cycles is
-unreliable, including the four ribbon failures. R7.0 fixes the deploy method
-first; release 7 items get re-verified on a known-current build afterward
-rather than being re-fixed blind. Graveyard 2.5.
-
-**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
-and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
-causes (not guesses), proven in a two-instance harness before deployment,
-mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
-CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
-handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
-new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
-(shared across the Safari-tab/installed-app boundary where localStorage is
-not — confirmed, documented, production-proven technique). Graveyard 2.3.
-**Not yet device-confirmed** — this is deployed pending the owner's hardware
-gate, all four items, iOS via Safari specifically.
-
-**v10.10.0 · 2026-08-10.** Release 7 rebuilt fresh from
-`bridge-turn24-pre-base.html` as one clean assembly; `bridge-turn24-base.html`
-pushed and byte-verified, **awaiting device gate**. Contents: PWA head block at
-build time (manifest, iOS metas, apple-touch-icon, favicon links — never
-script-injected); new `tb-sw.js` service worker (root `sw.js` untouched) with
-bare-wake push, per-room catch-up over the relay history endpoint, and
-notification-tap routing via `?room=` (acted on as the tap it is, then stripped
-so a reload stays a cold boot); push subscription per room session with the
-VAPID key asked of the relay in-session (the deployed relay already answers it;
-`talkbridge/worker-talk.js` in the repo is now the deployed source verbatim —
-**no Cloudflare redeploy needed**, the one secret `VAPID_PRIVATE_KEY` is set); home
-screen away-record cards for person renames and room renames (timestamped,
-tappable, same dismissal as waiting cards); ribbon strip transformation by DOM
-move, never rebuild — mic fixed centre, phone·video beside it, hang-up beside
-video, side zones byte-identical so the cluster cannot drift; the two 404s
-closed (flags.gif dropped from the flag band, real favicon.ico added); the
-elevation lifecycle signals now also ride the system-pill carrier per the
-graveyard's transport finding, typed originals kept for compatibility, one
-event per room per window on receive. Missed-activity root cause closed: a
-newly stored partner message counts exactly when its room is not on screen —
-active path, background path, and history-sync merges, which never counted at
-all; leaving a room now syncs background sockets immediately, which was also
-the undiagnosed thirty-second home-screen lag. The "unresolved double-count
-edge case" was root-caused rather than assumed: an id counted twice across
-paths is structurally impossible in this base (shared dedup set plus persisted
-transcript); the reachable defect was the visibility handler zeroing the legacy
-counter but never the waiting counts — returning to a visible room now settles
-them. Gates run: contract (declared vs extracted surface), syntax, structure,
-wire, full-boot runtime with cold-boot tripwire, 54 behavioural assertions, and
-nine mutations each reintroducing a defect and each caught — including a
-two-instance harness whose relay drops every message type the base did not
-already handle, reproducing the proven hardware transport failure, with the
-lifecycle carrier and the rename away-record still crossing.
-
-**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
-layout work is too risky to run while notifications are unproven, and touching
-727 values across live surfaces during an unresolved release is exactly the
-setup that produced this session's rollbacks. Revisited only once iOS push and
-install are working.
-
-**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
-install, which are being resolved separately via an isolated prototype at
-`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
-device gate; the last owner-approved build remains
-`bridge-turn24-pre-base.html`.
-
-**R8 proposed and awaiting approval** (§ above): responsive layout and collision
-safety, prompted by an independent assessment finding 727 hard-coded pixels
-across 79 distinct values with zero media queries, 102 globals with no
-collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
-and sizing are one job, not two — slices are by surface, converted end to end,
-because a named scale of fixed pixels is still fixed pixels.
-
-**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
-screenshot shows hamburger and name left, mic/phone/video clustered centre,
-`⋯` at the right edge, single row, correctly spaced. First time in six
-attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
-elements (the room ribbon and the home screen's), so every rule is now scoped
-to `#room-ribbon`, and the room ribbon's four children get four explicit grid
-tracks.
-
-Also shipped and verified in-harness this round, none of it device-confirmed
-yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
-platform-aware install guidance (iOS-Chrome told to open Safari and
-deliberately given no Share steps; iOS-Safari given the three real steps;
-Android/desktop offered a button only when a genuine prompt exists), and the
-no-password fix (four fields shipped as `type="password"`, which browsers
-save regardless of `autocomplete="off"` — now converted to text with CSS
-masking plus manager ignore flags).
-
-**Infrastructure finding worth more than any single fix:** the sandbox's
-`setAttribute` was a no-op, `getAttribute` always returned null,
-`classList.contains` always returned false, and `querySelectorAll` always
-returned `[]`. No test in this project had ever meaningfully verified an
-attribute or iterated real elements — anything that appeared to was passing
-vacuously. The stub now behaves like a real DOM and is seeded from the actual
-source markup. Test count rose to 275 as existing tests began exercising real
-behaviour for the first time.
-
-**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
-— the new `build/rollback.mjs` in action, and the first rollback in this project
-that did not 404 every existing invite link. Attempt 5 deployed.
-
-**The iOS install path is now fixed for the real-world route the owner
-described,** which the previous bridge did not handle: Chrome → copy/paste →
-Safari → Add to Home Screen is THREE storage partitions, not two. The previous
-bridge only wrote on a 2-second delay and a 30-second timer, and only once
-meaningful state existed — so a user who opened a link and installed
-immediately had nothing written at all, and the install landed empty. The
-invite payload is now captured the instant it is parsed (hooked at
-`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
-it. The URL is the only thing that survives all three partitions, because the
-user physically carries it across by copy/paste — so the invite itself, not a
-storage snapshot, is what the bridge preserves.
-
-Also added: the **missed-activity double-count is now on the backlog** (§6b)
-rather than only living in graveyard notes.
-
-258 tests, 257 passing; the one failure is that backlogged double-count, failing
-by design. **Not yet device-confirmed.**
-
-**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
-`bridge-turn24-base.html` (build id stamped, byte-verified).
-
-**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
-`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
-`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
-columns. A fourth child forces an implicit column, destroying the symmetry
-centring depends on, which is why swapping flex-grow for Grid changed nothing:
-both were right about centring and wrong about how many children they were
-centring. Found by counting the real built DOM instead of reasoning about CSS.
-Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
-counts real children against declared tracks so this class cannot recur.
-
-**Deployment defects remediated inside this release, as directed:**
-`build/rollback.mjs` added — rollback now overwrites the target with the
-previous known-good build and structurally cannot issue a DELETE, so invite
-links, QR codes and installed `start_url`s keep resolving. Build identity and
-staleness detection added: every build is stamped with a content-derived id,
-and a running page checks on focus, on visibility change, and periodically,
-telling the user plainly when it is running older code and clearing the service
-worker before reloading. This is what makes future device results falsifiable.
-
-Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
-service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
-and the Cache-Storage install bridge for iOS credential/room persistence.
-
-252 tests, 251 passing. The one failure is the pre-existing, unrelated,
-already-logged missed-activity double-count, untouched. **Not yet
-device-confirmed.**
-
-**v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
-The builder inserted a new release ("R7.0") and marked release 7 blocked
-without owner approval — that is plan drift, not remediation, and is withdrawn.
-**Release 7 remains the active release, now attempt 4**, with the two
-deployment defects from graveyard 2.5 (rollback-by-deletion breaking invite
-links; no staleness detection) remediated *within* it. Expected results are
-unchanged and already agreed; the plan stands.
-
-**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
-blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
-by reading live code after the owner reported 404 share links: rollback was
-being done by deleting the deployed file, which permanently breaks every invite
-link, QR code and installed `start_url` generated from it — and there is no
-staleness detection anywhere, so devices can run arbitrarily old code
-undetected. Both defects mean device evidence gathered during today's cycles is
-unreliable, including the four ribbon failures. R7.0 fixes the deploy method
-first; release 7 items get re-verified on a known-current build afterward
-rather than being re-fixed blind. Graveyard 2.5.
-
-**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
-and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
-causes (not guesses), proven in a two-instance harness before deployment,
-mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
-CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
-handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
-new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
-(shared across the Safari-tab/installed-app boundary where localStorage is
-not — confirmed, documented, production-proven technique). Graveyard 2.3.
-**Not yet device-confirmed** — this is deployed pending the owner's hardware
-gate, all four items, iOS via Safari specifically.
-
-**v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
-Graveyard 2.2, three findings, none patched forward:
-1. Hot-mic/stuck-on-home regression — root cause confirmed and reproduced in
-   the harness (clock-nav clears the screen but not `S.roomId`, so a callback
-   to the same room skips navigation while the mic/camera stay live). Proof
-   exists; fix does not yet.
-2. Ribbon crowding on iPhone — flex-grow counterweight replaced with CSS Grid
-   (fixed, engine-consistent proportions). Structurally verified and mutation-
-   tested; real device confirmation still required, not assumed.
-3. PWA install unconfirmed on both platforms. Cannot verify live server
-   headers from this environment. Needs the owner's Chrome DevTools →
-   Application → Manifest reading before another attempt — that is ground
-   truth this side cannot produce alone.
-
-Next build: fresh from `bridge-turn24-pre-base.html`, folding in a real fix for
-(1), the grid rewrite for (2) gated on hardware, and DevTools findings for (3)
-before touching the manifest again.
-
-**v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
-then patched forward three times on the passed file, which is forbidden
-regardless of size. Graveyard 2.1. Baseline reverts to
-`bridge-turn24-pre-base.html`. Release 7 is to be delivered fresh, folding in
-every known fix (ribbon centring, the missed-activity counting bug and its
-unresolved edge case, the two 404s, head-injection for install, iOS/Safari
-testing requirement) as one clean build, not a resumed patch chain.
-
-**v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
-**passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
-centring bug found and fixed same day (side zones must grow equally or the
-cluster drifts by the width of the room name). Root cause found for "missed
-activity does not register while the home screen is open": the base only counts
-a hidden tab, not a visible-but-elsewhere one. **Fix is drafted but NOT shipped**
-— a double-count edge case is open. This is the very next task.
-
-**v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
-underneath** — Apple requires it — so it can never install a web app nor receive
-web push, whatever is built. iOS testing must be Safari, added to the home
-screen from the Share menu. On Android the cause was ours: the manifest link was
-added by script after load, and install eligibility is decided during parse, so
-the browser never saw it. Head tags are now injected at build time, along with
-the iOS meta tags and touch icon. The ribbon's centre drifted because the first
-attempt collapsed the right zone after moving its buttons into the middle;
-equal growth on both sides centres it regardless of the name. Backlog gains
-**group conversations of three or more** — found by accident, the relay already
-broadcasts to every socket in a session, but everything above it assumes two
-people.
-
-**v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
-creation dialog as a sign-up form, offers the password popup for the room name
-and then offers to save it as a password — so a manager may store a room name as
-a credential, or fill a password into the field.
-
-**v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
-line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
-names nobody, quotes nothing and reveals no room, so it is the privacy answer
-and the useful answer at once, and it costs nothing because the counts already
-exist. One line because iOS gives only one; Android's expanded view is a bonus,
-not the design. Composed on the device from counts the worker fetches, so
-nothing but a bare wake ever reaches a push service. Two items to the backlog:
-the **per-room notification alias** (an alias shown in place of the room name,
-blank meaning silent) and **choosing the installed name and icon**, which must
-happen before install because a manifest is read once and cannot be changed
-afterwards.
-
-**v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
-`bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
-changes and read receipts are all prompt. The cause was proven in a
-two-instance harness before any code was written: receipts were flagged as sent
-before the send was attempted, and since room entry precedes the socket opening,
-they were lost permanently and never retried. What remains of update propagation
-is only the away case, which is push's job rather than a replay's.
-
-**v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
-`bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
-a rename that sometimes appears instantly and sometimes seems to skip — is
-narrowed by the owner to a specific cause: the notification does not appear on
-the receiving side **when the room is entered, or when focus returns to it**.
-That is the same fault as the unsettled read receipts, seen from another angle,
-and both are now scoped in release 7 with the shape of the fix stated —
-**reconciliation on re-entry**, so nothing depends on having been present when a
-message landed. The *while you were away* summary is promoted from a feature to
-the organising idea of release 7: anything worth recording there is also worth a
-notification, because they answer the same question.
-
-**v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
-additions. Name changes and room renames become **home screen entries** — same
-kind of event as a waiting chat or a missed call, with date, time and a tap
-straight into the room. The **left panel's navigation card is removed** in favour
-of a single tap on the clock, absorbed here from release 10 since the home
-screen is already being touched. **Update propagation** is named as the real
-problem beneath the late rename: read receipts do not settle, sometimes for
-minutes, in sessions where messages and renames demonstrably crossed —
-instrument the whole receipt path before changing anything. Carried in with it:
-the elevation release's lifecycle signals use new relay message types and are
-probably not crossing either, having only been confirmed as local behaviour.
-Release 6 gains one correction: the **status popup opens just above the message
-it belongs to**, not pinned to the top of the screen.
-
-**v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
-attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
-base's own room title and the shared name are the same idea, and holding both is
-what failed. It is required at creation, cannot be emptied, and last write wins.
-**A rename now writes a system entry into the transcript**, naming who renamed
-it and both the old and new names, in the same vocabulary as leaving a chat or a
-missed call. **Localization is removed from the release** and rejoins the
-backlog as a family: room name, participant names, the creation dialog and the
-room menu. QR codes shrink and the drawer extends far enough to show one without
-scrolling. The `&debug=1` parameter is scheduled rather than noted as direction
-of travel.
-
-**v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
-releases total, six remaining after the one now built. Multitasking during a call
-becomes its own release and its open question is **closed by ruling** — losing
-focus mutes the microphone, and the back button enters picture-in-picture while
-keeping the connection, so the call survives multitasking and the microphone
-does not. PWA ships at the front of the push release rather than standing alone,
-since push cannot exist without the service worker.
-
-**v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
-item now has a release number and a home organised by separation of concerns:
-PWA foundation (7), OS push and smart home screen (8), call surface (9), compose
-and transcription (10), left panel and room menu (11), phrasebook behaviour (12),
-phrase-desk reconciliation and import (13), appearance (14), IndexedDB (15).
-**PWA is release 7, ahead of push**, because the service worker is what receives
-a push — it was previously assumed present and had no place in the chain at all.
-Deferred now means out of scope and gone; backlog now means scheduled with a
-number. New item scheduled into release 11: home is reached by tapping the clock
-in the left panel's ribbon, and the room card that currently does it is removed.
-Nine releases remain after the one now built.
-
-**Process note.** Release 6 was built from rulings without its scope being
-confirmed back to the owner first. That is the drift this version corrects. No
-release starts before its scope is agreed.
-
-**v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
-its translation, for the same reason every message shows both — the pair carries
-more context than either half. One line only when the viewer's language is the
-language it was written in.
-
-**v9.11.0 · 2026-08-06.** Three rulings. The receipt popup shows Sent, Received
-and Read, leaving unreached states blank rather than hidden. The room name popup
-opens on a single tap of the ribbon name — and **the room name is localized**,
-translated into each viewer's own language, because the name is what carries the
-context of the conversation and is useless to the side that cannot read it.
-Transcript import is deferred to be built alongside the phrase-desk import when
-`phrase-deck-v1` and `phrase-desk` are reconciled, since both raise the same
-questions.
-
-**v9.10.0 · 2026-08-06.** All six release-6 questions closed by ruling. Import
-deferred to the backlog; export ships in two formats, the structured one being
-what a future import reads. Clear is local only, with clear-both-sides recorded
-as an initiator-only power for later. Last write wins on renames. Manage keeps
-the diagnostics overlay with copy and download, with a note that diagnostics
-eventually move behind a launch parameter. Two items added to the release by
-ruling: the status detail popup on tapping a receipt, and a room name popup on
-tapping the name in the ribbon. Goodbye screen and the phrasebook import-phrases
-modal removed from the backlog — neither is wanted.
-
-**v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
-**the room menu surface** (§6e), with its open questions written down and
-unanswered (§6f) so they are closed before anything is built. Share tab folds
-into General, Debug becomes Manage, the transcript lifecycle gains import and
-clear, room names get parity, and two transcription-lifecycle faults identified
-from the last gate log are carried in — transcription must stop on mute rather
-than starve an open socket, and network failures must stop being reported as
-credential failures. Backlog gains five items found by scanning the historical
-planning documents rather than the current session: the under-delivered flag
-motif, bubble-header background colour, two-graphic mute icons with the
-bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
-
-**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
-layout work is too risky to run while notifications are unproven, and touching
-727 values across live surfaces during an unresolved release is exactly the
-setup that produced this session's rollbacks. Revisited only once iOS push and
-install are working.
-
-**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
-install, which are being resolved separately via an isolated prototype at
-`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
-device gate; the last owner-approved build remains
-`bridge-turn24-pre-base.html`.
-
-**R8 proposed and awaiting approval** (§ above): responsive layout and collision
-safety, prompted by an independent assessment finding 727 hard-coded pixels
-across 79 distinct values with zero media queries, 102 globals with no
-collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
-and sizing are one job, not two — slices are by surface, converted end to end,
-because a named scale of fixed pixels is still fixed pixels.
-
-**v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
-screenshot shows hamburger and name left, mic/phone/video clustered centre,
-`⋯` at the right edge, single row, correctly spaced. First time in six
-attempts. The fix that mattered was not CSS tuning: `.ribbon` matches TWO
-elements (the room ribbon and the home screen's), so every rule is now scoped
-to `#room-ribbon`, and the room ribbon's four children get four explicit grid
-tracks.
-
-Also shipped and verified in-harness this round, none of it device-confirmed
-yet: the CSS blast-radius gate (`build/cssaudit.mjs`, now in `ship`/`deploy`),
-platform-aware install guidance (iOS-Chrome told to open Safari and
-deliberately given no Share steps; iOS-Safari given the three real steps;
-Android/desktop offered a button only when a genuine prompt exists), and the
-no-password fix (four fields shipped as `type="password"`, which browsers
-save regardless of `autocomplete="off"` — now converted to text with CSS
-masking plus manager ignore flags).
-
-**Infrastructure finding worth more than any single fix:** the sandbox's
-`setAttribute` was a no-op, `getAttribute` always returned null,
-`classList.contains` always returned false, and `querySelectorAll` always
-returned `[]`. No test in this project had ever meaningfully verified an
-attribute or iterated real elements — anything that appeared to was passing
-vacuously. The stub now behaves like a real DOM and is seeded from the actual
-source markup. Test count rose to 275 as existing tests began exercising real
-behaviour for the first time.
-
-**v10.15.0 · 2026-08-10.** Attempt 4 rolled back **by overwrite, not deletion**
-— the new `build/rollback.mjs` in action, and the first rollback in this project
-that did not 404 every existing invite link. Attempt 5 deployed.
-
-**The iOS install path is now fixed for the real-world route the owner
-described,** which the previous bridge did not handle: Chrome → copy/paste →
-Safari → Add to Home Screen is THREE storage partitions, not two. The previous
-bridge only wrote on a 2-second delay and a 30-second timer, and only once
-meaningful state existed — so a user who opened a link and installed
-immediately had nothing written at all, and the install landed empty. The
-invite payload is now captured the instant it is parsed (hooked at
-`showJoinerLanding` and `joinRoom`), and a fresh install with no rooms replays
-it. The URL is the only thing that survives all three partitions, because the
-user physically carries it across by copy/paste — so the invite itself, not a
-storage snapshot, is what the bridge preserves.
-
-Also added: the **missed-activity double-count is now on the backlog** (§6b)
-rather than only living in graveyard notes.
-
-258 tests, 257 passing; the one failure is that backlogged double-count, failing
-by design. **Not yet device-confirmed.**
-
-**v10.14.0 · 2026-08-10.** Release 7 attempt 4 deployed to
-`bridge-turn24-base.html` (build id stamped, byte-verified).
-
-**The ribbon defect is finally root-caused, and it was never the CSS mechanism.**
-`.ribbon` has FOUR direct children — `rz-left`, `rz-center`, `rz-right` and
-`#btn-drawer` (the ⋯ settings button) — while every attempt declared three
-columns. A fourth child forces an implicit column, destroying the symmetry
-centring depends on, which is why swapping flex-grow for Grid changed nothing:
-both were right about centring and wrong about how many children they were
-centring. Found by counting the real built DOM instead of reasoning about CSS.
-Now four explicit tracks with ⋯ pinned to its own, plus a permanent test that
-counts real children against declared tracks so this class cannot recur.
-
-**Deployment defects remediated inside this release, as directed:**
-`build/rollback.mjs` added — rollback now overwrites the target with the
-previous known-good build and structurally cannot issue a DELETE, so invite
-links, QR codes and installed `start_url`s keep resolving. Build identity and
-staleness detection added: every build is stamped with a content-derived id,
-and a running page checks on focus, on visibility change, and periodically,
-telling the user plainly when it is running older code and clearing the service
-worker before reloading. This is what makes future device results falsifiable.
-
-Also carried from attempt 3: hot-mic navigation fix, iOS safe-area padding,
-service worker fetch handler (a no-op is disqualified by Chrome's own criteria),
-and the Cache-Storage install bridge for iOS credential/room persistence.
-
-252 tests, 251 passing. The one failure is the pre-existing, unrelated,
-already-logged missed-activity double-count, untouched. **Not yet
-device-confirmed.**
-
-**v10.13.0 · 2026-08-10.** Reverts the unapproved restructuring in v10.12.0.
-The builder inserted a new release ("R7.0") and marked release 7 blocked
-without owner approval — that is plan drift, not remediation, and is withdrawn.
-**Release 7 remains the active release, now attempt 4**, with the two
-deployment defects from graveyard 2.5 (rollback-by-deletion breaking invite
-links; no staleness detection) remediated *within* it. Expected results are
-unchanged and already agreed; the plan stands.
-
-**v10.12.0 · 2026-08-10.** Release 7 attempt 3 rolled back. **Release 7 is now
-blocked behind a new release, R7.0 (Deployment Integrity).** Root cause found
-by reading live code after the owner reported 404 share links: rollback was
-being done by deleting the deployed file, which permanently breaks every invite
-link, QR code and installed `start_url` generated from it — and there is no
-staleness detection anywhere, so devices can run arbitrarily old code
-undetected. Both defects mean device evidence gathered during today's cycles is
-unreliable, including the four ribbon failures. R7.0 fixes the deploy method
-first; release 7 items get re-verified on a known-current build afterward
-rather than being re-fixed blind. Graveyard 2.5.
-
-**v10.11.0 · 2026-08-10.** Release 7 attempt 3 deployed to `bridge-turn24-base.html`
-and `tb-sw.js`. All four attempt-2 findings fixed with sourced/computed root
-causes (not guesses), proven in a two-instance harness before deployment,
-mutation-tested: (1) hot-mic/stuck-on-home navigation, (2) ribbon crowding —
-CSS Grid rewrite + iOS safe-area-inset padding, (3) service worker fetch
-handler was the exact no-op pattern Chrome's own docs say is disqualified, (4)
-new: iOS credential/room loss on install now fixed via a Cache-Storage bridge
-(shared across the Safari-tab/installed-app boundary where localStorage is
-not — confirmed, documented, production-proven technique). Graveyard 2.3.
-**Not yet device-confirmed** — this is deployed pending the owner's hardware
-gate, all four items, iOS via Safari specifically.
-
-**v10.10.0 · 2026-08-10.** Release 7 attempt 2 rolled back after device testing.
-Graveyard 2.2, three findings, none patched forward:
-1. Hot-mic/stuck-on-home regression — root cause confirmed and reproduced in
-   the harness (clock-nav clears the screen but not `S.roomId`, so a callback
-   to the same room skips navigation while the mic/camera stay live). Proof
-   exists; fix does not yet.
-2. Ribbon crowding on iPhone — flex-grow counterweight replaced with CSS Grid
-   (fixed, engine-consistent proportions). Structurally verified and mutation-
-   tested; real device confirmation still required, not assumed.
-3. PWA install unconfirmed on both platforms. Cannot verify live server
-   headers from this environment. Needs the owner's Chrome DevTools →
-   Application → Manifest reading before another attempt — that is ground
-   truth this side cannot produce alone.
-
-Next build: fresh from `bridge-turn24-pre-base.html`, folding in a real fix for
-(1), the grid rewrite for (2) gated on hardware, and DevTools findings for (3)
-before touching the manifest again.
-
-**v10.9.0 · 2026-08-10.** Release 7 **rolled back**: it passed gate once, was
-then patched forward three times on the passed file, which is forbidden
-regardless of size. Graveyard 2.1. Baseline reverts to
-`bridge-turn24-pre-base.html`. Release 7 is to be delivered fresh, folding in
-every known fix (ribbon centring, the missed-activity counting bug and its
-unresolved edge case, the two 404s, head-injection for install, iOS/Safari
-testing requirement) as one clean build, not a resumed patch chain.
-
-**v10.8.0 · 2026-08-10.** Release 7 (PWA, push, away record, call surface)
-**passed** device gate; `bridge-turn24-base.html` is the new baseline. Ribbon
-centring bug found and fixed same day (side zones must grow equally or the
-cluster drifts by the width of the room name). Root cause found for "missed
-activity does not register while the home screen is open": the base only counts
-a hidden tab, not a visible-but-elsewhere one. **Fix is drafted but NOT shipped**
-— a double-count edge case is open. This is the very next task.
-
-**v10.7.0 · 2026-08-10.** Install faults diagnosed. **Chrome on iOS is Safari
-underneath** — Apple requires it — so it can never install a web app nor receive
-web push, whatever is built. iOS testing must be Safari, added to the home
-screen from the Share menu. On Android the cause was ours: the manifest link was
-added by script after load, and install eligibility is decided during parse, so
-the browser never saw it. Head tags are now injected at build time, along with
-the iOS meta tags and touch icon. The ribbon's centre drifted because the first
-attempt collapsed the right zone after moving its buttons into the middle;
-equal growth on both sides centres it regardless of the name. Backlog gains
-**group conversations of three or more** — found by accident, the relay already
-broadcasts to every socket in a session, but everything above it assumes two
-people.
-
-**v10.6.1 · 2026-08-08.** Backlog gains an autofill fault: Chrome reads the room
-creation dialog as a sign-up form, offers the password popup for the room name
-and then offers to save it as a password — so a manager may store a room name as
-a credential, or fill a password into the field.
-
-**v10.6.0 · 2026-08-08.** Notification content decided: **a single aggregate
-line on both platforms** — "12 chats, 4 calls and 7 videos across 6 rooms". It
-names nobody, quotes nothing and reveals no room, so it is the privacy answer
-and the useful answer at once, and it costs nothing because the counts already
-exist. One line because iOS gives only one; Android's expanded view is a bonus,
-not the design. Composed on the device from counts the worker fetches, so
-nothing but a bare wake ever reaches a push service. Two items to the backlog:
-the **per-room notification alias** (an alias shown in place of the room name,
-blank meaning silent) and **choosing the installed name and icon**, which must
-happen before install because a manifest is read once and cannot be changed
-afterwards.
-
-**v10.5.0 · 2026-08-07.** Update propagation **resolved and device-passed** as
-`bridge-turn24-pre-base.html`, ahead of the rest of release 7 — renames, name
-changes and read receipts are all prompt. The cause was proven in a
-two-instance harness before any code was written: receipts were flagged as sent
-before the send was attempted, and since room entry precedes the socket opening,
-they were lost permanently and never retried. What remains of update propagation
-is only the away case, which is push's job rather than a replay's.
-
-**v10.4.0 · 2026-08-07.** Release 6 **passed** at attempt 5;
-`bridge-turn23-post-ship.html` is the new baseline. The one outstanding anomaly —
-a rename that sometimes appears instantly and sometimes seems to skip — is
-narrowed by the owner to a specific cause: the notification does not appear on
-the receiving side **when the room is entered, or when focus returns to it**.
-That is the same fault as the unsettled read receipts, seen from another angle,
-and both are now scoped in release 7 with the shape of the fix stated —
-**reconciliation on re-entry**, so nothing depends on having been present when a
-message landed. The *while you were away* summary is promoted from a feature to
-the organising idea of release 7: anything worth recording there is also worth a
-notification, because they answer the same question.
-
-**v10.3.0 · 2026-08-07.** Release 7 written out in full as §6d and given four
-additions. Name changes and room renames become **home screen entries** — same
-kind of event as a waiting chat or a missed call, with date, time and a tap
-straight into the room. The **left panel's navigation card is removed** in favour
-of a single tap on the clock, absorbed here from release 10 since the home
-screen is already being touched. **Update propagation** is named as the real
-problem beneath the late rename: read receipts do not settle, sometimes for
-minutes, in sessions where messages and renames demonstrably crossed —
-instrument the whole receipt path before changing anything. Carried in with it:
-the elevation release's lifecycle signals use new relay message types and are
-probably not crossing either, having only been confirmed as local behaviour.
-Release 6 gains one correction: the **status popup opens just above the message
-it belongs to**, not pinned to the top of the screen.
-
-**v10.2.0 · 2026-08-06.** Release 6 rolled back a second time and rescoped as
-attempt 3; graveyard 1.8. **The room name becomes one field, not two** — the
-base's own room title and the shared name are the same idea, and holding both is
-what failed. It is required at creation, cannot be emptied, and last write wins.
-**A rename now writes a system entry into the transcript**, naming who renamed
-it and both the old and new names, in the same vocabulary as leaving a chat or a
-missed call. **Localization is removed from the release** and rejoins the
-backlog as a family: room name, participant names, the creation dialog and the
-room menu. QR codes shrink and the drawer extends far enough to show one without
-scrolling. The `&debug=1` parameter is scheduled rather than noted as direction
-of travel.
-
-**v10.1.0 · 2026-08-06.** Chain resequenced to the owner's grouping: twelve
-releases total, six remaining after the one now built. Multitasking during a call
-becomes its own release and its open question is **closed by ruling** — losing
-focus mutes the microphone, and the back button enters picture-in-picture while
-keeping the connection, so the call survives multitasking and the microphone
-does not. PWA ships at the front of the push release rather than standing alone,
-since push cannot exist without the service worker.
-
-**v10.0.0 · 2026-08-06.** The backlog is emptied into the chain. Every parked
-item now has a release number and a home organised by separation of concerns:
-PWA foundation (7), OS push and smart home screen (8), call surface (9), compose
-and transcription (10), left panel and room menu (11), phrasebook behaviour (12),
-phrase-desk reconciliation and import (13), appearance (14), IndexedDB (15).
-**PWA is release 7, ahead of push**, because the service worker is what receives
-a push — it was previously assumed present and had no place in the chain at all.
-Deferred now means out of scope and gone; backlog now means scheduled with a
-number. New item scheduled into release 11: home is reached by tapping the clock
-in the left panel's ribbon, and the room card that currently does it is removed.
-Nine releases remain after the one now built.
-
-**Process note.** Release 6 was built from rulings without its scope being
-confirmed back to the owner first. That is the drift this version corrects. No
-release starts before its scope is agreed.
-
-**v9.11.1 · 2026-08-06.** The room name popup shows both the name as written and
-its translation, for the same reason every message shows both — the pair carries
-more context than either half. One line only when the viewer's language is the
-language it was written in.
-
-**v9.11.0 · 2026-08-06.** Three rulings. The receipt popup shows Sent, Received
-and Read, leaving unreached states blank rather than hidden. The room name popup
-opens on a single tap of the ribbon name — and **the room name is localized**,
-translated into each viewer's own language, because the name is what carries the
-context of the conversation and is useless to the side that cannot read it.
-Transcript import is deferred to be built alongside the phrase-desk import when
-`phrase-deck-v1` and `phrase-desk` are reconciled, since both raise the same
-questions.
-
-**v9.10.0 · 2026-08-06.** All six release-6 questions closed by ruling. Import
-deferred to the backlog; export ships in two formats, the structured one being
-what a future import reads. Clear is local only, with clear-both-sides recorded
-as an initiator-only power for later. Last write wins on renames. Manage keeps
-the diagnostics overlay with copy and download, with a note that diagnostics
-eventually move behind a launch parameter. Two items added to the release by
-ruling: the status detail popup on tapping a receipt, and a room name popup on
-tapping the name in the ribbon. Goodbye screen and the phrasebook import-phrases
-modal removed from the backlog — neither is wanted.
-
-**v9.9.0 · 2026-08-06.** Release 6 rescoped from "per-room export and delete" to
-the **room menu surface** and written out in full in §6c with six open questions
-to close before the build. It now carries the two transcription-lifecycle faults
-the last gate exposed — transcription starving itself while muted, and network
-drops being reported as credential failures — plus the drawer restructure,
-Manage tab with the full export/import/clear lifecycle, and room name parity in
-both directions. Backlog gains three long-assumed-present items found by
-inspection: **there is no PWA** (no manifest, no service worker — it was lost
-with an abandoned turn chain), flags are emoji rather than real glyphs, and the
-bubble header has no themeable background. Three further inventoried surfaces
-were found absent and need a ruling.
-
-**v9.8.0 · 2026-08-06.** Call and network robustness **passed** its two-device
-gate. `bridge-turn23-ship.html` is the new baseline. Backlog rewritten and
-expanded with five new owner observations: the ribbon strip transformation
-(fixed centre positions for the call controls, which supersedes the older
-mic-centring item), leaving the app during a call, call timer parity for the
-receiver, a typing indicator, and short-phrase double transcription in
-dual-channel rooms.
-
-**v9.7.0 · 2026-08-06.** Room lifecycle, naming and elevation **passed** its
-two-device gate — soft delete and restore confirmed working end to end.
-`bridge-turn23-pre-ship.html` is the new baseline. One fault found and fixed
-inside the release: the invite link was built before the room knew its name or
-that it granted, so the link carried neither; fields are now captured ahead of
-room creation and applied before entry. Two items added to the backlog: room
-renames do not propagate to the other side, and Enter should close the room
-config dialog.
-
-**v9.6.0 · 2026-08-05.** Joiner shell **passed** its two-device gate: full shell,
-no create control, chat both ways, Spanish/English with normalization working on
-a new room. `bridge-turn23-base.html` is the new baseline. Relay stability is
-**dropped** from the chain — it was instrumented and then overtaken by a passing
-two-device gate, so the earlier drops were not the blocker they appeared to be.
-One regression found and fixed inside the release: the invite payload was applied
-to rooms this device created, swapping the creator's own two languages and
-translating every message backwards on both sides; it is now refused for
-creator-owned rooms. New owner ruling recorded in §6c: **granted credentials get
-their own storage keys**, so a grant never overwrites and a revoke never deletes
-a device's own credentials.
-
-**v9.5.0 · 2026-08-05.** Every turn23 stage now has an explicit bulleted scope
-(§6a–§6d) instead of a pointer to one shared section. Owner ruling: **the joiner
-shell ships on its own, before elevation** — the shell is a surface and can be
-gated once the relay is stable; elevation is a mechanism and needs the shell to
-be observed in. The earlier merge was a reaction to two failures that are now
-attributed to the relay, not to the split. Proactive relay reconnect moved out of
-the plumbing release into call and network robustness, where it belongs. Three
-items verified directly against the current build and removed from scope: the
-phrasebook does not bump its version on entry, Enter in the source field already
-keeps the caret, and write-back before pull is present. The plumbing release is
-now whatever instrumentation turns up and nothing else — dropped if empty.
-
-**v9.4.0 · 2026-08-05.** `bridge-turn23-base.html` (room lifecycle) failed its
-device gate and was rolled back; graveyard 1.6. Owner ruling: **room lifecycle
-and joiner parity are one release** — attempted in both orders, rolled back both
-times, and there is no intermediate state of the application in which one is
-meaningful without the other. §6 is rewritten as a real scope: every surface the
-release touches, why it is there, what it must not do, and the gate. A new
-release is inserted ahead of it for **relay stability** — the relay drops every
-ten to thirty seconds on both sides, which makes any two-sided gate meaningless,
-and it is undiagnosed. Also recorded: a `typeof` guard around a rolled-back
-dependency turned a missing credential check into a silent no-op; that pattern is
-now forbidden. Nine releases.
-
-**v9.3.0 · 2026-08-05.** `bridge-turn23-base.html` (joiner shell parity) failed
-its device gate — chat did not flow between the two sides, root cause not found —
-and was rolled back; graveyard bumped to 1.5. Room lifecycle and joiner parity
-swap places: **room name is the key negotiation between initiator and joiner**
-(owner ruling), so the joiner has nothing stable to identify a shared room by
-until that field exists. Also recorded: unhiding the joiner's room list makes it
-open one background relay socket per room instead of one in total — a real load
-change that was inherited rather than declared, and must be a deliberate decision
-when parity is retried.
-
-**v9.2.0 · 2026-08-05.** `bridge-turn23-pre-ship.html` (phrasebook symmetry)
-failed its device gate with too many regressions to triage and was rolled back;
-graveyard bumped to 1.4. Owner ruling: the whole phrasebook concern — target-edit
-rewriting source, back-translation, and the clarify stream — moves to a new
-BACKLOG (§6b) and is not in the active chain. The chain restarts from
-`bridge-turn22.html` with the room card as release 1. Eight releases.
-
-**v9.1.1 · 2026-08-05.** Joiner shell moved ahead of the credential release. The
-credential mechanism is mostly joiner-side — receiving a grant, writing it to
-storage, losing it on revocation, and the create control being absent — so it
-cannot be gated before the joiner shell exists. Ordering was wrong in v9.1.0.
-
-**v9.1.0 · 2026-08-05.** Resequenced: visible work first — card, room lifecycle,
-joiner — with the two invisible releases behind them, because the engine passed a
-two-phone gate at turn22 and its remaining items are refinements, not blockers.
-The invented mic-level-meter release is removed: the meter is present and working
-in turn22, and was reported missing on the strength of a keyword search that used
-terms this codebase does not use. Ten releases became nine.
-
-**v9.0.1 · 2026-08-05.** Room card corrected to SOT Part 4 — three rows, two
-columns — after the owner flagged the spec in use as stale. Verified directly:
-`bridge-turn10-pre-base.html` carries a seven-column two-row grid with a
-tap-to-reveal popover, which Part 4 supersedes, and `bridge-turn11-pre-base.html`
-has no card. The lift-from-turn10 instruction is removed; release 6 builds to the
-spec. Part 4 added in full as §6a so this cannot go stale again.
-
-**v9.0.0 · 2026-08-05.** Written after turn22 passed. Consolidates the operating
-parameters that had lived only in session memory. Restores the turn-family
-naming cycle and the input→output table. Merges room naming, elevation, expiry,
-joiner credential storage, and soft-delete revoke/restore into one release per
-owner ruling — v8.5.0 had these split across three. Adds the mic level meter as
-its own release, having verified it absent from turn22. Records the graveyard
-date/lineage caveat after a post-amputation entry was wrongly applied to a
-pre-amputation original.
