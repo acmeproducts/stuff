@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TalkBridge PWA Test</title>
+<link rel="manifest" href="testpwa.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#2E8B8B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TB PWA Test">
+<style>
+:root{--teal:#2E8B8B;--ink:#1A1714;--muted:#6f6964;--border:#ded8d2;--paper:#f6f1ec;--ok:#25764a;--bad:#b23a2d;--warn:#a36721}
+*{box-sizing:border-box}body{margin:0;background:#efeae4;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:520px;margin:0 auto;min-height:100vh;background:#fff;padding:18px}
+h1{font-size:22px;margin:4px 0 4px}.sub{color:var(--muted);font-size:14px;margin:0 0 18px}.build{font-size:11px;color:var(--muted);margin-bottom:16px}
+.card{border:1px solid var(--border);border-radius:14px;padding:14px;margin:10px 0;background:#fff}.card h2{font-size:15px;margin:0 0 10px}.row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:13px;border-bottom:1px solid #f0ece8}.row:last-child{border-bottom:0}.v{font-weight:650;text-align:right;word-break:break-word}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+button{width:100%;border:0;border-radius:11px;padding:12px 14px;margin-top:9px;font-size:15px;font-weight:700;background:var(--teal);color:#fff}button.secondary{background:var(--paper);color:var(--ink);border:1px solid var(--border)}button:disabled{opacity:.45}.note{font-size:13px;line-height:1.4;color:var(--muted);margin-top:9px}.big{font-size:18px;font-weight:750}.log{white-space:pre-wrap;background:#171717;color:#eaeaea;border-radius:12px;padding:11px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100px;max-height:240px;overflow:auto}.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>TalkBridge PWA Test</h1>
+<p class="sub">One gate: install on iPhone, retain an opaque authorization marker, then receive a real Web Push wake from the existing TalkBridge relay.</p>
+<div class="build">POC 1.0.0 · 2026-08-12 · isolated from production TalkBridge</div>
+
+<section class="card">
+<h2>1 · Install handoff</h2>
+<div class="row"><span>Running as</span><span class="v" id="mode">—</span></div>
+<div class="row"><span>Legacy TalkBridge secrets</span><span class="v" id="legacy">—</span></div>
+<div class="row"><span>Opaque authorization</span><span class="v" id="auth">—</span></div>
+<button id="prepare">Prepare iPhone install</button>
+<p class="note" id="install-note">In Safari, tap Prepare. Then use Share → Add to Home Screen and open the new TB PWA Test icon. No code should be entered.</p>
+</section>
+
+<section class="card">
+<h2>2 · Push subscription</h2>
+<div class="row"><span>Service worker</span><span class="v" id="sw">—</span></div>
+<div class="row"><span>Relay push</span><span class="v" id="relay">—</span></div>
+<div class="row"><span>Notification permission</span><span class="v" id="perm">—</span></div>
+<div class="row"><span>Push subscription</span><span class="v" id="sub">—</span></div>
+<button id="enable">Enable notifications</button>
+<p class="note">On iPhone, run this step from the installed Home Screen app. iOS requires notification permission to follow a user action.</p>
+</section>
+
+<section class="card">
+<h2>3 · Send a real relay event</h2>
+<div class="row"><span>POC relay room</span><span class="v">tb-pwa-poc-20260812</span></div>
+<button id="send" class="secondary">Send test activity</button>
+<p class="note">For the decisive test: install + enable notifications on the iPhone, leave the PWA, then open this same page on another device and tap Send test activity. The existing relay should push the sleeping iPhone.</p>
+</section>
+
+<section class="card">
+<h2>Result</h2>
+<div class="big" id="result">Not tested yet</div>
+<p class="note" id="result-note">The important first check is whether the installed PWA still shows “authorization present” without typing anything.</p>
+</section>
+
+<section class="card">
+<h2>Visible diagnostic log</h2>
+<div class="log" id="log"></div>
+</section>
+</main>
+<script>
+(function(){
+'use strict';
+var BUILD='poc-1.0.0';
+var RELAY_WS='wss://talk-signal.myacctfortracking.workers.dev/signal';
+var RELAY_APP='talk-say-v1';
+var SESSION='tb-pwa-poc-20260812';
+var AUTH_KEY='tb_pwa_poc_auth';
+var CLIENT_KEY='tb_pwa_poc_client';
+var els={};
+['mode','legacy','auth','sw','relay','perm','sub','prepare','enable','send','result','result-note','log','install-note'].forEach(function(id){els[id]=document.getElementById(id)});
+function log(s,o){var line=new Date().toLocaleTimeString()+'  '+s+(o?' '+JSON.stringify(o):'');els.log.textContent+=(els.log.textContent?'\n':'')+line;els.log.scrollTop=els.log.scrollHeight}
+function cls(el,state){el.className='v '+(state===true?'ok':state===false?'bad':'warn')}
+function standalone(){return !!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true}
+function legacyState(){
+  try{
+    var names=['tb_dg_key','tb_cf_tid','tb_cf_tok','tb_gh_pat'];
+    var n=names.filter(function(k){return !!String(localStorage.getItem(k)||'').trim()}).length;
+    return {count:n,all:n===4};
+  }catch(_){return {count:0,all:false}}
+}
+function randomToken(){var b=new Uint8Array(24);crypto.getRandomValues(b);return Array.from(b,function(x){return x.toString(16).padStart(2,'0')}).join('')}
+function clientId(){var x=localStorage.getItem(CLIENT_KEY);if(!x){x='pwa-'+randomToken().slice(0,16);localStorage.setItem(CLIENT_KEY,x)}return x}
+function authFromLocation(){
+  var m=String(location.hash||'').match(/(?:^#|&)a=([A-Za-z0-9_-]{16,256})/);
+  if(!m)return false;
+  localStorage.setItem(AUTH_KEY,m[1]);
+  log('handoff_consumed',{len:m[1].length,standalone:standalone()});
+  try{history.replaceState(null,'',location.pathname+location.search)}catch(_){}
+  return true;
+}
+function render(){
+  var isApp=standalone(), legacy=legacyState(), auth=localStorage.getItem(AUTH_KEY)||'';
+  els.mode.textContent=isApp?'Home Screen PWA':'browser tab';cls(els.mode,isApp?true:null);
+  els.legacy.textContent=legacy.count+'/4 found';cls(els.legacy,legacy.all?true:null);
+  els.auth.textContent=auth?'present ('+auth.length+' chars)':'absent';cls(els.auth,!!auth);
+  els.perm.textContent=(typeof Notification!=='undefined'?Notification.permission:'unavailable');cls(els.perm,typeof Notification!=='undefined'&&Notification.permission==='granted'?true:null);
+  if(isApp&&auth){els.result.textContent='Install handoff passed';els.result.className='big ok';els.resultNote.textContent='The installed PWA retained the opaque authorization marker without a pairing code. Next enable notifications.'}
+  else if(isApp&&!auth){els.result.textContent='Install handoff failed';els.result.className='big bad';els.resultNote.textContent='iOS launched the installed app without the handoff marker. This is the exact failure this POC is designed to expose.'}
+}
+function prepare(){
+  var legacy=legacyState();
+  var token=randomToken();
+  localStorage.setItem(AUTH_KEY,token);
+  location.hash='a='+token;
+  log('handoff_armed',{legacySecretsFound:legacy.count,tokenLength:token.length,urlHasOnlyOpaqueToken:true});
+  els.installNote.textContent='Handoff armed. Now use Safari Share → Add to Home Screen. Open TB PWA Test from the new icon. Do not copy or type anything.';
+  render();
+}
+function httpUrl(client){return RELAY_WS.replace(/^wss:/,'https:').replace(/^ws:/,'http:')+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(SESSION)+'&client='+encodeURIComponent(client)}
+function vapidBytes(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';var raw=atob(s),out=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out}
+async function registerSW(){
+  if(!('serviceWorker' in navigator)){els.sw.textContent='unsupported';cls(els.sw,false);throw new Error('service worker unsupported')}
+  var reg=await navigator.serviceWorker.register('tb-sw.js',{scope:'./'});
+  await navigator.serviceWorker.ready;
+  els.sw.textContent='registered';cls(els.sw,true);log('sw_registered',{scope:reg.scope});return reg
+}
+async function relayVapid(client){
+  var res=await fetch(httpUrl(client),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'vapid'})});
+  var j=await res.json();
+  els.relay.textContent=j.push?'push ready':'push secret missing';cls(els.relay,!!j.push);log('relay_vapid',{push:!!j.push});
+  if(!j.push)throw new Error('relay VAPID private key is not active');return j.vapid
+}
+async function sendWorkerContext(reg,client){
+  var msg={type:'tb-context',context:{relay:RELAY_WS,app:RELAY_APP,client:client,rooms:[{id:SESSION,since:0}]}};
+  if(reg.active)reg.active.postMessage(msg);else if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage(msg);
+  log('worker_context_sent',{room:SESSION})
+}
+async function enable(){
+  try{
+    if(!standalone())log('warning_not_standalone');
+    if(!localStorage.getItem(AUTH_KEY))throw new Error('opaque authorization marker missing');
+    var reg=await registerSW();var client=clientId();var vapid=await relayVapid(client);
+    var p=await Notification.requestPermission();els.perm.textContent=p;cls(els.perm,p==='granted');if(p!=='granted')throw new Error('notification permission '+p);
+    var ps=await reg.pushManager.getSubscription();
+    if(!ps)ps=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidBytes(vapid)});
+    var res=await fetch(httpUrl(client),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'subscribe',subscription:ps.toJSON()})});
+    var j=await res.json();if(!j.ok)throw new Error('relay subscribe failed');
+    await sendWorkerContext(reg,client);
+    els.sub.textContent='subscribed';cls(els.sub,true);els.result.textContent='Push armed';els.result.className='big ok';els.resultNote.textContent='Leave the PWA. From another device open this page and tap Send test activity.';log('push_subscribed',{endpoint:String(ps.endpoint).slice(0,48)+'…'});
+  }catch(e){els.sub.textContent='failed';cls(els.sub,false);els.result.textContent='Push setup failed';els.result.className='big bad';els.resultNote.textContent=String(e&&e.message||e);log('enable_failed',{error:String(e&&e.message||e)})}
+}
+function send(){
+  try{
+    var sender='sender-'+randomToken().slice(0,12);
+    var u=RELAY_WS+'?app='+encodeURIComponent(RELAY_APP)+'&session='+encodeURIComponent(SESSION)+'&client='+encodeURIComponent(sender);
+    var ws=new WebSocket(u);
+    ws.onopen=function(){var m={type:'chat-msg',id:'poc-'+Date.now(),text:'PWA push test',ts:Date.now(),from:sender};ws.send(JSON.stringify(m));log('test_activity_sent',{sender:sender});els.result.textContent='Test activity sent';els.result.className='big ok';els.resultNote.textContent='If the subscribed iPhone PWA is not visible, it should receive a TalkBridge notification.';setTimeout(function(){try{ws.close()}catch(_){}},500)};
+    ws.onerror=function(){log('sender_ws_error');els.result.textContent='Relay send failed';els.result.className='big bad'};
+  }catch(e){log('send_failed',{error:String(e&&e.message||e)})}
+}
+els.prepare.addEventListener('click',prepare);els.enable.addEventListener('click',enable);els.send.addEventListener('click',send);
+authFromLocation();render();registerSW().catch(function(e){log('sw_initial_failed',{error:String(e&&e.message||e)})});
+log('boot',{build:BUILD,standalone:standalone(),url:location.pathname});
+})();
+</script>
+</body>
+</html>
