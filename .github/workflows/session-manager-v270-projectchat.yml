@@ -31,11 +31,15 @@ jobs:
         run: |
           python3 - <<'PY'
           p='.github/scripts/session-manager-v270.py'
-          s=open(p,encoding='utf-8').read()
-          old='one("function closeTabContext(){",helpers+"function __old_closeTabContext(){",\'context helpers insertion\')'
-          new='one("function moveSessionToProject(k,targetId){",helpers+"function moveSessionToProject(k,targetId){",\'context helpers insertion\')'
-          assert old in s, 'expected failed insertion anchor not found'
-          open(p,'w',encoding='utf-8').write(s.replace(old,new,1))
+          lines=open(p,encoding='utf-8').read().splitlines()
+          found=False
+          for i,line in enumerate(lines):
+            if "context helpers insertion" in line and line.lstrip().startswith('one('):
+              lines[i]="one(\"function moveSessionToProject(k,targetId){\",helpers+\"function moveSessionToProject(k,targetId){\",'context helpers insertion')"
+              found=True
+              break
+          assert found,'context helper insertion statement not found'
+          open(p,'w',encoding='utf-8').write('\n'.join(lines)+'\n')
           PY
       - name: Build v2.7.0
         run: python3 .github/scripts/session-manager-v270.py
