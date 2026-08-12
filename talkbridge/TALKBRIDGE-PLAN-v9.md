@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v12.0.0 -->
-# TALKBRIDGE MASTER PLAN v12.0.0
+<!-- TALKBRIDGE-PLAN v12.1.0 -->
+# TALKBRIDGE MASTER PLAN v12.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -36,57 +36,62 @@ overwritten with it.
 
 ---
 
-## 2 · RELEASE 8 — RIBBON RECOVERY AND FINE TOUCHES (rebuild)
+## 2 · RELEASE 8 — SPLIT INTO TWO BUILDS
 
-All twelve items below were built and rolled back with graveyard 2.7. They are
-rebuilt, not resumed — no patching forward.
+Owner ruling 2026-08-11: **base is the ribbon and nothing else; pre-ship
+carries the twelve fine touches.** Restoring the old ribbon geometry verbatim
+failed on device — the partner name was occluded — so the ribbon needed fixing,
+not recovering, and it earns a build of its own.
 
-### 2.1 What was lost, and where it is
-
-**The ribbon spacing the owner wants is NOT in the baseline.** It came from a
-release-7 part that relocated the phone, video and hang-up buttons out of the
-right zone and into the centre cluster beside the microphone. The CSS in base
-and pre-base is byte-identical; the difference is entirely that JS.
-
-**The geometry is recovered verbatim, not reconstructed.** It is preserved at
-commit `5d46f5a0ba` of `bridge-turn24-base.html` and reads:
-
-    .ribbon{position:relative}
-    .ribbon .rz-left{flex:1 1 0;min-width:0}
-    .ribbon .rz-right{flex:1 1 0;min-width:0;justify-content:flex-end}
-    .ribbon .rz-center{display:flex;align-items:center;gap:14px;flex:0 0 auto}
-    .ribbon .rz-slot{width:34px;flex:0 0 34px}
-    .ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-plus `buildRibbonLayout()`, which moves `btn-call`, `btn-video` and
-`rb-hangup` into `.rz-center` in that order. **It must be copied from that
-commit, never rewritten from this description** — every reconstruction from
-prose in this project has produced a regression.
-
-### 2.2 Scope
+### 2a · `bridge-turn24-base.html` — THE RIBBON ONLY · shipped, awaiting gate
 
 | # | Item | Status |
 |---|---|---|
-| 8.0 | **Ribbon recovery** — lift the geometry and `buildRibbonLayout` verbatim from commit `5d46f5a0ba`. Does not include anything else from release 7 | Not started |
-| 8.1 | Flag motif — the `test.html` treatment: 108px panel, flag image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Not started |
-| 8.2 | Two-graphic mute icons — camera and microphone as complete graphics swapped in and out, never a composited slash | Not started |
-| 8.3 | Bubble-header icon convention — microphone for transcribed chat, phone for voice, video for video. Needs the call kind recorded on the entry at creation | Not started |
-| 8.4 | Room menu icon set — Ear (partner audio), Headset (translation), Mute (ringer). Notify on/off waits for R10 | Not started |
-| 8.5 | Leaving the app during a call — the back button already enters PIP; **muting on leave does not exist** and must be built | Not started |
+| B1 | Microphone lands on the transcript centre line, not the cluster midpoint | Shipped |
+| B2 | Camera slot collapses when idle — it was `visibility:hidden`, holding 48px | Shipped |
+| B3 | Icon gap 14px → 6px; video icon was 7.6px from the room menu | Shipped |
+| B4 | Partner name capped in `vw`, derived from the cluster width | Shipped |
+| B5 | Ellipsis on the text element, not the wrapper holding the presence dot | Shipped |
+| B6 | Every rule scoped to `#room-ribbon`, never the shared `.ribbon` class | Shipped |
+| B7 | Safe-area padding for edge-to-edge rendering | Shipped |
+
+**Why the old geometry could not simply be restored.** The approval was of the
+ICON spacing, not the name — the geometry was always marginal. The idle cluster
+was mic + camera + phone + video at 14px gaps, with the camera slot
+`visibility:hidden`: hidden, but still holding 34px plus a gap. At 360px the
+name got 39px and at 390px it got 54px, against roughly 55px needed for
+"Iphone". It read correctly on a large phone and clipped on a normal one.
+
+**Verified before building, at every real width and call state:** mic exactly
+on the centre line at 320–768px; name budget 61–95px on real phones;
+clearance to the room menu never below 37px.
+
+### 2b · `bridge-turn24-pre-ship.html` — THE TWELVE FINE TOUCHES · not started
+
+Built and rolled back once with graveyard 2.7. Rebuilt on the ribbon base, not
+resumed.
+
+| # | Item | Status |
+|---|---|---|
+| 8.1 | Flag motif — the `test.html` treatment: 108px panel, image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Not started |
+| 8.2 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Not started |
+| 8.3 | Bubble-header icon convention — mic for chat, phone for voice, video for video. Needs the call kind recorded at entry creation | Not started |
+| 8.4 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Not started |
+| 8.5 | Leaving the app during a call — back button already enters PIP; **muting on leave does not exist** | Not started |
 | 8.6 | Tap video to swap to PIP (tapping the PIP already exits) | Not started |
 | 8.7 | PIP draggable, clamped to the viewport | Not started |
-| 8.8 | Call timer parity — **both** sides lose it today: "Speaking…" overwrites the duration whenever the partner's mic is live | Not started |
-| 8.9 | Typing indicator — transient only, never persisted or replayed | Not started |
-| 8.10 | Short-phrase double transcription — suppression is time-only (1200ms); needs text comparison | Not started |
+| 8.8 | Call timer parity — **both** sides lose it; "Speaking…" overwrites the duration | Not started |
+| 8.9 | Typing indicator — transient only | Not started |
+| 8.10 | Short-phrase double transcription — suppression is time-only; needs text comparison | Not started |
 | 8.11 | Ear / Auto-read / Mute wording pass | Not started |
 | 8.12 | `&debug=1` — diagnostics off by default, errors always kept | Not started |
 
-### 2.3 Gates added before this release is built
+### 2c · Build gates added
 
-| # | Gate | Why |
+| # | Gate | Found on first run |
 |---|---|---|
-| G1 | **A part may not `replace` a function another part owns** — build fails | `P-pwa` replaced `renderHome` and silently discarded the room-card home page. Three releases before it was caught, on the owner's device |
-| G2 | **No `NodeList.forEach`** in any part | The replacement used it; it throws on older WebKit and the surrounding catch swallowed the error, so the home page rendered and then died mid-render |
+| G1 | A part may not `replace` a function another part owns; a deliberate supersession must declare `@supersedes X from Y` | 3 violations in shipped code |
+| G2 | No `querySelectorAll(...).forEach` — throws on older WebKit inside a swallowing catch | 5 instances in shipped code, on room card delete/restore/hard-delete |
 
 ---
 
@@ -362,6 +367,21 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v12.1.0 · 2026-08-11.** Release 8 split by owner ruling: **base is the
+ribbon alone, pre-ship carries the twelve fine touches.**
+
+Restoring the previously-approved ribbon geometry verbatim FAILED on device —
+the partner name was occluded. Root cause measured, not guessed: the camera
+slot was `visibility:hidden`, hiding the control while still holding 34px plus
+a 14px gap, so at 360px the name got 39px and at 390px it got 54px against ~55
+needed. The approval had been of the icon spacing, not the name; the geometry
+was always marginal and only looked right on a large phone. So the ribbon is
+fixed rather than recovered, and verified at every width and call state before
+building.
+
+Gates G1 and G2 are live and found 3 and 5 violations respectively in
+already-shipped code on their first run.
 
 **v12.0.0 · 2026-08-11.** Baseline corrected and release 8 rescoped.
 
