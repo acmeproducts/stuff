@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.17.0 -->
-# TALKBRIDGE MASTER PLAN v10.17.0
+<!-- TALKBRIDGE-PLAN v10.18.0 -->
+# TALKBRIDGE MASTER PLAN v10.18.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -425,7 +425,11 @@ transcription socket stops rather than churning.
 
 ---
 
-## R8 · RESPONSIVE LAYOUT AND COLLISION SAFETY — proposed, awaiting approval
+## R8 · RESPONSIVE LAYOUT AND COLLISION SAFETY — BACKLOG, NOT SCHEDULED
+
+**Owner ruling 2026-08-11: deferred until notifications work.** Not started, not
+approved, not to be picked up as part of another release. Revisited only once
+iOS push and install are proven.
 
 **Why.** An independent assessment of `bridge-turn24-base.html` found two
 structural conditions that explain a large share of this session's failures:
@@ -1315,6 +1319,12 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
+layout work is too risky to run while notifications are unproven, and touching
+727 values across live surfaces during an unresolved release is exactly the
+setup that produced this session's rollbacks. Revisited only once iOS push and
+install are working.
+
 **v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
 install, which are being resolved separately via an isolated prototype at
 `proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
@@ -1437,6 +1447,12 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
+layout work is too risky to run while notifications are unproven, and touching
+727 values across live surfaces during an unresolved release is exactly the
+setup that produced this session's rollbacks. Revisited only once iOS push and
+install are working.
 
 **v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
 install, which are being resolved separately via an isolated prototype at
@@ -1593,6 +1609,12 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
+layout work is too risky to run while notifications are unproven, and touching
+727 values across live surfaces during an unresolved release is exactly the
+setup that produced this session's rollbacks. Revisited only once iOS push and
+install are working.
 
 **v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
 install, which are being resolved separately via an isolated prototype at
@@ -1885,6 +1907,12 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.18.0 · 2026-08-11.** R8 **deferred to backlog by owner ruling** — the
+layout work is too risky to run while notifications are unproven, and touching
+727 values across live surfaces during an unresolved release is exactly the
+setup that produced this session's rollbacks. Revisited only once iOS push and
+install are working.
 
 **v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
 install, which are being resolved separately via an isolated prototype at
