@@ -1,9 +1,10 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.11.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.12.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.11.0  
-**Updated:** 2026-08-10  
+**Governance version:** 1.12.0  
+**Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
+**Turnover artifact:** `session-manager-turnover.md`  
 **Owner:** Confi — sole device gate and final scope authority.
 
 This file is the Session Manager source of truth. Owner/device evidence outranks builder inference.
@@ -12,22 +13,27 @@ This file is the Session Manager source of truth. Owner/device evidence outranks
 
 # 0. HARD RULES
 
-- Read this file before changing Session Manager.
+- Read this file and `session-manager-turnover.md` before changing Session Manager.
 - Owner/device FAIL means FAIL.
 - Failed candidate → restore exact owner-proven input → rebuild; never patch-forward.
+- **Rollback is recovery step 1, not a completed release.** Continue through rebuild, validation, publish, read-back, and test handoff without waiting for another owner prompt.
 - Prove cause before fix; unknown cause means instrument first.
 - Preserve working wiring and extend minimally.
 - Deployable app remains one readable self-contained HTML file with inline CSS/JS.
 - No encoded/self-decompressing app wrapper, extra daemon, service, worker, proxy, port, or duplicate deployment architecture.
+- No GitHub Actions workflow may be created or repurposed to manufacture/patch `session-manager-v3.html`. Use the approved direct existing-file update route with a fresh SHA.
 - No direct `sessions.json` mutation or physical transcript deletion where a Gateway lifecycle RPC exists.
 - Diagnostics are read-only unless a separately governed repair release explicitly permits mutation.
+- **Before publication, extract every executable inline script from the final assembled HTML and syntax/lint-check it.** Patch-fragment checking is insufficient.
 - Every GitHub publish is read back before owner handoff.
-- The owner is the tester. Handoff identifies one filename/version/blob and does not offload architecture diagnosis.
-- Accessibility is functional scope, not cosmetic polish: presets, contrast, typography, path/code readability, and configuration usability are owner-gated behavior.
+- The owner is the tester. Handoff identifies one filename/version/blob and provides the directly runnable GitHub Pages URL; never hand off a source branch as the test surface.
+- Accessibility is functional scope, not cosmetic polish: presets, contrast, typography, path/code readability, chrome geometry, and configuration usability are owner-gated behavior.
 
 ---
 
-# 1. AUTHORITATIVE FUNCTIONAL BASELINE
+# 1. BASELINES AND CURRENT STATE
+
+## 1.1 Historical authoritative connection baseline
 
 The owner supplied and explicitly proved working the v2.1.0 Session Manager artifact.
 
@@ -35,29 +41,31 @@ The owner supplied and explicitly proved working the v2.1.0 Session Manager arti
 - exact baseline blob: **`27ee8fabe42a185d194b4af4d668e81b54a8b8c8`**
 - owner-baseline restore commit: `0d5ed4c19ce66c45e5ad6722e84f9ecf13c19875`
 
-Owner-proven baseline behavior:
+Owner-proven baseline behavior included Gateway connection, sessions loading, chat, inline rename persistence through OpenClaw/official Control UI, and activity-state tracking. The identity/signature/connect subsystem derived from this line remains protected.
 
-- Gateway connection works;
-- sessions load;
-- chat works;
-- inline rename works and persists through OpenClaw / official Control UI;
-- activity-state tracking works.
+## 1.2 ProjectChat working line before v2.8.x failure
 
-The identity/signature/connect subsystem derived from this baseline remains protected through SM-R2.
+The recovery commit used during the v2.8 effort was:
+
+- **`9b3bdb362c47b9ffede5b6a5271e27a1f95f988f`** — treated as restored **v2.7.1** working ProjectChat line.
+
+Incoming work must fetch and inspect this commit/file and repository lineage before declaring the exact clean input. Version labels alone are not proof.
+
+## 1.3 Current `main` is FAILED
+
+- Current published candidate identifies as **v2.8.1**.
+- Owner test on **2026-08-12**: page loads, but the top ribbon is inert and tapping a session is inert.
+- Therefore v2.8.1 is **not a baseline** even if GitHub commit/Pages deployment succeeded.
+- v2.8.0 also failed owner testing and is not a baseline.
+- Both failed candidates may be inspected as evidence/donors only; do not patch them forward.
 
 ---
 
-# 2. ACTIVE RELEASE — SM-R2 / visible build v2.3.1
+# 2. PROTECTED / GOVERNED BEHAVIOR
 
-**Current GitHub commit:** `4fb047ea5ce521407a46c55c0e2e1985a093d66d`  
-**Current GitHub blob:** `81057d309ddc36834f542b3bb752a4c31565014b`  
-**Owner gate:** NOT YET RUN for v2.3.1.
+## 2.1 Connection subsystem
 
-v2.3.1 is an accessibility/appearance refinement of the governed v2.3 feature line. It does not redesign the Gateway connection contract.
-
-## 2.1 Protected connection subsystem
-
-The following behavior remains frozen from the owner-proven connection line:
+Do not redesign for UI work:
 
 - identity persistence/import/generation;
 - Ed25519 key handling;
@@ -71,131 +79,41 @@ The following behavior remains frozen from the owner-proven connection line:
 - connect error handling;
 - reconnect logic.
 
-The guarded release build verified the governed v2.3.0 input blob before applying the accessibility patch and checked the protected connection signatures before publishing v2.3.1.
-
 ## 2.2 Session lifecycle
 
-- Soft delete is local Session Manager state only.
-- Recycle bin is at the **TOP** of the session list.
-- Restore removes only the local tombstone.
-- Tombstones persist across reload.
-- Delete Permanently exists only in the Recycle bin.
-- Permanent delete uses Gateway `sessions.delete` with `deleteTranscript:true`.
+- Soft delete is governed client state and sends the session to Recycle Bin without deleting the OpenClaw source.
+- Recycle bin is at the **TOP** where applicable.
+- Restore removes the tombstone and returns the session according to ProjectChat disposition rules.
+- Tombstones persist across reload and are portable SOT state.
+- Delete Permanently exists only in Recycle Bin and uses Gateway/OpenClaw lifecycle semantics.
 - OpenClaw owns transcript archive/rename lifecycle.
 - Gateway rejection preserves local state and displays the actual error.
 - No direct `sessions.json` or transcript-file mutation.
 
-## 2.3 Accessibility-first Appearance workspace — v2.3.1
+## 2.3 Accessibility / Appearance
 
-Appearance is a large configuration workspace, not a cramped control box.
+Appearance is a large low-vision-oriented workspace, not a cramped generic settings box.
 
-### Presets
+Required readable presets include High Contrast Dark, High Contrast Light, Warm Paper, Soft Dark, Large Print, plus product-style presets such as Claude, ChatGPT and ProjectChat where implemented. Presets are starting points and must remain legible out of the box.
 
-Required legible presets:
+Independent semantic surfaces include page, panels/sidebar, raised cards/header, inputs, borders, main/secondary text, accent, user/agent/system messages, code blocks, inline code, filenames/paths, links, metadata, and application chrome. Critical foregrounds require contrast protection.
 
-- **High Contrast Dark** — black canvas, white large text, high-contrast surfaces;
-- **High Contrast Light** — white canvas with strong dark text;
-- **Warm Paper** — low-glare warm background with dark readable text;
-- **Soft Dark** — gentler dark surface while maintaining strong contrast;
-- **Large Print** — larger base/message/meta text and generous spacing.
+Typography/layout includes application/base text size, button font size, message sizes, metadata size, sidebar width, session density, line spacing, and readable font choices. The ProjectChat preset must leave chrome controls such as the Configuration gear comfortably visible and tappable.
 
-Presets are starting points; granular controls may override them.
+Custom themes save the complete appearance state, can be applied/renamed/duplicated/deleted, and support validated JSON export/import without silent overwrite.
 
-### Page/application surfaces
-
-Explicit controls:
-
-- page background;
-- panels/sidebar background;
-- raised cards/header background;
-- input background;
-- borders;
-- main text;
-- secondary text;
-- accent.
-
-The user must be able to change the actual page/background rather than only message bubbles.
-
-### Messages
-
-Independent controls:
-
-- User bubble background;
-- User text color;
-- User text size;
-- Agent bubble background;
-- Agent text color;
-- Agent text size;
-- maximum message width;
-- line spacing.
-
-### Markdown / HTML / code / paths
-
-Code and path presentation are independent surfaces and never blindly inherit message text color.
-
-Explicit controls:
-
-- fenced code-block background;
-- fenced code-block text;
-- inline-code background;
-- inline-code text;
-- filename/path background;
-- filename/path text;
-- link color.
-
-Critical rendered foregrounds use automatic contrast protection. If a selected foreground becomes unreadable against its surface, rendering selects readable black or white while preserving the saved palette choice.
-
-This applies to critical main text, message text, metadata, code, inline code, filenames/paths, links, and primary-button text.
-
-### Typography/layout
-
-Controls:
-
-- application/base text size;
-- metadata size and color;
-- sidebar width;
-- session-list density;
-- line spacing;
-- font family, including readability-oriented Verdana plus System, Arial, Trebuchet, and Georgia.
-
-### Live preview
-
-Appearance includes a persistent live preview showing:
-
-- session/sidebar card;
-- User message;
-- Agent message;
-- filename/path sample;
-- link sample;
-- code block sample.
-
-Appearance previews live. Closing with × discards unsaved appearance changes; Save persists them.
-
-## 2.4 Automatic message rendering
-
-Rendering mode is automatic; the tester does not select Markdown versus HTML manually.
+## 2.4 Automatic transcript rendering
 
 - Markdown renders automatically.
-- Recognized safe HTML formatting renders automatically.
-- HTML is sanitized before insertion.
-- Supported safe HTML is formatting/content only: headings, paragraphs/divs/spans, emphasis, lists, code/pre, blockquotes, links, tables, line rules/breaks.
-- event handlers, inline styles, executable/embed content, `src`/`srcdoc`, and unsafe attributes are removed.
-- rendered links are limited to safe `http(s)` / `mailto` destinations and open safely.
-- inline Markdown code that looks like a filename/path receives the dedicated path style automatically.
+- Recognized safe HTML formatting renders automatically after sanitization.
+- No manual Markdown-vs-HTML mode is required.
+- executable/embed content, event handlers, unsafe attributes, `src`/`srcdoc`, and unsafe links are removed.
+- filenames/paths use dedicated styling and remain readable independently of message text colors.
+- message blocks expose Copy; session header exposes Download and Share; active agent run exposes Stop.
 
 ## 2.5 Diagnostics
 
-Configuration remains organized as:
-
-- Connection
-- Appearance
-- Diagnostics
-
-Debug tabs remain:
-
-- Log
-- Session Files
-- Environment
+Configuration remains organized around Connection, Appearance, and Diagnostics. Debug remains behind Configuration.
 
 Session Files rules:
 
@@ -205,91 +123,194 @@ Session Files rules:
 - `.jsonl.reset.*` → reset archive;
 - constructed `<sessionId>.jsonl` → **derived / not disk-verified**;
 - browser does not claim a WSL disk scan it cannot perform;
-- no repair/mutation in SM-R2.
+- automatic repair remains out of scope until separately governed.
 
 ---
 
-# 3. OWNER GATE — v2.3.1
+# 3. PROJECTCHAT OPERATING MODEL
 
-## Gate 1 — regression gate FIRST
+The visible product/client name is **ProjectChat**. Internal `clientType: "botschat"` may remain temporarily for backward compatibility.
 
-- [ ] page visibly says **v2.3.1**;
+Hierarchy:
+
+`Client → Projects → OpenClaw session tabs`
+
+- Projects are locally/portably managed containers for references to real OpenClaw sessions.
+- Each session has at most one normal Project home.
+- Cross-Project assignment/drop is a move, never a copy.
+- Project deletion moves its sessions to Unassigned; it does not delete them.
+- Selecting a Project shows that Project's tab set.
+- Background sessions remain independent while another Project/session is viewed.
+
+## 3.1 Session disposition invariant
+
+Every known session is exactly one of:
+
+- **Assigned** — one normal Project owns the live session.
+- **Unassigned** — OpenClaw reports it live and no Project owns it.
+- **Missing** — previously known but absent from current `sessions.list`; shown behind a Missing chevron.
+- **Soft Deleted** — explicit Recycle Bin tombstone; hidden from Assigned/Unassigned/Missing.
+
+Recovered Missing sessions return to **Unassigned** with prior-Project provenance; they never silently return to the old Project.
+
+## 3.2 Cross-device SOT
+
+Default intended SOT: `acmeproducts/stuff/session-manager-sot.json` on `main`.
+
+- GitHub state is an append-only/SHA-guarded event journal, not blind snapshot overwrite.
+- PAT is browser-local only.
+- Portable state includes Client Type, Appearance, custom themes, Projects, ordered Project membership, tab customization, known-session/disposition metadata, and Recycle Bin tombstones.
+- Gateway tokens, device private keys, provider credentials, and transcripts are never written to SOT.
+- 409/422 races require re-read/merge/retry.
+
+---
+
+# 4. ACTIVE RECOVERY RELEASE — v2.8.x REBUILD
+
+**Status:** FAILED candidate on `main`; rebuild required from last known-good ProjectChat input.
+
+## 4.1 Locked scope
+
+1. Mouse/hover over a tab shows the complete session/tab text.
+2. Session-tab drag must not invoke the generic attachment/file-drop overlay.
+3. Tabs use a dedicated drag handle.
+4. Horizontal reorder highlights the target tab in orange and inserts immediately to its **left**.
+5. Dragging toward a closed left pane opens it.
+6. Cross-Project target highlights with an orange outline; drop moves the session into **position 1** of target Project while origin Project remains focused.
+7. Projects have chevrons that expand/collapse their sessions in the left pane.
+8. Clicking/tapping a nested left-side session shows **only that session** on the right; clicking the Project row returns to the Project's full tab set.
+9. ProjectChat preset/layout must fit the Configuration gear comfortably and remain readable/tappable.
+10. Desktop right-click and mobile **double-tap** open the same tab context menu. Long-press is not used.
+11. Context menu opens directly **below the invoking tab**, clamped to viewport as needed.
+12. Clicking/tapping anywhere outside dismisses the context menu.
+13. Rename leaf: Enter commits through governed session rename; no Save button; menu closes; origin Project focus remains.
+14. Assign leaf: partial match, `*` wildcard and `-negative` omnisearch. Tap existing Project to move+close. Enter new name to create+move+close. Origin Project focus remains.
+15. Customize leaf: tab background, font color, and font size update **live** and persist; **no Save button**; Reset may remain; outside tap/click dismisses.
+16. Intra-Project tab sequencing persists locally and to GitHub SOT when configured.
+17. All gestures/targets must work on phone/tablet as well as desktop.
+
+## 4.2 Mandatory release gates
+
+### Gate A — exact clean input
+- locate/fetch exact last owner-proven ProjectChat build around rollback commit `9b3bdb362c47b9ffede5b6a5271e27a1f95f988f`;
+- verify expected behavior/markers and protected connection subsystem;
+- do not use current failed v2.8.1 as input.
+
+### Gate B — scoped build
+- application behavior changes only in existing `session-manager-v3.html`;
+- preserve readable self-contained HTML;
+- no workflow-generated patch, encoded wrapper, helper runtime, daemon, proxy, or broad auth/bootstrap rewrite.
+
+### Gate C — final-artifact JavaScript syntax/lint
+- extract every executable inline `<script>` from the **complete final HTML**;
+- run `node --check` or stricter equivalent on every extracted script;
+- malformed template literals/quotes are hard failures;
+- no publish on any syntax/lint failure.
+
+### Gate D — structural assertions
+Mechanically verify at least:
+- required startup/navigation element IDs exist;
+- bootstrap remains present;
+- hamburger/sidebar and session selection handlers are installed;
+- context menu supports outside dismissal and has no Customize Save button;
+- tab drag cannot enter the attachment overlay;
+- orange tab/Project targets exist;
+- Project chevron/session-child structures exist;
+- visible/build version is consistent.
+
+### Gate E — regression smoke
+Before owner handoff, exercise or instrument at least:
+- bootstrap reaches ready state without uncaught exception;
+- hamburger/sidebar expands/collapses;
+- top-ribbon controls respond;
+- sessions render;
+- tapping a session changes active session;
+- Project and nested-session navigation respond;
+- context menu opens/dismisses.
+
+Static checks are permission to publish, not owner PASS, but a syntax/startup failure must never be handed to the owner again.
+
+### Gate F — publish
+- fetch fresh `main/session-manager-v3.html` SHA immediately before write;
+- use approved direct existing-file update only;
+- no source-patching GitHub Actions workflow;
+- no branch/source page as owner test surface;
+- publish candidate to governed `main`/GitHub Pages test surface.
+
+### Gate G — read-back / handoff
+- fetch `main/session-manager-v3.html` after write;
+- verify blob/version/required markers;
+- verify Pages deployment/status when available;
+- hand owner the directly runnable Pages URL, cache-busted when useful.
+
+**Do not stop after rollback. Continue A→G unless an actual external blocker prevents execution.**
+
+---
+
+# 5. OWNER GATE FOR NEXT v2.8.x CANDIDATE
+
+## Gate 1 — regression first
+- [ ] expected version visible;
 - [ ] Gateway connects;
 - [ ] sessions load;
+- [ ] hamburger/sidebar works;
+- [ ] top ribbon works;
 - [ ] open session loads history;
+- [ ] session taps/clicks work;
 - [ ] send/chat round-trip works;
+- [ ] Stop works while agent is active;
 - [ ] rename persists to official Control UI;
-- [ ] no `DEVICE_AUTH_SIGNATURE_INVALID` regression.
+- [ ] no auth/signature regression.
 
-If Gate 1 fails: STOP and restore owner-proven baseline; do not continue appearance testing.
+If Gate 1 fails: FAIL → restore exact proven input → record evidence → rebuild. Do not patch-forward.
 
-## Gate 2 — lifecycle / operations
+## Gate 2 — ProjectChat interaction
+- [ ] full tab text appears on hover;
+- [ ] dedicated drag handle works;
+- [ ] file-drop overlay does not cover tab drag;
+- [ ] orange left-insertion target is visible;
+- [ ] cross-Project orange target works and inserts at position 1;
+- [ ] Project chevrons expand sessions;
+- [ ] nested session focuses only that session on right;
+- [ ] Project click restores all Project tabs;
+- [ ] right-click and mobile double-tap open menu below tab;
+- [ ] outside click/tap closes menu;
+- [ ] Rename Enter works without Save;
+- [ ] Assign existing/new Project works and preserves origin focus;
+- [ ] Customize changes apply live/persist with no Save button;
+- [ ] tab order persists;
+- [ ] phone/tablet gestures do not conflict.
 
-- [ ] Recycle bin appears at TOP when needed;
-- [ ] soft delete affects only Session Manager;
-- [ ] Restore returns exact session;
-- [ ] tombstone survives reload;
-- [ ] Permanent Delete uses OpenClaw lifecycle;
-- [ ] rejected delete preserves state;
-- [ ] Copy / Download / Share / Stop / attachments / activity show no regression.
+## Gate 3 — lifecycle/accessibility/regression
+- [ ] soft delete/Recycle Bin semantics unchanged;
+- [ ] Missing/Unassigned disposition unchanged;
+- [ ] Copy/Download/Share/attachments unchanged;
+- [ ] ProjectChat preset leaves gear/chrome comfortably usable;
+- [ ] appearance/custom themes/automatic Markdown+safe HTML rendering unchanged;
+- [ ] SOT sync does not overwrite secrets or prior remote events.
 
-## Gate 3 — appearance / accessibility
-
-- [ ] Configuration → Appearance opens as a large usable workspace;
-- [ ] all five presets are visibly legible;
-- [ ] Large Print materially increases readability;
-- [ ] full page background can be changed;
-- [ ] panels, cards, inputs, borders, main/secondary text can be changed independently;
-- [ ] User and Agent colors/sizes are independent;
-- [ ] code block foreground/background are independent;
-- [ ] inline code foreground/background are independent;
-- [ ] filename/path foreground/background are independent;
-- [ ] deliberately choosing an unreadable foreground does **not** produce unreadable rendered text because contrast protection corrects it;
-- [ ] live preview updates while editing;
-- [ ] closing × restores unsaved appearance state;
-- [ ] Save persists appearance across reload;
-- [ ] Markdown renders automatically;
-- [ ] safe HTML renders automatically;
-- [ ] unsafe HTML/script/event handlers do not execute.
-
-Only owner PASS promotes v2.3.1 to baseline.
+Only owner PASS promotes the candidate to baseline.
 
 ---
 
-# 4. EXPLICIT NON-SCOPE
+# 6. PLANNED EXPANSION AFTER STABLE PROJECTCHAT
 
-Not in SM-R2:
+The strategic direction remains: get this chat client stable first, then expand it to manage multiple OpenClaw instances and eventually multiple platforms so the owner is no longer window-hopping.
 
-- automatic `.jsonl.jsonl` repair;
-- orphan transcript re-index;
-- direct filesystem mutation;
-- multi-instance support;
-- GitHub Pages architecture changes;
-- platform abstraction;
-- new service/worker/daemon/port;
-- bulk deletion;
-- session merge;
-- unrelated authentication redesign.
+Planned expansion includes:
 
----
+- named Gateway/instance profiles with isolated auth/device state;
+- simultaneous multi-instance desk;
+- global search and operations across instances;
+- health/version summaries and per-instance diagnostics;
+- safe profile/theme/project import/export and portable SOT;
+- platform abstraction only after the single-instance ProjectChat interaction model is owner-proven.
 
-# 5. PLANNED RELEASES
-
-## SM-R3 / v2.4.0 — instance profiles
-Named Gateway profiles, explicit URL, isolated auth/device state, safe A → B → A switching.
-
-## SM-R4 / v2.5.0 — simultaneous multi-instance desk
-Multiple Gateways concurrently with isolated sessions/activity/reconnect state.
-
-## SM-R5 / v2.6.0 — platform-neutral static deployment
-Same self-contained client served statically with explicit Gateway endpoints and proven allowed-origin/Tailscale behavior.
-
-## SM-R6 / v2.7.0 — unified operations workspace
-Global search, pins/favorites, health/version summaries, per-instance diagnostics, safe profile import/export, dense desktop/tablet workspace.
+No expansion work is allowed to destabilize the current single-instance baseline.
 
 ---
 
-# 6. BACKLOG
+# 7. BACKLOG
 
 ### Lifecycle
 - bulk soft delete / restore;
@@ -299,7 +320,7 @@ Global search, pins/favorites, health/version summaries, per-instance diagnostic
 
 ### Session-file diagnostics
 - determine root cause/population of `.jsonl.jsonl`;
-- orphan detection if Gateway-native inventory becomes available;
+- orphan detection using the best Gateway-native inventory available;
 - missing referenced transcripts;
 - duplicate sessionId/file references;
 - archive retention visibility;
@@ -313,9 +334,18 @@ Global search, pins/favorites, health/version summaries, per-instance diagnostic
 - message metadata on demand;
 - global multi-instance search later.
 
+### ProjectChat
+- harden touch drag/drop across mobile browsers;
+- keyboard-accessible equivalents for tab/project movement and context actions;
+- richer Project ordering/management after current interaction release passes;
+- SOT conflict/audit viewer;
+- recovery UI for Missing → Unassigned provenance.
+
 ### Test infrastructure
 - protected auth/connect source-diff guard;
+- final-HTML script extractor + `node --check` gate;
 - startup/control reachability harness;
+- smoke harness for hamburger/top ribbon/session selection;
 - mock list/patch/delete/chat/abort/auth cases;
 - two-client harness;
 - multi-instance harness;
@@ -323,7 +353,7 @@ Global search, pins/favorites, health/version summaries, per-instance diagnostic
 
 ---
 
-# 7. GRAVEYARD
+# 8. GRAVEYARD
 
 ### G-001 — Patch-forward after failed candidate
 Buried. Restore declared input and rebuild.
@@ -359,13 +389,13 @@ Buried. Plain literal HTML and exact source read-back.
 Buried. Use OpenClaw lifecycle semantics.
 
 ### G-012 — Automatic `.jsonl.jsonl` repair before evidence
-Buried for SM-R2. Detection only.
+Buried until separately governed. Detection first.
 
 ### G-013 — Claim derived path list is a disk scan
 Buried. Derived means not disk-verified.
 
 ### G-014 — Handoff without exact source read-back
-Buried after first v2.3 transfer lost syntax before handoff.
+Buried. Read back the published source before handoff.
 
 ### G-015 — Modify proven auth/connect code for unrelated UI features
 Buried. Build UI/lifecycle changes around the proven connection subsystem.
@@ -374,170 +404,180 @@ Buried. Build UI/lifecycle changes around the proven connection subsystem.
 Buried. Repeated owner failure after redeployment is a release FAIL.
 
 ### G-017 — Publish compressed/binary bytes as the HTML artifact
-Buried after an intermediate publish produced non-UTF-8 content. Literal HTML read-back is mandatory.
+Buried. Literal UTF-8 HTML read-back is mandatory.
 
 ### G-018 — Let message text color leak into code/path surfaces
-**Buried 2026-08-10.** Code, inline code, filenames/paths, and links have dedicated palette roles and contrast protection. A black message font must never make a black code/path surface unreadable.
+Buried. Code, inline code, filenames/paths, and links have dedicated palette roles and contrast protection.
 
 ### G-019 — Cram Appearance controls into a small generic settings box
-**Buried 2026-08-10.** Appearance is a large coherent workspace grouped by page surfaces, messages, rendered-content surfaces, typography/layout, with a live preview.
+Buried. Appearance is a large coherent workspace with live preview.
 
 ### G-020 — Presets without low-vision legibility guarantees
-**Buried 2026-08-10.** Presets must be designed for readable contrast and useful scale. High Contrast Dark, High Contrast Light, Warm Paper, Soft Dark, and Large Print are the governed v2.3.1 set.
+Buried. Presets require readable contrast, scale, spacing, and usable chrome.
 
 ### G-021 — Require the user to choose Markdown versus HTML rendering mode
-**Buried 2026-08-10.** Rendering is automatic. Markdown renders as Markdown; recognized safe HTML is sanitized and rendered without an extra mode control.
+Buried. Rendering is automatic and safe HTML is sanitized.
+
+### G-022 — BotsChat as only a palette
+Buried. ProjectChat is a client/workspace type with Projects and session tabs.
+
+### G-023 — One fixed General thread
+Buried. Multiple Projects are critical; each Project may own multiple sessions.
+
+### G-024 — Custom themes as hard-coded source edits
+Buried. Themes are validated portable data.
+
+### G-025 — Device-local-only project/theme state
+Buried. Portable workspace organization uses GitHub SOT.
+
+### G-026 — Blind whole-state GitHub overwrite
+Buried. SOT writes are SHA-guarded merges/events.
+
+### G-027 — Syncing secrets
+Buried. Credentials/private keys/transcripts never enter portable SOT.
+
+### G-028 — Invisible orphan sessions
+Buried. Every known session has one of four dispositions.
+
+### G-029 — Tab X as local close/remove membership
+Buried. Tab X is governed soft delete to Recycle Bin.
+
+### G-030 — Automatically restore recovered Missing session to old Project
+Buried. Recovery goes to Unassigned with provenance.
+
+### G-031 — BotsChat visible product name
+Retired in favor of ProjectChat.
+
+### G-032 — Assignment that navigates away from current Project
+Buried. Origin Project retains focus.
+
+### G-033 — Non-persistent tab customization
+Buried. Tab customization persists.
+
+### G-034 — Publish without syntax-checking complete assembled JavaScript
+**Buried 2026-08-12.** Extract every executable script from final HTML and syntax/lint-check it before publication.
+
+### G-035 — Treat rollback as completed response to failed release
+**Buried 2026-08-12.** Rollback → rebuild → validate → publish → read-back → test URL is one recovery operation.
+
+### G-036 — Branch/source page as owner test handoff
+**Buried 2026-08-12.** Owner receives a runnable Pages URL.
+
+### G-037 — GitHub Actions workflow as source patch mechanism
+**Buried 2026-08-12.** It created workflow noise/alerts and another failure surface. Direct existing-file update only; normal Pages deployment remains separate.
+
+### G-038 — Narrate intended work instead of completing mechanical release stages
+**Buried 2026-08-12.** Continue autonomously through the governed pipeline once scope is known.
+
+### G-039 — Patch-forward from owner-failed v2.8.0/v2.8.1
+**Buried 2026-08-12.** Failed candidates are evidence/donors only.
+
+### G-040 — Let ProjectChat tab drag invoke attachment overlay
+**Buried 2026-08-12.** File drag and session-tab drag are distinct modes; tab/project targets must remain visible.
+
+### G-041 — Long-press for tab context menu
+**Buried.** It conflicts with touch drag/drop. Mobile uses double-tap; desktop keeps right-click.
+
+### G-042 — Context menu to the right of invoking tab
+**Buried.** It opens below the tab.
+
+### G-043 — Save button in tab Customize
+**Buried.** Changes are live/persistent; outside tap/click dismisses.
 
 ---
 
-# 8. LESSONS
+# 9. LESSONS
 
 - The owner’s most recent demonstrated working artifact is the functional baseline.
 - A working baseline is an asset; protect unrelated subsystems.
-- Accessibility failures are functional defects, not cosmetic preferences.
-- Color controls require semantic surface separation: page, panel, message, code, inline code, path, link, metadata.
-- A free-form color picker without contrast protection can create an unusable UI.
-- Low-vision presets need larger typography and spacing as well as contrast.
-- Automatic rendering must be paired with sanitization; convenience must not mean executable arbitrary HTML.
-- A release-tooling/hash mismatch is not an application failure when the source is reproduced and semantic/syntax/read-back gates pass.
-- Source publishing correctness is part of release correctness.
-- A successful GitHub write is not enough; read back the actual file.
+- A page rendering is not evidence that JavaScript bootstrap completed. “HTML visible” and “UI alive” are separate release gates.
+- An inert hamburger/ribbon/session list is a startup-level failure signal. Capture the first uncaught exception before guessing about individual controls.
+- Lint the final assembled single-file application, not a patch fragment or copied function. Source insertion can break quotes/template literals even when the fragment itself looked valid.
+- Owner/device evidence outranks a successful commit, green Pages deployment, version ribbon, or static inspection.
+- Rollback is not the deliverable when the owner requested a corrected release; it is the clean starting point for the rebuild.
+- Release tooling can itself become a defect. Do not introduce workflows/helper deployment mechanisms to solve ordinary source editing.
+- Source publishing correctness is part of release correctness. Fresh SHA before write; exact source read-back afterward.
+- A branch source URL is not a test deployment. The owner tests the live Pages artifact.
+- Do not make the owner deploy components, operate Git, or diagnose architecture. The owner tests the finished candidate.
+- Accessibility failures are functional defects, including cramped/hidden chrome and tiny controls.
+- Color controls require semantic surface separation and contrast protection.
+- Automatic rendering must be paired with sanitization.
+- Mobile gestures must be designed together. Long-press conflicted with drag; double-tap plus a dedicated drag handle separates the actions.
+- Drag/drop requires visible state: dedicated handle, ghost/target feedback, orange insertion/project target, and suppression of unrelated overlays.
+- Project navigation deliberately supports two scopes: Project = all tabs; expanded child session = single-session focus.
+- Live/persistent customization should not have a fake Save step.
+- Once release scope is fully specified, do not repeatedly stop for permission between rollback, rebuild, checks, publish, and read-back.
 
 ---
 
-# 9. DECISION LOG
+# 10. DECISION LOG
 
 - **D-001 · 2026-08-10:** this file governs Session Manager work.
-- **D-002:** WSL owner gate precedes later neutral-hosting work.
-- **D-003:** expansion order is stable single instance → profiles → simultaneous instances → neutral hosting → unified workspace.
-- **D-004:** session rename round-trip into official Control UI is a required regression gate.
-- **D-005:** Recycle bin belongs at TOP of session list.
+- **D-002:** WSL owner gate precedes neutral-hosting work.
+- **D-003:** expansion order begins with a stable single instance before multi-instance/platform expansion.
+- **D-004:** session rename round-trip into official Control UI is a regression gate.
+- **D-005:** Recycle Bin belongs at top where applicable.
 - **D-006:** permanent delete uses OpenClaw lifecycle/archive semantics.
-- **D-007:** `.jsonl.jsonl` is diagnostic-only in SM-R2.
+- **D-007:** `.jsonl.jsonl` is diagnostic-first; no speculative repair.
 - **D-008:** Debug remains behind Configuration and tabbed.
-- **D-009:** prior broken v2.3 candidates were not promoted.
-- **D-010:** owner-supplied v2.1 blob `27ee8f...` is the authoritative functional baseline.
-- **D-011:** governed v2.3.0 feature candidate blob was `3f55b17975c7c10c27bf3ece87a28734ffeb3358`.
-- **D-012:** protected auth/connect guard is required for subsequent SM-R2 work.
-- **D-013:** v2.3.1 is an accessibility refinement; visible build version advances while the authenticated client-version marker remains on the proven v2.3 connection value to avoid signature drift.
-- **D-014:** Appearance becomes a large low-vision-oriented workspace with five legible presets and live preview.
-- **D-015:** page/panel/input backgrounds are first-class appearance controls.
-- **D-016:** code, inline code, paths/filenames, and links are independent semantic color surfaces with automatic contrast protection.
-- **D-017:** Markdown and sanitized safe HTML rendering are automatic.
-- **D-018:** guarded GitHub build for v2.3.1 passed governed-input, protected-connection, feature, JavaScript syntax, cleanup, and final source read-back gates.
-- **D-019:** v2.3.1 owner gate is NOT YET RUN.
+- **D-009:** failed candidates are never promoted.
+- **D-010:** owner-supplied v2.1 blob `27ee8f...` is the historical authoritative connection baseline.
+- **D-011:** protected auth/connect guard remains required.
+- **D-012:** Appearance is a low-vision-oriented workspace with semantic surfaces, presets, and live preview.
+- **D-013:** Markdown and sanitized safe HTML rendering are automatic.
+- **D-014 · 2026-08-11:** ProjectChat hierarchy is Client → Projects → OpenClaw session tabs.
+- **D-015:** custom themes are portable validated data.
+- **D-016:** GitHub SOT is append-only/SHA-guarded and excludes secrets/transcripts.
+- **D-017:** session disposition invariant is Assigned / Unassigned / Missing / Soft Deleted.
+- **D-018:** recovered Missing sessions return to Unassigned with provenance.
+- **D-019:** visible product name is ProjectChat; legacy internal `botschat` may remain for compatibility.
+- **D-020:** right-click/desktop and double-tap/mobile invoke tab context menu; long-press is retired.
+- **D-021:** tab context menu opens below the tab and dismisses on outside click/tap.
+- **D-022:** Customize is live/persistent and has no Save button.
+- **D-023:** tab drag uses a dedicated handle; attachment overlay is suppressed during tab drag.
+- **D-024:** horizontal drop inserts to the left of the orange-highlighted target.
+- **D-025:** cross-Project drop inserts at position 1 and leaves origin Project focused.
+- **D-026:** Project chevrons expose child sessions; child selection focuses one session, Project selection restores all tabs.
+- **D-027 · 2026-08-12:** v2.8.0 and v2.8.1 owner tests failed; neither is a baseline.
+- **D-028:** current recovery starts from the exact last known-good ProjectChat line, not current `main`.
+- **D-029:** complete final HTML JavaScript lint/syntax gate is mandatory before every publish.
+- **D-030:** source-patching GitHub Actions workflows are prohibited for this project.
+- **D-031:** a release handoff is incomplete until the candidate is on GitHub Pages and the owner has a directly testable URL.
+- **D-032:** `session-manager-turnover.md` is the current handoff companion to this governance file.
 
 ---
 
-# 10. MAINTENANCE RULE
+# 11. ARTIFACT INDEX
 
-Before code: freeze scope here.  
+### Primary
+- `session-manager-v3.html` — deployable self-contained application.
+- `session-manager-backlog.md` — governance source of truth.
+- `session-manager-turnover.md` — current recovery/turnover brief.
+- `session-manager-sot.json` — cross-device portable-state journal when present/configured.
+
+### Historical / diagnostic
+- `session-manager-v2.2.1-rename-test.html` — historical test artifact only.
+- `.release-backups/session-manager-v250/session-manager-v3.v240.html`
+- `.release-backups/session-manager-v260/session-manager-v3.v250.html`
+- `.release-backups/session-manager-v270/session-manager-v3.v260.html`
+- `.release-backups/session-manager-v250/session-manager-backlog.pre-v190.md`
+- `.release-backups/session-manager-v260/session-manager-backlog.pre-v110.md`
+- `.release-backups/session-manager-v270/session-manager-backlog.pre-v111.md`
+
+### Process references
+- `talkbridge/TALKBRIDGE-PLAN-v9.md` — process precedent for baseline discipline, graveyard, rebuild-after-failure, mechanical gates, verification, and owner hardware gate.
+- `talkbridge/THE-METHOD.md` — companion method reference if present.
+- `talkbridge/HANDOVER.md` — prior handover reference.
+
+---
+
+# 12. MAINTENANCE RULE
+
+Before code: freeze scope here and read the turnover.  
 After new evidence: update Lessons/Graveyard.  
 After owner ruling: update Decision Log in the same session.  
-After FAIL: restore exact proven baseline and rebuild.  
+After FAIL: restore exact proven baseline and rebuild; do not patch-forward.  
 After PASS: record exact commit/blob as new baseline.  
+Before publish: lint/syntax-check every executable script in final assembled HTML and run structural/smoke gates.  
+After publish: read source back and provide the runnable Pages URL.  
 Unscheduled ideas remain backlog until deliberately promoted.
-
-
-# 10. v2.4.0 WORKSPACE / THEME AMENDMENT — 2026-08-11
-
-Owner ruling supersedes the earlier one-thread simplification. **BotsChat is a client type, not merely a color preset.** The locked hierarchy is:
-
-`Client → Projects → OpenClaw session tabs`
-
-- Left pane contains locally managed **Projects** with `+` creation.
-- Each Project owns an ordered set of real OpenClaw session references.
-- Selecting a Project changes the right-side session tab strip.
-- The tab-strip `+` can add an existing OpenClaw session or create a new one.
-- Closing a tab removes only that Project membership; deleting an OpenClaw session remains a separate governed lifecycle action.
-- Projects never rewrite session keys, transcripts, labels, or OpenClaw storage.
-- Background sessions remain independent and may continue working while another Project/session is viewed.
-- `Standard Session Manager` remains available as a separate Client Type.
-- Appearance and Client Type are independent. Claude, ChatGPT and BotsChat are built-in Appearance presets.
-
-## Custom theme library
-
-- Save the **complete current Appearance state** as a named custom theme.
-- Apply, rename, duplicate and delete custom themes.
-- Export one custom theme or the complete library as JSON.
-- Import validates `session-manager-theme-library` schema/version 1 and normalizes appearance data before storage.
-- Duplicate imported names receive a non-destructive suffix; import never silently overwrites an existing theme.
-- Theme storage is browser-local data and remains independent of `session-manager-v3.html`.
-
-## Graveyard additions
-
-**G-022 — BotsChat as only a palette.** Buried. The reference includes navigation, Projects, tabbed sessions and workspace behavior.
-
-**G-023 — One fixed General thread.** Buried. Owner clarified that multiple Projects on the left are critical and each Project must own multiple session tabs.
-
-**G-024 — Custom themes as hard-coded source edits.** Buried. Custom themes are validated portable data with save/export/import.
-
-
-# 11. v2.5.0 CROSS-DEVICE SOT AMENDMENT — 2026-08-11
-
-The Session Manager now has a browser-to-GitHub persistent source of truth. The GitHub file is an **append-only event journal**, not a replacement snapshot.
-
-- Default SOT: `acmeproducts/stuff/session-manager-sot.json` on `main`.
-- Configuration accepts a GitHub PAT and owner/repository/branch/path.
-- PAT is browser-local only and is excluded from the SOT and diagnostics.
-- Portable state includes Client Type, Appearance, custom themes, Projects, and Project-to-OpenClaw-session membership.
-- Gateway tokens, device private keys, OpenClaw transcripts, and credentials are never written to the SOT.
-- Every local portable change is queued as a uniquely identified event.
-- Sync first reads the current blob and SHA, merges unique local events after all existing remote events, then updates with that exact SHA.
-- GitHub 409/422 races force re-read/merge/retry; a stale device may not blindly overwrite the remote SOT.
-- Replaying the journal yields the latest accepted state across devices while retaining prior changes for audit/recovery.
-- Project membership is no longer destroyed just because a session is temporarily absent from one `sessions.list` response.
-- BotsChat has no project hash/emblem decoration; Projects are shown by name only.
-
-## Graveyard additions
-
-**G-025 — Device-local-only project/theme state.** Buried. Portable workspace organization must survive device changes through the GitHub SOT.
-
-**G-026 — Blind whole-state GitHub overwrite.** Buried. Writes must be SHA-guarded merges and retain all previously accepted SOT events.
-
-**G-027 — Syncing secrets.** Buried. PATs, Gateway tokens, OpenClaw device private keys, provider credentials and transcripts are never portable SOT content.
-
-
-# 12. v2.6.0 SESSION DISPOSITION / ORPHAN AMENDMENT — 2026-08-11
-
-BotsChat must account for every session known to the client. The invariant is: **Assigned, Unassigned, Missing, or Soft Deleted — never invisible.**
-
-- **Assigned:** exactly one normal Project owns the live OpenClaw session.
-- **Unassigned:** OpenClaw currently reports the live session but no Project owns it. Unassigned is a system view, not a normal Project.
-- **Missing:** the SOT/client has previously seen the session but the current OpenClaw `sessions.list` does not report it. Missing is a collapsed exception chevron, not a Project.
-- **Soft Deleted:** the session has an explicit Recycle Bin tombstone. It is hidden from Projects/Unassigned/Missing while the OpenClaw source remains untouched.
-- Every discovered live session is retained in the Project-state `known` ledger so an unassigned session can also become Missing rather than disappearing.
-- When an assigned or unassigned session becomes Missing, its label, prior Project, first-missing time, and last-seen metadata are retained.
-- When a Missing session reappears, it goes to **Unassigned**, never silently back to the old Project. Its previous Project is retained as recovery provenance.
-- Restore from Recycle Bin also returns to Unassigned and retains previous-Project provenance.
-- Removing a Project moves its sessions to Unassigned; it never deletes them.
-- A session has at most one normal Project home. Adding/dropping it on another Project is a move, never a copy.
-- Session tabs are HTML5 draggable. Dropping a tab on a Project persists the move to local state and the GitHub SOT. Dropping on Unassigned removes Project membership.
-- The tab `×` is explicitly **Soft Delete → Recycle Bin**, not a temporary close-tab operation.
-- Missing sessions cannot be dragged because the source is not currently live. They may be explicitly soft-deleted from the Missing chevron.
-- Recycle Bin tombstones are now part of the portable GitHub SOT, preserving soft-delete intent across devices.
-
-## Graveyard additions
-
-**G-028 — Invisible orphan sessions.** Buried. Every known session must resolve to one of the four dispositions.
-
-**G-029 — Tab X as local close/remove membership.** Buried. In BotsChat, tab X means governed soft delete to Recycle Bin.
-
-**G-030 — Automatically restoring recovered Missing sessions to their old Project.** Buried. Recovery returns to Unassigned with prior-Project provenance for operator-directed re-homing.
-
-
-# 13. v2.7.0 PROJECTCHAT TAB INTERACTION AMENDMENT — 2026-08-11
-
-The visible BotsChat working name is retired; the client is **ProjectChat**. Internal `clientType: "botschat"` remains temporarily for backward compatibility.
-
-- Right-click a live tab: **Rename › / Assign › / Customize ›**.
-- Rename leaf: Enter persists via governed `sessions.patch`, then returns focus to the origin Project.
-- Assign leaf: Project omnisearch supports partial matching, `*` wildcard, and `-negative` terms. Selecting a result moves the tab but leaves the origin Project in focus. Enter on a new name creates the Project and moves the tab, again preserving origin focus.
-- Customize leaf: persistent tab background color, font color, and font size; Reset removes customization. These values live in Project state and GitHub SOT.
-- Drag/drop tabs inside a Project persistently changes tab sequence. Cross-Project drop remains a move, never a copy.
-- Tab × remains governed soft delete.
-
-## Graveyard additions
-**G-031 — BotsChat visible product name.** Retired in favor of ProjectChat.
-**G-032 — Assignment that navigates away from the current Project.** Buried.
-**G-033 — Non-persistent tab customization.** Buried.
