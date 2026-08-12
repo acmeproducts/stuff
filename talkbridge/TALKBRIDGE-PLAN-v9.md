@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v10.16.0 -->
-# TALKBRIDGE MASTER PLAN v10.16.0
+<!-- TALKBRIDGE-PLAN v10.17.0 -->
+# TALKBRIDGE MASTER PLAN v10.17.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Supersedes:** v8.5.0 (inside `TALKBRIDGE-MASTER-PLAN-v7.html`) and SOT v1's
@@ -422,6 +422,69 @@ transcription socket stops rather than churning.
    Typed and spoken lines both, in both languages, is assumed. Open: whether
    attachments are included or referenced, and whether system pills are
    included.
+
+---
+
+## R8 · RESPONSIVE LAYOUT AND COLLISION SAFETY — proposed, awaiting approval
+
+**Why.** An independent assessment of `bridge-turn24-base.html` found two
+structural conditions that explain a large share of this session's failures:
+
+- **727 hard-coded pixel values, 79 distinct, and zero media queries.** Every
+  ribbon failure was a number computed correct for one screen width and wrong
+  at another — a percentage resolving against the wrong containing block, a
+  cluster centred where the microphone should have been, a reserve sized for
+  390px that collapsed at 360px. Six separate diagnoses, one absent
+  abstraction.
+- **102 globals in a single namespace, with nothing checking for collisions.**
+  The contract gate verifies what each part *declares*, not whether two parts
+  declare the same name. `.ribbon` hitting two elements, `renderHome` wrapped
+  by four parts, a function calling into a part that had been rolled back —
+  all the same condition.
+
+Also found: **19 distinct z-index values across 22 declarations**, unmanaged.
+
+**Sequencing note (owner ruling).** Spacing and sizing are not separate jobs.
+A named scale of fixed pixels is still fixed pixels. Every value in a converted
+surface becomes viewport-derived — spacing, sizing and positioning together —
+or the halves disagree in the middle, which is how the ribbon kept breaking.
+Slices are therefore **by surface, converted end to end**, never by property
+type.
+
+### R8.0 — Collision gate (do first)
+A build-time check failing any build where two parts declare the same top-level
+name. Roughly five lines in `build/contract.mjs`. No device test: the gate
+either catches a deliberately planted collision or it does not. Protects every
+slice after it.
+
+### R8.1 — Ribbon, complete
+23 px declarations. The most broken surface and the most instrumented, so a
+regression is visible immediately. Converts sizing, spacing and positioning to
+viewport-derived units in one pass.
+
+### R8.2 — Transcript and bubbles
+28 px declarations. Includes the font sizes already flagged as unreadable on
+iPhone, so the owner's eyes are the gate.
+
+### R8.3 — Drawer and modals
+56 px declarations — the largest surface. Includes the Customize tab density
+redesign already requested (colour/background/size on one row, Me/Partner side
+by side, roughly 50% savings).
+
+### R8.4 — Room cards and home screen
+48 px declarations.
+
+### R8.5 — Stacking order
+19 z-index values reduced to a named scale.
+
+**Gate for each slice:** the converted surface renders correctly at 320, 360,
+390 and 428px, and on the owner's real devices. No slice ships while any test
+is red (method rule 6).
+
+**Not in scope.** Anything touching iOS push or install — that is blocked on
+the separate prototype at `proto/push.html`, and Release 7 stays paused until
+that POC resolves. If the prototype's structure is adopted, R8.1–R8.4 may need
+resequencing, so this plan is reviewed again at that point.
 
 ---
 
@@ -1252,6 +1315,19 @@ Green means allowed to push. It never means done.
 
 ## 9 · CHANGE LOG
 
+**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
+install, which are being resolved separately via an isolated prototype at
+`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
+device gate; the last owner-approved build remains
+`bridge-turn24-pre-base.html`.
+
+**R8 proposed and awaiting approval** (§ above): responsive layout and collision
+safety, prompted by an independent assessment finding 727 hard-coded pixels
+across 79 distinct values with zero media queries, 102 globals with no
+collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
+and sizing are one job, not two — slices are by surface, converted end to end,
+because a named scale of fixed pixels is still fixed pixels.
+
 **v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
 screenshot shows hamburger and name left, mic/phone/video clustered centre,
 `⋯` at the right edge, single row, correctly spaced. First time in six
@@ -1361,6 +1437,19 @@ geometry verbatim — equal side growth, fixed centre with 14px slot gaps,
 locked 34px slots, name yielding with ellipsis — with the structural test now
 asserting that exact geometry and two new mutations covering both regressions.
 All other release 7 content unchanged and re-gated.
+
+**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
+install, which are being resolved separately via an isolated prototype at
+`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
+device gate; the last owner-approved build remains
+`bridge-turn24-pre-base.html`.
+
+**R8 proposed and awaiting approval** (§ above): responsive layout and collision
+safety, prompted by an independent assessment finding 727 hard-coded pixels
+across 79 distinct values with zero media queries, 102 globals with no
+collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
+and sizing are one job, not two — slices are by surface, converted end to end,
+because a named scale of fixed pixels is still fixed pixels.
 
 **v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
 screenshot shows hamburger and name left, mic/phone/video clustered centre,
@@ -1504,6 +1593,19 @@ nine mutations each reintroducing a defect and each caught — including a
 two-instance harness whose relay drops every message type the base did not
 already handle, reproducing the proven hardware transport failure, with the
 lifecycle carrier and the rename away-record still crossing.
+
+**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
+install, which are being resolved separately via an isolated prototype at
+`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
+device gate; the last owner-approved build remains
+`bridge-turn24-pre-base.html`.
+
+**R8 proposed and awaiting approval** (§ above): responsive layout and collision
+safety, prompted by an independent assessment finding 727 hard-coded pixels
+across 79 distinct values with zero media queries, 102 globals with no
+collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
+and sizing are one job, not two — slices are by surface, converted end to end,
+because a named scale of fixed pixels is still fixed pixels.
 
 **v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
 screenshot shows hamburger and name left, mic/phone/video clustered centre,
@@ -1783,6 +1885,19 @@ credential failures. Backlog gains five items found by scanning the historical
 planning documents rather than the current session: the under-delivered flag
 motif, bubble-header background colour, two-graphic mute icons with the
 bubble-header icon convention, the Ear/TTS/Mute wording pass, and installability.
+
+**v10.17.0 · 2026-08-11.** **Release 7 PAUSED** — blocked on iOS push and
+install, which are being resolved separately via an isolated prototype at
+`proto/push.html`. `bridge-turn24-base.html` is deployed but has never passed a
+device gate; the last owner-approved build remains
+`bridge-turn24-pre-base.html`.
+
+**R8 proposed and awaiting approval** (§ above): responsive layout and collision
+safety, prompted by an independent assessment finding 727 hard-coded pixels
+across 79 distinct values with zero media queries, 102 globals with no
+collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
+and sizing are one job, not two — slices are by surface, converted end to end,
+because a named scale of fixed pixels is still fixed pixels.
 
 **v10.16.0 · 2026-08-10.** **Ribbon CONFIRMED CORRECT on device** — owner
 screenshot shows hamburger and name left, mic/phone/video clustered centre,
