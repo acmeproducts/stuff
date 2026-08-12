@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.13.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.14.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.13.0  
+**Governance version:** 1.14.0  
 **Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
 **Turnover artifact:** `session-manager-turnover.md`  
@@ -165,29 +165,34 @@ Default intended SOT: `acmeproducts/stuff/session-manager-sot.json` on `main`.
 
 ---
 
-# 4. ACTIVE RECOVERY RELEASE — v2.8.x REBUILD
+# 4. ACTIVE RELEASE — v2.9.0 TAB INTERACTION (owner-corrected scope, 2026-08-12)
 
-**Status:** FAILED candidate on `main`; rebuild required from last known-good ProjectChat input.
+**Status:** Build pending. Input baseline: restored v2.7.1 on `main` (commit `2b022ba`, blob `c63d8b9`), pending owner Gate 1 confirmation. Prior v2.8.x scope text contained misinterpretations and is superseded by this section.
+
+**This application is mobile-first. Every behavior below is specified for portrait phone first; desktop is the secondary adaptation.**
 
 ## 4.1 Locked scope
 
-1. Mouse/hover over a tab shows the complete session/tab text.
-2. Session-tab drag must not invoke the generic attachment/file-drop overlay.
-3. Tabs use a dedicated drag handle.
-4. Horizontal reorder highlights the target tab in orange and inserts immediately to its **left**.
-5. Dragging toward a closed left pane opens it.
-6. Cross-Project target highlights with an orange outline; drop moves the session into **position 1** of target Project while origin Project remains focused.
-7. Projects have chevrons that expand/collapse their sessions in the left pane.
-8. Clicking/tapping a nested left-side session shows **only that session** on the right; clicking the Project row returns to the Project's full tab set.
-9. ProjectChat preset/layout must fit the Configuration gear comfortably and remain readable/tappable.
-10. Desktop right-click and mobile **double-tap** open the same tab context menu. Long-press is not used.
-11. Context menu opens directly **below the invoking tab**, clamped to viewport as needed.
-12. Clicking/tapping anywhere outside dismisses the context menu.
-13. Rename leaf: Enter commits through governed session rename; no Save button; menu closes; origin Project focus remains.
-14. Assign leaf: partial match, `*` wildcard and `-negative` omnisearch. Tap existing Project to move+close. Enter new name to create+move+close. Origin Project focus remains.
-15. Customize leaf: tab background, font color, and font size update **live** and persist; **no Save button**; Reset may remain; outside tap/click dismisses.
-16. Intra-Project tab sequencing persists locally and to GitHub SOT when configured.
-17. All gestures/targets must work on phone/tablet as well as desktop.
+### Drag and drop
+1. **Drag ghost is the tab itself.** Tap-hold + drag on a tab must never invoke the right-panel file/attachment drop overlay, and the ghost must never be the whole right panel. The file drop zone is for document upload only and is suppressed for the entire duration of a tab drag.
+2. **Intra-Project reorder:** drop zones are the positions beside each tab. The target tab shows an orange outline; release inserts the dragged tab immediately to the target's **left**. Tab ghost follows the finger/cursor throughout.
+3. **Cross-Project drag:** dragging toward a closed left drawer auto-opens it; the tab ghost persists. Hovering a Project row highlights it orange; release **moves** (never copies) the session into that Project at position 1.
+4. **After any cross-Project move (drag or Assign):** focus stays on the **source** Project. The tab to the right of the vacated slot slides into that position and becomes the **armed/active** tab whose content is shown. Never focus the target Project.
+5. Tab order persists locally and to GitHub SOT when configured.
+
+### Context menu
+6. **Double-tap** (mobile) / right-click (desktop) opens the tab context menu **directly below the invoking tab**, clamped to viewport. Never to the tab's right — portrait phones have no horizontal real estate there.
+7. **Every context-menu leaf UI (Rename input, Assign search, Customize controls) also renders below the tab**, attached to the menu — never at the bottom of the right panel.
+8. Outside tap/click dismisses. Rename: Enter commits via governed OpenClaw rename, menu closes, source focus retained.
+9. **Assign leaf:** typing filters a live Project list. Tap an existing Project → move the tab, close menu, source Project stays focused, next tab armed per rule 4. Enter on a non-existing name → create Project, move tab, same post-move behavior.
+10. **Download and Share move into the tab context menu** (removed from the top ribbon).
+
+### Ribbon declutter
+11. Remove the per-tab blue dot. Activity is shown only when it carries signal: a tab indicator appears only for Working or Error states, nothing when Ready.
+12. Merge the ribbon "Ready" dot and the "Connected" chip into **one combined readiness/connectivity indicator**.
+13. Left ribbon: remove the ProjectChat wordmark and visible version; version moves into the Configuration panel. The new-session control is the **+** icon alone, with no "session" label.
+
+Everything from the former v2.8.x scope not restated above (hover full-text, chevrons, single-session left-pane focus, Customize live styling, preset/gear fit) is **deferred backlog** — deliberately out of this release to keep scope tight.
 
 ## 4.2 Mandatory release gates
 
@@ -547,6 +552,8 @@ Buried. Tab customization persists.
 - **D-033 · 2026-08-12:** owner ruled v2.7.1 was never device-proven; no ProjectChat build has a recorded PASS. Baseline must be established empirically: publish restored candidate → owner Gate 1 → record PASS blob before any feature work.
 - **D-034 · 2026-08-12:** owner tightened the next release scope to drag/drop only (inter- and intra-Project): dedicated handle, orange targets, insert-left, cross-Project move to position 1, attachment-overlay suppression during tab drag, order persistence, mobile touch. Remaining §4.1 items are deferred backlog, not dropped.
 - **D-035 · 2026-08-12:** v2.7.1 restored byte-exact to `main` as baseline-verification candidate: commit `2b022ba53536`, blob `c63d8b925af35b533d3edcce3969db57b304b611`, read back byte-identical, all inline scripts pass `node --check`.
+- **D-036 · 2026-08-12:** owner corrected the release scope in detail; §4 rewritten as v2.9.0. Drag ghost is the tab, never the file overlay/whole panel; context menu and all its leaf UIs render below the tab; after any cross-Project move the source Project keeps focus and the right-neighbor tab becomes armed.
+- **D-037 · 2026-08-12:** ribbon declutter — Download/Share relocate to tab context menu; per-tab Ready dots removed (Working/Error only); Ready + Connected merge into one indicator; wordmark/version leave the ribbon for Configuration; new-session is a bare +.
 
 ---
 
