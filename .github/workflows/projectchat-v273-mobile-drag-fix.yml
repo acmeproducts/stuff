@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply patch
+      - name: Apply exact production patch
         shell: bash
         run: |
           set -euo pipefail
@@ -20,25 +20,25 @@ jobs:
           import re
           p=Path('session-manager-v3.html')
           s=p.read_text(encoding='utf-8')
-          assert "const BUILD_VERSION='2.7.2';" in s
-          s=s.replace("const BUILD_VERSION='2.7.2';","const BUILD_VERSION='2.7.4';",1)
+          assert "const BUILD_VERSION='2.7.1';" in s, 'expected exact production v2.7.1 baseline'
+          s=s.replace("const BUILD_VERSION='2.7.1';","const BUILD_VERSION='2.7.4';",1)
 
           old='<span class="sessionState ${statusClass(v)}" title="${statusText(v)}"></span><span class="tabLabel">'
           new='<span class="tabDragHandle" draggable="true" role="button" aria-label="Drag tab" title="Drag tab">⠿</span><span class="sessionState ${statusClass(v)}" title="${statusText(v)}"></span><span class="tabLabel">'
-          assert s.count(old)==1
+          assert s.count(old)==1, 'tab renderer signature changed'
           s=s.replace(old,new,1)
           oldtab='class="projectTab ${state.current?.key===x.key?\'active\':\'\'}" draggable="true" data-project-session='
           newtab='class="projectTab ${state.current?.key===x.key?\'active\':\'\'}" draggable="false" data-project-session='
-          assert s.count(oldtab)==1
+          assert s.count(oldtab)==1, 'tab draggable signature changed'
           s=s.replace(oldtab,newtab,1)
 
-          marker='/* v2.7 ProjectChat tab context menu + persistent tab customization */'
-          assert marker in s
+          marker='/* v2.7 ProjectChat context menu + persistent tab customization */'
+          assert marker in s, 'ProjectChat CSS marker missing'
           css='.tabDragHandle{display:inline-grid;place-items:center;flex:0 0 30px;width:30px;height:34px;margin-left:-7px;border-radius:6px;color:var(--mu);font-size:19px;line-height:1;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.tabDragHandle:hover,.tabDragHandle:focus{background:var(--p2);color:var(--am);outline:none}.tabDragHandle:active{cursor:grabbing}.projectTab{touch-action:auto}'
           s=s.replace(marker,marker+'\n'+css,1)
 
-          start=s.rfind("<script>\n(()=>{'use strict';\nconst DOUBLE_TAP_MS=360,DRAG_MOVE=12;")
-          assert start!=-1
+          start=s.rfind("<script>\n(()=>{'use strict';\nconst LONG_PRESS_MS=550,DRAG_ARM_MS=220,LONG_PRESS_MOVE=12;")
+          assert start!=-1, 'v2.7.1 mobile gesture layer missing'
           end=s.find('</script>',start)
           assert end!=-1
           end+=len('</script>')
@@ -49,7 +49,7 @@ let g=null,ghost=null,lastTap={key:'',at:0,x:0,y:0},suppress=0;
 const root=()=>document.getElementById('projectTabs');
 function hit(x,y){let e=document.elementFromPoint(x,y);return{project:e?.closest?.('.projectRow[data-project]')||null,tab:e?.closest?.('.projectTab[data-project-session]')||null}}
 function clean(){try{if(g?.capture?.hasPointerCapture?.(g.id))g.capture.releasePointerCapture(g.id)}catch{}ghost?.remove();ghost=null;document.querySelectorAll('.dragOver,.dragBefore,.dragAfter').forEach(e=>e.classList.remove('dragOver','dragBefore','dragAfter'));g=null}
-function showGhost(x,y){ghost=document.createElement('div');ghost.textContent=g.tab.querySelector('.tabLabel')?.textContent||'Session';Object.assign(ghost.style,{position:'fixed',zIndex:'2500',pointerEvents:'none',left:x+'px',top:y+'px',transform:'translate(-50%,-135%)',padding:'8px 11px',border:'1px solid var(--ln)',borderRadius:'9px',background:'var(--p)',color:'var(--tx)',boxShadow:'0 12px 34px rgba(0,0,0,.28)'});document.body.appendChild(ghost)}
+function showGhost(x,y){ghost=document.createElement('div');ghost.textContent=g.tab.querySelector('.tabLabel')?.textContent||'Session';Object.assign(ghost.style,{position:'fixed',zIndex:2500,pointerEvents:'none',left:x+'px',top:y+'px',transform:'translate(-50%,-135%)',padding:'8px 11px',border:'1px solid var(--ln)',borderRadius:'9px',background:'var(--p)',color:'var(--tx)',boxShadow:'0 12px 34px rgba(0,0,0,.28)'});document.body.appendChild(ghost)}
 function mark(x,y){document.querySelectorAll('.dragOver,.dragBefore,.dragAfter').forEach(e=>e.classList.remove('dragOver','dragBefore','dragAfter'));let h=hit(x,y);if(h.project)h.project.classList.add('dragOver');else if(h.tab&&h.tab!==g.tab){let r=h.tab.getBoundingClientRect();h.tab.classList.add(x>r.left+r.width/2?'dragAfter':'dragBefore')}}
 function drop(el,key,e){let dt={getData:t=>t==='text/session-key'?key:'',types:['text/session-key'],dropEffect:'move',effectAllowed:'move'};if(typeof el?.ondrop==='function')el.ondrop({preventDefault(){},stopPropagation(){},dataTransfer:dt,clientX:e.clientX,clientY:e.clientY,target:el})}
 function down(e){if(!['touch','pen'].includes(e.pointerType)||e.button!==0)return;let tab=e.target.closest?.('.projectTab[data-project-session]');if(!tab||e.target.closest?.('.tabClose'))return;clean();let handle=e.target.closest?.('.tabDragHandle'),capture=handle||tab;try{capture.setPointerCapture(e.pointerId)}catch{}g={id:e.pointerId,tab,capture,key:tab.dataset.projectSession,x:e.clientX,y:e.clientY,mode:handle?'dragPending':'tap'}}
@@ -68,8 +68,10 @@ document.querySelectorAll('.version').forEach(n=>n.textContent='v2.7.4');bind();
           s=open('session-manager-v3.html',encoding='utf-8').read()
           for g in ["const BUILD_VERSION='2.7.4'",'class="tabDragHandle"','draggable="false" data-project-session','touch-action:none','dragPending','setPointerCapture','elementFromPoint','DOUBLE_TAP_MS=360']:
               assert g in s,g
+          assert 'LONG_PRESS_MS=' not in s
           scripts=re.findall(r'<script>\s*(.*?)\s*</script>',s,re.S)
           for i,j in enumerate(scripts):open(f'/tmp/v274-{i}.js','w',encoding='utf-8').write(j)
+          print('v2.7.4 semantic validation PASS')
           PY
           for f in /tmp/v274-*.js; do node --check "$f"; done
 
