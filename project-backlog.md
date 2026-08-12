@@ -29,7 +29,10 @@ An owner ruling made in-session must be written into this file in the same sessi
 
 ## 0.2 Current owner rulings
 
-- **Location selection semantics:** every WSL/mounted volume in the left Locations pane has its own checkbox. Checking it selects the entire volume as a source; clicking its name drills into the volume without selecting it. Folder rows in the center pane use the same pattern: checkbox selects, name drills deeper. The top Add to project action stages all checked volumes/folders into the persistent right-hand Added to project pane.
+- **Host capability rule:** GitHub Pages is a static preview and cannot see WSL/server-mounted storage. On GitHub Pages, do not call or imply the production SOT filesystem API and do not display WSL drive letters; show only browser-authorized local-device storage. The OpenClaw `/report` URL is the server-backed integration test surface.
+- **Source context note:** every staged source in Panel 3 may carry an optional operator note (for example, “July picnic”). The tile truncates long paths visually but exposes the full path via hover/title; clicking the tile edits the note. Notes are persisted as source metadata when the backend supports that source.
+- **Portal navigation:** desktop left navigation must retain an explicit expand/collapse control and persist its state. Source-picker work must not remove unrelated portal controls.
+- **Location selection semantics:** Panel 1 is navigation only. Clicking a volume/location places that volume as a selectable row in Panel 2. In Panel 2, checking the volume selects the entire volume; clicking the volume name opens its folders. Folder rows in Panel 2 use checkboxes for one-or-many selection and click-to-drill navigation. Add to project stages checked Panel-2 rows into Panel 3.
 - `project-backlog.md` is the one current SOT governance document: release plan + backlog + graveyard.
 - **The deployable SOT application is exactly one self-contained file: `project.html`. No external application JS/CSS/module files may be required by the browser.**
 - **SOT releases deploy `project.html` only. Existing server-side API capability on the production 18080 report server is infrastructure and is not recreated per UI release.**
@@ -48,7 +51,7 @@ An owner ruling made in-session must be written into this file in the same sessi
 - Project creation exists only in **Intake → Enter Project**.
 - Project identity is the immutable `project_token`; project name is mutable.
 - **Accessible storage is one user concept. Intake must not make the user choose implementation type first. WSL/mounted and browser-local locations belong in one location chooser when accessible.**
-- **The location chooser is dual-pane: storage/locations on the left, contents on the right.**
+- **The source location chooser is three-pane and must remain three-pane: Locations / selectable Contents / Added to project.**
 - **Target selection order is storage/device → optional parent folder → final SOT folder where surviving files will be written.**
 - **Intake must communicate the job immediately: “here is my mess; here is where I have space to build the SOT.” Remove redundant summary panels and implementation-language clutter.**
 - **Operations uses Projects / Status / Detail tabs. Projects owns add/change/delete metadata and locations; Status owns high-level state and real pause/stop/retry controls when the engine exists; Detail owns in-depth source/target/run information.**
@@ -274,6 +277,11 @@ Locked source-picker presentation for `.4.8`:
 - Right pane persistently shows staged sources with remove controls plus Save selections / Cancel.
 - The screenshot supplied by the owner is the visual authority for this picker.
 - Preserve `.4.5` filesystem enumeration/API behavior; no new server, port, route, or backend architecture.
+
+
+## 1.x Owner gate — build 2026.08.11.4.7 FAILED
+
+Owner device review rejected `.4.7`. Failures: portal sidebar collapse/expand was missing; the source-picker interaction model was wrong; the picker did not provide the required Panel-1 → Panel-2 volume handoff; Panel-3 source-note context was absent; and GitHub Pages attempted/represented server-backed WSL storage even though that host cannot access the production report API. `.4.7` is not an implementation baseline. Build `.4.9` is rebuilt from exact `.4.5` UI bytes and applies only the reviewed corrections plus source-note persistence in the existing 18080 SOT API.
 
 # 2. RELEASE CHAIN
 

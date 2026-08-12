@@ -5,7 +5,7 @@ const crypto=require('crypto');
 const os=require('os');
 const {execFileSync}=require('child_process');
 
-const VERSION='0.3.1', BUILD='2026.08.10.4.2';
+const VERSION='0.3.1', BUILD='2026.08.11.4.9';
 const DEFAULT_DB=path.join(os.homedir(),'.openclaw','sot','sot.sqlite');
 const CONFIG=path.join(os.homedir(),'.openclaw','sot','config.json');
 const HOME=os.homedir();
@@ -15,13 +15,13 @@ function cfg(){try{return {...{database_path:DEFAULT_DB,database_backup_path:''}
 function saveCfg(c){fs.mkdirSync(path.dirname(CONFIG),{recursive:true});fs.writeFileSync(CONFIG,JSON.stringify(c,null,2));}
 function sql(q,db=cfg().database_path){fs.mkdirSync(path.dirname(db),{recursive:true});return execFileSync('sqlite3',['-json',db,q],{encoding:'utf8'}).trim();}
 function esc(v){return "'"+String(v??'').replace(/'/g,"''")+"'";}
-function init(){const db=cfg().database_path;sql(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS projects(project_token TEXT PRIMARY KEY,project_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'new',current_stage TEXT NOT NULL DEFAULT 'intake',notes TEXT NOT NULL DEFAULT ''); CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,path TEXT NOT NULL,fingerprint TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(project_token,path)); CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT,event_type TEXT NOT NULL,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');` ,db);}
+function init(){const db=cfg().database_path;sql(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS projects(project_token TEXT PRIMARY KEY,project_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'new',current_stage TEXT NOT NULL DEFAULT 'intake',notes TEXT NOT NULL DEFAULT ''); CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,path TEXT NOT NULL,fingerprint TEXT NOT NULL,created_at TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',UNIQUE(project_token,path)); CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT,event_type TEXT NOT NULL,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');` ,db);try{sql(`ALTER TABLE sources ADD COLUMN note TEXT NOT NULL DEFAULT '';`,db);}catch(e){if(!String(e.message||e).includes('duplicate column name'))throw e;}}
 function rows(q){init();const x=sql(q);return x?JSON.parse(x):[];}
 function roots(){const out=[];for(const letter of 'cdefghijklmnopqrstuvwxyz'){const p='/mnt/'+letter;try{if(fs.statSync(p).isDirectory())out.push({name:letter.toUpperCase()+':',path:p,kind:'storage'});}catch(_){}}out.push({name:'WSL Home',path:HOME,kind:'storage'});return out;}
 function browse(p){if(!p||p==='/')return {path:'/',folders:roots().map(x=>x.name),files:[],paths:Object.fromEntries(roots().map(x=>[x.name,x.path])),locations:roots()};const rp=path.resolve(p);const items=fs.readdirSync(rp,{withFileTypes:true});const folders=[],files=[];for(const e of items){if(e.isDirectory())folders.push(e.name);else if(e.isFile())files.push(e.name);}folders.sort();files.sort();return {path:rp,parent:path.dirname(rp),folders,files,paths:Object.fromEntries(folders.map(n=>[n,path.join(rp,n)]))};}
 function token(name,sources){return crypto.createHash('sha256').update(new Date().toISOString()+'\0'+name+'\0'+sources.join('\0')).digest('hex').slice(0,24);}
 function fingerprint(p){let st;try{st=fs.statSync(p);}catch(_){st=null;}return crypto.createHash('sha256').update(`${p}\0${st?st.dev:''}\0${st?st.ino:''}`).digest('hex');}
-function project(token){const p=rows(`SELECT * FROM projects WHERE project_token=${esc(token)} LIMIT 1`)[0];if(!p)return null;p.sources=rows(`SELECT source_id,path,fingerprint,created_at FROM sources WHERE project_token=${esc(token)} ORDER BY created_at`);return p;}
+function project(token){const p=rows(`SELECT * FROM projects WHERE project_token=${esc(token)} LIMIT 1`)[0];if(!p)return null;p.sources=rows(`SELECT source_id,path,fingerprint,created_at,note FROM sources WHERE project_token=${esc(token)} ORDER BY created_at`);return p;}
 
 async function handle(req,res,url){
   const pn=url.pathname;
@@ -34,11 +34,11 @@ async function handle(req,res,url){
     if(pn==='/api/sot/projects/health'){init();json(res,200,{status:'ok',version:VERSION,build:BUILD});return true;}
     if(pn==='/api/sot/projects'&&req.method==='GET'){json(res,200,rows('SELECT * FROM projects ORDER BY created_at DESC'));return true;}
     if(pn==='/api/sot/projects'&&req.method==='POST'){
-      const b=await body(req),name=String(b.project_name||b.name||'').trim(),sources=(b.sources||[]).map(x=>typeof x==='string'?x:x.path).filter(Boolean);
+      const b=await body(req),name=String(b.project_name||b.name||'').trim(),sourceRows=(b.sources||[]).map(x=>typeof x==='string'?{path:x,note:''}:{path:x&&x.path,note:String(x&&x.note||'')}).filter(x=>x.path),sources=sourceRows.map(x=>x.path);
       if(!name||!sources.length){json(res,400,{error:'project_name and at least one source are required'});return true;}
       const now=new Date().toISOString(),t=token(name,sources);
       init();
-      sql('BEGIN;'+`INSERT OR IGNORE INTO projects(project_token,project_name,created_at,updated_at,status,current_stage,notes) VALUES(${esc(t)},${esc(name)},${esc(now)},${esc(now)},'new','intake',${esc(b.notes||'')});`+sources.map(p=>{const sid=crypto.createHash('sha256').update(t+'\0'+p).digest('hex').slice(0,24);return `INSERT OR IGNORE INTO sources(source_id,project_token,path,fingerprint,created_at) VALUES(${esc(sid)},${esc(t)},${esc(p)},${esc(fingerprint(p))},${esc(now)});`;}).join('')+`INSERT INTO events(project_token,event_type,created_at,detail) VALUES(${esc(t)},'project.created',${esc(now)},${esc(JSON.stringify({sources:sources.length}))});COMMIT;`);
+      sql('BEGIN;'+`INSERT OR IGNORE INTO projects(project_token,project_name,created_at,updated_at,status,current_stage,notes) VALUES(${esc(t)},${esc(name)},${esc(now)},${esc(now)},'new','intake',${esc(b.notes||'')});`+sourceRows.map(src=>{const p=src.path,sid=crypto.createHash('sha256').update(t+'\0'+p).digest('hex').slice(0,24);return `INSERT OR IGNORE INTO sources(source_id,project_token,path,fingerprint,created_at,note) VALUES(${esc(sid)},${esc(t)},${esc(p)},${esc(fingerprint(p))},${esc(now)},${esc(src.note)});`;}).join('')+`INSERT INTO events(project_token,event_type,created_at,detail) VALUES(${esc(t)},'project.created',${esc(now)},${esc(JSON.stringify({sources:sources.length}))});COMMIT;`);
       json(res,201,project(t));return true;
     }
     let m=pn.match(/^\/api\/sot\/projects\/([^/]+)$/);
