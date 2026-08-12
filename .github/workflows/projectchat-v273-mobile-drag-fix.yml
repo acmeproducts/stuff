@@ -1,4 +1,4 @@
-name: ProjectChat v2.7.3 mobile drag ownership
+name: ProjectChat v2.7.4 drag handles
 on:
   push:
     branches: [main]
@@ -19,43 +19,34 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p=Path('session-manager-v3.html')
           s=p.read_text(encoding='utf-8')
-          assert "const BUILD_VERSION='2.7.2';" in s, 'expected v2.7.2 baseline'
-          s=s.replace("const BUILD_VERSION='2.7.2';","const BUILD_VERSION='2.7.3';",1)
-          start=s.rfind("<script>\n(()=>{'use strict';\nconst DOUBLE_TAP_MS=360,DRAG_MOVE=12;")
-          assert start!=-1, 'v2.7.2 mobile layer not found'
-          end=s.find('</script>',start)
-          assert end!=-1, 'mobile layer closing script missing'
-          end+=len('</script>')
+          m=re.search(r"const BUILD_VERSION='2\.7\.[23]';",s); assert m
+          s=s[:m.start()]+"const BUILD_VERSION='2.7.4';"+s[m.end():]
+          old='<span class="sessionState ${statusClass(v)}" title="${statusText(v)}"></span><span class="tabLabel">'
+          new='<span class="tabDragHandle" draggable="true" role="button" aria-label="Drag tab" title="Drag tab">⠿</span><span class="sessionState ${statusClass(v)}" title="${statusText(v)}"></span><span class="tabLabel">'
+          assert s.count(old)==1
+          s=s.replace(old,new,1).replace('class="projectTab ${state.current?.key===x.key?\'active\':\'\'}" draggable="true" data-project-session=','class="projectTab ${state.current?.key===x.key?\'active\':\'\'}" draggable="false" data-project-session=',1)
+          marker='/* v2.7 ProjectChat tab context menu + persistent tab customization */'; assert marker in s
+          s=s.replace(marker,marker+'\n.tabDragHandle{display:inline-grid;place-items:center;flex:0 0 30px;width:30px;height:34px;margin-left:-7px;border-radius:6px;color:var(--mu);font-size:19px;line-height:1;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.tabDragHandle:hover,.tabDragHandle:focus{background:var(--p2);color:var(--am);outline:none}.tabDragHandle:active{cursor:grabbing}.projectTab{touch-action:auto}',1)
+          starts=[s.rfind("<script>\n(()=>{'use strict';\nconst DOUBLE_TAP_MS=360,DRAG_MOVE=12;"),s.rfind("<script>\n(()=>{'use strict';\nconst DOUBLE_TAP_MS=360,DRAG_MOVE=10,")]; start=max(starts); assert start!=-1
+          end=s.find('</script>',start)+len('</script>'); assert end>start
           js=r'''<script>
 (()=>{'use strict';
-const DOUBLE_TAP_MS=360,DRAG_MOVE=10,EDGE_ZONE=42,EDGE_STEP=18;
-let gesture=null,ghost=null,hoverNode=null,suppressClickUntil=0,desktopOrigin='',lastTap={key:'',at:0,x:0,y:0},edgeRAF=0,edgeDir=0;
-const tabs=()=>document.getElementById('projectTabs'),sidebar=()=>document.getElementById('sidebar');
-function installTouchPolicy(){if(document.getElementById('projectChatTouchPolicy'))return;let st=document.createElement('style');st.id='projectChatTouchPolicy';st.textContent='.projectTab[data-project-session]{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}';document.head.appendChild(st)}
-function activeProjectId(){return document.querySelector('.projectRow.active[data-project]')?.dataset.project||''}
-function clearHover(){if(!hoverNode)return;hoverNode.classList.remove('dragOver','dragBefore','dragAfter');hoverNode=null}
-function removeGhost(){ghost?.remove();ghost=null}
-function stopEdgeScroll(){edgeDir=0;if(edgeRAF){cancelAnimationFrame(edgeRAF);edgeRAF=0}}
-function edgeLoop(){let root=tabs();if(!root||!edgeDir){edgeRAF=0;return}root.scrollLeft+=edgeDir*EDGE_STEP;edgeRAF=requestAnimationFrame(edgeLoop)}
-function updateEdgeScroll(x){let root=tabs();if(!root)return stopEdgeScroll();let r=root.getBoundingClientRect(),dir=x<r.left+EDGE_ZONE?-1:x>r.right-EDGE_ZONE?1:0;if(dir===edgeDir)return;stopEdgeScroll();edgeDir=dir;if(dir)edgeRAF=requestAnimationFrame(edgeLoop)}
-function cancelGesture(){if(gesture?.tab&&gesture.pointerId!=null){try{if(gesture.tab.hasPointerCapture?.(gesture.pointerId))gesture.tab.releasePointerCapture(gesture.pointerId)}catch{}}gesture=null;clearHover();removeGhost();stopEdgeScroll()}
-function makeGhost(tab,x,y){removeGhost();ghost=document.createElement('div');ghost.textContent=tab.querySelector('.tabLabel')?.textContent?.trim()||'Session';Object.assign(ghost.style,{position:'fixed',zIndex:'2500',pointerEvents:'none',left:x+'px',top:y+'px',transform:'translate(-50%,-135%)',maxWidth:'240px',padding:'8px 11px',border:'1px solid var(--ln)',borderRadius:'9px',background:'var(--p)',color:'var(--tx)',boxShadow:'0 12px 34px rgba(0,0,0,.28)',fontWeight:'750',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'});document.body.appendChild(ghost)}
-function moveGhost(x,y){if(ghost){ghost.style.left=x+'px';ghost.style.top=y+'px'}}
-function fakeDrop(el,key,e){let origin=gesture?.origin||desktopOrigin,dt={types:['text/session-key'],getData:t=>t==='text/session-key'?key:'',dropEffect:'move',effectAllowed:'move'};if(typeof el?.ondrop==='function')el.ondrop({preventDefault(){},stopPropagation(){},dataTransfer:dt,clientX:e.clientX,clientY:e.clientY,target:el});if(origin&&el?.matches?.('.projectRow[data-project]')&&el.dataset.project!==origin)setTimeout(()=>document.querySelector(`.projectRow[data-project="${CSS.escape(origin)}"]`)?.click(),0)}
-function elementAt(x,y){let el=document.elementFromPoint(x,y);return{project:el?.closest?.('.projectRow[data-project]')||null,tab:el?.closest?.('.projectTab[data-project-session]')||null}}
-function highlightTarget(x,y,key){clearHover();let{project,tab}=elementAt(x,y);if(project){project.classList.add('dragOver');hoverNode=project;return}if(tab&&tab.dataset.projectSession!==key){let r=tab.getBoundingClientRect(),after=x>r.left+r.width/2;tab.classList.add(after?'dragAfter':'dragBefore');hoverNode=tab}}
-function maybeOpenSidebar(x){let s=sidebar();if(x<=56&&s?.classList.contains('collapsed'))document.getElementById('menu')?.click()}
-function openContextFromTap(g,e){suppressClickUntil=Date.now()+700;let fn=g.tab.oncontextmenu;if(typeof fn==='function')fn.call(g.tab,{preventDefault(){},stopPropagation(){},clientX:e.clientX,clientY:e.clientY,target:g.tab,pointerType:g.pointerType})}
-function onPointerDown(e){if(!['touch','pen'].includes(e.pointerType)||e.button!==0)return;let tab=e.target.closest?.('.projectTab[data-project-session]');if(!tab||e.target.closest?.('.tabClose'))return;cancelGesture();try{tab.setPointerCapture(e.pointerId)}catch{}gesture={pointerId:e.pointerId,pointerType:e.pointerType,tab,key:tab.dataset.projectSession,startX:e.clientX,startY:e.clientY,x:e.clientX,y:e.clientY,mode:'tap',origin:activeProjectId()}}
-function onPointerMove(e){let g=gesture;if(!g||e.pointerId!==g.pointerId)return;g.x=e.clientX;g.y=e.clientY;let dist=Math.hypot(e.clientX-g.startX,e.clientY-g.startY);if(g.mode==='tap'&&dist>DRAG_MOVE){g.mode='drag';suppressClickUntil=Date.now()+900;makeGhost(g.tab,e.clientX,e.clientY)}if(g.mode==='drag'){e.preventDefault();moveGhost(e.clientX,e.clientY);maybeOpenSidebar(e.clientX);updateEdgeScroll(e.clientX);highlightTarget(e.clientX,e.clientY,g.key)}}
-function finishPointer(g){try{if(g?.tab?.hasPointerCapture?.(g.pointerId))g.tab.releasePointerCapture(g.pointerId)}catch{}gesture=null;clearHover();removeGhost();stopEdgeScroll()}
-function onPointerUp(e){let g=gesture;if(!g||e.pointerId!==g.pointerId)return;if(g.mode==='drag'){e.preventDefault();let{project,tab}=elementAt(e.clientX,e.clientY);if(project)fakeDrop(project,g.key,e);else if(tab&&tab.dataset.projectSession!==g.key)fakeDrop(tab,g.key,e);lastTap={key:'',at:0,x:0,y:0}}else{let now=Date.now(),same=lastTap.key===g.key&&now-lastTap.at<=DOUBLE_TAP_MS&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<=24;if(same){e.preventDefault();openContextFromTap(g,e);lastTap={key:'',at:0,x:0,y:0}}else lastTap={key:g.key,at:now,x:e.clientX,y:e.clientY}}finishPointer(g)}
-function onPointerCancel(e){if(gesture&&e.pointerId===gesture.pointerId)finishPointer(gesture)}
-function bindMobile(){installTouchPolicy();let root=tabs();if(!root)return;root.addEventListener('pointerdown',onPointerDown,{passive:true});root.addEventListener('pointermove',onPointerMove,{passive:false});root.addEventListener('pointerup',onPointerUp,{passive:false});root.addEventListener('pointercancel',onPointerCancel,{passive:true});root.addEventListener('click',e=>{if(Date.now()<suppressClickUntil&&e.target.closest?.('.projectTab[data-project-session]')){e.preventDefault();e.stopImmediatePropagation()}},true);root.addEventListener('dragstart',e=>{if(e.target.closest?.('.projectTab[data-project-session]'))desktopOrigin=activeProjectId()},true);document.addEventListener('drop',e=>{let row=e.target.closest?.('.projectRow[data-project]'),origin=desktopOrigin;desktopOrigin='';if(row&&origin&&row.dataset.project!==origin)setTimeout(()=>document.querySelector(`.projectRow[data-project="${CSS.escape(origin)}"]`)?.click(),0)},true);document.addEventListener('pointerdown',e=>{let menu=document.getElementById('tabContext');if(menu&&!e.target.closest?.('#tabContext'))closeTabContext()},true)}
-document.querySelectorAll('.version').forEach(n=>n.textContent='v2.7.3');
-bindMobile();
+const DOUBLE_TAP_MS=360,DRAG_MOVE=5;
+let g=null,ghost=null,lastTap={key:'',at:0,x:0,y:0},suppress=0;
+const root=()=>document.getElementById('projectTabs');
+function hit(x,y){let e=document.elementFromPoint(x,y);return{project:e?.closest?.('.projectRow[data-project]'),tab:e?.closest?.('.projectTab[data-project-session]')}}
+function clean(){try{if(g?.capture?.hasPointerCapture?.(g.id))g.capture.releasePointerCapture(g.id)}catch{}ghost?.remove();ghost=null;document.querySelectorAll('.dragOver,.dragBefore,.dragAfter').forEach(e=>e.classList.remove('dragOver','dragBefore','dragAfter'));g=null}
+function showGhost(x,y){ghost=document.createElement('div');ghost.textContent=g.tab.querySelector('.tabLabel')?.textContent||'Session';Object.assign(ghost.style,{position:'fixed',zIndex:2500,pointerEvents:'none',left:x+'px',top:y+'px',transform:'translate(-50%,-135%)',padding:'8px 11px',border:'1px solid var(--ln)',borderRadius:'9px',background:'var(--p)',color:'var(--tx)',boxShadow:'0 12px 34px rgba(0,0,0,.28)'});document.body.appendChild(ghost)}
+function mark(x,y){document.querySelectorAll('.dragOver,.dragBefore,.dragAfter').forEach(e=>e.classList.remove('dragOver','dragBefore','dragAfter'));let h=hit(x,y);if(h.project)h.project.classList.add('dragOver');else if(h.tab&&h.tab!==g.tab){let r=h.tab.getBoundingClientRect();h.tab.classList.add(x>r.left+r.width/2?'dragAfter':'dragBefore')}}
+function drop(el,key,e){let dt={getData:t=>t==='text/session-key'?key:'',types:['text/session-key'],dropEffect:'move',effectAllowed:'move'};if(typeof el?.ondrop==='function')el.ondrop({preventDefault(){},stopPropagation(){},dataTransfer:dt,clientX:e.clientX,clientY:e.clientY,target:el})}
+function down(e){if(!['touch','pen'].includes(e.pointerType)||e.button!==0)return;let tab=e.target.closest?.('.projectTab[data-project-session]');if(!tab||e.target.closest?.('.tabClose'))return;clean();let handle=e.target.closest?.('.tabDragHandle'),capture=handle||tab;try{capture.setPointerCapture(e.pointerId)}catch{}g={id:e.pointerId,tab,capture,key:tab.dataset.projectSession,x:e.clientX,y:e.clientY,mode:handle?'dragPending':'tap'}}
+function move(e){if(!g||e.pointerId!==g.id)return;let d=Math.hypot(e.clientX-g.x,e.clientY-g.y);if(g.mode==='dragPending'&&d>DRAG_MOVE){g.mode='drag';suppress=Date.now()+800;showGhost(e.clientX,e.clientY)}if(g.mode==='drag'){e.preventDefault();ghost.style.left=e.clientX+'px';ghost.style.top=e.clientY+'px';mark(e.clientX,e.clientY)}}
+function up(e){if(!g||e.pointerId!==g.id)return;let q=g;if(q.mode==='drag'){e.preventDefault();let h=hit(e.clientX,e.clientY);if(h.project)drop(h.project,q.key,e);else if(h.tab&&h.tab!==q.tab)drop(h.tab,q.key,e);lastTap={key:'',at:0,x:0,y:0}}else if(q.mode==='tap'){let n=Date.now(),dbl=lastTap.key===q.key&&n-lastTap.at<=DOUBLE_TAP_MS&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<=24;if(dbl){e.preventDefault();suppress=n+700;let f=q.tab.oncontextmenu;if(typeof f==='function')f.call(q.tab,{preventDefault(){},stopPropagation(){},clientX:e.clientX,clientY:e.clientY,target:q.tab,pointerType:e.pointerType});lastTap={key:'',at:0,x:0,y:0}}else lastTap={key:q.key,at:n,x:e.clientX,y:e.clientY}}clean()}
+function bind(){let r=root();if(!r)return;r.addEventListener('pointerdown',down,{passive:true});r.addEventListener('pointermove',move,{passive:false});r.addEventListener('pointerup',up,{passive:false});r.addEventListener('pointercancel',clean);r.addEventListener('click',e=>{if(Date.now()<suppress&&e.target.closest?.('.projectTab')){e.preventDefault();e.stopImmediatePropagation()}},true);r.addEventListener('dragstart',e=>{let h=e.target.closest?.('.tabDragHandle');if(!h){e.preventDefault();return}let t=h.closest('.projectTab');e.dataTransfer.setData('text/session-key',t.dataset.projectSession);e.dataTransfer.effectAllowed='move'},true);document.addEventListener('pointerdown',e=>{let m=document.getElementById('tabContext');if(m&&!e.target.closest?.('#tabContext'))closeTabContext()},true)}
+document.querySelectorAll('.version').forEach(n=>n.textContent='v2.7.4');bind();
 })();
 </script>'''
           s=s[:start]+js+s[end:]
@@ -66,17 +57,14 @@ bindMobile();
           python3 - <<'PY'
           import re
           s=open('session-manager-v3.html',encoding='utf-8').read()
-          gates=["const BUILD_VERSION='2.7.3'",'DOUBLE_TAP_MS=360','DRAG_MOVE=10','touch-action:pan-y','setPointerCapture','hasPointerCapture','elementFromPoint','updateEdgeScroll','fakeDrop(project','fakeDrop(tab',"menu&&!e.target.closest?.('#tabContext')"]
-          for g in gates: assert g in s, g
-          assert 'LONG_PRESS_MS=' not in s
+          for g in ["const BUILD_VERSION='2.7.4'",'class="tabDragHandle"','draggable="false" data-project-session','touch-action:none','dragPending','setPointerCapture','elementFromPoint','DOUBLE_TAP_MS=360']:assert g in s,g
           scripts=re.findall(r'<script>\s*(.*?)\s*</script>',s,re.S)
-          for i,js in enumerate(scripts):open(f'/tmp/projectchat-v273-{i}.js','w',encoding='utf-8').write(js)
-          print('v2.7.3 semantic gates passed')
+          for i,j in enumerate(scripts):open(f'/tmp/v274-{i}.js','w').write(j)
           PY
-          for f in /tmp/projectchat-v273-*.js; do node --check "$f"; done
+          for f in /tmp/v274-*.js; do node --check "$f"; done
       - name: Publish
         run: |
           rm -f .github/workflows/projectchat-v273-mobile-drag-fix.yml
           git add -A
-          git commit -m 'Patch ProjectChat v2.7.3 mobile drag ownership'
+          git commit -m 'Patch ProjectChat v2.7.4 explicit tab drag handles'
           git push origin HEAD:main
