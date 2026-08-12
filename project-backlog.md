@@ -245,6 +245,20 @@ The three-panel model is locked and must not be collapsed or replaced:
 
 Next implementation must be rebuilt from .4.5, preserving its working folder enumeration. The correction is limited to selection ergonomics: allow a whole volume or individual folders to be selected without losing browse capability; keep the selection action visible without requiring scrolling to the bottom. Do not patch .4.6 forward.
 
+
+## Owner gate candidate — build 2026.08.11.4.7
+
+Rebuilt from exact working `.4.5` baseline; `.4.6` is rejected and is not an implementation input. Scope is limited to the approved three-panel source picker redesign while preserving `.4.5` filesystem enumeration/API behavior.
+
+- Three persistent panels: **Locations / Contents / Added to project**.
+- Location checkbox selects an entire volume; clicking its name browses without selecting.
+- Folder checkbox selects that folder; clicking its name drills deeper.
+- **Add to project** stages checked items into the persistent third panel.
+- Third panel supports × removal, Save selections, and Cancel.
+- Contents scroll independently; Add to project remains visible.
+- Search and Name sort are available in the contents panel.
+- No backend/server/port/routing change is part of this UI build.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
