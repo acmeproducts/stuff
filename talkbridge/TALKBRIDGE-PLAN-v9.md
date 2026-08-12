@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v11.1.0 -->
-# TALKBRIDGE MASTER PLAN v11.1.0
+<!-- TALKBRIDGE-PLAN v12.0.0 -->
+# TALKBRIDGE MASTER PLAN v12.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -14,8 +14,10 @@ apart. This version has one home for every item and no duplicated sections.
 
 ## 1 · RELEASES
 
-**Last owner-approved build: `bridge-turn24-pre-base.html`.**
-`bridge-turn24-base.html` is deployed but has never passed a device gate.
+**BASELINE: `bridge-turn24-pre-base.html`** — read receipts, device-passed
+2026-08-07. The only build that has ever passed a gate and still works. Both
+`bridge-turn24-base.html` and `bridge-turn24-pre-ship.html` have been
+overwritten with it.
 
 | # | Release | Feature | Status |
 |---|---|---|---|
@@ -23,40 +25,68 @@ apart. This version has one home for every item and no duplicated sections.
 | 2 | turn23-base | Joiner shell parity | PASSED 2026-08-05 |
 | 3 | turn23-pre-ship | Room lifecycle, naming, elevation | PASSED 2026-08-06 |
 | 4 | turn23-ship | Call and network robustness | PASSED 2026-08-06 |
-| 5 | turn23-post-ship | Room menu surface | PASSED 2026-08-07 |
-| 6 | turn24-pre-base | Read receipt delivery | PASSED 2026-08-07 |
-| 7 | turn24-base | PWA, push, away-record, call surface | PAUSED — folded into R10 |
-| 8 | turn24-ship | Clean-up and fine touches | NEXT — proposed, §2 |
-| 9 | — | Phrasebook | Not started, §3 |
-| 10 | — | Notifications and PWA | Not started, §4 |
-| 11 | — | Responsive layout and collision safety | Not started, §5 |
-| 12 | — | Multi-party (3+) | Not started, §6 |
-| 13 | — | Undecided | Empty |
+| 5 | turn23-post-ship | Room menu surface | PASSED 2026-08-06 |
+| 6 | turn24-pre-base | Read receipt delivery | **PASSED 2026-08-07 — CURRENT BASELINE** |
+| 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
+| 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
+| 9 | — | Phrasebook | Not started |
+| 10 | — | Notifications and PWA | Not started |
+| 11 | — | Responsive layout and collision safety | Not started |
+| 12 | — | Multi-party (3+) | Not started |
 
 ---
 
-## 2 · RELEASE 8 — CLEAN-UP AND FINE TOUCHES (next, proposed)
+## 2 · RELEASE 8 — RIBBON RECOVERY AND FINE TOUCHES (rebuild)
 
-None of it depends on iOS push or install, so it proceeds while the
-notification prototype is resolved separately.
+All twelve items below were built and rolled back with graveyard 2.7. They are
+rebuilt, not resumed — no patching forward.
+
+### 2.1 What was lost, and where it is
+
+**The ribbon spacing the owner wants is NOT in the baseline.** It came from a
+release-7 part that relocated the phone, video and hang-up buttons out of the
+right zone and into the centre cluster beside the microphone. The CSS in base
+and pre-base is byte-identical; the difference is entirely that JS.
+
+**The geometry is recovered verbatim, not reconstructed.** It is preserved at
+commit `5d46f5a0ba` of `bridge-turn24-base.html` and reads:
+
+    .ribbon{position:relative}
+    .ribbon .rz-left{flex:1 1 0;min-width:0}
+    .ribbon .rz-right{flex:1 1 0;min-width:0;justify-content:flex-end}
+    .ribbon .rz-center{display:flex;align-items:center;gap:14px;flex:0 0 auto}
+    .ribbon .rz-slot{width:34px;flex:0 0 34px}
+    .ribbon .room-head-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+plus `buildRibbonLayout()`, which moves `btn-call`, `btn-video` and
+`rb-hangup` into `.rz-center` in that order. **It must be copied from that
+commit, never rewritten from this description** — every reconstruction from
+prose in this project has produced a regression.
+
+### 2.2 Scope
 
 | # | Item | Status |
 |---|---|---|
-| 8.1 | Flag motif — real flag graphics, motif on ask screens as specified | Not started |
-| 8.2 | Two-graphic mute icons — camera and microphone as complete icon graphics swapped in and out, not a composited slash | Not started |
-| 8.3 | Bubble-header icon convention — microphone for transcribed chat, phone for transcribed voice, video for transcribed video | Not started |
-| 8.4 | Room menu icon set — Ear (hear phone/video audio), Headset (hear translation), Mute (ringer on/off). *Notify on/off belongs here but waits for R10* | Not started |
-| 8.5 | Leaving the app during a call — focus loss mutes the microphone, back button enters PIP and keeps the connection | Unverified — believed partly built in R4, must be confirmed |
-| 8.6 | Tap video to swap to PIP, tap PIP to swap back | Not started |
-| 8.7 | PIP draggable | Not started |
-| 8.8 | Call timer parity — the receiver has no running timer | Not started |
-| 8.9 | Typing indicator on the compose strip | Not started |
-| 8.10 | Short-phrase double transcription — arbitration threshold misses the short end | Not started |
+| 8.0 | **Ribbon recovery** — lift the geometry and `buildRibbonLayout` verbatim from commit `5d46f5a0ba`. Does not include anything else from release 7 | Not started |
+| 8.1 | Flag motif — the `test.html` treatment: 108px panel, flag image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Not started |
+| 8.2 | Two-graphic mute icons — camera and microphone as complete graphics swapped in and out, never a composited slash | Not started |
+| 8.3 | Bubble-header icon convention — microphone for transcribed chat, phone for voice, video for video. Needs the call kind recorded on the entry at creation | Not started |
+| 8.4 | Room menu icon set — Ear (partner audio), Headset (translation), Mute (ringer). Notify on/off waits for R10 | Not started |
+| 8.5 | Leaving the app during a call — the back button already enters PIP; **muting on leave does not exist** and must be built | Not started |
+| 8.6 | Tap video to swap to PIP (tapping the PIP already exits) | Not started |
+| 8.7 | PIP draggable, clamped to the viewport | Not started |
+| 8.8 | Call timer parity — **both** sides lose it today: "Speaking…" overwrites the duration whenever the partner's mic is live | Not started |
+| 8.9 | Typing indicator — transient only, never persisted or replayed | Not started |
+| 8.10 | Short-phrase double transcription — suppression is time-only (1200ms); needs text comparison | Not started |
 | 8.11 | Ear / Auto-read / Mute wording pass | Not started |
-| 8.12 | `&debug=1` launch parameter — diagnostics off by default | Not started |
+| 8.12 | `&debug=1` — diagnostics off by default, errors always kept | Not started |
 
-**Gate:** two devices. Every icon distinguishable at a glance; PIP swap and drag
-work under a real call; call survives leaving the app with the microphone muted.
+### 2.3 Gates added before this release is built
+
+| # | Gate | Why |
+|---|---|---|
+| G1 | **A part may not `replace` a function another part owns** — build fails | `P-pwa` replaced `renderHome` and silently discarded the room-card home page. Three releases before it was caught, on the owner's device |
+| G2 | **No `NodeList.forEach`** in any part | The replacement used it; it throws on older WebKit and the surrounding catch swallowed the error, so the home page rendered and then died mid-render |
 
 ---
 
@@ -332,6 +362,24 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v12.0.0 · 2026-08-11.** Baseline corrected and release 8 rescoped.
+
+The owner found that `bridge-turn24-base.html` does not update the home page
+while `bridge-turn24-pre-base.html` does. Root cause: `P-pwa` declared
+`replaces: homeCards, renderHome` and replaced rather than wrapped, discarding
+the room-card home page entirely; the replacement also called
+`NodeList.forEach`, which throws on older WebKit inside a swallowing catch.
+Graveyard 2.7. Everything was rolled back to `bridge-turn24-pre-base.html`,
+including all of release 8.
+
+**Consequence for release 8: the ribbon spacing is not in the baseline.** It
+lived in a release-7 part, not in the CSS, and was lost with the rollback. It
+is recoverable verbatim from commit `5d46f5a0ba` and is now item 8.0 — the
+first thing rebuilt, copied not rewritten.
+
+Two build gates added (G1, G2) so both defects fail the build rather than the
+device.
 
 **v11.1.0 · 2026-08-11.** Owner triage. Every list now carries a numbered
 column and a status column. Backlog dissolved — every item assigned to a
