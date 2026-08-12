@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v11.0.0 -->
-# TALKBRIDGE MASTER PLAN v11.0.0
+<!-- TALKBRIDGE-PLAN v11.1.0 -->
+# TALKBRIDGE MASTER PLAN v11.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -12,139 +12,120 @@ apart. This version has one home for every item and no duplicated sections.
 
 ---
 
-## 1 · RELEASES — feature, status
+## 1 · RELEASES
 
 **Last owner-approved build: `bridge-turn24-pre-base.html`.**
 `bridge-turn24-base.html` is deployed but has never passed a device gate.
 
 | # | Release | Feature | Status |
 |---|---|---|---|
-| 1 | turn23-pre-base | Room card and home screen | **PASSED** 2026-08-05 |
-| 2 | turn23-base | Joiner shell parity | **PASSED** 2026-08-05 |
-| 3 | turn23-pre-ship | Room lifecycle, naming, elevation | **PASSED** 2026-08-06 |
-| 4 | turn23-ship | Call and network robustness | **PASSED** 2026-08-06 |
-| 5 | turn23-post-ship | Room menu surface | **PASSED** 2026-08-07 |
-| 6 | turn24-pre-base | Read receipt delivery | **PASSED** 2026-08-07 |
-| 7 | turn24-base | PWA, push, away-record, call surface | **PAUSED** — blocked on iOS push/install, unresolved after 6 attempts |
-| 8 | turn24-ship | **NEXT — fine touches.** Scope in §2 | Proposed |
-| 9 | — | Per-room export and delete | Not started |
-| 10 | — | Smart home screen (dashboard, tutorials, FAQ) | Not started |
-| 11 | — | Phrasebook behaviour and phrase-desk import | Not started |
-| 12 | — | localStorage → IndexedDB | Not started |
-| 13 | — | Appearance and icon graphics | Not started |
+| 1 | turn23-pre-base | Room card and home screen | PASSED 2026-08-05 |
+| 2 | turn23-base | Joiner shell parity | PASSED 2026-08-05 |
+| 3 | turn23-pre-ship | Room lifecycle, naming, elevation | PASSED 2026-08-06 |
+| 4 | turn23-ship | Call and network robustness | PASSED 2026-08-06 |
+| 5 | turn23-post-ship | Room menu surface | PASSED 2026-08-07 |
+| 6 | turn24-pre-base | Read receipt delivery | PASSED 2026-08-07 |
+| 7 | turn24-base | PWA, push, away-record, call surface | PAUSED — folded into R10 |
+| 8 | turn24-ship | Clean-up and fine touches | NEXT — proposed, §2 |
+| 9 | — | Phrasebook | Not started, §3 |
+| 10 | — | Notifications and PWA | Not started, §4 |
+| 11 | — | Responsive layout and collision safety | Not started, §5 |
+| 12 | — | Multi-party (3+) | Not started, §6 |
+| 13 | — | Undecided | Empty |
 
 ---
 
-## 2 · RELEASE 8 — FINE TOUCHES (next, proposed)
+## 2 · RELEASE 8 — CLEAN-UP AND FINE TOUCHES (next, proposed)
 
-Chosen because none of it depends on iOS push or install, so it can proceed
-while the notification prototype is resolved separately.
+None of it depends on iOS push or install, so it proceeds while the
+notification prototype is resolved separately.
 
-**2.1 Flag motif.** Under-delivered against spec. Real flag graphics rather
-than emoji glyphs, and the motif applied on ask screens as specified.
-
-**2.2 Two-graphic mute icons.** Camera mute is currently a slash composited
-over the base icon. Replace with two complete icon graphics swapped in and out.
-Same for the microphone.
-
-**2.3 Bubble-header icon convention.** The header adopts the same convention
-more broadly: a microphone icon for transcribed chat, a phone icon for
-transcribed voice, a video icon for transcribed video. Long-standing.
-
-**2.4 Room menu icon set.** Three distinct controls, currently conflated:
-- **Ear** — hear phone/video audio
-- **Headset** — hear translation
-- **Mute** — phone/video ringer on/off
-
-*Notify on/off belongs in this group but is NOT built now — it waits for
-notifications to work.*
-
-**2.5 Leaving the app during a call.** Losing focus mutes the microphone; the
-back button enters picture-in-picture and keeps the connection. **Status
-unverified** — believed partly built in release 4, must be confirmed before
-being counted as done.
-
-**2.6 Picture-in-picture interaction.** Tap the video to swap to PIP; tap PIP to
-swap back to video.
-
-**2.7 PIP draggable.**
+| # | Item | Status |
+|---|---|---|
+| 8.1 | Flag motif — real flag graphics, motif on ask screens as specified | Not started |
+| 8.2 | Two-graphic mute icons — camera and microphone as complete icon graphics swapped in and out, not a composited slash | Not started |
+| 8.3 | Bubble-header icon convention — microphone for transcribed chat, phone for transcribed voice, video for transcribed video | Not started |
+| 8.4 | Room menu icon set — Ear (hear phone/video audio), Headset (hear translation), Mute (ringer on/off). *Notify on/off belongs here but waits for R10* | Not started |
+| 8.5 | Leaving the app during a call — focus loss mutes the microphone, back button enters PIP and keeps the connection | Unverified — believed partly built in R4, must be confirmed |
+| 8.6 | Tap video to swap to PIP, tap PIP to swap back | Not started |
+| 8.7 | PIP draggable | Not started |
+| 8.8 | Call timer parity — the receiver has no running timer | Not started |
+| 8.9 | Typing indicator on the compose strip | Not started |
+| 8.10 | Short-phrase double transcription — arbitration threshold misses the short end | Not started |
+| 8.11 | Ear / Auto-read / Mute wording pass | Not started |
+| 8.12 | `&debug=1` launch parameter — diagnostics off by default | Not started |
 
 **Gate:** two devices. Every icon distinguishable at a glance; PIP swap and drag
 work under a real call; call survives leaving the app with the microphone muted.
 
 ---
 
-## 3 · BACKLOG — not scheduled, not picked up inside another release
+## 3 · RELEASE 9 — PHRASEBOOK
 
-Moves into the chain only by owner ruling.
-
-**Deferred until notifications work (ruling 2026-08-11)**
-- **R8 · Responsive layout and collision safety.** 727 hard-coded pixel values
-  across 79 distinct values, zero media queries, 102 globals with no collision
-  check, 19 unmanaged z-index values. Slices by surface, converted end to end —
-  spacing and sizing are one job, since a named scale of fixed pixels is still
-  fixed pixels. Too risky to run while notifications are unproven.
-
-**Call and conversation**
-- **Call timer parity** — the receiver has no running timer.
-- **Typing indicator** on the compose strip.
-- **Short-phrase double transcription** — a brief utterance is transcribed twice
-  in a dual-channel room; the arbitration threshold misses the short end.
-- **Group conversations, three or more.** The relay already broadcasts to every
-  socket in a session; everything above it assumes two people — language pairs,
-  the two-column transcript, "Talking to X", call negotiation.
-
-**Room and menu**
-- **Room renames do not propagate** — *believed fixed in release 5; needs
-  confirmation before closing.*
-- **Enter should close the room config dialog.**
-- **Per-room notification alias** — an alias shown in place of the room name on
-  a lock screen; blank means silent.
-- **Clear on both sides, initiator only** — clearing is local-only today.
-
-**Phrasebook**
-- Editing the target rewrites the source; back-translation, verdict lifecycle,
-  staleness; the clarify stream.
-- **Transcript and phrase import** — built once for both paths when
-  `phrase-deck-v1` and `phrase-desk` are reconciled.
-
-**Appearance**
-- **Bubble header background colour** — *believed shipped in release 5; needs
-  confirmation.*
-- **Ear / Auto-read / Mute wording pass.**
-
-**Platform**
-- **Choosing the installed name and icon** — must happen before install, since a
-  manifest is read once and cannot change afterwards.
-- **Chrome treats the room name as a credential** — the create dialog is read as
-  a sign-up form; observed on the room name and the onboarding name field.
-- **`&debug=1` launch parameter** — diagnostics off by default.
+| # | Item | Status |
+|---|---|---|
+| 9.1 | Editing the target rewrites the source | Not started |
+| 9.2 | Back-translation behaviour, verdict lifecycle, staleness | Not started |
+| 9.3 | The clarify stream | Not started |
 
 ---
 
-## 4 · OPEN ITEMS TO BE RESOLVED
+## 4 · RELEASE 10 — NOTIFICATIONS AND PWA
 
-Not features. Questions that must be answered before dependent work can start.
+Absorbs the paused release 7. Blocked until the isolated prototype at
+`proto/push.html` proves the iOS push chain.
 
-- **Does iOS push work at all?** Being resolved by an isolated prototype at
-  `proto/push.html`. Everything in release 7 is blocked on the answer. If the
-  prototype's structure is adopted, other releases may need resequencing.
-- **Does TalkBridge's push differ from the prototype's?** The prototype always
-  shows a notification; TalkBridge returns early and shows nothing when a window
-  is visible. Apple revokes push from apps that stay silent — a strong candidate
-  for the failure.
-- **Missed-activity surface on iOS** — the home page shows no incoming or missed
-  call surface. Reported 2026-08-11, undiagnosed.
-- **Room name does not arrive from the partner on a linked device.** Reported
-  2026-08-11, undiagnosed.
-- **Transcription disconnect roughly every twelve seconds during a call.**
-  Reopen gaps are timestamped in the log; not yet read.
-- **Roughly thirty second initial delivery lag** when the recipient is on the
-  home screen.
+| # | Item | Status |
+|---|---|---|
+| 10.1 | Does iOS push work at all? Prototype resolves this; everything else here is blocked on the answer | Open question |
+| 10.2 | Does TalkBridge's push differ from the prototype's? The prototype always shows a notification; TalkBridge returns early when a window is visible, and Apple revokes push from apps that stay silent | Open question |
+| 10.3 | PWA install and home-screen path | Built, never gated |
+| 10.4 | Push subscription and delivery | Built, never gated |
+| 10.5 | Away-record home screen entries | Built, never gated |
+| 10.6 | Notify on/off control in the room menu | Not started |
+| 10.7 | Choosing the installed name and icon — must happen before install, since a manifest is read once | Not started |
 
 ---
 
-## 5 · IMMUTABLE WORKING RULES
+## 5 · RELEASE 11 — RESPONSIVE LAYOUT AND COLLISION SAFETY
+
+Technical debt. 727 hard-coded pixel values across 79 distinct values, zero
+media queries, 102 globals with no collision check, 19 unmanaged z-index values.
+Slices by surface, converted end to end — spacing and sizing are one job, since
+a named scale of fixed pixels is still fixed pixels.
+
+| # | Item | Status |
+|---|---|---|
+| 11.1 | Collision gate — fail any build where two parts declare the same global | Not started |
+| 11.2 | Ribbon, converted end to end | Not started |
+| 11.3 | Transcript and bubbles | Not started |
+| 11.4 | Drawer and modals — includes the Customize tab density redesign | Not started |
+| 11.5 | Room cards and home screen | Not started |
+| 11.6 | Stacking order — 19 z-index values to a named scale | Not started |
+
+---
+
+## 6 · RELEASE 12 — MULTI-PARTY
+
+| # | Item | Status |
+|---|---|---|
+| 12.1 | Group conversations, three or more. The relay already broadcasts to every socket in a session; everything above it assumes two people — language pairs, the two-column transcript, "Talking to X", call negotiation | Not started |
+
+---
+
+## 7 · FUTURE IDEAS — unscheduled, no release
+
+| # | Idea | Status |
+|---|---|---|
+| F1 | Temporary messages — delete on timer, or one-time view | Idea |
+| F2 | Clear transcript | Idea |
+| F3 | Broadcasting — list, message, scheduled | Idea |
+| F4 | Reminders | Idea |
+| F5 | Invites | Idea |
+
+---
+
+## 8 · IMMUTABLE WORKING RULES
 
 
 These are not aspirations. Each is either mechanically enforced by the build, or
@@ -241,7 +222,7 @@ or variable names in prose, no self-congratulation about process.
 
 ---
 
-## 6 · APPENDIX
+## 9 · APPENDIX
 
 ### 6.1 Authority order
 
@@ -350,7 +331,18 @@ Green means allowed to push. It never means done.
 
 ---
 
-## 7 · CHANGE LOG
+## 10 · CHANGE LOG
+
+**v11.1.0 · 2026-08-11.** Owner triage. Every list now carries a numbered
+column and a status column. Backlog dissolved — every item assigned to a
+release (8–12) or to Future Ideas, nothing parked without a home. Closed and
+removed: room-rename propagation (reported against an unapproved release),
+Enter closing the room config dialog (completed), per-room notification alias
+(speculation), clear-both-sides, transcript/phrase import, bubble header
+background colour, Chrome credential autofill (closed), the 12-second
+transcription disconnect and the 30-second delivery lag (both already fixed —
+mute starvation and read-receipt flagging respectively). Duplicate Ear/Auto-read
+wording entry removed.
 
 **v11.0.0 · 2026-08-11.** Structural rewrite. The plan had reached 2305
 lines with six sections duplicated two or three times, because inserts
