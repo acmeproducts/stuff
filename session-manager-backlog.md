@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.14.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.15.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.14.0  
+**Governance version:** 1.15.0  
 **Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
 **Turnover artifact:** `session-manager-turnover.md`  
@@ -167,7 +167,7 @@ Default intended SOT: `acmeproducts/stuff/session-manager-sot.json` on `main`.
 
 # 4. ACTIVE RELEASE — v2.9.0 TAB INTERACTION (owner-corrected scope, 2026-08-12)
 
-**Status:** Build pending. Input baseline: restored v2.7.1 on `main` (commit `2b022ba`, blob `c63d8b9`), pending owner Gate 1 confirmation. Prior v2.8.x scope text contained misinterpretations and is superseded by this section.
+**Status:** v2.9.0 published to `main` (commit `475e8ab4da68`, blob `d6cdcee`), awaiting owner device gate. Built from owner-confirmed v2.7.1 baseline. Prior v2.8.x scope text contained misinterpretations and is superseded by this section.
 
 **This application is mobile-first. Every behavior below is specified for portrait phone first; desktop is the secondary adaptation.**
 
@@ -554,6 +554,8 @@ Buried. Tab customization persists.
 - **D-035 · 2026-08-12:** v2.7.1 restored byte-exact to `main` as baseline-verification candidate: commit `2b022ba53536`, blob `c63d8b925af35b533d3edcce3969db57b304b611`, read back byte-identical, all inline scripts pass `node --check`.
 - **D-036 · 2026-08-12:** owner corrected the release scope in detail; §4 rewritten as v2.9.0. Drag ghost is the tab, never the file overlay/whole panel; context menu and all its leaf UIs render below the tab; after any cross-Project move the source Project keeps focus and the right-neighbor tab becomes armed.
 - **D-037 · 2026-08-12:** ribbon declutter — Download/Share relocate to tab context menu; per-tab Ready dots removed (Working/Error only); Ready + Connected merge into one indicator; wordmark/version leave the ribbon for Configuration; new-session is a bare +.
+- **D-038 · 2026-08-12:** owner interacted with restored v2.7.1 on device (menus, rename, drag) — recorded as the proven ProjectChat baseline: blob `c63d8b925af35b533d3edcce3969db57b304b611`, backed up at `.release-backups/session-manager-v290/session-manager-v3.v271.html`.
+- **D-039 · 2026-08-12:** v2.9.0 built and published from that baseline: commit `475e8ab4da68`. Gates passed pre-publish: full-artifact `node --check` on both inline scripts, structural assertions, jsdom bootstrap smoke (init without uncaught exception, hamburger toggles). Root-caused v2.7.1 defects: file overlay reacted to all drags; menu leaf CSS anchored right / pinned to viewport bottom on mobile; long-press still bound; moveSessionToProject focused the target project.
 
 ---
 
