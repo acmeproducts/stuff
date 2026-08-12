@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.12.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.13.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.12.0  
+**Governance version:** 1.13.0  
 **Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
 **Turnover artifact:** `session-manager-turnover.md`  
@@ -47,7 +47,7 @@ Owner-proven baseline behavior included Gateway connection, sessions loading, ch
 
 The recovery commit used during the v2.8 effort was:
 
-- **`9b3bdb362c47b9ffede5b6a5271e27a1f95f988f`** — treated as restored **v2.7.1** working ProjectChat line.
+- **`9b3bdb362c47b9ffede5b6a5271e27a1f95f988f`** — v2.7.1 line. **Owner ruling 2026-08-12: NOT device-proven.** No ProjectChat build (v2.4–v2.7.1) has a recorded owner PASS; the only recorded proven baseline remains v2.1.0. v2.7.1 is the current baseline-verification candidate, restored byte-exact to `main` (commit `2b022ba`, blob `c63d8b925af35b533d3edcce3969db57b304b611`) awaiting owner Gate 1 regression. If it fails, step back to the v2.6.0 backup and repeat.
 
 Incoming work must fetch and inspect this commit/file and repository lineage before declaring the exact clean input. Version labels alone are not proof.
 
@@ -544,6 +544,9 @@ Buried. Tab customization persists.
 - **D-030:** source-patching GitHub Actions workflows are prohibited for this project.
 - **D-031:** a release handoff is incomplete until the candidate is on GitHub Pages and the owner has a directly testable URL.
 - **D-032:** `session-manager-turnover.md` is the current handoff companion to this governance file.
+- **D-033 · 2026-08-12:** owner ruled v2.7.1 was never device-proven; no ProjectChat build has a recorded PASS. Baseline must be established empirically: publish restored candidate → owner Gate 1 → record PASS blob before any feature work.
+- **D-034 · 2026-08-12:** owner tightened the next release scope to drag/drop only (inter- and intra-Project): dedicated handle, orange targets, insert-left, cross-Project move to position 1, attachment-overlay suppression during tab drag, order persistence, mobile touch. Remaining §4.1 items are deferred backlog, not dropped.
+- **D-035 · 2026-08-12:** v2.7.1 restored byte-exact to `main` as baseline-verification candidate: commit `2b022ba53536`, blob `c63d8b925af35b533d3edcce3969db57b304b611`, read back byte-identical, all inline scripts pass `node --check`.
 
 ---
 
