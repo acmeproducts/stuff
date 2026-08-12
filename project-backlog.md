@@ -4,15 +4,13 @@
 **Canonical application artifact:** `project.html` — one self-contained HTML file with inline CSS/JS  
 **Existing infrastructure:** production `session-server.js` on port 18080 provides stable SOT APIs; backend support is infrastructure, not an additional application artifact  
 **Canonical planning/governance document:** `project-backlog.md`  
-**Last governance update:** 2026-08-10  
+**Last governance update:** 2026-08-12  
 
-This file is intentionally the single current control document for the SOT effort. It contains the current baseline, owner rulings, release plan, live backlog, acceptance gates, deferred work, and graveyard. Do not create a competing SOT plan/backlog/graveyard unless the owner explicitly changes this rule.
+This file is intentionally the single current control document for the SOT effort. It contains the current baseline, owner rulings, release plan, live backlog, acceptance gates, open items, GitHub/deployment problems, and graveyard. Do not create a competing SOT plan/backlog/graveyard unless the owner explicitly changes this rule.
 
 ---
 
 # 0. GOVERNANCE — READ FIRST
-
-The SOT effort adopts the build discipline proven in TalkBridge, adapted to this product.
 
 ## 0.1 Authority order
 
@@ -29,126 +27,105 @@ An owner ruling made in-session must be written into this file in the same sessi
 
 ## 0.2 Current owner rulings
 
-- **Host capability rule:** GitHub Pages is a static preview and cannot see WSL/server-mounted storage. On GitHub Pages, do not call or imply the production SOT filesystem API and do not display WSL drive letters; show only browser-authorized local-device storage. The OpenClaw `/report` URL is the server-backed integration test surface.
-- **Source context note:** every staged source in Panel 3 may carry an optional operator note (for example, “July picnic”). The tile truncates long paths visually but exposes the full path via hover/title; clicking the tile edits the note. Notes are persisted as source metadata when the backend supports that source.
-- **Portal navigation:** desktop left navigation must retain an explicit expand/collapse control and persist its state. Source-picker work must not remove unrelated portal controls.
-- **Location selection semantics:** Panel 1 is navigation only. Clicking a volume/location places that volume as a selectable row in Panel 2. In Panel 2, checking the volume selects the entire volume; clicking the volume name opens its folders. Folder rows in Panel 2 use checkboxes for one-or-many selection and click-to-drill navigation. Add to project stages checked Panel-2 rows into Panel 3.
-- `project-backlog.md` is the one current SOT governance document: release plan + backlog + graveyard.
+- `project-backlog.md` is the one current SOT governance document: release plan + backlog + test gates + open items + GitHub/deployment problems + graveyard.
 - **The deployable SOT application is exactly one self-contained file: `project.html`. No external application JS/CSS/module files may be required by the browser.**
-- **SOT releases deploy `project.html` only. Existing server-side API capability on the production 18080 report server is infrastructure and is not recreated per UI release.**
-- **Browser SOT API URLs must stay under the public `/report` mount (`/report/api/sot/*`). Absolute `/api/sot/*` bypasses the report route and hits the OpenClaw root/gateway path.**
-- **UI build ID and backend build ID are independent evidence fields. Compatibility is determined by the API contract/version, not equality of build timestamps. A UI-only release must not falsely report a version mismatch merely because the backend build is older.**
-- **The build shown in the HTML comment, visible UI, Settings, and debug log must come from the same `BUILD_ID` value for every candidate.**
-- **WSL/mounted folder rows must provide an explicit Add control. Clicking a folder to navigate is not sufficient selection affordance. The current folder also retains a clearly labeled “Add current folder to project” action.**
-- **Closing or cancelling Add Locations with unsaved staged changes requires explicit discard confirmation. X must never silently throw away staged source work.**
-- **Primary UI typography and contrast must be comfortably readable on desktop and mobile: modern system sans-serif stack, stronger text contrast, larger core type, clearer controls, and less washed-out surfaces.**
-- The next release must contain **all five locked v0.3.1 items** listed below. Do not silently split, defer, or omit one.
 - **There is one production report/application server: `/usr/bin/node session-server.js`, working directory `/home/support/.openclaw/workspace/https/report`, port `18080`. SOT APIs extend this existing process under `/api/sot/*`.**
 - **Port 8081 / FastAPI / Uvicorn / `file_browser.py` is rejected and removed. Never reintroduce it.**
 - **OpenClaw Gateway remains independently on 18789 and is unchanged by SOT releases.**
 - **Tailscale `/report` continues to proxy the existing 18080 server. No SOT release may create another server, daemon, port, or proxy.**
-- **Existing session-server routes and behavior are preserved; SOT is additive under `/api/sot/*`.**
-- Project creation exists only in **Intake → Enter Project**.
+- **Browser SOT API URLs must use the public `/report` mount when running on the OpenClaw-served UI.**
+- **GitHub Pages is a static preview and cannot see WSL/server-mounted storage. It must not display or attempt to access WSL/server-only volumes.**
+- **Every SOT installation has one configurable authoritative SQLite SOT database path plus a separately configurable database-backup path.**
+- **The SOT DB is the durable authority for project definition, project/source metadata, notes, status flags, fingerprints, fingerprint timestamps, manifests, runs, checkpoints, dedup decisions, copy plans, verification evidence, promotion history, and lineage.**
+- **Configuration is the first application step and first left-navigation item. Project Setup cannot become authoritative until the SOT DB is configured and validated.**
 - Project identity is the immutable `project_token`; project name is mutable.
-- **Accessible storage is one user concept. Intake must not make the user choose implementation type first. WSL/mounted and browser-local locations belong in one location chooser when accessible.**
-- **The source location chooser is three-pane and must remain three-pane: Locations / selectable Contents / Added to project.**
-- **Target selection order is storage/device → optional parent folder → final SOT folder where surviving files will be written.**
-- **Intake must communicate the job immediately: “here is my mess; here is where I have space to build the SOT.” Remove redundant summary panels and implementation-language clutter.**
-- **Operations uses Projects / Status / Detail tabs. Projects owns add/change/delete metadata and locations; Status owns high-level state and real pause/stop/retry controls when the engine exists; Detail owns in-depth source/target/run information.**
-- **Reporting needs further product definition. Until the engine exists, show authoritative project metadata/events only and do not invent reconciliation metrics.**
-- **Adding locations is a staged draft operation. The explorer shows a third “Added to project” panel with every staged source and an × removal control; nothing is persisted or fingerprinted until Save selections and the later Create project action.**
-- **After Save selections, Intake provides a final Review project surface where project name, sources, and notes can still be changed before authoritative project creation/fingerprinting.**
-- **A final SOT data destination is NOT required at Intake. Required capacity is unknown until inventory/reconciliation establishes the surviving-size requirement.**
-- **Destination planning later includes both primary SOT capacity and backup capacity.**
-- **Long-term SOT maintenance must handle additions, changes, and deletions through reviewed change sets while keeping the backup verified; source disappearance alone never automatically deletes SOT content.**
-- No fake lifecycle state. If the deterministic execution engine is not running, the UI must say so and must not simulate Start/Pause/Resume/Restart/Promote.
-- GitHub `acmeproducts/stuff` is the development source. The deployed HTML target is `/home/support/.openclaw/workspace/https/report/<project>/<filename>`.
-- Deployment convenience commands are `ghdeploy` (GitHub → OpenClaw) and `deploy` (Windows Download → OpenClaw); default report project is `tst`.
-- **Every SOT installation has one configurable authoritative SOT database path. The database location is instance configuration, not hard-coded application state.**
-- **Every SOT installation also has a separately configurable SOT database backup path. Backup and restore of the authoritative database are first-class operational capabilities.**
-- **Source inventory runs record timestamps and scan telemetry per source: started_at, last_progress_at, completed_at, elapsed_seconds, files_seen, bytes_seen, files_per_second, bytes_per_second, and estimated_remaining_seconds when enough evidence exists.**
-- **Scan telemetry is retained as historical evidence so observed inventory speed can inform future scan completion estimates and later consolidation/copy planning. Estimates must be labeled estimates, not promises.**
-- **Target/SOT storage remains deferred until inventory/reconciliation provides a defensible surviving-size/capacity estimate; the database path and database-backup path are independent of the eventual SOT data destination.**
-- **MVP is single-instance. Multi-instance support is explicitly deferred to backlog; do not complicate the current data model or UI to support multiple simultaneous SOT instances.**
+- **Project records track the who / where / what / when of the project: identity, name, status, active/inactive flag, creation/update timestamps, notes, sources, source metadata, and later fingerprints/run evidence.**
+- **A promoted SOT may itself be a source in a later project. Lineage across SOT generations must never be lost.**
+- **A final SOT data destination is NOT required during Project Setup. Required capacity is unknown until inventory/dedup/analysis establishes the surviving-size requirement.**
+- **No fake lifecycle state. If a deterministic engine function does not exist, the corresponding Start/Pause/Resume/Stop/Restart/Promote control stays disabled and says why.**
 
-## 0.3 Build rules
+## 0.3 Locked portal navigation and lifecycle
 
-These are hard rules, not suggestions.
+The left navigation must be, in this order:
 
-### Prove the cause before designing the fix
-If a defect is not already proven, instrument the whole path and read the evidence. Do not promote a theory into a root cause because it sounds plausible.
+1. **Configuration**
+2. **Project Setup**
+3. **Project Operations**
+4. **Database Administration**
+5. **Dedup & Analysis**
+6. **SOT Build & Promotion**
+7. **Reports / Audit**
 
-### Verify, do not infer
-Claims about the current build must come from the current file, a test, a log, an API response, or the owner’s device gate. A failed keyword search is not evidence that a feature is absent.
+### Fixed hamburger rule
 
-### Roll back; do not patch a failed release forward
-A failed owner/device gate returns to the release input baseline. Record the failed approach in the graveyard, rebuild the same planned version from the clean input, and gate again. Do not stack fixes onto a failed candidate.
+- A hamburger button is permanently anchored in the top-left corner.
+- It never moves, disappears, changes location, or changes meaning between desktop, tablet, portrait phone, or landscape phone.
+- It expands/collapses the left navigation.
+- Expanded state shows readable icon + text labels.
+- Collapsed state shows a narrow icon rail with accessible titles/tooltips.
+- Collapse state persists across refresh.
+- Contrast must remain readable; the washed-out dark rail shown in the failed mobile gate is rejected.
 
-- **No patch-forward means the failed candidate is never the implementation baseline. A replacement candidate must start from the last accepted build bytes and reapply only the reviewed delta. For v0.3.1 build .4, the exact baseline is build .3 commit `037a0198800f45e616596fc27efb562db5289fa6`.**
+## 0.4 Locked three-panel source-selector model
 
-### Hook/wrap where downstream behavior exists
-Do not casually replace a function with downstream responsibilities. Preserve call-through behavior unless the replaced function is proven to be a leaf.
+### Panel 1 — Locations
 
-### Mutation-test meaningful gates
-For every important automated gate, deliberately reintroduce or simulate the defect and confirm the gate fails. A test that cannot catch its target defect is not a gate.
+Navigation only.
 
-### Exercise features through the control the user actually uses
-A mechanism with no reachable UI/control path is not implemented. At least one test must invoke the feature through the operator-facing control.
+- Clicking a volume/location sends that volume to Panel 2.
+- Panel 1 does not itself add/select a source.
 
-### No stubs, fake data, or cosmetic success
-A release must deliver real cumulative behavior at its declared layer. Disabled future controls are acceptable only when they accurately report that the future engine is not installed; they may not imitate completion.
+### Panel 2 — Contents / Select
 
-### One surface, one release
-Items that touch the same user surface and cannot be independently device-gated belong in the same release. This is why all five Intake/filesystem items below are locked together in v0.3.1.
+- Initially shows the chosen volume as a selectable row.
+- Check the volume row + **Add to project** = stage the whole volume.
+- Click the volume row = browse its folders.
+- Folder rows have checkboxes for one-or-many source selection.
+- Click folder name = drill deeper.
+- Add to project stages checked Panel-2 rows.
+- Files may be displayed as context but are not selectable as source folders.
+- Preserve the working `.4.5` folder-enumeration behavior unless deliberately replaced by a proven equivalent.
 
-### Cosmetic work goes after functional work
-Do not fold unrelated visual polish into functional releases.
+### Panel 3 — Added to project
 
-### Owner/device gate is final
-Syntax, unit tests, structural checks, API checks, and local harnesses determine whether a candidate is allowed to be handed to the owner. They do not make the release accepted. The owner gate on the actual WSL/Windows/Android environment is the final acceptance gate.
+- Persistent staged-source review.
+- Full underlying path retained exactly.
+- Long paths truncate visually with ellipsis; full path is inspectable by title/tooltip/popover/detail.
+- Clicking a source tile opens optional source-note editing, e.g. `July picnic`.
+- × removes only that staged source.
+- Save selections persists to the Project Setup draft; Create Project is the authoritative DB persistence event.
 
-### Byte/version verification
-Every candidate must visibly report its UI/API version/build. Repo writes must be read back after write; deployment must verify that the deployed artifact is the intended build, not merely assume the copy succeeded.
+## 0.5 Responsive source-selector rule
 
-### Release deployment is not infrastructure work
-A release may replace application files at their established runtime/served paths. It must not introduce or change topology. Existing services, ports, and routes are presumed authoritative unless an independently proven defect requires an explicit owner-approved infrastructure change.
+Minimalism is mandatory.
+
+- **Desktop / wide landscape:** three columns may be shown simultaneously.
+- **Portrait phone / narrow tablet:** the same three logical panels stack vertically in one sheet/modal in the order Locations → Contents → Added to project. Panel 3 must be reachable without rotating the device.
+- **Landscape phone / medium tablet:** use three proportional columns only if each remains usable; otherwise use stacked behavior.
+- Add to project remains sticky/always reachable in Panel 2.
+- Save selections remains sticky/always reachable in Panel 3.
+- No horizontal body overflow.
+- No panel/control overlap.
+- Core text readable without zoom.
+- No tutorial cards, decorative help panels, oversized toolbars, or redundant ornament inside this workflow.
+
+## 0.6 Build/release rules
+
+- Prove cause before fix.
+- Verify; do not infer.
+- Failed owner/device candidate is never an implementation baseline.
+- Rebuild from the last accepted baseline and reapply only reviewed deltas.
+- Owner/device gate is final.
+- Never give a test URL while deployment is pending or while the exact served build has not been verified.
+- Every handoff includes release/build, baseline, scope, automated gates, deployment result, verified test URL, owner/device gates, known limitations.
+- Stop using temporary/self-triggering GitHub Actions workflows for routine SOT patch delivery. Failed workflows that create inbox alerts are release-process defects.
+- GitHub Pages success proves the static artifact only; it never proves the private OpenClaw runtime is updated.
 
 ---
 
 # 1. CURRENT VERIFIED / KNOWN STATE
 
-## 1.1 Repository baseline
-
-### `project.html`
-
-- Version: **0.3.0**
-- Build: **2026.08.09.1**
-- Repo blob SHA at governance lock: `89920a073aae12dcebecb50a9ba9cf7e32f2bd14`
-- Primary navigation: Intake / Operations / Reporting.
-- Intake is the only project-creation surface.
-- UI has live version/build display and API version comparison.
-- Operations represents Source(s) → Target and Target(s) → SOT.
-- Reporting surfaces Aggregate / Timeline / Project Detail.
-- Execution controls do not fake a running `sotctl` engine.
-
-### `file_browser.py`
-
-- Version: **0.3.0**
-- Build: **2026.08.09.1**
-- Repo blob SHA at governance lock: `32c684163c8e7682d62370738d711400e013ab94`
-- Intended architecture is one helper on `127.0.0.1:8081`.
-- Repo code contains filesystem browsing plus project persistence/reporting APIs.
-- Project database uses SQLite and enables WAL mode in the current helper implementation.
-
-## 1.2 Live deployment state
-
-The owner’s last observed `project.html` reported **Project API offline**. Therefore:
-
-- the repository contains the unified project API implementation;
-- the live WSL deployment of that unified API is **not yet verified**;
-- do not claim `/api/projects` or `/api/reports` is live until a deployment/API response proves it.
-
-## 1.3 Current architectural topology
+## 1.1 Production topology
 
 ```text
 OpenClaw Gateway
@@ -167,862 +144,89 @@ Production report/application server
 
 Port 8081 and the standalone Python/FastAPI helper are graveyard architecture.
 
-### Deployment invariant
+## 1.2 Last useful implementation baseline
+
+The last source-browser behavior the owner reported as at least able to enumerate folders is:
+
+- **Build:** `2026.08.11.4.5`
+- **Commit baseline:** `970d56435a84192c74de4d3eb7978ee327d303c4`
+
+Later `.4.x` candidates are not accepted implementation baselines.
+
+## 1.3 Failed owner/device candidates
+
+- `.4.6` — folder browser behavior broken; rolled back.
+- `.4.7` — wrong Panel-1/Panel-2 selection semantics and portal regression.
+- `.4.8` — rejected layout direction; too much decoration / interaction drift.
+- `.4.9` — mobile screenshot proved unreadable navigation rail and panel/control overlap.
+- `.4.10` — not accepted; deployment workflow itself produced a failed GitHub Actions notification.
+
+## 1.4 GitHub/deployment problems
+
+- temporary workflow files generated failed Actions runs and inbox alerts;
+- multiple workflow-trigger commits created confusing sequencing;
+- repository success has been presented before served-URL verification;
+- GitHub Pages and private OpenClaw runtime have been conflated in handoffs.
+
+Corrective rule:
+
+- direct deterministic repo changes;
+- established Pages deployment only for static preview;
+- verify exact Pages build before static handoff;
+- verify exact OpenClaw deployed build before runtime handoff;
+- if runtime verification is unavailable, do not claim runtime is ready.
+
+---
+
+# 2. AUTHORITATIVE SOT DATA MODEL
+
+## 2.1 Instance configuration
 
 ```text
-GitHub release files
-   ├── project.html
-   └── file_browser.py
-          ↓ overwrite only
-Established served/runtime paths
-
-Servers: unchanged
-Ports: unchanged
-Tailscale routing: unchanged
-```
-
----
-
-
-## 1.4 Owner gate — v0.3.1 build 2026.08.10.2 FAILED
-
-The real WSL/Windows gate proved two defects:
-
-1. `GET /api/fs?path=/` returned the helper service-info object, not storage roots. The established public `/api/fs` mount strips its prefix, so that call arrived as `GET /?path=/`; build .2 had repurposed `/` as service information. This is the proven cause of the empty WSL picker.
-2. Intake UX failed the owner gate: separate WSL/device source controls, a single-pane picker, backwards target wording, and a redundant summary card made the setup implementation-centric and unnecessarily difficult.
-
-Build .2 is not accepted. Build `2026.08.10.3` remains v0.3.1 and corrects the same locked Intake/filesystem surface.
-
-
-## 1.5 Owner gate — v0.3.1 build 2026.08.10.3 FAILED
-
-Owner review accepted the simplified storage concept but rejected the source commit flow and premature target requirement. Build .4 corrects the same locked Intake surface:
-
-- three-pane Add Locations with visible staged selections and × removal;
-- Save selections commits only to the Intake draft;
-- final Review project before authoritative project creation/fingerprinting;
-- final SOT data destination deferred until capacity is known;
-- later primary SOT + backup planning and ongoing maintenance remain explicit release-plan work.
-
-
-## 1.6 Owner gate — first .4 candidate FAILED / discarded
-
-The first build .4 UI reached the owner, but authoritative project creation reported the project API offline. That candidate is discarded as an implementation baseline. Per the no-patch-forward rule, the replacement .4 is rebuilt from the exact accepted .3 commit `037a0198800f45e616596fc27efb562db5289fa6`.
-
-Proven runtime constraint: `/api/fs?path=/` is the already-working public helper mount, while separate public project paths are not dependable. The replacement therefore tunnels project/report operations through the existing `/api/fs` mount at the application layer; no service, port, or routing change is permitted.
-
-
-## 1.7 Runtime architecture correction — owner evidence
-
-Owner diagnostic on 2026-08-10 proved the production report server is `/usr/bin/node session-server.js`, PID observed 172102, port 18080, working directory `/home/support/.openclaw/workspace/https/report`. The extra Python process on 8081 was unnecessary and is rejected. Build .4.2 is rebuilt from .3 and reimplements the approved .4 UX against additive `/api/sot/*` routes in the existing 18080 Node server.
-
-
-## 1.8 Owner gate — build 2026.08.10.4.2 FAILED
-
-The backend itself was proven healthy locally on `127.0.0.1:18080/api/sot/health`, but the browser returned 404 for `/api/sot/projects/health` and `/api/sot/fs`. Root cause: the UI used absolute `/api/sot/*` URLs, which bypass the Tailscale `/report` mount and therefore do not reach the 18080 report/application server.
-
-Build .4.3 is rebuilt from the exact .3 baseline and reimplements the approved .4 UX with browser API URLs under `/report/api/sot/*`. No server, port, proxy, or backend change is required for this correction.
-
-
-## 1.9 Owner gate — build 2026.08.10.4.3 FAILED
-
-The route correction worked, but the UI exposed two release-evidence defects: the HTML comment identified build `.4.3` while the runtime `BUILD_ID` still reported `.4`, and the UI treated a different backend build timestamp (`.4.2`) as an incompatibility even though both sides report API version `0.3.1`.
-
-The replacement is rebuilt from exact `.3` bytes, reapplies the approved `.4` behavior, uses one authoritative UI build ID, and treats matching API version `0.3.1` as compatible while continuing to display both UI and API build identifiers for traceability.
-
-
-## 1.10 Owner gate — build 2026.08.11.4.4 FAILED UX gate
-
-Owner identified three concrete Intake usability failures: WSL folders did not present an obvious selection control, closing source setup could silently discard staged choices, and the visual system was too small/washed-out to be comfortably readable. Build .4.5 is rebuilt from exact .3 bytes, reapplies the governed cumulative .4 behavior, and corrects these three issues without changing server architecture or API contracts.
-
-
-## Owner gate — build 2026.08.11.4.6 FAILED / rolled back
-
-Build .4.6 is rejected. It replaced the working folder browser behavior and resulted in a picker that could no longer browse folders correctly. The runtime is rolled back to exact build .4.5 from commit `970d56435a84192c74de4d3eb7978ee327d303c4`.
-
-The three-panel model is locked and must not be collapsed or replaced:
-
-1. **Locations / volumes** — visible drives and accessible storage.
-2. **Contents** — folders/files for the selected location, independently scrollable.
-3. **Added to project** — persistent staged-source review with × remove and Save selections.
-
-Next implementation must be rebuilt from .4.5, preserving its working folder enumeration. The correction is limited to selection ergonomics: allow a whole volume or individual folders to be selected without losing browse capability; keep the selection action visible without requiring scrolling to the bottom. Do not patch .4.6 forward.
-
-
-## Owner gate candidate — build 2026.08.11.4.7
-
-Rebuilt from exact working `.4.5` baseline; `.4.6` is rejected and is not an implementation input. Scope is limited to the approved three-panel source picker redesign while preserving `.4.5` filesystem enumeration/API behavior.
-
-- Three persistent panels: **Locations / Contents / Added to project**.
-- Location checkbox selects an entire volume; clicking its name browses without selecting.
-- Folder checkbox selects that folder; clicking its name drills deeper.
-- **Add to project** stages checked items into the persistent third panel.
-- Third panel supports × removal, Save selections, and Cancel.
-- Contents scroll independently; Add to project remains visible.
-- Search and Name sort are available in the contents panel.
-- No backend/server/port/routing change is part of this UI build.
-
-
-## Owner gate — .4.7 rejected; .4.8 screenshot-layout rebuild
-
-Build `.4.7` is rejected as an implementation direction because it retained the stale browser presentation and effectively bolted the third pane onto it. Do not patch `.4.7` forward. `.4.8` is rebuilt from exact working `.4.5` browser behavior and applies the owner-approved screenshot layout.
-
-Locked source-picker presentation for `.4.8`:
-
-- Fixed/stable modal geometry; selecting or browsing a drive/folder must not change modal dimensions or cause layout jumps.
-- Three full-height panes: **Locations**, **folder/file browser**, **Added to project**.
-- Toolbar across the top: Up, Rescan, current path, Add to project, New folder, help.
-- Left pane shows all available volumes/locations. Each volume has a checkbox for whole-volume selection; clicking the volume name browses it without selecting it.
-- Center pane is an independently scrolling table with Name / Type / Size / Modified and per-folder `+` staging action. Folder name drills into the folder.
-- Right pane persistently shows staged sources with remove controls plus Save selections / Cancel.
-- The screenshot supplied by the owner is the visual authority for this picker.
-- Preserve `.4.5` filesystem enumeration/API behavior; no new server, port, route, or backend architecture.
-
-
-## 1.x Owner gate — build 2026.08.11.4.7 FAILED
-
-Owner device review rejected `.4.7`. Failures: portal sidebar collapse/expand was missing; the source-picker interaction model was wrong; the picker did not provide the required Panel-1 → Panel-2 volume handoff; Panel-3 source-note context was absent; and GitHub Pages attempted/represented server-backed WSL storage even though that host cannot access the production report API. `.4.7` is not an implementation baseline. Build `.4.9` is rebuilt from exact `.4.5` UI bytes and applies only the reviewed corrections plus source-note persistence in the existing 18080 SOT API.
-
-
-## Owner gate — build 2026.08.11.4.9 FAILED
-
-Owner mobile screenshot rejected `.4.9`: the left navigation rail was unreadable and the three-panel Add Locations layout overlapped controls and headings. `.4.9` is not an implementation baseline. `.4.10` is rebuilt from exact `.4.5` UI bytes. At phone/tablet widths the portal navigation becomes a readable bottom bar; the modal retains three simultaneous panels with proportional widths and no cross-panel toolbar overlap.
-
-# 2. RELEASE CHAIN
-
-A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
-
-## v0.3.0 — CURRENT BASELINE
-
-**Status:** repository baseline; UI observed, unified API deployment not yet owner-verified.  
-**Input:** prior portal.  
-**Output:** `project.html` v0.3.0 + unified `file_browser.py` v0.3.0.  
-
-Delivered in repo:
-
-- Intake / Operations / Reporting information architecture.
-- One project creation path.
-- Immutable token / mutable name model in backend.
-- Server-side project persistence schema.
-- Idempotent project creation logic.
-- WSL-visible multi-source browser.
-- Operations and reporting shells backed by real project records when API is live.
-- Unified same-port helper architecture in repository.
-- Version evidence in UI/API.
-
-Not accepted as complete infrastructure until the unified API is deployed and owner-verified.
-
----
-
-# 3. LOCKED NEXT RELEASE — v0.3.1
-
-**Status:** first .4 candidate FAILED owner gate; source-selection/readability rebuild 2026.08.11.4.5 from .3 is the active candidate.  
-**Planned version:** `0.3.1`  
-**Planned first build:** `2026.08.10.1`  
-**Input baseline:** exact v0.3.0 `project.html` and `file_browser.py` SHAs listed above.  
-**Output:** same canonical filenames, versioned internally; no `project-v2.html` proliferation.  
-**Candidate commit:** `17e00575ca8a56c8b69a4c7702fa4d369a0fda1f`  
-**Candidate UI blob:** `9ed479e011e9b5275d1d6adb73d624fad7c09718`  
-**Candidate helper blob:** `799345919451c2674d0a66215a7480fb1a441845`  
-**Candidate automated gate:** PASS — `test_sot_v031.py` plus build checksum/compile checks.  
-**Owner/device gate:** first .4 candidate FAIL; rebuilt .4.1 NOT YET RUN.  
-**Surface:** Intake + filesystem/source/target definition.  
-
-**All five items below are mandatory in this release. No silent deferral.**
-
-## 3.1 Item 1 — Target parent + traceable project folder
-
-Replace the current “pick the final target folder” interaction with:
-
-```text
-Project name: DJI #1
-
-Choose target parent:
-/mnt/f/SOT
-
-Target folder name:
-DJI #1          <- defaults from project name, editable
-
-Result:
-/mnt/f/SOT/DJI #1
-```
-
-Requirements:
-
-- User selects the **parent** directory.
-- Proposed child folder name defaults to current project name.
-- Folder name is editable before creation.
-- Resulting full target path is shown before Enter Project.
-- The project record stores the resulting full target path.
-- Folder creation failure leaves Intake intact and reports the real error.
-- Do not create the folder merely by browsing into a parent; creation occurs only on the explicit target action / project intake path.
-
-## 3.2 Item 2 — File browser navigation, rescan, and visibility fix
-
-The current calculated-parent approach is replaced with real browser navigation state/history.
-
-Requirements:
-
-- Maintain navigation history from root/volume into child folders.
-- Up returns to the actual previous browser location rather than calculating an invalid `/mnt` parent.
-- Every navigation and explicit Rescan performs a fresh `/api/fs` read.
-- Display both folders **and files** so a directory containing files is never misrepresented as empty.
-- Files are visible context but are not selectable when the control requires a folder.
-- Root/volume transitions remain stable when moving back upward.
-- Preserve the current browser location while a rescan occurs.
-- Empty state must distinguish “no child folders” from “directory contains files only” and from a real API/read error.
-
-## 3.3 Item 3 — Android / local-device source intake
-
-Intake must support two real source classes:
-
-```text
-+ WSL / mounted source
-+ This device
-```
-
-Requirements:
-
-- WSL/mounted continues to use `/api/fs` and produces a canonical WSL path source.
-- “This device” uses a browser-supported local directory selection path on the actual Android browser.
-- Capability must be detected; do not show a control that cannot be invoked.
-- If the preferred directory-handle API is unavailable, use a proven browser-supported directory-selection fallback rather than pretending Android is a WSL mount.
-- Persist enough local source identity/metadata to reopen or reauthorize the source on the same device.
-- Permission denial/cancel is handled as a normal, non-destructive outcome.
-- A local-device source is explicitly typed differently from a WSL path source in the project model.
-- At this release layer, the feature must perform real selection + enumeration/identity capture + authoritative project registration. The later reconciliation engine will consume that registered source type; do not fabricate execution status now.
-
-## 3.4 Item 4 — Real target-directory creation in the existing 8081 helper
-
-Add target folder creation to the same helper. No new process/port.
-
-Planned contract:
-
-```text
-POST /api/fs/mkdir
-```
-
-Requirements:
-
-- Accept parent path + requested child folder name.
-- Normalize/validate the WSL parent path.
-- Reject traversal and invalid names.
-- Never overwrite a regular file.
-- If the directory already exists, return an explicit, non-ambiguous result rather than silently pretending it was newly created.
-- Return the canonical created/existing directory path.
-- Record enough information for Intake to show exactly what target will be used.
-- Failure is surfaced to the operator; project creation cannot silently continue with a different target.
-
-## 3.5 Item 5 — Prove the unified project API on the existing 8081 helper
-
-The repo implementation is not enough; v0.3.1 must prove the live environment **without changing infrastructure topology**.
-
-Requirements:
-
-- `/api/fs`, `/api/projects`, and `/api/reports` all resolve through the already-established SOT helper on `127.0.0.1:8081`.
-- Do not create, start, stop, restart, or configure any additional SOT service/port as part of release deployment.
-- Do not modify Tailscale Serve routing as part of release deployment.
-- No SOT listener/service on 8082.
-- `project.html` health indicator shows API live only after a real health response.
-- UI/API versions/builds match and are visible.
-- Project creation returns one immutable token.
-- Repeated submission with the same idempotency key returns the same project rather than a duplicate.
-- Project rename does not change the token.
-- Project list survives browser refresh because the server-side DB is authoritative.
-
-## 3.6 v0.3.1 automated gates
-
-Before owner handoff:
-
-- JavaScript syntax/parse gate for `project.html`.
-- Python compile/import gate for `file_browser.py`.
-- API contract tests for health, fs browse, mkdir, create/list/get/rename project, aggregate/timeline.
-- Idempotency/duplicate-create test.
-- Browser history test that specifically covers `/ → drive → folder → child → Up → Up → root`.
-- Directory rendering test with: folders only, files only, mixed files/folders, empty directory, permission/API error.
-- Target mkdir tests: new folder, already exists, invalid name, path traversal, unwritable parent.
-- Local-device source reachability test through the actual Intake control.
-- Version/build match test.
-- Topology guard test proving all SOT helper behavior is designed for existing 8081 and that release scripts do not create/reconfigure infrastructure.
-
-### Required mutation checks
-
-At least these defects must be deliberately reintroduced/simulated and caught:
-
-- restore calculated-parent navigation and confirm navigation gate fails;
-- discard returned file entries and confirm files-only-directory gate fails;
-- make mkdir return success without creating/verifying a directory and confirm gate fails;
-- reuse an idempotency key for a different request and confirm conflict gate fires;
-- introduce an 8082 dependency or route-changing deployment behavior and confirm topology gate fails;
-- make the local-device source control unreachable and confirm reachability gate fails.
-
-## 3.7 v0.3.1 owner/device gate
-
-### WSL / Windows
-
-- Open the deployed `project.html`.
-- Version/build visible and matches API.
-- Add multiple WSL/Windows sources.
-- Navigate deep into a volume, go Up repeatedly, and return to the same logical locations without losing place.
-- Confirm a files-only directory visibly shows its files.
-- Select target parent, accept default project-name folder, and create project.
-- Repeat with an edited target folder name.
-- Confirm the created physical target folder exists in the chosen parent.
-- Confirm project creation returns one project token and survives refresh.
-
-### Android
-
-- Open the same deployed portal in the actual intended Android browser.
-- Add a “This device” source such as a DCIM directory.
-- Confirm selection is real and directory contents/identity can be enumerated/captured.
-- Cancel/deny once and confirm the UI remains usable.
-- Reopen/reauthorize the source as required by the browser and confirm the same registered source can be recognized at the project layer.
-
-### Infrastructure
-
-- Confirm the release used the existing report server and existing SOT helper only.
-- Confirm no extra SOT project API service/port was introduced.
-- Confirm release deployment did not alter Tailscale routing.
-
-**Only after this gate passes does v0.3.1 become the new baseline.**
-
----
-
-
-## 3.8 Owner-gate rebuild — build 2026.08.10.3
-
-Mandatory corrections within the same v0.3.1 surface:
-
-- Existing public `/api/fs?path=/` returns real storage roots without changing Tailscale or ports.
-- Intake is project name + source locations + SOT workspace + optional notes + Create project.
-- One **Add locations** action handles accessible source types transparently.
-- Dual-pane explorer: locations/storage left, folder/file contents right.
-- Target flow: storage/device → optional parent folder → final SOT folder.
-- Operations tabs: Projects / Status / Detail.
-- Reporting stays limited to authoritative metadata/events pending separate definition and real engine data.
-
-
-## 3.9 Build .4 owner-flow requirements
-
-- Source explorer is three-pane in source mode: storage, contents, Added to project.
-- Added sources are staged only and removable with ×.
-- Save selections commits only to the Intake draft, not the server.
-- Intake then has an explicit Review project step.
-- Review project shows project name, all source locations, and notes; destination is explicitly deferred.
-- Create project is the first authoritative persistence/fingerprinting action.
-- Project creation sends no target requirement.
-- Operations shows SOT destination as deferred until scan/capacity/backup planning.
-
-# 4. RELEASE PLAN AFTER v0.3.1
-
-Scope below is planned but not locked until the preceding release passes. Before each release begins, verify the current baseline and rewrite/confirm exact input/output and gate criteria here.
-
-## v0.4.0 — Engine foundation: source identity + scan + manifest
-
-**Goal:** create the deterministic `sotctl` foundation and generate authoritative source manifests without copying data.
-
-Planned items:
-
-- `sotctl init`.
-- `sotctl register-source`.
-- `sotctl scan-source`.
-- Durable source IDs and project/source associations.
-- Deterministic recursive scan with stable relative paths.
-- Manifest persistence.
-- Configurable SOT database path exposed through instance settings and persisted outside browser-local state.
-- Configurable SOT database backup path.
-- Database backup command/API with atomic snapshot semantics appropriate to SQLite/WAL.
-- Database restore flow with validation before replacement and automatic safety backup of the current database before restore.
-- Per-source inventory timestamps and performance telemetry: start/progress/completion, files/bytes scanned, observed throughput, elapsed time.
-- Rolling ETA for inventory only when enough progress exists to calculate one; suppress unstable estimates early in a run.
-- Preserve completed inventory-run telemetry for later performance comparison and copy/consolidation planning.
-- Store both `original_path` and `normalized_path` to prevent Windows/WSL path ambiguity.
-- Source fingerprint evidence model.
-- `fingerprint_match_threshold` config, default `0.80` pending gate results.
-- Manual `sotctl relink-source` workflow for removable media whose path/UUID changes.
-- Engine SQLite in WAL mode.
-- Batched bulk writes/transactions for scan ingestion.
-- Error table/event capture.
-- Stage-level concise `stage_error_report.md` generation.
-- Default scan concurrency capped conservatively; MVP target is no more than two scan workers until measured evidence supports more.
-- No copy/move/delete behavior in this release.
-
-Gate focus:
-
-- source disappears/reappears;
-- same source at a different path;
-- original/normalized path consistency;
-- scan resume/restart safety;
-- multi-million-file simulation or representative large-tree harness before multi-TB claims.
-
-## v0.5.0 — Hash + crunch + duplicate/collision analysis
-
-**Goal:** turn manifests into content identity and reconciliation decisions without copying.
-
-Planned items:
-
-- Candidate selection by size/metadata.
-- Fast candidate hash path before full SHA-256 where safe.
-- Full SHA-256 confirmation for exact duplicate identity.
-- `sotctl hash-source --mode candidates` / equivalent final command contract.
-- Content index.
-- Exact duplicate clusters.
-- Collision/path-conflict detection.
-- Primary-source preference rule.
-- Unique-vs-duplicate byte accounting.
-- Hash checkpoints and resumability.
-- Hash/error stage report.
-- Performance instrumentation; do not claim multi-TB throughput without measured results.
-
-## v0.6.0 — Copy plan + dry run + verified execution
-
-**Goal:** build a collision-safe target from deterministic plans while preserving copy-only safety.
-
-Planned items:
-
-- `sotctl plan --target ...`.
-- Copy plan persistence.
-- Collision-safe target naming.
-- Preflight showing planned files/bytes/conflicts.
-- Dry-run is the default/safety gate.
-- Actual copy requires explicit execute action.
-- Copy-only: never move/delete source data.
-- Temporary destination + verified finalization pattern.
-- Size verification and content-hash verification.
-- Copy checkpoints.
-- Verification failures recorded, summarized, and never silently accepted.
-- No source retirement/deletion automation.
-
-## v0.7.0 — Pause/resume/restart + reconnect resilience
-
-**Goal:** make long-running reconciliation survive real interruptions.
-
-Planned items:
-
-- Real Start/Pause/Resume/Restart wired to the deterministic engine.
-- Run identity separate from project identity.
-- Durable job/checkpoint state.
-- Pause between safe work units.
-- Resume after browser close, WSL restart, OpenClaw restart, system reboot, worker failure, and source disconnect.
-- Source fingerprint/relink check on resume.
-- Resume skips completed verified work.
-- Restart creates a new run under the same project token, not a duplicate project.
-- Status/checkpoint UI backed by real engine state.
-
-## v0.8.0 — SOT promotion + provenance + reporting completion
-
-**Goal:** explicitly promote a verified candidate into the next rolling SOT and produce an audit record.
-
-Planned items:
-
-- Verified target → SOT promotion action.
-- Promotion requires verification gate.
-- Provenance links source → content → target → promoted SOT.
-- Aggregate metrics populated from real engine data.
-- Timeline populated with real engine events.
-- Project Detail includes runs, checkpoints, manifests, duplicate stats, collisions, copy plan, verification results, errors, provenance, promotion history.
-- Export Markdown/CSV reports.
-- Project rename never breaks historical reporting.
-
-## v0.9.0 — OpenClaw orchestration
-
-**Goal:** let OpenClaw orchestrate without owning deterministic filesystem logic.
-
-Planned items:
-
-- Optional OpenClaw session association by immutable project token.
-- Store `openclaw_session_key`.
-- Project rename updates OpenClaw session label without changing project/session identity.
-- OpenClaw-triggered project actions use the same backend contracts as UI-triggered actions.
-- OpenClaw-triggered events appear in the same timeline.
-- Deterministic scan/hash/copy/verify remains in the harness, not in prompts.
-
-## v1.0.0 — MVP hardening / acceptance
-
-**Goal:** declare the first supported Rolling SOT MVP only after measured reliability gates.
-
-Working design envelope to validate rather than assume:
-
-- up to approximately 5 TB per MVP corpus;
-- up to 8 registered/concurrent source candidates, with conservative worker concurrency;
-- no more than two scan workers by default until measurements justify raising it;
-- exact duplicate detection and collision-safe target construction;
-- full pause/resume/restart recovery;
-- copy-only safety;
-- verified SOT promotion;
-- complete audit/report output.
-
-Required hardening:
-
-- representative large-corpus benchmark;
-- SQLite lock/throughput measurements;
-- crash/restart fault injection;
-- source removal/replacement tests;
-- path normalization tests across Windows/WSL sources;
-- dry-run/execute safety mutation tests;
-- verification corruption mutation test;
-- owner end-to-end reconciliation on real storage.
-
----
-
-# 5. LIVE BACKLOG — NOT YET ASSIGNED TO A LOCKED RELEASE
-
-Items here are real backlog, but may move when evidence changes. They are not promises until assigned to a locked release.
-
-## Source identity / storage
-
-- Improve fingerprint evidence beyond top-level samples if false-positive/false-negative testing requires it.
-- Evaluate filesystem UUID/serial evidence by source type.
-- Manual source identity review UI for ambiguous relink cases.
-- Source priority editing UI after the primary-source preference rule is operational.
-- Network-share-specific disconnect/reconnect handling.
-- Encrypted/decrypted staging source classification.
-- Normal vs encrypted/sensitive data classification and sidecar metadata support.
-
-## Engine performance
-
-- Benchmark SQLite WAL + batched writes under realistic file counts.
-- Consider per-source sharding only if measurements prove a single DB is the bottleneck; do not pre-architect it.
-- Evaluate parallel hash workers after single/limited worker correctness is proven.
-- Evaluate parallel copy workers only after copy/verify correctness is proven.
-- Large-file quick-hash strategy and thresholds.
-
-## Reporting / operator UX
-
-- Source inventory performance view: current elapsed time, files/bytes scanned, observed throughput, ETA confidence/state, and completed-run history.
-- Compare current source scan rate with prior scans of the same source/fingerprint when available.
-- Use inventory performance as one input to later consolidation planning, but keep scan ETA and copy ETA as separate metrics because read/hash/write workloads differ.
-- Filter Aggregate by date/status/source/target/project.
-- Download/export links from the portal.
-- Human-readable review queue for collisions and ambiguous source relinks.
-- Better error drill-down from stage summary to affected files.
-- Visualization of represented bytes vs raw bytes vs duplicate bytes.
-- Cold/warm/hot SOT tier reporting after core SOT promotion works.
-
-## Android/local-device execution
-
-- Define the efficient data-transfer/execution path for browser-local Android sources once source registration is proven in v0.3.1.
-- Resume semantics when Android browser permission is lost or device sleeps.
-- Large DCIM transfer behavior and backpressure.
-- Secure Folder / inaccessible Android storage remains evidence-driven; do not promise access that Android does not grant.
-
-## OpenClaw
-
-- Session discovery and relink if an associated session is deleted/recreated.
-- Project summary injected into OpenClaw context without duplicating authoritative state.
-- OpenClaw recommended-next-action based on backend state.
-
-## Future / optional
-
-- **Multi-instance SOT:** support multiple independent SOT databases/configurations on one host, each with its own database path, backup path, projects, and lifecycle. Deferred until single-instance MVP is stable.
-- Near-duplicate/vision analysis extension point.
-- Actual AI image/video similarity model is **not MVP** and must not delay exact reconciliation.
-- Rich HTML dashboard beyond the operational portal.
-- GUI wrappers for preflight tooling.
-
----
-
-# 6. SAFETY AND DATA INVARIANTS
-
-These survive every release unless the owner explicitly changes them.
-
-1. Sources are read-only inputs to reconciliation.
-2. Copy-only: never move or delete source files automatically.
-3. Human validation is required before physical source retirement.
-4. A project is identified by immutable `project_token`, never mutable name.
-5. A project may have multiple runs; restart is not a new project.
-6. Retry/double-click/browser refresh cannot duplicate a project.
-7. Source identity must be capable of surviving path/drive-letter changes through fingerprint/relink evidence.
-8. Target construction must be collision-safe.
-9. Verification failure blocks SOT promotion.
-10. Reporting resolves by project token so rename does not break history.
-11. Browser `localStorage` is never the authoritative project database.
-12. Secrets/config stay environment-side and are not committed to GitHub.
-13. No extra SOT service/port without a proven technical boundary and explicit owner ruling.
-14. A feature that cannot be invoked through the operator control is not implemented.
-15. A failed owner gate is rolled back, recorded, and rebuilt from the clean input rather than patched forward.
-16. The authoritative SOT database path and its backup path are configurable instance settings and are never silently changed by project operations.
-17. Database restore validates the candidate backup before replacement and preserves a safety copy of the current authoritative database.
-18. Scan/copy timing predictions are evidence-based estimates derived from observed telemetry and must never be presented as guaranteed completion times.
-16. Release deployment may overwrite application files in established locations but must not create/start/stop/restart infrastructure or alter ports/routes without explicit owner approval.
-
----
-
-# 7. GRAVEYARD — VETOED SOT APPROACHES
-
-The graveyard records approaches that were tried, proposed, or materially pursued and then rejected based on owner ruling/evidence. Scan this section before every build. Do not silently reintroduce a buried approach.
-
-## G-001 — Separate project API service on port 8082
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** run filesystem browsing on 8081 and create a second FastAPI/systemd project-control service on 8082.  
-**Why buried:** project persistence/reporting are part of the same SOT helper boundary; the extra daemon/port increased architecture and deployment surface without a demonstrated technical need.  
-**Replacement:** one `file_browser.py` helper on 8081 owns `/api/fs`, `/api/projects`, and `/api/reports`.
-
-## G-002 — Multiple independent project-creation entry points
-
-**Status:** VETOED  
-**Approach:** Dashboard / Projects / New Project / other surfaces each able to create a project.  
-**Why buried:** duplicate identity risk and unnecessary UI complexity.  
-**Replacement:** only **Intake → Enter Project** creates a project.
-
-## G-003 — Browser-local project database as authority
-
-**Status:** VETOED  
-**Approach:** `localStorage` or browser state as the durable project source of truth.  
-**Why buried:** browser/device refresh or switching devices can fork identity/history and cannot safely coordinate long-running execution.  
-**Replacement:** server-side SQLite authoritative project records; browser state is presentation/cache only.
-
-## G-004 — Fake lifecycle controls/status
-
-**Status:** VETOED  
-**Approach:** let Start/Pause/Resume/Restart/Promote update UI status before a real deterministic engine exists.  
-**Why buried:** cosmetic success would hide that no filesystem operation occurred.  
-**Replacement:** controls remain disabled/rejected with explicit `ENGINE_NOT_READY` until wired to real `sotctl` operations.
-
-## G-005 — Calculating browser “Up” solely from pathname strings
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED for v0.3.1+  
-**Approach:** compute parent from `/mnt/...` string and assume it matches the logical browser root/volume hierarchy.  
-**Why buried:** can walk to invalid logical locations such as `/mnt`, lose the browser’s actual navigation context, and create misleading empty states.  
-**Replacement:** browser navigation history + fresh API read at each navigation step.
-
-## G-006 — Hiding returned files in the folder browser
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED for v0.3.1+  
-**Approach:** render only `folders` from `/api/fs` and ignore `files`.  
-**Why buried:** a files-only directory appears empty, creating false evidence about source contents.  
-**Replacement:** display both files and folders; selection rules still determine what may be chosen.
-
-## G-007 — Target selection as an arbitrary final existing folder with no project-named container
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED for new Intake flow  
-**Approach:** choose the final target directory directly with no project-specific child folder convention.  
-**Why buried:** weaker traceability and greater risk of mixing one reconciliation turn with unrelated files.  
-**Replacement:** select target parent, propose project name as editable child folder, explicitly create/use that folder.
-
-## G-008 — Requiring a second WSL copy/clone merely to deploy `project.html`
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED as the default operator workflow  
-**Approach:** maintain a local repo clone plus a separate report-server copy/symlink only to move one HTML artifact into service.  
-**Why buried:** unnecessary operator steps and duplicate-file confusion.  
-**Replacement:** `ghdeploy` copies the requested GitHub HTML directly to the report project; `deploy` does the same from Windows Download. A repo clone may still be used intentionally for development, but is not required for routine deployment.
-
-## G-009 — Treating an application release as permission to reconfigure infrastructure
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** release script restarts/replaces the existing SOT helper, changes Tailscale child routes, or manages old ports/services while installing application files.  
-**Why buried:** scope violation; infrastructure had already been established and the requested work was an application release, not an architecture migration.  
-**Replacement:** release installer overwrites only canonical application files. Infrastructure remains untouched unless a separately proven defect leads to an explicit owner-approved operational/infrastructure change.
-
----
-
-
-## G-010 — Source-type-first, summary-heavy Intake
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** separate “WSL / mounted source” and “This device” decisions, single-pane browsing, parent-first target language, and a second summary card.  
-**Why buried:** failed the owner gate because it exposes implementation details, reverses the target mental model, and makes a simple storage-reconciliation setup feel difficult.  
-**Replacement:** one Add locations action, dual-pane explorer, target sequence storage → optional parent → final SOT folder, and one streamlined Intake surface.
-
-
-## G-011 — Requiring the final SOT destination during Intake
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** require final SOT storage before a source project can be created.  
-**Why buried:** surviving size is unknown until inventory/reconciliation, and the primary SOT also needs backup capacity.  
-**Replacement:** create/fingerprint the source project first, measure it, then choose primary SOT + backup before copy execution.
-
-## G-012 — Immediately committing each source click
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** mutate the Intake source list immediately on each folder click.  
-**Why buried:** weak review/undo visibility and accidental inclusion risk.  
-**Replacement:** three-pane staged selection → Save selections → Review project → authoritative Create project/fingerprint.
-
-
-## G-013 — Patching a failed .4 candidate forward
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** treat the failed first .4 candidate as the baseline and make another small route fix on top of it.  
-**Why buried:** explicitly violates the governance rule established to prevent compounding unknown defects.  
-**Replacement:** restore exact .3 bytes from commit `037a0198800f45e616596fc27efb562db5289fa6`, then reapply the reviewed .4 UX delta and the proven existing-route compatibility change as a fresh build.
-
-
-## G-014 — Standalone SOT server on port 8081
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED / REMOVED  
-**Approach:** Python FastAPI/Uvicorn `file_browser.py` on 127.0.0.1:8081.  
-**Why buried:** duplicates application-server responsibility already available in production `session-server.js` on 18080 and created deployment/routing failure modes.  
-**Replacement:** additive `/api/sot/*` routes inside the existing 18080 Node report/application server. Existing session routes remain unchanged.
-
-
-## G-015 — Browser calls to absolute `/api/sot/*`
-
-**Date buried:** 2026-08-10  
-**Status:** VETOED  
-**Approach:** have `project.html` call `/api/sot/*` directly from the public site.  
-**Why buried:** Tailscale routes `/report` to the production 18080 report server; absolute `/api/*` bypasses that mount and lands on the root/OpenClaw route, producing 404.  
-**Replacement:** the single-file UI calls `/report/api/sot/*`; the existing `/report` proxy delivers those calls to the established 18080 server.
-
-
-## G-016 — Requiring UI and API build IDs to be identical
-
-**Date buried:** 2026-08-11  
-**Status:** VETOED  
-**Approach:** report a version mismatch whenever the UI build timestamp differs from the backend build timestamp.  
-**Why buried:** UI-only releases legitimately change the UI build without changing the API implementation; equal API contract/version is the compatibility boundary.  
-**Replacement:** compare API version/contract for compatibility and display both build IDs separately as trace evidence.
-
-# 8. DONE / CURRENT IMPLEMENTATION LEDGER
-
-This section prevents already-implemented work from being repeatedly rescheduled.
-
-## Done in repository as of v0.3.0
-
-- [x] Primary navigation reduced to Intake / Operations / Reporting.
-- [x] One visible project-creation path.
-- [x] `project.html` version/build visible.
-- [x] Settings/Diagnostics contain API version/build evidence.
-- [x] Immutable project-token model implemented in backend code.
-- [x] Project rename independent of token implemented in backend code.
-- [x] Idempotency-key handling implemented in backend code.
-- [x] Semantic duplicate-project check implemented in backend code.
-- [x] Server-side project SQLite schema implemented.
-- [x] Source associations implemented in backend schema/API.
-- [x] Run identity separated from project identity in schema.
-- [x] Event/timeline schema implemented.
-- [x] Aggregate/timeline/project-detail API surfaces implemented in repo.
-- [x] Source(s) → Target representation implemented in UI.
-- [x] Target(s) → SOT representation implemented in UI.
-- [x] Debug/log surface moved behind Settings.
-- [x] Unified 8081 helper architecture implemented in repo.
-- [x] Project DB opens SQLite in WAL mode in current helper code.
-
-## v0.3.1 candidate implemented in repository
-
-- [x] Target parent + editable project-folder convention implemented in candidate.
-- [x] File browser history/rescan/files-visible behavior implemented in candidate.
-- [x] Android/local-device source intake implemented in candidate.
-- [x] `/api/fs/mkdir` implemented in the existing helper code.
-- [x] Unified `/api/projects` + `/api/reports` remain in the same helper code intended for existing 8081.
-- [x] Release installer corrected to file-installation-only; no server/port/Tailscale reconfiguration.
-
-## Not yet owner-verified live
-
-- [ ] Unified `/api/projects` behavior through the already-running WSL helper.
-- [ ] Unified `/api/reports` behavior through the already-running WSL helper.
-- [ ] UI/API live version match in deployed environment.
-- [ ] Android local-device gate on the actual intended device/browser.
-
-These remain owner/device gate items; they are not grounds for introducing new infrastructure.
-
----
-
-# 9. FEEDBACK INCORPORATION LEDGER
-
-This section records external review items so they do not disappear between sessions.
-
-## Incorporated into release plan
-
-- Fingerprint tolerance + manual relink → **v0.4.0**.
-- SQLite WAL + batched bulk writes → WAL already present for project DB; engine batching/WAL → **v0.4.0**.
-- Windows/WSL original + normalized path storage → **v0.4.0**.
-- User-facing stage error summary → **v0.4.0** and continued thereafter.
-- Candidate/fast hashing before full SHA-256 → **v0.5.0**.
-- Dry-run before execution → **v0.6.0**.
-- Collision-safe target naming → **v0.6.0**.
-- Verification size + hash → **v0.6.0**.
-- Pause/Resume checkpoints → **v0.7.0**.
-- Conservative concurrency / measure before scaling → **v0.4.0 through v1.0.0**.
-- MVP scale target of roughly 5 TB and ≤8 source candidates → **v1.0.0 validation target, not an unproven guarantee**.
-
-## Deliberately deferred
-
-- Actual vision/AI near-duplicate analysis — after exact reconciliation MVP; keep an extension point, do not spend MVP reliability budget on the model.
-- High parallel worker counts — only after lock/throughput measurements.
-
----
-
-# 10. SESSION START / SESSION END CHECKLIST
-
-## Start every SOT build session
-
-1. Read this file, especially Current State, Locked Release, and Graveyard.
-2. Verify the current `project.html` and `file_browser.py` versions/SHAs rather than assuming them.
-3. State the exact release input and output.
-4. Confirm the locked scope with the owner before implementation if it has changed.
-5. Scan every planned mechanism against the graveyard.
-6. If a defect cause is unknown, instrument first.
-7. Treat existing ports/services/routes as constants unless a proven defect and explicit owner ruling says otherwise.
-
-## End every SOT build session
-
-1. Update this file with any owner ruling, completed item, changed release scope, or buried approach.
-2. Record exact candidate version/build and repo commit/SHA.
-3. Record automated gate result.
-4. Record owner/device gate as PASS / FAIL / NOT YET RUN — never infer it.
-5. On FAIL: restore baseline, add graveyard entry, then rebuild from baseline in the next attempt.
-6. Record whether infrastructure changed. Normal answer for application releases is `NONE`.
-
----
-
-# 11. PRODUCT MODEL REFERENCE
-
-## SOT instance configuration
-
-```text
-instance_id              fixed single-instance identifier for MVP
-sot_database_path       configurable authoritative SQLite database path
-sot_database_backup_path configurable backup/restore destination
+instance_id
+sot_database_path
+sot_database_backup_path
+schema_version
 created_at
 updated_at
 ```
 
-The database configuration belongs to the SOT installation, not to an individual reconciliation project. A project may be created before any final SOT data destination is chosen.
+Configuration belongs to the SOT installation, not an individual project.
 
-## Project
+## 2.2 Project
 
 ```text
-project_token        immutable primary key
-project_name         mutable display label
+project_token           immutable primary key
+project_name            mutable display name
+active                  boolean
 created_at
 updated_at
 status
 current_stage
-current_run_id
-current_target_id / target_path    nullable until capacity/destination planning
-openclaw_session_key
-notes
+current_run_id          nullable
+notes                    optional
+openclaw_session_key    optional/future
 ```
 
-## Project source association
+## 2.3 Project source
 
 ```text
-project_token
 source_id
-source_type          wsl_path | browser_local | future typed source
-source_fingerprint
-original_path / original locator
-normalized_path / canonical locator where applicable
+project_token
+source_type             wsl_path | browser_local | promoted_sot | future typed source
+original_path_or_locator
+normalized_path_or_locator
 operator_label
-status
-added_at
+operator_note           optional
+registered_at
 last_seen_at
+fingerprint             v0.4.0
+fingerprinted_at        v0.4.0
+source_status
+parent_sot_generation_id nullable
 ```
 
-## Project run
+## 2.4 Project run
 
 ```text
 run_id
@@ -1034,7 +238,7 @@ restart_of_run_id
 checkpoint_state
 ```
 
-## Source inventory run / performance telemetry
+## 2.5 Inventory telemetry
 
 ```text
 inventory_run_id
@@ -1054,85 +258,502 @@ checkpoint_state
 error_count
 ```
 
-Each source inventory run is timestamped independently. Historical runs remain queryable so estimates can be based on observed performance for that source/device/path class rather than a generic guess.
+Historical telemetry remains queryable. Scan speed is not copy speed.
 
-## Project event
+## 2.6 Lineage/provenance
+
+The authoritative DB must be able to trace:
 
 ```text
-event_id
-project_token
-run_id
-timestamp
-event_type
-actor
-message
-details_json
+source → fingerprint/manifest/content → dedup decision → copy plan → target copy → verification → promoted SOT
 ```
 
-## Engine datasets planned
+A promoted SOT becomes a valid future source without losing ancestry.
+
+Example:
 
 ```text
-sources
-files
-content_index
-duplicate_clusters
-collisions
-copy_jobs
-job_checkpoints
-provenance
-errors
+Source A + Source B
+        ↓
+      SOT 1
+        ↓ source in later project
+      SOT 2
+        ↓ source in later project
+      SOT 3
 ```
 
 ---
 
-# 12. CORE API REFERENCE
+# 3. LOCKED NEXT RELEASE — v0.3.1
 
-One helper, one port.
+## v0.3.1 — Configuration + Project Setup + Project Operations Foundation
 
-```text
-GET    /api/fs?path=/
-POST   /api/fs/mkdir                         <- v0.3.1
+**Status:** LOCKED / rebuild required  
+**Implementation reference baseline where useful:** build `.4.5`, commit `970d56435a84192c74de4d3eb7978ee327d303c4`  
+**Architecture baseline:** existing production `session-server.js` on 18080; no extra server  
+**Primary goal:** stop treating this release as only a folder-picker exercise. Establish the authoritative SOT DB, make Project Setup persist real project/source definitions, and build the Operations surface now so the application has a usable lifecycle shell tied to the DB.
 
-POST   /api/projects
-GET    /api/projects
-GET    /api/projects/:project_token
-PATCH  /api/projects/:project_token
-DELETE /api/projects/:project_token
-GET    /api/projects/:project_token/status
-POST   /api/projects/:project_token/sources
-DELETE /api/projects/:project_token/sources/:source_id
-POST   /api/projects/:project_token/targets
+### 3.1 Configuration — MUST SHIP THIS RELEASE
 
-GET    /api/reports/aggregate
-GET    /api/reports/timeline
-GET    /api/projects/:project_token/report
-```
+Configuration is the first left-navigation item and first application step.
 
-All of these are application routes of the **existing** SOT helper. The release plan does not allocate another server or port for them.
+Required:
 
-Engine actions remain unavailable until their planned releases implement real deterministic behavior:
+- configure authoritative `sot_database_path`;
+- configure `sot_database_backup_path`;
+- validate/open existing SQLite DB;
+- initialize a new DB;
+- report schema/version/integrity state;
+- persist configuration outside browser-local project state;
+- Project Setup clearly indicates when DB configuration is missing/invalid;
+- project definition data is stored in this authoritative DB, not `localStorage`.
 
-```text
-POST /api/projects/:project_token/start
-POST /api/projects/:project_token/pause
-POST /api/projects/:project_token/resume
-POST /api/projects/:project_token/restart
-POST /api/projects/:project_token/promote
-```
+### 3.2 Project Setup — MUST SHIP THIS RELEASE
+
+Required:
+
+- project name;
+- project optional note;
+- default active flag;
+- created_at / updated_at;
+- immutable project token;
+- responsive three-panel source selector from §0.4/0.5;
+- Panel 1 → Panel 2 → Panel 3 behavior exactly as governed;
+- WSL/server-backed sources only when real server API is reachable;
+- browser-local This Device only where browser capability exists;
+- optional per-source operator note;
+- full canonical path/locator preserved;
+- Create Project writes authoritative project + source rows to the configured SOT DB;
+- refresh/reopen returns the same project/token/source definitions;
+- final SOT target is deferred;
+- no fingerprinting claim yet unless real v0.4.0 fingerprint behavior is pulled forward and separately gated.
+
+### 3.3 Project Operations — MUST SHIP THIS RELEASE
+
+The Operations section is built now; it is not deferred to a later UI release.
+
+Required now:
+
+- list/select projects from the authoritative SOT DB;
+- display project name, token, active/inactive state, created/updated timestamps, notes, source count, and current stage;
+- display source records and source notes;
+- display whether a deterministic execution engine is installed/ready;
+- include Start / Pause / Resume / Stop / Restart controls in their final locations;
+- controls are enabled only for real backend operations that exist;
+- for operations not implemented yet, controls remain disabled with explicit `ENGINE_NOT_READY`/equivalent explanation rather than fake state;
+- run/status area is connected to real project/run rows when available;
+- no browser-only fake run state.
+
+### 3.4 Database Administration — UI SHELL + BASIC METADATA ADMIN MUST SHIP THIS RELEASE
+
+Because Configuration creates the authoritative DB and Operations consumes it, this release also includes the minimum Database Administration surface needed to manage the records being created.
+
+Required now:
+
+- project table/list from authoritative DB;
+- edit project display metadata/notes;
+- edit source labels/notes/metadata that are explicitly mutable;
+- change active/inactive project flag;
+- bulk active/inactive update;
+- immutable fields (`project_token`, durable source identity fields when created) are read-only;
+- DB integrity-check action/status;
+- DB backup/restore controls may be present only when the backend operation is real; otherwise visibly not-ready rather than simulated.
+
+### 3.5 Navigation/UX — MUST SHIP THIS RELEASE
+
+- permanent top-left hamburger;
+- expandable/collapsible readable left nav;
+- navigation items in the locked order from §0.3;
+- source selector responsive in portrait and landscape;
+- no unreadable dark rail;
+- no source-selector overlap;
+- no landscape-only requirement.
+
+### 3.6 v0.3.1 automated gates
+
+Before owner handoff:
+
+- JavaScript parse/syntax.
+- No active FastAPI/Uvicorn/8081/8082 dependency.
+- API health against existing production SOT API contract.
+- Config read/write contract for DB path and backup path.
+- DB initialize/open/integrity test.
+- Create/list/get/update project.
+- Immutable project token across rename/update.
+- active/inactive field round trip.
+- bulk active/inactive update preserves project identity.
+- source metadata + source note round trip.
+- Project Operations reads projects from DB rather than browser-local fake state.
+- Operations buttons cannot claim success without a real backend operation.
+- GitHub Pages static-preview gate: no server-only volumes.
+- Portrait/landscape responsive structural gate: no horizontal body overflow.
+- Fixed hamburger gate at representative breakpoints.
+- Source-selector behavioral harness:
+  - Panel 1 click → volume row in Panel 2;
+  - check volume + Add → whole-volume source in Panel 3;
+  - click volume → folders;
+  - check multiple folders + Add → multiple full-path Panel-3 rows;
+  - source note persists;
+  - × removes only selected staged source.
+
+### 3.7 Required mutation checks
+
+- remove hamburger at mobile breakpoint → gate fails;
+- force source-selector horizontal overflow → gate fails;
+- make Panel 1 add a source directly → source-flow gate fails;
+- truncate/destroy underlying full path → path-integrity gate fails;
+- expose WSL drives on GitHub Pages → static-preview gate fails;
+- rename project and accidentally change token → identity gate fails;
+- implement Start as UI-only status change → no-fake-operation gate fails;
+- bulk active/inactive mutation changes immutable token → DB-admin gate fails.
+
+### 3.8 v0.3.1 owner/device gates
+
+#### Portrait phone
+
+1. Exact intended build visible.
+2. Hamburger remains fixed top-left.
+3. Navigation expands/collapses readably and persists.
+4. Configuration is first section and DB path/backup path are understandable.
+5. Project Setup works without rotation.
+6. Locations → Contents → Added to project all reachable.
+7. Whole-volume and multiple-folder selection work.
+8. Long source path truncates visually but full path is inspectable.
+9. Source note can be added/edited.
+10. Created project appears in Project Operations after refresh.
+11. Operations shows real project metadata and source records.
+12. Unsupported run controls are visibly disabled, not fake.
+
+#### Landscape phone / tablet
+
+- same functional gates;
+- no clipping or hidden third source panel;
+- three-column layout only if usable.
+
+#### GitHub Pages
+
+- exact intended build verified before URL handoff;
+- no WSL/server-only drives;
+- This Device only if browser capability exists;
+- no production filesystem API call.
+
+#### OpenClaw runtime
+
+- exact intended build verified before URL handoff;
+- Configuration reaches real API/DB;
+- DB can be initialized/opened;
+- server-visible volumes enumerate;
+- Create Project persists and survives refresh;
+- Project Operations reads that same project from the DB;
+- basic Database Administration edits/active flag changes persist.
+
+### 3.9 Acceptance condition
+
+Only after all applicable automated and owner/device gates pass does v0.3.1 become the accepted baseline.
 
 ---
 
-# 13. DEFINITION OF DONE
+# 4. RELEASE PLAN AFTER v0.3.1
+
+## v0.4.0 — Source Fingerprint + Inventory + Manifest
+
+**Goal:** begin deterministic project execution by fingerprinting and inventorying registered sources.
+
+### Scope
+
+- fingerprint evidence model;
+- fingerprint timestamp/history;
+- deterministic source register/fingerprint/scan engine contract (`sotctl` or equivalent);
+- recursive inventory;
+- manifest persistence in authoritative DB;
+- original + normalized paths;
+- inventory timestamps and telemetry;
+- checkpoint/restart safety;
+- source relink flow for changed path/mount;
+- WAL/batched writes;
+- Operations Start/Pause/Resume/Stop/Restart wired to real inventory engine where supported;
+- no copy/move/delete.
+
+### Gates
+
+- source disappears/reappears;
+- same source at new path/mount;
+- resume after interruption;
+- representative large-file-count harness;
+- historical telemetry retained;
+- fingerprint/manifest traceability to project/source IDs;
+- real Operations controls preserve run/project linkage.
+
+---
+
+## v0.5.0 — Dedup + Analysis + Recommendation
+
+**Goal:** determine what survives and how much target/backup capacity is required.
+
+### Scope
+
+- candidate selection by size/metadata;
+- fast candidate hash where safe;
+- SHA-256 exact duplicate confirmation;
+- content index;
+- duplicate clusters;
+- collisions/path conflicts;
+- canonical-source preference/review;
+- unique/duplicate byte accounting;
+- surviving-size estimate;
+- recommendation for primary SOT capacity;
+- recommendation for backup capacity;
+- operator review queue for ambiguous decisions.
+
+### Gates
+
+- known duplicate corpus;
+- same-size/different-content mutation;
+- collision cases;
+- interrupted hashing + resume;
+- accounting reconciles to manifest/content index.
+
+---
+
+## v0.6.0 — SOT Build Plan + Generated Copy Scripts
+
+**Goal:** turn approved dedup decisions into an explicit, reviewable copy plan and scripts.
+
+### Scope
+
+- target selection only after surviving capacity is known;
+- primary SOT target + backup target planning;
+- generated copy plan;
+- generated operator-readable copy scripts/commands;
+- collision-safe destination mapping;
+- preflight;
+- dry run;
+- plan persistence in authoritative DB;
+- no source move/delete.
+
+### Gates
+
+- target free-space preflight;
+- path/collision mutation tests;
+- generated plan reproduces approved analysis exactly;
+- dry run changes no files;
+- plan remains tied to immutable project/run/source identities.
+
+---
+
+## v0.7.0 — Verified Copy Execution
+
+**Goal:** execute the approved plan safely and resumably.
+
+### Scope
+
+- explicit execute action;
+- copy-only behavior;
+- durable copy checkpoints;
+- interruption/restart recovery;
+- size/content verification;
+- verification failures never silently accepted;
+- copy throughput telemetry separate from scan telemetry.
+
+### Gates
+
+- forced interruption mid-copy;
+- destination corruption mutation;
+- source disconnect/reconnect;
+- repeated resume does not duplicate completed verified work;
+- no source move/delete operations exist.
+
+---
+
+## v0.8.0 — SOT Promotion + Lineage
+
+**Goal:** promote verified output into the next SOT generation while preserving complete ancestry.
+
+### Scope
+
+- verified target → promoted SOT action;
+- unique SOT generation/source identity;
+- provenance links source content → analysis → copy plan → target → verification → promoted SOT;
+- promoted SOT available as a future source;
+- lineage chain report/visualization;
+- backup verification state;
+- authoritative SOT DB updated at promotion so lineage is never lost.
+
+### Gates
+
+- Source A/B → SOT1 → SOT2 → SOT3 lineage fixture;
+- every promoted generation traceable backward;
+- rename/path change does not break lineage;
+- promotion blocked until verification passes.
+
+---
+
+## v0.9.0 — Reporting + OpenClaw Orchestration
+
+**Goal:** complete audit/reporting and let OpenClaw orchestrate without owning deterministic filesystem logic.
+
+### Scope
+
+- aggregate/timeline/project audit reports from real DB evidence;
+- Markdown/CSV export;
+- OpenClaw session association by immutable project token;
+- OpenClaw-triggered actions call the same backend contracts as UI;
+- deterministic scan/hash/copy/verify stays in the harness.
+
+---
+
+## v1.0.0 — MVP hardening / acceptance
+
+**Goal:** declare supported MVP only after measured reliability evidence.
+
+Validation envelope, not promise:
+
+- approximately 5 TB corpus;
+- up to roughly 8 registered source candidates;
+- conservative worker concurrency;
+- large-corpus benchmark;
+- SQLite/WAL throughput measurements;
+- crash/restart fault injection;
+- source removal/replacement;
+- Windows/WSL path normalization;
+- verification corruption mutation;
+- owner end-to-end real-storage reconciliation.
+
+---
+
+# 5. OPEN ITEMS
+
+- Exact schema migration from current `sot-api.js` schema to the authoritative model above.
+- Exact fingerprint evidence algorithm and threshold.
+- Exact browser-local Android data-plane strategy after source registration.
+- Exact source-note audit/versioning model.
+- Exact deterministic copy-script technology for v0.6.0 after target-platform evidence.
+- Backup retention policy/UI.
+- Canonical-source preference rules for metadata conflicts.
+- Run-cancel cleanup semantics.
+- Near-duplicate image/video analysis remains optional and cannot delay exact dedup.
+
+---
+
+# 6. LIVE BACKLOG
+
+## Database / identity
+
+- schema migration/version table;
+- administrative audit log;
+- source fingerprint history;
+- source relink review UI;
+- project/source tags and sidecar metadata;
+- encrypted/sensitive classification;
+- configurable DB backup retention;
+- multi-instance SOT support — future only.
+
+## Operations
+
+- historical scan-rate comparison;
+- separate copy-rate history;
+- network-share reconnect handling;
+- stage/source/file error drilldown;
+- run cancellation/cleanup policy.
+
+## Dedup / analysis
+
+- large-file quick-hash thresholds;
+- parallel hashing only after correctness evidence;
+- ambiguous collision review queue;
+- raw vs represented vs duplicate byte visualization.
+
+## Android / browser-local
+
+- permission reauthorization/resume;
+- sleep/background interruption behavior;
+- large DCIM transfer backpressure;
+- Secure Folder/inaccessible storage remains evidence-driven.
+
+## Reporting
+
+- date/status/source/project filters;
+- downloadable audit bundles;
+- SOT-generation lineage visualization;
+- cold/warm/hot tier reporting after promotion works.
+
+---
+
+# 7. SAFETY AND DATA INVARIANTS
+
+1. Sources are read-only inputs to reconciliation.
+2. Copy-only: never move or delete source files automatically.
+3. Human validation is required before physical source retirement.
+4. A project is identified by immutable `project_token`, never mutable name.
+5. A project may have multiple runs; restart is not a new project.
+6. Retry/double-click/browser refresh cannot duplicate a project.
+7. Source identity must survive path/drive-letter changes through fingerprint/relink evidence once fingerprinting exists.
+8. Target construction must be collision-safe.
+9. Verification failure blocks SOT promotion.
+10. Browser `localStorage` is never the authoritative project database.
+11. No extra SOT service/port without proven technical boundary and explicit owner ruling.
+12. A feature that cannot be invoked through the operator control is not implemented.
+13. Failed owner gate is rebuilt from clean accepted input, never patched forward.
+14. Authoritative SOT DB path and backup path are configurable instance settings.
+15. DB restore validates backup and preserves a safety copy of current DB.
+16. Scan and copy throughput are measured separately.
+17. Every promoted SOT preserves lineage back to project/run/sources/content/plan/verification.
+
+---
+
+# 8. GRAVEYARD — VETOED APPROACHES
+
+- **G-001:** separate project API service / port 8082.
+- **G-002:** browser-local project DB as authority.
+- **G-003:** fake lifecycle controls/status.
+- **G-004:** calculated browser Up based only on pathname strings.
+- **G-005:** hiding returned files in folder browser.
+- **G-006:** final SOT target required during Project Setup.
+- **G-007:** immediately committing each source click instead of staged review.
+- **G-008:** patching failed candidates forward.
+- **G-009:** standalone FastAPI/Uvicorn SOT server on 8081.
+- **G-010:** public OpenClaw UI calling absolute `/api/sot/*` and bypassing `/report` mount.
+- **G-011:** requiring UI/API build IDs to be identical rather than API contract compatible.
+- **G-012:** Panel 1 selecting a source directly.
+- **G-013:** mobile source picker requiring landscape to reach Panel 3.
+- **G-014:** decorative tutorial/help cards inside source selection.
+- **G-015:** unreadable permanently collapsed dark navigation rail.
+- **G-016:** hamburger/menu control moving/disappearing/changing location at breakpoints.
+- **G-017:** GitHub Pages displaying/attempting server-only WSL volumes.
+- **G-018:** presenting test URL before exact deployed-build verification.
+- **G-019:** temporary/self-triggering GitHub Actions workflows as routine patch/deployment mechanism.
+- **G-020:** treating GitHub commit/Pages success as proof private OpenClaw runtime updated.
+- **G-021:** automatic source move/delete/retirement.
+- **G-022:** losing lineage when a promoted SOT becomes a later source.
+
+---
+
+# 9. RELEASE HANDOFF TEMPLATE — REQUIRED
+
+**Release:** `vX.Y.Z / build ...`  
+**Baseline:** exact accepted commit/build  
+**Scope:** what changed and what did not  
+**Automated gates:** PASS/FAIL with meaningful gates named  
+**Deployment:** exact commit + deployment result  
+**Verified test URL:** only after that URL is proven to serve the intended build  
+**Owner/device gates:** ordered test sequence  
+**Known limitations:** explicit  
+**Owner result:** PASS / FAIL; failed candidate is never patched forward
+
+---
+
+# 10. DEFINITION OF DONE
 
 A release is DONE only when all are true:
 
-- scope in this file is satisfied;
+- locked scope in this file is satisfied;
 - automated gates pass;
-- required mutation checks demonstrate the gates actually catch their defects;
-- repo artifacts are read back/verified;
-- deployed version/build is verified;
-- required real-device/real-storage owner gate passes;
-- this file is updated to mark the release baseline and move completed items out of future backlog;
-- application release did not silently alter infrastructure topology.
+- mutation checks prove gates catch intended defects;
+- repo artifact is read back/verified;
+- served/deployed build is verified;
+- required owner/device gate passes;
+- this file marks the new accepted baseline;
+- release did not silently alter infrastructure topology;
+- owner result is explicitly PASS.
 
-“Code written”, “committed”, “linted”, “API returned 200 once”, or “looks right” are not equivalent to DONE.
+“Code written”, “committed”, “workflow green”, “Pages deployed”, or “API returned 200 once” are not equivalent to DONE.
