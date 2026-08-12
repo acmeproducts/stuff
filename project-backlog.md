@@ -283,6 +283,11 @@ Locked source-picker presentation for `.4.8`:
 
 Owner device review rejected `.4.7`. Failures: portal sidebar collapse/expand was missing; the source-picker interaction model was wrong; the picker did not provide the required Panel-1 → Panel-2 volume handoff; Panel-3 source-note context was absent; and GitHub Pages attempted/represented server-backed WSL storage even though that host cannot access the production report API. `.4.7` is not an implementation baseline. Build `.4.9` is rebuilt from exact `.4.5` UI bytes and applies only the reviewed corrections plus source-note persistence in the existing 18080 SOT API.
 
+
+## Owner gate — build 2026.08.11.4.9 FAILED
+
+Owner mobile screenshot rejected `.4.9`: the left navigation rail was unreadable and the three-panel Add Locations layout overlapped controls and headings. `.4.9` is not an implementation baseline. `.4.10` is rebuilt from exact `.4.5` UI bytes. At phone/tablet widths the portal navigation becomes a readable bottom bar; the modal retains three simultaneous panels with proportional widths and no cross-panel toolbar overlap.
+
 # 2. RELEASE CHAIN
 
 A release is built only from its declared baseline. Scope is locked before implementation. If the owner gate fails, restore the baseline, write a graveyard entry, and rebuild the same version from the clean input.
