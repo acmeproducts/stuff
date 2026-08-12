@@ -6300,7 +6300,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
    wraps: addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam
-   adds: R8, r8Log, ICON, iconSwap, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam
+   adds: R8, r8Log, ICON, MENU_ICON, FLAG_STRIPES, iconSwap, setRowIcon, applyMenuIcons, paintFlagBands, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
@@ -6377,7 +6377,12 @@ var R8_CSS =
   /* The muted state is carried by the graphic itself, so no colour override is
      needed to make it legible — but the red reads faster than shape alone. */
   '#rb-mic.off svg,#rb-cam.off svg{stroke:#A32D2D}' +
-  '.origin-mark{display:inline-flex;align-items:center;margin-right:4px;opacity:.75;vertical-align:-1px}';
+  '.origin-mark{display:inline-flex;align-items:center;margin-right:4px;opacity:.75;vertical-align:-1px}' +
+  /* The base hides the stripe elements and paints the band from an image that
+     404s, cropped to a sliver. Stripes are drawn instead. */
+  // @affects .flagband 4
+  '.flagband{display:flex;background-image:none !important;overflow:hidden}' +
+  '.flagband i{display:block !important;flex:1 1 0;height:100%}';
 
 /* Swaps the whole graphic rather than toggling a slash. */
 function iconSwap(el, on, onGraphic, offGraphic) {
@@ -6467,6 +6472,98 @@ function originIcon(e) {
   };
 })();
 
+/* ── 8.4 room menu icon set ────────────────────────────────────────────────
+   Three controls that do different things and were reading as variations of
+   one idea:
+     Ear     — hear the partner's raw phone/video audio
+     Headset — hear the translation spoken aloud
+     Mute    — phone/video ringer on or off
+   The middle one carried an ear too, so the two audio controls were
+   indistinguishable at a glance. Notify on/off belongs in this group but is
+   deliberately absent: it waits for release 10. */
+var MENU_ICON = {
+  /* Ear: raw audio from the other person. */
+  ear:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M6 8.5a5.5 5.5 0 1 1 11 0c0 2.5-2 3.2-2.8 4.6-.6 1-.4 2.4-1.2 3.2a2.5 2.5 0 0 1-4.2-1.8"/>' +
+    '<path d="M9.5 8.5a2.5 2.5 0 0 1 5 0"/></svg>',
+
+  /* Headset: the translation, spoken. A band over the head with two cups —
+     a different silhouette from an ear, not a decorated one. */
+  headset:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/>' +
+    '<rect x="2" y="13" width="4" height="7" rx="1.6"/>' +
+    '<rect x="18" y="13" width="4" height="7" rx="1.6"/></svg>',
+
+  /* Ringer on. */
+  bell:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M18 12V9A6 6 0 0 0 6 9v3l-2 3v1h16v-1z"/>' +
+    '<path d="M10 20a2 2 0 0 0 4 0"/></svg>',
+
+  /* Ringer off — a complete graphic, consistent with 8.2. */
+  bellOff:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M18 12V9a6 6 0 0 0-9.3-5"/>' +
+    '<path d="M6.2 6.2A6 6 0 0 0 6 9v3l-2 3v1h13"/>' +
+    '<path d="M10 20a2 2 0 0 0 4 0"/>' +
+    '<line x1="3" y1="3" x2="21" y2="21" stroke-width="2.3"/></svg>'
+};
+
+/* Replaces the glyph inside a labelled row without disturbing its label,
+   toggle or handlers. */
+function setRowIcon(rowId, svg) {
+  try {
+    var row = $(rowId);
+    if (!row || !row.querySelector) return false;
+    var old = row.querySelector('svg');
+    if (!old || !old.parentNode) return false;
+    var holder = document.createElement('span');
+    holder.innerHTML = svg;
+    old.parentNode.replaceChild(holder.firstChild || holder, old);
+    return true;
+  } catch (e) { r8Log('row_icon_failed', { row: rowId, e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function applyMenuIcons() {
+  try {
+    var n = 0;
+    if (setRowIcon('s4b-ear', MENU_ICON.ear)) n++;
+    if (setRowIcon('s4b-autoread', MENU_ICON.headset)) n++;
+    var r = (typeof activeRoom === 'function') ? activeRoom() : null;
+    if (setRowIcon('s4b-mute', (r && r.muted) ? MENU_ICON.bellOff : MENU_ICON.bell)) n++;
+    r8Log('menu_icons', { applied: n }, n === 3 ? 'ok' : 'warn');
+    return n;
+  } catch (e) { r8Log('menu_icons_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
+/* ── 8.1 flag motif ────────────────────────────────────────────────────────
+   The band is a 6px strip painted with `background-size:cover` from a 770×284
+   image — at that height cover crops to a sliver of one flag, so the motif
+   read as a plain coloured line. The stripes are drawn directly instead, which
+   also removes the dependency on an image file that 404s. */
+var FLAG_STRIPES = ['#C8102E', '#FFFFFF', '#012169', '#F7D117', '#00843D'];
+
+function paintFlagBands() {
+  try {
+    var bands = document.querySelectorAll('.flagband');
+    if (!bands || !bands.length) return 0;
+    var n = 0;
+    for (var i = 0; i < bands.length; i++) {
+      var b = bands[i];
+      if (b.dataset && b.dataset.r8Flag) { n++; continue; }
+      b.innerHTML = FLAG_STRIPES.map(function (c) {
+        return '<i style="background:' + c + '"></i>';
+      }).join('');
+      if (b.dataset) b.dataset.r8Flag = '1';
+      n++;
+    }
+    r8Log('flag_bands', { painted: n }, 'ok');
+    return n;
+  } catch (e) { r8Log('flag_bands_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
 if (typeof document !== 'undefined') {
   try {
     var st = document.createElement('style');
@@ -6484,6 +6581,8 @@ if (typeof document !== 'undefined') {
       else if (mic) iconSwap(mic, true, ICON.micOn, ICON.micOff);
       var cam = $('rb-cam');
       if (cam) iconSwap(cam, !!CALL.camOn, ICON.camOn, ICON.camOff);
+      applyMenuIcons();
+      paintFlagBands();
       r8Log('icons_installed', {}, 'ok');
     } catch (e) { r8Log('icon_init_failed', { e: String(e && e.message || e) }, 'error'); }
   }, 500);
