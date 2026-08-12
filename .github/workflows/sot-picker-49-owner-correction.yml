@@ -1,0 +1,230 @@
+name: Build corrected SOT picker .4.9
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-picker-49-owner-correction.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore exact working UI baseline
+        run: |
+          set -euo pipefail
+          git checkout 970d56435a84192c74de4d3eb7978ee327d303c4 -- project.html
+          grep -q 'Build: 2026.08.11.4.5' project.html
+          grep -q 'apiFs(path)' project.html
+          grep -q 'Added to project' project.html
+
+      - name: Apply owner correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('project.html')
+          s=p.read_text()
+          s=s.replace('Build: 2026.08.11.4.5','Build: 2026.08.11.4.9',1)
+          s=s.replace("BUILD_ID='2026.08.11.4.5'","BUILD_ID='2026.08.11.4.9'",1)
+
+          # Restore explicit portal sidebar collapse/expand control.
+          s=s.replace('<aside class="sidebar">','<aside class="sidebar" id="sidebar">',1)
+          s=s.replace('<div class="brand"><div class="logo">S</div><span>SOT Project</span></div>','<div class="brand"><div class="logo">S</div><span>SOT Project</span><button class="side-toggle" id="sidebarToggle" title="Collapse navigation" aria-label="Collapse navigation">‹</button></div>',1)
+
+          css=r'''
+/* owner correction · build 2026.08.11.4.9 */
+.side-toggle{margin-left:auto;border:0;background:transparent;color:#aab4c3;width:30px;height:30px;border-radius:8px;font-size:22px;display:grid;place-items:center}.side-toggle:hover{background:#202b3e;color:#fff}
+.app.nav-collapsed{--side:76px}.app.nav-collapsed .brand span,.app.nav-collapsed .nav .txt,.app.nav-collapsed .sidefoot .txt{display:none}.app.nav-collapsed .brand{justify-content:center;padding-left:0;padding-right:0;flex-wrap:wrap}.app.nav-collapsed .side-toggle{margin:2px auto 0;transform:rotate(180deg)}.app.nav-collapsed .nav button{text-align:center}
+.pick49{width:min(1320px,97vw);height:min(790px,90vh);min-height:580px;max-height:94vh;overflow:hidden;resize:both;border-radius:15px}
+.pick49 .modalhead{padding:18px 22px;background:#fff}.pick49-grid{display:grid;grid-template-columns:230px minmax(430px,1fr) 330px;min-height:0;height:calc(100% - 78px)}
+.pick49-pane{min-width:0;min-height:0;background:#fff}.pick49-left{border-right:1px solid var(--line);display:grid;grid-template-rows:auto minmax(0,1fr);background:#fafbfc}.pick49-center{display:grid;grid-template-rows:auto minmax(0,1fr) auto}.pick49-right{border-left:1px solid var(--line);display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#fbfcfd}
+.pick49-title{padding:16px 16px 10px;font-size:11px;font-weight:850;letter-spacing:.055em;text-transform:uppercase;color:#667085}.pick49-list{overflow:auto;min-height:0;padding:4px 10px 12px}.pick49-location{width:100%;border:0;background:transparent;text-align:left;border-radius:9px;padding:11px 10px;margin:2px 0;color:#273345;font-weight:700}.pick49-location:hover,.pick49-location.active{background:#edf1f5}.pick49-location small{display:block;font-weight:500;color:#8a94a4;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick49-toolbar{display:grid;grid-template-columns:auto auto minmax(160px,1fr) auto;gap:8px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line);background:#fbfcfd}.pick49-path{height:38px;display:flex;align-items:center;border:1px solid #d6dbe3;border-radius:8px;padding:0 10px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#fff}.pick49-add{white-space:nowrap;background:#526174!important;border-color:#526174!important;color:#fff!important}.pick49-add:disabled{opacity:.42}
+.pick49-head,.pick49-row{display:grid;grid-template-columns:34px minmax(180px,1fr) 82px;gap:8px;align-items:center}.pick49-head{position:sticky;top:0;z-index:2;padding:8px 13px;background:#f8fafc;border-bottom:1px solid var(--line);font-size:11px;font-weight:800;color:#667085}.pick49-browser{min-height:0;overflow:auto}.pick49-row{min-height:47px;padding:8px 13px;border-bottom:1px solid #edf0f4}.pick49-row:hover{background:#fafbfd}.pick49-check{width:16px;height:16px;margin:auto;accent-color:#59677a}.pick49-open{border:0;background:transparent;text-align:left;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#273345;font-weight:620}.pick49-open.volume{font-weight:780}.pick49-kind{font-size:11px;color:#98a2b3;text-align:right}.pick49-status{display:flex;justify-content:space-between;gap:10px;padding:8px 13px;border-top:1px solid var(--line);background:#fafbfc;color:#667085;font-size:11px}
+.pick49-selected-head{padding:17px 15px;border-bottom:1px solid var(--line)}.pick49-selected{min-height:0;overflow:auto;padding:10px 12px}.pick49-card{display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:8px;align-items:start;border:1px solid #dfe4eb;background:#fff;border-radius:10px;padding:11px 10px;margin-bottom:8px;cursor:pointer}.pick49-card:hover{background:#f8fafc}.pick49-card-main{min-width:0}.pick49-card-path{font:11px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#344054}.pick49-card-note{font-size:11px;color:#667085;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pick49-remove{border:0;background:transparent;color:#667085;font-size:18px;border-radius:7px}.pick49-remove:hover{background:#f2f4f7;color:#b42318}.pick49-actions{border-top:1px solid var(--line);padding:12px;display:grid;gap:8px;background:#fff}.pick49-empty{padding:36px 18px;text-align:center;color:#667085;font-size:12px}.pick49-empty strong{display:block;color:#273345;margin-bottom:5px;font-size:14px}
+.pick49-static{padding:10px;margin:2px 0;border-radius:9px;background:#f3f4f6;color:#344054}.pick49-static strong{display:block}.pick49-static small{display:block;color:#667085;margin-top:3px}
+@media(max-width:900px){.pick49-grid{grid-template-columns:190px minmax(340px,1fr) 270px}.pick49{resize:none}}
+@media(max-width:650px){.pick49{height:93vh;min-height:0}.pick49-grid{grid-template-columns:1fr;grid-template-rows:150px minmax(310px,1fr) 230px}.pick49-left{border-right:0;border-bottom:1px solid var(--line)}.pick49-left .pick49-list{display:flex;overflow:auto}.pick49-location,.pick49-static{min-width:155px}.pick49-right{border-left:0;border-top:1px solid var(--line)}}
+'''
+          s=s.replace('</style>',css+'\n</style>',1)
+
+          # Static GitHub Pages is a UI/browser-local preview. Never pretend server-backed WSL volumes exist there.
+          api_line="const FS_API='/report/api/sot/fs',PROJECT_API='/report/api/sot/projects',REPORT_API='/report/api/sot/reports';"
+          s=s.replace(api_line,api_line+"\nconst STATIC_PREVIEW=location.hostname.endsWith('.github.io')||location.hostname==='github.io';",1)
+          s=s.replace("async function checkServices(){try{", "async function checkServices(){if(STATIC_PREVIEW){state.api={live:false,version:'',build:'',engineReady:false,engineReason:'Static GitHub Pages preview'};state.fsLive=false;state.roots=[];updateChrome();return}try{",1)
+          s=s.replace("function updateChrome(){", "function updateChrome(){if(STATIC_PREVIEW){$('#apiDot').className='dot';$('#fsDot').className='dot';$('#apiLabel').textContent='Static preview';$('#fsLabel').textContent='This device only';$('#sideVersion').textContent=APP_VERSION;$('#sideBuild').textContent=BUILD_ID;$('#buildPill').textContent=`UI v${APP_VERSION} · ${BUILD_ID}`;return}",1)
+          s=s.replace("function serviceBanner(){if(!state.api.live)", "function serviceBanner(){if(STATIC_PREVIEW)return`<div class=\"callout\"><strong>Static preview.</strong> Server-backed WSL storage is intentionally hidden on GitHub Pages. Use This device here, or use the OpenClaw /report URL to test mounted WSL storage.</div>`;if(!state.api.live)",1)
+
+          fn=r'''
+function openSourceExplorer49(){
+  const root=$('#modalRoot');
+  let activeRoot=null,current=null,folders=[],files=[],history=[];
+  let staged=[...state.intake.sources];
+  const checked=new Set();
+  const initialKeys=state.intake.sources.map(sourceKey).sort().join('\n');
+  root.innerHTML=`<div class="modalback"><div class="modal pick49"><div class="modalhead"><div><h3>Add locations</h3><div class="subtle">Choose a location, select the whole volume or browse into folders, then add selected sources to the project.</div></div><button class="close" id="x">×</button></div><div class="pick49-grid"><aside class="pick49-pane pick49-left"><div class="pick49-title">Locations</div><div class="pick49-list" id="placesList"></div></aside><section class="pick49-pane pick49-center"><div class="pick49-toolbar"><button class="btn small" id="up" disabled>↑ Up</button><button class="btn small" id="rescan">↻ Rescan</button><div class="pick49-path" id="path">Select a location</div><button class="btn pick49-add" id="addChecked" disabled>＋ Add to project</button></div><div class="pick49-browser" id="browserList"><div class="pick49-empty"><strong>Select a location</strong>The selected volume appears here first. Check it to add the whole volume, or click its name to browse folders.</div></div><div class="pick49-status"><strong id="statusText">Nothing selected</strong><span id="itemCount">0 items</span></div></section><aside class="pick49-pane pick49-right"><div class="pick49-selected-head"><strong>Added to project <span class="badge" id="selectedCount">0</span></strong><div class="subtle">Click a source tile to add an optional note.</div></div><div class="pick49-selected" id="selectedList"></div><div class="pick49-actions"><button class="btn primary" id="saveLocations">Save selections</button><button class="btn" id="cancelLocations">Cancel</button></div></aside></div></div></div>`;
+
+  const sourcePath=x=>typeof x==='string'?x:(x.path||x.locator||sourceDisplay(x));
+  const sourceNote=x=>typeof x==='object'&&x?String(x.note||''):'';
+  const makePathSource=path=>({source_type:'wsl_path',path,operator_label:path.split('/').filter(Boolean).pop()||path,note:''});
+  const hasUnsaved=()=>staged.map(sourceKey).sort().join('\n')!==initialKeys;
+  const close=(force=false)=>{if(!force&&hasUnsaved()&&!confirm('Discard the source selections you have not saved?'))return false;root.innerHTML='';return true};
+  $('#x').onclick=()=>close(false);
+
+  function stagedHasPath(path){return staged.some(x=>sourcePath(x)===path)}
+  function renderPlaces(){
+    let html='';
+    if(!STATIC_PREVIEW&&state.fsLive)html+=state.roots.map(r=>`<button class="pick49-location ${activeRoot?.path===r.path?'active':''}" data-place="${esc(r.path)}">▣ ${esc(r.label)}<small>${esc(r.path)}</small></button>`).join('');
+    if(HAS_DIRECTORY_PICKER||HAS_DIRECTORY_INPUT)html+=`<button class="pick49-location" id="devicePlace">▯ This device<small>Choose a browser-authorized folder</small></button>`;
+    if(!html)html='<div class="pick49-static"><strong>No accessible locations</strong><small>Server-backed storage is not available on this host.</small></div>';
+    $('#placesList').innerHTML=html;
+    document.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>selectVolume(state.roots.find(r=>r.path===b.dataset.place)));
+    $('#devicePlace')?.addEventListener('click',showDeviceChoice);
+  }
+
+  function selectVolume(r){
+    if(!r)return;activeRoot=r;current=r.path;history=[r.path];folders=[];files=[];checked.clear();renderPlaces();renderVolumeTile(r);updateAdd();
+  }
+  function renderVolumeTile(r){
+    $('#path').textContent=r.path;$('#up').disabled=true;$('#statusText').textContent=r.label;$('#itemCount').textContent='1 volume';
+    $('#browserList').innerHTML=`<div class="pick49-head"><span></span><span>Name</span><span>Type</span></div><div class="pick49-row"><input class="pick49-check" type="checkbox" data-source-check="${esc(r.path)}" ${checked.has(r.path)?'checked':''}><button class="pick49-open volume" id="openVolume">▣ ${esc(r.label)} · ${esc(r.path)}</button><span class="pick49-kind">Volume</span></div>`;
+    $('[data-source-check]').onchange=e=>togglePath(r.path,e.target.checked);
+    $('#openVolume').onclick=()=>load(r.path);
+  }
+  async function load(path){
+    if(!activeRoot)return;
+    $('#browserList').innerHTML='<div class="pick49-empty">Loading…</div>';
+    try{const d=await apiFs(path);current=d.path||path;folders=d.folders||[];files=d.files||[];$('#path').textContent=current;$('#up').disabled=history.length<=1;renderDirectory()}catch(e){$('#browserList').innerHTML=`<div class="pick49-empty"><strong>Unable to browse</strong>${esc(e.message)}</div>`;toast(e.message,'error')}
+  }
+  function renderDirectory(){
+    const head='<div class="pick49-head"><span></span><span>Name</span><span>Type</span></div>';
+    const fr=folders.map(n=>{const path=joinPath(current,n);return`<div class="pick49-row"><input class="pick49-check" type="checkbox" data-source-check="${esc(path)}" ${checked.has(path)?'checked':''}><button class="pick49-open" data-drill="${esc(n)}">▱ ${esc(n)}</button><span class="pick49-kind">Folder</span></div>`}).join('');
+    const fi=files.map(n=>`<div class="pick49-row"><span></span><span class="pick49-open" style="font-weight:500">▧ ${esc(n)}</span><span class="pick49-kind">File</span></div>`).join('');
+    $('#browserList').innerHTML=head+(fr+fi||'<div class="pick49-empty">This folder is empty.</div>');
+    $('#statusText').textContent=current;$('#itemCount').textContent=`${folders.length+files.length} item${folders.length+files.length===1?'':'s'}`;
+    document.querySelectorAll('[data-source-check]').forEach(c=>c.onchange=e=>togglePath(c.dataset.sourceCheck,e.target.checked));
+    document.querySelectorAll('[data-drill]').forEach(b=>b.onclick=async()=>{const next=joinPath(current,b.dataset.drill);history.push(next);await load(next)});
+  }
+  function togglePath(path,on){if(on)checked.add(path);else checked.delete(path);updateAdd()}
+  function updateAdd(){const b=$('#addChecked');b.disabled=checked.size===0;b.textContent=checked.size?`＋ Add to project (${checked.size})`:'＋ Add to project'}
+
+  function renderSelected(){
+    $('#selectedCount').textContent=String(staged.length);
+    $('#selectedList').innerHTML=staged.length?staged.map((src,i)=>{const full=sourcePath(src),note=sourceNote(src);return`<div class="pick49-card" data-note-index="${i}" title="${esc(full)}"><div class="pick49-card-main"><div class="pick49-card-path">${esc(full)}</div><div class="pick49-card-note">${note?esc(note):'Add optional note…'}</div></div><button class="pick49-remove" data-remove-index="${i}" title="Remove source">×</button></div>`}).join(''):'<div class="pick49-empty"><strong>Nothing added yet</strong>Selected volumes and folders will appear here.</div>';
+    document.querySelectorAll('[data-note-index]').forEach(card=>card.onclick=e=>{if(e.target.closest('[data-remove-index]'))return;editNote(Number(card.dataset.noteIndex))});
+    document.querySelectorAll('[data-remove-index]').forEach(b=>b.onclick=e=>{e.stopPropagation();staged.splice(Number(b.dataset.removeIndex),1);renderSelected()});
+  }
+  function editNote(i){const src=staged[i],full=sourcePath(src),old=sourceNote(src);const note=prompt(`Optional note for:\n${full}`,old);if(note===null)return;if(typeof src==='string')staged[i]={...makePathSource(src),note:note.trim()};else staged[i]={...src,note:note.trim()};renderSelected()}
+
+  $('#addChecked').onclick=()=>{let added=0;for(const path of checked){if(!stagedHasPath(path)){staged.push(makePathSource(path));added++}}checked.clear();updateAdd();if(activeRoot&&history.length===1)renderVolumeTile(activeRoot);else if(activeRoot)renderDirectory();renderSelected();if(added)toast(`${added} source${added===1?'':'s'} added to project draft.`)};
+  $('#up').onclick=async()=>{if(history.length<=1){renderVolumeTile(activeRoot);return}history.pop();if(history.length===1){renderVolumeTile(activeRoot);return}await load(history[history.length-1])};
+  $('#rescan').onclick=()=>{if(STATIC_PREVIEW){renderPlaces();return}if(activeRoot&&history.length>1)load(current);else checkServices().then(()=>{renderPlaces();if(activeRoot){const fresh=state.roots.find(r=>r.path===activeRoot.path);if(fresh)selectVolume(fresh)}})};
+  $('#saveLocations').onclick=()=>{state.intake.sources=staged;close(true);renderIntake();toast(`${staged.length} location${staged.length===1?'':'s'} saved to draft.`)};
+  $('#cancelLocations').onclick=()=>close(false);
+
+  function showDeviceChoice(){
+    activeRoot=null;checked.clear();updateAdd();document.querySelectorAll('.pick49-location').forEach(x=>x.classList.remove('active'));$('#path').textContent='This device';$('#up').disabled=true;$('#statusText').textContent='Browser-local storage';$('#itemCount').textContent='';$('#browserList').innerHTML='<div class="pick49-empty"><strong>This device</strong><button class="btn" id="chooseDeviceFolder">Choose folder…</button><div style="margin-top:8px">Browser security requires you to authorize a folder before it can be staged.</div></div>';$('#chooseDeviceFolder').onclick=pickLocalSourceAndStage;
+  }
+  async function pickLocalSourceAndStage(){const src=await pickLocalDeviceSource();if(src&&!staged.some(s=>sourceKey(s)===sourceKey(src))){staged.push({...src,note:''});renderSelected();toast('Device folder added to project draft.')}}
+
+  renderPlaces();renderSelected();updateAdd();
+}
+'''
+          marker='function parentPath(path,root)'
+          if marker not in s: raise SystemExit('missing parentPath marker')
+          s=s.replace(marker,fn+'\n'+marker,1)
+          old='function openExplorer(mode){const root=$('#modalRoot');'
+          if old not in s: raise SystemExit('missing .4.5 explorer baseline')
+          s=s.replace(old,"function openExplorer(mode){if(mode==='source')return openSourceExplorer49();const root=$('#modalRoot');",1)
+
+          # Sidebar state is independent of the picker and persists.
+          end="document.querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>route(b.dataset.route));"
+          toggle=r'''function setSidebarCollapsed(v){document.querySelector('.app').classList.toggle('nav-collapsed',!!v);localStorage.setItem('sot_nav_collapsed',v?'1':'0');$('#sidebarToggle').title=v?'Expand navigation':'Collapse navigation';$('#sidebarToggle').setAttribute('aria-label',v?'Expand navigation':'Collapse navigation')}
+const initialSidebarCollapsed=localStorage.getItem('sot_nav_collapsed')==='1';setSidebarCollapsed(initialSidebarCollapsed);$('#sidebarToggle').onclick=()=>setSidebarCollapsed(!document.querySelector('.app').classList.contains('nav-collapsed'));
+'''
+          if end not in s: raise SystemExit('missing event marker')
+          s=s.replace(end,toggle+end,1)
+          p.write_text(s)
+
+          # Backend: source notes are project metadata and must persist for WSL/mounted sources.
+          api=Path('sot-api.js')
+          a=api.read_text()
+          a=a.replace("const VERSION='0.3.1', BUILD='2026.08.10.4.2';","const VERSION='0.3.1', BUILD='2026.08.11.4.9';",1)
+          old_init="function init(){const db=cfg().database_path;sql(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS projects(project_token TEXT PRIMARY KEY,project_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'new',current_stage TEXT NOT NULL DEFAULT 'intake',notes TEXT NOT NULL DEFAULT ''); CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,path TEXT NOT NULL,fingerprint TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(project_token,path)); CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT,event_type TEXT NOT NULL,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');` ,db);}"
+          new_init="function init(){const db=cfg().database_path;sql(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS projects(project_token TEXT PRIMARY KEY,project_name TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'new',current_stage TEXT NOT NULL DEFAULT 'intake',notes TEXT NOT NULL DEFAULT ''); CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,path TEXT NOT NULL,fingerprint TEXT NOT NULL,created_at TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',UNIQUE(project_token,path)); CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT,event_type TEXT NOT NULL,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');` ,db);try{sql(`ALTER TABLE sources ADD COLUMN note TEXT NOT NULL DEFAULT '';`,db);}catch(e){if(!String(e.message||e).includes('duplicate column name'))throw e;}}"
+          if old_init not in a: raise SystemExit('unexpected sot-api init baseline')
+          a=a.replace(old_init,new_init,1)
+          a=a.replace("p.sources=rows(`SELECT source_id,path,fingerprint,created_at FROM sources", "p.sources=rows(`SELECT source_id,path,fingerprint,created_at,note FROM sources",1)
+          old_post="const b=await body(req),name=String(b.project_name||b.name||'').trim(),sources=(b.sources||[]).map(x=>typeof x==='string'?x:x.path).filter(Boolean);"
+          new_post="const b=await body(req),name=String(b.project_name||b.name||'').trim(),sourceRows=(b.sources||[]).map(x=>typeof x==='string'?{path:x,note:''}:{path:x&&x.path,note:String(x&&x.note||'')}).filter(x=>x.path),sources=sourceRows.map(x=>x.path);"
+          if old_post not in a: raise SystemExit('unexpected sot-api POST baseline')
+          a=a.replace(old_post,new_post,1)
+          old_insert="sources.map(p=>{const sid=crypto.createHash('sha256').update(t+'\\0'+p).digest('hex').slice(0,24);return `INSERT OR IGNORE INTO sources(source_id,project_token,path,fingerprint,created_at) VALUES(${esc(sid)},${esc(t)},${esc(p)},${esc(fingerprint(p))},${esc(now)});`;}).join('')"
+          new_insert="sourceRows.map(src=>{const p=src.path,sid=crypto.createHash('sha256').update(t+'\\0'+p).digest('hex').slice(0,24);return `INSERT OR IGNORE INTO sources(source_id,project_token,path,fingerprint,created_at,note) VALUES(${esc(sid)},${esc(t)},${esc(p)},${esc(fingerprint(p))},${esc(now)},${esc(src.note)});`;}).join('')"
+          if old_insert not in a: raise SystemExit('unexpected source insert baseline')
+          a=a.replace(old_insert,new_insert,1)
+          api.write_text(a)
+
+          # Governance update: remove contradictory old location-selection rule and record the failed gate.
+          g=Path('project-backlog.md')
+          text=g.read_text()
+          text=text.replace('- **Location selection semantics:** every WSL/mounted volume in the left Locations pane has its own checkbox. Checking it selects the entire volume as a source; clicking its name drills into the volume without selecting it. Folder rows in the center pane use the same pattern: checkbox selects, name drills deeper. The top Add to project action stages all checked volumes/folders into the persistent right-hand Added to project pane.','- **Location selection semantics:** Panel 1 is navigation only. Clicking a volume/location places that volume as a selectable row in Panel 2. In Panel 2, checking the volume selects the entire volume; clicking the volume name opens its folders. Folder rows in Panel 2 use checkboxes for one-or-many selection and click-to-drill navigation. Add to project stages checked Panel-2 rows into Panel 3.',1)
+          text=text.replace('- **The location chooser is dual-pane: storage/locations on the left, contents on the right.**','- **The source location chooser is three-pane and must remain three-pane: Locations / selectable Contents / Added to project.**',1)
+          rulings='''- **Host capability rule:** GitHub Pages is a static preview and cannot see WSL/server-mounted storage. On GitHub Pages, do not call or imply the production SOT filesystem API and do not display WSL drive letters; show only browser-authorized local-device storage. The OpenClaw `/report` URL is the server-backed integration test surface.\n- **Source context note:** every staged source in Panel 3 may carry an optional operator note (for example, “July picnic”). The tile truncates long paths visually but exposes the full path via hover/title; clicking the tile edits the note. Notes are persisted as source metadata when the backend supports that source.\n- **Portal navigation:** desktop left navigation must retain an explicit expand/collapse control and persist its state. Source-picker work must not remove unrelated portal controls.\n'''
+          anchor='## 0.2 Current owner rulings\n\n'
+          if 'Host capability rule:' not in text:text=text.replace(anchor,anchor+rulings,1)
+          gate='''\n## 1.x Owner gate — build 2026.08.11.4.7 FAILED\n\nOwner device review rejected `.4.7`. Failures: portal sidebar collapse/expand was missing; the source-picker interaction model was wrong; the picker did not provide the required Panel-1 → Panel-2 volume handoff; Panel-3 source-note context was absent; and GitHub Pages attempted/represented server-backed WSL storage even though that host cannot access the production report API. `.4.7` is not an implementation baseline. Build `.4.9` is rebuilt from exact `.4.5` UI bytes and applies only the reviewed corrections plus source-note persistence in the existing 18080 SOT API.\n\n'''
+          if 'Owner gate — build 2026.08.11.4.7 FAILED' not in text:text=text.replace('# 2. RELEASE CHAIN',gate+'# 2. RELEASE CHAIN',1)
+          g.write_text(text)
+          PY
+
+      - name: Automated gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('project.html').read_text()
+          m=re.search(r'<script>(.*?)</script>',s,re.S); assert m
+          Path('/tmp/project.js').write_text(m.group(1))
+          PY
+          node --check /tmp/project.js
+          node --check sot-api.js
+          grep -q 'Build: 2026.08.11.4.9' project.html
+          grep -q "BUILD_ID='2026.08.11.4.9'" project.html
+          grep -q 'id="sidebarToggle"' project.html
+          grep -q 'nav-collapsed' project.html
+          grep -q 'function openSourceExplorer49' project.html
+          grep -q 'Panel 1' project-backlog.md
+          grep -q 'STATIC_PREVIEW' project.html
+          grep -q 'Server-backed WSL storage is intentionally hidden on GitHub Pages' project.html
+          grep -q 'data-source-check' project.html
+          grep -q 'data-note-index' project.html
+          grep -q 'text-overflow:ellipsis' project.html
+          grep -q "FS_API='/report/api/sot/fs'" project.html
+          grep -q 'note TEXT NOT NULL' sot-api.js
+          grep -q 'sourceRows=' sot-api.js
+          ! grep -q '8081' project.html
+
+      - name: Commit and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'SOT release builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/sot-picker-49-owner-correction.yml
+          git add project.html sot-api.js project-backlog.md
+          git commit -m 'Rebuild SOT picker .4.9 from .4.5 owner baseline'
+          git pull --rebase origin main
+          git push origin HEAD:main
