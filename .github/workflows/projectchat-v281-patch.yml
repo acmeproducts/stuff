@@ -1,0 +1,134 @@
+name: ProjectChat v2.8.1 patch
+
+on:
+  push:
+    branches: [projectchat-v281-release]
+    paths:
+      - .github/workflows/projectchat-v281-patch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: projectchat-v281-release
+          fetch-depth: 0
+
+      - name: Apply scoped ProjectChat v2.8.1 patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('session-manager-v3.html')
+          s = p.read_text(encoding='utf-8')
+
+          def one(old, new, label):
+              global s
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {n}')
+              s = s.replace(old, new, 1)
+
+          # Version and ProjectChat preset width.
+          one("<span class=\"version\">v2.7.0</span>", "<span class=\"version\">v2.8.1</span>", 'visible version')
+          one("const BUILD_VERSION='2.7.1';", "const BUILD_VERSION='2.8.1';", 'build version')
+          one("sidebarWidth:330,baseSize:16", "sidebarWidth:390,baseSize:16", 'ProjectChat preset sidebar width')
+          one("document.querySelectorAll('.version').forEach(n=>n.textContent='v2.7.1');", "document.querySelectorAll('.version').forEach(n=>n.textContent='v2.8.1');", 'runtime visible version')
+
+          # CSS: orange drag targets, expandable project children, and functional outside-click layer.
+          one(
+              "#tabContextRoot{position:fixed;inset:0;z-index:1500;pointer-events:none}",
+              "#tabContextRoot{position:fixed;inset:0;z-index:1500;pointer-events:auto}",
+              'context outside-click layer'
+          )
+          one(
+              ".projectTab.dragBefore{box-shadow:-4px 0 0 var(--am)}.projectTab.dragAfter{box-shadow:4px 0 0 var(--am)}",
+              ".projectTab.dragBefore{box-shadow:-5px 0 0 #f59e0b}.projectTab.dragAfter{box-shadow:5px 0 0 #f59e0b}.projectRow.dragOver{outline-color:#f59e0b!important;background:color-mix(in srgb,#f59e0b 12%,var(--p2))}.projectChevron{border:0;background:transparent;color:var(--mu);width:24px;height:24px;display:grid;place-items:center;padding:0;border-radius:5px;flex:0 0 24px;font-size:17px;line-height:1;transition:transform .14s}.projectChevron.open{transform:rotate(90deg)}.projectChevron:hover{background:var(--p2);color:var(--tx)}.projectChildren{display:grid;padding:0 8px 5px 31px;gap:2px}.projectChild{display:flex;align-items:center;gap:7px;width:100%;min-width:0;border:0;background:transparent;color:var(--mu);padding:7px 8px;border-radius:7px;text-align:left;font-size:11px}.projectChild:hover,.projectChild.active{background:var(--p2);color:var(--tx)}.projectChild .projectChildLabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.projectChild .sessionState{flex:0 0 8px}",
+              'drag and project tree css'
+          )
+
+          # State: sidebar expansion/focus is UI-only and does not alter OpenClaw or SOT schema.
+          one(
+              "sotLastSync:0,settings:loadSettings()};",
+              "sotLastSync:0,projectExpanded:new Set(),projectSidebarFocusKey:'',settings:loadSettings()};",
+              'UI state'
+          )
+
+          # Project switching exits session-focus mode; nested session selection enters it.
+          one(
+              "function switchProject(id){if(id!==UNASSIGNED_ID&&!projects().some(p=>p.id===id))return;state.projectState.activeProjectId=id;saveProjectState();",
+              "function switchProject(id){if(id!==UNASSIGNED_ID&&!projects().some(p=>p.id===id))return;state.projectSidebarFocusKey='';state.projectState.activeProjectId=id;saveProjectState();",
+              'switch project focus reset'
+          )
+
+          # Context menu: anchor under tab, click-outside closes, Customize auto-applies with no Save button.
+          start = s.index('function openTabContext(k,x,y){')
+          end = s.index('\nfunction moveSessionToProject', start)
+          old = s[start:end]
+          new = r'''function openTabContext(k,x,y){let row=state.sessions.find(s=>s.key===k);if(!row)return;closeTabContext();let origin=state.projectState.activeProjectId,originSession=state.current?.key||'',tab=document.querySelector(`.projectTab[data-project-session="${CSS.escape(k)}"]`),z=tab?.getBoundingClientRect(),left=Math.max(8,Math.min(z?.left??x,innerWidth-230)),top=Math.max(8,Math.min((z?.bottom??y)+4,innerHeight-160)),r=$('tabContextRoot');r.innerHTML=`<div class="tabContext" id="tabContext" style="left:${left}px;top:${top}px"><div class="tabContextMain"><button class="tabContextItem" data-c="rename">Rename<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="assign">Assign<span class="tabContextArrow">›</span></button><button class="tabContextItem" data-c="custom">Customize<span class="tabContextArrow">›</span></button></div><div id="tabContextLeaf"></div></div>`;let leaf=$('tabContextLeaf'),open=w=>{document.querySelectorAll('.tabContextItem').forEach(b=>b.classList.toggle('active',b.dataset.c===w));leaf.className='tabContextLeaf';if(w==='rename'){leaf.innerHTML=`<div class="tabContextTitle">Rename session</div><input id="ctxRename" class="tabContextInput" value="${esc(name(row))}"><div class="tabContextHelp">Enter updates the OpenClaw session label.</div>`;let i=$('ctxRename');i.focus();i.select();i.onkeydown=async e=>{if(e.key==='Escape')closeTabContext();if(e.key==='Enter'){e.preventDefault();try{await contextRename(k,i.value);closeTabContext();restoreOrigin(origin,originSession);toast('Session renamed','ok')}catch(err){toast(err.message,'err')}}}}else if(w==='assign'){leaf.innerHTML=`<div class="tabContextTitle">Assign to project</div><input id="ctxAssign" class="tabContextInput" placeholder="Project omnisearch"><div class="tabContextHelp">Partial match · * wildcard · -term excludes. Enter creates a project if the typed name does not exist.</div><div id="ctxResults" class="omniResults"></div><div id="ctxCreate" class="omniCreate"></div>`;let i=$('ctxAssign'),out=$('ctxResults'),cr=$('ctxCreate'),choices=[],sel=0,draw=()=>{choices=[{id:UNASSIGNED_ID,name:'Unassigned'},...projects()].filter(p=>projectMatches(p.name,i.value)).slice(0,30);out.innerHTML=choices.map((p,n)=>`<button class="omniResult ${n===sel?'selected':''}" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${p.id===UNASSIGNED_ID?'Remove project assignment':`${p.sessions.length} session(s)`}</small></button>`).join('')||'<div class="tabContextHelp">No matches.</div>';let raw=i.value.trim();cr.textContent=raw&&!projectNameExists(raw)?`Enter creates “${raw}” and moves this tab.`:'';out.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{let id=b.dataset.id;closeTabContext();contextMove(k,id,origin,originSession)})};i.oninput=()=>{sel=0;draw()};i.onkeydown=e=>{if(e.key==='Escape')closeTabContext();else if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,Math.max(0,choices.length-1));draw()}else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(0,sel-1);draw()}else if(e.key==='Enter'){e.preventDefault();let raw=i.value.trim(),p=projectNameExists(raw);if(!p&&raw)p=createProjectNamed(raw);else if(!p)p=choices[sel];if(p){closeTabContext();contextMove(k,p.id,origin,originSession)}}};draw();i.focus()}else{let st=tabStyle(k),bg=/^#[0-9a-f]{6}$/i.test(st.bg)?st.bg:'#ffffff',fg=/^#[0-9a-f]{6}$/i.test(st.fg)?st.fg:'#202124';leaf.innerHTML=`<div class="tabContextTitle">Customize tab · changes apply automatically</div><div class="customGrid"><label>Tab color<input id="ctxBg" type="color" value="${bg}"></label><label>Font color<input id="ctxFg" type="color" value="${fg}"></label><label>Font size<input id="ctxSize" class="tabContextInput" type="number" min="10" max="28" value="${st.size||16}"></label></div><div class="customActions"><button class="btn" id="ctxReset">Reset</button></div>`;let apply=()=>saveTabStyle(k,{bg:$('ctxBg').value,fg:$('ctxFg').value,size:Number($('ctxSize').value)});$('ctxBg').oninput=apply;$('ctxFg').oninput=apply;$('ctxSize').oninput=apply;$('ctxReset').onclick=()=>{saveTabStyle(k,{});open('custom')}}};document.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{e.stopPropagation();open(b.dataset.c)});r.onclick=e=>{if(e.target===r)closeTabContext()}}'''
+          s = s[:start] + new + s[end:]
+
+          # Sidebar tree: each project has a chevron and expandable live-session children.
+          start = s.index('function renderProjectSidebar(){')
+          end = s.index('\nfunction renderProjectTabs()', start)
+          old = s[start:end]
+          new = r'''function renderProjectSidebar(){let ps=projects(),ap=activeProject(),un=unassignedSessionKeys(),missing=Object.entries(state.projectState.missing||{}),trash=trashBucket(),deleted=Object.values(trash),live=liveKeySet(),sessionRow=(k,pid)=>{let x=state.sessions.find(s=>s.key===k);if(!x)return'';let v=sessionState(k,x);return`<button class="projectChild ${state.current?.key===k?'active':''}" data-project-child="${esc(k)}" data-project-owner="${esc(pid)}" title="${esc(name(x))}"><span class="sessionState ${statusClass(v)}" title="${statusText(v)}"></span><span class="projectChildLabel">${esc(name(x))}</span></button>`},projectTree=(p,isUnassigned=false)=>{let keys=(isUnassigned?un:p.sessions).filter(k=>live.has(k)),open=state.projectExpanded.has(p.id);return`<div class="projectTree"><div class="projectRow ${state.projectState.activeProjectId===p.id?'active':''} ${isUnassigned?'systemProjectRow':''}" data-project="${esc(p.id)}" title="Click project to show all tabs · use chevron to expand sessions · drop a session tab here"><button class="projectChevron ${open?'open':''}" data-project-chevron="${esc(p.id)}" aria-label="${open?'Collapse':'Expand'} ${esc(p.name)}">›</button><span class="projectName">${esc(p.name)}</span><span class="projectCount">${keys.length}</span>${!isUnassigned&&ps.length>1?`<button class="projectDelete" data-project-delete="${esc(p.id)}" title="Remove project; sessions go to Unassigned">×</button>`:''}</div>${open?`<div class="projectChildren">${keys.map(k=>sessionRow(k,p.id)).join('')||'<div class="binEmpty">No sessions.</div>'}</div>`:''}</div>`};$('stats').textContent=`${ps.length} project${ps.length===1?'':'s'} · ${un.length} unassigned · ${missing.length} missing · ${deleted.length} deleted`;let projRows=ps.map(p=>projectTree(p)).join(''),missRows=missing.map(([k,m])=>`<div class="exceptionRow"><div class="exceptionInfo"><div class="exceptionTitle">${esc(m.label||k)}</div><div class="exceptionMeta">Previously: ${esc(m.previousProjectName||'Unassigned')} · Missing since ${esc(fmtTime(m.missingSince)||'unknown')}</div></div><button class="exceptionAction danger" data-missing-soft="${esc(k)}" title="Soft delete">×</button></div>`).join(''),binRows=deleted.map(t=>`<div class="exceptionRow"><div class="exceptionInfo"><div class="exceptionTitle">${esc(t.label||t.key)}</div><div class="exceptionMeta">${t.previousProjectName?`Previously: ${esc(t.previousProjectName)} · `:''}Deleted ${esc(fmtTime(t.deletedAt)||'')}</div></div><button class="exceptionAction" data-restore="${esc(t.key)}">Restore</button><button class="exceptionAction danger" data-harddel="${esc(t.key)}">Delete Permanently</button></div>`).join('');$('sessionList').innerHTML=`<div class="projectSectionHead"><span>PROJECTS</span><button id="projectAdd" title="Add project">+</button></div>${projectTree({id:UNASSIGNED_ID,name:'Unassigned',sessions:un},true)}${projRows}<div class="exceptionBlock ${state.missingOpen?'open':''}" id="missingBlock"><button class="exceptionHead" id="missingToggle" aria-expanded="${state.missingOpen?'true':'false'}"><span class="chev">›</span><span>Missing (${missing.length})</span></button><div class="exceptionBody">${missRows||'<div class="binEmpty">No missing sessions.</div>'}</div></div><div class="exceptionBlock ${state.trashOpen?'open':''}" id="botsTrash"><button class="exceptionHead" id="botsTrashToggle" aria-expanded="${state.trashOpen?'true':'false'}"><span class="chev">›</span><span>Recycle Bin (${deleted.length})</span></button><div class="exceptionBody">${binRows||'<div class="binEmpty">Recycle Bin is empty.</div>'}</div></div><div class="projectHelp">Chevron expands a Project. Click a nested session to focus only that session on the right. Click the Project row to return to all of its tabs.</div>`;$('projectAdd').onclick=addProject;document.querySelectorAll('[data-project]').forEach(n=>{n.onclick=e=>{if(e.target.closest('[data-project-delete],[data-project-chevron]'))return;switchProject(n.dataset.project)};if(n.dataset.project!==UNASSIGNED_ID)n.ondblclick=e=>{if(e.target.closest('[data-project-delete],[data-project-chevron]'))return;renameProject(n.dataset.project)};setupProjectDrop(n,n.dataset.project)});document.querySelectorAll('[data-project-chevron]').forEach(b=>b.onclick=e=>{e.stopPropagation();let id=b.dataset.projectChevron;state.projectExpanded.has(id)?state.projectExpanded.delete(id):state.projectExpanded.add(id);renderProjectSidebar()});document.querySelectorAll('[data-project-child]').forEach(b=>b.onclick=e=>{e.stopPropagation();let k=b.dataset.projectChild,id=b.dataset.projectOwner;state.projectState.activeProjectId=id;state.projectSidebarFocusKey=k;setActiveViewSession(k);saveProjectState();renderSessions();renderProjectTabs();header();select(k)});document.querySelectorAll('[data-project-delete]').forEach(b=>b.onclick=e=>{e.stopPropagation();deleteProject(b.dataset.projectDelete)});$('missingToggle').onclick=()=>{state.missingOpen=!state.missingOpen;renderProjectSidebar()};$('botsTrashToggle').onclick=()=>{state.trashOpen=!state.trashOpen;renderProjectSidebar()};document.querySelectorAll('[data-missing-soft]').forEach(b=>b.onclick=()=>softDeleteSession(b.dataset.missingSoft));document.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>restoreSession(b.dataset.restore));document.querySelectorAll('[data-harddel]').forEach(b=>b.onclick=()=>permanentDeleteSession(b.dataset.harddel))}'''
+          s = s[:start] + new + s[end:]
+
+          # Tabs: sidebar focus shows one tab only; hover title always contains full session text.
+          old = "let p=activeProject(),ss=p.sessions.map(k=>state.sessions.find(s=>s.key===k)).filter(Boolean);root.innerHTML=ss.map(x=>{let v=sessionState(x.key,x),rec=recoveredMeta(x.key);return`<button class=\"projectTab ${state.current?.key===x.key?'active':''}\" draggable=\"true\" data-project-session=\"${esc(x.key)}\"${tabStyleAttr(x.key)}><span class=\"sessionState ${statusClass(v)}\" title=\"${statusText(v)}\"></span><span class=\"tabLabel\">${esc(name(x))}${rec?' · recovered':''}</span><span class=\"tabClose\""
+          new = "let p=activeProject(),ss=p.sessions.map(k=>state.sessions.find(s=>s.key===k)).filter(Boolean);if(state.projectSidebarFocusKey&&ss.some(x=>x.key===state.projectSidebarFocusKey))ss=ss.filter(x=>x.key===state.projectSidebarFocusKey);root.innerHTML=ss.map(x=>{let v=sessionState(x.key,x),rec=recoveredMeta(x.key),full=name(x)+(rec?' · recovered':'');return`<button class=\"projectTab ${state.current?.key===x.key?'active':''}\" draggable=\"true\" data-project-session=\"${esc(x.key)}\" title=\"${esc(full)}\"${tabStyleAttr(x.key)}><span class=\"sessionState ${statusClass(v)}\" title=\"${statusText(v)}\"></span><span class=\"tabLabel\">${esc(full)}</span><span class=\"tabClose\""
+          one(old, new, 'focused tab + hover title')
+
+          # Drag/drop attachment overlay must ignore ProjectChat session-tab drags.
+          old = "let depth=0,m=$('main');m.ondragenter=e=>{e.preventDefault();depth++;$('drop').classList.add('show')};m.ondragover=e=>e.preventDefault();m.ondragleave=e=>{e.preventDefault();depth=Math.max(0,depth-1);if(!depth)$('drop').classList.remove('show')};m.ondrop=e=>{e.preventDefault();depth=0;$('drop').classList.remove('show');if(e.dataTransfer?.files?.length)addFiles(e.dataTransfer.files)}}"
+          new = "let depth=0,m=$('main'),sessionDrag=e=>e.dataTransfer?.types?.includes('text/session-key');m.ondragenter=e=>{if(sessionDrag(e))return;e.preventDefault();depth++;$('drop').classList.add('show')};m.ondragover=e=>{if(sessionDrag(e))return;e.preventDefault()};m.ondragleave=e=>{if(sessionDrag(e))return;e.preventDefault();depth=Math.max(0,depth-1);if(!depth)$('drop').classList.remove('show')};m.ondrop=e=>{if(sessionDrag(e))return;e.preventDefault();depth=0;$('drop').classList.remove('show');if(e.dataTransfer?.files?.length)addFiles(e.dataTransfer.files)}}"
+          one(old, new, 'session drag overlay guard')
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Validate HTML and JavaScript
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          required=[
+            "const BUILD_VERSION='2.8.1'",
+            "title=\"${esc(full)}\"",
+            "projectChevron",
+            "projectSidebarFocusKey",
+            "changes apply automatically",
+            "sessionDrag=e=>e.dataTransfer?.types?.includes('text/session-key')",
+            "#f59e0b"
+          ]
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('Missing required markers: '+repr(missing))
+          if 'id=\"ctxSave\"' in s: raise SystemExit('Customize Save button still present')
+          scripts=re.findall(r'<script>(.*?)</script>',s,re.S)
+          if not scripts: raise SystemExit('No scripts found')
+          out=Path('/tmp/projectchat-js'); out.mkdir(exist_ok=True)
+          for i,js in enumerate(scripts): (out/f'script-{i}.js').write_text(js,encoding='utf-8')
+          print(f'Extracted {len(scripts)} scripts')
+          PY
+          for f in /tmp/projectchat-js/*.js; do node --check "$f"; done
+
+      - name: Commit patched v2.8.1 test build
+        shell: bash
+        run: |
+          if git diff --quiet -- session-manager-v3.html; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add session-manager-v3.html
+          git commit -m 'ProjectChat v2.8.1 interaction fixes'
+          git push origin HEAD:projectchat-v281-release
