@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.11.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.10.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.11.0  
+**Governance version:** 1.10.0  
 **Updated:** 2026-08-10  
 **Application artifact:** `session-manager-v3.html`  
 **Owner:** Confi — sole device gate and final scope authority.
@@ -524,20 +524,3 @@ BotsChat must account for every session known to the client. The invariant is: *
 **G-029 — Tab X as local close/remove membership.** Buried. In BotsChat, tab X means governed soft delete to Recycle Bin.
 
 **G-030 — Automatically restoring recovered Missing sessions to their old Project.** Buried. Recovery returns to Unassigned with prior-Project provenance for operator-directed re-homing.
-
-
-# 13. v2.7.0 PROJECTCHAT TAB INTERACTION AMENDMENT — 2026-08-11
-
-The visible BotsChat working name is retired; the client is **ProjectChat**. Internal `clientType: "botschat"` remains temporarily for backward compatibility.
-
-- Right-click a live tab: **Rename › / Assign › / Customize ›**.
-- Rename leaf: Enter persists via governed `sessions.patch`, then returns focus to the origin Project.
-- Assign leaf: Project omnisearch supports partial matching, `*` wildcard, and `-negative` terms. Selecting a result moves the tab but leaves the origin Project in focus. Enter on a new name creates the Project and moves the tab, again preserving origin focus.
-- Customize leaf: persistent tab background color, font color, and font size; Reset removes customization. These values live in Project state and GitHub SOT.
-- Drag/drop tabs inside a Project persistently changes tab sequence. Cross-Project drop remains a move, never a copy.
-- Tab × remains governed soft delete.
-
-## Graveyard additions
-**G-031 — BotsChat visible product name.** Retired in favor of ProjectChat.
-**G-032 — Assignment that navigates away from the current Project.** Buried.
-**G-033 — Non-persistent tab customization.** Buried.
