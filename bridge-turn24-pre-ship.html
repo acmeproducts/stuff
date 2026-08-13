@@ -6467,7 +6467,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
    wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
-   adds: ICON, MENU_ICON, FLAG_LAYERS, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
+   adds: ICON, MENU_ICON, FLAG_LAYERS, FLAG_PAINT, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
@@ -6537,40 +6537,68 @@ var ICON = {
     '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
 };
 
-/* ── 8.1 flag motif — the treatment from test.html ─────────────────────────
-   NOT a stripe band. The earlier attempt drew coloured stripes, which was an
-   invention: the real motif is a full-bleed flag image behind the ask-screen
-   title, veiled by a translucent cream wash so the text stays readable, on a
-   108px panel. At the band's 6px height `background-size:cover` crops the
-   770x284 source to a sliver of one flag, which is why it read as a plain
-   coloured line — the height is what was wrong, not the image.
+/* ── 8.1 THE FLAG MOTIF — THE BRANDING ─────────────────────────────────────
+   Taken from test.html, which is the reference. This is not decoration on one
+   screen; it is the app's branding and belongs on every surface that
+   introduces the app or a room.
 
-   Layer order matters and is taken verbatim from test.html: the wash sits
-   FIRST so it covers the flags beneath, .gif before .png so an animated source
-   wins where present, and a gradient last as the fallback when neither loads. */
+   The treatment: the flag artwork full-bleed behind a translucent cream wash,
+   with the heading sitting on top of it. Layer order is exact and matters —
+   the wash FIRST so it sits over the flags and keeps text readable, .gif
+   before .png so an animated source wins where present, and a gradient last as
+   the fallback when neither loads.
+
+   Two heights, both from test.html:
+     108px — a card that introduces the app (onboarding, joiner, welcome)
+      72px — a panel heading strip, square-bottomed, pulled to the panel edges
+
+   The earlier attempt drew coloured stripes at 6px. That was an invention, and
+   at 6px `cover` crops the 770x284 artwork to a sliver of a single flag, which
+   is why it read as a plain coloured line. The height was wrong, not the art.
+
+   SURFACES:
+     .flagband        — the four existing bands (onboarding, welcome, joiner,
+                        modal), raised to the card treatment
+     .drawer-head     — the room drawer heading, behind the title AND the tabs.
+                        It had no band at all. */
 var FLAG_LAYERS =
   "linear-gradient(rgba(253,250,247,.58),rgba(253,250,247,.58))," +
   "url('./flags.gif')," +
   "url('./flags.png')," +
   "linear-gradient(135deg,#f7e9d8,#f2f4ff)";
 
-var FLAG_CSS =
-  // @affects .flagband 4
-  '.flagband{position:relative;height:auto;min-height:108px;border-radius:12px;overflow:hidden;' +
-    'display:flex;align-items:center;justify-content:center;background-image:none;margin-bottom:14px}' +
-  '.flagband::before{content:"";position:absolute;inset:0;background-image:' + FLAG_LAYERS + ';' +
-    'background-size:cover,cover,cover,cover;background-position:center,center,center,center;' +
-    'background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;opacity:.58}' +
-  /* The stripe elements the base hid are not needed and must stay hidden, or
-     they would sit on top of the motif. */
-  '.flagband i{display:none}' +
-  /* The ask-screen title moves onto the motif rather than below it. */
-  '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;line-height:1.35;' +
-    'color:var(--ink);padding:14px;text-align:center}';
+var FLAG_PAINT =
+  'background-image:' + FLAG_LAYERS + ';' +
+  'background-size:cover,cover,cover,cover;' +
+  'background-position:center,center,center,center;' +
+  'background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;' +
+  'opacity:.58';
 
-/* Moves the existing ask-screen title inside the band so it sits on the motif,
-   exactly as test.html has it. The title text is not rewritten — it is moved,
-   so whatever the base says stays said. */
+var FLAG_CSS =
+  /* The card treatment — 108px, the app-introducing surfaces. */
+  // @affects .flagband 4
+  '.flagband{position:relative;height:auto;min-height:108px;border-radius:12px;' +
+    'overflow:hidden;display:flex;align-items:center;justify-content:center;' +
+    'background-image:none;margin-bottom:14px;width:auto !important}' +
+  '.flagband::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.flagband i{display:none}' +
+  '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;' +
+    'line-height:1.35;color:var(--ink);padding:14px;text-align:center}' +
+
+  /* The panel-heading treatment — 72px, square bottom, behind the drawer title
+     AND the tabs, which is the top strip of the room drawer. The tabs keep
+     their own border so the strip still reads as a heading. */
+  '.drawer-head{position:relative;border-radius:18px 18px 0 0;overflow:hidden;' +
+    'min-height:72px;align-items:center}' +
+  '.drawer-head::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.drawer-head>*{position:relative}' +
+  '.drawer-tabs{position:relative;overflow:hidden}' +
+  '.drawer-tabs::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.drawer-tabs>*{position:relative}';
+
+/* Moves the ask-screen heading onto the band so it sits over the artwork, as
+   test.html has it. The text is MOVED, never retyped, so it cannot drift from
+   whatever the base says. */
 function dressFlagBands() {
   try {
     var bands = document.querySelectorAll('.flagband');
@@ -6580,7 +6608,6 @@ function dressFlagBands() {
       var b = bands[i];
       if (b.dataset && b.dataset.r8Flag) { n++; continue; }
 
-      /* The title and subtitle immediately following the band belong on it. */
       var host = b.parentNode;
       if (host && host.querySelector) {
         var title = host.querySelector('.ask-title');
