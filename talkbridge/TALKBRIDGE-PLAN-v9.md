@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.1.0 -->
-# TALKBRIDGE MASTER PLAN v13.1.0
+<!-- TALKBRIDGE-PLAN v13.2.0 -->
+# TALKBRIDGE MASTER PLAN v13.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -106,13 +106,52 @@ manager silent.
 
 ---
 
-## 3 · RELEASE 9 — PHRASEBOOK
+## 3 · RELEASE 9 — PHRASEBOOK: TARGET MIRRORS SOURCE
+
+**Not started. Not ready to build** — two open questions below must be answered
+first, and the source-side rules must be read from the code rather than
+reconstructed from description.
+
+**Source:** `bridge-turn24-pre-ship.html`, once gated.
+**Target stage:** `bridge-turn24-ship.html`.
+
+### 3a · The rule, as the owner stated it
+
+The source field already has a crisp set of behaviours. **The target field must
+behave identically.** It is one rule expressed as symmetry, not a list of
+features:
+
+| Action on SOURCE | Today | Required on TARGET |
+|---|---|---|
+| Edit the text, press enter | retranslate, back-translate, clear the verdict, remove the verified tag, log to clarify | identical |
+| Press enter without changing anything | retranslate, back-translate, update clarify | identical |
+
+Whatever source does on change versus on bare enter, target does the same, with
+the same clarify entries and the same verdict and tag consequences.
+
+### 3b · Scope
 
 | # | Item | Status |
 |---|---|---|
-| 9.1 | Editing the target rewrites the source | Not started |
-| 9.2 | Back-translation behaviour, verdict lifecycle, staleness | Not started |
-| 9.3 | The clarify stream | Not started |
+| 9.1 | Extract the ACTUAL source-side rules from the code and record them here before building | Not started |
+| 9.2 | Editing target retranslates source and back-translates | Not started |
+| 9.3 | Bare enter in target retranslates and back-translates, same as source | Not started |
+| 9.4 | Editing target clears the verdict and removes the verified tag | Not started |
+| 9.5 | Target actions write the same clarify entries as source actions | Not started |
+
+### 3c · OPEN — must be answered before building
+
+| # | Question | Why it matters |
+|---|---|---|
+| Q1 | Editing target retranslates source. That new source would normally retranslate target, overwriting what was just typed. Where does the loop stop? Builder's assumption is **one hop only, the edited side is never overwritten** — unconfirmed | Without an answer the two fields can overwrite each other indefinitely |
+| Q2 | Clarify currently records source→target. When target drives, is it the same entry with the direction flipped, or a distinct entry type? | Determines whether clarify history stays readable as one stream |
+
+### 3d · Method note
+
+The owner has said they may not recall every source-side specific exactly. The
+source rules are already in the code and will be **extracted and shown before
+anything is mirrored**. Reconstructing behaviour from prose is the single
+failure that has cost this project the most; it is not repeated here.
 
 ---
 
@@ -378,6 +417,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v13.2.0 · 2026-08-13.** R9 scoped from the owner's specification: the
+phrasebook's TARGET field must mirror the SOURCE field exactly — same
+retranslation, same back-translation, same verdict and tag consequences, same
+clarify entries, both on edit and on bare enter. Five items, two open questions
+that block building (loop termination, clarify direction). Source-side rules
+will be extracted from the code and recorded before anything is mirrored.
+
+Terminology restated, having been muddled: a RELEASE is a numbered unit of work
+(R8, R9); a STAGE is a filename in the chain (`pre-base` → `base` →
+`pre-ship` → `ship`). The chain runs continuously and does not reset per
+release — R8 consumed two stages, which is why they blurred.
 
 **v13.1.0 · 2026-08-13.** Source and target corrected. R8 takes
 `bridge-turn24-pre-base.html` as input and delivers `bridge-turn24-base.html` —
