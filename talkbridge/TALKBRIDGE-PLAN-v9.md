@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.0.0 -->
-# TALKBRIDGE MASTER PLAN v13.0.0
+<!-- TALKBRIDGE-PLAN v13.1.0 -->
+# TALKBRIDGE MASTER PLAN v13.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -38,27 +38,35 @@ overwritten with it.
 
 ## 2 · RELEASE 8 — ONE RELEASE, ONE GATE
 
-**Owner ruling 2026-08-13: R8 is not split into micro-releases. Testing is
-expensive and must be respected — everything below ships together and is gated
-once.**
+**Source:** `bridge-turn24-pre-base.html` — device-passed 2026-08-07, the last
+build the owner approved.
+**Target:** `bridge-turn24-base.html` — the next stage in the chain
+(`pre-base` → `base` → `pre-ship` → `ship`).
+**Delivered:** one build, all fifteen items, gated once.
 
-Output: `bridge-turn24-ship.html`. Input: `bridge-turn24-pre-base.html`.
+**Owner ruling 2026-08-13: R8 is not split into micro-releases.** Testing is
+expensive and must be respected.
+
+**Builder error corrected here.** R8 was previously built to `pre-ship` and
+then to `ship`, skipping two stages of the chain and producing two artifacts
+where one was authorised. The filenames are a sequence, not scratch space. The
+extra builds have been removed and `base` is the only output.
 
 ### 2a · Scope
 
 | # | Item | Status |
 |---|---|---|
-| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis on the text, all rules scoped to `#room-ribbon` | Built, ribbon confirmed correct on device |
-| 8.1 | Home-card dismissal threshold cleared with the count | Built, root cause proven |
-| 8.2 | Clock tap goes home; the redundant info card that does that job is removed | Not started |
+| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis on the text, rules scoped to `#room-ribbon` | Built |
+| 8.1 | Home-card dismissal threshold cleared with the count | Built |
+| 8.2 | Clock tap goes home; the redundant info card is removed | Built |
 | 8.3 | Flag motif — the `test.html` treatment, NOT a stripe band | Built |
 | 8.4 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Built |
 | 8.5 | Bubble-header icon convention — mic for chat, phone for voice, video for video | Built |
 | 8.6 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Built |
-| 8.7 | Muting on leaving a call — the back button already enters PIP | Built |
+| 8.7 | Muting on leaving a call | Built |
 | 8.8 | Tap video to swap to PIP | Built |
 | 8.9 | PIP draggable, clamped to the viewport | Built |
-| 8.10 | Call timer on both sides — "Speaking…" was overwriting the duration for everyone | Built |
+| 8.10 | Call timer on both sides | Built |
 | 8.11 | Typing indicator, transient only | Built |
 | 8.12 | Short-phrase double transcription — text comparison, not a time window | Built |
 | 8.13 | Ear / Auto-read / Mute wording pass | Built |
@@ -67,27 +75,20 @@ Output: `bridge-turn24-ship.html`. Input: `bridge-turn24-pre-base.html`.
 ### 2b · The home-card delay, provenance settled
 
 Reported as new. It is not. `homeCards`, `dismissHome` and `clearWaiting` are
-**byte-identical from Release 1 (`turn23-pre-base`) to today** — nothing since
-touched them.
+**byte-identical from Release 1 (`turn23-pre-base`) to today**.
 
-`dismissHome` records the waiting COUNT at dismissal; `homeCards` then shows a
-card only when the total exceeds it. Entering a room clears the count to zero
-but left the threshold behind, so the next N events raised nothing.
+`dismissHome` records the waiting COUNT at dismissal; `homeCards` shows a card
+only when the total exceeds it. Entering a room clears the count to zero but
+left the threshold behind, so the next N events raised nothing.
 
-It fires on one path only:
+It fires on one path only — `dismissHome` is called only when a card is tapped
+on the home screen, never when the same room is entered from the left panel.
+The threshold is stored per room, so with several active rooms only the tapped
+one goes quiet. A single-room test is what made it legible for the first time.
 
-    if (el.dataset.where === 'home') dismissHome(id, true);
-    else closePanel();
-
-**Only tapping a card on the home screen sets a threshold.** Entering the same
-room from the left panel never does. The threshold is stored per room, so with
-several active rooms only the tapped one goes quiet and the others behave —
-which is why a single-room test made it legible for the first time.
-
-Reproduced by running Release 1's own code verbatim: panel path correct, home-
-card path swallows three events. Fixed by dropping the threshold when the count
-is cleared; a deliberately dismissed card still stays dismissed while its count
-stands.
+Reproduced by running Release 1's own code verbatim. Fixed by dropping the
+threshold when the count is cleared; a deliberately dismissed card still stays
+dismissed while its count stands.
 
 ### 2c · Build gates added this release
 
@@ -98,9 +99,10 @@ stands.
 
 ### 2d · Gate
 
-One pass, two devices. Ribbon; home card raising immediately after leaving a
-room; clock tap; icons distinguishable; PIP swap and drag under a real call;
-timer on both sides; typing indicator; password manager silent.
+One pass, two devices, on `bridge-turn24-base.html`. Ribbon; a card raising
+immediately after leaving a room; clock tap home; icons distinguishable; PIP
+swap and drag under a real call; timer on both ends; typing indicator; password
+manager silent.
 
 ---
 
@@ -376,6 +378,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v13.1.0 · 2026-08-13.** Source and target corrected. R8 takes
+`bridge-turn24-pre-base.html` as input and delivers `bridge-turn24-base.html` —
+the next stage in the chain. The builder had been writing to `pre-ship` and
+then `ship`, skipping two stages and creating two artifacts where one was
+authorised; those have been removed. The stage names are a sequence, not
+scratch space.
 
 **v13.0.0 · 2026-08-13.** R8 consolidated into ONE release by owner ruling —
 no micro-releases, one gate, output `bridge-turn24-ship.html`.
