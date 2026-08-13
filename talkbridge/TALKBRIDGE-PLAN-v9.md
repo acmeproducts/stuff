@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.3.0 -->
-# TALKBRIDGE MASTER PLAN v13.3.0
+<!-- TALKBRIDGE-PLAN v13.4.0 -->
+# TALKBRIDGE MASTER PLAN v13.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -214,6 +214,24 @@ a named scale of fixed pixels is still fixed pixels.
 
 ## 8 · IMMUTABLE WORKING RULES
 
+### The `.gif` layers are a SWAP SLOT — never "fix" the 404
+
+Every flag layer asks for a `.gif` first and falls through to the `.png`
+beneath it. **The `.gif` is deliberately absent.** Dropping one into the repo
+replaces the artwork — animated or otherwise — with no code change at all.
+
+The console 404 is that mechanism working as designed, not a defect. It has
+been reported as a bug more than once and was nearly removed, which would have
+silently deleted the feature. Both assets carry the slot:
+
+    flags.gif      -> flags.png       landscape, for short wide surfaces
+    flags-tall.gif -> flags-tall.png  portrait, for the full-height home body
+
+Two assets, not one, because `background-size:cover` fills the LONGEST axis:
+the landscape strip on a tall phone magnifies ~2.9x until two or three flags
+fill the screen, and the portrait asset on a 72px strip crops to a sliver. Each
+shape belongs to the surface it matches.
+
 
 These are not aspirations. Each is either mechanically enforced by the build, or
 it is a hard stop.
@@ -419,6 +437,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v13.4.0 · 2026-08-13.** Flag branding corrected with a second asset.
+`flags-tall.png` (284x770) added for the full-height home screen body; the
+landscape `flags.png` stays on the cards and drawer strip. `cover` fills the
+longest axis, so one shape cannot serve both.
+
+**The `.gif` swap slot is now documented as a rule** (§8). It is deliberately
+absent so the artwork can be replaced without a code change; the console 404 is
+the mechanism working, and the builder was one approval away from removing it
+as a bug.
 
 **v13.3.0 · 2026-08-13.** R9's two open questions closed as builder decisions
 rather than left as questions: one hop with the edited side never overwritten,
