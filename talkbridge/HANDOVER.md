@@ -74,3 +74,30 @@ Do the two-instance harness proof for anything crossing the relay before you
 believe it works. Confirm scope against the plan before you start. Roll back,
 never patch, on any failure — including your own. Report only what you can
 show, not what you believe you did.
+
+
+## Session 2026-08-13 — R8 rebuilt as `bridge-turn24-base.html`
+
+Owner rescope (plan v13.5.0): source is the approved `bridge-turn24-pre-ship.html`
+(8.0 ribbon + 8.1 home-card fix, device-passed); output `bridge-turn24-base.html`;
+8.6 = Ear "Hear their voice" / Headset "Hear translation" / Bell "Ringer";
+8.13 = iPhone typography; 8.14 = password-manager silence; `&debug=1` backlogged.
+
+Build is PURELY ADDITIVE over the approved base (byte-checked by the harness).
+Sourced from the rolled-back attempt at `c77e221` by reading its exact code, with
+these deliberate changes: debug toggle excised; flag motif scoped to the home
+body (flags-tall.png, contain, below ribbon) and the two name-ask cards (S0, S10)
+only; all `.gif` layers removed and the base's own dead `flags.gif` layer
+overridden by a later cascade rule (base bytes untouched); menu labels set to the
+owner's exact wording; dead duplicated CSS block deleted.
+
+Harness: `talkbridge/build/harness.mjs` — boots the artifact in jsdom and asserts
+downstream effects (nodes attached, styles set, text written, state flipped),
+never returns. 22/22 green. `talkbridge/build/mutate.mjs` — fourteen FRESH
+defects; 14/14 caught. Run:
+  node talkbridge/build/harness.mjs bridge-turn24-pre-ship.html bridge-turn24-base.html
+  node talkbridge/build/mutate.mjs  bridge-turn24-pre-ship.html bridge-turn24-base.html
+
+NOT yet proven: the device gate (plan §2d) and anything crossing the relay
+(typing indicator and timer parity are harness-proven locally, not two-instance
+proven). The build awaits the owner's device pass.

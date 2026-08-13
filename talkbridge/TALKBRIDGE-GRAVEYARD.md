@@ -712,3 +712,42 @@ goes to a deployed file in this area without a written proposal approved first.
   visually. The layer can return if an animated asset is ever added.
 - Cards (108px) and the drawer strip (72px) keep `cover` — short, wide surfaces
   where it behaves correctly. The failure is specific to full-height bodies.
+
+## The gate suite itself — why green tests coexisted with visible drift · Aug 13 2026
+
+Every rollback this release cycle passed its automated gate first. The suite
+was the enabler, not the safety net. Exactly why, so the rewrite doesn't repeat
+it:
+
+1. **Presence was tested, behavior was not.** Assertions checked that markup,
+   strings, and functions existed in the built artifact ("verified present in
+   the built artifact"). Existence proves nothing about what fires when a user
+   taps, what renders at a given width, or what geometry results. Items were
+   marked Built because their code was findable, while the device showed
+   something else.
+2. **Return values stood in for effects.** Tests called functions and checked
+   what came back. Regressions ship in side effects — what got attached,
+   removed, repositioned, sent — and none of that was asserted.
+3. **The sandbox DOM lied politely.** The stub answered selector and attribute
+   queries in ways a real WebKit would not, so layout- and focus-dependent
+   behavior "passed" in an environment where it could not possibly fail.
+4. **Mutation tests only reintroduced known defects.** They proved the suite
+   caught the specific bugs already found, not that it would catch the next
+   one. Coverage of the failure class was mistaken for coverage of the class
+   of failures.
+5. **No test compared the replacement against the code it replaced.** Both
+   2.2 regressions (clock tap, ribbon geometry) were reconstructions from
+   prose. A diff-against-original gate would have failed both before any
+   device was touched.
+
+Consequence: the harness is rewritten before the next build is trusted, and
+for the first time it is VERSIONED IN THE REPO — `talkbridge/build/harness.mjs`
+(effect assertions in jsdom) and `talkbridge/build/mutate.mjs` (fourteen fresh
+defects, all fourteen caught on first full run). A suite that lives only in a
+session container dies with the session; that was part of the drift. New
+rules for every test: assert the downstream effect (event fired, node
+attached/detached, style computed, message sent over the wire), not the return;
+run selector semantics that match real WebKit or don't claim the test covers
+DOM behavior; every replaced behavior gets a diff assertion against the
+original implementation; every gate gets a fresh-defect mutation, not a replay
+of an old one.

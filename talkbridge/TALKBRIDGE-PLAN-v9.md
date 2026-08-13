@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.4.0 -->
-# TALKBRIDGE MASTER PLAN v13.4.0
+<!-- TALKBRIDGE-PLAN v13.5.0 -->
+# TALKBRIDGE MASTER PLAN v13.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -38,10 +38,10 @@ overwritten with it.
 
 ## 2 · RELEASE 8 — ONE RELEASE, ONE GATE
 
-**Source:** `bridge-turn24-pre-base.html` — device-passed 2026-08-07, the last
-build the owner approved.
-**Target:** `bridge-turn24-base.html` — the next stage in the chain
-(`pre-base` → `base` → `pre-ship` → `ship`).
+**Source:** `bridge-turn24-pre-ship.html` — owner ruling 2026-08-13. This file
+carries 8.0 (ribbon) and 8.1 (home-card delay fix), both device-passed. Build
+starts from it; those two items ride along untouched.
+**Target:** `bridge-turn24-base.html`.
 **Delivered:** one build, all fifteen items, gated once.
 
 **Owner ruling 2026-08-13: R8 is not split into micro-releases.** Testing is
@@ -56,21 +56,21 @@ extra builds have been removed and `base` is the only output.
 
 | # | Item | Status |
 |---|---|---|
-| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis on the text, rules scoped to `#room-ribbon` | Built |
-| 8.1 | Home-card dismissal threshold cleared with the count | Built |
-| 8.2 | Clock tap goes home; the redundant info card is removed | Built |
-| 8.3 | Flag motif — the `test.html` treatment, NOT a stripe band | Built |
-| 8.4 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Built |
-| 8.5 | Bubble-header icon convention — mic for chat, phone for voice, video for video | Built |
-| 8.6 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Built |
-| 8.7 | Muting on leaving a call | Built |
-| 8.8 | Tap video to swap to PIP | Built |
-| 8.9 | PIP draggable, clamped to the viewport | Built |
-| 8.10 | Call timer on both sides | Built |
-| 8.11 | Typing indicator, transient only | Built |
-| 8.12 | Short-phrase double transcription — text comparison, not a time window | Built |
-| 8.13 | Ear / Auto-read / Mute wording pass | Built |
-| 8.14 | `&debug=1` — diagnostics off by default, errors always kept | Built |
+| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis, rules scoped to `#room-ribbon` | IN BASELINE — device-passed |
+| 8.1 | Home-card dismissal threshold cleared with the count | IN BASELINE |
+| 8.2 | Clock tap goes home; the redundant info card is removed | To build |
+| 8.3 | Flag motif — home screen and name card only; the `test.html` treatment, NOT a stripe band | To build |
+| 8.4 | Two-graphic mute icon for video — complete graphics swapped, never a composited slash | To build |
+| 8.5 | Bubble-header icons for chat / phone / video | To build |
+| 8.6 | Room menu — icons Ear, Headset, Bell with labels "Hear their voice", "Hear translation", "Ringer" | To build |
+| 8.7 | Mute on leaving a call — defocus | To build |
+| 8.8 | Tap video → PIP | To build |
+| 8.9 | PIP draggable, clamped to the viewport | To build |
+| 8.10 | Call timer on both sides | To build |
+| 8.11 | Typing indicator, transient only | To build |
+| 8.12 | Short-phrase dedup — text comparison, not a time window | To build |
+| 8.13 | iPhone typography | To build |
+| 8.14 | Password manager silence — no `type="password"`, CSS masking | To build |
 
 ### 2b · The home-card delay, provenance settled
 
@@ -103,6 +103,13 @@ One pass, two devices, on `bridge-turn24-base.html`. Ribbon; a card raising
 immediately after leaving a room; clock tap home; icons distinguishable; PIP
 swap and drag under a real call; timer on both ends; typing indicator; password
 manager silent.
+
+---
+
+### 2e · Backlogged out of R8
+
+`&debug=1` diagnostics toggle — owner ruling 2026-08-13: high risk, no reward
+right now. Backlogged, not dropped.
 
 ---
 
@@ -471,6 +478,15 @@ the next stage in the chain. The builder had been writing to `pre-ship` and
 then `ship`, skipping two stages and creating two artifacts where one was
 authorised; those have been removed. The stage names are a sequence, not
 scratch space.
+
+**v13.5.0 · 2026-08-13.** Owner rescope. R8 source is now
+`bridge-turn24-pre-ship.html` (carries device-passed 8.0 and 8.1); target is
+`bridge-turn24-base.html`. 8.6 revised: three controls — Ear "Hear their
+voice", Headset "Hear translation", Bell "Ringer". 8.13 is now iPhone
+typography; 8.14 is now password-manager silence. `&debug=1` moved to backlog
+by owner ruling — high risk, no reward right now. Graveyard entry added on why
+the gate suite allowed the drift; harness to be rewritten before this build is
+trusted.
 
 **v13.0.0 · 2026-08-13.** R8 consolidated into ONE release by owner ruling —
 no micro-releases, one gate, output `bridge-turn24-ship.html`.
