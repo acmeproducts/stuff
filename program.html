@@ -98,6 +98,30 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
 .matrix-header.axis-drop,.matrix-rowhead.axis-drop{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)}
 .axis-ghost{position:fixed;z-index:200;pointer-events:none;transform:translate(-50%,-150%);padding:6px 10px;border-radius:8px;background:var(--accent);color:#fff;font-weight:800;font-size:12px;box-shadow:var(--shadow);white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
 .axis-ghost.cross{background:var(--danger)}
+/* R5 — context-aware card, handle drag, preview, context menu */
+.card{touch-action:manipulation}
+.kc-handle{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;min-height:0;border-radius:6px;color:var(--muted);cursor:grab;user-select:none;touch-action:none;font-size:13px}
+.kc-handle:hover{background:var(--accent-soft);color:var(--accent)}
+.kc-status{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;min-height:0;border:0;background:transparent;padding:0;border-radius:6px}
+.kc-status .kc-dot{width:12px;height:12px;border-radius:999px;box-shadow:0 0 0 1px var(--line)}
+.kc-updated{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+/* phone portrait = name only (handle + status + title); chips/updated appear otherwise */
+@media (orientation:portrait) and (max-width:600px){.card .kc-tags{display:none}}
+/* context menu (bottom-sheet-ish on phones) */
+.card-menu{position:fixed;z-index:150;display:grid;gap:2px;min-width:180px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+.card-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px 12px;min-height:44px;border-radius:8px;font-weight:650;color:var(--ink)}
+.card-menu button:hover,.card-menu button:focus-visible{background:var(--accent-soft);color:var(--accent)}
+/* read-only preview reuses .card-pop shell */
+.card-pop.preview .cp-links{display:flex;gap:12px;flex-wrap:wrap}
+.card-pop.preview .cp-links a{color:var(--accent);text-decoration:none;font-weight:650}
+.card-pop.preview .cp-updated{font-size:12px;color:var(--muted)}
+.card-pop .cp-actions{display:flex;gap:8px;align-items:center}
+@supports (padding:env(safe-area-inset-top)){
+  .topbar{padding-top:calc(7px + env(safe-area-inset-top));height:calc(var(--topbar-height) + env(safe-area-inset-top))}
+  .sidebar,.scrim{top:calc(var(--topbar-height) + env(safe-area-inset-top))}
+  .view{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(14px + env(safe-area-inset-bottom))}
+}
 /* lane + card collapse (Manage Board) */
 .lane-head .lane-toggle,.lane-head .lane-cards-toggle{font-size:13px;color:var(--muted)}
 .lane.is-closed .lane-cards{display:none}
@@ -411,71 +435,130 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
   /* rich card — keeps the matrix CENTER value as the title so that feature
      still works, then always shows status dot + platform/lineage/tags +
      dev/live + duplicate/archive (the info I had stripped) */
+  function fmtDate(v){if(v==null||v==="")return"";const d=typeof v==="number"?new Date(v):new Date(String(v));return isNaN(d)?"":d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});}
+
+  /* Context-aware closed card: handle + status dot + name always; chips + last-updated
+     shown by orientation (phone portrait = name only, via CSS). Duplicate/Trash live in
+     the opened card + context menu, not on the closed card. */
   function cardMarkup(c,board,def){
     def=def||{intersection:"title",fields:[]};
     const primary=(def.intersection&&def.intersection!=="title")?value(c,def.intersection):(c.title||"(untitled)");
-    const dev=(c.dev||"").trim(), live=(c.live||"").trim();
-    const status=normStatus(c.statusColor), ribbon=c.cardColor||STATUS_MAP[status];
+    const status=normStatus(c.statusColor), ribbon=c.cardColor||STATUS_MAP[status], lin=normLineage(c.lineage);
     const shown=new Set(["title",def.intersection,"platform","lineage","tags","stage"]);
     const extra=(def.fields||[]).filter(f=>!shown.has(f)).map(f=>`<span class="chip">${esc(f)}: ${esc(value(c,f))}</span>`).join("");
     const tags=(c.tags||[]).map(t=>`<span class="chip kc-tag" data-tag="${esc(t)}" title="${esc(t)}">${esc(t)}</span>`).join("");
+    const plat=c.platform?`<span class="chip kc-plat">${esc(c.platform)}</span>`:"";
+    const linChip=(c.lineage&&lin!=="base")?`<span class="chip kc-lin">${esc(lin)}</span>`:"";
+    const upd=c.updatedAt?`<span class="kc-updated" title="Last updated">${esc(fmtDate(c.updatedAt))}</span>`:"";
     return `<article class="card kcard" tabindex="0" data-card="${esc(c.id)}" data-board="${esc(board)}" style="--ribbon:${esc(ribbon)}">`+
       `<div class="kc-line">`+
+        `<span class="kc-handle" data-handle title="Drag" aria-label="Drag card">⠿</span>`+
         `<button class="kc-status" type="button" data-kstatus title="Status: ${esc(status)}"><span class="kc-dot" style="background:${esc(STATUS_MAP[status])}"></span></button>`+
         `<button class="card-title" type="button" title="${esc(primary)}">${esc(primary)}</button>`+
-        `<span class="kc-links">${dev?`<a href="${esc(normUrlKC(dev))}" target="_blank" rel="noopener" data-stop>Dev</a>`:`<span class="empty">Dev</span>`}${live?`<a href="${esc(normUrlKC(live))}" target="_blank" rel="noopener" data-stop>Live</a>`:`<span class="empty">Live</span>`}</span>`+
-        `<button class="kc-copy" type="button" data-kcopy title="Duplicate card"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h11v13H8V8Zm-3-5h11v3H8a3 3 0 0 0-3 3v8H5V3Z"/></svg></button>`+
-        `<button class="kc-arch" type="button" data-karch title="Archive card"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7H4V5h16v2Zm-2 2v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9h12Zm-8 2v6h1v-6h-1Zm3 0v6h1v-6h-1Z"/></svg></button>`+
       `</div>`+
-      `<div class="kc-tags"><span class="chip kc-plat">${esc(c.platform||"—")}</span><span class="chip kc-lin">${esc(normLineage(c.lineage))}</span>${tags}${extra}</div>`+
+      `<div class="kc-tags">${plat}${linChip}${tags}${extra}${upd}</div>`+
     `</article>`;
   }
 
+  let lastTap={key:null,t:0}, tapTimer=0;
   function wireCards(root){$$(".card",root).forEach(el=>{
     const board=el.dataset.board,id=el.dataset.card;
-    /* right-click (desktop) / long-press context menu → change card color */
-    el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showColorMenu(e.clientX,e.clientY,board,id);};
+    el.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();openCardMenu(e.clientX,e.clientY,board,id,el);};
     const st=$("[data-kstatus]",el); if(st)st.onclick=e=>{e.stopPropagation();showStatusMenu(st,board,id);};
-    const cp=$("[data-kcopy]",el); if(cp)cp.onclick=e=>{e.stopPropagation();duplicateCard(board,id);};
-    const ar=$("[data-karch]",el); if(ar)ar.onclick=e=>{e.stopPropagation();archiveCard(board,id);};
     $$("[data-stop]",el).forEach(a=>{a.addEventListener("click",e=>e.stopPropagation());a.addEventListener("pointerdown",e=>e.stopPropagation());});
     $$(".kc-tag",el).forEach(tg=>tg.addEventListener("click",e=>{e.stopPropagation();notify("Tag: "+tg.dataset.tag);}));
-    el.addEventListener("pointerdown",e=>startCardDrag(e,el,board,id));
+    const handle=$("[data-handle]",el); if(handle)handle.addEventListener("pointerdown",e=>{e.stopPropagation();startCardDrag(e,el,board,id);});
+    el.addEventListener("pointerdown",e=>startCardTap(e,el,board,id));
   });}
 
-  /* Mobile-first card drag: long-press to pick up on touch (so lists still
-     scroll and a quick tap still expands); move-threshold to pick up on mouse.
-     Drop into a matrix cell, a lane, or another board row. */
+  /* Body gestures (drag is on the handle): tap = preview, double-tap = open full,
+     long-press / right-click = context menu. Movement cancels (native scroll). */
+  function startCardTap(e,el,board,id){
+    if(e.button&&e.button!==0)return;
+    if(e.target.closest(CARD_CTRL_SEL)||e.target.closest("[data-handle]"))return;
+    const sx=e.clientX,sy=e.clientY;let moved=false,longFired=false;
+    const lp=setTimeout(()=>{longFired=true;cleanup();openCardMenu(sx,sy,board,id,el);},450);
+    const move=ev=>{if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>10){moved=true;cleanup();}};
+    const up=()=>{cleanup();if(moved||longFired)return;handleTap(board,id,el);};
+    function cleanup(){clearTimeout(lp);el.removeEventListener("pointermove",move);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",cleanup);}
+    el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",cleanup);
+  }
+  function handleTap(board,id,el){
+    const key=board+"::"+id, now=Date.now();
+    if(lastTap.key===key&&now-lastTap.t<300){clearTimeout(tapTimer);lastTap={key:null,t:0};setTimeout(()=>openCardExpand(board,id,el),0);return;}
+    lastTap={key,t:now};clearTimeout(tapTimer);
+    tapTimer=setTimeout(()=>{if(lastTap.key===key){lastTap={key:null,t:0};openCardPreview(board,id,el);}},260);
+  }
+
+  function openCardMenu(x,y,board,id,anchorEl){
+    document.querySelector(".card-menu")?.remove();
+    const items=[["open","Open"],["preview","Preview"],["status","Status"],["color","Color"],["dup","Duplicate"],["trash","Trash"]];
+    const m=document.createElement("div");m.className="card-menu";m.setAttribute("role","menu");
+    m.innerHTML=items.map(([k,l])=>`<button type="button" data-k="${k}" role="menuitem">${l}</button>`).join("");
+    document.body.append(m);
+    const w=m.offsetWidth,h=m.offsetHeight;
+    m.style.left=Math.max(8,Math.min(x,innerWidth-w-8))+"px";
+    m.style.top=Math.max(8,Math.min(y,innerHeight-h-8))+"px";
+    const close=()=>m.remove();
+    m.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{const k=b.dataset.k;close();
+      if(k==="open")openCardExpand(board,id,anchorEl);
+      else if(k==="preview")openCardPreview(board,id,anchorEl);
+      else if(k==="status")showStatusMenu($("[data-kstatus]",anchorEl)||anchorEl||document.body,board,id);
+      else if(k==="color"){const r=(anchorEl||m).getBoundingClientRect();showColorMenu(r.left,r.bottom,board,id);}
+      else if(k==="dup")duplicateCard(board,id);
+      else if(k==="trash")archiveCard(board,id);
+    });
+    setTimeout(()=>document.addEventListener("pointerdown",function h(e){if(!m.contains(e.target)){close();document.removeEventListener("pointerdown",h);}}),0);
+  }
+
+  /* Read-only preview (single tap). Full editing is the opened card (double tap / Open). */
+  function openCardPreview(board,id,anchor){
+    closeCardPop();
+    const c=cards(board).find(x=>String(x.id)===String(id)); if(!c)return;
+    const status=normStatus(c.statusColor), lin=normLineage(c.lineage), dev=(c.dev||"").trim(), live=(c.live||"").trim();
+    const chips=[c.platform?`<span class="chip kc-plat">${esc(c.platform)}</span>`:"",(c.lineage&&lin!=="base")?`<span class="chip kc-lin">${esc(lin)}</span>`:"",...(c.tags||[]).map(t=>`<span class="chip kc-tag">${esc(t)}</span>`)].filter(Boolean).join("");
+    const files=(Array.isArray(c.files)?c.files:[]).map(f=>{const nm=esc(f?.name||"attachment");return (typeof f?.data==="string"&&f.data)?`<li class="attachment-item"><a class="attachment-link" href="${f.data}" download="${nm}" target="_blank" rel="noopener">${nm}</a></li>`:`<li class="attachment-item"><span class="attachment-name">${nm}</span></li>`;}).join("");
+    const scrim=document.createElement("div");scrim.className="card-scrim";
+    const pop=document.createElement("div");pop.className="card-pop preview";pop.style.setProperty("--ribbon",c.cardColor||STATUS_MAP[status]);
+    pop.innerHTML=`<div class="cp-head"><span class="kc-status" title="Status: ${esc(status)}"><span class="kc-dot" style="background:${esc(STATUS_MAP[status])}"></span></span><span class="cp-title">${esc(c.title||"(untitled)")}</span><button class="cp-x" type="button" data-x aria-label="Close">×</button></div>`+
+      (chips?`<div class="kc-tags">${chips}</div>`:"")+
+      ((dev||live)?`<div class="cp-links">${dev?`<a href="${esc(normUrlKC(dev))}" target="_blank" rel="noopener">Dev ↗</a>`:""}${live?`<a href="${esc(normUrlKC(live))}" target="_blank" rel="noopener">Live ↗</a>`:""}</div>`:"")+
+      `<div class="cp-updated">Updated ${esc(fmtDate(c.updatedAt))||"—"}</div>`+
+      (c.notes?`<div class="note-prev">${renderMd(c.notes)}</div>`:"")+
+      (files?`<ul class="attachment-list">${files}</ul>`:"")+
+      `<div class="cp-actions"><button class="btn primary" type="button" data-open>Open</button><button class="btn" type="button" data-menu>Actions</button></div>`;
+    document.body.append(scrim,pop);
+    positionPop(pop,anchor);
+    const close=after=>{scrim.remove();pop.remove();document.removeEventListener("keydown",onKey);if(after)after();};
+    const onKey=e=>{if(e.key==="Escape"){e.preventDefault();close();}};
+    document.addEventListener("keydown",onKey);
+    scrim.onclick=()=>close();
+    $("[data-x]",pop).onclick=()=>close();
+    $("[data-open]",pop).onclick=()=>close(()=>openCardExpand(board,id,anchor));
+    $("[data-menu]",pop).onclick=()=>{const r=pop.getBoundingClientRect();close(()=>openCardMenu(r.left+12,r.top+12,board,id,anchor));};
+  }
+
+  /* Drag is initiated from the card handle only (frees tap/double-tap/long-press on the
+     body). Begins immediately; a no-move release is a no-op. Drops into a matrix cell,
+     a lane, or another board row. */
   function startCardDrag(e,el,board,id){
     if(e.button&&e.button!==0)return;
-    if(e.target.closest(CARD_CTRL_SEL))return;
-    const isTouch=e.pointerType!=='mouse',sx=e.clientX,sy=e.clientY,pid=e.pointerId;
-    let mode=0,moved=false,ghost=null,over=null,timer=0;
-    const setOver=t=>{if(t!==over){over&&over.classList.remove('over');over=t;t&&t.classList.add('over');}};
-    const begin=()=>{mode=1;try{el.setPointerCapture(pid)}catch{}drag={board,id};el.classList.add('selected');ghost=document.createElement('div');ghost.className='axis-ghost';ghost.textContent=(cards(board).find(c=>String(c.id)===String(id))||{}).title||'card';document.body.append(ghost);ghost.style.left=sx+'px';ghost.style.top=sy+'px';};
-    if(isTouch)timer=setTimeout(()=>{if(!moved)begin();},300);
-    const cleanup=()=>{clearTimeout(timer);dragScrollStop();el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',cancelFn);};
-    const move=ev=>{
-      const dist=Math.hypot(ev.clientX-sx,ev.clientY-sy);
-      if(mode!==1){if(isTouch){if(dist>10){moved=true;clearTimeout(timer);}}else if(dist>6){begin();}if(mode!==1)return;}
-      ev.preventDefault();
-      ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
+    const pid=e.pointerId,sx=e.clientX,sy=e.clientY;let over=null,moved=false;
+    try{el.setPointerCapture(pid)}catch{}
+    drag={board,id};el.classList.add("selected");
+    const ghost=document.createElement("div");ghost.className="axis-ghost";ghost.textContent=(cards(board).find(c=>String(c.id)===String(id))||{}).title||"card";document.body.append(ghost);ghost.style.left=sx+"px";ghost.style.top=sy+"px";
+    const setOver=t=>{if(t!==over){over&&over.classList.remove("over");over=t;t&&t.classList.add("over");}};
+    const cleanup=()=>{dragScrollStop();el.removeEventListener("pointermove",move);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",cancelFn);};
+    const move=ev=>{ev.preventDefault();if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>4)moved=true;ghost.style.left=ev.clientX+"px";ghost.style.top=ev.clientY+"px";const cont=dropContainer(el),under=document.elementFromPoint(ev.clientX,ev.clientY);setOver(cont&&under?under.closest(cont.__dropSel):null);dragScrollTo(ev.clientX,ev.clientY);};
+    const up=ev=>{cleanup();try{el.releasePointerCapture(pid)}catch{}ghost.remove();el.classList.remove("selected");over&&over.classList.remove("over");
+      if(!moved){drag=null;return;}
       const cont=dropContainer(el),under=document.elementFromPoint(ev.clientX,ev.clientY);
-      setOver(cont&&under?under.closest(cont.__dropSel):null);
-      dragScrollTo(ev.clientX,ev.clientY);
-    };
-    const up=ev=>{
-      cleanup();
-      if(mode===1){try{el.releasePointerCapture(pid)}catch{}ghost&&ghost.remove();el.classList.remove('selected');over&&over.classList.remove('over');
-        const cont=dropContainer(el),under=document.elementFromPoint(ev.clientX,ev.clientY);
-        const cell=cont&&under?under.closest(cont.__dropSel):null,bDrop=under?under.closest('[data-board-drop]'):null;
-        if(cell&&cont.__dropFn)cont.__dropFn(cell,{board,id});
-        else if(bDrop&&bDrop.dataset.boardDrop!==board){transferCard(board,bDrop.dataset.boardDrop,id,stages(bDrop.dataset.boardDrop)[0]||'Backlog');state.manageBoard=bDrop.dataset.boardDrop;renderBuilder();}
-        drag=null;
-      }else if(!moved){setTimeout(()=>openCardExpand(board,id,el),0);}
-    };
-    const cancelFn=()=>{cleanup();if(mode===1){ghost&&ghost.remove();el.classList.remove('selected');over&&over.classList.remove('over');drag=null;}};
-    el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',cancelFn);
+      const cell=cont&&under?under.closest(cont.__dropSel):null,bDrop=under?under.closest("[data-board-drop]"):null;
+      if(cell&&cont.__dropFn)cont.__dropFn(cell,{board,id});
+      else if(bDrop&&bDrop.dataset.boardDrop!==board){transferCard(board,bDrop.dataset.boardDrop,id,stages(bDrop.dataset.boardDrop)[0]||"Backlog");state.manageBoard=bDrop.dataset.boardDrop;renderBuilder();}
+      drag=null;};
+    const cancelFn=()=>{cleanup();try{el.releasePointerCapture(pid)}catch{}ghost.remove();el.classList.remove("selected");over&&over.classList.remove("over");drag=null;};
+    el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",cancelFn);
   }
 
   function duplicateCard(board,id){
