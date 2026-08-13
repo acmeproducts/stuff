@@ -6625,16 +6625,46 @@ var FLAG_CSS =
   '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;' +
     'line-height:1.35;color:var(--ink);padding:14px;text-align:center}' +
 
-  /* The panel-heading treatment — 72px, square bottom, behind the drawer title
-     AND the tabs, which is the top strip of the room drawer. The tabs keep
-     their own border so the strip still reads as a heading. */
-  '.drawer-head{position:relative;border-radius:18px 18px 0 0;overflow:hidden;' +
-    'min-height:72px;align-items:center}' +
-  '.drawer-head::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
-  '.drawer-head>*{position:relative}' +
-  '.drawer-tabs{position:relative;overflow:hidden}' +
-  '.drawer-tabs::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
-  '.drawer-tabs>*{position:relative}' +
+  /* THE PANEL HEADING — ONE BAND, NOT A GRID.
+
+     `cover` on a 118px strip shrinks the whole 6x3 artwork to fit, giving six
+     columns of tiny rectangles across the top. That is what read as tiling.
+     Zooming to 300% of the strip height shows roughly two flags across and a
+     single row — a banner rather than a grid.
+
+     One ::before on the drawer itself spans the title AND the tabs, so it is a
+     single continuous image. Two separate ::before layers each cropped their
+     own portion, which looked disjointed where they met. */
+  '.drawer{position:relative}' +
+  '.drawer::before{content:"";position:absolute;top:0;left:0;right:0;height:118px;' +
+    'border-radius:18px 18px 0 0;overflow:hidden;z-index:0;pointer-events:none;' +
+    'background-image:' + FLAG_LAYERS + ';' +
+    'background-size:auto 300%;' +
+    'background-position:center;' +
+    'background-repeat:no-repeat;' +
+    'opacity:.5}' +
+  '.drawer-head{position:relative;z-index:1;min-height:72px;align-items:center}' +
+  '.drawer-tabs{position:relative;z-index:1}' +
+
+  /* Text on the branding needs to be darker than text on plain white. The tab
+     labels are #9A9592, which measures 2.76:1 against the branded strip --
+     below the 4.5:1 needed to read comfortably. Full ink at reduced weight
+     measures 5.22:1 and keeps the hierarchy against the active teal tab. */
+  '.drawer-tabs .drawer-tab{color:var(--ink);opacity:.65}' +
+  '.drawer-tabs .drawer-tab.active{color:var(--teal);opacity:1}' +
+  '.drawer-head .drawer-title{color:var(--ink)}' +
+
+  /* THE HOME SCREEN BODY. Not a strip and not a card — the artwork is the
+     background of the whole screen, starting below the ribbon so the top row
+     is not occluded, and `contain` so the entire grid fits rather than being
+     cropped. */
+  '#scr-s1{position:relative}' +
+  '#scr-s1::before{content:"";position:fixed;top:56px;left:0;right:0;bottom:0;' +
+    'z-index:0;pointer-events:none;' + FLAG_PAINT_TALL + '}' +
+  '#scr-s1>*{position:relative;z-index:1}' +
+  /* The band inside the welcome block is redundant once the body carries the
+     artwork, and doubling it would darken that patch. */
+  '#scr-s1 .flagband{display:none}'
   /* The tab labels are #9A9592 — a mid grey chosen for a plain white panel.
      Over artwork, however faint, it has almost no contrast and the labels wash
      out. Text that sits on the branding needs to be darker than text that sits
@@ -7304,15 +7334,45 @@ function applyMenuLabels() {
     var n = 0;
     for (var id in MENU_LABEL) {
       if (!MENU_LABEL.hasOwnProperty(id)) continue;
-      var row = $(id);
+
+      /* `s4b-ear` and friends are the BUTTON, not the row. The label lives in
+         a sibling span, and inside that span it is a bare TEXT NODE followed
+         by the nested ⓘ tooltip:
+
+           <div class="toggle-row">
+             <span>Ear<span class="info-ic">ⓘ<span class="info-pop">…</span></span></span>
+             <button id="s4b-ear">…</button>
+           </div>
+
+         So the row is reached by walking up from the button, and only the
+         first text node is rewritten — setting textContent on the span would
+         delete the tooltip with it. */
+      var btn = $(id);
+      if (!btn) continue;
+      var row = btn.parentNode;
       if (!row || !row.querySelector) continue;
       var span = row.querySelector('span');
       if (!span) continue;
-      if (span.textContent === MENU_LABEL[id]) { n++; continue; }
-      span.textContent = MENU_LABEL[id];
-      n++;
+
+      var replaced = false;
+      var kids = span.childNodes || [];
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k].nodeType === 3) {          /* the label text itself */
+          kids[k].nodeValue = MENU_LABEL[id];
+          replaced = true;
+          break;
+        }
+      }
+      /* No text node found — insert one rather than clobbering the tooltip. */
+      if (!replaced) {
+        try {
+          span.insertBefore(document.createTextNode(MENU_LABEL[id]), span.firstChild);
+          replaced = true;
+        } catch (_) {}
+      }
+      if (replaced) { n++; try { btn.setAttribute('aria-label', MENU_LABEL[id]); } catch (_) {} }
     }
-    r8Log('menu_labels', { applied: n }, 'ok');
+    r8Log('menu_labels', { applied: n, of: 3 }, n === 3 ? 'ok' : 'warn');
     return n;
   } catch (e) { r8Log('menu_labels_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
 }
