@@ -109,6 +109,9 @@ Status: `pending` (agreed, not started) · `wip` · `closed`. Last updated per r
 | OI-5 | F1 cross-board project view — for discussion | pending | 2026-08-13 |
 | OI-6 | Data cleanup: one card has `statusColor:"Unassigned"` (fallback string persisted) | pending | 2026-08-13 |
 | OI-7 | R1–R4 shipped and merged | closed | 2026-08-13 |
+| OI-8 | PAT validation + debug log + visible save errors | closed | 2026-08-13 |
+| OI-9 | Card = exact kanban.html look & feel | closed | 2026-08-13 |
+| OI-10 | Explicit matrix management + tags as an axis | closed | 2026-08-13 |
 
 ---
 
@@ -137,6 +140,20 @@ Handle = drag · 1 tap = preview · 2 taps = open full · long-press (mobile) / 
 
 ### 9.5 Omni search (locked)
 Searches everything, excludes nothing, and filters the active matrix.
+
+### 9.5a Card fidelity (LOCKED)
+The card is the **EXACT look and feel of `kanban.html`** — its collapsed card and its
+inline card-detail editor (grid, Platform/Lane/Lineage pulldowns, inline tag editor with
+history, live Markdown notes preview, attachments), using kanban's own CSS/colors.
+Deviation is allowed ONLY where a matrix cell physically cannot fit it: the collapsed card
+renders compact in a cell, and the full detail opens in a panel — the detail itself stays
+kanban-exact.
+
+### 9.5b Deliverable = a complete, working app (LOCKED)
+What is submitted for test is a **whole, working application**. Development may be staged
+internally, but a partial or broken build is never handed over for testing. A build with a
+non-functional GitHub/PAT path, a silent failure, or a missing core surface is a FAIL, not
+a tweak. Persistence failures must be visible (banner + debug log), never silent.
 
 ### 9.6 Development process
 - Work on branch `claude/program-kanban-matrix-ui-axr3l6`. **Rebase on latest `main` before
@@ -187,6 +204,16 @@ quietly as an area is already being changed — never as a standalone risky swee
 ---
 
 ## 12 · CHANGE LOG
+
+**v1.2.0 · 2026-08-13.** Recovery after a failed R5 delivery (owner: "amateur … a FAIL").
+Three fixes shipped as one complete, tested app: (1) **PAT actually validates** on Config
+(GET /user) with Test-connection, a persistent error banner on all screen sizes, and a
+debug-log panel — no more silent GitHub/matrix save failures; (2) **card = exact
+kanban.html** look & feel (collapsed card + inline detail editor, kanban CSS), opening
+inline in lanes and in a panel in the matrix; (3) **explicit matrix management** (New/Save/
+rename/delete) and **tags usable as an axis** (per-board tag subset picker, single
+placement — no duplicate cards). Added locked immutables 9.5a (card fidelity) and 9.5b
+(complete-app deliverable). Verified headless desktop + phone, zero page errors.
 
 **v1.1.0 · 2026-08-13.** R5 shipped (PR #625): context-aware card + gesture model.
 Drag moved to a card handle; single tap = read-only preview, double tap = open full,
