@@ -6625,16 +6625,9 @@ var FLAG_CSS =
   '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;' +
     'line-height:1.35;color:var(--ink);padding:14px;text-align:center}' +
 
-  /* THE ROOM MENU CARRIES NO FLAG MOTIF — de-scoped by the owner 2026-08-13.
-     Three attempts at a heading band each damaged the drawer: shrinking the
-     6x3 artwork into a 118px strip read as tiling, and repositioning the head
-     and tabs to sit above it broke the layout outright. The room menu keeps
-     its plain panel. The motif lives on the home screen and the ask cards
-     only. */
-
-  /* No tab contrast override: those rules existed only to compensate for
-     artwork behind the tabs, which is now de-scoped. The panel is plain white
-     and the base colours are correct on it. */
+  /* DE-SCOPED by the owner: the room menu carries no flag motif. Every attempt
+     either washed out the tab labels or shrank the artwork into a grid of tiny
+     rectangles. The drawer keeps its plain panel. */
 
   /* THE HOME SCREEN BODY. Not a strip and not a card — the artwork is the
      background of the whole screen, starting below the ribbon so the top row
@@ -6647,7 +6640,12 @@ var FLAG_CSS =
   /* The band inside the welcome block is redundant once the body carries the
      artwork, and doubling it would darken that patch. */
   '#scr-s1 .flagband{display:none}'
-  /* No drawer rules in this release — the room menu is de-scoped. */
+  /* The tab labels are #9A9592 — a mid grey chosen for a plain white panel.
+     Over artwork, however faint, it has almost no contrast and the labels wash
+     out. Text that sits on the branding needs to be darker than text that sits
+     on white, so the inactive tabs move to the full ink colour at reduced
+     weight: same visual hierarchy against the active teal tab, but legible.
+     The title gets the same treatment. */
 
   /* THE HOME SCREEN BODY. Not a strip and not a card — the artwork is the
      background of the whole screen, with the room cards and the welcome text
@@ -7309,18 +7307,18 @@ function applyMenuLabels() {
     for (var id in MENU_LABEL) {
       if (!MENU_LABEL.hasOwnProperty(id)) continue;
 
-      /* `s4b-ear` and friends are the BUTTON, not the row. The label lives in
-         a sibling span, and inside that span it is a bare TEXT NODE followed
-         by the nested ⓘ tooltip:
+      /* `s4b-ear` is the BUTTON, not the row. The label is a bare TEXT NODE in
+         a sibling span, with the tooltip nested after it:
 
            <div class="toggle-row">
-             <span>Ear<span class="info-ic">ⓘ<span class="info-pop">…</span></span></span>
-             <button id="s4b-ear">…</button>
+             <span>Ear<span class="info-ic">i<span class="info-pop">...</span></span></span>
+             <button id="s4b-ear">...svg...</button>
            </div>
 
-         So the row is reached by walking up from the button, and only the
-         first text node is rewritten — setting textContent on the span would
-         delete the tooltip with it. */
+         An earlier version looked for a span INSIDE the button, found nothing,
+         and silently changed no labels at all while its test passed against an
+         invented structure. Only the first text node is rewritten — setting
+         textContent on the span would delete the tooltip with it. */
       var btn = $(id);
       if (!btn) continue;
       var row = btn.parentNode;
@@ -7328,23 +7326,15 @@ function applyMenuLabels() {
       var span = row.querySelector('span');
       if (!span) continue;
 
-      var replaced = false;
       var kids = span.childNodes || [];
       for (var k = 0; k < kids.length; k++) {
-        if (kids[k].nodeType === 3) {          /* the label text itself */
+        if (kids[k].nodeType === 3) {
           kids[k].nodeValue = MENU_LABEL[id];
-          replaced = true;
+          n++;
+          try { btn.setAttribute('aria-label', MENU_LABEL[id]); } catch (_) {}
           break;
         }
       }
-      /* No text node found — insert one rather than clobbering the tooltip. */
-      if (!replaced) {
-        try {
-          span.insertBefore(document.createTextNode(MENU_LABEL[id]), span.firstChild);
-          replaced = true;
-        } catch (_) {}
-      }
-      if (replaced) { n++; try { btn.setAttribute('aria-label', MENU_LABEL[id]); } catch (_) {} }
     }
     r8Log('menu_labels', { applied: n, of: 3 }, n === 3 ? 'ok' : 'warn');
     return n;
@@ -7386,6 +7376,10 @@ if (typeof document !== 'undefined') {
       r8Log('icons_installed', {}, 'ok');
     } catch (e) { r8Log('icon_init_failed', { e: String(e && e.message || e) }, 'error'); }
   }, 500);
+
+  /* The room menu panes are built after load, so a single early pass can find
+     nothing. Rewriting the same text twice costs nothing. */
+  setTimeout(function () { try { applyMenuLabels(); applyMenuIcons(); } catch (_) {} }, 2000);
 }
 
 </script>
