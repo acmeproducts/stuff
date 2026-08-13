@@ -1,7 +1,7 @@
-<!-- v5.8.2.40 -->
+<!-- v5.8.2.41 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.7 | 2026-08-11 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.8 | 2026-08-13 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -670,3 +670,45 @@ what the code does, but does not question whether replacing was permissible at
 all. A part declaring `replaces` on a function another part owns should fail
 the build, which would have caught this at the moment it was written rather
 than three releases later on the owner's device.
+
+## Flag branding on the home screen body — TWO FAILURES · Aug 13 2026
+
+Rolled back to `bridge-turn24-base.html`. Both failures measured, not inferred.
+
+**1. `background-size:cover` on a full-height surface magnifies the artwork
+until it stops being a motif.** The source is a 770x284 horizontal strip of
+eleven flags. `cover` scales to fill the LONGEST axis, which on a phone is the
+height, not the width:
+
+| viewport | scale | artwork renders | one flag becomes |
+|---|---|---|---|
+| 310x832 (reported) | 2.93x | 2256x832 | 205px wide |
+| 390x700 (iPhone) | 2.46x | 1898x700 | 173px wide |
+| 360x640 (Android) | 2.25x | 1735x640 | 158px wide |
+
+At that magnification two or three flags fill the whole screen as giant colour
+blocks. The reference in `test.html` uses `cover` on a 108px card — a short,
+wide surface where it crops sensibly. Carrying the same value onto a
+full-height body was the error; the value was copied without checking that the
+surface it was copied to had the same shape.
+
+**2. `flags.gif` does not exist and 404s on every load.** Confirmed against the
+repo: `flags.png` is present at 39,596 bytes, `flags.gif` is absent. The layer
+stack requests the `.gif` first and falls through to the `.png`, so nothing
+looks broken and the console error was reported repeatedly without being
+believed.
+
+**Process failure alongside the technical one.** These were patched forward
+onto a baseline four times in succession — cards, then the drawer, then the top
+strip, then the body, then tab contrast — each pushed to the owner's device
+without a plan and without approval. The owner had to stop it. Nothing further
+goes to a deployed file in this area without a written proposal approved first.
+
+**Proposed, awaiting approval, NOT applied:**
+- Home screen body: `background-size:100% auto` with `background-repeat:repeat-y`,
+  so the strip renders at its natural aspect across the width and tiles down.
+  Each flag stays legible at every width (310–428px tested).
+- Remove the `flags.gif` layer entirely; it ends the 404 and changes nothing
+  visually. The layer can return if an animated asset is ever added.
+- Cards (108px) and the drawer strip (72px) keep `cover` — short, wide surfaces
+  where it behaves correctly. The failure is specific to full-height bodies.
