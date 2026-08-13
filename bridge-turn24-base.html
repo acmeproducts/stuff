@@ -316,6 +316,14 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 #chat-clear-x.show{display:block}
 #chat-input{overflow-y:hidden;width:100%}
 </style>
+<link rel="manifest" href="tb-manifest.webmanifest">
+<meta name="theme-color" content="#2E8B8B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TalkBridge">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png" type="image/png">
 </head>
 <body>
 <div id="app">
@@ -6045,6 +6053,205 @@ function sendReadReceipts() {
     var r = _sHandleRelay.apply(this, arguments);
     try { sendReadReceipts(); } catch (_) {}
     return r;
+  };
+})();
+
+
+/* ═══════════ GAP PART · RB-ribbon.js ═══════════ */
+/* @contract
+   adds: RIBBON, ribLog, RIBBON_CSS, buildRibbonLayout
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 8 BASE · THE RIBBON, AND NOTHING ELSE
+
+   WHY RESTORING THE OLD GEOMETRY FAILED. Copying the previously-approved
+   ribbon back in occluded the partner's name. Not a transcription error — the
+   geometry was always marginal, and what had been approved was the ICON
+   spacing, not the name. Measured:
+
+     the idle cluster is mic + camera + phone + video with 14px gaps, and the
+     camera slot is `visibility:hidden` — which hides it but still occupies its
+     full 34px plus a 14px gap. 48px taken from the name for a control that is
+     not on screen.
+
+     at 360px the name got 39px · at 390px it got 54px · "Iphone" needs ~55px
+
+   So it looked right on a large phone and clipped on a normal one.
+
+   THREE CHANGES:
+
+   1. The camera slot COLLAPSES when it is not a video call — `display:none`,
+      not `visibility:hidden`. Space a hidden control does not need goes back
+      to the name.
+
+   2. The gap tightens from 14px to 6px. Measured off the device, the video
+      icon sat 7.6px from the room menu while the icons themselves were 59px
+      apart. Tightening pulls the cluster in without moving the microphone.
+
+   3. The cluster is pinned so the MICROPHONE — not the cluster's midpoint —
+      lands on the transcript's centre line. The bubble grid is
+      `meWidth fr | 1px | pnWidth fr`, both defaulting to 75, so the divider is
+      exactly 50%. The mic's centre is half a slot (17px) from the cluster's
+      left edge, so the cluster shifts left by exactly that. Centring the
+      cluster instead leaves the mic 48px short of the line.
+
+   Absolute positioning is what makes (3) hold: the midpoint becomes a function
+   of the ribbon's own width and cannot be pushed by the name on one side or
+   the room menu on the other. Every flex and grid arrangement tried before let
+   a sibling move it.
+
+   The name is capped in `vw`, never a percentage. A percentage resolves
+   against the containing block, and with the cluster out of flow that block is
+   nearly the whole ribbon — so 50% of it is not 50% of the screen. That
+   mistake drove the budget negative once and rendered the name blank.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var RIBBON = { built: false };
+
+function ribLog(what, data, level) {
+  try { log('rib_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+/* @affects .ribbon 2
+   `.ribbon` matches the room ribbon and the home screen's, which holds only a
+   hamburger. Every rule below is scoped to #room-ribbon precisely so the home
+   screen is untouched — styling the bare class is what broke it before. */
+var RIBBON_CSS =
+  '#room-ribbon{position:relative;' +
+    /* viewport-fit=cover puts the app under the notch and home indicator, and
+       nothing reserved the safe area that requires. env() is 0 where it is not
+       defined, so this is inert everywhere else. */
+    'padding-left:max(12px,env(safe-area-inset-left));' +
+    'padding-right:max(12px,env(safe-area-inset-right))}' +
+
+  /* THE MICROPHONE ON THE CENTRE LINE. Out of flow, so no sibling can move it.
+     Shifted left by half a slot so the mic, not the cluster, sits on 50%. */
+  '#room-ribbon .rz-center{position:absolute;left:50%;transform:translateX(-17px);' +
+    'display:flex;align-items:center;gap:6px}' +
+
+  /* The name stops short of the cluster. Derived, not guessed: half the widest
+     cluster (57) + ribbon padding (12) + breathing room (10) = 79. */
+  '#room-ribbon .rz-left{min-width:0;max-width:calc(50vw - 79px);' +
+    'display:flex;align-items:center;gap:6px;overflow:hidden}' +
+  '#room-ribbon .rz-right{min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
+  '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
+
+  /* The ellipsis belongs on the TEXT, not the wrapper — the wrapper also holds
+     the presence dot, so capping it clips the name mid-glyph instead. */
+  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;white-space:nowrap}' +
+  '#room-ribbon #room-head-title{display:block;min-width:0;overflow:hidden;' +
+    'text-overflow:ellipsis;white-space:nowrap}' +
+
+  /* The call buttons once relocated into the centre. */
+  '#room-ribbon .rz-center .rz-callbtn{background:none;border:none;cursor:pointer;line-height:0;' +
+    'color:var(--ink-mid);padding:0;display:flex;align-items:center;justify-content:center;' +
+    'width:34px;flex-shrink:0}' +
+
+  /* THE 48px THE NAME WAS LOSING. display:none, not visibility:hidden — a
+     control that is not on screen must not hold its place. */
+  '#room-ribbon .rz-slot.cam-slot{display:none}' +
+  '#scr-room.st-video #room-ribbon .rz-slot.cam-slot{display:flex;visibility:visible}' +
+
+  /* During a call the phone and video go, and the hang-up appears. */
+  '#scr-room.st-phone #room-ribbon .rz-center #btn-call,' +
+  '#scr-room.st-phone #room-ribbon .rz-center #btn-video,' +
+  '#scr-room.st-video #room-ribbon .rz-center #btn-call,' +
+  '#scr-room.st-video #room-ribbon .rz-center #btn-video{display:none}' +
+  '#room-ribbon .rz-center #rb-hangup{display:none}' +
+  '#scr-room.st-phone #room-ribbon .rz-center #rb-hangup,' +
+  '#scr-room.st-video #room-ribbon .rz-center #rb-hangup{display:flex}' +
+
+  '#room-ribbon .rz-timer{display:none}' +
+  '#scr-room.st-phone #room-ribbon .rz-timer,' +
+  '#scr-room.st-video #room-ribbon .rz-timer{display:inline}';
+
+/* Relocates the call controls into the centre cluster, in fixed order.
+   Completion is judged by what actually moved rather than by having been
+   called: a control that has not rendered yet needs retrying, and latching
+   "built" on a partial pass orphans it permanently. */
+function buildRibbonLayout() {
+  try {
+    if (RIBBON.built) return true;
+    var centre = document.querySelector('#room-ribbon .rz-center');
+    if (!centre || !centre.appendChild) { ribLog('no_centre', {}, 'warn'); return false; }
+
+    var ids = ['btn-call', 'btn-video', 'rb-hangup'];
+    var moved = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      if (!el) { ribLog('missing_control', { id: ids[i] }, 'warn'); continue; }
+      if (ids[i] !== 'rb-hangup') el.classList.add('rz-callbtn');
+      centre.appendChild(el);
+      moved++;
+    }
+
+    RIBBON.built = (moved === ids.length);
+    ribLog('layout_built', { moved: moved, of: ids.length }, RIBBON.built ? 'ok' : 'warn');
+    return RIBBON.built;
+  } catch (e) { ribLog('layout_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+if (typeof document !== 'undefined') {
+  try {
+    var ribStyle = document.createElement('style');
+    ribStyle.textContent = RIBBON_CSS;
+    document.head.appendChild(ribStyle);
+  } catch (e) { ribLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  setTimeout(function () { try { buildRibbonLayout(); } catch (_) {} }, 900);
+}
+
+
+/* ═══════════ GAP PART · RC-dismiss-fix.js ═══════════ */
+/* @contract
+   wraps: clearWaiting
+   adds: R8, r8Log, _r8ClearWaiting
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 8 BASE · THE ROOM-CARD ANOMALY
+
+   `dismissHome` records the waiting COUNT at the moment a card is dismissed,
+   and `homeCards` shows a card only when the total EXCEEDS it. Entering a room
+   clears the count to zero but left the threshold behind — so the next N
+   events raised nothing at all. That is the reported symptom: a chat or a call
+   doing nothing, then something later "unsticking" it by pushing the total
+   past a threshold that should no longer have existed.
+
+   Byte-identical from Release 1 to today, so not a regression. Reachable only
+   by tapping a card on the HOME screen — entering the same room from the left
+   panel never sets a threshold. Stored per room, so with several rooms active
+   only the tapped one goes quiet while the others behave, which is why a
+   single-room test is what finally made it legible.
+
+   Wrapped, never replaced: the room-card part owns `clearWaiting` and is
+   compiled into the baseline, so the threshold is dropped after the original
+   has run.
+
+   The threshold still does its real job — a card deliberately dismissed stays
+   dismissed while its count stands. Only the stale-after-clear case changes.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var R8 = { version: 'r8-base' };
+
+function r8Log(what, data, level) {
+  try { log('r8_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+(function () {
+  var _r8ClearWaiting = clearWaiting;
+  clearWaiting = function (r) {
+    var out = _r8ClearWaiting.apply(this, arguments);
+    try {
+      if (r && r.id) {
+        var m = homeDismissed();
+        if (m && typeof m[r.id] === 'number') {
+          delete m[r.id];
+          saveHomeDismissed(m);
+          r8Log('dismiss_threshold_reset', { room: r.id }, 'ok');
+        }
+      }
+    } catch (e) { r8Log('dismiss_reset_failed', { e: String(e && e.message || e) }, 'error'); }
+    return out;
   };
 })();
 
