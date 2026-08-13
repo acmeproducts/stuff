@@ -4384,6 +4384,27 @@ function clearWaiting(r) {
   var before = waitingTotal(r);
   r.waiting = { chat: 0, voice: 0, video: 0 };
   r.unread = 0;
+
+  /* THE THRESHOLD MUST GO WITH THE COUNT. dismissHome records the total at the
+     moment of dismissal — say 3 — and homeCards then shows a card only when the
+     total EXCEEDS it. Clearing the count to zero while leaving the threshold at
+     3 makes the next three events invisible: chat 1, 2 and 3 raise nothing, and
+     only the fourth appears. That is precisely the reported symptom — a call
+     or chat doing nothing, then something later "unsticking" it, because it
+     pushed the total past a threshold that should no longer have existed.
+
+     The threshold exists to stop a card the person already dismissed from
+     reappearing unchanged. Once the count is zero there is nothing to
+     suppress, so the threshold is meaningless and must be dropped. */
+  try {
+    var m = homeDismissed();
+    if (m && typeof m[r.id] === 'number') {
+      delete m[r.id];
+      saveHomeDismissed(m);
+      rcLog('dismiss_threshold_reset', { room: r.id }, 'ok');
+    }
+  } catch (e) { rcLog('dismiss_reset_failed', { e: String(e && e.message || e) }, 'error'); }
+
   if (before) rcLog('waiting_cleared', { room: r.id, was: before }, 'ok');
 }
 
@@ -4466,7 +4487,8 @@ function wireRoomCards(host) {
       } catch (e) { rcLog('card_tap_failed', { room: id, e: String(e && e.message || e) }, 'error'); }
     });
   });
-  host.querySelectorAll('[data-del]').forEach(function (el) {
+  var _n_el = host.querySelectorAll('[data-del]');
+  for (var _i_el = 0; _i_el < _n_el.length; _i_el++) (function (el) {
     el.addEventListener('click', function (ev) {
       ev.stopPropagation();
       try {
@@ -4477,7 +4499,7 @@ function wireRoomCards(host) {
         renderPanel();
       } catch (e) { rcLog('room_delete_failed', { e: String(e && e.message || e) }, 'error'); }
     });
-  });
+  })(_n_el[_i_el]);
   return cards.length;
 }
 
@@ -4589,20 +4611,22 @@ function renderPanel() {
 
     var wired = wireRoomCards(body);
 
-    body.querySelectorAll('[data-restore]').forEach(function (el) {
+    var _n_el = body.querySelectorAll('[data-restore]');
+  for (var _i_res = 0; _i_res < _n_el.length; _i_res++) (function (el) {
       el.addEventListener('click', function () {
         var r = roomById(el.dataset.restore);
         if (r) { delete r.deletedAt; saveRooms(); rcLog('room_restored', { room: r.id }, 'ok'); renderPanel(); }
       });
-    });
-    body.querySelectorAll('[data-harddel]').forEach(function (el) {
+    })(_n_el[_i_res]);
+    var _n_hd = body.querySelectorAll('[data-harddel]');
+    for (var _i_hd = 0; _i_hd < _n_hd.length; _i_hd++) (function (el) {
       el.addEventListener('click', function () {
         var r = roomById(el.dataset.harddel); if (!r) return;
         S.rooms = S.rooms.filter(function (x) { return x.id !== r.id; });
         try { localStorage.removeItem(trKey(r.id)); } catch (_) {}
         saveRooms(); rcLog('room_hard_deleted', { room: r.id }, 'ok'); renderPanel();
       });
-    });
+    })(_n_hd[_i_hd]);
     var bh = $('bin-head');
     if (bh) bh.addEventListener('click', function () {
       renderPanel._binOpen = !renderPanel._binOpen;
@@ -4934,6 +4958,10 @@ function enforceGrantExpiry() {
 
 /* Capability: either set of credentials will do. Replaced rather than wrapped
    because the answer itself changes. */
+/* @supersedes hasOwnCredentials from J-joiner-shell.js
+   J answers "does this device have its own key". Elevation adds a second way
+   to be credentialled — a live grant — so the question itself changed. Wrapping
+   cannot express that: the answer is true in cases where J's is false. */
 function hasOwnCredentials() {
   try {
     if ((localStorage.getItem('tb_dg_key') || '').trim()) return true;
@@ -5195,6 +5223,9 @@ function onLifecycleSignal(roomId, d) {
 })();
 
 /* Delete and restore carry lifecycle meaning rather than only a timestamp. */
+/* @supersedes wireRoomCards from R-room-card.js
+   R wires taps on a room card. Lifecycle adds delete and restore affordances to
+   the same card, so the wiring is a superset rather than an addition alongside. */
 function wireRoomCards(host) {
   if (!host) return 0;
   var cards = host.querySelectorAll('.rc2');
@@ -5208,9 +5239,10 @@ function wireRoomCards(host) {
       } catch (e) { rcLog('card_tap_failed', { e: String(e && e.message || e) }, 'error'); }
     });
   });
-  host.querySelectorAll('[data-del]').forEach(function (el) {
+  var _n_el = host.querySelectorAll('[data-del]');
+  for (var _i_el = 0; _i_el < _n_el.length; _i_el++) (function (el) {
     el.addEventListener('click', function (ev) { ev.stopPropagation(); softDeleteRoom(el.dataset.del); });
-  });
+  })(_n_el[_i_el]);
   return cards.length;
 }
 
@@ -5220,9 +5252,12 @@ function wireRoomCards(host) {
     var r = _lcRenderPanel.apply(this, arguments);
     try {
       var body = $('panel-body');
-      if (body) body.querySelectorAll('[data-restore]').forEach(function (el) {
-        el.addEventListener('click', function (ev) { ev.stopPropagation(); restoreRoom(el.dataset.restore); });
-      });
+      if (body) {
+        var _n_res = body.querySelectorAll('[data-restore]');
+        for (var _i_res = 0; _i_res < _n_res.length; _i_res++) (function (el) {
+          el.addEventListener('click', function (ev) { ev.stopPropagation(); restoreRoom(el.dataset.restore); });
+        })(_n_res[_i_res]);
+      }
     } catch (e) { lcLog('restore_wire_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
   };
@@ -6098,6 +6133,151 @@ function sendReadReceipts() {
 })();
 
 
+/* ═══════════ GAP PART · RB-ribbon.js ═══════════ */
+/* @contract
+   adds: RIBBON, ribLog, RIBBON_CSS, buildRibbonLayout
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 8 BASE · THE RIBBON, AND NOTHING ELSE
+
+   WHY RESTORING THE OLD GEOMETRY FAILED. Copying the previously-approved
+   ribbon back in occluded the partner's name. Not a transcription error — the
+   geometry was always marginal, and what had been approved was the ICON
+   spacing, not the name. Measured:
+
+     the idle cluster is mic + camera + phone + video with 14px gaps, and the
+     camera slot is `visibility:hidden` — which hides it but still occupies its
+     full 34px plus a 14px gap. 48px taken from the name for a control that is
+     not on screen.
+
+     at 360px the name got 39px · at 390px it got 54px · "Iphone" needs ~55px
+
+   So it looked right on a large phone and clipped on a normal one.
+
+   THREE CHANGES:
+
+   1. The camera slot COLLAPSES when it is not a video call — `display:none`,
+      not `visibility:hidden`. Space a hidden control does not need goes back
+      to the name.
+
+   2. The gap tightens from 14px to 6px. Measured off the device, the video
+      icon sat 7.6px from the room menu while the icons themselves were 59px
+      apart. Tightening pulls the cluster in without moving the microphone.
+
+   3. The cluster is pinned so the MICROPHONE — not the cluster's midpoint —
+      lands on the transcript's centre line. The bubble grid is
+      `meWidth fr | 1px | pnWidth fr`, both defaulting to 75, so the divider is
+      exactly 50%. The mic's centre is half a slot (17px) from the cluster's
+      left edge, so the cluster shifts left by exactly that. Centring the
+      cluster instead leaves the mic 48px short of the line.
+
+   Absolute positioning is what makes (3) hold: the midpoint becomes a function
+   of the ribbon's own width and cannot be pushed by the name on one side or
+   the room menu on the other. Every flex and grid arrangement tried before let
+   a sibling move it.
+
+   The name is capped in `vw`, never a percentage. A percentage resolves
+   against the containing block, and with the cluster out of flow that block is
+   nearly the whole ribbon — so 50% of it is not 50% of the screen. That
+   mistake drove the budget negative once and rendered the name blank.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var RIBBON = { built: false };
+
+function ribLog(what, data, level) {
+  try { log('rib_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+/* @affects .ribbon 2
+   `.ribbon` matches the room ribbon and the home screen's, which holds only a
+   hamburger. Every rule below is scoped to #room-ribbon precisely so the home
+   screen is untouched — styling the bare class is what broke it before. */
+var RIBBON_CSS =
+  '#room-ribbon{position:relative;' +
+    /* viewport-fit=cover puts the app under the notch and home indicator, and
+       nothing reserved the safe area that requires. env() is 0 where it is not
+       defined, so this is inert everywhere else. */
+    'padding-left:max(12px,env(safe-area-inset-left));' +
+    'padding-right:max(12px,env(safe-area-inset-right))}' +
+
+  /* THE MICROPHONE ON THE CENTRE LINE. Out of flow, so no sibling can move it.
+     Shifted left by half a slot so the mic, not the cluster, sits on 50%. */
+  '#room-ribbon .rz-center{position:absolute;left:50%;transform:translateX(-17px);' +
+    'display:flex;align-items:center;gap:6px}' +
+
+  /* The name stops short of the cluster. Derived, not guessed: half the widest
+     cluster (57) + ribbon padding (12) + breathing room (10) = 79. */
+  '#room-ribbon .rz-left{min-width:0;max-width:calc(50vw - 79px);' +
+    'display:flex;align-items:center;gap:6px;overflow:hidden}' +
+  '#room-ribbon .rz-right{min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
+  '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
+
+  /* The ellipsis belongs on the TEXT, not the wrapper — the wrapper also holds
+     the presence dot, so capping it clips the name mid-glyph instead. */
+  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;white-space:nowrap}' +
+  '#room-ribbon #room-head-title{display:block;min-width:0;overflow:hidden;' +
+    'text-overflow:ellipsis;white-space:nowrap}' +
+
+  /* The call buttons once relocated into the centre. */
+  '#room-ribbon .rz-center .rz-callbtn{background:none;border:none;cursor:pointer;line-height:0;' +
+    'color:var(--ink-mid);padding:0;display:flex;align-items:center;justify-content:center;' +
+    'width:34px;flex-shrink:0}' +
+
+  /* THE 48px THE NAME WAS LOSING. display:none, not visibility:hidden — a
+     control that is not on screen must not hold its place. */
+  '#room-ribbon .rz-slot.cam-slot{display:none}' +
+  '#scr-room.st-video #room-ribbon .rz-slot.cam-slot{display:flex;visibility:visible}' +
+
+  /* During a call the phone and video go, and the hang-up appears. */
+  '#scr-room.st-phone #room-ribbon .rz-center #btn-call,' +
+  '#scr-room.st-phone #room-ribbon .rz-center #btn-video,' +
+  '#scr-room.st-video #room-ribbon .rz-center #btn-call,' +
+  '#scr-room.st-video #room-ribbon .rz-center #btn-video{display:none}' +
+  '#room-ribbon .rz-center #rb-hangup{display:none}' +
+  '#scr-room.st-phone #room-ribbon .rz-center #rb-hangup,' +
+  '#scr-room.st-video #room-ribbon .rz-center #rb-hangup{display:flex}' +
+
+  '#room-ribbon .rz-timer{display:none}' +
+  '#scr-room.st-phone #room-ribbon .rz-timer,' +
+  '#scr-room.st-video #room-ribbon .rz-timer{display:inline}';
+
+/* Relocates the call controls into the centre cluster, in fixed order.
+   Completion is judged by what actually moved rather than by having been
+   called: a control that has not rendered yet needs retrying, and latching
+   "built" on a partial pass orphans it permanently. */
+function buildRibbonLayout() {
+  try {
+    if (RIBBON.built) return true;
+    var centre = document.querySelector('#room-ribbon .rz-center');
+    if (!centre || !centre.appendChild) { ribLog('no_centre', {}, 'warn'); return false; }
+
+    var ids = ['btn-call', 'btn-video', 'rb-hangup'];
+    var moved = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      if (!el) { ribLog('missing_control', { id: ids[i] }, 'warn'); continue; }
+      if (ids[i] !== 'rb-hangup') el.classList.add('rz-callbtn');
+      centre.appendChild(el);
+      moved++;
+    }
+
+    RIBBON.built = (moved === ids.length);
+    ribLog('layout_built', { moved: moved, of: ids.length }, RIBBON.built ? 'ok' : 'warn');
+    return RIBBON.built;
+  } catch (e) { ribLog('layout_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+if (typeof document !== 'undefined') {
+  try {
+    var ribStyle = document.createElement('style');
+    ribStyle.textContent = RIBBON_CSS;
+    document.head.appendChild(ribStyle);
+  } catch (e) { ribLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  setTimeout(function () { try { buildRibbonLayout(); } catch (_) {} }, 900);
+}
+
+
 /* ═══════════ GAP PART · NP-no-password.js ═══════════ */
 /* @contract
    wraps: renderHome
@@ -6299,8 +6479,8 @@ if (typeof document !== 'undefined') {
 
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
-   wraps: addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam
-   adds: R8, r8Log, ICON, MENU_ICON, FLAG_STRIPES, iconSwap, setRowIcon, applyMenuIcons, paintFlagBands, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam
+   wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
+   adds: R8, r8Log, ICON, MENU_ICON, FLAG_LAYERS, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
@@ -6373,16 +6553,85 @@ var ICON = {
     '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
 };
 
+/* ── 8.1 flag motif — the treatment from test.html ─────────────────────────
+   NOT a stripe band. The earlier attempt drew coloured stripes, which was an
+   invention: the real motif is a full-bleed flag image behind the ask-screen
+   title, veiled by a translucent cream wash so the text stays readable, on a
+   108px panel. At the band's 6px height `background-size:cover` crops the
+   770x284 source to a sliver of one flag, which is why it read as a plain
+   coloured line — the height is what was wrong, not the image.
+
+   Layer order matters and is taken verbatim from test.html: the wash sits
+   FIRST so it covers the flags beneath, .gif before .png so an animated source
+   wins where present, and a gradient last as the fallback when neither loads. */
+var FLAG_LAYERS =
+  "linear-gradient(rgba(253,250,247,.58),rgba(253,250,247,.58))," +
+  "url('./flags.gif')," +
+  "url('./flags.png')," +
+  "linear-gradient(135deg,#f7e9d8,#f2f4ff)";
+
+var FLAG_CSS =
+  // @affects .flagband 4
+  '.flagband{position:relative;height:auto;min-height:108px;border-radius:12px;overflow:hidden;' +
+    'display:flex;align-items:center;justify-content:center;background-image:none;margin-bottom:14px}' +
+  '.flagband::before{content:"";position:absolute;inset:0;background-image:' + FLAG_LAYERS + ';' +
+    'background-size:cover,cover,cover,cover;background-position:center,center,center,center;' +
+    'background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;opacity:.58}' +
+  /* The stripe elements the base hid are not needed and must stay hidden, or
+     they would sit on top of the motif. */
+  '.flagband i{display:none}' +
+  /* The ask-screen title moves onto the motif rather than below it. */
+  '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;line-height:1.35;' +
+    'color:var(--ink);padding:14px;text-align:center}';
+
+/* Moves the existing ask-screen title inside the band so it sits on the motif,
+   exactly as test.html has it. The title text is not rewritten — it is moved,
+   so whatever the base says stays said. */
+function dressFlagBands() {
+  try {
+    var bands = document.querySelectorAll('.flagband');
+    if (!bands || !bands.length) return 0;
+    var n = 0;
+    for (var i = 0; i < bands.length; i++) {
+      var b = bands[i];
+      if (b.dataset && b.dataset.r8Flag) { n++; continue; }
+
+      /* The title and subtitle immediately following the band belong on it. */
+      var host = b.parentNode;
+      if (host && host.querySelector) {
+        var title = host.querySelector('.ask-title');
+        var sub = host.querySelector('.ask-sub');
+        if (title) {
+          var wrap = document.createElement('div');
+          wrap.className = 'fb-title';
+          wrap.textContent = title.textContent + (sub ? ' ' + sub.textContent : '');
+          b.appendChild(wrap);
+          title.style.display = 'none';
+          if (sub) sub.style.display = 'none';
+        }
+      }
+      if (b.dataset) b.dataset.r8Flag = '1';
+      n++;
+    }
+    r8Log('flag_bands', { dressed: n }, 'ok');
+    return n;
+  } catch (e) { r8Log('flag_bands_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
+
 var R8_CSS =
   /* The muted state is carried by the graphic itself, so no colour override is
      needed to make it legible — but the red reads faster than shape alone. */
   '#rb-mic.off svg,#rb-cam.off svg{stroke:#A32D2D}' +
   '.origin-mark{display:inline-flex;align-items:center;margin-right:4px;opacity:.75;vertical-align:-1px}' +
-  /* The base hides the stripe elements and paints the band from an image that
-     404s, cropped to a sliver. Stripes are drawn instead. */
-  // @affects .flagband 4
-  '.flagband{display:flex;background-image:none !important;overflow:hidden}' +
-  '.flagband i{display:block !important;flex:1 1 0;height:100%}';
+  /* A dragged band needs to be movable, and must not select text while moving. */
+  '#scr-room.pip #call-band{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}' +
+  '#scr-room.pip #call-band:active{cursor:grabbing}' +
+  '.presence-dot.speaking{background:var(--teal);animation:r8-speak 1s ease-in-out infinite}' +
+  '@keyframes r8-speak{0%,100%{opacity:.45}50%{opacity:1}}' +
+  '.r8-typing{display:none;padding:4px 14px;font-size:12.5px;color:var(--ink-dim);font-style:italic}' +
+  '.r8-typing.on{display:block}' +
+  FLAG_CSS;
 
 /* Swaps the whole graphic rather than toggling a slash. */
 function iconSwap(el, on, onGraphic, offGraphic) {
@@ -6538,33 +6787,425 @@ function applyMenuIcons() {
   } catch (e) { r8Log('menu_icons_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
 }
 
-/* ── 8.1 flag motif ────────────────────────────────────────────────────────
-   The band is a 6px strip painted with `background-size:cover` from a 770×284
-   image — at that height cover crops to a sliver of one flag, so the motif
-   read as a plain coloured line. The stripes are drawn directly instead, which
-   also removes the dependency on an image file that 404s. */
-var FLAG_STRIPES = ['#C8102E', '#FFFFFF', '#012169', '#F7D117', '#00843D'];
-
-function paintFlagBands() {
+/* ── 8.6 tap to swap ───────────────────────────────────────────────────────
+   Tapping the PIP already exits it. The other half was missing: tapping the
+   full-size video to enter PIP. Bound on the video surface rather than the
+   band so a tap on the controls does not trigger it. */
+function wirePipSwap() {
   try {
-    var bands = document.querySelectorAll('.flagband');
-    if (!bands || !bands.length) return 0;
-    var n = 0;
-    for (var i = 0; i < bands.length; i++) {
-      var b = bands[i];
-      if (b.dataset && b.dataset.r8Flag) { n++; continue; }
-      b.innerHTML = FLAG_STRIPES.map(function (c) {
-        return '<i style="background:' + c + '"></i>';
-      }).join('');
-      if (b.dataset) b.dataset.r8Flag = '1';
-      n++;
+    var host = $('call-videos');
+    if (!host || !host.addEventListener) return false;
+    if (host.dataset && host.dataset.r8Pip) return true;
+
+    host.addEventListener('click', function (ev) {
+      try {
+        /* Exiting is already handled by the base's own listener; this adds the
+           entering half only, and only for a video call where a PIP means
+           something. */
+        if (CALL.pip) return;
+        if (!CALL.active || CALL.kind !== 'video') return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
+        CALL.enterPip();
+        r8Log('pip_entered_by_tap', {}, 'ok');
+      } catch (e) { r8Log('pip_tap_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    if (host.dataset) host.dataset.r8Pip = '1';
+    return true;
+  } catch (e) { r8Log('pip_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.7 draggable PIP ─────────────────────────────────────────────────────
+   The band is pinned to a fixed corner, so it can cover whatever is beneath
+   it with no way to move it. Dragging sets explicit coordinates; a drag is
+   distinguished from a tap by distance, so tap-to-exit keeps working.
+   Clamped to the viewport, or it could be dragged off-screen and lost. */
+var PIP_DRAG = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
+
+function wirePipDrag() {
+  try {
+    var band = $('call-band');
+    if (!band || !band.addEventListener) return false;
+    if (band.dataset && band.dataset.r8Drag) return true;
+
+    var point = function (ev) {
+      var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+      return { x: t.clientX || 0, y: t.clientY || 0 };
+    };
+
+    var start = function (ev) {
+      if (!CALL.pip) return;
+      var p = point(ev);
+      PIP_DRAG.on = true;
+      PIP_DRAG.moved = false;
+      PIP_DRAG.sx = p.x;
+      PIP_DRAG.sy = p.y;
+      var r = band.getBoundingClientRect ? band.getBoundingClientRect() : { left: 0, top: 0 };
+      PIP_DRAG.ox = r.left;
+      PIP_DRAG.oy = r.top;
+    };
+
+    var move = function (ev) {
+      if (!PIP_DRAG.on) return;
+      var p = point(ev);
+      var dx = p.x - PIP_DRAG.sx, dy = p.y - PIP_DRAG.sy;
+      /* Below this, it is a tap. Without the threshold every tap would count
+         as a drag and tap-to-exit would stop working. */
+      if (!PIP_DRAG.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+      PIP_DRAG.moved = true;
+      if (ev.preventDefault) ev.preventDefault();
+
+      var w = band.offsetWidth || 118, h = band.offsetHeight || 198;
+      var vw = (window.innerWidth || 390), vh = (window.innerHeight || 700);
+      var nx = Math.max(4, Math.min(vw - w - 4, PIP_DRAG.ox + dx));
+      var ny = Math.max(4, Math.min(vh - h - 4, PIP_DRAG.oy + dy));
+      band.style.left = nx + 'px';
+      band.style.top = ny + 'px';
+      band.style.right = 'auto';
+      band.style.bottom = 'auto';
+    };
+
+    var end = function () {
+      if (!PIP_DRAG.on) return;
+      PIP_DRAG.on = false;
+      if (PIP_DRAG.moved) r8Log('pip_dragged', {}, 'ok');
+    };
+
+    band.addEventListener('mousedown', start);
+    band.addEventListener('touchstart', start);
+    band.addEventListener('mousemove', move);
+    band.addEventListener('touchmove', move);
+    band.addEventListener('mouseup', end);
+    band.addEventListener('touchend', end);
+    band.addEventListener('mouseleave', end);
+
+    /* A tap that turned into a drag must not also exit the PIP. */
+    band.addEventListener('click', function (ev) {
+      if (PIP_DRAG.moved) { ev.stopPropagation(); PIP_DRAG.moved = false; }
+    }, true);
+
+    if (band.dataset) band.dataset.r8Drag = '1';
+    return true;
+  } catch (e) { r8Log('pip_drag_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* Leaving PIP returns the band to its styled corner, so a dragged position
+   does not persist into the next call. */
+(function () {
+  var _r8ExitPip = CALL.exitPip;
+  CALL.exitPip = function () {
+    try {
+      var band = $('call-band');
+      if (band && band.style) {
+        band.style.left = ''; band.style.top = '';
+        band.style.right = ''; band.style.bottom = '';
+      }
+    } catch (_) {}
+    return _r8ExitPip.apply(this, arguments);
+  };
+})();
+
+/* ── 8.8 call timer parity ─────────────────────────────────────────────────
+   The duration was already computed on both sides, and both sides lost it: any
+   time the other person's microphone was live the same slot printed
+   "Speaking…", which during an actual conversation is most of the time. So the
+   receiver appeared to have no timer because in practice nobody did.
+
+   The duration now owns that slot unconditionally. Connection trouble is the
+   one thing allowed to replace it, because it explains silence; speaking does
+   not, and the presence dot already signals it. */
+var R8_CLOCK = { timer: null };
+
+function callDuration(startTs, now) {
+  var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
+  return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+function startCallTimer() {
+  stopCallTimer();
+  R8_CLOCK.timer = setInterval(function () {
+    try {
+      if (!CALL.active) { stopCallTimer(); return; }
+      var el = $('rz-timer');
+      if (!el) return;
+      el.textContent = CALL.connBad ? 'Reconnecting…' : callDuration(CALL.startTs);
+      var dot = $('presence');
+      if (dot) dot.classList.toggle('speaking', !!(typeof _remoteMicOn !== 'undefined' && _remoteMicOn));
+    } catch (_) {}
+  }, 1000);
+}
+
+function stopCallTimer() {
+  if (R8_CLOCK.timer) { clearInterval(R8_CLOCK.timer); R8_CLOCK.timer = null; }
+  try { var dot = $('presence'); if (dot) dot.classList.remove('speaking'); } catch (_) {}
+}
+
+(function () {
+  var _r8Mount = CALL.mount;
+  CALL.mount = function (room) {
+    var r = _r8Mount.apply(this, arguments);
+    try {
+      /* Both sides without exception — the caller and the person answering are
+         equally on a call and the surface should say so identically. */
+      var el = $('rz-timer');
+      if (el) el.textContent = callDuration(this.startTs);
+      startCallTimer();
+      r8Log('call_timer', { caller: !!this.caller }, 'ok');
+    } catch (e) { r8Log('call_timer_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _r8Teardown = CALL.teardown;
+  CALL.teardown = function () {
+    stopCallTimer();
+    return _r8Teardown.apply(this, arguments);
+  };
+})();
+
+/* ── 8.12 &debug=1 ─────────────────────────────────────────────────────────
+   Diagnostics accumulated on every device on every run, whether or not anyone
+   would ever look at them. A person who never asks for a debug log should not
+   be carrying one — that is the privacy-forward position, and it is also less
+   memory on a phone.
+
+   Collection is off unless explicitly asked for. `log()` is wrapped rather
+   than replaced so every existing call site keeps working untouched; when off
+   it simply records nothing. The choice is remembered so it survives the
+   reload that follows enabling it. */
+var R8_DEBUG = { on: false };
+
+function debugEnabled() {
+  try {
+    if (/[?&]debug=1/.test(location.search)) return true;
+    if (/[?&]debug=0/.test(location.search)) return false;
+    return localStorage.getItem('tb_debug') === '1';
+  } catch (_) { return false; }
+}
+
+function setDebug(on) {
+  try {
+    R8_DEBUG.on = !!on;
+    if (on) localStorage.setItem('tb_debug', '1');
+    else localStorage.removeItem('tb_debug');
+  } catch (_) {}
+  return R8_DEBUG.on;
+}
+
+(function () {
+  var _r8Log = log;
+  log = function (ev, d, lvl) {
+    /* Errors are always kept. Silencing the record of a failure is how a
+       problem becomes invisible, which is worse than the storage it costs. */
+    if (!R8_DEBUG.on && lvl !== 'error') return;
+    return _r8Log.apply(this, arguments);
+  };
+})();
+
+/* ── 8.10 short-phrase double transcription ────────────────────────────────
+   In a dual-channel room a brief utterance is transcribed twice. The base
+   suppresses the second copy by TIME only — a 1200ms window — so a short
+   phrase whose second recognition lands after that window is treated as a new
+   utterance and delivered again. Time alone cannot tell "said twice" from
+   "recognised twice"; the text can.
+
+   A recent entry with the same normalised text is a duplicate regardless of
+   how long the two recognitions took. The window is widened for short text,
+   where the two channels diverge most, and left alone for longer speech, where
+   genuine repetition is meaningful. */
+var R8_DEDUP = { recent: [], windowMs: 1200, shortWindowMs: 6000, shortWords: 4 };
+
+function normalisePhrase(t) {
+  return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+}
+
+function isDuplicatePhrase(text, now) {
+  try {
+    var key = normalisePhrase(text);
+    if (!key) return false;
+    now = now || Date.now();
+
+    var words = key.split(' ').length;
+    var window = (words <= R8_DEDUP.shortWords) ? R8_DEDUP.shortWindowMs : R8_DEDUP.windowMs;
+
+    /* Anything older than the widest window is no longer evidence. */
+    R8_DEDUP.recent = R8_DEDUP.recent.filter(function (r) {
+      return (now - r.ts) < R8_DEDUP.shortWindowMs;
+    });
+
+    for (var i = 0; i < R8_DEDUP.recent.length; i++) {
+      if (R8_DEDUP.recent[i].key === key && (now - R8_DEDUP.recent[i].ts) < window) {
+        r8Log('phrase_duplicate', { words: words, ms: now - R8_DEDUP.recent[i].ts }, 'ok');
+        return true;
+      }
     }
-    r8Log('flag_bands', { painted: n }, 'ok');
-    return n;
-  } catch (e) { r8Log('flag_bands_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+    R8_DEDUP.recent.push({ key: key, ts: now });
+    if (R8_DEDUP.recent.length > 24) R8_DEDUP.recent.shift();
+    return false;
+  } catch (e) { r8Log('dedup_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8AddSpeechDedup = addSpeech;
+  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
+    /* Only my own speech is de-duplicated. The partner's arrives over the
+       relay already arbitrated, and suppressing there would drop a genuine
+       repetition by the other person. */
+    if (who === 'me' && isDuplicatePhrase(srcT)) {
+      r8Log('speech_suppressed', {}, 'ok');
+      return;
+    }
+    return _r8AddSpeechDedup.apply(this, arguments);
+  };
+})();
+
+/* ── 8.9 typing indicator ──────────────────────────────────────────────────
+   Nothing existed. Typing is transient — it must never be persisted or
+   replayed into the transcript, so it rides the relay's transient channel and
+   is rendered as a strip above the compose box rather than as an entry. */
+var R8_TYPING = { sentAt: 0, hideTimer: null, showing: false };
+
+function sendTyping() {
+  try {
+    var now = Date.now();
+    /* Rate-limited: a keystroke-per-message would flood the relay. */
+    if (now - R8_TYPING.sentAt < 2000) return false;
+    R8_TYPING.sentAt = now;
+    relaySend({ type: 'typing', transient: true });
+    return true;
+  } catch (e) { r8Log('typing_send_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function showTyping(name) {
+  try {
+    var el = $('r8-typing');
+    if (!el) {
+      var host = $('transcript');
+      if (!host || !host.parentNode) return false;
+      el = document.createElement('div');
+      el.id = 'r8-typing';
+      el.className = 'r8-typing';
+      host.parentNode.insertBefore(el, host.nextSibling);
+    }
+    el.textContent = (name || 'They') + ' is typing…';
+    el.classList.add('on');
+    R8_TYPING.showing = true;
+
+    /* Cleared on a timer as well as on arrival, or a dropped connection would
+       leave it showing forever. */
+    if (R8_TYPING.hideTimer) clearTimeout(R8_TYPING.hideTimer);
+    R8_TYPING.hideTimer = setTimeout(hideTyping, 4000);
+    return true;
+  } catch (e) { r8Log('typing_show_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function hideTyping() {
+  try {
+    if (R8_TYPING.hideTimer) { clearTimeout(R8_TYPING.hideTimer); R8_TYPING.hideTimer = null; }
+    var el = $('r8-typing');
+    if (el) el.classList.remove('on');
+    R8_TYPING.showing = false;
+  } catch (_) {}
+}
+
+function wireTyping() {
+  try {
+    var input = $('chat-input');
+    if (!input || !input.addEventListener) return false;
+    if (input.dataset && input.dataset.r8Typing) return true;
+    input.addEventListener('input', function () { sendTyping(); });
+    if (input.dataset) input.dataset.r8Typing = '1';
+    return true;
+  } catch (e) { r8Log('typing_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      if (d && d.type === 'typing') {
+        var room = activeRoom();
+        showTyping(room && room.partnerName);
+        return;                       /* never reaches the transcript */
+      }
+      /* Anything actually arriving means they finished typing. */
+      if (d && (d.type === 'chat-msg' || d.type === 'speech')) hideTyping();
+    } catch (_) {}
+    return _r8HandleRelay.apply(this, arguments);
+  };
+})();
+
+/* ── 8.5 leaving the app during a call ─────────────────────────────────────
+   VERIFIED, not assumed — and half of it was missing. The back button does
+   enter PIP (the base handles popstate). But the visibility handler only runs
+   on RETURN, so nothing muted the microphone on leaving: switching apps mid-
+   call kept transmitting audio from wherever the person had gone.
+
+   Leaving mutes. Returning restores whatever the state was before, rather than
+   unmuting unconditionally — someone who muted deliberately and then switched
+   apps must not come back live. */
+var R8_AWAY = { mutedByAway: false };
+
+function onAwayDuringCall() {
+  try {
+    if (!CALL.active) return false;
+    if (!CALL.micOn) return false;          /* already muted by choice */
+    CALL.toggleMic();
+    R8_AWAY.mutedByAway = true;
+    r8Log('away_muted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_mute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function onReturnDuringCall() {
+  try {
+    if (!CALL.active) { R8_AWAY.mutedByAway = false; return false; }
+    if (!R8_AWAY.mutedByAway) return false;  /* they muted it themselves */
+    R8_AWAY.mutedByAway = false;
+    if (!CALL.micOn) CALL.toggleMic();
+    r8Log('away_unmuted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_unmute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.2 the clock is the way home ─────────────────────────────────────────
+   Two controls did the same job: an "app info" card in the left panel and,
+   nominally, the clock. The card is redundant weight in a panel that lists
+   rooms, so the clock takes the job and the card goes.
+
+   `exitToStart` is the base's own handler — the card called it and this calls
+   the same one, so the behaviour is identical rather than reimplemented.
+
+   The clock already carries a long-press for credentials. A tap and a long
+   press coexist, so the long press is left exactly as it was. */
+function wireClockHome() {
+  try {
+    var clock = document.querySelector('.left-clock');
+    if (!clock || !clock.addEventListener) { r8Log('no_clock', {}, 'warn'); return false; }
+    if (clock.dataset && clock.dataset.r8Home) return true;
+
+    clock.style.cursor = 'pointer';
+    clock.addEventListener('click', function (ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      r8Log('clock_home', {}, 'ok');
+      try { exitToStart(); }
+      catch (e) { r8Log('clock_home_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+    if (clock.dataset) clock.dataset.r8Home = '1';
+
+    /* The card only goes once the clock has actually taken the job — removing
+       it first would leave no way home if the wiring failed. */
+    var card = $('app-info-card');
+    if (card && card.remove) { card.remove(); r8Log('info_card_removed', {}, 'ok'); }
+    return true;
+  } catch (e) { r8Log('clock_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
 }
 
 if (typeof document !== 'undefined') {
+  /* Decided first, so nothing is recorded before the choice is known. */
+  R8_DEBUG.on = debugEnabled();
+
   try {
     var st = document.createElement('style');
     st.textContent = R8_CSS;
@@ -6582,7 +7223,16 @@ if (typeof document !== 'undefined') {
       var cam = $('rb-cam');
       if (cam) iconSwap(cam, !!CALL.camOn, ICON.camOn, ICON.camOff);
       applyMenuIcons();
-      paintFlagBands();
+      dressFlagBands();
+      wirePipSwap();
+      wirePipDrag();
+      wireTyping();
+      wireClockHome();
+      /* Added alongside the base's own handler rather than replacing it — the
+         base only acts on return, so leaving was never handled at all. */
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) onAwayDuringCall(); else onReturnDuringCall();
+      });
       r8Log('icons_installed', {}, 'ok');
     } catch (e) { r8Log('icon_init_failed', { e: String(e && e.message || e) }, 'error'); }
   }, 500);
