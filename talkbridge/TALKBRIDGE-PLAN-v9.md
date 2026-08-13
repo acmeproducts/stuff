@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v12.1.0 -->
-# TALKBRIDGE MASTER PLAN v12.1.0
+<!-- TALKBRIDGE-PLAN v12.2.0 -->
+# TALKBRIDGE MASTER PLAN v12.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -66,25 +66,25 @@ name got 39px and at 390px it got 54px, against roughly 55px needed for
 on the centre line at 320–768px; name budget 61–95px on real phones;
 clearance to the room menu never below 37px.
 
-### 2b · `bridge-turn24-pre-ship.html` — THE TWELVE FINE TOUCHES · not started
+### 2b · `bridge-turn24-pre-ship.html` — THE TWELVE FINE TOUCHES · shipped, awaiting gate
 
 Built and rolled back once with graveyard 2.7. Rebuilt on the ribbon base, not
 resumed.
 
 | # | Item | Status |
 |---|---|---|
-| 8.1 | Flag motif — the `test.html` treatment: 108px panel, image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Not started |
-| 8.2 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Not started |
-| 8.3 | Bubble-header icon convention — mic for chat, phone for voice, video for video. Needs the call kind recorded at entry creation | Not started |
-| 8.4 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Not started |
-| 8.5 | Leaving the app during a call — back button already enters PIP; **muting on leave does not exist** | Not started |
-| 8.6 | Tap video to swap to PIP (tapping the PIP already exits) | Not started |
-| 8.7 | PIP draggable, clamped to the viewport | Not started |
-| 8.8 | Call timer parity — **both** sides lose it; "Speaking…" overwrites the duration | Not started |
-| 8.9 | Typing indicator — transient only | Not started |
-| 8.10 | Short-phrase double transcription — suppression is time-only; needs text comparison | Not started |
-| 8.11 | Ear / Auto-read / Mute wording pass | Not started |
-| 8.12 | `&debug=1` — diagnostics off by default, errors always kept | Not started |
+| 8.1 | Flag motif — the `test.html` treatment: 108px panel, image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Shipped |
+| 8.2 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Shipped |
+| 8.3 | Bubble-header icon convention — mic for chat, phone for voice, video for video. Needs the call kind recorded at entry creation | Shipped |
+| 8.4 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Shipped |
+| 8.5 | Leaving the app during a call — back button already enters PIP; **muting on leave does not exist** | Shipped |
+| 8.6 | Tap video to swap to PIP (tapping the PIP already exits) | Shipped |
+| 8.7 | PIP draggable, clamped to the viewport | Shipped |
+| 8.8 | Call timer parity — **both** sides lose it; "Speaking…" overwrites the duration | Shipped |
+| 8.9 | Typing indicator — transient only | Shipped |
+| 8.10 | Short-phrase double transcription — suppression is time-only; needs text comparison | Shipped |
+| 8.11 | Ear / Auto-read / Mute wording pass | Shipped |
+| 8.12 | `&debug=1` — diagnostics off by default, errors always kept | Shipped |
 
 ### 2c · Build gates added
 
@@ -367,6 +367,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v12.2.0 · 2026-08-11.** `bridge-turn24-pre-ship.html` shipped — all twelve
+fine touches rebuilt on the ribbon base. 254 tests, 0 failed; contract,
+ownership, NodeList and CSS blast-radius gates all green; every item verified
+present in the built artifact rather than assumed from a passing suite.
+Both builds now await the device gate.
 
 **v12.1.0 · 2026-08-11.** Release 8 split by owner ruling: **base is the
 ribbon alone, pre-ship carries the twelve fine touches.**
