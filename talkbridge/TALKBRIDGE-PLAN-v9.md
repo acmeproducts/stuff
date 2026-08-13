@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.2.0 -->
-# TALKBRIDGE MASTER PLAN v13.2.0
+<!-- TALKBRIDGE-PLAN v13.3.0 -->
+# TALKBRIDGE MASTER PLAN v13.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -108,9 +108,8 @@ manager silent.
 
 ## 3 · RELEASE 9 — PHRASEBOOK: TARGET MIRRORS SOURCE
 
-**Not started. Not ready to build** — two open questions below must be answered
-first, and the source-side rules must be read from the code rather than
-reconstructed from description.
+**Not started.** Blocked only on R8 clearing its gate. The source-side rules
+are read from the code rather than reconstructed from description (item 9.1).
 
 **Source:** `bridge-turn24-pre-ship.html`, once gated.
 **Target stage:** `bridge-turn24-ship.html`.
@@ -137,14 +136,17 @@ the same clarify entries and the same verdict and tag consequences.
 | 9.2 | Editing target retranslates source and back-translates | Not started |
 | 9.3 | Bare enter in target retranslates and back-translates, same as source | Not started |
 | 9.4 | Editing target clears the verdict and removes the verified tag | Not started |
-| 9.5 | Target actions write the same clarify entries as source actions | Not started |
+| 9.5 | Target actions write the same clarify entries as source actions, direction flipped | Not started |
 
-### 3c · OPEN — must be answered before building
+### 3c · DECIDED — builder recommendation, owner may override on sight
 
-| # | Question | Why it matters |
+| # | Decision | Reasoning |
 |---|---|---|
-| Q1 | Editing target retranslates source. That new source would normally retranslate target, overwriting what was just typed. Where does the loop stop? Builder's assumption is **one hop only, the edited side is never overwritten** — unconfirmed | Without an answer the two fields can overwrite each other indefinitely |
-| Q2 | Clarify currently records source→target. When target drives, is it the same entry with the direction flipped, or a distinct entry type? | Determines whether clarify history stays readable as one stream |
+| D1 | **One hop. The edited side is never overwritten.** Typing in target retranslates source and stops there; the new source does not fire its own translation back into target | Any other rule either destroys what the person just typed or loops forever |
+| D2 | **Same clarify entry type, with a direction field.** Target-driven changes log exactly as source-driven ones, flipped | Clarify is the history of what changed and what it produced. Two entry types means reading two streams to follow one conversation, and every consumer has to learn both |
+
+These are settled and built to. If either is wrong it will be obvious in the
+build and cheaper to correct there than to litigate in the abstract now.
 
 ### 3d · Method note
 
@@ -417,6 +419,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v13.3.0 · 2026-08-13.** R9's two open questions closed as builder decisions
+rather than left as questions: one hop with the edited side never overwritten,
+and one clarify entry type with a direction field. R9 is no longer blocked on
+anything but R8 clearing its gate.
 
 **v13.2.0 · 2026-08-13.** R9 scoped from the owner's specification: the
 phrasebook's TARGET field must mirror the SOURCE field exactly — same
