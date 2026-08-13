@@ -316,14 +316,6 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 #chat-clear-x.show{display:block}
 #chat-input{overflow-y:hidden;width:100%}
 </style>
-<link rel="manifest" href="tb-manifest.webmanifest">
-<meta name="theme-color" content="#2E8B8B">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="TalkBridge">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon-192.png" type="image/png">
 </head>
 <body>
 <div id="app">
@@ -4171,8 +4163,8 @@ CALL.setupPC = async function () {
 
 /* Release marker — shown in the keys screen so a device test can be tied to an
    exact build without guessing. */
-VERSION = 'turn24-base · PWA, push, call surface';
-BUILD_INFO = { release: 'turn24-base · manifest in head', builtAt: '2026-08-10T07:40:00Z' };
+VERSION = 'turn23-post-ship · room menu surface';
+BUILD_INFO = { release: 'turn23-post-ship r5 · rename on the pill carrier', builtAt: '2026-08-07T21:30:00Z' };
 
 
 /* ═══════════ GAP PART · E-speech-sequence.js ═══════════ */
@@ -4316,7 +4308,7 @@ var TBPROOF = {
 /* @contract
    replaces: renderPanel
    wraps: handleChatMsg, enterRoom, LISTEN.handle
-   adds: WAIT, roomOnScreen, waitingOf, waitingTotal, bumpWaiting, clearWaiting, roomCardHtml, wireRoomCards, homeDismissed, saveHomeDismissed, dismissHome, homeCards, homeSummaryText, renderHome, ensureHomeHost, rcLog, _rHandleChat, _rEnterRoom, _rListenHandle, ROOM_CARD_CSS
+   adds: WAIT, waitingOf, waitingTotal, bumpWaiting, clearWaiting, roomCardHtml, wireRoomCards, homeDismissed, saveHomeDismissed, dismissHome, homeCards, homeSummaryText, renderHome, ensureHomeHost, rcLog, _rHandleChat, _rEnterRoom, _rListenHandle, ROOM_CARD_CSS
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 1 · ROOM CARD + WAITING SYSTEM + HOME SCREEN
@@ -4341,19 +4333,6 @@ function rcLog(what, data, level) {
    Part 4.5 / 8B.1. A missed chat, a missed voice call and a missed video call
    are three distinct facts and are tracked and displayed separately. */
 var WAIT = ['chat', 'voice', 'video'];
-
-/* Being in a room means looking at it. The base counted a message as missed
-   only when the whole document was hidden, so sitting on the home screen with
-   the app open in front of you counted as being in every room at once — and
-   nothing registered as missed. That is why the same build behaved differently
-   depending on whether the app had been backgrounded or merely navigated away
-   from. */
-function roomOnScreen(r) {
-  if (!r) return false;
-  try {
-    return !document.hidden && S.view === 'room' && S.roomId === r.id;
-  } catch (_) { return false; }
-}
 
 function waitingOf(r) {
   if (!r) return { chat: 0, voice: 0, video: 0 };
@@ -4466,8 +4445,7 @@ function wireRoomCards(host) {
       } catch (e) { rcLog('card_tap_failed', { room: id, e: String(e && e.message || e) }, 'error'); }
     });
   });
-  var _n_el = host.querySelectorAll('[data-del]');
-  for (var _i_el = 0; _i_el < _n_el.length; _i_el++) (function (el) {
+  host.querySelectorAll('[data-del]').forEach(function (el) {
     el.addEventListener('click', function (ev) {
       ev.stopPropagation();
       try {
@@ -4478,7 +4456,7 @@ function wireRoomCards(host) {
         renderPanel();
       } catch (e) { rcLog('room_delete_failed', { e: String(e && e.message || e) }, 'error'); }
     });
-  })(_n_el[_i_el]);
+  });
   return cards.length;
 }
 
@@ -4590,22 +4568,20 @@ function renderPanel() {
 
     var wired = wireRoomCards(body);
 
-    var _n_el = body.querySelectorAll('[data-restore]');
-  for (var _i_res = 0; _i_res < _n_el.length; _i_res++) (function (el) {
+    body.querySelectorAll('[data-restore]').forEach(function (el) {
       el.addEventListener('click', function () {
         var r = roomById(el.dataset.restore);
         if (r) { delete r.deletedAt; saveRooms(); rcLog('room_restored', { room: r.id }, 'ok'); renderPanel(); }
       });
-    })(_n_el[_i_res]);
-    var _n_hd = body.querySelectorAll('[data-harddel]');
-    for (var _i_hd = 0; _i_hd < _n_hd.length; _i_hd++) (function (el) {
+    });
+    body.querySelectorAll('[data-harddel]').forEach(function (el) {
       el.addEventListener('click', function () {
         var r = roomById(el.dataset.harddel); if (!r) return;
         S.rooms = S.rooms.filter(function (x) { return x.id !== r.id; });
         try { localStorage.removeItem(trKey(r.id)); } catch (_) {}
         saveRooms(); rcLog('room_hard_deleted', { room: r.id }, 'ok'); renderPanel();
       });
-    })(_n_hd[_i_hd]);
+    });
     var bh = $('bin-head');
     if (bh) bh.addEventListener('click', function () {
       renderPanel._binOpen = !renderPanel._binOpen;
@@ -4627,26 +4603,12 @@ function renderPanel() {
   var _rHandleChat = handleChatMsg;
   handleChatMsg = function (d, room) {
     var before = (room && room.unread) || 0;
-    var onScreen = roomOnScreen(room);
-    /* Migrate BEFORE the base runs. A room that has never been migrated reads
-       its legacy counter the first time waitingOf() is called — and if that
-       happens after the base has already incremented it, the very message
-       being handled is migrated in as history AND then counted again by the
-       bump below. One message, counted twice, from a single arrival. */
-    if (room) waitingOf(room);
     var r = _rHandleChat.apply(this, arguments);
     try {
-      if (room) {
-        var baseCounted = (room.unread || 0) > before;
-        if (baseCounted) room.unread = before;
-        /* Counted once, whether the base noticed or not. The base only counts a
-           hidden document, which misses every case where the app is visible but
-           showing something other than this room. */
-        if (!onScreen) {
-          bumpWaiting(room, 'chat');
-          saveRooms();
-          renderPanel();
-        }
+      if (room && (room.unread || 0) > before) {
+        room.unread = before;
+        bumpWaiting(room, 'chat');
+        saveRooms();
       }
     } catch (e) { rcLog('chat_count_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
@@ -4937,10 +4899,6 @@ function enforceGrantExpiry() {
 
 /* Capability: either set of credentials will do. Replaced rather than wrapped
    because the answer itself changes. */
-/* @supersedes hasOwnCredentials from J-joiner-shell.js
-   J answers "does this device have its own key". Elevation adds a second way
-   to be credentialled — a live grant — so the question itself changed. Wrapping
-   cannot express that: the answer is true in cases where J's is false. */
 function hasOwnCredentials() {
   try {
     if ((localStorage.getItem('tb_dg_key') || '').trim()) return true;
@@ -5202,9 +5160,6 @@ function onLifecycleSignal(roomId, d) {
 })();
 
 /* Delete and restore carry lifecycle meaning rather than only a timestamp. */
-/* @supersedes wireRoomCards from R-room-card.js
-   R wires taps on a room card. Lifecycle adds delete and restore affordances to
-   the same card, so the wiring is a superset rather than an addition alongside. */
 function wireRoomCards(host) {
   if (!host) return 0;
   var cards = host.querySelectorAll('.rc2');
@@ -5218,10 +5173,9 @@ function wireRoomCards(host) {
       } catch (e) { rcLog('card_tap_failed', { e: String(e && e.message || e) }, 'error'); }
     });
   });
-  var _n_el = host.querySelectorAll('[data-del]');
-  for (var _i_el = 0; _i_el < _n_el.length; _i_el++) (function (el) {
+  host.querySelectorAll('[data-del]').forEach(function (el) {
     el.addEventListener('click', function (ev) { ev.stopPropagation(); softDeleteRoom(el.dataset.del); });
-  })(_n_el[_i_el]);
+  });
   return cards.length;
 }
 
@@ -5231,12 +5185,9 @@ function wireRoomCards(host) {
     var r = _lcRenderPanel.apply(this, arguments);
     try {
       var body = $('panel-body');
-      if (body) {
-        var _n_res = body.querySelectorAll('[data-restore]');
-        for (var _i_res = 0; _i_res < _n_res.length; _i_res++) (function (el) {
-          el.addEventListener('click', function (ev) { ev.stopPropagation(); restoreRoom(el.dataset.restore); });
-        })(_n_res[_i_res]);
-      }
+      if (body) body.querySelectorAll('[data-restore]').forEach(function (el) {
+        el.addEventListener('click', function (ev) { ev.stopPropagation(); restoreRoom(el.dataset.restore); });
+      });
     } catch (e) { lcLog('restore_wire_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
   };
@@ -5561,7 +5512,6 @@ var ROOM_MENU_CSS =
      larger than a camera needs, and the drawer stopped short of showing one
      without scrolling — which defeats the moment it exists for. */
   '.drawer{max-height:94%}' +
-  // @affects .drawer-qr-box 2  -- share-room and link-a-device, same control in two places
   '.drawer-qr-box svg{width:168px;height:auto;max-width:58vw}' +
   '.drawer-qr-box{padding:10px}';
 
@@ -5663,14 +5613,6 @@ function onRoomNameSignal(roomId, d) {
   if (r.title !== to) {
     r.title = to;
     saveRooms();
-    /* An open drawer holds the old name in its field. Left alone it shows the
-       wrong name, and worse: if that field later commits it sends the old name
-       back and quietly undoes the other side's rename. Last-write-wins is
-       subverted by a stale input, so the input is kept current. */
-    try {
-      var f = $('s4b-title');
-      if (f && norm(f.value) !== to) { f.value = to; rmLog('open_field_synced', { to: to }, 'ok'); }
-    } catch (_) {}
     rmLog('rename_received', { from: from, to: to, by: d.byName || '' }, 'ok');
     try { renderRoomHead(); renderPanel(); } catch (_) {}
   }
@@ -5979,17 +5921,12 @@ function buildDrawerLayout() {
         d.innerHTML = '<span>' + label + '</span>';
         return d;
       };
-      var restoreRow = mk('s4b-restore-link', 'Copy restore link (for installed app)');
       var dataRow = mk('s4b-export-data', 'Export transcript (data)');
       var clearRow = mk('s4b-clear-tr', 'Clear transcript');
       var clearLog = mk('s4b-clear-log', 'Clear debug log');
-      debugPane.appendChild(restoreRow);
       debugPane.appendChild(dataRow);
       debugPane.appendChild(clearRow);
       debugPane.appendChild(clearLog);
-      restoreRow.addEventListener('click', function () {
-        try { copyRestoreLink(); } catch (e) { rmLog('restore_link_failed', { e: String(e && e.message || e) }, 'error'); }
-      });
       dataRow.addEventListener('click', exportTranscriptData);
       clearRow.addEventListener('click', clearTranscript);
       clearLog.addEventListener('click', clearDebugLog);
@@ -6110,151 +6047,6 @@ function sendReadReceipts() {
     return r;
   };
 })();
-
-
-/* ═══════════ GAP PART · RB-ribbon.js ═══════════ */
-/* @contract
-   adds: RIBBON, ribLog, RIBBON_CSS, buildRibbonLayout
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   RELEASE 8 BASE · THE RIBBON, AND NOTHING ELSE
-
-   WHY RESTORING THE OLD GEOMETRY FAILED. Copying the previously-approved
-   ribbon back in occluded the partner's name. Not a transcription error — the
-   geometry was always marginal, and what had been approved was the ICON
-   spacing, not the name. Measured:
-
-     the idle cluster is mic + camera + phone + video with 14px gaps, and the
-     camera slot is `visibility:hidden` — which hides it but still occupies its
-     full 34px plus a 14px gap. 48px taken from the name for a control that is
-     not on screen.
-
-     at 360px the name got 39px · at 390px it got 54px · "Iphone" needs ~55px
-
-   So it looked right on a large phone and clipped on a normal one.
-
-   THREE CHANGES:
-
-   1. The camera slot COLLAPSES when it is not a video call — `display:none`,
-      not `visibility:hidden`. Space a hidden control does not need goes back
-      to the name.
-
-   2. The gap tightens from 14px to 6px. Measured off the device, the video
-      icon sat 7.6px from the room menu while the icons themselves were 59px
-      apart. Tightening pulls the cluster in without moving the microphone.
-
-   3. The cluster is pinned so the MICROPHONE — not the cluster's midpoint —
-      lands on the transcript's centre line. The bubble grid is
-      `meWidth fr | 1px | pnWidth fr`, both defaulting to 75, so the divider is
-      exactly 50%. The mic's centre is half a slot (17px) from the cluster's
-      left edge, so the cluster shifts left by exactly that. Centring the
-      cluster instead leaves the mic 48px short of the line.
-
-   Absolute positioning is what makes (3) hold: the midpoint becomes a function
-   of the ribbon's own width and cannot be pushed by the name on one side or
-   the room menu on the other. Every flex and grid arrangement tried before let
-   a sibling move it.
-
-   The name is capped in `vw`, never a percentage. A percentage resolves
-   against the containing block, and with the cluster out of flow that block is
-   nearly the whole ribbon — so 50% of it is not 50% of the screen. That
-   mistake drove the budget negative once and rendered the name blank.
-   ───────────────────────────────────────────────────────────────────────────── */
-
-var RIBBON = { built: false };
-
-function ribLog(what, data, level) {
-  try { log('rib_' + what, data || {}, level || 'info'); } catch (_) {}
-}
-
-/* @affects .ribbon 2
-   `.ribbon` matches the room ribbon and the home screen's, which holds only a
-   hamburger. Every rule below is scoped to #room-ribbon precisely so the home
-   screen is untouched — styling the bare class is what broke it before. */
-var RIBBON_CSS =
-  '#room-ribbon{position:relative;' +
-    /* viewport-fit=cover puts the app under the notch and home indicator, and
-       nothing reserved the safe area that requires. env() is 0 where it is not
-       defined, so this is inert everywhere else. */
-    'padding-left:max(12px,env(safe-area-inset-left));' +
-    'padding-right:max(12px,env(safe-area-inset-right))}' +
-
-  /* THE MICROPHONE ON THE CENTRE LINE. Out of flow, so no sibling can move it.
-     Shifted left by half a slot so the mic, not the cluster, sits on 50%. */
-  '#room-ribbon .rz-center{position:absolute;left:50%;transform:translateX(-17px);' +
-    'display:flex;align-items:center;gap:6px}' +
-
-  /* The name stops short of the cluster. Derived, not guessed: half the widest
-     cluster (57) + ribbon padding (12) + breathing room (10) = 79. */
-  '#room-ribbon .rz-left{min-width:0;max-width:calc(50vw - 79px);' +
-    'display:flex;align-items:center;gap:6px;overflow:hidden}' +
-  '#room-ribbon .rz-right{min-width:0;display:flex;align-items:center;justify-content:flex-end}' +
-  '#room-ribbon .rz-slot{width:34px;flex:0 0 34px}' +
-
-  /* The ellipsis belongs on the TEXT, not the wrapper — the wrapper also holds
-     the presence dot, so capping it clips the name mid-glyph instead. */
-  '#room-ribbon .room-head-name{min-width:0;overflow:hidden;white-space:nowrap}' +
-  '#room-ribbon #room-head-title{display:block;min-width:0;overflow:hidden;' +
-    'text-overflow:ellipsis;white-space:nowrap}' +
-
-  /* The call buttons once relocated into the centre. */
-  '#room-ribbon .rz-center .rz-callbtn{background:none;border:none;cursor:pointer;line-height:0;' +
-    'color:var(--ink-mid);padding:0;display:flex;align-items:center;justify-content:center;' +
-    'width:34px;flex-shrink:0}' +
-
-  /* THE 48px THE NAME WAS LOSING. display:none, not visibility:hidden — a
-     control that is not on screen must not hold its place. */
-  '#room-ribbon .rz-slot.cam-slot{display:none}' +
-  '#scr-room.st-video #room-ribbon .rz-slot.cam-slot{display:flex;visibility:visible}' +
-
-  /* During a call the phone and video go, and the hang-up appears. */
-  '#scr-room.st-phone #room-ribbon .rz-center #btn-call,' +
-  '#scr-room.st-phone #room-ribbon .rz-center #btn-video,' +
-  '#scr-room.st-video #room-ribbon .rz-center #btn-call,' +
-  '#scr-room.st-video #room-ribbon .rz-center #btn-video{display:none}' +
-  '#room-ribbon .rz-center #rb-hangup{display:none}' +
-  '#scr-room.st-phone #room-ribbon .rz-center #rb-hangup,' +
-  '#scr-room.st-video #room-ribbon .rz-center #rb-hangup{display:flex}' +
-
-  '#room-ribbon .rz-timer{display:none}' +
-  '#scr-room.st-phone #room-ribbon .rz-timer,' +
-  '#scr-room.st-video #room-ribbon .rz-timer{display:inline}';
-
-/* Relocates the call controls into the centre cluster, in fixed order.
-   Completion is judged by what actually moved rather than by having been
-   called: a control that has not rendered yet needs retrying, and latching
-   "built" on a partial pass orphans it permanently. */
-function buildRibbonLayout() {
-  try {
-    if (RIBBON.built) return true;
-    var centre = document.querySelector('#room-ribbon .rz-center');
-    if (!centre || !centre.appendChild) { ribLog('no_centre', {}, 'warn'); return false; }
-
-    var ids = ['btn-call', 'btn-video', 'rb-hangup'];
-    var moved = 0;
-    for (var i = 0; i < ids.length; i++) {
-      var el = $(ids[i]);
-      if (!el) { ribLog('missing_control', { id: ids[i] }, 'warn'); continue; }
-      if (ids[i] !== 'rb-hangup') el.classList.add('rz-callbtn');
-      centre.appendChild(el);
-      moved++;
-    }
-
-    RIBBON.built = (moved === ids.length);
-    ribLog('layout_built', { moved: moved, of: ids.length }, RIBBON.built ? 'ok' : 'warn');
-    return RIBBON.built;
-  } catch (e) { ribLog('layout_failed', { e: String(e && e.message || e) }, 'error'); return false; }
-}
-
-if (typeof document !== 'undefined') {
-  try {
-    var ribStyle = document.createElement('style');
-    ribStyle.textContent = RIBBON_CSS;
-    document.head.appendChild(ribStyle);
-  } catch (e) { ribLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
-
-  setTimeout(function () { try { buildRibbonLayout(); } catch (_) {} }, 900);
-}
 
 </script>
 </body>
