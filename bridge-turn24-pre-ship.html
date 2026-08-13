@@ -6467,7 +6467,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
    wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
-   adds: ICON, MENU_ICON, FLAG_LAYERS, FLAG_LAYERS_TALL, FLAG_PAINT, FLAG_PAINT_TALL, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
+   adds: ICON, MENU_ICON, MENU_LABEL, applyMenuLabels, FLAG_LAYERS, FLAG_LAYERS_TALL, FLAG_PAINT, FLAG_PAINT_TALL, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
@@ -6591,9 +6591,18 @@ var FLAG_LAYERS_TALL =
    and tabs — the owner could not comfortably read them. Raising the wash to
    .82 drops the artwork to roughly a tenth of its strength, which keeps it as
    branding rather than a picture competing with the text. */
+/* `contain`, not `cover`, and starting below the ribbon.
+
+   `cover` fills the box and crops whatever will not fit, so the top row of
+   flags was sliding under the ribbon and the bottom of the grid was cut off.
+   `contain` scales the whole grid to fit — 0.78x to 1.08x across real phones —
+   so all eighteen flags are visible and nothing is clipped.
+
+   The offset is applied by the caller via `top`, so the artwork begins where
+   the ribbon ends rather than behind it. */
 var FLAG_PAINT_TALL =
   'background-image:' + FLAG_LAYERS_TALL + ';' +
-  'background-size:cover;' +
+  'background-size:contain;' +
   'background-position:center top;' +
   'background-repeat:no-repeat;' +
   'opacity:.5';
@@ -6645,7 +6654,8 @@ var FLAG_CSS =
      `fixed` rather than `absolute` so the artwork stays put while the room
      list scrolls over it, instead of sliding away with the content. */
   '#scr-s1{position:relative}' +
-  '#scr-s1::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;' + FLAG_PAINT_TALL + '}' +
+  '#scr-s1::before{content:"";position:fixed;top:56px;left:0;right:0;bottom:0;' +
+    'z-index:0;pointer-events:none;' + FLAG_PAINT_TALL + '}' +
   '#scr-s1>*{position:relative;z-index:1}' +
   /* The band inside the welcome block is redundant once the whole body carries
      the artwork, and doubling it would darken that patch. */
@@ -7270,6 +7280,43 @@ function wireClockHome() {
   } catch (e) { r8Log('clock_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
 }
 
+/* ── 8.13 wording ──────────────────────────────────────────────────────────
+   Three controls that do different things read as variations of one idea:
+   "Ear", "Auto-read incoming", "Mute notifications". Nothing said WHAT was
+   heard or WHAT was muted, so the ear and the headset were indistinguishable
+   without trying them.
+
+   The owner's spec, stated plainly:
+     Ear     — hear the partner's phone/video audio
+     Headset — hear the translation
+     Mute    — the phone/video ringer, on or off
+
+   The label is replaced, not the row: the toggle, its handler and the info
+   affordance beside it all stay exactly as they were. */
+var MENU_LABEL = {
+  's4b-ear': 'Hear their voice',
+  's4b-autoread': 'Hear the translation',
+  's4b-mute': 'Ringer'
+};
+
+function applyMenuLabels() {
+  try {
+    var n = 0;
+    for (var id in MENU_LABEL) {
+      if (!MENU_LABEL.hasOwnProperty(id)) continue;
+      var row = $(id);
+      if (!row || !row.querySelector) continue;
+      var span = row.querySelector('span');
+      if (!span) continue;
+      if (span.textContent === MENU_LABEL[id]) { n++; continue; }
+      span.textContent = MENU_LABEL[id];
+      n++;
+    }
+    r8Log('menu_labels', { applied: n }, 'ok');
+    return n;
+  } catch (e) { r8Log('menu_labels_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
 if (typeof document !== 'undefined') {
   /* Decided first, so nothing is recorded before the choice is known. */
   R8_DEBUG.on = debugEnabled();
@@ -7291,6 +7338,7 @@ if (typeof document !== 'undefined') {
       var cam = $('rb-cam');
       if (cam) iconSwap(cam, !!CALL.camOn, ICON.camOn, ICON.camOff);
       applyMenuIcons();
+      applyMenuLabels();
       dressFlagBands();
       wirePipSwap();
       wirePipDrag();
