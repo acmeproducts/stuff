@@ -324,6 +324,14 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 <meta name="apple-mobile-web-app-title" content="TalkBridge">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png" type="image/png">
+<link rel="manifest" href="tb-manifest.webmanifest">
+<meta name="theme-color" content="#2E8B8B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TalkBridge">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png" type="image/png">
 </head>
 <body>
 <div id="app">
@@ -6255,6 +6263,1048 @@ function r8Log(what, data, level) {
   };
 })();
 
+
+
+/* ═══════════ GAP PART · NP-no-password.js ═══════════ */
+/* @contract
+   wraps: renderHome
+   adds: NOPW, nopwLog, suppressPasswordUI, NOPW_CSS, _npRenderHome
+*/
+var NOPW = { swept: 0, lastCount: 0 };
+
+function nopwLog(what, data, level) {
+  try { log('nopw_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+/* -webkit-text-security is what Safari/Chrome use for masking without a
+   password input. `text-security` is the standard property. Both are set; the
+   fallback letter-spacing keeps the dots legible if neither is supported. */
+var NOPW_CSS =
+  '.nopw-mask{-webkit-text-security:disc;text-security:disc}';
+
+function suppressPasswordUI() {
+  try {
+    if (typeof document === 'undefined' || !document.querySelectorAll) return 0;
+    var fields = document.querySelectorAll('input, textarea');
+    var changed = 0;
+
+    for (var i = 0; i < fields.length; i++) {
+      var el = fields[i];
+      var type = (el.getAttribute && el.getAttribute('type')) || 'text';
+
+      /* File, colour and range inputs are not text entry and are not a
+         password-manager surface — leave them entirely alone. */
+      if (type === 'file' || type === 'color' || type === 'range') continue;
+
+      /* THE ACTUAL FIX: a password-typed field is a password field to every
+         manager on earth, whatever else is set on it. Convert to text and mask
+         visually instead — identical to a person, invisible to a vault. */
+      if (type === 'password') {
+        el.setAttribute('type', 'text');
+        if (el.classList && !el.classList.contains('nopw-mask')) el.classList.add('nopw-mask');
+        changed++;
+      }
+
+      /* `off` is honoured for non-password fields but is widely treated as a
+         hint; `new-password` is the value browsers respect most consistently
+         to mean "do not offer to fill or save this". Combined with the type
+         change above, nothing here reads as a credential. */
+      if (el.getAttribute('autocomplete') !== 'new-password') {
+        el.setAttribute('autocomplete', 'new-password');
+        changed++;
+      }
+      /* Managers and mobile keyboards also key off these. */
+      if (!el.hasAttribute('autocorrect')) el.setAttribute('autocorrect', 'off');
+      if (!el.hasAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'off');
+      if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'false');
+      /* 1Password / LastPass / Bitwarden all respect their own ignore flags. */
+      if (!el.hasAttribute('data-1p-ignore')) el.setAttribute('data-1p-ignore', '');
+      if (!el.hasAttribute('data-lpignore')) el.setAttribute('data-lpignore', 'true');
+      if (!el.hasAttribute('data-bwignore')) el.setAttribute('data-bwignore', '');
+    }
+
+    NOPW.swept++;
+    if (changed !== NOPW.lastCount) {
+      nopwLog('swept', { fields: fields.length, changed: changed }, 'ok');
+      NOPW.lastCount = changed;
+    }
+    return changed;
+  } catch (e) {
+    nopwLog('sweep_failed', { e: String(e && e.message || e) }, 'error');
+    return 0;
+  }
+}
+
+/* Re-applied whenever the home screen redraws, since that is the common path
+   back from any dialog that may have created new inputs. */
+(function () {
+  var _npRenderHome = renderHome;
+  renderHome = function () {
+    var r = _npRenderHome.apply(this, arguments);
+    try { suppressPasswordUI(); } catch (_) {}
+    return r;
+  };
+})();
+
+if (typeof document !== 'undefined') {
+  try {
+    var npStyle = document.createElement('style');
+    npStyle.textContent = NOPW_CSS;
+    document.head.appendChild(npStyle);
+  } catch (e) { nopwLog('css_failed', { e: String(e && e.message || e) }, 'error'); }
+
+  /* Dynamically-created inputs (room name, create-room dialog) appear after
+     load, so a single boot-time pass would miss them. Watching the DOM catches
+     every one the moment it is inserted. */
+  try {
+    if (typeof MutationObserver !== 'undefined') {
+      var mo = new MutationObserver(function () { suppressPasswordUI(); });
+      mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    }
+  } catch (_) {}
+
+  /* Belt and braces for the pre-observer window and any late injection. */
+  setTimeout(suppressPasswordUI, 0);
+  setTimeout(suppressPasswordUI, 400);
+  setTimeout(suppressPasswordUI, 1200);
+  try {
+    document.addEventListener('focusin', function (ev) {
+      if (ev.target && /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) suppressPasswordUI();
+    });
+  } catch (_) {}
+}
+
+
+/* ═══════════ GAP PART · LG-legibility.js ═══════════ */
+/* @contract
+   adds: LEGIBILITY_CSS, legLog
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   LEGIBILITY
+
+   Reported on iPhone: the transcript's system entries (missed call, room
+   renamed, "is now") and the room-menu labels are too small to read, while the
+   chat bubbles at 22px are fine.
+
+   MEASURED, not guessed, from the built stylesheet:
+
+       .pill span      11.5px   ← missed call / room change entries
+       .section-label  10px     ← room menu group headings
+       .field-label    11px     ← input labels
+       .drawer-tab     12.5px   ← General / Customize / Manage
+       .rc2-when       12px     ← room card timestamps
+       .he-w           11.5px   ← away-record timestamps
+
+   Two independent causes:
+
+   1. Several of these are simply below a readable size on a dense phone
+      display. 10px is the smallest text in the app and sits on a grey label —
+      low contrast and tiny at once.
+
+   2. `text-size-adjust` was set NOWHERE. Without it, iOS Safari applies its
+      own automatic text inflation heuristics, which scale some text and not
+      others — so sizes drift apart unpredictably between platforms rather
+      than merely being small. This is why the ratio looked wrong (22px
+      readable, 11px "looking like 5") instead of everything being uniformly
+      small.
+
+   Raised to a floor of 13px for body-ish text and 12px for labels, and text
+   scaling pinned so every platform renders the sizes actually specified.
+   Bubble text is deliberately untouched — it is user-configurable and was
+   reported as fine.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+function legLog(what, data, level) {
+  try { log('legibility_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+
+var LEGIBILITY_CSS =
+  /* Pin text scaling. Without this iOS inflates some text and not other text,
+     which is what made the sizes look inconsistent rather than just small. */
+  'html{-webkit-text-size-adjust:100%;text-size-adjust:100%}' +
+
+  /* Transcript system entries — missed calls, room renames, "is now".
+     These carry real information and were the hardest to read. */
+  // @affects .pill 0
+  '.pill span{font-size:14px}' +
+
+  /* Room menu: group headings and input labels. 10px was the smallest text in
+     the app, in a low-contrast grey. */
+  // @affects .section-label 2
+  '.section-label{font-size:12px;letter-spacing:.4px}' +
+  // @affects .field-label 8
+  '.field-label{font-size:12px}' +
+  // @affects .drawer-tab 4
+  '.drawer-tab{font-size:14px}' +
+  // @affects .appear-label 9
+  '.appear-label{font-size:13.5px}' +
+
+  /* COLOUR SWATCHES AS BOXES, NOT OVALS. iOS renders input[type=color] as a
+     rounded pill by default and ignores width/height unless the native
+     appearance is switched off first. Every other platform draws a rectangle,
+     so the control looked wrong only on iPhone. */
+  'input[type=color]{-webkit-appearance:none;appearance:none;border:1px solid var(--border);' +
+    'border-radius:6px;padding:0;width:100%;height:34px;background:none;cursor:pointer}' +
+  'input[type=color]::-webkit-color-swatch-wrapper{padding:2px}' +
+  'input[type=color]::-webkit-color-swatch{border:none;border-radius:4px}' +
+
+  /* Timestamps: room cards and the away-record. */
+  '.rc2-when{font-size:12.5px}' +
+  '.he-w{font-size:12.5px}';
+
+if (typeof document !== 'undefined') {
+  try {
+    var legStyle = document.createElement('style');
+    legStyle.textContent = LEGIBILITY_CSS;
+    document.head.appendChild(legStyle);
+    legLog('applied', {}, 'ok');
+  } catch (e) {
+    legLog('failed', { e: String(e && e.message || e) }, 'error');
+  }
+}
+
+
+/* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
+/* @contract
+   wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
+   adds: ICON, MENU_ICON, FLAG_LAYERS, FLAG_LAYERS_TALL, FLAG_PAINT, FLAG_PAINT_TALL, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 8 · CLEAN-UP AND FINE TOUCHES
+
+   8.2  Two-graphic mute icons — camera and microphone become complete icon
+        graphics swapped in and out, not a red line composited over the base
+        glyph. A slash drawn on top reads as a defect at small sizes and cannot
+        be recognised at a glance, which is the whole job of a mute icon.
+
+   8.3  Bubble-header icon convention — a microphone for transcribed chat, a
+        phone for transcribed voice, a video camera for transcribed video. The
+        base recorded only origin:'spoken' and never which call produced it, so
+        the call kind is now captured on the entry at creation. Without that the
+        distinction is unrecoverable after the fact.
+
+   8.11 Ear / Auto-read / Mute wording pass.
+
+   Deliberately NOT here: anything touching iOS push or install (release 10).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* R8 and r8Log already exist in the base body, added with the room-card fix.
+   Redeclaring them would replace a function the baseline owns. */
+
+/* Complete graphics, one per state. Nothing composited: the muted form is its
+   own drawing, so it is recognisable at 20px instead of being a base icon with
+   a line over it. */
+var ICON = {
+  micOn:
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+    '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
+    '<line x1="12" y1="19" x2="12" y2="23"/></svg>',
+
+  /* Muted: an open, broken capsule with the stand removed. Distinct in
+     silhouette, not a decorated version of the live icon. */
+  micOff:
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M9 5V4a3 3 0 0 1 6 0v5"/>' +
+    '<path d="M15 12a3 3 0 0 1-5.6 1.5"/>' +
+    '<path d="M19 10v2a7 7 0 0 1-11 5.7"/>' +
+    '<path d="M5 10v2a7 7 0 0 0 2 4.9"/>' +
+    '<line x1="4" y1="3" x2="20" y2="21" stroke-width="2.4"/></svg>',
+
+  camOn:
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+    '<rect x="2" y="6" width="13" height="12" rx="2"/>' +
+    '<path d="M15 10l7-4v12l-7-4z"/></svg>',
+
+  /* Muted: the lens body drawn open on one side with the prism gone. */
+  camOff:
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+    '<path d="M9 6h4a2 2 0 0 1 2 2v3"/>' +
+    '<path d="M15 15v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2"/>' +
+    '<path d="M22 8v8l-5-3"/>' +
+    '<line x1="3" y1="3" x2="21" y2="21" stroke-width="2.4"/></svg>',
+
+  /* 8.3 — bubble header origin marks. */
+  hdrMic:
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+    '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>',
+  hdrPhone:
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>',
+  hdrVideo:
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+    '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
+};
+
+/* ── 8.1 THE FLAG MOTIF — THE BRANDING ─────────────────────────────────────
+   Taken from test.html, which is the reference. This is not decoration on one
+   screen; it is the app's branding and belongs on every surface that
+   introduces the app or a room.
+
+   The treatment: the flag artwork full-bleed behind a translucent cream wash,
+   with the heading sitting on top of it. Layer order is exact and matters —
+   the wash FIRST so it sits over the flags and keeps text readable, .gif
+   before .png so an animated source wins where present, and a gradient last as
+   the fallback when neither loads.
+
+   Two heights, both from test.html:
+     108px — a card that introduces the app (onboarding, joiner, welcome)
+      72px — a panel heading strip, square-bottomed, pulled to the panel edges
+
+   The earlier attempt drew coloured stripes at 6px. That was an invention, and
+   at 6px `cover` crops the 770x284 artwork to a sliver of a single flag, which
+   is why it read as a plain coloured line. The height was wrong, not the art.
+
+   SURFACES:
+     .flagband        — the four existing bands (onboarding, welcome, joiner,
+                        modal), raised to the card treatment
+     .drawer-head     — the room drawer heading, behind the title AND the tabs.
+                        It had no band at all. */
+/* THE .gif IS A SWAP SLOT, NOT A MISTAKE. Each layer asks for a .gif first
+   and falls through to the .png beneath it. The .gif is deliberately absent:
+   dropping one into the repo replaces the artwork — animated or otherwise —
+   with no code change at all. The 404 in the console is the cost of that
+   mechanism working as designed, and must NOT be "fixed" by removing the
+   layer. This nearly happened once. */
+
+/* Landscape — for short, wide surfaces. */
+var FLAG_LAYERS =
+  "linear-gradient(rgba(253,250,247,.82),rgba(253,250,247,.82))," +
+  "url('./flags.gif')," +
+  "url('./flags.png')," +
+  "linear-gradient(135deg,#f7e9d8,#f2f4ff)";
+
+/* Portrait — for the full-height home screen body. The landscape strip is
+   770x284; `cover` on a tall phone scales it to fill the HEIGHT, magnifying it
+   ~2.9x until two or three flags fill the screen as colour blocks. The same
+   artwork turned into a 284x770 column matches a phone's shape, so the scale
+   drops to about 1.1-1.5x and every flag stays legible. Same swap slot. */
+var FLAG_LAYERS_TALL =
+  "linear-gradient(rgba(253,250,247,.82),rgba(253,250,247,.82))," +
+  "url('./flags-tall.gif')," +
+  "url('./flags-tall.png')," +
+  "linear-gradient(135deg,#f7e9d8,#f2f4ff)";
+
+/* The wash is heavier than test.html's. That reference sits on a cream card;
+   our drawer is white, and the artwork read far too strongly behind the title
+   and tabs — the owner could not comfortably read them. Raising the wash to
+   .82 drops the artwork to roughly a tenth of its strength, which keeps it as
+   branding rather than a picture competing with the text. */
+var FLAG_PAINT_TALL =
+  'background-image:' + FLAG_LAYERS_TALL + ';' +
+  'background-size:cover;' +
+  'background-position:center top;' +
+  'background-repeat:no-repeat;' +
+  'opacity:.5';
+
+var FLAG_PAINT =
+  'background-image:' + FLAG_LAYERS + ';' +
+  'background-size:cover,cover,cover,cover;' +
+  'background-position:center,center,center,center;' +
+  'background-repeat:no-repeat,no-repeat,no-repeat,no-repeat;' +
+  'opacity:.5';
+
+var FLAG_CSS =
+  /* The card treatment — 108px, the app-introducing surfaces. */
+  // @affects .flagband 4
+  '.flagband{position:relative;height:auto;min-height:108px;border-radius:12px;' +
+    'overflow:hidden;display:flex;align-items:center;justify-content:center;' +
+    'background-image:none;margin-bottom:14px;width:auto !important}' +
+  '.flagband::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.flagband i{display:none}' +
+  '.flagband .fb-title{position:relative;font-size:16px;font-weight:700;' +
+    'line-height:1.35;color:var(--ink);padding:14px;text-align:center}' +
+
+  /* The panel-heading treatment — 72px, square bottom, behind the drawer title
+     AND the tabs, which is the top strip of the room drawer. The tabs keep
+     their own border so the strip still reads as a heading. */
+  '.drawer-head{position:relative;border-radius:18px 18px 0 0;overflow:hidden;' +
+    'min-height:72px;align-items:center}' +
+  '.drawer-head::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.drawer-head>*{position:relative}' +
+  '.drawer-tabs{position:relative;overflow:hidden}' +
+  '.drawer-tabs::before{content:"";position:absolute;inset:0;' + FLAG_PAINT + '}' +
+  '.drawer-tabs>*{position:relative}' +
+  /* The tab labels are #9A9592 — a mid grey chosen for a plain white panel.
+     Over artwork, however faint, it has almost no contrast and the labels wash
+     out. Text that sits on the branding needs to be darker than text that sits
+     on white, so the inactive tabs move to the full ink colour at reduced
+     weight: same visual hierarchy against the active teal tab, but legible.
+     The title gets the same treatment. */
+  '.drawer-tabs .drawer-tab{color:var(--ink);opacity:.65}' +
+  '.drawer-tabs .drawer-tab.active{color:var(--teal);opacity:1}' +
+  '.drawer-head .drawer-title{color:var(--ink)}' +
+
+  /* THE HOME SCREEN BODY. Not a strip and not a card — the artwork is the
+     background of the whole screen, with the room cards and the welcome text
+     sitting on top of it. A band tucked into .welcome-wrap sat below the fold
+     on a phone, which is why the home screen appeared to have no branding at
+     all; a top strip was the wrong reading of the same instruction.
+
+     `fixed` rather than `absolute` so the artwork stays put while the room
+     list scrolls over it, instead of sliding away with the content. */
+  '#scr-s1{position:relative}' +
+  '#scr-s1::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;' + FLAG_PAINT_TALL + '}' +
+  '#scr-s1>*{position:relative;z-index:1}' +
+  /* The band inside the welcome block is redundant once the whole body carries
+     the artwork, and doubling it would darken that patch. */
+  '#scr-s1 .flagband{display:none}';
+
+/* Moves the ask-screen heading onto the band so it sits over the artwork, as
+   test.html has it. The text is MOVED, never retyped, so it cannot drift from
+   whatever the base says. */
+function dressFlagBands() {
+  try {
+    var bands = document.querySelectorAll('.flagband');
+    if (!bands || !bands.length) return 0;
+    var n = 0;
+    for (var i = 0; i < bands.length; i++) {
+      var b = bands[i];
+      if (b.dataset && b.dataset.r8Flag) { n++; continue; }
+
+      var host = b.parentNode;
+      if (host && host.querySelector) {
+        var title = host.querySelector('.ask-title');
+        var sub = host.querySelector('.ask-sub');
+        if (title) {
+          var wrap = document.createElement('div');
+          wrap.className = 'fb-title';
+          wrap.textContent = title.textContent + (sub ? ' ' + sub.textContent : '');
+          b.appendChild(wrap);
+          title.style.display = 'none';
+          if (sub) sub.style.display = 'none';
+        }
+      }
+      if (b.dataset) b.dataset.r8Flag = '1';
+      n++;
+    }
+    r8Log('flag_bands', { dressed: n }, 'ok');
+    return n;
+  } catch (e) { r8Log('flag_bands_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
+
+var R8_CSS =
+  /* The muted state is carried by the graphic itself, so no colour override is
+     needed to make it legible — but the red reads faster than shape alone. */
+  '#rb-mic.off svg,#rb-cam.off svg{stroke:#A32D2D}' +
+  '.origin-mark{display:inline-flex;align-items:center;margin-right:4px;opacity:.75;vertical-align:-1px}' +
+  /* A dragged band needs to be movable, and must not select text while moving. */
+  '#scr-room.pip #call-band{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}' +
+  '#scr-room.pip #call-band:active{cursor:grabbing}' +
+  '.presence-dot.speaking{background:var(--teal);animation:r8-speak 1s ease-in-out infinite}' +
+  '@keyframes r8-speak{0%,100%{opacity:.45}50%{opacity:1}}' +
+  '.r8-typing{display:none;padding:4px 14px;font-size:12.5px;color:var(--ink-dim);font-style:italic}' +
+  '.r8-typing.on{display:block}' +
+  FLAG_CSS;
+
+/* Swaps the whole graphic rather than toggling a slash. */
+function iconSwap(el, on, onGraphic, offGraphic) {
+  if (!el) return false;
+  try {
+    el.innerHTML = on ? onGraphic : offGraphic;
+    /* Set explicitly, never toggled. The base already toggles this class in
+       its own toggleMic/toggleCam, so a second toggle here flips it straight
+       back and the class ends up disagreeing with the graphic. */
+    if (on) el.classList.remove('off'); else el.classList.add('off');
+    return true;
+  } catch (e) { r8Log('icon_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8ToggleMic = CALL.toggleMic;
+  CALL.toggleMic = function () {
+    var r = _r8ToggleMic.apply(this, arguments);
+    try {
+      iconSwap($('rb-mic'), this.micOn, ICON.micOn, ICON.micOff);
+      r8Log('mic_icon', { on: this.micOn }, 'ok');
+    } catch (_) {}
+    return r;
+  };
+})();
+
+(function () {
+  var _r8ToggleCam = CALL.toggleCam;
+  CALL.toggleCam = function () {
+    var r = _r8ToggleCam.apply(this, arguments);
+    try {
+      iconSwap($('rb-cam'), this.camOn, ICON.camOn, ICON.camOff);
+      r8Log('cam_icon', { on: this.camOn }, 'ok');
+    } catch (_) {}
+    return r;
+  };
+})();
+
+/* 8.3 — the call kind has to be recorded when the entry is made. CALL.kind is
+   only meaningful while the call is live, so reading it later is impossible;
+   this captures it at creation. */
+(function () {
+  var _r8AddSpeech = addSpeech;
+  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
+    var r = _r8AddSpeech.apply(this, arguments);
+    try {
+      var id = 'sp-' + (who === 'me' ? 'm' : 'p') + '-' + ss;
+      var e = transcript.find(function (x) { return x.id === id; });
+      if (e && !e.callKind) {
+        e.callKind = (CALL && CALL.active) ? (CALL.kind === 'video' ? 'video' : 'voice') : 'chat';
+        saveTr();
+        r8Log('speech_kind', { kind: e.callKind }, 'ok');
+      }
+    } catch (err) { r8Log('speech_kind_failed', { e: String(err && err.message || err) }, 'error'); }
+    return r;
+  };
+})();
+
+/* Which mark a bubble header shows. Chat mic for transcribed typing-free
+   speech outside a call, phone inside a voice call, video inside a video call. */
+function originIcon(e) {
+  if (!e) return '';
+  if (e.origin !== 'spoken') return '';
+  if (e.callKind === 'voice') return '<span class="origin-mark">' + ICON.hdrPhone + '</span>';
+  if (e.callKind === 'video') return '<span class="origin-mark">' + ICON.hdrVideo + '</span>';
+  return '<span class="origin-mark">' + ICON.hdrMic + '</span>';
+}
+
+/* The base builds the whole bubble as a string with the origin mark already
+   inside it, so the mark is replaced in the produced markup rather than the
+   function being reimplemented — the rest of the bubble is untouched. */
+(function () {
+  var _r8MsgHtml = msgHtml;
+  msgHtml = function (e) {
+    var html = _r8MsgHtml.apply(this, arguments);
+    try {
+      if (!e || e.origin !== 'spoken') return html;
+      var want = originIcon(e);
+      if (!want) return html;
+      /* Only the leading origin mark is swapped; the header's action buttons
+         and receipt markup are left exactly as the base produced them. */
+      return html.replace(/<span class="origin-mark">[\s\S]*?<\/span>/, want);
+    } catch (err) {
+      r8Log('origin_mark_failed', { e: String(err && err.message || err) }, 'error');
+      return html;
+    }
+  };
+})();
+
+/* ── 8.4 room menu icon set ────────────────────────────────────────────────
+   Three controls that do different things and were reading as variations of
+   one idea:
+     Ear     — hear the partner's raw phone/video audio
+     Headset — hear the translation spoken aloud
+     Mute    — phone/video ringer on or off
+   The middle one carried an ear too, so the two audio controls were
+   indistinguishable at a glance. Notify on/off belongs in this group but is
+   deliberately absent: it waits for release 10. */
+var MENU_ICON = {
+  /* Ear: raw audio from the other person. */
+  ear:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M6 8.5a5.5 5.5 0 1 1 11 0c0 2.5-2 3.2-2.8 4.6-.6 1-.4 2.4-1.2 3.2a2.5 2.5 0 0 1-4.2-1.8"/>' +
+    '<path d="M9.5 8.5a2.5 2.5 0 0 1 5 0"/></svg>',
+
+  /* Headset: the translation, spoken. A band over the head with two cups —
+     a different silhouette from an ear, not a decorated one. */
+  headset:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/>' +
+    '<rect x="2" y="13" width="4" height="7" rx="1.6"/>' +
+    '<rect x="18" y="13" width="4" height="7" rx="1.6"/></svg>',
+
+  /* Ringer on. */
+  bell:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M18 12V9A6 6 0 0 0 6 9v3l-2 3v1h16v-1z"/>' +
+    '<path d="M10 20a2 2 0 0 0 4 0"/></svg>',
+
+  /* Ringer off — a complete graphic, consistent with 8.2. */
+  bellOff:
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<path d="M18 12V9a6 6 0 0 0-9.3-5"/>' +
+    '<path d="M6.2 6.2A6 6 0 0 0 6 9v3l-2 3v1h13"/>' +
+    '<path d="M10 20a2 2 0 0 0 4 0"/>' +
+    '<line x1="3" y1="3" x2="21" y2="21" stroke-width="2.3"/></svg>'
+};
+
+/* Replaces the glyph inside a labelled row without disturbing its label,
+   toggle or handlers. */
+function setRowIcon(rowId, svg) {
+  try {
+    var row = $(rowId);
+    if (!row || !row.querySelector) return false;
+    var old = row.querySelector('svg');
+    if (!old || !old.parentNode) return false;
+    var holder = document.createElement('span');
+    holder.innerHTML = svg;
+    old.parentNode.replaceChild(holder.firstChild || holder, old);
+    return true;
+  } catch (e) { r8Log('row_icon_failed', { row: rowId, e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function applyMenuIcons() {
+  try {
+    var n = 0;
+    if (setRowIcon('s4b-ear', MENU_ICON.ear)) n++;
+    if (setRowIcon('s4b-autoread', MENU_ICON.headset)) n++;
+    var r = (typeof activeRoom === 'function') ? activeRoom() : null;
+    if (setRowIcon('s4b-mute', (r && r.muted) ? MENU_ICON.bellOff : MENU_ICON.bell)) n++;
+    r8Log('menu_icons', { applied: n }, n === 3 ? 'ok' : 'warn');
+    return n;
+  } catch (e) { r8Log('menu_icons_failed', { e: String(e && e.message || e) }, 'error'); return 0; }
+}
+
+/* ── 8.6 tap to swap ───────────────────────────────────────────────────────
+   Tapping the PIP already exits it. The other half was missing: tapping the
+   full-size video to enter PIP. Bound on the video surface rather than the
+   band so a tap on the controls does not trigger it. */
+function wirePipSwap() {
+  try {
+    var host = $('call-videos');
+    if (!host || !host.addEventListener) return false;
+    if (host.dataset && host.dataset.r8Pip) return true;
+
+    host.addEventListener('click', function (ev) {
+      try {
+        /* Exiting is already handled by the base's own listener; this adds the
+           entering half only, and only for a video call where a PIP means
+           something. */
+        if (CALL.pip) return;
+        if (!CALL.active || CALL.kind !== 'video') return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
+        CALL.enterPip();
+        r8Log('pip_entered_by_tap', {}, 'ok');
+      } catch (e) { r8Log('pip_tap_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    if (host.dataset) host.dataset.r8Pip = '1';
+    return true;
+  } catch (e) { r8Log('pip_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.7 draggable PIP ─────────────────────────────────────────────────────
+   The band is pinned to a fixed corner, so it can cover whatever is beneath
+   it with no way to move it. Dragging sets explicit coordinates; a drag is
+   distinguished from a tap by distance, so tap-to-exit keeps working.
+   Clamped to the viewport, or it could be dragged off-screen and lost. */
+var PIP_DRAG = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
+
+function wirePipDrag() {
+  try {
+    var band = $('call-band');
+    if (!band || !band.addEventListener) return false;
+    if (band.dataset && band.dataset.r8Drag) return true;
+
+    var point = function (ev) {
+      var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+      return { x: t.clientX || 0, y: t.clientY || 0 };
+    };
+
+    var start = function (ev) {
+      if (!CALL.pip) return;
+      var p = point(ev);
+      PIP_DRAG.on = true;
+      PIP_DRAG.moved = false;
+      PIP_DRAG.sx = p.x;
+      PIP_DRAG.sy = p.y;
+      var r = band.getBoundingClientRect ? band.getBoundingClientRect() : { left: 0, top: 0 };
+      PIP_DRAG.ox = r.left;
+      PIP_DRAG.oy = r.top;
+    };
+
+    var move = function (ev) {
+      if (!PIP_DRAG.on) return;
+      var p = point(ev);
+      var dx = p.x - PIP_DRAG.sx, dy = p.y - PIP_DRAG.sy;
+      /* Below this, it is a tap. Without the threshold every tap would count
+         as a drag and tap-to-exit would stop working. */
+      if (!PIP_DRAG.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+      PIP_DRAG.moved = true;
+      if (ev.preventDefault) ev.preventDefault();
+
+      var w = band.offsetWidth || 118, h = band.offsetHeight || 198;
+      var vw = (window.innerWidth || 390), vh = (window.innerHeight || 700);
+      var nx = Math.max(4, Math.min(vw - w - 4, PIP_DRAG.ox + dx));
+      var ny = Math.max(4, Math.min(vh - h - 4, PIP_DRAG.oy + dy));
+      band.style.left = nx + 'px';
+      band.style.top = ny + 'px';
+      band.style.right = 'auto';
+      band.style.bottom = 'auto';
+    };
+
+    var end = function () {
+      if (!PIP_DRAG.on) return;
+      PIP_DRAG.on = false;
+      if (PIP_DRAG.moved) r8Log('pip_dragged', {}, 'ok');
+    };
+
+    band.addEventListener('mousedown', start);
+    band.addEventListener('touchstart', start);
+    band.addEventListener('mousemove', move);
+    band.addEventListener('touchmove', move);
+    band.addEventListener('mouseup', end);
+    band.addEventListener('touchend', end);
+    band.addEventListener('mouseleave', end);
+
+    /* A tap that turned into a drag must not also exit the PIP. */
+    band.addEventListener('click', function (ev) {
+      if (PIP_DRAG.moved) { ev.stopPropagation(); PIP_DRAG.moved = false; }
+    }, true);
+
+    if (band.dataset) band.dataset.r8Drag = '1';
+    return true;
+  } catch (e) { r8Log('pip_drag_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* Leaving PIP returns the band to its styled corner, so a dragged position
+   does not persist into the next call. */
+(function () {
+  var _r8ExitPip = CALL.exitPip;
+  CALL.exitPip = function () {
+    try {
+      var band = $('call-band');
+      if (band && band.style) {
+        band.style.left = ''; band.style.top = '';
+        band.style.right = ''; band.style.bottom = '';
+      }
+    } catch (_) {}
+    return _r8ExitPip.apply(this, arguments);
+  };
+})();
+
+/* ── 8.8 call timer parity ─────────────────────────────────────────────────
+   The duration was already computed on both sides, and both sides lost it: any
+   time the other person's microphone was live the same slot printed
+   "Speaking…", which during an actual conversation is most of the time. So the
+   receiver appeared to have no timer because in practice nobody did.
+
+   The duration now owns that slot unconditionally. Connection trouble is the
+   one thing allowed to replace it, because it explains silence; speaking does
+   not, and the presence dot already signals it. */
+var R8_CLOCK = { timer: null };
+
+function callDuration(startTs, now) {
+  var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
+  return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+function startCallTimer() {
+  stopCallTimer();
+  R8_CLOCK.timer = setInterval(function () {
+    try {
+      if (!CALL.active) { stopCallTimer(); return; }
+      var el = $('rz-timer');
+      if (!el) return;
+      el.textContent = CALL.connBad ? 'Reconnecting…' : callDuration(CALL.startTs);
+      var dot = $('presence');
+      if (dot) dot.classList.toggle('speaking', !!(typeof _remoteMicOn !== 'undefined' && _remoteMicOn));
+    } catch (_) {}
+  }, 1000);
+}
+
+function stopCallTimer() {
+  if (R8_CLOCK.timer) { clearInterval(R8_CLOCK.timer); R8_CLOCK.timer = null; }
+  try { var dot = $('presence'); if (dot) dot.classList.remove('speaking'); } catch (_) {}
+}
+
+(function () {
+  var _r8Mount = CALL.mount;
+  CALL.mount = function (room) {
+    var r = _r8Mount.apply(this, arguments);
+    try {
+      /* Both sides without exception — the caller and the person answering are
+         equally on a call and the surface should say so identically. */
+      var el = $('rz-timer');
+      if (el) el.textContent = callDuration(this.startTs);
+      startCallTimer();
+      r8Log('call_timer', { caller: !!this.caller }, 'ok');
+    } catch (e) { r8Log('call_timer_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _r8Teardown = CALL.teardown;
+  CALL.teardown = function () {
+    stopCallTimer();
+    return _r8Teardown.apply(this, arguments);
+  };
+})();
+
+/* ── 8.12 &debug=1 ─────────────────────────────────────────────────────────
+   Diagnostics accumulated on every device on every run, whether or not anyone
+   would ever look at them. A person who never asks for a debug log should not
+   be carrying one — that is the privacy-forward position, and it is also less
+   memory on a phone.
+
+   Collection is off unless explicitly asked for. `log()` is wrapped rather
+   than replaced so every existing call site keeps working untouched; when off
+   it simply records nothing. The choice is remembered so it survives the
+   reload that follows enabling it. */
+var R8_DEBUG = { on: false };
+
+function debugEnabled() {
+  try {
+    if (/[?&]debug=1/.test(location.search)) return true;
+    if (/[?&]debug=0/.test(location.search)) return false;
+    return localStorage.getItem('tb_debug') === '1';
+  } catch (_) { return false; }
+}
+
+function setDebug(on) {
+  try {
+    R8_DEBUG.on = !!on;
+    if (on) localStorage.setItem('tb_debug', '1');
+    else localStorage.removeItem('tb_debug');
+  } catch (_) {}
+  return R8_DEBUG.on;
+}
+
+(function () {
+  var _r8Log = log;
+  log = function (ev, d, lvl) {
+    /* Errors are always kept. Silencing the record of a failure is how a
+       problem becomes invisible, which is worse than the storage it costs. */
+    if (!R8_DEBUG.on && lvl !== 'error') return;
+    return _r8Log.apply(this, arguments);
+  };
+})();
+
+/* ── 8.10 short-phrase double transcription ────────────────────────────────
+   In a dual-channel room a brief utterance is transcribed twice. The base
+   suppresses the second copy by TIME only — a 1200ms window — so a short
+   phrase whose second recognition lands after that window is treated as a new
+   utterance and delivered again. Time alone cannot tell "said twice" from
+   "recognised twice"; the text can.
+
+   A recent entry with the same normalised text is a duplicate regardless of
+   how long the two recognitions took. The window is widened for short text,
+   where the two channels diverge most, and left alone for longer speech, where
+   genuine repetition is meaningful. */
+var R8_DEDUP = { recent: [], windowMs: 1200, shortWindowMs: 6000, shortWords: 4 };
+
+function normalisePhrase(t) {
+  return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+}
+
+function isDuplicatePhrase(text, now) {
+  try {
+    var key = normalisePhrase(text);
+    if (!key) return false;
+    now = now || Date.now();
+
+    var words = key.split(' ').length;
+    var window = (words <= R8_DEDUP.shortWords) ? R8_DEDUP.shortWindowMs : R8_DEDUP.windowMs;
+
+    /* Anything older than the widest window is no longer evidence. */
+    R8_DEDUP.recent = R8_DEDUP.recent.filter(function (r) {
+      return (now - r.ts) < R8_DEDUP.shortWindowMs;
+    });
+
+    for (var i = 0; i < R8_DEDUP.recent.length; i++) {
+      if (R8_DEDUP.recent[i].key === key && (now - R8_DEDUP.recent[i].ts) < window) {
+        r8Log('phrase_duplicate', { words: words, ms: now - R8_DEDUP.recent[i].ts }, 'ok');
+        return true;
+      }
+    }
+    R8_DEDUP.recent.push({ key: key, ts: now });
+    if (R8_DEDUP.recent.length > 24) R8_DEDUP.recent.shift();
+    return false;
+  } catch (e) { r8Log('dedup_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8AddSpeechDedup = addSpeech;
+  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
+    /* Only my own speech is de-duplicated. The partner's arrives over the
+       relay already arbitrated, and suppressing there would drop a genuine
+       repetition by the other person. */
+    if (who === 'me' && isDuplicatePhrase(srcT)) {
+      r8Log('speech_suppressed', {}, 'ok');
+      return;
+    }
+    return _r8AddSpeechDedup.apply(this, arguments);
+  };
+})();
+
+/* ── 8.9 typing indicator ──────────────────────────────────────────────────
+   Nothing existed. Typing is transient — it must never be persisted or
+   replayed into the transcript, so it rides the relay's transient channel and
+   is rendered as a strip above the compose box rather than as an entry. */
+var R8_TYPING = { sentAt: 0, hideTimer: null, showing: false };
+
+function sendTyping() {
+  try {
+    var now = Date.now();
+    /* Rate-limited: a keystroke-per-message would flood the relay. */
+    if (now - R8_TYPING.sentAt < 2000) return false;
+    R8_TYPING.sentAt = now;
+    relaySend({ type: 'typing', transient: true });
+    return true;
+  } catch (e) { r8Log('typing_send_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function showTyping(name) {
+  try {
+    var el = $('r8-typing');
+    if (!el) {
+      var host = $('transcript');
+      if (!host || !host.parentNode) return false;
+      el = document.createElement('div');
+      el.id = 'r8-typing';
+      el.className = 'r8-typing';
+      host.parentNode.insertBefore(el, host.nextSibling);
+    }
+    el.textContent = (name || 'They') + ' is typing…';
+    el.classList.add('on');
+    R8_TYPING.showing = true;
+
+    /* Cleared on a timer as well as on arrival, or a dropped connection would
+       leave it showing forever. */
+    if (R8_TYPING.hideTimer) clearTimeout(R8_TYPING.hideTimer);
+    R8_TYPING.hideTimer = setTimeout(hideTyping, 4000);
+    return true;
+  } catch (e) { r8Log('typing_show_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function hideTyping() {
+  try {
+    if (R8_TYPING.hideTimer) { clearTimeout(R8_TYPING.hideTimer); R8_TYPING.hideTimer = null; }
+    var el = $('r8-typing');
+    if (el) el.classList.remove('on');
+    R8_TYPING.showing = false;
+  } catch (_) {}
+}
+
+function wireTyping() {
+  try {
+    var input = $('chat-input');
+    if (!input || !input.addEventListener) return false;
+    if (input.dataset && input.dataset.r8Typing) return true;
+    input.addEventListener('input', function () { sendTyping(); });
+    if (input.dataset) input.dataset.r8Typing = '1';
+    return true;
+  } catch (e) { r8Log('typing_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      if (d && d.type === 'typing') {
+        var room = activeRoom();
+        showTyping(room && room.partnerName);
+        return;                       /* never reaches the transcript */
+      }
+      /* Anything actually arriving means they finished typing. */
+      if (d && (d.type === 'chat-msg' || d.type === 'speech')) hideTyping();
+    } catch (_) {}
+    return _r8HandleRelay.apply(this, arguments);
+  };
+})();
+
+/* ── 8.5 leaving the app during a call ─────────────────────────────────────
+   VERIFIED, not assumed — and half of it was missing. The back button does
+   enter PIP (the base handles popstate). But the visibility handler only runs
+   on RETURN, so nothing muted the microphone on leaving: switching apps mid-
+   call kept transmitting audio from wherever the person had gone.
+
+   Leaving mutes. Returning restores whatever the state was before, rather than
+   unmuting unconditionally — someone who muted deliberately and then switched
+   apps must not come back live. */
+var R8_AWAY = { mutedByAway: false };
+
+function onAwayDuringCall() {
+  try {
+    if (!CALL.active) return false;
+    if (!CALL.micOn) return false;          /* already muted by choice */
+    CALL.toggleMic();
+    R8_AWAY.mutedByAway = true;
+    r8Log('away_muted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_mute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function onReturnDuringCall() {
+  try {
+    if (!CALL.active) { R8_AWAY.mutedByAway = false; return false; }
+    if (!R8_AWAY.mutedByAway) return false;  /* they muted it themselves */
+    R8_AWAY.mutedByAway = false;
+    if (!CALL.micOn) CALL.toggleMic();
+    r8Log('away_unmuted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_unmute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.2 the clock is the way home ─────────────────────────────────────────
+   Two controls did the same job: an "app info" card in the left panel and,
+   nominally, the clock. The card is redundant weight in a panel that lists
+   rooms, so the clock takes the job and the card goes.
+
+   `exitToStart` is the base's own handler — the card called it and this calls
+   the same one, so the behaviour is identical rather than reimplemented.
+
+   The clock already carries a long-press for credentials. A tap and a long
+   press coexist, so the long press is left exactly as it was. */
+function wireClockHome() {
+  try {
+    /* The card goes. Keeping it until the clock is proven leaves two controls
+       doing one job and makes the gate meaningless — it would pass whether or
+       not the clock works. One control, tested. */
+    var card = $('app-info-card');
+    if (card && card.remove) { card.remove(); r8Log('info_card_removed', {}, 'ok'); }
+
+    var clock = document.querySelector('.left-clock');
+    if (!clock || !clock.addEventListener) { r8Log('no_clock', {}, 'warn'); return false; }
+    if (clock.dataset && clock.dataset.r8Home) return true;
+
+    clock.style.cursor = 'pointer';
+    clock.addEventListener('click', function (ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      r8Log('clock_home', {}, 'ok');
+      try { exitToStart(); }
+      catch (e) { r8Log('clock_home_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+    if (clock.dataset) clock.dataset.r8Home = '1';
+
+    return true;
+  } catch (e) { r8Log('clock_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+if (typeof document !== 'undefined') {
+  /* Decided first, so nothing is recorded before the choice is known. */
+  R8_DEBUG.on = debugEnabled();
+
+  try {
+    var st = document.createElement('style');
+    st.textContent = R8_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+
+  /* Initial state: the ribbon renders with the live graphics, and the mute
+     forms only appear once toggled. Set explicitly so the icon and the state
+     cannot start out disagreeing. */
+  setTimeout(function () {
+    try {
+      var mic = $('rb-mic');
+      if (mic && !CALL.active && !CHATMIC.on) iconSwap(mic, false, ICON.micOn, ICON.micOff);
+      else if (mic) iconSwap(mic, true, ICON.micOn, ICON.micOff);
+      var cam = $('rb-cam');
+      if (cam) iconSwap(cam, !!CALL.camOn, ICON.camOn, ICON.camOff);
+      applyMenuIcons();
+      dressFlagBands();
+      wirePipSwap();
+      wirePipDrag();
+      wireTyping();
+      wireClockHome();
+      /* Added alongside the base's own handler rather than replacing it — the
+         base only acts on return, so leaving was never handled at all. */
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) onAwayDuringCall(); else onReturnDuringCall();
+      });
+      r8Log('icons_installed', {}, 'ok');
+    } catch (e) { r8Log('icon_init_failed', { e: String(e && e.message || e) }, 'error'); }
+  }, 500);
+}
 
 </script>
 </body>
