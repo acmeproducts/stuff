@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v12.2.0 -->
-# TALKBRIDGE MASTER PLAN v12.2.0
+<!-- TALKBRIDGE-PLAN v13.0.0 -->
+# TALKBRIDGE MASTER PLAN v13.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -36,62 +36,71 @@ overwritten with it.
 
 ---
 
-## 2 · RELEASE 8 — SPLIT INTO TWO BUILDS
+## 2 · RELEASE 8 — ONE RELEASE, ONE GATE
 
-Owner ruling 2026-08-11: **base is the ribbon and nothing else; pre-ship
-carries the twelve fine touches.** Restoring the old ribbon geometry verbatim
-failed on device — the partner name was occluded — so the ribbon needed fixing,
-not recovering, and it earns a build of its own.
+**Owner ruling 2026-08-13: R8 is not split into micro-releases. Testing is
+expensive and must be respected — everything below ships together and is gated
+once.**
 
-### 2a · `bridge-turn24-base.html` — THE RIBBON ONLY · shipped, awaiting gate
+Output: `bridge-turn24-ship.html`. Input: `bridge-turn24-pre-base.html`.
 
-| # | Item | Status |
-|---|---|---|
-| B1 | Microphone lands on the transcript centre line, not the cluster midpoint | Shipped |
-| B2 | Camera slot collapses when idle — it was `visibility:hidden`, holding 48px | Shipped |
-| B3 | Icon gap 14px → 6px; video icon was 7.6px from the room menu | Shipped |
-| B4 | Partner name capped in `vw`, derived from the cluster width | Shipped |
-| B5 | Ellipsis on the text element, not the wrapper holding the presence dot | Shipped |
-| B6 | Every rule scoped to `#room-ribbon`, never the shared `.ribbon` class | Shipped |
-| B7 | Safe-area padding for edge-to-edge rendering | Shipped |
-
-**Why the old geometry could not simply be restored.** The approval was of the
-ICON spacing, not the name — the geometry was always marginal. The idle cluster
-was mic + camera + phone + video at 14px gaps, with the camera slot
-`visibility:hidden`: hidden, but still holding 34px plus a gap. At 360px the
-name got 39px and at 390px it got 54px, against roughly 55px needed for
-"Iphone". It read correctly on a large phone and clipped on a normal one.
-
-**Verified before building, at every real width and call state:** mic exactly
-on the centre line at 320–768px; name budget 61–95px on real phones;
-clearance to the room menu never below 37px.
-
-### 2b · `bridge-turn24-pre-ship.html` — THE TWELVE FINE TOUCHES · shipped, awaiting gate
-
-Built and rolled back once with graveyard 2.7. Rebuilt on the ribbon base, not
-resumed.
+### 2a · Scope
 
 | # | Item | Status |
 |---|---|---|
-| 8.1 | Flag motif — the `test.html` treatment: 108px panel, image full-bleed behind a translucent cream wash, title on top. NOT a stripe band | Shipped |
-| 8.2 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Shipped |
-| 8.3 | Bubble-header icon convention — mic for chat, phone for voice, video for video. Needs the call kind recorded at entry creation | Shipped |
-| 8.4 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Shipped |
-| 8.5 | Leaving the app during a call — back button already enters PIP; **muting on leave does not exist** | Shipped |
-| 8.6 | Tap video to swap to PIP (tapping the PIP already exits) | Shipped |
-| 8.7 | PIP draggable, clamped to the viewport | Shipped |
-| 8.8 | Call timer parity — **both** sides lose it; "Speaking…" overwrites the duration | Shipped |
-| 8.9 | Typing indicator — transient only | Shipped |
-| 8.10 | Short-phrase double transcription — suppression is time-only; needs text comparison | Shipped |
-| 8.11 | Ear / Auto-read / Mute wording pass | Shipped |
-| 8.12 | `&debug=1` — diagnostics off by default, errors always kept | Shipped |
+| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis on the text, all rules scoped to `#room-ribbon` | Built, ribbon confirmed correct on device |
+| 8.1 | Home-card dismissal threshold cleared with the count | Built, root cause proven |
+| 8.2 | Clock tap goes home; the redundant info card that does that job is removed | Not started |
+| 8.3 | Flag motif — the `test.html` treatment, NOT a stripe band | Built |
+| 8.4 | Two-graphic mute icons — complete graphics swapped, never a composited slash | Built |
+| 8.5 | Bubble-header icon convention — mic for chat, phone for voice, video for video | Built |
+| 8.6 | Room menu icon set — Ear, Headset, Mute. Notify waits for R10 | Built |
+| 8.7 | Muting on leaving a call — the back button already enters PIP | Built |
+| 8.8 | Tap video to swap to PIP | Built |
+| 8.9 | PIP draggable, clamped to the viewport | Built |
+| 8.10 | Call timer on both sides — "Speaking…" was overwriting the duration for everyone | Built |
+| 8.11 | Typing indicator, transient only | Built |
+| 8.12 | Short-phrase double transcription — text comparison, not a time window | Built |
+| 8.13 | Ear / Auto-read / Mute wording pass | Built |
+| 8.14 | `&debug=1` — diagnostics off by default, errors always kept | Built |
 
-### 2c · Build gates added
+### 2b · The home-card delay, provenance settled
+
+Reported as new. It is not. `homeCards`, `dismissHome` and `clearWaiting` are
+**byte-identical from Release 1 (`turn23-pre-base`) to today** — nothing since
+touched them.
+
+`dismissHome` records the waiting COUNT at dismissal; `homeCards` then shows a
+card only when the total exceeds it. Entering a room clears the count to zero
+but left the threshold behind, so the next N events raised nothing.
+
+It fires on one path only:
+
+    if (el.dataset.where === 'home') dismissHome(id, true);
+    else closePanel();
+
+**Only tapping a card on the home screen sets a threshold.** Entering the same
+room from the left panel never does. The threshold is stored per room, so with
+several active rooms only the tapped one goes quiet and the others behave —
+which is why a single-room test made it legible for the first time.
+
+Reproduced by running Release 1's own code verbatim: panel path correct, home-
+card path swallows three events. Fixed by dropping the threshold when the count
+is cleared; a deliberately dismissed card still stays dismissed while its count
+stands.
+
+### 2c · Build gates added this release
 
 | # | Gate | Found on first run |
 |---|---|---|
-| G1 | A part may not `replace` a function another part owns; a deliberate supersession must declare `@supersedes X from Y` | 3 violations in shipped code |
-| G2 | No `querySelectorAll(...).forEach` — throws on older WebKit inside a swallowing catch | 5 instances in shipped code, on room card delete/restore/hard-delete |
+| G1 | A part may not `replace` a function another part owns; a deliberate supersession must declare `@supersedes X from Y` | 3 in shipped code |
+| G2 | No `querySelectorAll(...).forEach` — throws on older WebKit inside a swallowing catch | 5 in shipped code |
+
+### 2d · Gate
+
+One pass, two devices. Ribbon; home card raising immediately after leaving a
+room; clock tap; icons distinguishable; PIP swap and drag under a real call;
+timer on both sides; typing indicator; password manager silent.
 
 ---
 
@@ -367,6 +376,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v13.0.0 · 2026-08-13.** R8 consolidated into ONE release by owner ruling —
+no micro-releases, one gate, output `bridge-turn24-ship.html`.
+
+Home-card delay provenance settled with proof rather than inference: the logic
+is byte-identical since Release 1 and only triggers when a card is tapped from
+the home screen, per room. Not a regression, not unknown provenance — a latent
+Release 1 defect that a single-room test finally made legible. Reproduced by
+running Release 1's own code verbatim.
+
+Added to scope: 8.2, clock tap goes home and the redundant info card that
+currently does that job is removed.
 
 **v12.2.0 · 2026-08-11.** `bridge-turn24-pre-ship.html` shipped — all twelve
 fine touches rebuilt on the ribbon base. 254 tests, 0 failed; contract,
