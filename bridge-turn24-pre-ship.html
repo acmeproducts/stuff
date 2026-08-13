@@ -6480,7 +6480,7 @@ if (typeof document !== 'undefined') {
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
    wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
-   adds: R8, r8Log, ICON, MENU_ICON, FLAG_LAYERS, FLAG_CSS, PIP_DRAG, R8_CLOCK, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
+   adds: R8, r8Log, ICON, MENU_ICON, FLAG_LAYERS, FLAG_CSS, PIP_DRAG, R8_CLOCK, wireClockHome, R8_DEBUG, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8_DEDUP, R8_TYPING, normalisePhrase, isDuplicatePhrase, sendTyping, showTyping, hideTyping, wireTyping, debugEnabled, setDebug, callDuration, startCallTimer, stopCallTimer, iconSwap, setRowIcon, applyMenuIcons, dressFlagBands, wirePipSwap, wirePipDrag, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8ExitPip, _r8Mount, _r8Teardown, _r8Log, _r8AddSpeechDedup, _r8HandleRelay
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
@@ -7169,6 +7169,41 @@ function onReturnDuringCall() {
   } catch (e) { r8Log('away_unmute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
 }
 
+/* ── 8.2 the clock is the way home ─────────────────────────────────────────
+   Two controls did the same job: an "app info" card in the left panel and,
+   nominally, the clock. The card is redundant weight in a panel that lists
+   rooms, so the clock takes the job and the card goes.
+
+   `exitToStart` is the base's own handler — the card called it and this calls
+   the same one, so the behaviour is identical rather than reimplemented.
+
+   The clock already carries a long-press for credentials. A tap and a long
+   press coexist, so the long press is left exactly as it was. */
+function wireClockHome() {
+  try {
+    /* The card goes. Keeping it until the clock is proven leaves two controls
+       doing one job and makes the gate meaningless — it would pass whether or
+       not the clock works. One control, tested. */
+    var card = $('app-info-card');
+    if (card && card.remove) { card.remove(); r8Log('info_card_removed', {}, 'ok'); }
+
+    var clock = document.querySelector('.left-clock');
+    if (!clock || !clock.addEventListener) { r8Log('no_clock', {}, 'warn'); return false; }
+    if (clock.dataset && clock.dataset.r8Home) return true;
+
+    clock.style.cursor = 'pointer';
+    clock.addEventListener('click', function (ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      r8Log('clock_home', {}, 'ok');
+      try { exitToStart(); }
+      catch (e) { r8Log('clock_home_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+    if (clock.dataset) clock.dataset.r8Home = '1';
+
+    return true;
+  } catch (e) { r8Log('clock_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
 if (typeof document !== 'undefined') {
   /* Decided first, so nothing is recorded before the choice is known. */
   R8_DEBUG.on = debugEnabled();
@@ -7194,6 +7229,7 @@ if (typeof document !== 'undefined') {
       wirePipSwap();
       wirePipDrag();
       wireTyping();
+      wireClockHome();
       /* Added alongside the base's own handler rather than replacing it — the
          base only acts on return, so leaving was never handled at all. */
       document.addEventListener('visibilitychange', function () {
