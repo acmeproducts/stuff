@@ -1,0 +1,43 @@
+name: Session Manager v2.9.2 tab UX fix
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v292.py'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git pull --rebase origin main
+      - name: Back up baseline
+        run: |
+          mkdir -p .release-backups/session-manager-v292
+          cp session-manager-v3.html .release-backups/session-manager-v292/session-manager-v3.v291.html
+          cp session-manager-backlog.md .release-backups/session-manager-v292/session-manager-backlog.pre-v292.md
+      - name: Build and validate
+        run: |
+          python3 .github/scripts/session-manager-v292.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text()
+          assert "const BUILD_VERSION='2.9.2'" in s
+          assert 'data-tab-drop' in s
+          assert 'function reorderProjectTabAt(' in s
+          assert 'id="ctxSave"' not in s
+          Path('/tmp/session-manager.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)))
+          PY
+          node --check /tmp/session-manager.js
+          git diff --check
+      - name: Publish
+        run: |
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add session-manager-v3.html session-manager-backlog.md .release-backups/session-manager-v292
+          git commit -m 'Session Manager v2.9.2 tab reorder and customize UX'
+          git push origin HEAD:main
