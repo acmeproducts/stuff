@@ -23,7 +23,7 @@ not govern the separate SOT effort (`project.html` / `project-backlog.md`).
 | R2 | PR #621 | Cross-card search, lane/card collapse, board import (file/URL) | MERGED 2026-08-13 |
 | R3 | PR #622 | Mobile-first row/column drag (Pointer Events) + cross-matrix move/copy | MERGED 2026-08-13 |
 | R4 | PR #623 | Touch card drag + edge auto-scroll | MERGED 2026-08-13 |
-| R5 | — | Context-aware card + gesture model | Not started — scope §2 |
+| R5 | PR #625 | Context-aware card + gesture model (handle drag; tap=preview, double-tap=open, long-press/right-click=menu; safe-area, touch targets) | MERGED 2026-08-13 |
 | R6 | — | Omni search (full-text, filters the matrix) | Not started — scope §3 |
 | R7 | — | Matrix axes overhaul (status / tags / dates / eligibility) | Not started — scope §4 |
 | R8 | — | Large-matrix sizing (scale-to-fit vs paging) | Not started — scope §5 |
@@ -102,7 +102,7 @@ Status: `pending` (agreed, not started) · `wip` · `closed`. Last updated per r
 
 | # | Item | Status | Last updated |
 |---|---|---|---|
-| OI-1 | R5 context-aware card + gestures | pending | 2026-08-13 |
+| OI-1 | R5 context-aware card + gestures | closed | 2026-08-13 |
 | OI-2 | R6 Omni search | pending | 2026-08-13 |
 | OI-3 | R7 matrix axes overhaul | pending | 2026-08-13 |
 | OI-4 | R8 scale-vs-paging — needs owner choice from a live demo | pending | 2026-08-13 |
@@ -187,6 +187,12 @@ quietly as an area is already being changed — never as a standalone risky swee
 ---
 
 ## 12 · CHANGE LOG
+
+**v1.1.0 · 2026-08-13.** R5 shipped (PR #625): context-aware card + gesture model.
+Drag moved to a card handle; single tap = read-only preview, double tap = open full,
+long-press/right-click = context menu (Open/Status/Color/Duplicate/Trash). Duplicate/Trash
+moved off the closed card. Added `touch-action`, larger tap targets, and `env(safe-area-inset)`
+padding. Verified headless (desktop + touch, portrait + landscape), zero page errors. OI-1 closed.
 
 **v1.0.0 · 2026-08-13.** Document created. Recorded shipped releases R1–R4 (PRs #620–#623)
 and scheduled the mobile-first redesign R5–R9. Locked the gesture model, the Omni-search
