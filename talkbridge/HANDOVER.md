@@ -101,3 +101,14 @@ defects; 14/14 caught. Run:
 NOT yet proven: the device gate (plan §2d) and anything crossing the relay
 (typing indicator and timer parity are harness-proven locally, not two-instance
 proven). The build awaits the owner's device pass.
+
+
+## Session 2026-08-13 (later) — device gate FAILED, R8 split, R8a shipped
+
+The all-in-one build failed on device: room-menu toggles broken by the icon
+swap (see graveyard). Rolled back at `889090e`. Owner split R8: **R8a**
+chrome/text now in `bridge-turn24-base.html` (menu wording only — the toggle
+graphics are never touched); **R8b** call surface re-applies the already-
+harness-proven six items onto the R8a base once it passes. Harness rescoped:
+17/17 effects green, 12/12 fresh mutations caught, including a runtime glyph
+swap and a tooltip-clobbering label rewrite.

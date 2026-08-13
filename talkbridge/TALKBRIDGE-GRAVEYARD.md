@@ -751,3 +751,30 @@ run selector semantics that match real WebKit or don't claim the test covers
 DOM behavior; every replaced behavior gets a diff assertion against the
 original implementation; every gate gets a fresh-defect mutation, not a replay
 of an old one.
+
+
+## R8 all-in-one — FAILED DEVICE GATE: the menu icon swap · Aug 13 2026
+
+Rolled back to the approved pre-ship. Owner report: the three room-menu
+toggles "do not function or show/turn a red slash"; the ribbon mic icon was
+fine. The owner had asked for the WORDING to change on those three rows.
+
+Read from the base, not inferred: each base toggle glyph carries a
+`<line class="tog-slash">` and the CSS shows that slash only while the button
+has `.off` (`.meter-btn:not(.off) .tog-slash{display:none}`). The R8 icon swap
+replaced each whole `<svg>` with new ear/headset/bell glyphs that had NO slash
+line — so the off state had nothing to show and the controls read as dead.
+
+The harness was complicit a second time: its icon test asserted the NEW glyphs
+as the spec, so the suite enforced the regression instead of catching it. A
+test encodes a reading of the owner's intent; when the reading is wrong the
+test is a lock on the wrong door.
+
+Buried permanently: swapping the room-menu toggle graphics, in any form. The
+wording-only change survives. The harness now asserts the base glyphs and
+their slash line are byte-identical in the live DOM and that a toggle click
+still flips the off state with a room active; a fresh mutation that swaps a
+glyph at runtime is in the mutation set and is caught.
+
+Owner ruling from the same failure: R8 is split — R8a chrome/text (testable
+without a call), R8b call surface (two-phone). One gate each.

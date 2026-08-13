@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v13.5.0 -->
-# TALKBRIDGE MASTER PLAN v13.5.0
+<!-- TALKBRIDGE-PLAN v14.0.0 -->
+# TALKBRIDGE MASTER PLAN v14.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -36,80 +36,61 @@ overwritten with it.
 
 ---
 
-## 2 · RELEASE 8 — ONE RELEASE, ONE GATE
+## 2 · RELEASE 8 — SPLIT IN TWO BY OWNER RULING 2026-08-13
 
-**Source:** `bridge-turn24-pre-ship.html` — owner ruling 2026-08-13. This file
-carries 8.0 (ribbon) and 8.1 (home-card delay fix), both device-passed. Build
-starts from it; those two items ride along untouched.
-**Target:** `bridge-turn24-base.html`.
-**Delivered:** one build, all fifteen items, gated once.
+The all-in-one R8 failed its device gate: the room-menu toggle graphics were
+swapped when the owner had asked for wording only, destroying the toggles'
+off-state slash. Rolled back. The owner has ruled the release is now two gates,
+each small enough to test without exhaustion.
 
-**Owner ruling 2026-08-13: R8 is not split into micro-releases.** Testing is
-expensive and must be respected.
+**Standing rule from the failure: the room-menu toggle graphics (the base
+glyphs and their `.tog-slash` state line) are NEVER touched.**
 
-**Builder error corrected here.** R8 was previously built to `pre-ship` and
-then to `ship`, skipping two stages of the chain and producing two artifacts
-where one was authorised. The filenames are a sequence, not scratch space. The
-extra builds have been removed and `base` is the only output.
+### 2a · R8a — chrome and text. No calls needed to test.
 
-### 2a · Scope
+**Source:** `bridge-turn24-pre-ship.html` (approved). **Target:** `bridge-turn24-base.html`.
 
 | # | Item | Status |
 |---|---|---|
-| 8.0 | Ribbon — mic on the transcript centre line, camera slot collapses when idle, 6px gaps, name capped in `vw`, ellipsis, rules scoped to `#room-ribbon` | IN BASELINE — device-passed |
-| 8.1 | Home-card dismissal threshold cleared with the count | IN BASELINE |
-| 8.2 | Clock tap goes home; the redundant info card is removed | To build |
-| 8.3 | Flag motif — home screen and name card only; the `test.html` treatment, NOT a stripe band | To build |
-| 8.4 | Two-graphic mute icon for video — complete graphics swapped, never a composited slash | To build |
-| 8.5 | Bubble-header icons for chat / phone / video | To build |
-| 8.6 | Room menu — icons Ear, Headset, Bell with labels "Hear their voice", "Hear translation", "Ringer" | To build |
-| 8.7 | Mute on leaving a call — defocus | To build |
-| 8.8 | Tap video → PIP | To build |
-| 8.9 | PIP draggable, clamped to the viewport | To build |
-| 8.10 | Call timer on both sides | To build |
-| 8.11 | Typing indicator, transient only | To build |
-| 8.12 | Short-phrase dedup — text comparison, not a time window | To build |
-| 8.13 | iPhone typography | To build |
-| 8.14 | Password manager silence — no `type="password"`, CSS masking | To build |
+| 8.0 | Ribbon | IN BASELINE — device-passed |
+| 8.1 | Home-card dismissal fix | IN BASELINE |
+| 8.2 | Clock tap goes home; redundant info card removed | Built |
+| 8.3 | Flag motif — home screen body + the two name-ask cards (S0, S10) only; flags-tall/contain on the body; all `.gif` layers gone incl. a cascade override of the base's dead layer | Built |
+| 8.4 | Two-graphic mute icons on the ribbon (mic confirmed working by owner; camera same treatment) | Built |
+| 8.5 | Bubble-header origin icons — mic / phone / video | Built |
+| 8.6 | Room menu WORDING ONLY: "Hear their voice" / "Hear translation" / "Ringer". Base glyphs and slash untouched | Built |
+| 8.13 | iPhone typography (legibility pass) | Built |
+| 8.14 | Password-manager silence | Built |
 
-### 2b · The home-card delay, provenance settled
+**Gate:** one pass, one phone is enough. Menu wording correct AND all three
+toggles still flip with the red slash; clock tap; flags on home + name cards;
+no password prompts; typography.
 
-Reported as new. It is not. `homeCards`, `dismissHome` and `clearWaiting` are
-**byte-identical from Release 1 (`turn23-pre-base`) to today**.
+### 2b · R8b — the call surface. Needs a real two-phone call.
 
-`dismissHome` records the waiting COUNT at dismissal; `homeCards` shows a card
-only when the total exceeds it. Entering a room clears the count to zero but
-left the threshold behind, so the next N events raised nothing.
+**Source:** `bridge-turn24-base.html` once R8a passes. **Target:** `bridge-turn24-pre-ship.html`.
 
-It fires on one path only — `dismissHome` is called only when a card is tapped
-on the home screen, never when the same room is entered from the left panel.
-The threshold is stored per room, so with several active rooms only the tapped
-one goes quiet. A single-room test is what made it legible for the first time.
-
-Reproduced by running Release 1's own code verbatim. Fixed by dropping the
-threshold when the count is cleared; a deliberately dismissed card still stays
-dismissed while its count stands.
-
-### 2c · Build gates added this release
-
-| # | Gate | Found on first run |
+| # | Item | Status |
 |---|---|---|
-| G1 | A part may not `replace` a function another part owns; a deliberate supersession must declare `@supersedes X from Y` | 3 in shipped code |
-| G2 | No `querySelectorAll(...).forEach` — throws on older WebKit inside a swallowing catch | 5 in shipped code |
+| 8.7 | Mute on leaving a call (defocus), restore on return | Waiting on R8a |
+| 8.8 | Tap video → PIP | Waiting on R8a |
+| 8.9 | PIP draggable, clamped | Waiting on R8a |
+| 8.10 | Call timer both sides | Waiting on R8a |
+| 8.11 | Typing indicator, transient | Waiting on R8a |
+| 8.12 | Short-phrase dedup by text | Waiting on R8a |
 
-### 2d · Gate
+The code for all six exists, harness-proven in the rolled-back build; it is
+re-applied to the R8a base, not rewritten.
 
-One pass, two devices, on `bridge-turn24-base.html`. Ribbon; a card raising
-immediately after leaving a room; clock tap home; icons distinguishable; PIP
-swap and drag under a real call; timer on both ends; typing indicator; password
-manager silent.
+### 2c · Build gates
 
----
+G1 (`@supersedes`), G2 (no `NodeList.forEach`), and the harness at
+`talkbridge/build/harness.mjs` with `talkbridge/build/mutate.mjs` — every gate
+mutation-tested with fresh defects. Nothing ships red.
 
-### 2e · Backlogged out of R8
+### 2d · Backlogged out of R8
 
-`&debug=1` diagnostics toggle — owner ruling 2026-08-13: high risk, no reward
-right now. Backlogged, not dropped.
+`&debug=1` — owner ruling: high risk, no reward right now.
 
 ---
 
@@ -478,6 +459,15 @@ the next stage in the chain. The builder had been writing to `pre-ship` and
 then `ship`, skipping two stages and creating two artifacts where one was
 authorised; those have been removed. The stage names are a sequence, not
 scratch space.
+
+**v14.0.0 · 2026-08-13.** All-in-one R8 FAILED its device gate — the three
+room-menu toggles stopped functioning and lost their red slash. Cause: the
+icon swap replaced the base glyphs that carry the `.tog-slash` state line,
+when the owner had asked for wording only. Rolled back to the approved
+pre-ship. Owner ruling: R8 splits into R8a (chrome and text, no call needed to
+test) and R8b (call surface, two-phone test), gated separately. The menu
+toggle graphics are never touched again. The harness now asserts the base
+glyphs and slash survive, and that exact regression class is mutation-tested.
 
 **v13.5.0 · 2026-08-13.** Owner rescope. R8 source is now
 `bridge-turn24-pre-ship.html` (carries device-passed 8.0 and 8.1); target is

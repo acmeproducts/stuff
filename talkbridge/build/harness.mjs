@@ -118,67 +118,29 @@ T('C5 8.6 menu labels rewritten in the live DOM, tooltips intact', () => {
     assert(span.querySelector('.info-pop'), id + ' tooltip destroyed');
   }
 });
-T('C6 8.6 icons swapped: ear / headset / bell are distinct live glyphs', () => {
-  const sig = id => d.getElementById(id).querySelector('svg path').getAttribute('d').slice(0, 12);
-  const s = [sig('s4b-ear'), sig('s4b-autoread'), sig('s4b-mute')];
-  assert(new Set(s).size === 3, 'glyphs not distinct: ' + s.join(' | '));
-  assert(s[1].startsWith('M4 14'), 'autoread is not the headset glyph');
+T('C6 8.6 base toggle glyphs and their .tog-slash state line are UNTOUCHED', () => {
+  for (const id of ['s4b-ear', 's4b-autoread', 's4b-mute']) {
+    const svg = d.getElementById(id).querySelector('svg');
+    assert(svg, id + ' svg missing');
+    assert(svg.querySelector('line.tog-slash'), id + ' state slash destroyed — this is the exact device-gate regression');
+  }
+  /* the ear keeps the BASE glyph, not the R8 replacement */
+  const earD = d.getElementById('s4b-ear').querySelector('path').getAttribute('d');
+  assert(earD.startsWith('M6 8.5a6 6'), 'ear glyph was swapped: ' + earD.slice(0, 14));
 });
-T('C7 8.11 typing indicator attaches on show, clears on hide', () => {
-  w.showTyping();
-  const el = d.getElementById('r8-typing');
-  assert(el && el.isConnected && el.classList.contains('on'), 'not shown');
-  w.hideTyping();
-  assert(!el.classList.contains('on'), 'not hidden');
-});
-T('C8 8.12 duplicate short phrase suppressed, distinct text passes', () => {
-  assert(w.isDuplicatePhrase('kap khun ka') === false, 'first sighting flagged');
-  assert(w.isDuplicatePhrase('Kap khun ka!') === true, 'normalised duplicate NOT flagged');
-  assert(w.isDuplicatePhrase('different words here') === false, 'distinct text flagged');
-});
-{
-  const name = 'C9 8.10 timer writes elapsed time into #rz-timer on a live tick';
+T('C6b 8.6 toggling a control still flips its off state with a room active', () => {
+  /* base handlers no-op without an active room; give them a real one */
+  w.S.rooms.push({ id: 'harness-room', title: 'Harness', myLang: 'en', partnerLang: 'th', createdAt: Date.now() });
+  const origActive = w.activeRoom;
   try {
-    w.CALL.active = true; w.CALL.startTs = Date.now() - 65000; w.CALL.connBad = false;
-    const el = d.getElementById('rz-timer'); el.textContent = '';
-    w.startCallTimer();
-    await sleep(1100);
-    assert(el.textContent === '1:05' || el.textContent === '1:06', 'timer wrote "' + el.textContent + '"');
-    w.CALL.active = false; await sleep(1100);
-    w.stopCallTimer();
-    console.log('  ok  ' + name); pass++;
-  } catch (e) { console.log('FAIL  ' + name + ' — ' + e.message); fail++; }
-  finally { w.CALL.active = false; }
-}
-T('C10 8.9 dragging the PIP moves it and clamps to the viewport', () => {
-  const band = d.getElementById('call-band');
-  assert(band && band.dataset.r8Drag === '1', 'drag not wired');
-  w.CALL.pip = true;
-  /* touch semantics: move/end fire on the origin element */
-  band.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true, clientX: 50, clientY: 50 }));
-  band.dispatchEvent(new w.MouseEvent('mousemove', { bubbles: true, clientX: 150, clientY: 90 }));
-  band.dispatchEvent(new w.MouseEvent('mouseup',   { bubbles: true, clientX: 150, clientY: 90 }));
-  assert(band.style.left.endsWith('px') && band.style.top.endsWith('px'), 'position not set: left=' + band.style.left);
-  w.CALL.pip = false;
-});
-T('C11 8.8 tap wiring present on the video surface without disturbing exit', () => {
-  const host = d.getElementById('call-videos');
-  assert(host && host.dataset.r8Pip === '1', 'tap-to-swap not wired');
-});
-T('C12 8.7 hiding the app during a live call mutes; returning restores', () => {
-  let toggles = 0;
-  w.CALL.active = true; w.CALL.micOn = true;
-  const orig = w.CALL.toggleMic;
-  w.CALL.toggleMic = function(){ toggles++; w.CALL.micOn = !w.CALL.micOn; };
-  try {
-    w.onAwayDuringCall();
-    assert(toggles === 1 && w.CALL.micOn === false, 'leaving did not mute');
-    w.onReturnDuringCall();
-    assert(toggles === 2 && w.CALL.micOn === true, 'returning did not restore');
-    w.CALL.micOn = false; w.R8_AWAY.mutedByAway = false;
-    w.onAwayDuringCall();
-    assert(toggles === 2, 'deliberate mute was overridden');
-  } finally { w.CALL.toggleMic = orig; w.CALL.active = false; w.CALL.micOn = false; }
+    w.activeRoom = () => w.S.rooms[w.S.rooms.length - 1];
+    const btn = d.getElementById('s4b-mute');
+    const before = btn.classList.contains('off');
+    btn.click();
+    assert(btn.classList.contains('off') !== before, 'click no longer flips the off state');
+    btn.click();
+    assert(btn.classList.contains('off') === before, 'second click did not flip back');
+  } finally { w.activeRoom = origActive; w.S.rooms.pop(); }
 });
 T('C13 8.3 flag styles live in the page: name cards + home body, gif-free', () => {
   const css = [...d.querySelectorAll('style')].map(s => s.textContent).join('\n');
