@@ -122,3 +122,14 @@ toggleCam/CHATMIC (harness guard C6c scans for it; C6d asserts CALL.toggleMic
 is the base original). Plan v14.1.0; graveyard entry written; 8.4 dead.
 R8a now: clock home · flag motif · bubble-header icons · menu wording only ·
 typography · password silence. Harness 19/19; mutations 14/14.
+
+
+## Session 2026-08-14 — R8b built; push-early rule adopted
+
+`bridge-turn24-pre-ship.html` = R8a + R8b (defocus mute · tap→PIP · PIP drag ·
+call timer · typing · dedup). Chain-additive, harness 26/26 with live-DOM
+effect tests per item and the mic guards intact. Mutation run for the seven
+new R8b defects pending at push time — pushed first because an environment
+death mid-gate nearly lost the whole build. RULE: push after every proven
+step. Two-phone device gate still owns the final verdict (relay-crossing
+typing/timer cannot be proven in jsdom).

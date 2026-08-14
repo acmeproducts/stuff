@@ -9,7 +9,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const [baseP, builtP] = process.argv.slice(2);
+const [baseP, builtP, midP] = process.argv.slice(2);
 const built = readFileSync(builtP, 'utf8');
 
 const mutations = [
@@ -42,6 +42,20 @@ const mutations = [
    s => s.replace('function wireClockHome() {', "(function(){var _m=CALL.toggleMic;CALL.toggleMic=function(){return _m.apply(this,arguments)};})();\nfunction wireClockHome() {")],
   ['appended code reaches for the ribbon mic element',
    s => s.replace("var clock = document.querySelector('.left-clock');", "var _x = $('rb-mic'); if (_x) _x.classList.add('off');\n    var clock = document.querySelector('.left-clock');")],
+  ['timer never writes the duration',
+   s => s.replace("el.textContent = CALL.connBad ? 'Reconnecting…' : callDuration(CALL.startTs);", '/* mutation */')],
+  ['typing indicator never gains its visible state',
+   s => s.replace("el.classList.add('on');", '/* mutation */')],
+  ['dedup always waves duplicates through',
+   s => s.replace('function isDuplicatePhrase(text, now) {', 'function isDuplicatePhrase(text, now) { return false;')],
+  ['PIP drag stops setting coordinates',
+   s => s.replace("band.style.left = nx + 'px';", '/* mutation */')],
+  ['tap-to-swap silently unwired',
+   s => s.replace("if (host.dataset) host.dataset.r8Pip = '1';", '/* mutation */')],
+  ['away-mute stops muting',
+   s => s.replace('CALL.toggleMic();\n    R8_AWAY.mutedByAway = true;', 'R8_AWAY.mutedByAway = true;')],
+  ['a real toggleMic reassignment sneaks into R8b',
+   s => s.replace('function wirePipSwap() {', 'CALL.toggleMic = function(){};\nfunction wirePipSwap() {')],
 ];
 
 let caught = 0, missed = [];
@@ -51,7 +65,7 @@ for (const [name, fn] of mutations) {
   const tmp = join(here, '.mut-tmp.html');
   writeFileSync(tmp, mutated);
   let failed = false;
-  try { execFileSync('node', [join(here, 'harness.mjs'), baseP, tmp], { stdio: 'pipe' }); }
+  try { execFileSync('node', [join(here, 'harness.mjs'), baseP, tmp].concat(midP ? [midP] : []), { stdio: 'pipe' }); }
   catch { failed = true; }
   unlinkSync(tmp);
   if (failed) { caught++; console.log('  caught  ' + name); }

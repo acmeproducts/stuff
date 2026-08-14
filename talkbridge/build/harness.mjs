@@ -11,7 +11,7 @@
 import { readFileSync } from 'fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const [baseP, builtP] = process.argv.slice(2);
+const [baseP, builtP, midP] = process.argv.slice(2);
 if (!baseP || !builtP) { console.error('usage: harness.mjs <base> <built>'); process.exit(2); }
 const base = readFileSync(baseP, 'utf8');
 const built = readFileSync(builtP, 'utf8');
@@ -29,6 +29,11 @@ const cut = base.lastIndexOf('</script>');
 const appended = built.slice(cut ? built.indexOf(base.slice(cut - 200, cut)) : 0);
 T('A1 purely additive: built begins with the approved base verbatim', () => {
   assert(built.startsWith(base.slice(0, cut)), 'base prefix altered — not additive');
+});
+T('A1b chain: built begins with the prior stage verbatim (when given)', () => {
+  if (!midP) return;
+  const mid = readFileSync(midP, 'utf8');
+  assert(built.startsWith(mid.slice(0, mid.lastIndexOf('</script>'))), 'prior-stage prefix altered');
 });
 const region = built.slice(cut); // appended parts + closing tags
 T('A2 no querySelectorAll().forEach in appended code (G2)', () => {
@@ -143,13 +148,56 @@ T('C6b 8.6 toggling a control still flips its off state with a room active', () 
   } finally { w.activeRoom = origActive; w.S.rooms.pop(); }
 });
 T('C6c REGRESSION GUARD: ribbon mic/cam completely untouched by appended code', () => {
-  assert(!/rb-mic|rb-cam|toggleMic|toggleCam|CHATMIC|iconSwap/.test(region), 'appended code touches the ribbon mic/cam');
+  assert(!/rb-mic|rb-cam|CHATMIC|iconSwap/.test(region), 'appended code touches the ribbon mic/cam elements');
+  assert(!/toggle(Mic|Cam)\s*=/.test(region), 'a media-control handler is reassigned/wrapped');
+  /* CALL.toggleMic() as a plain CALL (8.7 defocus) is the one permitted use */
 });
 T('C6d REGRESSION GUARD: CALL.toggleMic is the base original, not a wrap', () => {
   const src = String(w.CALL.toggleMic);
   assert(!/iconSwap|_r8/.test(src), 'toggleMic has been wrapped: ' + src.slice(0, 60));
   const mic = d.getElementById('rb-mic');
   assert(!mic || !/M9 5V4a3 3 0 0 1 6 0v5/.test(mic.innerHTML), 'mic carries the R8 replacement glyph');
+});
+T('C7 8.11 typing indicator attaches on show, clears on hide', () => {
+  w.showTyping('Harness');
+  const el = d.getElementById('r8-typing');
+  assert(el && el.isConnected && el.classList.contains('on'), 'not shown');
+  w.hideTyping();
+  assert(!el.classList.contains('on'), 'not hidden');
+});
+T('C8 8.12 duplicate short phrase suppressed, distinct text passes', () => {
+  assert(w.isDuplicatePhrase('kap khun ka') === false, 'first sighting flagged');
+  assert(w.isDuplicatePhrase('Kap khun ka!') === true, 'normalised duplicate NOT flagged');
+  assert(w.isDuplicatePhrase('different words here') === false, 'distinct text flagged');
+});
+T('C10 8.9 dragging the PIP moves it and sets clamped coordinates', () => {
+  const band = d.getElementById('call-band');
+  assert(band && band.dataset.r8Drag === '1', 'drag not wired');
+  w.CALL.pip = true;
+  band.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true, clientX: 50, clientY: 50 }));
+  band.dispatchEvent(new w.MouseEvent('mousemove', { bubbles: true, clientX: 150, clientY: 90 }));
+  band.dispatchEvent(new w.MouseEvent('mouseup',   { bubbles: true, clientX: 150, clientY: 90 }));
+  assert(band.style.left.endsWith('px') && band.style.top.endsWith('px'), 'position not set: left=' + band.style.left);
+  w.CALL.pip = false;
+});
+T('C11 8.8 tap-to-swap wired on the video surface', () => {
+  const host = d.getElementById('call-videos');
+  assert(host && host.dataset.r8Pip === '1', 'tap-to-swap not wired');
+});
+T('C12 8.7 hiding the app during a live call mutes; returning restores; deliberate mute respected', () => {
+  let toggles = 0;
+  w.CALL.active = true; w.CALL.micOn = true;
+  const orig = w.CALL.toggleMic;
+  w.CALL.toggleMic = function(){ toggles++; w.CALL.micOn = !w.CALL.micOn; };
+  try {
+    w.onAwayDuringCall();
+    assert(toggles === 1 && w.CALL.micOn === false, 'leaving did not mute');
+    w.onReturnDuringCall();
+    assert(toggles === 2 && w.CALL.micOn === true, 'returning did not restore');
+    w.CALL.micOn = false; w.R8_AWAY.mutedByAway = false;
+    w.onAwayDuringCall();
+    assert(toggles === 2, 'a deliberate mute was overridden');
+  } finally { w.CALL.toggleMic = orig; w.CALL.active = false; w.CALL.micOn = false; }
 });
 T('C13 8.3 flag styles live in the page: name cards + home body, gif-free', () => {
   const css = [...d.querySelectorAll('style')].map(s => s.textContent).join('\n');
@@ -172,6 +220,21 @@ T('C14 8.13 legibility CSS applied to the live document', () => {
   const css = [...d.querySelectorAll('style')].map(s => s.textContent).join('\n');
   assert(css.includes('.drawer-tab{font-size:14px}'), 'legibility rules not injected');
 });
+
+{
+  const name = 'C9 8.10 timer writes elapsed time into #rz-timer on a live tick';
+  try {
+    w.CALL.active = true; w.CALL.startTs = Date.now() - 65000; w.CALL.connBad = false;
+    const el = d.getElementById('rz-timer');
+    if (!el) throw new Error('#rz-timer missing from the ribbon');
+    el.textContent = '';
+    w.startCallTimer();
+    await sleep(1150);
+    if (!(el.textContent === '1:05' || el.textContent === '1:06')) throw new Error('timer wrote "' + el.textContent + '"');
+    w.CALL.active = false; w.stopCallTimer();
+    console.log('  ok  ' + name); pass++;
+  } catch (e) { console.log('FAIL  ' + name + ' — ' + (e && e.message || e)); fail++; w.CALL.active = false; }
+}
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 w.close();

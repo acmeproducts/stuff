@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.1.0 -->
-# TALKBRIDGE MASTER PLAN v14.1.0
+<!-- TALKBRIDGE-PLAN v14.2.0 -->
+# TALKBRIDGE MASTER PLAN v14.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -463,6 +463,15 @@ the next stage in the chain. The builder had been writing to `pre-ship` and
 then `ship`, skipping two stages and creating two artifacts where one was
 authorised; those have been removed. The stage names are a sequence, not
 scratch space.
+
+**v14.2.0 · 2026-08-14.** R8b built on the R8a base by owner instruction:
+8.7 defocus mute (CALLS the base's own toggleMic as a user tap would — the
+amended standing rule's one permitted use; no wrap, no reassignment, no icon
+code, enforced by harness guards), 8.8 tap→PIP, 8.9 PIP drag, 8.10 call timer,
+8.11 typing, 8.12 dedup. Target `bridge-turn24-pre-ship.html`; approved
+2026-08-07 baseline preserved at `talkbridge/fixtures/bridge-turn24-approved-2026-08-07.html`.
+Harness chain-checks approved→R8a→pre-ship; 26/26. Process rule added after an
+environment death nearly lost the build: PUSH AFTER EVERY PROVEN STEP.
 
 **v14.1.0 · 2026-08-13.** Second device-gate failure: the ribbon mic wrap
 left the microphone completely disabled. Rolled back; 8.4 removed and buried;
