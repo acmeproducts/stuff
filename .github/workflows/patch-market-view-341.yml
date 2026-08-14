@@ -1,0 +1,128 @@
+name: Patch Market Navigator 3.4.1
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-market-view-341.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch market-view.html in place
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-view.html')
+          s=p.read_text()
+          def rep(old,new,label):
+              global s
+              if old not in s:
+                  raise SystemExit(f'missing patch anchor: {label}')
+              s=s.replace(old,new,1)
+
+          s=s.replace('<title>Market Navigator 3.4</title>','<title>Market Navigator 3.4.1</title>')
+          s=s.replace('Version 3.4</small>','Version 3.4.1</small>')
+          s=s.replace('Market Navigator 3.4</div>','Market Navigator 3.4.1</div>')
+          s=s.replace("const APP_VERSION='3.4.0'","const APP_VERSION='3.4.1'")
+
+          rep(".metric{min-height:150px;cursor:pointer;position:relative}",
+              ".metric{min-height:150px;position:relative}","metric cursor")
+          rep(".spark{height:52px;width:100%;margin-top:5px}",
+              ".spark{height:52px;width:100%;margin-top:5px;touch-action:none;cursor:crosshair}","spark interaction")
+          rep(".infoBtn{border:0;background:transparent;color:var(--accent);padding:0;font-weight:800}",
+              ".infoBtn,.openChartBtn{border:0;background:transparent;color:var(--accent);padding:0;font-weight:800}.openChartBtn{display:block;margin-top:7px}","open chart css")
+
+          rep("function rangeLabel(r){return({'7d':'1-week','1mo':'1-month','3mo':'3-month','6mo':'6-month','1y':'1-year','3y':'3-year','5y':'5-year','10y':'10-year','max':'maximum available'})[r]||r}\nfunction sliceRange(data,range){if(!data?.length||range==='max')return data||[];const days={'7d':8,'1mo':31,'3mo':93,'6mo':186,'1y':366,'3y':1098,'5y':1830,'10y':3660}[range]||31,cut=data.at(-1).t-days*86400000;return data.filter(x=>x.t>=cut)}",
+              "function rangeLabel(r){return({'7d':'1-week','1mo':'1-month','3mo':'3-month','6mo':'6-month','1y':'1-year','3y':'3-year','5y':'5-year','10y':'10-year','max':'maximum available'})[r]||r}\nfunction canonicalSeries(data,id){if(!data?.length)return[];const monthly=id==='cpi',map=new Map();for(const p of data){if(!Number.isFinite(p?.t)||!Number.isFinite(p?.v))continue;const d=new Date(p.t),key=monthly?`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`:`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;map.set(key,p)}return[...map.values()].sort((a,b)=>a.t-b.t)}\nfunction commonMarketEnd(){const ends=Object.keys(META).filter(id=>META[id].symbol&&state.series[id]?.length).map(id=>state.series[id].at(-1).t);return ends.length?Math.max(...ends):Date.now()}\nfunction sliceRange(data,range,endOverride=null){if(!data?.length||range==='max')return data||[];const days={'7d':7,'1mo':30,'3mo':90,'6mo':180,'1y':365,'3y':1095,'5y':1825,'10y':3650}[range]||30,end=endOverride||data.at(-1).t,cut=end-days*86400000;return data.filter(x=>x.t>=cut&&x.t<=end+86400000)}\nfunction rangeSeries(id,range){const data=state.series[id]||[];return sliceRange(data,range,META[id]?.symbol?commonMarketEnd():null)}",
+              "canonical horizon")
+
+          rep("const merged=[...map.values()].sort((a,b)=>a.t-b.t);state.series[id]=merged;state.quotes[id]=quote(merged);",
+              "const merged=canonicalSeries([...map.values()].sort((a,b)=>a.t-b.t),id);state.series[id]=merged;state.quotes[id]=quote(merged);",
+              "canonical save")
+          rep("state.series[m.id]=obs.map(x=>({t:x.t,v:x.v}));",
+              "state.series[m.id]=canonicalSeries(obs.map(x=>({t:x.t,v:x.v})),m.id);",
+              "canonical load")
+          rep("function rangeQuote(id,range){const d=sliceRange(state.series[id]||[],range);return quote(d)}",
+              "function rangeQuote(id,range){const d=rangeSeries(id,range);return quote(d)}",
+              "range quote")
+          rep("const id=c.dataset.spark,range=c.dataset.range||state.nowRange,d=sliceRange(state.series[id]||[],range);",
+              "const id=c.dataset.spark,range=c.dataset.range||state.nowRange,d=rangeSeries(id,range);",
+              "spark range")
+
+          old_metric="""function metricCard(id,range=state.nowRange){const m=META[id],q=state.quotes[id],rq=rangeQuote(id,range),s=signal(id,rq),fresh=state.seriesMeta[id]?.latestDate?new Date(state.seriesMeta[id].latestDate).toLocaleString():'Unavailable';return`<article class=\"card metric\" data-detail=\"${id}\"><div class=\"metricTop\"><div><div class=\"kicker\">${esc(m.role)}</div><strong>${esc(m.short)} <button class=\"infoBtn\" data-info=\"${id}\" aria-label=\"Explain ${esc(m.short)}\">ⓘ</button></strong></div><span class=\"signal ${s.cls}\"><span class=\"directionArrow\">${s.arrow}</span>${esc(s.label)}</span></div><div class=\"metricValue\">${q?(m.unit||'')+fmt(q.value,m.decimals)+(m.suffix||''):'Unavailable'}</div><div class=\"tiny ${s.cls==='good'?'goodText':s.cls==='bad'?'badText':'warnText'}\">${rq?`${rangeLabel(range)} ${pct(rq.periodPct)}`:'No verified history for this horizon'}</div>${state.series[id]?.length?`<canvas class=\"spark\" data-spark=\"${id}\" data-range=\"${range}\"></canvas>`:''}<div class=\"fresh\">${q?`Observed ${fresh} · ${esc(state.seriesMeta[id]?.provider||'cached')}`:'Data source offline / no cached observation'}</div></article>`}"""
+          new_metric="""function metricCard(id,range=state.nowRange){const m=META[id],q=state.quotes[id],rq=rangeQuote(id,range),s=signal(id,rq),fresh=state.seriesMeta[id]?.latestDate?new Date(state.seriesMeta[id].latestDate).toLocaleString():'Unavailable',points=rangeSeries(id,range).length,provider=displayProvider(state.seriesMeta[id]?.provider);return`<article class=\"card metric\"><div class=\"metricTop\"><div><div class=\"kicker\">${esc(m.role)}</div><strong>${esc(m.short)} <button class=\"infoBtn\" data-info=\"${id}\" aria-label=\"Explain ${esc(m.short)}\">ⓘ</button></strong></div><span class=\"signal ${s.cls}\"><span class=\"directionArrow\">${s.arrow}</span>${esc(s.label)}</span></div><div class=\"metricValue\">${q?(m.unit||'')+fmt(q.value,m.decimals)+(m.suffix||''):'Unavailable'}</div><div class=\"tiny ${s.cls==='good'?'goodText':s.cls==='bad'?'badText':'warnText'}\">${rq?`${rangeLabel(range)} ${pct(rq.periodPct)} · ${points} observations`:'No verified history for this horizon'}</div>${state.series[id]?.length?`<canvas class=\"spark\" data-spark=\"${id}\" data-range=\"${range}\"></canvas>`:''}<div class=\"fresh\">${q?`Observed ${fresh} · ${esc(provider)}`:'Provider unavailable / no previously collected observation'}</div><button class=\"openChartBtn\" data-open-chart=\"${id}\">Open chart →</button></article>`}"""
+          rep(old_metric,new_metric,"metric card")
+
+          rep("$('#marketCards').innerHTML=Object.keys(META).filter(x=>META[x].symbol).map(id=>metricCard(id,'3mo')).join('');",
+              "$('#marketCards').innerHTML=Object.keys(META).filter(x=>META[x].symbol).map(id=>metricCard(id,state.nowRange)).join('');",
+              "markets overview horizon")
+
+          old_bind="""function bindMetricClicks(){$$('[data-detail]').forEach(e=>e.onclick=ev=>{if(ev.target.dataset.info){showInfo(ev.target.dataset.info);ev.stopPropagation();return}$('#instrumentSelect').value=e.dataset.detail;$('#instrumentRange').value=state.nowRange==='7d'?'7d':state.nowRange;showSection('markets','chart');drawInstrument()});$$('[data-info]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();showInfo(b.dataset.info)})}"""
+          new_bind="""function bindMetricClicks(){$$('[data-open-chart]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();$('#instrumentSelect').value=b.dataset.openChart;$('#instrumentRange').value=state.nowRange;showSection('markets','chart');drawInstrument()});$$('[data-info]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();showInfo(b.dataset.info)})}"""
+          rep(old_bind,new_bind,"tile navigation")
+
+          rep("c.onpointermove=e=>tooltip(c,e,list,pad,t0,t1);c.onpointerleave=()=>$('#chartTip')?.remove()",
+              "const inspect=e=>{e.stopPropagation();tooltip(c,e,list,pad,t0,t1)};c.onpointerdown=inspect;c.onpointermove=e=>{if(e.pointerType==='mouse'||e.buttons)inspect(e)};c.onpointerleave=()=>$('#chartTip')?.remove()",
+              "chart inspection")
+
+          rep("function markProvider(name,ok,message){state.providers[name]={...(state.providers[name]||{}),configured:true,connected:ok,message,[ok?'lastSuccess':'lastFailure']:Date.now()};renderProviders()}",
+              "function markProvider(name,ok,message){state.providers[name]={...(state.providers[name]||{}),configured:true,connected:ok,message,[ok?'lastSuccess':'lastFailure']:Date.now()};localStorage.setItem('mn-provider-health',JSON.stringify(state.providers));renderProviders()}",
+              "provider persistence")
+
+          rep("async function init(){loadConfig();await openDb();await migrateLocalStorage();await loadDbState();bind();renderAll();",
+              "async function init(){loadConfig();state.providers=readSmall('mn-provider-health',{});await openDb();await migrateLocalStorage();await loadDbState();bind();renderAll();",
+              "provider restore")
+
+          insert="""function displayProvider(name){if(!name)return'Previously collected';if(/cache|migrat|indexeddb/i.test(name))return'Previously collected';return name}\n"""
+          rep("function rangeLabel(r){",insert+"function rangeLabel(r){","provider display helper")
+
+          s=s.replace("'Cached IndexedDB data'","'Previously collected data'")
+          s=s.replace("'IndexedDB cache'","'Previously collected data'")
+          s=s.replace("'Migrated cache'","'Previously collected data'")
+          s=s.replace("provider:state.seriesMeta[id]?.provider||'cached'","provider:displayProvider(state.seriesMeta[id]?.provider)")
+          s=s.replace("Browser path unavailable; cached data remains usable.","Browser path unavailable; previously collected data remains usable.")
+          s=s.replace("cached rate history retained","previously collected rate history retained")
+          s=s.replace("cached macro data retained","previously collected macro data retained")
+          s=s.replace("$('#lastUpdated').textContent='Cached data loaded'","$('#lastUpdated').textContent='Stored data loaded'")
+
+          p.write_text(s)
+          PY
+      - name: Validate JavaScript and DOM references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('market-view.html').read()
+          assert 'Version 3.4.1' in s
+          assert "const APP_VERSION='3.4.1'" in s
+          assert 'data-open-chart' in s
+          assert 'canonicalSeries' in s
+          assert 'commonMarketEnd' in s
+          assert "mn-provider-health" in s
+          assert "metricCard(id,state.nowRange)" in s
+          assert 'Cached IndexedDB data' not in s
+          assert 'IndexedDB cache' not in s
+          assert 'Migrated cache' not in s
+          html_ids=set(re.findall(r'\bid="([^"]+)"',s))
+          js_ids=set(re.findall(r"\$\('#([^']+)'\)",s))
+          missing=sorted(js_ids-html_ids)
+          if missing:
+              raise SystemExit('Missing DOM IDs: '+', '.join(missing))
+          js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
+          open('/tmp/market-view.js','w').write(js)
+          PY
+          node --check /tmp/market-view.js
+      - name: Commit patch to main
+        shell: bash
+        run: |
+          git config user.name 'Market Navigator Patch Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add market-view.html
+          git commit -m 'Patch Market Navigator to 3.4.1'
+          git push origin HEAD:main
