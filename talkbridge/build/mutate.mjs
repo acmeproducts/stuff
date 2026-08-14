@@ -38,6 +38,10 @@ const mutations = [
    s => s.replace('var R8_CSS', "var R8_DEBUG_ON = /[?&]debug=1/.test(location.search);\nvar R8_CSS")],
   ['legibility CSS silently dropped',
    s => s.replace("'.drawer-tab{font-size:14px}' +", "")],
+  ['a media-control wrap sneaks back in',
+   s => s.replace('function wireClockHome() {', "(function(){var _m=CALL.toggleMic;CALL.toggleMic=function(){return _m.apply(this,arguments)};})();\nfunction wireClockHome() {")],
+  ['appended code reaches for the ribbon mic element',
+   s => s.replace("var clock = document.querySelector('.left-clock');", "var _x = $('rb-mic'); if (_x) _x.classList.add('off');\n    var clock = document.querySelector('.left-clock');")],
 ];
 
 let caught = 0, missed = [];

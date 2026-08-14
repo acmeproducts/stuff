@@ -142,6 +142,15 @@ T('C6b 8.6 toggling a control still flips its off state with a room active', () 
     assert(btn.classList.contains('off') === before, 'second click did not flip back');
   } finally { w.activeRoom = origActive; w.S.rooms.pop(); }
 });
+T('C6c REGRESSION GUARD: ribbon mic/cam completely untouched by appended code', () => {
+  assert(!/rb-mic|rb-cam|toggleMic|toggleCam|CHATMIC|iconSwap/.test(region), 'appended code touches the ribbon mic/cam');
+});
+T('C6d REGRESSION GUARD: CALL.toggleMic is the base original, not a wrap', () => {
+  const src = String(w.CALL.toggleMic);
+  assert(!/iconSwap|_r8/.test(src), 'toggleMic has been wrapped: ' + src.slice(0, 60));
+  const mic = d.getElementById('rb-mic');
+  assert(!mic || !/M9 5V4a3 3 0 0 1 6 0v5/.test(mic.innerHTML), 'mic carries the R8 replacement glyph');
+});
 T('C13 8.3 flag styles live in the page: name cards + home body, gif-free', () => {
   const css = [...d.querySelectorAll('style')].map(s => s.textContent).join('\n');
   assert(css.includes('#scr-s0 .flagband') && css.includes('#scr-s10 .flagband'), 'name-card rules absent');

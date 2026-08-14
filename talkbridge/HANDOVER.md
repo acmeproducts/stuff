@@ -112,3 +112,13 @@ graphics are never touched); **R8b** call surface re-applies the already-
 harness-proven six items onto the R8a base once it passes. Harness rescoped:
 17/17 effects green, 12/12 fresh mutations caught, including a runtime glyph
 swap and a tooltip-clobbering label rewrite.
+
+## Session 2026-08-13 (third pass) — mic wrap failed on device; 8.4 buried; R8a rebuilt
+
+The ribbon toggleMic/toggleCam wrap left the owner's microphone completely
+disabled. Rolled back and rebuilt R8a from the approved pre-ship with ZERO
+media-control code — appended parts may not even name rb-mic/rb-cam/toggleMic/
+toggleCam/CHATMIC (harness guard C6c scans for it; C6d asserts CALL.toggleMic
+is the base original). Plan v14.1.0; graveyard entry written; 8.4 dead.
+R8a now: clock home · flag motif · bubble-header icons · menu wording only ·
+typography · password silence. Harness 19/19; mutations 14/14.

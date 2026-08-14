@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.0.0 -->
-# TALKBRIDGE MASTER PLAN v14.0.0
+<!-- TALKBRIDGE-PLAN v14.1.0 -->
+# TALKBRIDGE MASTER PLAN v14.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -43,8 +43,13 @@ swapped when the owner had asked for wording only, destroying the toggles'
 off-state slash. Rolled back. The owner has ruled the release is now two gates,
 each small enough to test without exhaustion.
 
-**Standing rule from the failure: the room-menu toggle graphics (the base
-glyphs and their `.tog-slash` state line) are NEVER touched.**
+**Standing rules from the failures:**
+- The room-menu toggle graphics (base glyphs, `.tog-slash` state line) are
+  NEVER touched. Wording only.
+- The ribbon media controls (mic, camera — icons, classes, handlers) are
+  NEVER wrapped, restyled, or referenced by appended code. 8.4 is dead and
+  buried (graveyard). When the owner says a working thing must not be
+  touched, the base's version stands — not the build's version of it.
 
 ### 2a · R8a — chrome and text. No calls needed to test.
 
@@ -56,7 +61,6 @@ glyphs and their `.tog-slash` state line) are NEVER touched.**
 | 8.1 | Home-card dismissal fix | IN BASELINE |
 | 8.2 | Clock tap goes home; redundant info card removed | Built |
 | 8.3 | Flag motif — home screen body + the two name-ask cards (S0, S10) only; flags-tall/contain on the body; all `.gif` layers gone incl. a cascade override of the base's dead layer | Built |
-| 8.4 | Two-graphic mute icons on the ribbon (mic confirmed working by owner; camera same treatment) | Built |
 | 8.5 | Bubble-header origin icons — mic / phone / video | Built |
 | 8.6 | Room menu WORDING ONLY: "Hear their voice" / "Hear translation" / "Ringer". Base glyphs and slash untouched | Built |
 | 8.13 | iPhone typography (legibility pass) | Built |
@@ -459,6 +463,12 @@ the next stage in the chain. The builder had been writing to `pre-ship` and
 then `ship`, skipping two stages and creating two artifacts where one was
 authorised; those have been removed. The stage names are a sequence, not
 scratch space.
+
+**v14.1.0 · 2026-08-13.** Second device-gate failure: the ribbon mic wrap
+left the microphone completely disabled. Rolled back; 8.4 removed and buried;
+standing rule bans any appended reference to the ribbon media controls;
+harness gains mic-untouched regression guards (19/19, 14/14 mutations). R8a
+rebuilt without any media-control code.
 
 **v14.0.0 · 2026-08-13.** All-in-one R8 FAILED its device gate — the three
 room-menu toggles stopped functioning and lost their red slash. Cause: the

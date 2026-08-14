@@ -778,3 +778,30 @@ glyph at runtime is in the mutation set and is caught.
 
 Owner ruling from the same failure: R8 is split — R8a chrome/text (testable
 without a call), R8b call surface (two-phone). One gate each.
+
+
+## R8a — the ribbon mic wrap disabled the microphone entirely · FAILED DEVICE GATE · Aug 13 2026
+
+Second icon regression in one day, second rollback. The owner had said the
+mic icon was working and must not be touched. The build kept the
+toggleMic/toggleCam wrap and the boot-time graphic swap anyway, reading
+"don't touch it" as "keep the new version of it". On device the microphone
+was then completely disabled. That misreading is the failure: when the owner
+says a working thing must not be touched, the thing that stands is the BASE's
+version, not the build's.
+
+What is proven and only that: with the wrap and boot-swap present, the
+owner's mic was dead; with the base alone, it worked. The mechanism was not
+root-caused from here — no hardware mic exists in the harness environment,
+and declaring a cause without instrumentation is itself a graveyarded habit.
+
+The harness gap: it asserted the swap RAN. It cannot prove audio capture
+works — jsdom has no microphone. Anything wrapping media-control handlers is
+therefore untestable before the device gate, which is exactly why it is now
+banned rather than re-attempted.
+
+BURIED, with a standing rule: 8.4 (two-graphic ribbon mute icons) is dead.
+Appended code may not wrap, restyle, or even reference the ribbon media
+controls or their handlers. The harness enforces this with two regression
+guards (identifier scan of the appended region; the live toggle function must
+be the base original) and two fresh mutations proving the guards fire.

@@ -6460,16 +6460,16 @@ if (typeof document !== 'undefined') {
 
 /* ═══════════ GAP PART · R8-fine-touches.js ═══════════ */
 /* @contract
-   wraps: log, handleRelay, addSpeech, msgHtml, CALL.toggleMic, CALL.toggleCam, CALL.exitPip, CALL.mount, CALL.teardown
-   adds: ICON, MENU_LABEL, applyMenuLabels, FLAG_LAYERS, FLAG_LAYERS_TALL, FLAG_PAINT, FLAG_PAINT_TALL, FLAG_CSS, wireClockHome, iconSwap, dressFlagBands, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8ToggleMic, _r8ToggleCam, _r8Log
+   wraps: log, handleRelay, addSpeech, msgHtml
+   adds: ICON, MENU_LABEL, applyMenuLabels, FLAG_LAYERS, FLAG_LAYERS_TALL, FLAG_PAINT, FLAG_PAINT_TALL, FLAG_CSS, wireClockHome, dressFlagBands, originIcon, R8_CSS, _r8AddSpeech, _r8MsgHtml, _r8Log
 */
 /* ─────────────────────────────────────────────────────────────────────────────
    RELEASE 8 · CLEAN-UP AND FINE TOUCHES
 
-   8.2  Two-graphic mute icons — camera and microphone become complete icon
-        graphics swapped in and out, not a red line composited over the base
-        glyph. A slash drawn on top reads as a defect at small sizes and cannot
-        be recognised at a glance, which is the whole job of a mute icon.
+   RIBBON MEDIA CONTROLS: NEVER TOUCHED. Owner ruling after the second
+   device failure — wrapping the base's media-control handlers left the
+   microphone completely disabled on device. The base's own icons, classes
+   and handlers stand; this part must not even name those identifiers.
 
    8.3  Bubble-header icon convention — a microphone for transcribed chat, a
         phone for transcribed voice, a video camera for transcribed video. The
@@ -6489,36 +6489,6 @@ if (typeof document !== 'undefined') {
    own drawing, so it is recognisable at 20px instead of being a base icon with
    a line over it. */
 var ICON = {
-  micOn:
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
-    '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
-    '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/>' +
-    '<line x1="12" y1="19" x2="12" y2="23"/></svg>',
-
-  /* Muted: an open, broken capsule with the stand removed. Distinct in
-     silhouette, not a decorated version of the live icon. */
-  micOff:
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
-    '<path d="M9 5V4a3 3 0 0 1 6 0v5"/>' +
-    '<path d="M15 12a3 3 0 0 1-5.6 1.5"/>' +
-    '<path d="M19 10v2a7 7 0 0 1-11 5.7"/>' +
-    '<path d="M5 10v2a7 7 0 0 0 2 4.9"/>' +
-    '<line x1="4" y1="3" x2="20" y2="21" stroke-width="2.4"/></svg>',
-
-  camOn:
-    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-    '<rect x="2" y="6" width="13" height="12" rx="2"/>' +
-    '<path d="M15 10l7-4v12l-7-4z"/></svg>',
-
-  /* Muted: the lens body drawn open on one side with the prism gone. */
-  camOff:
-    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-    '<path d="M9 6h4a2 2 0 0 1 2 2v3"/>' +
-    '<path d="M15 15v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2"/>' +
-    '<path d="M22 8v8l-5-3"/>' +
-    '<line x1="3" y1="3" x2="21" y2="21" stroke-width="2.4"/></svg>',
-
-  /* 8.3 — bubble header origin marks. */
   hdrMic:
     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
     '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
@@ -6674,48 +6644,8 @@ function dressFlagBands() {
 
 
 var R8_CSS =
-  /* The muted state is carried by the graphic itself, so no colour override is
-     needed to make it legible — but the red reads faster than shape alone. */
-  '#rb-mic.off svg,#rb-cam.off svg{stroke:#A32D2D}' +
   '.origin-mark{display:inline-flex;align-items:center;margin-right:4px;opacity:.75;vertical-align:-1px}' +
   FLAG_CSS;
-
-/* Swaps the whole graphic rather than toggling a slash. */
-function iconSwap(el, on, onGraphic, offGraphic) {
-  if (!el) return false;
-  try {
-    el.innerHTML = on ? onGraphic : offGraphic;
-    /* Set explicitly, never toggled. The base already toggles this class in
-       its own toggleMic/toggleCam, so a second toggle here flips it straight
-       back and the class ends up disagreeing with the graphic. */
-    if (on) el.classList.remove('off'); else el.classList.add('off');
-    return true;
-  } catch (e) { r8Log('icon_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
-}
-
-(function () {
-  var _r8ToggleMic = CALL.toggleMic;
-  CALL.toggleMic = function () {
-    var r = _r8ToggleMic.apply(this, arguments);
-    try {
-      iconSwap($('rb-mic'), this.micOn, ICON.micOn, ICON.micOff);
-      r8Log('mic_icon', { on: this.micOn }, 'ok');
-    } catch (_) {}
-    return r;
-  };
-})();
-
-(function () {
-  var _r8ToggleCam = CALL.toggleCam;
-  CALL.toggleCam = function () {
-    var r = _r8ToggleCam.apply(this, arguments);
-    try {
-      iconSwap($('rb-cam'), this.camOn, ICON.camOn, ICON.camOff);
-      r8Log('cam_icon', { on: this.camOn }, 'ok');
-    } catch (_) {}
-    return r;
-  };
-})();
 
 /* 8.3 — the call kind has to be recorded when the entry is made. CALL.kind is
    only meaningful while the call is live, so reading it later is impossible;
@@ -6874,11 +6804,6 @@ if (typeof document !== 'undefined') {
      cannot start out disagreeing. */
   setTimeout(function () {
     try {
-      var mic = $('rb-mic');
-      if (mic && !CALL.active && !CHATMIC.on) iconSwap(mic, false, ICON.micOn, ICON.micOff);
-      else if (mic) iconSwap(mic, true, ICON.micOn, ICON.micOff);
-      var cam = $('rb-cam');
-      if (cam) iconSwap(cam, !!CALL.camOn, ICON.camOn, ICON.camOff);
       /* Owner ruling 2026-08-13, after the device gate failed: the room-menu
          TOGGLE GRAPHICS ARE NEVER TOUCHED. The base glyphs carry the
          .tog-slash state line; swapping them destroyed the off-state. Only
