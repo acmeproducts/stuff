@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.2.0 -->
-# TALKBRIDGE MASTER PLAN v14.2.0
+<!-- TALKBRIDGE-PLAN v14.3.0 -->
+# TALKBRIDGE MASTER PLAN v14.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -181,6 +181,7 @@ a named scale of fixed pixels is still fixed pixels.
 | 11.4 | Drawer and modals — includes the Customize tab density redesign | Not started |
 | 11.5 | Room cards and home screen | Not started |
 | 11.6 | Stacking order — 19 z-index values to a named scale | Not started |
+| 11.7 | Mute VIDEO icon occluded (owner report 2026-08-14). Cause unknown — instrument and read the base's actual rendering before any fix; no theorised root cause. The ribbon media controls sit under the standing never-touch rule, so the fix needs an explicit owner-scoped exception and the smallest possible change. Owner directive on this item: DO NOT BREAK ANYTHING. | Not started |
 
 ---
 
@@ -429,6 +430,9 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.3.0 · 2026-08-14.** Item 11.7 added by owner instruction: mute video
+icon occluded. Plan-only change; no code touched.
 
 **v13.4.0 · 2026-08-13.** Flag branding corrected with a second asset.
 `flags-tall.png` (284x770) added for the full-height home screen body; the
