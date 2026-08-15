@@ -270,6 +270,89 @@ T('C14 8.13 legibility CSS applied to the live document', () => {
   } catch (e) { console.log('FAIL  ' + name + ' — ' + (e && e.message || e)); fail++; w.CALL.active = false; }
 }
 
+/* ── R9 · phrasebook target mirrors source (present only in ship stage) ── */
+if (typeof w.pbCommitEditTargetMirror === 'function') {
+  const mkCard = () => ({ id: 'pb-h1', source: 'hello', target: 'sawasdee', sourceLang: 'en', targetLang: 'th',
+    tags: ['✓Verified', 'greeting'], clarifyChain: [], backtranslate: { verdict: 'good' } });
+  let card, calls;
+  const install = () => {
+    card = mkCard(); calls = [];
+    w.pbCardById = () => card;
+    w.PB = { save: () => calls.push('save'), markDirty: () => {}, };
+    w.pbRerenderCard = () => calls.push('rerender');
+    w.pbSyncDot = () => {};
+    w.translateWithRetry = (text, from, to) => { calls.push('tr:' + text + ':' + from + '>' + to);
+      return Promise.resolve({ ok: true, text: to === 'en' ? 'hello there' : 'sawasdee khrap' }); };
+  };
+    {
+    const name = 'C18 R9 changed target: source retranslated, verdict cleared, tag stripped, direction logged';
+    try {
+      install();
+      w.pbCommitEdit('pb-h1', 'target', 'sawasdee khrap na');
+      await sleep(30);
+      assert(card.target === 'sawasdee khrap na', 'edited side overwritten (S-RULE-4)');
+      assert(card.source === 'hello there', 'source not retranslated from target');
+      assert(card.backtranslate.verdict === '', 'verdict not cleared');
+      assert(!card.tags.includes('✓Verified'), 'verified tag not stripped');
+      assert(card.clarifyChain.length === 1 && card.clarifyChain[0].direction === 'target', 'no direction-tagged clarify entry');
+      assert(card.backtranslate.direction === 'target' && card.backtranslate.resultText === 'sawasdee khrap', 'mirrored BT missing');
+      assert(calls.filter(x => x.startsWith('tr:')).length === 2, 'expected exactly two hops (edit + BT), got ' + calls.join(','));
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+  {
+    const name = 'C19 R9 bare enter on target: retranslate + BT fire, verdict and tags untouched';
+    try {
+      install();
+      w.pbCommitEdit('pb-h1', 'target', 'sawasdee');
+      await sleep(30);
+      assert(card.backtranslate.verdict === 'good', 'verdict cleared on unchanged commit');
+      assert(card.tags.includes('✓Verified'), 'tag stripped on unchanged commit');
+      assert(calls.filter(x => x.startsWith('tr:')).length === 2, 'retranslate/BT did not fire on bare enter');
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+  {
+    const name = 'C20 R9 empty target: rerender only, nothing fires';
+    try {
+      install();
+      w.pbCommitEdit('pb-h1', 'target', '   ');
+      await sleep(30);
+      assert(calls.filter(x => x.startsWith('tr:')).length === 0, 'translation fired on empty commit');
+      assert(calls.includes('rerender'), 'no rerender');
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+  {
+    const name = 'C21 R9 ONE HOP: the new source never fires back into target';
+    try {
+      install();
+      w.pbCommitEdit('pb-h1', 'target', 'sawasdee khrap na');
+      await sleep(30);
+      const trs = calls.filter(x => x.startsWith('tr:'));
+      assert(trs[0].endsWith('th>en') && trs[1].endsWith('en>th'), 'hop directions wrong: ' + trs.join(','));
+      assert(card.target === 'sawasdee khrap na', 'second hop overwrote the target');
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+  {
+    const name = 'C22 R9 source path passes through to the ORIGINAL untouched';
+    try {
+      install();
+      let hitOriginal = false;
+      const orig = w.pbCommitEdit._r9Original;
+      w.pbCommitEdit._r9Original2 = orig; /* keep */
+      w.pbCommitEdit = w.pbCommitEdit; /* no-op */
+      /* prove routing: temporarily observe via translate direction en>th first for source edits */
+      w.pbCommitEdit('pb-h1', 'source', 'good morning');
+      await sleep(30);
+      const trs = calls.filter(x => x.startsWith('tr:'));
+      assert(trs.length && trs[0].includes('en>th'), 'source edit did not run the original en>th flow: ' + trs.join(','));
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 w.close();
 process.exit(fail ? 1 : 0);

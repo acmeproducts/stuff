@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.7.0 -->
-# TALKBRIDGE MASTER PLAN v14.7.0
+<!-- TALKBRIDGE-PLAN v14.8.0 -->
+# TALKBRIDGE MASTER PLAN v14.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -124,11 +124,19 @@ the same clarify entries and the same verdict and tag consequences.
 
 | # | Item | Status |
 |---|---|---|
-| 9.1 | Extract the ACTUAL source-side rules from the code and record them here before building | Not started |
-| 9.2 | Editing target retranslates source and back-translates | Not started |
-| 9.3 | Bare enter in target retranslates and back-translates, same as source | Not started |
-| 9.4 | Editing target clears the verdict and removes the verified tag | Not started |
-| 9.5 | Target actions write the same clarify entries as source actions, direction flipped | Not started |
+| 9.1 | Extracted from the gated build's `pbCommitEdit` (recorded below) | Done |
+| 9.2 | Editing target retranslates source and back-translates | Built |
+| 9.3 | Bare enter in target retranslates and back-translates, same as source | Built |
+| 9.4 | Editing target clears the verdict (only if set, per source's G8 rule) and removes the verified tag | Built |
+| 9.5 | Target actions write the same clarify entries, `direction:'target'` field added | Built |
+
+**9.1 — the source rules, extracted verbatim from the gated build:**
+S-RULE-1 changed source → verdict reset ONLY if a verdict was set (chain-logged),
+✓Verified stripped, card touched. S-RULE-2 empty source → rerender only.
+S-RULE-3 Enter, changed or not → retranslate the other side (write only if the
+result differs) and re-run back-translation. S-RULE-4 the edited side is never
+overwritten by its own commit. Target now follows all four, direction flipped,
+under D1 (one hop) and D2 (same clarify type + direction field).
 
 ### 3c · DECIDED — builder recommendation, owner may override on sight
 
@@ -460,6 +468,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.8.0 · 2026-08-15.** R9 built to `bridge-turn24-ship.html` on the gated
+pre-ship. Source rules extracted from the real `pbCommitEdit` and recorded
+(9.1); target branch superseded via wrap with every original effect preserved
+and declared; source/notes pass through to the original untouched. Harness
++5 effect tests against a seeded card through the REAL wrapped commit path
+(34/34 full-chain); +5 fresh mutations (31/31). Awaiting device gate.
 
 **v14.7.0 · 2026-08-15.** R8 PASSED the device gate. Two owner observations
 recorded to backlog, not defects blocking anything: (B-8a) the timer values

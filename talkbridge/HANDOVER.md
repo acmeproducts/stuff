@@ -156,3 +156,15 @@ established — read-only instrumentation logs every name-bearing relay message
 (type, value, prior value); C17 proves it cannot mutate names. Timer fix
 unchanged. Harness 29/29; mutations 26/26 including the exact shipped anchor
 defect. DESYNC IS NOT FIXED — next device test produces the evidence.
+
+## Session 2026-08-15 — R8 PASSED; R9 built to ship stage
+
+R8 passed on device; backlog B-8a (timer offset = answer delay) and B-8b
+(name change lands on room-menu exit) recorded. R9: target mirrors source.
+Rules extracted from the gated `pbCommitEdit` (four S-RULES in the plan);
+target branch superseded by `pbCommitEditTargetMirror` via wrap — one hop,
+edited side never overwritten, conditional verdict reset with
+direction-tagged clarify entry, mirrored BT with `direction:'target'`.
+Source/notes route to the original. Ship = pre-ship + R9 part, chain-additive.
+Harness 34/34 (run with the 2026-08-07 approved fixture as base so the region
+spans the whole appended chain); mutations 31/31.

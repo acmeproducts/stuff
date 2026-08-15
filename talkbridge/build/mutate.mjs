@@ -66,6 +66,18 @@ const mutations = [
    s => s.replace('if (CALL && CALL.durTimer) { clearInterval(CALL.durTimer); CALL.durTimer = null; }', '/* mutation */')],
   ['the relay Speaking stamp writes the slot again',
    s => s.replace("renderPartnerState = function () {", "renderPartnerState = function () { var el=$('rz-timer'); if (el) el.textContent='Speaking…';")],
+  ['target edit stops clearing the verdict',
+   s => s.replace("pbLogChain(c, 'Verdict reset to pending (target changed)');", "/* mutation */")],
+  ['the direction field is silently dropped from clarify entries',
+   s => s.replace("chain[chain.length - 1].direction = 'target';", "/* mutation */")],
+  ['one-hop violated: the new source fires back into the target',
+   s => s.replace("if (r.ok && norm(r.text) !== norm(c.source || '')) { c.source = norm(r.text); pbTouch(c); }",
+                  "if (r.ok) { c.source = norm(r.text); c.target = norm(r.text); pbTouch(c); }")],
+  ['bare enter on target stops retranslating',
+   s => s.replace("if (!v) { pbRerenderCard(id); return; }            /* S-RULE-2, flipped */",
+                  "if (!v || !changed) { pbRerenderCard(id); return; }")],
+  ['the wrap swallows source edits instead of passing through',
+   s => s.replace("return _r9CommitEdit.apply(this, arguments);", "return;")],
 ];
 
 let caught = 0, missed = [];
