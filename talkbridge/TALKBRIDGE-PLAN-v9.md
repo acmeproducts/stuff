@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.8.0 -->
-# TALKBRIDGE MASTER PLAN v14.8.0
+<!-- TALKBRIDGE-PLAN v14.9.0 -->
+# TALKBRIDGE MASTER PLAN v14.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -468,6 +468,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.9.0 · 2026-08-15.** R9 gate FAILED: target edits carried no was-trace.
+Rolled back; rebuilt. Owner ruling: EVERY target change writes a clarify entry
+'Target edited (was "<prior>")', direction-tagged, before verdict logic —
+S-RULES are the floor of a mirror, the owner's outcome is the spec. Harness
+35/35 incl. the no-verdict case; mutations 33/33.
 
 **v14.8.0 · 2026-08-15.** R9 built to `bridge-turn24-ship.html` on the gated
 pre-ship. Source rules extracted from the real `pbCommitEdit` and recorded

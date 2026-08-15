@@ -294,7 +294,9 @@ if (typeof w.pbCommitEditTargetMirror === 'function') {
       assert(card.source === 'hello there', 'source not retranslated from target');
       assert(card.backtranslate.verdict === '', 'verdict not cleared');
       assert(!card.tags.includes('✓Verified'), 'verified tag not stripped');
-      assert(card.clarifyChain.length === 1 && card.clarifyChain[0].direction === 'target', 'no direction-tagged clarify entry');
+      assert(card.clarifyChain.length === 2, 'expected was-trace + verdict entries, got ' + card.clarifyChain.length);
+      assert(card.clarifyChain[0].text.includes('was "sawasdee"'), 'first entry does not carry the prior target: ' + card.clarifyChain[0].text);
+      assert(card.clarifyChain.every(e => e.direction === 'target'), 'chain entries not direction-tagged');
       assert(card.backtranslate.direction === 'target' && card.backtranslate.resultText === 'sawasdee khrap', 'mirrored BT missing');
       assert(calls.filter(x => x.startsWith('tr:')).length === 2, 'expected exactly two hops (edit + BT), got ' + calls.join(','));
       console.log('  ok  ' + name); pass++;
@@ -309,6 +311,20 @@ if (typeof w.pbCommitEditTargetMirror === 'function') {
       assert(card.backtranslate.verdict === 'good', 'verdict cleared on unchanged commit');
       assert(card.tags.includes('✓Verified'), 'tag stripped on unchanged commit');
       assert(calls.filter(x => x.startsWith('tr:')).length === 2, 'retranslate/BT did not fire on bare enter');
+      console.log('  ok  ' + name); pass++;
+    } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
+  }
+  {
+    const name = 'C19b R9 OWNER RULING: changed target with NO verdict still writes the was-trace entry';
+    try {
+      install();
+      card.backtranslate = {};            /* no verdict set */
+      card.clarifyChain = [];
+      w.pbCommitEdit('pb-h1', 'target', 'sawasdee mak');
+      await sleep(30);
+      assert(card.clarifyChain.length === 1, 'expected exactly the was-trace entry, got ' + card.clarifyChain.length);
+      assert(card.clarifyChain[0].text.includes('was "sawasdee"') && card.clarifyChain[0].direction === 'target',
+        'entry wrong: ' + JSON.stringify(card.clarifyChain[0]));
       console.log('  ok  ' + name); pass++;
     } catch (e) { console.log('FAIL  ' + name + ' — ' + (e.message || e)); fail++; }
   }

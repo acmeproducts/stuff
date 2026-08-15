@@ -78,6 +78,10 @@ const mutations = [
                   "if (!v || !changed) { pbRerenderCard(id); return; }")],
   ['the wrap swallows source edits instead of passing through',
    s => s.replace("return _r9CommitEdit.apply(this, arguments);", "return;")],
+  ['the was-trace entry silently disappears from target edits',
+   s => s.replace("pbLogChain(c, 'Target edited (was \"' + String(prior || '').slice(0, 80) + '\")');", '/* mutation */')],
+  ['the was-trace stops carrying the prior value',
+   s => s.replace("'Target edited (was \"' + String(prior || '').slice(0, 80) + '\")'", "'Target edited'")],
 ];
 
 let caught = 0, missed = [];

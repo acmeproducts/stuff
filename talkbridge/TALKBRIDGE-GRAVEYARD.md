@@ -854,3 +854,15 @@ proven. The rebuild adds read-only instrumentation — every relay message
 carrying name/newName/senderName is logged with its type, carried value, and
 the value held before — so the next device test yields evidence. The harness
 proves the instrumentation itself cannot mutate a name.
+
+## R9 v1 — target edits left no trace of what the target WAS · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The mirror implemented S-RULE-1 to the letter: a clarify entry
+only when a verdict happened to be set, and saying only that something
+changed — never what it changed FROM. The owner's contract is traceability:
+every target update writes a clarify entry carrying the prior value, the way
+the trail reads on the source side. Buried: treating the extracted S-RULES as
+the ceiling of the spec. They are the floor; the owner's named OUTCOME
+(traceability) is the spec. Owner ruling now standing: every target change
+chain-logs 'Target edited (was "<prior>")', direction-tagged, before any
+verdict logic.
