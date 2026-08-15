@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.3.0 -->
-# TALKBRIDGE MASTER PLAN v14.3.0
+<!-- TALKBRIDGE-PLAN v14.4.0 -->
+# TALKBRIDGE MASTER PLAN v14.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -149,20 +149,32 @@ failure that has cost this project the most; it is not repeated here.
 
 ---
 
-## 4 · RELEASE 10 — NOTIFICATIONS AND PWA
+## 4 · RELEASE 10 — PWA MIGRATION, PHASE A (GOVERNED)
 
-Absorbs the paused release 7. Blocked until the isolated prototype at
-`proto/push.html` proves the iOS push chain.
+The prior R10 (prototype-blocked notifications/PWA) is SUPERSEDED. The owner
+has formally validated a working iPhone PWA + Web Push implementation and
+issued a GOVERNING EXECUTION PROMPT that owns this release end to end:
+
+    talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
+
+That document is AUTHORITATIVE for R10. It is executed AS WRITTEN — no
+redesign, no scope widening, no architecture substitution. Summary only (the
+document governs, this table does not):
 
 | # | Item | Status |
 |---|---|---|
-| 10.1 | Does iOS push work at all? Prototype resolves this; everything else here is blocked on the answer | Open question |
-| 10.2 | Does TalkBridge's push differ from the prototype's? The prototype always shows a notification; TalkBridge returns early when a window is visible, and Apple revokes push from apps that stay silent | Open question |
-| 10.3 | PWA install and home-screen path | Built, never gated |
-| 10.4 | Push subscription and delivery | Built, never gated |
-| 10.5 | Away-record home screen entries | Built, never gated |
-| 10.6 | Notify on/off control in the room menu | Not started |
-| 10.7 | Choosing the installed name and icon — must happen before install, since a manifest is read once | Not started |
+| 10.A0 | Baseline capture: app.html target, current bridge, manifest, tb-sw.js, worker SHA, invite/link formats, credential keys, relay identifiers — read mechanically from the CURRENT production source, never inferred | Not started |
+| 10.A1–A2 | Production manifest + SW registration; distinguish Safari tab from standalone PWA | Not started |
+| 10.A3 | Safari → installed-PWA handoff via the PROVEN short-lived-cookie bridge (NOT localStorage); Link Device uses the same handoff | Not started |
+| 10.A4 | Credential architecture UNCHANGED in Phase A | Not started |
+| 10.A5–A7 | Push subscription via the proven tb-sw.js + existing relay path; relay and room lifecycle untouched | Not started |
+| 10.A8 | Phase A test matrix as specified, incl. both rooms waking the same PWA | Not started |
+| 10.A9 | STOP GATE: present evidence and halt. Phase B does not start until the owner explicitly says so | Not started |
+
+Standing constraints repeated because they bind every build here: relay
+(`talkbridge/worker-talk.js`) is NOT modified in Phase A; `testpwa.html` is a
+diagnostic harness, never production; no unrequested changes; smallest
+possible diff; app.html is not repointed until the build passes.
 
 ---
 
@@ -193,7 +205,25 @@ a named scale of fixed pixels is still fixed pixels.
 
 ---
 
-## 7 · FUTURE IDEAS — unscheduled, no release
+## 7 · RELEASE 13 — SECRET MIGRATION, PHASE B (GOVERNED, VERY LAST)
+
+Placed at the BACK of the schedule by owner ruling 2026-08-15: runs only
+after R9, Phase A (R10), R11, and R12 are done, and only on the owner's
+explicit go. Governed by the same document as R10:
+
+    talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
+
+Scope as governed (summary; the document owns the detail): move the four
+long-lived service secrets (tb_dg_key, tb_cf_tid, tb_cf_tok, tb_gh_pat)
+behind the EXISTING relay; one opaque TalkBridge authorization value replaces
+client-side service secrets; /service actions, client authorization
+abstraction, invite/grant/link payload changes, secret-leak audit, and the
+full Phase B test matrix — all exactly per the governing prompt, with its
+rollback rules and required report format.
+
+---
+
+## 8 · FUTURE IDEAS — unscheduled, no release
 
 | # | Idea | Status |
 |---|---|---|
@@ -430,6 +460,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.4.0 · 2026-08-15.** Owner delivered a formally validated PWA/push
+implementation with a governing execution prompt (stored in the repo).
+Old R10 superseded: R10 is now PWA Migration Phase A, executed after R9
+exactly as governed, ending at a hard stop gate. Phase B (secret migration)
+is scheduled DEAD LAST as R13, after all other slated work, on explicit owner
+go only. Plan-only change; no code touched.
 
 **v14.3.0 · 2026-08-14.** Item 11.7 added by owner instruction: mute video
 icon occluded. Plan-only change; no code touched.
