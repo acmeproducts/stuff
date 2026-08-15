@@ -805,3 +805,29 @@ Appended code may not wrap, restyle, or even reference the ribbon media
 controls or their handlers. The harness enforces this with two regression
 guards (identifier scan of the appended region; the live toggle function must
 be the base original) and two fresh mutations proving the guards fire.
+
+## R8b — the call timer flickers because ONE SLOT HAS TWO WRITERS · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The R8b timer added a second one-second interval writing the
+duration into `#rz-timer` while the base's own `durTimer` kept writing
+"Speaking…" into the same element whenever the remote mic was live — which,
+on the receiver's side of a real conversation, is most of the time. Two
+phase-offset writers alternating in one slot every second IS the flicker,
+and the relay-driven `renderPartnerState()` stamped a third "Speaking…" on
+every incoming mic-state message. The duration was always computed locally;
+the relay was injecting the OVERWRITES, not the time.
+
+The buried approach: adding a writer alongside an existing writer of the same
+DOM slot. The rule it earns: ONE SLOT, ONE WRITER. Appended code that needs to
+own an element's text must first silence every existing writer of that
+element (kill the base's interval handle, no-op the stamping function via
+wrap), then be the only thing that writes.
+
+## R8a — item 8.5 said "chat" and the chat mark was never built · SCOPE GAP AT GATE · Aug 15 2026
+
+Item 8.5 read "bubble-header icons for chat/phone/video". The build marked
+spoken entries as mic/phone/video and deliberately returned nothing for typed
+chat — a third of the item's own name, silently dropped, and the harness
+tested only the spoken paths, so green meant one-third missing. Rule: an
+item's scope is EVERY word of the item as the owner wrote it; the test list
+is written from the item's words, not from the code that got built.

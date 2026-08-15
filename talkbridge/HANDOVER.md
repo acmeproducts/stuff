@@ -133,3 +133,16 @@ new R8b defects pending at push time — pushed first because an environment
 death mid-gate nearly lost the whole build. RULE: push after every proven
 step. Two-phone device gate still owns the final verdict (relay-crossing
 typing/timer cannot be proven in jsdom).
+
+## Session 2026-08-15 — R8b gate FAILED; standard run, no patch-forward
+
+Owner found the timer flicker (two writers on one slot, relay stamping
+"Speaking…") and the missing 8.5 chat mark. Owner also correctly rejected a
+proposed "remediation on top" — that was patch-forward and is not done here.
+Standard executed: pre-ship rolled back FIRST and pushed, two graveyard
+entries (ONE SLOT ONE WRITER; scope is every word of the item), plan v14.5.0,
+then the chain REBUILT from the approved 2026-08-07 baseline: R8a v3 part
+(8.5 complete — chat bubble on typed entries at the who-slot) and R8b v2 part
+(timer is the slot's only writer: base durTimer killed on every tick, relay
+stamp no-opped with the original preserved, duration purely local).
+Harness 28/28 incl. C15/C16 effect tests; mutations 25/25.

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.4.0 -->
-# TALKBRIDGE MASTER PLAN v14.4.0
+<!-- TALKBRIDGE-PLAN v14.5.0 -->
+# TALKBRIDGE MASTER PLAN v14.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -460,6 +460,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.5.0 · 2026-08-15.** (Rebuild shipped same day: chain rebuilt from the approved baseline — base and pre-ship both replaced, harness 28/28, mutations 25/25.) R8b device gate FAILED twice over: the call timer
+flickers on the receiver because two writers fight over one slot every second
+(graveyard: ONE SLOT, ONE WRITER), and 8.5's chat mark was never built despite
+being in the item's name (graveyard: scope is every word of the item). Rolled
+back pre-ship to the R8a base. Rebuild from the clean chain: 8.10 timer as the
+slot's ONLY writer (base interval killed, relay stamp no-opped, purely local),
+8.5 completed with a chat-bubble mark on typed entries from either input path.
 
 **v14.4.0 · 2026-08-15.** Owner delivered a formally validated PWA/push
 implementation with a governing execution prompt (stored in the repo).

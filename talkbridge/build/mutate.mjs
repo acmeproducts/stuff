@@ -56,6 +56,14 @@ const mutations = [
    s => s.replace('CALL.toggleMic();\n    R8_AWAY.mutedByAway = true;', 'R8_AWAY.mutedByAway = true;')],
   ['a real toggleMic reassignment sneaks into R8b',
    s => s.replace('function wirePipSwap() {', 'CALL.toggleMic = function(){};\nfunction wirePipSwap() {')],
+  ['typed chat mark quietly dropped again',
+   s => s.replace("return '<span class=\"origin-mark\">' + ICON.hdrChat + '</span>';", "return '';")],
+  ['the mark is computed but never inserted into markless base markup',
+   s => s.replace("return html.replace(/(<span class=\"who\">)/, '$1' + want);", 'return html;')],
+  ['the base timer writer comes back to life',
+   s => s.replace('if (CALL && CALL.durTimer) { clearInterval(CALL.durTimer); CALL.durTimer = null; }', '/* mutation */')],
+  ['the relay Speaking stamp writes the slot again',
+   s => s.replace("renderPartnerState = function () {", "renderPartnerState = function () { var el=$('rz-timer'); if (el) el.textContent='Speaking…';")],
 ];
 
 let caught = 0, missed = [];

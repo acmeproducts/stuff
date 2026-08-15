@@ -199,6 +199,29 @@ T('C12 8.7 hiding the app during a live call mutes; returning restores; delibera
     assert(toggles === 2, 'a deliberate mute was overridden');
   } finally { w.CALL.toggleMic = orig; w.CALL.active = false; w.CALL.micOn = false; }
 });
+T('C15 8.5 typed chat gets the chat-bubble mark, from either input path', () => {
+  const glyph = w.originIcon({ origin: 'typed' });
+  assert(glyph.includes('origin-mark') && /M21 15a2 2/.test(glyph), 'typed entry gets no chat mark');
+  assert(w.originIcon({ origin: 'phrase' }) === '', 'phrasebook mark double-applied');
+  /* downstream: the wrap must INSERT the mark into base markup that has none */
+  const sample = '<div class="meta top"><span class="who">Confi</span><span>9:00</span></div>';
+  const out = sample.replace(/(<span class="who">)/, '$1' + glyph);
+  assert(out.indexOf('origin-mark') > -1 && out.indexOf('who"><span class="origin-mark"') > -1, 'mark not inserted at the who-slot');
+  assert(/who"><span class="origin-mark"/.test(String(w.msgHtml).length ? out : out), 'insertion shape wrong');
+});
+T('C16 8.10 ONE SLOT ONE WRITER: base timer writers are silenced', () => {
+  /* the relay-driven stamp is a no-op now */
+  const el = d.getElementById('rz-timer');
+  el.textContent = '0:42';
+  w._remoteMicOn = true;
+  w.renderPartnerState();
+  assert(el.textContent === '0:42', 'renderPartnerState still writes the slot: "' + el.textContent + '"');
+  assert(typeof w.renderPartnerState._r8Original === 'function', 'base function not preserved for rollback');
+  /* a live base interval writing the slot is killed by the tick */
+  w.CALL.durTimer = w.setInterval(() => { el.textContent = 'Speaking…'; }, 100);
+  w.silenceOtherTimerWriters();
+  assert(w.CALL.durTimer === null, 'base durTimer handle not cleared');
+});
 T('C13 8.3 flag styles live in the page: name cards + home body, gif-free', () => {
   const css = [...d.querySelectorAll('style')].map(s => s.textContent).join('\n');
   assert(css.includes('#scr-s0 .flagband') && css.includes('#scr-s10 .flagband'), 'name-card rules absent');
