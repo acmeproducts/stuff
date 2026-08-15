@@ -168,3 +168,12 @@ direction-tagged clarify entry, mirrored BT with `direction:'target'`.
 Source/notes route to the original. Ship = pre-ship + R9 part, chain-additive.
 Harness 34/34 (run with the 2026-08-07 approved fixture as base so the region
 spans the whole appended chain); mutations 31/31.
+
+## Session 2026-08-15 — R9 PASSED
+
+Owner passed R9 on device. `bridge-turn24-ship.html` (with target-edit "was"
+clarify traceability) is the approved baseline, snapshotted in fixtures as
+bridge-turn24-approved-2026-08-15b.html. Next: R10 = PWA Migration Phase A
+under talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt,
+starting with A0 baseline capture read mechanically from the current
+production source, ending at the governing prompt's HARD STOP gate.

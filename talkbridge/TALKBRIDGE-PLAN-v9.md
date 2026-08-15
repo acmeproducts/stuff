@@ -475,6 +475,11 @@ Rolled back; rebuilt. Owner ruling: EVERY target change writes a clarify entry
 S-RULES are the floor of a mirror, the owner's outcome is the spec. Harness
 35/35 incl. the no-verdict case; mutations 33/33.
 
+**v14.9.0 · 2026-08-15.** R9 PASSED the device gate ("Big Time"). Ship
+snapshot preserved as `talkbridge/fixtures/bridge-turn24-approved-2026-08-15b.html`
+— the new approved baseline. Next per plan order: R10 — PWA Migration Phase A,
+executed exactly per the governing prompt, ending at its hard stop gate.
+
 **v14.8.0 · 2026-08-15.** R9 built to `bridge-turn24-ship.html` on the gated
 pre-ship. Source rules extracted from the real `pbCommitEdit` and recorded
 (9.1); target branch superseded via wrap with every original effect preserved
