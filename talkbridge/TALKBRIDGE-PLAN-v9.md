@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.5.0 -->
-# TALKBRIDGE MASTER PLAN v14.5.0
+<!-- TALKBRIDGE-PLAN v14.6.0 -->
+# TALKBRIDGE MASTER PLAN v14.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -460,6 +460,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.6.0 · 2026-08-15.** Gate FAILED again: chat mark's inserter anchored on
+markup the renderer never produces (test was vacuous — it tested a sample the
+test invented); room names desynced with NO proven cause. Rolled back, chain
+rebuilt: anchor read from the real renderer and tested THROUGH the real
+renderer; timer fix unchanged; read-only name instrumentation added so the
+desync produces evidence at the next gate. Desync is INSTRUMENTED, not fixed —
+stated plainly.
 
 **v14.5.0 · 2026-08-15.** (Rebuild shipped same day: chain rebuilt from the approved baseline — base and pre-ship both replaced, harness 28/28, mutations 25/25.) R8b device gate FAILED twice over: the call timer
 flickers on the receiver because two writers fight over one slot every second

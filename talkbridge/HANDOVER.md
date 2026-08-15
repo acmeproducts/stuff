@@ -146,3 +146,13 @@ then the chain REBUILT from the approved 2026-08-07 baseline: R8a v3 part
 (timer is the slot's only writer: base durTimer killed on every tick, relay
 stamp no-opped with the original preserved, duration purely local).
 Harness 28/28 incl. C15/C16 effect tests; mutations 25/25.
+
+## Session 2026-08-15 (later) — gate failed; rebuilt with real-renderer proof + name instrumentation
+
+Chat glyph: inserter anchored on `class="who"`; the real renderer produces
+`tr-who who`. Fixed by reading the renderer; harness C15 now calls the REAL
+msgHtml with a seeded room and a real typed entry. Name desync: cause not
+established — read-only instrumentation logs every name-bearing relay message
+(type, value, prior value); C17 proves it cannot mutate names. Timer fix
+unchanged. Harness 29/29; mutations 26/26 including the exact shipped anchor
+defect. DESYNC IS NOT FIXED — next device test produces the evidence.

@@ -831,3 +831,26 @@ chat — a third of the item's own name, silently dropped, and the harness
 tested only the spoken paths, so green meant one-third missing. Rule: an
 item's scope is EVERY word of the item as the owner wrote it; the test list
 is written from the item's words, not from the code that got built.
+
+## R8 rebuild — the chat mark's inserter anchored on markup the renderer never produces · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The chat glyph never appeared because the insertion targeted
+`<span class="who">` while the transcript renderer actually produces
+`<span class="tr-who who">` — an anchor assumed from a DIFFERENT function's
+markup instead of read from the renderer being wrapped. Worse, the harness
+test "verified" insertion against a sample string the test itself invented,
+so it proved my regex works on my own example — vacuous by construction.
+Rules: the anchor is READ from the exact function being wrapped, and a
+renderer test calls THE RENDERER with a real entry, never a hand-written
+sample.
+
+## R8 rebuild — room names desynced; CAUSE NOT ESTABLISHED · Aug 15 2026
+
+The owner observed room names going out of sync on device. Reading every
+appended line against every base name-write path produced no proven
+mechanism, and declaring a root cause from reasoning is itself a graveyarded
+habit. Buried: the failed build. NOT buried: any theory, because none is
+proven. The rebuild adds read-only instrumentation — every relay message
+carrying name/newName/senderName is logged with its type, carried value, and
+the value held before — so the next device test yields evidence. The harness
+proves the instrumentation itself cannot mutate a name.

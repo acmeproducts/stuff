@@ -6489,6 +6489,7 @@ if (typeof document !== 'undefined') {
    own drawing, so it is recognisable at 20px instead of being a base icon with
    a line over it. */
 var ICON = {
+  hdrChat: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
   hdrMic:
     '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
     '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
@@ -6667,14 +6668,19 @@ var R8_CSS =
   };
 })();
 
-/* Which mark a bubble header shows. Chat mic for transcribed typing-free
-   speech outside a call, phone inside a voice call, video inside a video call. */
+/* Which mark a bubble header shows — one for EVERY communication mode, per
+   item 8.5's own words: chat, phone, video (and mic for plain speech).
+   Typed chat gets the chat bubble whether it came from the compose strip or
+   the transcript; the base gave typed entries no mark at all. */
 function originIcon(e) {
   if (!e) return '';
-  if (e.origin !== 'spoken') return '';
-  if (e.callKind === 'voice') return '<span class="origin-mark">' + ICON.hdrPhone + '</span>';
-  if (e.callKind === 'video') return '<span class="origin-mark">' + ICON.hdrVideo + '</span>';
-  return '<span class="origin-mark">' + ICON.hdrMic + '</span>';
+  if (e.origin === 'spoken') {
+    if (e.callKind === 'voice') return '<span class="origin-mark">' + ICON.hdrPhone + '</span>';
+    if (e.callKind === 'video') return '<span class="origin-mark">' + ICON.hdrVideo + '</span>';
+    return '<span class="origin-mark">' + ICON.hdrMic + '</span>';
+  }
+  if (e.origin === 'phrase') return '';   /* the base already marks phrasebook entries */
+  return '<span class="origin-mark">' + ICON.hdrChat + '</span>';
 }
 
 /* The base builds the whole bubble as a string with the origin mark already
@@ -6685,12 +6691,21 @@ function originIcon(e) {
   msgHtml = function (e) {
     var html = _r8MsgHtml.apply(this, arguments);
     try {
-      if (!e || e.origin !== 'spoken') return html;
+      if (!e) return html;
       var want = originIcon(e);
       if (!want) return html;
-      /* Only the leading origin mark is swapped; the header's action buttons
-         and receipt markup are left exactly as the base produced them. */
-      return html.replace(/<span class="origin-mark">[\s\S]*?<\/span>/, want);
+      if (/<span class="origin-mark">/.test(html)) {
+        /* Only the leading origin mark is swapped; the header's action buttons
+           and receipt markup are left exactly as the base produced them. */
+        return html.replace(/<span class="origin-mark">[\s\S]*?<\/span>/, want);
+      }
+      /* Typed entries: the base produced NO mark, so one is inserted at the
+         head of the who-span — the exact slot the spoken mark occupies.
+         READ FROM THE BASE, not assumed: msgHtml's head is
+         '<span class="tr-who who' + (mine ? ' mine' : '') + '">'. The earlier
+         build anchored on class="who" — markup that renderer never produces —
+         and shipped an inserter that could not insert. */
+      return html.replace(/(<span class="tr-who who[^"]*">)/, '$1' + want);
     } catch (err) {
       r8Log('origin_mark_failed', { e: String(err && err.message || err) }, 'error');
       return html;
