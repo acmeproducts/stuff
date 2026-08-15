@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>devstream</title>
+<style>
+:root{
+  --bg:#0E1116; --surface:#161B22; --surface2:#1C232C; --line:#262D37;
+  --text:#E6EDF3; --dim:#8B949E; --accent:#39C5CF;
+  --ok:#3FB950; --err:#F85149; --run:#E3A008; --idle:#4B5563;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,textarea{font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%;outline:none}
+input:focus,textarea:focus{border-color:var(--accent)}
+::placeholder{color:var(--dim)}
+
+/* ribbon */
+#ribbon{display:flex;align-items:center;gap:4px;height:52px;padding:0 6px;border-bottom:1px solid var(--line);flex-shrink:0}
+.rbtn{min-width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:20px;color:var(--dim)}
+.rbtn:active{background:var(--surface2)}
+#tabstrip{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;height:100%;align-items:center}
+#tabstrip::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border:1px solid var(--line);border-radius:19px;font-size:13px;color:var(--dim);max-width:46vw;position:relative}
+.tab .tname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.active{color:var(--text);border-color:var(--accent);background:var(--surface)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--idle)}
+.dot.ok{background:var(--ok)} .dot.error{background:var(--err)}
+.dot.executing{background:var(--run);animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* drawer */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+#scrim.open{opacity:1;pointer-events:auto}
+#drawer{position:fixed;top:0;left:0;bottom:0;width:min(82vw,320px);background:var(--surface);border-right:1px solid var(--line);transform:translateX(-102%);transition:transform .22s;z-index:41;display:flex;flex-direction:column;padding:12px}
+#drawer.open{transform:none}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:var(--surface2)}
+.card:active{border-color:var(--accent)}
+.card .cttl{font-weight:600;display:flex;align-items:center;gap:8px}
+.card .csub{font-size:12px;color:var(--dim);margin-top:3px}
+#dashcard{border-color:var(--accent);background:linear-gradient(160deg,rgba(57,197,207,.10),transparent 60%),var(--surface2)}
+.badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
+.badge.run{background:rgba(227,160,8,.18);color:var(--run)}
+.badge.err{background:rgba(248,81,73,.18);color:var(--err)}
+#projlist{flex:1;overflow-y:auto}
+.card.proj.active{border-color:var(--accent)}
+
+/* main / chat */
+#main{flex:1;display:flex;flex-direction:column;min-height:0}
+#empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--dim);text-align:center;padding:24px}
+#empty .big{font-size:17px;color:var(--text)}
+#chat{flex:1;overflow-y:auto;padding:14px 12px 8px;display:none;flex-direction:column;gap:10px}
+.msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:var(--surface2);border:1px solid var(--line);border-bottom-right-radius:4px}
+.msg.agent{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg .mmeta{font-size:11px;color:var(--dim);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+.msg a{color:var(--accent);word-break:break-all}
+.msg.pending{opacity:.75}
+#threadbar{display:none;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--dim)}
+#threadbar .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#composer{display:none;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+#composer textarea{flex:1;resize:none;max-height:120px;min-height:48px}
+#sendbtn{min-width:48px;height:48px;border-radius:12px;background:var(--accent);color:#06282B;font-weight:700;font-size:18px}
+#sendbtn:disabled{opacity:.4}
+
+/* banner + toast */
+#banner{display:none;padding:10px 14px;background:rgba(248,81,73,.12);border-bottom:1px solid var(--err);color:var(--err);font-size:13px}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:13px;opacity:0;transition:opacity .2s;z-index:80;max-width:88vw;pointer-events:none}
+#toast.show{opacity:1}
+
+/* panels (full-width stacked) */
+.panel{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;flex-direction:column}
+.panel.open{display:flex}
+.phead{display:flex;align-items:center;gap:6px;height:52px;padding:0 6px;border-bottom:1px solid var(--line);flex-shrink:0}
+.phead .pttl{font-weight:600;flex:1}
+.pbody{flex:1;overflow-y:auto;padding:14px 12px calc(14px + env(safe-area-inset-bottom))}
+.frow{margin-bottom:14px}
+.frow label{display:block;font-size:12px;color:var(--dim);margin-bottom:6px}
+.primary{display:block;width:100%;height:48px;border-radius:12px;background:var(--accent);color:#06282B;font-weight:700;margin-top:6px}
+.secondary{display:block;width:100%;height:48px;border-radius:12px;border:1px solid var(--line);color:var(--dim);margin-top:8px}
+.omni{position:relative}
+.omnilist{position:absolute;left:0;right:0;top:calc(100% + 4px);max-height:210px;overflow-y:auto;background:var(--surface2);border:1px solid var(--line);border-radius:8px;z-index:5;display:none}
+.omnilist div{padding:11px 12px;font-size:13px;border-bottom:1px solid var(--line)}
+.omnilist div:active{background:var(--surface)}
+
+/* dashboard */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;border-bottom:1px solid var(--line);scrollbar-width:none;flex-shrink:0}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;height:32px;padding:0 13px;border:1px solid var(--line);border-radius:16px;font-size:12px;color:var(--dim);display:flex;align-items:center}
+.chip.on{color:var(--accent);border-color:var(--accent)}
+.dsec{margin-bottom:18px}
+.dsec .dpttl{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:2px}
+.dsec .dpsub{font-size:12px;color:var(--dim);margin-bottom:8px}
+.trow{display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface2)}
+.trow:active{border-color:var(--accent)}
+.trow .ti{flex:1;min-width:0}
+.trow .tf{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .tt{font-size:11px;color:var(--dim)}
+.trow .terr{font-size:11px;color:var(--err);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .terr.x{white-space:normal}
+.notes{margin-top:6px}
+.notes textarea{min-height:56px;font-size:13px}
+.notesave{font-size:12px;color:var(--accent);padding:8px 4px}
+
+/* context menu */
+#ctx{position:fixed;background:var(--surface2);border:1px solid var(--line);border-radius:10px;z-index:70;display:none;min-width:180px;overflow:hidden}
+#ctx button{display:block;width:100%;text-align:left;padding:13px 16px;font-size:14px;border-bottom:1px solid var(--line)}
+#ctx button:last-child{border-bottom:none}
+#ctx button:active{background:var(--surface)}
+#ctx .danger{color:var(--err)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="banner"></div>
+<div id="ribbon">
+  <button class="rbtn" id="menubtn" aria-label="Projects">☰</button>
+  <div id="tabstrip"></div>
+  <button class="rbtn" id="newbtn" aria-label="New thread">+</button>
+  <button class="rbtn" id="gearbtn" aria-label="Configuration">⚙</button>
+</div>
+<div id="main">
+  <div id="threadbar"><span class="dot" id="tbdot"></span><span class="mono" id="tbfile"></span><button class="rbtn" id="tbrefresh" style="margin-left:auto;min-width:40px;height:40px">↻</button></div>
+  <div id="empty"><div class="big">devstream</div><div>Tap + to start a thread:<br>an output file, an optional input file, and an idea.</div></div>
+  <div id="chat"></div>
+  <div id="composer"><textarea id="mtext" rows="1" placeholder="Refine this thread…"></textarea><button id="sendbtn">➤</button></div>
+</div>
+<div id="scrim"></div>
+<div id="drawer">
+  <div class="card" id="dashcard">
+    <div class="cttl">Dashboard <span style="margin-left:auto;display:flex;gap:6px" id="dashbadges"></span></div>
+    <div class="csub" id="dashsub">All projects, all threads</div>
+  </div>
+  <div id="projlist"></div>
+  <button class="secondary" id="addproj">+ New project</button>
+</div>
+<div id="toast"></div>
+<div id="ctx"></div>
+<!-- Config panel -->
+<div class="panel" id="cfgpanel">
+  <div class="phead"><button class="rbtn" data-close="cfgpanel">←</button><div class="pttl">Configuration</div></div>
+  <div class="pbody">
+    <div class="frow"><label>GitHub personal access token</label><input id="cfgpat" type="password" autocomplete="off" placeholder="ghp_…"></div>
+    <div class="frow"><label>Default repository (owner/repo)</label><input id="cfgrepo" class="mono" placeholder="acmeproducts/stuff"></div>
+    <div class="frow"><label>Branch</label><input id="cfgbranch" class="mono" placeholder="main"></div>
+    <button class="primary" id="cfgsave">Save configuration</button>
+    <div class="csub" style="margin-top:14px">devstream v1.0 · state lives in GitHub under <span class="mono">devstream/</span></div>
+  </div>
+</div>
+
+<!-- New thread panel -->
+<div class="panel" id="newpanel">
+  <div class="phead"><button class="rbtn" data-close="newpanel">←</button><div class="pttl">New thread</div></div>
+  <div class="pbody">
+    <div class="frow"><label>Project</label><input id="ntproj" placeholder="Project label" list=""><div class="omni"><div class="omnilist" id="projsuggest"></div></div></div>
+    <div class="frow"><label>Output file — new name or pick existing</label>
+      <div class="omni"><input id="ntout" class="mono" autocomplete="off" placeholder="myapp.html"><div class="omnilist" id="outlist"></div></div>
+    </div>
+    <div class="frow"><label>Input file (optional) — existing codebase to start from</label>
+      <div class="omni"><input id="ntin" class="mono" autocomplete="off" placeholder="Search repo files…"><div class="omnilist" id="inlist"></div></div>
+    </div>
+    <div class="frow"><label>Repository</label><input id="ntrepo" class="mono"></div>
+    <div class="frow"><label>The idea</label><textarea id="ntprompt" rows="4" placeholder="What should this thread build?"></textarea></div>
+    <button class="primary" id="ntcreate">Create thread</button>
+  </div>
+</div>
+
+<!-- Dashboard panel -->
+<div class="panel" id="dashpanel">
+  <div class="phead"><button class="rbtn" data-close="dashpanel">←</button><div class="pttl">Dashboard</div><button class="rbtn" id="dashrefresh">↻</button></div>
+  <div class="chips" id="dashchips"></div>
+  <div class="pbody" id="dashbody"></div>
+</div>
+
+<script>
+'use strict';
+/* ============ state ============ */
+const LS='ds_cfg_v1';
+let cfg=JSON.parse(localStorage.getItem(LS)||'null');
+let sot={threads:{},projects:{}}, sotSha=null;
+let threads={};            // key -> {data, sha}
+let activeProject=localStorage.getItem('ds_activeproj')||null;
+let activeKey=null;
+let treeCache={};          // repo -> [paths]
+let dashFilter={state:'all',project:'all'};
+let dashSort='last';
+let pollTimer=null, dashTimer=null;
+
+/* ============ utils ============ */
+const $=id=>document.getElementById(id);
+const enc=s=>btoa(unescape(encodeURIComponent(s)));
+const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
+const now=()=>new Date().toISOString();
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2600)}
+function banner(m){const b=$('banner');if(!m){b.style.display='none';return}b.textContent=m;b.style.display='block'}
+function rel(iso){if(!iso)return'never';const s=(Date.now()-new Date(iso))/1e3;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function linkify(s){return esc(s).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')}
+const tkey=(p,f)=>p+'/'+f;
+const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+f.replace(/\//g,'_')+'.json';
+
+/* ============ github api ============ */
+async function gh(path,opts={},repo){
+  repo=repo||cfg.repo;
+  const r=await fetch('https://api.github.com/repos/'+repo+'/'+path,{...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
+  if(r.status===404&&opts.allow404)return null;
+  if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:'')+' ('+path.split('?')[0]+')')}
+  return r.status===204?{}:r.json();
+}
+async function getFile(path,repo){
+  const j=await gh('contents/'+path+'?ref='+cfg.branch,{allow404:true},repo);
+  if(!j)return null;
+  let content=j.content?dec(j.content):'';
+  if(!content&&j.size>0){ // >1MB Contents API empty-content trap -> raw fallback
+    const r=await fetch('https://api.github.com/repos/'+(repo||cfg.repo)+'/contents/'+path+'?ref='+cfg.branch,{headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
+    if(!r.ok)throw new Error('raw fallback failed '+r.status);
+    content=await r.text();
+  }
+  return{content,sha:j.sha};
+}
+async function putFile(path,content,message,sha,repo){
+  const body={message,content:enc(content),branch:cfg.branch};
+  if(sha)body.sha=sha;
+  const j=await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)},repo);
+  return j.content.sha;
+}
+async function putFileSafe(path,content,message,repo){ // read SHA before every PUT
+  const cur=await getFile(path,repo);
+  return putFile(path,content,message,cur?cur.sha:null,repo);
+}
+async function repoTree(repo){
+  repo=repo||cfg.repo;
+  if(treeCache[repo])return treeCache[repo];
+  const j=await gh('git/trees/'+cfg.branch+'?recursive=1',{},repo);
+  treeCache[repo]=(j.tree||[]).filter(x=>x.type==='blob').map(x=>x.path);
+  return treeCache[repo];
+}
+
+/* ============ SOT ============ */
+const SOTPATH='devstream/devstream-status.json';
+async function loadSOT(){
+  const f=await getFile(SOTPATH);
+  if(f){try{sot=JSON.parse(f.content)}catch(e){throw new Error('Status file is malformed JSON')}sotSha=f.sha}
+  else{sot={threads:{},projects:{}};sotSha=null}
+  sot.threads=sot.threads||{};sot.projects=sot.projects||{};
+}
+async function saveSOT(msg){
+  sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha).catch(async e=>{
+    // sha conflict -> re-read, merge our intent is caller's responsibility; simple retry
+    const f=await getFile(SOTPATH);sotSha=f?f.sha:null;
+    return putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha);
+  });
+}
+/* ============ drawer / projects ============ */
+function openDrawer(o){$('drawer').classList.toggle('open',o);$('scrim').classList.toggle('open',o)}
+$('menubtn').onclick=()=>openDrawer(true);
+$('scrim').onclick=()=>openDrawer(false);
+function renderDrawer(){
+  const pl=$('projlist');pl.innerHTML='';
+  const runs=Object.values(sot.threads).filter(t=>t.state==='executing').length;
+  const errs=Object.values(sot.threads).filter(t=>t.state==='error').length;
+  $('dashbadges').innerHTML=(runs?'<span class="badge run">'+runs+' running</span>':'')+(errs?'<span class="badge err">'+errs+' error</span>':'');
+  $('dashsub').textContent=Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads';
+  Object.keys(sot.projects).sort().forEach(p=>{
+    const n=Object.values(sot.threads).filter(t=>t.project===p).length;
+    const d=document.createElement('div');
+    d.className='card proj'+(p===activeProject?' active':'');
+    d.innerHTML='<div class="cttl">'+esc(p)+'</div><div class="csub">'+n+' thread'+(n===1?'':'s')+' · '+rel(sot.projects[p].lastTouched)+'</div>';
+    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderDrawer();renderTabs();openDrawer(false)};
+    pl.appendChild(d);
+  });
+}
+$('addproj').onclick=async()=>{
+  const name=prompt('Project label:');if(!name)return;
+  if(!sot.projects[name])sot.projects[name]={notes:'',lastTouched:now()};
+  activeProject=name;localStorage.setItem('ds_activeproj',name);
+  await guard(saveSOT('devstream: project '+name));
+  renderDrawer();renderTabs();
+};
+$('dashcard').onclick=()=>{openDrawer(false);openDash()};
+
+/* ============ tabs ============ */
+function projectThreads(){return Object.keys(sot.threads).filter(k=>sot.threads[k].project===activeProject)}
+function renderTabs(){
+  const ts=$('tabstrip');ts.innerHTML='';
+  if(!activeProject)return;
+  projectThreads().forEach(k=>{
+    const t=sot.threads[k];
+    const el=document.createElement('div');
+    el.className='tab'+(k===activeKey?' active':'');
+    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.file)+'</span>';
+    el.onclick=()=>openThread(k);
+    let lastTap=0;
+    el.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTap<350){e.preventDefault();showCtx(el,k)}lastTap=n});
+    el.addEventListener('contextmenu',e=>{e.preventDefault();showCtx(el,k)});
+    ts.appendChild(el);
+  });
+}
+function showCtx(tabEl,key){ // menu directly BELOW the tab
+  const c=$('ctx');const r=tabEl.getBoundingClientRect();
+  c.innerHTML='';
+  const items=[['Rename output file',()=>renameThread(key)],['Copy test URL',()=>{const u=sot.threads[key].testUrl;if(u){navigator.clipboard.writeText(u);toast('Test URL copied')}else toast('No test URL yet')}],['Delete thread',()=>deleteThread(key),'danger']];
+  items.forEach(([label,fn,cls])=>{const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=()=>{hideCtx();fn()};c.appendChild(b)});
+  c.style.display='block';
+  c.style.left=Math.min(r.left,innerWidth-c.offsetWidth-8)+'px';
+  c.style.top=(r.bottom+6)+'px';
+  setTimeout(()=>document.addEventListener('click',hideCtx,{once:true}),10);
+}
+function hideCtx(){$('ctx').style.display='none'}
+
+/* ============ threads ============ */
+async function loadThread(key){
+  const t=sot.threads[key];
+  const f=await getFile(tpath(t.project,t.threadFile||t.file),t.repo);
+  if(!f)throw new Error('Thread file missing: '+t.file);
+  threads[key]={data:JSON.parse(f.content),sha:f.sha};
+  return threads[key];
+}
+async function openThread(key){
+  activeKey=key;renderTabs();
+  $('empty').style.display='none';$('chat').style.display='flex';
+  $('threadbar').style.display='flex';$('composer').style.display='flex';
+  $('chat').innerHTML='<div class="msg agent">Loading…</div>';
+  try{await loadThread(key);renderChat();schedulePoll()}catch(e){banner(e.message)}
+}
+function renderChat(){
+  const key=activeKey;if(!key||!threads[key])return;
+  const t=sot.threads[key], d=threads[key].data;
+  $('tbfile').textContent=t.repo+' → '+t.file;
+  $('tbdot').className='dot '+(t.state||'idle');
+  const c=$('chat');c.innerHTML='';
+  d.messages.forEach(m=>{
+    const el=document.createElement('div');
+    el.className='msg '+(m.role==='user'?'user':'agent')+(m.status==='pending'?' pending':'');
+    let meta='<div class="mmeta"><span>'+rel(m.ts)+'</span>';
+    if(m.status==='pending')meta+='<span>⧗ waiting for agent</span>';
+    if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
+    meta+='</div>';
+    el.innerHTML=linkify(m.text)+meta;
+    c.appendChild(el);
+  });
+  c.scrollTop=c.scrollHeight;
+}
+async function sendMessage(){
+  const key=activeKey;const txt=$('mtext').value.trim();
+  if(!key||!txt)return;
+  $('sendbtn').disabled=true;
+  try{
+    const t=sot.threads[key], th=threads[key];
+    // mid-chat output re-spec: "output to xyz.html"
+    const m=txt.match(/output to\s+([\w\-.\/]+\.\w+)/i);
+    th.data.messages.push({role:'user',text:txt,ts:now(),status:'pending'});
+    if(m){const nf=m[1];th.data.renames=th.data.renames||[];th.data.renames.push({from:t.file,to:nf,ts:now()});th.data.outputFile=nf;
+      const nk=tkey(t.project,nf);sot.threads[nk]={...t,file:nf};delete sot.threads[key];
+      threads[nk]=th;delete threads[key];activeKey=nk;
+      toast('Output re-pointed to '+nf);
+    }
+    const kk=activeKey, tt=sot.threads[kk];
+    th.sha=await putFile(tpath(tt.project,th.data.threadFile||tt.file),JSON.stringify(th.data,null,1),'devstream: message in '+kk,th.sha,tt.repo)
+      .catch(async e=>{const f=await getFile(tpath(tt.project,th.data.threadFile||tt.file),tt.repo);th.sha=f.sha;
+        return putFile(tpath(tt.project,th.data.threadFile||tt.file),JSON.stringify(th.data,null,1),'devstream: message in '+kk,th.sha,tt.repo)});
+    sot.projects[tt.project].lastTouched=now();
+    await saveSOT('devstream: touch '+kk);
+    $('mtext').value='';renderTabs();renderChat();banner(null);
+  }catch(e){banner('Send failed — '+e.message)}
+  $('sendbtn').disabled=false;
+}
+$('sendbtn').onclick=sendMessage;
+async function renameThread(key){
+  const nf=prompt('New output filename:',sot.threads[key].file);
+  if(!nf||nf===sot.threads[key].file)return;
+  $('mtext').value='output to '+nf;
+  if(activeKey!==key)await openThread(key);
+  sendMessage();
+}
+async function deleteThread(key){
+  if(!confirm('Delete thread '+key+'? The output file in the repo is NOT deleted.'))return;
+  await guard(async()=>{
+    const t=sot.threads[key];
+    const p=tpath(t.project,(threads[key]&&threads[key].data.threadFile)||t.file);
+    const f=await getFile(p,t.repo);
+    if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: delete thread '+key,sha:f.sha,branch:cfg.branch})},t.repo);
+    delete sot.threads[key];delete threads[key];
+    if(activeKey===key){activeKey=null;$('chat').style.display='none';$('threadbar').style.display='none';$('composer').style.display='none';$('empty').style.display='flex'}
+    await saveSOT('devstream: remove thread '+key);
+    renderTabs();renderDrawer();
+  });
+}
+/* ============ polling ============ */
+function schedulePoll(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(async()=>{
+    if(!activeKey)return;
+    try{
+      await loadSOT();
+      const t=sot.threads[activeKey];
+      if(!t)return;
+      if(t.state==='executing'||hasPending()){await loadThread(activeKey);renderChat()}
+      renderTabs();renderDrawer();
+      $('tbdot').className='dot '+(t.state||'idle');
+    }catch(e){/* silent poll failure; manual refresh will surface */}
+  },15000);
+}
+function hasPending(){const th=threads[activeKey];return th&&th.data.messages.some(m=>m.status==='pending')}
+$('tbrefresh').onclick=async()=>{await guard(async()=>{await loadSOT();if(activeKey){await loadThread(activeKey);renderChat()}renderTabs();renderDrawer();toast('Refreshed')})};
+
+/* ============ new thread ============ */
+$('newbtn').onclick=()=>{
+  if(!cfg){openPanel('cfgpanel');return}
+  $('ntproj').value=activeProject||'';
+  $('ntrepo').value=cfg.repo;$('ntout').value='';$('ntin').value='';$('ntprompt').value='';
+  openPanel('newpanel');
+};
+function omni(inputId,listId){
+  const inp=$(inputId),list=$(listId);
+  inp.addEventListener('input',async()=>{
+    const q=inp.value.toLowerCase();
+    if(q.length<2){list.style.display='none';return}
+    try{
+      const paths=await repoTree($('ntrepo').value||cfg.repo);
+      const hits=paths.filter(p=>p.toLowerCase().includes(q)).slice(0,30);
+      list.innerHTML='';
+      hits.forEach(p=>{const d=document.createElement('div');d.className='mono';d.textContent=p;d.onclick=()=>{inp.value=p;list.style.display='none'};list.appendChild(d)});
+      list.style.display=hits.length?'block':'none';
+    }catch(e){list.style.display='none'}
+  });
+}
+omni('ntout','outlist');omni('ntin','inlist');
+$('ntcreate').onclick=async()=>{
+  const proj=$('ntproj').value.trim(), inF=$('ntin').value.trim(), repo=$('ntrepo').value.trim()||cfg.repo, idea=$('ntprompt').value.trim();
+  let outF=$('ntout').value.trim();
+  if(!proj){toast('Project label required');return}
+  if(!idea){toast('The idea is required');return}
+  if(!outF){outF=prompt('Output filename for this thread:')||'';outF=outF.trim();if(!outF){toast('Output filename required');return}$('ntout').value=outF}
+  await guard(async()=>{
+    const key=tkey(proj,outF);
+    if(sot.threads[key])throw new Error('Thread '+key+' already exists');
+    if(!sot.projects[proj])sot.projects[proj]={notes:'',lastTouched:now()};
+    const data={project:proj,outputFile:outF,threadFile:outF,inputFile:inF||null,repo,created:now(),renames:[],
+      messages:[{role:'user',text:idea+(inF?'\n\n[input codebase: '+inF+']':''),ts:now(),status:'pending'}]};
+    const sha=await putFileSafe(tpath(proj,outF),JSON.stringify(data,null,1),'devstream: new thread '+key,repo);
+    threads[key]={data,sha};
+    sot.threads[key]={project:proj,file:outF,repo,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+    sot.projects[proj].lastTouched=now();
+    await saveSOT('devstream: new thread '+key);
+    activeProject=proj;localStorage.setItem('ds_activeproj',proj);
+    closePanels();renderDrawer();renderTabs();openThread(key);
+  });
+};
+
+/* ============ dashboard ============ */
+function openDash(){openPanel('dashpanel');renderDash();
+  clearInterval(dashTimer);
+  dashTimer=setInterval(async()=>{
+    if(!$('dashpanel').classList.contains('open')){clearInterval(dashTimer);return}
+    if(Object.values(sot.threads).some(t=>t.state==='executing')){try{await loadSOT();renderDash();renderDrawer()}catch(e){}}
+  },30000);
+}
+$('dashrefresh').onclick=async()=>{await guard(async()=>{await loadSOT();renderDash();renderDrawer();toast('Refreshed')})};
+function chip(label,on,fn){const c=document.createElement('div');c.className='chip'+(on?' on':'');c.textContent=label;c.onclick=fn;return c}
+function renderDash(){
+  const ch=$('dashchips');ch.innerHTML='';
+  [['all','All'],['executing','Running'],['error','Errors'],['ok','OK'],['idle','Idle']].forEach(([v,l])=>ch.appendChild(chip(l,dashFilter.state===v,()=>{dashFilter.state=v;renderDash()})));
+  ch.appendChild(chip('Sort: '+({last:'last run',state:'state',project:'project',file:'file'})[dashSort],true,()=>{dashSort={last:'state',state:'project',project:'file',file:'last'}[dashSort];renderDash()}));
+  const body=$('dashbody');body.innerHTML='';
+  const projs=Object.keys(sot.projects).sort();
+  if(!projs.length){body.innerHTML='<div class="csub">No projects yet. Tap + to start your first thread.</div>';return}
+  projs.forEach(p=>{
+    let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p);
+    if(dashFilter.state!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter.state);
+    const sec=document.createElement('div');sec.className='dsec';
+    const active=rows.filter(([k,t])=>t.state==='executing').length;
+    sec.innerHTML='<div class="dpttl">'+esc(p)+(active?' <span class="badge run">'+active+' running</span>':'')+'</div>'+
+      '<div class="dpsub">Last touched '+rel(sot.projects[p].lastTouched)+' · '+rows.length+' thread'+(rows.length===1?'':'s')+'</div>';
+    const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
+      state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),project:(a,b)=>a[0].localeCompare(b[0]),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
+    rows.sort(sorters[dashSort]);
+    rows.forEach(([k,t])=>{
+      const r=document.createElement('div');r.className='trow';
+      r.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><div class="ti">'+
+        '<div class="tf mono">'+esc(t.file)+'</div>'+
+        '<div class="tt">'+(t.state||'idle')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
+        (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>';
+      const errEl=r.querySelector('.terr');
+      if(errEl)errEl.onclick=e=>{e.stopPropagation();errEl.classList.toggle('x')};
+      r.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);closePanels();renderDrawer();renderTabs();openThread(k)};
+      sec.appendChild(r);
+    });
+    const nd=document.createElement('div');nd.className='notes';
+    nd.innerHTML='<textarea placeholder="Notes for '+esc(p)+'…">'+esc(sot.projects[p].notes||'')+'</textarea><button class="notesave">Save notes</button>';
+    nd.querySelector('button').onclick=async()=>{sot.projects[p].notes=nd.querySelector('textarea').value;await guard(saveSOT('devstream: notes '+p));toast('Notes saved')};
+    sec.appendChild(nd);
+    body.appendChild(sec);
+  });
+}
+
+/* ============ panels / config / boot ============ */
+function openPanel(id){$(id).classList.add('open')}
+function closePanels(){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'))}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));
+$('gearbtn').onclick=()=>{if(cfg){$('cfgpat').value=cfg.pat;$('cfgrepo').value=cfg.repo;$('cfgbranch').value=cfg.branch}openPanel('cfgpanel')};
+$('cfgsave').onclick=async()=>{
+  const pat=$('cfgpat').value.trim(),repo=$('cfgrepo').value.trim(),branch=$('cfgbranch').value.trim()||'main';
+  if(!pat||!repo){toast('Token and repository are required');return}
+  cfg={pat,repo,branch};localStorage.setItem(LS,JSON.stringify(cfg));
+  treeCache={};
+  await guard(async()=>{await loadSOT();closePanels();renderDrawer();renderTabs();toast('Connected')});
+};
+async function guard(fnOrPromise){
+  try{banner(null);await(typeof fnOrPromise==='function'?fnOrPromise():fnOrPromise);return true}
+  catch(e){banner(e.message);toast(e.message);return false}
+}
+$('mtext').addEventListener('input',function(){this.style.height='48px';this.style.height=Math.min(this.scrollHeight,120)+'px'});
+(async function boot(){
+  if(!cfg){openPanel('cfgpanel');return}
+  const ok=await guard(loadSOT);
+  if(ok){renderDrawer();renderTabs()}
+})();
+</script>
+</body>
+</html>
