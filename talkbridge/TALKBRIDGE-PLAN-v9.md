@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.6.0 -->
-# TALKBRIDGE MASTER PLAN v14.6.0
+<!-- TALKBRIDGE-PLAN v14.7.0 -->
+# TALKBRIDGE MASTER PLAN v14.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -460,6 +460,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.7.0 · 2026-08-15.** R8 PASSED the device gate. Two owner observations
+recorded to backlog, not defects blocking anything: (B-8a) the timer values
+differ between sides by the time between call placed and call answered —
+caller counts from placing, receiver from answering; (B-8b) a room-name
+change does not reach the partner while they sit in the room menu, only on
+exiting the room. Approved snapshot refreshed. R9 (phrasebook target mirrors
+source) unblocked and building; source `bridge-turn24-pre-ship.html` as
+gated, target `bridge-turn24-ship.html`.
 
 **v14.6.0 · 2026-08-15.** Gate FAILED again: chat mark's inserter anchored on
 markup the renderer never produces (test was vacuous — it tested a sample the
