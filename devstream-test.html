@@ -166,6 +166,13 @@ input:focus,textarea:focus{border-color:var(--accent)}
       <div class="omni"><input id="ntin" class="mono" autocomplete="off" placeholder="Search repo files…"><div class="omnilist" id="inlist"></div></div>
     </div>
     <div class="frow"><label>Repository</label><input id="ntrepo" class="mono"></div>
+    <div class="frow"><label>Engine</label><select id="ntengine" style="width:100%;padding:10px 12px;background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:8px;font:inherit">
+      <option value="claude">Claude CLI (runner · subscription)</option>
+      <option value="codex">Codex CLI (runner · ChatGPT sub)</option>
+      <option value="venice">Venice.ai (runner)</option>
+      <option value="openrouter">OpenRouter (runner)</option>
+      <option value="anthropic-direct">Anthropic API (in-app · needs key)</option>
+    </select></div>
     <div class="frow"><label>The idea</label><textarea id="ntprompt" rows="4" placeholder="What should this thread build?"></textarea></div>
     <button class="primary" id="ntcreate">Create thread</button>
   </div>
@@ -271,7 +278,15 @@ function renderDrawer(){
     const n=Object.values(sot.threads).filter(t=>t.project===p).length;
     const d=document.createElement('div');
     d.className='card proj'+(p===activeProject?' active':'');
-    d.innerHTML='<div class="cttl">'+esc(p)+'</div><div class="csub">'+n+' thread'+(n===1?'':'s')+' · '+rel(sot.projects[p].lastTouched)+'</div>';
+    const pf=sot.projects[p].planFile;
+    d.innerHTML='<div class="cttl">'+esc(p)+'<button class="planlink" style="margin-left:auto;font-size:12px;color:var(--accent);padding:6px">'+(pf?'Plan ↗':'+ plan')+'</button></div><div class="csub">'+n+' thread'+(n===1?'':'s')+' · '+rel(sot.projects[p].lastTouched)+'</div>';
+    d.querySelector('.planlink').onclick=async e=>{e.stopPropagation();
+      if(pf){window.open('https://github.com/'+cfg.repo+'/blob/'+cfg.branch+'/'+pf,'_blank')}
+      else{const path=prompt('Plan / status doc path in '+cfg.repo+':','devstream-backlog.md');
+        if(path){sot.projects[p].planFile=path.trim();await guard(saveSOT('devstream: plan link '+p));renderDrawer();toast('Plan linked')}}};
+    d.querySelector('.planlink').addEventListener('contextmenu',async e=>{e.preventDefault();e.stopPropagation();
+      const path=prompt('Change plan doc path (empty to remove):',pf||'');if(path===null)return;
+      sot.projects[p].planFile=path.trim()||undefined;await guard(saveSOT('devstream: plan link '+p));renderDrawer()});
     d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderDrawer();renderTabs();openDrawer(false)};
     pl.appendChild(d);
   });
@@ -332,7 +347,7 @@ async function openThread(key){
 function renderChat(){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key], d=threads[key].data;
-  $('tbfile').textContent=t.repo+' → '+t.file;
+  $('tbfile').textContent=t.repo+' → '+t.file+'  ['+(t.engine||'claude')+']';
   $('tbdot').className='dot '+(t.state||'idle');
   const c=$('chat');c.innerHTML='';
   d.messages.forEach(m=>{
@@ -368,7 +383,8 @@ async function sendMessage(){
     sot.projects[tt.project].lastTouched=now();
     await saveSOT('devstream: touch '+kk);
     $('mtext').value='';renderTabs();renderChat();banner(null);
-    runAgent(activeKey);
+    if((sot.threads[activeKey].engine||'claude')==='anthropic-direct')runAgent(activeKey);
+    else toast('Queued — runner will pick this up');
   }catch(e){banner('Send failed — '+e.message)}
   $('sendbtn').disabled=false;
 }
@@ -461,7 +477,9 @@ async function runAgent(key){
   }
   agentBusy=false;
 }
-$('tbrun').onclick=()=>{if(activeKey)runAgent(activeKey)};
+$('tbrun').onclick=()=>{if(!activeKey)return;
+  if((sot.threads[activeKey].engine||'claude')==='anthropic-direct')runAgent(activeKey);
+  else toast('This thread runs on the oc-ref runner — pending work is picked up automatically')};
 
 /* ============ polling ============ */
 function schedulePoll(){
@@ -513,11 +531,12 @@ $('ntcreate').onclick=async()=>{
     const key=tkey(proj,outF);
     if(sot.threads[key])throw new Error('Thread '+key+' already exists');
     if(!sot.projects[proj])sot.projects[proj]={notes:'',lastTouched:now()};
-    const data={project:proj,outputFile:outF,threadFile:outF,inputFile:inF||null,repo,created:now(),renames:[],
+    const engine=$('ntengine').value;
+    const data={project:proj,outputFile:outF,threadFile:outF,inputFile:inF||null,repo,engine,created:now(),renames:[],
       messages:[{role:'user',text:idea+(inF?'\n\n[input codebase: '+inF+']':''),ts:now(),status:'pending'}]};
     const sha=await putFileSafe(tpath(proj,outF),JSON.stringify(data,null,1),'devstream: new thread '+key,repo);
     threads[key]={data,sha};
-    sot.threads[key]={project:proj,file:outF,repo,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+    sot.threads[key]={project:proj,file:outF,repo,engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
     sot.projects[proj].lastTouched=now();
     await saveSOT('devstream: new thread '+key);
     activeProject=proj;localStorage.setItem('ds_activeproj',proj);
