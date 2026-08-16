@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.10.0 -->
-# TALKBRIDGE MASTER PLAN v14.10.0
+<!-- TALKBRIDGE-PLAN v14.10.1 -->
+# TALKBRIDGE MASTER PLAN v14.10.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -175,9 +175,9 @@ document governs, this table does not):
 | 10.A1–A2 | Production manifest + SW registration; distinguish Safari tab from standalone PWA | Built (candidate) |
 | 10.A3 | Safari → installed-PWA handoff via the PROVEN short-lived-cookie bridge (NOT localStorage); Link Device uses the same handoff | Built (candidate) |
 | 10.A4 | Credential architecture UNCHANGED in Phase A | Not started |
-| 10.A5–A7 | Push subscription via the proven tb-sw.js + existing relay path; relay and room lifecycle untouched | Not started |
-| 10.A8 | Phase A test matrix as specified, incl. both rooms waking the same PWA | Not started |
-| 10.A9 | STOP GATE: present evidence and halt. Phase B does not start until the owner explicitly says so | Not started |
+| 10.A5–A7 | Push subscription via the proven tb-sw.js + existing relay path; relay and room lifecycle untouched | Built (candidate) |
+| 10.A8 | Phase A test matrix as specified, incl. both rooms waking the same PWA | AWAITING OWNER DEVICE MATRIX — candidate live at bridge-turn25-base.html, independently re-gated 17/17 + 11/11, byte-verified |
+| 10.A9 | STOP GATE: app.html repoint only after A8 passes; then evidence report and halt. Phase B does not start until the owner explicitly says so | Blocked on A8 |
 
 Standing constraints repeated because they bind every build here: relay
 (`talkbridge/worker-talk.js`) is NOT modified in Phase A; `testpwa.html` is a
@@ -468,6 +468,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.10.1 · 2026-08-15.** Status sync: A0–A7 all Built (candidate) in
+`bridge-turn25-base.html`; A8 awaits the owner's device matrix; A9 blocked on
+A8 — app.html still points at the prior build by design. Independently
+re-gated on deployed bytes: harness-r10 17/17, mutations 11/11.
 
 **v14.10.0 · 2026-08-15.** R10 Phase A candidate BUILT to
 `bridge-turn25-base.html` from approved `bridge-turn24-ship.html`, exactly per
