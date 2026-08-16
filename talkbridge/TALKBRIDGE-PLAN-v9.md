@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.9.0 -->
-# TALKBRIDGE MASTER PLAN v14.9.0
+<!-- TALKBRIDGE-PLAN v14.10.0 -->
+# TALKBRIDGE MASTER PLAN v14.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -29,10 +29,10 @@ overwritten with it.
 | 6 | turn24-pre-base | Read receipt delivery | **PASSED 2026-08-07 — CURRENT BASELINE** |
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
-| 9 | — | Phrasebook | Not started |
-| 10 | — | Notifications and PWA | Not started |
-| 11 | — | Responsive layout and collision safety | Not started |
-| 12 | — | Multi-party (3+) | Not started |
+| 9 | — | Phrasebook | Built (candidate) |
+| 10 | — | Notifications and PWA | Built (candidate) |
+| 11 | — | Responsive layout and collision safety | Built (candidate) |
+| 12 | — | Multi-party (3+) | Built (candidate) |
 
 ---
 
@@ -171,9 +171,9 @@ document governs, this table does not):
 
 | # | Item | Status |
 |---|---|---|
-| 10.A0 | Baseline capture: app.html target, current bridge, manifest, tb-sw.js, worker SHA, invite/link formats, credential keys, relay identifiers — read mechanically from the CURRENT production source, never inferred | Not started |
-| 10.A1–A2 | Production manifest + SW registration; distinguish Safari tab from standalone PWA | Not started |
-| 10.A3 | Safari → installed-PWA handoff via the PROVEN short-lived-cookie bridge (NOT localStorage); Link Device uses the same handoff | Not started |
+| 10.A0 | Baseline capture: app.html target, current bridge, manifest, tb-sw.js, worker SHA, invite/link formats, credential keys, relay identifiers — read mechanically from the CURRENT production source, never inferred | Built (candidate) |
+| 10.A1–A2 | Production manifest + SW registration; distinguish Safari tab from standalone PWA | Built (candidate) |
+| 10.A3 | Safari → installed-PWA handoff via the PROVEN short-lived-cookie bridge (NOT localStorage); Link Device uses the same handoff | Built (candidate) |
 | 10.A4 | Credential architecture UNCHANGED in Phase A | Not started |
 | 10.A5–A7 | Push subscription via the proven tb-sw.js + existing relay path; relay and room lifecycle untouched | Not started |
 | 10.A8 | Phase A test matrix as specified, incl. both rooms waking the same PWA | Not started |
@@ -468,6 +468,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.10.0 · 2026-08-15.** R10 Phase A candidate BUILT to
+`bridge-turn25-base.html` from approved `bridge-turn24-ship.html`, exactly per
+the governing prompt: manifest link + pre-bootstrap cookie handoff
+(tb_install_handoff_v1, governed attributes, raw j untouched, oversize guarded,
+failure keeps the cookie), SW registration of the existing tb-sw.js,
+standalone/browser distinction, one Enable-notifications control (standalone
+only; Safari tab gets the Home-Screen hint), governed per-room VAPID +
+subscribe flow, room-specific unsubscribe on hard delete only, tb-context with
+ids and cursors only. Relay untouched; all four credentials untouched;
+app.html NOT repointed. Harness harness-r10.mjs 17/17 (three boot modes,
+real invitation payload built by the app's own encoder); mutate-r10.mjs 11/11.
+Awaiting the owner's device matrix A1–A12, then the A9 stop gate.
 
 **v14.9.0 · 2026-08-15.** R9 gate FAILED: target edits carried no was-trace.
 Rolled back; rebuilt. Owner ruling: EVERY target change writes a clarify entry

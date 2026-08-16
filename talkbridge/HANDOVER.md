@@ -177,3 +177,16 @@ bridge-turn24-approved-2026-08-15b.html. Next: R10 = PWA Migration Phase A
 under talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt,
 starting with A0 baseline capture read mechanically from the current
 production source, ending at the governing prompt's HARD STOP gate.
+
+## Session 2026-08-15 — R10 Phase A candidate built
+
+`bridge-turn25-base.html` = approved turn24-ship + four declared splices
+(header comment, manifest link, pre-bootstrap handoff script, appended R10
+part). Reconstruction-contract enforced by harness-r10.mjs S1. Relay and all
+four credentials untouched (S2/S3 gates). 17/17 effects across browser-tab,
+standalone-with-cookie, and direct-launch boots; 11/11 fresh mutations.
+A0 baseline: app.html forwards to bridge-turn24-base.html (one release behind
+approved ship — noted, NOT changed); worker-talk.js SHA 7dadc8d... unchanged;
+manifest start_url ./app.html; invitation #j= via encInv carrying k/tid/tok;
+Link Device same encoding with ld:1. Device matrix A1–A12 is the owner's;
+app.html repoint happens only after the matrix passes. PHASE B NOT STARTED.
