@@ -866,3 +866,21 @@ the ceiling of the spec. They are the floor; the owner's named OUTCOME
 (traceability) is the spec. Owner ruling now standing: every target change
 chain-logs 'Target edited (was "<prior>")', direction-tagged, before any
 verdict logic.
+
+## The plan never tracked turn and stage, so a build invented "turn 25" · Aug 16 2026
+
+The R10 Phase A candidate shipped as `bridge-turn25-base.html`. Wrong twice:
+R9's ship was turn 24's SHIP stage, so the next artifact is turn 24's
+POST-SHIP — same turn, next stage — and no build decides a turn number,
+the chain does: every turn is pre-base → base → pre-ship → ship → post-ship,
+in that order, and a new turn begins only after post-ship completes.
+
+Root cause is the plan itself: it tracked releases but never pinned each
+release to its turn+stage artifact, so every build re-derived the filename
+from vibes. Rule: the plan carries a TURN/STAGE LEDGER — every release
+declares its turn and stage up front, with the artifact link once built —
+and a build that emits any other filename fails its gate before content is
+even examined. `bridge-turn25-base.html` stays temporarily as a byte-identical
+alias only because the owner may have installed/tested from that URL; the
+canonical artifact is `bridge-turn24-post-ship.html`, and the alias is retired
+when A8 passes.

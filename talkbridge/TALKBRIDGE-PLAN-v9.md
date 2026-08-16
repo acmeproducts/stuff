@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.10.1 -->
-# TALKBRIDGE MASTER PLAN v14.10.1
+<!-- TALKBRIDGE-PLAN v14.11.0 -->
+# TALKBRIDGE MASTER PLAN v14.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -9,6 +9,34 @@
 with §6a, §6c, §6d, §6e, §6f and the backlog each appearing two or three times,
 because section inserts duplicated rather than replaced. Nothing could be told
 apart. This version has one home for every item and no duplicated sections.
+
+---
+
+## 0 · TURN / STAGE LEDGER — THE CHAIN IS THE LAW
+
+Every turn runs pre-base → base → pre-ship → ship → post-ship, in order.
+A new turn begins only after post-ship completes. Every release declares its
+turn+stage HERE before building; a build emitting any other filename fails
+its gate on the name alone. Links are live GitHub Pages URLs; no link = not
+built yet.
+
+| Turn·Stage | Release | Status | Artifact |
+|---|---|---|---|
+| 24·pre-base | Approved 2026-08-07 baseline (R8 source) | Frozen | https://acmeproducts.github.io/stuff/bridge-turn24-pre-base.html |
+| 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
+| 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
+| 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
+| 24·post-ship | R10 — PWA Migration Phase A (governed) | Candidate built; AWAITING owner device matrix (A8) | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
+| 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
+| 25·pre-ship | R12 — multi-party | Not started | — |
+| 25·ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
+| 25·post-ship | Unassigned — reserved | — | — |
+
+NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
+`bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
+(byte-identical). The turn25 file remains ONLY as a temporary alias in case
+the owner installed from that URL; it is retired when A8 passes.
 
 ---
 
@@ -468,6 +496,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.11.0 · 2026-08-16.** Owner correction: we are at TURN 24, and R10's
+candidate belongs at its POST-SHIP stage, not at a new turn. Turn/stage ledger
+added as section 0 with live links per artifact — the chain (pre-base → base →
+pre-ship → ship → post-ship, new turn only after post-ship) is now law, every
+release pinned to its turn+stage, and wrong-name builds fail on the name.
+Canonical R10 artifact: bridge-turn24-post-ship.html; turn25-base retained
+only as a byte-identical temporary alias. Forward mapping: 25·base=R11,
+25·pre-ship=R12, 25·ship=R13. Graveyard entry added.
 
 **v14.10.1 · 2026-08-15.** Status sync: A0–A7 all Built (candidate) in
 `bridge-turn25-base.html`; A8 awaits the owner's device matrix; A9 blocked on
