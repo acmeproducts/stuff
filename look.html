@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Look</title>
+<style>
+:root{
+  --bg:#e8edf2; --ring-hi:#f7f9fa; --ring-lo:#c3c8ce; --ring-face:#dde1e6;
+  --engrave:#7e858c; --engrave-soft:#9aa1a8; --ped-hi:#d7dbe0; --ped-lo:#b8bdc3;
+  --led:#ffffff; --led-off:rgba(255,255,255,.10); --ball-a:#8f959c; --ball-b:#fbfcfd;
+  --shadow:rgba(35,45,58,.20); --panel:#f4f6f8; --panel-txt:#3a4048; --accent:#5a6472;
+  --sun:#f2ede2; --moon:#4a515a;
+}
+[data-theme="midnight"]{
+  --bg:#101318; --ring-hi:#343a41; --ring-lo:#181c21; --ring-face:#262b31;
+  --engrave:#8b929a; --engrave-soft:#5c636b; --ped-hi:#2b3037; --ped-lo:#15181d;
+  --led:#eef2f6; --led-off:rgba(238,242,246,.07); --ball-a:#565d65; --ball-b:#e8ecf0;
+  --shadow:rgba(0,0,0,.55); --panel:#1a1e24; --panel-txt:#d7dce2; --accent:#9fb2c8;
+  --sun:#e9e2d0; --moon:#0d1014;
+}
+[data-theme="amber"]{
+  --bg:#12100c; --ring-hi:#3a352c; --ring-lo:#1a1712; --ring-face:#2a261f;
+  --engrave:#9c8f76; --engrave-soft:#5f5744; --ped-hi:#2e2a22; --ped-lo:#171410;
+  --led:#ffb454; --led-off:rgba(255,180,84,.08); --ball-a:#6b6250; --ball-b:#ffcf8a;
+  --shadow:rgba(0,0,0,.6); --panel:#1c1913; --panel-txt:#e6d9c2; --accent:#ffb454;
+  --sun:#ffd9a0; --moon:#0e0c08;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  overflow:hidden;transition:background .4s;display:flex;align-items:center;justify-content:center}
+#stage{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+svg{width:min(100vw,62vh);height:auto;max-height:96vh;display:block}
+text{user-select:none}
+.eng{fill:var(--engrave);font-weight:600;letter-spacing:.06em}
+.eng-soft{fill:var(--engrave-soft);font-weight:500}
+/* gear */
+#gear{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:16px;width:44px;height:44px;
+  border:none;border-radius:50%;background:var(--panel);color:var(--panel-txt);font-size:20px;
+  box-shadow:0 2px 10px var(--shadow);z-index:30;cursor:pointer}
+/* panel */
+#cfg{position:fixed;top:0;right:0;height:100%;width:min(320px,88vw);background:var(--panel);
+  color:var(--panel-txt);z-index:40;padding:22px 20px calc(env(safe-area-inset-bottom,0px)+22px);
+  transform:translateX(105%);transition:transform .28s ease;box-shadow:-6px 0 30px var(--shadow);
+  overflow-y:auto;font-size:15px}
+#cfg.open{transform:translateX(0)}
+#cfg h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.6;margin:0 0 18px}
+#cfg .grp{margin-bottom:22px}
+#cfg label{display:block;font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:8px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 auto;min-height:40px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--panel-txt) 18%,transparent);
+  background:transparent;color:var(--panel-txt);border-radius:9px;font-size:14px;cursor:pointer}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:var(--panel);font-weight:600}
+.row{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.sw{position:relative;width:50px;height:28px;border-radius:14px;border:none;cursor:pointer;
+  background:color-mix(in srgb,var(--panel-txt) 22%,transparent);transition:background .2s}
+.sw.on{background:var(--accent)}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s}
+.sw.on::after{left:25px}
+#closeCfg{margin-top:6px;width:100%;min-height:44px;border:none;border-radius:10px;
+  background:color-mix(in srgb,var(--panel-txt) 12%,transparent);color:var(--panel-txt);font-size:15px;cursor:pointer}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:35;opacity:0;pointer-events:none;transition:opacity .25s}
+#scrim.open{opacity:1;pointer-events:auto}
+.fall{transition:transform .9s cubic-bezier(.2,.7,.3,1)}
+@media (prefers-reduced-motion:reduce){.fall{transition:none}}
+</style>
+</head>
+<body data-theme="studio">
+<div id="stage"><svg id="scene" viewBox="0 0 420 560" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<button id="gear" aria-label="Settings">⚙</button>
+<div id="scrim"></div>
+<aside id="cfg">
+  <h2>Look · Settings</h2>
+  <div class="grp"><label>Mode</label><div class="seg" id="segMode"></div></div>
+  <div class="grp"><label>Theme</label><div class="seg" id="segTheme"></div></div>
+  <div class="grp"><div class="row"><span>24-hour readout</span><button class="sw" id="sw24" aria-label="24-hour readout"></button></div></div>
+  <div class="grp"><div class="row"><span>Seconds</span><button class="sw" id="swSec" aria-label="Show seconds"></button></div></div>
+  <div class="grp"><div class="row"><span>Date</span><button class="sw" id="swDate" aria-label="Show date"></button></div></div>
+  <button id="closeCfg">Done</button>
+  <p style="margin-top:18px;font-size:11px;opacity:.4;letter-spacing:.05em">look v1.0 · acmeproducts</p>
+</aside>
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const svg=document.getElementById("scene");
+const $=id=>document.getElementById(id);
+
+/* ---------- config ---------- */
+const DEF={mode:"orbit",theme:"studio",h24:false,sec:false,date:true};
+let cfg={...DEF};
+try{Object.assign(cfg,JSON.parse(localStorage.getItem("look-config")||"{}"))}catch(e){}
+function saveCfg(){try{localStorage.setItem("look-config",JSON.stringify(cfg))}catch(e){}}
+
+const MODES=[["orbit","Orbit"],["eclipse","Eclipse"],["rainfall","Rainfall"],["orrery","Orrery"]];
+const THEMES=[["studio","Studio"],["midnight","Midnight"],["amber","Amber"]];
+
+function buildSeg(el,items,cur,fn){
+  el.innerHTML="";
+  items.forEach(([v,label])=>{
+    const b=document.createElement("button");
+    b.textContent=label;
+    if(v===cur)b.classList.add("on");
+    b.onclick=()=>{fn(v);buildSeg(el,items,v,fn)};
+    el.appendChild(b);
+  });
+}
+function buildSw(el,key){
+  el.classList.toggle("on",cfg[key]);
+  el.onclick=()=>{cfg[key]=!cfg[key];el.classList.toggle("on",cfg[key]);saveCfg();hardRedraw()};
+}
+function applyTheme(){document.body.dataset.theme=cfg.theme}
+buildSeg($("segMode"),MODES,cfg.mode,v=>{cfg.mode=v;saveCfg();hardRedraw()});
+buildSeg($("segTheme"),THEMES,cfg.theme,v=>{cfg.theme=v;saveCfg();applyTheme()});
+buildSw($("sw24"),"h24");buildSw($("swSec"),"sec");buildSw($("swDate"),"date");
+applyTheme();
+
+$("gear").onclick=()=>{$("cfg").classList.add("open");$("scrim").classList.add("open")};
+const closeCfg=()=>{$("cfg").classList.remove("open");$("scrim").classList.remove("open")};
+$("closeCfg").onclick=closeCfg;$("scrim").onclick=closeCfg;
+
+/* ---------- svg helpers ---------- */
+function el(tag,attrs,parent){
+  const n=document.createElementNS(NS,tag);
+  for(const k in attrs)n.setAttribute(k,attrs[k]);
+  (parent||svg).appendChild(n);return n;
+}
+function txt(x,y,s,size,cls,parent,rot){
+  const t=el("text",{x,y,"font-size":size,"text-anchor":"middle","dominant-baseline":"middle",
+    class:cls||"eng",...(rot!=null?{transform:`rotate(${rot} ${x} ${y})`}:{})},parent);
+  t.textContent=s;return t;
+}
+/* angle: degrees clockwise from 12 o'clock */
+function pt(cx,cy,r,deg){const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]}
+function arcPath(cx,cy,r,a0,a1){
+  const[x0,y0]=pt(cx,cy,r,a0),[x1,y1]=pt(cx,cy,r,a1);
+  const large=((a1-a0)%360+360)%360>180?1:0;
+  return`M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+}
+function defs(){
+  const d=el("defs",{});
+  const g1=el("linearGradient",{id:"ringG",x1:"0",y1:"0",x2:"0",y2:"1"},d);
+  el("stop",{offset:"0","stop-color":"var(--ring-hi)"},g1);
+  el("stop",{offset:"1","stop-color":"var(--ring-lo)"},g1);
+  const g2=el("linearGradient",{id:"pedG",x1:"0",y1:"0",x2:"0",y2:"1"},d);
+  el("stop",{offset:"0","stop-color":"var(--ped-hi)"},g2);
+  el("stop",{offset:"1","stop-color":"var(--ped-lo)"},g2);
+  const g3=el("radialGradient",{id:"ballB",cx:".35",cy:".3",r:".9"},d);
+  el("stop",{offset:"0","stop-color":"#fff"},g3);
+  el("stop",{offset:"1","stop-color":"var(--ball-b)"},g3);
+  const g4=el("radialGradient",{id:"ballA",cx:".35",cy:".3",r:".9"},d);
+  el("stop",{offset:"0","stop-color":"var(--ring-hi)"},g4);
+  el("stop",{offset:"1","stop-color":"var(--ball-a)"},g4);
+  const g5=el("radialGradient",{id:"glow",cx:".5",cy:".5",r:".5"},d);
+  el("stop",{offset:"0","stop-color":"var(--sun)","stop-opacity":".55"},g5);
+  el("stop",{offset:"1","stop-color":"var(--sun)","stop-opacity":"0"},g5);
+}
+
+/* ---------- 5x7 dot font ---------- */
+const FONT={
+"0":["01110","10001","10011","10101","11001","10001","01110"],
+"1":["00100","01100","00100","00100","00100","00100","01110"],
+"2":["01110","10001","00001","00010","00100","01000","11111"],
+"3":["11111","00010","00100","00010","00001","10001","01110"],
+"4":["00010","00110","01010","10010","11111","00010","00010"],
+"5":["11111","10000","11110","00001","00001","10001","01110"],
+"6":["00110","01000","10000","11110","10001","10001","01110"],
+"7":["11111","00001","00010","00100","01000","01000","01000"],
+"8":["01110","10001","10001","01110","10001","10001","01110"],
+"9":["01110","10001","10001","01111","00001","00010","01100"],
+":":["000","000","010","000","010","000","000"],
+" ":["000","000","000","000","000","000","000"]};
+function matrixCells(str){
+  /* returns [{col,row,on}] plus total cols */
+  let col=0;const cells=[];
+  for(const ch of str){
+    const gl=FONT[ch]||FONT[" "];const w=gl[0].length;
+    for(let r=0;r<7;r++)for(let c=0;c<w;c++)
+      cells.push({col:col+c,row:r,on:gl[r][c]==="1"});
+    col+=w+1;
+  }
+  return{cells,cols:col-1};
+}
+function drawMatrix(parent,cx,cy,str,pitch,rad,withOff){
+  const{cells,cols}=matrixCells(str);
+  const x0=cx-(cols-1)*pitch/2, y0=cy-3*pitch;
+  cells.forEach(c=>{
+    if(!c.on&&!withOff)return;
+    el("circle",{cx:x0+c.col*pitch,cy:y0+c.row*pitch,r:rad,
+      fill:c.on?"var(--led)":"var(--led-off)"},parent);
+  });
+}
+
+/* ---------- time strings ---------- */
+function fmt(n){return String(n).padStart(2,"0")}
+function timeStr(d){
+  let h=d.getHours();
+  if(!cfg.h24){h=h%12;if(h===0)h=12}
+  let s=fmt(h)+":"+fmt(d.getMinutes());
+  if(cfg.sec)s+=":"+fmt(d.getSeconds());
+  return s;
+}
+const DAYS=["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const MON=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function dateStr(d){return DAYS[d.getDay()]+" "+fmt(d.getDate())+" "+MON[d.getMonth()]}
+
+/* ---------- pedestal (shared) ---------- */
+function pedestal(d,y){
+  el("ellipse",{cx:210,cy:y+62,rx:130,ry:12,fill:"var(--shadow)",opacity:".5"},svg);
+  el("rect",{x:110,y:y,width:200,height:58,rx:8,fill:"url(#pedG)"},svg);
+  el("rect",{x:110,y:y,width:200,height:58,rx:8,fill:"none",
+    stroke:"var(--ring-hi)","stroke-opacity":".5"},svg);
+  const g=el("g",{},svg);
+  drawMatrix(g,210,y+(cfg.date?24:29),timeStr(d),3.4,1.25,true);
+  if(cfg.date)txt(210,y+45,dateStr(d),9,"eng-soft",svg).setAttribute("letter-spacing",".25em");
+}
+
+/* ============ MODE: ORBIT (the image) ============ */
+/* 24-hour machined ring. Noon engraved at top, midnight at bottom.
+   Gray bearing = hour (24h track), white bearing = minute (outer rim). */
+function drawOrbit(d){
+  const cx=210,cy=218,R=168,r=116;
+  el("ellipse",{cx:cx,cy:452,rx:150,ry:10,fill:"var(--shadow)",opacity:".35"},svg);
+  el("circle",{cx,cy,r:R,fill:"url(#ringG)"},svg);
+  el("circle",{cx,cy,r:R,fill:"none",stroke:"var(--ring-hi)","stroke-width":"1.5","stroke-opacity":".8"},svg);
+  el("circle",{cx,cy,r:r,fill:"var(--bg)"},svg);
+  el("circle",{cx,cy,r:r,fill:"none",stroke:"var(--ring-lo)","stroke-width":"2"},svg);
+  el("circle",{cx,cy,r:(R+r)/2,fill:"none",stroke:"var(--engrave-soft)","stroke-opacity":".25","stroke-width":".7"},svg);
+  /* engraved hours 1..24, noon top */
+  for(let h=1;h<=24;h++){
+    const a=(h-12)*15,[x,y]=pt(cx,cy,(R+r)/2+14,a);
+    txt(x,y,fmt(h),h%3===0?13:10,h%3===0?"eng":"eng-soft",svg,a);
+  }
+  /* minute ticks on inner rim */
+  for(let m=0;m<60;m++){
+    const a=m*6,[x0,y0]=pt(cx,cy,r+2,a),[x1,y1]=pt(cx,cy,r+(m%5===0?9:5),a);
+    el("line",{x1:x0,y1:y0,x2:x1,y2:y1,stroke:"var(--engrave-soft)",
+      "stroke-width":m%5===0?1.4:.7,"stroke-opacity":m%5===0?".7":".4"},svg);
+  }
+  const hFrac=(d.getHours()+d.getMinutes()/60)/24;
+  const mFrac=(d.getMinutes()+d.getSeconds()/60)/60;
+  /* hour bearing rides the ring face */
+  const[hx,hy]=pt(cx,cy,(R+r)/2-14,hFrac*360+180); /* +180: midnight bottom, noon top */
+  el("circle",{cx:hx,cy:hy+1.5,r:11,fill:"var(--shadow)",opacity:".4"},svg);
+  el("circle",{cx:hx,cy:hy,r:11,fill:"url(#ballA)"},svg);
+  /* minute bearing rides the outer rim */
+  const[mx,my]=pt(cx,cy,R-8,mFrac*360);
+  el("circle",{cx:mx,cy:my+1.5,r:8,fill:"var(--shadow)",opacity:".4"},svg);
+  el("circle",{cx:mx,cy:my,r:8,fill:"url(#ballB)"},svg);
+  pedestal(d,430);
+}
+
+/* ============ MODE: ECLIPSE ============ */
+/* The day is one eclipse. The shade drifts across the face all morning,
+   totality at noon, and clears by midnight. Depth of shadow = where you
+   are in the day; exact time on the dial below. */
+function drawEclipse(d){
+  const cx=210,cy=212,R=168,sr=104;
+  el("circle",{cx,cy,r:R,fill:"url(#ringG)"},svg);
+  el("circle",{cx,cy,r:R-14,fill:"var(--bg)"},svg);
+  for(let h=0;h<24;h++){
+    const a=h*15+180,[x0,y0]=pt(cx,cy,R-2,a),[x1,y1]=pt(cx,cy,R-10,a);
+    el("line",{x1:x0,y1:y0,x2:x1,y2:y1,stroke:"var(--engrave-soft)","stroke-width":h%6===0?2:1,"stroke-opacity":".6"},svg);
+  }
+  const f=(d.getHours()*3600+d.getMinutes()*60+d.getSeconds())/86400;
+  /* progress marker on ring */
+  const[px,py]=pt(cx,cy,R-7,f*360+180);
+  el("circle",{cx:px,cy:py,r:5,fill:"var(--ball-b)"},svg);
+  /* sun + corona */
+  el("circle",{cx,cy,r:sr+52,fill:"url(#glow)"},svg);
+  el("circle",{cx,cy,r:sr,fill:"var(--sun)"},svg);
+  /* moon: distance shrinks to 0 at noon */
+  const depth=1-Math.abs(1-2*f);              /* 0 midnight → 1 noon */
+  const dist=(1-depth)*(sr*2+30);
+  const[mx,my]=[cx+dist*0.83,cy-dist*0.55];
+  const clip=el("clipPath",{id:"sunClip"},svg);
+  el("circle",{cx,cy,r:sr},clip);
+  const g=el("g",{"clip-path":"url(#sunClip)"},svg);
+  el("circle",{cx:mx,cy:my,r:sr,fill:"var(--moon)"},g);
+  el("circle",{cx:mx,cy:my,r:sr,fill:"none",stroke:"var(--ring-hi)","stroke-opacity":".15"},g);
+  txt(cx,cy+sr+34,Math.round(depth*100)+"% OF DAY · "+(f<.5?"WAXING":"WANING"),10,"eng-soft",svg)
+    .setAttribute("letter-spacing",".25em");
+  pedestal(d,430);
+}
+
+/* ============ MODE: RAINFALL ============ */
+/* Mashup with clock.html: the dot-matrix digits are weather. Every minute
+   the old time dissolves and the new one rains into place, dot by dot. */
+let rainKey="";
+function drawRain(d,soft){
+  const cx=210,cy=218,R=168;
+  el("circle",{cx,cy,r:R,fill:"url(#ringG)"},svg);
+  el("circle",{cx,cy,r:R-13,fill:"var(--bg)"},svg);
+  el("circle",{cx,cy,r:R-13,fill:"none",stroke:"var(--ring-lo)","stroke-width":"1.5"},svg);
+  /* seconds arc */
+  const sf=(d.getSeconds()+d.getMilliseconds()/1000)/60;
+  el("path",{id:"secArc",d:sf>0.002?arcPath(cx,cy,R-6.5,0,sf*360):"M 0 0",fill:"none",
+    stroke:"var(--led)","stroke-width":"3","stroke-linecap":"round",opacity:".85"},svg);
+  const str=timeStr(d);
+  const g=el("g",{},svg);
+  const{cells,cols}=matrixCells(str);
+  const pitch=Math.min(9,(2*(R-36))/cols), rad=pitch*.34;
+  const x0=cx-(cols-1)*pitch/2, y0=cy-3*pitch;
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animate=!reduce&&str!==rainKey&&!soft;
+  cells.forEach(c=>{
+    if(!c.on)return;
+    const dot=el("circle",{cx:x0+c.col*pitch,cy:y0+c.row*pitch,r:rad,fill:"var(--led)",class:"fall"},g);
+    if(animate){
+      dot.style.transform=`translateY(${-(340+Math.random()*160)}px)`;
+      dot.style.transitionDelay=(Math.random()*.45)+"s";
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{dot.style.transform="translateY(0)"}));
+    }
+  });
+  rainKey=str;
+  if(cfg.date)txt(cx,cy+58,dateStr(d),10,"eng-soft",svg).setAttribute("letter-spacing",".3em");
+  el("ellipse",{cx:cx,cy:cy+R+22,rx:140,ry:10,fill:"var(--shadow)",opacity:".35"},svg);
+}
+
+/* ============ MODE: ORRERY ============ */
+/* Time as a small solar system: three bodies on machined tracks — hour,
+   minute, second — each trailing the arc it has already swept. The outer
+   ring is the month; today is the lit engraving. */
+function drawOrrery(d){
+  const cx=210,cy=228;
+  const tracks=[
+    {r:150,frac:(d.getDate()-1+ (d.getHours()/24))/daysInMonth(d),size:0,ring:true},
+    {r:118,frac:((d.getHours()%12)+d.getMinutes()/60)/12,size:12,fill:"url(#ballA)"},
+    {r:86,frac:(d.getMinutes()+d.getSeconds()/60)/60,size:8.5,fill:"url(#ballB)"},
+    {r:54,frac:(d.getSeconds()+d.getMilliseconds()/1000)/60,size:5.5,fill:"var(--led)"}
+  ];
+  /* date ring */
+  el("circle",{cx,cy,r:166,fill:"url(#ringG)"},svg);
+  el("circle",{cx,cy,r:138,fill:"var(--bg)"},svg);
+  const n=daysInMonth(d);
+  for(let day=1;day<=n;day++){
+    const a=(day-1)/n*360,[x,y]=pt(cx,cy,152,a);
+    const today=day===d.getDate();
+    const t=txt(x,y,fmt(day),today?11:8,today?"eng":"eng-soft",svg,a);
+    if(today)t.setAttribute("font-weight","800");
+  }
+  /* orbit tracks + swept arcs + bodies */
+  tracks.slice(1).forEach(tk=>{
+    el("circle",{cx,cy,r:tk.r,fill:"none",stroke:"var(--engrave-soft)","stroke-opacity":".3","stroke-width":"1"},svg);
+    const a=tk.frac*360;
+    if(a>1)el("path",{d:arcPath(cx,cy,tk.r,0,a),fill:"none",stroke:"var(--engrave)",
+      "stroke-opacity":".35","stroke-width":tk.size*.35,"stroke-linecap":"round"},svg);
+    const[x,y]=pt(cx,cy,tk.r,a);
+    el("circle",{cx:x,cy:y+1.5,r:tk.size,fill:"var(--shadow)",opacity:".4"},svg);
+    el("circle",{cx:x,cy:y,r:tk.size,fill:tk.fill},svg);
+  });
+  /* sun = today's date marker + center hub */
+  const da=tracks[0].frac*360,[dx,dy]=pt(cx,cy,152,da);
+  el("circle",{cx:dx,cy:dy,r:13,fill:"none",stroke:"var(--led)","stroke-width":"1.5",opacity:".9"},svg);
+  el("circle",{cx,cy,r:10,fill:"var(--sun)"},svg);
+  el("circle",{cx,cy,r:18,fill:"url(#glow)"},svg);
+  txt(cx,cy+205,MON[d.getMonth()]+" · "+timeStr(d),11,"eng-soft",svg).setAttribute("letter-spacing",".3em");
+  el("ellipse",{cx:cx,cy:cy+188+22,rx:140,ry:10,fill:"var(--shadow)",opacity:".3"},svg);
+}
+function daysInMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
+
+/* ---------- render loop ---------- */
+let lastKey="";
+function render(force){
+  const d=new Date();
+  /* rainfall: full rebuild only when the readout changes; otherwise
+     just move the seconds arc so the falling dots aren't destroyed */
+  if(!force&&cfg.mode==="rainfall"&&timeStr(d)===rainKey){
+    const arc=document.getElementById("secArc");
+    if(arc){
+      const sf=(d.getSeconds()+d.getMilliseconds()/1000)/60;
+      arc.setAttribute("d",sf>0.002?arcPath(210,218,161.5,0,sf*360):"M 0 0");
+      return;
+    }
+  }
+  const smooth=cfg.mode==="orrery";
+  const key=cfg.mode+"|"+timeStr(d)+"|"+(smooth?d.getTime():"");
+  if(!force&&key===lastKey)return;
+  lastKey=key;
+  const soft=force==="soft";
+  svg.innerHTML="";defs();
+  if(cfg.mode==="orbit")drawOrbit(d);
+  else if(cfg.mode==="eclipse")drawEclipse(d);
+  else if(cfg.mode==="rainfall")drawRain(d,soft);
+  else drawOrrery(d);
+}
+function hardRedraw(){rainKey="";render("soft")}
+function loop(){render();requestAnimationFrame(loop)}
+render(true);loop();
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)hardRedraw()});
+</script>
+</body>
+</html>
