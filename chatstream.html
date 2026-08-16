@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ChatStream</title>
 <style>
-html,body{height:100%;margin:0;background:#000;color:#fff;font:16px/1.5 Verdana,Arial,sans-serif}#boot{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.card{max-width:680px;border:1px solid #4a4f56;background:#101214;border-radius:14px;padding:22px}.muted{color:#d0d4d8;font-size:13px}.err{color:#ffb7bd;white-space:pre-wrap;text-align:left;font:12px/1.5 ui-monospace,Consolas,monospace;margin-top:14px}
+html,body{height:100%;margin:0;background:#000;color:#fff;font:16px/1.5 Verdana,Arial,sans-serif}#boot{height:100%;display:grid;place-items:center;padding:24px;text-align:center}.card{max-width:720px;border:1px solid #4a4f56;background:#101214;border-radius:14px;padding:22px}.muted{color:#d0d4d8;font-size:13px}.err{color:#ffb7bd;white-space:pre-wrap;text-align:left;font:12px/1.5 ui-monospace,Consolas,monospace;margin-top:14px}
 </style>
 </head>
 <body>
-<div id="boot"><div class="card"><b>ChatStream v0.2.0</b><div class="muted">Loading the Session Manager v3 framework…</div><div class="err" id="bootErr"></div></div></div>
+<div id="boot"><div class="card"><b>ChatStream v0.2.1</b><div class="muted">Loading the current Session Manager v3 framework…</div><div class="err" id="bootErr"></div></div></div>
 <script>
 (async()=>{'use strict';
-const CHATSTREAM_VERSION='0.2.0';
+const CHATSTREAM_VERSION='0.2.1';
 const BASE='session-manager-v3.html';
 const bootErr=document.getElementById('bootErr');
 const fail=(m,e)=>{console.error(m,e||'');bootErr.textContent=m+(e?`\n${e.message||e}`:'')};
@@ -20,26 +20,29 @@ try{
   const r=await fetch(`${BASE}?chatstream-base=${Date.now()}`,{cache:'no-store'});
   if(!r.ok)throw new Error(`Unable to load ${BASE}: HTTP ${r.status}`);
   let html=await r.text();
-  if(!html.includes('Session Manager')||!html.includes('sessions.create')||!html.includes('ProjectChat'))throw new Error('The Session Manager v3 framework signature was not found.');
+  if(!/id=["']brandName["']/.test(html)||!html.includes('sessions.create')||!html.includes('ProjectChat'))throw new Error('Required Session Manager v3 framework capabilities were not found.');
 
-  const required=(from,to,label)=>{
-    if(!html.includes(from))throw new Error(`Framework patch point missing: ${label}`);
-    html=html.replace(from,to);
+  const replaceText=(from,to,label,required=true)=>{
+    if(!html.includes(from)){if(required)throw new Error(`Framework capability missing: ${label}`);return false}
+    html=html.replace(from,to);return true;
+  };
+  const replaceRe=(re,to,label,required=true)=>{
+    if(!re.test(html)){if(required)throw new Error(`Framework capability missing: ${label}`);return false}
+    html=html.replace(re,to);return true;
   };
 
-  required('<title>OpenClaw Session Manager</title>','<title>ChatStream</title>','document title');
-  required('<span id="brandName">Session Manager</span> <span class="version">v2.9.7</span>','<span id="brandName">ChatStream</span> <span class="version">v0.2.0</span>','brand');
-  required('title="Toggle sessions" aria-label="Toggle sessions"','title="Toggle projects" aria-label="Toggle projects"','menu label');
-  required('title="Start a new chat" aria-label="Start a new chat">+ New</button>','title="Start a new coding thread" aria-label="Start a new coding thread">+ Thread</button>','new thread button');
-  required('placeholder="Search label, key or preview"','placeholder="Search projects, threads or filenames"','search placeholder');
-  required('<div id="chatTitle">Select a session</div><div id="chatInfo">OpenClaw Gateway protocol v4</div>','<div id="chatTitle">Select a thread</div><div id="chatInfo">ChatStream · OpenClaw Gateway v4</div>','main heading');
-  required('<b>Select a session</b><div style="font-size:11px;margin-top:5px">OpenClaw labels are shared with the official Control UI.</div>','<b>Select or create a thread</b><div style="font-size:11px;margin-top:5px">Each tab is a persistent coding thread. Its label is the primary output filename.</div>','empty state');
-  required("const BUILD_VERSION='2.9.7';",`const BUILD_VERSION='${CHATSTREAM_VERSION}';`,'build version');
-  required("const K={settings:'oc_custom_chat_settings_v2',identity:'oc_custom_chat_device_identity_v1',device:'oc_custom_chat_device_token_v1',legacy:'openclaw_token',tab:'oc_custom_chat_gateway_token',trash:'oc_session_manager_soft_deleted_v1',projects:'oc_session_manager_projects_v1',themes:'oc_session_manager_custom_themes_v1',sotPat:'oc_session_manager_github_pat_v1',sotOutbox:'oc_session_manager_sot_outbox_v1'};","const K={settings:'chatstream_framework_settings_v1',identity:'oc_custom_chat_device_identity_v1',device:'oc_custom_chat_device_token_v1',legacy:'openclaw_token',tab:'oc_custom_chat_gateway_token',trash:'chatstream_soft_deleted_v1',projects:'chatstream_projects_v1',themes:'chatstream_themes_v1',sotPat:'oc_session_manager_github_pat_v1',sotOutbox:'chatstream_sot_outbox_v1'};",'storage namespace');
-  required("clientType:s.clientType==='botschat'?'botschat':'standard'","clientType:'botschat'",'ProjectChat default');
-  required("sotPath:String(s.sotPath||'session-manager-sot.json')","sotPath:String(s.sotPath||'chatstream-sot.json')",'SOT path');
-  required("appearance:normalizeAppearance(s.appearance||{})","appearance:normalizeAppearance(s.appearance||{preset:'botschat'})",'appearance default');
-  required("state.settings.clientType=document.querySelector('input[name=clientType]:checked')?.value==='botschat'?'botschat':'standard';","state.settings.clientType='botschat';",'lock project/thread mode');
+  replaceRe(/<title>[^<]*Session Manager[^<]*<\/title>/i,'<title>ChatStream</title>','document title',false);
+  replaceRe(/<span id="brandName">[^<]*<\/span>\s*<span class="version">v[^<]*<\/span>/i,`<span id="brandName">ChatStream</span> <span class="version">v${CHATSTREAM_VERSION}</span>`,'brand');
+  replaceRe(/title="Toggle sessions"\s+aria-label="Toggle sessions"/i,'title="Toggle projects" aria-label="Toggle projects"','menu label',false);
+  replaceRe(/title="Start a new chat"\s+aria-label="Start a new chat">[^<]*<\/button>/i,'title="Start a new coding thread" aria-label="Start a new coding thread">+ Thread</button>','new thread button');
+  replaceRe(/(<input id="search"[^>]*placeholder=")[^"]*(")/i,'$1Search projects, threads or filenames$2','search placeholder',false);
+  replaceRe(/<div id="chatTitle">[^<]*<\/div><div id="chatInfo">[^<]*<\/div>/i,'<div id="chatTitle">Select a thread</div><div id="chatInfo">ChatStream · OpenClaw Gateway v4</div>','main heading',false);
+  replaceRe(/const BUILD_VERSION='[^']+';/,`const BUILD_VERSION='${CHATSTREAM_VERSION}';`,'build version');
+  replaceRe(/const K=\{settings:'[^']+',identity:'([^']+)',device:'([^']+)',legacy:'([^']+)',tab:'([^']+)',trash:'[^']+',projects:'[^']+',themes:'[^']+',sotPat:'([^']+)',sotOutbox:'[^']+'\};/,"const K={settings:'chatstream_framework_settings_v1',identity:'$1',device:'$2',legacy:'$3',tab:'$4',trash:'chatstream_soft_deleted_v1',projects:'chatstream_projects_v1',themes:'chatstream_themes_v1',sotPat:'$5',sotOutbox:'chatstream_sot_outbox_v1'};",'storage namespace');
+  replaceRe(/clientType:s\.clientType==='botschat'\?'botschat':'standard'/,"clientType:'botschat'",'ProjectChat default');
+  replaceRe(/sotPath:String\(s\.sotPath\|\|'[^']+'\)/,"sotPath:String(s.sotPath||'chatstream-sot.json')",'SOT path');
+  replaceRe(/appearance:normalizeAppearance\(s\.appearance\|\|\{\}\)/,"appearance:normalizeAppearance(s.appearance||{preset:'botschat'})",'appearance default',false);
+  replaceRe(/state\.settings\.clientType=document\.querySelector\('input\[name=clientType\]:checked'\)\?\.value==='botschat'\?'botschat':'standard';/,"state.settings.clientType='botschat';",'lock project/thread mode',false);
 
   const newThreadFn=`async function newChat(){
     if(!state.connected){toast('OpenClaw Gateway is not connected','err');return}
@@ -85,17 +88,19 @@ try{
     }catch(e){showError('New thread failed: '+e.message);toast('New thread failed: '+e.message,'err')}
     finally{updateComposer()}
   }`;
-  const newChatRe=/async function newChat\(\)\{[\s\S]*?\}\nfunction trashStore\(\)/;
-  if(!newChatRe.test(html))throw new Error('Framework patch point missing: newChat()');
-  html=html.replace(newChatRe,newThreadFn+'\nfunction trashStore()');
+  replaceRe(/async function newChat\(\)\{[\s\S]*?\}\nfunction trashStore\(\)/,newThreadFn+'\nfunction trashStore()','newChat()');
 
-  const extraStyle=`\n/* ChatStream adapter: Session Manager v3 remains the UI/execution framework. */\n.configTab[data-cfg="client"],.cfgPane[data-pane="client"]{display:none!important}\n#chatstreamFrameworkTag{font-size:9px;color:var(--mu);border:1px solid var(--ln);border-radius:999px;padding:2px 6px;white-space:nowrap}\n`;
-  required('</style>',extraStyle+'</style>','style injection');
-  required('<span class="grow"></span><button class="btn newChatBtn"','<span id="chatstreamFrameworkTag">SM-v3 framework</span><span class="grow"></span><button class="btn newChatBtn"','framework badge');
+  const extraStyle=`\n/* ChatStream adapter over the current Session Manager v3 framework. */\n.configTab[data-cfg="client"],.cfgPane[data-pane="client"]{display:none!important}\n#chatstreamFrameworkTag{font-size:9px;color:var(--mu);border:1px solid var(--ln);border-radius:999px;padding:2px 6px;white-space:nowrap}\n`;
+  replaceText('</style>',extraStyle+'</style>','style injection');
+  replaceRe(/<span class="grow"><\/span><button class="btn newChatBtn"/,`<span id="chatstreamFrameworkTag">SM-v3 current</span><span class="grow"></span><button class="btn newChatBtn"`,'framework badge',false);
 
   html=html.replaceAll('Standard Session Manager','Single-thread framework view');
   html=html.replaceAll('ProjectChat — Projects + session tabs','ChatStream — Projects + thread tabs');
   html=html.replaceAll('Projects are local client organization. OpenClaw session keys, transcripts, labels and lifecycle remain unchanged.','ChatStream projects organize persistent OpenClaw-backed coding threads.');
+
+  /* applyClientType() in the framework changes the brand to ProjectChat after load. Keep the framework behavior, then restore ChatStream branding from outside its closure. */
+  const postLoad=`<script>\n(()=>{\n const apply=()=>{\n  document.title='ChatStream';\n  const b=document.getElementById('brandName');if(b)b.textContent='ChatStream';\n  const v=b?.parentElement?.querySelector('.version');if(v)v.textContent='v${CHATSTREAM_VERSION}';\n  const n=document.getElementById('newChat');if(n){n.textContent='+ Thread';n.title='Start a new coding thread';n.setAttribute('aria-label','Start a new coding thread')}\n  const info=document.getElementById('chatInfo');if(info&&/Gateway protocol/i.test(info.textContent))info.textContent='ChatStream · OpenClaw Gateway v4';\n };\n new MutationObserver(apply).observe(document.documentElement,{childList:true,subtree:true});apply();\n})();\n<\/script>`;
+  html=html.replace('</body>',postLoad+'</body>');
 
   document.open();
   document.write(html);
