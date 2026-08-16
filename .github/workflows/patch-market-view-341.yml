@@ -1,4 +1,4 @@
-name: Patch Market Navigator 3.5.1
+name: Patch Market Navigator 3.6
 on:
   push:
     paths:
@@ -14,19 +14,27 @@ jobs:
         with:
           node-version: '22'
       - name: Apply patch
-        run: python3 scripts/patch_market_view_351.py
-      - name: Validate JavaScript
+        run: python3 scripts/patch_market_view_360.py
+      - name: Validate JavaScript and UX contracts
         run: |
           python3 - <<'PY'
           import re
           s=open('market-view.html').read()
-          assert 'Version 3.5.1' in s
-          assert "const APP_VERSION='3.5.1'" in s
-          assert 'ensureOverviewHorizon' in s
-          assert 'bootstrapHistory' in s
-          assert 'exactRangeSeries' in s
+          assert 'Version 3.6' in s
+          assert "const APP_VERSION='3.6.0'" in s
+          assert "'1d':{label:'1D'" in s
+          assert "'3mo':{label:'3M'" in s
+          assert "max:{label:'All'" in s
+          assert 'finance.yahoo.com/news/rssindex' in s
+          assert 'primeRegimeHistory' in s
+          assert 'progressModal' in s
+          assert 'axisDate' in s and 'axisValue' in s
+          assert 'drawIntradayInstrument' in s
+          assert "['relationships','⌗','Analysis']" in s
           js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
           open('/tmp/market-view.js','w').write(js)
+          html_ids=set(re.findall(r'\bid="([^"]+)"',s)); js_ids=set(re.findall(r"\$\('#([^']+)'\)",s)); missing=sorted(js_ids-html_ids-{'progressModal','progressTitle','progressText','progressCount','progressBar','backToComponentsBtn','chartTip'})
+          if missing: raise SystemExit('Missing DOM IDs: '+', '.join(missing))
           PY
           node --check /tmp/market-view.js
       - name: Commit patch
@@ -34,5 +42,5 @@ jobs:
           git config user.name 'Market Navigator Patch Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add market-view.html
-          git commit -m 'Fix Market Navigator history coverage and horizon integrity'
+          git commit -m 'Improve Market Navigator charts navigation and regime history'
           git push origin HEAD:main
