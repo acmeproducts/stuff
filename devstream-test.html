@@ -34,6 +34,9 @@ input:focus,textarea:focus{border-color:var(--accent)}
 .dot.executing{background:var(--run);animation:pulse 1.1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
 
+#tabsrow{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);flex-shrink:0}
+#drawerbar{display:flex;align-items:center;gap:8px;padding:2px 2px 10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.omnihint{padding:11px 12px;font-size:13px;color:var(--accent);border-bottom:1px solid var(--line)}
 /* drawer */
 #scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
 #scrim.open{opacity:1;pointer-events:auto}
@@ -120,24 +123,26 @@ input:focus,textarea:focus{border-color:var(--accent)}
 <div id="banner"></div>
 <div id="ribbon">
   <button class="rbtn" id="menubtn" aria-label="Projects">☰</button>
-  <div id="tabstrip"></div>
-  <button class="rbtn" id="newbtn" aria-label="New thread">+</button>
+  <div id="projtitle" style="flex:1;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">devstream</div>
+  <button class="rbtn" id="tbrun" title="Run pending">▶</button>
+  <button class="rbtn" id="tbrefresh" title="Refresh">↻</button>
   <button class="rbtn" id="gearbtn" aria-label="Configuration">⚙</button>
 </div>
+<div id="tabsrow"><div id="tabstrip"></div><button class="rbtn" id="newbtn" aria-label="New thread" style="min-width:42px;height:38px">+</button></div>
 <div id="main">
-  <div id="threadbar"><span class="dot" id="tbdot"></span><span class="mono" id="tbfile"></span><button class="rbtn" id="tbrun" style="margin-left:auto;min-width:40px;height:40px" title="Run pending">▶</button><button class="rbtn" id="tbrefresh" style="min-width:40px;height:40px">↻</button></div>
-  <div id="empty"><div class="big">devstream</div><div>Tap + to start a thread:<br>an output file, an optional input file, and an idea.</div></div>
+  <div id="threadbar"><span class="dot" id="tbdot"></span><span class="mono" id="tbfile"></span></div>
+  <div id="empty"><div class="big">devstream</div><div>Open a project from ☰, then tap + to start a thread.</div></div>
   <div id="chat"></div>
   <div id="composer"><textarea id="mtext" rows="1" placeholder="Refine this thread…"></textarea><button id="sendbtn">➤</button></div>
 </div>
 <div id="scrim"></div>
 <div id="drawer">
+  <div id="drawerbar"><span class="dot" style="background:var(--accent)"></span><b>devstream</b> <span style="font-size:11px;color:var(--dim)">v1.0</span><span style="flex:1"></span><button class="rbtn" id="addproj" style="min-width:42px;height:42px" title="New project">+</button></div>
   <div class="card" id="dashcard">
     <div class="cttl">Dashboard <span style="margin-left:auto;display:flex;gap:6px" id="dashbadges"></span></div>
     <div class="csub" id="dashsub">All projects, all threads</div>
   </div>
   <div id="projlist"></div>
-  <button class="secondary" id="addproj">+ New project</button>
 </div>
 <div id="toast"></div>
 <div id="ctx"></div>
@@ -279,15 +284,10 @@ function renderDrawer(){
     const d=document.createElement('div');
     d.className='card proj'+(p===activeProject?' active':'');
     const pf=sot.projects[p].planFile;
-    d.innerHTML='<div class="cttl">'+esc(p)+'<button class="planlink" style="margin-left:auto;font-size:12px;color:var(--accent);padding:6px">'+(pf?'Plan ↗':'+ plan')+'</button></div><div class="csub">'+n+' thread'+(n===1?'':'s')+' · '+rel(sot.projects[p].lastTouched)+'</div>';
-    d.querySelector('.planlink').onclick=async e=>{e.stopPropagation();
-      if(pf){window.open('https://github.com/'+cfg.repo+'/blob/'+cfg.branch+'/'+pf,'_blank')}
-      else{const path=prompt('Plan / status doc path in '+cfg.repo+':','devstream-backlog.md');
-        if(path){sot.projects[p].planFile=path.trim();await guard(saveSOT('devstream: plan link '+p));renderDrawer();toast('Plan linked')}}};
-    d.querySelector('.planlink').addEventListener('contextmenu',async e=>{e.preventDefault();e.stopPropagation();
-      const path=prompt('Change plan doc path (empty to remove):',pf||'');if(path===null)return;
-      sot.projects[p].planFile=path.trim()||undefined;await guard(saveSOT('devstream: plan link '+p));renderDrawer()});
-    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderDrawer();renderTabs();openDrawer(false)};
+    d.innerHTML='<div class="cttl">'+esc(p)+(pf?'<button class="planlink" style="margin-left:auto;font-size:12px;color:var(--accent);padding:6px">Plan ↗</button>':'')+'</div><div class="csub">'+n+' thread'+(n===1?'':'s')+' · '+rel(sot.projects[p].lastTouched)+'</div>';
+    const pl2=d.querySelector('.planlink');
+    if(pl2)pl2.onclick=e=>{e.stopPropagation();window.open('https://github.com/'+cfg.repo+'/blob/'+cfg.branch+'/'+pf,'_blank')};
+    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);$('projtitle').textContent=p;renderDrawer();renderTabs();openDrawer(false)};
     pl.appendChild(d);
   });
 }
@@ -347,7 +347,7 @@ async function openThread(key){
 function renderChat(){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key], d=threads[key].data;
-  $('tbfile').textContent=t.repo+' → '+t.file+'  ['+(t.engine||'claude')+']';
+  $('tbfile').textContent=t.file+' · '+(t.engine||'claude')+' · '+t.repo;
   $('tbdot').className='dot '+(t.state||'idle');
   const c=$('chat');c.innerHTML='';
   d.messages.forEach(m=>{
@@ -433,41 +433,44 @@ async function runAgent(key){
   agentBusy=true;
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
-    // context: current output file (if exists), else input file (if set)
+    const planFile=th.data.planFile||null;
+    let plan='';if(planFile){const pfc=await getFile(planFile,t.repo);if(pfc)plan=pfc.content}
     let base='',baseName='';
     const outCur=await getFile(t.file,t.repo);
     if(outCur){base=outCur.content;baseName=t.file}
     else if(th.data.inputFile){const inf=await getFile(th.data.inputFile,t.repo);if(inf){base=inf.content;baseName=th.data.inputFile+' (input codebase)'}}
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.role==='user'?m.text:(m.summary||m.text)})).slice(-12);
     const instr=pend.map(m=>m.text).join('\n\n');
-    const userMsg=(base?('Current file '+baseName+':\n\n<file>\n'+base+'\n</file>\n\n'):'(No existing file — create from scratch.)\n\n')+'Instructions:\n'+instr;
+    const userMsg=(plan?('The project plan ('+planFile+'):\n\n<plan>\n'+plan+'\n</plan>\n\n'):'')+
+      (base?('Current file '+baseName+':\n\n<file>\n'+base+'\n</file>\n\n'):'(No existing output file.)\n\n')+'Instructions:\n'+instr;
     const body={model:'claude-sonnet-4-6',max_tokens:64000,
-      system:'You are the devstream build agent. You maintain a single-file mobile-first HTML application named "'+t.file+'". Apply the user instructions to the file. Respond in EXACTLY this format: first line: SUMMARY: <one or two sentences of what changed>. Then a blank line, then the COMPLETE new file content from <!DOCTYPE html> to </html>. No markdown fences, no commentary after the file. Preserve all existing functionality not mentioned in the instructions. All diagnostics must surface in-app (no console-only errors).',
+      system:AGENT_SYSTEM(t.file,planFile),
       messages:[...history,{role:'user',content:userMsg}]};
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify(body)});
     const j=await r.json();
     if(!r.ok)throw new Error('Anthropic API '+r.status+': '+((j.error&&j.error.message)||'unknown'));
-    let text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-    let summary='Build complete.';
-    const sm=text.match(/^SUMMARY:\s*(.+)$/m);
-    if(sm){summary=sm[1].trim();text=text.slice(text.indexOf(sm[0])+sm[0].length)}
-    let code=stripFences(text);
-    const di=code.indexOf('<!DOCTYPE');if(di>0)code=code.slice(di);
-    if(!code||code.length<200)throw new Error('Agent returned no usable file content');
-    // commit output file (SHA-safe)
-    const commitSha=await putFileSafe(t.file,code,'devstream agent: '+key+' — '+summary.slice(0,60),t.repo);
-    // read-back verify
-    const rb=await fetch('https://raw.githubusercontent.com/'+t.repo+'/'+cfg.branch+'/'+t.file+'?cb='+Date.now(),{cache:'no-store'});
-    const rbok=rb.ok&&(await rb.text()).length===code.length;
-    const testUrl='https://'+t.repo.split('/')[0]+'.github.io/'+t.repo.split('/')[1]+'/'+t.file+'?cb='+Date.now();
+    const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    const out=parseAgent(text);
+    let commitSha='',testUrl=t.testUrl||'';
+    if(out.plan&&planFile){await putFileSafe(planFile,out.plan,'devstream agent: plan update — '+key,t.repo)}
+    if(out.code){
+      commitSha=await putFileSafe(t.file,out.code,'devstream agent: '+key+' — '+out.summary.slice(0,60),t.repo);
+      testUrl='https://'+t.repo.split('/')[0]+'.github.io/'+t.repo.split('/')[1]+'/'+t.file+'?cb='+Date.now();
+    }
     pend.forEach(m=>m.status='done');
-    th.data.messages.push({role:'agent',text:summary+(rbok?'':'\n⚠ read-back mismatch — verify before trusting')+'\nTest: '+testUrl,summary,ts:now(),commit:commitSha});
+    let reply=out.summary;
+    if(out.answer)reply+='\n\n'+out.answer;
+    if(out.plan)reply+='\n📋 Plan updated: '+planFile;
+    if(out.code)reply+='\nTest: '+testUrl;
+    th.data.messages.push({role:'agent',text:reply,summary:out.summary,ts:now(),commit:commitSha||undefined});
     th.sha=await putFileSafe(tpath(t.project,th.data.threadFile||t.file),JSON.stringify(th.data,null,1),'devstream: agent reply '+key,t.repo);
-    await setState(key,{state:'ok',finishedAt:now(),lastCommit:commitSha,testUrl,error:''});
+    await setState(key,{state:'ok',finishedAt:now(),lastCommit:commitSha||t.lastCommit,testUrl,error:''});
+    if(t.project&&sot.projects[t.project]&&!sot.projects[t.project].planFile&&th.data.planFile){sot.projects[t.project].planFile=th.data.planFile;await saveSOT('devstream: plan link '+t.project)}
     if(activeKey===key)renderChat();
-    toast('Built — test URL in thread');
+    renderDrawer();
+    toast(out.code?'Built — test URL in thread':'Done');
   }catch(e){
     th.data.messages.push({role:'agent',text:'Build failed: '+e.message,ts:now()});
     try{th.sha=await putFileSafe(tpath(t.project,th.data.threadFile||t.file),JSON.stringify(th.data,null,1),'devstream: agent error '+key,t.repo)}catch(e2){}
@@ -476,6 +479,20 @@ async function runAgent(key){
     banner('Agent error — '+e.message);
   }
   agentBusy=false;
+}
+const AGENT_SYSTEM=(fname,planFile)=>'You are the devstream build agent for the single-file mobile-first HTML application "'+fname+'"'+(planFile?' governed by the plan document "'+planFile+'"':'')+'. The user message may be: (a) a build/extend/fix instruction, (b) a question or idea to discuss, or (c) plan feedback. Respond in EXACTLY this sectioned format:\nSUMMARY: <one or two sentences>\n[optional] ===ANSWER===\n<answer or discussion, when the user asked a question or floated an idea>\n[optional] ===PLAN===\n<the COMPLETE updated plan markdown — include ONLY if the plan should change (new ideas, decisions, scope, release changes). Bump its version.>\n[optional] ===FILE===\n<the COMPLETE file from <!DOCTYPE html> to </html> — include ONLY if the user asked to build/change code>\nRules: never emit markdown fences around sections; preserve all existing functionality not mentioned; ideas go to the PLAN (usually FUTURE IDEAS or a release section) unless the user says build; "build it" means implement the plan\'s next open scope; all diagnostics must surface in-app.';
+function parseAgent(text){
+  const out={summary:'Done.',answer:'',plan:'',code:''};
+  const sm=text.match(/^SUMMARY:\s*(.+)$/m);
+  if(sm)out.summary=sm[1].trim();
+  const grab=(tag)=>{const i=text.indexOf('==='+tag+'===');if(i<0)return'';
+    const rest=text.slice(i+tag.length+6);const j=rest.search(/===(ANSWER|PLAN|FILE)===/);
+    return (j<0?rest:rest.slice(0,j)).trim()};
+  out.answer=grab('ANSWER');out.plan=grab('PLAN');out.code=stripFences(grab('FILE'));
+  if(out.code){const di=out.code.indexOf('<!DOCTYPE');if(di>0)out.code=out.code.slice(di);
+    if(out.code.length<200||!/<\/html>/i.test(out.code))throw new Error('Agent returned incomplete file content')}
+  if(!out.answer&&!out.plan&&!out.code&&sm){out.answer=text.slice(sm.index+sm[0].length).trim()}
+  return out;
 }
 $('tbrun').onclick=()=>{if(!activeKey)return;
   if((sot.threads[activeKey].engine||'claude')==='anthropic-direct')runAgent(activeKey);
@@ -502,49 +519,78 @@ $('tbrefresh').onclick=async()=>{await guard(async()=>{await loadSOT();if(active
 /* ============ new thread ============ */
 $('newbtn').onclick=()=>{
   if(!cfg){openPanel('cfgpanel');return}
-  $('ntproj').value=activeProject||'';
+  if(!activeProject){toast('Pick or create a project first (☰)');openDrawer(true);return}
+  $('ntproj').value=activeProject;
   $('ntrepo').value=cfg.repo;$('ntout').value='';$('ntin').value='';$('ntprompt').value='';
   openPanel('newpanel');
 };
 function omni(inputId,listId){
   const inp=$(inputId),list=$(listId);
-  inp.addEventListener('input',async()=>{
-    const q=inp.value.toLowerCase();
+  async function refresh(){
+    const q=inp.value.toLowerCase().trim();
     if(q.length<2){list.style.display='none';return}
     try{
       const paths=await repoTree($('ntrepo').value||cfg.repo);
-      const hits=paths.filter(p=>p.toLowerCase().includes(q)).slice(0,30);
+      let hits=paths.filter(p=>p.toLowerCase().includes(q));
+      hits.sort((a,b)=>{const qa=a.toLowerCase().endsWith(q)?0:a.length,qb=b.toLowerCase().endsWith(q)?0:b.length;return qa-qb});
+      hits=hits.slice(0,30);
       list.innerHTML='';
-      hits.forEach(p=>{const d=document.createElement('div');d.className='mono';d.textContent=p;d.onclick=()=>{inp.value=p;list.style.display='none'};list.appendChild(d)});
-      list.style.display=hits.length?'block':'none';
+      if(!hits.some(p=>p.toLowerCase()===q)){
+        const h=document.createElement('div');h.className='omnihint';h.textContent='↵ create new file "'+inp.value.trim()+'"';
+        h.onclick=()=>{list.style.display='none'};list.appendChild(h);
+      }
+      hits.forEach(p=>{const d=document.createElement('div');d.className='mono';d.textContent=p;d.onclick=()=>{inp.value=p;inp.dataset.existing='1';list.style.display='none'};list.appendChild(d)});
+      list.style.display='block';
     }catch(e){list.style.display='none'}
-  });
+  }
+  inp.addEventListener('input',()=>{delete inp.dataset.existing;refresh()});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();list.style.display='none'}}); // Enter = accept typed value (new file if no match)
+  document.addEventListener('click',e=>{if(!e.target.closest('.omni'))list.style.display='none'});
 }
 omni('ntout','outlist');omni('ntin','inlist');
 $('ntcreate').onclick=async()=>{
   const proj=$('ntproj').value.trim(), inF=$('ntin').value.trim(), repo=$('ntrepo').value.trim()||cfg.repo, idea=$('ntprompt').value.trim();
   let outF=$('ntout').value.trim();
   if(!proj){toast('Project label required');return}
-  if(!idea){toast('The idea is required');return}
   if(!outF){outF=prompt('Output filename for this thread:')||'';outF=outF.trim();if(!outF){toast('Output filename required');return}$('ntout').value=outF}
   await guard(async()=>{
     const key=tkey(proj,outF);
     if(sot.threads[key])throw new Error('Thread '+key+' already exists');
+    const firstThread=!sot.projects[proj]||!Object.values(sot.threads).some(t=>t.project===proj);
     if(!sot.projects[proj])sot.projects[proj]={notes:'',lastTouched:now()};
     const engine=$('ntengine').value;
-    const data={project:proj,outputFile:outF,threadFile:outF,inputFile:inF||null,repo,engine,created:now(),renames:[],
-      messages:[{role:'user',text:idea+(inF?'\n\n[input codebase: '+inF+']':''),ts:now(),status:'pending'}]};
+    const planFile=planPathFor(outF,proj,firstThread);
+    const planExists=!!(await getFile(planFile,repo));
+    const msgs=[];
+    if(idea)msgs.push({role:'user',text:idea+(inF?'\n\n[input codebase: '+inF+']':''),ts:now(),status:'pending'});
+    const data={project:proj,outputFile:outF,threadFile:outF,inputFile:inF||null,repo,engine,planFile,created:now(),renames:[],messages:msgs};
     const sha=await putFileSafe(tpath(proj,outF),JSON.stringify(data,null,1),'devstream: new thread '+key,repo);
     threads[key]={data,sha};
     sot.threads[key]={project:proj,file:outF,repo,engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+    if(firstThread||!sot.projects[proj].planFile)sot.projects[proj].planFile=planFile;
     sot.projects[proj].lastTouched=now();
     await saveSOT('devstream: new thread '+key);
-    activeProject=proj;localStorage.setItem('ds_activeproj',proj);
-    closePanels();renderDrawer();renderTabs();openThread(key);
+    activeProject=proj;localStorage.setItem('ds_activeproj',proj);$('projtitle').textContent=proj;
+    closePanels();renderDrawer();renderTabs();await openThread(key);
+    // pre-stage the composer
+    if(!planExists){
+      $('mtext').value=PLAN_PROMPT(proj,outF,planFile);
+      toast('No plan found — plan-creation prompt staged. Review and send.');
+    }else if(!idea){
+      $('mtext').value='Read the plan ('+planFile+') and reference it. ';
+    }
+    $('mtext').dispatchEvent(new Event('input'));
+    if(msgs.length){ // idea was provided at creation — run it
+      if(engine==='anthropic-direct')runAgent(key);else toast('Queued — runner will pick this up');
+    }
   });
 };
-
-/* ============ dashboard ============ */
+function planPathFor(outF,proj,first){
+  const base=outF.replace(/\.[^.]+$/,'');
+  return base+'.md';
+}
+const PLAN_PROMPT=(proj,outF,planFile)=>'Create the planning document '+planFile+' for project "'+proj+'" (primary file: '+outF+'). Follow our master-plan standard with these requisite sections: title with plan version; TURN/STAGE LEDGER (empty table: turn, stage, scope, gate result); RELEASES (numbered list, current release first, with the output filename per release and the next release name); per-release sections with Scope, Build gates, and Backlogged items; FUTURE IDEAS (unscheduled); IMMUTABLE WORKING RULES (mobile-first, in-app diagnostics only, read-back verify before success, update plan before touching code); APPENDIX with authority order (plan doc > chat > code comments). Seed it from what you know so far and mark unknowns as OPEN.';
+/* ============ dashboard ============ *//* ============ dashboard ============ */
 function openDash(){openPanel('dashpanel');renderDash();
   clearInterval(dashTimer);
   dashTimer=setInterval(async()=>{
