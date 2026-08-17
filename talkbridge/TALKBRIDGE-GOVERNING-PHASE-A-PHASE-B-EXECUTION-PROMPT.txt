@@ -1,0 +1,1297 @@
+GOVERNING EXECUTION PROMPT — TALKBRIDGE PWA MIGRATION + SERVER-SIDE SECRET MIGRATION
+Version: 1.0
+Date: 2026-08-15
+Repository: acmeproducts/stuff
+
+THIS PROMPT IS GOVERNING.
+
+You are the session currently governing and building TalkBridge. Execute these instructions as written. Do not redesign the application. Do not broaden scope. Do not substitute a different architecture because you prefer it. Do not make product decisions that are not explicitly authorized below.
+
+If the current governing TalkBridge build has moved beyond the filenames/version mentioned here, apply these instructions to the CURRENT production source selected by app.html. Determine that source mechanically from app.html. Do not revert newer approved work.
+
+If you encounter a genuine contradiction between this prompt and the current production code that makes literal execution impossible, STOP at that exact point and report:
+1. the exact conflicting code/file,
+2. the exact instruction it conflicts with,
+3. the smallest mechanical resolution.
+Do not resolve a material conflict by assumption.
+
+===============================================================================
+1. PRIMARY OBJECTIVE
+===============================================================================
+
+Migrate TalkBridge in TWO SEPARATE PHASES.
+
+PHASE A:
+Make the REAL TalkBridge work correctly as an installable iPhone PWA using the handoff and Web Push mechanisms already proven in testpwa.html, WITHOUT CHANGING THE RELAY and WITHOUT changing where the current service credentials live.
+
+PHASE B:
+Only after Phase A is fully proven and explicitly approved, move the four long-lived service secrets behind the EXISTING relay and replace client-side service secrets with ONE opaque TalkBridge authorization value.
+
+The phases MUST NOT be combined.
+
+PHASE A MUST PASS BEFORE PHASE B STARTS.
+
+At the end of Phase A, STOP and present evidence. Do not begin Phase B until the user explicitly says to proceed with Phase B.
+
+===============================================================================
+2. PROVEN FACTS — DO NOT RE-LITIGATE OR REDESIGN
+===============================================================================
+
+The POC at:
+    https://acmeproducts.github.io/stuff/testpwa.html
+
+has already proven on the user's iPhone that:
+
+A. A Home Screen PWA can register the existing TalkBridge service worker.
+B. Apple Web Push subscription succeeds.
+C. The existing TalkBridge relay accepts the push subscription.
+D. A sleeping/background iPhone receives a real notification triggered through the existing TalkBridge relay.
+E. Safari -> Add to Home Screen -> installed PWA can automatically transfer an opaque value without typing, pairing codes, OTP, QR re-entry, or a second setup step.
+F. The successful Safari-to-PWA bridge uses a short-lived cookie. Safari localStorage is NOT the handoff mechanism.
+G. The POC is complete. Do NOT turn testpwa.html into production TalkBridge.
+H. Keep testpwa.html as a regression/diagnostic harness. Do not modify it as part of this migration unless the user explicitly requests a POC change.
+
+The working PWA push path already uses:
+    tb-sw.js
+    wss://talk-signal.myacctfortracking.workers.dev/signal
+
+The current service worker is intentionally:
+- bare-push only,
+- no message content in push payloads,
+- no application caching,
+- capable of receiving room context as an array of rooms,
+- capable of querying relay history after a wake,
+- capable of summarizing missed chat/call activity.
+
+Do not replace that model.
+
+===============================================================================
+3. CURRENT IMPLEMENTATION FACTS — PRESERVE THEM
+===============================================================================
+
+Repository:
+    acmeproducts/stuff
+
+Stable entry point:
+    app.html
+
+Current known production source at the time of this prompt:
+    bridge-turn24-base.html
+
+Production manifest:
+    tb-manifest.webmanifest
+
+Service worker:
+    tb-sw.js
+
+Relay source:
+    talkbridge/worker-talk.js
+
+The current credential storage contract includes:
+    tb_dg_key
+    tb_cf_tid
+    tb_cf_tok
+    tb_gh_pat
+
+The current production code directly uses the GitHub PAT for phrasebook GitHub API synchronization.
+
+The currently inspected bridge-turn24-base.html invUrl() and linkDeviceUrl() carry:
+    k    = Deepgram key
+    tid  = Cloudflare TURN key/token ID
+    tok  = Cloudflare TURN API token
+
+Do NOT assume the GitHub PAT is currently carried in the same invitation URL. Before changing invitation serialization, inspect the CURRENT governing build and preserve the exact fields it currently sends.
+
+Existing room lifecycle behavior is authoritative and MUST be preserved:
+
+soft delete:
+    room.deletedAt = Date.now()
+    room.sendLocked = true
+    saveRooms()
+    relaySend({type:'room-left', room:id})
+    if room.grant:
+        relaySend({type:'grant-revoke', room:id})
+
+recipient room-left:
+    set room.sendLocked = true
+    save
+    apply send lock/read-only behavior
+
+recipient grant-revoke:
+    clear the granted credential/elevated state associated with the granting room
+
+restore:
+    relaySend({type:'room-rejoined', room:id})
+    if room.grant:
+        restore/retransmit the granted elevated material
+
+hard delete:
+    remains non-restorable
+
+Do not replace these message types.
+Do not invent a second lifecycle.
+
+===============================================================================
+4. NON-NEGOTIABLE PRODUCT RULES
+===============================================================================
+
+These are architecture constraints, not suggestions.
+
+1. NO user database.
+2. NO account system.
+3. NO global room registry.
+4. NO grant tree.
+5. NO device identity system.
+6. NO device revocation system.
+7. NO per-device authentication ceremony.
+8. NO OTP as the normal path.
+9. NO typed pairing code as the normal path.
+10. NO additional server/service/port for this migration.
+11. NO replacement of the existing Cloudflare relay.
+12. NO requirement for the relay to know who is granting whom.
+13. NO relay-side room authorization database.
+14. NO fine-grained attribution system.
+15. NO message content in Web Push payloads.
+16. NO service-worker application cache.
+17. NO rewriting working TalkBridge features unrelated to this migration.
+18. NO framework conversion. Keep the existing single-HTML/JS/CSS application.
+19. NO silent changes to working UX.
+20. NO use of testpwa.html as the production application.
+21. Link Device retains its existing product meaning: take the same TalkBridge/chat state to another device. It is NOT renamed or redefined as "install PWA."
+22. iOS PWA installation exists primarily to make push notifications possible.
+23. The only unavoidable user gesture for push is the browser/OS-required notification permission gesture. Do not add other setup ceremonies.
+24. Preserve existing soft-delete, restore, hard-delete, room-left, room-rejoined, grant-revoke and grant-restore semantics.
+25. Make the smallest possible changes to accomplish the two phases.
+
+===============================================================================
+5. CHANGE CONTROL / VERSIONING RULES
+===============================================================================
+
+Do not overwrite the currently approved production bridge file in place.
+
+Procedure:
+
+1. Read app.html first.
+2. Determine the exact bridge file CURRENTLY selected by app.html.
+3. Fetch that exact file from the repository immediately before editing.
+4. Create the next version using the project's existing bridge naming/version convention.
+5. Add a visible build/version identifier inside the app.
+6. Add a code-header build/version comment.
+7. Do not alter app.html to point to the new build until that build passes its required tests.
+8. Preserve a rollback path to the previously selected production file.
+9. Do not modify working sections unless required by this prompt.
+10. When reporting completion, list every changed file and why it changed.
+11. State explicitly: "No unrequested changes made."
+
+If the session is already working in an active TalkBridge branch/PR, continue in that branch/PR.
+If there is no active working branch/PR, create a dedicated TalkBridge migration branch rather than mixing unrelated repository work.
+
+===============================================================================
+6. PHASE A — OBJECTIVE
+===============================================================================
+
+PHASE A CHANGES THE TALKBRIDGE CLIENT ONLY.
+
+DO NOT MODIFY:
+    talkbridge/worker-talk.js
+or any deployed relay behavior during Phase A.
+
+The four current service-credential behaviors remain exactly as they are during Phase A.
+
+Phase A proves the REAL TalkBridge client can:
+
+1. receive an actual TalkBridge invitation/link in Safari,
+2. silently arm the installation handoff,
+3. be added to the iPhone Home Screen,
+4. recover the SAME existing invitation payload automatically,
+5. process that payload through the SAME existing TalkBridge invitation/join code,
+6. retain existing room/grant/link-device behavior,
+7. subscribe to Web Push through the CURRENT relay,
+8. receive notifications while sleeping/backgrounded.
+
+Phase A is a compatibility/PWA migration only.
+It is NOT the security cutover.
+
+===============================================================================
+7. PHASE A — EXACT IMPLEMENTATION
+===============================================================================
+
+A0. BASELINE BEFORE CHANGES
+
+Before editing, capture and report:
+- app.html CURRENT target
+- current bridge build/version
+- current tb-manifest.webmanifest
+- current tb-sw.js SHA/content version
+- current talkbridge/worker-talk.js SHA
+- current invitation entry format
+- current Link Device entry format
+- current grant/revoke/restore functions
+- current credential key names actually read by the governing build
+- current relay app identifier
+- current relay URL
+
+Do not infer these from old files when the current source is available.
+
+A1. PRODUCTION PWA MANIFEST
+
+Use the existing production manifest:
+    tb-manifest.webmanifest
+
+Do NOT use testpwa.webmanifest for TalkBridge production.
+
+Ensure the production bridge document contains:
+    <link rel="manifest" href="./tb-manifest.webmanifest">
+
+Keep the production manifest identity as TalkBridge.
+Do not create a new production PWA identity merely for this migration.
+Keep display: standalone.
+
+The cookie handoff removes the need to depend on an invitation hash surviving installation, so do not redesign the production manifest around hash retention.
+
+A2. SERVICE WORKER REGISTRATION
+
+Register:
+    ./tb-sw.js
+
+Use the existing worker.
+Do not add an offline cache.
+Do not precache the application.
+Do not add cache-busting application copies to the service worker.
+The worker's existing pass-through fetch handler is intentional.
+
+Production code must visibly/logically distinguish Safari/browser tab from Home Screen standalone PWA.
+Use window.matchMedia('(display-mode: standalone)').matches and the existing iOS standalone signal if already present.
+Do not require standalone mode for normal browser TalkBridge use.
+Standalone mode is required only for iOS Web Push.
+
+A3. SAFARI -> PWA INSTALLATION HANDOFF
+
+This is the most important Phase A client change.
+
+Use this cookie name exactly:
+    tb_install_handoff_v1
+
+Cookie attributes:
+    Path=/stuff/
+    Max-Age=600
+    SameSite=Lax
+    Secure
+
+Do NOT use localStorage to transfer the installation payload from Safari into the newly installed PWA.
+Do NOT invent a new invitation parser.
+Use the CURRENT invitation payload exactly as TalkBridge already creates it.
+
+At the time of this prompt, the current entry format is based on:
+    #j=<existing encoded invitation payload>
+
+The implementation must mechanically hand the existing j payload to the newly installed PWA.
+
+IMPLEMENTATION ORDER IS REQUIRED:
+
+1. Add a tiny PRE-BOOTSTRAP handoff capture/recovery block that executes BEFORE the existing TalkBridge startup code consumes, clears, routes, or acts on location.hash.
+
+2. In a normal Safari/browser tab:
+   a. If the current URL contains the existing TalkBridge invitation parameter j, extract the RAW existing j value without decoding/re-encoding its internal fields.
+   b. Confirm the value fits safely inside the cookie. If the encoded cookie would exceed 3800 bytes: log pwa_handoff_oversize; do not truncate it; do not silently corrupt it; continue normal browser TalkBridge behavior; report the failure during testing.
+   c. Write the raw j value into tb_install_handoff_v1 using URL-safe cookie encoding and the attributes above.
+   d. Log pwa_handoff_armed with metadata only: byte length, standalone=false. NEVER log credential values or the invitation payload.
+   e. Continue the EXISTING TalkBridge invitation processing normally. Do not make the recipient press a "prepare" button.
+
+3. In standalone PWA mode:
+   a. Before the existing invitation bootstrap runs, check whether the current URL already contains j.
+   b. If it does, leave it alone and let the existing invitation code process it.
+   c. If it does NOT contain j, read tb_install_handoff_v1.
+   d. If the cookie exists, recover its raw j value and feed it into the EXACT SAME existing invitation/join code path used by a normal #j= invitation. Preferred implementation: make the recovered j available to the existing bootstrap at the point where it normally reads location.hash. Do not duplicate decInv(), room creation, grant logic, Link Device logic, or join logic.
+   e. Only after the existing invitation decode/join path reports successful consumption: delete tb_install_handoff_v1; remove any sensitive invitation value from the visible URL using the application's existing URL cleanup method/history.replaceState; log pwa_handoff_consumed.
+   f. If the cookie exists but cannot be decoded by the EXISTING invitation parser: do not delete it first; log pwa_handoff_failed; show the failure in the existing diagnostic/debug surface; do not invent fallback credentials; do not ask the user to type secrets.
+
+4. Direct PWA launch with no invitation cookie must continue to launch TalkBridge normally.
+5. Existing Safari/browser behavior must remain functional even if the user never installs the PWA.
+6. Link Device must use this same handoff mechanism because Link Device already uses the existing TalkBridge invitation encoding. Do not create a separate device-install protocol in Phase A.
+
+A4. PHASE A CREDENTIAL RULE
+
+Do NOT change credential architecture in Phase A.
+The governing build's existing invitation serialization, granted credentials, localStorage values, joiner credentials, and direct service calls remain in place.
+
+Specifically:
+- Do not remove tb_dg_key.
+- Do not remove tb_cf_tid.
+- Do not remove tb_cf_tok.
+- Do not remove tb_gh_pat.
+- Do not add an opaque production authorization token yet.
+- Do not move any of those service secrets to the relay yet.
+- Do not alter relay authorization.
+- Do not add /service to the relay yet.
+
+Phase A should make the old credential model work through the new PWA installation path.
+
+A5. PUSH SUBSCRIPTION — USE THE PROVEN PATH
+
+Use the existing relay and existing tb-sw.js.
+Do not change worker-talk.js in Phase A.
+
+iOS notification permission MUST be requested only from an explicit user gesture.
+
+Production UX:
+1. In standalone PWA mode, when Notification.permission is "default" and no PushSubscription exists, expose ONE concise control: Enable notifications.
+2. Do not display that button in a normal Safari tab as though push can be completed there. A Safari tab may instead state, inside the existing app-info/diagnostic surface: Add TalkBridge to Home Screen to enable iPhone notifications.
+3. After permission/subscription succeeds, change the status to: Notifications: On and remove the first-run prompt/button.
+4. If permission is denied, show: Notifications: Off. Do not repeatedly reprompt.
+5. The notification control/status must be reachable later from the existing TalkBridge app-info/settings surface so the user can see current status.
+
+SUBSCRIPTION FLOW:
+For each active/non-deleted room that should wake this device:
+1. navigator.serviceWorker.ready
+2. verify registration.pushManager exists
+3. get current PushSubscription
+4. if none: request permission from the user's Enable notifications gesture; fetch VAPID public key from that room's CURRENT relay session using POST /signal?app=<existing app>&session=<room id>&client=<client id> body {"type":"vapid"}; subscribe with userVisibleOnly:true and returned applicationServerKey.
+5. register that SAME PushSubscription with EACH active/non-deleted TalkBridge room/session using POST /signal?app=<existing app>&session=<room id>&client=<same client id> body {"type":"subscribe","subscription":<PushSubscription.toJSON()>}.
+
+This is required because the existing relay stores subscriptions per room/session Durable Object.
+
+When rooms are added/joined/restored, make sure the current subscription is registered with the new/restored room session.
+
+When a room is HARD-DELETED, send the existing relay {"type":"unsubscribe"} for that room/session if and only if doing so does not unsubscribe the same client from other room sessions. Because subscriptions are stored separately per room Durable Object, the unsubscribe request is room-specific.
+
+A soft-deleted room may remain subscribed if existing product behavior requires notification of restore/rejoin activity. Do not invent a new lifecycle rule. Preserve current behavior unless tests show a duplicate/noise problem.
+
+A6. SERVICE-WORKER CONTEXT
+
+tb-sw.js already expects context with:
+    relay
+    app
+    client
+    rooms[]
+
+Use it.
+
+Whenever room state materially changes, post updated context:
+    navigator.serviceWorker.controller.postMessage({
+        type: 'tb-context',
+        context: {
+            relay: <existing relay websocket URL>,
+            app: <existing TalkBridge app id>,
+            client: <stable current TalkBridge client id>,
+            rooms: [{id:<room id>, since:<last locally seen relay sequence for this room>}, ...]
+        }
+    })
+
+Include all relevant non-hard-deleted rooms that should be considered when summarizing missed activity.
+
+Do not put Deepgram keys, Cloudflare TURN keys/tokens, GitHub PAT, opaque authorization, or message text inside service-worker context.
+
+A7. EXISTING ROOM LIFECYCLE — DO NOT CHANGE
+
+Phase A must preserve current behavior byte-for-byte where possible.
+
+Soft delete must still mark deletedAt, set sendLocked, save, send room-left, and send grant-revoke if the room is a grant room.
+room-left must still make recipient read-only/sendLocked.
+grant-revoke must still clear the CURRENT granted credential mechanism.
+restore must still send room-rejoined and restore current grant material using the EXISTING Phase A credential mechanism.
+hard delete remains hard delete.
+
+Do not change the floating + authorization logic during Phase A except if needed to keep the existing behavior functional after installation.
+
+A8. PHASE A REQUIRED TEST MATRIX
+
+PHASE A IS NOT COMPLETE UNTIL EVERY TEST BELOW PASSES.
+
+TEST A1 — Regression browser use
+- Open TalkBridge normally in Safari/browser without installing.
+- Existing rooms load.
+- Existing chat works.
+- Existing translation works.
+- Existing room create/join behavior is unchanged.
+PASS requires no regression.
+
+TEST A2 — Real incoming recipient link -> iPhone Safari
+- Generate a real TalkBridge recipient/invite link from the modified real app.
+- Send it to the iPhone as though the iPhone is a new recipient.
+- Tap the incoming link.
+- It opens in Safari.
+- No "prepare" button.
+- No code entry.
+- No OTP.
+- No QR re-entry.
+- Diagnostic log shows pwa_handoff_armed.
+PASS requires the existing invitation continue to work in Safari.
+
+TEST A3 — Safari -> Add to Home Screen -> real TalkBridge
+- From the armed Safari page, Add to Home Screen.
+- Launch the new TalkBridge Home Screen app.
+- It runs standalone.
+- It consumes tb_install_handoff_v1 automatically.
+- It processes the same existing invitation through the existing join code.
+- Correct room/state appears.
+- No credential typing.
+PASS requires pwa_handoff_consumed and correct room state.
+
+TEST A4 — Existing call/service behavior after handoff
+Using the installed PWA:
+- Deepgram-dependent function works.
+- TURN-dependent call path works.
+- Existing GitHub phrasebook sync works where it worked before.
+PASS requires no Phase A service regression.
+
+TEST A5 — Enable push
+- In installed PWA tap Enable notifications.
+- Apple Push subscription exists.
+- Relay VAPID returns 200/push true.
+- relay subscribe returns ok true.
+- status becomes Notifications: On.
+PASS requires a real web.push.apple.com subscription.
+
+TEST A6 — Sleeping notification
+- Leave/close PWA so it is not visible.
+- From another TalkBridge client send a push-worthy event.
+- iPhone receives TalkBridge notification.
+PASS requires real notification arrival.
+
+TEST A7 — Multiple rooms
+- Ensure installed PWA has at least two active rooms.
+- Register same PushSubscription with both relay room sessions.
+- Trigger activity in room A while PWA hidden -> notification.
+- Trigger activity in room B while PWA hidden -> notification.
+PASS requires both rooms to wake the same PWA.
+
+TEST A8 — Soft delete/revoke
+- Use the existing grant scenario.
+- Soft-delete the granting room on the grantor side.
+- Recipient receives room-left.
+- Recipient becomes sendLocked/read-only as today.
+- grant-revoke clears the existing granted credential/elevated state as today.
+- floating +/elevated behavior disappears exactly as today.
+PASS requires no stale elevation.
+
+TEST A9 — Restore
+- Restore the soft-deleted grant room.
+- Existing room-rejoined path runs.
+- Existing grant-restore path runs.
+- Recipient's Phase A granted material is restored.
+- expected elevated behavior returns.
+PASS requires functional restoration.
+
+TEST A10 — Hard delete
+- Hard-delete a room.
+- It cannot be restored.
+- PWA changes do not alter this.
+PASS.
+
+TEST A11 — Link Device
+- Use the REAL current Link Device flow.
+- Open the resulting link on an iPhone Safari instance/device.
+- Add to Home Screen.
+- Installed PWA recovers the Link Device invitation automatically.
+- Same TalkBridge state expected by Link Device appears.
+PASS requires no new pairing code.
+
+TEST A12 — No stale build
+- Visible app build/version matches the candidate being tested.
+- service worker is not serving cached application HTML.
+PASS.
+
+A9. PHASE A STOP GATE
+
+After all tests pass:
+DO NOT START PHASE B.
+
+Report exactly:
+PHASE A RESULT: PASS
+Changed files: <list>
+Unchanged relay: talkbridge/worker-talk.js <SHA before> <SHA after — must be identical>
+Evidence: pwa_handoff_armed; pwa_handoff_consumed; push subscription endpoint domain; relay subscribe success; sleeping notification success; soft delete/revoke success; restore success; Link Device success.
+Regressions: none or exact failures.
+Then state: "Phase B has not been started."
+Wait for explicit user instruction to proceed with Phase B.
+
+===============================================================================
+8. PHASE B — OBJECTIVE
+===============================================================================
+
+BEGIN PHASE B ONLY AFTER EXPLICIT APPROVAL.
+
+Phase B changes the credential/security implementation while preserving the Phase A UX and every existing room lifecycle.
+
+At Phase B completion, the browser/PWA must NOT possess these long-lived service secrets:
+    Deepgram API key
+    Cloudflare TURN key/token ID
+    Cloudflare TURN API token
+    GitHub PAT
+
+Those four values move to the EXISTING Cloudflare relay as Worker secrets.
+
+The client receives only ONE opaque TalkBridge authorization value.
+
+Use this client storage key exactly:
+    tb_auth_v1
+
+Use this Worker secret name exactly:
+    TB_ELEVATED_TOKEN
+
+This is intentionally a SIMPLE shared capability.
+
+Possession of tb_auth_v1 means elevated/authorized.
+Absence means ordinary/non-elevated/read-only where the current product expects that state, and no floating + where the current grant model removes it.
+
+DO NOT turn this into users, accounts, device IDs, per-room capabilities, grant lineage, token database, global authorization registry, OAuth, JWT infrastructure, refresh-token infrastructure, or device revocation.
+
+The user explicitly accepts the current threat model: normal application revocation clears the value from the recipient. We are not solving malicious token extraction/cloning in this project.
+
+===============================================================================
+9. PHASE B — OPAQUE AUTHORIZATION VALUE
+===============================================================================
+
+Generate one cryptographically random 256-bit value using 32 random bytes and base64url encoding.
+Name: TB_ELEVATED_TOKEN
+
+Rules:
+1. Set TB_ELEVATED_TOKEN as a Cloudflare Worker SECRET.
+2. Never commit its value to GitHub.
+3. Never place its literal value in source code.
+4. Never log it.
+5. Elevated clients store the same opaque value locally as localStorage['tb_auth_v1'].
+6. The opaque value may be carried in a TalkBridge invitation/grant/link-device payload because it is the replacement for the current client-held service credentials.
+7. After Safari->PWA installation it uses the SAME Phase A cookie handoff.
+8. Once consumed, remove it from the visible URL with the existing URL cleanup.
+9. Do not put it in Web Push payloads.
+10. Do not put it in service-worker context.
+11. Do not put it in relay WebSocket room messages except the already-existing grant-restore path where authorization must be restored to that recipient.
+12. Do not create a database record for it.
+
+===============================================================================
+10. PHASE B — WORKER SECRETS
+===============================================================================
+
+The existing relay Worker must contain these long-lived secrets as Worker secrets/environment secrets, never source literals:
+    DEEPGRAM_API_KEY
+    CF_TURN_KEY_ID
+    CF_TURN_API_TOKEN
+    GITHUB_PAT
+    TB_ELEVATED_TOKEN
+
+Keep the existing VAPID_PRIVATE_KEY.
+Keep the existing VAPID public-key behavior.
+Do not make VAPID authorization depend on tb_auth_v1.
+Ordinary TalkBridge room participants must still be able to subscribe for push according to existing room behavior.
+
+===============================================================================
+11. PHASE B — RELAY ROUTING
+===============================================================================
+
+Do NOT change the existing /signal behavior except for shared CORS helper changes that are mechanically required.
+
+Existing /signal must retain:
+- same WebSocket route,
+- same Durable Object naming,
+- same room history,
+- same transient handling,
+- same push subscription behavior,
+- same bare push behavior,
+- same client/session addressing.
+
+Add ONE new route to THE SAME WORKER:
+    POST /service
+
+No new Worker.
+No new hostname.
+No new service.
+No new port.
+
+OPTIONS /service must return normal CORS preflight.
+Update CORS allowed headers to include:
+    Content-Type
+    X-TalkBridge-Auth
+
+Authorization for /service:
+    X-TalkBridge-Auth: <tb_auth_v1>
+
+Before any privileged /service operation:
+1. read X-TalkBridge-Auth,
+2. compare it with env.TB_ELEVATED_TOKEN,
+3. if missing or wrong return HTTP 401 and generic {"ok":false,"error":"unauthorized"},
+4. never log the token value.
+
+No room lookup is required for /service authorization.
+No grant lookup is required.
+No user lookup is required.
+No device lookup is required.
+
+===============================================================================
+12. PHASE B — /service ACTIONS
+===============================================================================
+
+Use JSON POST bodies with {"type":"..."}.
+Implement only the actions below.
+Do not build a generic arbitrary proxy.
+
+B12.1 deepgram-token
+
+Request:
+    POST /service
+    X-TalkBridge-Auth: <opaque>
+    Content-Type: application/json
+    {"type":"deepgram-token"}
+
+Relay behavior:
+1. Validate opaque auth.
+2. POST https://api.deepgram.com/v1/auth/grant
+3. Headers: Authorization: Token <env.DEEPGRAM_API_KEY>; Content-Type: application/json
+4. Body: {"ttl_seconds":60}
+5. Return ONLY {"ok":true,"access_token":"...","expires_in":...}
+Do not return DEEPGRAM_API_KEY.
+
+Client behavior:
+1. Before opening a Deepgram WebSocket, call /service deepgram-token.
+2. Receive temporary access_token.
+3. Open the existing Deepgram websocket URL using browser WebSocket subprotocol ['bearer', access_token].
+4. Do not persist the temporary Deepgram token.
+5. Obtain a new one for a new/reconnected Deepgram session as needed.
+
+Replace all production runtime use of the long-lived Deepgram API key with this temporary-token flow.
+The current long-lived key verification UI must not remain a client-side Deepgram key test after Phase B.
+
+B12.2 turn-credentials
+
+Request:
+    {"type":"turn-credentials"}
+
+Relay behavior:
+1. Validate opaque auth.
+2. POST https://rtc.live.cloudflare.com/v1/turn/keys/<env.CF_TURN_KEY_ID>/credentials/generate-ice-servers
+3. Header: Authorization: Bearer <env.CF_TURN_API_TOKEN>; Content-Type: application/json
+4. Body: {"ttl":86400}
+5. Return ONLY the generated short-lived ICE server material required by the client, e.g. {"ok":true,"iceServers":[...]}.
+
+Do not return CF_TURN_KEY_ID.
+Do not return CF_TURN_API_TOKEN.
+
+Client behavior:
+1. Before creating/configuring RTCPeerConnection, request turn-credentials.
+2. Use returned iceServers in the existing RTCPeerConnection configuration.
+3. Do not persist TURN username/credential beyond what the current call needs.
+
+Replace all direct browser calls to Cloudflare TURN credential generation.
+
+B12.3 pb-list
+
+Request: {"type":"pb-list"}
+Relay behavior:
+1. Validate opaque auth.
+2. Use env.GITHUB_PAT server-side.
+3. GET only repository acmeproducts/stuff, directory phrasebook/, ref main.
+4. Return the GitHub response data needed by the existing pbPull logic.
+Do not expose GITHUB_PAT.
+
+B12.4 pb-get
+
+Request: {"type":"pb-get","path":"phrasebook/<filename>"}
+Relay behavior:
+1. Validate opaque auth.
+2. Reject any path that does not begin exactly with "phrasebook/", contains "..", or attempts another repository/directory.
+3. GET requested contents only from acmeproducts/stuff branch main.
+4. Return only data needed by current phrasebook parsing.
+Do not turn this into a generic GitHub proxy.
+
+B12.5 pb-put
+
+Request:
+    {"type":"pb-put","path":"phrasebook/<filename>","message":"<existing TalkBridge phrasebook commit message>","content":"<existing base64 content>","sha":"<existing sha when updating, omitted when creating>"}
+
+Relay behavior:
+1. Validate opaque auth.
+2. Enforce the same phrasebook/ path restriction as pb-get.
+3. PUT only to acmeproducts/stuff phrasebook/ branch main.
+4. Use env.GITHUB_PAT.
+5. Preserve the EXISTING TalkBridge phrasebook versioning ruling: TalkBridge does not invent a newer version number. It overwrites the version it has loaded, or creates the existing initial version when none exists.
+6. Return the GitHub response fields needed by existing pbWriteBack.
+
+Do not expose GITHUB_PAT.
+Do not allow writes elsewhere in the repo.
+
+B12.6 legacy-exchange — TEMPORARY MIGRATION ONLY
+
+Purpose:
+Allow an already-authorized Phase A client that still possesses the old granted Deepgram/Cloudflare credentials to migrate itself to tb_auth_v1 without making the user type anything.
+
+Request:
+    {"type":"legacy-exchange","dg":"<old Deepgram key>","tid":"<old TURN key ID>","tok":"<old TURN API token>"}
+
+The GitHub PAT is NOT required for the exchange because current granted clients may not currently possess it.
+
+Relay behavior:
+1. This action is the ONLY /service action permitted without X-TalkBridge-Auth.
+2. Compare dg == env.DEEPGRAM_API_KEY, tid == env.CF_TURN_KEY_ID, tok == env.CF_TURN_API_TOKEN.
+3. If all three match, return {"ok":true,"auth":"<env.TB_ELEVATED_TOKEN>"}.
+4. If any fail, return HTTP 401 generic unauthorized.
+5. Never log supplied credential values.
+6. Do not store the supplied values.
+7. Do not create a migration record.
+
+Client behavior:
+1. At first Phase B boot, BEFORE deleting old credentials: if tb_auth_v1 already exists, do nothing.
+2. Else if client currently has old granted Deepgram + TURN material, call legacy-exchange once.
+3. If successful: save returned auth as tb_auth_v1; remove all old granted long-lived service values from client storage/state; clear S.joinerKeys or semantic equivalent; log legacy_auth_migrated without values.
+4. If unsuccessful: do not invent authorization; preserve enough old state to allow rollback to the Phase A build; show diagnostic legacy_auth_migration_failed.
+
+The migration endpoint exists only to bridge Phase A clients into Phase B. Once the user confirms the intended active devices are migrated/re-granted, make a final Phase B cleanup commit that removes legacy-exchange and rotate the old service secrets if practical.
+Do not create a registry to determine which clients migrated.
+
+===============================================================================
+13. PHASE B — CLIENT AUTHORIZATION ABSTRACTION
+===============================================================================
+
+Create ONE small client abstraction and route all privilege checks through it.
+
+Use these semantic functions:
+
+getTalkBridgeAuth()
+    -> returns trimmed tb_auth_v1 or ""
+
+hasTalkBridgeAuth()
+    -> boolean
+
+setTalkBridgeAuth(value, source)
+    -> stores non-empty value as tb_auth_v1
+    -> refreshes elevated UI state
+    -> logs source without logging value
+
+clearTalkBridgeAuth(reason)
+    -> removes tb_auth_v1
+    -> clears any in-memory copy
+    -> immediately refreshes elevated UI state
+    -> logs reason without value
+
+serviceRequest(type, payload)
+    -> POST to same relay origin /service
+    -> X-TalkBridge-Auth header from getTalkBridgeAuth()
+    -> Content-Type application/json
+    -> body {type,...payload}
+    -> handles 401 as unauthorized
+    -> never logs auth header/value
+
+Do not spread direct localStorage tb_auth_v1 reads throughout the app.
+Use the abstraction.
+
+===============================================================================
+14. PHASE B — INVITE / GRANT / LINK DEVICE PAYLOAD
+===============================================================================
+
+After Phase B cutover, REMOVE long-lived service-secret fields from all newly generated TalkBridge URLs.
+
+No newly generated link may contain:
+    Deepgram API key
+    Cloudflare TURN key ID
+    Cloudflare TURN API token
+    GitHub PAT
+
+Where the CURRENT product intends to transfer elevated/granted capability, carry:
+    a: <getTalkBridgeAuth()>
+
+Preserve every existing non-secret invitation field exactly, including current room/language/name/role/theme/Link Device state.
+Do not rename unrelated invitation fields.
+Do not redesign encInv()/decInv() beyond the smallest changes required.
+
+Incoming Phase B invitation:
+1. Existing invitation parser decodes invitation.
+2. If a non-empty a field is present: setTalkBridgeAuth(a, 'invite').
+3. If no a is present: do not fabricate authorization.
+4. Continue existing room/join behavior.
+
+Safari -> PWA:
+The Phase A cookie still transports the WHOLE existing encoded invitation j. Therefore a rides through the already-proven handoff automatically. Do not add a second cookie specifically for auth.
+
+===============================================================================
+15. PHASE B — GRANT / REVOKE / RESTORE
+===============================================================================
+
+PRESERVE THE EXISTING RELAY MESSAGE NAMES.
+
+grant-revoke:
+Current recipient behavior that clears granted credentials must become:
+    clearTalkBridgeAuth('revoked')
+Then immediately refresh floating + visibility, create-room capability, and any other existing elevated-only behavior.
+Do not delete room history.
+Do not change room-left behavior.
+
+grant-restore:
+Current grant restore must transmit ONLY the opaque TalkBridge auth value as the elevated material.
+Semantic shape:
+    {type:'grant-restore', room:id, a:getTalkBridgeAuth()}
+Recipient: if the existing grant-room relationship accepts this restore, setTalkBridgeAuth(d.a,'grant-restore').
+
+Do not send k, tid, tok, or PAT after Phase B cutover.
+
+Soft delete still sends room-left and, for grant room, grant-revoke.
+Restore still sends room-rejoined and, for grant room, grant-restore.
+Hard delete remains non-restorable.
+
+===============================================================================
+16. PHASE B — LINK DEVICE
+===============================================================================
+
+Link Device remains the existing product feature: same TalkBridge state on another device.
+Do not turn it into PWA installation.
+Its existing encoded state remains intact.
+Replace any long-lived service credentials in Link Device payload with a:getTalkBridgeAuth().
+The receiving Safari/PWA follows the same Phase A cookie handoff and existing Link Device parsing.
+No typed pairing code.
+No OTP.
+No separate device registry.
+No new relay record.
+
+===============================================================================
+17. PHASE B — CALL / DEEPGRAM / TURN BEHAVIOR
+===============================================================================
+
+Do not rewrite calling.
+Only replace the source of credentials.
+
+Before:
+    browser owns long-lived Deepgram/TURN secrets
+    browser calls external service directly with them
+
+After:
+    browser owns tb_auth_v1
+    browser calls SAME relay /service
+    relay uses server-side long-lived secret
+    browser receives short-lived service credential
+    existing call/Deepgram logic consumes short-lived credential
+
+Deepgram:
+    long-lived API key never reaches browser
+    temporary token is fetched just before a Deepgram connection
+    temporary token is not stored long-term
+
+TURN:
+    long-lived TURN key ID/API token never reach browser
+    short-lived iceServers are fetched before call connection configuration
+
+Do not proxy media through the TalkBridge relay.
+Do not proxy WebRTC media.
+Do not proxy Deepgram audio through the relay if the temporary-token mechanism works.
+The relay only brokers credentials/tokens.
+
+===============================================================================
+18. PHASE B — PHRASEBOOK / GITHUB
+===============================================================================
+
+Do not rewrite phrasebook logic or its data model.
+Keep PB_REPO owner acmeproducts, repo stuff, dir phrasebook, existing pair/direction behavior, existing version-management ruling, existing dirty/clean semantics, and existing retry behavior where possible.
+
+Replace only the GitHub transport.
+
+Before:
+    browser reads tb_gh_pat
+    browser calls api.github.com directly
+
+After:
+    browser calls /service pb-list, pb-get, pb-put
+    relay calls GitHub using env.GITHUB_PAT
+
+Do not provide a generic GitHub URL in a client request.
+Do not allow the client to choose repository owner/repo.
+Those remain fixed server-side to acmeproducts/stuff and phrasebook/.
+
+===============================================================================
+19. PHASE B — KEYS/SETTINGS UI
+===============================================================================
+
+After Phase B, the user should no longer be asked to enter or manage the four long-lived service secrets in the browser.
+
+Remove/retire editable fields for:
+    Deepgram API key
+    Cloudflare TURN key/token ID
+    Cloudflare TURN API token
+    GitHub PAT
+
+Do not expose server secret values.
+
+Replace that portion of the existing Calling & sync keys/settings surface with status only:
+    TalkBridge access: Authorized / Standard
+    Deepgram service: Available / Unavailable
+    TURN service: Available / Unavailable
+    Phrasebook sync: Available / Unavailable
+    Notifications: On / Off / Home Screen required
+
+A service-status test must call /service and report only success/failure.
+Never return or display long-lived secret values.
+Do not redesign the entire settings UI.
+
+===============================================================================
+20. PHASE B — REQUIRED SECRET-LEAK AUDIT
+===============================================================================
+
+Before declaring Phase B complete, search the production candidate for:
+    tb_dg_key
+    tb_cf_tid
+    tb_cf_tok
+    tb_gh_pat
+    api.deepgram.com/v1/auth/grant
+    rtc.live.cloudflare.com/v1/turn/keys
+    api.github.com/repos/acmeproducts/stuff
+
+Expected result:
+- Long-lived secret localStorage keys appear only in temporary legacy migration compatibility block until that block is removed.
+- Deepgram grant endpoint appears only in relay code.
+- Cloudflare TURN credential-generation endpoint appears only in relay code.
+- GitHub authenticated API transport appears only in relay code.
+- Production invite/link generation contains no long-lived service secrets.
+- No logs contain service secrets or tb_auth_v1.
+- No service-worker context contains secrets or tb_auth_v1.
+- No push payload contains secrets, authorization, room text, or message text.
+
+After legacy-exchange cleanup, tb_dg_key, tb_cf_tid, tb_cf_tok, tb_gh_pat must have ZERO runtime production references in the client except, if needed, an explicit one-time cleanup that only removeItem()s the old keys.
+
+===============================================================================
+21. PHASE B — REQUIRED TEST MATRIX
+===============================================================================
+
+PHASE B IS NOT COMPLETE UNTIL ALL TESTS PASS.
+
+TEST B1 — Unauthorized ordinary client
+- Remove tb_auth_v1.
+- /service deepgram-token returns 401.
+- /service turn-credentials returns 401.
+- /service pb-list returns 401.
+- floating +/elevated create behavior is absent where current grant model expects.
+PASS.
+
+TEST B2 — Authorized client
+- tb_auth_v1 present.
+- /service deepgram-token returns short-lived token.
+- no long-lived Deepgram key appears in browser storage, network response, URL, logs, or JS source.
+PASS.
+
+TEST B3 — Deepgram real use
+- Start actual TalkBridge Deepgram-dependent function.
+- relay mints temporary token.
+- browser connects to Deepgram with temporary bearer token.
+- transcription/function works.
+PASS.
+
+TEST B4 — TURN real call
+- Initiate real TalkBridge call path.
+- relay returns short-lived iceServers.
+- RTCPeerConnection uses them.
+- long-lived TURN ID/token are absent from client.
+PASS.
+
+TEST B5 — Phrasebook pull
+- pb-list/pb-get through relay work.
+- browser contains no GitHub PAT.
+- existing phrasebook contents load.
+PASS.
+
+TEST B6 — Phrasebook writeback
+- make a phrasebook change.
+- existing dirty/writeback behavior calls pb-put.
+- correct existing phrasebook file/version is updated.
+- no new version is invented.
+PASS.
+
+TEST B7 — New recipient link
+- Generate new real TalkBridge recipient/grant link.
+- inspect URL.
+- it contains no long-lived service credentials.
+- if elevated capability should transfer, it contains only opaque a inside existing encoded invitation.
+- Safari receives it.
+- Add to Home Screen.
+- PWA consumes through same cookie handoff.
+- correct elevated state appears.
+PASS.
+
+TEST B8 — Revoke
+- soft-delete grant room.
+- recipient receives room-left and grant-revoke.
+- room becomes read-only/sendLocked.
+- tb_auth_v1 is removed.
+- floating + disappears.
+- service requests now receive 401.
+PASS.
+
+TEST B9 — Restore
+- restore grant room.
+- room-rejoined runs.
+- grant-restore sends opaque a only.
+- recipient stores tb_auth_v1.
+- elevated behavior returns.
+- long-lived service secrets do not return.
+PASS.
+
+TEST B10 — Hard delete
+- hard delete remains non-restorable.
+PASS.
+
+TEST B11 — Link Device
+- Link Device carries state + opaque a, not service credentials.
+- receiving Safari -> PWA handoff succeeds.
+- same TalkBridge state appears.
+- service access works through relay.
+PASS.
+
+TEST B12 — Push regression
+- existing Apple push subscription path still works.
+- /signal behavior unchanged.
+- sleeping iPhone receives notification.
+- no auth token required for push subscription itself.
+PASS.
+
+TEST B13 — Multi-room push regression
+- activity in at least two subscribed rooms wakes installed PWA correctly.
+PASS.
+
+TEST B14 — Direct service-secret audit
+Use browser diagnostics/network/storage inspection available in application's mobile debug surface.
+Confirm client does NOT contain long-lived Deepgram key, Cloudflare TURN key ID, Cloudflare TURN API token, GitHub PAT.
+PASS.
+
+TEST B15 — Relay regression
+Confirm WebSocket connect, chat, history, transient events, room broadcast, push subscription, and bare wake all behave as before.
+PASS.
+
+===============================================================================
+22. PHASE B COMPLETION / CLEANUP
+===============================================================================
+
+Once B1-B15 pass:
+1. Confirm intended primary authorized device(s) possess tb_auth_v1.
+2. Confirm newly generated links use opaque authorization only.
+3. Remove legacy-exchange from relay when user authorizes final migration cleanup.
+4. Remove remaining legacy client migration reads.
+5. Rotate old long-lived service credentials where practical so copies that existed in old URLs/client storage can no longer authenticate directly.
+6. Update Worker secrets to rotated values.
+7. Re-run Deepgram, TURN, phrasebook pull, phrasebook put, push, revoke, restore, Link Device.
+8. Do not rotate TB_ELEVATED_TOKEN as part of service-key rotation unless user explicitly requests a full TalkBridge authorization reset.
+
+===============================================================================
+23. DIAGNOSTICS / LOGGING
+===============================================================================
+
+Keep diagnostics visible/reachable from mobile. The user does not have F12 on mobile.
+
+Add concise structured logs for new paths:
+Phase A:
+    pwa_mode
+    pwa_handoff_armed
+    pwa_handoff_consumed
+    pwa_handoff_failed
+    pwa_handoff_oversize
+    sw_registered
+    push_manager_available
+    push_subscription_existing
+    push_subscription_created
+    push_room_registered
+    push_context_updated
+    push_ready
+
+Phase B:
+    auth_present
+    auth_cleared
+    legacy_auth_migrated
+    legacy_auth_migration_failed
+    service_deepgram_token_ok
+    service_deepgram_token_fail
+    service_turn_ok
+    service_turn_fail
+    service_pb_list_ok
+    service_pb_get_ok
+    service_pb_put_ok
+    service_unauthorized
+
+NEVER LOG:
+- tb_auth_v1 value
+- Deepgram API key
+- Deepgram temporary token
+- TURN long-lived secrets
+- short-lived TURN password/credential
+- GitHub PAT
+- full invitation payload
+- full push endpoint if existing diagnostic convention already truncates it
+
+Truncate endpoints/tokens in diagnostics exactly as the POC does.
+
+===============================================================================
+24. ROLLBACK RULES
+===============================================================================
+
+PHASE A rollback:
+- app.html points back to prior approved bridge.
+- relay was never changed.
+- tb-sw.js remains compatible.
+- existing old credential model continues.
+
+PHASE B rollback:
+Before server-secret cutover, preserve last approved Phase A build.
+If Phase B fails:
+1. restore app.html to approved Phase A build,
+2. restore previous relay worker source if /service changes caused regression,
+3. do not delete Phase A client credentials until successful migration is confirmed,
+4. do not rotate service credentials until new service broker is verified.
+
+Never destroy the only working credential path before replacement is proven.
+
+===============================================================================
+25. ABSOLUTE FORBIDDEN CHANGES
+===============================================================================
+
+Do not:
+- create authentication accounts,
+- add login screens,
+- add email identity,
+- add phone identity,
+- add passwords,
+- add passkeys,
+- add device registration,
+- add device tables,
+- add room tables to relay,
+- add grant tables,
+- add revocation tables,
+- add capability lineage,
+- add per-room server-side ACLs,
+- add a second relay,
+- add a second Worker for services,
+- add a server port,
+- migrate app to React/Vue/etc.,
+- add Firebase/Supabase,
+- use Web Push payload content,
+- cache TalkBridge HTML in service worker,
+- change room history behavior,
+- change current translation UX,
+- change current call UX beyond credential acquisition,
+- change phrasebook schema/versioning,
+- change Link Device's meaning,
+- replace soft delete/restore mechanics,
+- touch unrelated repository projects.
+
+===============================================================================
+26. REQUIRED REPORT FORMAT AFTER EACH PHASE
+===============================================================================
+
+At Phase A completion:
+
+PHASE A RESULT: PASS/FAIL
+
+Governing build:
+Previous production build:
+Candidate build:
+app.html target:
+Commit(s):
+
+Files changed:
+- file: exact reason
+
+Files explicitly unchanged:
+- talkbridge/worker-talk.js
+- testpwa.html
+
+Test results:
+A1 through A12
+
+Known issues:
+none / exact list
+
+No unrequested changes made.
+
+Phase B has not been started.
+
+At Phase B completion:
+
+PHASE B RESULT: PASS/FAIL
+
+Governing build:
+Previous Phase A build:
+Candidate build:
+Relay commit:
+app.html target:
+Commit(s):
+
+Worker secrets configured:
+- DEEPGRAM_API_KEY: present/not present
+- CF_TURN_KEY_ID: present/not present
+- CF_TURN_API_TOKEN: present/not present
+- GITHUB_PAT: present/not present
+- TB_ELEVATED_TOKEN: present/not present
+- VAPID_PRIVATE_KEY: present/not present
+
+NEVER print values.
+
+Client secret audit:
+Deepgram long-lived key: absent/present
+TURN key ID: absent/present
+TURN API token: absent/present
+GitHub PAT: absent/present
+
+Test results:
+B1 through B15
+
+Existing relay regression:
+PASS/FAIL
+
+Known issues:
+none / exact list
+
+No unrequested changes made.
+
+===============================================================================
+27. EXTERNAL API CONTRACTS — DO NOT SUBSTITUTE
+===============================================================================
+
+These service mechanics were verified before this prompt was written.
+
+Deepgram:
+- long-lived API key stays server-side
+- relay uses POST /v1/auth/grant
+- temporary access token may be used for /listen WebSocket
+- temporary bearer token is used client-side for WebSocket handshake
+- use 60-second issuance TTL; an established WebSocket may continue after token itself expires
+
+Cloudflare Realtime TURN:
+- long-lived TURN key ID/API token stay server-side
+- server calls generate-ice-servers
+- browser receives only short-lived iceServers
+
+GitHub:
+- PAT stays server-side
+- relay proxies only exact phrasebook Contents API operations already needed by TalkBridge
+- no generic GitHub proxy
+
+If an external API has changed and exact endpoint above returns a documented provider deprecation/error, verify against provider's CURRENT OFFICIAL documentation only. Do not use a blog, forum, StackOverflow answer, or guessed replacement. Report provider change before altering this contract.
+
+===============================================================================
+28. FINAL EXECUTION PRINCIPLE
+===============================================================================
+
+DO NOT REDESIGN TALKBRIDGE.
+
+PHASE A:
+Make the current TalkBridge architecture survive:
+    incoming link
+    -> Safari
+    -> Add to Home Screen
+    -> automatic existing invitation recovery
+    -> real installed TalkBridge
+    -> existing relay
+    -> Apple Web Push
+
+WITHOUT touching relay architecture or secret placement.
+
+STOP. TEST. GET APPROVAL.
+
+PHASE B:
+Keep exactly that working UX and replace:
+    client-held long-lived service secrets
+
+with:
+    one opaque TalkBridge authorization value on client
+    +
+    four long-lived service secrets on existing relay
+    +
+    short-lived Deepgram/TURN credentials
+    +
+    narrow phrasebook GitHub proxy actions
+
+Nothing more.
+
+If a change is not necessary to accomplish the exact requirements above, do not make it.

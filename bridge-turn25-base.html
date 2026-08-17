@@ -1,3 +1,4 @@
+<!-- R10-A candidate build · bridge-turn25-base.html · source: bridge-turn24-ship.html (approved 2026-08-15) · governed by talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -324,6 +325,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 <meta name="apple-mobile-web-app-title" content="TalkBridge">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png" type="image/png">
+<link rel="manifest" href="./tb-manifest.webmanifest">
 </head>
 <body>
 <div id="app">
@@ -602,6 +604,64 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
   <div class="status-pop" id="status-pop"></div>
   <div id="toast"></div>
 </div>
+<script>
+/* ═══════════ R10 PHASE A · PRE-BOOTSTRAP HANDOFF (governed) ═══════════
+   Runs BEFORE the TalkBridge startup code consumes location.hash, per the
+   governing prompt A3. Cookie name and attributes are specified exactly.
+   No invitation payload or credential value is ever logged — metadata only.
+   The raw j value is never decoded or re-encoded here; it is carried as-is. */
+(function () {
+  'use strict';
+  var COOKIE = 'tb_install_handoff_v1';
+  var ATTRS = 'Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+  var standalone = false;
+  try {
+    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                 (navigator.standalone === true);
+  } catch (_) {}
+  window.__TB_R10 = { standalone: standalone, staged: false, armed: false, rawLen: 0, log: [] };
+  function plog(ev, meta) { window.__TB_R10.log.push({ ev: ev, meta: meta || {}, ts: Date.now() }); }
+  function readCookie() {
+    var m = ('; ' + document.cookie).match('; ' + COOKIE + '=([^;]*)');
+    return m ? m[1] : null;
+  }
+  try {
+    var h = location.hash || '';
+    var hasJ = h.indexOf('#j=') === 0;
+    if (!standalone) {
+      /* Safari/browser tab: arm the handoff, then let the existing invitation
+         processing continue untouched. No prepare button, no ceremony. */
+      if (hasJ) {
+        var raw = h.slice(3);                       /* RAW existing j value */
+        var enc = encodeURIComponent(raw);
+        if (enc.length > 3800) {
+          plog('pwa_handoff_oversize', { bytes: enc.length, standalone: false });
+        } else {
+          document.cookie = COOKIE + '=' + enc + '; ' + ATTRS;
+          window.__TB_R10.armed = true;
+          window.__TB_R10.rawLen = raw.length;
+          plog('pwa_handoff_armed', { bytes: enc.length, standalone: false });
+        }
+      }
+    } else {
+      /* Standalone PWA: if the URL already carries j, leave it alone. If not,
+         recover the cookie's raw j and place it exactly where the existing
+         bootstrap reads it — location.hash — so the SAME join path runs. */
+      if (!hasJ) {
+        var c = readCookie();
+        if (c) {
+          var rawJ = decodeURIComponent(c);
+          window.__TB_R10.staged = true;
+          window.__TB_R10.rawLen = rawJ.length;
+          try { history.replaceState(null, '', location.pathname + location.search + '#j=' + rawJ); } catch (_) {}
+          if ((location.hash || '').indexOf('#j=') !== 0) location.hash = '#j=' + rawJ;
+          plog('pwa_handoff_staged', { bytes: rawJ.length, standalone: true });
+        }
+      }
+    }
+  } catch (e) { plog('pwa_handoff_error', { e: String(e && e.message || e) }); }
+})();
+</script>
 <script>
 "use strict";
 /* ════════════ CORE / STATE ════════════ */
@@ -6835,6 +6895,782 @@ if (typeof document !== 'undefined') {
   setTimeout(function () { try { applyMenuLabels(); } catch (_) {} }, 2000);
 }
 
+
+/* ═══════════ GAP PART · R8b-call-surface.js ═══════════ */
+/* @contract
+   wraps: handleRelay, addSpeech (dedup arbitration), CALL.exitPip, CALL.mount, CALL.teardown, renderPartnerState (no-opped: ONE SLOT ONE WRITER)
+   adds: name_msg instrumentation (read-only), silenceOtherTimerWriters, PIP_DRAG, wirePipSwap, wirePipDrag, callDuration, startCallTimer, stopCallTimer, R8_DEDUP, normalisePhrase, isDuplicatePhrase, R8_TYPING, sendTyping, showTyping, hideTyping, wireTyping, R8_AWAY, onAwayDuringCall, onReturnDuringCall, R8B_CSS, _r8ExitPip, _r8Mount, _r8Teardown, _r8AddSpeechDedup, _r8HandleRelay
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 8b · THE CALL SURFACE — built on the R8a base.
+   8.7 defocus mute · 8.8 tap→PIP · 8.9 PIP drag · 8.10 call timer ·
+   8.11 typing indicator · 8.12 short-phrase dedup.
+
+   STANDING RULES HONOURED HERE:
+   - The ribbon media controls are never wrapped, restyled, or reached for.
+     8.7 CALLS the base's own CALL.toggleMic() exactly as a user tap would —
+     no reassignment, no icon code, nothing at boot. That is the entire
+     permitted surface, per the amended rule in the plan.
+   - Room-menu toggle graphics untouched. Nothing here goes near the menu.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var R8B_CSS =
+  '#scr-room.pip #call-band{cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}' +
+  '#scr-room.pip #call-band:active{cursor:grabbing}' +
+  '.r8-typing{display:none;padding:4px 14px;font-size:12.5px;color:var(--ink-dim);font-style:italic}' +
+  '.r8-typing.on{display:block}';
+
+/* ── 8.8 tap video → PIP ───────────────────────────────────────────────────────
+   Tapping the PIP already exits it. The other half was missing: tapping the
+   full-size video to enter PIP. Bound on the video surface rather than the
+   band so a tap on the controls does not trigger it. */
+function wirePipSwap() {
+  try {
+    var host = $('call-videos');
+    if (!host || !host.addEventListener) return false;
+    if (host.dataset && host.dataset.r8Pip) return true;
+
+    host.addEventListener('click', function (ev) {
+      try {
+        /* Exiting is already handled by the base's own listener; this adds the
+           entering half only, and only for a video call where a PIP means
+           something. */
+        if (CALL.pip) return;
+        if (!CALL.active || CALL.kind !== 'video') return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('button')) return;
+        CALL.enterPip();
+        r8Log('pip_entered_by_tap', {}, 'ok');
+      } catch (e) { r8Log('pip_tap_failed', { e: String(e && e.message || e) }, 'error'); }
+    });
+
+    if (host.dataset) host.dataset.r8Pip = '1';
+    return true;
+  } catch (e) { r8Log('pip_swap_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* ── 8.9 draggable PIP ─────────────────────────────────────────────────────
+   The band is pinned to a fixed corner, so it can cover whatever is beneath
+   it with no way to move it. Dragging sets explicit coordinates; a drag is
+   distinguished from a tap by distance, so tap-to-exit keeps working.
+   Clamped to the viewport, or it could be dragged off-screen and lost. */
+var PIP_DRAG = { on: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 };
+
+function wirePipDrag() {
+  try {
+    var band = $('call-band');
+    if (!band || !band.addEventListener) return false;
+    if (band.dataset && band.dataset.r8Drag) return true;
+
+    var point = function (ev) {
+      var t = (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+      return { x: t.clientX || 0, y: t.clientY || 0 };
+    };
+
+    var start = function (ev) {
+      if (!CALL.pip) return;
+      var p = point(ev);
+      PIP_DRAG.on = true;
+      PIP_DRAG.moved = false;
+      PIP_DRAG.sx = p.x;
+      PIP_DRAG.sy = p.y;
+      var r = band.getBoundingClientRect ? band.getBoundingClientRect() : { left: 0, top: 0 };
+      PIP_DRAG.ox = r.left;
+      PIP_DRAG.oy = r.top;
+    };
+
+    var move = function (ev) {
+      if (!PIP_DRAG.on) return;
+      var p = point(ev);
+      var dx = p.x - PIP_DRAG.sx, dy = p.y - PIP_DRAG.sy;
+      /* Below this, it is a tap. Without the threshold every tap would count
+         as a drag and tap-to-exit would stop working. */
+      if (!PIP_DRAG.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
+      PIP_DRAG.moved = true;
+      if (ev.preventDefault) ev.preventDefault();
+
+      var w = band.offsetWidth || 118, h = band.offsetHeight || 198;
+      var vw = (window.innerWidth || 390), vh = (window.innerHeight || 700);
+      var nx = Math.max(4, Math.min(vw - w - 4, PIP_DRAG.ox + dx));
+      var ny = Math.max(4, Math.min(vh - h - 4, PIP_DRAG.oy + dy));
+      band.style.left = nx + 'px';
+      band.style.top = ny + 'px';
+      band.style.right = 'auto';
+      band.style.bottom = 'auto';
+    };
+
+    var end = function () {
+      if (!PIP_DRAG.on) return;
+      PIP_DRAG.on = false;
+      if (PIP_DRAG.moved) r8Log('pip_dragged', {}, 'ok');
+    };
+
+    band.addEventListener('mousedown', start);
+    band.addEventListener('touchstart', start);
+    band.addEventListener('mousemove', move);
+    band.addEventListener('touchmove', move);
+    band.addEventListener('mouseup', end);
+    band.addEventListener('touchend', end);
+    band.addEventListener('mouseleave', end);
+
+    /* A tap that turned into a drag must not also exit the PIP. */
+    band.addEventListener('click', function (ev) {
+      if (PIP_DRAG.moved) { ev.stopPropagation(); PIP_DRAG.moved = false; }
+    }, true);
+
+    if (band.dataset) band.dataset.r8Drag = '1';
+    return true;
+  } catch (e) { r8Log('pip_drag_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+/* Leaving PIP returns the band to its styled corner, so a dragged position
+   does not persist into the next call. */
+(function () {
+  var _r8ExitPip = CALL.exitPip;
+  CALL.exitPip = function () {
+    try {
+      var band = $('call-band');
+      if (band && band.style) {
+        band.style.left = ''; band.style.top = '';
+        band.style.right = ''; band.style.bottom = '';
+      }
+    } catch (_) {}
+    return _r8ExitPip.apply(this, arguments);
+  };
+})();
+
+/* ── 8.10 call timer, both sides ─────────────────────────────────────────────────
+   The duration was already computed on both sides, and both sides lost it: any
+   time the other person's microphone was live the same slot printed
+   "Speaking…", which during an actual conversation is most of the time. So the
+   receiver appeared to have no timer because in practice nobody did.
+
+   The duration now owns that slot unconditionally. Connection trouble is the
+   one thing allowed to replace it, because it explains silence; speaking does
+   not, and the presence dot already signals it. */
+var R8_CLOCK = { timer: null };
+
+/* ONE SLOT, ONE WRITER (graveyard, 2026-08-15). Before this timer may write
+   #rz-timer it must be the element's ONLY writer:
+   - the base's own per-second interval (CALL.durTimer) printed "Speaking…"
+     whenever the remote mic was live — most of a real call on the receiver —
+     so the two writers alternated in the slot every second: the flicker;
+   - renderPartnerState() stamped "Speaking…" again on every relay mic-state
+     message. The duration itself was always LOCAL; the relay injected only
+     the overwrites. Speaking already has a home: the presence dot. */
+function silenceOtherTimerWriters() {
+  try {
+    if (CALL && CALL.durTimer) { clearInterval(CALL.durTimer); CALL.durTimer = null; }
+  } catch (_) {}
+}
+(function () {
+  if (typeof renderPartnerState === 'function') {
+    var _r8Rps = renderPartnerState;
+    renderPartnerState = function () {
+      /* The base function's only job was writing "Speaking…" into #rz-timer.
+         The slot now has one writer; speaking lives on the presence dot,
+         which the timer tick below keeps updated. */
+      return;
+    };
+    renderPartnerState._r8Original = _r8Rps;
+  }
+})();
+
+function callDuration(startTs, now) {
+  var s = Math.max(0, Math.floor(((now || Date.now()) - startTs) / 1000));
+  return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+function startCallTimer() {
+  stopCallTimer();
+  silenceOtherTimerWriters();
+  R8_CLOCK.timer = setInterval(function () {
+      silenceOtherTimerWriters(); /* the base recreates durTimer on connect, after mount */
+    try {
+      if (!CALL.active) { stopCallTimer(); return; }
+      var el = $('rz-timer');
+      if (!el) return;
+      el.textContent = CALL.connBad ? 'Reconnecting…' : callDuration(CALL.startTs);
+      var dot = $('presence');
+      if (dot) dot.classList.toggle('speaking', !!(typeof _remoteMicOn !== 'undefined' && _remoteMicOn));
+    } catch (_) {}
+  }, 1000);
+}
+
+function stopCallTimer() {
+  if (R8_CLOCK.timer) { clearInterval(R8_CLOCK.timer); R8_CLOCK.timer = null; }
+  try { var dot = $('presence'); if (dot) dot.classList.remove('speaking'); } catch (_) {}
+}
+
+(function () {
+  var _r8Mount = CALL.mount;
+  CALL.mount = function (room) {
+    var r = _r8Mount.apply(this, arguments);
+    try {
+      /* Both sides without exception — the caller and the person answering are
+         equally on a call and the surface should say so identically. */
+      var el = $('rz-timer');
+      if (el) el.textContent = callDuration(this.startTs);
+      startCallTimer();
+      r8Log('call_timer', { caller: !!this.caller }, 'ok');
+    } catch (e) { r8Log('call_timer_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+(function () {
+  var _r8Teardown = CALL.teardown;
+  CALL.teardown = function () {
+    stopCallTimer();
+    return _r8Teardown.apply(this, arguments);
+  };
+})();
+
+/* ── 8.12 short-phrase double transcription ────────────────────────────────
+   In a dual-channel room a brief utterance is transcribed twice. The base
+   suppresses the second copy by TIME only — a 1200ms window — so a short
+   phrase whose second recognition lands after that window is treated as a new
+   utterance and delivered again. Time alone cannot tell "said twice" from
+   "recognised twice"; the text can.
+
+   A recent entry with the same normalised text is a duplicate regardless of
+   how long the two recognitions took. The window is widened for short text,
+   where the two channels diverge most, and left alone for longer speech, where
+   genuine repetition is meaningful. */
+var R8_DEDUP = { recent: [], windowMs: 1200, shortWindowMs: 6000, shortWords: 4 };
+
+function normalisePhrase(t) {
+  return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+}
+
+function isDuplicatePhrase(text, now) {
+  try {
+    var key = normalisePhrase(text);
+    if (!key) return false;
+    now = now || Date.now();
+
+    var words = key.split(' ').length;
+    var window = (words <= R8_DEDUP.shortWords) ? R8_DEDUP.shortWindowMs : R8_DEDUP.windowMs;
+
+    /* Anything older than the widest window is no longer evidence. */
+    R8_DEDUP.recent = R8_DEDUP.recent.filter(function (r) {
+      return (now - r.ts) < R8_DEDUP.shortWindowMs;
+    });
+
+    for (var i = 0; i < R8_DEDUP.recent.length; i++) {
+      if (R8_DEDUP.recent[i].key === key && (now - R8_DEDUP.recent[i].ts) < window) {
+        r8Log('phrase_duplicate', { words: words, ms: now - R8_DEDUP.recent[i].ts }, 'ok');
+        return true;
+      }
+    }
+    R8_DEDUP.recent.push({ key: key, ts: now });
+    if (R8_DEDUP.recent.length > 24) R8_DEDUP.recent.shift();
+    return false;
+  } catch (e) { r8Log('dedup_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8AddSpeechDedup = addSpeech;
+  addSpeech = function (who, srcT, trT, sL, tL, ss, failed) {
+    /* Only my own speech is de-duplicated. The partner's arrives over the
+       relay already arbitrated, and suppressing there would drop a genuine
+       repetition by the other person. */
+    if (who === 'me' && isDuplicatePhrase(srcT)) {
+      r8Log('speech_suppressed', {}, 'ok');
+      return;
+    }
+    return _r8AddSpeechDedup.apply(this, arguments);
+  };
+})();
+
+/* ── 8.11 typing indicator ──────────────────────────────────────────────────
+   Nothing existed. Typing is transient — it must never be persisted or
+   replayed into the transcript, so it rides the relay's transient channel and
+   is rendered as a strip above the compose box rather than as an entry. */
+var R8_TYPING = { sentAt: 0, hideTimer: null, showing: false };
+
+function sendTyping() {
+  try {
+    var now = Date.now();
+    /* Rate-limited: a keystroke-per-message would flood the relay. */
+    if (now - R8_TYPING.sentAt < 2000) return false;
+    R8_TYPING.sentAt = now;
+    relaySend({ type: 'typing', transient: true });
+    return true;
+  } catch (e) { r8Log('typing_send_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function showTyping(name) {
+  try {
+    var el = $('r8-typing');
+    if (!el) {
+      var host = $('transcript');
+      if (!host || !host.parentNode) return false;
+      el = document.createElement('div');
+      el.id = 'r8-typing';
+      el.className = 'r8-typing';
+      host.parentNode.insertBefore(el, host.nextSibling);
+    }
+    el.textContent = (name || 'They') + ' is typing…';
+    el.classList.add('on');
+    R8_TYPING.showing = true;
+
+    /* Cleared on a timer as well as on arrival, or a dropped connection would
+       leave it showing forever. */
+    if (R8_TYPING.hideTimer) clearTimeout(R8_TYPING.hideTimer);
+    R8_TYPING.hideTimer = setTimeout(hideTyping, 4000);
+    return true;
+  } catch (e) { r8Log('typing_show_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function hideTyping() {
+  try {
+    if (R8_TYPING.hideTimer) { clearTimeout(R8_TYPING.hideTimer); R8_TYPING.hideTimer = null; }
+    var el = $('r8-typing');
+    if (el) el.classList.remove('on');
+    R8_TYPING.showing = false;
+  } catch (_) {}
+}
+
+function wireTyping() {
+  try {
+    var input = $('chat-input');
+    if (!input || !input.addEventListener) return false;
+    if (input.dataset && input.dataset.r8Typing) return true;
+    input.addEventListener('input', function () { sendTyping(); });
+    if (input.dataset) input.dataset.r8Typing = '1';
+    return true;
+  } catch (e) { r8Log('typing_wire_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+(function () {
+  var _r8HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      /* INSTRUMENTATION (owner report 2026-08-15: room names can desync;
+         cause not established — every partnerName-bearing message is logged
+         with its type and values so the next device test produces evidence
+         instead of theory). Read-only: nothing is altered. */
+      if (d && (d.name || d.newName || d.senderName)) {
+        try {
+          var _room = activeRoom();
+          r8Log('name_msg', {
+            type: d.type,
+            name: d.name || d.newName || d.senderName,
+            had: _room ? _room.partnerName : null
+          }, 'ok');
+        } catch (_) {}
+      }
+      if (d && d.type === 'typing') {
+        var room = activeRoom();
+        showTyping(room && room.partnerName);
+        return;                       /* never reaches the transcript */
+      }
+      /* Anything actually arriving means they finished typing. */
+      if (d && (d.type === 'chat-msg' || d.type === 'speech')) hideTyping();
+    } catch (_) {}
+    return _r8HandleRelay.apply(this, arguments);
+  };
+})();
+
+/* ── 8.7 leaving the app during a call (defocus mute) ─────────────────────────────────────
+   VERIFIED, not assumed — and half of it was missing. The back button does
+   enter PIP (the base handles popstate). But the visibility handler only runs
+   on RETURN, so nothing muted the microphone on leaving: switching apps mid-
+   call kept transmitting audio from wherever the person had gone.
+
+   Leaving mutes. Returning restores whatever the state was before, rather than
+   unmuting unconditionally — someone who muted deliberately and then switched
+   apps must not come back live. */
+var R8_AWAY = { mutedByAway: false };
+
+function onAwayDuringCall() {
+  try {
+    if (!CALL.active) return false;
+    if (!CALL.micOn) return false;          /* already muted by choice */
+    CALL.toggleMic();
+    R8_AWAY.mutedByAway = true;
+    r8Log('away_muted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_mute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+function onReturnDuringCall() {
+  try {
+    if (!CALL.active) { R8_AWAY.mutedByAway = false; return false; }
+    if (!R8_AWAY.mutedByAway) return false;  /* they muted it themselves */
+    R8_AWAY.mutedByAway = false;
+    if (!CALL.micOn) CALL.toggleMic();
+    r8Log('away_unmuted', {}, 'ok');
+    return true;
+  } catch (e) { r8Log('away_unmute_failed', { e: String(e && e.message || e) }, 'error'); return false; }
+}
+
+
+/* ── R8b init — additive, 600ms after the R8a init ───────────────────────── */
+setTimeout(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'r8b-css';
+    st.textContent = R8B_CSS;
+    document.head.appendChild(st);
+    wirePipSwap();
+    wirePipDrag();
+    wireTyping();
+    /* Added alongside the base's own handler rather than replacing it — the
+       base only acts on return, so leaving was never handled at all. */
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) onAwayDuringCall(); else onReturnDuringCall();
+    });
+    r8Log('r8b_init', {}, 'ok');
+  } catch (e) { r8Log('r8b_init_failed', { e: String(e && e.message || e) }, 'error'); }
+}, 600);
+/* ═══════════ GAP PART · R9-phrasebook-mirror.js ═══════════ */
+/* @contract
+   wraps: pbCommitEdit — the 'target' branch is superseded (original branch
+          did: if changed -> pbTouch + pbRunBT; always rerender. Every one of
+          those effects is preserved inside the mirrored flow below; 'source',
+          'notes' and every other field pass through to the original
+          untouched).
+   adds: pbCommitEditTargetMirror (v2: unconditional was-trace chain entry on every target change — owner ruling), _r9CommitEdit
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   RELEASE 9 · PHRASEBOOK: TARGET MIRRORS SOURCE.
+   The source rules below are EXTRACTED FROM THE GATED BUILD's pbCommitEdit,
+   not reconstructed (plan 9.1):
+     S-RULE-1  changed source: verdict reset ONLY if a verdict was set, with a
+               chain entry; ✓Verified tag stripped; card touched.
+     S-RULE-2  empty source: rerender only, nothing else fires.
+     S-RULE-3  Enter — changed or not — retranslates the OTHER side (writes it
+               only if the result differs) and re-runs back-translation.
+     S-RULE-4  the edited side is never overwritten by its own commit.
+   The target field now follows the same four rules with the direction
+   flipped, under the two settled decisions:
+     D1 ONE HOP — editing target retranslates source and STOPS; the new
+        source does not fire its own translation back into target.
+     D2 SAME CLARIFY ENTRY TYPE — target-driven chain entries are the same
+        shape with a `direction` field ('target'); consumers that ignore the
+        field read one stream, exactly as before.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+function pbCommitEditTargetMirror(c, v, changed, prior) {
+  var id = c.id;
+  if (changed) {                                     /* S-RULE-1, flipped */
+    /* OWNER RULING (gate, 2026-08-15): every target change writes its own
+       clarify entry carrying the PRIOR value — traceability first, before
+       any verdict logic. Wording follows the base's existing was-pattern
+       ('… was X'). Direction-tagged per D2. */
+    pbLogChain(c, 'Target edited (was "' + String(prior || '').slice(0, 80) + '")');
+    var chainT = c.clarifyChain;
+    if (chainT && chainT.length) chainT[chainT.length - 1].direction = 'target';
+    var bt = c.backtranslate = c.backtranslate || {};
+    if (bt.verdict) {
+      bt.verdict = '';
+      pbLogChain(c, 'Verdict reset to pending (target changed)');
+      var chain = c.clarifyChain;
+      if (chain && chain.length) chain[chain.length - 1].direction = 'target';   /* D2 */
+    }
+    c.tags = (c.tags || []).filter(function (t) { return t !== '✓Verified'; });
+    pbTouch(c);
+  }
+  if (!v) { pbRerenderCard(id); return; }            /* S-RULE-2, flipped */
+
+  /* S-RULE-3 flipped + D1: target -> source, one hop, and the back-translation
+     verifies the machine-written SOURCE by rendering it back into the
+     target's language — the mirror of what pbRunBT does for source edits. */
+  translateWithRetry(v, c.targetLang, c.sourceLang, 1).then(function (r) {
+    if (r.ok && norm(r.text) !== norm(c.source || '')) { c.source = norm(r.text); pbTouch(c); }
+    return translateWithRetry(c.source, c.sourceLang, c.targetLang, 1).then(function (b) {
+      var bt2 = c.backtranslate = c.backtranslate || {};
+      bt2.inputText = c.source; bt2.sourceLang = c.sourceLang; bt2.targetLang = c.targetLang;
+      bt2.resultText = b.ok ? b.text : '';
+      bt2.direction = 'target';                       /* D2: additive field */
+      bt2.updatedAt = Date.now();
+      PB.save(); pbRerenderCard(id);
+    });
+  });
+  pbRerenderCard(id);
+}
+
+(function () {
+  var _r9CommitEdit = pbCommitEdit;
+  pbCommitEdit = function (id, field, value) {
+    try {
+      if (field === 'target') {
+        var c = pbCardById(id);
+        if (!c) return;
+        var v = norm(value);
+        var prior = norm(c[field] || '');
+        var changed = (v !== prior);
+        c[field] = v;                                  /* S-RULE-4: edited side kept */
+        return pbCommitEditTargetMirror(c, v, changed, prior);
+      }
+    } catch (e) { r8Log('r9_target_mirror_failed', { e: String(e && e.message || e) }, 'error'); }
+    return _r9CommitEdit.apply(this, arguments);       /* source, notes, everything else: original */
+  };
+  pbCommitEdit._r9Original = _r9CommitEdit;
+})();
+
+/* ═══════════ GAP PART · R10-phase-a.js ═══════════ */
+/* @contract
+   wraps: saveRooms (lifecycle-driven subscription/context sync), handleRelay
+          (records last seen relay seq per room — read-only otherwise)
+   adds: TB_R10, r10RelayHttp, r10Post, r10Vapid, r10SyncSubscriptions,
+         r10Unsubscribe, r10PostContext, r10EnableNotifications,
+         r10NotifStatus, r10RenderNotifRow, r10ConsumeHandoff,
+         _r10SaveRooms, _r10HandleRelay
+   Build: R10-A candidate · bridge-turn25-base.html · governed by
+          talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
+   Phase A rules honoured: relay untouched; credentials untouched (tb_dg_key,
+   tb_cf_tid, tb_cf_tok, tb_gh_pat remain exactly where they are); no cache in
+   the SW; no payloads in push; no new lifecycle; smallest possible change. */
+
+var TB_R10 = {
+  build: 'R10-A · turn25-base',
+  standalone: !!(window.__TB_R10 && window.__TB_R10.standalone),
+  subscribedRooms: {},          /* roomId -> true once registered this run */
+  swReady: false
+};
+
+function r10RelayHttp() { return RELAY_WS.replace(/^ws/, 'http'); }
+
+function r10Post(sessionId, body) {
+  var url = r10RelayHttp() + '?app=' + encodeURIComponent(RELAY_APP) +
+    '&session=' + encodeURIComponent(sessionId) +
+    '&client=' + encodeURIComponent(deviceId);
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    });
+}
+
+function r10Vapid(sessionId) { return r10Post(sessionId, { type: 'vapid' }); }
+
+/* ── handoff consumption check (A3.3e/f) — runs after the existing boot has
+      had its chance to consume the staged j through its own path ─────────── */
+function r10ConsumeHandoff() {
+  var st = window.__TB_R10;
+  if (!st || !st.staged) return;
+  var consumed = false;
+  try {
+    /* Consumption evidence, judged by the EXISTING code's own effects: the
+       boot path either created/entered the room (device-link), or staged the
+       joiner landing (S.invitePayload). Either way decInv succeeded. */
+    if (S && (S.invitePayload || S.joinerKeys)) consumed = true;
+    if (!consumed && S && S.rooms && S.rooms.length) {
+      var h = (window.__TB_R10.rawLen > 0);
+      /* device-link path clears the hash after joining; a room now exists */
+      if (h && location.hash.indexOf('#j=') !== 0) consumed = true;
+    }
+  } catch (_) {}
+  if (consumed) {
+    document.cookie = 'tb_install_handoff_v1=; Path=/stuff/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    try { if (location.hash.indexOf('#j=') === 0) history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+    r8Log('pwa_handoff_consumed', { standalone: TB_R10.standalone }, 'ok');
+  } else {
+    /* Do not delete the cookie; surface the failure in the existing log. */
+    r8Log('pwa_handoff_failed', { standalone: TB_R10.standalone, rawLen: window.__TB_R10.rawLen }, 'error');
+  }
+}
+
+/* ── push subscription (A5) — proven path, existing relay, existing SW ───── */
+function r10ActiveRooms() {
+  return (S.rooms || []).filter(function (r) { return !r.deletedAt; });
+}
+
+function r10SyncSubscriptions() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve();
+  return navigator.serviceWorker.ready.then(function (reg) {
+    if (!reg.pushManager) return;
+    return reg.pushManager.getSubscription().then(function (sub) {
+      if (!sub) return;
+      var subJson = sub.toJSON();
+      var jobs = r10ActiveRooms().filter(function (r) { return !TB_R10.subscribedRooms[r.id]; })
+        .map(function (r) {
+          return r10Post(r.id, { type: 'subscribe', subscription: subJson }).then(function (res) {
+            if (res && (res.ok === true || res._status === 200)) {
+              TB_R10.subscribedRooms[r.id] = true;
+              r8Log('push_room_subscribed', { room: String(r.id).slice(-6) }, 'ok');
+            } else r8Log('push_room_subscribe_failed', { room: String(r.id).slice(-6), status: res && res._status }, 'error');
+          }).catch(function (e) { r8Log('push_room_subscribe_failed', { e: String(e && e.message || e) }, 'error'); });
+        });
+      return Promise.all(jobs).then(r10PostContext);
+    });
+  }).catch(function () {});
+}
+
+function r10Unsubscribe(roomId) {
+  /* room-specific by design: subscriptions live per room Durable Object */
+  return r10Post(roomId, { type: 'unsubscribe' }).then(function () {
+    delete TB_R10.subscribedRooms[roomId];
+    r8Log('push_room_unsubscribed', { room: String(roomId).slice(-6) }, 'ok');
+  }).catch(function () {});
+}
+
+function r10UrlB64ToU8(base64) {
+  var pad = '='.repeat((4 - base64.length % 4) % 4);
+  var b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(b); var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function r10EnableNotifications() {
+  /* MUST be called from the user's gesture (A5). One control, no ceremony. */
+  if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }
+  var rooms = r10ActiveRooms();
+  if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
+  return navigator.serviceWorker.ready.then(function (reg) {
+    return reg.pushManager.getSubscription().then(function (existing) {
+      if (existing) return existing;
+      return Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied'); }
+        return r10Vapid(rooms[0].id).then(function (v) {
+          if (!v || !v.key) throw new Error('vapid');
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: r10UrlB64ToU8(v.key) });
+        });
+      });
+    });
+  }).then(function (sub) {
+    if (!sub) throw new Error('no-sub');
+    r8Log('push_subscribed', { endpointHost: (function(){try{return new URL(sub.endpoint).host}catch(_){return '?'}})() }, 'ok');
+    return r10SyncSubscriptions().then(function () { r10NotifStatus('on'); });
+  }).catch(function (e) {
+    if (String(e && e.message) !== 'denied') r8Log('push_enable_failed', { e: String(e && e.message || e) }, 'error');
+  });
+}
+
+/* ── status + the one concise control (A5 production UX) ─────────────────── */
+function r10NotifStatus(state) {
+  TB_R10.notifState = state;
+  var el = document.getElementById('r10-notif');
+  if (!el) return;
+  var lbl = el.querySelector('.r10-n-label');
+  var btn = el.querySelector('.r10-n-btn');
+  if (state === 'on') { if (lbl) lbl.textContent = 'Notifications: On'; if (btn) btn.style.display = 'none'; }
+  else if (state === 'off') { if (lbl) lbl.textContent = 'Notifications: Off'; if (btn) btn.style.display = 'none'; }
+  else if (state === 'prompt') { if (lbl) lbl.textContent = 'Notifications'; if (btn) btn.style.display = ''; }
+  else { if (lbl) lbl.textContent = 'Notifications: unavailable'; if (btn) btn.style.display = 'none'; }
+}
+
+function r10RenderNotifRow() {
+  var body = document.getElementById('panel-body');
+  var host = body ? body.parentNode : null;
+  if (!host || document.getElementById('r10-notif')) return;
+  var row = document.createElement('div');
+  row.id = 'r10-notif';
+  row.className = 'app-build-row';
+  if (TB_R10.standalone) {
+    row.innerHTML = '<span class="r10-n-label">Notifications</span>' +
+      '<button class="r10-n-btn" type="button">Enable notifications</button>' +
+      '<span class="r10-build">' + TB_R10.build + '</span>';
+    row.querySelector('.r10-n-btn').addEventListener('click', function () { r10EnableNotifications(); });
+  } else {
+    /* Safari tab: push cannot complete here — say so in the info surface. */
+    row.innerHTML = '<span class="r10-n-label">Add TalkBridge to Home Screen to enable iPhone notifications</span>' +
+      '<span class="r10-build">' + TB_R10.build + '</span>';
+  }
+  host.appendChild(row);
+  if (!TB_R10.standalone) return;
+  if (!('Notification' in window)) { r10NotifStatus('unsupported'); return; }
+  if (Notification.permission === 'denied') { r10NotifStatus('off'); return; }
+  if (Notification.permission === 'granted') {
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager && reg.pushManager.getSubscription();
+    }).then(function (sub) { r10NotifStatus(sub ? 'on' : 'prompt'); }).catch(function () { r10NotifStatus('prompt'); });
+  } else r10NotifStatus('prompt');
+}
+
+/* ── service-worker context (A6) — ids and cursors only, never secrets ───── */
+function r10PostContext() {
+  try {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage({
+      type: 'tb-context',
+      context: {
+        relay: RELAY_WS,
+        app: RELAY_APP,
+        client: deviceId,
+        rooms: r10ActiveRooms().map(function (r) { return { id: r.id, since: r.r10Since || 0 }; })
+      }
+    });
+  } catch (_) {}
+}
+
+/* record last seen RELAY sequence per room, read-only wrap (A6 'since') */
+(function () {
+  var _r10HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      if (d && typeof d.seq === 'number' && S.roomId) {
+        var r = roomById(S.roomId);
+        if (r && (!r.r10Since || d.seq > r.r10Since)) r.r10Since = d.seq;
+      }
+    } catch (_) {}
+    return _r10HandleRelay.apply(this, arguments);
+  };
+  handleRelay._r10Original = _r10HandleRelay;
+})();
+
+/* lifecycle-driven sync: hard delete -> room-specific unsubscribe; new or
+   restored room -> register the same subscription; always refresh context.
+   Existing lifecycle messages and semantics are untouched (A7). */
+(function () {
+  var _r10SaveRooms = saveRooms;
+  var known = {};
+  function snapshot() {
+    known = {};
+    (S.rooms || []).forEach(function (r) { known[r.id] = { deletedAt: !!r.deletedAt }; });
+  }
+  snapshot();
+  saveRooms = function () {
+    var out = _r10SaveRooms.apply(this, arguments);
+    try {
+      var seen = {};
+      (S.rooms || []).forEach(function (r) {
+        seen[r.id] = true;
+        var prev = known[r.id];
+        if (!prev || (prev.deletedAt && !r.deletedAt)) {
+          /* new or restored room: make sure this device's subscription is
+             registered with that room's relay session */
+          delete TB_R10.subscribedRooms[r.id];
+          r10SyncSubscriptions();
+        }
+      });
+      Object.keys(known).forEach(function (id) {
+        if (!seen[id]) r10Unsubscribe(id);   /* hard delete: gone entirely */
+      });
+      snapshot();
+      r10PostContext();
+    } catch (_) {}
+    return out;
+  };
+  saveRooms._r10Original = _r10SaveRooms;
+})();
+
+/* ── init ─────────────────────────────────────────────────────────────────── */
+setTimeout(function () {
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./tb-sw.js').then(function () {
+        TB_R10.swReady = true;
+        r8Log('sw_registered', { standalone: TB_R10.standalone }, 'ok');
+        r10PostContext();
+        r10SyncSubscriptions();
+      }).catch(function (e) { r8Log('sw_register_failed', { e: String(e && e.message || e) }, 'error'); });
+    }
+    /* replay pre-bootstrap logs into the app's own log, metadata only */
+    if (window.__TB_R10) (window.__TB_R10.log || []).forEach(function (l) { r8Log(l.ev, l.meta, 'ok'); });
+    r10ConsumeHandoff();
+    r10RenderNotifRow();
+    var st = document.createElement('style');
+    st.id = 'r10-css';
+    st.textContent = '.app-build-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-mid);border-top:1px solid var(--border)}' +
+      '.app-build-row .r10-n-btn{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--cream)}' +
+      '.app-build-row .r10-build{margin-left:auto;color:var(--ink-dim);font-size:10.5px}';
+    document.head.appendChild(st);
+    r8Log('r10_init', { standalone: TB_R10.standalone, build: TB_R10.build }, 'ok');
+  } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
+}, 700);
 </script>
 </body>
 </html>

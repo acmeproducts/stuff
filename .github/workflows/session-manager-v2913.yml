@@ -1,0 +1,77 @@
+name: Session Manager v2.9.13 cross-origin SOT
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v2913.py'
+      - '.github/scripts/session-manager-v2913-runner.py'
+      - '.github/workflows/session-manager-v2913.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch, validate, and publish
+        shell: bash
+        run: |
+          set -u
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          rm -f /tmp/v2913.log
+          fail_publish() {
+            rc="$1"
+            printf 'v2.9.13 release diagnostic\nexit=%s\n\n' "$rc" > .github/session-manager-v2913-debug.txt
+            cat /tmp/v2913.log >> .github/session-manager-v2913-debug.txt 2>/dev/null || true
+            git add .github/session-manager-v2913-debug.txt
+            git commit -m 'Record v2.9.13 release diagnostic' || true
+            git push origin HEAD:main || true
+            exit "$rc"
+          }
+
+          git fetch origin main >>/tmp/v2913.log 2>&1 || fail_publish $?
+          git reset --hard origin/main >>/tmp/v2913.log 2>&1 || fail_publish $?
+          echo '=== PATCH ===' >>/tmp/v2913.log
+          python3 .github/scripts/session-manager-v2913-runner.py >>/tmp/v2913.log 2>&1 || fail_publish $?
+          echo 'PATCH OK' >>/tmp/v2913.log
+
+          echo '=== VALIDATE TEXT ===' >>/tmp/v2913.log
+          python3 - <<'PY' >>/tmp/v2913.log 2>&1
+          from pathlib import Path
+          import re
+          html=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          checks={
+            'build': "const BUILD_VERSION='2.9.13'" in html,
+            'visible': '<span class="version">v2.9.13</span>' in html,
+            'footer': "n.textContent='v2.9.13'" in html,
+            'raw': 'function ghRawUrl(c)' in html,
+            'readonly': 'Read-only public; PAT needed only to publish' in html,
+            'startup': "await checkSotReceive('startup')" in html,
+            'default_enabled': 'sotEnabled:hasSotEnabled?s.sotEnabled===true:true' in html,
+            'poll': 'let interval=sotPat()?60000:300000' in html,
+            'schema12': '![1,2].includes(Number(doc.version))' in html,
+            'missing3': 'count>=3' in html,
+          }
+          print(checks)
+          assert all(checks.values()), checks
+          scripts='\n'.join(re.findall(r'<script>(.*?)</script>',html,re.S))
+          Path('/tmp/session-manager.js').write_text(scripts,encoding='utf-8')
+          PY
+          rc=$?; [ "$rc" -eq 0 ] || fail_publish "$rc"
+
+          echo '=== NODE CHECK ===' >>/tmp/v2913.log
+          node --check /tmp/session-manager.js >>/tmp/v2913.log 2>&1
+          rc=$?; [ "$rc" -eq 0 ] || fail_publish "$rc"
+          echo 'NODE OK' >>/tmp/v2913.log
+
+          git diff --check >>/tmp/v2913.log 2>&1
+          rc=$?; [ "$rc" -eq 0 ] || fail_publish "$rc"
+
+          rm -f .github/session-manager-v2913-debug.txt
+          git add session-manager-v3.html .github/session-manager-v2913-debug.txt
+          git commit -m 'Session Manager v2.9.13 cross-origin SOT hydration' >>/tmp/v2913.log 2>&1 || fail_publish $?
+          git push origin HEAD:main >>/tmp/v2913.log 2>&1 || fail_publish $?
+          echo 'v2.9.13 published successfully'

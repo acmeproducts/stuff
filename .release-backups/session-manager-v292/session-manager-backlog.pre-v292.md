@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.18.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.17.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.18.0  
+**Governance version:** 1.17.0  
 **Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
 **Turnover artifact:** `session-manager-turnover.md`  
@@ -431,11 +431,3 @@ The historical graveyard through G-033 remains part of project history and conti
 # 10. CURRENT DECISION
 
 **Do not change application code yet.** The repository is at v2.9.1 and the immediate next action is the owner physical-device Gate in §5.2. Record the observed pass/fail behavior against that checklist. If v2.9.1 passes, promote it and begin v2.10 from that exact passed blob. If it fails, capture the exact failing gesture/control and rebuild from the clean declared input rather than layering emergency patches.
-
-
-# v2.9.2 TAB INTERACTION CORRECTION — 2026-08-13
-
-- Tab reordering uses explicit insertion drop zones between every session tab and after the final tab; tab order persists through Project state and GitHub SOT.
-- Dropping a tab on a Project remains a Project move and is distinct from reordering within the active Project.
-- Customize is a right-hand context submenu anchored beneath the selected tab on desktop; narrow screens stack it vertically.
-- Tab appearance no longer uses a separate Save action. Controls preview immediately and persist on blur/change. Reset persists immediately.

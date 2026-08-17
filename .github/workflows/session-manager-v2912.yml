@@ -1,0 +1,98 @@
+name: Session Manager v2.9.12 SOT recovery
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v2912.py'
+permissions:
+  contents: write
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Recover, validate, and publish with concurrent-write protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+
+          validate_release() {
+            python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          html=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          assert "const BUILD_VERSION='2.9.12'" in html
+          assert '<span class="version">v2.9.12</span>' in html
+          assert "n.textContent='v2.9.12'" in html
+          assert 'const SOT_VERSION=2' in html
+          assert "project.upsert" in html
+          assert "project.delete" in html
+          assert "session.assign" in html
+          assert "project.order" in html
+          assert 'Legacy project snapshot dropped' in html
+          assert 'Missing candidate awaiting confirmation' in html
+          assert 'Project sync mode' in html
+
+          m=re.search(r'function reconcileProjects\([^)]*\)\{', html)
+          assert m
+          i=m.start(); j=m.end(); depth=1; quote=None; esc=False
+          while j < len(html) and depth:
+              c=html[j]
+              if quote:
+                  if esc: esc=False
+                  elif c=='\\': esc=True
+                  elif c==quote: quote=None
+              else:
+                  if c in "'\"`": quote=c
+                  elif c=='{': depth+=1
+                  elif c=='}': depth-=1
+              j+=1
+          fn=html[i:j]
+          assert 'p.sessions=p.sessions.filter(x=>x!==k)' not in fn
+          assert 'count>=3' in fn
+          assert 'missingCandidates' in fn
+
+          doc=json.loads(Path('session-manager-sot.json').read_text(encoding='utf-8'))
+          assert doc['schema']=='session-manager-sot'
+          assert doc['version']==2
+          snaps=[e for e in doc['events'] if e.get('type')=='projects.snapshot' and e.get('payload',{}).get('scope')=='wss://oc-ref.fell-dojo.ts.net']
+          assert len(snaps)==1
+          st=snaps[0]['payload']['state']
+          names={p['name'] for p in st['projects']}
+          expected={'General','arcive','codex/cc','investigate dbl','oc troubleshoot','meditate','session manager','SOT - Storage','scrape','dev/code stream'}
+          assert expected <= names, (expected-names, names)
+          assert st.get('missing')=={}
+          oc=next(p for p in st['projects'] if p['name']=='oc troubleshoot')
+          assert 'agent:default:restored:440feeac-9b42-4724-bfbe-34cfa51d0e63' in oc['sessions']
+          markers=[e for e in doc['events'] if e.get('type')=='recovery.marker']
+          assert markers and markers[-1].get('payload',{}).get('clearMissing') is True
+
+          scripts='\n'.join(re.findall(r'<script>(.*?)</script>',html,re.S))
+          Path('/tmp/session-manager.js').write_text(scripts,encoding='utf-8')
+          PY
+            node --check /tmp/session-manager.js
+            git diff --check
+          }
+
+          for attempt in 1 2 3 4 5 6; do
+            echo "Release attempt $attempt"
+            git fetch origin main
+            git reset --hard origin/main
+            python3 .github/scripts/session-manager-v2912.py
+            validate_release
+            git add session-manager-v3.html session-manager-sot.json
+            git commit -m 'Session Manager v2.9.12 recover projects and fence SOT v2'
+            if git push origin HEAD:main; then
+              echo 'v2.9.12 recovery published successfully'
+              exit 0
+            fi
+            echo 'Concurrent repository write detected; rebuilding from latest main.'
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish v2.9.12 after retries' >&2
+          exit 1

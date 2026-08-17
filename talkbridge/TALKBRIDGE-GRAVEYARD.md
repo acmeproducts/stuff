@@ -1,7 +1,7 @@
-<!-- v5.8.2.40 -->
+<!-- v5.8.2.41 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.7 | 2026-08-11 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.8 | 2026-08-13 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -670,3 +670,217 @@ what the code does, but does not question whether replacing was permissible at
 all. A part declaring `replaces` on a function another part owns should fail
 the build, which would have caught this at the moment it was written rather
 than three releases later on the owner's device.
+
+## Flag branding on the home screen body — TWO FAILURES · Aug 13 2026
+
+Rolled back to `bridge-turn24-base.html`. Both failures measured, not inferred.
+
+**1. `background-size:cover` on a full-height surface magnifies the artwork
+until it stops being a motif.** The source is a 770x284 horizontal strip of
+eleven flags. `cover` scales to fill the LONGEST axis, which on a phone is the
+height, not the width:
+
+| viewport | scale | artwork renders | one flag becomes |
+|---|---|---|---|
+| 310x832 (reported) | 2.93x | 2256x832 | 205px wide |
+| 390x700 (iPhone) | 2.46x | 1898x700 | 173px wide |
+| 360x640 (Android) | 2.25x | 1735x640 | 158px wide |
+
+At that magnification two or three flags fill the whole screen as giant colour
+blocks. The reference in `test.html` uses `cover` on a 108px card — a short,
+wide surface where it crops sensibly. Carrying the same value onto a
+full-height body was the error; the value was copied without checking that the
+surface it was copied to had the same shape.
+
+**2. `flags.gif` does not exist and 404s on every load.** Confirmed against the
+repo: `flags.png` is present at 39,596 bytes, `flags.gif` is absent. The layer
+stack requests the `.gif` first and falls through to the `.png`, so nothing
+looks broken and the console error was reported repeatedly without being
+believed.
+
+**Process failure alongside the technical one.** These were patched forward
+onto a baseline four times in succession — cards, then the drawer, then the top
+strip, then the body, then tab contrast — each pushed to the owner's device
+without a plan and without approval. The owner had to stop it. Nothing further
+goes to a deployed file in this area without a written proposal approved first.
+
+**Proposed, awaiting approval, NOT applied:**
+- Home screen body: `background-size:100% auto` with `background-repeat:repeat-y`,
+  so the strip renders at its natural aspect across the width and tiles down.
+  Each flag stays legible at every width (310–428px tested).
+- Remove the `flags.gif` layer entirely; it ends the 404 and changes nothing
+  visually. The layer can return if an animated asset is ever added.
+- Cards (108px) and the drawer strip (72px) keep `cover` — short, wide surfaces
+  where it behaves correctly. The failure is specific to full-height bodies.
+
+## The gate suite itself — why green tests coexisted with visible drift · Aug 13 2026
+
+Every rollback this release cycle passed its automated gate first. The suite
+was the enabler, not the safety net. Exactly why, so the rewrite doesn't repeat
+it:
+
+1. **Presence was tested, behavior was not.** Assertions checked that markup,
+   strings, and functions existed in the built artifact ("verified present in
+   the built artifact"). Existence proves nothing about what fires when a user
+   taps, what renders at a given width, or what geometry results. Items were
+   marked Built because their code was findable, while the device showed
+   something else.
+2. **Return values stood in for effects.** Tests called functions and checked
+   what came back. Regressions ship in side effects — what got attached,
+   removed, repositioned, sent — and none of that was asserted.
+3. **The sandbox DOM lied politely.** The stub answered selector and attribute
+   queries in ways a real WebKit would not, so layout- and focus-dependent
+   behavior "passed" in an environment where it could not possibly fail.
+4. **Mutation tests only reintroduced known defects.** They proved the suite
+   caught the specific bugs already found, not that it would catch the next
+   one. Coverage of the failure class was mistaken for coverage of the class
+   of failures.
+5. **No test compared the replacement against the code it replaced.** Both
+   2.2 regressions (clock tap, ribbon geometry) were reconstructions from
+   prose. A diff-against-original gate would have failed both before any
+   device was touched.
+
+Consequence: the harness is rewritten before the next build is trusted, and
+for the first time it is VERSIONED IN THE REPO — `talkbridge/build/harness.mjs`
+(effect assertions in jsdom) and `talkbridge/build/mutate.mjs` (fourteen fresh
+defects, all fourteen caught on first full run). A suite that lives only in a
+session container dies with the session; that was part of the drift. New
+rules for every test: assert the downstream effect (event fired, node
+attached/detached, style computed, message sent over the wire), not the return;
+run selector semantics that match real WebKit or don't claim the test covers
+DOM behavior; every replaced behavior gets a diff assertion against the
+original implementation; every gate gets a fresh-defect mutation, not a replay
+of an old one.
+
+
+## R8 all-in-one — FAILED DEVICE GATE: the menu icon swap · Aug 13 2026
+
+Rolled back to the approved pre-ship. Owner report: the three room-menu
+toggles "do not function or show/turn a red slash"; the ribbon mic icon was
+fine. The owner had asked for the WORDING to change on those three rows.
+
+Read from the base, not inferred: each base toggle glyph carries a
+`<line class="tog-slash">` and the CSS shows that slash only while the button
+has `.off` (`.meter-btn:not(.off) .tog-slash{display:none}`). The R8 icon swap
+replaced each whole `<svg>` with new ear/headset/bell glyphs that had NO slash
+line — so the off state had nothing to show and the controls read as dead.
+
+The harness was complicit a second time: its icon test asserted the NEW glyphs
+as the spec, so the suite enforced the regression instead of catching it. A
+test encodes a reading of the owner's intent; when the reading is wrong the
+test is a lock on the wrong door.
+
+Buried permanently: swapping the room-menu toggle graphics, in any form. The
+wording-only change survives. The harness now asserts the base glyphs and
+their slash line are byte-identical in the live DOM and that a toggle click
+still flips the off state with a room active; a fresh mutation that swaps a
+glyph at runtime is in the mutation set and is caught.
+
+Owner ruling from the same failure: R8 is split — R8a chrome/text (testable
+without a call), R8b call surface (two-phone). One gate each.
+
+
+## R8a — the ribbon mic wrap disabled the microphone entirely · FAILED DEVICE GATE · Aug 13 2026
+
+Second icon regression in one day, second rollback. The owner had said the
+mic icon was working and must not be touched. The build kept the
+toggleMic/toggleCam wrap and the boot-time graphic swap anyway, reading
+"don't touch it" as "keep the new version of it". On device the microphone
+was then completely disabled. That misreading is the failure: when the owner
+says a working thing must not be touched, the thing that stands is the BASE's
+version, not the build's.
+
+What is proven and only that: with the wrap and boot-swap present, the
+owner's mic was dead; with the base alone, it worked. The mechanism was not
+root-caused from here — no hardware mic exists in the harness environment,
+and declaring a cause without instrumentation is itself a graveyarded habit.
+
+The harness gap: it asserted the swap RAN. It cannot prove audio capture
+works — jsdom has no microphone. Anything wrapping media-control handlers is
+therefore untestable before the device gate, which is exactly why it is now
+banned rather than re-attempted.
+
+BURIED, with a standing rule: 8.4 (two-graphic ribbon mute icons) is dead.
+Appended code may not wrap, restyle, or even reference the ribbon media
+controls or their handlers. The harness enforces this with two regression
+guards (identifier scan of the appended region; the live toggle function must
+be the base original) and two fresh mutations proving the guards fire.
+
+## R8b — the call timer flickers because ONE SLOT HAS TWO WRITERS · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The R8b timer added a second one-second interval writing the
+duration into `#rz-timer` while the base's own `durTimer` kept writing
+"Speaking…" into the same element whenever the remote mic was live — which,
+on the receiver's side of a real conversation, is most of the time. Two
+phase-offset writers alternating in one slot every second IS the flicker,
+and the relay-driven `renderPartnerState()` stamped a third "Speaking…" on
+every incoming mic-state message. The duration was always computed locally;
+the relay was injecting the OVERWRITES, not the time.
+
+The buried approach: adding a writer alongside an existing writer of the same
+DOM slot. The rule it earns: ONE SLOT, ONE WRITER. Appended code that needs to
+own an element's text must first silence every existing writer of that
+element (kill the base's interval handle, no-op the stamping function via
+wrap), then be the only thing that writes.
+
+## R8a — item 8.5 said "chat" and the chat mark was never built · SCOPE GAP AT GATE · Aug 15 2026
+
+Item 8.5 read "bubble-header icons for chat/phone/video". The build marked
+spoken entries as mic/phone/video and deliberately returned nothing for typed
+chat — a third of the item's own name, silently dropped, and the harness
+tested only the spoken paths, so green meant one-third missing. Rule: an
+item's scope is EVERY word of the item as the owner wrote it; the test list
+is written from the item's words, not from the code that got built.
+
+## R8 rebuild — the chat mark's inserter anchored on markup the renderer never produces · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The chat glyph never appeared because the insertion targeted
+`<span class="who">` while the transcript renderer actually produces
+`<span class="tr-who who">` — an anchor assumed from a DIFFERENT function's
+markup instead of read from the renderer being wrapped. Worse, the harness
+test "verified" insertion against a sample string the test itself invented,
+so it proved my regex works on my own example — vacuous by construction.
+Rules: the anchor is READ from the exact function being wrapped, and a
+renderer test calls THE RENDERER with a real entry, never a hand-written
+sample.
+
+## R8 rebuild — room names desynced; CAUSE NOT ESTABLISHED · Aug 15 2026
+
+The owner observed room names going out of sync on device. Reading every
+appended line against every base name-write path produced no proven
+mechanism, and declaring a root cause from reasoning is itself a graveyarded
+habit. Buried: the failed build. NOT buried: any theory, because none is
+proven. The rebuild adds read-only instrumentation — every relay message
+carrying name/newName/senderName is logged with its type, carried value, and
+the value held before — so the next device test yields evidence. The harness
+proves the instrumentation itself cannot mutate a name.
+
+## R9 v1 — target edits left no trace of what the target WAS · FAILED DEVICE GATE · Aug 15 2026
+
+Rolled back. The mirror implemented S-RULE-1 to the letter: a clarify entry
+only when a verdict happened to be set, and saying only that something
+changed — never what it changed FROM. The owner's contract is traceability:
+every target update writes a clarify entry carrying the prior value, the way
+the trail reads on the source side. Buried: treating the extracted S-RULES as
+the ceiling of the spec. They are the floor; the owner's named OUTCOME
+(traceability) is the spec. Owner ruling now standing: every target change
+chain-logs 'Target edited (was "<prior>")', direction-tagged, before any
+verdict logic.
+
+## The plan never tracked turn and stage, so a build invented "turn 25" · Aug 16 2026
+
+The R10 Phase A candidate shipped as `bridge-turn25-base.html`. Wrong twice:
+R9's ship was turn 24's SHIP stage, so the next artifact is turn 24's
+POST-SHIP — same turn, next stage — and no build decides a turn number,
+the chain does: every turn is pre-base → base → pre-ship → ship → post-ship,
+in that order, and a new turn begins only after post-ship completes.
+
+Root cause is the plan itself: it tracked releases but never pinned each
+release to its turn+stage artifact, so every build re-derived the filename
+from vibes. Rule: the plan carries a TURN/STAGE LEDGER — every release
+declares its turn and stage up front, with the artifact link once built —
+and a build that emits any other filename fails its gate before content is
+even examined. `bridge-turn25-base.html` stays temporarily as a byte-identical
+alias only because the owner may have installed/tested from that URL; the
+canonical artifact is `bridge-turn24-post-ship.html`, and the alias is retired
+when A8 passes.

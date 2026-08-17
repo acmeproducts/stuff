@@ -1,0 +1,43 @@
+name: Session Manager v2.9.8 connection diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v298.py'
+      - '.github/workflows/session-manager-v298.yml'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git pull --rebase origin main
+      - name: Build and validate
+        run: |
+          python3 .github/scripts/session-manager-v298.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          assert "const BUILD_VERSION='2.9.8'" in s
+          assert "const APP_VERSION='2.3.0'" in s
+          assert 'Tailscale required:' in s
+          assert "connectionStatusHtml('cfgConnStatus')" in s
+          assert "connectionStatusHtml('cfgDiagStatus',true)" in s
+          assert 'function gatewayNetInfo(' in s
+          assert 'function connectionStatusHtml(' in s
+          assert 'padding-left:max(72px,calc(env(safe-area-inset-left) + 68px))' in s
+          Path('/tmp/session-manager.js').write_text('\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S)), encoding='utf-8')
+          PY
+          node --check /tmp/session-manager.js
+          git diff --check
+      - name: Publish
+        run: |
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add session-manager-v3.html
+          git commit -m 'Session Manager v2.9.8 connection diagnostics'
+          git push origin HEAD:main

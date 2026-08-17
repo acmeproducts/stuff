@@ -74,3 +74,119 @@ Do the two-instance harness proof for anything crossing the relay before you
 believe it works. Confirm scope against the plan before you start. Roll back,
 never patch, on any failure — including your own. Report only what you can
 show, not what you believe you did.
+
+
+## Session 2026-08-13 — R8 rebuilt as `bridge-turn24-base.html`
+
+Owner rescope (plan v13.5.0): source is the approved `bridge-turn24-pre-ship.html`
+(8.0 ribbon + 8.1 home-card fix, device-passed); output `bridge-turn24-base.html`;
+8.6 = Ear "Hear their voice" / Headset "Hear translation" / Bell "Ringer";
+8.13 = iPhone typography; 8.14 = password-manager silence; `&debug=1` backlogged.
+
+Build is PURELY ADDITIVE over the approved base (byte-checked by the harness).
+Sourced from the rolled-back attempt at `c77e221` by reading its exact code, with
+these deliberate changes: debug toggle excised; flag motif scoped to the home
+body (flags-tall.png, contain, below ribbon) and the two name-ask cards (S0, S10)
+only; all `.gif` layers removed and the base's own dead `flags.gif` layer
+overridden by a later cascade rule (base bytes untouched); menu labels set to the
+owner's exact wording; dead duplicated CSS block deleted.
+
+Harness: `talkbridge/build/harness.mjs` — boots the artifact in jsdom and asserts
+downstream effects (nodes attached, styles set, text written, state flipped),
+never returns. 22/22 green. `talkbridge/build/mutate.mjs` — fourteen FRESH
+defects; 14/14 caught. Run:
+  node talkbridge/build/harness.mjs bridge-turn24-pre-ship.html bridge-turn24-base.html
+  node talkbridge/build/mutate.mjs  bridge-turn24-pre-ship.html bridge-turn24-base.html
+
+NOT yet proven: the device gate (plan §2d) and anything crossing the relay
+(typing indicator and timer parity are harness-proven locally, not two-instance
+proven). The build awaits the owner's device pass.
+
+
+## Session 2026-08-13 (later) — device gate FAILED, R8 split, R8a shipped
+
+The all-in-one build failed on device: room-menu toggles broken by the icon
+swap (see graveyard). Rolled back at `889090e`. Owner split R8: **R8a**
+chrome/text now in `bridge-turn24-base.html` (menu wording only — the toggle
+graphics are never touched); **R8b** call surface re-applies the already-
+harness-proven six items onto the R8a base once it passes. Harness rescoped:
+17/17 effects green, 12/12 fresh mutations caught, including a runtime glyph
+swap and a tooltip-clobbering label rewrite.
+
+## Session 2026-08-13 (third pass) — mic wrap failed on device; 8.4 buried; R8a rebuilt
+
+The ribbon toggleMic/toggleCam wrap left the owner's microphone completely
+disabled. Rolled back and rebuilt R8a from the approved pre-ship with ZERO
+media-control code — appended parts may not even name rb-mic/rb-cam/toggleMic/
+toggleCam/CHATMIC (harness guard C6c scans for it; C6d asserts CALL.toggleMic
+is the base original). Plan v14.1.0; graveyard entry written; 8.4 dead.
+R8a now: clock home · flag motif · bubble-header icons · menu wording only ·
+typography · password silence. Harness 19/19; mutations 14/14.
+
+
+## Session 2026-08-14 — R8b built; push-early rule adopted
+
+`bridge-turn24-pre-ship.html` = R8a + R8b (defocus mute · tap→PIP · PIP drag ·
+call timer · typing · dedup). Chain-additive, harness 26/26 with live-DOM
+effect tests per item and the mic guards intact. Mutation run for the seven
+new R8b defects pending at push time — pushed first because an environment
+death mid-gate nearly lost the whole build. RULE: push after every proven
+step. Two-phone device gate still owns the final verdict (relay-crossing
+typing/timer cannot be proven in jsdom).
+
+## Session 2026-08-15 — R8b gate FAILED; standard run, no patch-forward
+
+Owner found the timer flicker (two writers on one slot, relay stamping
+"Speaking…") and the missing 8.5 chat mark. Owner also correctly rejected a
+proposed "remediation on top" — that was patch-forward and is not done here.
+Standard executed: pre-ship rolled back FIRST and pushed, two graveyard
+entries (ONE SLOT ONE WRITER; scope is every word of the item), plan v14.5.0,
+then the chain REBUILT from the approved 2026-08-07 baseline: R8a v3 part
+(8.5 complete — chat bubble on typed entries at the who-slot) and R8b v2 part
+(timer is the slot's only writer: base durTimer killed on every tick, relay
+stamp no-opped with the original preserved, duration purely local).
+Harness 28/28 incl. C15/C16 effect tests; mutations 25/25.
+
+## Session 2026-08-15 (later) — gate failed; rebuilt with real-renderer proof + name instrumentation
+
+Chat glyph: inserter anchored on `class="who"`; the real renderer produces
+`tr-who who`. Fixed by reading the renderer; harness C15 now calls the REAL
+msgHtml with a seeded room and a real typed entry. Name desync: cause not
+established — read-only instrumentation logs every name-bearing relay message
+(type, value, prior value); C17 proves it cannot mutate names. Timer fix
+unchanged. Harness 29/29; mutations 26/26 including the exact shipped anchor
+defect. DESYNC IS NOT FIXED — next device test produces the evidence.
+
+## Session 2026-08-15 — R8 PASSED; R9 built to ship stage
+
+R8 passed on device; backlog B-8a (timer offset = answer delay) and B-8b
+(name change lands on room-menu exit) recorded. R9: target mirrors source.
+Rules extracted from the gated `pbCommitEdit` (four S-RULES in the plan);
+target branch superseded by `pbCommitEditTargetMirror` via wrap — one hop,
+edited side never overwritten, conditional verdict reset with
+direction-tagged clarify entry, mirrored BT with `direction:'target'`.
+Source/notes route to the original. Ship = pre-ship + R9 part, chain-additive.
+Harness 34/34 (run with the 2026-08-07 approved fixture as base so the region
+spans the whole appended chain); mutations 31/31.
+
+## Session 2026-08-15 — R9 PASSED
+
+Owner passed R9 on device. `bridge-turn24-ship.html` (with target-edit "was"
+clarify traceability) is the approved baseline, snapshotted in fixtures as
+bridge-turn24-approved-2026-08-15b.html. Next: R10 = PWA Migration Phase A
+under talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt,
+starting with A0 baseline capture read mechanically from the current
+production source, ending at the governing prompt's HARD STOP gate.
+
+## Session 2026-08-15 — R10 Phase A candidate built
+
+`bridge-turn25-base.html` = approved turn24-ship + four declared splices
+(header comment, manifest link, pre-bootstrap handoff script, appended R10
+part). Reconstruction-contract enforced by harness-r10.mjs S1. Relay and all
+four credentials untouched (S2/S3 gates). 17/17 effects across browser-tab,
+standalone-with-cookie, and direct-launch boots; 11/11 fresh mutations.
+A0 baseline: app.html forwards to bridge-turn24-base.html (one release behind
+approved ship — noted, NOT changed); worker-talk.js SHA 7dadc8d... unchanged;
+manifest start_url ./app.html; invitation #j= via encInv carrying k/tid/tok;
+Link Device same encoding with ld:1. Device matrix A1–A12 is the owner's;
+app.html repoint happens only after the matrix passes. PHASE B NOT STARTED.
