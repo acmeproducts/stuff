@@ -1,0 +1,91 @@
+name: Patch WorldPulse v1.6.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/worldpulse-v160-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply WorldPulse v1.6.0 patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('globe.html')
+          s=p.read_text(encoding='utf-8')
+          if 'WorldPulse v1.5.1' not in s:
+              raise SystemExit('Expected v1.5.1 base not found')
+
+          s=s.replace('WorldPulse v1.5.1','WorldPulse v1.6.0').replace('v1.5.1','v1.6.0')
+
+          css='''\n.countrySentMini{width:8px;height:30px;border-radius:4px;border:1px solid #ffffff2a;display:block;box-shadow:0 0 0 1px #0005}.capitalMark{display:flex;align-items:center;gap:3px;white-space:nowrap;transform:translate(-50%,-50%);font:9px/1 system-ui;color:#dcecff;text-shadow:0 1px 2px #000,0 0 4px #000;cursor:pointer;opacity:.88}.capitalMark .star{font-size:10px;color:#dcecff}.capitalMark.world .name{display:none}.countryBarMap{width:7px;height:34px;border-radius:5px;border:1px solid #ffffff55;box-shadow:0 1px 5px #000b;cursor:pointer;transform:translate(-50%,-50%)}.readerTopSource{margin-left:8px;color:var(--accent);font-size:11px;text-decoration:none;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sourceFrameWrap{margin:12px -16px -16px;border-top:1px solid var(--line);height:calc(100vh - 250px);min-height:360px;background:#fff}.sourceFrame{width:100%;height:100%;border:0;background:white}.frameNote{font-size:10px;color:var(--muted);line-height:1.45;margin:8px 0 0}.readerDirect{font-size:10px;color:var(--muted);margin-bottom:9px}.readerDirect b{color:var(--text)}\n'''
+          s=s.replace('.detailToolbar{padding:9px 12px 6px;',css+'.detailToolbar{padding:9px 12px 6px;')
+
+          s=s.replace('<aside id="reader" class="reader" aria-label="Reading pane"><div class="readerHead"><strong>Reading pane</strong><div class="readerActions">', '<aside id="reader" class="reader" aria-label="Reading pane"><div class="readerHead"><strong>Reading pane</strong><a id="readerSourceTop" class="readerTopSource" href="#" target="_blank" rel="noopener">Source ↗</a><div class="readerActions">')
+
+          s=s.replace('const VERSION="1.5.0", DATA_URL="./worldmood-data.json", MAP_URL="https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/main/countries.geojson", DB="worldpulse-cache-v1", STORE="resources";', 'const VERSION="1.6.0", DATA_URL="./worldmood-data.json", MAP_URL="https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/main/countries.geojson", CAPITAL_URL="https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_populated_places_simple.geojson", DB="worldpulse-cache-v1", STORE="resources";')
+
+          s=s.replace('readerBody:$("readerBody"),readBtn:', 'readerBody:$("readerBody"),readerSourceTop:$("readerSourceTop"),readBtn:')
+          s=s.replace('let globe=null,payload=null,windowPoints=[],index=null,countries=null,visibleMarkers=[]', 'let globe=null,payload=null,windowPoints=[],index=null,countries=null,capitals=[],visibleMarkers=[]')
+
+          anchor='function scopeLabel(){return selection.city||selection.admin1||selection.country||selection.region||"World"}'
+          insert='''function countryBarStyle(n){const p=pct100(n),a=p.pos,b=p.pos+p.neu;return `linear-gradient(to top,var(--neg) 0 ${p.neg}%,var(--neu) ${p.neg}% ${p.neg+p.neu}%,var(--pos) ${p.neg+p.neu}% 100%)`}\nfunction countryNodes(){if(!index)return[];if(selection.country){const r=index.children.get(selection.region);const c=r?.children.get(selection.country);return c?[c]:[]}if(selection.region){const r=index.children.get(selection.region);return r?[...r.children.values()].sort((a,b)=>b.count-a.count):[]}const out=[];for(const r of index.children.values())for(const c of r.children.values())out.push(c);return out.sort((a,b)=>b.count-a.count).slice(0,120)}\nfunction capitalObjects(){if(!capitals.length)return[];const world=!selection.region;let allowed=null;if(selection.country)allowed=new Set([selection.country.toLowerCase()]);else if(selection.region){const r=index?.children.get(selection.region);allowed=new Set(r?[...r.children.keys()].map(x=>x.toLowerCase()):[])}return capitals.filter(c=>!allowed||allowed.has(c.country.toLowerCase())).filter(c=>!world||c.scalerank<=4).map(c=>({...c,_kind:'capital',_world:world}))}\nfunction mapHtmlObjects(){const bars=countryNodes().map(n=>({_kind:'countrybar',node:n,lat:nodeLat(n),lon:nodeLon(n)}));return [...bars,...capitalObjects()]}\nfunction htmlMapElement(o){if(o._kind==='countrybar'){const d=document.createElement('div');d.className='countryBarMap';d.style.background=countryBarStyle(o.node);const p=pct100(o.node);d.title=`${o.node.name}: ${p.pos}% positive · ${p.neu}% neutral · ${p.neg}% negative`;d.onclick=e=>{e.stopPropagation();selectCountryFromGlobe(o.node.name)};return d}const d=document.createElement('div');d.className='capitalMark'+(o._world?' world':'');d.innerHTML=`<span class="star">◆</span><span class="name">${esc(o.name)}</span>`;d.title=`${o.name} · capital of ${o.country} · open Wikipedia`;d.onclick=e=>{e.stopPropagation();window.open(o.wikipedia,'_blank','noopener')};return d}\n'''
+          s=s.replace(anchor,anchor+'\n'+insert)
+
+          old="E.children.innerHTML=rows.length?rows.map((n,i)=>`<button class=\"geoItem\" data-i=\"${i}\" type=\"button\"><span class=\"geoDot\" style=\"background:${toneColor(nodeTone(n))}\"></span><span><span class=\"geoName\">${esc(n.name)}</span><span class=\"geoSub\">${Math.round(n.count).toLocaleString()} weighted mentions</span></span><span class=\"geoScore\">${nodeTone(n)>0?\"+\":\"\"}${nodeTone(n).toFixed(1)}</span></button>`).join(\"\"):'<div class=\"empty\">No matching geography.</div>'"
+          new="E.children.innerHTML=rows.length?rows.map((n,i)=>`<button class=\"geoItem\" data-i=\"${i}\" type=\"button\">${level===\"country\"?`<span class=\"countrySentMini\" style=\"background:${countryBarStyle(n)}\" title=\"${pct100(n).pos}% positive · ${pct100(n).neu}% neutral · ${pct100(n).neg}% negative\"></span>`:`<span class=\"geoDot\" style=\"background:${toneColor(nodeTone(n))}\"></span>`}<span><span class=\"geoName\">${esc(n.name)}</span><span class=\"geoSub\">${Math.round(n.count).toLocaleString()} weighted mentions</span></span><span class=\"geoScore\">${nodeTone(n)>0?\"+\":\"\"}${nodeTone(n).toFixed(1)}</span></button>`).join(\"\"):'<div class=\"empty\">No matching geography.</div>'"
+          if old not in s: raise SystemExit('renderChildren template anchor missing')
+          s=s.replace(old,new)
+
+          oldring='globe.ringsData(rings).ringLat(n=>nodeLat(n)).ringLng(n=>nodeLon(n)).ringAltitude(.0015).ringColor(n=>()=>toneColor(nodeTone(n))).ringMaxRadius(n=>Math.min(.8,.2+Math.log10(n.count+1)*.12)).ringPropagationSpeed(.16).ringRepeatPeriod(2200);if(zoom)'
+          newring='globe.ringsData(rings).ringLat(n=>nodeLat(n)).ringLng(n=>nodeLon(n)).ringAltitude(.0015).ringColor(n=>()=>toneColor(nodeTone(n))).ringMaxRadius(n=>Math.min(.8,.2+Math.log10(n.count+1)*.12)).ringPropagationSpeed(.16).ringRepeatPeriod(2200);const html=mapHtmlObjects();globe.htmlElementsData(html).htmlLat(o=>o.lat).htmlLng(o=>o.lon).htmlAltitude(o=>o._kind===\"countrybar\"?.018:.012).htmlElement(htmlMapElement);if(zoom)'
+          if oldring not in s: raise SystemExit('renderGlobe ring anchor missing')
+          s=s.replace(oldring,newring)
+
+          openpat=re.compile(r'function openReader\(a\)\{.*?E\.readerBack\.classList\.add\("open"\)\}',re.S)
+          replacement='''function openReader(a){readerArticle=a;const tone=num(a.tone,a._placeTone),title=articleDisplayTitle(a),where=[a._place,a._admin1,a._country].filter(Boolean).join(", "),themes=a.themes||a.mentionedthemes||"",names=a.names||a.mentionednames||"",url=a.url||"";E.readerSourceTop.href=url||"#";E.readerSourceTop.textContent=url?`Source · ${a.domain||"publisher"} ↗`:"Source unavailable";E.readerSourceTop.style.pointerEvents=url?"auto":"none";E.readerBody.innerHTML=`<h2>${esc(title)}</h2><div class="readerMeta"><span class="chip">${esc(a.domain||"source")}</span><span class="chip">${esc(where)}</span><span class="chip" style="color:${toneColor(tone)}">${toneKind(tone)} ${tone.toFixed(1)}</span>${a.lang?`<span class="chip">${esc(a.lang)}</span>`:""}</div><div class="readerDirect"><b>Source-preserving reader:</b> the publisher page is displayed directly below when the publisher permits embedding. WorldPulse does not copy the article into its cache. Use your browser's Translate feature only when needed.</div>${url?`<div class="sourceFrameWrap"><iframe class="sourceFrame" src="${esc(url)}" title="Original publisher story"></iframe></div>`:`<p>No source URL was included in this cached record.</p>`}<div class="frameNote">If the publisher blocks embedded viewing, use the Source link at the top of this pane to read the same story on the publisher site.</div>`;E.reader.classList.add("open");E.readerBack.classList.add("open")}'''
+          s,n=openpat.subn(replacement,s,count=1)
+          if n!=1: raise SystemExit('openReader replacement failed')
+
+          load_anchor='async function loadCountries(useCache=true)'
+          capitalfunc='''async function loadCapitals(useCache=true){if(useCache){const c=await idbGet("capitals");if(c?.value){capitals=c.value;log(`Capital cities restored from IndexedDB · ${capitals.length}`);if(index)renderGlobe(false);return true}}const j=await fetchJson(CAPITAL_URL,"capital cities");capitals=(j.features||[]).filter(f=>f?.geometry?.type==="Point"&&(f.properties?.adm0cap===1||f.properties?.capalt===1)).map(f=>{const p=f.properties||{},c=f.geometry.coordinates||[];const name=p.nameascii||p.name||"Capital";return{name,country:p.adm0name||p.sov0name||"",lat:num(c[1],num(p.latitude)),lon:num(c[0],num(p.longitude)),scalerank:num(p.scalerank,9),wikipedia:`https://en.wikipedia.org/wiki/${encodeURIComponent(name.replace(/ /g,"_"))}`}});await idbPut("capitals",{saved:Date.now(),value:capitals});log(`Capital cities cached · ${capitals.length}`);if(index)renderGlobe(false);return true}\n'''
+          s=s.replace(load_anchor,capitalfunc+load_anchor)
+
+          s=s.replace('const cachedCountries=loadCountries(true).catch(e=>{lastError=e.message;log(`World geometry: ${e.message}`)});', 'const cachedCountries=loadCountries(true).catch(e=>{lastError=e.message;log(`World geometry: ${e.message}`)});const cachedCapitals=loadCapitals(true).catch(e=>log(`Capital cities: ${e.message}`));')
+          s=s.replace('await Promise.all([cachedCountries,refreshData(false)]);','await Promise.all([cachedCountries,cachedCapitals,refreshData(false)]);')
+
+          # validate required features
+          for needle in ['v1.6.0','countrySentMini','htmlElementsData','CAPITAL_URL','readerSourceTop','sourceFrame','loadCapitals']:
+              if needle not in s: raise SystemExit('Missing '+needle)
+          p.write_text(s,encoding='utf-8')
+          PY
+          python3 - <<'PY'
+          import re,pathlib,subprocess
+          s=pathlib.Path('globe.html').read_text(encoding='utf-8')
+          js=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)[-1]
+          pathlib.Path('/tmp/wp.js').write_text(js,encoding='utf-8')
+          raise SystemExit(subprocess.run(['node','--check','/tmp/wp.js']).returncode)
+          PY
+
+      - name: Commit v1.6.0
+        run: |
+          git config user.name "worldpulse-bot"
+          git config user.email "worldpulse-bot@users.noreply.github.com"
+          git add globe.html
+          git rm .github/workflows/worldpulse-v160-patch.yml
+          git commit -m "feat: WorldPulse v1.6 source reader sentiment bars capitals"
+          git pull --rebase origin main
+          git push
