@@ -1,0 +1,56 @@
+name: Session Manager v2.9.18 full project export
+
+on:
+  push:
+    paths:
+      - '.github/scripts/session-manager-v2918.py'
+      - '.github/workflows/session-manager-v2918.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch, validate, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/session-manager-v2918.py
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          text=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', text, flags=re.I)
+          if not scripts:
+              raise SystemExit('no script blocks found')
+          for i,src in enumerate(scripts):
+              with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+                  f.write(src)
+                  name=f.name
+              subprocess.run(['node','--check',name],check=True)
+          for required in [
+              "const BUILD_VERSION='2.9.18';",
+              "function buildProjectFullExport(id)",
+              "historyRequest:{method:'chat.history',limit:1000}",
+              ".project-full.json",
+          ]:
+              if required not in text:
+                  raise SystemExit('missing '+required)
+          print('JS syntax and v2.9.18 assertions passed')
+          PY
+          git diff --check
+          git config user.name acmeproducts
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add session-manager-v3.html
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'Session Manager v2.9.18 export full project session content'
+          git push
