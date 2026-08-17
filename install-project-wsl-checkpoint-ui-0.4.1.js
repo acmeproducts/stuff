@@ -8,6 +8,7 @@ if(!s.includes("BUILD='2026.08.17.6.4-wsl-live'"))throw new Error('Expected 6.4-
 const stamp=new Date().toISOString().replace(/[:.]/g,'-'),backup=TARGET+'.before-6.5-checkpoint-'+stamp;fs.copyFileSync(TARGET,backup);
 function between(a,b,r){const i=s.indexOf(a);if(i<0)throw new Error('start marker not found: '+a);const j=s.indexOf(b,i);if(j<0)throw new Error('end marker not found: '+b);s=s.slice(0,i)+r+s.slice(j)}
 s=s.replace("const VERSION='0.4.1',BUILD='2026.08.17.6.4-wsl-live';","const VERSION='0.4.1',BUILD='2026.08.17.6.5-wsl-checkpoint';");
+s=s.replace(/UI v0\.4\.1 · [^<]+/g,'UI v0.4.1 · 2026.08.17.6.5-wsl-checkpoint');
 if(!s.includes('.fpMetrics{'))s=s.replace('@media(max-width:980px)',".fpMetrics{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:var(--muted)}.dbPathBox{margin-top:10px;display:grid;gap:8px}.dbPathRow{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fafbfc}.dbPathRow .mono{display:block;margin-top:4px;word-break:break-all}.dbGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}\\n"+'@media(max-width:980px)');
 const cfgStart="function renderConfiguration(){if(WSL){";
 const cfgEnd="return}page('Configuration','Initialize and protect the browser-authoritative project database.'";
