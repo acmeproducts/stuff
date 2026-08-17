@@ -227,6 +227,12 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
 .kb .inline-tag-input-row button{padding:5px 9px;border:1px solid var(--kb-border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap}
 .kb .inline-tag-sug-label{font-size:10px;color:var(--kb-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .kb .inline-tag-suggestions{display:flex;flex-wrap:wrap;gap:4px}
+.kb .tag-input-wrap{position:relative;flex:1;display:flex}
+.kb .tag-input-wrap input{flex:1;padding-right:26px}
+.kb .tag-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;font-size:16px;line-height:1;color:var(--kb-muted);padding:0 2px;min-height:0}
+.kb .tag-clear:hover{color:var(--kb-danger)}
+#cardDialog .dialog-body.kb{--kb-panel:#fff;max-height:92vh;overflow:auto}
+#cardDialog .dialog-body.kb [data-newhost]{margin-top:8px}
 .kb .chip .sug-x,.kb .chip button{cursor:pointer;font-size:12px;font-weight:800;color:#999;line-height:1;border:none;background:transparent;padding:0}
 .kb .chip .sug-x:hover,.kb .chip button:hover{color:var(--kb-danger)}
 .kb .attachment-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
@@ -522,7 +528,7 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
     $('[data-imp-go]',root).onclick=async()=>{impMsg.innerHTML='';try{let data=state.impData;const url=$('[data-imp-url]',root).value.trim();if(url&&!data)data=await fetchJson(url);if(!data)throw new Error('Choose a file or enter a URL first.');if(typeof data!=='object'||!Array.isArray(data.cards))throw new Error('That JSON has no cards array.');let name=$('[data-imp-name]',root).value.trim()||(url?url.split('/').pop().replace(/\.json$/i,''):'')||'imported-board';if(index.boards.some(b=>slug(b.name)===slug(name)))throw new Error('A board with that name already exists.');const now=Date.now();boardData[name]={version:1,cards:data.cards,archive:Array.isArray(data.archive)?data.archive:[],platforms:Array.isArray(data.platforms)?data.platforms:[...DEFAULT_BOARD.platforms],stages:Array.isArray(data.stages)?data.stages:[...DEFAULT_BOARD.stages],layout:data.layout||'horizontal',collapsed:{},cardCollapsed:{},lastModified:now};index.boards.push({name,archived:false,createdAt:now,lastUpdated:now,cardCount:data.cards.length});state.manageBoard=name;state.impData=null;await saveBoards([name],`Import board ${name}`,true);notify('Board imported');renderBuilder();}catch(err){impMsg.innerHTML=`<p class="message error">${esc(err.message)}</p>`;}};
     $$('[data-lane-toggle]',root).forEach(b=>b.onclick=e=>{e.stopPropagation();const st=b.dataset.laneToggle;bd.collapsed[st]=!bd.collapsed[st];saveBoards([board],`Toggle lane ${st}`);b.closest('.lane').classList.toggle('is-closed',bd.collapsed[st]);b.textContent=bd.collapsed[st]?'▸':'▾';b.title=bd.collapsed[st]?'Expand lane':'Collapse lane';});
     $$('[data-lane-cards]',root).forEach(b=>b.onclick=e=>{e.stopPropagation();const laneEl=b.closest('.lane'),cardEls=$$('.card',laneEl),anyOpen=cardEls.some(el=>!el.classList.contains('kc-collapsed'));cardEls.forEach(el=>{el.classList.toggle('kc-collapsed',anyOpen);bd.cardCollapsed[el.dataset.card]=anyOpen;});saveBoards([board],`Collapse cards in ${b.dataset.laneCards}`);});
-    const add=()=>{const stage=stages(board)[0]||'Backlog',now=Date.now(),c={id:uid(),title:'New card',platform:'Default',stage,tags:[],notes:'',position:1,createdAt:now,updatedAt:now};cards(board).unshift(c);normalize(board);updateIndex([board]);saveBoards([board],`Create card in ${board}`,true);renderBuilder();openCardEditor(board,c.id)};
+    const add=()=>openNewCardModal(board);
     $('[data-new-card]',root)?.addEventListener('click',add);
     wireCards(root);
     $$('.board-kanban .card',root).forEach(el=>{const id=el.dataset.card;if(bd.cardCollapsed[id])el.classList.add('kc-collapsed');const line=$('.card-line',el);if(line){const t=document.createElement('button');t.type='button';t.className='kc-mini';t.title='Collapse / expand card';t.textContent='∷';t.onclick=e=>{e.stopPropagation();const c=!el.classList.contains('kc-collapsed');el.classList.toggle('kc-collapsed',c);bd.cardCollapsed[id]=c;saveBoards([board],`Toggle card ${id}`);};line.prepend(t);}});
@@ -601,8 +607,9 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
   }
 
   /* kanban's inline detail editor, built into a card's [data-detail] (or a panel). */
-  function renderCardDetail(host,board,id){
-    const c=cards(board).find(x=>String(x.id)===String(id)); if(!c){host.innerHTML="";return;}
+  function renderCardDetail(host,board,id,opts={}){
+    const model=opts.model||null;
+    const c=model||cards(board).find(x=>String(x.id)===String(id)); if(!c){host.innerHTML="";return;}
     let tags=normalizeTags(c.tags);
     let files=Array.isArray(c.files)?c.files.map(f=>({...f})):[];
     const plats=[...new Set([...(boardData[board]?.platforms||[]),c.platform].filter(Boolean))];
@@ -615,24 +622,27 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
       `</div>`+
       `<div class="card-edit-field"><label>Dev Link</label><input type="url" data-f="dev" value="${esc(c.dev||"")}"></div>`+
       `<div class="card-edit-field"><label>Live Link</label><input type="url" data-f="live" value="${esc(c.live||"")}"></div>`+
-      `<div class="card-edit-field full"><label>Tags</label><div class="inline-tag-editor"><div class="inline-tag-assigned" data-tagchips></div><div class="inline-tag-input-row"><input data-taginput placeholder="type tag, press Enter"></div><div class="inline-tag-sug-label" data-suglabel>Suggestions (click to add · × to remove from list)</div><div class="inline-tag-suggestions" data-sug></div></div></div>`+
+      `<div class="card-edit-field full"><label>Tags</label><div class="inline-tag-editor"><div class="inline-tag-assigned" data-tagchips></div><div class="inline-tag-input-row"><div class="tag-input-wrap"><input data-taginput placeholder="type tag, press Enter"><button type="button" class="tag-clear" data-tagclear title="Clear" aria-label="Clear tag input" style="display:none">×</button></div></div><div class="inline-tag-sug-label" data-suglabel>Suggestions (click to add · × to remove from list)</div><div class="inline-tag-suggestions" data-sug></div></div></div>`+
       `<div class="card-edit-field full"><label>Notes</label><div class="card-inline-notes"><div class="live-notes-preview" data-noteview data-placeholder="Notes (Markdown) — click to edit" tabindex="0"></div><textarea data-notes class="hidden" style="display:none">${esc(c.notes||"")}</textarea></div></div>`+
       `<div class="card-edit-field full"><label>Attachments</label><ul class="attachment-list" data-attlist></ul><label class="att-add">＋ Add files<input type="file" multiple hidden data-attinput></label></div>`+
     `</div>`;
     const q=s=>host.querySelector(s);
-    const commit=(patch,msg)=>{const stageChg="stage" in patch;Object.assign(c,patch,{updatedAt:new Date().toISOString()});if(stageChg&&"lane" in c)c.lane=c.stage;scheduleBoardSave(board,msg||`Update ${c.title||id}`);};
+    const commit=(patch,msg)=>{const stageChg="stage" in patch;Object.assign(c,patch,{updatedAt:new Date().toISOString()});if(stageChg&&"lane" in c)c.lane=c.stage;if(model){opts.onCommit&&opts.onCommit(patch);}else{scheduleBoardSave(board,msg||`Update ${c.title||id}`);}};
     q('[data-f="title"]').onchange=e=>commit({title:e.target.value.trim()||"(untitled)"});
     q('[data-f="platform"]').onchange=e=>commit({platform:e.target.value});
     q('[data-f="stage"]').onchange=e=>commit({stage:e.target.value});
     q('[data-f="lineage"]').onchange=e=>commit({lineage:e.target.value});
     q('[data-f="dev"]').onchange=e=>commit({dev:e.target.value.trim()});
     q('[data-f="live"]').onchange=e=>commit({live:e.target.value.trim()});
-    const chipsEl=q('[data-tagchips]'),tin=q('[data-taginput]'),sug=q('[data-sug]'),sugLabel=q('[data-suglabel]');
-    const drawChips=()=>{chipsEl.innerHTML="";tags.forEach(t=>{const chip=document.createElement('span');chip.className='chip';chip.innerHTML=`${esc(t)} <button type="button" title="remove tag">×</button>`;chip.querySelector('button').onclick=e=>{e.stopPropagation();tags.splice(tags.indexOf(t),1);drawChips();drawSug();commit({tags:tags.slice()});};chipsEl.appendChild(chip);});};
-    const drawSug=()=>{sug.innerHTML="";const query=tin.value.trim().toLowerCase(),show=query.length>0;sugLabel.style.display=show?"":"none";sug.style.display=show?"":"none";if(!show)return;allKnownTags().filter(t=>!tags.includes(t)&&t.includes(query)).forEach(t=>{const chip=document.createElement('span');chip.className='chip';const txt=document.createElement('span');txt.textContent=t;const rx=document.createElement('span');rx.className='sug-x';rx.textContent='×';rx.title='remove from list';chip.append(txt,rx);chip.onclick=e=>{e.stopPropagation();if(e.target===rx){tagHistDel(t);drawSug();return;}if(!tags.includes(t)){tags.push(t);drawChips();drawSug();commit({tags:tags.slice()});}};sug.appendChild(chip);});};
-    const addTags=()=>{const raw=tin.value.trim();if(!raw)return;raw.split(/[,\s]+/).forEach(p=>{const t=p.trim().toLowerCase();if(t&&!tags.includes(t))tags.push(t);});tin.value="";tagHistAdd(tags);drawChips();drawSug();commit({tags:tags.slice()});};
+    const chipsEl=q('[data-tagchips]'),tin=q('[data-taginput]'),sug=q('[data-sug]'),sugLabel=q('[data-suglabel]'),clearBtn=q('[data-tagclear]');
+    const updateClear=()=>{clearBtn.style.display=tin.value.trim().length?"":"none";};
+    const drawChips=()=>{chipsEl.innerHTML="";tags.forEach(t=>{const chip=document.createElement('span');chip.className='chip';chip.innerHTML=`${esc(t)} <button type="button" title="remove tag">×</button>`;const b=chip.querySelector('button');b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=e=>{e.stopPropagation();tags.splice(tags.indexOf(t),1);drawChips();drawSug();commit({tags:tags.slice()});};chipsEl.appendChild(chip);});};
+    const drawSug=()=>{sug.innerHTML="";const query=tin.value.trim().toLowerCase(),show=query.length>0;sugLabel.style.display=show?"":"none";sug.style.display=show?"":"none";if(!show)return;allKnownTags().filter(t=>!tags.includes(t)&&t.includes(query)).forEach(t=>{const chip=document.createElement('span');chip.className='chip';const txt=document.createElement('span');txt.textContent=t;const rx=document.createElement('span');rx.className='sug-x';rx.textContent='×';rx.title='remove from list';chip.append(txt,rx);chip.addEventListener('mousedown',e=>e.preventDefault());chip.onclick=e=>{e.stopPropagation();if(e.target===rx){tagHistDel(t);drawSug();return;}if(!tags.includes(t)){tags.push(t);drawChips();drawSug();commit({tags:tags.slice()});}tin.focus();};sug.appendChild(chip);});};
+    const addTags=()=>{const raw=tin.value.trim();if(!raw)return;raw.split(/[,\s]+/).forEach(p=>{const t=p.trim().toLowerCase();if(t&&!tags.includes(t))tags.push(t);});tin.value="";updateClear();tagHistAdd(tags);drawChips();drawSug();commit({tags:tags.slice()});};
     tin.onkeydown=e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();e.stopPropagation();addTags();}};
-    tin.oninput=()=>drawSug();
+    tin.oninput=()=>{updateClear();drawSug();};
+    clearBtn.addEventListener('mousedown',e=>e.preventDefault());
+    clearBtn.onclick=e=>{e.stopPropagation();tin.value="";updateClear();drawSug();tin.focus();};
     drawChips(); drawSug();
     const nv=q('[data-noteview]'),ta=q('[data-notes]');
     const showPreview=()=>{nv.innerHTML=renderMd(c.notes||"");nv.classList.remove('hidden');nv.style.display="";ta.classList.add('hidden');ta.style.display="none";};
@@ -746,6 +756,35 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
      history/suggestions, dev/live, attachments, and markdown notes. */
   /* The full card editor IS the kanban card panel now (exact look & feel). */
   function openCardEditor(board,id){openCardPanel(board,id,null);}
+
+  /* Create a card from a plain data model (used by the New-card modal). */
+  function createCardFrom(board,data){
+    const stage=data.stage||stages(board)[0]||'Backlog',now=Date.now();
+    const c={id:uid(),title:(data.title||'').trim()||'(untitled)',platform:data.platform||'Default',stage,lineage:data.lineage||'',dev:(data.dev||'').trim(),live:(data.live||'').trim(),statusColor:data.statusColor||'',tags:normalizeTags(data.tags),notes:data.notes||'',files:Array.isArray(data.files)?data.files.slice():[],position:1,createdAt:now,updatedAt:now};
+    if('lane' in (cards(board)[0]||{}))c.lane=stage;
+    cards(board).unshift(c);normalize(board);updateIndex([board]);saveBoards([board],`Create card in ${board}`,true);
+    return c.id;
+  }
+
+  /* New card = a modal with the SAME editor/fields/flow as inline editing, but nothing is
+     written to the board until "Add card" (no half-committed card floating in a lane). */
+  let newCardModel=null;
+  function openNewCardModal(board){
+    board=board||state.manageBoard||defaultBoard(); if(!board)return;
+    newCardModel={id:null,title:'',platform:(boardData[board]?.platforms||[])[0]||'Default',stage:stages(board)[0]||'Backlog',lineage:'',dev:'',live:'',statusColor:'',tags:[],notes:'',files:[]};
+    const d=$('#cardDialog');
+    d.innerHTML=`<form method="dialog" class="dialog-body kb" novalidate><div class="dialog-head"><h2>New card — ${esc(board)}</h2><button class="icon-btn" type="button" data-x aria-label="Close">×</button></div><div data-newhost></div><div class="dialog-actions"><button class="btn primary" type="button" data-add>Add card</button><button class="btn" type="button" data-addnew>Add &amp; New</button><span style="flex:1"></span><button class="btn" type="button" data-cancel>Cancel</button></div></form>`;
+    renderCardDetail($('[data-newhost]',d),board,null,{model:newCardModel});
+    const close=()=>{newCardModel=null;try{d.close()}catch{}};
+    const readTitle=()=>{const t=$('[data-newhost] [data-f="title"]',d);if(t)newCardModel.title=t.value;};
+    const commitNew=()=>{readTitle();if(!newCardModel.title.trim()){const t=$('[data-newhost] [data-f="title"]',d);if(t)t.focus();return null;}const id=createCardFrom(board,newCardModel);rerender();return id;};
+    $('[data-add]',d).onclick=()=>{if(commitNew()!=null)close();};
+    $('[data-addnew]',d).onclick=()=>{if(commitNew()!=null)openNewCardModal(board);};
+    $('[data-cancel]',d).onclick=close; $('[data-x]',d).onclick=close;
+    d.onclose=()=>{newCardModel=null;};
+    d.showModal();
+    const t=$('[data-newhost] [data-f="title"]',d); if(t)t.focus();
+  }
   function openCardExpand(board,id,anchor){openCardPanel(board,id,anchor);}
 
   window.addEventListener("keydown",e=>{if(e.key==="Escape"){$(".color-menu")?.remove();document.querySelector(".status-menu")?.remove();document.querySelector(".note-pop")?.remove();}});
