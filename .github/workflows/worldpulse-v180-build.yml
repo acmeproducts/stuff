@@ -1,0 +1,107 @@
+name: Build WorldPulse v1.8 quality reader
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/worldpulse-v180-build.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: worldpulse-v180-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore preferred UI baseline and patch reader behavior
+        run: |
+          git show 9f68231500ec26f55e4e4c48016d8ecaa02fe565:globe.html > globe.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('globe.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('WorldPulse v1.5.1 — Global News Sentiment','WorldPulse v1.8.0 — Global News Sentiment')
+          s=s.replace('<span class="version">v1.5.1</span>','<span class="version">v1.8.0</span>')
+          s=s.replace('const VERSION="1.5.1"','const VERSION="1.8.0"')
+          s=s.replace('<h3>Detailed coverage</h3>','<h3>Top journalism for this geography</h3>')
+          s=s.replace('placeholder="Filter detailed coverage…"','placeholder="Filter headlines or sources…"')
+          s=s.replace('.articleArrow{color:var(--muted);align-self:center}', '.articleArrow{color:var(--muted);align-self:center}.qualityBadge{display:inline-block;border:1px solid #315c4b;background:#0d2a20;color:#70dda6;border-radius:999px;padding:2px 5px;font-size:8px;font-weight:700}.sourceBadge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 5px;font-size:8px;color:#b8c9dd}')
+
+          anchor='function renderArticles()'
+          helper='''const QUALITY_DOMAINS={"bbc.com":100,"bbc.co.uk":100,"reuters.com":98,"apnews.com":98,"npr.org":94,"theguardian.com":92,"aljazeera.com":92,"dw.com":90,"france24.com":90,"abc.net.au":90,"cbc.ca":90,"cbsnews.com":86,"nbcnews.com":86,"abcnews.go.com":86,"cnn.com":84,"nytimes.com":84,"washingtonpost.com":84};\nfunction cleanDomain(v){return String(v||"").toLowerCase().replace(/^www\\./,"")}\nfunction qualityScore(a){const d=cleanDomain(a.domain);for(const [k,v] of Object.entries(QUALITY_DOMAINS))if(d===k||d.endsWith("."+k))return v;return Number(a.quality||0)}\nfunction qualityName(a){const d=cleanDomain(a.domain);if(d.includes("bbc."))return "BBC";if(d.includes("reuters.com"))return "Reuters";if(d.includes("apnews.com"))return "AP";if(d.includes("npr.org"))return "NPR";if(d.includes("theguardian.com"))return "Guardian";if(d.includes("aljazeera.com"))return "Al Jazeera";if(d.includes("dw.com"))return "DW";if(d.includes("france24.com"))return "France 24";if(d.includes("abc.net.au"))return "ABC Australia";if(d.includes("cbc.ca"))return "CBC";return d||"Source"}\n'''
+          if anchor in s and 'const QUALITY_DOMAINS=' not in s:s=s.replace(anchor,helper+anchor,1)
+
+          # Sort whatever article array renderArticles builds, without depending on exact variable declaration text.
+          m=re.search(r'function renderArticles\(\)\{(.*?)\n\}',s,re.S)
+          if not m: raise SystemExit('renderArticles function not found')
+          body=m.group(1)
+          # Find the first assignment that starts with articlesForNode(n) and inject quality-first sorting before slice/iteration.
+          body2=re.sub(r'(const\s+arts\s*=\s*articlesForNode\(n\)[^;]*)(;)', r'\1.sort((a,b)=>qualityScore(b)-qualityScore(a)||String(b.published||"").localeCompare(String(a.published||"")))\2', body, count=1)
+          if body2==body:
+              body2=re.sub(r'(let\s+arts\s*=\s*articlesForNode\(n\)[^;]*)(;)', r'\1.sort((a,b)=>qualityScore(b)-qualityScore(a)||String(b.published||"").localeCompare(String(a.published||"")))\2', body, count=1)
+          if body2==body: raise SystemExit('article array assignment not found')
+          s=s[:m.start(1)]+body2+s[m.end(1):]
+
+          # Badge reputable publishers in headline metadata while retaining ordinary domains for everything else.
+          s=s.replace('${esc(a.domain||"source")}', '${qualityScore(a)?`<span class="qualityBadge">${esc(qualityName(a))}</span>`:`<span class="sourceBadge">${esc(a.domain||"source")}</span>`}')
+          s=s.replace('Open original source ↗','Read at original publisher ↗')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Upgrade collector to deliberately fetch reputable publishers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('worldmood-collector.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('import datetime as dt, json, os, time, urllib.error, urllib.parse, urllib.request', 'import datetime as dt, json, os, time, urllib.error, urllib.parse, urllib.request\nfrom concurrent.futures import ThreadPoolExecutor, as_completed')
+          s=s.replace('USER_AGENT="WorldPulseCollector/1.8 (+https://github.com/acmeproducts/stuff)"', 'USER_AGENT="WorldPulseCollector/1.8 (+https://github.com/acmeproducts/stuff)"\nTARGET_DOMAINS=["bbc.co.uk","bbc.com","reuters.com","apnews.com","npr.org","theguardian.com","aljazeera.com","dw.com","france24.com","abc.net.au","cbc.ca"]\nQUALITY_MAXROWS=int(os.environ.get("WORLDMOOD_QUALITY_MAXROWS","450"))')
+
+          old='''def source_url(minutes):\n    fields="url,name,domain,title,tone,lang,wordcount,themes,names"\n    return BASE+"?"+urllib.parse.urlencode({"QUERY":"","OUTPUTFIELDS":fields,"OUTPUTTYPE":"1","MAXROWS":str(MAXROWS),"TIMESPAN":str(minutes)})'''
+          new='''def source_url(minutes,query="",maxrows=None):\n    fields="url,name,domain,title,tone,lang,wordcount,themes,names"\n    return BASE+"?"+urllib.parse.urlencode({"QUERY":query,"OUTPUTFIELDS":fields,"OUTPUTTYPE":"1","MAXROWS":str(maxrows or MAXROWS),"TIMESPAN":str(minutes)})\n\ndef fetch_feature_set(minutes,query="",maxrows=None):\n    source,http=fetch_json(source_url(minutes,query,maxrows));features=source.get("features") if isinstance(source,dict) else None\n    if not isinstance(features,list):raise ValueError("GDELT response did not contain a features array")\n    return features,http\n\ndef targeted_quality_features(minutes):\n    rows=[];status={}\n    with ThreadPoolExecutor(max_workers=6) as ex:\n        futs={ex.submit(fetch_feature_set,minutes,f"domainlike:{d}",QUALITY_MAXROWS):d for d in TARGET_DOMAINS}\n        for fut in as_completed(futs):\n            d=futs[fut]\n            try:\n                fs,http=fut.result();rows.extend(fs);status[d]={"ok":True,"records":len(fs),"http_status":http.get("http_status"),"latency_ms":http.get("latency_ms")}\n            except Exception as e:status[d]={"ok":False,"records":0,"error":f"{type(e).__name__}: {e}"}\n    return rows,status'''
+          if old not in s: raise SystemExit('source_url block not found')
+          s=s.replace(old,new,1)
+
+          old='''            source,http=fetch_json(source_url(minutes));st.update(http);features=source.get("features") if isinstance(source,dict) else None\n            if not isinstance(features,list):raise ValueError("GDELT response did not contain a features array")\n            st["raw_records"]=len(features);mapped=[x for x in (normalize(f) for f in features) if x];st["mapped_records"]=len(mapped)'''
+          new='''            features,http=fetch_feature_set(minutes);st.update(http)\n            quality_features,quality_status=targeted_quality_features(minutes)\n            st["targeted_sources"]=quality_status\n            # Broad GDELT supplies sentiment/geography; targeted publisher feeds guarantee mainstream coverage is represented.\n            seen=set();merged=[]\n            for f in features+quality_features:\n                p0=f.get("properties") or {};g0=f.get("geometry") or {};k=(p0.get("url") or p0.get("articleurl") or "",p0.get("name") or "",str(g0.get("coordinates") or ""))\n                if k in seen:continue\n                seen.add(k);merged.append(f)\n            st["raw_records"]=len(features);st["targeted_raw_records"]=len(quality_features);mapped=[x for x in (normalize(f) for f in merged) if x];st["mapped_records"]=len(mapped)'''
+          if old not in s: raise SystemExit('main fetch block not found')
+          s=s.replace(old,new,1)
+          s=s.replace('"source_note":"Broad GDELT geography/sentiment with reputable publishers prioritized in each geographic article set. Media tone, not public opinion."', '"source_note":"Broad GDELT supplies geography/sentiment; separate targeted GDELT domain feeds deliberately add BBC, Reuters, AP, NPR, Guardian, Al Jazeera, DW, France 24, ABC Australia and CBC coverage. Media tone, not public opinion."')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Validate and build fresh cache
+        run: |
+          python3 -m py_compile worldmood-collector.py
+          python3 - <<'PY'
+          import re, pathlib, subprocess
+          s=pathlib.Path('globe.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)
+          pathlib.Path('/tmp/worldpulse-v18.js').write_text(scripts[-1],encoding='utf-8')
+          r=subprocess.run(['node','--check','/tmp/worldpulse-v18.js'])
+          raise SystemExit(r.returncode)
+          PY
+          python3 worldmood-collector.py
+          grep -q 'WorldPulse v1.8.0' globe.html
+          grep -q 'TARGET_DOMAINS' worldmood-collector.py
+
+      - name: Commit complete v1.8 build
+        run: |
+          git config user.name worldpulse-bot
+          git config user.email worldpulse-bot@users.noreply.github.com
+          git add globe.html worldmood-collector.py worldmood-data.json
+          git rm .github/workflows/worldpulse-v180-build.yml
+          git commit -m "feat: WorldPulse v1.8 quality-source geography reader"
+          git pull --rebase origin main
+          git push origin HEAD:main
