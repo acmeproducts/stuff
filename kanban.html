@@ -464,7 +464,7 @@ const BOARD_CACHE_META_KEY = "kanban_board_cache_meta_v1";
 const LAST_SEEN_BOARD_LS = "kanban_last_seen_board";
 const CARD_LINEAGES = ["pre-base","base","pre-ship","ship","post-ship","post-ship-plus-1","post-ship-plus-x"];
 let repoSwitchCfg = {};
-let repoBoardsIndex = { version:1, activeBoard:"", boards:[] };
+let repoBoardsIndex = { version:1, activeBoard:"", boards:[], tags:[] };
 let boardsBootstrapped = false;
 let repoLoadBlocked = false;
 let repoLoadError = "";
@@ -496,9 +496,9 @@ function loadRepoBoardsIndexCache(){
   return safeParseJson(localStorage.getItem("kanban_repo_boards_index_cache")||"", null);
 }
 function mergeBoardIndexes(primary, secondary){
-  const left=(primary && typeof primary==="object") ? primary : { version:1, activeBoard:"", boards:[] };
-  const right=(secondary && typeof secondary==="object") ? secondary : { version:1, activeBoard:"", boards:[] };
-  const merged={ version:Number(left.version||right.version||1)||1, activeBoard:String(left.activeBoard||right.activeBoard||""), boards:[] };
+  const left=(primary && typeof primary==="object") ? primary : { version:1, activeBoard:"", boards:[], tags:[] };
+  const right=(secondary && typeof secondary==="object") ? secondary : { version:1, activeBoard:"", boards:[], tags:[] };
+  const merged={ version:Number(left.version||right.version||1)||1, activeBoard:String(left.activeBoard||right.activeBoard||""), boards:[], tags:normalizeTagCatalog([...(left.tags||[]), ...(right.tags||[])]) };
   const byKey=new Map();
   const push=(items=[])=>{
     items.forEach((item)=>{
@@ -526,6 +526,7 @@ async function loadRepoBoardsIndex(){
     repoBoardsIndex=mergeBoardIndexes(cached, null);
   }
   repoBoardsIndex.boards=Array.isArray(repoBoardsIndex.boards)?repoBoardsIndex.boards:[];
+  repoBoardsIndex.tags=normalizeTagCatalog(repoBoardsIndex.tags);
 }
 async function refreshBoardsIndexFromRepo(){ await loadRepoBoardsIndex(); saveRepoBoardsIndexCache(); }
 function loadCacheMeta(){ return safeParseJson(localStorage.getItem(BOARD_CACHE_META_KEY)||"{}",{}); }
@@ -550,23 +551,37 @@ function normalizeBoardRecord(record){
 }
 function saveRepoBoardsIndexCache(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
+  repoBoardsIndex.tags=normalizeTagCatalog(repoBoardsIndex.tags);
   localStorage.setItem("kanban_repo_boards_index_cache", JSON.stringify(repoBoardsIndex));
 }
 async function persistRepoBoardsIndexAuthoritative(){
   repoBoardsIndex.boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(Boolean);
+  repoBoardsIndex.tags=normalizeTagCatalog(repoBoardsIndex.tags);
   const cfg=getGitHubSyncConfig();
-  const token=await ensureGithubToken();
   const path=REPO_BOARDS_FILE;
   const getUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(cfg.branch)}`;
-  let sha=null;
-  try{
-    const existing=await githubFetch(getUrl,{method:"GET"});
-    sha=existing?.sha||null;
-  }catch(err){
-    if(!String(err?.message||"").includes("(404)")) throw err;
-  }
   const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(path)}`;
-  await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
+  for(let attempt=0; attempt<2; attempt++){
+    let sha=null, remote=null;
+    try{
+      const existing=await githubFetch(getUrl,{method:"GET"});
+      sha=existing?.sha||null;
+      remote=safeParseJson(b64DecodeUnicode((existing?.content||"").replace(/\n/g,"")), null);
+    }catch(err){
+      if(!String(err?.message||"").includes("(404)")) throw err;
+    }
+    // Always start from the latest SHA and union its catalog. This prevents a
+    // client with stale local storage from erasing tags committed elsewhere.
+    repoBoardsIndex=mergeBoardIndexes(repoBoardsIndex, remote);
+    saveRepoBoardsIndexCache();
+    try{
+      await githubFetch(putUrl,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:`Update ${path}`,content:b64EncodeUnicode(JSON.stringify(repoBoardsIndex,null,2)+"\n"),branch:cfg.branch,sha})});
+      return;
+    }catch(err){
+      if(attempt===0 && /\(409\)|conflict/i.test(String(err?.message||""))) continue;
+      throw err;
+    }
+  }
 }
 async function persistBoardPayloadAuthoritative(name, boardData){
   const cfg=getGitHubSyncConfig();
@@ -605,6 +620,7 @@ function upsertBoardRecord(name, patch={}, boardData=null, options={}){
 /* ===== Persistence ===== */
 const STABLE_KEY = "ai_jobs_kanban";
 const TAGS_KEY = "ai_jobs_kanban_tags";
+const DISMISSED_TAGS_KEY = "ai_jobs_kanban_dismissed_tags";
 const GITHUB_PAT_KEY = "github_pat";
 const LEGACY_GITHUB_PAT_KEYS = ["kanban_github_pat","ai_jobs_kanban_github_pat"];
 const DEFAULT_GITHUB_SYNC_CONFIG = Object.freeze({
@@ -666,8 +682,14 @@ function loadState(){
   if(raw){ try{ const obj=JSON.parse(raw); if(obj?.cards && obj?.stages && obj?.platforms) return obj; }catch{} }
   return null;
 }
-function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
-function saveTagHistory(list){ const uniq=[...new Set(list.map(t=>String(t).toLowerCase()))]; trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
+function loadTagHistory(){ try{ const arr=JSON.parse(localStorage.getItem(TAGS_KEY)||"[]"); return normalizeTagCatalog(Array.isArray(arr)?arr:[]); }catch{ return []; } }
+function saveTagHistory(list){ const uniq=normalizeTagCatalog(list); trySave(TAGS_KEY, JSON.stringify(uniq)); return uniq; }
+function loadDismissedTags(){ try{ return normalizeTagCatalog(JSON.parse(localStorage.getItem(DISMISSED_TAGS_KEY)||"[]")); }catch{ return []; } }
+function dismissTagSuggestion(tag){
+  const dismissed=normalizeTagCatalog([...loadDismissedTags(), tag]);
+  trySave(DISMISSED_TAGS_KEY, JSON.stringify(dismissed));
+  tagHistory=saveTagHistory(tagHistory.filter(x=>!dismissed.includes(x)));
+}
 
 /* ===== App State ===== */
 const persistedState = loadState();
@@ -1021,7 +1043,7 @@ function buildInlineTagEditor(tagArr){
 
   const sugLabel = document.createElement("div");
   sugLabel.className = "inline-tag-sug-label";
-  sugLabel.textContent = "Suggestions (click to add · × to remove from list)";
+  sugLabel.textContent = "Suggestions (click to add · × to dismiss on this browser)";
 
   const sugEl = document.createElement("div");
   sugEl.className = "inline-tag-suggestions";
@@ -1048,11 +1070,11 @@ function buildInlineTagEditor(tagArr){
     tagHistory.filter(t=>!tagArr.includes(t) && t.toLowerCase().includes(query)).forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       const txt = document.createElement("span"); txt.textContent = t;
-      const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "remove from list";
+      const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "dismiss suggestion on this browser";
       chip.append(txt, rx);
       chip.onclick = e=>{
         e.stopPropagation();
-        if(e.target === rx){ tagHistory = saveTagHistory(tagHistory.filter(x=>x!==t)); renderSuggestions(); return; }
+        if(e.target === rx){ dismissTagSuggestion(t); renderSuggestions(); return; }
         if(!tagArr.includes(t)){ tagArr.push(t); renderAssigned(); renderSuggestions(); }
       };
       sugEl.appendChild(chip);
@@ -1480,8 +1502,53 @@ function deleteCardPermanently(id){ if(!guardMutation("Delete blocked while repo
 function emptyArchive(){ if(!guardMutation("Empty archive blocked while repository is unavailable")) return; if(confirm("Permanently delete all archived cards? This cannot be undone.")){ state.archive = []; scheduleSave(); renderArchiveList(); } }
 function deleteCard(id){ archiveCard(id); }
 function focusCard(id){ const el=$( `.card[data-id="${id}"]` ); if(el){ el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); el.animate([{transform:"scale(1)"},{transform:"scale(1.02)"},{transform:"scale(1)"}],{duration:450}); } }
-function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else if(typeof tags==="string") arr=tags.split(",").map(s=>s.trim()); arr=arr.map(s=>s.toLowerCase()).filter(Boolean); return [...new Set(arr)]; }
-function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHistory([...tagHistory, ...tags]); }
+// The one canonical normalization path for card tags, history, and the repo catalog.
+function normalizeTagCatalog(values){
+  let arr=[];
+  if(Array.isArray(values)) arr=values;
+  else if(typeof values==="string") arr=values.split(",");
+  return [...new Set(arr.map(value=>String(value??"").trim().toLowerCase()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+}
+function normalizeTags(tags){ return normalizeTagCatalog(tags); }
+function collectBoardTags(board){
+  const found=[];
+  [...(Array.isArray(board?.cards)?board.cards:[]), ...(Array.isArray(board?.archive)?board.archive:[])].forEach(card=>{
+    card.tags=normalizeTags(card.tags);
+    found.push(...card.tags);
+  });
+  return normalizeTagCatalog(found);
+}
+function mergeGlobalTags(tags){
+  const merged=normalizeTagCatalog([...(repoBoardsIndex.tags||[]), ...tagHistory, ...normalizeTagCatalog(tags)]);
+  repoBoardsIndex.tags=merged;
+  const dismissed=new Set(loadDismissedTags());
+  tagHistory=saveTagHistory(merged.filter(tag=>!dismissed.has(tag)));
+  saveRepoBoardsIndexCache();
+  return merged;
+}
+let tagCatalogPersistTimer=null;
+function queueTagCatalogPersistence(){
+  clearTimeout(tagCatalogPersistTimer);
+  tagCatalogPersistTimer=setTimeout(async()=>{
+    try{
+      await persistRepoBoardsIndexAuthoritative();
+      setStatus("Tag catalog synced");
+    }catch(err){
+      // The local catalog/cache deliberately remains intact for a later retry.
+      toast("Tag catalog sync failed","Suggestion retained locally; retry repository sync.",true);
+      setStatus(`Tag catalog sync warning: ${err.message}`);
+    }
+  }, 1500);
+}
+function bumpTagHistory(tags){
+  const additions=normalizeTagCatalog(tags);
+  if(!additions.length) return;
+  const catalogBefore=normalizeTagCatalog(repoBoardsIndex.tags);
+  const dismissed=loadDismissedTags().filter(tag=>!additions.includes(tag));
+  trySave(DISMISSED_TAGS_KEY, JSON.stringify(dismissed));
+  mergeGlobalTags(additions);
+  if(additions.some(tag=>!catalogBefore.includes(tag))) queueTagCatalogPersistence();
+}
 
 /* ===== Editor ===== */
 const editDialog=$("#editDialog"); const editForm=$("#editForm");
@@ -1612,10 +1679,10 @@ function renderTagSuggestions(){
     seen.add(k);
     const el=document.createElement("span"); el.className="chip";
     const txt=document.createElement("span"); txt.textContent=t;
-    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
+    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="dismiss suggestion on this browser";
     el.append(txt,rm);
     el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
+      if(e.target===rm){ dismissTagSuggestion(t); renderTagSuggestions(); return; }
       if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); renderTagSuggestions(); }
     };
     tagSuggestions.appendChild(el);
@@ -1706,6 +1773,10 @@ function applyImportedBoard(obj, sourceLabel="import", options={}){
 state.layout = state.layout || "auto";
 state.archive = Array.isArray(state.archive)? state.archive : [];
 state.cards = Array.isArray(state.cards) ? state.cards : [];
+  const catalogBefore=normalizeTagCatalog(repoBoardsIndex.tags);
+  const discoveredTags=collectBoardTags(state);
+  mergeGlobalTags(discoveredTags);
+  if(discoveredTags.some(tag=>!catalogBefore.includes(tag))) queueTagCatalogPersistence();
 state.cards.forEach(c=>{ c.lineage=normalizeLineage(c.lineage); });
   state.cardCollapsed = state.cardCollapsed || {};
   state.lastModified = Number(state.lastModified||Date.now());
@@ -2402,6 +2473,9 @@ document.getElementById("boardKeyPill").addEventListener("click", ()=>{
 async function bootstrapBoardsLifecycle(){
   await loadRepoSwitch();
   await loadRepoBoardsIndex();
+  // Version-1 indexes without `tags` normalize to an empty catalog. Merge the
+  // repository catalog before either editor can provide suggestions.
+  mergeGlobalTags(repoBoardsIndex.tags);
   const boards=(repoBoardsIndex.boards||[]).map(normalizeBoardRecord).filter(b=>b && !b.archived);
   boards.sort((a,b)=>Number(b.lastUpdated||0)-Number(a.lastUpdated||0));
   // A query-string selection wins; otherwise restore the last board used on
