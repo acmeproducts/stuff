@@ -167,13 +167,15 @@ select.input{appearance:auto}
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
     <div class="frow"><label>Branch</label><input id="sotBranch" class="input mono" placeholder="main"></div>
-    <div class="frow"><label>Anthropic API key (optional — only for the in-app direct engine)</label><input id="cfgakey" class="input" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+    <div class="frow"><label>Venice API key</label><input id="cfgvkey" class="input" type="password" autocomplete="off" placeholder="…"></div>
+    <div class="frow"><label>Venice model</label><input id="cfgvmodel" class="input mono" placeholder="qwen3-235b"></div>
+    <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input" type="password" autocomplete="off" placeholder="sk-or-…"></div>
+    <div class="frow"><label>OpenRouter model</label><input id="cfgormodel" class="input mono" placeholder="anthropic/claude-sonnet-4.5"></div>
+    <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
     <div class="frow"><label>Default engine for new threads</label><select id="cfgengine" class="input">
-      <option value="claude">Claude CLI (runner · subscription)</option>
-      <option value="codex">Codex CLI (runner · ChatGPT sub)</option>
-      <option value="venice">Venice.ai (runner)</option>
-      <option value="openrouter">OpenRouter (runner)</option>
-      <option value="anthropic-direct">Anthropic API (in-app)</option></select></div>
+      <option value="venice">Venice.ai</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="anthropic-direct">Anthropic API</option></select></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn primary" id="cfgSave" style="width:100%;margin-top:12px">Save</button>
   </div>
@@ -188,11 +190,9 @@ select.input{appearance:auto}
       <div class="omni-wrap"><input id="npFile" class="input mono" autocomplete="off" placeholder="myapp.html"><div class="omni-list" id="npOmni"></div></div>
       <div class="hint" id="npHint">Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.</div></div>
     <div class="frow"><label>Engine</label><select id="npEngine" class="input">
-      <option value="claude">Claude CLI (runner · subscription)</option>
-      <option value="codex">Codex CLI (runner · ChatGPT sub)</option>
-      <option value="venice">Venice.ai (runner)</option>
-      <option value="openrouter">OpenRouter (runner)</option>
-      <option value="anthropic-direct">Anthropic API (in-app)</option></select></div>
+      <option value="venice">Venice.ai</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="anthropic-direct">Anthropic API</option></select></div>
     <button class="btn primary" id="npCreate" style="width:100%">Create project</button>
   </div>
 </div></div>
@@ -349,7 +349,7 @@ function renderChat(){
   $('chatTitle').textContent=t.project+' · '+t.file;
   $('chatInfo').textContent=repoFull()+' · plan: '+(d.planFile||'—');
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
-  $('engineFoot').textContent='engine: '+(t.engine||'claude');
+  $('engineFoot').textContent='engine: '+(t.engine||'venice');
   const pend=d.messages.some(m=>m.status==='pending');
   $('runPending').style.display=pend?'inline-flex':'none';
   $('typing').style.display=t.state==='executing'?'flex':'none';
@@ -381,7 +381,7 @@ async function deleteThread(key){
 const PLAN_PROMPT=f=>'Create '+planOf(f)+' — the master plan for '+f+' — following the house planning-doc standard. Requisite sections, in order: (0) TURN/STAGE LEDGER: a table of turns/stages with status, where every future build session appends a row before touching code; (1) RELEASES: numbered release list with one-line goals; (2) per-release sections: scope (in/out), build gates (how we verify, on real devices), and backlog of deferred items; (3) FUTURE IDEAS: unscheduled parking lot; (4) IMMUTABLE WORKING RULES: mobile-first, all diagnostics in-app (never DevTools), update-plan-before-code, read-back verification after every push, no stubs or fake data; (5) DECISION LOG: dated owner decisions; (6) APPENDIX: authority order (this plan is the sole authority; chat history loses to the plan). Seed it with what is known so far about '+f+' and mark everything else TBD. Keep it tight and scannable on a phone.';
 $('projectAdd').onclick=()=>{
   if(!cfg){openModal('cfgModal');return}
-  $('npLabel').value='';$('npFile').value='';$('npEngine').value=cfg.engine||'claude';
+  $('npLabel').value='';$('npFile').value='';$('npEngine').value=cfg.engine||'venice';
   npSelectedExisting=false;openModal('newProjModal');
 };
 function npFilter(){
@@ -439,7 +439,7 @@ async function newThreadForProject(){
   await guard(async()=>{
     const tree=await repoTree(true);
     const tid=file+(key.includes('#')?key.slice(key.indexOf('#')):'');
-    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'claude',created:now(),
+    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
       messages:[{role:'agent',text:'This thread references the plan ('+p.planFile+'). Ask questions, add ideas or feedback — they update the plan. Say "build it" (or give build instructions) and the build happens here against '+file+'.',ts:now()}]};
     const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new thread '+key);
     threads[key]={data,sha};
@@ -469,11 +469,7 @@ $('send').onclick=sendMessage;
 $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
 function threadPath(key){const th=threads[key];return tpath(th.data.project,th.data.tid||th.data.outputFile)}
-function dispatch(key){
-  const eng=sot.threads[key].engine||'claude';
-  if(eng==='anthropic-direct')runAgent(key);
-  else toast('Queued for the runner ['+eng+']');
-}
+function dispatch(key){runAgent(key)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
 /* ---- in-app agent (anthropic-direct) ---- */
@@ -496,11 +492,33 @@ async function setState(key,patch){
   await saveSOT('devstream: '+key+' -> '+(patch.state||'update')).catch(()=>{});
   renderTabs();renderSidebar();if(activeKey===key)renderChat();
 }
+async function callEngine(eng,system,history,user){
+  if(eng==='anthropic-direct'){
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})});
+    const j=await r.json();
+    if(!r.ok)throw new Error('Anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
+    return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  }
+  const cfgs={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel||'qwen3-235b',extra:{}},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel||'anthropic/claude-sonnet-4.5',extra:{'HTTP-Referer':'https://acmeproducts.github.io','X-Title':'devstream'}}}[eng];
+  if(!cfgs)throw new Error('Unknown engine '+eng);
+  const r=await fetch(cfgs.url,{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key,...cfgs.extra},
+    body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
+  let j;try{j=await r.json()}catch(e){throw new Error(eng+' returned non-JSON ('+r.status+') — possibly CORS-blocked in this browser')}
+  if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
+  return j.choices[0].message.content;
+}
 async function runAgent(key){
   if(agentBusy){toast('Agent already running');return}
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
-  if(!cfg.akey){errbar('No Anthropic API key in Settings — this thread uses the in-app engine.');return}
+  const eng=t.engine||'venice';
+  if(eng==='anthropic-direct'&&!cfg.akey){errbar('No Anthropic API key in Settings.');return}
+  if(eng==='venice'&&!cfg.vkey){errbar('No Venice API key in Settings.');return}
+  if(eng==='openrouter'&&!cfg.orkey){errbar('No OpenRouter API key in Settings.');return}
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
   if(!pend.length){toast('Nothing pending');return}
   agentBusy=true;
@@ -517,13 +535,7 @@ async function runAgent(key){
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:64000,system:agentSystem(codeFile,planFile),
-        messages:[...history,{role:'user',content:ctx+'Instructions:\n'+instr}]})});
-    const j=await r.json();
-    if(!r.ok)throw new Error('Anthropic API '+r.status+': '+((j.error&&j.error.message)||'unknown'));
-    const text=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    const text=await callEngine(eng,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);
     const{summary,target,body}=parseAgent(text);
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(target!=='NONE'){
@@ -597,7 +609,7 @@ function renderDash(){
       const r=document.createElement('div');r.className='trow';
       r.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><div class="ti">'+
         '<div class="tf mono">'+esc(t.file)+'</div>'+
-        '<div class="tt">'+(t.state||'idle')+' · '+(t.engine||'claude')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
+        '<div class="tt">'+(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
         (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>';
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
@@ -613,7 +625,7 @@ function renderDash(){
 }
 
 /* ---- settings / boot ---- */
-$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgengine').value=cfg.engine||'claude'}openModal('cfgModal')};
+$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgvmodel').value=cfg.vmodel||'';$('cfgorkey').value=cfg.orkey||'';$('cfgormodel').value=cfg.ormodel||'';$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal')};
 $('sotValidate').onclick=async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim();
   $('sotStatus').textContent='Checking…';
@@ -625,14 +637,14 @@ $('sotValidate').onclick=async()=>{
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),engine:$('cfgengine').value};
+  cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value.trim()||'qwen3-235b',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value.trim()||'anthropic/claude-sonnet-4.5',engine:$('cfgengine').value};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();$('dot').classList.add('on');closeModals();renderSidebar();renderTabs();toast('Connected');
 });
 (async function boot(){
   // migrate v1 cfg
   const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
-  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',akey:old.akey||'',engine:'claude'};localStorage.setItem(LS,JSON.stringify(cfg))}
+  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){$('dot').classList.add('on');renderSidebar();renderTabs()}
