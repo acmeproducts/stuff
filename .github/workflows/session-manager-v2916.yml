@@ -1,0 +1,55 @@
+name: Session Manager v2.9.16 project cards and omnisearch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/session-manager-v2916.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch, validate, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/session-manager-v2916.py
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
+          if not scripts:
+              raise SystemExit('no script blocks found')
+          Path('/tmp/session-manager-v2916.js').write_text('\n;\n'.join(scripts),encoding='utf-8')
+          required=[
+              "const BUILD_VERSION='2.9.16'",
+              'id="globalOmni"',
+              'id="activeOmni"',
+              'function openProjectContext',
+              'function reorderProjectCard',
+              'function bindProjectTouchDnD',
+              "e.type==='projects.order'",
+              "e.type==='project.style'",
+          ]
+          for marker in required:
+              if marker not in s:
+                  raise SystemExit('missing '+marker)
+          if '<span id="dot"></span>' in s:
+              raise SystemExit('left connection dot still present')
+          PY
+          node --check /tmp/session-manager-v2916.js
+          git diff --check
+          git diff -- session-manager-v3.html
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add session-manager-v3.html
+          git commit -m 'Session Manager v2.9.16 project cards and dual omnisearch'
+          git push
