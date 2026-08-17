@@ -1,0 +1,115 @@
+name: Session Manager v2.9.14 canonical project SOT
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v2914.py'
+      - '.github/workflows/session-manager-v2914.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Repair, validate, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+
+          validate_release() {
+            python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          html=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          assert "const SOT_VERSION=3;" in html
+          assert "const APP_VERSION='2.3.0'" in html
+          assert "const BUILD_VERSION='2.9.14'" in html
+          assert '<span class="version">v2.9.14</span>' in html
+          assert "n.textContent='v2.9.14'" in html
+          assert "![1,2,3].includes(Number(doc.version))" in html
+          assert "Legacy project snapshot dropped" in html
+          assert "oc_session_manager_recovery_" in html
+          assert "Recovery marker applied once" in html
+          assert "SOT v3 cross-origin / fine-grained / non-destructive" in html
+          assert "await checkSotReceive('startup')" in html
+          assert "function ghRawUrl(c)" in html
+          assert "sotEnabled:hasSotEnabled?s.sotEnabled===true:true" in html
+
+          def extract(text,name):
+              m=re.search(rf'(?:(?:async\s+)?function\s+{re.escape(name)}\s*\([^)]*\)\s*\{{)',text)
+              assert m, name
+              i=m.start(); j=m.end(); depth=1; quote=None; esc=False
+              while j<len(text) and depth:
+                  c=text[j]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                  else:
+                      if c in "'\"`": quote=c
+                      elif c=='{': depth+=1
+                      elif c=='}': depth-=1
+                  j+=1
+              assert depth==0, name
+              return text[i:j]
+
+          assert "p.sessions=p.sessions.filter(x=>x!==k)" not in extract(html,'reconcileProjects')
+          assert "count>=3" in extract(html,'reconcileProjects')
+          merge=extract(html,'mergeSotEvents')
+          assert "projects.snapshot" in merge and "baselineScopes" in merge
+
+          doc=json.loads(Path('session-manager-sot.json').read_text(encoding='utf-8'))
+          assert doc['schema']=='session-manager-sot'
+          assert doc['version']==3
+          scope='wss://oc-ref.fell-dojo.ts.net'
+          baselines=[e for e in doc['events'] if e.get('type')=='projects.snapshot' and (e.get('payload') or {}).get('scope')==scope]
+          assert len(baselines)==1, len(baselines)
+          state=baselines[0]['payload']['state']
+          names={p['name'] for p in state['projects']}
+          expected={'General','arcive','codex/cc','investigate dbl','oc troubleshoot','meditate','session manager','SOT - Storage','scrape','dev/code stream'}
+          assert names==expected, names
+          assert len(state['projects'])==10
+          members=sum(len(p.get('sessions',[])) for p in state['projects'])
+          assert members==64, members
+          oc=next(p for p in state['projects'] if p['name']=='oc troubleshoot')
+          assert 'agent:default:restored:440feeac-9b42-4724-bfbe-34cfa51d0e63' in oc['sessions']
+          assert state.get('missing')=={}
+          assert state.get('missingCandidates')=={}
+          markers=[e for e in doc['events'] if e.get('type')=='recovery.marker' and (e.get('payload') or {}).get('scope')==scope]
+          assert len(markers)==1 and markers[0]['id']=='recovery-v2914-marker'
+
+          scripts='\n'.join(re.findall(r'<script>(.*?)</script>',html,re.S))
+          Path('/tmp/session-manager.js').write_text(scripts,encoding='utf-8')
+          print('validated projects=',len(state['projects']),'members=',members,'events=',len(doc['events']))
+          PY
+            node --check /tmp/session-manager.js
+            git diff --check
+          }
+
+          for attempt in 1 2 3 4 5 6; do
+            echo "Release attempt $attempt"
+            git fetch origin main
+            git reset --hard origin/main
+            python3 .github/scripts/session-manager-v2914.py
+            validate_release
+            git add session-manager-v3.html session-manager-sot.json
+            if git diff --cached --quiet; then
+              echo 'v2.9.14 already present on main'
+              exit 0
+            fi
+            git commit -m 'Session Manager v2.9.14 repair canonical project SOT'
+            if git push origin HEAD:main; then
+              echo 'v2.9.14 published successfully'
+              exit 0
+            fi
+            echo 'Concurrent repository write detected; rebuilding from latest main.'
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish v2.9.14 after retries' >&2
+          exit 1
