@@ -170,6 +170,12 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .attachment-editor{display:flex;flex-direction:column;gap:6px}
 .att-add{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--accent);border:1px dashed var(--border);border-radius:8px;padding:5px 10px;align-self:flex-start}
 .att-add:hover{border-color:var(--accent)}
+.tag-input-wrap{position:relative;flex:1;display:flex}
+.tag-input-wrap input{flex:1;padding-right:26px}
+.tag-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;font-size:16px;line-height:1;color:var(--muted);padding:0 2px}
+.tag-clear:hover{color:var(--danger,#b3261e)}
+#newCardBody{max-height:70vh;overflow:auto;padding-right:2px}
+#newCardDialog .card-edit-grid{margin-top:4px}
 .chip .sug-x{cursor:pointer;font-size:12px;font-weight:800;color:#999;line-height:1}
 .chip .sug-x:hover{color:var(--danger)}
 
@@ -272,7 +278,19 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 <div class="footer" id="status"></div>
 <div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
 
-<!-- card add/edit is fully inline; the modal editor was removed -->
+<!-- Editing an existing card is inline; creating a NEW card uses this modal (same fields/flow) -->
+<dialog id="newCardDialog">
+  <form method="dialog" class="modal" id="newCardForm">
+    <button type="button" id="newCardClose" class="modal-close" title="Close">×</button>
+    <h3>New Card</h3>
+    <div id="newCardBody"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" type="button" id="newCardSave">Add card</button>
+      <button class="btn" type="button" id="newCardSaveNew">Add &amp; New</button>
+      <button class="btn" type="button" id="newCardCancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="archiveDialog">
   <form method="dialog" class="modal">
@@ -969,9 +987,20 @@ function buildInlineTagEditor(tagArr){
 
   const inputRow = document.createElement("div");
   inputRow.className = "inline-tag-input-row";
+  const inputWrap = document.createElement("div");
+  inputWrap.className = "tag-input-wrap";
   const tagIn = document.createElement("input");
   tagIn.placeholder = "type tag, press Enter";
-  inputRow.append(tagIn);
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button"; clearBtn.className = "tag-clear"; clearBtn.textContent = "×";
+  clearBtn.title = "Clear"; clearBtn.setAttribute("aria-label","Clear tag input");
+  clearBtn.style.display = "none";
+  // keep focus in the input when clicking the clear button (no blur -> no card re-render)
+  clearBtn.addEventListener("mousedown", e=>e.preventDefault());
+  clearBtn.addEventListener("click", e=>{ e.stopPropagation(); tagIn.value=""; updateClear(); renderSuggestions(); tagIn.focus(); });
+  inputWrap.append(tagIn, clearBtn);
+  inputRow.append(inputWrap);
+  function updateClear(){ clearBtn.style.display = tagIn.value.trim().length ? "" : "none"; }
 
   const sugLabel = document.createElement("div");
   sugLabel.className = "inline-tag-sug-label";
@@ -987,7 +1016,9 @@ function buildInlineTagEditor(tagArr){
     tagArr.forEach(t=>{
       const chip = document.createElement("span"); chip.className = "chip";
       chip.innerHTML = `${escapeHtml(t)} <button type="button" title="remove tag">×</button>`;
-      chip.querySelector("button").onclick = e=>{ e.stopPropagation(); tagArr.splice(tagArr.indexOf(t),1); renderAssigned(); renderSuggestions(); };
+      const btn = chip.querySelector("button");
+      btn.addEventListener("mousedown", e=>e.preventDefault()); // don't blur the tag input
+      btn.onclick = e=>{ e.stopPropagation(); tagArr.splice(tagArr.indexOf(t),1); renderAssigned(); renderSuggestions(); };
       assignedEl.appendChild(chip);
     });
   }
@@ -1004,10 +1035,16 @@ function buildInlineTagEditor(tagArr){
       const txt = document.createElement("span"); txt.textContent = t;
       const rx = document.createElement("span"); rx.className = "sug-x"; rx.textContent = "×"; rx.title = "dismiss suggestion on this browser";
       chip.append(txt, rx);
+      // CRITICAL: preventDefault on mousedown so the tag input never blurs — otherwise the
+      // card's focusout fires, saveInline re-renders the board mid-click, focus jumps to the
+      // notes field, and the click lands on the wrong element. Keeping focus lets you add on
+      // the first click and click several suggestions in a row.
+      chip.addEventListener("mousedown", e=>e.preventDefault());
       chip.onclick = e=>{
         e.stopPropagation();
         if(e.target === rx){ dismissTagSuggestion(t); renderSuggestions(); return; }
         if(!tagArr.includes(t)){ tagArr.push(t); renderAssigned(); renderSuggestions(); }
+        tagIn.focus();
       };
       sugEl.appendChild(chip);
     });
@@ -1017,15 +1054,136 @@ function buildInlineTagEditor(tagArr){
     const raw = tagIn.value.trim(); if(!raw) return;
     raw.split(/[,\s]+/).forEach(piece=>{ const t=piece.trim().toLowerCase(); if(t&&!tagArr.includes(t)) tagArr.push(t); });
     tagIn.value = "";
+    updateClear();
     bumpTagHistory(tagArr);
     renderAssigned(); renderSuggestions();
   }
 
   tagIn.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); e.stopPropagation(); commitInput(); } });
-  tagIn.addEventListener("input", ()=> renderSuggestions());
+  tagIn.addEventListener("input", ()=>{ updateClear(); renderSuggestions(); });
 
   renderAssigned(); renderSuggestions();
   return wrap;
+}
+
+/* ===== Shared card editor fields (used by the inline detail AND the New-card modal) =====
+   `model` is the mutable working state; the caller reads it back to save.
+   opts.cardEl (optional) is the card element for drag-restore during notes editing;
+   opts.onFileChange (optional) runs after attachments are added (inline saves immediately). */
+function buildCardFields(model, opts={}){
+  const cardEl = opts.cardEl || null;
+  const onFileChange = opts.onFileChange || (()=>{});
+  const grid=document.createElement("div");
+  grid.className="card-edit-grid";
+  const makeField=(label, control, full=false)=>{
+    const wrap=document.createElement("div");
+    wrap.className=`card-edit-field${full?" full":""}`;
+    const l=document.createElement("label"); l.textContent=label;
+    wrap.append(l, control);
+    return wrap;
+  };
+
+  const titleInput=document.createElement("input");
+  titleInput.value=model.title; titleInput.placeholder="Card title";
+  titleInput.addEventListener("input", ()=>{ model.title=titleInput.value; });
+
+  const platformSelect=document.createElement("select");
+  state.platforms.forEach(pl=>{ const o=document.createElement("option"); o.value=pl; o.textContent=pl; if(pl===model.platform) o.selected=true; platformSelect.append(o); });
+  platformSelect.addEventListener("change", ()=>{ model.platform=platformSelect.value; });
+
+  const stageSelect=document.createElement("select");
+  state.stages.forEach(st=>{ const o=document.createElement("option"); o.value=st; o.textContent=st; if(st===model.stage) o.selected=true; stageSelect.append(o); });
+  stageSelect.addEventListener("change", ()=>{ model.stage=stageSelect.value; });
+
+  const lineageSelect=document.createElement("select");
+  CARD_LINEAGES.forEach(lg=>{ const o=document.createElement("option"); o.value=lg; o.textContent=lg; if(lg===model.lineage) o.selected=true; lineageSelect.append(o); });
+  lineageSelect.addEventListener("change", ()=>{ model.lineage=lineageSelect.value; });
+
+  const devInput=document.createElement("input");
+  devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=model.dev;
+  devInput.addEventListener("input", ()=>{ model.dev=devInput.value; });
+
+  const liveInput=document.createElement("input");
+  liveInput.type="url"; liveInput.placeholder="https://live…"; liveInput.value=model.live;
+  liveInput.addEventListener("input", ()=>{ model.live=liveInput.value; });
+
+  const inlineTagEditor = buildInlineTagEditor(model.tagArr);
+
+  const notesInput=document.createElement("textarea");
+  const notesPreview=document.createElement("div");
+  const notesWrap=document.createElement("div");
+  notesInput.rows=4; notesInput.placeholder="Notes or linktext--url"; notesInput.value=model.notes;
+  notesPreview.className="live-notes-preview"; notesPreview.tabIndex=0; notesPreview.dataset.placeholder="Notes or linktext--url";
+  notesWrap.className="card-inline-notes";
+  const syncPrev=()=>{ notesPreview.innerHTML=notesInput.value ? renderMarkdown(notesInput.value) : ""; };
+  const showPrev=()=>{ notesInput.classList.add("hidden"); notesPreview.classList.remove("hidden"); syncPrev(); };
+  const showEd=()=>{ notesPreview.classList.add("hidden"); notesInput.classList.remove("hidden"); notesInput.focus(); };
+  notesInput.addEventListener("input", ()=>{ model.notes=notesInput.value; });
+  notesInput.addEventListener("blur", ()=>{ const n=preprocessNotes(notesInput.value); if(n!==notesInput.value) notesInput.value=n; model.notes=notesInput.value; showPrev(); });
+  notesPreview.addEventListener("click", (e)=>{ if(e.target.closest("a")) return; if(hasActiveTextSelection()) return; e.stopPropagation(); showEd(); });
+  notesPreview.addEventListener("pointerdown", (e)=>{ e.stopPropagation(); });
+  notesPreview.addEventListener("pointerup", (e)=>{ e.stopPropagation(); });
+  if(cardEl){
+    const restore=()=>{ if(!hasActiveEditableInCard(cardEl)) cardEl.draggable=true; };
+    notesWrap.addEventListener("pointerdown", (e)=>{ e.stopPropagation(); cardEl.draggable=false; });
+    notesWrap.addEventListener("pointerup", (e)=>{ e.stopPropagation(); restore(); });
+    notesWrap.addEventListener("pointercancel", restore);
+  }
+  notesWrap.append(notesInput, notesPreview);
+  showPrev();
+
+  const attachmentsWrap=document.createElement("ul");
+  attachmentsWrap.className="attachment-list";
+  ["click","pointerdown","pointerup"].forEach(ev=>attachmentsWrap.addEventListener(ev, e=>e.stopPropagation()));
+  const renderAttachments=()=>{
+    attachmentsWrap.innerHTML="";
+    if(!model.files.length){ const empty=document.createElement("span"); empty.className="muted"; empty.textContent="No attachments"; attachmentsWrap.append(empty); return; }
+    model.files.forEach((f, idx)=>{
+      const item=document.createElement("li"); item.className="attachment-item";
+      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
+      const fileName=f?.name||"attachment";
+      if(typeof f?.data === "string" && f.data){
+        const link=document.createElement("a"); link.className="attachment-link"; link.href=f.data; link.download=fileName; link.target="_blank"; link.rel="noopener";
+        link.textContent=meta ? `${fileName} (${meta})` : fileName; link.draggable=false;
+        ["click","pointerdown","pointerup"].forEach(ev=>link.addEventListener(ev, e=>e.stopPropagation()));
+        item.append(link);
+      }else{
+        const text=document.createElement("span"); text.className="attachment-name"; text.textContent=meta ? `${fileName} (${meta})` : fileName; item.append(text);
+      }
+      const rm=document.createElement("button"); rm.type="button"; rm.className="attachment-delete"; rm.textContent="×"; rm.title="Remove attachment"; rm.setAttribute("aria-label",`Remove ${fileName}`);
+      rm.addEventListener("mousedown", e=>e.preventDefault());
+      rm.addEventListener("click", (e)=>{ e.stopPropagation(); model.files.splice(idx,1); renderAttachments(); });
+      item.append(rm); attachmentsWrap.append(item);
+    });
+  };
+  renderAttachments();
+
+  const attachAdd=document.createElement("label"); attachAdd.className="att-add"; attachAdd.textContent="＋ Add files";
+  const attachInput=document.createElement("input"); attachInput.type="file"; attachInput.multiple=true; attachInput.hidden=true;
+  attachAdd.append(attachInput);
+  ["click","pointerdown","pointerup"].forEach(ev=>attachAdd.addEventListener(ev, e=>e.stopPropagation()));
+  attachInput.addEventListener("change", async (e)=>{
+    const picked=Array.from(e.target.files||[]);
+    for(const file of picked){ const dataUrl=await readAsDataURL(file); model.files.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
+    e.target.value="";
+    renderAttachments();
+    onFileChange();
+  });
+  const attachContainer=document.createElement("div"); attachContainer.className="attachment-editor"; attachContainer.append(attachmentsWrap, attachAdd);
+
+  const pulldownRow=document.createElement("div"); pulldownRow.className="card-edit-pulldowns";
+  pulldownRow.append(makeField("Platform", platformSelect), makeField("Lane", stageSelect), makeField("Lineage", lineageSelect));
+
+  grid.append(
+    makeField("Title", titleInput, true),
+    pulldownRow,
+    makeField("Dev Link", devInput),
+    makeField("Live Link", liveInput),
+    makeField("Tags", inlineTagEditor, true),
+    makeField("Notes", notesWrap, true),
+    makeField("Attachments", attachContainer, true)
+  );
+  return grid;
 }
 
 function renderCard(card){
@@ -1171,54 +1329,6 @@ function renderCard(card){
     notes: card.notes||"",
     files: Array.isArray(card.files) ? card.files.slice() : []
   };
-  const renderInlineAttachments=()=>{
-    attachmentsWrap.innerHTML="";
-    if(!inlineState.files.length){
-      const empty=document.createElement("span");
-      empty.className="muted";
-      empty.textContent="No attachments";
-      attachmentsWrap.append(empty);
-      return;
-    }
-    inlineState.files.forEach((f, idx)=>{
-      const item=document.createElement("li");
-      item.className="attachment-item";
-      const meta=[f?.type, typeof f?.size==="number" && f.size>=0 ? fmtBytes(f.size) : ""].filter(Boolean).join(" • ");
-      const fileName=f?.name||"attachment";
-      if(typeof f?.data === "string" && f.data){
-        const link=document.createElement("a");
-        link.className="attachment-link";
-        link.href=f.data;
-        link.download=fileName;
-        link.target="_blank";
-        link.rel="noopener";
-        link.textContent=meta ? `${fileName} (${meta})` : fileName;
-        link.draggable=false;
-        link.addEventListener("click", e=>e.stopPropagation());
-        link.addEventListener("pointerdown", e=>e.stopPropagation());
-        link.addEventListener("pointerup", e=>e.stopPropagation());
-        item.append(link);
-      }else{
-        const text=document.createElement("span");
-        text.className="attachment-name";
-        text.textContent=meta ? `${fileName} (${meta})` : fileName;
-        item.append(text);
-      }
-      const rm=document.createElement("button");
-      rm.type="button";
-      rm.className="attachment-delete";
-      rm.textContent="×";
-      rm.title="Remove attachment";
-      rm.setAttribute("aria-label",`Remove ${fileName}`);
-      rm.addEventListener("click", (e)=>{
-        e.stopPropagation();
-        inlineState.files.splice(idx,1);
-        renderInlineAttachments();
-      });
-      item.append(rm);
-      attachmentsWrap.append(item);
-    });
-  };
   const saveInline=()=>{
     const patch={
       title:inlineState.title.trim()||"(untitled)",
@@ -1229,7 +1339,7 @@ function renderCard(card){
       live:inlineState.live.trim(),
       statusColor:inlineState.statusColor,
       notes:inlineState.notes.trim(),
-      tags: inlineState.tagArr.slice(),   // NEW: pull from tagArr
+      tags: inlineState.tagArr.slice(),
       files:inlineState.files.slice()
     };
     if(
@@ -1251,152 +1361,7 @@ function renderCard(card){
     saveInline();
   });
 
-  const grid=document.createElement("div");
-  grid.className="card-edit-grid";
-  const makeField=(label, control, full=false)=>{
-    const wrap=document.createElement("div");
-    wrap.className=`card-edit-field${full?" full":""}`;
-    const l=document.createElement("label");
-    l.textContent=label;
-    wrap.append(l, control);
-    return wrap;
-  };
-
-  const titleInput=document.createElement("input");
-  titleInput.value=inlineState.title;
-  titleInput.placeholder="Card title";
-  titleInput.addEventListener("input", ()=>{ inlineState.title=titleInput.value; });
-
-  const platformSelect=document.createElement("select");
-  state.platforms.forEach(pl=>{ const opt=document.createElement("option"); opt.value=pl; opt.textContent=pl; if(pl===inlineState.platform) opt.selected=true; platformSelect.append(opt); });
-  platformSelect.addEventListener("change", ()=>{ inlineState.platform=platformSelect.value; });
-
-  const stageSelect=document.createElement("select");
-  state.stages.forEach(st=>{ const opt=document.createElement("option"); opt.value=st; opt.textContent=st; if(st===inlineState.stage) opt.selected=true; stageSelect.append(opt); });
-  stageSelect.addEventListener("change", ()=>{ inlineState.stage=stageSelect.value; });
-  const lineageSelect=document.createElement("select");
-  CARD_LINEAGES.forEach(lg=>{ const opt=document.createElement("option"); opt.value=lg; opt.textContent=lg; if(lg===inlineState.lineage) opt.selected=true; lineageSelect.append(opt); });
-  lineageSelect.addEventListener("change", ()=>{ inlineState.lineage=lineageSelect.value; });
-
-  const devInput=document.createElement("input");
-  devInput.type="url"; devInput.placeholder="https://dev…"; devInput.value=inlineState.dev;
-  devInput.addEventListener("input", ()=>{ inlineState.dev=devInput.value; });
-
-  const liveInput=document.createElement("input");
-  liveInput.type="url"; liveInput.placeholder="https://live…"; liveInput.value=inlineState.live;
-  liveInput.addEventListener("input", ()=>{ inlineState.live=liveInput.value; });
-
-  // NEW: inline tag editor replaces plain tagsInput
-  const inlineTagEditor = buildInlineTagEditor(inlineState.tagArr);
-
-  const notesInput=document.createElement("textarea");
-  const notesPreview=document.createElement("div");
-  const notesWrap=document.createElement("div");
-  notesInput.rows=4; notesInput.placeholder="Notes or linktext--url"; notesInput.value=inlineState.notes;
-  notesPreview.className="live-notes-preview";
-  notesPreview.tabIndex=0;
-  notesPreview.dataset.placeholder="Notes or linktext--url";
-  notesWrap.className="card-inline-notes";
-  const syncInlineNotesPreview=()=>{
-    notesPreview.innerHTML=notesInput.value ? renderMarkdown(notesInput.value) : "";
-  };
-  const showInlineNotesPreview=()=>{
-    notesInput.classList.add("hidden");
-    notesPreview.classList.remove("hidden");
-    syncInlineNotesPreview();
-  };
-  const showInlineNotesEditor=()=>{
-    notesPreview.classList.add("hidden");
-    notesInput.classList.remove("hidden");
-    notesInput.focus();
-  };
-  notesInput.addEventListener("input", ()=>{ inlineState.notes=notesInput.value; });
-  notesInput.addEventListener("blur", ()=>{
-    const normalized=preprocessNotes(notesInput.value);
-    if(normalized!==notesInput.value){
-      notesInput.value=normalized;
-    }
-    inlineState.notes=notesInput.value;
-    showInlineNotesPreview();
-  });
-  notesPreview.addEventListener("click", (e)=>{
-    if(e.target.closest("a")) return;
-    if(hasActiveTextSelection()) return;
-    e.stopPropagation();
-    showInlineNotesEditor();
-  });
-  notesPreview.addEventListener("pointerdown", (e)=>{
-    if(targetClosest(e.target,"a")){
-      e.stopPropagation();
-      return;
-    }
-    e.stopPropagation();
-  });
-  notesPreview.addEventListener("pointerup", (e)=>{
-    if(targetClosest(e.target,"a")){
-      e.stopPropagation();
-      return;
-    }
-    e.stopPropagation();
-  });
-  const restoreCardDraggable=()=>{
-    if(!hasActiveEditableInCard(el)) el.draggable=true;
-  };
-  notesWrap.addEventListener("pointerdown", (e)=>{
-    e.stopPropagation();
-    el.draggable=false;
-  });
-  notesWrap.addEventListener("pointerup", (e)=>{
-    e.stopPropagation();
-    restoreCardDraggable();
-  });
-  notesWrap.addEventListener("pointercancel", restoreCardDraggable);
-  notesWrap.append(notesInput, notesPreview);
-  showInlineNotesPreview();
-
-  const attachmentsWrap=document.createElement("ul");
-  attachmentsWrap.className="attachment-list";
-  attachmentsWrap.addEventListener("click", e=>e.stopPropagation());
-  attachmentsWrap.addEventListener("pointerdown", e=>e.stopPropagation());
-  attachmentsWrap.addEventListener("pointerup", e=>e.stopPropagation());
-  renderInlineAttachments();
-
-  // inline "add files" control (replaces the removed modal's file picker)
-  const attachAdd=document.createElement("label");
-  attachAdd.className="att-add";
-  attachAdd.textContent="＋ Add files";
-  const attachInput=document.createElement("input");
-  attachInput.type="file"; attachInput.multiple=true; attachInput.hidden=true;
-  attachAdd.append(attachInput);
-  ["click","pointerdown","pointerup"].forEach(ev=>attachAdd.addEventListener(ev, e=>e.stopPropagation()));
-  attachInput.addEventListener("change", async (e)=>{
-    const picked=Array.from(e.target.files||[]);
-    for(const file of picked){ const dataUrl=await readAsDataURL(file); inlineState.files.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
-    e.target.value="";
-    renderInlineAttachments();
-    saveInline();
-  });
-  const attachContainer=document.createElement("div");
-  attachContainer.className="attachment-editor";
-  attachContainer.append(attachmentsWrap, attachAdd);
-
-  const pulldownRow=document.createElement("div");
-  pulldownRow.className="card-edit-pulldowns";
-  pulldownRow.append(
-    makeField("Platform", platformSelect),
-    makeField("Lane", stageSelect),
-    makeField("Lineage", lineageSelect)
-  );
-
-  grid.append(
-    makeField("Title", titleInput, true),
-    pulldownRow,
-    makeField("Dev Link", devInput),
-    makeField("Live Link", liveInput),
-    makeField("Tags", inlineTagEditor, true),   // NEW: replaced tagsInput
-    makeField("Notes", notesWrap, true),
-    makeField("Attachments", attachContainer, true)
-  );
+  const grid=buildCardFields(inlineState, { cardEl: el, onFileChange: saveInline });
   detail.append(grid);
 
   el.append(detail);
@@ -1513,15 +1478,37 @@ function openCardInline(id){
   const inp=$(`.card[data-id="${id}"] .card-edit-grid input`); if(inp) inp.focus();
 }
 
+/* ===== New-card modal (same fields/flow as the inline editor, isolated from the board) ===== */
+const newCardDialog=$("#newCardDialog");
+let newCardModel=null;
+function freshCardModel(){
+  return { title:"", platform:state.platforms[0]||"General", stage:state.stages[0]||"Next",
+    lineage:normalizeLineage(""), dev:"", live:"", statusColor:normalizeStatusColor(""),
+    tagArr:[], notes:"", files:[] };
+}
+function openNewCardModal(){
+  if(!guardMutation("Create blocked while repository is unavailable")) return;
+  newCardModel=freshCardModel();
+  const body=$("#newCardBody"); body.innerHTML="";
+  body.append(buildCardFields(newCardModel, { cardEl:null }));
+  if(!newCardDialog.open) newCardDialog.showModal();
+  const t=body.querySelector(".card-edit-grid input"); if(t) t.focus();
+}
+function commitNewCard(){
+  const m=newCardModel; if(!m) return null;
+  const title=m.title.trim();
+  if(!title){ const t=$("#newCardBody .card-edit-grid input"); if(t) t.focus(); return null; }
+  return createCard({ title, platform:m.platform, stage:m.stage, lineage:m.lineage,
+    dev:m.dev, live:m.live, statusColor:m.statusColor, tags:m.tagArr.slice(), notes:m.notes, files:m.files.slice() });
+}
+$("#newCardSave").addEventListener("click", ()=>{ if(commitNewCard()!=null){ newCardModel=null; newCardDialog.close(); } });
+$("#newCardSaveNew").addEventListener("click", ()=>{ if(commitNewCard()!=null){ openNewCardModal(); } });
+$("#newCardCancel").addEventListener("click", ()=>{ newCardModel=null; newCardDialog.close(); });
+$("#newCardClose").addEventListener("click", ()=>{ newCardModel=null; newCardDialog.close(); });
+
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
-$("#btnNew").onclick=()=>{
-  if(!guardMutation("Create blocked while repository is unavailable")) return;
-  const stage=state.stages[0]||"Next";
-  state.collapsed=state.collapsed||{}; state.collapsed[stage]=false;
-  const id=createCard({stage});
-  if(id){ const inp=$(`.card[data-id="${id}"] .card-edit-grid input`); if(inp) inp.focus(); }
-};
+$("#btnNew").onclick=()=> openNewCardModal();
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
