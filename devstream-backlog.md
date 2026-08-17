@@ -7,8 +7,7 @@ Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
 - Current release: v1.0 build 3 on devstream-test.html (2026-08-14)
-- Companion: devstream-runner.py v1 (oc-ref agent, not yet installed)
-- Stage: TEST
+- Stage: TEST (build 5)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -93,6 +92,5 @@ Parallel-run limits / file-lock queueing; cross-repo status aggregation; push no
 - 2026-08-14: App named devstream.html; standalone, not a session-manager version. Owner directive.
 - 2026-08-14: Memory resides in GitHub (kanban.html methodology), not OpenClaw. Owner recommendation, confirmed — IndexedDB browser isolation is a proven limitation.
 - 2026-08-14: Thread = output file (tab name) + optional input file. Owner directive.
-- 2026-08-14: Build execution is multi-engine. Per-thread engine selected at creation: claude (Claude CLI on oc-ref, subscription usage, DEFAULT), codex (ChatGPT sub via Codex CLI), venice, openrouter (runner-side APIs), anthropic-direct (in-app browser API, optional key). Owner directive: avoid pay-per-token Anthropic API as primary path.
-- 2026-08-14: Runner (devstream-runner.py) lives on oc-ref, stateless, polls thread files every 30s. All state remains in GitHub.
+- 2026-08-14: SUPERSEDED same day — runner removed from the critical path by owner ruling ("no extra moving part"). All engines run browser-direct in-app: venice (DEFAULT), openrouter, anthropic-direct. devstream-runner.py stays parked in the repo (thread-file contract is engine-agnostic; a runner can return later without app changes). Known trade-off accepted: builds die if the browser tab is suspended; ▶ re-runs pending work. Venice browser CORS is THEORY until first live call.
 - 2026-08-14: Project cards carry a plan/status doc link (planFile in SOT projects), following the master-doc standard (talkbridge-master.md pattern).
