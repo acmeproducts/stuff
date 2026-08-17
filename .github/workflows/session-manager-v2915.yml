@@ -1,0 +1,60 @@
+name: Session Manager v2.9.15 preserve local project navigation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v2915.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: session-manager-v2915
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch, validate, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "acmeproducts"
+          git config user.email "182510693+acmeproducts@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            python .github/scripts/session-manager-v2915.py
+            python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          if not scripts:
+              raise SystemExit('No inline script found')
+          Path('/tmp/session-manager-v2915.js').write_text('\n'.join(scripts),encoding='utf-8')
+          assert "const BUILD_VERSION='2.9.15';" in s
+          assert "Project structure applied; local navigation preserved" in s
+          assert "const SOT_VERSION=3;" in s
+          PY
+            node --check /tmp/session-manager-v2915.js
+            git diff --check
+            git add session-manager-v3.html
+            if git diff --cached --quiet; then
+              echo "v2.9.15 already present"
+              exit 0
+            fi
+            git commit -m "Session Manager v2.9.15 preserve active project during SOT sync"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Concurrent main update; retrying ($attempt/5)"
+            sleep $((attempt * 2))
+          done
+          echo "Unable to publish after retries" >&2
+          exit 1
