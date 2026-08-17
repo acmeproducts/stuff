@@ -1,0 +1,37 @@
+name: WorldPulse v1.6 capital background load
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/worldpulse-v160-capital-async.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('globe.html'); s=p.read_text()
+          old='await Promise.all([cachedCountries,cachedCapitals,refreshData(false)]);'
+          new='cachedCapitals.catch(()=>{});await Promise.all([cachedCountries,refreshData(false)]);'
+          if old not in s: raise SystemExit('startup anchor missing')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          python3 - <<'PY'
+          import re,pathlib,subprocess
+          s=pathlib.Path('globe.html').read_text(); js=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)[-1]
+          pathlib.Path('/tmp/wp.js').write_text(js)
+          raise SystemExit(subprocess.run(['node','--check','/tmp/wp.js']).returncode)
+          PY
+      - run: |
+          git config user.name worldpulse-bot
+          git config user.email worldpulse-bot@users.noreply.github.com
+          git add globe.html
+          git rm .github/workflows/worldpulse-v160-capital-async.yml
+          git commit -m "perf: background-load capital city overlay"
+          git pull --rebase origin main
+          git push
