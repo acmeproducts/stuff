@@ -1,0 +1,67 @@
+name: WorldMood UI v1.4.0 patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/worldmood-ui-v140.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch globe.html to v1.4.0
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('globe.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('v1.3.1','v1.4.0')
+          s=s.replace('''        <div class="hero">\n          <h1>How the world's news feels right now</h1>\n          <p>Each marker represents a place mentioned in recent global reporting. Size reflects attention; color reflects article-level GDELT tone. Country outlines provide geographic context; markers stay flat on the surface instead of rising as spikes.</p>\n        </div>\n''','')
+          css='''\n/* v1.4 interaction-density cleanup */\n.overlay{top:12px;left:12px;max-width:min(520px,calc(100% - 24px));gap:7px}\n.crumbbox{padding:7px 10px;background:rgba(7,16,29,.90)}\n.legend{padding:6px 9px;background:rgba(7,16,29,.88)}\n.itemname,.itemsub{display:block}\n.itemsub{margin-top:3px}\n.score{font-weight:650}\n.viewsummary{padding:10px 13px 0;color:var(--muted);font-size:11px}\n.viewsummary strong{color:var(--text);font-size:13px}\n@media(max-width:520px){.overlay{top:8px;left:8px;max-width:calc(100% - 16px)}.legend{font-size:9px}}\n'''
+          if '/* v1.4 interaction-density cleanup */' not in s:
+              s=s.replace('</style>',css+'</style>')
+          s=s.replace('''      <div class="sectiontitle"><h2 id="rankTitle">Most discussed places</h2><span id="rankCount"></span></div>''','''      <div id="viewSummary" class="viewsummary"></div>\n      <div class="sectiontitle"><h2 id="rankTitle">Most discussed places</h2><span id="rankCount"></span></div>''')
+          s=s.replace('''  crumbs:$("crumbs"), rank:$("rankList"), rankTitle:$("rankTitle"), rankCount:$("rankCount"),''','''  crumbs:$("crumbs"), rank:$("rankList"), rankTitle:$("rankTitle"), rankCount:$("rankCount"), viewSummary:$("viewSummary"),''')
+          old='''function drill(name,row){\n  const level=nextLevel();\n  if(level==="region"){selected={region:name,country:null,admin1:null,city:null};zoomTo(row.lat,row.lon,1.35)}\n  else if(level==="country"){selected.country=name;selected.admin1=null;selected.city=null;zoomTo(row.lat,row.lon,.75)}\n  else if(level==="admin1"){selected.admin1=name;selected.city=null;zoomTo(row.lat,row.lon,.42)}\n  else{selected.city=name;zoomTo(row.lat,row.lon,.22)}\n  render();\n}'''
+          new='''function drill(name,row){\n  const level=nextLevel();\n  if(level==="region"){selected={region:name,country:null,admin1:null,city:null};zoomTo(row.lat,row.lon,1.18,520)}\n  else if(level==="country"){selected.country=name;selected.admin1=null;selected.city=null;zoomTo(row.lat,row.lon,.66,520)}\n  else if(level==="admin1"){selected.admin1=name;selected.city=null;zoomTo(row.lat,row.lon,.34,460)}\n  else{selected.city=name;zoomTo(row.lat,row.lon,.18,420)}\n  render();\n}\nfunction selectMapPoint(d){\n  if(!selected.country || selected.country!==d.country){\n    selected={region:d.region,country:d.country,admin1:null,city:null};\n    zoomTo(d.lat,d.lon,.64,480);\n  }else if(!selected.admin1 && d.admin1 && d.admin1!=="Other"){\n    selected.admin1=d.admin1;selected.city=null;\n    zoomTo(d.lat,d.lon,.32,440);\n  }else{\n    selected.admin1=(d.admin1&&d.admin1!=="Other")?d.admin1:selected.admin1;\n    selected.city=d.city;\n    zoomTo(d.lat,d.lon,.17,400);\n  }\n  render();\n}'''
+          if old not in s: raise SystemExit('drill block not found')
+          s=s.replace(old,new)
+          old='''  els.rank.innerHTML=rows.map((r,i)=>`<button class="item" type="button" data-i="${i}" style="text-align:left;color:inherit"><span class="sent" style="background:${toneColor(r.tone)}"></span><span class="itemmain"><span class="itemname">${escapeHTML(r.name)}</span><span class="itemsub">${r.count.toLocaleString()} weighted mentions</span></span><span class="score">${r.tone>0?"+":""}${r.tone.toFixed(1)}</span></button>`).join("");'''
+          new='''  els.rank.innerHTML=rows.map((r,i)=>`<button class="item" type="button" data-i="${i}" style="text-align:left;color:inherit"><span class="sent" style="background:${toneColor(r.tone)}"></span><span class="itemmain"><span class="itemname">${escapeHTML(r.name)}</span><span class="itemsub">${r.count.toLocaleString()} weighted mentions</span></span><span class="score" style="color:${toneColor(r.tone)}">${toneClass(r.tone)==="positive"?"Positive":toneClass(r.tone)==="negative"?"Negative":"Mixed"}</span></button>`).join("");'''
+          if old not in s: raise SystemExit('rank block not found')
+          s=s.replace(old,new)
+          s=s.replace('''${a.tone>0?"+":""}${num(a.tone).toFixed(1)} tone band''','''${toneClass(num(a.tone))==="positive"?"Positive":toneClass(num(a.tone))==="negative"?"Negative":"Mixed"} · ${a.tone>0?"+":""}${num(a.tone).toFixed(1)}''')
+          old='''function renderMetrics(list){\n  const total=list.reduce((s,d)=>s+d.count,0)||1,pos=list.filter(d=>d.tone>1.5).reduce((s,d)=>s+d.count,0),neg=list.filter(d=>d.tone<-1.5).reduce((s,d)=>s+d.count,0);\n  els.places.textContent=list.length.toLocaleString();els.pos.textContent=Math.round(pos/total*100)+"%";els.neg.textContent=Math.round(neg/total*100)+"%";\n}'''
+          new='''function renderMetrics(list){\n  const total=list.reduce((s,d)=>s+d.count,0)||1;\n  const pos=list.filter(d=>d.tone>1.5).reduce((s,d)=>s+d.count,0);\n  const neg=list.filter(d=>d.tone<-1.5).reduce((s,d)=>s+d.count,0);\n  const mix=Math.max(0,total-pos-neg);\n  els.places.textContent=list.length.toLocaleString();\n  els.pos.textContent=Math.round(pos/total*100)+"%";\n  els.neg.textContent=Math.round(neg/total*100)+"%";\n  const label=selected.city||selected.admin1||selected.country||selected.region||"World";\n  els.viewSummary.innerHTML=`<strong>${escapeHTML(label)}</strong> · ${Math.round(pos/total*100)}% positive · ${Math.round(mix/total*100)}% mixed · ${Math.round(neg/total*100)}% negative`;\n}'''
+          if old not in s: raise SystemExit('metrics block not found')
+          s=s.replace(old,new)
+          s=s.replace('''.onPointClick(d=>{const level=nextLevel(),name=d[level]||d.city;drill(name,{name,lat:d.lat,lon:d.lon})});''','''.onPointClick(d=>selectMapPoint(d));''')
+          old='''      zoomTo(18,10,p.key==="world"?2.15:p.key==="region"?1.35:p.key==="country"?.75:.42);render();'''
+          new='''      if(p.key==="world") zoomTo(18,10,2.05,520);\n      else {\n        const subset=points.filter(d=>(!selected.region||d.region===selected.region)&&(!selected.country||d.country===selected.country)&&(!selected.admin1||d.admin1===selected.admin1));\n        const w=subset.reduce((a,d)=>a+d.count,0)||1;\n        const lat=subset.reduce((a,d)=>a+d.lat*d.count,0)/w,lon=subset.reduce((a,d)=>a+d.lon*d.count,0)/w;\n        zoomTo(lat,lon,p.key==="region"?1.18:p.key==="country"?.66:.34,480);\n      }\n      render();'''
+          if old not in s: raise SystemExit('crumb zoom block not found')
+          s=s.replace(old,new)
+          s=s.replace('Drag to rotate · wheel/pinch to zoom · click a pulse to drill down','Drag to rotate · pinch/wheel to zoom · tap a marker: country → state/province → city')
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Verify JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('globe.html').read_text()
+          js=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/worldmood.js').write_text(js)
+          PY
+          node --check /tmp/worldmood.js
+      - name: Commit UI patch
+        run: |
+          git config user.name "worldmood-bot"
+          git config user.email "worldmood-bot@users.noreply.github.com"
+          git add globe.html
+          git commit -m "fix: WorldMood v1.4 UI density sentiment display and drill behavior"
+          git push
