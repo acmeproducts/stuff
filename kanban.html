@@ -167,6 +167,9 @@ main#board[data-layout="vertical"] .card{margin-inline:6px}
 .inline-tag-input-row button:hover{border-color:var(--accent);color:var(--accent)}
 .inline-tag-sug-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .inline-tag-suggestions{display:flex;flex-wrap:wrap;gap:4px}
+.attachment-editor{display:flex;flex-direction:column;gap:6px}
+.att-add{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--accent);border:1px dashed var(--border);border-radius:8px;padding:5px 10px;align-self:flex-start}
+.att-add:hover{border-color:var(--accent)}
 .chip .sug-x{cursor:pointer;font-size:12px;font-weight:800;color:#999;line-height:1}
 .chip .sug-x:hover{color:var(--danger)}
 
@@ -269,77 +272,7 @@ dialog{border:none;border-radius:14px;padding:0;width:min(900px,96vw)}
 <div class="footer" id="status"></div>
 <div id="toast"><div class="tmsg"></div><div class="tdesc"></div></div>
 
-<dialog id="editDialog">
-  <form method="dialog" class="modal" id="editForm">
-    <button type="button" id="editorCloseBtn" class="modal-close" title="Close">×</button>
-    <h3 id="editTitle">Card</h3>
-
-    <div class="field">
-      <label for="fTitle">Title</label>
-      <div class="row">
-        <input id="fTitle" placeholder="Short title" autofocus/>
-        <button id="btnSaveAndNew" class="btn small primary" value="save_new">Save & New</button>
-      </div>
-    </div>
-
-    <div class="grid-2" style="grid-template-columns:repeat(3,minmax(0,1fr));">
-      <div class="field">
-        <label for="fPlatform">Platform</label>
-        <select id="fPlatform"></select>
-      </div>
-      <div class="field">
-        <label for="fStage">Lane</label>
-        <select id="fStage"></select>
-      </div>
-      <div class="field">
-        <label for="fLineage">Lineage</label>
-        <select id="fLineage"></select>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label for="fDev">Dev Link</label>
-        <input id="fDev" type="url" placeholder="https://…"/>
-      </div>
-      <div class="field">
-        <label for="fLive">Live Link</label>
-        <input id="fLive" type="url" placeholder="https://…"/>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Tags</label>
-      <div id="tagChips" class="chips" aria-live="polite"></div>
-      <div class="tag-input-row">
-        <input id="tagInput" placeholder="type a tag, press Enter" />
-      </div>
-      <div class="suggestions" id="tagSuggestions" aria-label="Previously used tags"></div>
-      <input id="fTags" class="hidden" />
-    </div>
-
-    <div class="field">
-      <label for="fFiles">Attachments</label>
-      <div class="row">
-        <input id="fFiles" type="file" multiple />
-        <button id="btnClearFiles" type="button" class="btn small">Clear selection</button>
-      </div>
-      <div id="fileChips" class="chips" aria-live="polite"></div>
-    </div>
-
-    <div class="field">
-      <label id="fNotesLabel">Notes (Markdown + linktext--url supported)</label>
-      <textarea id="fNotes" aria-labelledby="fNotesLabel" placeholder="Type markdown or use linktext--url…"></textarea>
-      <div id="fNotesPreview" class="live-notes-preview" aria-labelledby="fNotesLabel" tabindex="0" data-placeholder="Type markdown or use linktext--url…"></div>
-    </div>
-
-    <div class="row">
-      <button class="btn primary" value="save" id="btnSave">Save</button>
-      <button class="btn" value="cancel" id="btnCancel">Cancel</button>
-      <button id="btnDelete" class="btn danger" value="delete">Archive</button>
-    </div>
-  </form>
-</dialog>
+<!-- card add/edit is fully inline; the modal editor was removed -->
 
 <dialog id="archiveDialog">
   <form method="dialog" class="modal">
@@ -873,7 +806,6 @@ function render(){
     lane.append(head, body); board.appendChild(lane);
   });
 
-  refillSelects();
   applySearch($("#search").value);
 }
 document.addEventListener("dragover", e=> e.preventDefault());
@@ -1407,6 +1339,25 @@ function renderCard(card){
   attachmentsWrap.addEventListener("pointerup", e=>e.stopPropagation());
   renderInlineAttachments();
 
+  // inline "add files" control (replaces the removed modal's file picker)
+  const attachAdd=document.createElement("label");
+  attachAdd.className="att-add";
+  attachAdd.textContent="＋ Add files";
+  const attachInput=document.createElement("input");
+  attachInput.type="file"; attachInput.multiple=true; attachInput.hidden=true;
+  attachAdd.append(attachInput);
+  ["click","pointerdown","pointerup"].forEach(ev=>attachAdd.addEventListener(ev, e=>e.stopPropagation()));
+  attachInput.addEventListener("change", async (e)=>{
+    const picked=Array.from(e.target.files||[]);
+    for(const file of picked){ const dataUrl=await readAsDataURL(file); inlineState.files.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
+    e.target.value="";
+    renderInlineAttachments();
+    saveInline();
+  });
+  const attachContainer=document.createElement("div");
+  attachContainer.className="attachment-editor";
+  attachContainer.append(attachmentsWrap, attachAdd);
+
   const pulldownRow=document.createElement("div");
   pulldownRow.className="card-edit-pulldowns";
   pulldownRow.append(
@@ -1422,7 +1373,7 @@ function renderCard(card){
     makeField("Live Link", liveInput),
     makeField("Tags", inlineTagEditor, true),   // NEW: replaced tagsInput
     makeField("Notes", notesWrap, true),
-    makeField("Attachments", attachmentsWrap, true)
+    makeField("Attachments", attachContainer, true)
   );
   detail.append(grid);
 
@@ -1484,182 +1435,26 @@ function normalizeTags(tags){ let arr=[]; if(Array.isArray(tags)) arr=tags; else
 function bumpTagHistory(tags){ if(!tags?.length) return; tagHistory=saveTagHistory([...tagHistory, ...tags]); }
 
 /* ===== Editor ===== */
-const editDialog=$("#editDialog"); const editForm=$("#editForm");
-const editorCloseBtn=$("#editorCloseBtn");
-let editingId=null, activeTags=[], pendingFiles=[], currentFiles=[];
-function getNotesValue(el){ return el?.value ?? ""; }
-function setNotesValue(el, value){ if(el) el.value=String(value||""); }
-function syncNotesPreview(){
-  const notesInput=$("#fNotes");
-  const notesPreview=$("#fNotesPreview");
-  if(!notesInput || !notesPreview) return;
-  notesPreview.innerHTML=notesInput.value ? renderMarkdown(notesInput.value) : "";
-}
-function showNotesPreview(){
-  const notesInput=$("#fNotes");
-  const notesPreview=$("#fNotesPreview");
-  if(!notesInput || !notesPreview) return;
-  notesInput.classList.add("hidden");
-  notesPreview.classList.remove("hidden");
-}
-function showNotesEditor(){
-  const notesInput=$("#fNotes");
-  const notesPreview=$("#fNotesPreview");
-  if(!notesInput || !notesPreview) return;
-  notesPreview.classList.add("hidden");
-  notesInput.classList.remove("hidden");
-  notesInput.focus();
-}
-function openEditor(id=null, presetStage=null){
-  if(id===null && !guardMutation("Create blocked while repository is unavailable")) return;
-  editingId=id; editorDirty=false;
-  $("#editTitle").textContent=id? "Edit Card":"New Card";
-  const c=id? state.cards.find(x=>x.id===id):null;
-  refillSelects();
-  $("#fPlatform").value = c?.platform || (state.platforms[0]||"General");
-  $("#fStage").value = c?.stage || (presetStage || state.stages[0] || "Next");
-  $("#fLineage").value = normalizeLineage(c?.lineage);
-  $("#fTitle").value = c?.title || "";
-  $("#fDev").value = c?.dev || "";
-  $("#fLive").value = c?.live || "";
-  setNotesValue($("#fNotes"), c?.notes || "");
-  syncNotesPreview();
-  showNotesPreview();
-  $("#btnDelete").classList.toggle("hidden", !id);
-  activeTags = c?.tags ? [...c.tags] : [];
-  currentFiles = Array.isArray(c?.files) ? c.files.slice() : [];
-  pendingFiles = [];
-  renderTagChips(); renderTagSuggestions();
-  renderFileChips();
-  $("#fFiles").value = ""; // reset file input
-  editDialog.showModal(); $("#fTitle").focus();
-}
-editDialog.addEventListener("close", ()=>{
-  const action=editDialog.returnValue; if(action==="cancel"){ editingId=null; return; }
-  const payload=collectEditorData();
-  if(action==="delete" && editingId){ deleteCard(editingId); editingId=null; return; }
-  if(action==="save" || action==="save_new"){
-    if(!payload.title){ alert("Title is required."); openEditor(editingId); return; }
-    if(editingId) updateCard(editingId, payload); else createCard(payload);
-    const savedStage = payload.stage;
-    if(action==="save_new"){ openEditor(null, savedStage); } else { editingId=null; }
-  }
-  editorDirty=false;
-});
-editForm.addEventListener("input", ()=>{ editorDirty=true; });
-editForm.addEventListener("change", ()=>{ editorDirty=true; });
-$("#fNotesPreview").addEventListener("click", (e)=>{
-  if(e.target.closest("a")) return;
-  showNotesEditor();
-});
-$("#fNotesPreview").addEventListener("keydown", (e)=>{
-  if(e.key!=="Enter" && e.key!==" ") return;
-  e.preventDefault();
-  showNotesEditor();
-});
-$("#fNotes").addEventListener("input", ()=>{ syncNotesPreview(); editorDirty=true; });
-$("#fNotes").addEventListener("blur", ()=>{
-  const notes=$("#fNotes");
-  const normalized=preprocessNotes(notes.value);
-  if(normalized!==notes.value) notes.value=normalized;
-  syncNotesPreview();
-  showNotesPreview();
-  editorDirty=true;
-});
-editorCloseBtn.addEventListener("click", ()=>{
-  if(editorDirty){ if(confirm("Discard changes?")) { editDialog.close("cancel"); editorDirty=false; } }
-  else { editDialog.close("cancel"); }
-});
-$("#fTitle").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); $("#btnSave").click(); } });
-$("#btnSaveAndNew").addEventListener("click", (e)=>{ e.preventDefault(); editDialog.close("save_new"); });
-function collectEditorData(){ return { platform:$("#fPlatform").value, stage:$("#fStage").value, lineage:$("#fLineage").value, title:$("#fTitle").value.trim(), dev:$("#fDev").value.trim(), live:$("#fLive").value.trim(), tags:activeTags.join(","), notes:getNotesValue($("#fNotes")), files: currentFiles.slice() }; }
-function refillSelects(){ $("#fPlatform").innerHTML = state.platforms.map(p=>`<option>${p}</option>`).join(""); $("#fStage").innerHTML = state.stages.map(s=>`<option>${s}</option>`).join(""); $("#fLineage").innerHTML = CARD_LINEAGES.map(l=>`<option>${l}</option>`).join(""); }
-
-/* ===== Tagging UI ===== */
-const tagInput=$("#tagInput"), tagChips=$("#tagChips"), tagSuggestions=$("#tagSuggestions"), hiddenTags=$("#fTags");
-function commitTagFromInput(){
-  const raw = tagInput.value.trim();
-  if(!raw) return;
-  raw.split(/[\,\s]+/).forEach(piece=>{
-    const t = piece.trim().toLowerCase();
-    if(t && !activeTags.includes(t)) activeTags.push(t);
-  });
-  tagInput.value="";
-  renderTagChips();
-  bumpTagHistory(activeTags);
-  renderTagSuggestions();
-}
-tagInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter" || e.key===","){ e.preventDefault(); commitTagFromInput(); } });
-tagInput.addEventListener("blur", ()=>{ commitTagFromInput(); });
-tagInput.addEventListener("input", ()=> renderTagSuggestions());
-function renderTagChips(){
-  tagChips.innerHTML="";
-  activeTags.forEach(t=>{
-    const el=document.createElement("span"); el.className="chip"; el.innerHTML=`${escapeHtml(t)} <button title="remove" aria-label="remove tag">×</button>`;
-    el.querySelector("button").onclick=()=>{ activeTags=activeTags.filter(x=>x!==t); renderTagChips(); };
-    tagChips.appendChild(el);
-  });
-  hiddenTags.value = activeTags.join(",");
-}
-function renderTagSuggestions(){
-  tagSuggestions.innerHTML="";
-  const query = tagInput.value.trim().toLowerCase();
-  if(!query || !tagHistory.length) return;
-  const seen=new Set();
-  tagHistory.forEach(t=>{
-    const k=t.toLowerCase();
-    if(!k.includes(query) || seen.has(k) || activeTags.includes(t)) return;
-    seen.add(k);
-    const el=document.createElement("span"); el.className="chip";
-    const txt=document.createElement("span"); txt.textContent=t;
-    const rm=document.createElement("span"); rm.textContent="×"; rm.className="remove"; rm.title="remove from history";
-    el.append(txt,rm);
-    el.onclick=(e)=>{
-      if(e.target===rm){ tagHistory=saveTagHistory(tagHistory.filter(x=>x!==t)); renderTagSuggestions(); return; }
-      if(!activeTags.includes(t)){ activeTags.push(t); renderTagChips(); renderTagSuggestions(); }
-    };
-    tagSuggestions.appendChild(el);
-  });
-}
-
-/* ===== Attachments ===== */
-const fFiles=$("#fFiles"), fileChips=$("#fileChips"), btnClearFiles=$("#btnClearFiles");
-btnClearFiles.addEventListener("click", ()=>{ pendingFiles=[]; fFiles.value=""; renderFileChips(); });
-fFiles.addEventListener("change", async (e)=>{ await addFiles(Array.from(e.target.files||[])); });
-async function addFiles(files){
-  for(const file of files){ const dataUrl = await readAsDataURL(file); pendingFiles.push({name:file.name,type:file.type,size:file.size,data:dataUrl}); }
-  currentFiles = mergeFiles(currentFiles, pendingFiles); pendingFiles = []; renderFileChips(); }
-function mergeFiles(existing, added){ const byName=new Map(existing.map(x=>[x.name,x])); for(const f of added){ byName.set(f.name, f); } return Array.from(byName.values()); }
-function renderFileChips(){
-  fileChips.innerHTML="";
-  if(!currentFiles.length){ fileChips.innerHTML="<span class='muted'>No attachments</span>"; return; }
-  const list=document.createElement("ul");
-  list.className="attachment-list";
-  currentFiles.forEach((f,idx)=>{
-    const item=document.createElement("li");
-    item.className="attachment-item";
-    const a=document.createElement("a");
-    a.className="attachment-link";
-    a.href=f.data;
-    a.download=f.name;
-    a.textContent=f.name;
-    a.onclick=(e)=>e.stopPropagation();
-    const rm=document.createElement("button");
-    rm.type="button";
-    rm.className="attachment-delete";
-    rm.textContent="×";
-    rm.title="remove attachment";
-    rm.onclick=(e)=>{ e.stopPropagation(); currentFiles.splice(idx,1); renderFileChips(); };
-    item.append(a, rm);
-    list.appendChild(item);
-  });
-  fileChips.appendChild(list);
-}
+/* ===== Shared helpers (card editing is fully inline — the modal editor was removed) ===== */
 function readAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+/* Open a card's inline detail (used by search results + New card): expand its lane + detail, scroll to it, focus title. */
+function openCardInline(id){
+  const c=state.cards.find(x=>x.id===id); if(!c) return;
+  state.collapsed=state.collapsed||{}; state.collapsed[c.stage]=false;
+  state.cardCollapsed=state.cardCollapsed||{}; delete state.cardCollapsed[id];
+  render(); focusCard(id);
+  const inp=$(`.card[data-id="${id}"] .card-edit-grid input`); if(inp) inp.focus();
+}
 
 /* ===== Settings ===== */
 const settingsDialog=$("#settingsDialog");
-$("#btnNew").onclick=()=> openEditor(null, state.stages[0]);
+$("#btnNew").onclick=()=>{
+  if(!guardMutation("Create blocked while repository is unavailable")) return;
+  const stage=state.stages[0]||"Next";
+  state.collapsed=state.collapsed||{}; state.collapsed[stage]=false;
+  const id=createCard({stage});
+  if(id){ const inp=$(`.card[data-id="${id}"] .card-edit-grid input`); if(inp) inp.focus(); }
+};
 $("#btnSettings").onclick=()=>{
   $("#sPlatforms").value=state.platforms.join(", ");
   $("#sStages").value=state.stages.join(", ");
@@ -1917,9 +1712,9 @@ function parseSearch(q){ const parts=q.trim().toLowerCase().split(/\s+/).filter(
 function haystack(c){ const files = (c.files||[]).map(f=>f.name).join(" "); return [c.title,c.platform,c.stage,normalizeLineage(c.lineage),c.notes,c.dev,c.live,normalizeStatusColor(c.statusColor),files,...(c.tags||[])].join(" ").toLowerCase(); }
 function filterCards(cards, inc, exc){ return cards.filter(c=>{ const hay=haystack(c); for(const e of exc){ if(hay.includes(e)) return false; } for(const i of inc){ if(!hay.includes(i)) return false; } return true; }); }
 function highlightMatches(idset, active){ $$(".card").forEach(el=>{ el.classList.toggle("search-hit", active && idset.has(el.dataset.id)); el.style.opacity = active && !idset.has(el.dataset.id) ? 0.35 : 1; }); }
-function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openEditor(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
+function renderResultsPreview(cards){ const cont=$("#resultsContainer"); cont.innerHTML=""; const active=$("#search").value.trim().length>0; if(!active||!cards.length) return; const box=document.createElement("div"); box.className="results"; cards.forEach(c=>{ const item=document.createElement("div"); item.className="result-item"; item.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; item.onclick=()=>{ openCardInline(c.id); }; box.appendChild(item); }); cont.appendChild(box); }
 const searchDialog=$("#searchDialog");
-function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results (active cards only)</div>"; } else { cards.forEach(c=>{ const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; row.onclick=()=>{ searchDialog.close("close"); openEditor(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
+function openSearchModal(cards){ const list=$("#searchList"); list.innerHTML=""; if(!cards.length){ list.innerHTML="<div class='muted'>No results (active cards only)</div>"; } else { cards.forEach(c=>{ const row=document.createElement("div"); row.className="result-item"; row.innerHTML=`<strong>${escapeHtml(c.title)}</strong><div class="muted">${escapeHtml(c.platform)} · ${escapeHtml(c.stage)}${c.tags?.length? " · #"+c.tags.join(" #"):""}</div>`; row.onclick=()=>{ searchDialog.close("close"); openCardInline(c.id); }; list.appendChild(row); }); } searchDialog.showModal(); }
 
 /* ===== Tooltip ===== */
 const tooltip = document.getElementById("tooltip");
