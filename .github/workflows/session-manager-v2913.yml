@@ -1,0 +1,82 @@
+name: Session Manager v2.9.13 cross-origin SOT
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/session-manager-v2913.py'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch, validate, and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+
+          validate_release() {
+            python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('session-manager-v3.html').read_text(encoding='utf-8')
+          assert "const BUILD_VERSION='2.9.13'" in html
+          assert '<span class="version">v2.9.13</span>' in html
+          assert "n.textContent='v2.9.13'" in html
+          assert "function ghRawUrl(c)" in html
+          assert "Read-only public; PAT needed only to publish" in html
+          assert "Public read-only SOT received" in html
+          assert "await checkSotReceive('startup')" in html
+          assert "sotEnabled:hasSotEnabled?s.sotEnabled===true:true" in html
+          assert "let interval=sotPat()?60000:300000" in html
+          assert "if(!sotPat()){await sotSync({silent:true,reason});return}" in html
+          assert "GitHub SOT has an unsupported schema" in html
+          assert "![1,2].includes(Number(doc.version))" in html
+          assert "count>=3" in html
+          assert "p.sessions=p.sessions.filter(x=>x!==k)" not in extract(html,'reconcileProjects')
+          scripts='\n'.join(re.findall(r'<script>(.*?)</script>',html,re.S))
+          Path('/tmp/session-manager.js').write_text(scripts,encoding='utf-8')
+
+          def extract(text,name):
+              m=re.search(rf'(?:(?:async\s+)?function\s+{re.escape(name)}\s*\([^)]*\)\s*\{{)',text)
+              assert m
+              i=m.start(); j=m.end(); depth=1; quote=None; esc=False
+              while j<len(text) and depth:
+                  c=text[j]
+                  if quote:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: quote=None
+                  else:
+                      if c in "'\"`": quote=c
+                      elif c=='{': depth+=1
+                      elif c=='}': depth-=1
+                  j+=1
+              return text[i:j]
+          PY
+            node --check /tmp/session-manager.js
+            git diff --check
+          }
+
+          for attempt in 1 2 3 4 5 6; do
+            echo "Release attempt $attempt"
+            git fetch origin main
+            git reset --hard origin/main
+            python3 .github/scripts/session-manager-v2913.py
+            validate_release
+            git add session-manager-v3.html
+            git commit -m 'Session Manager v2.9.13 cross-origin SOT hydration'
+            if git push origin HEAD:main; then
+              echo 'v2.9.13 published successfully'
+              exit 0
+            fi
+            echo 'Concurrent repository write detected; rebuilding from latest main.'
+            sleep $((attempt * 2))
+          done
+          echo 'Unable to publish v2.9.13 after retries' >&2
+          exit 1
