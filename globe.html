@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>WorldMood — Global News Sentiment Globe v1.3.1</title>
+<title>WorldMood — Global News Sentiment Globe v1.4.0</title>
 <style>
 :root{
   --bg:#07101d; --panel:#0d1828; --panel2:#101e31; --text:#edf4ff; --muted:#94a8c4;
@@ -121,12 +121,23 @@ select{width:100%;background:#091421;color:var(--text);border:1px solid var(--li
 .console .err{color:#ff8992}.console .ok{color:#6ee7a8}.console .warn{color:#f5d778}
 .sourcebadge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:4px 7px;color:var(--muted);font-size:10px}
 @media(max-width:520px){.refresh{display:none}.status{font-size:11px}.gear{width:36px;height:34px}.drawer{width:100vw}}
+
+/* v1.4 interaction-density cleanup */
+.overlay{top:12px;left:12px;max-width:min(520px,calc(100% - 24px));gap:7px}
+.crumbbox{padding:7px 10px;background:rgba(7,16,29,.90)}
+.legend{padding:6px 9px;background:rgba(7,16,29,.88)}
+.itemname,.itemsub{display:block}
+.itemsub{margin-top:3px}
+.score{font-weight:650}
+.viewsummary{padding:10px 13px 0;color:var(--muted);font-size:11px}
+.viewsummary strong{color:var(--text);font-size:13px}
+@media(max-width:520px){.overlay{top:8px;left:8px;max-width:calc(100% - 16px)}.legend{font-size:9px}}
 </style>
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><div class="logo" aria-hidden="true"></div><strong>WorldMood</strong><span class="version">v1.3.1</span></div>
+    <div class="brand"><div class="logo" aria-hidden="true"></div><strong>WorldMood</strong><span class="version">v1.4.0</span></div>
     <div class="status" aria-live="polite"><span id="statusDot" class="dot"></span><span id="statusText">Loading global news…</span><span id="updated" class="updated"></span></div>
     <button id="refreshBtn" class="refresh" type="button">Refresh</button>
     <button id="gearBtn" class="gear" type="button" aria-label="Open configuration and diagnostics" title="Configuration and diagnostics">⚙</button>
@@ -147,7 +158,7 @@ select{width:100%;background:#091421;color:var(--text);border:1px solid var(--li
           <span><i class="sw bad"></i>Negative</span>
         </div>
       </div>
-      <div class="globehint">Drag to rotate · wheel/pinch to zoom · click a pulse to drill down</div>
+      <div class="globehint">Drag to rotate · pinch/wheel to zoom · tap a marker: country → state/province → city</div>
     </section>
 
     <aside class="sidebar">
@@ -178,6 +189,7 @@ select{width:100%;background:#091421;color:var(--text);border:1px solid var(--li
         </div>
       </div>
 
+      <div id="viewSummary" class="viewsummary"></div>
       <div class="sectiontitle"><h2 id="rankTitle">Most discussed places</h2><span id="rankCount"></span></div>
       <div id="rankList" class="list"></div>
 
@@ -195,7 +207,7 @@ select{width:100%;background:#091421;color:var(--text);border:1px solid var(--li
 <div id="drawerBack" class="drawerback" aria-hidden="true"></div>
 <aside id="configDrawer" class="drawer" aria-label="Configuration and diagnostics">
   <div class="drawerhead">
-    <div><strong>Configuration & diagnostics</strong><br><span>WorldMood v1.3.1 · mobile debug console</span></div>
+    <div><strong>Configuration & diagnostics</strong><br><span>WorldMood v1.4.0 · mobile debug console</span></div>
     <button id="drawerClose" class="drawerclose" type="button" aria-label="Close">×</button>
   </div>
   <div class="tabs">
@@ -318,7 +330,7 @@ const $ = id => document.getElementById(id);
 const els = {
   dot:$("statusDot"), status:$("statusText"), updated:$("updated"), refresh:$("refreshBtn"),
   time:$("timeFilter"), sent:$("sentFilter"), search:$("search"), clear:$("clearBtn"),
-  crumbs:$("crumbs"), rank:$("rankList"), rankTitle:$("rankTitle"), rankCount:$("rankCount"),
+  crumbs:$("crumbs"), rank:$("rankList"), rankTitle:$("rankTitle"), rankCount:$("rankCount"), viewSummary:$("viewSummary"),
   articles:$("articles"), articleCount:$("articleCount"), places:$("mPlaces"), pos:$("mPositive"), neg:$("mNegative"),
   gear:$("gearBtn"), drawer:$("configDrawer"), back:$("drawerBack"), drawerClose:$("drawerClose"),
   settingsTab:$("settingsTab"), debugTab:$("debugTab"), settingsPane:$("settingsPane"), debugPane:$("debugPane"),
@@ -636,10 +648,24 @@ function aggregate(list,level){
 function zoomTo(lat,lon,alt=1.2,duration=900){if(globe)globe.pointOfView({lat,lng:lon,altitude:alt},duration)}
 function drill(name,row){
   const level=nextLevel();
-  if(level==="region"){selected={region:name,country:null,admin1:null,city:null};zoomTo(row.lat,row.lon,1.35)}
-  else if(level==="country"){selected.country=name;selected.admin1=null;selected.city=null;zoomTo(row.lat,row.lon,.75)}
-  else if(level==="admin1"){selected.admin1=name;selected.city=null;zoomTo(row.lat,row.lon,.42)}
-  else{selected.city=name;zoomTo(row.lat,row.lon,.22)}
+  if(level==="region"){selected={region:name,country:null,admin1:null,city:null};zoomTo(row.lat,row.lon,1.18,520)}
+  else if(level==="country"){selected.country=name;selected.admin1=null;selected.city=null;zoomTo(row.lat,row.lon,.66,520)}
+  else if(level==="admin1"){selected.admin1=name;selected.city=null;zoomTo(row.lat,row.lon,.34,460)}
+  else{selected.city=name;zoomTo(row.lat,row.lon,.18,420)}
+  render();
+}
+function selectMapPoint(d){
+  if(!selected.country || selected.country!==d.country){
+    selected={region:d.region,country:d.country,admin1:null,city:null};
+    zoomTo(d.lat,d.lon,.64,480);
+  }else if(!selected.admin1 && d.admin1 && d.admin1!=="Other"){
+    selected.admin1=d.admin1;selected.city=null;
+    zoomTo(d.lat,d.lon,.32,440);
+  }else{
+    selected.admin1=(d.admin1&&d.admin1!=="Other")?d.admin1:selected.admin1;
+    selected.city=d.city;
+    zoomTo(d.lat,d.lon,.17,400);
+  }
   render();
 }
 function renderCrumbs(){
@@ -657,7 +683,14 @@ function renderCrumbs(){
       if(p.key==="region")selected={region:selected.region,country:null,admin1:null,city:null};
       if(p.key==="country")selected={region:selected.region,country:selected.country,admin1:null,city:null};
       if(p.key==="admin1")selected={region:selected.region,country:selected.country,admin1:selected.admin1,city:null};
-      zoomTo(18,10,p.key==="world"?2.15:p.key==="region"?1.35:p.key==="country"?.75:.42);render();
+      if(p.key==="world") zoomTo(18,10,2.05,520);
+      else {
+        const subset=points.filter(d=>(!selected.region||d.region===selected.region)&&(!selected.country||d.country===selected.country)&&(!selected.admin1||d.admin1===selected.admin1));
+        const w=subset.reduce((a,d)=>a+d.count,0)||1;
+        const lat=subset.reduce((a,d)=>a+d.lat*d.count,0)/w,lon=subset.reduce((a,d)=>a+d.lon*d.count,0)/w;
+        zoomTo(lat,lon,p.key==="region"?1.18:p.key==="country"?.66:.34,480);
+      }
+      render();
     });els.crumbs.appendChild(b);
   });
 }
@@ -665,7 +698,7 @@ function renderRanking(list){
   const level=nextLevel(),rows=aggregate(list,level).slice(0,12),label={region:"regions",country:"countries",admin1:"states / provinces",city:"cities"}[level];
   els.rankTitle.textContent="Most discussed "+label;els.rankCount.textContent=rows.length?rows.length+" shown":"";
   if(!rows.length){els.rank.innerHTML='<div class="empty">No matching places.</div>';return}
-  els.rank.innerHTML=rows.map((r,i)=>`<button class="item" type="button" data-i="${i}" style="text-align:left;color:inherit"><span class="sent" style="background:${toneColor(r.tone)}"></span><span class="itemmain"><span class="itemname">${escapeHTML(r.name)}</span><span class="itemsub">${r.count.toLocaleString()} weighted mentions</span></span><span class="score">${r.tone>0?"+":""}${r.tone.toFixed(1)}</span></button>`).join("");
+  els.rank.innerHTML=rows.map((r,i)=>`<button class="item" type="button" data-i="${i}" style="text-align:left;color:inherit"><span class="sent" style="background:${toneColor(r.tone)}"></span><span class="itemmain"><span class="itemname">${escapeHTML(r.name)}</span><span class="itemsub">${r.count.toLocaleString()} weighted mentions</span></span><span class="score" style="color:${toneColor(r.tone)}">${toneClass(r.tone)==="positive"?"Positive":toneClass(r.tone)==="negative"?"Negative":"Mixed"}</span></button>`).join("");
   els.rank.querySelectorAll(".item").forEach(b=>b.addEventListener("click",()=>{const r=rows[Number(b.dataset.i)];drill(r.name,r)}));
 }
 function renderArticles(list){
@@ -680,12 +713,19 @@ function renderArticles(list){
   els.articles.innerHTML=arr.map(a=>{
     const title=escapeHTML(a.title||a.name||a.domain||"News article"),where=escapeHTML([a.city,a.admin1,a.country].filter(Boolean).join(", ")),domain=escapeHTML(a.domain||"source");
     const content=a.url?`<a href="${escapeHTML(a.url)}" target="_blank" rel="noopener noreferrer">${title}</a>`:`<a>${title}</a>`;
-    return`<article class="article">${content}<div class="meta"><span style="color:${toneColor(a.tone)}">${a.tone>0?"+":""}${num(a.tone).toFixed(1)} tone band</span><span>${domain}</span><span>${where}</span></div></article>`;
+    return`<article class="article">${content}<div class="meta"><span style="color:${toneColor(a.tone)}">${toneClass(num(a.tone))==="positive"?"Positive":toneClass(num(a.tone))==="negative"?"Negative":"Mixed"} · ${a.tone>0?"+":""}${num(a.tone).toFixed(1)}</span><span>${domain}</span><span>${where}</span></div></article>`;
   }).join("");
 }
 function renderMetrics(list){
-  const total=list.reduce((s,d)=>s+d.count,0)||1,pos=list.filter(d=>d.tone>1.5).reduce((s,d)=>s+d.count,0),neg=list.filter(d=>d.tone<-1.5).reduce((s,d)=>s+d.count,0);
-  els.places.textContent=list.length.toLocaleString();els.pos.textContent=Math.round(pos/total*100)+"%";els.neg.textContent=Math.round(neg/total*100)+"%";
+  const total=list.reduce((s,d)=>s+d.count,0)||1;
+  const pos=list.filter(d=>d.tone>1.5).reduce((s,d)=>s+d.count,0);
+  const neg=list.filter(d=>d.tone<-1.5).reduce((s,d)=>s+d.count,0);
+  const mix=Math.max(0,total-pos-neg);
+  els.places.textContent=list.length.toLocaleString();
+  els.pos.textContent=Math.round(pos/total*100)+"%";
+  els.neg.textContent=Math.round(neg/total*100)+"%";
+  const label=selected.city||selected.admin1||selected.country||selected.region||"World";
+  els.viewSummary.innerHTML=`<strong>${escapeHTML(label)}</strong> · ${Math.round(pos/total*100)}% positive · ${Math.round(mix/total*100)}% mixed · ${Math.round(neg/total*100)}% negative`;
 }
 function renderGlobe(list){
   if(!globe)return;
@@ -696,7 +736,7 @@ function renderGlobe(list){
     .pointRadius(d=>Math.min(.24,.055+Math.log10(d.count+1)*.037))
     .pointColor(d=>toneColor(d.tone))
     .pointLabel(d=>`<div style="background:#07101de8;border:1px solid #2d4563;border-radius:8px;padding:8px 10px;color:#edf4ff;font:12px system-ui;max-width:260px"><b>${escapeHTML(d.city)}</b><br><span style="color:#94a8c4">${escapeHTML(d.admin1)}, ${escapeHTML(d.country)}</span><br><span style="color:${toneColor(d.tone)}">${toneClass(d.tone)}</span> · ${d.count.toLocaleString()} weighted mentions</div>`)
-    .onPointClick(d=>{const level=nextLevel(),name=d[level]||d.city;drill(name,{name,lat:d.lat,lon:d.lon})});
+    .onPointClick(d=>selectMapPoint(d));
 
   // Only the most-discussed locations pulse, keeping the globe legible.
   const rings=[...list].sort((a,b)=>b.count-a.count).slice(0,70);
