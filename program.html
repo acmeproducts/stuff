@@ -546,10 +546,12 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
   /* previously-used tags: history + every tag already on a card */
   const TAG_KEY="program_tag_history_v1";
   function tagHistRead(){try{const a=JSON.parse(localStorage.getItem(TAG_KEY)||"[]");return Array.isArray(a)?a:[];}catch{return[];}}
-  function tagHistWrite(a){localStorage.setItem(TAG_KEY,JSON.stringify([...new Set(a.map(String))]));}
+  function tagHistWrite(a){localStorage.setItem(TAG_KEY,JSON.stringify([...new Set(a.map(t=>String(t).toLowerCase()))]));}
   function tagHistAdd(tags){if(tags&&tags.length)tagHistWrite([...tagHistRead(),...tags]);}
-  function tagHistDel(t){tagHistWrite(tagHistRead().filter(x=>x!==t));}
-  function allKnownTags(){const s=new Set(tagHistRead());Object.values(boardData).forEach(b=>((b&&b.cards)||[]).forEach(c=>(c.tags||[]).forEach(t=>t&&s.add(String(t)))));return[...s].sort((a,b)=>a.localeCompare(b));}
+  function tagHistDel(t){t=String(t).toLowerCase();tagHistWrite(tagHistRead().filter(x=>x!==t));}
+  function allKnownTags(){const s=new Set(tagHistRead().map(t=>String(t).toLowerCase()));Object.values(boardData).forEach(b=>((b&&b.cards)||[]).forEach(c=>(c.tags||[]).forEach(t=>t&&s.add(String(t).toLowerCase()))));return[...s].sort((a,b)=>a.localeCompare(b));}
+  /* kanban.html tag normalization: lowercase, trim, split comma, dedupe */
+  function normalizeTags(tags){let arr=Array.isArray(tags)?tags:(typeof tags==="string"?tags.split(","):[]);arr=arr.map(s=>String(s).trim().toLowerCase()).filter(Boolean);return[...new Set(arr)];}
 
   /* minimal markdown (Mello notes: markdown + text--url shorthand) */
   const kEsc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -601,7 +603,7 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
   /* kanban's inline detail editor, built into a card's [data-detail] (or a panel). */
   function renderCardDetail(host,board,id){
     const c=cards(board).find(x=>String(x.id)===String(id)); if(!c){host.innerHTML="";return;}
-    let tags=(c.tags||[]).map(String);
+    let tags=normalizeTags(c.tags);
     let files=Array.isArray(c.files)?c.files.map(f=>({...f})):[];
     const plats=[...new Set([...(boardData[board]?.platforms||[]),c.platform].filter(Boolean))];
     host.innerHTML=`<div class="card-edit-grid">`+
@@ -613,7 +615,7 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
       `</div>`+
       `<div class="card-edit-field"><label>Dev Link</label><input type="url" data-f="dev" value="${esc(c.dev||"")}"></div>`+
       `<div class="card-edit-field"><label>Live Link</label><input type="url" data-f="live" value="${esc(c.live||"")}"></div>`+
-      `<div class="card-edit-field full"><label>Tags</label><div class="inline-tag-editor"><div class="inline-tag-assigned" data-tagchips></div><div class="inline-tag-input-row"><input data-taginput placeholder="add a tag, press Enter"><button type="button" data-tagadd>Add</button></div><div class="inline-tag-sug-label">Previously used</div><div class="inline-tag-suggestions" data-sug></div></div></div>`+
+      `<div class="card-edit-field full"><label>Tags</label><div class="inline-tag-editor"><div class="inline-tag-assigned" data-tagchips></div><div class="inline-tag-input-row"><input data-taginput placeholder="type tag, press Enter"></div><div class="inline-tag-sug-label" data-suglabel>Suggestions (click to add · × to remove from list)</div><div class="inline-tag-suggestions" data-sug></div></div></div>`+
       `<div class="card-edit-field full"><label>Notes</label><div class="card-inline-notes"><div class="live-notes-preview" data-noteview data-placeholder="Notes (Markdown) — click to edit" tabindex="0"></div><textarea data-notes class="hidden" style="display:none">${esc(c.notes||"")}</textarea></div></div>`+
       `<div class="card-edit-field full"><label>Attachments</label><ul class="attachment-list" data-attlist></ul><label class="att-add">＋ Add files<input type="file" multiple hidden data-attinput></label></div>`+
     `</div>`;
@@ -625,12 +627,13 @@ mark{background:#fde68a;color:inherit;border-radius:2px}
     q('[data-f="lineage"]').onchange=e=>commit({lineage:e.target.value});
     q('[data-f="dev"]').onchange=e=>commit({dev:e.target.value.trim()});
     q('[data-f="live"]').onchange=e=>commit({live:e.target.value.trim()});
-    const chipsEl=q('[data-tagchips]'),tin=q('[data-taginput]'),sug=q('[data-sug]');
-    const drawChips=()=>{chipsEl.innerHTML=tags.map(t=>`<span class="chip">${esc(t)}<button type="button" data-x="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join("");chipsEl.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{tags=tags.filter(x=>x!==b.dataset.x);drawChips();drawSug();commit({tags:tags.slice()});});};
-    const drawSug=()=>{const seen=new Set();sug.innerHTML=allKnownTags().filter(t=>{if(tags.includes(t)||seen.has(t))return false;seen.add(t);return true;}).slice(0,20).map(t=>`<span class="chip" data-add="${esc(t)}">${esc(t)}<span class="sug-x" data-del="${esc(t)}" title="Remove from history">×</span></span>`).join("");sug.querySelectorAll('[data-add]').forEach(el=>el.onclick=e=>{if(e.target.dataset.del!==undefined){tagHistDel(el.dataset.add);drawSug();return;}tags.push(el.dataset.add);tagHistAdd([el.dataset.add]);drawChips();drawSug();commit({tags:tags.slice()});});};
-    const addTags=()=>{const raw=tin.value.trim();if(!raw){return;}raw.split(/[,\n]+/).forEach(p=>{const t=p.trim();if(t&&!tags.includes(t))tags.push(t);});tin.value="";tagHistAdd(tags);drawChips();drawSug();commit({tags:tags.slice()});};
-    tin.onkeydown=e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();addTags();}};
-    q('[data-tagadd]').onclick=addTags; drawChips(); drawSug();
+    const chipsEl=q('[data-tagchips]'),tin=q('[data-taginput]'),sug=q('[data-sug]'),sugLabel=q('[data-suglabel]');
+    const drawChips=()=>{chipsEl.innerHTML="";tags.forEach(t=>{const chip=document.createElement('span');chip.className='chip';chip.innerHTML=`${esc(t)} <button type="button" title="remove tag">×</button>`;chip.querySelector('button').onclick=e=>{e.stopPropagation();tags.splice(tags.indexOf(t),1);drawChips();drawSug();commit({tags:tags.slice()});};chipsEl.appendChild(chip);});};
+    const drawSug=()=>{sug.innerHTML="";const query=tin.value.trim().toLowerCase(),show=query.length>0;sugLabel.style.display=show?"":"none";sug.style.display=show?"":"none";if(!show)return;allKnownTags().filter(t=>!tags.includes(t)&&t.includes(query)).forEach(t=>{const chip=document.createElement('span');chip.className='chip';const txt=document.createElement('span');txt.textContent=t;const rx=document.createElement('span');rx.className='sug-x';rx.textContent='×';rx.title='remove from list';chip.append(txt,rx);chip.onclick=e=>{e.stopPropagation();if(e.target===rx){tagHistDel(t);drawSug();return;}if(!tags.includes(t)){tags.push(t);drawChips();drawSug();commit({tags:tags.slice()});}};sug.appendChild(chip);});};
+    const addTags=()=>{const raw=tin.value.trim();if(!raw)return;raw.split(/[,\s]+/).forEach(p=>{const t=p.trim().toLowerCase();if(t&&!tags.includes(t))tags.push(t);});tin.value="";tagHistAdd(tags);drawChips();drawSug();commit({tags:tags.slice()});};
+    tin.onkeydown=e=>{if(e.key==="Enter"||e.key===","){e.preventDefault();e.stopPropagation();addTags();}};
+    tin.oninput=()=>drawSug();
+    drawChips(); drawSug();
     const nv=q('[data-noteview]'),ta=q('[data-notes]');
     const showPreview=()=>{nv.innerHTML=renderMd(c.notes||"");nv.classList.remove('hidden');nv.style.display="";ta.classList.add('hidden');ta.style.display="none";};
     const showEditor=()=>{nv.classList.add('hidden');nv.style.display="none";ta.classList.remove('hidden');ta.style.display="";ta.focus();};
