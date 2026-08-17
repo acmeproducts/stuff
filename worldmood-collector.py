@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
-"""WorldPulse v1.5 collector.
-Fetches GDELT GKG GeoJSON server-side and writes a compact same-origin cache.
-"""
+"""WorldPulse v1.8 collector: geographic sentiment plus quality-first article cache."""
 from __future__ import annotations
 import datetime as dt, json, os, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
-VERSION="1.5.0"
+VERSION="1.8.0"
 BASE=os.environ.get("WORLDMOOD_GDELT_GKG_URL","https://api.gdeltproject.org/api/v1/gkg_geojson")
 OUTPUT=Path(os.environ.get("WORLDMOOD_OUTPUT","worldmood-data.json"))
 WINDOWS=[60,180,360,720,1440]
 MAXROWS=int(os.environ.get("WORLDMOOD_MAXROWS","5000"))
 TIMEOUT=int(os.environ.get("WORLDMOOD_TIMEOUT","45"))
-USER_AGENT="WorldPulseCollector/1.5 (+https://github.com/acmeproducts/stuff)"
+USER_AGENT="WorldPulseCollector/1.8 (+https://github.com/acmeproducts/stuff)"
+QUALITY={
+ "bbc.com":100,"bbc.co.uk":100,"reuters.com":98,"apnews.com":98,"npr.org":94,
+ "theguardian.com":92,"aljazeera.com":92,"dw.com":90,"france24.com":90,"abc.net.au":90,
+ "cbc.ca":90,"cbsnews.com":86,"nbcnews.com":86,"abcnews.go.com":86,"cnn.com":84,
+ "nytimes.com":84,"washingtonpost.com":84
+}
 
 def utc_now(): return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z")
 def num(v,d=0.0):
     try:
         n=float(v); return n if n==n else d
     except Exception:return d
+
+def clean_domain(v): return str(v or "").lower().removeprefix("www.")
+def quality_score(v):
+    d=clean_domain(v)
+    return max((score for domain,score in QUALITY.items() if d==domain or d.endswith("."+domain)),default=0)
 
 def region(lat,lon):
     if lat<-60:return "Antarctica"
@@ -56,34 +65,37 @@ def normalize(f):
     p=f.get("properties") or {};q=place(str(p.get("name") or ""),p,lat,lon)
     tone=num(p.get("urltone",p.get("avgurltone",p.get("tone",p.get("avgtone",p.get("avgTone",0))))))
     url=str(p.get("url") or p.get("articleurl") or "")
+    domain=str(p.get("domain") or p.get("urldomain") or "")
     return {
         "name":str(p.get("name") or q["city"]),"lat":round(lat,5),"lon":round(lon,5),"tone":round(tone,4),**q,
         "count":max(1,int(round(num(p.get("count",p.get("nummentions",p.get("mentions",1))),1)))),
-        "url":url,"domain":str(p.get("domain") or p.get("urldomain") or ""),
-        "title":str(p.get("title") or ""),"lang":str(p.get("urllangcode") or p.get("lang") or ""),
+        "url":url,"domain":domain,"quality":quality_score(domain),
+        "title":str(p.get("title") or p.get("urltitle") or ""),"lang":str(p.get("urllangcode") or p.get("lang") or ""),
         "wordcount":int(round(num(p.get("urlwordcnt",p.get("wordcount",0)),0))),
         "themes":str(p.get("mentionedthemes") or p.get("themes") or ""),
         "names":str(p.get("mentionednames") or p.get("names") or ""),
         "published":str(p.get("urlpubtimedate") or "")
     }
 
-def compact(records,limit=8):
+def compact(records,limit=14):
     groups={}
     for d in records:
         k=(d["region"],d["country"],d["admin1"],d["city"],round(d["lat"],1),round(d["lon"],1));g=groups.get(k)
         if g is None:
-            g={"name":d["name"],"lat":d["lat"],"lon":d["lon"],"region":d["region"],"country":d["country"],"admin1":d["admin1"],"city":d["city"],"count":0,"tone_sum":0.0,"weight":0,"articles":[]};groups[k]=g
+            g={"name":d["name"],"lat":d["lat"],"lon":d["lon"],"region":d["region"],"country":d["country"],"admin1":d["admin1"],"city":d["city"],"count":0,"tone_sum":0.0,"weight":0,"article_candidates":[]};groups[k]=g
         w=max(1,int(d.get("count",1)));g["count"]+=w;g["tone_sum"]+=float(d.get("tone",0))*w;g["weight"]+=w
-        if len(g["articles"])<limit and d.get("url"):
-            a={k:d.get(k) for k in ("title","url","domain","tone","lang","wordcount","themes","names","published")}
-            if a not in g["articles"]:g["articles"].append(a)
+        if d.get("url"):
+            a={k:d.get(k) for k in ("title","url","domain","tone","lang","wordcount","themes","names","published","quality")}
+            if not any(x.get("url")==a["url"] for x in g["article_candidates"]):g["article_candidates"].append(a)
     out=[]
     for g in groups.values():
-        w=g.pop("weight");sm=g.pop("tone_sum");g["tone"]=round(sm/w if w else 0,4);out.append(g)
+        w=g.pop("weight");sm=g.pop("tone_sum");candidates=g.pop("article_candidates")
+        candidates.sort(key=lambda a:(int(a.get("quality") or 0),str(a.get("published") or ""),int(a.get("wordcount") or 0)),reverse=True)
+        g["articles"]=candidates[:limit];g["tone"]=round(sm/w if w else 0,4);out.append(g)
     return sorted(out,key=lambda x:x["count"],reverse=True)
 
 def source_url(minutes):
-    fields="url,name,domain,tone,lang,wordcount,themes,names"
+    fields="url,name,domain,title,tone,lang,wordcount,themes,names"
     return BASE+"?"+urllib.parse.urlencode({"QUERY":"","OUTPUTFIELDS":fields,"OUTPUTTYPE":"1","MAXROWS":str(MAXROWS),"TIMESPAN":str(minutes)})
 
 def previous():
@@ -93,13 +105,17 @@ def previous():
 def main():
     old=previous();windows={};statuses={};successes=0
     for minutes in WINDOWS:
-        st={"source":"GDELT GKG GeoJSON 1.0","endpoint":BASE,"window_minutes":minutes,"ok":False,"http_status":None,"latency_ms":None,"raw_records":0,"mapped_records":0,"clustered_places":0,"tone_nonzero_records":0,"tone_min":None,"tone_max":None,"error":None}
+        st={"source":"GDELT GKG GeoJSON 1.0","endpoint":BASE,"window_minutes":minutes,"ok":False,"http_status":None,"latency_ms":None,"raw_records":0,"mapped_records":0,"clustered_places":0,"tone_nonzero_records":0,"quality_articles":0,"quality_domains":{},"tone_min":None,"tone_max":None,"error":None}
         try:
             source,http=fetch_json(source_url(minutes));st.update(http);features=source.get("features") if isinstance(source,dict) else None
             if not isinstance(features,list):raise ValueError("GDELT response did not contain a features array")
             st["raw_records"]=len(features);mapped=[x for x in (normalize(f) for f in features) if x];st["mapped_records"]=len(mapped)
             tones=[x["tone"] for x in mapped];st["tone_nonzero_records"]=sum(1 for x in tones if abs(x)>1e-9)
             if tones:st["tone_min"],st["tone_max"]=round(min(tones),3),round(max(tones),3)
+            q=[x for x in mapped if x.get("quality")];st["quality_articles"]=len(q)
+            for x in q:
+                d=clean_domain(x.get("domain"));st["quality_domains"][d]=st["quality_domains"].get(d,0)+1
+            st["quality_domains"]=dict(sorted(st["quality_domains"].items(),key=lambda kv:kv[1],reverse=True)[:20])
             clustered=compact(mapped);st["clustered_places"]=len(clustered)
             if not clustered:raise ValueError("No mappable point records returned")
             windows[str(minutes)]=clustered;st["ok"]=True;successes+=1
@@ -108,7 +124,7 @@ def main():
             if old and isinstance(old.get("windows",{}).get(str(minutes)),list):windows[str(minutes)]=old["windows"][str(minutes)];st["using_previous_cache"]=True
             else:windows[str(minutes)]=[]
         statuses[str(minutes)]=st;print(json.dumps(st,ensure_ascii=False),flush=True)
-    result={"schema":"worldmood-cache-v1","app_version":VERSION,"generated_at":utc_now(),"collector_ok":successes==len(WINDOWS),"collector_partial":0<successes<len(WINDOWS),"successful_windows":successes,"total_windows":len(WINDOWS),"previous_generated_at":old.get("generated_at") if old else None,"source_note":"GDELT article-level URL tone and contextual metadata attached to geographic mentions; media tone, not public opinion.","source_status":statuses,"windows":windows}
+    result={"schema":"worldmood-cache-v1","app_version":VERSION,"generated_at":utc_now(),"collector_ok":successes==len(WINDOWS),"collector_partial":0<successes<len(WINDOWS),"successful_windows":successes,"total_windows":len(WINDOWS),"previous_generated_at":old.get("generated_at") if old else None,"source_note":"Broad GDELT geography/sentiment with reputable publishers prioritized in each geographic article set. Media tone, not public opinion.","quality_publishers":QUALITY,"source_status":statuses,"windows":windows}
     tmp=OUTPUT.with_suffix(OUTPUT.suffix+".tmp");tmp.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":")),encoding="utf-8");tmp.replace(OUTPUT);print(f"Wrote {OUTPUT} ({OUTPUT.stat().st_size:,} bytes), successes={successes}/{len(WINDOWS)}");return 0 if successes else 2
 
 if __name__=="__main__":raise SystemExit(main())
