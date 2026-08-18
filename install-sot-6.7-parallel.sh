@@ -21,30 +21,35 @@ PY
 
 echo "=== DOWNLOAD 6.7 ADDONS ==="
 curl -fsSL "$BASE/sot-backend-6.7-addon.js" -o "$TMP/backend-addon.js"
+curl -fsSL "$BASE/sot-backend-6.7-final-addon.js" -o "$TMP/backend-final-addon.js"
 curl -fsSL "$BASE/sot-ui-6.7-addon.js" -o "$TMP/ui-addon.js"
+curl -fsSL "$BASE/sot-ui-6.7-final-addon.js" -o "$TMP/ui-final-addon.js"
 node --check "$TMP/backend-addon.js"
+node --check "$TMP/backend-final-addon.js"
 node --check "$TMP/ui-addon.js"
+node --check "$TMP/ui-final-addon.js"
 
 echo "=== BUILD CANDIDATES OFFLINE ==="
 cp -a "$API" "$TMP/sot-api.candidate.js"
 cp -a "$UI" "$TMP/project.candidate.html"
-BACKEND_ADDON="$TMP/backend-addon.js" UI_ADDON="$TMP/ui-addon.js" API_CAND="$TMP/sot-api.candidate.js" UI_CAND="$TMP/project.candidate.html" python3 - <<'PY'
+BACKEND_ADDON="$TMP/backend-addon.js" BACKEND_FINAL="$TMP/backend-final-addon.js" UI_ADDON="$TMP/ui-addon.js" UI_FINAL="$TMP/ui-final-addon.js" API_CAND="$TMP/sot-api.candidate.js" UI_CAND="$TMP/project.candidate.html" python3 - <<'PY'
 import os,pathlib
 api=pathlib.Path(os.environ['API_CAND']);ui=pathlib.Path(os.environ['UI_CAND'])
-ba=pathlib.Path(os.environ['BACKEND_ADDON']).read_text();ua=pathlib.Path(os.environ['UI_ADDON']).read_text()
+ba=pathlib.Path(os.environ['BACKEND_ADDON']).read_text();bf=pathlib.Path(os.environ['BACKEND_FINAL']).read_text()
+ua=pathlib.Path(os.environ['UI_ADDON']).read_text();uf=pathlib.Path(os.environ['UI_FINAL']).read_text()
 s=api.read_text()
 if 'PARALLEL_BUILD' not in s:
     if "2026.08.17.6.6-wsl-recovery" not in s: raise SystemExit('Backend is not the expected 6.6 base')
     marker='module.exports={handle,VERSION,BUILD};'
     if marker not in s: raise SystemExit('Backend export marker missing')
-    s=s.replace(marker,ba+'\n'+marker,1)
+    s=s.replace(marker,ba+'\n'+bf+'\n'+marker,1)
 api.write_text(s)
 h=ui.read_text()
 if 'PARALLEL_BUILD' not in h:
     if '2026.08.17.6.6-wsl-recovery' not in h: raise SystemExit('UI is not the expected 6.6 base')
     marker='</body></html>'
     if marker not in h: raise SystemExit('UI body marker missing')
-    h=h.replace(marker,'<script>\n'+ua+'\n</script>\n'+marker,1)
+    h=h.replace(marker,'<script>\n'+ua+'\n</script>\n<script>\n'+uf+'\n</script>\n'+marker,1)
 ui.write_text(h)
 PY
 node --check "$TMP/sot-api.candidate.js"
@@ -84,7 +89,13 @@ print(json.dumps(x,indent=2))
 PY
 
 echo "=== DB + ROOT GATES ==="
-curl -fsS http://127.0.0.1:18080/api/sot/db/info | python3 -m json.tool
+curl -fsS http://127.0.0.1:18080/api/sot/db/info -o "$TMP/dbinfo.json"
+python3 - "$TMP/dbinfo.json" "$BUILD" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1]));print(json.dumps(x,indent=2))
+if x.get('build')!=sys.argv[2]:raise SystemExit('DB info build mismatch: '+repr(x.get('build')))
+if not x.get('integrity',{}).get('ok'):raise SystemExit('DB integrity failed')
+PY
 curl -fsS 'http://127.0.0.1:18080/api/sot/fs?path=/' -o "$TMP/roots.json"
 python3 - "$TMP/roots.json" <<'PY'
 import json,sys
