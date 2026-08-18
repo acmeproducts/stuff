@@ -1,4 +1,4 @@
-name: Patch Market Navigator 3.8.1
+name: Patch Market Navigator 3.8.2
 on:
   push:
     paths:
@@ -13,20 +13,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply regime history repair
-        run: python3 scripts/patch_market_view_381.py
+      - name: Apply null-close and history repair
+        run: python3 scripts/patch_market_view_382.py
       - name: Validate data repair and JavaScript
         run: |
           python3 - <<'PY'
           import re
           s=open('market-view.html').read()
-          assert 'Version 3.8.1' in s
-          assert "const VERSION='3.8.1'" in s
-          assert "const REGIME_SERIES=['spy','tenYear','wti']" in s
-          assert 'repairRegimeHistory' in s
-          assert "regimeFetch(id,full?'5y':'1mo')" in s
-          assert "provider:'Yahoo Finance'" in s
-          assert 'Regime history repaired' in s
+          assert 'Version 3.8.2' in s
+          assert "const VERSION='3.8.2'" in s
+          assert "typeof raw!=='number'" in s
+          assert 'raw<=0' in s
+          assert 'localStorage.removeItem(REGIME_FOUNDATION_KEY)' in s
           js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
           open('/tmp/market-view.js','w').write(js)
           PY
@@ -36,6 +34,6 @@ jobs:
           git config user.name 'Market Navigator Patch Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add market-view.html
-          git commit -m 'Repair SPY 10Y WTI historical foundation and incremental refresh'
+          git commit -m 'Reject Yahoo null closes and rebuild regime history'
           git pull --rebase origin main
           git push origin HEAD:main
