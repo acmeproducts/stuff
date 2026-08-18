@@ -72,6 +72,17 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Q:, R:, and any other mounted volumes are not special cases; the rule applies to every root returned by the filesystem adapter.
 - The retry release is build `2026.08.18.6.7.3-wsl-mount-safe`; it retains the single production report server and introduces no service, port, proxy, or Tailscale topology change.
 
+
+## 0.2C Real mountpoint ruling — 2026-08-18
+
+- Build 6.7.3 failed the owner/device gate. Logs proved `/mnt/p`, `/mnt/q`, `/mnt/r`, and `/mnt/s` were openable directories but contained zero entries, while other mounted roots enumerated normally.
+- An existing `/mnt/<letter>` directory is not proof that the Windows volume is mounted there.
+- The filesystem adapter must use Linux mount-table evidence (`/proc/self/mountinfo` or equivalent) before advertising a `/mnt/<letter>` root.
+- Empty placeholder directories under `/mnt` are not storage roots and must not appear in Project Setup.
+- Browse results must preserve both folders and root-level files.
+- Selecting an empty/unmounted placeholder must never move focus to another drive; the selected-root state must remain stable unless the operator changes it.
+- Build 6.7.4 is a narrow backend correction on top of the installed 6.7.3 line: real mount detection only; UI and single-server topology remain unchanged.
+
 ## 0.3 Established plumbing — keep
 
 ### Browser/mobile mode
@@ -1212,3 +1223,6 @@ The first baseline is DONE only when:
 **G-FS-SHALLOW-ROOT — shallow folder-only Project Setup browse (BURIED / VETOED).** Do not override the established filesystem browse contract with immediate-child-folder-only results that discard root-level files.
 
 **G-FS-DRIVE-VISIBILITY — treating Windows drive-letter discovery as proof of WSL readability (BURIED / VETOED).** A drive may be displayed as readable only after the production report-server process can actually open/enumerate its WSL path. If it cannot, expose `available=false` plus the error; never return a false empty-success state.
+
+
+**G-FS-MNT-DIR — treating `/mnt/<letter>` directory existence or successful `readdir` as proof of a mounted Windows volume (BURIED / VETOED).** Only actual mount-table evidence qualifies a drive root for advertisement. Empty placeholder directories must be ignored.
