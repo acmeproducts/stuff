@@ -1,0 +1,76 @@
+name: SOT owner-gate 6.4 rebuild
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-owner-rebuild-64.yml'
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Rebuild 6.4 from clean integrated-server line
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('project.html')
+          s=p.read_text()
+          old=s
+          s=s.replace("const VERSION='0.4.1',BUILD='2026.08.17.6.4-wsl-live';","const VERSION='0.4.1',BUILD='2026.08.18.6.4-rebuild';")
+          s=s.replace('UI v0.4.1 · 2026.08.12.6.1','UI v0.4.1 · 2026.08.18.6.4-rebuild')
+          css='''\n/* OWNER_GATE_64_FINGERPRINT_LAYOUT */\n.projectRail{min-height:0;max-height:calc(100vh - 150px);overflow:hidden;display:flex;flex-direction:column}.projectRail .projectList{min-height:0;flex:1;max-height:none;overflow:auto}.fpMain{min-height:0}.fpHeader{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line)}.fpHeaderName{min-width:180px;max-width:520px;border:1px solid transparent;border-radius:7px;padding:5px 7px;font-size:18px;font-weight:850;background:transparent;color:var(--ink)}.fpHeaderName:hover,.fpHeaderName:focus{background:#fff;border-color:var(--line);outline:none}.fpHeader .spacer{flex:1}.fpSummary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:10px 0}.fpMetric{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fafbfc;min-width:0}.fpMetric .k{font-size:9px;text-transform:uppercase;color:var(--muted);font-weight:850}.fpMetric .v{margin-top:3px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fpSection{margin-top:12px}.fpSection h4{margin:0 0 6px;font-size:12px}.fpScroll{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px}.fpScroll .dataTable{margin:0}.fpEmpty{padding:16px;color:var(--muted);font-size:12px}.fpHeader .btn[disabled]{opacity:.38}@media(max-width:900px){.fpSummary{grid-template-columns:repeat(3,1fr)}}@media(max-width:620px){.fpSummary{grid-template-columns:repeat(2,1fr)}.fpHeader{align-items:flex-start}.fpHeaderName{width:100%;max-width:none}}\n'''
+          if 'OWNER_GATE_64_FINGERPRINT_LAYOUT' not in s:
+              s=s.replace('</style>',css+'</style>',1)
+
+          replacement=r'''function fpElapsed(start,end){if(!start)return'—';const a=new Date(start).getTime(),b=end?new Date(end).getTime():Date.now();if(!Number.isFinite(a)||!Number.isFinite(b)||b<a)return'—';return((b-a)/60000).toFixed(1)}
+function fpRun(p){return p.fingerprint_run||p.current_run||p.run||{}}
+function fpCaps(p){const c=p.capabilities||p.fingerprint_capabilities||{};return{pause:!!c.pause,continue:!!c.continue,restart:!!c.restart,stop:c.stop!==false}}
+async function renameFingerprintProject(p,value){const name=String(value||'').trim();if(!name)throw new Error('Project name is required');if(name===p.project_name)return;if(WSL){await api('/projects/'+encodeURIComponent(p.project_token),{method:'PATCH',body:JSON.stringify({project_name:name})})}else{p.project_name=name;p.updated_at=Date.now();await storePut('projects',p)}p.project_name=name;await refreshProjects();state.selectedProject=state.projects.find(x=>x.project_token===p.project_token)||p;renderFingerprinting()}
+async function fingerprintControl(p,action){if(action==='start'){runFingerprint(p);return}if(!WSL){if(action==='stop'){state.fp.stop=true;return}toast(action+' is not available in the browser adapter yet.',true);return}try{await api('/projects/'+encodeURIComponent(p.project_token)+'/fingerprint/'+action,{method:'POST',body:'{}'});toast(action.charAt(0).toUpperCase()+action.slice(1)+' requested.');await refreshProjects();state.selectedProject=state.projects.find(x=>x.project_token===p.project_token)||p;renderFingerprinting()}catch(e){toast(e.message,true)}}
+function renderFingerprinting(){refreshProjects().then(()=>{const p=state.selectedProject||state.projects[0]||null;if(p&&!state.selectedProject)state.selectedProject=p;page('Fingerprinting','File-level fingerprinting and inventory. Only backend-reported telemetry is shown.',`<div class="card fpLayout"><aside class="projectRail"><div class="paneHeader">Projects</div><div class="projectList">${projectRail()}</div></aside><section class="fpMain">${p?fingerprintProjectHtml(p):'<div class="empty"><strong>No project selected</strong>Create a project first.</div>'}</section></div>`);$$('[data-project]').forEach(x=>x.onclick=()=>{state.selectedProject=state.projects.find(p=>p.project_token===x.dataset.project);renderFingerprinting()});if(!p)return;const name=$('#fpProjectName');if(name){const original=p.project_name;name.onkeydown=async e=>{if(e.key==='Enter'){e.preventDefault();name.blur()}else if(e.key==='Escape'){name.value=original;name.blur()}};name.onblur=async()=>{try{await renameFingerprintProject(p,name.value)}catch(e){name.value=original;toast(e.message,true)}}}$$('[data-fp-action]').forEach(b=>b.onclick=()=>fingerprintControl(p,b.dataset.fpAction))})}
+function fingerprintProjectHtml(p){const run=fpRun(p),caps=fpCaps(p),sources=p.sources||[];const folders=Number(run.folders_total??p.folders_total??sources.length||0),files=Number(run.files_total??p.files_total??sources.reduce((a,s)=>a+Number(s.file_count||0),0)),bytes=Number(run.bytes_total??p.bytes_total??sources.reduce((a,s)=>a+Number(s.byte_count||0),0));const start=run.started_at||p.fingerprint_started_at||null,end=run.ended_at||p.fingerprint_completed_at||null,workers=run.workers||p.workers||[],done=run.completed_folders||p.completed_folders||[];const active=['Discovering','Fingerprinting','Running','WIP'].includes(p.status);const stopped=['Stopped','Paused'].includes(p.status);return`<div class="fpHeader"><input id="fpProjectName" class="fpHeaderName" value="${esc(p.project_name)}" title="Click to rename"><span class="badge ${active?'warn':'good'}">${esc(p.status||'Ready')}</span><span class="muted">${esc(run.phase||p.current_stage||'fingerprinting')}</span><span class="spacer"></span><button class="btn primary" data-fp-action="start" ${active?'disabled':''}>Start</button><button class="btn" data-fp-action="pause" ${!active||!caps.pause?'disabled':''}>Pause</button><button class="btn" data-fp-action="continue" ${!stopped||!caps.continue?'disabled':''}>Continue</button><button class="btn" data-fp-action="restart" ${active||!caps.restart?'disabled':''}>Restart</button><button class="btn" data-fp-action="stop" ${!active||!caps.stop?'disabled':''}>Stop</button></div><div class="fpSummary"><div class="fpMetric"><div class="k"># of Folders</div><div class="v">${folders||'—'}</div></div><div class="fpMetric"><div class="k"># of Files</div><div class="v">${files||'—'}</div></div><div class="fpMetric"><div class="k">Size</div><div class="v">${bytes?fmtBytes(bytes):'—'}</div></div><div class="fpMetric"><div class="k">Start</div><div class="v">${fmtDate(start)}</div></div><div class="fpMetric"><div class="k">End</div><div class="v">${fmtDate(end)}</div></div><div class="fpMetric"><div class="k">Cumulative Minutes</div><div class="v">${fpElapsed(start,end)}</div></div></div><div class="fpSection"><h4>Current folders actively being worked</h4><div class="fpScroll">${workers.length?`<table class="dataTable"><thead><tr><th>Folder Name</th><th>Item Name</th><th>Size Cumulative</th><th># of Files Cumulative</th><th>Start</th><th>End</th><th>Cumulative Minutes</th></tr></thead><tbody>${workers.map(w=>`<tr><td>${esc(w.folder_name||w.folder||'—')}</td><td title="${esc(w.item_path||w.item_name||'')}">${esc(w.item_name||w.filename||w.item_path||'—')}</td><td>${w.bytes_done!=null?fmtBytes(w.bytes_done):'—'}</td><td>${w.files_done??'—'}</td><td>${fmtDate(w.started_at)}</td><td>${fmtDate(w.ended_at)}</td><td>${fpElapsed(w.started_at,w.ended_at)}</td></tr>`).join('')}</tbody></table>`:'<div class="fpEmpty">No active folder telemetry reported by the backend.</div>'}</div></div><div class="fpSection"><h4>Completed indexed folders</h4><div class="fpScroll">${done.length?`<table class="dataTable"><thead><tr><th>Folder Name</th><th>Size Cumulative</th><th># of Files Cumulative</th><th>Start</th><th>End</th><th>Cumulative Minutes</th></tr></thead><tbody>${done.map(w=>`<tr><td>${esc(w.folder_name||w.folder||'—')}</td><td>${w.bytes_done!=null?fmtBytes(w.bytes_done):'—'}</td><td>${w.files_done??'—'}</td><td>${fmtDate(w.started_at)}</td><td>${fmtDate(w.ended_at)}</td><td>${fpElapsed(w.started_at,w.ended_at)}</td></tr>`).join('')}</tbody></table>`:'<div class="fpEmpty">No completed-folder telemetry reported by the backend.</div>'}</div></div>`}
+async function collectFiles'''
+          s,n=re.subn(r'function renderFingerprinting\(\).*?\nasync function collectFiles',replacement,s,flags=re.S)
+          if n!=1: raise SystemExit(f'fingerprint block anchor count {n}')
+          if s==old: raise SystemExit('project.html unchanged')
+          p.write_text(s)
+
+          d=Path('project-backlog.md')
+          t=d.read_text()
+          t=t.replace('**Status:** **PLANNING / DESIGN ONLY — NO CODE**','**Status:** **ACTIVE BASELINE RECOVERY / OWNER-GATED IMPLEMENTATION**')
+          t=t.replace('**Last governance update:** 2026-08-12','**Last governance update:** 2026-08-18')
+          lock='''\n## 0.2A Architecture lock — 2026-08-18\n\n- The production report application on port 18080 is the only SOT HTTP server.\n- SOT APIs are integrated through the existing report-server path `/report/api/sot/*`; the current backend module is `sot-api.js` loaded by the production report-server architecture.\n- `file_browser.py`, FastAPI, Uvicorn, port 8081, port 8082, and any separate SOT HTTP daemon are explicitly retired from the active architecture.\n- Release/install scripts may not recreate, probe, reload, or depend on the retired helper.\n- The retired helper design is a graveyard veto. Reintroducing it requires a new explicit owner ruling and a proven technical boundary.\n- Tailscale routing/topology is not part of an SOT application release.\n- Failed candidates are not patched forward. Rebuild from the last clean accepted input for the affected layer. For the current server integration line, the 6.2 `sot-api.js` is the retained clean backend input; failed later backend attempts do not become baselines.\n\n'''
+          if '## 0.2A Architecture lock — 2026-08-18' not in t:
+              t=t.replace('## 0.3 Established plumbing — keep',lock+'## 0.3 Established plumbing — keep',1)
+          grave='''\n\n# Architecture graveyard addendum — 2026-08-18\n\n**G-HTTP-EXTRA — separate SOT helper server (BURIED / VETOED).** The FastAPI/Uvicorn `file_browser.py` service and ports 8081/8082 are not part of the product architecture. The production report server owns the SOT HTTP surface. Do not restore this design as a release fix, compatibility shim, or deployment convenience.\n'''
+          if 'G-HTTP-EXTRA' not in t:t+=grave
+          d.write_text(t)
+
+          Path('deploy-sot-project.sh').write_text('''#!/usr/bin/env bash\n# SOT UI release-file installer. Existing report-server topology only.\nset -euo pipefail\nRAW="https://raw.githubusercontent.com/acmeproducts/stuff/main"\nWORK="$HOME/.openclaw/workspace"\nREPORT="$WORK/https/report/SOT"\nTMP="$(mktemp -d)"\ntrap 'rm -rf "$TMP"' EXIT\nmkdir -p "$REPORT"\ncurl -fsSL "$RAW/project.html" -o "$TMP/project.html"\ngrep -q "2026.08.18.6.4-rebuild" "$TMP/project.html"\ninstall -m 0644 "$TMP/project.html" "$REPORT/project.html.new"\nmv -f "$REPORT/project.html.new" "$REPORT/project.html"\nprintf '%s\\n' "SUCCESS: installed project.html only" "No service, port, proxy, Tailscale, or server restart performed."\n''')
+          PY
+      - name: Gates
+        run: |
+          node -e "const fs=require('fs'),s=fs.readFileSync('project.html','utf8');const js=s.match(/<script>([\s\S]*?)<\/script>/)[1];new Function(js);"
+          grep -q '2026.08.18.6.4-rebuild' project.html
+          grep -q 'Current folders actively being worked' project.html
+          grep -q 'Completed indexed folders' project.html
+          grep -q 'Architecture lock — 2026-08-18' project-backlog.md
+          grep -q 'G-HTTP-EXTRA' project-backlog.md
+          test ! -e file_browser.py
+          ! grep -Eqi 'uvicorn|file_browser\.py|127\.0\.0\.1:8081|:8082' deploy-sot-project.sh
+      - name: Commit rebuilt candidate
+        run: |
+          rm -f .github/workflows/sot-owner-rebuild-64.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Rebuild SOT 6.4 on integrated report-server architecture'
+          git push
