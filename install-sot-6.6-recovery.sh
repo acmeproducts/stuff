@@ -105,7 +105,9 @@ curl -fsS 'http://127.0.0.1:18080/api/sot/logs?limit=3' | python3 -m json.tool
 
 echo "=== UI GATE ==="
 grep -m1 "$BUILD" "$UI"
-curl -fsS "https://oc-ref.fell-dojo.ts.net/report/SOT/project.html?v=20260817-66" | grep -m1 "$BUILD" >/dev/null
+curl -fsS "https://oc-ref.fell-dojo.ts.net/report/SOT/project.html?v=20260817-66" -o "$TMP/public-ui.html"
+grep -q "$BUILD" "$TMP/public-ui.html"
+echo "Public UI build verified: $BUILD"
 
 echo "=== SUCCESS ==="
 echo "Backend: $BUILD"
