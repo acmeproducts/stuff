@@ -3,8 +3,8 @@
 **Repository:** `acmeproducts/stuff`  
 **Canonical application artifact (when implementation resumes):** `project.html`  
 **Canonical planning/governance document:** `project-backlog.md`  
-**Status:** **PLANNING / DESIGN ONLY — NO CODE**  
-**Last governance update:** 2026-08-12
+**Status:** **ACTIVE BASELINE RECOVERY / OWNER-GATED IMPLEMENTATION**  
+**Last governance update:** 2026-08-18
 
 This document is the single current authority for the SOT project. The current implementation remains a **POC candidate, not a known-good baseline**. We are still establishing the first true accepted baseline.
 
@@ -47,6 +47,17 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Portrait and landscape currently behave too differently; changing the mental model by orientation increases friction.
 - Critical actions are poorly placed: Add Selected and Create Project are too close in some layouts and too far from the selection context in others.
 - Panel proportions waste space and should be directly adjustable by the operator.
+
+
+## 0.2A Architecture lock — 2026-08-18
+
+- The production report application on port 18080 is the only SOT HTTP server.
+- SOT APIs are integrated through the existing report-server path `/report/api/sot/*`; the active backend module is `sot-api.js` in the production report-server architecture.
+- `file_browser.py`, FastAPI, Uvicorn, port 8081, port 8082, and any separate SOT HTTP daemon are explicitly retired from the active architecture.
+- Release/install scripts may not recreate, probe, reload, or depend on the retired helper.
+- The retired helper design is a graveyard veto. Reintroducing it requires a new explicit owner ruling and a proven technical boundary.
+- Tailscale routing/topology is not part of an SOT application release.
+- Failed candidates are not patched forward. Rebuild from the last clean accepted input for the affected layer. For the current server-integration line, the 6.2 `sot-api.js` is the retained clean backend input; failed later backend attempts do not become baselines.
 
 ## 0.3 Established plumbing — keep
 
@@ -1176,3 +1187,8 @@ The first baseline is DONE only when:
 - owner/device gate passes;
 - this document marks that release as the **first accepted baseline**;
 - the temporary one-release patch-forward exception is closed.
+
+
+# Architecture graveyard addendum — 2026-08-18
+
+**G-HTTP-EXTRA — separate SOT helper server (BURIED / VETOED).** The FastAPI/Uvicorn `file_browser.py` service and ports 8081/8082 are not part of the product architecture. The production report server owns the SOT HTTP surface. Do not restore this design as a release fix, compatibility shim, or deployment convenience.
