@@ -1,0 +1,29 @@
+name: SOT 6.7.4 governance
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-674-governance.yml'
+permissions:
+  contents: write
+jobs:
+  govern:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update plan and graveyard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project-backlog.md'); s=p.read_text()
+          ruling='''\n## 0.2C Real mountpoint ruling — 2026-08-18\n\n- Build 6.7.3 failed the owner/device gate. Logs proved `/mnt/p`, `/mnt/q`, `/mnt/r`, and `/mnt/s` were openable directories but contained zero entries, while other mounted roots enumerated normally.\n- An existing `/mnt/<letter>` directory is not proof that the Windows volume is mounted there.\n- The filesystem adapter must use Linux mount-table evidence (`/proc/self/mountinfo` or equivalent) before advertising a `/mnt/<letter>` root.\n- Empty placeholder directories under `/mnt` are not storage roots and must not appear in Project Setup.\n- Browse results must preserve both folders and root-level files.\n- Selecting an empty/unmounted placeholder must never move focus to another drive; the selected-root state must remain stable unless the operator changes it.\n- Build 6.7.4 is a narrow backend correction on top of the installed 6.7.3 line: real mount detection only; UI and single-server topology remain unchanged.\n\n'''
+          if '## 0.2C Real mountpoint ruling — 2026-08-18' not in s:
+              s=s.replace('## 0.3 Established plumbing — keep',ruling+'## 0.3 Established plumbing — keep',1)
+          grave='''\n\n**G-FS-MNT-DIR — treating `/mnt/<letter>` directory existence or successful `readdir` as proof of a mounted Windows volume (BURIED / VETOED).** Only actual mount-table evidence qualifies a drive root for advertisement. Empty placeholder directories must be ignored.\n'''
+          if 'G-FS-MNT-DIR' not in s:s+=grave
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add project-backlog.md
+          git commit -m 'Lock real mountpoint requirement after 6.7.3 owner gate failure'
+          git push
