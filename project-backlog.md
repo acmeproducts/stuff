@@ -59,6 +59,19 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Tailscale routing/topology is not part of an SOT application release.
 - Failed candidates are not patched forward. Rebuild from the last clean accepted input for the affected layer. For the current server-integration line, the 6.2 `sot-api.js` is the retained clean backend input; failed later backend attempts do not become baselines.
 
+
+## 0.2B Mounted-volume rollback ruling — 2026-08-18
+
+- Build 6.7/6.7.1 introduced a Project Setup regression by replacing the 6.6 browse contract with shallow folder-only enumeration and by treating Windows drive-letter discovery as if it proved WSL readability.
+- Build 6.7.2 changed telemetry presentation only; it did not repair the mounted-volume regression.
+- 6.7.x is therefore not an accepted backend baseline for source browsing. The retry must first restore the verified 6.6 backend/UI pair, prove 6.6 health, and then reconstruct the 6.7 parallel/fingerprint work from that 6.6 baseline.
+- A source root shown in Project Setup must be readable by the production `openclaw-report-server.service` process. Drive-letter visibility from Windows is not sufficient evidence.
+- `/api/sot/fs` must preserve both `folders` and root-level `files`; root files may not be silently discarded.
+- An unreadable advertised volume must return an explicit unavailable/error state. It must never be represented as a successful empty folder.
+- Release gates must browse every advertised readable root through the same production API used by the UI before owner testing.
+- Q:, R:, and any other mounted volumes are not special cases; the rule applies to every root returned by the filesystem adapter.
+- The retry release is build `2026.08.18.6.7.3-wsl-mount-safe`; it retains the single production report server and introduces no service, port, proxy, or Tailscale topology change.
+
 ## 0.3 Established plumbing — keep
 
 ### Browser/mobile mode
@@ -1192,3 +1205,10 @@ The first baseline is DONE only when:
 # Architecture graveyard addendum — 2026-08-18
 
 **G-HTTP-EXTRA — separate SOT helper server (BURIED / VETOED).** The FastAPI/Uvicorn `file_browser.py` service and ports 8081/8082 are not part of the product architecture. The production report server owns the SOT HTTP surface. Do not restore this design as a release fix, compatibility shim, or deployment convenience.
+
+
+## Graveyard addendum — mounted-volume regression
+
+**G-FS-SHALLOW-ROOT — shallow folder-only Project Setup browse (BURIED / VETOED).** Do not override the established filesystem browse contract with immediate-child-folder-only results that discard root-level files.
+
+**G-FS-DRIVE-VISIBILITY — treating Windows drive-letter discovery as proof of WSL readability (BURIED / VETOED).** A drive may be displayed as readable only after the production report-server process can actually open/enumerate its WSL path. If it cannot, expose `available=false` plus the error; never return a false empty-success state.
