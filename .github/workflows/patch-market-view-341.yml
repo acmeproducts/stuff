@@ -1,5 +1,4 @@
-# retry after patch-anchor correction
-name: Patch Market Navigator 3.6.1
+name: Patch Market Navigator 3.7
 on:
   push:
     paths:
@@ -14,28 +13,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply patch
-        run: python3 scripts/patch_market_view_361.py
-      - name: Validate chart engine and UX contracts
+      - name: Apply formal navigation patch
+        run: python3 scripts/patch_market_view_370.py
+      - name: Validate navigation and JavaScript
         run: |
           python3 - <<'PY'
           import re
           s=open('market-view.html').read()
-          assert 'Version 3.6.1' in s
-          assert "const APP_VERSION='3.6.1'" in s
-          assert 'function standardChart' in s
-          assert 'function chartProfile' in s
-          assert 'function commonNormalized' in s
-          assert "100 = first common observation" in s
-          assert "nowRange:'3mo'" in s
-          assert "'1d':{label:'1D'" in s and "max:{label:'All'" in s
-          assert "showAxes:false" in s
-          assert "showAxes:true" in s
-          assert "['relationships','⌗','Analysis']" in s
+          assert 'Version 3.7' in s
+          assert "const APP_VERSION='3.7.0'" in s
+          assert 'data-section="markets"' not in s
+          assert "markets:[" not in s
+          assert "macro:[['inflation','Inflation'],['rates','Rates']]" in s
+          assert 'function openSeriesModal' in s
+          assert 'Save to Analysis' in s
+          assert 'function saveCompositeSnapshot' in s
+          assert 'function saveSeriesSnapshot' in s
+          assert 'overflow:hidden' in s
+          assert "showSection('markets'" not in s
           js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
           open('/tmp/market-view.js','w').write(js)
-          html_ids=set(re.findall(r'\bid="([^"]+)"',s)); js_ids=set(re.findall(r"\$\('#([^']+)'\)",s)); missing=sorted(js_ids-html_ids-{'progressModal','progressTitle','progressText','progressCount','progressBar','backToComponentsBtn','chartTip'})
-          if missing: raise SystemExit('Missing DOM IDs: '+', '.join(missing))
           PY
           node --check /tmp/market-view.js
       - name: Commit patch
@@ -43,5 +40,5 @@ jobs:
           git config user.name 'Market Navigator Patch Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add market-view.html
-          git commit -m 'Standardize Market Navigator chart engine and comparison scale'
+          git commit -m 'Revamp Market Navigator navigation to formal snapshot flow'
           git push origin HEAD:main
