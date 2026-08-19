@@ -1,0 +1,43 @@
+name: Patch Market Navigator 3.9.7
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-market-view-397.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply patch
+        run: python3 scripts/patch_market_view_397.py
+      - name: Validate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('market-view.html').read()
+          assert '<title>Market Navigator 3.9.7</title>' in s
+          assert "const VERSION='3.9.7'" in s
+          assert "risk:{name:'Risk',desc:'Risk appetite, volatility and financial conditions',components:['spy','vix','dxy']}" in s
+          assert "growth:{name:'Growth',desc:'Growth leadership versus the cost of capital',components:['qqq','tenYear']}" in s
+          assert "macro:{name:'Macro',desc:'Inflation, policy rates and energy pressure',components:['cpi','fedFunds','twoYear','wti']}" in s
+          assert 'function bucketSeries397' in s
+          assert 'microYAxis397' in s and 'microX397' in s
+          assert 'categoryMode397' in s
+          js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
+          open('/tmp/market-view.js','w').write(js)
+          PY
+          node --check /tmp/market-view.js
+      - name: Commit
+        run: |
+          git config user.name 'Market Navigator Patch Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add market-view.html
+          git commit -m 'Fix category elements and micro charts'
+          git pull --rebase origin main
+          git push origin HEAD:main
