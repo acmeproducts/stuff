@@ -83,6 +83,19 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Selecting an empty/unmounted placeholder must never move focus to another drive; the selected-root state must remain stable unless the operator changes it.
 - Build 6.7.4 is a narrow backend correction on top of the installed 6.7.3 line: real mount detection only; UI and single-server topology remain unchanged.
 
+
+## 0.2D Multi-project fingerprinting + durable reporting ruling — 2026-08-19
+
+- The current Fingerprinting page incorrectly presents inventory completion (`folders_done / folders`) beside fingerprint completion as if they were one progress dimension. They are separate phases and must be labeled separately.
+- Primary fingerprint progress is **bytes fingerprinted / total inventoried bytes**. File count is secondary. Throughput and ETA are derived from bytes processed over elapsed fingerprint time.
+- Multiple projects may run concurrently, but worker count is global. A project does not own four independent workers. The first implementation uses one four-worker pool shared fairly across all WIP projects so project concurrency cannot multiply I/O concurrency without bound.
+- Durable `fingerprint_inventory` is the reporting authority for per-file detail. Reporting must not reread source volumes merely to display already-inventoried filename, relative path, size, modified date, hash, or status.
+- Reporting adopts a persistent **Project -> Folder -> File** model. Project search populates folder summaries; selecting a folder opens the file-detail table.
+- `repolist.html` is the approved interaction donor for the file table: omni-search, sortable columns, draggable column order, resizable columns, dense rows, persistent column preferences, and horizontal overflow. `repolist.html` itself remains unchanged.
+- The 6.8 candidate is `2026.08.19.6.8-wsl-multiproject-reporting`. It is reconstructed from the verified 6.6 pair plus reviewed 6.7/6.7.1/6.7.3 deltas and the 6.8 delta. Failed 6.7.4 is not a baseline.
+- Existing report-server topology remains locked: `openclaw-report-server.service`, port 18080, no extra HTTP service, no 8081/8082, no proxy/Tailscale change.
+- Detailed implementation contract: `SOT-6.8-MULTI-PROJECT-REPORTING-PLAN.md`.
+
 ## 0.3 Established plumbing — keep
 
 ### Browser/mobile mode
