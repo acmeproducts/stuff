@@ -1,7 +1,7 @@
-<!-- SESSION-MANAGER-GOVERNANCE v1.18.0 -->
+<!-- SESSION-MANAGER-GOVERNANCE v1.19.0 -->
 # Session Manager — Release Plan, Backlog, Graveyard, Decisions, and Lessons
 
-**Governance version:** 1.18.0  
+**Governance version:** 1.19.0  
 **Updated:** 2026-08-12  
 **Application artifact:** `session-manager-v3.html`  
 **Turnover artifact:** `session-manager-turnover.md`  
