@@ -1,0 +1,35 @@
+name: Patch Market Navigator 3.9.7 category scoring
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-market-view-3971.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 scripts/patch_market_view_3971.py
+      - shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('market-view.html').read()
+          assert "const VERSION='3.9.7'" in s
+          assert 'const effect=categoryEffect397(id,z.p)' in s
+          assert "risk:{name:'Risk',desc:'Risk appetite, volatility and financial conditions',components:['spy','vix','dxy']}" in s
+          js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
+          open('/tmp/market-view.js','w').write(js)
+          PY
+          node --check /tmp/market-view.js
+      - run: |
+          git config user.name 'Market Navigator Patch Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add market-view.html
+          git commit -m 'Fix category index component scoring'
+          git pull --rebase origin main
+          git push origin HEAD:main
