@@ -96,6 +96,18 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Existing report-server topology remains locked: `openclaw-report-server.service`, port 18080, no extra HTTP service, no 8081/8082, no proxy/Tailscale change.
 - Detailed implementation contract: `SOT-6.8-MULTI-PROJECT-REPORTING-PLAN.md`.
 
+
+## 0.2E Project Setup explorer-first ruling — 2026-08-19
+
+- Pane 2 (Source folders) is the primary working surface in Project Setup. On mobile it must remain fully usable without horizontally scrolling through a three-panel desktop canvas.
+- Pane 2 uses a conventional file-explorer structure: a top ribbon with Up, current path, refresh, Select All, folder search, selected count, and Add Selected; below it is a vertically scrollable folder table.
+- Folder rows use sortable metadata columns. Required first release columns are Name, Date Modified, Type, and Size where known. Unknown recursive folder size is shown explicitly as `—`; the UI may not invent metadata or block browsing while recursively calculating it.
+- The folder table header remains sticky while the folder body scrolls. Selection state is visible at row level. Folder drill-down is performed from the Name cell.
+- On mobile, Source Drives becomes a narrow persistent rail, Pane 2 occupies the primary width, and staged Project sources remain available in a compact lower pane. The mobile view may not require horizontal page scrolling to reach Pane 2.
+- The previous `root files ignored` status/copy is removed from this surface; Project Setup is a folder-source selector and should describe the folder result set directly.
+- This is a UI-only release on the accepted 6.8 backend. Backend worker scheduling, inventory, reporting, report-server topology, ports, proxying, and Tailscale are unchanged.
+- Candidate UI build: `2026.08.19.6.8.1-wsl-setup-explorer`.
+
 ## 0.3 Established plumbing — keep
 
 ### Browser/mobile mode
