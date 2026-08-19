@@ -34,6 +34,7 @@ FILES=(
  sot-ui-6.7.2-telemetry-hotfix.js
  sot-ui-6.7.3-mount-safe-addon.js
  sot-ui-6.8-multiproject-addon.js
+ sot-ui-6.8-nonblocking-hotfix.js
 )
 for f in "${FILES[@]}"; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; node --check "$TMP/$f"; done
 
@@ -58,7 +59,7 @@ marker='</body></html>'
 if marker not in h: raise SystemExit('UI body marker missing')
 frontend=[
  'sot-ui-6.7-addon.js','sot-ui-6.7.1-hotfix.js','sot-ui-6.7.2-telemetry-hotfix.js',
- 'sot-ui-6.7.3-mount-safe-addon.js','sot-ui-6.8-multiproject-addon.js']
+ 'sot-ui-6.7.3-mount-safe-addon.js','sot-ui-6.8-multiproject-addon.js','sot-ui-6.8-nonblocking-hotfix.js']
 h=h.replace(marker,''.join('<script>\n'+(T/x).read_text()+'\n</script>\n' for x in frontend)+marker,1)
 ui.write_text(h)
 PY
