@@ -13,50 +13,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply and validate 3.9.3
+      - name: Apply 3.9.3 patch
+        run: python3 scripts/patch_market_view_393.py
+      - name: Validate 3.9.3
         shell: bash
         run: |
-          set +e
-          python3 scripts/patch_market_view_393.py > /tmp/patch.out 2> /tmp/patch.err
-          PATCH=$?
-          if [ $PATCH -eq 0 ]; then
-            python3 - <<'PY' > /tmp/validate.out 2> /tmp/validate.err
-import re
-s=open('market-view.html').read()
-assert '<title>Market Navigator 3.9.3</title>' in s
-assert 'Version 3.9.3' in s
-assert "const VERSION='3.9.3'" in s
-assert 'Refresh due data' not in s
-assert 'function openRegime393' in s
-assert 'function categoryHistory393' in s
-assert 'microGrid393' in s and 'microComponent393' in s
-assert 'Add to Library' in s and 'Add to Analysis' in s
-assert 'mn393-foundation-attempt' in s
-assert 'data-category393' in s
-js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
-open('/tmp/market-view.js','w').write(js)
-PY
-            VAL=$?
-            if [ $VAL -eq 0 ]; then node --check /tmp/market-view.js > /tmp/node.out 2> /tmp/node.err; VAL=$?; fi
-          else
-            VAL=1
-          fi
-          if [ $PATCH -ne 0 ] || [ $VAL -ne 0 ]; then
-            {
-              echo 'PATCH STDOUT'; cat /tmp/patch.out
-              echo 'PATCH STDERR'; cat /tmp/patch.err
-              echo 'VALIDATE STDOUT'; cat /tmp/validate.out 2>/dev/null
-              echo 'VALIDATE STDERR'; cat /tmp/validate.err 2>/dev/null
-              echo 'NODE STDERR'; cat /tmp/node.err 2>/dev/null
-            } > scripts/patch_market_view_393_error.txt
-            git config user.name 'Market Navigator Patch Bot'
-            git config user.email 'actions@users.noreply.github.com'
-            git add scripts/patch_market_view_393_error.txt
-            git commit -m 'Record Market Navigator 3.9.3 patch error'
-            git pull --rebase origin main
-            git push origin HEAD:main
-            exit 1
-          fi
+          python3 -c "import re; s=open('market-view.html').read(); assert '<title>Market Navigator 3.9.3</title>' in s; assert 'Version 3.9.3' in s; assert \"const VERSION='3.9.3'\" in s; assert 'Refresh due data' not in s; assert 'function openRegime393' in s; assert 'function categoryHistory393' in s; assert 'microGrid393' in s; assert 'Add to Library' in s; assert 'Add to Analysis' in s; assert 'mn393-foundation-attempt' in s; js=re.search(r'<script>([\\s\\S]*?)</script>',s).group(1); open('/tmp/market-view.js','w').write(js)"
+          node --check /tmp/market-view.js
       - name: Commit patch
         run: |
           git config user.name 'Market Navigator Patch Bot'
