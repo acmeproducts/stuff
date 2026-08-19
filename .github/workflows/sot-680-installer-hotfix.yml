@@ -1,0 +1,32 @@
+name: SOT 6.8 installer hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-680-installer-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Include nonblocking UI hotfix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('install-sot-6.8-multiproject.sh'); s=p.read_text()
+          a=' sot-ui-6.8-multiproject-addon.js\n)'
+          b=' sot-ui-6.8-multiproject-addon.js\n sot-ui-6.8-nonblocking-hotfix.js\n)'
+          if a not in s: raise SystemExit('FILES anchor missing')
+          s=s.replace(a,b,1)
+          a=" 'sot-ui-6.7.3-mount-safe-addon.js','sot-ui-6.8-multiproject-addon.js']"
+          b=" 'sot-ui-6.7.3-mount-safe-addon.js','sot-ui-6.8-multiproject-addon.js','sot-ui-6.8-nonblocking-hotfix.js']"
+          if a not in s: raise SystemExit('frontend anchor missing')
+          s=s.replace(a,b,1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add install-sot-6.8-multiproject.sh
+          git commit -m 'Include nonblocking UI hotfix in 6.8 installer'
+          git push
