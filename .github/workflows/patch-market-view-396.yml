@@ -1,0 +1,48 @@
+name: Patch Market Navigator 3.9.6
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-market-view-396.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply 3.9.6 patch
+        run: python3 scripts/patch_market_view_396.py
+      - name: Validate 3.9.6 contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          s=open('market-view.html').read()
+          assert '<title>Market Navigator 3.9.6</title>' in s
+          assert "const VERSION='3.9.6'" in s
+          assert "TABS.now=[['Now','nowSnapshot']]" in s
+          assert 'function indexChart396' in s
+          assert 'function microComponent396' in s
+          assert 'class="now396"' in s
+          assert 'data-regime396' in s
+          assert 'data-category396' in s
+          assert 'microGrid396' in s
+          assert "textContent='Add to Library'" in s
+          assert "textContent='Add to Analysis'" in s
+          assert 'ensureFoundation392().then' in s
+          assert 'setTimeout(()=>repairRegimeHistory(true),500);' not in s
+          js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
+          open('/tmp/market-view.js','w').write(js)
+          PY
+          node --check /tmp/market-view.js
+      - name: Commit
+        run: |
+          git config user.name 'Market Navigator Patch Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add market-view.html
+          git commit -m 'Enforce Market Navigator Now drilldown contract'
+          git pull --rebase origin main
+          git push origin HEAD:main
