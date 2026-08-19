@@ -1,4 +1,4 @@
-name: Patch Market Navigator 3.9.3
+name: Patch Market Navigator 3.9.4
 on:
   push:
     paths:
@@ -13,18 +13,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply 3.9.3 patch
-        run: python3 scripts/patch_market_view_393.py
-      - name: Validate 3.9.3
+      - name: Apply 3.9.4 startup cleanup
+        run: python3 scripts/patch_market_view_394.py
+      - name: Validate 3.9.4 startup contract
         shell: bash
         run: |
-          python3 -c "import re; s=open('market-view.html').read(); assert '<title>Market Navigator 3.9.3</title>' in s; assert 'Version 3.9.3' in s; assert \"const VERSION='3.9.3'\" in s; assert 'Refresh due data' not in s; assert 'function openRegime393' in s; assert 'function categoryHistory393' in s; assert 'microGrid393' in s; assert 'Add to Library' in s; assert 'Add to Analysis' in s; assert 'mn393-foundation-attempt' in s; js=re.search(r'<script>([\\s\\S]*?)</script>',s).group(1); open('/tmp/market-view.js','w').write(js)"
+          python3 - <<'PY'
+          import re
+          s=open('market-view.html').read()
+          assert '<title>Market Navigator 3.9.4</title>' in s
+          assert 'Version 3.9.4' in s
+          assert "const VERSION='3.9.4'" in s
+          assert 'setTimeout(()=>repairRegimeHistory(false),1200);' not in s
+          assert 'localStorage.removeItem(REGIME_FOUNDATION_KEY)' not in s
+          assert 'setTimeout(()=>repairRegimeHistory(true),500);' not in s
+          assert "CACHE_FIRST_OWNER_394='IndexedDB + blob WebWorker yahoo() collector'" in s
+          assert 'new Worker' in s and 'new Blob' in s and 'parseMarketJSON391' in s
+          js=re.search(r'<script>([\s\S]*?)</script>',s).group(1)
+          open('/tmp/market-view.js','w').write(js)
+          PY
           node --check /tmp/market-view.js
       - name: Commit patch
         run: |
           git config user.name 'Market Navigator Patch Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add market-view.html
-          git commit -m 'Refine Market Navigator regime and category drilldowns'
+          git commit -m 'Stop repeated Market Navigator history backfills'
           git pull --rebase origin main
           git push origin HEAD:main
