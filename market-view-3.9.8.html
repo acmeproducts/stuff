@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<title>Market Navigator 3.9.8</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08111f}iframe{display:block;width:100%;height:100%;border:0;background:#08111f}
+</style>
+</head>
+<body>
+<iframe id="app" src="market-view.html?v=3.9.8-regime-fix" title="Market Navigator 3.9.8"></iframe>
+<script>
+'use strict';
+const frame=document.getElementById('app');
+frame.addEventListener('load',()=>{
+  const d=frame.contentDocument;
+  if(!d)return;
+  const patch=d.createElement('script');
+  patch.textContent=String.raw`
+/* Market Navigator 3.9.8 regime-history repair.
+   Historical regime curves are reconstructed from SPY + 10Y + WTI observations
+   at each historical date instead of stretching the recent regime snapshot store. */
+(function(){
+  const DAY398=864e5;
+  const originalRegimeHistorySlice398=regimeHistorySlice;
+
+  function historicalRegimeSeries398(range=state.range){
+    if(H[range]?.intraday)return originalRegimeHistorySlice398(range).map(x=>({t:x.t||x.ts,v:x.v??x.score}));
+    const required=['spy','tenYear','wti'];
+    if(!required.every(id=>(state.series[id]||[]).length>1))return[];
+
+    const ends=required.map(id=>state.series[id].at(-1).t);
+    const commonEnd=Math.min(...ends);
+    let start=rangeStartTs(range,commonEnd);
+    if(start==null){
+      start=Math.max(...required.map(id=>state.series[id][0].t));
+    }
+
+    // regimeAt() needs a 30-day lookback. Do not synthesize points before
+    // all three inputs actually have enough historical coverage.
+    const earliestUsable=Math.max(...required.map(id=>state.series[id][0].t+30*DAY398));
+    start=Math.max(start,earliestUsable);
+
+    const base=(state.series.spy||[]).filter(p=>p.t>=start&&p.t<=commonEnd);
+    const out=[];
+    for(const p of base){
+      const r=regimeAt(p.t);
+      if(r&&Number.isFinite(r.score))out.push({t:p.t,v:r.score,score:r.score,label:r.label});
+    }
+    return out;
+  }
+
+  regimeHistorySlice=function(range){
+    return historicalRegimeSeries398(range).map(p=>({t:p.t,v:p.v,score:p.v,label:p.label}));
+  };
+
+  regimeSeries393=function(range=state.range){
+    return historicalRegimeSeries398(range).map(p=>({t:p.t,v:p.v}));
+  };
+
+  buildRegimeHistory=async function(){
+    const d=historicalRegimeSeries398('5y');
+    state.regimeHistory=d.map(p=>({t:p.t,ts:p.t,score:p.v,regime:p.label||((p.v>=62)?'Optimistic':(p.v<=38)?'Pessimistic':'Neutral')}));
+    if(!db||!d.length)return;
+    for(const p of d){
+      await put('regimeHistory',{
+        id:'v398:'+new Date(p.t).toISOString().slice(0,10),
+        ts:p.t,
+        score:p.v,
+        regime:p.label||((p.v>=62)?'Optimistic':(p.v<=38)?'Pessimistic':'Neutral'),
+        version:'3.9.8',
+        reconstructed:true,
+        inputs:['SPY','10Y','WTI']
+      });
+    }
+  };
+
+  function regimeCoverageMessage398(range){
+    const required=['spy','tenYear','wti'];
+    if(H[range]?.intraday)return null;
+    const missing=required.filter(id=>!coverage(id,range));
+    return missing.length?'Insufficient historical coverage: '+missing.map(id=>META[id].short).join(', '):null;
+  }
+
+  const renderNow398=renderNow;
+  renderNow=function(){
+    renderNow398();
+    const msg=regimeCoverageMessage398(state.range);
+    if(msg){
+      const host=document.querySelector('[data-regime396] .muted, [data-regime393] .muted');
+      if(host)host.textContent=msg;
+    }
+  };
+
+  const drawRegime398=drawRegime393;
+  drawRegime393=async function(){
+    await drawRegime398();
+    const msg=regimeCoverageMessage398(state.range);
+    if(msg){
+      const title=document.getElementById('detailTitle');
+      if(title)title.insertAdjacentHTML('beforeend','<div class="dateRange" style="color:#ef6670">'+msg+'</div>');
+    }
+  };
+
+  // Rebuild immediately from the already-cached 5Y component histories.
+  // If a component is short, the existing global-range/foundation logic will fetch it;
+  // after that buildRegimeHistory() uses this corrected implementation.
+  buildRegimeHistory().then(()=>{
+    renderAll();
+    if(state.section==='now')renderNow();
+  }).catch(e=>log('3.9.8 regime rebuild: '+e.message,'error'));
+
+  const brand=document.querySelector('.brand small');
+  if(brand)brand.textContent=brand.textContent.replace(/Version\s+3\.9\.6|Version\s+3\.9\.7/,'Version 3.9.8');
+})();
+`;
+  d.body.appendChild(patch);
+});
+</script>
+</body>
+</html>
