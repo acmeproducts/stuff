@@ -61,10 +61,20 @@ text{user-select:none}
 .sw.on::after{left:25px}
 #closeCfg{margin-top:6px;width:100%;min-height:44px;border:none;border-radius:10px;
   background:color-mix(in srgb,var(--panel-txt) 12%,transparent);color:var(--panel-txt);font-size:15px;cursor:pointer}
+.brow{display:grid;grid-template-columns:18px 1fr 44px 40px;gap:10px;align-items:center;min-height:44px}
+.brow .bl{font-size:12px;font-weight:700;opacity:.6}
+.brow output{font-size:12px;opacity:.6;text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+input[type=color]{width:40px;height:32px;border:1px solid color-mix(in srgb,var(--panel-txt) 25%,transparent);
+  border-radius:8px;background:transparent;padding:2px;cursor:pointer}
+#bReset{width:100%;min-height:38px;border:1px dashed color-mix(in srgb,var(--panel-txt) 30%,transparent);
+  background:transparent;color:var(--panel-txt);border-radius:9px;font-size:13px;cursor:pointer;margin-top:4px}
+.grp.hid{display:none}
 #scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:35;opacity:0;pointer-events:none;transition:opacity .25s}
 #scrim.open{opacity:1;pointer-events:auto}
 .fall{transition:transform .9s cubic-bezier(.2,.7,.3,1)}
-@media (prefers-reduced-motion:reduce){.fall{transition:none}}
+.drop{transition:transform .45s cubic-bezier(.2,.7,.3,1),opacity .3s}
+@media (prefers-reduced-motion:reduce){.fall,.drop{transition:none}}
 </style>
 </head>
 <body data-theme="studio">
@@ -76,8 +86,15 @@ text{user-select:none}
   <div class="grp"><label>Mode</label><div class="seg" id="segMode"></div></div>
   <div class="grp"><label>Theme</label><div class="seg" id="segTheme"></div></div>
   <div class="grp"><div class="row"><span>24-hour readout</span><button class="sw" id="sw24" aria-label="24-hour readout"></button></div></div>
-  <div class="grp"><div class="row"><span>Seconds</span><button class="sw" id="swSec" aria-label="Show seconds"></button></div></div>
-  <div class="grp"><div class="row"><span>Date</span><button class="sw" id="swDate" aria-label="Show date"></button></div></div>
+  <div class="grp" id="grpSec"><div class="row"><span>Seconds</span><button class="sw" id="swSec" aria-label="Show seconds"></button></div></div>
+  <div class="grp" id="grpDate"><div class="row"><span>Date</span><button class="sw" id="swDate" aria-label="Show date"></button></div></div>
+  <div class="grp" id="grpBuckets">
+    <label>Buckets · size &amp; color</label>
+    <div class="brow"><span class="bl">S</span><input type="range" id="bszS" min="60" max="150" step="5"><output id="bszSo"></output><input type="color" id="bcoS" aria-label="Seconds color"></div>
+    <div class="brow"><span class="bl">M</span><input type="range" id="bszM" min="60" max="150" step="5"><output id="bszMo"></output><input type="color" id="bcoM" aria-label="Minutes color"></div>
+    <div class="brow"><span class="bl">H</span><input type="range" id="bszH" min="60" max="150" step="5"><output id="bszHo"></output><input type="color" id="bcoH" aria-label="Hours color"></div>
+    <button id="bReset">Reset buckets to theme</button>
+  </div>
   <button id="closeCfg">Done</button>
   <p style="margin-top:18px;font-size:11px;opacity:.4;letter-spacing:.05em">look v1.0 · acmeproducts</p>
 </aside>
@@ -88,13 +105,43 @@ const svg=document.getElementById("scene");
 const $=id=>document.getElementById(id);
 
 /* ---------- config ---------- */
-const DEF={mode:"orbit",theme:"studio",h24:false,sec:false,date:true};
+const DEF={mode:"orbit",theme:"studio",h24:false,sec:false,date:true,
+  bSize:{s:100,m:100,h:100},bCol:{s:"",m:"",h:""}};
 let cfg={...DEF};
-try{Object.assign(cfg,JSON.parse(localStorage.getItem("look-config")||"{}"))}catch(e){}
+try{const s=JSON.parse(localStorage.getItem("look-config")||"{}");
+  Object.assign(cfg,s);cfg.bSize={...DEF.bSize,...(s.bSize||{})};cfg.bCol={...DEF.bCol,...(s.bCol||{})}}catch(e){}
 function saveCfg(){try{localStorage.setItem("look-config",JSON.stringify(cfg))}catch(e){}}
 
-const MODES=[["orbit","Orbit"],["eclipse","Eclipse"],["rainfall","Rainfall"],["orrery","Orrery"]];
+const MODES=[["orbit","Orbit"],["eclipse","Eclipse"],["rainfall","Rainfall"],["orrery","Orrery"],["buckets","Buckets"]];
 const THEMES=[["studio","Studio"],["midnight","Midnight"],["amber","Amber"]];
+
+/* which settings matter per mode */
+const RELEVANT={
+  orbit:{sec:true,date:true,buckets:false},
+  eclipse:{sec:true,date:true,buckets:false},
+  rainfall:{sec:true,date:true,buckets:false},
+  orrery:{sec:false,date:false,buckets:false},
+  buckets:{sec:false,date:true,buckets:true}
+};
+function syncPanel(){
+  const r=RELEVANT[cfg.mode];
+  $("grpSec").classList.toggle("hid",!r.sec);
+  $("grpDate").classList.toggle("hid",!r.date);
+  $("grpBuckets").classList.toggle("hid",!r.buckets);
+}
+function ledColor(){return getComputedStyle(document.body).getPropertyValue("--led").trim()||"#ffffff"}
+function syncBucketInputs(){
+  const led=ledColor();
+  [["S","s"],["M","m"],["H","h"]].forEach(([U,k])=>{
+    $("bsz"+U).value=cfg.bSize[k];$("bsz"+U+"o").textContent=cfg.bSize[k]+"%";
+    $("bco"+U).value=cfg.bCol[k]||led;
+  });
+}
+[["S","s"],["M","m"],["H","h"]].forEach(([U,k])=>{
+  $("bsz"+U).oninput=e=>{cfg.bSize[k]=+e.target.value;$("bsz"+U+"o").textContent=cfg.bSize[k]+"%";saveCfg();hardRedraw()};
+  $("bco"+U).oninput=e=>{cfg.bCol[k]=e.target.value;saveCfg();hardRedraw()};
+});
+$("bReset").onclick=()=>{cfg.bSize={s:100,m:100,h:100};cfg.bCol={s:"",m:"",h:""};saveCfg();syncBucketInputs();hardRedraw()};
 
 function buildSeg(el,items,cur,fn){
   el.innerHTML="";
@@ -111,10 +158,10 @@ function buildSw(el,key){
   el.onclick=()=>{cfg[key]=!cfg[key];el.classList.toggle("on",cfg[key]);saveCfg();hardRedraw()};
 }
 function applyTheme(){document.body.dataset.theme=cfg.theme}
-buildSeg($("segMode"),MODES,cfg.mode,v=>{cfg.mode=v;saveCfg();hardRedraw()});
-buildSeg($("segTheme"),THEMES,cfg.theme,v=>{cfg.theme=v;saveCfg();applyTheme()});
+buildSeg($("segMode"),MODES,cfg.mode,v=>{cfg.mode=v;saveCfg();syncPanel();hardRedraw()});
+buildSeg($("segTheme"),THEMES,cfg.theme,v=>{cfg.theme=v;saveCfg();applyTheme();syncBucketInputs();hardRedraw()});
 buildSw($("sw24"),"h24");buildSw($("swSec"),"sec");buildSw($("swDate"),"date");
-applyTheme();
+applyTheme();syncPanel();syncBucketInputs();
 
 $("gear").onclick=()=>{$("cfg").classList.add("open");$("scrim").classList.add("open")};
 const closeCfg=()=>{$("cfg").classList.remove("open");$("scrim").classList.remove("open")};
@@ -360,7 +407,58 @@ function drawOrrery(d){
 }
 function daysInMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()}
 
-/* ---------- render loop ---------- */
+/* ============ MODE: BUCKETS (from time.html, remade) ============ */
+/* Three machined plates: seconds fill first, spill into minutes, minutes
+   into hours. No connecting lines — alignment and order carry the flow. */
+function bucketPlate(cx,cy,w,h,label,total,count,cols,rows,fill,cur){
+  el("rect",{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:10,fill:"url(#pedG)"},svg);
+  el("rect",{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:10,fill:"none",
+    stroke:"var(--ring-hi)","stroke-opacity":".45"},svg);
+  const t=txt(cx-w/2+12,cy-h/2+13,label,8,"eng-soft",svg);
+  t.setAttribute("text-anchor","start");t.setAttribute("letter-spacing",".28em");
+  const c2=txt(cx+w/2-12,cy-h/2+13,fmt(count),9,"eng",svg);
+  c2.setAttribute("text-anchor","end");
+  const padX=14,top=22,padB=10;
+  const cw=(w-padX*2)/cols,ch=(h-top-padB)/rows,r=Math.min(cw,ch)*.30;
+  for(let i=0;i<total;i++){
+    const x=cx-w/2+padX+(i%cols+.5)*cw, y=cy-h/2+top+(Math.floor(i/cols)+.5)*ch;
+    const on=i<count, now=i===count;
+    const dot=el("circle",{cx:x,cy:y,r:now?r*1.15:r,
+      fill:(now||on)?fill:"var(--led-off)",class:now?"drop":""},svg);
+    if(now){
+      dot.setAttribute("stroke","var(--ring-hi)");dot.setAttribute("stroke-width","1");
+      if(!matchMedia("(prefers-reduced-motion: reduce)").matches){
+        dot.style.transform="translateY(-12px)";dot.style.opacity="0";
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{dot.style.transform="translateY(0)";dot.style.opacity="1"}));
+      }
+    }else if(!on)dot.setAttribute("stroke","none");
+  }
+}
+function drawBucketsMode(d){
+  const cx=210;
+  const col=k=>cfg.bCol[k]||"var(--led)";
+  const rows=[
+    {k:"s",label:"SECONDS",total:60,count:d.getSeconds(),cols:12,r:5},
+    {k:"m",label:"MINUTES",total:60,count:d.getMinutes(),cols:12,r:5},
+    {k:"h",label:"HOURS / DAY",total:24,count:d.getHours(),cols:12,r:2}
+  ];
+  const baseW=330,gap=18,footer=78,avail=560-36-footer;
+  rows.forEach(rw=>{rw.w=Math.min(400,baseW*cfg.bSize[rw.k]/100);
+    rw.h=(rw.r*18+26)*cfg.bSize[rw.k]/100});
+  const need=rows.reduce((a,rw)=>a+rw.h,0)+gap*2;
+  const f=Math.min(1,avail/need);           /* keep everything on screen */
+  let y=36+(avail-need*f)/2;
+  rows.forEach(rw=>{
+    y+=rw.h*f/2;
+    bucketPlate(cx,y,rw.w*f,rw.h*f,rw.label,rw.total,rw.count,rw.cols,rw.r,col(rw.k));
+    y+=rw.h*f/2+gap*f;
+  });
+  const g=el("g",{},svg);
+  drawMatrix(g,cx,y+22,timeStr(d),3.4,1.25,true);
+  if(cfg.date)txt(cx,y+46,dateStr(d),9,"eng-soft",svg).setAttribute("letter-spacing",".25em");
+}
+
+
 let lastKey="";
 function render(force){
   const d=new Date();
@@ -375,7 +473,7 @@ function render(force){
     }
   }
   const smooth=cfg.mode==="orrery";
-  const key=cfg.mode+"|"+timeStr(d)+"|"+(smooth?d.getTime():"");
+  const key=cfg.mode+"|"+timeStr(d)+"|"+(cfg.mode==="buckets"?d.getSeconds():"")+"|"+(smooth?d.getTime():"");
   if(!force&&key===lastKey)return;
   lastKey=key;
   const soft=force==="soft";
@@ -383,6 +481,7 @@ function render(force){
   if(cfg.mode==="orbit")drawOrbit(d);
   else if(cfg.mode==="eclipse")drawEclipse(d);
   else if(cfg.mode==="rainfall")drawRain(d,soft);
+  else if(cfg.mode==="buckets")drawBucketsMode(d);
   else drawOrrery(d);
 }
 function hardRedraw(){rainKey="";render("soft")}
