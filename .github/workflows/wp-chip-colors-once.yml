@@ -1,0 +1,36 @@
+name: Apply WorldPulse color legend patch
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/wp-chip-colors-once.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch color legend chips
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('globe.html')
+          s=p.read_text()
+          old='''${vals.map(v=>`<button class="chip ${sel.has(v)?'on':''}" data-v="${esc(v)}">${esc(v)}</button>`).join('')}'''
+          new='''${vals.map(v=>{const mapped=role==='color'?valueColor(d,v):null;return`<button class="chip ${sel.has(v)?'on':''}" data-v="${esc(v)}"${mapped?` style="background:${mapped};border-color:${mapped};color:#fff;text-shadow:0 1px 2px #000;box-shadow:inset 0 0 0 1px #ffffff26"`:''}>${esc(v)}</button>`}).join('')}'''
+          if old not in s:
+              raise SystemExit('legend chip target not found')
+          s=s.replace(old,new,1)
+          s=s.replace('WorldPulse Sphere v2.5.1','WorldPulse Sphere v2.5.2')
+          s=s.replace('Sphere v2.5.1','Sphere v2.5.2')
+          s=s.replace("const VERSION='2.5.1'","const VERSION='2.5.2'")
+          p.write_text(s)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add globe.html
+          git commit -m "ui: map color legend chips to sphere colors"
+          git push
