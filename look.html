@@ -101,10 +101,31 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 .drop{transition:transform .55s cubic-bezier(.25,.9,.3,1.05)}
 .fall{transition:transform .9s cubic-bezier(.2,.7,.3,1)}
 @media (prefers-reduced-motion:reduce){.drop,.fall{transition:none}}
+/* ===== engine shell ===== */
+#engines{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:50;display:flex;gap:4px;
+  background:color-mix(in srgb,var(--panel) 82%,transparent);backdrop-filter:blur(8px);
+  border-radius:22px;padding:4px;box-shadow:0 3px 14px var(--shadow)}
+#engines button{min-height:36px;padding:6px 16px;border:none;border-radius:18px;
+  background:transparent;color:var(--panel-txt);font-size:13px;font-weight:600;
+  letter-spacing:.06em;cursor:pointer}
+#engines button.on{background:var(--accent);color:var(--panel)}
+.engframe{position:fixed;inset:0;width:100%;height:100%;border:none;z-index:1;
+  background:var(--bg);display:none}
+.engframe.on{display:block}
+body[data-engine="flow"] #stage,body[data-engine="mosaic"] #stage,
+body[data-engine="flow"] .cbtn,body[data-engine="mosaic"] .cbtn{display:none}
 </style>
 </head>
-<body data-theme="studio">
+<body data-theme="studio" data-engine="look">
 <div id="stage"><svg id="scene" viewBox="0 0 420 560" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<iframe id="frFlow" class="engframe" title="Time Flow — full time.html"></iframe>
+<iframe id="frMosaic" class="engframe" title="Clock Mosaic — full clock.html"></iframe>
+<nav id="engines" aria-label="Engine">
+  <button data-eng="look" class="on">Look</button>
+  <button data-eng="flow">Flow</button>
+  <button data-eng="mosaic">Mosaic</button>
+</nav>
 <button id="gear" class="cbtn" aria-label="Settings">⚙</button>
 <button id="tmr" class="cbtn" aria-label="Timer">⏱</button>
 <div id="scrim"></div>
@@ -149,7 +170,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     <button class="ghost" id="testChime">Test chime</button>
   </div>
   <button class="solid" id="closeCfg">Done</button>
-  <p style="margin-top:16px;font-size:11px;opacity:.4;letter-spacing:.05em">look v2.0 · acmeproducts</p>
+  <p style="margin-top:16px;font-size:11px;opacity:.4;letter-spacing:.05em">look v3.0 · acmeproducts</p>
 </aside>
 
 <dialog id="tdlg">
@@ -211,7 +232,7 @@ function C(key,defVar){return cfg.colors[key]||`var(${defVar})`}
 function CDef(key){for(const arr of Object.values(COLOR_DEFS)){const f=arr.find(a=>a[0]===key);if(f)return f[2]}return"--led"}
 
 const MODES=[["orbit","Orbit"],["eclipse","Eclipse"],["rainfall","Rainfall"],
-             ["orrery","Orrery"],["buckets","Buckets"],["mosaic","Mosaic"]];
+             ["orrery","Orrery"],["buckets","Buckets"],["mosaic","Matrix"]];
 const THEMES=[["studio","Studio"],["midnight","Midnight"],["amber","Amber"]];
 const RELEVANT={
   orbit:{sec:true,date:true},eclipse:{sec:true,date:true},rainfall:{sec:true,date:true},
@@ -559,7 +580,7 @@ function bucketPlate(k,label,total,count,fill,animateNow){
     }
   }
   /* invisible drag surface on top */
-  el("rect",{x,y,width:w,height:h,rx:10,fill:"transparent","data-drag":k,style:"cursor:grab"},grp);
+  el("rect",{x,y,width:w,height:h,rx:10,fill:"transparent","data-drag":k,style:"cursor:grab;touch-action:none"},grp);
   bucketHits[k]={x,y,w,h};
 }
 function drawBucketsMode(d,soft){
@@ -730,6 +751,7 @@ function scaleWrap(){
   if(s!==1)root=el("g",{transform:`translate(210 280) scale(${s}) translate(-210 -280)`},svg);
 }
 function render(force){
+  if(document.body.dataset.engine!=="look"&&!force)return;
   const d=new Date();
   hourlyCheck(d);
   /* rainfall: in-place seconds arc */
@@ -761,6 +783,22 @@ function render(force){
 }
 function hardRedraw(){rainKey="";mosaicKey="";render("soft")}
 function loop(){render();requestAnimationFrame(loop)}
+/* ================= engine shell ================= */
+const FR={flow:{el:$("frFlow"),src:"time.html"},mosaic:{el:$("frMosaic"),src:"clock.html"}};
+function setEngine(eng){
+  cfg.engine=eng;saveCfg();
+  document.body.dataset.engine=eng;
+  document.querySelectorAll("#engines button").forEach(b=>b.classList.toggle("on",b.dataset.eng===eng));
+  for(const k in FR){
+    const f=FR[k];
+    const on=eng===k;
+    if(on&&!f.el.src)f.el.src=f.src;      /* lazy load full original app */
+    f.el.classList.toggle("on",on);
+  }
+  if(eng==="look")hardRedraw();
+}
+document.querySelectorAll("#engines button").forEach(b=>b.onclick=()=>setEngine(b.dataset.eng));
+setEngine(cfg.engine||"look");
 render(true);loop();timerFrame();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)hardRedraw()});
 </script>
