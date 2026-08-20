@@ -108,6 +108,22 @@ The latest POC established that the product can now execute an end-to-end skelet
 - This is a UI-only release on the accepted 6.8 backend. Backend worker scheduling, inventory, reporting, report-server topology, ports, proxying, and Tailscale are unchanged.
 - Candidate UI build: `2026.08.19.6.8.1-wsl-setup-explorer`.
 
+
+## 0.2F Path-centric projects, reusable fingerprint authority, and analysis — 2026-08-20
+
+- A Project is a user-defined, recallable, editable collection of **paths**. Project identity and fingerprint identity are separate. The same path may participate in any number of projects.
+- Project Setup must support New, Recall/Edit, add current deep path, add/remove paths, and Save changes. Removing a path from a project removes membership only; durable observations/hashes remain in the SOT database.
+- Project Setup has no synthetic `Root` source. Only actual available volumes/authorized roots are shown.
+- `$RECYCLE.BIN` is a blocked system path: it is visible only as excluded/system content, is never selected by Select All, cannot be added in the UI, and is rejected by the backend.
+- Explorer Pane 2 may show both directories and files. Immediate directory listing is nonblocking; a persistent progressive background index reports current path plus folder/file/byte counts as it advances.
+- Drive letters/mount paths are locators, not durable identity. Stable source identity uses platform volume identity where available plus path relative to the volume. Drive-letter remapping must not create a new logical source solely because the letter changed.
+- Fingerprint reuse hierarchy is: (1) authoritative content identity from SHA-256/content-tree evidence; (2) fast metadata-tree stillness signature from relative path + size + modified time on the same stable volume; (3) stable volume identity + volume-relative file/path locator for reuse across overlapping project paths and drive-letter remapping. Creation time may be retained as metadata but is not an identity key.
+- Hash reuse is global, not project-scoped. Selecting an unchanged path in multiple projects must reuse prior verified hashes. Overlapping parent/child project paths on the same stable volume must reuse verified hashes by volume-relative file locator. Cross-device metadata-only matches are not authoritative content matches.
+- Reporting becomes **SOT Database Explorer** using the `repolist.html` interaction model at Project -> Path -> File scope, with omni-search, sortable columns, drag reorder, resize, and persistent preferences.
+- The first Analysis capability is read-only and deterministic: exact duplicate groups, duplicate files, reclaimable source bytes, unique/copy bytes required, target-space requirement including safety margin, unfingerprinted content, and path conflicts. No copy/delete mutation occurs from assessment.
+- Canonical detailed contract: `SOT-6.9-PATH-CENTRIC-ANALYSIS-PLAN.md`. Candidate build: `2026.08.20.6.9.1-wsl-path-centric-analysis`.
+- Existing `openclaw-report-server.service`/18080 topology remains locked; no extra server, helper, port, proxy, or Tailscale change.
+
 ## 0.3 Established plumbing — keep
 
 ### Browser/mobile mode
