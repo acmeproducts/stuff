@@ -70,8 +70,8 @@ select.input{appearance:auto}
 #chatArea{flex:1;display:none;flex-direction:column;min-height:0}
 #messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:13.5px;white-space:pre-wrap;word-break:break-word}
-.msg.user{align-self:flex-end;background:var(--panel2);border:1px solid var(--line);border-bottom-right-radius:4px}
-.msg.agent{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.user{align-self:flex-end;background:var(--userBg,var(--panel2));border:1px solid var(--line);border-bottom-right-radius:4px}
+.msg.agent{align-self:flex-start;background:var(--agentBg,var(--panel));border:1px solid var(--line);border-bottom-left-radius:4px}
 .msg.pending{opacity:.75}
 .msg .mmeta{font-size:11px;color:var(--dim);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
 .msg a{color:var(--accent);word-break:break-all}
@@ -195,6 +195,14 @@ select.input{appearance:auto}
       <option value="anthropic-direct">Anthropic API</option></select></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn" id="openDebugBtn" style="margin-top:8px">Open Debug console</button>
+    <div class="frow" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label>Appearance preset</label><select id="apPreset" class="input">
+      <option value="dark">Dark</option><option value="hc-dark">High-contrast dark</option><option value="light">Light</option><option value="warm">Warm paper</option></select></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+      <label class="hint">Accent<input id="apAccent" type="color" style="width:100%;height:36px;border:1px solid var(--line);border-radius:7px;background:var(--panel2)"></label>
+      <label class="hint">Your bubble<input id="apUser" type="color" style="width:100%;height:36px;border:1px solid var(--line);border-radius:7px;background:var(--panel2)"></label>
+      <label class="hint">Agent bubble<input id="apAgent" type="color" style="width:100%;height:36px;border:1px solid var(--line);border-radius:7px;background:var(--panel2)"></label>
+    </div>
+    <div class="frow"><label>Base text size: <span id="apSizeVal"></span></label><input id="apSize" type="range" min="12" max="19" step="1" style="width:100%"></div>
     <button class="btn primary" id="cfgSave" style="width:100%;margin-top:12px">Save</button>
   </div>
 </div></div>
@@ -289,9 +297,20 @@ async function loadSOT(){
   if(f){sot=JSON.parse(f.content);sotSha=f.sha}else{sot={threads:{},projects:{}};sotSha=null}
   sot.threads=sot.threads||{};sot.projects=sot.projects||{};
 }
-async function saveSOT(msg){
-  try{sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha)}
-  catch(e){const f=await getFile(SOTPATH);sotSha=f?f.sha:null;sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha)}
+let sotQueue=Promise.resolve();
+function saveSOT(msg){
+  const job=sotQueue.then(async()=>{
+    for(let a=1;a<=4;a++){
+      try{sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha);return}
+      catch(e){
+        if(!/409/.test(e.message)||a===4){dlog('E|status save failed: '+e.message);throw e}
+        dlog('status 409 — refreshing sha (attempt '+a+')');
+        const f=await getFile(SOTPATH);sotSha=f?f.sha:null;
+      }
+    }
+  });
+  sotQueue=job.catch(()=>{});
+  return job;
 }
 function dlog(line,cls){const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
 function debugHtml(){return debug.map(l=>{const[c,t]=l.includes('|')?l.split('|',2):['',l];return '<span class="'+(c==='E'?'erc':c==='K'?'okc':'')+'">'+esc(t)+'</span>'}).join('\n')}
@@ -655,7 +674,7 @@ async function callEngine(eng,system,history,user){
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key},
     body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' returned non-JSON ('+r.status+') — possibly CORS-blocked in this browser')}
-  if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
+  if(!r.ok){let hint='';if(eng==='venice'&&r.status===402)hint=' — this model needs Venice API credits (VCU) or is not in your plan; Validate Venice and pick another model';throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown')+hint)}
   return j.choices[0].message.content;
 }
 async function runAgent(key){
@@ -779,7 +798,7 @@ function renderDash(){
 /* ---- settings / boot ---- */
 $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal')};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
 $('vTest').onclick=async()=>{
   const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
@@ -822,12 +841,37 @@ $('cfgSave').onclick=()=>guard(async()=>{
   cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value||'',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
-  sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel};   // model choices sync via SOT; keys NEVER leave this browser
+  sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,appearance};   // model choices sync via SOT; keys NEVER leave this browser
   await saveSOT('devstream: engine config');
   dlog('K|engine config saved to SOT');
   $('dot').classList.add('on');closeModals();renderSidebar();renderTabs();toast('Connected');
 });
 $('openDebugBtn').onclick=()=>{closeModals();openDebug()};
+const AP_PRESETS={
+  dark:{bg:'#0E1116',panel:'#161B22',panel2:'#1C232C',line:'#262D37',text:'#E6EDF3',dim:'#8B949E',accent:'#39C5CF',userBg:'#1C232C',agentBg:'#161B22',size:14},
+  'hc-dark':{bg:'#000000',panel:'#101214',panel2:'#1b1e22',line:'#4a4f56',text:'#ffffff',dim:'#d0d4d8',accent:'#5bc0ff',userBg:'#182630',agentBg:'#13271d',size:15},
+  light:{bg:'#ffffff',panel:'#f7f7f7',panel2:'#e9edf2',line:'#9aa2ab',text:'#111111',dim:'#3f454b',accent:'#005fcc',userBg:'#fff0bf',agentBg:'#dff3e8',size:15},
+  warm:{bg:'#efe7d8',panel:'#fffaf0',panel2:'#f3eadb',line:'#756d63',text:'#211b16',dim:'#4d463f',accent:'#006b73',userBg:'#ffe8a8',agentBg:'#dcefe2',size:15}};
+let appearance=JSON.parse(localStorage.getItem('ds_appearance')||'null')||{preset:'dark',...AP_PRESETS.dark};
+function applyAppearance(){
+  const r=document.documentElement.style;
+  r.setProperty('--bg',appearance.bg);r.setProperty('--panel',appearance.panel);r.setProperty('--panel2',appearance.panel2);
+  r.setProperty('--line',appearance.line);r.setProperty('--text',appearance.text);r.setProperty('--dim',appearance.dim);
+  r.setProperty('--accent',appearance.accent);r.setProperty('--userBg',appearance.userBg);r.setProperty('--agentBg',appearance.agentBg);
+  document.body.style.fontSize=appearance.size+'px';
+}
+function saveAppearance(){localStorage.setItem('ds_appearance',JSON.stringify(appearance))}
+function bindAppearanceUI(){
+  $('apPreset').value=appearance.preset||'dark';
+  $('apAccent').value=appearance.accent;$('apUser').value=appearance.userBg;$('apAgent').value=appearance.agentBg;
+  $('apSize').value=appearance.size;$('apSizeVal').textContent=appearance.size+'px';
+  $('apPreset').onchange=()=>{appearance={preset:$('apPreset').value,...AP_PRESETS[$('apPreset').value]};applyAppearance();saveAppearance();bindAppearanceUI()};
+  $('apAccent').oninput=()=>{appearance.accent=$('apAccent').value;applyAppearance();saveAppearance()};
+  $('apUser').oninput=()=>{appearance.userBg=$('apUser').value;applyAppearance();saveAppearance()};
+  $('apAgent').oninput=()=>{appearance.agentBg=$('apAgent').value;applyAppearance();saveAppearance()};
+  $('apSize').oninput=()=>{appearance.size=+$('apSize').value;$('apSizeVal').textContent=appearance.size+'px';applyAppearance();saveAppearance()};
+}
+applyAppearance();
 (async function boot(){
   // migrate v1 cfg
   const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
@@ -835,7 +879,8 @@ $('openDebugBtn').onclick=()=>{closeModals();openDebug()};
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){
-    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg))}
+    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
+      if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');renderSidebar();renderTabs();
     dlog('boot ok · '+Object.keys(sot.threads).length+' threads');
   }
