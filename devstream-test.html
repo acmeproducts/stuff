@@ -139,6 +139,13 @@ select.input{appearance:auto}
 .debugTools{display:flex;gap:8px;align-items:center;padding:8px 12px;font-size:12px;color:var(--dim)}
 #debugOut{flex:1;overflow:auto;margin:0 12px 12px;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font:11px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
 .okc{color:var(--ok)}.erc{color:var(--err)}
+.tabClose{margin-left:auto;border:0;background:transparent;color:var(--dim);font-size:16px;padding:3px 5px;border-radius:5px}
+.tabClose:active{color:var(--err)}
+#recycleCard .cttl{color:var(--dim)}
+.recRow{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;font-size:13px}
+.recRow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recBtn{font-size:12px;color:var(--accent);padding:7px 8px}
+.recBtn.danger{color:var(--err)}
 </style>
 </head>
 <body>
@@ -206,6 +213,12 @@ select.input{appearance:auto}
       <option value="anthropic-direct">Anthropic API</option></select></div>
     <button class="btn primary" id="npCreate" style="width:100%">Create project</button>
   </div>
+</div></div>
+
+<!-- Recycle Bin modal -->
+<div class="modal" id="recycleModal"><div class="panel">
+  <header>Recycle Bin<button class="btn" data-close="recycleModal">✕</button></header>
+  <div class="pbody" id="recycleBody"></div>
 </div></div>
 
 <!-- Dashboard modal -->
@@ -282,12 +295,32 @@ async function saveSOT(msg){
 }
 function dlog(line,cls){const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
 function debugHtml(){return debug.map(l=>{const[c,t]=l.includes('|')?l.split('|',2):['',l];return '<span class="'+(c==='E'?'erc':c==='K'?'okc':'')+'">'+esc(t)+'</span>'}).join('\n')}
-async function lfetch(label,url,opts){const t0=performance.now();
-  dlog('→ '+label+' '+(opts&&opts.method||'GET')+' '+url.replace(/^https:\/\//,'').split('?')[0]);
-  try{const r=await fetch(url,opts);const ms=Math.round(performance.now()-t0);
-    dlog((r.ok?'K|':'E|')+'← '+label+' '+r.status+' '+ms+'ms');
-    return r;
-  }catch(e){dlog('E|✕ '+label+' '+e.message+' '+Math.round(performance.now()-t0)+'ms');throw e}}
+const inflight={};
+async function lfetch(label,url,opts){
+  const fkey=(opts&&opts.method||'GET')+' '+url.split('?')[0];
+  if(inflight[fkey])return inflight[fkey];           // single-flight: reuse identical in-flight GETs
+  const run=(async()=>{
+    for(let attempt=1;attempt<=2;attempt++){
+      const t0=performance.now();
+      const ac=new AbortController();const to=setTimeout(()=>ac.abort(),25000);
+      dlog('→ '+label+' '+(opts&&opts.method||'GET')+' '+url.replace(/^https:\/\//,'').split('?')[0]+(attempt>1?' (retry)':''));
+      try{
+        const r=await fetch(url,{...opts,signal:ac.signal});
+        clearTimeout(to);
+        dlog((r.ok?'K|':'E|')+'← '+label+' '+r.status+' '+Math.round(performance.now()-t0)+'ms');
+        return r;
+      }catch(e){
+        clearTimeout(to);
+        const msg=e.name==='AbortError'?'timeout 25s':e.message;
+        dlog('E|✕ '+label+' '+msg+' '+Math.round(performance.now()-t0)+'ms');
+        if(attempt===2)throw new Error(label+' network failure: '+msg);
+        await new Promise(r=>setTimeout(r,1200));
+      }
+    }
+  })();
+  if((opts&&opts.method||'GET')==='GET'){inflight[fkey]=run;run.finally(()=>delete inflight[fkey])}
+  return run;
+}
 function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugPanel"><div class="bar"><b>Debug</b><span class="grow"></span><button class="btn" id="dclose">✕</button></div><div class="debugTabs"><button class="debugTab active" data-tab="log">Log</button><button class="debugTab" data-tab="engines">Engines</button><button class="debugTab" data-tab="state">State</button></div><div class="debugTools"><span id="dinfo">'+debug.length+' entries (session)</span><span class="grow"></span><button class="btn" id="dcopy">Copy</button><button class="btn" id="dclear">Clear</button></div><pre id="debugOut"></pre></div>';
   $('dclose').onclick=()=>$('debugRoot').innerHTML='';
   $('dcopy').onclick=async()=>{await navigator.clipboard.writeText(debug.map(l=>l.includes('|')?l.split('|',2)[1]:l).join('\n'));toast('Log copied')};
@@ -308,13 +341,14 @@ $('menu').onclick=()=>sideOpen(true);$('scrim').onclick=()=>sideOpen(false);
 function renderSidebar(){
   const q=($('search').value||'').toLowerCase();
   const pl=$('projList');pl.innerHTML='';
-  const runs=Object.values(sot.threads).filter(t=>t.state==='executing').length;
-  const errs=Object.values(sot.threads).filter(t=>t.state==='error').length;
+  const live=Object.values(sot.threads).filter(t=>!t.deleted);
+  const runs=live.filter(t=>t.state==='executing').length;
+  const errs=live.filter(t=>t.state==='error').length;
   const dc=document.createElement('div');dc.className='card';dc.id='dashcard';
   dc.innerHTML='<div class="cttl">Dashboard<span class="grow"></span>'+(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'')+'</div><div class="csub">'+Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads</div>';
   dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
-  Object.keys(sot.projects).sort().forEach(p=>{
-    const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p);
+  Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort().forEach(p=>{
+    const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>t.file.toLowerCase().includes(q))))return;
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
@@ -325,7 +359,39 @@ function renderSidebar(){
       if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
       else toast('Plan not created yet — the project thread builds it')};
     d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderSidebar();renderTabs();sideOpen(false)};
+    let lpT=null;
+    d.addEventListener('touchstart',()=>{lpT=setTimeout(()=>{lpT=null;softDeleteProject(p)},650)});
+    d.addEventListener('touchend',()=>{if(lpT)clearTimeout(lpT)});
+    d.addEventListener('touchmove',()=>{if(lpT)clearTimeout(lpT)});
+    d.addEventListener('contextmenu',e=>{e.preventDefault();softDeleteProject(p)});
     pl.appendChild(d);
+  });
+  const delP=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).length;
+  const delT=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted).length;
+  if(delP+delT>0){
+    const rc=document.createElement('div');rc.className='card';rc.id='recycleCard';
+    rc.innerHTML='<div class="cttl">♻ Recycle Bin</div><div class="csub">'+delP+' project'+(delP===1?'':'s')+' · '+delT+' thread'+(delT===1?'':'s')+'</div>';
+    rc.onclick=()=>{sideOpen(false);openRecycle()};
+    pl.appendChild(rc);
+  }
+}
+function openRecycle(){openModal('recycleModal');renderRecycle()}
+function renderRecycle(){
+  const b=$('recycleBody');b.innerHTML='';
+  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted);
+  const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
+  if(!dp.length&&!dt.length){b.innerHTML='<div class="csub">Recycle Bin is empty.</div>';return}
+  dp.forEach(p=>{
+    const r=document.createElement('div');r.className='recRow';
+    r.innerHTML='<span class="grow"><b>'+esc(p)+'</b> (project)</span><button class="recBtn">Restore</button><button class="recBtn danger">Forever</button>';
+    const[rb,fb]=r.querySelectorAll('button');rb.onclick=()=>restoreProject(p);fb.onclick=()=>hardDeleteProject(p);
+    b.appendChild(r);
+  });
+  dt.forEach(k=>{
+    const r=document.createElement('div');r.className='recRow';
+    r.innerHTML='<span class="grow mono">'+esc(k)+'</span><button class="recBtn">Restore</button><button class="recBtn danger">Forever</button>';
+    const[rb,fb]=r.querySelectorAll('button');rb.onclick=()=>restoreThread(k);fb.onclick=()=>hardDeleteThread(k);
+    b.appendChild(r);
   });
 }
 $('search').addEventListener('input',renderSidebar);
@@ -336,10 +402,11 @@ function projectThreads(){return Object.keys(sot.threads).filter(k=>sot.threads[
 function renderTabs(){
   const ts=$('projectTabs');ts.innerHTML='';
   if(!activeProject)return;
-  projectThreads().forEach(k=>{
+  projectThreads().filter(k=>!sot.threads[k].deleted).forEach(k=>{
     const t=sot.threads[k];
     const el=document.createElement('div');el.className='tab'+(k===activeKey?' active':'');
-    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.file)+'</span>';
+    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.file)+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
+    el.querySelector('.tabClose').onclick=e=>{e.stopPropagation();softDeleteThread(k)};
     el.onclick=()=>openThread(k);
     let lt=0;
     el.addEventListener('touchend',e=>{const n=Date.now();if(n-lt<350){e.preventDefault();showCtx(el,k)}lt=n});
@@ -354,7 +421,8 @@ function showCtx(tabEl,key){
   const c=$('tabContext');const r=tabEl.getBoundingClientRect();c.innerHTML='';
   [['Copy test URL',()=>{const u=sot.threads[key].testUrl;if(u){navigator.clipboard.writeText(u);toast('Copied')}else toast('No test URL yet')}],
    ['Open plan',()=>{const p=sot.projects[sot.threads[key].project];if(p&&p.planFile&&p.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+p.planFile,'_blank');else toast('No plan yet')}],
-   ['Delete thread',()=>deleteThread(key),'danger']
+   ['Soft delete (Recycle Bin)',()=>softDeleteThread(key)],
+   ['Hard delete forever',()=>hardDeleteThread(key),'danger']
   ].forEach(([l,f,cls])=>{const b=document.createElement('button');b.textContent=l;if(cls)b.className=cls;b.onclick=()=>{c.style.display='none';f()};c.appendChild(b)});
   c.style.display='block';
   c.style.left=Math.min(r.left,innerWidth-200)+'px';c.style.top=(r.bottom+6)+'px';
@@ -397,6 +465,51 @@ function renderChat(){
     c.appendChild(el);
   });
   c.scrollTop=c.scrollHeight;
+}
+async function softDeleteThread(key){
+  await guard(async()=>{
+    sot.threads[key].deleted=true;sot.threads[key].deletedAt=now();
+    if(activeKey===key){activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
+    await saveSOT('devstream: soft delete '+key);
+    renderTabs();renderSidebar();toast('Moved to Recycle Bin');
+  });
+}
+async function softDeleteProject(p){
+  if(!confirm('Soft delete project "'+p+'" and its threads? (Recoverable from Recycle Bin)'))return;
+  await guard(async()=>{
+    sot.projects[p].deleted=true;sot.projects[p].deletedAt=now();
+    Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p){sot.threads[k].deleted=true;sot.threads[k].deletedAt=now()}});
+    if(activeProject===p){activeProject=null;localStorage.removeItem('ds_activeproj');activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
+    await saveSOT('devstream: soft delete project '+p);
+    renderTabs();renderSidebar();toast('Project moved to Recycle Bin');
+  });
+}
+async function restoreThread(key){sot.threads[key].deleted=false;delete sot.threads[key].deletedAt;const p=sot.threads[key].project;if(sot.projects[p]&&sot.projects[p].deleted){sot.projects[p].deleted=false}await guard(saveSOT('devstream: restore '+key));renderSidebar();renderTabs();renderRecycle()}
+async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projects[p].deletedAt;Object.keys(sot.threads).forEach(k=>{if(sot.threads[k].project===p)sot.threads[k].deleted=false});await guard(saveSOT('devstream: restore project '+p));renderSidebar();renderTabs();renderRecycle()}
+async function hardDeleteThread(key){
+  if(!confirm('PERMANENTLY delete thread '+key+'? Chat history is destroyed. Repo code files are NOT touched.'))return;
+  await guard(async()=>{
+    const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
+    const f=await getFile(p);
+    if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+key,sha:f.sha,branch:cfg.branch})});
+    delete sot.threads[key];delete threads[key];
+    await saveSOT('devstream: hard delete '+key);
+    renderSidebar();renderTabs();renderRecycle();
+  });
+}
+async function hardDeleteProject(p){
+  if(!confirm('PERMANENTLY delete project "'+p+'" and all its thread histories? Repo code files are NOT touched.'))return;
+  await guard(async()=>{
+    for(const k of Object.keys(sot.threads).filter(k=>sot.threads[k].project===p)){
+      const t=sot.threads[k];const pt=tpath(t.project,t.tid||t.file);
+      const f=await getFile(pt);
+      if(f)await gh('contents/'+pt,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+k,sha:f.sha,branch:cfg.branch})});
+      delete sot.threads[k];delete threads[k];
+    }
+    delete sot.projects[p];
+    await saveSOT('devstream: hard delete project '+p);
+    renderSidebar();renderTabs();renderRecycle();
+  });
 }
 async function deleteThread(key){
   if(!confirm('Delete thread '+key+'? Repo files are NOT deleted.'))return;
@@ -591,10 +704,15 @@ async function runAgent(key){
   agentBusy=false;
 }
 /* ---- polling ---- */
+let pollBusy=false;
 function schedulePoll(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
-    if(!activeKey)return;
+    if(!activeKey||document.hidden||pollBusy)return;
+    pollBusy=true;try{await pollOnce()}finally{pollBusy=false}
+  },15000);
+}
+async function pollOnce(){
     try{
       await loadSOT();
       const t=sot.threads[activeKey];if(!t)return;
@@ -602,7 +720,6 @@ function schedulePoll(){
       if(t.state==='executing'||(th&&th.data.messages.some(m=>m.status==='pending'))){await loadThread(activeKey)}
       renderTabs();renderSidebar();renderChat();
     }catch(e){}
-  },15000);
 }
 
 /* ---- dashboard ---- */
@@ -613,7 +730,8 @@ function openDash(){openModal('dashModal');renderDash();
   clearInterval(dashTimer);
   dashTimer=setInterval(async()=>{
     if(!$('dashModal').classList.contains('open')){clearInterval(dashTimer);return}
-    if(Object.values(sot.threads).some(t=>t.state==='executing')){try{await loadSOT();renderDash();renderSidebar()}catch(e){}}
+    if(document.hidden||pollBusy)return;
+    if(Object.values(sot.threads).some(t=>t.state==='executing')){pollBusy=true;try{await loadSOT();renderDash();renderSidebar()}catch(e){}finally{pollBusy=false}}
   },30000);
 }
 $('dashRefresh').onclick=()=>guard(async()=>{await loadSOT();renderDash();renderSidebar();toast('Refreshed')});
@@ -623,11 +741,11 @@ function renderDash(){
   [['all','All'],['executing','Running'],['error','Errors'],['ok','OK'],['idle','Idle']].forEach(([v,l])=>ch.appendChild(chip(l,dashFilter===v,()=>{dashFilter=v;renderDash()})));
   ch.appendChild(chip('Sort: '+({last:'last run',state:'state',file:'file'})[dashSort],true,()=>{dashSort={last:'state',state:'file',file:'last'}[dashSort];renderDash()}));
   const body=$('dashBody');body.innerHTML='';
-  const projs=Object.keys(sot.projects).sort();
+  const projs=Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort();
   if(!projs.length){body.innerHTML='<div class="csub">No projects yet.</div>';return}
   projs.forEach(p=>{
     const pr=sot.projects[p];
-    let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p);
+    let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing').length;
@@ -706,6 +824,7 @@ $('cfgSave').onclick=()=>guard(async()=>{
   await loadSOT();
   sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel};   // model choices sync via SOT; keys NEVER leave this browser
   await saveSOT('devstream: engine config');
+  dlog('K|engine config saved to SOT');
   $('dot').classList.add('on');closeModals();renderSidebar();renderTabs();toast('Connected');
 });
 $('openDebugBtn').onclick=()=>{closeModals();openDebug()};
