@@ -1,1285 +1,517 @@
-# SOT Project — Governance, Product Design, Release Plan, Backlog & Graveyard
+# SOT Project — Canonical Plan
 
 **Repository:** `acmeproducts/stuff`  
-**Canonical application artifact (when implementation resumes):** `project.html`  
-**Canonical planning/governance document:** `project-backlog.md`  
-**Status:** **SOT 7.0 CORPUS-CENTRIC REDESIGN / IMPLEMENTATION DEFERRED PENDING CONTRACT**  
+**Canonical planning authority:** `project-backlog.md`  
+**Current pre-base artifact:** `sot-turn01-pre-base.html`  
+**Status:** **TURN01 PRE-BASE — OWNER-APPROVED MINIMUM CORPUS MODEL / BUILD SEQUENCING**  
 **Last governance update:** 2026-08-21
 
-This document is the single current authority for the SOT project. The current implementation remains a **POC candidate, not a known-good baseline**. We are still establishing the first true accepted baseline.
-
-The owner has explicitly authorized one narrow exception to the normal no-patch-forward rule: **for the next baseline-seeking release only, existing POC code may be reused and patched forward where it accelerates convergence.** This exception ends when the first owner-accepted baseline is established. After that, failed owner-gate releases revert to the normal rebuild-from-last-accepted-baseline discipline.
-
-No implementation work resumes until the owner explicitly accepts the revised design below.
+This file is the single current planning authority for SOT. Earlier 0.4.x / 6.x implementation detail remains available in Git history and supporting design files, but it does not override the current owner rulings below.
 
 ---
 
-# 0. GOVERNANCE
+# 0. CURRENT OWNER RULINGS
 
-## 0.1 Authority order
+## 0.1 Authority
 
-1. Current owner ruling.
-2. Locked requirements in this document.
-3. Graveyard vetoes in this document.
-4. Release plan and gates in this document.
-5. Older PRDs, prototypes, screenshots, and implementation history.
+Order of authority:
 
-Implementation convenience is never a valid reason to remove required UX capability.
+1. current owner ruling;
+2. this canonical plan;
+3. explicit retained architecture locks / graveyard items in this plan;
+4. supporting design documents;
+5. older implementation history.
 
-## 0.2 Current owner ruling — lessons from the v0.4.0 POC gate
+The purpose of governance is to preserve decisions, not to delay implementation.
 
-The latest POC established that the product can now execute an end-to-end skeleton, but it is **not yet an accepted baseline**.
+## 0.2 Live authority split
 
-### What was useful
+- **GitHub** is authority for SOT software, schema/migrations, this plan, release artifacts, and optional immutable exports/checkpoints.
+- **`oc-ref` WSL** is authority for the live centralized SOT corpus/database.
+- **Tailscale** is the private transport to the centralized SOT service.
+- The live corpus is not transactionally synchronized through GitHub.
+- Existing production SOT HTTP topology remains the report server / port 18080 unless explicitly changed by owner ruling.
+- No FastAPI/Uvicorn/file_browser.py helper, no 8081/8082, and no release-driven Tailscale topology changes.
 
-- The application now has a recognizable end-to-end path from project definition into fingerprint/inventory work.
-- The three-panel source model is directionally correct.
-- Browser/mobile execution is viable and does not require WSL migration.
-- Fingerprinting/inventory is now represented as the substantive operation rather than generic stage progress.
+## 0.3 Product model
 
-### What failed
+The SOT database is the product.
 
-- Fingerprinting was effectively folder-level/manifest-level only; **the product must fingerprint the files inside each source folder, not merely identify the folder.**
-- Source selection remains too difficult and requires too much poking/clicking.
-- Previously authorized local roots are not treated as durable, reusable source roots strongly enough.
-- Large folders do not clearly show when initial enumeration is still in progress.
-- Previously-read roots/folders are rescanned too aggressively; the system should pay the expensive full-read cost once, then do a cheap stillness/change check and only update changes.
-- Portrait and landscape currently behave too differently; changing the mental model by orientation increases friction.
-- Critical actions are poorly placed: Add Selected and Create Project are too close in some layouts and too far from the selection context in others.
-- Panel proportions waste space and should be directly adjustable by the operator.
+A **Project** is only a virtual, editable container of source paths plus notes. It does not own fingerprints, content identity, Target holdings, Backup holdings, or corpus history.
 
+The operational flow is:
 
-## 0.2A Architecture lock — 2026-08-18
+`SCOPE → PROCESS → REVIEW → EXECUTE → CERTIFY`
 
-- The production report application on port 18080 is the only SOT HTTP server.
-- SOT APIs are integrated through the existing report-server path `/report/api/sot/*`; the active backend module is `sot-api.js` in the production report-server architecture.
-- `file_browser.py`, FastAPI, Uvicorn, port 8081, port 8082, and any separate SOT HTTP daemon are explicitly retired from the active architecture.
-- Release/install scripts may not recreate, probe, reload, or depend on the retired helper.
-- The retired helper design is a graveyard veto. Reintroducing it requires a new explicit owner ruling and a proven technical boundary.
-- Tailscale routing/topology is not part of an SOT application release.
-- Failed candidates are not patched forward. Rebuild from the last clean accepted input for the affected layer. For the current server-integration line, the 6.2 `sot-api.js` is the retained clean backend input; failed later backend attempts do not become baselines.
+Inventory and fingerprinting are internal processing capabilities, not separate product destinations.
 
-
-## 0.2B Mounted-volume rollback ruling — 2026-08-18
-
-- Build 6.7/6.7.1 introduced a Project Setup regression by replacing the 6.6 browse contract with shallow folder-only enumeration and by treating Windows drive-letter discovery as if it proved WSL readability.
-- Build 6.7.2 changed telemetry presentation only; it did not repair the mounted-volume regression.
-- 6.7.x is therefore not an accepted backend baseline for source browsing. The retry must first restore the verified 6.6 backend/UI pair, prove 6.6 health, and then reconstruct the 6.7 parallel/fingerprint work from that 6.6 baseline.
-- A source root shown in Project Setup must be readable by the production `openclaw-report-server.service` process. Drive-letter visibility from Windows is not sufficient evidence.
-- `/api/sot/fs` must preserve both `folders` and root-level `files`; root files may not be silently discarded.
-- An unreadable advertised volume must return an explicit unavailable/error state. It must never be represented as a successful empty folder.
-- Release gates must browse every advertised readable root through the same production API used by the UI before owner testing.
-- Q:, R:, and any other mounted volumes are not special cases; the rule applies to every root returned by the filesystem adapter.
-- The retry release is build `2026.08.18.6.7.3-wsl-mount-safe`; it retains the single production report server and introduces no service, port, proxy, or Tailscale topology change.
-
-
-## 0.2C Real mountpoint ruling — 2026-08-18
-
-- Build 6.7.3 failed the owner/device gate. Logs proved `/mnt/p`, `/mnt/q`, `/mnt/r`, and `/mnt/s` were openable directories but contained zero entries, while other mounted roots enumerated normally.
-- An existing `/mnt/<letter>` directory is not proof that the Windows volume is mounted there.
-- The filesystem adapter must use Linux mount-table evidence (`/proc/self/mountinfo` or equivalent) before advertising a `/mnt/<letter>` root.
-- Empty placeholder directories under `/mnt` are not storage roots and must not appear in Project Setup.
-- Browse results must preserve both folders and root-level files.
-- Selecting an empty/unmounted placeholder must never move focus to another drive; the selected-root state must remain stable unless the operator changes it.
-- Build 6.7.4 is a narrow backend correction on top of the installed 6.7.3 line: real mount detection only; UI and single-server topology remain unchanged.
-
-
-## 0.2D Multi-project fingerprinting + durable reporting ruling — 2026-08-19
-
-- The current Fingerprinting page incorrectly presents inventory completion (`folders_done / folders`) beside fingerprint completion as if they were one progress dimension. They are separate phases and must be labeled separately.
-- Primary fingerprint progress is **bytes fingerprinted / total inventoried bytes**. File count is secondary. Throughput and ETA are derived from bytes processed over elapsed fingerprint time.
-- Multiple projects may run concurrently, but worker count is global. A project does not own four independent workers. The first implementation uses one four-worker pool shared fairly across all WIP projects so project concurrency cannot multiply I/O concurrency without bound.
-- Durable `fingerprint_inventory` is the reporting authority for per-file detail. Reporting must not reread source volumes merely to display already-inventoried filename, relative path, size, modified date, hash, or status.
-- Reporting adopts a persistent **Project -> Folder -> File** model. Project search populates folder summaries; selecting a folder opens the file-detail table.
-- `repolist.html` is the approved interaction donor for the file table: omni-search, sortable columns, draggable column order, resizable columns, dense rows, persistent column preferences, and horizontal overflow. `repolist.html` itself remains unchanged.
-- The 6.8 candidate is `2026.08.19.6.8-wsl-multiproject-reporting`. It is reconstructed from the verified 6.6 pair plus reviewed 6.7/6.7.1/6.7.3 deltas and the 6.8 delta. Failed 6.7.4 is not a baseline.
-- Existing report-server topology remains locked: `openclaw-report-server.service`, port 18080, no extra HTTP service, no 8081/8082, no proxy/Tailscale change.
-- Detailed implementation contract: `SOT-6.8-MULTI-PROJECT-REPORTING-PLAN.md`.
-
-
-## 0.2E Project Setup explorer-first ruling — 2026-08-19
-
-- Pane 2 (Source folders) is the primary working surface in Project Setup. On mobile it must remain fully usable without horizontally scrolling through a three-panel desktop canvas.
-- Pane 2 uses a conventional file-explorer structure: a top ribbon with Up, current path, refresh, Select All, folder search, selected count, and Add Selected; below it is a vertically scrollable folder table.
-- Folder rows use sortable metadata columns. Required first release columns are Name, Date Modified, Type, and Size where known. Unknown recursive folder size is shown explicitly as `—`; the UI may not invent metadata or block browsing while recursively calculating it.
-- The folder table header remains sticky while the folder body scrolls. Selection state is visible at row level. Folder drill-down is performed from the Name cell.
-- On mobile, Source Drives becomes a narrow persistent rail, Pane 2 occupies the primary width, and staged Project sources remain available in a compact lower pane. The mobile view may not require horizontal page scrolling to reach Pane 2.
-- The previous `root files ignored` status/copy is removed from this surface; Project Setup is a folder-source selector and should describe the folder result set directly.
-- This is a UI-only release on the accepted 6.8 backend. Backend worker scheduling, inventory, reporting, report-server topology, ports, proxying, and Tailscale are unchanged.
-- Candidate UI build: `2026.08.19.6.8.1-wsl-setup-explorer`.
-
-
-## 0.2F Path-centric projects, reusable fingerprint authority, and analysis — 2026-08-20
-
-- A Project is a user-defined, recallable, editable collection of **paths**. Project identity and fingerprint identity are separate. The same path may participate in any number of projects.
-- Project Setup must support New, Recall/Edit, add current deep path, add/remove paths, and Save changes. Removing a path from a project removes membership only; durable observations/hashes remain in the SOT database.
-- Project Setup has no synthetic `Root` source. Only actual available volumes/authorized roots are shown.
-- `$RECYCLE.BIN` is a blocked system path: it is visible only as excluded/system content, is never selected by Select All, cannot be added in the UI, and is rejected by the backend.
-- Explorer Pane 2 may show both directories and files. Immediate directory listing is nonblocking; a persistent progressive background index reports current path plus folder/file/byte counts as it advances.
-- Drive letters/mount paths are locators, not durable identity. Stable source identity uses platform volume identity where available plus path relative to the volume. Drive-letter remapping must not create a new logical source solely because the letter changed.
-- Fingerprint reuse hierarchy is: (1) authoritative content identity from SHA-256/content-tree evidence; (2) fast metadata-tree stillness signature from relative path + size + modified time on the same stable volume; (3) stable volume identity + volume-relative file/path locator for reuse across overlapping project paths and drive-letter remapping. Creation time may be retained as metadata but is not an identity key.
-- Hash reuse is global, not project-scoped. Selecting an unchanged path in multiple projects must reuse prior verified hashes. Overlapping parent/child project paths on the same stable volume must reuse verified hashes by volume-relative file locator. Cross-device metadata-only matches are not authoritative content matches.
-- Reporting becomes **SOT Database Explorer** using the `repolist.html` interaction model at Project -> Path -> File scope, with omni-search, sortable columns, drag reorder, resize, and persistent preferences.
-- The first Analysis capability is read-only and deterministic: exact duplicate groups, duplicate files, reclaimable source bytes, unique/copy bytes required, target-space requirement including safety margin, unfingerprinted content, and path conflicts. No copy/delete mutation occurs from assessment.
-- Canonical detailed contract: `SOT-6.9-PATH-CENTRIC-ANALYSIS-PLAN.md`. Candidate build: `2026.08.20.6.9.1-wsl-path-centric-analysis`.
-- Existing `openclaw-report-server.service`/18080 topology remains locked; no extra server, helper, port, proxy, or Tailscale change.
-
-## 0.2G Central corpus authority + device scanner ruling — 2026-08-21
-
-- The **live SOT corpus is centralized on `oc-ref` WSL** under the SOT data area (for example `~/.openclaw/sot/`). It is not stored in the Git workspace and is not synchronized transactionally through GitHub.
-- **GitHub private repository is the authority for SOT software, schema/migrations, governance, release artifacts, configuration templates, and optional immutable exports/checkpoints — not the live operational corpus.**
-- **Tailscale is the private transport** connecting operators and scanner clients to the centralized SOT service.
-- Device scanning is independent of projects. Android, Windows, WSL, and other authorized scanners may inventory/fingerprint device scopes such as `DCIM`, `Downloads`, `Documents`, `Desktop`, attached volumes, or other paths without first creating a project.
-- A **Project remains only a virtual, editable scope over corpus paths/observations**. It never owns content identity, hashes, Target holdings, Backup holdings, or corpus history.
-- Scanner clients are observers, not authorities. They submit device/volume/path/file observations and hashes to the central corpus; durable state and intelligence remain centralized.
-- Drive letters and mount paths are locators only. Stable device/volume identity plus relative path and content evidence must survive remapping.
-- The SOT workflow is now **SCOPE → PROCESS → REVIEW → EXECUTE → CERTIFY**, with one primary forward action at each stage. Inventory/fingerprinting are internal processing phases, not separate product destinations.
-- The Target and its verified Backup are first-class corpus holdings. Once content is verified in Target, later projects/scans must recognize it and avoid duplicate copy work.
-- Source content is never deleted by the SOT execution workflow. After Target and Backup verification, source paths may be **certified safe to retire**, leaving deletion/cold-storage action to a later explicit operator decision.
-- The corpus must support ad hoc deterministic querying and project-similarity/overlap analysis, including recommendations to move paths between projects, split projects, or retire redundant project scopes.
-- The global processing engine must remain responsive and nonblocking. Multiple projects/device scans may submit work concurrently; scheduler concurrency is global and should evolve toward device-aware I/O scheduling rather than per-project worker multiplication.
-- Active processing must always communicate what is happening: current device/path/file per worker, files/bytes discovered, files/bytes fingerprinted, throughput, and ETA where meaningful. No long-lived opaque `Reading…` state is acceptable.
-- Detailed product/workflow authority: `SOT-7.0-CORPUS-WORKFLOW-PLAN.md`.
-- **Next implementation prerequisite:** define and approve the Central Corpus + Scanner Contract (canonical schema, scanner API, stable identity rules, incremental change detection, hash reuse hierarchy, concurrency/device scheduling, Android/Windows/WSL scanner behavior, Target/Backup holdings, and migration path from current 6.9.x state). No production 7.0 implementation begins before that contract is accepted.
-
-## 0.3 Established plumbing — keep
-
-### Browser/mobile operator + scanner mode
-
-- Browser/mobile UI may be hosted from GitHub Pages or another approved static HTTPS host, but the **live corpus authority remains centralized on `oc-ref` WSL**.
-- `localStorage` is UI preferences only; IndexedDB/browser handles may cache local scanner state or permissions but are never the authoritative corpus.
-- Browser/mobile and native scanner clients submit observations to the central SOT service over the approved private transport.
-- Device-local scanning may operate independently of projects and may cover whole user scopes such as DCIM, Downloads, Documents, and other authorized paths.
-
-### WSL mode
-
-- Existing production application/report server remains `session-server.js` on port 18080.
-- Browser reaches SOT APIs through the existing `/report/api/sot/*` mount.
-- WSL provides broader filesystem access and higher-throughput processing for attached drives/shares.
-- No extra SOT web service.
-- No FastAPI/Uvicorn helper.
-- No 8081/8082.
-- No Tailscale topology changes.
-
-### One product, centralized corpus, multiple scanners
-
-The UX, project model, source model, fingerprint model, run model, dedup model, lineage model, Target/Backup model, and reporting model are shared. Scanner implementations differ by device/filesystem, but **all durable corpus state converges on the centralized `oc-ref` authority**.
+Source is never deleted by SOT execution. SOT establishes and verifies Target and Backup state, then may certify source material as safe to retire. The corpus records what happens to the source afterward.
 
 ---
 
-# 1. PRODUCT PURPOSE
+# 1. DESIGN REFERENCE POINT — MINIMUM CORPUS EVIDENCE
 
-The product is a **Source of Truth reconciliation harness**.
+## 1.1 A source is a source
+
+Do not make device identity a prerequisite for useful corpus intelligence.
+
+Whether a source is exposed as `G:/`, `X:/`, `/mnt/q`, Android `DCIM`, a mounted share, or a future adapter is incidental to the core evidence model. A source provides paths and files. Device/volume sophistication is added only when real data demonstrates a false-positive/false-negative problem that requires it.
+
+Do not block TURN01 on companion APK design, PWA design, SD-card lifecycle modeling, drive-letter persistence logic, or speculative device edge cases.
+
+## 1.2 Minimum raw evidence per observed file
+
+Retain:
 
 ```text
-Configure project authority
-        ↓
-Define project + sources
-        ↓
-Enumerate sources once / cache metadata
-        ↓
-Fingerprint every file + inventory content
-        ↓
-Change/stillness checks update only deltas
-        ↓
-Dedup / analyze / recommend
-        ↓
-Approve surviving authoritative set
-        ↓
-Choose Target SOT + backup target
-        ↓
-Generate deterministic copy plan/scripts
-        ↓
-Copy + verify
-        ↓
-Promote verified target to SOT generation
-        ↓
-Reuse promoted SOT as a future source without losing lineage
-```
-
-### Lineage invariant
-
-```text
-Source A + Source B
-        ↓
-      SOT 1
-        ↓ source in later project
-      SOT 2
-        ↓ source in later project
-      SOT 3
-```
-
-Every generation remains traceable backward through project, source, file fingerprints, manifest, dedup decision, approved copy plan, copy execution, verification, and promotion.
-
----
-
-# 2. GLOBAL UX PRINCIPLES — LOCKED
-
-## 2.1 Fewer clicks without reducing power
-
-The source workflow must optimize for the common job:
-
-**authorize a root once → reuse it indefinitely → inspect/select many folders quickly → create project.**
-
-The operator must not repeatedly authorize or rediscover the same root during the same project or future projects unless the browser/OS has actually revoked access.
-
-## 2.2 Three-panel model remains the reference interaction
-
-The model remains:
-
-1. **Source Drives** — available/persisted roots.
-2. **Source(s)** — folders in the current root/scope, with high-efficiency selection tools.
-3. **Project** — staged project sources and source notes.
-
-The owner has indicated that a two-panel presentation may be acceptable **only if it preserves the same three logical capabilities with less friction**. This is not permission to remove persistent root reuse or staged-source review.
-
-## 2.3 Orientation must not change the mental model
-
-Portrait and landscape use the **same source-selection semantics and control locations**.
-
-Responsive behavior may compress/collapse panels, but it may not replace the workflow with a different panel-switching mental model solely because orientation changed.
-
-## 2.4 Minimalism = less chrome, not less capability
-
-Required capabilities that may not be removed:
-
-- durable/reusable roots;
-- root collapse;
-- multi-folder selection;
-- Select All / deselect;
-- search;
-- sort by Name, Size, Last Updated ascending/descending;
-- loading/read state;
-- source notes;
-- full canonical path retention;
-- staged-source review;
-- operator-resizable panel proportions;
-- no redundant rescanning.
-
-## 2.5 Contextual action placement
-
-Primary actions must live adjacent to the thing they act on.
-
-- **Add Selected** belongs in the Source(s) panel header/toolbar or a sticky local action bar immediately attached to that panel.
-- **Create Project** belongs outside the source-selection component as the single final page action, visually separated from Add Selected.
-- Add Selected and Create Project must never appear adjacent in a way that makes them easy to confuse.
-
----
-
-# 3. GLOBAL APPLICATION SHELL
-
-## 3.1 Left navigation — locked order
-
-1. **Configuration**
-2. **Project Setup**
-3. **Fingerprinting**
-4. **Database Administration**
-5. **SOT Build & Promotion**
-6. **Reporting**
-
-## 3.2 Global hamburger — locked
-
-- Permanently fixed top-left.
-- Never moves between breakpoints.
-- Expands/collapses left navigation.
-- Expanded/collapsed state persists.
-- Desktop collapsed state is a readable icon rail.
-- Mobile uses a readable overlay/drawer.
-- No washed-out dark sliver.
-
----
-
-# 4. CONFIGURATION
-
-Configuration answers: **where does the authoritative project/fingerprint database live and how is it protected?**
-
-## 4.1 Browser/mobile
-
-### Project database
-
-Display:
-
-**Project database**  
-`On this device`  
-Status: `Ready` / `Not initialized` / `Needs migration` / `Error`
-
-Primary action:
-
-**Initialize / Validate**
-
-Behavior:
-
-- creates IndexedDB automatically if missing;
-- validates schema/version/read-write state;
-- does not expose fake filesystem paths for IndexedDB.
-
-### Backup / restore
-
-Primary actions:
-
-- **Export backup**
-- **Import backup**
-
-No browser directory-read/upload prompt may be used as a backup destination chooser.
-
-## 4.2 WSL
-
-Rows:
-
-**Project database**  
-`/path/to/sot.sqlite` `[Choose…]`
-
-**Backup folder**  
-`/path/to/backups` `[Choose…]`
-
-Actions:
-
-- **Save & validate** — create if missing, migrate safely, integrity check.
-- **Backup now**
-- **Restore…**
-
----
-
-# 5. PROJECT SETUP — BASELINE-SEEKING UX
-
-Project Setup, project definition, and source selection are one flat page.
-
-## 5.1 Project header
-
-Compact row on wide layouts; stacked only when necessary:
-
-- **Project name** — required
-- **Project note / description** — optional
-
-Defaults:
-
-- Active = true
-- Status = Pending
-- created_at = now
-
-No status control during creation.
-
-## 5.2 Source builder — required behavior
-
-### Layout principle
-
-The component must feel like a **compact file-manager workbench**, not a wizard.
-
-Wide reference layout:
-
-```text
-┌ Source Drives ─────┬ Source(s) ───────────────────────────────┬ Project ───────────────┐
-│ Root               │ /current/path                           │ selected source A      │
-│  Local root A      │ [✓ Select all] [Search] [Add Selected]  │ /full/path/...         │
-│  Local root B      │ Name  Size  Last Updated                │ note                   │
-│  C:                │ ☑ folder A  14 GB  Aug 11               │                        │
-│  D:                │ ☑ folder B   8 GB  Aug 09               │ selected source B      │
-│  WSL Home          │ ☐ folder C   2 GB  Jul 30               │ /full/path/...         │
-│  + Add root        │ ...                                     │                        │
-└────────────────────┴──────────────────────────────────────────┴────────────────────────┘
-                         [Create Project]  ← outside the builder
-```
-
-### Panel 1 — Source Drives
-
-Required:
-
-- First entry is **Root**.
-- Root expands/lists every currently known source root.
-- Browser-authorized roots are persisted and reappear automatically in future sessions/projects when permission remains valid.
-- WSL roots are enumerated from the real server filesystem.
-- A root is not forgotten merely because the user leaves Project Setup.
-- **+ Add root** is only for granting/adding a previously unknown root.
-- Clicking a known root immediately loads its cached folder index into Panel 2.
-- Panel 1 has its own collapse/hamburger control.
-- Collapse state persists.
-- Panel 1 width is compact by default and resizable on capable layouts.
-
-### Persisted root registry
-
-Every known root records at minimum:
-
-```text
-root_id
-root_type              browser_handle | wsl_path | promoted_sot
-label
-canonical_locator
-permission_state
-first_authorized_at
-last_opened_at
-last_full_scan_at
-last_change_check_at
-folder_index_version
-```
-
-The root registry is part of the authoritative project system, not ephemeral page state.
-
-### Panel 2 — Source(s) — primary work surface
-
-#### Required toolbar
-
-Sticky local toolbar, directly attached to the list:
-
-- breadcrumb/current path;
-- Up;
-- **Select All** — ON by default when a scope loads;
-- Search;
-- selection count;
-- **Add Selected**.
-
-Add Selected stays near the selection controls, not at the far bottom-right of the overall three-panel component.
-
-#### Required columns
-
-Sticky sortable header:
-
-- **Name** ▲/▼
-- **Size** ▲/▼
-- **Last Updated** ▲/▼
-
-Search and all three sorts are baseline/table-stakes requirements.
-
-#### Folder rows
-
-Each row:
-
-- checkbox;
-- folder name;
-- size;
-- last updated;
-- compact scan-state indicator only when useful.
-
-Click folder name to drill in without changing checkbox state.
-
-#### Select All semantics
-
-- Select All defaults ON for the current folder scope.
-- Search is a view filter only; it does not destroy off-filter selections.
-- Count remains visible, e.g. `18 of 24 selected`.
-- Operator may deselect individual folders.
-
-#### Large-root/loading behavior
-
-The UI must never appear empty while a root is still being read.
-
-States:
-
-- `Opening cached index…`
-- `Reading folders…`
-- `Calculating size/updated metadata…`
-- `Ready`
-- `Checking for changes…`
-- `Updated — N changes`
-
-Where metadata is still pending, rows may appear progressively with placeholders instead of blocking the whole panel.
-
-### Panel 3 — Project / staged sources
-
-Required:
-
-- heading is current project name, or `Project` if blank;
-- source/folder name;
-- truncated display path;
-- full canonical path retained and inspectable;
-- optional source note;
-- remove ×;
-- duplicate canonical paths prevented.
-
-No duplicate source list elsewhere on Project Setup.
-
-## 5.3 Panel sizing — operator controlled
-
-The default proportions should be materially tighter than the current POC.
-
-Design target for wide layouts:
-
-- Source Drives: **~14–18%** default width.
-- Source(s): **~42–50%** default width.
-- Project: **~28–34%** default width.
-
-These are starting values, not fixed constraints.
-
-Required:
-
-- draggable separators between panels;
-- widths persist;
-- overall source-builder height resizable where platform supports it;
-- height persists;
-- collapsing Source Drives immediately gives its space to Source(s);
-- minimum readable widths enforced so a drag cannot make controls unusable.
-
-## 5.4 Portrait and landscape — same workflow
-
-Do not switch to a different interaction model just because the device rotates.
-
-Rules:
-
-- same logical panel order;
-- same toolbar locations;
-- same Add Selected placement;
-- same Create Project placement;
-- same selection state;
-- same root registry.
-
-On narrow portrait screens:
-
-- Source Drives may begin collapsed to a compact strip/rail;
-- Source(s) gets the majority of width;
-- Project may use a compact persistent right strip/drawer that can expand without resetting state;
-- user can resize where pointer/touch interactions make that practical.
-
-The key requirement is **continuity of the same mental model**, not identical pixel geometry.
-
-## 5.5 Create Project
-
-Single final page action, visually separated from the source-builder Add Selected action.
-
-**Create Project** persists:
-
-- project definition;
-- staged sources;
-- source notes;
-- canonical source locators;
-- creation timestamp;
-- source registration timestamps;
-- active/pending state.
-
-Fingerprinting does not silently start during project creation.
-
----
-
-# 6. SOURCE INDEXING / CACHE — PAY THE COST ONCE
-
-This is a new locked requirement derived from the owner gate.
-
-## 6.1 Initial root read
-
-The first time a root is authorized/opened, the application may need an expensive enumeration.
-
-During that work:
-
-- show explicit progress/state;
-- progressively populate folder rows when possible;
-- persist the resulting folder index and metadata.
-
-## 6.2 Subsequent opens
-
-Subsequent Project Setup sessions use the cached root/folder index immediately.
-
-The UI should open from cache first, then run a **stillness/change check** in the background.
-
-Do not block source selection on a full rescan when a valid cached index exists.
-
-## 6.3 Stillness/change check
-
-Goal: determine whether the cached root/folder index is still valid without rereading every file unnecessarily.
-
-The exact adapter-specific algorithm remains an implementation design item, but the required behavior is:
-
-```text
-open cached root index immediately
-        ↓
-cheap change/stillness check
-        ↓
-no change → keep cached index
-        ↓
-change detected → enumerate changed scope(s) only
-        ↓
-update cache + timestamps
-```
-
-### Browser/mobile candidate evidence
-
-Where APIs expose it, use combinations of:
-
-- persisted directory handles;
-- directory entry names;
-- file size;
-- file lastModified;
-- known counts;
-- targeted traversal when a quick check indicates change.
-
-### WSL candidate evidence
-
-Use inexpensive filesystem metadata/change checks where reliable, then targeted rescans. Full rescans are fallback behavior, not the default every time.
-
-## 6.4 Cache invalidation
-
-A full rescan is appropriate when:
-
-- root permission/identity changes;
-- persisted handle/path is no longer valid;
-- cache schema/version changes;
-- stillness evidence is inconsistent;
-- operator explicitly requests Full Rescan.
-
-The operator should be able to see `Last indexed` and `Last checked` timestamps for a root.
-
----
-
-# 7. FINGERPRINTING — FILE-LEVEL, NOT FOLDER-LEVEL
-
-Fingerprinting is the first substantive operation.
-
-## 7.1 Definition
-
-A source folder registration/fingerprint is not sufficient.
-
-The engine must produce **file-level fingerprints/content evidence for every inventoried file** in the selected source scope.
-
-For every file, persist at minimum:
-
-```text
-project_token
-source_id
-relative_path
-normalized_relative_path
+normalized_path
 filename
 size
 modified_at
-created_at              where reliable
-inventory_at
-fingerprint_version
 file_fingerprint
-content_hash            when full content hash stage is performed
-content_id
+observed_at
 ```
 
-## 7.2 Fingerprint model v1
+The raw components remain queryable and inspectable.
 
-The baseline implementation must define a deterministic per-file fingerprint that is materially stronger than path alone.
+## 1.3 Derived deterministic identities
 
-Fingerprint v1 must include deterministic evidence derived from the file itself and stable metadata. The implementation design must document exactly which bytes/metadata contribute and how the version is encoded.
-
-The fingerprint version is persisted so later algorithms can coexist with historical evidence.
-
-### Required distinction
-
-- **Source identity** answers: is this the same root/source registration?
-- **File fingerprint** answers: is this likely/known to be the same file content/evidence?
-- **Full content hash** answers exact byte identity for dedup confirmation when required.
-
-These are separate concepts and must not be collapsed into one folder hash.
-
-## 7.3 Source fingerprint summary
-
-A source may also have an aggregate fingerprint/manifest identity derived from its file-level records, but that aggregate is **secondary evidence**. It never replaces per-file fingerprints.
-
-## 7.4 Fingerprinting progress
-
-Progress represents actual files processed in the current fingerprint/inventory run.
-
-Required status data:
-
-- files discovered;
-- files fingerprinted;
-- bytes observed;
-- current source;
-- current path/file where practical;
-- percent complete when denominator is known;
-- start time;
-- ETC only when evidence supports it;
-- errors;
-- checkpoint.
-
-## 7.5 Run semantics
-
-- Pending + Run → start.
-- WIP → Run disabled.
-- WIP → Stop enabled.
-- Stopped + checkpoint → Continue.
-- No Restart in baseline unless a distinct destructive restart requirement is proven.
-
-## 7.6 Incremental fingerprint maintenance
-
-After an initial completed fingerprint/inventory run, later runs should reuse unchanged file records and fingerprint only changed/new files when reliable change evidence permits.
-
-Deleted/missing files are recorded as state changes; they are not silently removed from historical evidence.
-
----
-
-# 8. DEDUP / ANALYSIS / RECOMMENDATION — INSIDE FINGERPRINTING
-
-Available only after prerequisite file-level evidence exists.
-
-## 8.1 Summary
-
-- Raw bytes
-- Unique bytes
-- Duplicate bytes
-- Exact duplicate count
-- Conflict count
-
-## 8.2 Duplicate groups
-
-Each group shows:
-
-- exact content identity/hash;
-- candidate copies;
-- source/path;
-- size;
-- timestamps;
-- recommended survivor;
-- operator override when needed.
-
-## 8.3 Different/conflict list
-
-- same-name/different-content;
-- path collisions;
-- ambiguous canonical choice;
-- relevant metadata conflicts.
-
-## 8.4 Recommendation
-
-- canonical surviving set;
-- duplicate copies excluded from target copy plan, never deleted from sources;
-- unresolved conflicts;
-- surviving bytes;
-- recommended Target SOT capacity;
-- recommended backup capacity.
-
----
-
-# 9. DATABASE ADMINISTRATION
-
-A practical searchable/sortable CRUD metadata tool.
-
-Required logical tables/views as they exist:
-
-- projects;
-- roots;
-- sources;
-- fingerprints;
-- fingerprint_runs;
-- inventory_files/manifests;
-- duplicate_groups;
-- dedup_decisions;
-- copy_plans;
-- verification;
-- sot_generations;
-- lineage;
-- admin_events.
-
-Required grid functions:
-
-- sort asc/desc;
-- search/filter;
-- row selection;
-- pagination/virtualization;
-- mutable-cell editing;
-- immutable identities locked;
-- soft delete/restore where valid;
-- bulk project active/inactive;
-- audit events.
-
-No arbitrary SQL console in MVP.
-
----
-
-# 10. SOT BUILD & PROMOTION
-
-Unchanged governing sequence:
-
-1. Target planning after surviving capacity is known.
-2. Generate deterministic copy plan/scripts.
-3. Copy-only execution with checkpoints.
-4. Verify.
-5. Promote verified target.
-6. Persist lineage so promoted SOT can become a future source.
-
----
-
-# 11. REPORTING
-
-Evidence-backed only.
-
-## Project/fingerprint reporting
-
-- project metadata;
-- roots and source definitions;
-- source notes;
-- root cache/index state;
-- file fingerprint state;
-- run progress/history;
-- file/byte totals;
-- errors.
-
-## Dedup reporting
-
-- unique/duplicate bytes;
-- duplicate groups;
-- conflicts;
-- recommendation;
-- overrides.
-
-## Promotion reporting
-
-- target plan;
-- copy plan;
-- verification;
-- promotion history;
-- lineage.
-
----
-
-# 12. LOGICAL DATA MODEL — ADDITIONS
-
-## 12.1 Root registry
+Retain three independent pieces of evidence:
 
 ```text
-root_id
-root_type
-label
-canonical_locator
-permission_state
-first_authorized_at
-last_opened_at
-last_full_scan_at
-last_change_check_at
-folder_index_version
-cache_state
+PATH HASH
+H(normalized_path)
+
+FILE FINGERPRINT
+Authoritative content fingerprint/hash
+
+OBSERVATION HASH
+H(normalized_path + file_fingerprint + modified_at + size)
 ```
 
-## 12.2 Project
+The hashes do not replace their component fields.
+
+This gives both deterministic matching and a foundation for later fuzzy/candidate reasoning.
+
+## 1.4 Minimum deterministic interpretations
+
+- same file fingerprint + different path = same content observed at multiple locations;
+- same path + different file fingerprint = content changed/replaced at that path;
+- same observation hash = effectively unchanged observation;
+- file fingerprint already verified in Target = no Target copy required;
+- file fingerprint absent from Target = new Target content candidate;
+- same filename/size/date without authoritative fingerprint may be presented only as a candidate relationship, never exact duplication.
+
+## 1.5 Progressive refinement rule
+
+Collect the minimum first. Measure false positives, false negatives, throughput, and operational ambiguity against real corpus data. Add evidence fields or identity sophistication only when a demonstrated failure mode justifies it.
+
+---
+
+# 2. VALUE GATE — INGESTION MUST PRODUCE INTELLIGENCE
+
+TURN01 is not successful merely because paths can be enumerated or fingerprints written.
+
+**Every observation should immediately increase what the corpus can know.**
+
+As observations/fingerprints arrive, the centralized SOT database must continuously derive at least:
+
+- files and bytes observed;
+- unique content fingerprints;
+- exact duplicate copies/groups;
+- duplicate/redundant bytes;
+- new versus previously known content;
+- changed/replaced path observations;
+- content already verified in Target;
+- content missing from Target;
+- bytes actually requiring transfer to Target;
+- Target content with verified Backup coverage;
+- Target content missing verified Backup coverage;
+- potentially recoverable source capacity;
+- project overlap and project-exclusive remainder where sufficient evidence exists.
+
+Every finding/recommendation must drill down to deterministic raw evidence.
+
+---
+
+# 3. TURN01 PRE-BASE PURPOSE
+
+The first new owner-testable artifact is:
+
+`sot-turn01-pre-base.html`
+
+This is intentionally a **pre-base**, not an accepted baseline.
+
+TURN01 must reuse the plumbing and lessons that already work instead of starting over:
+
+- WSL mount/volume discovery that is proven readable by the production report service;
+- single production SOT HTTP surface on the report server / port 18080;
+- path browsing and deep-path selection;
+- project persistence;
+- file-level inventory/fingerprint work;
+- durable SQLite SOT storage under `oc-ref`;
+- global multi-project worker/scheduler plumbing;
+- reporting/file-detail concepts and repolist-style interaction patterns;
+- Target-analysis concepts already introduced in 6.9.x;
+- global hash reuse where the evidence is valid.
+
+TURN01 replaces the clunky feature-centric UI and fills the missing intelligence/execution lifecycle. It is not a cosmetic rewrite.
+
+---
+
+# 4. TURN01 IMPLEMENTATION SEQUENCE
+
+The sequence is deliberately cumulative. Each step must leave the application more useful and feed real evidence into the next step.
+
+## TURN01-1 — Streamlined Project CRUD + scope
+
+Redefine Project as a virtual editable container of paths.
+
+Required project data:
 
 ```text
-project_token
 project_name
-active
-created_at
-updated_at
-status
-current_stage
-current_run_id
-notes
-deleted_at
+project_note
+sources[]
+source_note per source
 ```
 
-## 12.3 Source
+Required behavior:
+
+- one project omnibox for search/recall;
+- `+ New Project` as a secondary action;
+- no project dropdown selector;
+- selected project name editable inline;
+- project note editable inline;
+- save on Enter or blur;
+- source-specific note editable inline;
+- add/remove source membership without deleting corpus observations/fingerprints;
+- invoke source/path picker only when adding/changing scope;
+- dismiss picker when selection is finished;
+- reuse existing working WSL volume/path browse plumbing.
+
+**Primary value:** projects can be created and edited rapidly without mixing project editing with a permanent file explorer.
+
+## TURN01-2 — Expand/collapse Project → Source → SOT data
+
+The Projects workspace must communicate scope and evidence hierarchically.
+
+Model:
 
 ```text
-source_id
-project_token
-root_id
-source_type
-original_path_or_locator
-normalized_path_or_locator
-operator_label
-operator_note
-registered_at
-last_seen_at
-source_status
-parent_sot_generation_id
+PROJECT
+  └─ SOURCE
+       └─ SOT DATA / FINDINGS
 ```
 
-## 12.4 Inventory file / file fingerprint
+Project expands to Sources. Source expands to current corpus evidence.
+
+Source-level summary should expose where evidence exists:
+
+- source note;
+- file count;
+- bytes;
+- last observation;
+- fingerprint coverage;
+- unique bytes;
+- duplicate bytes;
+- Target coverage;
+- Backup coverage;
+- current processing state;
+- errors/warnings.
+
+Dense file detail is a drilldown, not the default project editor.
+
+**Primary value:** one coherent project surface communicates both what is in scope and what SOT currently knows about it.
+
+## TURN01-3 — Global scheduler / simultaneous projects
+
+Reuse and harden the existing global multi-project scheduler.
+
+Required behavior:
+
+- multiple projects may process simultaneously;
+- one global queue/worker ceiling, not N workers per project;
+- fair project interleaving;
+- processing never blocks the UI;
+- current project/source/path/file visible for each active worker;
+- files/bytes discovered visible in real time;
+- files/bytes fingerprinted visible in real time;
+- hash/fingerprint reuse visible;
+- throughput visible;
+- errors/warnings visible;
+- ETA shown where meaningful;
+- queue/wait/paused state visible;
+- no long-lived opaque `Reading...` state.
+
+TURN01 does not require speculative device-aware scheduling. Measure real throughput first, then tune concurrency.
+
+**Primary value:** several real projects can be started quickly and the operator always knows what the engine is doing.
+
+## TURN01-4 — Central SOT database
+
+The live corpus remains centralized under `oc-ref` WSL SOT data storage.
+
+TURN01 persistence must support at minimum:
 
 ```text
-inventory_file_id
-run_id
-source_id
-relative_path
-normalized_relative_path
-filename
-extension
-size
-modified_at
-created_at
-inventory_at
-fingerprint_version
+projects
+project_sources
+file_observations
+path_hash
 file_fingerprint
-content_hash
-content_id
-state
+observation_hash
+observation history/current state
+target_holdings
+backup_holdings
+execution/transfer records
+source_dispositions
 ```
 
-## 12.5 Run
+Existing valid 6.9.x data must be reused/migrated where deterministic mapping is possible rather than discarded and rehashed unnecessarily.
+
+**Primary value:** all projects/scans enrich one reusable corpus instead of producing isolated job output.
+
+## TURN01-5 — Real-time SOT DB intelligence
+
+Intelligence is continuously derived as observations are persisted.
+
+At minimum calculate and display:
+
+- unique content;
+- exact duplicate copies/groups;
+- duplicate bytes;
+- known versus new content;
+- changed/replaced path observations;
+- content already in Target;
+- content absent from Target;
+- new Target bytes required;
+- Backup coverage/missing Backup;
+- potentially recoverable source bytes;
+- project overlap;
+- project-exclusive remainder.
+
+No separate manual “run analysis” should be required simply to update facts that can be derived from current corpus state.
+
+**Primary value:** ingestion immediately turns into useful findings.
+
+## TURN01-6 — Ad hoc SOT intelligence
+
+Provide a Corpus workspace independent of projects.
+
+One omnibox/query surface should allow deterministic inquiry across:
+
+- path;
+- filename;
+- file fingerprint;
+- size/date;
+- project membership;
+- duplicate/copy count;
+- Target present/missing;
+- Backup verified/missing;
+- changed/current observation state;
+- source disposition.
+
+Required example questions/results:
+
+- show all observations of this fingerprint;
+- show duplicate content with more than N copies;
+- show content absent from Target;
+- show Target content without verified Backup;
+- show changed content since prior observation;
+- show content shared between Project A and Project B;
+- show the exclusive remainder of a project;
+- show sources already safe to retire / archived / disposed.
+
+Natural-language assistance can come later. TURN01 requires inspectable deterministic query results first.
+
+**Primary value:** the SOT database becomes directly useful as an index of indices, not merely a backend for project pages.
+
+## TURN01-7 — Real-time dynamic execution plan
+
+The execution plan is a live derived view of corpus state, not a manually constructed checklist.
+
+For each authoritative file fingerprint in project scope classify dynamically:
 
 ```text
-run_id
-project_token
-run_type
-started_at
-stopped_at
-completed_at
-status
-checkpoint_state
-files_discovered
-files_processed
-bytes_seen
+TARGET VERIFIED       → no-op
+TARGET MISSING        → transfer candidate
+TARGET VERIFIED / BACKUP MISSING → backup candidate
+CONFLICT              → unresolved
+SOURCE CHANGED        → stale / re-evaluate
 ```
 
----
+Continuously show:
 
-# 13. RELEASE PLAN — BASELINE-SEEKING EXCEPTION
+- no-op files/bytes;
+- transfer files/bytes;
+- backup files/bytes;
+- unresolved items;
+- source bytes potentially certifiable after successful Target + Backup completion.
 
-## One-release exception
+Scope changes, new fingerprints, Target verification, or Backup verification automatically recalculate affected plan items.
 
-For the **next release only**, the existing v0.4.0 POC may be patched forward because there is no accepted baseline to roll back to.
+Every plan item must drill down to source observation + fingerprint + Target/Backup evidence.
 
-Purpose of this exception:
+**Primary value:** the corpus tells the operator what actually needs to happen now, while suppressing redundant copy work automatically.
 
-- converge quickly on the first real baseline;
-- reuse plumbing that already works;
-- avoid throwing away usable work solely to satisfy a rollback rule that presumes a known-good baseline exists.
+## TURN01-8 — Record transfer, Target, Backup, and source disposition
 
-This exception expires automatically when the owner accepts the first baseline.
+TURN01 must record the complete lifecycle even if physical copy automation is phased in after the record model exists.
 
-After acceptance, patch-forward from a failed owner gate returns to the graveyard.
+For every Target/Backup/disposition event retain at minimum:
 
-## v0.4.1 — Baseline Candidate: Low-Friction Source Selection + File Fingerprinting
+```text
+file_fingerprint
+source_path / source_observation
+target_path / library_location
+transfer_timestamp
+target_verification_state
+target_verification_timestamp
+backup_path / backup_library_location
+backup_timestamp
+backup_verification_state
+backup_verification_timestamp
+source_disposition
+source_disposition_location
+source_disposition_timestamp
+operator_note
+```
 
-This is the next implementation release after design acceptance.
+Minimum source disposition states:
 
-### Scope A — Source Drives / root registry
+```text
+active
+safe_to_retire
+archived
+cold_stored
+disposed_external
+```
 
-- persist browser-authorized roots;
-- Root lists all currently known/available roots automatically;
-- + Add root only for new authorization;
-- known root loads from cache without requiring reauthorization;
-- root collapse persists;
-- compact default Panel 1 width;
-- resizable panel separators persist.
+SOT execution does not delete source. It records the evidence supporting retirement and then records the actual operator disposition, including library/location and time/date.
 
-### Scope B — Source(s) UX
-
-- cached folders appear immediately when available;
-- explicit reading/checking states;
-- Select All default ON;
-- individual deselect;
-- search;
-- Name/Size/Last Updated asc/desc sort;
-- selection count;
-- Add Selected moved adjacent to selection controls;
-- second/third selection pass from same root requires no root reopen;
-- Add Selected and Create Project are visually separated;
-- panel proportions substantially tighter than v0.4.0 POC;
-- portrait and landscape preserve the same mental model.
-
-### Scope C — Cache / stillness
-
-- persist root/folder index;
-- initial full enumeration once;
-- subsequent open uses cache first;
-- cheap stillness/change check;
-- targeted delta scan when change detected;
-- explicit Full Rescan fallback/action;
-- Last indexed / Last checked timestamps.
-
-### Scope D — Real file fingerprinting
-
-- enumerate every selected file;
-- persist a per-file fingerprint record;
-- persist fingerprint algorithm version;
-- aggregate source fingerprint may exist only as a secondary summary;
-- progress counts actual file fingerprint work;
-- Stop preserves checkpoint;
-- Continue resumes;
-- incremental rerun reuses unchanged file evidence when reliable change data permits.
-
-### Scope E — Database Administration / Reporting
-
-- roots visible in DB admin;
-- file fingerprints/manifests visible;
-- real file/byte totals;
-- fingerprint run history;
-- no fake dedup/copy values.
-
-## v0.4.1 automated gates
-
-### Source-selection gates
-
-- previously authorized root survives refresh and reappears under Root without reauthorization;
-- clicking known root displays cached folder index before background change check completes;
-- explicit loading indicator appears when no cache exists and initial enumeration is running;
-- Panel 1 collapse does not reset Panel 2 or Panel 3;
-- panel widths persist after reload;
-- Select All defaults ON;
-- deselect works;
-- search preserves off-filter selection state;
-- Name sort asc/desc;
-- Size sort asc/desc;
-- Last Updated sort asc/desc;
-- multiple selected folders add in one action;
-- repeat selection from same root requires no new authorization;
-- Add Selected cannot be confused with Create Project by position/style hierarchy;
-- long canonical paths remain intact while visually truncated.
-
-### Cache/stillness gates
-
-- first open with no cache performs full enumeration and persists index;
-- second open uses persisted index immediately;
-- unchanged root does not trigger full traversal;
-- changed root updates only affected scope(s) when supported;
-- explicit Full Rescan invalidates/rebuilds cache;
-- cache timestamps update correctly.
-
-### File fingerprint gates
-
-- a source containing N files produces N per-file inventory/fingerprint rows unless explicit unreadable/error rows explain exceptions;
-- changing one file changes that file's fingerprint evidence without changing unrelated unchanged file fingerprints;
-- renaming/moving a file is distinguishable from unchanged path evidence according to documented algorithm semantics;
-- file fingerprint version is persisted;
-- aggregate source fingerprint cannot pass the gate if per-file fingerprints are absent;
-- progress is tied to files actually processed;
-- Stop + Continue preserves run/project/source linkage;
-- rerun after no changes reuses unchanged file records rather than recomputing every fingerprint where evidence permits.
-
-## v0.4.1 owner/device gates
-
-### Desktop / landscape
-
-- select three folders from one authorized root in a fast, obvious sequence without reopening/reauthorizing the root;
-- Add Selected is adjacent to the selection context;
-- Create Project is clearly separate;
-- resize panel separators and refresh → widths persist;
-- collapse Source Drives and refresh → state persists;
-- large root shows read/check state rather than looking empty;
-- reopening same root is visibly faster and uses cached data.
-
-### Mobile portrait
-
-- same root/source/project mental model as landscape;
-- known roots remain available;
-- no repeated authorization for the same valid root;
-- Source(s) remains the dominant working area;
-- search/sort/select-all remain immediately reachable;
-- adding sources and creating project are not visually confusable.
-
-### Fingerprinting
-
-- create project from several folders;
-- run fingerprinting;
-- verify file-level fingerprints exist for files inside those folders;
-- observe real progress;
-- stop;
-- continue;
-- rerun unchanged source and confirm reuse/stillness behavior.
+**Primary value:** SOT remains current after consolidation rather than ending when a copy job completes.
 
 ---
 
-# 14. DOWNSTREAM RELEASES
+# 5. TURN01 UX MODEL
 
-## v0.5.0 — Dedup / Analysis / Recommendation
+Global navigation should converge toward:
 
-- exact content hashing/confirmation;
-- duplicate groups;
-- conflicts/different list;
-- unique/duplicate byte accounting;
-- recommendation;
-- capacity planning.
+```text
+Projects
+Corpus
+Activity
+Admin
+```
 
-## v0.6.0 — SOT Build Plan + Generated Scripts
+## Projects
 
-- Target SOT + backup target;
-- deterministic copy plan/scripts;
-- collision-safe destination mapping;
-- preflight;
-- dry run;
-- approved plan persistence.
+One project omnibox plus the coherent project lifecycle.
 
-## v0.7.0 — Copy + Verify
+A selected project presents:
 
-- copy-only execution;
-- checkpoint/resume;
-- separate copy progress;
-- verification;
-- corruption/failure handling.
+```text
+SCOPE → PROCESS → REVIEW → EXECUTE → CERTIFY
+```
 
-## v0.8.0 — Promote + Lineage
+Only one primary forward action should be visually dominant at a time.
 
-- verified target → promoted SOT generation;
-- promoted SOT becomes later source;
-- lineage retained/reportable.
+## Corpus
 
-## v0.9.0 — Reporting / OpenClaw orchestration expansion
+Ad hoc deterministic query and evidence drilldown.
 
-- exports;
-- lineage visualization;
-- aggregate audit;
-- OpenClaw orchestration through deterministic contracts.
+## Activity
 
-## v1.0.0 — MVP hardening
+Global queue, active projects, workers, current files/paths, throughput, reuse, waits, errors.
 
-- multi-TB corpus;
-- millions-of-files;
-- browser persistence/reconnect;
-- WSL throughput/locking;
-- crash/restart fault injection;
-- source-removal/relink;
-- corruption mutation;
-- owner end-to-end reconciliation.
+## Admin
+
+Database health, configuration, Target/Backup definitions, build/version, migrations, diagnostics.
+
+Fingerprinting is infrastructure, not top-level navigation.
 
 ---
 
-# 15. OPEN TECHNICAL DESIGN ITEMS
+# 6. TARGET / BACKUP / CERTIFICATION RULES
 
-These must be resolved during v0.4.1 implementation design, not silently guessed:
+## Target
 
-- exact per-file fingerprint v1 algorithm and version encoding;
-- which browser handle/permission persistence behavior is reliable on target Android Chrome;
-- efficient root stillness/change-check strategy in browser mode;
-- efficient stillness/change-check strategy in WSL mode;
-- folder-size calculation/caching strategy before a complete inventory exists;
-- Last Updated definition for folder rows: folder entry mtime vs max descendant mtime vs cached inventory-derived value;
-- Select All semantics under search; current recommendation remains all folders in current scope, search as view filter only;
-- background metadata loading policy for very large roots;
-- browser DB backup package format;
-- later exact content-hash strategy/concurrency.
+Target holdings are first-class corpus evidence keyed by authoritative content fingerprint.
 
----
+If a fingerprint is already verified in Target, later projects must not schedule another Target copy solely because the content appears under another source path.
 
-# 16. HISTORICAL UX LESSONS FROM EARLIER POCs
+## Backup
 
-The earlier `.4.5` source browser demonstrated several useful interaction qualities that should be preserved even though `.4.5` is not an accepted product baseline:
+Backup holdings are first-class evidence linked to authoritative content fingerprint / Target holding.
 
-- a persistent location list beside a persistent browsing area;
-- browsing the current root without closing/reopening the selector;
-- independently scrollable location/content/review areas;
-- a visible current path;
-- an Up action that stays available in the browsing context;
-- staged selections staying visible while the user continues browsing.
+## Certification
 
-The next baseline candidate should retain those strengths while removing the older modal-heavy/chrome-heavy presentation and adding the required search/sort/cache/file-fingerprint behavior.
+A source/path may be marked `safe_to_retire` only when current corpus evidence shows the required content is established in Target, required Backup coverage is verified, and no newer conflicting source observation invalidates that conclusion.
+
+Certification is corpus state, not deletion.
 
 ---
 
-# 17. OPTIONAL UX IMPROVEMENTS — SUGGESTIONS ONLY
+# 7. TURN01 OWNER GATE
 
-These improve efficiency but do not replace locked requirements:
+`sot-turn01-pre-base.html` is ready for owner testing only when one coherent end-to-end run can demonstrate:
 
-1. **All | Selected | Unselected** quick filter beside Search.
-2. **Recently used roots** remain ordered near the top under Root.
-3. **Cache status icon** per root: Cached / Checking / Changed / Permission needed.
-4. **Highlight newly changed folders** after a delta refresh.
-5. **Double-click/tap behavior:** folder name drills in; checkbox remains explicit selection control.
-6. **Panel 3 source count + cached byte estimate** when evidence exists.
+1. create, recall, edit, and rename projects from one omnibox;
+2. edit project note and source-specific notes inline;
+3. add/remove multiple source paths using existing browse plumbing;
+4. expand Project → Source → SOT evidence without navigating across unrelated product modules;
+5. process at least two projects simultaneously while the UI remains responsive;
+6. show current project/source/path/file and real processing counters while work occurs;
+7. persist minimum raw observation evidence plus path hash, file fingerprint, and observation hash into the centralized SOT database;
+8. immediately derive duplicate/unique/change/Target/Backup intelligence from real observations;
+9. perform ad hoc corpus queries independent of a project;
+10. dynamically derive an execution plan that suppresses content already verified in Target;
+11. record source→Target transfer evidence;
+12. record Target→Backup evidence;
+13. record source disposition including archive/cold-storage/library location and time/date;
+14. drill every finding/recommendation/plan item to deterministic supporting evidence.
 
----
-
-# 18. LIVE BACKLOG
-
-- schema/version migration tooling for IndexedDB and SQLite;
-- browser DB export/import;
-- source relink/reconnect;
-- tags/sidecar metadata;
-- encrypted/sensitive classification;
-- historical fingerprint/scan throughput;
-- network-share reconnect;
-- Android background/sleep interruption handling;
-- near-duplicate media analysis after exact dedup;
-- lineage visualization;
-- cold/warm/hot tier reporting;
-- multi-instance SOT support — future only.
+If these cannot be demonstrated end-to-end, TURN01 is incomplete even if individual pieces function.
 
 ---
 
-# 19. SAFETY / DATA INVARIANTS
+# 8. IMPLEMENTATION DISCIPLINE
 
-1. Sources are read-only inputs.
-2. Copy-only; no automatic source move/delete.
-3. Human validation before physical source retirement.
-4. `project_token` immutable; project name mutable.
-5. Soft delete preserves lineage/history.
-6. UI never invents fingerprint/inventory/dedup/hash/copy evidence.
-7. Verification failure blocks promotion.
-8. Scan and copy throughput are separate measurements.
-9. Promoted SOT lineage survives future reuse as a source.
-10. Browser/mobile and WSL share the same logical model.
-11. Cached root/folder metadata is optimization evidence, not authority over actual file contents.
-12. File-level fingerprints are required; aggregate folder/source fingerprints never substitute for them.
+- Reuse proven plumbing; do not rewrite working mount/browse/scheduler/database components without a demonstrated cause.
+- Correct the root cause of failures; do not patch forward blindly after owner-gate failures once an accepted baseline exists.
+- TURN01 is still pre-base: no implementation becomes an accepted baseline until the owner accepts it.
+- UI must never invent evidence, progress, intelligence, Target state, Backup state, or certification state.
+- Long-running work must always expose what it is doing.
+- No source mutation/deletion during SOT execution.
+- GitHub deployment/version and live served build must be distinguishable and verifiable.
+- No unrequested service/port/proxy/Tailscale topology changes.
 
 ---
 
-# 20. GRAVEYARD — DO NOT REINTRODUCE
+# 9. RETAINED GRAVEYARD / DO NOT REINTRODUCE
 
-- **G-001:** separate FastAPI/Uvicorn/file_browser.py SOT server.
-- **G-002:** ports 8081/8082 SOT service.
-- **G-003:** release-driven Tailscale/server topology changes.
-- **G-004:** `localStorage` as authoritative project database.
-- **G-005:** fake lifecycle/progress/status.
-- **G-006:** final SOT target required during Project Setup.
-- **G-007:** source-selection modal.
-- **G-008:** separate Dedup/Analysis left-nav section.
-- **G-009:** Panel 1 volume checkbox/direct add semantics.
-- **G-010:** landscape-required source selection.
-- **G-011:** decorative/tutorial-heavy source browser.
-- **G-012:** moving/disappearing global hamburger.
-- **G-013:** GitHub Pages showing WSL/server-only drives.
-- **G-014:** test URL before exact served-build verification.
-- **G-015:** ephemeral/self-triggering workflows as routine patch mechanism.
-- **G-016:** destructive project delete instead of soft-delete/restore.
-- **G-017:** patch-forward from a failed owner candidate **after the first accepted baseline exists**.
-- **G-018:** losing lineage when promoted SOT becomes a later source.
-- **G-019:** requiring browser/mobile migration to WSL before authority.
-- **G-020:** disabling browser/mobile DB initialization on GitHub Pages.
-- **G-021:** directory-read/upload picker as backup destination selector.
-- **G-022:** repeated one-folder-at-a-time native selection replacing reusable root workflow.
-- **G-023:** removing multi-folder selection.
-- **G-024:** deferring Panel 2 search.
-- **G-025:** deferring Name/Size/Last Updated sort.
-- **G-026:** generic stage percentage masquerading as fingerprint progress.
-- **G-027:** full rescan of an unchanged previously-indexed root on every open.
-- **G-028:** treating a folder/source aggregate fingerprint as a substitute for per-file fingerprints.
-- **G-029:** portrait-specific workflow that changes the source-selection mental model.
-- **G-030:** placing Add Selected and Create Project adjacent or in visually confusable positions.
+- separate FastAPI/Uvicorn/file_browser.py SOT server;
+- ports 8081/8082 for SOT;
+- release-driven Tailscale topology changes;
+- `localStorage` as authoritative SOT/project database;
+- fake lifecycle/progress/status;
+- synthetic Root that masquerades as real storage;
+- treating an empty `/mnt/<letter>` directory as a mounted readable volume;
+- discarding root-level files from browse results;
+- folder/source aggregate fingerprint as a substitute for per-file fingerprint evidence;
+- full rescan of unchanged known scopes as the default behavior;
+- project dropdown selector;
+- duplicate project search controls;
+- permanent file explorer embedded beside project metadata;
+- separate top-level Fingerprinting destination;
+- source deletion as part of SOT execution;
+- recommendation/plan items that cannot be traced to deterministic evidence.
 
 ---
 
-# 21. DESIGN / RELEASE HANDOFF TEMPLATE
+# 10. NEXT ACTION
 
-Before implementation:
+Build planning now proceeds directly against this sequence and the existing repository/runtime plumbing.
 
-**Design gate:** D0.1  
-**Owner decision:** ACCEPT / REVISE / REJECT  
-**Locked UX:** explicit  
-**File fingerprint algorithm:** documented  
-**Cache/stillness strategy:** documented  
-**Open design items:** explicit
-
-After coding resumes:
-
-**Release:**  
-**Baseline:** POC or accepted baseline explicitly identified  
-**One-release exception used:** YES/NO  
-**Scope:**  
-**Automated gates:** PASS/FAIL  
-**Deployment:** exact commit + result  
-**Verified test URL:** only after exact served build is verified  
-**Owner/device gates:** ordered sequence  
-**Known limitations:** explicit  
-**Owner result:** PASS / FAIL
-
----
-
-# 22. DEFINITION OF DONE
-
-The first baseline is DONE only when:
-
-- low-friction source selection passes owner gate;
-- known roots persist/reopen without needless reauthorization;
-- cached index opens immediately and stillness checking replaces unnecessary full rescans;
-- search, all three sorts, Select All/deselect, and multi-folder add are usable and obvious;
-- Add Selected and Create Project are clearly separated;
-- file-level fingerprints exist for files, not merely folders;
-- real fingerprint progress/stop/continue works;
-- automated gates pass;
-- repository artifact and exact served build are verified;
-- owner/device gate passes;
-- this document marks that release as the **first accepted baseline**;
-- the temporary one-release patch-forward exception is closed.
-
-
-# Architecture graveyard addendum — 2026-08-18
-
-**G-HTTP-EXTRA — separate SOT helper server (BURIED / VETOED).** The FastAPI/Uvicorn `file_browser.py` service and ports 8081/8082 are not part of the product architecture. The production report server owns the SOT HTTP surface. Do not restore this design as a release fix, compatibility shim, or deployment convenience.
-
-
-## Graveyard addendum — mounted-volume regression
-
-**G-FS-SHALLOW-ROOT — shallow folder-only Project Setup browse (BURIED / VETOED).** Do not override the established filesystem browse contract with immediate-child-folder-only results that discard root-level files.
-
-**G-FS-DRIVE-VISIBILITY — treating Windows drive-letter discovery as proof of WSL readability (BURIED / VETOED).** A drive may be displayed as readable only after the production report-server process can actually open/enumerate its WSL path. If it cannot, expose `available=false` plus the error; never return a false empty-success state.
-
-
-**G-FS-MNT-DIR — treating `/mnt/<letter>` directory existence or successful `readdir` as proof of a mounted Windows volume (BURIED / VETOED).** Only actual mount-table evidence qualifies a drive root for advertisement. Empty placeholder directories must be ignored.
+The immediate implementation target is **TURN01-1 + the minimum supporting database/API changes required to make that UI operate against the centralized corpus**, while preserving the full TURN01 owner gate as the definition of the initial pre-base release.
