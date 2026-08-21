@@ -439,3 +439,15 @@ The historical graveyard through G-033 remains part of project history and conti
 - Dropping a tab on a Project remains a Project move and is distinct from reordering within the active Project.
 - Customize is a right-hand context submenu anchored beneath the selected tab on desktop; narrow screens stack it vertically.
 - Tab appearance no longer uses a separate Save action. Controls preview immediately and persist on blur/change. Reset persists immediately.
+
+# v2.9.20 SOT ASSIGNMENT-LOSS INCIDENT + FIX — 2026-08-21
+
+**Incident.** At 02:28 PT a stale outbox event (deviceId `browser`, ts 2026-08-20 12:39Z, older than the live snapshot) was appended after the remote snapshot and won compaction, replacing 8 projects / 66 assigned sessions with 4 empty placeholder projects. Root cause: `compactSotEvents` kept the last event in array order and ignored `ts`.
+
+**Fix (v2.9.20).**
+- Compaction is now timestamp-wins per kind; an older event can never overwrite a newer one.
+- Guard: an incoming project snapshot with zero assignments is skipped (logged + toast) when the current state has ≥3 assigned sessions.
+
+**Recovery.** SOT `projects.snapshot` restored from commit `53c1168` (2026-08-21 01:40 PT, last good), re-stamped `recovery-v2920` with a current ts so every device adopts it.
+
+**Owner ruling.** G-048 — Compaction without timestamp ordering: buried 2026-08-21.
