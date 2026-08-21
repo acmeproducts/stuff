@@ -478,3 +478,6 @@ The historical graveyard through G-033 remains part of project history and conti
 - Project-card mobile drag rebuilt on the tab gesture engine: hold-to-arm or slow-drag-to-arm, fast flick still scrolls, floating ghost, orange insert edge, click suppression, double-tap opens card menu.
 
 **Owner ruling.** G-050 — Releasing a version number already used by a published build: buried 2026-08-21. Version numbers are allocated from the repo log, never from memory.
+
+# v2.10.2 PRESERVE CARD STYLES/ORDER ACROSS SNAPSHOTS — 2026-08-21
+Applying a project snapshot replaced the whole project state and dropped card colors and card order recorded as fine-grained events with older timestamps. Fix: snapshot apply now carries forward existing card and tab styles; SOT order/style events re-stamped after the recovery snapshot so they apply in the right sequence.
