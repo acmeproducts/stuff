@@ -884,3 +884,13 @@ even examined. `bridge-turn25-base.html` stays temporarily as a byte-identical
 alias only because the owner may have installed/tested from that URL; the
 canonical artifact is `bridge-turn24-post-ship.html`, and the alias is retired
 when A8 passes.
+
+## A8 — the relay counted zombie sockets as listeners, so locked phones never woke · Aug 21 2026
+
+Evidence, not theory: the owner's log shows "with the phone locked i'm not
+seeing anything," then a four-notification pile-up; the relay source wakes
+only clients absent from its live-socket set; iOS keeps a backgrounded PWA's
+WebSocket half-alive for minutes. Zombie socket = counted as listening = no
+wake. Rule: presence must be RELEASED, not inferred — a client leaving the
+foreground tells the relay so, deliberately, unless a live call needs the
+socket. Fixed client-side only; the relay's design was correct and untouched.

@@ -32,6 +32,10 @@ const mutations = [
    s => s.replace("client: deviceId,", "client: deviceId, tb_gh_pat_hint: (localStorage.getItem('tb_gh_pat')||'').slice(0,4),")],
   ['visible build id dropped',
    s => s.replace("'<span class=\"r10-build\">' + TB_R10.build + '</span>'", "''")],
+  ['background release stops closing the socket',
+   s => s.replace('relayDisconnect();', 'void 0;')],
+  ['background release drops a live call socket',
+   s => s.replace("if (typeof CALL !== 'undefined' && CALL.active) return;", ';')],
 ];
 let caught = 0, missed = [];
 for (const [name, fn] of mutations) {

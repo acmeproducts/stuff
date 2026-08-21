@@ -200,3 +200,14 @@ bridge-turn24-post-ship.html. New plan rule 0a: rules prevent harm, not
 progress — surface intent, recommend, never silently violate or sit blocked.
 Owner re-running the matrix: open invite in Safari → Add to Home Screen →
 tap icon within 10 min (delete the stale icon first).
+
+## Session 2026-08-21 — A8 evidence: handoff PASSED, push root-caused and fixed in v2
+
+Owner debug log: locked phone silent, then en-masse pile-up. Cause read from
+relay source: zombie iOS sockets counted as connected → no wake. 24·post-ship
+v2 adds PA2-background-socket-release: visibilitychange hidden + no live call
+→ base relayDisconnect() (base's own return handler reconnects); events
+pwa_bg_release / pwa_fg_return. 19/19 + 13/13. Also recorded R11 items 11.8
+(iPhone type scale — instrument, likely page-level, not font sizes) and 11.9
+(S0 name-field position). Owner retests: background/lock phone, have partner
+send — notification should now arrive promptly.

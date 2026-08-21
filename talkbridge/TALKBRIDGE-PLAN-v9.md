@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.12.0 -->
-# TALKBRIDGE MASTER PLAN v14.12.0
+<!-- TALKBRIDGE-PLAN v14.13.0 -->
+# TALKBRIDGE MASTER PLAN v14.13.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -253,6 +253,8 @@ a named scale of fixed pixels is still fixed pixels.
 | 11.4 | Drawer and modals — includes the Customize tab density redesign | Not started |
 | 11.5 | Room cards and home screen | Not started |
 | 11.6 | Stacking order — 19 z-index values to a named scale | Not started |
+| 11.8 | iPhone type renders smaller than nominal across surfaces (room-menu you/partner labels, transcript dates, sys pills — "a 12 showing as a 9"). Suspected page-level scale/overflow, NOT per-element sizes; instrument actual layout vs visual viewport before any fix | Not started |
+| 11.9 | Onboarding name field sits awkwardly above the fold at mid-screen on iPhone; reposition within S0 | Not started |
 | 11.7 | Mute VIDEO icon occluded (owner report 2026-08-14). Cause unknown — instrument and read the base's actual rendering before any fix; no theorised root cause. The ribbon media controls sit under the standing never-touch rule, so the fix needs an explicit owner-scoped exception and the smallest possible change. Owner directive on this item: DO NOT BREAK ANYTHING. | Not started |
 
 ---
@@ -520,6 +522,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.13.0 · 2026-08-21.** A8 first evidence round. HANDOFF PASSED — owner
+installed via cookie bridge and ran rooms, speech, calls. PUSH FAILED with
+cause read from relay source: wakes go only to clients absent from the live
+socket set, and iOS keeps a backgrounded PWA's socket half-alive, so the
+locked phone was still counted as listening — nothing sent, then a pile-up
+once iOS reaped the socket. Fix shipped in 24·post-ship v2, client-only, relay
+untouched: on leaving the foreground with no live call, presence is released
+via the base's own relayDisconnect (base's existing return handler already
+reconnects); logs pwa_bg_release / pwa_fg_return. Harness-r10 19/19,
+mutations 13/13. New R11 items 11.8 (small type — instrument first) and 11.9
+(name-field position) from owner observation.
 
 **v14.12.0 · 2026-08-21.** A8 first run failed structurally, not by owner
 error: manifest start_url → app.html → OLD build with no handoff code, so the

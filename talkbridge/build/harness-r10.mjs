@@ -178,5 +178,27 @@ seed.w.close();
   w.close();
 }
 
+{ /* P8/P9: background presence release (A8 wake evidence) */
+  const { w } = await boot({ url: 'https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html', standalone: true });
+  const d2 = w.document;
+  let closed = 0;
+  w._relayWs = { close(){ closed++; }, readyState: 1 };
+  w.CALL.active = false;
+  Object.defineProperty(d2, 'hidden', { configurable: true, get(){ return true; } });
+  d2.dispatchEvent(new w.Event('visibilitychange'));
+  T('P8 hiding the app with no call releases the socket so the relay can wake us', () => {
+    A(closed === 1 && w._relayWs === null, 'socket not released (closed=' + closed + ')');
+    A(w.R8_BGREL && w.R8_BGREL.released === true, 'release not recorded');
+  });
+  closed = 0;
+  w._relayWs = { close(){ closed++; }, readyState: 1 };
+  w.CALL.active = true;
+  d2.dispatchEvent(new w.Event('visibilitychange'));
+  T('P9 a live call keeps its signaling socket on background', () => {
+    A(closed === 0 && w._relayWs !== null, 'live call socket was dropped');
+  });
+  w.close();
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
