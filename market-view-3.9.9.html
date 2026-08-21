@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<title>Market Navigator 3.9.9</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08111f}iframe{display:block;width:100%;height:100%;border:0;background:#08111f}</style>
+</head>
+<body>
+<iframe id="app" src="market-view.html?v=3.9.9-front-end" title="Market Navigator 3.9.9"></iframe>
+<script>
+'use strict';
+const frame=document.getElementById('app');
+frame.addEventListener('load',()=>{
+ const d=frame.contentDocument;if(!d)return;
+ const patch=d.createElement('script');
+ patch.textContent=String.raw`
+(function(){
+ const DAY=864e5;
+
+ /* Preserve the 3.9.8 historical regime repair in the front-end QA build. */
+ function historicalRegimeSeries399(range=state.range){
+   if(H[range]?.intraday)return (state.regimeHistory||[]).map(x=>({t:x.t||x.ts,v:x.v??x.score})).filter(x=>Number.isFinite(x.t)&&Number.isFinite(x.v));
+   const required=['spy','tenYear','wti'];
+   if(!required.every(id=>(state.series[id]||[]).length>1))return[];
+   const commonEnd=Math.min(...required.map(id=>state.series[id].at(-1).t));
+   let start=rangeStartTs(range,commonEnd);
+   if(start==null)start=Math.max(...required.map(id=>state.series[id][0].t));
+   start=Math.max(start,Math.max(...required.map(id=>state.series[id][0].t+30*DAY)));
+   const base=(state.series.spy||[]).filter(p=>p.t>=start&&p.t<=commonEnd),out=[];
+   for(const p of base){const r=regimeAt(p.t);if(r&&Number.isFinite(r.score))out.push({t:p.t,v:r.score,score:r.score,label:r.label});}
+   return out;
+ }
+ regimeHistorySlice=function(range){return historicalRegimeSeries399(range).map(p=>({t:p.t,v:p.v,score:p.v,label:p.label}))};
+ regimeSeries393=function(range=state.range){return historicalRegimeSeries399(range).map(p=>({t:p.t,v:p.v}))};
+ buildRegimeHistory=async function(){const x=historicalRegimeSeries399('5y');state.regimeHistory=x.map(p=>({t:p.t,ts:p.t,score:p.v,regime:p.label||((p.v>=62)?'Optimistic':(p.v<=38)?'Pessimistic':'Neutral')}))};
+
+ /* Front-end contract: one left-navigation context, one contextual tab row, one global horizon. */
+ TABS.now=[['Overview','nowSnapshot'],['Context','nowTrend']];
+
+ const css=d.createElement('style');
+ css.textContent=`
+ .globalRange{grid-template-columns:repeat(9,minmax(58px,1fr));max-width:820px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+ .globalRange::-webkit-scrollbar{display:none}
+ .now399{height:100%;display:grid;grid-template-rows:minmax(0,1.35fr) minmax(0,.65fr);gap:10px;overflow:hidden}
+ .regime399{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;cursor:pointer;min-height:0}
+ .regime399:hover,.category399:hover{border-color:var(--accent)}
+ .regimeHead399{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+ .regimeMetric399{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.regimeMetric399 strong{font-size:29px}
+ .indexDelta399{font-size:12px;color:var(--muted);margin-top:2px}
+ .categoryGrid399{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-height:0}
+ .category399{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:5px;min-height:0;cursor:pointer}
+ .category399 canvas{width:100%;height:100%;min-height:52px}
+ .context399{height:100%;display:grid;grid-template-columns:1.35fr .65fr;gap:10px;min-height:0}
+ .contextChart399{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0}
+ .contextSide399{display:grid;align-content:start;gap:8px;overflow:auto}
+ .contextRow399{border-bottom:1px solid var(--line);padding:8px 0}.contextRow399:last-child{border-bottom:0}
+ .pointDelta399.good{color:var(--good)}.pointDelta399.bad{color:var(--bad)}.pointDelta399.neutral{color:var(--warn)}
+ @media(max-width:760px){.context399{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}.contextSide399{grid-template-columns:repeat(3,1fr);overflow:visible}.contextRow399{border:1px solid var(--line);border-radius:9px;padding:8px}.globalRange{max-width:none}}
+ @media(max-width:520px){.now399{grid-template-rows:minmax(0,1.4fr) minmax(0,.6fr)}.categoryGrid399{gap:6px}.category399{padding:8px}.category399 h3{font-size:13px}.regimeMetric399 strong{font-size:25px}.contextSide399{grid-template-columns:1fr 1fr}}
+ `;
+ d.head.appendChild(css);
+
+ function pointChange399(data){if(!data?.length)return null;return data.at(-1).v-data[0].v}
+ function pointText399(v){return Number.isFinite(v)?`${v>=0?'+':''}${v.toFixed(0)} pts`:'Unavailable'}
+ function indexClass399(v){return !Number.isFinite(v)?'neutral':v>1?'good':v<-1?'bad':'neutral'}
+ function indexArrow399(v){return !Number.isFinite(v)?'→':v>1?'↑':v<-1?'↓':'→'}
+
+ renderNow=function(){
+   const r=regimeSummary(state.range),rd=regimeSeries393(state.range),rDelta=pointChange399(rd);
+   const cats=['risk','growth','macro'];
+   $('#nowSnapshot').innerHTML=`<div class="now399"><article class="card regime399" data-regime399 tabindex="0" role="button" aria-label="Open regime detail"><div class="regimeHead399"><div><div class="kicker">REGIME SENTIMENT INDEX · 0–100</div><div class="regimeMetric399"><strong>${r?r.score:'—'}</strong><span>/100</span><span class="chip ${r?.score>=58?'good':r?.score<=42?'bad':'neutral'}">${r?.label||'Unavailable'}</span></div><div class="indexDelta399">${H[state.range].label} · ${rd.length?dateRangeLabel392(rd,state.range):'insufficient history'} · ${pointText399(rDelta)}</div></div><div class="flow393"><b>Regime</b><span>→</span><span>Risk / Growth / Macro</span><span>→</span><span>Drivers</span></div></div><div class="chartBox"><canvas id="regime399Chart" class="chart"></canvas></div></article><div class="categoryGrid399">${cats.map(key=>{const c=CATEGORY[key],z=categoryIndex(key,state.range),series=categoryHistory393(key,state.range),delta=pointChange399(series),cls=indexClass399(delta);return `<article class="card category399" data-category399="${key}" tabindex="0" role="button"><div class="row"><h3>${c.name}</h3><span class="chip ${z?.cls||'neutral'}">${z?.label||'Unavailable'}</span></div><div><div class="value">${z?z.score:'—'}<span class="muted" style="font-size:11px"> /100</span></div><div class="pointDelta399 ${cls}">${indexArrow399(delta)} ${H[state.range].label} · ${pointText399(delta)}</div></div><canvas data-category399-chart="${key}"></canvas></article>`}).join('')}</div></div>`;
+   setTimeout(()=>{indexChart396($('#regime399Chart'),rd,'Regime index','#f3b347',state.range,false);$$('[data-category399-chart]').forEach(c=>{const key=c.dataset.category399Chart;indexChart396(c,categoryHistory393(key,state.range),`${CATEGORY[key].name} index`,'#6db7ff',state.range,true)});$('[data-regime399]')?.addEventListener('click',()=>openRegime393());$$('[data-category399]').forEach(e=>e.onclick=()=>openCategory(e.dataset.category399))},0);
+   renderContext399();renderGlobalRange();
+ };
+
+ function normalized399(id,range){const x=rangeData(id,range);if(x.length<2)return[];const b=x[0].v;return b?x.map(p=>({t:p.t,v:p.v/b*100})):[]}
+ function renderContext399(){
+   const ids=['spy','tenYear','wti','cpi','fedFunds'].filter(id=>(state.series[id]||[]).length>1);
+   const list=ids.map(id=>({id,name:META[id].short,color:META[id].color,data:normalized399(id,state.range)})).filter(x=>x.data.length>1);
+   $('#nowTrend').innerHTML=`<div class="context399"><article class="card contextChart399"><div><div class="kicker">FAST MARKET + SLOW MACRO</div><h2 style="margin:3px 0">${H[state.range].label} context</h2><div class="muted tiny">All available series rebased to 100 at the selected-horizon start. Missing data is omitted, never filled.</div></div><div class="chartBox"><canvas id="context399Chart" class="chart"></canvas></div><div class="chartLegend">${list.map(s=>`<span class="chartLegendItem"><i style="background:${s.color}"></i><b>${s.name}</b></span>`).join('')}</div></article><article class="card contextSide399"><div class="contextRow399"><div class="kicker">MARKET / HOURLY</div><b>SPY · 10Y · WTI</b><div class="muted tiny">Fast-moving context. Read locally between eligible updates.</div></div><div class="contextRow399"><div class="kicker">MACRO / DAILY</div><b>Fed Funds · Treasury rates</b><div class="muted tiny">Daily context, not an intraday quote tape.</div></div><div class="contextRow399"><div class="kicker">MACRO / MONTHLY</div><b>CPI</b><div class="muted tiny">Monthly release cadence. Historical context remains visible between releases.</div></div></article></div>`;
+   setTimeout(()=>chart($('#context399Chart'),list,{range:state.range,axes:true,normalized:true}),0);
+ }
+
+ const oldSetSection399=setSection;
+ setSection=function(id,tab){
+   state.section=id;state.tab=tab||TABS[id][0][1];
+   $$('.section').forEach(x=>x.classList.toggle('active',x.id===id));
+   $$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.nav===id));
+   $('#pageTitle').textContent=NAV.find(x=>x[0]===id)[1];
+   $('#tabs').style.display='flex';
+   $('#tabs').innerHTML=TABS[id].map(([label,target])=>`<button data-tab="${target}" class="${target===state.tab?'active':''}">${label}</button>`).join('');
+   $$('.story').forEach(x=>x.classList.remove('active'));$('#'+state.tab)?.classList.add('active');
+   $$('[data-tab]').forEach(b=>b.onclick=()=>setSection(id,b.dataset.tab));
+   document.body.classList.remove('drawer');
+   if(id==='now'){renderNow(); if(state.tab==='nowTrend')renderContext399()}
+ };
+
+ const oldDrawRegime399=drawRegime393;
+ drawRegime393=async function(){
+   await oldDrawRegime399();
+   const d=regimeSeries393(state.range),delta=pointChange399(d);
+   const stats=$('#detailStats');
+   if(stats){const blocks=[...stats.querySelectorAll('.stat')];const change=blocks.find(x=>x.querySelector('.kicker')?.textContent.includes('CHANGE'));if(change)change.querySelector('b').textContent=pointText399(delta)}
+ };
+ const oldDrawCategory399=drawCategory;
+ drawCategory=async function(){
+   await oldDrawCategory399();
+   const key=state.detail?.category;if(!key)return;const delta=pointChange399(categoryHistory393(key,state.range));
+   const blocks=[...$('#detailStats').querySelectorAll('.stat')],change=blocks.find(x=>x.querySelector('.kicker')?.textContent.includes('CHANGE'));if(change)change.querySelector('b').textContent=pointText399(delta);
+ };
+
+ buildRegimeHistory().then(()=>{renderAll();setSection('now','nowSnapshot')}).catch(e=>log('3.9.9 regime rebuild: '+e.message,'error'));
+ const brand=d.querySelector('.brand small');if(brand)brand.textContent='Directional situational awareness · Version 3.9.9 · Front-end QA';
+})();
+`;
+ d.body.appendChild(patch);
+});
+</script>
+</body>
+</html>
