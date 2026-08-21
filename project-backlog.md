@@ -3,8 +3,8 @@
 **Repository:** `acmeproducts/stuff`  
 **Canonical application artifact (when implementation resumes):** `project.html`  
 **Canonical planning/governance document:** `project-backlog.md`  
-**Status:** **ACTIVE BASELINE RECOVERY / OWNER-GATED IMPLEMENTATION**  
-**Last governance update:** 2026-08-18
+**Status:** **SOT 7.0 CORPUS-CENTRIC REDESIGN / IMPLEMENTATION DEFERRED PENDING CONTRACT**  
+**Last governance update:** 2026-08-21
 
 This document is the single current authority for the SOT project. The current implementation remains a **POC candidate, not a known-good baseline**. We are still establishing the first true accepted baseline.
 
@@ -124,16 +124,32 @@ The latest POC established that the product can now execute an end-to-end skelet
 - Canonical detailed contract: `SOT-6.9-PATH-CENTRIC-ANALYSIS-PLAN.md`. Candidate build: `2026.08.20.6.9.1-wsl-path-centric-analysis`.
 - Existing `openclaw-report-server.service`/18080 topology remains locked; no extra server, helper, port, proxy, or Tailscale change.
 
+## 0.2G Central corpus authority + device scanner ruling — 2026-08-21
+
+- The **live SOT corpus is centralized on `oc-ref` WSL** under the SOT data area (for example `~/.openclaw/sot/`). It is not stored in the Git workspace and is not synchronized transactionally through GitHub.
+- **GitHub private repository is the authority for SOT software, schema/migrations, governance, release artifacts, configuration templates, and optional immutable exports/checkpoints — not the live operational corpus.**
+- **Tailscale is the private transport** connecting operators and scanner clients to the centralized SOT service.
+- Device scanning is independent of projects. Android, Windows, WSL, and other authorized scanners may inventory/fingerprint device scopes such as `DCIM`, `Downloads`, `Documents`, `Desktop`, attached volumes, or other paths without first creating a project.
+- A **Project remains only a virtual, editable scope over corpus paths/observations**. It never owns content identity, hashes, Target holdings, Backup holdings, or corpus history.
+- Scanner clients are observers, not authorities. They submit device/volume/path/file observations and hashes to the central corpus; durable state and intelligence remain centralized.
+- Drive letters and mount paths are locators only. Stable device/volume identity plus relative path and content evidence must survive remapping.
+- The SOT workflow is now **SCOPE → PROCESS → REVIEW → EXECUTE → CERTIFY**, with one primary forward action at each stage. Inventory/fingerprinting are internal processing phases, not separate product destinations.
+- The Target and its verified Backup are first-class corpus holdings. Once content is verified in Target, later projects/scans must recognize it and avoid duplicate copy work.
+- Source content is never deleted by the SOT execution workflow. After Target and Backup verification, source paths may be **certified safe to retire**, leaving deletion/cold-storage action to a later explicit operator decision.
+- The corpus must support ad hoc deterministic querying and project-similarity/overlap analysis, including recommendations to move paths between projects, split projects, or retire redundant project scopes.
+- The global processing engine must remain responsive and nonblocking. Multiple projects/device scans may submit work concurrently; scheduler concurrency is global and should evolve toward device-aware I/O scheduling rather than per-project worker multiplication.
+- Active processing must always communicate what is happening: current device/path/file per worker, files/bytes discovered, files/bytes fingerprinted, throughput, and ETA where meaningful. No long-lived opaque `Reading…` state is acceptable.
+- Detailed product/workflow authority: `SOT-7.0-CORPUS-WORKFLOW-PLAN.md`.
+- **Next implementation prerequisite:** define and approve the Central Corpus + Scanner Contract (canonical schema, scanner API, stable identity rules, incremental change detection, hash reuse hierarchy, concurrency/device scheduling, Android/Windows/WSL scanner behavior, Target/Backup holdings, and migration path from current 6.9.x state). No production 7.0 implementation begins before that contract is accepted.
+
 ## 0.3 Established plumbing — keep
 
-### Browser/mobile mode
+### Browser/mobile operator + scanner mode
 
-- Runs from GitHub Pages or another static HTTPS host.
-- Browser/mobile project authority uses persistent IndexedDB or a later approved equivalent.
-- `localStorage` is UI preferences only.
-- Browser-granted directory/file handles are persistent source-authority references where the browser supports persisted handles/permissions.
-- Browser/mobile projects may be created, fingerprinted, operated, administered, reported, completed, and eventually reconciled without WSL.
-- Migration to WSL is optional.
+- Browser/mobile UI may be hosted from GitHub Pages or another approved static HTTPS host, but the **live corpus authority remains centralized on `oc-ref` WSL**.
+- `localStorage` is UI preferences only; IndexedDB/browser handles may cache local scanner state or permissions but are never the authoritative corpus.
+- Browser/mobile and native scanner clients submit observations to the central SOT service over the approved private transport.
+- Device-local scanning may operate independently of projects and may cover whole user scopes such as DCIM, Downloads, Documents, and other authorized paths.
 
 ### WSL mode
 
@@ -145,9 +161,9 @@ The latest POC established that the product can now execute an end-to-end skelet
 - No 8081/8082.
 - No Tailscale topology changes.
 
-### One product, two execution adapters
+### One product, centralized corpus, multiple scanners
 
-The UX, project model, source model, fingerprint model, run model, dedup model, lineage model, and reporting model are shared. Only filesystem authority, persistence adapter, and processing throughput differ.
+The UX, project model, source model, fingerprint model, run model, dedup model, lineage model, Target/Backup model, and reporting model are shared. Scanner implementations differ by device/filesystem, but **all durable corpus state converges on the centralized `oc-ref` authority**.
 
 ---
 
