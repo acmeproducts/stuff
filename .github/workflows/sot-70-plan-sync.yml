@@ -1,0 +1,38 @@
+name: SOT 7.0 plan sync
+on:
+  push:
+    paths:
+      - '.github/workflows/sot-70-plan-sync.yml'
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update canonical SOT plan
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('project-backlog.md')
+          s=p.read_text()
+          s=s.replace('**Status:** **ACTIVE BASELINE RECOVERY / OWNER-GATED IMPLEMENTATION**  \n**Last governance update:** 2026-08-18', '**Status:** **SOT 7.0 CORPUS-CENTRIC REDESIGN / IMPLEMENTATION DEFERRED PENDING CONTRACT**  \n**Last governance update:** 2026-08-21')
+          anchor='## 0.3 Established plumbing — keep'
+          block='''## 0.2G Central corpus authority + device scanner ruling — 2026-08-21\n\n- The **live SOT corpus is centralized on `oc-ref` WSL** under the SOT data area (for example `~/.openclaw/sot/`). It is not stored in the Git workspace and is not synchronized transactionally through GitHub.\n- **GitHub private repository is the authority for SOT software, schema/migrations, governance, release artifacts, configuration templates, and optional immutable exports/checkpoints — not the live operational corpus.**\n- **Tailscale is the private transport** connecting operators and scanner clients to the centralized SOT service.\n- Device scanning is independent of projects. Android, Windows, WSL, and other authorized scanners may inventory/fingerprint device scopes such as `DCIM`, `Downloads`, `Documents`, `Desktop`, attached volumes, or other paths without first creating a project.\n- A **Project remains only a virtual, editable scope over corpus paths/observations**. It never owns content identity, hashes, Target holdings, Backup holdings, or corpus history.\n- Scanner clients are observers, not authorities. They submit device/volume/path/file observations and hashes to the central corpus; durable state and intelligence remain centralized.\n- Drive letters and mount paths are locators only. Stable device/volume identity plus relative path and content evidence must survive remapping.\n- The SOT workflow is now **SCOPE → PROCESS → REVIEW → EXECUTE → CERTIFY**, with one primary forward action at each stage. Inventory/fingerprinting are internal processing phases, not separate product destinations.\n- The Target and its verified Backup are first-class corpus holdings. Once content is verified in Target, later projects/scans must recognize it and avoid duplicate copy work.\n- Source content is never deleted by the SOT execution workflow. After Target and Backup verification, source paths may be **certified safe to retire**, leaving deletion/cold-storage action to a later explicit operator decision.\n- The corpus must support ad hoc deterministic querying and project-similarity/overlap analysis, including recommendations to move paths between projects, split projects, or retire redundant project scopes.\n- The global processing engine must remain responsive and nonblocking. Multiple projects/device scans may submit work concurrently; scheduler concurrency is global and should evolve toward device-aware I/O scheduling rather than per-project worker multiplication.\n- Active processing must always communicate what is happening: current device/path/file per worker, files/bytes discovered, files/bytes fingerprinted, throughput, and ETA where meaningful. No long-lived opaque `Reading…` state is acceptable.\n- Detailed product/workflow authority: `SOT-7.0-CORPUS-WORKFLOW-PLAN.md`.\n- **Next implementation prerequisite:** define and approve the Central Corpus + Scanner Contract (canonical schema, scanner API, stable identity rules, incremental change detection, hash reuse hierarchy, concurrency/device scheduling, Android/Windows/WSL scanner behavior, Target/Backup holdings, and migration path from current 6.9.x state). No production 7.0 implementation begins before that contract is accepted.\n\n'''
+          if '## 0.2G Central corpus authority + device scanner ruling — 2026-08-21' not in s:
+              s=s.replace(anchor,block+anchor,1)
+          # Replace now-obsolete browser/mobile local-authority subsection wording.
+          old='''### Browser/mobile mode\n\n- Runs from GitHub Pages or another static HTTPS host.\n- Browser/mobile project authority uses persistent IndexedDB or a later approved equivalent.\n- `localStorage` is UI preferences only.\n- Browser-granted directory/file handles are persistent source-authority references where the browser supports persisted handles/permissions.\n- Browser/mobile projects may be created, fingerprinted, operated, administered, reported, completed, and eventually reconciled without WSL.\n- Migration to WSL is optional.\n'''
+          new='''### Browser/mobile operator + scanner mode\n\n- Browser/mobile UI may be hosted from GitHub Pages or another approved static HTTPS host, but the **live corpus authority remains centralized on `oc-ref` WSL**.\n- `localStorage` is UI preferences only; IndexedDB/browser handles may cache local scanner state or permissions but are never the authoritative corpus.\n- Browser/mobile and native scanner clients submit observations to the central SOT service over the approved private transport.\n- Device-local scanning may operate independently of projects and may cover whole user scopes such as DCIM, Downloads, Documents, and other authorized paths.\n'''
+          if old in s: s=s.replace(old,new,1)
+          # Replace obsolete two-authority statement.
+          old2='''### One product, two execution adapters\n\nThe UX, project model, source model, fingerprint model, run model, dedup model, lineage model, and reporting model are shared. Only filesystem authority, persistence adapter, and processing throughput differ.\n'''
+          new2='''### One product, centralized corpus, multiple scanners\n\nThe UX, project model, source model, fingerprint model, run model, dedup model, lineage model, Target/Backup model, and reporting model are shared. Scanner implementations differ by device/filesystem, but **all durable corpus state converges on the centralized `oc-ref` authority**.\n'''
+          if old2 in s: s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add project-backlog.md
+          git commit -m 'Sync canonical SOT plan to 7.0 central corpus architecture'
+          git push
