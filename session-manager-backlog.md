@@ -451,3 +451,16 @@ The historical graveyard through G-033 remains part of project history and conti
 **Recovery.** SOT `projects.snapshot` restored from commit `53c1168` (2026-08-21 01:40 PT, last good), re-stamped `recovery-v2920` with a current ts so every device adopts it.
 
 **Owner ruling.** G-048 — Compaction without timestamp ordering: buried 2026-08-21.
+
+# v2.10.0 UNIFIED SYNC LAYER — 2026-08-21
+
+**Scope (step 1 of the OC/GH merge plan; GH is the base).** Sync only. No UI changes.
+- GH now reads every event dialect in the SOT: OC fine-grained events (project.upsert/delete, session.assign, project.order, projects.order, project.style, recovery.marker) plus legacy snapshots.
+- GH now *writes* fine-grained events: each save is diffed against the last synced state and emitted as the minimal set of changes. Whole-project snapshots are only written to seed an empty SOT.
+- Compaction is timestamp-wins per entity (ported from OC); legacy snapshot acceptance guard retained.
+- Project state gains `projectStyles` and `missingCandidates` so OC data is preserved through a GH save.
+- All storage writes remain quota-safe.
+
+**Next.** Step 2: port project card context menu/Customize/reorder, omni search, manifest export, message recovery. Step 3: replace OC long-press card drag with the pointer-based tab treatment on mobile. Owner device gate before each.
+
+**Owner ruling.** G-049 — Two builds with different sync dialects writing one SOT: buried 2026-08-21. One build is the writer; OC receives GH deployments.
