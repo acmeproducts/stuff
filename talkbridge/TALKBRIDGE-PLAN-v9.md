@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.11.1 -->
-# TALKBRIDGE MASTER PLAN v14.11.1
+<!-- TALKBRIDGE-PLAN v14.12.0 -->
+# TALKBRIDGE MASTER PLAN v14.12.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -11,6 +11,17 @@ because section inserts duplicated rather than replaced. Nothing could be told
 apart. This version has one home for every item and no duplicated sections.
 
 ---
+
+## 0a · STANDING RULE — RULES PREVENT HARM, NOT PROGRESS (owner, 2026-08-21)
+
+When one of our own rules blocks forward motion, the move is to read the
+rule's INTENT. Rules exist to prevent harm, not to prevent progress. Surface
+the conflict plainly, state the intent, recommend the resolution — never
+silently violate the rule, and never sit blocked behind its letter. First
+application: the A9 "don't repoint app.html until A8 passes" guard made A8
+impossible (the installed icon launched the old build); intent was protecting
+users from ungated code, the owner IS the gate, so app.html was repointed to
+the 24·post-ship candidate on owner ruling to let the matrix run.
 
 ## 0 · TURN / STAGE LEDGER — THE CHAIN IS THE LAW
 
@@ -509,6 +520,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.12.0 · 2026-08-21.** A8 first run failed structurally, not by owner
+error: manifest start_url → app.html → OLD build with no handoff code, so the
+installed icon launched an inert fresh app. Contradiction in the governing
+prompt surfaced and resolved by owner ruling: app.html repointed to
+bridge-turn24-post-ship.html so the matrix can run. New standing rule 0a:
+rules prevent harm, not progress. Candidate itself untouched.
 
 **v14.11.1 · 2026-08-16.** Backlog B-8c recorded: invite link/QR keeps the
 creation-time name after a rename; owner's ruled design — override-able name

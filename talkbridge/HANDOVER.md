@@ -190,3 +190,13 @@ approved ship — noted, NOT changed); worker-talk.js SHA 7dadc8d... unchanged;
 manifest start_url ./app.html; invitation #j= via encInv carrying k/tid/tok;
 Link Device same encoding with ld:1. Device matrix A1–A12 is the owner's;
 app.html repoint happens only after the matrix passes. PHASE B NOT STARTED.
+
+## Session 2026-08-21 — A8 unblocked; standing rule 0a added
+
+A8 failed structurally: start_url=app.html pointed at the old build (no
+handoff/PWA code) — owner's install sequence was correct. Contradiction in
+the governing prompt reported, owner ruled: app.html now points at
+bridge-turn24-post-ship.html. New plan rule 0a: rules prevent harm, not
+progress — surface intent, recommend, never silently violate or sit blocked.
+Owner re-running the matrix: open invite in Safari → Add to Home Screen →
+tap icon within 10 min (delete the stale icon first).
