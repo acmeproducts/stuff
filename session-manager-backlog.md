@@ -464,3 +464,17 @@ The historical graveyard through G-033 remains part of project history and conti
 **Next.** Step 2: port project card context menu/Customize/reorder, omni search, manifest export, message recovery. Step 3: replace OC long-press card drag with the pointer-based tab treatment on mobile. Owner device gate before each.
 
 **Owner ruling.** G-049 — Two builds with different sync dialects writing one SOT: buried 2026-08-21. One build is the writer; OC receives GH deployments.
+
+# v2.10.1 FULL MERGE OF THE TWO 2.9 LINES — 2026-08-21
+
+**Finding.** The repo history is linear but forked in content: the Aug 17 line (v2.9.12–2.9.22: project cards, context menu, Customize, card reorder, dual omnisearch, full project export/share, message recovery, fine-grained SOT events, compact mobile composer) was overwritten on Aug 18 by a second 2.9.12 built from 2.9.11. Both lines then advanced under the same version numbers. The OC host was serving the Aug 17 line; GitHub Pages the Aug 18 line. This is the G-047 failure.
+
+**Method.** True three-way merge: base = 2.9.11 (bf88a9e), ours = 2.10.0, theirs = 2.9.22 (65c820d). Five conflicts resolved: CSS keep both; SOT schema keep forward-tolerant reader; apply-events keep quota-safe variant; save keeps diff-based emitter. Outbox is compacted on every emit so the two emitter styles never double-write.
+
+**Result — one build with everything:**
+- Aug 17 line: project card context menu, Customize (color/size), card reorder, omnisearch, project export/share/download, message recovery, compact mobile composer.
+- Aug 18 line: pinch/A± transcript scale, swipe-to-quote with reply chip, quota-safe storage, no-store reads, implausible-list guard, markdown completion, HTML preview.
+- Today: timestamp-wins compaction, empty-snapshot guard, unified event model.
+- Project-card mobile drag rebuilt on the tab gesture engine: hold-to-arm or slow-drag-to-arm, fast flick still scrolls, floating ghost, orange insert edge, click suppression, double-tap opens card menu.
+
+**Owner ruling.** G-050 — Releasing a version number already used by a published build: buried 2026-08-21. Version numbers are allocated from the repo log, never from memory.
