@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.11.0 -->
-# TALKBRIDGE MASTER PLAN v14.11.0
+<!-- TALKBRIDGE-PLAN v14.11.1 -->
+# TALKBRIDGE MASTER PLAN v14.11.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -123,6 +123,19 @@ mutation-tested with fresh defects. Nothing ships red.
 ### 2d · Backlogged out of R8
 
 `&debug=1` — owner ruling: high risk, no reward right now.
+
+### 2e · Backlog — owner observations, recorded not scheduled
+
+(B-8a) Timer values differ between sides by the time between call placed and
+call answered.
+(B-8b) A room-name change doesn't reach a partner sitting in the room menu
+until they exit it.
+(B-8c, 2026-08-16) The invite link/QR carries the name captured when the room
+was created; renaming yourself later in the room menu does NOT update what the
+invite says ("Bob is inviting you…" persists after Bob → Alice). Owner ruling
+on the clean fix, when scheduled: room CREATION gets a name field that
+SUGGESTS the standing name but can be overridden per room (e.g. "Mr Jones"
+for formal invites); the invite carries that room's name.
 
 ---
 
@@ -496,6 +509,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.11.1 · 2026-08-16.** Backlog B-8c recorded: invite link/QR keeps the
+creation-time name after a rename; owner's ruled design — override-able name
+suggestion at room creation. Observation only; nothing built, A8 device
+testing continues on 24·post-ship.
 
 **v14.11.0 · 2026-08-16.** Owner correction: we are at TURN 24, and R10's
 candidate belongs at its POST-SHIP stage, not at a new turn. Turn/stage ledger
