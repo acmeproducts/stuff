@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.1.0 -->
-# TALKBRIDGE MASTER PLAN v15.1.0
+<!-- TALKBRIDGE-PLAN v15.2.0 -->
+# TALKBRIDGE MASTER PLAN v15.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -37,7 +37,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — PWA + notifications + CUSTOMER JOURNEY | REBUILT per §4c — AWAITING owner device matrix | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — PWA + notifications + CUSTOMER JOURNEY | ROLLED BACK (Android mic dead on rebuild; cause unestablished; evidence log needed on the buried build) | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -575,6 +575,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.2.0 · 2026-08-22.** Device gate FAILED: Android microphone dead on the
+journey rebuild. Rolled back to 24·ship. Cause NOT established — no appended
+code touches audio; this was also Android's first run of ANY Phase A build,
+so the defect may be candidate-lineage, not journey parts. Failed build
+preserved at fixtures/buried-2026-08-22-postship-journey.html. Next step is
+evidence, not a rebuild: one Android debug log from that URL during a mic
+attempt.
 
 **v15.1.0 · 2026-08-22.** The §4c rebuild is DONE in one build: Phase A parts
 as validated + F1–F4 + the journey. J2 routes by real user agent (Chrome-on-

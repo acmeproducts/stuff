@@ -927,3 +927,25 @@ injected element's PLACEMENT is asserted from the real DOM (parent, siblings),
 not just its existence. PA4 anchors on the toggle ROW read from the real
 markup and inserts before it; a mutation reintroducing the exact defect is
 caught by the placement test.
+
+## The journey rebuild — Android microphone completely dead · FAILED DEVICE GATE · Aug 22 2026
+
+Rolled back to 24·ship immediately; the failed build is preserved verbatim at
+talkbridge/fixtures/buried-2026-08-22-postship-journey.html for evidence
+capture only.
+
+Cause NOT established, stated plainly. What is known by reading: none of the
+appended parts references the microphone, audio, media devices, or the
+Deepgram pipeline — the media-control ban held at the code level. One
+structural irregularity found and recorded without claiming it is the cause:
+the Phase A candidate places an HTML comment BEFORE the doctype, which
+Android Chrome tolerates for rendering but is a deviation carried since the
+candidate was first assembled. This was also the Android phone's FIRST run of
+any Phase A build (its earlier log was a stale pre-Phase-A build), so the
+failure may belong to the candidate lineage as a whole on Android, not to the
+journey parts — undetermined either way.
+
+Rule (existing, reaffirmed): when cause is unknown, instrument and read the
+log; never declare root cause from reasoning. The next step is one Android
+debug log captured on the buried build's URL during a mic attempt — that log
+names the failing call. No rebuild before that evidence.
