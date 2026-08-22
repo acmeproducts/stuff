@@ -114,25 +114,45 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
-    /* If a window is already open and focused, the app is handling this over
-       its own connection and a notification would be noise. */
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (clients.some((c) => c.visibilityState === 'visible')) return;
 
-    /* Tell any open-but-hidden window to reconcile, so returning to it is
-       already up to date. */
+    /* Tell any open window to reconcile, so returning to it is up to date. */
     clients.forEach((c) => { try { c.postMessage({ type: 'tb-push' }); } catch (_) {} });
+    const visible = clients.some((c) => c.visibilityState === 'visible');
 
-    const ctx = await loadContext();
-    const counts = await countMissed(ctx);
-    const body = counts ? summarise(counts) : 'New activity';
-
+    /* iOS terminates a push subscription that receives pushes without showing
+       notifications. Every push therefore shows one, immediately, before any
+       network work. When the app is visibly open the notification is closed
+       again at once — the display requirement is met with nothing left on
+       screen. The old handler's silent return here is the likely cause of
+       subscriptions dying quietly ("stuck"). */
     await self.registration.showNotification('TalkBridge', {
-      body: body,
+      body: 'New activity',
       tag: TAG,               /* replaces rather than stacks */
-      renotify: true,
+      renotify: !visible,
       data: { url: APP_URL }
     });
+    if (visible) {
+      const shown = await self.registration.getNotifications({ tag: TAG });
+      shown.forEach((n) => n.close());
+      return;
+    }
+
+    /* Better wording is a bonus, never worth delaying or losing the banner:
+       the count fetch races a short clock and loses gracefully. The old
+       handler fetched every room's history BEFORE showing anything — on iOS
+       the worker's grace period could expire mid-fetch and no banner appeared. */
+    const counts = await Promise.race([
+      (async () => countMissed(await loadContext()))(),
+      new Promise((res) => setTimeout(() => res(null), 2500))
+    ]).catch(() => null);
+    if (counts) {
+      await self.registration.showNotification('TalkBridge', {
+        body: summarise(counts),
+        tag: TAG,
+        data: { url: APP_URL }
+      });
+    }
   })());
 });
 
