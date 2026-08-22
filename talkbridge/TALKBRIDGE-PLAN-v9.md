@@ -584,6 +584,15 @@ notification permission), with the accidental lanes (android-pwa) named
 explicitly, so no future log leaves the lane in question. 31/31 harness,
 27/27 mutations incl. lane misrouting and silent-telemetry defects.
 
+**v15.3.0 · 2026-08-22.** Owner ruling: one path forward, stop chasing the
+mic evidence, rebuild. 24·post-ship rebuilt = Phase A + F1–F4 + journey
+J1–J5 + LANE TELEMETRY: every boot logs one line naming its lane (including
+the accidental android-pwa lane that ate the mic) plus live mic and
+notification permission state — no capture ever again leaves us guessing
+which experience the person was having. Upgrade surfaces only ever offer
+from a healthy lane. Harness 31/31; fresh mutations incl. unnamed-lane and
+silent-mic-state caught.
+
 **v15.2.0 · 2026-08-22.** Device gate FAILED: Android microphone dead on the
 journey rebuild. Rolled back to 24·ship. Cause NOT established — no appended
 code touches audio; this was also Android's first run of ANY Phase A build,

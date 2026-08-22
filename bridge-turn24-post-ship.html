@@ -8079,45 +8079,41 @@ document.addEventListener('visibilitychange', function () {
 /* ═══════════ GAP PART · PL-lane-telemetry.js ═══════════ */
 /* @contract
    wraps: nothing
-   adds: plLane, plReport, one boot report + one per foreground return
+   adds: plLane, plReport (one boot log line: lane + mic + notification state)
 */
 /* ─────────────────────────────────────────────────────────────────────────────
-   Anti-splinter (plan §4b, owner 2026-08-22): ONE path, one optional upgrade,
-   and the app always KNOWS AND SAYS which lane it is in. Every boot and every
-   return to foreground logs one line: lane + microphone permission +
-   notification permission. No log ever again leaves us guessing which
-   experience the person was having. Read-only; changes nothing.
+   Owner, 2026-08-22: the onboarding path is splintering. One rule from now
+   on: every boot names its LANE — including the accidental ones, like the
+   Android install that ate the mic — and its permission state, in ONE log
+   line. Read-only; changes nothing.
    ───────────────────────────────────────────────────────────────────────────── */
-
 function plLane(ua, standalone) {
   ua = ua || navigator.userAgent || '';
   if (standalone === undefined) standalone = !!(window.__TB_R10 && window.__TB_R10.standalone);
-  if (/iP(hone|ad|od)/.test(ua)) {
+  var ios = /iP(hone|ad|od)/.test(ua);
+  if (ios) {
     if (standalone) return 'ios-pwa';
     if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua) || !/Safari\//.test(ua)) return 'ios-other-browser';
     return 'ios-safari';
   }
   if (/Android/.test(ua)) return standalone ? 'android-pwa' : 'android-tab';
-  return standalone ? 'pwa' : 'browser';
+  return standalone ? 'desktop-pwa' : 'desktop-tab';
 }
 
-function plReport(trigger) {
+function plReport() {
   try {
-    var out = { lane: plLane(), at: trigger || 'boot' };
-    var finish = function () { r8Log('lane', out, 'ok'); };
-    out.notif = (window.Notification && Notification.permission) || '?';
+    var out = { lane: plLane(), notif: (window.Notification && Notification.permission) || 'unsupported', mic: 'unknown' };
+    var done = function () { r8Log('lane', out, 'ok'); };
     if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'microphone' }).then(function (r) {
-        out.mic = (r && r.state) || '?';
-        finish();
-      }).catch(function () { out.mic = '?'; finish(); });
-    } else { out.mic = '?'; finish(); }
+      navigator.permissions.query({ name: 'microphone' }).then(function (st) {
+        out.mic = st.state; done();
+      }).catch(function () { done(); });
+    } else done();
   } catch (_) {}
 }
-
-setTimeout(function () { try { plReport('boot'); } catch (_) {} }, 1100);
+setTimeout(plReport, 1000);
 document.addEventListener('visibilitychange', function () {
-  try { if (!document.hidden) plReport('return'); } catch (_) {}
+  try { if (!document.hidden) plReport(); } catch (_) {}
 });
 </script>
 </body>

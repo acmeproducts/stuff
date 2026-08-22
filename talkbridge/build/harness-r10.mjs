@@ -271,6 +271,7 @@ seed.w.close();
   });
   T('L2 the boot report carries lane + mic + notif in one line', () => {
     A(String(w.plReport).includes("'microphone'") && String(w.plReport).includes('Notification.permission'), 'permissions not reported');
+    A(String(w.plReport).includes('out.mic = st.state'), 'mic state queried but never written into the line');
     A(String(w.plReport).includes("r8Log('lane'"), 'lane line not logged');
   });
   T('F6 named font surfaces still raised', () => {
