@@ -894,3 +894,23 @@ WebSocket half-alive for minutes. Zombie socket = counted as listening = no
 wake. Rule: presence must be RELEASED, not inferred — a client leaving the
 foreground tells the relay so, deliberately, unless a live call needs the
 socket. Fixed client-side only; the relay's design was correct and untouched.
+
+## 24·post-ship v2 — the background-release build caused major regressions and carried unrequested work · FAILED DEVICE GATE · Aug 21 2026
+
+Rolled back to the v1 candidate. Two failures, stated plainly:
+
+1. The build regressed heavily on device. The change reached into the
+   connection lifecycle — closing the relay socket on background touches
+   presence, reconnect, receipts, resend, and everything downstream of a
+   socket teardown. That blast radius was not respected. No root cause is
+   recorded here because none was established; the build is buried, not
+   explained.
+2. It shipped work the owner did not ask for. The standing rule already
+   existed and was violated. Reaffirmed in absolute terms: NOTHING
+   UNREQUESTED SHIPS. A fix proposal for anything touching the connection
+   lifecycle is presented to the owner as a proposal first — mechanism,
+   blast radius, test plan — and is built only on explicit go.
+
+The A8 wake problem (locked phone gets no notification; pile-up later)
+returns to OPEN. The zombie-socket reading of the relay's wake logic stands
+as evidence-backed diagnosis; the SOLUTION is undecided and owner-gated.

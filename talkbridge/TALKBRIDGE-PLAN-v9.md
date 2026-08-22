@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.13.0 -->
-# TALKBRIDGE MASTER PLAN v14.13.0
+<!-- TALKBRIDGE-PLAN v14.14.0 -->
+# TALKBRIDGE MASTER PLAN v14.14.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -522,6 +522,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.14.0 · 2026-08-21.** v2 FAILED the device gate with major regressions
+and carried unrequested scope — rolled back to the v1 candidate (graveyard).
+A8 wake problem re-opened: diagnosis (relay wakes only socket-absent clients;
+iOS zombie sockets) stands; any solution is a PROPOSAL to the owner first,
+built only on explicit go. Rule reaffirmed: nothing unrequested ships.
 
 **v14.13.0 · 2026-08-21.** A8 first evidence round. HANDOFF PASSED — owner
 installed via cookie bridge and ran rooms, speech, calls. PUSH FAILED with
