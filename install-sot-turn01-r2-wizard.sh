@@ -3,8 +3,8 @@ set -euo pipefail
 ROOT=/home/support/.openclaw/workspace/https/report
 API="$ROOT/sot-api.js"
 OUT_UI="$ROOT/SOT/sot-turn01-r2-wizard.html"
-# Immutable dependency snapshot: includes R2 backend, wizard UI, and pre-install correction.
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/ce557a9cfe50f4d75be837ae554a991dac6809ca
+# Immutable dependency snapshot including R2 performance correction.
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/7edf841f4b7f177b6bcf86f6f4a0b2eb261dd61f
 BUILD=2026.08.22.turn01-r2-wizard
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -25,8 +25,9 @@ done < <(ls -1t "$API".before-turn01-* 2>/dev/null || true)
 echo "Recovery base backend: $BASE_API"
 
 echo '=== DOWNLOAD + OFFLINE GATES ==='
-for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-turn01-r2-wizard.html sot-ui-turn01-r2-preinstall-fix.js; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
-for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-ui-turn01-r2-preinstall-fix.js; do node --check "$TMP/$f"; done
+FILES=(sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-backend-turn01-r2-performance-addon.js sot-turn01-r2-wizard.html sot-ui-turn01-r2-preinstall-fix.js)
+for f in "${FILES[@]}"; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-backend-turn01-r2-performance-addon.js sot-ui-turn01-r2-preinstall-fix.js; do node --check "$TMP/$f"; done
 python3 - "$TMP/sot-turn01-r2-wizard.html" "$TMP/sot-ui-turn01-r2-preinstall-fix.js" "$TMP/ui.js" <<'PY'
 import re,sys,pathlib
 p=pathlib.Path(sys.argv[1]);fix=pathlib.Path(sys.argv[2]).read_text();h=p.read_text()
@@ -47,12 +48,13 @@ if '2026.08.20.6.9.1-wsl-path-centric-analysis' not in s: raise SystemExit('6.9.
 if any(x in s for x in ['TURN01_BUILD','TURN01_R1_BUILD','TURN01_R2_BUILD']): raise SystemExit('contaminated recovery base')
 marker='module.exports={handle,VERSION,BUILD};'
 if marker not in s: raise SystemExit('backend export marker missing')
-parts=[(T/x).read_text() for x in ['sot-backend-turn01-prebase-addon.js','sot-backend-turn01-r1-bridge-addon.js','sot-backend-turn01-r2-workflow-addon.js']]
+parts=[(T/x).read_text() for x in ['sot-backend-turn01-prebase-addon.js','sot-backend-turn01-r1-bridge-addon.js','sot-backend-turn01-r2-workflow-addon.js','sot-backend-turn01-r2-performance-addon.js']]
 s=s.replace(marker,'\n'.join(parts)+'\n'+marker,1);api.write_text(s)
 PY
 node --check "$TMP/sot-api.candidate.js"
 node -e "require(process.argv[1]); console.log('candidate require OK')" "$TMP/sot-api.candidate.js"
 grep -q "$BUILD" "$TMP/sot-api.candidate.js"
+grep -q 'TURN01_R2_PERF' "$TMP/sot-api.candidate.js"
 
 echo '=== INSTALL R2 CANDIDATE ==='
 STAMP="$(date +%Y%m%d-%H%M%S)";API_BAK="$API.before-turn01-r2-$STAMP";UI_BAK=""
@@ -63,46 +65,61 @@ mkdir -p "$ROOT/SOT";cp -a "$TMP/sot-api.candidate.js" "$API";cp -a "$TMP/sot-tu
 for i in {1..20}; do sleep 1;if curl --max-time 5 -fsS http://127.0.0.1:18080/api/sot/health -o "$TMP/health.json" 2>/dev/null;then break;fi;done
 python3 - "$TMP/health.json" "$BUILD" <<'PY'
 import json,sys,pathlib
-p=pathlib.Path(sys.argv[1]);
+p=pathlib.Path(sys.argv[1])
 if not p.exists(): raise SystemExit('no health response')
-x=json.loads(p.read_text());
+x=json.loads(p.read_text())
 if x.get('status')!='ok' or x.get('build')!=sys.argv[2]: raise SystemExit('wrong build: '+repr(x))
 if 'turn01-linear-workflow-controller' not in (x.get('capabilities') or []): raise SystemExit('workflow controller capability missing')
 print(json.dumps(x,indent=2))
 PY
 
-echo '=== REAL CORPUS + WORKFLOW GATE ==='
-curl --max-time 15 -fsS http://127.0.0.1:18080/api/sot/turn01/r1/evidence-status -o "$TMP/evidence.json"
-curl --max-time 15 -fsS http://127.0.0.1:18080/api/sot/turn01/projects -o "$TMP/projects.json"
+echo '=== REAL CORPUS GATE (LIGHTWEIGHT) ==='
+curl --max-time 10 -fsS http://127.0.0.1:18080/api/sot/turn01/r1/evidence-status -o "$TMP/evidence.json"
+curl --max-time 10 -fsS http://127.0.0.1:18080/api/sot/turn01/projects -o "$TMP/projects.json"
 python3 - "$TMP/evidence.json" "$TMP/projects.json" <<'PY' > "$TMP/token.txt"
 import json,sys
-e=json.load(open(sys.argv[1]));p=json.load(open(sys.argv[2]));i=e.get('intelligence') or {}
+e=json.load(open(sys.argv[1]));p=json.load(open(sys.argv[2]))
+print('evidence:',{k:e.get(k) for k in ['projects','sources','manifests','inventory','observations','unique_observation_hashes','observation_bytes']},file=sys.stderr)
 if e.get('projects',0)<1 or e.get('sources',0)<1: raise SystemExit('real project/source corpus missing')
-if i.get('observations',0)<1 or i.get('unique_content',0)<1: raise SystemExit('real corpus evidence missing')
+if e.get('observations',0)<1 or e.get('unique_observation_hashes',0)<1: raise SystemExit('real corpus evidence missing')
 ps=p.get('projects') or []
 if not ps: raise SystemExit('no project available for workflow gate')
 print(ps[0]['project_token'])
 PY
 TOKEN="$(tail -1 "$TMP/token.txt")";Q="$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$TOKEN")"
-curl --max-time 15 -fsS "http://127.0.0.1:18080/api/sot/turn01/workflow/$Q" -o "$TMP/workflow.json"
-python3 - "$TMP/workflow.json" <<'PY'
+
+echo '=== SINGLE-PASS WORKFLOW GATE ==='
+START="$(date +%s)"
+curl --max-time 30 -fsS "http://127.0.0.1:18080/api/sot/turn01/workflow/$Q" -o "$TMP/workflow.json"
+END="$(date +%s)"
+python3 - "$TMP/workflow.json" "$((END-START))" <<'PY'
 import json,sys
-x=json.load(open(sys.argv[1]));w=x.get('workflow') or {};g=x.get('gates') or {}
+x=json.load(open(sys.argv[1]));elapsed=int(sys.argv[2]);w=x.get('workflow') or {};g=x.get('gates') or {}
 if w.get('current_step') not in range(1,8): raise SystemExit('invalid workflow step')
 if len(x.get('sources') or [])<1: raise SystemExit('workflow project has no sources')
 if (x.get('intelligence') or {}).get('observations',0)<1: raise SystemExit('workflow snapshot exposes no evidence')
 for n in map(str,range(1,8)):
     if n not in g and int(n) not in g: raise SystemExit('missing gate '+n)
+print('workflow response seconds:',elapsed)
 print('workflow step:',w.get('current_step'),w.get('step_name'),'sources:',len(x.get('sources') or []),'observations:',x['intelligence']['observations'],'plan items:',len((x.get('plan') or {}).get('items') or []))
 PY
 
+echo '=== SCHEDULER GATE ==='
+curl --max-time 10 -fsS http://127.0.0.1:18080/api/sot/scheduler/status -o "$TMP/scheduler.json"
+python3 - "$TMP/scheduler.json" <<'PY'
+import json,sys
+s=json.load(open(sys.argv[1]))
+if s.get('worker_pool')!=4 or len(s.get('workers') or [])!=4: raise SystemExit('global scheduler gate failed')
+print('global workers:',s['worker_pool'],'queue:',len(s.get('queue') or []))
+PY
+
 echo '=== PUBLIC WIZARD GATE ==='
-PUBLIC="https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260822-r2"
+PUBLIC="https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260822-r2p1"
 curl --max-time 20 -fsS "$PUBLIC" -o "$TMP/public.html"
 for m in '1. Project' '2. Sources' '3. Process' '4. Review' '5. Plan' '6. Execute' '7. Certify'; do grep -q "$m" "$TMP/public.html";done
 
 echo '=== TURN01 R2 WIZARD INSTALLED ==='
-echo "Backend: $BUILD"
+echo "Backend: $BUILD + perf1"
 echo 'Workflow: one linear controller; one forward action; one-step Back only.'
 echo 'Existing project.html and R1 artifact remain untouched.'
 echo "URL: $PUBLIC"
