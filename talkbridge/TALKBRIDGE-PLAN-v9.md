@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.17.0 -->
-# TALKBRIDGE MASTER PLAN v14.17.0
+<!-- TALKBRIDGE-PLAN v14.18.0 -->
+# TALKBRIDGE MASTER PLAN v14.18.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -522,6 +522,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.18.0 · 2026-08-22.** Both device logs read. iPhone: candidate runs,
+standalone, SW registered — and notification permission was NEVER granted;
+zero subscription events. Every silent case on that phone (locked, unfocused,
+in-app other-room via osNotify) shares that one cause. Android: log contains
+NO candidate events at all — that phone is on a pre-Phase-A build; nothing
+can notify it until it loads the candidate. 24·post-ship v5 ships the fix
+that matters: an unmissable enable banner at the top of the home panel
+whenever rooms exist, push is supported, and permission isn't granted; tap
+runs the existing enable flow (the tap is iOS's required gesture);
+capability-gated so an Android tab gets it too; self-removes once on.
+Harness 25/25 (placement asserted), mutations 20/20.
 
 **v14.17.0 · 2026-08-22.** 24·post-ship v4 (supersedes v3's PA3, graveyard):
 create window wears the card flag band; the name prompt is its own labelled

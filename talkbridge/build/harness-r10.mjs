@@ -223,12 +223,28 @@ seed.w.close();
     w.pa4CenterAskCard();
     A(card.style.margin === '', 'did not return to resting spot');
   });
+  T('F7 permission not granted + rooms exist => banner sits at the TOP of the panel', () => {
+    w.S.rooms = [{ id: 'r1', myName: 'x' }];
+    w.Notification.permission = 'default';
+    w.pa5Banner();
+    const b = d2.getElementById('pa5-nb');
+    A(b, 'banner missing');
+    A(b.nextElementSibling && b.nextElementSibling.id === 'panel-body', 'banner not directly above panel-body');
+    A(/Tap to enable/.test(b.textContent), 'banner copy wrong');
+  });
+  T('F8 permission granted => banner removes itself', () => {
+    w.Notification.permission = 'granted';
+    w.pa5Banner();
+    A(!d2.getElementById('pa5-nb'), 'banner still shown after grant');
+  });
   T('F6 named font surfaces still raised', () => {
     const tt = d2.querySelector('.talking-to');
     A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
   });
   w.close();
 }
+
+
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

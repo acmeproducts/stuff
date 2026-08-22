@@ -46,6 +46,10 @@ const mutations = [
    s => s.replace("card.style.margin = top + 'px auto auto';", ';')],
   ['the room-menu label size quietly shrinks again',
    s => s.replace("'.talking-to{font-size:15px}' +", "'' +")],
+  ['the enable banner never renders',
+   s => s.replace("host.parentNode.insertBefore(b, host);          /* TOP of the panel, unmissable */", ';')],
+  ['the banner lingers after permission is granted',
+   s => s.replace("if (!pa5NeedsEnable()) { if (existing) existing.remove(); return; }", 'if (!pa5NeedsEnable()) { return; }')],
 ];
 let caught = 0, missed = [];
 for (const [name, fn] of mutations) {
