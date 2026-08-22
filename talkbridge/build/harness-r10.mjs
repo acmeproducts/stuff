@@ -178,24 +178,38 @@ seed.w.close();
   w.close();
 }
 
-{ /* P8/P9: background presence release (A8 wake evidence) */
+
+
+
+{ /* F1-F4: owner fixes — S0 card position, named font surfaces, B-8c name override */
   const { w } = await boot({ url: 'https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html', standalone: true });
   const d2 = w.document;
-  let closed = 0;
-  w._relayWs = { close(){ closed++; }, readyState: 1 };
-  w.CALL.active = false;
-  Object.defineProperty(d2, 'hidden', { configurable: true, get(){ return true; } });
-  d2.dispatchEvent(new w.Event('visibilitychange'));
-  T('P8 hiding the app with no call releases the socket so the relay can wake us', () => {
-    A(closed === 1 && w._relayWs === null, 'socket not released (closed=' + closed + ')');
-    A(w.R8_BGREL && w.R8_BGREL.released === true, 'release not recorded');
+  T('F1 first-run name card pinned to the upper screen, not centered', () => {
+    const css = [...d2.querySelectorAll('style')].map(s => s.textContent).join('\n');
+    A(css.includes('#scr-s0 .ask-card{margin:10vh auto auto}'), 'S0 position rule missing');
   });
-  closed = 0;
-  w._relayWs = { close(){ closed++; }, readyState: 1 };
-  w.CALL.active = true;
-  d2.dispatchEvent(new w.Event('visibilitychange'));
-  T('P9 a live call keeps its signaling socket on background', () => {
-    A(closed === 0 && w._relayWs !== null, 'live call socket was dropped');
+  T('F2 named surfaces render at the raised sizes (measured, live)', () => {
+    const tt = d2.querySelector('.talking-to');
+    A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
+    const fl = d2.querySelector('.field-label');
+    A(fl && w.getComputedStyle(fl).fontSize === '13px', 'field-label not 13px');
+  });
+  T('F3 room creation suggests the standing name and honors an override', () => {
+    w.S.user.name = 'Bob'; 
+    w.openS3();
+    const inp = d2.getElementById('s3-myname');
+    A(inp && inp.value === 'Bob', 'suggestion not prefilled');
+    inp.value = 'Mr Jones';
+    d2.getElementById('s3-ok').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const r = w.activeRoom();
+    A(r && r.myName === 'Mr Jones', 'override not stored on the room: ' + (r && r.myName));
+  });
+  T('F4 the invite carries the ROOM name, so menu renames reach new invites', () => {
+    const r = w.activeRoom();
+    r.myName = 'Alice';
+    const p = w.decInv(w.invUrl(r).split('#j=')[1]);
+    A(p && p.n === 'Alice', 'invite still carries the stale name: ' + (p && p.n));
+    A(p.r === r.id && 'k' in p, 'other payload fields damaged');
   });
   w.close();
 }

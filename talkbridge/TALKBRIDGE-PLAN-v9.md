@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.14.0 -->
-# TALKBRIDGE MASTER PLAN v14.14.0
+<!-- TALKBRIDGE-PLAN v14.15.0 -->
+# TALKBRIDGE MASTER PLAN v14.15.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -522,6 +522,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.15.0 · 2026-08-22.** 24·post-ship v3 = v1 + exactly the four owner
+items, built to their words: (B-8c) room creation shows a name field prefilled
+with the standing name, overridable; the invite/QR is post-processed to carry
+the ROOM's name, so menu renames now reach new invites too. (11.9) the
+first-run name card sits in the upper screen instead of centered. (11.8)
+measured, not guessed: .talking-to was 12px and never raised — now 15px; date
+and "is now" pills 15px; field labels 13px. (4) the relay wake lag is NOT in
+this build — owner-gated proposal pending. Harness 21/21, mutations 15/15.
 
 **v14.14.0 · 2026-08-21.** v2 FAILED the device gate with major regressions
 and carried unrequested scope — rolled back to the v1 candidate (graveyard).

@@ -7671,6 +7671,122 @@ setTimeout(function () {
     r8Log('r10_init', { standalone: TB_R10.standalone, build: TB_R10.build }, 'ok');
   } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
 }, 700);
+
+/* ═══════════ GAP PART · PA3-owner-fixes.js ═══════════ */
+/* @contract
+   wraps: openS3 (prefill only, calls through), invUrl (post-processes the
+   returned URL's name field; payload otherwise untouched, secrets never read)
+   adds: PA3_CSS, one additional s3-ok listener (runs after the base's own)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   Exactly the four surfaces the owner named, nothing else:
+   1. B-8c  — room creation suggests the standing name, overridable per room;
+             the invite/QR carries the ROOM's name, so later renames in the
+             room menu update what the partner sees too. (The base read
+             S.user.name at share time and ignored room.myName entirely.)
+   2. 11.9 — the first-run name card sat vertically centered ("halfway,
+             above the fold"); it now sits in the upper part of the screen.
+   3. 11.8 — measured sizes on the named surfaces: .talking-to (room-menu
+             "You ↔ Partner") was 12px and never raised; date pills and
+             "is now" pills and field labels raised to clearly readable.
+   4. The relay wake lag is NOT in this build — owner-gated proposal only.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var PA3_CSS =
+  /* 11.9 — first-run card near the top, where thumbs and eyes are */
+  '#scr-s0 .ask-card{margin:10vh auto auto}' +
+  /* 11.8 — the named surfaces, raised */
+  '.talking-to{font-size:15px}' +
+  '.pill span{font-size:15px}' +
+  '.field-label{font-size:13px}';
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'pa3-css';
+    st.textContent = PA3_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+})();
+
+/* B-8c — the creation modal gets a name field, prefilled and overridable. */
+function pa3InjectCreateName() {
+  try {
+    if (document.getElementById('s3-myname')) return true;
+    var ok = document.getElementById('s3-ok');
+    if (!ok) return false;
+    var modalBody = ok.closest ? ok.closest('.modal-card') : null;
+    var anchor = document.getElementById('s3-autoread');
+    if (!anchor || !anchor.parentNode) return false;
+    var lab = document.createElement('label');
+    lab.className = 'field-label';
+    lab.textContent = 'Your name in this room (partner sees this)';
+    var inp = document.createElement('input');
+    inp.className = 'field-input';
+    inp.id = 's3-myname';
+    inp.maxLength = 40;
+    anchor.parentNode.insertBefore(lab, anchor);
+    anchor.parentNode.insertBefore(inp, anchor);
+    return true;
+  } catch (_) { return false; }
+}
+
+(function () {
+  if (typeof openS3 === 'function') {
+    var _pa3OpenS3 = openS3;
+    openS3 = function () {
+      var r = _pa3OpenS3.apply(this, arguments);
+      try {
+        pa3InjectCreateName();
+        var inp = document.getElementById('s3-myname');
+        if (inp) inp.value = (S.user && S.user.name) || '';   /* suggested, overridable */
+      } catch (_) {}
+      return r;
+    };
+  }
+})();
+
+/* Runs AFTER the base's own s3-ok handler (registered later), so the room the
+   base just created and entered is the active one. */
+setTimeout(function () {
+  try {
+    pa3InjectCreateName();
+    var ok = document.getElementById('s3-ok');
+    if (!ok) return;
+    ok.addEventListener('click', function () {
+      try {
+        var inp = document.getElementById('s3-myname');
+        if (!inp) return;
+        var v = (inp.value || '').trim().slice(0, 40);
+        var r = activeRoom();
+        if (r && v && v !== r.myName) { r.myName = v; saveRooms(); }
+        r8Log('pa3_room_name', { overridden: !!(r && v && v !== ((S.user && S.user.name) || '')) }, 'ok');
+      } catch (_) {}
+    });
+  } catch (_) {}
+}, 700);
+
+/* The invite carries the ROOM's name. The base built n from S.user.name at
+   share time; the URL is post-processed so n is room.myName when set. The
+   payload is decoded and re-encoded with the base's own encInv/decInv —
+   every other field passes through untouched and is never read by name. */
+(function () {
+  if (typeof invUrl === 'function') {
+    var _pa3InvUrl = invUrl;
+    invUrl = function (room) {
+      var url = _pa3InvUrl.apply(this, arguments);
+      try {
+        if (!room || !room.myName) return url;
+        var cut = url.indexOf('#j=');
+        if (cut === -1) return url;
+        var p = decInv(url.slice(cut + 3));
+        if (!p) return url;
+        p.n = room.myName;
+        return url.slice(0, cut) + '#j=' + encInv(p);
+      } catch (_) { return url; }
+    };
+  }
+})();
 </script>
 </body>
 </html>

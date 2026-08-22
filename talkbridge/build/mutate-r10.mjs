@@ -32,10 +32,14 @@ const mutations = [
    s => s.replace("client: deviceId,", "client: deviceId, tb_gh_pat_hint: (localStorage.getItem('tb_gh_pat')||'').slice(0,4),")],
   ['visible build id dropped',
    s => s.replace("'<span class=\"r10-build\">' + TB_R10.build + '</span>'", "''")],
-  ['background release stops closing the socket',
-   s => s.replace('relayDisconnect();', 'void 0;')],
-  ['background release drops a live call socket',
-   s => s.replace("if (typeof CALL !== 'undefined' && CALL.active) return;", ';')],
+  ['the name override is read but never stored on the room',
+   s => s.replace("if (r && v && v !== r.myName) { r.myName = v; saveRooms(); }", ';')],
+  ['the invite silently reverts to the standing name',
+   s => s.replace('p.n = room.myName;', ';')],
+  ['the S0 card slides back to center screen',
+   s => s.replace("'#scr-s0 .ask-card{margin:10vh auto auto}' +", "'' +")],
+  ['the room-menu label size quietly shrinks again',
+   s => s.replace("'.talking-to{font-size:15px}' +", "'' +")],
 ];
 let caught = 0, missed = [];
 for (const [name, fn] of mutations) {
