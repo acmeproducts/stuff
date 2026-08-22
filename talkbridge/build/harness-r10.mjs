@@ -237,6 +237,31 @@ seed.w.close();
     w.pa5Banner();
     A(!d2.getElementById('pa5-nb'), 'banner still shown after grant');
   });
+  T('J2 platform routing: exact journeys per user agent', () => {
+    const P = w.pjPlatform;
+    A(P('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit CriOS/125 Mobile Safari/604.1', false) === 'ios-other-browser', 'Chrome-on-iOS misrouted');
+    A(P('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit Version/17.5 Mobile/15E148 Safari/604.1', false) === 'ios-safari', 'Safari misrouted');
+    A(P('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5) AppleWebKit', true) === 'ios-pwa', 'installed app misrouted');
+    A(P('Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/125 Mobile Safari/537.36', false) === 'other', 'Android misrouted');
+  });
+  T('J5 a payload naming the joiner names this device once, and only once', () => {
+    w.S.user.name = '';
+    A(w.pjAdoptJoinerName({ jn: 'Zoe' }) === true && w.S.user.name === 'Zoe', 'name not adopted');
+    A(w.pjAdoptJoinerName({ jn: 'Mallory' }) === false && w.S.user.name === 'Zoe', 'existing identity overwritten');
+  });
+  T('J5 the tab writes the typed name into the handoff cookie for the PWA', () => {
+    w.__TB_R10.standalone = false; w.__TB_R10.armed = true;
+    A(w.pjAugmentHandoff({ r: 'room9', k: 'kk' }, 'Zoe') === true, 'augment refused');
+    const m = ('; ' + w.document.cookie).match('; tb_install_handoff_v1=([^;]*)');
+    A(m, 'cookie missing');
+    const p = w.decInv(decodeURIComponent(m[1]));
+    A(p && p.jn === 'Zoe' && p.r === 'room9' && p.k === 'kk', 'payload wrong: ' + JSON.stringify(p));
+  });
+  T('J3/J4 surfaces exist, are non-gating, and route through the one enable flow', () => {
+    A(typeof w.pjInstallNudge === 'function' && typeof w.pjRoomEnableBar === 'function', 'surfaces missing');
+    A(String(w.pjRoomEnableBar).includes('r10EnableNotifications'), 'room bar bypasses the enable flow');
+    A(String(w.pjSafariBar).includes('chat right here'), 'J1 violated: hand-to-Safari bar gates instead of informing');
+  });
   T('F6 named font surfaces still raised', () => {
     const tt = d2.querySelector('.talking-to');
     A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');

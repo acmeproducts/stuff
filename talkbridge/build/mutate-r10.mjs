@@ -50,6 +50,12 @@ const mutations = [
    s => s.replace("host.parentNode.insertBefore(b, host);          /* TOP of the panel, unmissable */", ';')],
   ['the banner lingers after permission is granted',
    s => s.replace("if (!pa5NeedsEnable()) { if (existing) existing.remove(); return; }", 'if (!pa5NeedsEnable()) { return; }')],
+  ['the typed name never reaches the handoff cookie',
+   s => s.replace("p2.jn = String(name).slice(0, 40);", ';')],
+  ['an existing identity gets overwritten by an arriving payload',
+   s => s.replace("if (p && p.jn && !(S.user && S.user.name)) {", 'if (p && p.jn) {')],
+  ['Chrome-on-iOS silently routed as Safari',
+   s => s.replace("if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\\//.test(ua) || !/Safari\\//.test(ua)) return 'ios-other-browser';", ';')],
 ];
 let caught = 0, missed = [];
 for (const [name, fn] of mutations) {

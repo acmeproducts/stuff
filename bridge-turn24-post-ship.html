@@ -1,3 +1,4 @@
+<!-- R10-A candidate build · bridge-turn25-base.html · source: bridge-turn24-ship.html (approved 2026-08-15) · governed by talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -324,6 +325,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 <meta name="apple-mobile-web-app-title" content="TalkBridge">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png" type="image/png">
+<link rel="manifest" href="./tb-manifest.webmanifest">
 </head>
 <body>
 <div id="app">
@@ -602,6 +604,64 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
   <div class="status-pop" id="status-pop"></div>
   <div id="toast"></div>
 </div>
+<script>
+/* ═══════════ R10 PHASE A · PRE-BOOTSTRAP HANDOFF (governed) ═══════════
+   Runs BEFORE the TalkBridge startup code consumes location.hash, per the
+   governing prompt A3. Cookie name and attributes are specified exactly.
+   No invitation payload or credential value is ever logged — metadata only.
+   The raw j value is never decoded or re-encoded here; it is carried as-is. */
+(function () {
+  'use strict';
+  var COOKIE = 'tb_install_handoff_v1';
+  var ATTRS = 'Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+  var standalone = false;
+  try {
+    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                 (navigator.standalone === true);
+  } catch (_) {}
+  window.__TB_R10 = { standalone: standalone, staged: false, armed: false, rawLen: 0, log: [] };
+  function plog(ev, meta) { window.__TB_R10.log.push({ ev: ev, meta: meta || {}, ts: Date.now() }); }
+  function readCookie() {
+    var m = ('; ' + document.cookie).match('; ' + COOKIE + '=([^;]*)');
+    return m ? m[1] : null;
+  }
+  try {
+    var h = location.hash || '';
+    var hasJ = h.indexOf('#j=') === 0;
+    if (!standalone) {
+      /* Safari/browser tab: arm the handoff, then let the existing invitation
+         processing continue untouched. No prepare button, no ceremony. */
+      if (hasJ) {
+        var raw = h.slice(3);                       /* RAW existing j value */
+        var enc = encodeURIComponent(raw);
+        if (enc.length > 3800) {
+          plog('pwa_handoff_oversize', { bytes: enc.length, standalone: false });
+        } else {
+          document.cookie = COOKIE + '=' + enc + '; ' + ATTRS;
+          window.__TB_R10.armed = true;
+          window.__TB_R10.rawLen = raw.length;
+          plog('pwa_handoff_armed', { bytes: enc.length, standalone: false });
+        }
+      }
+    } else {
+      /* Standalone PWA: if the URL already carries j, leave it alone. If not,
+         recover the cookie's raw j and place it exactly where the existing
+         bootstrap reads it — location.hash — so the SAME join path runs. */
+      if (!hasJ) {
+        var c = readCookie();
+        if (c) {
+          var rawJ = decodeURIComponent(c);
+          window.__TB_R10.staged = true;
+          window.__TB_R10.rawLen = rawJ.length;
+          try { history.replaceState(null, '', location.pathname + location.search + '#j=' + rawJ); } catch (_) {}
+          if ((location.hash || '').indexOf('#j=') !== 0) location.hash = '#j=' + rawJ;
+          plog('pwa_handoff_staged', { bytes: rawJ.length, standalone: true });
+        }
+      }
+    }
+  } catch (e) { plog('pwa_handoff_error', { e: String(e && e.message || e) }); }
+})();
+</script>
 <script>
 "use strict";
 /* ════════════ CORE / STATE ════════════ */
@@ -7349,6 +7409,672 @@ function pbCommitEditTargetMirror(c, v, changed, prior) {
   };
   pbCommitEdit._r9Original = _r9CommitEdit;
 })();
+
+/* ═══════════ GAP PART · R10-phase-a.js ═══════════ */
+/* @contract
+   wraps: saveRooms (lifecycle-driven subscription/context sync), handleRelay
+          (records last seen relay seq per room — read-only otherwise)
+   adds: TB_R10, r10RelayHttp, r10Post, r10Vapid, r10SyncSubscriptions,
+         r10Unsubscribe, r10PostContext, r10EnableNotifications,
+         r10NotifStatus, r10RenderNotifRow, r10ConsumeHandoff,
+         _r10SaveRooms, _r10HandleRelay
+   Build: R10-A candidate · bridge-turn25-base.html · governed by
+          talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
+   Phase A rules honoured: relay untouched; credentials untouched (tb_dg_key,
+   tb_cf_tid, tb_cf_tok, tb_gh_pat remain exactly where they are); no cache in
+   the SW; no payloads in push; no new lifecycle; smallest possible change. */
+
+var TB_R10 = {
+  build: 'R10-A · turn25-base',
+  standalone: !!(window.__TB_R10 && window.__TB_R10.standalone),
+  subscribedRooms: {},          /* roomId -> true once registered this run */
+  swReady: false
+};
+
+function r10RelayHttp() { return RELAY_WS.replace(/^ws/, 'http'); }
+
+function r10Post(sessionId, body) {
+  var url = r10RelayHttp() + '?app=' + encodeURIComponent(RELAY_APP) +
+    '&session=' + encodeURIComponent(sessionId) +
+    '&client=' + encodeURIComponent(deviceId);
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    });
+}
+
+function r10Vapid(sessionId) { return r10Post(sessionId, { type: 'vapid' }); }
+
+/* ── handoff consumption check (A3.3e/f) — runs after the existing boot has
+      had its chance to consume the staged j through its own path ─────────── */
+function r10ConsumeHandoff() {
+  var st = window.__TB_R10;
+  if (!st || !st.staged) return;
+  var consumed = false;
+  try {
+    /* Consumption evidence, judged by the EXISTING code's own effects: the
+       boot path either created/entered the room (device-link), or staged the
+       joiner landing (S.invitePayload). Either way decInv succeeded. */
+    if (S && (S.invitePayload || S.joinerKeys)) consumed = true;
+    if (!consumed && S && S.rooms && S.rooms.length) {
+      var h = (window.__TB_R10.rawLen > 0);
+      /* device-link path clears the hash after joining; a room now exists */
+      if (h && location.hash.indexOf('#j=') !== 0) consumed = true;
+    }
+  } catch (_) {}
+  if (consumed) {
+    document.cookie = 'tb_install_handoff_v1=; Path=/stuff/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    try { if (location.hash.indexOf('#j=') === 0) history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+    r8Log('pwa_handoff_consumed', { standalone: TB_R10.standalone }, 'ok');
+  } else {
+    /* Do not delete the cookie; surface the failure in the existing log. */
+    r8Log('pwa_handoff_failed', { standalone: TB_R10.standalone, rawLen: window.__TB_R10.rawLen }, 'error');
+  }
+}
+
+/* ── push subscription (A5) — proven path, existing relay, existing SW ───── */
+function r10ActiveRooms() {
+  return (S.rooms || []).filter(function (r) { return !r.deletedAt; });
+}
+
+function r10SyncSubscriptions() {
+  if (!('serviceWorker' in navigator)) return Promise.resolve();
+  return navigator.serviceWorker.ready.then(function (reg) {
+    if (!reg.pushManager) return;
+    return reg.pushManager.getSubscription().then(function (sub) {
+      if (!sub) return;
+      var subJson = sub.toJSON();
+      var jobs = r10ActiveRooms().filter(function (r) { return !TB_R10.subscribedRooms[r.id]; })
+        .map(function (r) {
+          return r10Post(r.id, { type: 'subscribe', subscription: subJson }).then(function (res) {
+            if (res && (res.ok === true || res._status === 200)) {
+              TB_R10.subscribedRooms[r.id] = true;
+              r8Log('push_room_subscribed', { room: String(r.id).slice(-6) }, 'ok');
+            } else r8Log('push_room_subscribe_failed', { room: String(r.id).slice(-6), status: res && res._status }, 'error');
+          }).catch(function (e) { r8Log('push_room_subscribe_failed', { e: String(e && e.message || e) }, 'error'); });
+        });
+      return Promise.all(jobs).then(r10PostContext);
+    });
+  }).catch(function () {});
+}
+
+function r10Unsubscribe(roomId) {
+  /* room-specific by design: subscriptions live per room Durable Object */
+  return r10Post(roomId, { type: 'unsubscribe' }).then(function () {
+    delete TB_R10.subscribedRooms[roomId];
+    r8Log('push_room_unsubscribed', { room: String(roomId).slice(-6) }, 'ok');
+  }).catch(function () {});
+}
+
+function r10UrlB64ToU8(base64) {
+  var pad = '='.repeat((4 - base64.length % 4) % 4);
+  var b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(b); var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function r10EnableNotifications() {
+  /* MUST be called from the user's gesture (A5). One control, no ceremony. */
+  if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }
+  var rooms = r10ActiveRooms();
+  if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
+  return navigator.serviceWorker.ready.then(function (reg) {
+    return reg.pushManager.getSubscription().then(function (existing) {
+      if (existing) return existing;
+      return Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied'); }
+        return r10Vapid(rooms[0].id).then(function (v) {
+          if (!v || !v.key) throw new Error('vapid');
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: r10UrlB64ToU8(v.key) });
+        });
+      });
+    });
+  }).then(function (sub) {
+    if (!sub) throw new Error('no-sub');
+    r8Log('push_subscribed', { endpointHost: (function(){try{return new URL(sub.endpoint).host}catch(_){return '?'}})() }, 'ok');
+    return r10SyncSubscriptions().then(function () { r10NotifStatus('on'); });
+  }).catch(function (e) {
+    if (String(e && e.message) !== 'denied') r8Log('push_enable_failed', { e: String(e && e.message || e) }, 'error');
+  });
+}
+
+/* ── status + the one concise control (A5 production UX) ─────────────────── */
+function r10NotifStatus(state) {
+  TB_R10.notifState = state;
+  var el = document.getElementById('r10-notif');
+  if (!el) return;
+  var lbl = el.querySelector('.r10-n-label');
+  var btn = el.querySelector('.r10-n-btn');
+  if (state === 'on') { if (lbl) lbl.textContent = 'Notifications: On'; if (btn) btn.style.display = 'none'; }
+  else if (state === 'off') { if (lbl) lbl.textContent = 'Notifications: Off'; if (btn) btn.style.display = 'none'; }
+  else if (state === 'prompt') { if (lbl) lbl.textContent = 'Notifications'; if (btn) btn.style.display = ''; }
+  else { if (lbl) lbl.textContent = 'Notifications: unavailable'; if (btn) btn.style.display = 'none'; }
+}
+
+function r10RenderNotifRow() {
+  var body = document.getElementById('panel-body');
+  var host = body ? body.parentNode : null;
+  if (!host || document.getElementById('r10-notif')) return;
+  var row = document.createElement('div');
+  row.id = 'r10-notif';
+  row.className = 'app-build-row';
+  if (TB_R10.standalone) {
+    row.innerHTML = '<span class="r10-n-label">Notifications</span>' +
+      '<button class="r10-n-btn" type="button">Enable notifications</button>' +
+      '<span class="r10-build">' + TB_R10.build + '</span>';
+    row.querySelector('.r10-n-btn').addEventListener('click', function () { r10EnableNotifications(); });
+  } else {
+    /* Safari tab: push cannot complete here — say so in the info surface. */
+    row.innerHTML = '<span class="r10-n-label">Add TalkBridge to Home Screen to enable iPhone notifications</span>' +
+      '<span class="r10-build">' + TB_R10.build + '</span>';
+  }
+  host.appendChild(row);
+  if (!TB_R10.standalone) return;
+  if (!('Notification' in window)) { r10NotifStatus('unsupported'); return; }
+  if (Notification.permission === 'denied') { r10NotifStatus('off'); return; }
+  if (Notification.permission === 'granted') {
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager && reg.pushManager.getSubscription();
+    }).then(function (sub) { r10NotifStatus(sub ? 'on' : 'prompt'); }).catch(function () { r10NotifStatus('prompt'); });
+  } else r10NotifStatus('prompt');
+}
+
+/* ── service-worker context (A6) — ids and cursors only, never secrets ───── */
+function r10PostContext() {
+  try {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage({
+      type: 'tb-context',
+      context: {
+        relay: RELAY_WS,
+        app: RELAY_APP,
+        client: deviceId,
+        rooms: r10ActiveRooms().map(function (r) { return { id: r.id, since: r.r10Since || 0 }; })
+      }
+    });
+  } catch (_) {}
+}
+
+/* record last seen RELAY sequence per room, read-only wrap (A6 'since') */
+(function () {
+  var _r10HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    try {
+      if (d && typeof d.seq === 'number' && S.roomId) {
+        var r = roomById(S.roomId);
+        if (r && (!r.r10Since || d.seq > r.r10Since)) r.r10Since = d.seq;
+      }
+    } catch (_) {}
+    return _r10HandleRelay.apply(this, arguments);
+  };
+  handleRelay._r10Original = _r10HandleRelay;
+})();
+
+/* lifecycle-driven sync: hard delete -> room-specific unsubscribe; new or
+   restored room -> register the same subscription; always refresh context.
+   Existing lifecycle messages and semantics are untouched (A7). */
+(function () {
+  var _r10SaveRooms = saveRooms;
+  var known = {};
+  function snapshot() {
+    known = {};
+    (S.rooms || []).forEach(function (r) { known[r.id] = { deletedAt: !!r.deletedAt }; });
+  }
+  snapshot();
+  saveRooms = function () {
+    var out = _r10SaveRooms.apply(this, arguments);
+    try {
+      var seen = {};
+      (S.rooms || []).forEach(function (r) {
+        seen[r.id] = true;
+        var prev = known[r.id];
+        if (!prev || (prev.deletedAt && !r.deletedAt)) {
+          /* new or restored room: make sure this device's subscription is
+             registered with that room's relay session */
+          delete TB_R10.subscribedRooms[r.id];
+          r10SyncSubscriptions();
+        }
+      });
+      Object.keys(known).forEach(function (id) {
+        if (!seen[id]) r10Unsubscribe(id);   /* hard delete: gone entirely */
+      });
+      snapshot();
+      r10PostContext();
+    } catch (_) {}
+    return out;
+  };
+  saveRooms._r10Original = _r10SaveRooms;
+})();
+
+/* ── init ─────────────────────────────────────────────────────────────────── */
+setTimeout(function () {
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./tb-sw.js').then(function () {
+        TB_R10.swReady = true;
+        r8Log('sw_registered', { standalone: TB_R10.standalone }, 'ok');
+        r10PostContext();
+        r10SyncSubscriptions();
+      }).catch(function (e) { r8Log('sw_register_failed', { e: String(e && e.message || e) }, 'error'); });
+    }
+    /* replay pre-bootstrap logs into the app's own log, metadata only */
+    if (window.__TB_R10) (window.__TB_R10.log || []).forEach(function (l) { r8Log(l.ev, l.meta, 'ok'); });
+    r10ConsumeHandoff();
+    r10RenderNotifRow();
+    var st = document.createElement('style');
+    st.id = 'r10-css';
+    st.textContent = '.app-build-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-mid);border-top:1px solid var(--border)}' +
+      '.app-build-row .r10-n-btn{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--cream)}' +
+      '.app-build-row .r10-build{margin-left:auto;color:var(--ink-dim);font-size:10.5px}';
+    document.head.appendChild(st);
+    r8Log('r10_init', { standalone: TB_R10.standalone, build: TB_R10.build }, 'ok');
+  } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
+}, 700);
+
+/* ═══════════ GAP PART · PA4-create-and-name-surfaces.js ═══════════ */
+/* @contract
+   wraps: openS3 (prefill, calls through), invUrl (invite carries the room's
+   name; payload otherwise untouched, secrets never read)
+   adds: PA4_CSS, pa4InjectCreateName, pa4CenterAskCard, one s3-ok listener
+   supersedes: PA3-owner-fixes (its injection anchored INSIDE the auto-read
+   toggle row — field rendered mangled; placement was never asserted)
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   Owner items 2026-08-22, and only these:
+   1. The create-room window wore the wrong flag treatment (base 6px sliver);
+      it now wears the same card band as the name screens.
+   2. The create-room window prompts for your name, prefilled with the
+      standing name, overridable — placed as its own labelled field BETWEEN
+      the language selects and the auto-read row (anchor read from the real
+      markup: insert before the .toggle-row, never inside it).
+   3. First-run name entry (S0 owner, S10 joiner): when the iPhone keyboard
+      slides out, the card recenters in the REMAINING visible area, using the
+      visual viewport; it returns to its resting spot on blur.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var PA4_CSS =
+  '.talking-to{font-size:15px}' +
+  '.pill span{font-size:15px}' +
+  '.field-label{font-size:13px}' +
+  '#scr-s0 .ask-card{margin:10vh auto auto}' +
+  /* create-room window: the card band, matching the name screens */
+  '#m-s3 .flagband{position:relative;height:auto;min-height:88px;border-radius:12px;' +
+    'overflow:hidden;background-image:none;margin-bottom:14px;width:auto !important}' +
+  '#m-s3 .flagband i{display:none}';
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'pa4-css';
+    st.textContent = PA4_CSS +
+      '#m-s3 .flagband::before{content:"";position:absolute;inset:0;' +
+      (typeof FLAG_PAINT === 'string' ? FLAG_PAINT : '') + '}';
+    document.head.appendChild(st);
+  } catch (_) {}
+})();
+
+function pa4InjectCreateName() {
+  try {
+    if (document.getElementById('s3-myname')) return true;
+    var tog = document.getElementById('s3-autoread');
+    if (!tog) return false;
+    var row = tog.parentNode;                     /* the .toggle-row itself */
+    if (!row || !row.parentNode) return false;
+    var lab = document.createElement('label');
+    lab.className = 'field-label';
+    lab.textContent = 'Your name in this room (partner sees this)';
+    var inp = document.createElement('input');
+    inp.className = 'field-input';
+    inp.id = 's3-myname';
+    inp.maxLength = 40;
+    row.parentNode.insertBefore(lab, row);        /* BEFORE the row — its own field */
+    row.parentNode.insertBefore(inp, row);
+    return true;
+  } catch (_) { return false; }
+}
+
+(function () {
+  if (typeof openS3 === 'function') {
+    var _pa4OpenS3 = openS3;
+    openS3 = function () {
+      var r = _pa4OpenS3.apply(this, arguments);
+      try {
+        pa4InjectCreateName();
+        var inp = document.getElementById('s3-myname');
+        if (inp) inp.value = (S.user && S.user.name) || '';
+      } catch (_) {}
+      return r;
+    };
+  }
+})();
+
+setTimeout(function () {
+  try {
+    pa4InjectCreateName();
+    var ok = document.getElementById('s3-ok');
+    if (ok) ok.addEventListener('click', function () {
+      try {
+        var inp = document.getElementById('s3-myname');
+        if (!inp) return;
+        var v = (inp.value || '').trim().slice(0, 40);
+        var r = activeRoom();
+        if (r && v && v !== r.myName) { r.myName = v; saveRooms(); }
+      } catch (_) {}
+    });
+  } catch (_) {}
+}, 700);
+
+(function () {
+  if (typeof invUrl === 'function') {
+    var _pa4InvUrl = invUrl;
+    invUrl = function (room) {
+      var url = _pa4InvUrl.apply(this, arguments);
+      try {
+        if (!room || !room.myName) return url;
+        var cut = url.indexOf('#j=');
+        if (cut === -1) return url;
+        var p = decInv(url.slice(cut + 3));
+        if (!p) return url;
+        p.n = room.myName;
+        return url.slice(0, cut) + '#j=' + encInv(p);
+      } catch (_) { return url; }
+    };
+  }
+})();
+
+/* First-run name cards recenter within the keyboard-shrunk visual viewport. */
+function pa4CenterAskCard() {
+  try {
+    var ids = { 's0-name': '#scr-s0 .ask-card', 's10-name': '#scr-s10 .ask-card' };
+    var ae = document.activeElement;
+    var sel = ae && ids[ae.id];
+    var vv = window.visualViewport;
+    var s0 = document.querySelector('#scr-s0 .ask-card');
+    var s10 = document.querySelector('#scr-s10 .ask-card');
+    if (!sel || !vv) {                             /* resting spots */
+      if (s0) s0.style.margin = '';
+      if (s10) s10.style.margin = '';
+      return;
+    }
+    var card = document.querySelector(sel);
+    if (!card) return;
+    var top = Math.max(8, (vv.height - card.offsetHeight) / 2);
+    card.style.margin = top + 'px auto auto';
+  } catch (_) {}
+}
+(function () {
+  try {
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', pa4CenterAskCard);
+    document.addEventListener('focusin', pa4CenterAskCard);
+    document.addEventListener('focusout', function () { setTimeout(pa4CenterAskCard, 60); });
+  } catch (_) {}
+})();
+
+/* ═══════════ GAP PART · PA5-unmissable-enable.js ═══════════ */
+/* @contract
+   wraps: renderPanel (calls through, then re-evaluates the banner)
+   adds: PA5_CSS, pa5NeedsEnable, pa5Banner
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   Device evidence 2026-08-22 (both phones' logs): notification permission was
+   NEVER granted on the iPhone — the enable control existed only as a quiet
+   footer row and was never found — so every downstream piece (relay wakes,
+   SW banners, in-app cross-room alerts via osNotify) had nothing to work
+   with. The fix is discoverability: an unmissable banner on the home panel
+   whenever rooms exist, the platform supports push, and permission is not
+   granted. Tapping it runs the EXISTING r10EnableNotifications flow (the tap
+   is the user gesture iOS requires). It removes itself once enabled.
+   Capability-gated, not standalone-gated, so an Android tab gets it too.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var PA5_CSS =
+  '#pa5-nb{display:block;width:calc(100% - 20px);margin:10px;padding:13px 14px;' +
+    'background:var(--teal);color:#fff;border:none;border-radius:12px;' +
+    'font-size:15px;font-weight:700;text-align:left;cursor:pointer;line-height:1.35}' +
+  '#pa5-nb:active{opacity:.85}';
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'pa5-css';
+    st.textContent = PA5_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+})();
+
+function pa5NeedsEnable() {
+  try {
+    return !!window.PushManager && ('serviceWorker' in navigator) &&
+      !!window.Notification && Notification.permission !== 'granted' &&
+      !!(S.rooms && S.rooms.length);
+  } catch (_) { return false; }
+}
+
+function pa5Banner() {
+  try {
+    var existing = document.getElementById('pa5-nb');
+    if (!pa5NeedsEnable()) { if (existing) existing.remove(); return; }
+    if (existing) return;
+    var host = document.getElementById('panel-body');
+    if (!host || !host.parentNode) return;
+    var b = document.createElement('button');
+    b.id = 'pa5-nb';
+    b.type = 'button';
+    b.textContent = '🔔 Turn on notifications — calls and messages will reach this phone even when it\'s locked. Tap to enable.';
+    b.addEventListener('click', function () {
+      r10EnableNotifications().then(function () { pa5Banner(); }).catch(function () { pa5Banner(); });
+    });
+    host.parentNode.insertBefore(b, host);          /* TOP of the panel, unmissable */
+    r8Log('pa5_banner_shown', {}, 'ok');
+  } catch (_) {}
+}
+
+(function () {
+  if (typeof renderPanel === 'function') {
+    var _pa5RenderPanel = renderPanel;
+    renderPanel = function () {
+      var r = _pa5RenderPanel.apply(this, arguments);
+      try { pa5Banner(); } catch (_) {}
+      return r;
+    };
+    renderPanel._pa5Original = _pa5RenderPanel;
+  }
+  document.addEventListener('visibilitychange', function () {
+    try { if (!document.hidden) pa5Banner(); } catch (_) {}
+  });
+  setTimeout(function () { try { pa5Banner(); } catch (_) {} }, 900);
+})();
+
+/* ═══════════ GAP PART · PJ-customer-journey.js ═══════════ */
+/* @contract
+   wraps: joinRoom (adopts a carried joiner name, augments the handoff cookie,
+   then calls through — the base decides everything else)
+   adds: PJ_CSS, pjPlatform, pjAdoptJoinerName, pjAugmentHandoff,
+   pjSafariBar, pjInstallNudge, pjRoomEnableBar, PJ state
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   Plan v15.0.0 §4b — the journey, exactly as agreed:
+   J1  Joining is NEVER gated. The tab chats. Nothing below blocks anything.
+   J2  iPhone landed outside Safari: one clear hand-to-Safari action; the
+       link carries everything, so nothing is lost in the move.
+   J3  iPhone in Safari, joined: a dismissible nudge — ringing is the reason
+       to Add to Home Screen, not ceremony.
+   J4  First open of the installed app: if notifications aren't on, the
+       enable surface is in your face IN THE ROOM, not hidden in a panel.
+   J5  Identity survives: the name typed in the tab rides the handoff cookie
+       (field jn) and is adopted by the PWA — the blank-room path dies.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var PJ = { inviteHref: '', dismissedNudge: false };
+try { if (location.hash.indexOf('#j=') === 0) PJ.inviteHref = location.href; } catch (_) {}
+
+var PJ_CSS =
+  '.pj-bar{display:flex;gap:10px;align-items:center;padding:11px 13px;background:var(--teal);' +
+    'color:#fff;font-size:14.5px;font-weight:600;line-height:1.35}' +
+  '.pj-bar button{flex-shrink:0;background:#fff;color:var(--teal);border:none;border-radius:9px;' +
+    'padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer}' +
+  '.pj-nudge{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;border-radius:13px;' +
+    'box-shadow:var(--shadow)}' +
+  '#pj-room-enable{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;border-radius:13px;' +
+    'box-shadow:var(--shadow)}';
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'pj-css';
+    st.textContent = PJ_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+})();
+
+/* Pure and testable: which journey does this browser get? */
+function pjPlatform(ua, standalone) {
+  ua = ua || navigator.userAgent || '';
+  var ios = /iP(hone|ad|od)/.test(ua);
+  if (!ios) return 'other';
+  if (standalone === undefined) standalone = !!(window.__TB_R10 && window.__TB_R10.standalone);
+  if (standalone) return 'ios-pwa';
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua) || !/Safari\//.test(ua)) return 'ios-other-browser';
+  return 'ios-safari';
+}
+
+/* J5 — adoption: a payload carrying jn names this device's user, once. */
+function pjAdoptJoinerName(p) {
+  try {
+    if (p && p.jn && !(S.user && S.user.name)) {
+      S.user.name = String(p.jn).slice(0, 40);
+      saveUser();
+      var f = document.getElementById('s10-name');
+      if (f) f.style.display = 'none';
+      r8Log('pj_name_adopted', {}, 'ok');
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/* J5 — augmentation: once the joiner has a name in the TAB, the armed
+   handoff cookie is rewritten with jn so the PWA inherits it. Same cookie,
+   same attributes, same encoder as the payload it carries. */
+function pjAugmentHandoff(p, name) {
+  try {
+    if (!p || !name) return false;
+    var st = window.__TB_R10;
+    if (!st || st.standalone || !st.armed) return false;
+    var p2 = {};
+    for (var k in p) p2[k] = p[k];
+    p2.jn = String(name).slice(0, 40);
+    document.cookie = 'tb_install_handoff_v1=' + encodeURIComponent(encInv(p2)) +
+      '; Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+    r8Log('pj_handoff_named', {}, 'ok');
+    return true;
+  } catch (_) { return false; }
+}
+
+(function () {
+  if (typeof joinRoom === 'function') {
+    var _pjJoinRoom = joinRoom;
+    joinRoom = function (p) {
+      try { pjAdoptJoinerName(p); } catch (_) {}
+      var r = _pjJoinRoom.apply(this, arguments);
+      try {
+        var nm = (S.user && S.user.name) || '';
+        pjAugmentHandoff(p, nm);
+        pjInstallNudge();
+      } catch (_) {}
+      return r;
+    };
+    joinRoom._pjOriginal = _pjJoinRoom;
+  }
+})();
+
+/* J2 — landed on iPhone outside Safari: chat here, one action to Safari. */
+function pjSafariBar() {
+  try {
+    if (pjPlatform() !== 'ios-other-browser') return;
+    if (!PJ.inviteHref) return;
+    if (document.getElementById('pj-safari-bar')) return;
+    var app = document.getElementById('app');
+    if (!app) return;
+    var bar = document.createElement('div');
+    bar.id = 'pj-safari-bar';
+    bar.className = 'pj-bar';
+    bar.innerHTML = '<span>You can chat right here. To make this phone ring for calls, open this link in Safari.</span>' +
+      '<button type="button">Copy link</button>';
+    bar.querySelector('button').addEventListener('click', function () {
+      var self = this;
+      try {
+        navigator.clipboard.writeText(PJ.inviteHref).then(function () { self.textContent = 'Copied ✓'; });
+      } catch (_) { self.textContent = PJ.inviteHref; }
+    });
+    app.insertBefore(bar, app.firstChild);
+    r8Log('pj_safari_bar', {}, 'ok');
+  } catch (_) {}
+}
+
+/* J3 — iPhone Safari, joined, not installed: ringing is the pitch. */
+function pjInstallNudge() {
+  try {
+    if (pjPlatform() !== 'ios-safari') return;
+    if (PJ.dismissedNudge || sessionStorage.getItem('pj_nudge_dismissed')) return;
+    if (!(S.rooms && S.rooms.length)) return;
+    if (document.getElementById('pj-nudge')) return;
+    var n = document.createElement('div');
+    n.id = 'pj-nudge';
+    n.className = 'pj-bar pj-nudge';
+    n.innerHTML = '<span>Want this phone to ring when they call? Tap Share, then <b>Add to Home Screen</b>.</span>' +
+      '<button type="button">Later</button>';
+    n.querySelector('button').addEventListener('click', function () {
+      PJ.dismissedNudge = true;
+      try { sessionStorage.setItem('pj_nudge_dismissed', '1'); } catch (_) {}
+      n.remove();
+    });
+    document.body.appendChild(n);
+    r8Log('pj_install_nudge', {}, 'ok');
+  } catch (_) {}
+}
+
+/* J4 — installed app, notifications off: the enable surface lives IN the
+   room view too, not only the home panel. Same tap, same existing flow. */
+function pjRoomEnableBar() {
+  try {
+    var existing = document.getElementById('pj-room-enable');
+    var need = (typeof pa5NeedsEnable === 'function') && pa5NeedsEnable() &&
+               pjPlatform() === 'ios-pwa' && S.view === 'room';
+    if (!need) { if (existing) existing.remove(); return; }
+    if (existing) return;
+    var b = document.createElement('button');
+    b.id = 'pj-room-enable';
+    b.type = 'button';
+    b.className = 'pj-bar';
+    b.textContent = '🔔 One tap left: turn on notifications so calls ring when this phone is locked.';
+    b.addEventListener('click', function () {
+      r10EnableNotifications().then(function () { pjRoomEnableBar(); }).catch(function () { pjRoomEnableBar(); });
+    });
+    document.body.appendChild(b);
+    r8Log('pj_room_enable_bar', {}, 'ok');
+  } catch (_) {}
+}
+
+setTimeout(function () {
+  try {
+    /* J5 arrival side: a hash payload carrying jn names this device now,
+       before anyone is asked anything. */
+    if (location.hash.indexOf('#j=') === 0) {
+      var p = null;
+      try { p = decInv(location.hash.slice(3)); } catch (_) {}
+      if (p) pjAdoptJoinerName(p);
+    }
+    pjSafariBar();
+    pjInstallNudge();
+    pjRoomEnableBar();
+  } catch (_) {}
+}, 950);
+
+document.addEventListener('visibilitychange', function () {
+  try { if (!document.hidden) { pjInstallNudge(); pjRoomEnableBar(); } } catch (_) {}
+});
 </script>
 </body>
 </html>

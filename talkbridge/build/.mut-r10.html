@@ -7885,6 +7885,196 @@ function pa5Banner() {
   });
   setTimeout(function () { try { pa5Banner(); } catch (_) {} }, 900);
 })();
+
+/* ═══════════ GAP PART · PJ-customer-journey.js ═══════════ */
+/* @contract
+   wraps: joinRoom (adopts a carried joiner name, augments the handoff cookie,
+   then calls through — the base decides everything else)
+   adds: PJ_CSS, pjPlatform, pjAdoptJoinerName, pjAugmentHandoff,
+   pjSafariBar, pjInstallNudge, pjRoomEnableBar, PJ state
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   Plan v15.0.0 §4b — the journey, exactly as agreed:
+   J1  Joining is NEVER gated. The tab chats. Nothing below blocks anything.
+   J2  iPhone landed outside Safari: one clear hand-to-Safari action; the
+       link carries everything, so nothing is lost in the move.
+   J3  iPhone in Safari, joined: a dismissible nudge — ringing is the reason
+       to Add to Home Screen, not ceremony.
+   J4  First open of the installed app: if notifications aren't on, the
+       enable surface is in your face IN THE ROOM, not hidden in a panel.
+   J5  Identity survives: the name typed in the tab rides the handoff cookie
+       (field jn) and is adopted by the PWA — the blank-room path dies.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var PJ = { inviteHref: '', dismissedNudge: false };
+try { if (location.hash.indexOf('#j=') === 0) PJ.inviteHref = location.href; } catch (_) {}
+
+var PJ_CSS =
+  '.pj-bar{display:flex;gap:10px;align-items:center;padding:11px 13px;background:var(--teal);' +
+    'color:#fff;font-size:14.5px;font-weight:600;line-height:1.35}' +
+  '.pj-bar button{flex-shrink:0;background:#fff;color:var(--teal);border:none;border-radius:9px;' +
+    'padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer}' +
+  '.pj-nudge{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;border-radius:13px;' +
+    'box-shadow:var(--shadow)}' +
+  '#pj-room-enable{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;border-radius:13px;' +
+    'box-shadow:var(--shadow)}';
+
+(function () {
+  try {
+    var st = document.createElement('style');
+    st.id = 'pj-css';
+    st.textContent = PJ_CSS;
+    document.head.appendChild(st);
+  } catch (_) {}
+})();
+
+/* Pure and testable: which journey does this browser get? */
+function pjPlatform(ua, standalone) {
+  ua = ua || navigator.userAgent || '';
+  var ios = /iP(hone|ad|od)/.test(ua);
+  if (!ios) return 'other';
+  if (standalone === undefined) standalone = !!(window.__TB_R10 && window.__TB_R10.standalone);
+  if (standalone) return 'ios-pwa';
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua) || !/Safari\//.test(ua)) return 'ios-other-browser';
+  return 'ios-safari';
+}
+
+/* J5 — adoption: a payload carrying jn names this device's user, once. */
+function pjAdoptJoinerName(p) {
+  try {
+    if (p && p.jn && !(S.user && S.user.name)) {
+      S.user.name = String(p.jn).slice(0, 40);
+      saveUser();
+      var f = document.getElementById('s10-name');
+      if (f) f.style.display = 'none';
+      r8Log('pj_name_adopted', {}, 'ok');
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/* J5 — augmentation: once the joiner has a name in the TAB, the armed
+   handoff cookie is rewritten with jn so the PWA inherits it. Same cookie,
+   same attributes, same encoder as the payload it carries. */
+function pjAugmentHandoff(p, name) {
+  try {
+    if (!p || !name) return false;
+    var st = window.__TB_R10;
+    if (!st || st.standalone || !st.armed) return false;
+    var p2 = {};
+    for (var k in p) p2[k] = p[k];
+    p2.jn = String(name).slice(0, 40);
+    document.cookie = 'tb_install_handoff_v1=' + encodeURIComponent(encInv(p2)) +
+      '; Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+    r8Log('pj_handoff_named', {}, 'ok');
+    return true;
+  } catch (_) { return false; }
+}
+
+(function () {
+  if (typeof joinRoom === 'function') {
+    var _pjJoinRoom = joinRoom;
+    joinRoom = function (p) {
+      try { pjAdoptJoinerName(p); } catch (_) {}
+      var r = _pjJoinRoom.apply(this, arguments);
+      try {
+        var nm = (S.user && S.user.name) || '';
+        pjAugmentHandoff(p, nm);
+        pjInstallNudge();
+      } catch (_) {}
+      return r;
+    };
+    joinRoom._pjOriginal = _pjJoinRoom;
+  }
+})();
+
+/* J2 — landed on iPhone outside Safari: chat here, one action to Safari. */
+function pjSafariBar() {
+  try {
+    if (pjPlatform() !== 'ios-other-browser') return;
+    if (!PJ.inviteHref) return;
+    if (document.getElementById('pj-safari-bar')) return;
+    var app = document.getElementById('app');
+    if (!app) return;
+    var bar = document.createElement('div');
+    bar.id = 'pj-safari-bar';
+    bar.className = 'pj-bar';
+    bar.innerHTML = '<span>You can chat right here. To make this phone ring for calls, open this link in Safari.</span>' +
+      '<button type="button">Copy link</button>';
+    bar.querySelector('button').addEventListener('click', function () {
+      var self = this;
+      try {
+        navigator.clipboard.writeText(PJ.inviteHref).then(function () { self.textContent = 'Copied ✓'; });
+      } catch (_) { self.textContent = PJ.inviteHref; }
+    });
+    app.insertBefore(bar, app.firstChild);
+    r8Log('pj_safari_bar', {}, 'ok');
+  } catch (_) {}
+}
+
+/* J3 — iPhone Safari, joined, not installed: ringing is the pitch. */
+function pjInstallNudge() {
+  try {
+    if (pjPlatform() !== 'ios-safari') return;
+    if (PJ.dismissedNudge || sessionStorage.getItem('pj_nudge_dismissed')) return;
+    if (!(S.rooms && S.rooms.length)) return;
+    if (document.getElementById('pj-nudge')) return;
+    var n = document.createElement('div');
+    n.id = 'pj-nudge';
+    n.className = 'pj-bar pj-nudge';
+    n.innerHTML = '<span>Want this phone to ring when they call? Tap Share, then <b>Add to Home Screen</b>.</span>' +
+      '<button type="button">Later</button>';
+    n.querySelector('button').addEventListener('click', function () {
+      PJ.dismissedNudge = true;
+      try { sessionStorage.setItem('pj_nudge_dismissed', '1'); } catch (_) {}
+      n.remove();
+    });
+    document.body.appendChild(n);
+    r8Log('pj_install_nudge', {}, 'ok');
+  } catch (_) {}
+}
+
+/* J4 — installed app, notifications off: the enable surface lives IN the
+   room view too, not only the home panel. Same tap, same existing flow. */
+function pjRoomEnableBar() {
+  try {
+    var existing = document.getElementById('pj-room-enable');
+    var need = (typeof pa5NeedsEnable === 'function') && pa5NeedsEnable() &&
+               pjPlatform() === 'ios-pwa' && S.view === 'room';
+    if (!need) { if (existing) existing.remove(); return; }
+    if (existing) return;
+    var b = document.createElement('button');
+    b.id = 'pj-room-enable';
+    b.type = 'button';
+    b.className = 'pj-bar';
+    b.textContent = '🔔 One tap left: turn on notifications so calls ring when this phone is locked.';
+    b.addEventListener('click', function () {
+      r10EnableNotifications().then(function () { pjRoomEnableBar(); }).catch(function () { pjRoomEnableBar(); });
+    });
+    document.body.appendChild(b);
+    r8Log('pj_room_enable_bar', {}, 'ok');
+  } catch (_) {}
+}
+
+setTimeout(function () {
+  try {
+    /* J5 arrival side: a hash payload carrying jn names this device now,
+       before anyone is asked anything. */
+    if (location.hash.indexOf('#j=') === 0) {
+      var p = null;
+      try { p = decInv(location.hash.slice(3)); } catch (_) {}
+      if (p) pjAdoptJoinerName(p);
+    }
+    pjSafariBar();
+    pjInstallNudge();
+    pjRoomEnableBar();
+  } catch (_) {}
+}, 950);
+
+document.addEventListener('visibilitychange', function () {
+  try { if (!document.hidden) { pjInstallNudge(); pjRoomEnableBar(); } } catch (_) {}
+});
 </script>
 </body>
 </html>
