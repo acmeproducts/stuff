@@ -181,35 +181,51 @@ seed.w.close();
 
 
 
-{ /* F1-F4: owner fixes — S0 card position, named font surfaces, B-8c name override */
+{ /* F1-F6: create window + first-run name surfaces (PA4) */
   const { w } = await boot({ url: 'https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html', standalone: true });
   const d2 = w.document;
-  T('F1 first-run name card pinned to the upper screen, not centered', () => {
+  T('F1 create window wears the card flag treatment', () => {
     const css = [...d2.querySelectorAll('style')].map(s => s.textContent).join('\n');
-    A(css.includes('#scr-s0 .ask-card{margin:10vh auto auto}'), 'S0 position rule missing');
+    A(css.includes('#m-s3 .flagband{position:relative') && css.includes('#m-s3 .flagband::before'), 'modal flag rules missing');
+    A(css.includes('#scr-s0 .ask-card{margin:10vh auto auto}'), 'S0 resting position missing');
   });
-  T('F2 named surfaces render at the raised sizes (measured, live)', () => {
-    const tt = d2.querySelector('.talking-to');
-    A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
-    const fl = d2.querySelector('.field-label');
-    A(fl && w.getComputedStyle(fl).fontSize === '13px', 'field-label not 13px');
-  });
-  T('F3 room creation suggests the standing name and honors an override', () => {
-    w.S.user.name = 'Bob'; 
+  T('F2 name field is its OWN field between selects and auto-read, never inside the toggle row', () => {
+    w.S.user.name = 'Bob';
     w.openS3();
     const inp = d2.getElementById('s3-myname');
-    A(inp && inp.value === 'Bob', 'suggestion not prefilled');
-    inp.value = 'Mr Jones';
+    A(inp, 'field missing');
+    A(!inp.closest('.toggle-row'), 'field landed inside the toggle row — the shipped defect');
+    A(inp.nextElementSibling && inp.nextElementSibling.classList.contains('toggle-row'), 'field not directly before the auto-read row');
+    A(inp.value === 'Bob', 'suggestion not prefilled');
+  });
+  T('F3 override lands on the created room', () => {
+    d2.getElementById('s3-myname').value = 'Mr Jones';
     d2.getElementById('s3-ok').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     const r = w.activeRoom();
-    A(r && r.myName === 'Mr Jones', 'override not stored on the room: ' + (r && r.myName));
+    A(r && r.myName === 'Mr Jones', 'override not stored: ' + (r && r.myName));
   });
-  T('F4 the invite carries the ROOM name, so menu renames reach new invites', () => {
-    const r = w.activeRoom();
-    r.myName = 'Alice';
+  T('F4 the invite carries the ROOM name', () => {
+    const r = w.activeRoom(); r.myName = 'Alice';
     const p = w.decInv(w.invUrl(r).split('#j=')[1]);
-    A(p && p.n === 'Alice', 'invite still carries the stale name: ' + (p && p.n));
-    A(p.r === r.id && 'k' in p, 'other payload fields damaged');
+    A(p && p.n === 'Alice' && p.r === r.id && 'k' in p, 'invite name wrong or payload damaged: ' + (p && p.n));
+  });
+  T('F5 keyboard out: the first-run card recenters in the visual viewport', () => {
+    w.showScreen('s0');
+    const card = d2.querySelector('#scr-s0 .ask-card');
+    Object.defineProperty(card, 'offsetHeight', { configurable: true, get(){ return 300; } });
+    w.visualViewport ??= {};
+    Object.defineProperty(w, 'visualViewport', { configurable: true, value: { height: 400, addEventListener(){}} });
+    const inp = d2.getElementById('s0-name');
+    inp.focus();
+    w.pa4CenterAskCard();
+    A(card.style.margin.startsWith('50px'), 'not centered for a 400px viewport: ' + card.style.margin);
+    inp.blur(); d2.body.focus?.();
+    w.pa4CenterAskCard();
+    A(card.style.margin === '', 'did not return to resting spot');
+  });
+  T('F6 named font surfaces still raised', () => {
+    const tt = d2.querySelector('.talking-to');
+    A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
   });
   w.close();
 }

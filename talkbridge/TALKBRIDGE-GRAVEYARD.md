@@ -914,3 +914,16 @@ Rolled back to the v1 candidate. Two failures, stated plainly:
 The A8 wake problem (locked phone gets no notification; pile-up later)
 returns to OPEN. The zombie-socket reading of the relay's wake logic stands
 as evidence-backed diagnosis; the SOLUTION is undecided and owner-gated.
+
+## PA3 — the create-window name field rendered inside the auto-read toggle row · FAILED ON DEVICE · Aug 22 2026
+
+The injection anchored on the s3-autoread BUTTON and inserted before it —
+which is inside the toggle row, so the label and input rendered mangled
+between "Auto-read" and its switch, and the owner never saw a usable prompt.
+The harness proved the field existed, prefilled, and stored its value — all
+true — and never asserted WHERE it rendered. Same family as every entry
+above: presence and function proven, rendering unproven. Rule extended: any
+injected element's PLACEMENT is asserted from the real DOM (parent, siblings),
+not just its existence. PA4 anchors on the toggle ROW read from the real
+markup and inserts before it; a mutation reintroducing the exact defect is
+caught by the placement test.

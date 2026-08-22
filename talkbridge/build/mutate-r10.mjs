@@ -38,6 +38,12 @@ const mutations = [
    s => s.replace('p.n = room.myName;', ';')],
   ['the S0 card slides back to center screen',
    s => s.replace("'#scr-s0 .ask-card{margin:10vh auto auto}' +", "'' +")],
+  ['the name field crawls back inside the toggle row (the shipped defect)',
+   s => s.replace("row.parentNode.insertBefore(lab, row);        /* BEFORE the row — its own field */\n    row.parentNode.insertBefore(inp, row);", 'row.insertBefore(lab, tog); row.insertBefore(inp, tog);')],
+  ['the create window quietly loses its flag band',
+   s => s.replace("'#m-s3 .flagband{position:relative", "'#m-s3-none .flagband{position:relative")],
+  ['keyboard centering stops centering',
+   s => s.replace("card.style.margin = top + 'px auto auto';", ';')],
   ['the room-menu label size quietly shrinks again',
    s => s.replace("'.talking-to{font-size:15px}' +", "'' +")],
 ];

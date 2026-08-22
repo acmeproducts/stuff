@@ -7672,52 +7672,55 @@ setTimeout(function () {
   } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
 }, 700);
 
-/* ═══════════ GAP PART · PA3-owner-fixes.js ═══════════ */
+/* ═══════════ GAP PART · PA4-create-and-name-surfaces.js ═══════════ */
 /* @contract
-   wraps: openS3 (prefill only, calls through), invUrl (post-processes the
-   returned URL's name field; payload otherwise untouched, secrets never read)
-   adds: PA3_CSS, one additional s3-ok listener (runs after the base's own)
+   wraps: openS3 (prefill, calls through), invUrl (invite carries the room's
+   name; payload otherwise untouched, secrets never read)
+   adds: PA4_CSS, pa4InjectCreateName, pa4CenterAskCard, one s3-ok listener
+   supersedes: PA3-owner-fixes (its injection anchored INSIDE the auto-read
+   toggle row — field rendered mangled; placement was never asserted)
 */
 /* ─────────────────────────────────────────────────────────────────────────────
-   Exactly the four surfaces the owner named, nothing else:
-   1. B-8c  — room creation suggests the standing name, overridable per room;
-             the invite/QR carries the ROOM's name, so later renames in the
-             room menu update what the partner sees too. (The base read
-             S.user.name at share time and ignored room.myName entirely.)
-   2. 11.9 — the first-run name card sat vertically centered ("halfway,
-             above the fold"); it now sits in the upper part of the screen.
-   3. 11.8 — measured sizes on the named surfaces: .talking-to (room-menu
-             "You ↔ Partner") was 12px and never raised; date pills and
-             "is now" pills and field labels raised to clearly readable.
-   4. The relay wake lag is NOT in this build — owner-gated proposal only.
+   Owner items 2026-08-22, and only these:
+   1. The create-room window wore the wrong flag treatment (base 6px sliver);
+      it now wears the same card band as the name screens.
+   2. The create-room window prompts for your name, prefilled with the
+      standing name, overridable — placed as its own labelled field BETWEEN
+      the language selects and the auto-read row (anchor read from the real
+      markup: insert before the .toggle-row, never inside it).
+   3. First-run name entry (S0 owner, S10 joiner): when the iPhone keyboard
+      slides out, the card recenters in the REMAINING visible area, using the
+      visual viewport; it returns to its resting spot on blur.
    ───────────────────────────────────────────────────────────────────────────── */
 
-var PA3_CSS =
-  /* 11.9 — first-run card near the top, where thumbs and eyes are */
-  '#scr-s0 .ask-card{margin:10vh auto auto}' +
-  /* 11.8 — the named surfaces, raised */
+var PA4_CSS =
   '.talking-to{font-size:15px}' +
   '.pill span{font-size:15px}' +
-  '.field-label{font-size:13px}';
+  '.field-label{font-size:13px}' +
+  '#scr-s0 .ask-card{margin:10vh auto auto}' +
+  /* create-room window: the card band, matching the name screens */
+  '#m-s3 .flagband{position:relative;height:auto;min-height:88px;border-radius:12px;' +
+    'overflow:hidden;background-image:none;margin-bottom:14px;width:auto !important}' +
+  '#m-s3 .flagband i{display:none}';
 
 (function () {
   try {
     var st = document.createElement('style');
-    st.id = 'pa3-css';
-    st.textContent = PA3_CSS;
+    st.id = 'pa4-css';
+    st.textContent = PA4_CSS +
+      '#m-s3 .flagband::before{content:"";position:absolute;inset:0;' +
+      (typeof FLAG_PAINT === 'string' ? FLAG_PAINT : '') + '}';
     document.head.appendChild(st);
   } catch (_) {}
 })();
 
-/* B-8c — the creation modal gets a name field, prefilled and overridable. */
-function pa3InjectCreateName() {
+function pa4InjectCreateName() {
   try {
     if (document.getElementById('s3-myname')) return true;
-    var ok = document.getElementById('s3-ok');
-    if (!ok) return false;
-    var modalBody = ok.closest ? ok.closest('.modal-card') : null;
-    var anchor = document.getElementById('s3-autoread');
-    if (!anchor || !anchor.parentNode) return false;
+    var tog = document.getElementById('s3-autoread');
+    if (!tog) return false;
+    var row = tog.parentNode;                     /* the .toggle-row itself */
+    if (!row || !row.parentNode) return false;
     var lab = document.createElement('label');
     lab.className = 'field-label';
     lab.textContent = 'Your name in this room (partner sees this)';
@@ -7725,56 +7728,48 @@ function pa3InjectCreateName() {
     inp.className = 'field-input';
     inp.id = 's3-myname';
     inp.maxLength = 40;
-    anchor.parentNode.insertBefore(lab, anchor);
-    anchor.parentNode.insertBefore(inp, anchor);
+    row.parentNode.insertBefore(lab, row);        /* BEFORE the row — its own field */
+    row.parentNode.insertBefore(inp, row);
     return true;
   } catch (_) { return false; }
 }
 
 (function () {
   if (typeof openS3 === 'function') {
-    var _pa3OpenS3 = openS3;
+    var _pa4OpenS3 = openS3;
     openS3 = function () {
-      var r = _pa3OpenS3.apply(this, arguments);
+      var r = _pa4OpenS3.apply(this, arguments);
       try {
-        pa3InjectCreateName();
+        pa4InjectCreateName();
         var inp = document.getElementById('s3-myname');
-        if (inp) inp.value = (S.user && S.user.name) || '';   /* suggested, overridable */
+        if (inp) inp.value = (S.user && S.user.name) || '';
       } catch (_) {}
       return r;
     };
   }
 })();
 
-/* Runs AFTER the base's own s3-ok handler (registered later), so the room the
-   base just created and entered is the active one. */
 setTimeout(function () {
   try {
-    pa3InjectCreateName();
+    pa4InjectCreateName();
     var ok = document.getElementById('s3-ok');
-    if (!ok) return;
-    ok.addEventListener('click', function () {
+    if (ok) ok.addEventListener('click', function () {
       try {
         var inp = document.getElementById('s3-myname');
         if (!inp) return;
         var v = (inp.value || '').trim().slice(0, 40);
         var r = activeRoom();
         if (r && v && v !== r.myName) { r.myName = v; saveRooms(); }
-        r8Log('pa3_room_name', { overridden: !!(r && v && v !== ((S.user && S.user.name) || '')) }, 'ok');
       } catch (_) {}
     });
   } catch (_) {}
 }, 700);
 
-/* The invite carries the ROOM's name. The base built n from S.user.name at
-   share time; the URL is post-processed so n is room.myName when set. The
-   payload is decoded and re-encoded with the base's own encInv/decInv —
-   every other field passes through untouched and is never read by name. */
 (function () {
   if (typeof invUrl === 'function') {
-    var _pa3InvUrl = invUrl;
+    var _pa4InvUrl = invUrl;
     invUrl = function (room) {
-      var url = _pa3InvUrl.apply(this, arguments);
+      var url = _pa4InvUrl.apply(this, arguments);
       try {
         if (!room || !room.myName) return url;
         var cut = url.indexOf('#j=');
@@ -7786,6 +7781,34 @@ setTimeout(function () {
       } catch (_) { return url; }
     };
   }
+})();
+
+/* First-run name cards recenter within the keyboard-shrunk visual viewport. */
+function pa4CenterAskCard() {
+  try {
+    var ids = { 's0-name': '#scr-s0 .ask-card', 's10-name': '#scr-s10 .ask-card' };
+    var ae = document.activeElement;
+    var sel = ae && ids[ae.id];
+    var vv = window.visualViewport;
+    var s0 = document.querySelector('#scr-s0 .ask-card');
+    var s10 = document.querySelector('#scr-s10 .ask-card');
+    if (!sel || !vv) {                             /* resting spots */
+      if (s0) s0.style.margin = '';
+      if (s10) s10.style.margin = '';
+      return;
+    }
+    var card = document.querySelector(sel);
+    if (!card) return;
+    var top = Math.max(8, (vv.height - card.offsetHeight) / 2);
+    card.style.margin = top + 'px auto auto';
+  } catch (_) {}
+}
+(function () {
+  try {
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', pa4CenterAskCard);
+    document.addEventListener('focusin', pa4CenterAskCard);
+    document.addEventListener('focusout', function () { setTimeout(pa4CenterAskCard, 60); });
+  } catch (_) {}
 })();
 </script>
 </body>

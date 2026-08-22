@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.16.0 -->
-# TALKBRIDGE MASTER PLAN v14.16.0
+<!-- TALKBRIDGE-PLAN v14.17.0 -->
+# TALKBRIDGE MASTER PLAN v14.17.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -522,6 +522,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.17.0 · 2026-08-22.** 24·post-ship v4 (supersedes v3's PA3, graveyard):
+create window wears the card flag band; the name prompt is its own labelled
+field between the language selects and auto-read, prefilled and overridable,
+placement now ASSERTED not assumed; invite carries the room's name; first-run
+name cards (S0 and joiner S10) recenter in the keyboard-shrunk visual
+viewport and return to rest on blur. Harness 23/23, mutations 18/18 incl. the
+exact shipped anchor defect. Relay + SW fixes from the parallel session stand;
+locked-phone and re-enable tests remain owner's to run.
 
 **v14.16.0 · 2026-08-22.** Relay wake fix built on owner go, exactly the
 proposed mechanism: a client counts as listening only with a live socket AND
