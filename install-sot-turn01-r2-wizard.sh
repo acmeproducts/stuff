@@ -3,7 +3,8 @@ set -euo pipefail
 ROOT=/home/support/.openclaw/workspace/https/report
 API="$ROOT/sot-api.js"
 OUT_UI="$ROOT/SOT/sot-turn01-r2-wizard.html"
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/main
+# Immutable dependency snapshot: includes R2 backend, wizard UI, and pre-install correction.
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/ce557a9cfe50f4d75be837ae554a991dac6809ca
 BUILD=2026.08.22.turn01-r2-wizard
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
