@@ -24,11 +24,14 @@ done < <(ls -1t "$API".before-turn01-* 2>/dev/null || true)
 echo "Recovery base backend: $BASE_API"
 
 echo '=== DOWNLOAD + OFFLINE GATES ==='
-for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-turn01-r2-wizard.html; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
-for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js; do node --check "$TMP/$f"; done
-python3 - "$TMP/sot-turn01-r2-wizard.html" "$TMP/ui.js" <<'PY'
+for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-turn01-r2-wizard.html sot-ui-turn01-r2-preinstall-fix.js; do curl -fsSL "$BASE/$f" -o "$TMP/$f"; done
+for f in sot-backend-turn01-prebase-addon.js sot-backend-turn01-r1-bridge-addon.js sot-backend-turn01-r2-workflow-addon.js sot-ui-turn01-r2-preinstall-fix.js; do node --check "$TMP/$f"; done
+python3 - "$TMP/sot-turn01-r2-wizard.html" "$TMP/sot-ui-turn01-r2-preinstall-fix.js" "$TMP/ui.js" <<'PY'
 import re,sys,pathlib
-h=pathlib.Path(sys.argv[1]).read_text();pathlib.Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
+p=pathlib.Path(sys.argv[1]);fix=pathlib.Path(sys.argv[2]).read_text();h=p.read_text()
+if '</body></html>' not in h: raise SystemExit('wizard closing marker missing')
+h=h.replace('</body></html>','<script>\n'+fix+'\n</script>\n</body></html>',1);p.write_text(h)
+pathlib.Path(sys.argv[3]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 for marker in ['1. Project','2. Sources','3. Process','4. Review','5. Plan','6. Execute','7. Certify','2026.08.22.turn01-r2-wizard']:
     if marker not in h: raise SystemExit('UI marker missing: '+marker)
 PY
