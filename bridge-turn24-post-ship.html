@@ -7671,44 +7671,6 @@ setTimeout(function () {
     r8Log('r10_init', { standalone: TB_R10.standalone, build: TB_R10.build }, 'ok');
   } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
 }, 700);
-
-/* ═══════════ GAP PART · PA2-background-socket-release.js ═══════════ */
-/* @contract
-   wraps: nothing
-   adds: R8_BGREL, one visibilitychange listener (additive, alongside the
-   base's own return handler and the R8b away-mute handler)
-*/
-/* ─────────────────────────────────────────────────────────────────────────────
-   A8 EVIDENCE, 2026-08-21: with the phone locked, no notifications; later
-   they arrive en masse. Cause read from the relay source, not guessed:
-   The relay sends a wake ONLY to clients absent from _connectedIds(),
-   which is built from LIVE WebSockets. iOS keeps a backgrounded PWA's socket
-   half-alive for minutes, so the relay keeps counting the phone as listening
-   and sends nothing. When iOS finally reaps the socket, every subsequent
-   message pushes — the pile-up.
-
-   Fix, client-side only (relay untouched per Phase A): when the app leaves
-   the foreground and no call is active, RELEASE presence deliberately via the
-   base's own relayDisconnect() — the relay then knows to wake us. The base's
-   existing visibilitychange handler already reconnects on return; nothing to
-   add there. During an active call the socket must live, so it is left alone.
-   ───────────────────────────────────────────────────────────────────────────── */
-
-var R8_BGREL = { released: false };
-
-document.addEventListener('visibilitychange', function () {
-  try {
-    if (!document.hidden) {
-      if (R8_BGREL.released) { R8_BGREL.released = false; r8Log('pwa_fg_return', { reconnectingViaBase: true }, 'ok'); }
-      return; /* reconnect is the base handler's job — one owner per duty */
-    }
-    if (typeof CALL !== 'undefined' && CALL.active) return;  /* never drop a live call's signaling */
-    if (!_relayWs) return;                                    /* nothing to release */
-    R8_BGREL.released = true;
-    relayDisconnect();                                        /* the base's own teardown: close + timers + presence */
-    r8Log('pwa_bg_release', {}, 'ok');
-  } catch (e) { r8Log('pwa_bg_release_failed', { e: String(e && e.message || e) }, 'error'); }
-});
 </script>
 </body>
 </html>
