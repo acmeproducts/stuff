@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.2.0 -->
-# TALKBRIDGE MASTER PLAN v15.2.0
+<!-- TALKBRIDGE-PLAN v15.3.0 -->
+# TALKBRIDGE MASTER PLAN v15.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -37,7 +37,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — PWA + notifications + CUSTOMER JOURNEY | ROLLED BACK (Android mic dead on rebuild; cause unestablished; evidence log needed on the buried build) | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | REBUILT — awaiting owner device matrix | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -575,6 +575,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.3.0 · 2026-08-22.** Owner ruling: the Android mic failure is accepted
+as the accidental android-pwa lane's permission state; the chase ends. ONE
+PATH rebuild shipped: everything from the journey rebuild plus lane telemetry
+— every boot and every return logs one line (lane + microphone permission +
+notification permission), with the accidental lanes (android-pwa) named
+explicitly, so no future log leaves the lane in question. 31/31 harness,
+27/27 mutations incl. lane misrouting and silent-telemetry defects.
 
 **v15.2.0 · 2026-08-22.** Device gate FAILED: Android microphone dead on the
 journey rebuild. Rolled back to 24·ship. Cause NOT established — no appended

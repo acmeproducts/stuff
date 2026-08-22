@@ -262,6 +262,17 @@ seed.w.close();
     A(String(w.pjRoomEnableBar).includes('r10EnableNotifications'), 'room bar bypasses the enable flow');
     A(String(w.pjSafariBar).includes('chat right here'), 'J1 violated: hand-to-Safari bar gates instead of informing');
   });
+  T('L1 lane telemetry: every lane named correctly, including the accidental ones', () => {
+    const L = w.plLane;
+    A(L('Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/125 Mobile Safari/537.36', false) === 'android-tab', 'android tab');
+    A(L('Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/125 Mobile Safari/537.36', true) === 'android-pwa', 'the accidental-install lane that ate the mic');
+    A(L('Mozilla/5.0 (iPhone) AppleWebKit Version/17.5 Mobile Safari/604.1', true) === 'ios-pwa', 'ios pwa');
+    A(L('Mozilla/5.0 (iPhone) AppleWebKit CriOS/125 Mobile Safari/604.1', false) === 'ios-other-browser', 'chrome on ios');
+  });
+  T('L2 the boot report carries lane + mic + notif in one line', () => {
+    A(String(w.plReport).includes("'microphone'") && String(w.plReport).includes('Notification.permission'), 'permissions not reported');
+    A(String(w.plReport).includes("r8Log('lane'"), 'lane line not logged');
+  });
   T('F6 named font surfaces still raised', () => {
     const tt = d2.querySelector('.talking-to');
     A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
