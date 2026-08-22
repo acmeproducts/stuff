@@ -35,14 +35,7 @@
 const MAX_HISTORY = 500;
 const SESSION_TTL_MS = 12 * 60 * 1000;
 const SUB_TTL_MS = 90 * 24 * 60 * 60 * 1000;   /* a subscription unused for this long is dropped */
-/* A client counts as listening only if its socket is alive AND it has spoken
-   recently. iOS keeps a backgrounded PWA's socket half-open for minutes while
-   its JavaScript — and therefore its 30s ping — is frozen; a silent socket is
-   a phone that needs waking. Two ping intervals plus grace. */
-const LISTENING_MAX_SILENCE_MS = 75 * 1000;
-export function isListening(hasSocket, lastSeenAt, now) {
-  return !!hasSocket && typeof lastSeenAt === 'number' && (now - lastSeenAt) <= LISTENING_MAX_SILENCE_MS;
-}
+const PRESENCE_TTL_MS = 75 * 1000;             /* matches the app: silent longer than this = not really here */
 const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack']);
 
 /* Public by design — handed to every browser that subscribes. */
@@ -149,8 +142,10 @@ export class TalkSession {
     this.seq = 0;
     this.messages = [];
     this.lastActivity = 0;
-    this.subs = {};
-    this.lastSeen = this.lastSeen || {};   /* in-memory; missing = stale = wake — fails safe */                     /* clientId -> { sub, at } */
+    this.subs = {};                     /* clientId -> { sub, at } */
+    this.seen = new Map();              /* clientId -> last message time. In-memory only:
+                                           after a restart nobody is "seen", which errs toward
+                                           waking — the harmless direction. */
     this.ready = this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs']);
       this.seq = Number(stored.get('seq')) || 0;
@@ -209,10 +204,11 @@ export class TalkSession {
   async _pushOne(clientId, rec) {
     const endpoint = rec && rec.sub && rec.sub.endpoint;
     if (!endpoint) return;
-    const headers = { TTL: '86400', 'Content-Length': '0', Urgency: 'high' };
-    /* Urgency high: without it the push service may hold a payload-less wake
-       for battery batching — the observed sporadic, pile-up delivery. Calls
-       and missed calls are time-critical; high requests immediate delivery. */
+    /* Topic collapses everything queued for an unreachable device into ONE
+       push at the service — without it, every message queued while a phone
+       slept was delivered as its own push on reconnect: the flurry.
+       Urgency high stops the push service holding wakes back on low power. */
+    const headers = { TTL: '86400', 'Content-Length': '0', Topic: 'tb-wake', Urgency: 'high' };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
@@ -228,12 +224,16 @@ export class TalkSession {
 
   async _wakeOthers(msg, senderId) {
     if (!PUSH_WORTHY.has(msg.type)) return;
-    const connected = this._connectedIds();
     const now = Date.now();
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
-      if (isListening(connected.has(clientId), this.lastSeen[clientId], now)) continue;   /* live socket AND recent ping */
+      /* "Has a socket" used to mean "is listening" — but iOS suspends an app
+         without closing its socket, so a zombie connection made the relay skip
+         the push entirely: the stuck case. Presence now means heard-from
+         recently, which a suspended app cannot fake. */
+      const last = this.seen.get(clientId);
+      if (last && now - last < PRESENCE_TTL_MS) continue;
       if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
@@ -305,7 +305,7 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
-    if (clientId) this.lastSeen[clientId] = Date.now();
+    if (clientId) this.seen.set(clientId, Date.now());
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
