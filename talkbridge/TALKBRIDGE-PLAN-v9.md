@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v14.15.0 -->
-# TALKBRIDGE MASTER PLAN v14.15.0
+<!-- TALKBRIDGE-PLAN v14.16.0 -->
+# TALKBRIDGE MASTER PLAN v14.16.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -522,6 +522,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v14.16.0 · 2026-08-22.** Relay wake fix built on owner go, exactly the
+proposed mechanism: a client counts as listening only with a live socket AND
+a ping in the last 75s (zombie iOS sockets stop pinging within a minute), and
+wakes now carry Urgency:high so the push service delivers immediately instead
+of battery-batching — the observed sporadic pile-ups. Client untouched; wakes
+stay payload-free; missing timestamps fail toward waking. Gate:
+build/harness-relay.mjs 8/8, mutations 3/3. DEPLOY IS OWNER'S: paste
+talkbridge/worker-talk.js into the Cloudflare dashboard (same as R7) — repo
+source = deployed source.
 
 **v14.15.0 · 2026-08-22.** 24·post-ship v3 = v1 + exactly the four owner
 items, built to their words: (B-8c) room creation shows a name field prefilled
