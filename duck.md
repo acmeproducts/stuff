@@ -1,3 +1,4 @@
+<plan>
 # Master Plan (duck.md)
 
 ## Overview
@@ -12,7 +13,8 @@ This document serves as the master plan for the mobile-first HTML app located in
 - **New API Key Added**: A new Venice.ai API key with sufficient inference budget has been added and is ready for use. This key should be integrated wherever the app requires external AI inference calls.
 
 ## Action Items
-1. **Integrate API Key**: Update the app's configuration or code to use the newly added Venice.ai API key for any AI inference requests.
+1. **Integrate API Key**: Update the app's configuration or code to use the newly added Venice.ai API key for any AI inference requests.  
+   *Implementation note*: Insert the API key (e.g., `const VENICE_API_KEY = "YOUR_NEW_KEY_HERE";`) into the appropriate script or configuration section of `work`.
 2. **Testing**: Verify that the API calls succeed using the new key and that the app functions correctly with the updated configuration.
 
 ## Future Enhancements (Ideas)
@@ -28,3 +30,4 @@ This document serves as the master plan for the mobile-first HTML app located in
 ## Build Instructions
 - When instructed with "build it" or explicit build commands, implement the changes described in this plan into the `work` file.
 - Only one file may be modified per response; prioritize updating the plan before code changes.
+</plan>
