@@ -481,3 +481,6 @@ The historical graveyard through G-033 remains part of project history and conti
 
 # v2.10.2 PRESERVE CARD STYLES/ORDER ACROSS SNAPSHOTS — 2026-08-21
 Applying a project snapshot replaced the whole project state and dropped card colors and card order recorded as fine-grained events with older timestamps. Fix: snapshot apply now carries forward existing card and tab styles; SOT order/style events re-stamped after the recovery snapshot so they apply in the right sequence.
+
+# v2.10.3 PROJECT CARDS BEHAVE LIKE TABS — 2026-08-21
+Removed the ⋮ button from project cards. Cards now use the same gesture contract as tabs: tap selects, hold or slow-drag lifts for reorder (fast flick scrolls), long-press / right-click / double-tap opens the context menu, and the native long-press menu is suppressed while a drag gesture is in progress.
