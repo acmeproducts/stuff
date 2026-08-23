@@ -609,6 +609,21 @@ also silently delay/drop. Pros' answer: high urgency (we send it), long TTL
 pre-checklist: Focus/DND OFF, Low Power OFF, TalkBridge notifications allowed
 with Lock Screen + Banners.
 
+**v15.4.1 · 2026-08-23.** PRE-FLIGHT: the real worker code ran locally with
+real sockets and a stand-in push service — 8/8: confirm cancels the push,
+silence fires it at ~4s, a disconnected phone is pushed <1.5s, topic+urgency
+on the wire, confirmed call screen produced zero notifications. INDUSTRY
+RESEARCH on the Apple side, recorded: (1) iOS kills subscriptions that
+receive pushes without showing a notification — our SW already shows
+instantly, requirement met; (2) a DOCUMENTED Apple bug on iOS 18.7/26 holds
+pushes while a locked phone is idle 10+ minutes and dumps them on unlock —
+multiple FB reports, hits WhatsApp/Telegram natives too; matches the owner's
+lag+flurry exactly and is outside anyone's code; (3) Focus/Do-Not-Disturb is
+the most common real-world silent-push cause; (4) iOS delivers to
+Notification Center, sometimes not the lock screen banner. Test protocol:
+check Focus OFF and note iOS version before burning a cycle; unlock-triggered
+floods = Apple's idle bug, not ours.
+
 **v15.4.0 · 2026-08-23.** PERMANENT DELIVERY DESIGN, owner-directed: the
 relay never guesses presence. Every push-worthy message carries a delivery
 id; connected clients confirm on whichever path delivered it (active room or
