@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT=/home/support/.openclaw/workspace/https/report
 API="$ROOT/sot-api.js"
 UI="$ROOT/SOT/sot-dbadmin.html"
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/main
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/f939423da666645c6902d18a731f739fb98d7295
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$ROOT"
