@@ -593,6 +593,22 @@ the ecosystem — pros re-verify subscription health on every open.
 RECOMMENDED (owner go required): adopt declarative payloads with minimal
 generic content + navigate, and re-verify subscription on every open.
 
+**v15.4.1 · 2026-08-23.** Pre-device verification: the EXACT deployed relay
+class was driven with two simulated phones — instant delivery with ids,
+confirmation cancels the push, zombie silence fires exactly one push,
+socketless pushes immediately, transients never push: 7/7. Industry research
+(Apple docs, WebKit, Progressier, OneSignal, Apple dev forums): our SW
+already follows the canonical iOS pattern (waitUntil-wrapped, notification
+shown before any network, visible case shows-then-closes, tag-merged) — the
+silent-push 3-strike revocation is the documented killer and we're immune by
+construction. OUT OF OUR CONTROL, documented across current Apple forum
+threads: iOS can hold pushes to a locked, deep-idle (10+ min) phone until
+wake — open Apple bug reports on iOS 18.7/26; Focus/DND and Low Power Mode
+also silently delay/drop. Pros' answer: high urgency (we send it), long TTL
+(we send it), and in-app catch-up on open (our history sync). Device test
+pre-checklist: Focus/DND OFF, Low Power OFF, TalkBridge notifications allowed
+with Lock Screen + Banners.
+
 **v15.4.0 · 2026-08-23.** PERMANENT DELIVERY DESIGN, owner-directed: the
 relay never guesses presence. Every push-worthy message carries a delivery
 id; connected clients confirm on whichever path delivered it (active room or
