@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import datetime as dt, email.utils, hashlib, json, os, re, time, urllib.error, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+VERSION='2.0.0'; ROOT=Path('data/market-backend'); NEWS_DIR=ROOT/'sources/news'; MARKET_DIR=ROOT/'sources/market'; MACRO_DIR=ROOT/'sources/macro'; UA='MarketNavigatorCollector/2.0 (+https://github.com/acmeproducts/stuff)'; TIMEOUT=25
+NEWS={
+'wsj-markets':('WSJ Markets','https://feeds.a.dj.com/rss/RSSMarketsMain.xml'),
+'bbc-business':('BBC Business','https://feeds.bbci.co.uk/news/business/rss.xml'),
+'bbc-world':('BBC World','https://feeds.bbci.co.uk/news/world/rss.xml'),
+'ft-markets':('Financial Times Markets','https://www.ft.com/markets?format=rss'),
+'ft-world':('Financial Times World','https://www.ft.com/world?format=rss'),
+'marketwatch':('MarketWatch','https://feeds.marketwatch.com/marketwatch/topstories/'),
+'morningstar':('Morningstar','https://www.morningstar.com/rss/market-news'),
+'cnbc-world':('CNBC World','https://www.cnbc.com/id/100727362/device/rss/rss.html'),
+'nyt-business':('New York Times Business','https://rss.nytimes.com/services/xml/rss/nyt/Business.xml'),
+'nyt-world':('New York Times World','https://rss.nytimes.com/services/xml/rss/nyt/World.xml')}
+MARKET={'spy':('SPY','SPY','Broad equities'),'qqq':('QQQ','QQQ','Growth equities'),'vix':('VIX','^VIX','Market fear'),'tenYear':('10Y','^TNX','Cost of capital'),'wti':('WTI','CL=F','U.S. oil benchmark'),'brent':('Brent','BZ=F','Global oil benchmark'),'gold':('Gold','GLD','Gold proxy'),'dxy':('DXY','DX-Y.NYB','U.S. dollar')}
+MACRO={'cpi':('CPI YoY',{'function':'CPI','interval':'monthly'},'monthly'),'fedFunds':('Fed Funds',{'function':'FEDERAL_FUNDS_RATE','interval':'daily'},'daily'),'twoYear':('2Y',{'function':'TREASURY_YIELD','interval':'daily','maturity':'2year'},'daily'),'thirtyYear':('30Y',{'function':'TREASURY_YIELD','interval':'daily','maturity':'30year'},'daily')}
+GEO=re.compile(r'\b(iran|israel|gaza|ukraine|russia|china|taiwan|nato|missile|drone|strike|war|ceasefire|sanction|hormuz|red sea|shipping attack|opec)\b',re.I); OUTLOOK=re.compile(r'\b(outlook|forecast|expects?|expectations?|projection|guidance|strategy|target|scenario)\b',re.I)
+TOPICS=[('geopolitics',GEO),('oil',re.compile(r'\b(oil|crude|brent|wti|opec|gasoline|energy)\b',re.I)),('inflation',re.compile(r'\b(cpi|pce|inflation|prices?)\b',re.I)),('rates',re.compile(r'\b(fed|federal reserve|treasury|yield|interest rate|bond)\b',re.I)),('gold',re.compile(r'\b(gold|bullion|precious metal)\b',re.I)),('currency',re.compile(r'\b(dollar|dxy|currency|forex|yen|euro)\b',re.I)),('equities',re.compile(r'\b(stock|stocks|equities|s&p|nasdaq|dow|earnings)\b',re.I))]
+
+def now(): return dt.datetime.now(dt.timezone.utc)
+def iso(t=None): return (t or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
+def ptime(v):
+    if not v:return None
+    try:
+        t=dt.datetime.fromisoformat(v.replace('Z','+00:00')); return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+    except:return None
+def load(p,default):
+    try:return json.loads(p.read_text(encoding='utf-8'))
+    except:return default
+def write(p,obj):
+    p.parent.mkdir(parents=True,exist_ok=True); text=json.dumps(obj,ensure_ascii=False,indent=2,sort_keys=True)+'\n'; old=p.read_text(encoding='utf-8') if p.exists() else None
+    if old==text:return False
+    p.write_text(text,encoding='utf-8'); return True
+def get(url,accept='*/*'):
+    q=urllib.request.Request(url,headers={'User-Agent':UA,'Accept':accept}); started=time.time()
+    try:
+        with urllib.request.urlopen(q,timeout=TIMEOUT) as r:return r.read(),{'http':getattr(r,'status',200),'ms':int((time.time()-started)*1000),'etag':r.headers.get('ETag'),'lastModified':r.headers.get('Last-Modified')}
+    except urllib.error.HTTPError as e:raise RuntimeError(f'HTTP {e.code}') from e
+    except urllib.error.URLError as e:raise RuntimeError(f'network: {e.reason}') from e
+def state(path,name,url,ttl):
+    s=load(path,{}); s.setdefault('source',name);s.setdefault('url',url);s.setdefault('status','new');s.setdefault('failureCount',0);s.setdefault('records',[]);s.setdefault('ttlMinutes',ttl);return s
+def due(s,force=False):
+    if force:return True
+    n=now(); retry=ptime(s.get('nextRetry')); exp=ptime(s.get('expiresAt')); return not ((retry and n<retry) or (exp and n<exp))
+def ok(s,meta,ttl,count):
+    n=now();s.update({'status':'healthy','lastAttempt':iso(n),'lastSuccess':iso(n),'expiresAt':iso(n+dt.timedelta(minutes=ttl)),'nextRetry':None,'failureCount':0,'lastError':None,'recordsCount':count,'http':meta.get('http'),'latencyMs':meta.get('ms'),'etag':meta.get('etag'),'lastModified':meta.get('lastModified')})
+def fail(s,e):
+    n=now(); f=int(s.get('failureCount') or 0)+1; h=[1,3,6,12][min(f-1,3)];s.update({'status':'stale' if s.get('records') else 'unavailable','lastAttempt':iso(n),'failureCount':f,'lastError':str(e),'nextRetry':iso(n+dt.timedelta(hours=h)),'expiresAt':iso(n+dt.timedelta(hours=h)),'recordsCount':len(s.get('records') or [])})
+def node_text(node,names):
+    for c in list(node):
+        if c.tag.split('}')[-1].lower() in names:return ' '.join(''.join(c.itertext()).split())
+    return ''
+def node_link(node):
+    for c in list(node):
+        if c.tag.split('}')[-1].lower()=='link':return (c.attrib.get('href') or c.text or '').strip()
+    return ''
+def feed_time(v):
+    try:
+        t=email.utils.parsedate_to_datetime(v); return iso(t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc))
+    except:
+        try:return iso(dt.datetime.fromisoformat(v.replace('Z','+00:00')))
+        except:return iso()
+def parse_feed(data,slug,source):
+    root=ET.fromstring(data); out=[]
+    for n in [x for x in root.iter() if x.tag.split('}')[-1].lower() in ('item','entry')][:80]:
+        title=node_text(n,('title',)) or 'Untitled'; desc=node_text(n,('description','summary','content','encoded')); link=node_link(n); published=node_text(n,('pubdate','published','updated','date')); guid=node_text(n,('guid','id')); stable=guid or link or f'{source}|{title}|{published}'; topics=[k for k,r in TOPICS if r.search(title+' '+desc)] or ['general']
+        out.append({'id':slug+':'+hashlib.sha1(stable.encode()).hexdigest()[:20],'sourceId':slug,'source':source,'title':title,'url':link,'publishedAt':feed_time(published),'description':desc[:1200],'topics':topics,'geopolitical':'geopolitics' in topics,'outlook':bool(OUTLOOK.search(title+' '+desc))})
+    return out
+def collect_news(force):
+    merged={}; health={}
+    for slug,(name,url) in NEWS.items():
+        p=NEWS_DIR/f'{slug}.json'; s=state(p,name,url,30)
+        if due(s,force):
+            try:
+                data,meta=get(url,'application/rss+xml, application/atom+xml, application/xml, text/xml, */*'); records=parse_feed(data,slug,name)
+                if not records:raise RuntimeError('valid feed returned zero stories')
+                s['records']=records;ok(s,meta,30,len(records))
+            except Exception as e:fail(s,e)
+            write(p,s)
+        for x in s.get('records') or []:
+            k=x.get('url') or x['id']; old=merged.get(k)
+            if not old or x.get('publishedAt','')>old.get('publishedAt',''):merged[k]=x
+        health['news:'+slug]={k:v for k,v in s.items() if k!='records'}
+    return sorted(merged.values(),key=lambda x:x.get('publishedAt',''),reverse=True)[:600],health
+def yurl(symbol,range_,interval):return 'https://query1.finance.yahoo.com/v8/finance/chart/'+urllib.parse.quote(symbol,safe='')+'?'+urllib.parse.urlencode({'range':range_,'interval':interval,'includePrePost':'true','events':'div,splits'})
+def ypoints(symbol,range_,interval):
+    data,meta=get(yurl(symbol,range_,interval),'application/json');j=json.loads(data.decode('utf-8','replace'));r=((j.get('chart') or {}).get('result') or [None])[0]
+    if not r:raise RuntimeError(((j.get('chart') or {}).get('error') or {}).get('description') or 'Yahoo returned no chart result')
+    ts=r.get('timestamp') or [];cl=(((r.get('indicators') or {}).get('quote') or [{}])[0].get('close') or []);pts=[]
+    for i,t in enumerate(ts):
+        try:
+            v=float(cl[i]);
+            if v==v:pts.append({'t':int(t)*1000,'v':v})
+        except:pass
+    if len(pts)<2:raise RuntimeError('Yahoo returned insufficient points')
+    return pts,meta
+def mergepts(old,new,limit):
+    m={int(x['t']):{'t':int(x['t']),'v':float(x['v'])} for x in old if 't' in x and 'v' in x}
+    for x in new:m[int(x['t'])]={'t':int(x['t']),'v':float(x['v'])}
+    return sorted(m.values(),key=lambda x:x['t'])[-limit:]
+def active_market():
+    n=now().astimezone(ZoneInfo('America/New_York'));return n.weekday()<5 and 4<=n.hour<=20
+def collect_market(force):
+    out={};health={};fastttl=60 if active_market() else 360
+    for key,(short,symbol,role) in MARKET.items():
+        p=MARKET_DIR/f'{key}.json';s=state(p,short,yurl(symbol,'5d','15m'),fastttl);s.setdefault('symbol',symbol);s.setdefault('role',role);s.setdefault('daily',[]);s.setdefault('intraday',[]);n=now();ld=ptime(s.get('lastDailySuccess'));daily_due=force or not ld or n-ld>=dt.timedelta(hours=20);attempted=False
+        if daily_due:
+            attempted=True
+            try:pts,meta=ypoints(symbol,'5y','1d');s['daily']=mergepts(s['daily'],pts,6000);s['lastDailySuccess']=iso(n);s['dailyError']=None;s['dailyHttp']=meta.get('http')
+            except Exception as e:s['dailyError']=str(e)
+        if due(s,force):
+            attempted=True
+            try:pts,meta=ypoints(symbol,'5d','15m');s['intraday']=mergepts(s['intraday'],pts,3000);ok(s,meta,fastttl,len(s['intraday']))
+            except Exception as e:fail(s,e)
+        if attempted:s['records']=[];write(p,s)
+        out[key]={'id':key,'short':short,'symbol':symbol,'role':role,'provider':'Yahoo Finance','status':s.get('status'),'lastSuccess':s.get('lastSuccess'),'lastDailySuccess':s.get('lastDailySuccess'),'daily':s.get('daily') or [],'intraday':s.get('intraday') or []};health['market:'+key]={k:v for k,v in s.items() if k not in ('records','daily','intraday')}
+    return out,health
+def alpha_key():return os.environ.get('ALPHA_VANTAGE_API_KEY') or os.environ.get('ALPHAVANTAGE_API_KEY') or ''
+def apoints(params):
+    key=alpha_key()
+    if not key:raise RuntimeError('Alpha Vantage secret not configured')
+    data,meta=get('https://www.alphavantage.co/query?'+urllib.parse.urlencode({**params,'apikey':key}),'application/json');j=json.loads(data.decode('utf-8','replace'));msg=j.get('Note') or j.get('Information') or j.get('Error Message')
+    if msg:raise RuntimeError(str(msg))
+    out=[]
+    for r in j.get('data') or []:
+        if r.get('value') in (None,'.'):continue
+        try:out.append({'t':int(dt.datetime.fromisoformat(r['date']).replace(tzinfo=dt.timezone.utc).timestamp()*1000),'v':float(r['value'])})
+        except:pass
+    return sorted(out,key=lambda x:x['t']),meta
+def cpi_yoy(raw):return [{'t':raw[i]['t'],'v':(raw[i]['v']/raw[i-12]['v']-1)*100} for i in range(12,len(raw)) if raw[i-12]['v']]
+def collect_macro(force):
+    out={};health={}
+    for key,(short,params,cad) in MACRO.items():
+        p=MACRO_DIR/f'{key}.json';s=state(p,short,'Alpha Vantage',1440);s.setdefault('cadence',cad)
+        if due(s,force):
+            try:
+                pts,meta=apoints(params);pts=cpi_yoy(pts) if key=='cpi' else pts
+                if len(pts)<2:raise RuntimeError('macro provider returned insufficient points')
+                s['records']=pts[-6000:];ok(s,meta,1440,len(s['records']))
+            except Exception as e:fail(s,e)
+            write(p,s)
+        out[key]={'id':key,'short':short,'cadence':cad,'provider':'Alpha Vantage','status':s.get('status'),'lastSuccess':s.get('lastSuccess'),'points':s.get('records') or []};health['macro:'+key]={k:v for k,v in s.items() if k!='records'}
+    return out,health
+def dataset(path,schema,payload,health,extra=None):
+    times=[ptime(x.get('lastSuccess')) for x in health.values() if x.get('lastSuccess')];gen=max(times) if times else now();obj={'schema':schema,'collectorVersion':VERSION,'generatedAt':iso(gen),'data':payload};obj.update(extra or {});write(path,obj)
+def fileinfo(path):
+    b=path.read_bytes();return {'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)}
+def main():
+    force=os.environ.get('MARKET_NAVIGATOR_FORCE','').lower() in ('1','true','yes');[p.mkdir(parents=True,exist_ok=True) for p in (NEWS_DIR,MARKET_DIR,MACRO_DIR)];news,nh=collect_news(force);market,mh=collect_market(force);macro,xh=collect_macro(force);health={**nh,**mh,**xh};np=ROOT/'news-cache.json';mp=ROOT/'market-cache.json';xp=ROOT/'macro-cache.json';hp=ROOT/'source-health.json';mf=ROOT/'market-manifest.json'
+    dataset(np,'market-navigator-news-v1',news,nh,{'records':len(news),'geopoliticalRecords':sum(1 for x in news if x.get('geopolitical')),'outlookRecords':sum(1 for x in news if x.get('outlook'))});dataset(mp,'market-navigator-market-v1',market,mh,{'series':len(market)});dataset(xp,'market-navigator-macro-v1',macro,xh,{'series':len(macro)});attempts=[ptime(x.get('lastAttempt')) for x in health.values() if x.get('lastAttempt')];write(hp,{'schema':'market-navigator-source-health-v1','collectorVersion':VERSION,'generatedAt':iso(max(attempts) if attempts else now()),'sources':health})
+    files={};counts={'market':len(market),'macro':len(macro),'news':len(news),'health':len(health)}
+    for name,p in [('market',mp),('macro',xp),('news',np),('health',hp)]:
+        i=fileinfo(p);o=load(p,{});files[name]={'path':str(p),'revision':i['sha256'][:16],'sha256':i['sha256'],'bytes':i['bytes'],'records':counts[name],'updatedAt':o.get('generatedAt')}
+    rev=hashlib.sha256(json.dumps(files,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:16];write(mf,{'schema':'market-navigator-manifest-v1','collectorVersion':VERSION,'revision':rev,'generatedAt':max((x.get('updatedAt') or '' for x in files.values()),default=iso()),'files':files,'policy':{'news':'30m TTL; failure backoff 1h/3h/6h/12h; last-known-good retained','marketIntraday':'60m while market-active, 6h otherwise; last-known-good retained','marketDailyHistory':'20h TTL; 5y daily foundation merged by timestamp','macro':'24h eligibility; last-known-good retained','clientContract':'IndexedDB first; same-origin manifest check; download only changed revisions','fred':'reserved for phase 3 expansion; not used by this collector yet'}});print(json.dumps({'ok':True,'version':VERSION,'news':len(news),'marketSeries':len(market),'macroSeries':len(macro),'sources':len(health),'manifest':str(mf)},indent=2))
+if __name__=='__main__':main()
