@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.4.0 -->
-# TALKBRIDGE MASTER PLAN v15.4.0
+<!-- TALKBRIDGE-PLAN v15.5.0 -->
+# TALKBRIDGE MASTER PLAN v15.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -575,6 +575,23 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.5.0 · 2026-08-23.** Pre-flight + industry research (owner-directed).
+PRE-FLIGHT: the deployed relay class was integration-tested in-process with
+real timers — live delivery carries the id; no-socket pushes immediately;
+confirmation cancels the push; silence fires it at +4.0s; the sender is never
+pushed. 5/5. (Live-wire test impossible from the sandbox; noted.)
+RESEARCH: iOS throttling of service-worker push handling is a documented,
+ecosystem-wide cause of multi-minute delays; Apple's answer is DECLARATIVE
+WEB PUSH (iOS 18.4+): JSON notification displayed by the OS with no service
+worker execution, more reliable by design, battery-friendly, silent-push
+penalty lifted, backward compatible (falls back to the SW path). Also
+documented: Web Push payloads are ENCRYPTED end-to-end (RFC 8291) — the
+payload-free privacy rationale bought less than assumed while costing
+reliability. Also: iOS subscriptions die silently after inactivity across
+the ecosystem — pros re-verify subscription health on every open.
+RECOMMENDED (owner go required): adopt declarative payloads with minimal
+generic content + navigate, and re-verify subscription on every open.
 
 **v15.4.0 · 2026-08-23.** PERMANENT DELIVERY DESIGN, owner-directed: the
 relay never guesses presence. Every push-worthy message carries a delivery
