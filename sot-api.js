@@ -1,71 +1,1049 @@
 'use strict';
-const fs=require('fs');
-const fsp=fs.promises;
-const path=require('path');
-const crypto=require('crypto');
-const os=require('os');
-const {execFileSync}=require('child_process');
 
-const VERSION='0.4.1',BUILD='2026.08.17.6.2-wsl';
-const ROOT=path.join(os.homedir(),'.openclaw','sot');
-const DEFAULT_DB=path.join(ROOT,'sot.sqlite');
-const DEFAULT_BACKUP=path.join(ROOT,'backups');
-const CONFIG=path.join(ROOT,'config.json');
-const HOME=os.homedir();
-const jobs=new Map();
-const TABLE_ALLOW=new Set(['meta','projects','sources','manifests','events','runs','inventory_runs','duplicate_clusters','conflicts','sot_generations','lineage','admin_events','fs_scope_cache']);
-const MUTABLE={projects:new Set(['project_name','active','status','current_stage','notes','deleted_at']),sources:new Set(['operator_label','operator_note','source_status','last_seen_at']),runs:new Set(['status','checkpoint_state','progress_percent','estimated_completion_at','ended_at']),meta:new Set(['value'])};
+const crypto = require('crypto');
+const fs = require('fs');
+const fsp = fs.promises;
+const os = require('os');
+const path = require('path');
+const { execFileSync, spawnSync } = require('child_process');
 
-function json(res,status,obj){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(obj));}
-function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(b.length>5e6){reject(new Error('request too large'));req.destroy();}});req.on('end',()=>{try{resolve(b?JSON.parse(b):{});}catch(e){reject(e);}});req.on('error',reject);});}
-function cfg(){try{return {...{database_path:DEFAULT_DB,database_backup_path:DEFAULT_BACKUP},...JSON.parse(fs.readFileSync(CONFIG,'utf8'))};}catch(_){return {database_path:DEFAULT_DB,database_backup_path:DEFAULT_BACKUP};}}
-function saveCfg(c){fs.mkdirSync(path.dirname(CONFIG),{recursive:true});fs.writeFileSync(CONFIG,JSON.stringify(c,null,2));}
-function sql(q,db=cfg().database_path){fs.mkdirSync(path.dirname(db),{recursive:true});return execFileSync('sqlite3',['-json',db,q],{encoding:'utf8'}).trim();}
-function esc(v){return "'"+String(v??'').replace(/'/g,"''")+"'";}
-function ident(v){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v))throw new Error('invalid identifier');return v;}
-function parseRows(x){return x?JSON.parse(x):[];}
-function rows(q){init();return parseRows(sql(q));}
-function ensureColumn(table,col,ddl){try{sql(`ALTER TABLE ${ident(table)} ADD COLUMN ${ident(col)} ${ddl};`);}catch(e){if(!String(e.message||e).includes('duplicate column name'))throw e;}}
-function init(){
- const db=cfg().database_path;
- sql(`PRAGMA journal_mode=WAL;
- CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS projects(project_token TEXT PRIMARY KEY,project_name TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Pending',current_stage TEXT NOT NULL DEFAULT 'setup',current_run_id TEXT,notes TEXT NOT NULL DEFAULT '',deleted_at TEXT);
- CREATE TABLE IF NOT EXISTS sources(source_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,source_type TEXT NOT NULL DEFAULT 'wsl_path',original_path_or_locator TEXT NOT NULL,normalized_path_or_locator TEXT NOT NULL,operator_label TEXT NOT NULL DEFAULT '',operator_note TEXT NOT NULL DEFAULT '',registered_at TEXT NOT NULL,last_seen_at TEXT,fingerprint TEXT,fingerprinted_at TEXT,source_status TEXT NOT NULL DEFAULT 'registered',parent_sot_generation_id TEXT,file_count INTEGER NOT NULL DEFAULT 0,byte_count INTEGER NOT NULL DEFAULT 0,UNIQUE(project_token,source_type,normalized_path_or_locator));
- CREATE TABLE IF NOT EXISTS manifests(manifest_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,source_id TEXT NOT NULL,relative_path TEXT NOT NULL,size INTEGER NOT NULL,modified_at REAL NOT NULL,sha256 TEXT NOT NULL,inventory_at TEXT NOT NULL,UNIQUE(project_token,source_id,relative_path));
- CREATE INDEX IF NOT EXISTS idx_manifests_project_source ON manifests(project_token,source_id);
- CREATE TABLE IF NOT EXISTS events(event_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT,event_type TEXT NOT NULL,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');
- CREATE TABLE IF NOT EXISTS runs(run_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,started_at TEXT,ended_at TEXT,status TEXT NOT NULL DEFAULT 'Pending',checkpoint_state TEXT,progress_percent REAL NOT NULL DEFAULT 0,estimated_completion_at TEXT,files_total INTEGER NOT NULL DEFAULT 0,files_done INTEGER NOT NULL DEFAULT 0,bytes_done INTEGER NOT NULL DEFAULT 0);
- CREATE TABLE IF NOT EXISTS inventory_runs(inventory_run_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,source_id TEXT NOT NULL,started_at TEXT,last_progress_at TEXT,completed_at TEXT,elapsed_seconds REAL,files_seen INTEGER NOT NULL DEFAULT 0,bytes_seen INTEGER NOT NULL DEFAULT 0,files_per_second REAL,bytes_per_second REAL,estimated_remaining_seconds REAL,status TEXT,checkpoint_state TEXT,error_count INTEGER NOT NULL DEFAULT 0);
- CREATE TABLE IF NOT EXISTS duplicate_clusters(cluster_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,content_hash TEXT,file_count INTEGER NOT NULL DEFAULT 0,bytes_each INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'exact');
- CREATE TABLE IF NOT EXISTS conflicts(conflict_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,path_key TEXT,detail TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'open');
- CREATE TABLE IF NOT EXISTS sot_generations(generation_id TEXT PRIMARY KEY,project_token TEXT NOT NULL,created_at TEXT NOT NULL,target_path TEXT,verification_status TEXT,status TEXT NOT NULL DEFAULT 'candidate');
- CREATE TABLE IF NOT EXISTS lineage(lineage_id INTEGER PRIMARY KEY AUTOINCREMENT,project_token TEXT NOT NULL,source_id TEXT,parent_generation_id TEXT,child_generation_id TEXT,created_at TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');
- CREATE TABLE IF NOT EXISTS admin_events(admin_event_id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,table_name TEXT,row_key TEXT,action TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '');
- CREATE TABLE IF NOT EXISTS fs_scope_cache(cache_key TEXT PRIMARY KEY,path TEXT NOT NULL,signature TEXT NOT NULL,payload TEXT NOT NULL,updated_at TEXT NOT NULL);
- INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','0.4.1');`,db);
- ensureColumn('sources','file_count','INTEGER NOT NULL DEFAULT 0');ensureColumn('sources','byte_count','INTEGER NOT NULL DEFAULT 0');
- ensureColumn('runs','files_total','INTEGER NOT NULL DEFAULT 0');ensureColumn('runs','files_done','INTEGER NOT NULL DEFAULT 0');ensureColumn('runs','bytes_done','INTEGER NOT NULL DEFAULT 0');
+const VERSION = '1.0.0';
+const BUILD = '2026.08.23.sot-clean-1';
+const EXPECTED_MIGRATION = 1;
+const SOT_ROOT = process.env.SOT_ROOT || path.join(os.homedir(), '.openclaw', 'sot');
+const DATABASE_PATH = process.env.SOT_DB_PATH || path.join(SOT_ROOT, 'sot.sqlite');
+const SNAPSHOT_DIR = process.env.SOT_SNAPSHOT_DIR || path.join(SOT_ROOT, 'db-snapshots');
+const SQLITE_ADAPTER = process.env.SOT_SQLITE_ADAPTER || path.join(__dirname, 'sot-sqlite.py');
+const SQLITE3_AVAILABLE = !spawnSync('sqlite3', ['-version'], { encoding: 'utf8' }).error;
+const STEP_NAMES = { 1: 'project', 2: 'sources', 3: 'process', 4: 'review', 5: 'plan', 6: 'execute', 7: 'certify' };
+const runtime = {
+  schemaReady: false,
+  scheduler: { running: false, queue: [], active: null, workers: [] },
+  processing: new Map(),
+  executions: new Map()
+};
+
+function now() { return new Date().toISOString(); }
+function randomId(bytes = 16) { return crypto.randomBytes(bytes).toString('hex'); }
+function sha(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
+function sqlQuote(value) { return `'${String(value ?? '').replace(/'/g, "''")}'`; }
+function safeIdentifier(value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw httpError(400, 'invalid identifier');
+  return value;
 }
-function integrity(){init();const r=rows('PRAGMA integrity_check;');const value=r[0]?.integrity_check||Object.values(r[0]||{})[0]||'unknown';return {ok:String(value).toLowerCase()==='ok',result:value,database_path:cfg().database_path};}
-function token(){return crypto.randomBytes(12).toString('hex');}
-function roots(){const out=[];for(const letter of 'cdefghijklmnopqrstuvwxyz'){const p='/mnt/'+letter;try{if(fs.statSync(p).isDirectory())out.push({id:'wsl:'+p,name:letter.toUpperCase()+':',label:letter.toUpperCase()+':',path:p,kind:'storage'});}catch(_){}}out.push({id:'wsl:'+HOME,name:'WSL Home',label:'WSL Home',path:HOME,kind:'storage'});return out;}
-function safePath(p){return path.resolve(String(p||'/'));}
-async function shallowSignature(rp){const ents=await fsp.readdir(rp,{withFileTypes:true});const parts=[];for(const e of ents){if(!e.isDirectory())continue;try{const st=await fsp.stat(path.join(rp,e.name));parts.push(`${e.name}\0${Math.floor(st.mtimeMs)}\0${st.size}`);}catch{parts.push(`${e.name}\0x`)}}parts.sort();return crypto.createHash('sha256').update(parts.join('\n')).digest('hex');}
-async function folderStats(dir){let bytes=0,files=0,last=0;const stack=[dir];while(stack.length){const d=stack.pop();let ents;try{ents=await fsp.readdir(d,{withFileTypes:true});}catch{continue}for(const e of ents){const full=path.join(d,e.name);try{if(e.isDirectory())stack.push(full);else if(e.isFile()){const st=await fsp.stat(full);bytes+=st.size;files++;last=Math.max(last,st.mtimeMs)}}catch{}}}return{bytes,files,last};}
-async function browseDetailed(p,force=false){if(!p||p==='/')return {path:'/',parent:'/',locations:roots(),folders:[],files:[],cached:false,status:'Ready'};const rp=safePath(p),sig=await shallowSignature(rp),key=crypto.createHash('sha256').update(rp).digest('hex');if(!force){const c=rows(`SELECT signature,payload,updated_at FROM fs_scope_cache WHERE cache_key=${esc(key)} LIMIT 1`)[0];if(c&&c.signature===sig){const payload=JSON.parse(c.payload);return {...payload,cached:true,status:'Ready · cached',cache_updated_at:c.updated_at};}}const ents=await fsp.readdir(rp,{withFileTypes:true});const folders=[];const files=[];for(const e of ents){const full=path.join(rp,e.name);if(e.isDirectory()){const st=await folderStats(full);folders.push({name:e.name,path:full,bytes:st.bytes,files:st.files,last:st.last});}else if(e.isFile()){try{const st=await fsp.stat(full);files.push({name:e.name,path:full,bytes:st.size,last:st.mtimeMs});}catch{}}}folders.sort((a,b)=>a.name.localeCompare(b.name));files.sort((a,b)=>a.name.localeCompare(b.name));const payload={path:rp,parent:path.dirname(rp),folders,files};sql(`INSERT OR REPLACE INTO fs_scope_cache(cache_key,path,signature,payload,updated_at) VALUES(${esc(key)},${esc(rp)},${esc(sig)},${esc(JSON.stringify(payload))},${esc(new Date().toISOString())});`);return {...payload,cached:false,status:'Ready · updated'};}
-function sourceId(projectToken,type,locator){return crypto.createHash('sha256').update(projectToken+'\0'+type+'\0'+locator).digest('hex').slice(0,24);}
-function normalizeLocator(type,v){if(type==='wsl_path')return path.resolve(v);return v;}
-function sourceRowsFromBody(projectToken,input,now){return (input||[]).map(x=>typeof x==='string'?{source_type:'wsl_path',path:x,operator_label:path.basename(x)||x,note:''}:x).map(x=>{const type=String(x.source_type||'wsl_path'),orig=String(x.path||x.locator||x.original_path_or_locator||''),norm=normalizeLocator(type,orig);return {source_id:sourceId(projectToken,type,norm),project_token:projectToken,source_type:type,original:orig,normalized:norm,label:String(x.operator_label||x.name||path.basename(orig)||orig),note:String(x.note||x.operator_note||''),registered_at:now};}).filter(x=>x.original);}
-function project(t){const p=rows(`SELECT * FROM projects WHERE project_token=${esc(t)} LIMIT 1`)[0];if(!p)return null;p.progress=p.current_run_id?(rows(`SELECT progress_percent FROM runs WHERE run_id=${esc(p.current_run_id)} LIMIT 1`)[0]?.progress_percent||0):0;p.sources=rows(`SELECT source_id AS id,project_token,source_type,original_path_or_locator AS path,normalized_path_or_locator,operator_label AS name,operator_label,operator_note AS note,registered_at,last_seen_at,fingerprint,fingerprinted_at,source_status,parent_sot_generation_id,file_count,byte_count FROM sources WHERE project_token=${esc(t)} ORDER BY registered_at,source_id`);return p;}
-function audit(table,key,action,detail){sql(`INSERT INTO admin_events(created_at,table_name,row_key,action,detail) VALUES(${esc(new Date().toISOString())},${esc(table)},${esc(key||'')},${esc(action)},${esc(JSON.stringify(detail||{}))});`);}
-function primaryKey(table){return {meta:'key',projects:'project_token',sources:'source_id',manifests:'manifest_id',events:'event_id',runs:'run_id',inventory_runs:'inventory_run_id',duplicate_clusters:'cluster_id',conflicts:'conflict_id',sot_generations:'generation_id',lineage:'lineage_id',admin_events:'admin_event_id',fs_scope_cache:'cache_key'}[table];}
-function tableColumns(table){return rows(`PRAGMA table_info(${ident(table)});`).map(x=>({name:x.name,type:x.type,pk:!!x.pk,notnull:!!x.notnull,default:x.dflt_value}));}
-async function collectFiles(rootPath){const out=[];const stack=[{dir:rootPath,rel:''}];while(stack.length){const {dir,rel}=stack.pop();let ents;try{ents=await fsp.readdir(dir,{withFileTypes:true});}catch{continue}for(const e of ents){const full=path.join(dir,e.name),r=rel?rel+'/'+e.name:e.name;if(e.isDirectory())stack.push({dir:full,rel:r});else if(e.isFile()){try{const st=await fsp.stat(full);out.push({full,rel:r,size:st.size,mtime:st.mtimeMs});}catch{}}}}return out;}
-async function hashPath(full){return new Promise((resolve,reject)=>{const h=crypto.createHash('sha256'),s=fs.createReadStream(full);s.on('data',d=>h.update(d));s.on('error',reject);s.on('end',()=>resolve(h.digest('hex')));});}
-async function runFingerprintJob(projectToken,runId){const job=jobs.get(runId);if(!job)return;const started=Date.now();try{const p=project(projectToken);if(!p)throw new Error('project not found');const work=[];let total=0;for(const s of p.sources){if(s.source_type!=='wsl_path')continue;const files=await collectFiles(s.path);total+=files.length;work.push({s,files});}sql(`UPDATE runs SET files_total=${total},status='WIP' WHERE run_id=${esc(runId)};UPDATE projects SET status='WIP',current_stage='fingerprinting',updated_at=${esc(new Date().toISOString())} WHERE project_token=${esc(projectToken)};`);let done=0,bytesDone=0;for(const w of work){const manifest=[];for(const f of w.files){if(job.stop){sql(`UPDATE runs SET status='Stopped',checkpoint_state=${esc(JSON.stringify({files_done:done}))},files_done=${done},bytes_done=${bytesDone},progress_percent=${total?done/total*100:0} WHERE run_id=${esc(runId)};UPDATE projects SET status='Stopped',updated_at=${esc(new Date().toISOString())} WHERE project_token=${esc(projectToken)};`);job.status='Stopped';return;}const prev=rows(`SELECT sha256,size,modified_at FROM manifests WHERE project_token=${esc(projectToken)} AND source_id=${esc(w.s.id)} AND relative_path=${esc(f.rel)} LIMIT 1`)[0];let hash;if(prev&&Number(prev.size)===f.size&&Number(prev.modified_at)===f.mtime&&prev.sha256)hash=prev.sha256;else hash=await hashPath(f.full);const mid=crypto.createHash('sha256').update(projectToken+'\0'+w.s.id+'\0'+f.rel).digest('hex');const now=new Date().toISOString();sql(`INSERT OR REPLACE INTO manifests(manifest_id,project_token,source_id,relative_path,size,modified_at,sha256,inventory_at) VALUES(${esc(mid)},${esc(projectToken)},${esc(w.s.id)},${esc(f.rel)},${f.size},${f.mtime},${esc(hash)},${esc(now)});`);manifest.push({relative_path:f.rel,size:f.size,modified_at:f.mtime,sha256:hash});done++;bytesDone+=f.size;if(done%10===0||done===total){const pct=total?done/total*100:100;sql(`UPDATE runs SET files_done=${done},bytes_done=${bytesDone},progress_percent=${pct} WHERE run_id=${esc(runId)};`);job.progress=pct;}}manifest.sort((a,b)=>a.relative_path.localeCompare(b.relative_path));const sourceFp=crypto.createHash('sha256').update(manifest.map(e=>`${e.relative_path}\0${e.size}\0${e.modified_at}\0${e.sha256}`).join('\n')).digest('hex');const at=new Date().toISOString(),bc=manifest.reduce((a,e)=>a+e.size,0);sql(`UPDATE sources SET fingerprint=${esc(sourceFp)},fingerprinted_at=${esc(at)},file_count=${manifest.length},byte_count=${bc},last_seen_at=${esc(at)},source_status='fingerprinted' WHERE source_id=${esc(w.s.id)};`);}const ended=new Date().toISOString();sql(`UPDATE runs SET status='Closed',ended_at=${esc(ended)},files_done=${done},bytes_done=${bytesDone},progress_percent=100,checkpoint_state=NULL WHERE run_id=${esc(runId)};UPDATE projects SET status='Closed',current_stage='fingerprinted',updated_at=${esc(ended)} WHERE project_token=${esc(projectToken)};INSERT INTO events(project_token,event_type,created_at,detail) VALUES(${esc(projectToken)},'fingerprint.completed',${esc(ended)},${esc(JSON.stringify({files:done,bytes:bytesDone,elapsed_seconds:(Date.now()-started)/1000}))});`);job.status='Closed';job.progress=100;}catch(e){job.status='Error';job.error=e.message;sql(`UPDATE runs SET status='Error',ended_at=${esc(new Date().toISOString())},checkpoint_state=${esc(JSON.stringify({error:e.message}))} WHERE run_id=${esc(runId)};UPDATE projects SET status='Stopped',updated_at=${esc(new Date().toISOString())} WHERE project_token=${esc(projectToken)};`);}finally{setTimeout(()=>jobs.delete(runId),600000);}}
-function fingerprintStatus(t){const p=project(t);if(!p)return null;const run=p.current_run_id?rows(`SELECT * FROM runs WHERE run_id=${esc(p.current_run_id)} LIMIT 1`)[0]||null:null;return {project:p,run,job:run?jobs.get(run.run_id)||null:null};}
-function projectReport(t){const p=project(t);if(!p)return null;const m=rows(`SELECT COUNT(*) files,COALESCE(SUM(size),0) bytes FROM manifests WHERE project_token=${esc(t)}`)[0]||{};return {project:p,inventory:{available:Number(m.files)>0,...m}};}
+function httpError(status, message) { const error = new Error(message); error.status = status; return error; }
 
-async function handle(req,res,url){const pn=url.pathname;if(!pn.startsWith('/api/sot/'))return false;try{if(pn==='/api/sot/health'){init();json(res,200,{service:'sot',status:'ok',version:VERSION,build:BUILD,server:'session-server.js',port:18080,capabilities:['fs-details','projects','fingerprint-files','manifest','db-admin']});return true;}if(pn==='/api/sot/fs'&&req.method==='GET'){json(res,200,await browseDetailed(url.searchParams.get('path')||'/',url.searchParams.get('force')==='1'));return true;}if(pn==='/api/sot/config'&&req.method==='GET'){init();json(res,200,{...cfg(),schema_version:'0.4.1'});return true;}if(pn==='/api/sot/config'&&req.method==='POST'){const b=await body(req),c={...cfg()};if(b.database_path!=null)c.database_path=String(b.database_path).trim();if(b.database_backup_path!=null)c.database_backup_path=String(b.database_backup_path).trim();if(!c.database_path||!c.database_backup_path)throw new Error('database and backup paths are required');saveCfg(c);init();fs.mkdirSync(c.database_backup_path,{recursive:true});json(res,200,{...c,...integrity(),schema_version:'0.4.1'});return true;}if(pn==='/api/sot/config/integrity'&&req.method==='GET'){json(res,200,integrity());return true;}if(pn==='/api/sot/projects'&&req.method==='GET'){const includeDeleted=url.searchParams.get('include_deleted')==='1';const ps=rows(`SELECT project_token FROM projects ${includeDeleted?'':'WHERE deleted_at IS NULL'} ORDER BY created_at DESC`).map(x=>project(x.project_token));json(res,200,ps);return true;}if(pn==='/api/sot/projects'&&req.method==='POST'){const b=await body(req),name=String(b.project_name||'').trim();if(!name)throw new Error('project_name is required');if(!(b.sources||[]).length)throw new Error('at least one source is required');const now=new Date().toISOString(),t=token(),src=sourceRowsFromBody(t,b.sources,now);sql('BEGIN;'+`INSERT INTO projects(project_token,project_name,active,created_at,updated_at,status,current_stage,notes) VALUES(${esc(t)},${esc(name)},1,${esc(now)},${esc(now)},'Pending','setup',${esc(b.notes||'')});`+src.map(s=>`INSERT INTO sources(source_id,project_token,source_type,original_path_or_locator,normalized_path_or_locator,operator_label,operator_note,registered_at,source_status) VALUES(${esc(s.source_id)},${esc(t)},${esc(s.source_type)},${esc(s.original)},${esc(s.normalized)},${esc(s.label)},${esc(s.note)},${esc(now)},'registered');`).join('')+`INSERT INTO events(project_token,event_type,created_at,detail) VALUES(${esc(t)},'project.created',${esc(now)},${esc(JSON.stringify({sources:src.length}))});COMMIT;`);json(res,201,project(t));return true;}let m=pn.match(/^\/api\/sot\/projects\/([^/]+)$/);if(m&&req.method==='GET'){const p=project(decodeURIComponent(m[1]));json(res,p?200:404,p||{error:'not found'});return true;}if(m&&req.method==='PATCH'){const t=decodeURIComponent(m[1]),b=await body(req),sets=[];if(b.project_name!=null)sets.push(`project_name=${esc(String(b.project_name).trim())}`);if(b.notes!=null)sets.push(`notes=${esc(b.notes)}`);if(b.active!=null)sets.push(`active=${b.active?1:0}`);if(!sets.length)throw new Error('nothing to update');sets.push(`updated_at=${esc(new Date().toISOString())}`);sql(`UPDATE projects SET ${sets.join(',')} WHERE project_token=${esc(t)};`);audit('projects',t,'update',b);json(res,200,project(t));return true;}m=pn.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/start$/);if(m&&req.method==='POST'){const t=decodeURIComponent(m[1]),p=project(t);if(!p)throw new Error('project not found');const current=p.current_run_id?rows(`SELECT * FROM runs WHERE run_id=${esc(p.current_run_id)} LIMIT 1`)[0]:null;if(current&&current.status==='WIP')throw new Error('fingerprint already running');const rid=token(),now=new Date().toISOString();sql(`INSERT INTO runs(run_id,project_token,started_at,status,progress_percent) VALUES(${esc(rid)},${esc(t)},${esc(now)},'WIP',0);UPDATE projects SET current_run_id=${esc(rid)},status='WIP',current_stage='fingerprinting',updated_at=${esc(now)} WHERE project_token=${esc(t)};`);jobs.set(rid,{run_id:rid,project_token:t,status:'WIP',progress:0,stop:false});setImmediate(()=>runFingerprintJob(t,rid));json(res,202,{run_id:rid,status:'WIP'});return true;}m=pn.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/stop$/);if(m&&req.method==='POST'){const t=decodeURIComponent(m[1]),p=project(t);if(!p||!p.current_run_id)throw new Error('no active run');const j=jobs.get(p.current_run_id);if(j)j.stop=true;json(res,202,{run_id:p.current_run_id,status:'stopping'});return true;}m=pn.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/status$/);if(m&&req.method==='GET'){const s=fingerprintStatus(decodeURIComponent(m[1]));json(res,s?200:404,s||{error:'not found'});return true;}m=pn.match(/^\/api\/sot\/projects\/([^/]+)\/manifest$/);if(m&&req.method==='GET'){const t=decodeURIComponent(m[1]),limit=Math.max(1,Math.min(5000,Number(url.searchParams.get('limit')||500)));json(res,200,rows(`SELECT * FROM manifests WHERE project_token=${esc(t)} ORDER BY source_id,relative_path LIMIT ${limit}`));return true;}m=pn.match(/^\/api\/sot\/projects\/([^/]+)\/report$/);if(m&&req.method==='GET'){const r=projectReport(decodeURIComponent(m[1]));json(res,r?200:404,r||{error:'not found'});return true;}if(pn==='/api/sot/reports/summary'&&req.method==='GET'){const p=rows(`SELECT COUNT(*) total,SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) current FROM projects`)[0]||{},m=rows('SELECT COUNT(*) files,COALESCE(SUM(size),0) bytes FROM manifests')[0]||{};json(res,200,{projects:p,manifests:m});return true;}if(pn==='/api/sot/db/tables'&&req.method==='GET'){json(res,200,[...TABLE_ALLOW].map(name=>({name,columns:tableColumns(name)})));return true;}m=pn.match(/^\/api\/sot\/db\/table\/([^/]+)$/);if(m&&req.method==='GET'){const table=decodeURIComponent(m[1]);if(!TABLE_ALLOW.has(table))throw new Error('table not allowed');const limit=Math.max(1,Math.min(500,Number(url.searchParams.get('limit')||100))),offset=Math.max(0,Number(url.searchParams.get('offset')||0));json(res,200,{table,primary_key:primaryKey(table),columns:tableColumns(table),rows:rows(`SELECT * FROM ${ident(table)} LIMIT ${limit} OFFSET ${offset}`),limit,offset});return true;}json(res,404,{error:'SOT route not found'});return true;}catch(e){json(res,500,{error:e.message});return true;}}
-module.exports={handle,VERSION,BUILD};
+function sqlite(script, json = false, databasePath = DATABASE_PATH) {
+  const command = SQLITE3_AVAILABLE ? 'sqlite3' : 'python3';
+  const args = SQLITE3_AVAILABLE
+    ? (json ? ['-json', databasePath] : [databasePath])
+    : [SQLITE_ADAPTER, databasePath, ...(json ? ['--json'] : [])];
+  const result = spawnSync(command, args, {
+    input: SQLITE3_AVAILABLE ? `.bail on\n.timeout 10000\n${script}\n` : `${script}\n`,
+    encoding: 'utf8',
+    maxBuffer: 128 * 1024 * 1024
+  });
+  if (result.error) throw new Error(`SQLite process failed to start: ${result.error.message}`);
+  if (result.status !== 0) throw new Error((result.stderr || result.stdout || `sqlite3 exited ${result.status}`).trim());
+  const output = (result.stdout || '').trim();
+  return json ? (output ? JSON.parse(output) : []) : output;
+}
+
+function rawRows(query) { return sqlite(query, true); }
+
+function ensureSchema() {
+  if (runtime.schemaReady) return;
+  if (!fs.existsSync(DATABASE_PATH) || fs.statSync(DATABASE_PATH).size === 0) {
+    throw new Error(`SOT database has not been created: ${DATABASE_PATH}`);
+  }
+  const tables = rawRows("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations';");
+  if (tables.length !== 1) throw new Error('SOT schema is unmanaged: schema_migrations is missing');
+  const applied = rawRows('SELECT version,name,checksum_sha256 FROM schema_migrations ORDER BY version;');
+  const version = Number(applied.at(-1)?.version || 0);
+  if (version !== EXPECTED_MIGRATION) {
+    throw new Error(`SOT schema version ${version} does not match required version ${EXPECTED_MIGRATION}`);
+  }
+  const migrationDirectory = path.join(__dirname, 'sot-db', 'migrations');
+  const available = fs.readdirSync(migrationDirectory).filter(name => /^\d{3}-[a-z0-9][a-z0-9-]*\.sql$/i.test(name)).sort();
+  if (available.length !== applied.length) throw new Error('SOT migration set does not match the database');
+  for (let index = 0; index < available.length; index += 1) {
+    const name = available[index], row = applied[index], versionFromName = Number(name.slice(0, 3));
+    const checksum = crypto.createHash('sha256').update(fs.readFileSync(path.join(migrationDirectory, name), 'utf8')).digest('hex');
+    if (Number(row.version) !== versionFromName || row.name !== name || row.checksum_sha256 !== checksum) {
+      throw new Error(`published migration changed: ${name}`);
+    }
+  }
+  runtime.schemaReady = true;
+  const interruptedAt = now();
+  sqlite(`PRAGMA foreign_keys=ON;
+    BEGIN IMMEDIATE;
+    UPDATE processing_runs SET state='Interrupted',phase='interrupted',error_message='Service restarted during processing',updated_at=${sqlQuote(interruptedAt)},ended_at=${sqlQuote(interruptedAt)} WHERE state IN ('Queued','WIP');
+    UPDATE projects SET workflow_step=3,status='Interrupted',updated_at=${sqlQuote(interruptedAt)} WHERE project_token IN (SELECT project_token FROM processing_runs WHERE state='Interrupted' AND ended_at=${sqlQuote(interruptedAt)});
+    UPDATE projects SET workflow_step=6,status='ExecutionInterrupted',updated_at=${sqlQuote(interruptedAt)} WHERE project_token IN (SELECT project_token FROM plans WHERE state='executing');
+    UPDATE plan_items SET state='error',error_message='Service restarted during execution' WHERE plan_id IN (SELECT plan_id FROM plans WHERE state='executing') AND state='WIP';
+    UPDATE plans SET state='error' WHERE state='executing';
+    COMMIT;`);
+}
+
+function rows(query) { ensureSchema(); return rawRows(query); }
+function execute(script) { ensureSchema(); return sqlite(`PRAGMA foreign_keys=ON;\n${script}`); }
+function transaction(statements) {
+  const list = Array.isArray(statements) ? statements : [statements];
+  return execute(`BEGIN IMMEDIATE;\n${list.join('\n')}\nCOMMIT;`);
+}
+
+function json(res, status, payload) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(payload));
+}
+
+function requestBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+      if (data.length > 5 * 1024 * 1024) { reject(httpError(413, 'request too large')); req.destroy(); }
+    });
+    req.on('end', () => {
+      try { resolve(data ? JSON.parse(data) : {}); }
+      catch { reject(httpError(400, 'invalid JSON body')); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function event(projectToken, type, detail = {}) {
+  execute(`INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${projectToken ? sqlQuote(projectToken) : 'NULL'},${sqlQuote(type)},${sqlQuote(now())},${sqlQuote(JSON.stringify(detail))});`);
+}
+
+function settings() {
+  return Object.fromEntries(rows('SELECT key,value FROM settings ORDER BY key;').map(item => [item.key, item.value]));
+}
+
+function configure(input) {
+  const current = settings();
+  const targetRoot = input.target_root == null ? current.target_root : path.resolve(String(input.target_root || ''));
+  const backupRoot = input.backup_root == null ? current.backup_root : path.resolve(String(input.backup_root || ''));
+  const workers = input.hash_workers == null ? Number(current.hash_workers || 4) : Number(input.hash_workers);
+  if (!Number.isInteger(workers) || workers < 1 || workers > 16) throw httpError(400, 'hash_workers must be an integer from 1 to 16');
+  if ((targetRoot || backupRoot) && (!targetRoot || !backupRoot)) throw httpError(400, 'target_root and backup_root must be configured together');
+  if (targetRoot && backupRoot) {
+    const targetPrefix = targetRoot.endsWith(path.sep) ? targetRoot : targetRoot + path.sep;
+    const backupPrefix = backupRoot.endsWith(path.sep) ? backupRoot : backupRoot + path.sep;
+    if (targetRoot === backupRoot || targetRoot.startsWith(backupPrefix) || backupRoot.startsWith(targetPrefix)) {
+      throw httpError(400, 'Target and Backup must be separate, non-nested paths');
+    }
+  }
+  const at = now();
+  transaction([
+    `INSERT INTO settings(key,value,updated_at) VALUES('target_root',${sqlQuote(targetRoot)},${sqlQuote(at)}) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at;`,
+    `INSERT INTO settings(key,value,updated_at) VALUES('backup_root',${sqlQuote(backupRoot)},${sqlQuote(at)}) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at;`,
+    `INSERT INTO settings(key,value,updated_at) VALUES('hash_workers',${sqlQuote(workers)},${sqlQuote(at)}) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at;`
+  ]);
+  return settings();
+}
+
+function recycleBinPath(value) { return /(^|[\\/])\$RECYCLE\.BIN([\\/]|$)/i.test(String(value || '')); }
+function normalizedSourcePath(value) {
+  const raw = String(value || '').trim();
+  if (!raw) throw httpError(400, 'source path is required');
+  return path.resolve(raw);
+}
+function windowsDriveRoot(value) {
+  const match = String(value || '').match(/^\/mnt\/([a-z])(?:\/|$)/i);
+  return match ? `/mnt/${match[1].toLowerCase()}` : null;
+}
+function mountInfo(value) {
+  try {
+    const output = execFileSync('findmnt', ['-T', String(value), '-n', '-o', 'TARGET,FSTYPE,SOURCE'], {
+      encoding: 'utf8', timeout: 2500, maxBuffer: 1024 * 1024
+    }).trim();
+    const parts = output.split(/\s+/);
+    return { target: parts[0] || '', fstype: parts[1] || '', source: parts.slice(2).join(' ') };
+  } catch (error) {
+    return { target: '', fstype: '', source: '', error: String(error.message || error) };
+  }
+}
+
+function sourcePreflight(source) {
+  const sourcePath = String(source.normalized_path || source.path || '');
+  if (recycleBinPath(sourcePath)) {
+    return { source_id: source.source_id, path: sourcePath, status: 'ignored_recycle_bin', blocking: false, warning: 'Legacy $RECYCLE.BIN source is skipped.' };
+  }
+  const driveRoot = windowsDriveRoot(sourcePath);
+  const mount = driveRoot ? mountInfo(sourcePath) : null;
+  if (driveRoot && mount.target !== driveRoot) {
+    return { source_id: source.source_id, path: sourcePath, status: 'not_mounted', blocking: true, message: `${driveRoot} is not mounted`, mount };
+  }
+  let stat = null;
+  try { stat = fs.statSync(sourcePath); }
+  catch { return { source_id: source.source_id, path: sourcePath, status: 'missing', blocking: true, message: 'Source path does not exist.' }; }
+  if (!stat.isDirectory()) return { source_id: source.source_id, path: sourcePath, status: 'unreadable', blocking: true, message: 'Source path is not a directory.' };
+  try { fs.accessSync(sourcePath, fs.constants.R_OK); }
+  catch { return { source_id: source.source_id, path: sourcePath, status: 'unreadable', blocking: true, message: 'Source path is not readable.' }; }
+  return { source_id: source.source_id, path: sourcePath, status: 'ready', blocking: false, mount };
+}
+
+function activeSources(projectToken) {
+  return rows(`SELECT source_id,project_token,normalized_path,operator_label,operator_note,preflight_status,preflight_message,last_preflight_at,created_at,updated_at FROM sources WHERE project_token=${sqlQuote(projectToken)} AND removed_at IS NULL ORDER BY created_at,source_id;`);
+}
+
+function projectRow(projectToken) {
+  return rows(`SELECT * FROM projects WHERE project_token=${sqlQuote(projectToken)} AND deleted_at IS NULL LIMIT 1;`)[0] || null;
+}
+
+function listProjects(query = '') {
+  const needle = String(query || '').trim().toLowerCase();
+  const where = needle ? ` AND (lower(project_name) LIKE ${sqlQuote(`%${needle}%`)} OR lower(project_note) LIKE ${sqlQuote(`%${needle}%`)})` : '';
+  return rows(`SELECT p.*,
+    (SELECT COUNT(*) FROM sources s WHERE s.project_token=p.project_token AND s.removed_at IS NULL) source_count,
+    (SELECT state FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) processing_state
+    FROM projects p WHERE p.deleted_at IS NULL${where} ORDER BY p.updated_at DESC, p.project_name COLLATE NOCASE;`);
+}
+
+function projectDetail(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) return null;
+  const latestRun = rows(`SELECT * FROM processing_runs WHERE project_token=${sqlQuote(projectToken)} ORDER BY started_at DESC LIMIT 1;`)[0] || null;
+  return { ...project, notes: project.project_note, sources: activeSources(projectToken), processing: latestRun };
+}
+
+function createProject(input) {
+  const name = String(input.project_name || '').trim();
+  if (!name) throw httpError(400, 'project_name is required');
+  const projectToken = randomId(12);
+  const at = now();
+  transaction([
+    `INSERT INTO projects(project_token,project_name,project_note,workflow_step,scope_revision,evidence_revision,status,created_at,updated_at) VALUES(${sqlQuote(projectToken)},${sqlQuote(name)},${sqlQuote(input.project_note ?? input.notes ?? '')},1,0,0,'Pending',${sqlQuote(at)},${sqlQuote(at)});`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'project.created',${sqlQuote(at)},'{}');`
+  ]);
+  if (Array.isArray(input.sources) && input.sources.length) replaceSources(projectToken, input.sources);
+  return projectDetail(projectToken);
+}
+
+function updateProject(projectToken, input) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const name = input.project_name == null ? project.project_name : String(input.project_name).trim();
+  const note = input.project_note == null && input.notes == null ? project.project_note : String(input.project_note ?? input.notes ?? '');
+  if (!name) throw httpError(400, 'project_name is required');
+  const at = now();
+  transaction([
+    `UPDATE projects SET project_name=${sqlQuote(name)},project_note=${sqlQuote(note)},updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'project.updated',${sqlQuote(at)},${sqlQuote(JSON.stringify({ project_name: name }))});`
+  ]);
+  return projectDetail(projectToken);
+}
+
+function deleteProject(projectToken) {
+  if (!projectRow(projectToken)) throw httpError(404, 'project not found');
+  const at = now();
+  transaction([
+    `UPDATE projects SET deleted_at=${sqlQuote(at)},status='Deleted',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved');`,
+    `UPDATE certifications SET status='invalidated',invalidated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND status='certified';`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'project.deleted',${sqlQuote(at)},'{}');`
+  ]);
+  return { project_token: projectToken, deleted_at: at };
+}
+
+function replaceSources(projectToken, inputSources) {
+  if (!projectRow(projectToken)) throw httpError(404, 'project not found');
+  if (!Array.isArray(inputSources)) throw httpError(400, 'sources must be an array');
+  const at = now();
+  const desired = [];
+  const seen = new Set();
+  for (const input of inputSources) {
+    const raw = typeof input === 'string' ? input : input.path ?? input.normalized_path;
+    const sourcePath = normalizedSourcePath(raw);
+    if (recycleBinPath(sourcePath)) throw httpError(400, '$RECYCLE.BIN cannot be added as a source');
+    if (seen.has(sourcePath)) continue;
+    seen.add(sourcePath);
+    desired.push({
+      source_id: sha(`${projectToken}\0${sourcePath}`).slice(0, 32),
+      path: sourcePath,
+      label: String((typeof input === 'object' && (input.operator_label ?? input.name)) || path.basename(sourcePath) || sourcePath),
+      note: String((typeof input === 'object' && (input.operator_note ?? input.note)) || '')
+    });
+  }
+  const keep = desired.length ? desired.map(item => sqlQuote(item.path)).join(',') : '';
+  const statements = [
+    desired.length
+      ? `UPDATE sources SET removed_at=${sqlQuote(at)},updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND removed_at IS NULL AND normalized_path NOT IN (${keep});`
+      : `UPDATE sources SET removed_at=${sqlQuote(at)},updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND removed_at IS NULL;`
+  ];
+  for (const source of desired) {
+    statements.push(`INSERT INTO sources(source_id,project_token,normalized_path,operator_label,operator_note,preflight_status,preflight_message,created_at,updated_at,removed_at) VALUES(${sqlQuote(source.source_id)},${sqlQuote(projectToken)},${sqlQuote(source.path)},${sqlQuote(source.label)},${sqlQuote(source.note)},'unknown','',${sqlQuote(at)},${sqlQuote(at)},NULL) ON CONFLICT(project_token,normalized_path) DO UPDATE SET operator_label=excluded.operator_label,operator_note=excluded.operator_note,preflight_status='unknown',preflight_message='',updated_at=excluded.updated_at,removed_at=NULL;`);
+  }
+  statements.push(
+    `UPDATE projects SET workflow_step=2,scope_revision=scope_revision+1,status='ScopeChanged',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved','complete');`,
+    `UPDATE certifications SET status='invalidated',invalidated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND status='certified';`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'sources.replaced',${sqlQuote(at)},${sqlQuote(JSON.stringify({ count: desired.length }))});`
+  );
+  transaction(statements);
+  return activeSources(projectToken);
+}
+
+function preflightProject(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const sources = activeSources(projectToken);
+  const results = sources.map(sourcePreflight);
+  const at = now();
+  if (results.length) transaction(results.map(result => `UPDATE sources SET preflight_status=${sqlQuote(result.status)},preflight_message=${sqlQuote(result.message || result.warning || '')},last_preflight_at=${sqlQuote(at)},updated_at=${sqlQuote(at)} WHERE source_id=${sqlQuote(result.source_id)};`));
+  const blocking = results.filter(result => result.blocking);
+  const warnings = results.filter(result => !result.blocking && (result.warning || result.status !== 'ready'));
+  return {
+    build: BUILD,
+    project_token: projectToken,
+    project_name: project.project_name,
+    ready: results.length > 0 && blocking.length === 0,
+    blocking_count: blocking.length + (results.length ? 0 : 1),
+    warning_count: warnings.length,
+    message: results.length ? '' : 'Add at least one source.',
+    checked_at: at,
+    sources: results
+  };
+}
+
+function roots() {
+  const locations = [];
+  for (const letter of 'cdefghijklmnopqrstuvwxyz') {
+    const root = `/mnt/${letter}`;
+    try { if (fs.statSync(root).isDirectory() && mountInfo(root).target === root) locations.push({ name: `${letter.toUpperCase()}:`, path: root, kind: 'drive' }); }
+    catch { /* unavailable */ }
+  }
+  locations.push({ name: 'WSL Home', path: os.homedir(), kind: 'wsl' });
+  return locations;
+}
+
+async function browse(value) {
+  if (!value || value === '/') return { path: '/', parent: '/', locations: roots(), folders: [] };
+  const resolved = path.resolve(String(value));
+  const stat = await fsp.stat(resolved);
+  if (!stat.isDirectory()) throw httpError(400, 'path is not a directory');
+  const entries = await fsp.readdir(resolved, { withFileTypes: true });
+  const folders = entries.filter(entry => entry.isDirectory() && !recycleBinPath(path.join(resolved, entry.name)))
+    .map(entry => ({ name: entry.name, path: path.join(resolved, entry.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { path: resolved, parent: path.dirname(resolved), locations: [], folders };
+}
+
+function latestRun(projectToken) {
+  return rows(`SELECT * FROM processing_runs WHERE project_token=${sqlQuote(projectToken)} ORDER BY started_at DESC LIMIT 1;`)[0] || null;
+}
+
+function runStatus(projectToken) {
+  const run = latestRun(projectToken);
+  if (!run) return { project_token: projectToken, run: null, state: 'NotStarted', workers: [] };
+  const elapsed = Math.max(0.001, (Date.now() - Date.parse(run.started_at)) / 1000);
+  const bytesPerSecond = Number(run.bytes_processed || 0) / elapsed;
+  const remaining = Math.max(0, Number(run.bytes_discovered || 0) - Number(run.bytes_processed || 0));
+  return {
+    project_token: projectToken,
+    run,
+    state: run.state,
+    phase: run.phase,
+    progress: {
+      files_percent: Number(run.files_discovered) ? Number(run.files_processed) / Number(run.files_discovered) * 100 : 0,
+      bytes_percent: Number(run.bytes_discovered) ? Number(run.bytes_processed) / Number(run.bytes_discovered) * 100 : 0,
+      bytes_per_second: bytesPerSecond,
+      eta_seconds: bytesPerSecond > 0 ? remaining / bytesPerSecond : null
+    },
+    workers: runtime.scheduler.active?.runId === run.run_id ? runtime.scheduler.workers : []
+  };
+}
+
+class PauseRequested extends Error {}
+
+async function hashFile(fullPath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(fullPath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+function enqueueRun(runId, projectToken) {
+  runtime.scheduler.queue.push({ runId, projectToken });
+  schedulerWake();
+}
+
+function schedulerWake() {
+  if (runtime.scheduler.running) return;
+  runtime.scheduler.running = true;
+  setImmediate(async () => {
+    try {
+      while (runtime.scheduler.queue.length) {
+        const job = runtime.scheduler.queue.shift();
+        runtime.scheduler.active = job;
+        await processRun(job.runId, job.projectToken);
+        runtime.scheduler.active = null;
+        runtime.scheduler.workers = [];
+      }
+    } finally {
+      runtime.scheduler.running = false;
+      runtime.scheduler.active = null;
+      runtime.scheduler.workers = [];
+      if (runtime.scheduler.queue.length) schedulerWake();
+    }
+  });
+}
+
+function processingControl(runId) {
+  let control = runtime.processing.get(runId);
+  if (!control) { control = { pause: false }; runtime.processing.set(runId, control); }
+  return control;
+}
+
+function insertRunFiles(runId, sourceId, files) {
+  if (!files.length) return;
+  const statements = files.map(file => `INSERT OR REPLACE INTO run_files(run_id,source_id,relative_path,full_path,size,modified_ms,state,reused,error_message) VALUES(${sqlQuote(runId)},${sqlQuote(sourceId)},${sqlQuote(file.relative)},${sqlQuote(file.full)},${Number(file.size)},${Number(file.modified)},'pending',0,'');`);
+  statements.push(`UPDATE processing_runs SET files_discovered=files_discovered+${files.length},bytes_discovered=bytes_discovered+${files.reduce((sum, file) => sum + Number(file.size), 0)},updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+  transaction(statements);
+}
+
+async function enumerateSource(runId, source, control) {
+  const stack = [{ full: source.normalized_path, relative: '' }];
+  let batch = [];
+  while (stack.length) {
+    if (control.pause) throw new PauseRequested('pause requested');
+    const current = stack.pop();
+    execute(`UPDATE processing_runs SET current_source=${sqlQuote(source.normalized_path)},current_item=${sqlQuote(current.full)},updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+    let entries;
+    try { entries = await fsp.readdir(current.full, { withFileTypes: true }); }
+    catch (error) {
+      execute(`UPDATE processing_runs SET warning_count=warning_count+1,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current.full, entry.name);
+      if (recycleBinPath(full)) continue;
+      const relative = current.relative ? `${current.relative}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) stack.push({ full, relative });
+      else if (entry.isFile()) {
+        try {
+          const stat = await fsp.stat(full);
+          batch.push({ full, relative: relative.replace(/\\/g, '/'), size: stat.size, modified: stat.mtimeMs });
+          if (batch.length >= 250) { insertRunFiles(runId, source.source_id, batch); batch = []; await new Promise(resolve => setImmediate(resolve)); }
+        } catch {
+          execute(`UPDATE processing_runs SET warning_count=warning_count+1,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+        }
+      }
+    }
+  }
+  insertRunFiles(runId, source.source_id, batch);
+}
+
+async function processHashRow(runId, projectToken, item, workerId) {
+  runtime.scheduler.workers[workerId] = { worker_id: workerId + 1, project_token: projectToken, run_id: runId, phase: 'fingerprinting', path: item.full_path, item: item.relative_path, started_at: now() };
+  try {
+    const reusable = item.current_sha256 && Number(item.current_size) === Number(item.size) && Number(item.current_modified_ms) === Number(item.modified_ms);
+    const contentSha = reusable ? item.current_sha256 : await hashFile(item.full_path);
+    return { item, contentSha, reused: reusable ? 1 : 0, error: null };
+  } catch (error) {
+    return { item, contentSha: null, reused: 0, error: String(error.message || error) };
+  } finally {
+    runtime.scheduler.workers[workerId] = { worker_id: workerId + 1, project_token: null, run_id: null, phase: 'idle', path: '', item: '', started_at: null };
+  }
+}
+
+function persistHashResults(runId, projectToken, results) {
+  const at = now();
+  const statements = [];
+  let processed = 0, bytes = 0, reused = 0, computed = 0, errors = 0;
+  for (const result of results) {
+    const item = result.item;
+    processed += 1;
+    bytes += Number(item.size || 0);
+    if (result.error) {
+      errors += 1;
+      statements.push(`UPDATE run_files SET state='error',error_message=${sqlQuote(result.error)} WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(item.source_id)} AND relative_path=${sqlQuote(item.relative_path)};`);
+      continue;
+    }
+    reused += result.reused;
+    computed += result.reused ? 0 : 1;
+    const pathHash = sha(`${item.source_id}\0${item.relative_path}`);
+    const observationHash = sha(`${pathHash}\0${item.size}\0${item.modified_ms}\0${result.contentSha}`);
+    const observationId = sha(`${item.source_id}\0${item.relative_path}\0${observationHash}`);
+    statements.push(
+      `INSERT INTO content(content_sha256,size,first_observed_at,last_observed_at) VALUES(${sqlQuote(result.contentSha)},${Number(item.size)},${sqlQuote(at)},${sqlQuote(at)}) ON CONFLICT(content_sha256) DO UPDATE SET last_observed_at=excluded.last_observed_at;`,
+      `INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES(${sqlQuote(observationId)},${sqlQuote(projectToken)},${sqlQuote(item.source_id)},${sqlQuote(runId)},${sqlQuote(item.full_path)},${sqlQuote(item.relative_path)},${sqlQuote(path.basename(item.relative_path))},${Number(item.size)},${Number(item.modified_ms)},${sqlQuote(result.contentSha)},${sqlQuote(pathHash)},${sqlQuote(observationHash)},${sqlQuote(at)},${sqlQuote(at)}) ON CONFLICT(source_id,relative_path,observation_hash) DO UPDATE SET last_observed_at=excluded.last_observed_at;`,
+      `UPDATE run_files SET state='done',content_sha256=${sqlQuote(result.contentSha)},observation_id=${sqlQuote(observationId)},reused=${result.reused},error_message='' WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(item.source_id)} AND relative_path=${sqlQuote(item.relative_path)};`
+    );
+  }
+  statements.push(`UPDATE processing_runs SET files_processed=files_processed+${processed},bytes_processed=bytes_processed+${bytes},hashes_reused=hashes_reused+${reused},hashes_computed=hashes_computed+${computed},error_count=error_count+${errors},current_item=${sqlQuote(results.at(-1)?.item?.full_path || '')},updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`);
+  transaction(statements);
+}
+
+async function processRun(runId, projectToken) {
+  const control = processingControl(runId);
+  try {
+    const sources = activeSources(projectToken).filter(source => source.preflight_status === 'ready');
+    execute(`UPDATE processing_runs SET state='WIP',phase='enumerating',updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+    for (const source of sources) await enumerateSource(runId, source, control);
+    if (control.pause) throw new PauseRequested('pause requested');
+    execute(`UPDATE processing_runs SET phase='fingerprinting',current_item='',updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+    const workerCount = Math.max(1, Math.min(16, Number(settings().hash_workers || 4)));
+    runtime.scheduler.workers = Array.from({ length: workerCount }, (_, index) => ({ worker_id: index + 1, project_token: null, run_id: null, phase: 'idle', path: '', item: '', started_at: null }));
+    while (true) {
+      if (control.pause) throw new PauseRequested('pause requested');
+      const batch = rows(`SELECT rf.*,o.size current_size,o.modified_ms current_modified_ms,o.content_sha256 current_sha256
+        FROM run_files rf
+        LEFT JOIN current_observations co ON co.source_id=rf.source_id AND co.relative_path=rf.relative_path
+        LEFT JOIN observations o ON o.observation_id=co.observation_id
+        WHERE rf.run_id=${sqlQuote(runId)} AND rf.state='pending'
+        ORDER BY rf.source_id,rf.relative_path LIMIT ${workerCount};`);
+      if (!batch.length) break;
+      transaction(batch.map(item => `UPDATE run_files SET state='WIP' WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(item.source_id)} AND relative_path=${sqlQuote(item.relative_path)} AND state='pending';`));
+      const results = await Promise.all(batch.map((item, index) => processHashRow(runId, projectToken, item, index)));
+      persistHashResults(runId, projectToken, results);
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    const summary = rows(`SELECT error_count FROM processing_runs WHERE run_id=${sqlQuote(runId)} LIMIT 1;`)[0] || {};
+    if (Number(summary.error_count || 0) > 0) throw new Error(`${summary.error_count} file(s) could not be processed`);
+    const sourceIds = sources.map(source => sqlQuote(source.source_id)).join(',');
+    const at = now();
+    const statements = [];
+    if (sourceIds) {
+      statements.push(
+        `DELETE FROM current_observations WHERE source_id IN (${sourceIds});`,
+        `INSERT INTO current_observations(source_id,relative_path,observation_id,last_run_id) SELECT source_id,relative_path,observation_id,run_id FROM run_files WHERE run_id=${sqlQuote(runId)} AND state='done';`
+      );
+    }
+    statements.push(
+      `UPDATE processing_runs SET state='Closed',phase='complete',current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+      `UPDATE projects SET workflow_step=4,evidence_revision=evidence_revision+1,status='Review',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+      `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved','complete');`,
+      `UPDATE certifications SET status='invalidated',invalidated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND status='certified';`,
+      `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'processing.completed',${sqlQuote(at)},${sqlQuote(JSON.stringify({ run_id: runId }))});`
+    );
+    transaction(statements);
+  } catch (error) {
+    const at = now();
+    if (error instanceof PauseRequested) {
+      transaction([
+        `UPDATE run_files SET state='pending' WHERE run_id=${sqlQuote(runId)} AND state='WIP';`,
+        `UPDATE processing_runs SET state='Paused',phase='paused',updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+        `UPDATE projects SET status='Paused',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
+      ]);
+    } else {
+      transaction([
+        `UPDATE run_files SET state='pending' WHERE run_id=${sqlQuote(runId)} AND state='WIP';`,
+        `UPDATE processing_runs SET state='Error',phase='error',error_message=${sqlQuote(error.message)},updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+        `UPDATE projects SET workflow_step=3,status='Error',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+        `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'processing.error',${sqlQuote(at)},${sqlQuote(JSON.stringify({ run_id: runId, error: error.message }))});`
+      ]);
+    }
+  } finally {
+    runtime.processing.delete(runId);
+  }
+}
+
+function startProcessing(projectToken) {
+  if (!projectRow(projectToken)) throw httpError(404, 'project not found');
+  const active = rows(`SELECT run_id FROM processing_runs WHERE project_token=${sqlQuote(projectToken)} AND state IN ('Queued','WIP') LIMIT 1;`)[0];
+  if (active) throw httpError(409, 'project is already processing');
+  const preflight = preflightProject(projectToken);
+  if (!preflight.ready) throw httpError(409, `source preflight blocked processing: ${preflight.message || `${preflight.blocking_count} source(s) blocked`}`);
+  const runId = randomId(12);
+  const at = now();
+  transaction([
+    `INSERT INTO processing_runs(run_id,project_token,state,phase,started_at,updated_at) VALUES(${sqlQuote(runId)},${sqlQuote(projectToken)},'Queued','queued',${sqlQuote(at)},${sqlQuote(at)});`,
+    `UPDATE projects SET workflow_step=3,status='Processing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'processing.started',${sqlQuote(at)},${sqlQuote(JSON.stringify({ run_id: runId }))});`
+  ]);
+  processingControl(runId);
+  enqueueRun(runId, projectToken);
+  return { project_token: projectToken, run_id: runId, status: 'Queued' };
+}
+
+function pauseProcessing(projectToken) {
+  const run = latestRun(projectToken);
+  if (!run || !['Queued', 'WIP'].includes(run.state)) throw httpError(409, 'no active processing run');
+  processingControl(run.run_id).pause = true;
+  return { project_token: projectToken, run_id: run.run_id, status: 'pausing' };
+}
+
+function resumeProcessing(projectToken) {
+  const run = latestRun(projectToken);
+  if (!run || run.state !== 'Paused') throw httpError(409, 'no paused processing run');
+  const at = now();
+  transaction([
+    `DELETE FROM run_files WHERE run_id=${sqlQuote(run.run_id)};`,
+    `UPDATE processing_runs SET state='Queued',phase='queued',files_discovered=0,bytes_discovered=0,files_processed=0,bytes_processed=0,hashes_reused=0,hashes_computed=0,warning_count=0,error_count=0,current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=NULL,error_message='' WHERE run_id=${sqlQuote(run.run_id)};`,
+    `UPDATE projects SET workflow_step=3,status='Processing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
+  ]);
+  runtime.processing.set(run.run_id, { pause: false });
+  enqueueRun(run.run_id, projectToken);
+  return { project_token: projectToken, run_id: run.run_id, status: 'Queued', resumed: true };
+}
+
+function review(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const base = `FROM current_observations co JOIN observations o ON o.observation_id=co.observation_id JOIN sources s ON s.source_id=co.source_id WHERE s.project_token=${sqlQuote(projectToken)} AND s.removed_at IS NULL`;
+  const totals = rows(`SELECT COUNT(*) files,COALESCE(SUM(o.size),0) bytes ${base};`)[0] || {};
+  const unique = rows(`SELECT COUNT(*) unique_content,COALESCE(SUM(size),0) unique_bytes FROM (SELECT o.content_sha256,MAX(o.size) size ${base} GROUP BY o.content_sha256);`)[0] || {};
+  const duplicates = rows(`SELECT COUNT(*) duplicate_groups,COALESCE(SUM(copies-1),0) duplicate_copies,COALESCE(SUM((copies-1)*size),0) duplicate_bytes FROM (SELECT o.content_sha256,COUNT(*) copies,MAX(o.size) size ${base} GROUP BY o.content_sha256 HAVING COUNT(*)>1);`)[0] || {};
+  const coverage = rows(`SELECT
+      COUNT(DISTINCT CASE WHEN th.verification_status='verified' THEN o.content_sha256 END) target_content,
+      COALESCE(SUM(CASE WHEN th.verification_status='verified' AND first_content=1 THEN o.size ELSE 0 END),0) target_bytes,
+      COUNT(DISTINCT CASE WHEN bh.verification_status='verified' THEN o.content_sha256 END) backup_content,
+      COALESCE(SUM(CASE WHEN bh.verification_status='verified' AND first_content=1 THEN o.size ELSE 0 END),0) backup_bytes
+    FROM (SELECT o.*,ROW_NUMBER() OVER(PARTITION BY o.content_sha256 ORDER BY o.observation_id) first_content ${base}) o
+    LEFT JOIN target_holdings th ON th.content_sha256=o.content_sha256
+    LEFT JOIN backup_holdings bh ON bh.content_sha256=o.content_sha256;`)[0] || {};
+  const changed = rows(`SELECT COUNT(*) changed_paths FROM (SELECT o.source_id,o.relative_path,COUNT(DISTINCT o.observation_hash) versions FROM observations o JOIN sources s ON s.source_id=o.source_id WHERE s.project_token=${sqlQuote(projectToken)} AND s.removed_at IS NULL GROUP BY o.source_id,o.relative_path HAVING versions>1);`)[0]?.changed_paths || 0;
+  const sourceStates = activeSources(projectToken);
+  const blocking = sourceStates.filter(source => !['ready', 'ignored_recycle_bin'].includes(source.preflight_status));
+  const uniqueContent = Number(unique.unique_content || 0);
+  return {
+    build: BUILD,
+    project_token: projectToken,
+    evidence_revision: Number(project.evidence_revision || 0),
+    files: Number(totals.files || 0),
+    bytes: Number(totals.bytes || 0),
+    unique_content: uniqueContent,
+    unique_bytes: Number(unique.unique_bytes || 0),
+    duplicate_groups: Number(duplicates.duplicate_groups || 0),
+    duplicate_copies: Number(duplicates.duplicate_copies || 0),
+    duplicate_bytes: Number(duplicates.duplicate_bytes || 0),
+    changed_paths: Number(changed || 0),
+    target_content: Number(coverage.target_content || 0),
+    target_bytes: Number(coverage.target_bytes || 0),
+    target_missing_content: Math.max(0, uniqueContent - Number(coverage.target_content || 0)),
+    target_missing_bytes: Math.max(0, Number(unique.unique_bytes || 0) - Number(coverage.target_bytes || 0)),
+    backup_content: Number(coverage.backup_content || 0),
+    backup_bytes: Number(coverage.backup_bytes || 0),
+    backup_missing_content: Math.max(0, uniqueContent - Number(coverage.backup_content || 0)),
+    backup_missing_bytes: Math.max(0, Number(unique.unique_bytes || 0) - Number(coverage.backup_bytes || 0)),
+    blocking_sources: blocking.length,
+    warnings: sourceStates.filter(source => source.preflight_status === 'ignored_recycle_bin').length
+  };
+}
+
+function contentDestination(root, contentSha) { return path.join(root, contentSha.slice(0, 2), contentSha); }
+
+function generatePlan(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const findings = review(projectToken);
+  if (!findings.files) throw httpError(409, 'no current evidence is available');
+  if (findings.blocking_sources) throw httpError(409, 'source preflight is not ready');
+  const config = settings();
+  const contentRows = rows(`WITH ranked AS (
+      SELECT o.*,ROW_NUMBER() OVER(PARTITION BY o.content_sha256 ORDER BY o.normalized_path,o.observation_id) choice
+      FROM current_observations co JOIN observations o ON o.observation_id=co.observation_id JOIN sources s ON s.source_id=co.source_id
+      WHERE s.project_token=${sqlQuote(projectToken)} AND s.removed_at IS NULL
+    ) SELECT r.observation_id,r.normalized_path,r.size,r.content_sha256,
+      th.verification_status target_status,th.target_path existing_target_path,
+      bh.verification_status backup_status,bh.backup_path existing_backup_path
+      FROM ranked r
+      LEFT JOIN target_holdings th ON th.content_sha256=r.content_sha256
+      LEFT JOIN backup_holdings bh ON bh.content_sha256=r.content_sha256
+      WHERE r.choice=1 ORDER BY r.content_sha256;`);
+  const needsStorage = contentRows.some(item => item.target_status !== 'verified' || item.backup_status !== 'verified');
+  if (needsStorage && (!config.target_root || !config.backup_root)) throw httpError(409, 'configure separate Target and Backup roots before generating this plan');
+  const planId = randomId(16);
+  const at = now();
+  const statements = [
+    `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved');`,
+    `INSERT INTO plans(plan_id,project_token,evidence_revision,state,created_at) VALUES(${sqlQuote(planId)},${sqlQuote(projectToken)},${Number(project.evidence_revision)},'draft',${sqlQuote(at)});`
+  ];
+  for (const item of contentRows) {
+    const targetReady = item.target_status === 'verified';
+    const backupReady = item.backup_status === 'verified';
+    const action = targetReady && backupReady ? 'none' : targetReady ? 'establish_backup' : 'establish_target_backup';
+    const targetPath = targetReady ? item.existing_target_path : contentDestination(config.target_root, item.content_sha256);
+    const backupPath = backupReady ? item.existing_backup_path : contentDestination(config.backup_root, item.content_sha256);
+    statements.push(`INSERT INTO plan_items(item_id,plan_id,content_sha256,source_observation_id,action,size,source_path,target_path,backup_path,state) VALUES(${sqlQuote(randomId(16))},${sqlQuote(planId)},${sqlQuote(item.content_sha256)},${sqlQuote(item.observation_id)},${sqlQuote(action)},${Number(item.size)},${sqlQuote(item.normalized_path)},${sqlQuote(targetPath || '')},${sqlQuote(backupPath || '')},'pending');`);
+  }
+  statements.push(
+    `UPDATE projects SET workflow_step=5,status='Plan',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'plan.generated',${sqlQuote(at)},${sqlQuote(JSON.stringify({ plan_id: planId, items: contentRows.length }))});`
+  );
+  transaction(statements);
+  return planDetail(planId);
+}
+
+function latestPlan(projectToken) {
+  const row = rows(`SELECT plan_id FROM plans WHERE project_token=${sqlQuote(projectToken)} ORDER BY created_at DESC LIMIT 1;`)[0];
+  return row ? planDetail(row.plan_id) : null;
+}
+
+function planDetail(planId) {
+  const plan = rows(`SELECT * FROM plans WHERE plan_id=${sqlQuote(planId)} LIMIT 1;`)[0];
+  if (!plan) return null;
+  const items = rows(`SELECT * FROM plan_items WHERE plan_id=${sqlQuote(planId)} ORDER BY content_sha256;`);
+  const totals = { items: items.length, no_action: 0, target_files: 0, target_bytes: 0, backup_files: 0, backup_bytes: 0, complete: 0, errors: 0 };
+  for (const item of items) {
+    if (item.action === 'none') totals.no_action += 1;
+    if (item.action === 'establish_target_backup') { totals.target_files += 1; totals.target_bytes += Number(item.size); totals.backup_files += 1; totals.backup_bytes += Number(item.size); }
+    if (item.action === 'establish_backup') { totals.backup_files += 1; totals.backup_bytes += Number(item.size); }
+    if (item.state === 'complete') totals.complete += 1;
+    if (item.state === 'error') totals.errors += 1;
+  }
+  return { ...plan, items, totals };
+}
+
+async function copyVerified(sourcePath, destinationPath, expectedSha) {
+  await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
+  try {
+    const existing = await fsp.stat(destinationPath);
+    if (existing.isFile()) {
+      const actual = await hashFile(destinationPath);
+      if (actual !== expectedSha) throw new Error(`destination exists with unexpected content: ${destinationPath}`);
+      return actual;
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const partial = `${destinationPath}.partial-${randomId(6)}`;
+  try {
+    await fsp.copyFile(sourcePath, partial, fs.constants.COPYFILE_EXCL);
+    const actual = await hashFile(partial);
+    if (actual !== expectedSha) throw new Error(`verification failed for ${destinationPath}`);
+    await fsp.rename(partial, destinationPath);
+    return actual;
+  } catch (error) {
+    try { await fsp.unlink(partial); } catch { /* no partial */ }
+    throw error;
+  }
+}
+
+function actionStart(planId, itemId, type, sourcePath, destinationPath, expectedSha) {
+  const actionId = randomId(16);
+  execute(`INSERT INTO actions(action_id,plan_id,item_id,action_type,state,source_path,destination_path,expected_sha256,started_at) VALUES(${sqlQuote(actionId)},${sqlQuote(planId)},${sqlQuote(itemId)},${sqlQuote(type)},'WIP',${sqlQuote(sourcePath)},${sqlQuote(destinationPath)},${sqlQuote(expectedSha)},${sqlQuote(now())});`);
+  return actionId;
+}
+
+function actionFinish(actionId, state, actualSha = '', errorMessage = '') {
+  execute(`UPDATE actions SET state=${sqlQuote(state)},actual_sha256=${sqlQuote(actualSha)},error_message=${sqlQuote(errorMessage)},ended_at=${sqlQuote(now())} WHERE action_id=${sqlQuote(actionId)};`);
+}
+
+async function executePlan(planId) {
+  const plan = planDetail(planId);
+  if (!plan) return;
+  const projectToken = plan.project_token;
+  try {
+    for (const item of plan.items) {
+      execute(`UPDATE plan_items SET state='WIP',error_message='' WHERE item_id=${sqlQuote(item.item_id)};`);
+      if (item.action === 'none') {
+        const actionId = actionStart(planId, item.item_id, 'none', item.source_path, '', item.content_sha256);
+        actionFinish(actionId, 'complete', item.content_sha256);
+      } else {
+        let targetPath = item.target_path;
+        if (item.action === 'establish_target_backup') {
+          const copyAction = actionStart(planId, item.item_id, 'copy_target', item.source_path, targetPath, item.content_sha256);
+          const actual = await copyVerified(item.source_path, targetPath, item.content_sha256);
+          actionFinish(copyAction, 'complete', actual);
+          const verifyAction = actionStart(planId, item.item_id, 'verify_target', targetPath, targetPath, item.content_sha256);
+          const verified = await hashFile(targetPath);
+          if (verified !== item.content_sha256) throw new Error(`Target verification failed: ${targetPath}`);
+          actionFinish(verifyAction, 'complete', verified);
+          const at = now();
+          execute(`INSERT INTO target_holdings(content_sha256,target_path,verification_status,verified_sha256,established_at,verified_at,last_error) VALUES(${sqlQuote(item.content_sha256)},${sqlQuote(targetPath)},'verified',${sqlQuote(verified)},${sqlQuote(at)},${sqlQuote(at)},'') ON CONFLICT(content_sha256) DO UPDATE SET target_path=excluded.target_path,verification_status='verified',verified_sha256=excluded.verified_sha256,verified_at=excluded.verified_at,last_error='';`);
+        } else {
+          const holding = rows(`SELECT target_path FROM target_holdings WHERE content_sha256=${sqlQuote(item.content_sha256)} AND verification_status='verified' LIMIT 1;`)[0];
+          if (!holding) throw new Error(`verified Target holding missing for ${item.content_sha256}`);
+          targetPath = holding.target_path;
+        }
+        const backupAction = actionStart(planId, item.item_id, 'copy_backup', targetPath, item.backup_path, item.content_sha256);
+        const backupActual = await copyVerified(targetPath, item.backup_path, item.content_sha256);
+        actionFinish(backupAction, 'complete', backupActual);
+        const backupVerifyAction = actionStart(planId, item.item_id, 'verify_backup', item.backup_path, item.backup_path, item.content_sha256);
+        const backupVerified = await hashFile(item.backup_path);
+        if (backupVerified !== item.content_sha256) throw new Error(`Backup verification failed: ${item.backup_path}`);
+        actionFinish(backupVerifyAction, 'complete', backupVerified);
+        const at = now();
+        execute(`INSERT INTO backup_holdings(content_sha256,backup_path,verification_status,verified_sha256,established_at,verified_at,last_error) VALUES(${sqlQuote(item.content_sha256)},${sqlQuote(item.backup_path)},'verified',${sqlQuote(backupVerified)},${sqlQuote(at)},${sqlQuote(at)},'') ON CONFLICT(content_sha256) DO UPDATE SET backup_path=excluded.backup_path,verification_status='verified',verified_sha256=excluded.verified_sha256,verified_at=excluded.verified_at,last_error='';`);
+      }
+      execute(`UPDATE plan_items SET state='complete',error_message='' WHERE item_id=${sqlQuote(item.item_id)};`);
+    }
+    const at = now();
+    transaction([
+      `UPDATE plans SET state='complete',completed_at=${sqlQuote(at)} WHERE plan_id=${sqlQuote(planId)};`,
+      `UPDATE projects SET workflow_step=7,status='ReadyToCertify',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+      `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'execution.completed',${sqlQuote(at)},${sqlQuote(JSON.stringify({ plan_id: planId }))});`
+    ]);
+  } catch (error) {
+    const at = now();
+    transaction([
+      `UPDATE plan_items SET state='error',error_message=${sqlQuote(error.message)} WHERE plan_id=${sqlQuote(planId)} AND state='WIP';`,
+      `UPDATE plans SET state='error' WHERE plan_id=${sqlQuote(planId)};`,
+      `UPDATE projects SET workflow_step=6,status='ExecutionError',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+      `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'execution.error',${sqlQuote(at)},${sqlQuote(JSON.stringify({ plan_id: planId, error: error.message }))});`
+    ]);
+  } finally {
+    runtime.executions.delete(planId);
+  }
+}
+
+function startExecution(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const plan = latestPlan(projectToken);
+  if (!plan || plan.state !== 'draft') throw httpError(409, 'a current draft plan is required');
+  if (Number(plan.evidence_revision) !== Number(project.evidence_revision)) throw httpError(409, 'plan is stale');
+  const at = now();
+  transaction([
+    `UPDATE plans SET state='executing',approved_at=${sqlQuote(at)} WHERE plan_id=${sqlQuote(plan.plan_id)};`,
+    `UPDATE projects SET workflow_step=6,status='Executing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
+  ]);
+  runtime.executions.set(plan.plan_id, { project_token: projectToken, started_at: at });
+  setImmediate(() => executePlan(plan.plan_id));
+  return { project_token: projectToken, plan_id: plan.plan_id, status: 'executing' };
+}
+
+function certify(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const preflight = preflightProject(projectToken);
+  if (!preflight.ready) throw httpError(409, 'source preflight is not ready');
+  const findings = review(projectToken);
+  if (!findings.files) throw httpError(409, 'no current evidence is available');
+  if (findings.target_missing_content || findings.backup_missing_content) throw httpError(409, 'Target and Backup coverage must both be complete');
+  const plan = latestPlan(projectToken);
+  if (!plan || plan.state !== 'complete' || Number(plan.evidence_revision) !== Number(project.evidence_revision)) throw httpError(409, 'current execution evidence is incomplete');
+  const certificationId = randomId(16);
+  const at = now();
+  const detail = { files: findings.files, bytes: findings.bytes, unique_content: findings.unique_content, target_content: findings.target_content, backup_content: findings.backup_content };
+  transaction([
+    `INSERT INTO certifications(certification_id,project_token,evidence_revision,status,certified_at,detail_json) VALUES(${sqlQuote(certificationId)},${sqlQuote(projectToken)},${Number(project.evidence_revision)},'certified',${sqlQuote(at)},${sqlQuote(JSON.stringify(detail))});`,
+    `UPDATE projects SET workflow_step=7,status='Certified',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
+    `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'project.certified',${sqlQuote(at)},${sqlQuote(JSON.stringify({ certification_id: certificationId }))});`
+  ]);
+  return { certification_id: certificationId, project_token: projectToken, evidence_revision: Number(project.evidence_revision), status: 'certified', certified_at: at, detail };
+}
+
+function certificationStatus(projectToken) {
+  return rows(`SELECT * FROM certifications WHERE project_token=${sqlQuote(projectToken)} ORDER BY certified_at DESC LIMIT 1;`)[0] || null;
+}
+
+function workflow(projectToken) {
+  const project = projectDetail(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const step = Number(project.workflow_step || 1);
+  const preflight = step >= 2 ? {
+    ready: project.sources.length > 0 && project.sources.every(source => ['ready', 'ignored_recycle_bin'].includes(source.preflight_status)),
+    blocking_count: project.sources.filter(source => !['ready', 'ignored_recycle_bin'].includes(source.preflight_status)).length + (project.sources.length ? 0 : 1)
+  } : null;
+  const processing = step >= 3 ? runStatus(projectToken) : { state: 'NotStarted', run: null, workers: [] };
+  const findings = step >= 4 ? review(projectToken) : {};
+  const plan = step >= 5 ? latestPlan(projectToken) : null;
+  const certification = step >= 7 ? certificationStatus(projectToken) : null;
+  const gates = {
+    1: { ok: !!project.project_name.trim(), reason: 'Enter a project name.' },
+    2: { ok: !!preflight?.ready, reason: preflight?.ready ? '' : 'Add and preflight at least one ready source.' },
+    3: { ok: processing.state === 'Closed', reason: processing.state === 'Closed' ? '' : 'Processing must complete.' },
+    4: { ok: Number(findings.files || 0) > 0, reason: Number(findings.files || 0) > 0 ? '' : 'No current evidence is available.' },
+    5: { ok: !!plan && Number(plan.evidence_revision) === Number(project.evidence_revision), reason: 'Generate a current plan.' },
+    6: { ok: plan?.state === 'complete', reason: 'Execute and verify the current plan.' },
+    7: { ok: certification?.status === 'certified' && Number(certification.evidence_revision) === Number(project.evidence_revision), reason: 'Certification evidence is incomplete.' }
+  };
+  return { build: BUILD, project, workflow: { current_step: step, step_name: STEP_NAMES[step] }, sources: project.sources, preflight, processing, review: findings, intelligence: findings, plan, certification, gates };
+}
+
+function moveBack(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const step = Math.max(1, Number(project.workflow_step || 1) - 1);
+  execute(`UPDATE projects SET workflow_step=${step},status=${sqlQuote(STEP_NAMES[step])},updated_at=${sqlQuote(now())} WHERE project_token=${sqlQuote(projectToken)};`);
+  return workflow(projectToken);
+}
+
+function moveForward(projectToken) {
+  const project = projectRow(projectToken);
+  if (!project) throw httpError(404, 'project not found');
+  const step = Number(project.workflow_step || 1);
+  if (step === 1) {
+    execute(`UPDATE projects SET workflow_step=2,status='Sources',updated_at=${sqlQuote(now())} WHERE project_token=${sqlQuote(projectToken)};`);
+    return workflow(projectToken);
+  }
+  if (step === 2) return startProcessing(projectToken);
+  if (step === 3) {
+    const status = runStatus(projectToken);
+    if (status.state !== 'Closed') throw httpError(409, 'processing must complete before Review');
+    execute(`UPDATE projects SET workflow_step=4,status='Review',updated_at=${sqlQuote(now())} WHERE project_token=${sqlQuote(projectToken)};`);
+    return workflow(projectToken);
+  }
+  if (step === 4) return generatePlan(projectToken);
+  if (step === 5) return startExecution(projectToken);
+  if (step === 6) {
+    const plan = latestPlan(projectToken);
+    if (plan?.state !== 'complete') throw httpError(409, 'execution must complete before Certify');
+    execute(`UPDATE projects SET workflow_step=7,status='ReadyToCertify',updated_at=${sqlQuote(now())} WHERE project_token=${sqlQuote(projectToken)};`);
+    return workflow(projectToken);
+  }
+  if (step === 7) return certify(projectToken);
+  throw httpError(409, 'invalid workflow step');
+}
+
+function evidenceStatus() {
+  const result = rows(`SELECT
+    (SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL) projects,
+    (SELECT COUNT(*) FROM sources WHERE removed_at IS NULL) sources,
+    (SELECT COUNT(*) FROM observations) observations,
+    (SELECT COUNT(*) FROM current_observations) current_observations,
+    (SELECT COUNT(*) FROM content) content,
+    (SELECT COUNT(*) FROM target_holdings WHERE verification_status='verified') target_holdings,
+    (SELECT COUNT(*) FROM backup_holdings WHERE verification_status='verified') backup_holdings;`)[0] || {};
+  return Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Number(value || 0)]));
+}
+
+function schedulerStatus() {
+  return {
+    build: BUILD,
+    worker_pool: Math.max(1, Math.min(16, Number(settings().hash_workers || 4))),
+    running: runtime.scheduler.running,
+    active: runtime.scheduler.active,
+    queued: runtime.scheduler.queue,
+    workers: runtime.scheduler.workers
+  };
+}
+
+function databaseStatus() {
+  const stat = fs.statSync(DATABASE_PATH);
+  const integrityRows = rows('PRAGMA integrity_check;');
+  const integrityValue = String(integrityRows[0]?.integrity_check || Object.values(integrityRows[0] || {})[0] || 'unknown');
+  const journalRows = rows('PRAGMA journal_mode;');
+  const migrationRows = rows('SELECT version,name,checksum_sha256,applied_at FROM schema_migrations ORDER BY version;');
+  const tables = rows("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;").map(row => row.name);
+  const counts = {};
+  for (const table of tables) counts[table] = Number(rows(`SELECT COUNT(*) count FROM ${safeIdentifier(table)};`)[0]?.count || 0);
+  return {
+    build: BUILD,
+    database_path: DATABASE_PATH,
+    size: stat.size,
+    modified_at: stat.mtime.toISOString(),
+    integrity: { ok: integrityValue.toLowerCase() === 'ok', result: integrityValue },
+    journal_mode: String(journalRows[0]?.journal_mode || Object.values(journalRows[0] || {})[0] || ''),
+    migrations: migrationRows,
+    tables: counts
+  };
+}
+
+function snapshotStamp() { return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'); }
+function databaseBackup() {
+  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  const destination = path.join(SNAPSHOT_DIR, `sot-${snapshotStamp()}.sqlite`);
+  const command = SQLITE3_AVAILABLE ? 'sqlite3' : 'python3';
+  const args = SQLITE3_AVAILABLE ? [DATABASE_PATH, `.backup '${destination.replace(/'/g, "''")}'`] : [SQLITE_ADAPTER, DATABASE_PATH, '--backup', destination];
+  const result = spawnSync(command, args, { encoding: 'utf8', timeout: 120000 });
+  if (result.error || result.status !== 0) throw new Error(`backup failed: ${result.error?.message || result.stderr || result.status}`);
+  const stat = fs.statSync(destination);
+  return { ok: true, path: destination, size: stat.size, created_at: stat.mtime.toISOString() };
+}
+function databaseDump() {
+  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  const destination = path.join(SNAPSHOT_DIR, `sot-${snapshotStamp()}.sql`);
+  if (SQLITE3_AVAILABLE) {
+    const descriptor = fs.openSync(destination, 'w');
+    try {
+      const result = spawnSync('sqlite3', [DATABASE_PATH, '.dump'], { stdio: ['ignore', descriptor, 'pipe'], encoding: 'utf8', timeout: 120000 });
+      if (result.error || result.status !== 0) throw new Error(`dump failed: ${result.error?.message || result.stderr || result.status}`);
+    } finally { fs.closeSync(descriptor); }
+  } else {
+    const result = spawnSync('python3', [SQLITE_ADAPTER, DATABASE_PATH, '--dump', destination], { encoding: 'utf8', timeout: 120000 });
+    if (result.error || result.status !== 0) throw new Error(`dump failed: ${result.error?.message || result.stderr || result.status}`);
+  }
+  const stat = fs.statSync(destination);
+  return { ok: true, path: destination, size: stat.size, created_at: stat.mtime.toISOString() };
+}
+function databaseSnapshots() {
+  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  const files = fs.readdirSync(SNAPSHOT_DIR).filter(name => /^sot-.*\.(sqlite|sql)$/i.test(name)).map(name => {
+    const fullPath = path.join(SNAPSHOT_DIR, name); const stat = fs.statSync(fullPath);
+    return { name, path: fullPath, size: stat.size, modified_at: stat.mtime.toISOString() };
+  }).sort((a, b) => b.modified_at.localeCompare(a.modified_at));
+  return { path: SNAPSHOT_DIR, files };
+}
+
+async function handle(req, res, inputUrl) {
+  const url = inputUrl instanceof URL ? inputUrl : new URL(inputUrl, 'http://127.0.0.1');
+  let pathname = url.pathname;
+  if (pathname.startsWith('/report/api/sot/')) pathname = pathname.slice('/report'.length);
+  if (!pathname.startsWith('/api/sot/')) return false;
+  try {
+    if (pathname === '/api/sot/health' && req.method === 'GET') {
+      ensureSchema();
+      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'global-scheduler', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
+    }
+    if (pathname === '/api/sot/fs' && req.method === 'GET') { json(res, 200, await browse(url.searchParams.get('path') || '/')); return true; }
+    if (pathname === '/api/sot/config' && req.method === 'GET') { json(res, 200, { database_path: DATABASE_PATH, ...settings() }); return true; }
+    if (pathname === '/api/sot/admin/settings' && req.method === 'GET') { json(res, 200, settings()); return true; }
+    if (pathname === '/api/sot/admin/settings' && req.method === 'PUT') { json(res, 200, configure(await requestBody(req))); return true; }
+    if (pathname === '/api/sot/admin/db/status' && req.method === 'GET') { json(res, 200, databaseStatus()); return true; }
+    if (pathname === '/api/sot/admin/db/backup' && req.method === 'POST') { json(res, 200, databaseBackup()); return true; }
+    if (pathname === '/api/sot/admin/db/dump' && req.method === 'POST') { json(res, 200, databaseDump()); return true; }
+    if (pathname === '/api/sot/admin/db/backups' && req.method === 'GET') { json(res, 200, databaseSnapshots()); return true; }
+    if (pathname === '/api/sot/turn01/r1/evidence-status' && req.method === 'GET') { json(res, 200, { build: BUILD, ...evidenceStatus() }); return true; }
+    if (pathname === '/api/sot/scheduler/status' && req.method === 'GET') { json(res, 200, schedulerStatus()); return true; }
+    if ((pathname === '/api/sot/turn01/projects' || pathname === '/api/sot/projects') && req.method === 'GET') {
+      const projects = listProjects(url.searchParams.get('q') || '');
+      json(res, 200, pathname.includes('/turn01/') ? { projects } : projects); return true;
+    }
+    if ((pathname === '/api/sot/turn01/projects' || pathname === '/api/sot/projects') && req.method === 'POST') { json(res, 201, createProject(await requestBody(req))); return true; }
+
+    let match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)$/);
+    if (match) {
+      const token = decodeURIComponent(match[1]);
+      if (req.method === 'GET') { const project = projectDetail(token); json(res, project ? 200 : 404, project || { error: 'project not found' }); return true; }
+      if (req.method === 'PATCH') { json(res, 200, updateProject(token, await requestBody(req))); return true; }
+      if (req.method === 'DELETE') { json(res, 200, deleteProject(token)); return true; }
+    }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/sources$/);
+    if (match) {
+      const token = decodeURIComponent(match[1]);
+      if (req.method === 'GET') { json(res, 200, { project_token: token, sources: activeSources(token) }); return true; }
+      if (req.method === 'PUT') { const body = await requestBody(req); json(res, 200, { project_token: token, sources: replaceSources(token, body.sources || body.paths || []) }); return true; }
+    }
+    match = pathname.match(/^\/api\/sot\/(?:admin\/projects|turn01\/projects)\/([^/]+)\/preflight$/);
+    if (match && req.method === 'GET') { json(res, 200, preflightProject(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/workflow\/([^/]+)$/);
+    if (match && req.method === 'GET') { json(res, 200, workflow(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/workflow\/([^/]+)\/(forward|back)$/);
+    if (match && req.method === 'POST') {
+      const result = match[2] === 'back' ? moveBack(decodeURIComponent(match[1])) : moveForward(decodeURIComponent(match[1]));
+      json(res, result?.status === 'Queued' || result?.status === 'executing' ? 202 : 200, result); return true;
+    }
+    match = pathname.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/(start|restart|continue|pause)$/);
+    if (match && req.method === 'POST') {
+      const token = decodeURIComponent(match[1]); const action = match[2];
+      const result = action === 'pause' ? pauseProcessing(token) : action === 'continue' ? resumeProcessing(token) : startProcessing(token);
+      json(res, 202, result); return true;
+    }
+    match = pathname.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/status$/);
+    if (match && req.method === 'GET') { json(res, 200, runStatus(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/review$/);
+    if (match && req.method === 'GET') { json(res, 200, review(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/plan$/);
+    if (match) {
+      const token = decodeURIComponent(match[1]);
+      if (req.method === 'GET') { json(res, 200, latestPlan(token) || { project_token: token, state: 'none', items: [], totals: {} }); return true; }
+      if (req.method === 'POST') { json(res, 201, generatePlan(token)); return true; }
+    }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/execute$/);
+    if (match && req.method === 'POST') { json(res, 202, startExecution(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/certify$/);
+    if (match && req.method === 'POST') { json(res, 200, certify(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/certification$/);
+    if (match && req.method === 'GET') { json(res, 200, certificationStatus(decodeURIComponent(match[1])) || { status: 'not_certified' }); return true; }
+    json(res, 404, { error: 'SOT route not found', path: pathname }); return true;
+  } catch (error) {
+    json(res, error.status || 500, { error: error.message, build: BUILD });
+    return true;
+  }
+}
+
+module.exports = {
+  handle,
+  VERSION,
+  BUILD,
+  EXPECTED_MIGRATION,
+  _test: { review, generatePlan, startProcessing, runStatus, startExecution, certify, configure, projectDetail, listProjects, runtime, sqlite }
+};
