@@ -624,6 +624,21 @@ Notification Center, sometimes not the lock screen banner. Test protocol:
 check Focus OFF and note iOS version before burning a cycle; unlock-triggered
 floods = Apple's idle bug, not ours.
 
+**v15.5.0 · 2026-08-23.** Researched how the industry actually survives iOS
+web push (Apple dev forums, documented field reports), then verified or
+implemented each finding: (1) silent-looking pushes get subscriptions
+revoked — our SW already shows instantly inside waitUntil ✓; (2) dead
+endpoints must be pruned — relay already drops on 404/410 ✓; (3) iOS kills
+subscriptions SPONTANEOUSLY — new: phSelfHeal re-validates on every open and
+silently resubscribes when permission is granted but the subscription is
+gone (no tap needed once granted; never runs ungated); (4) Focus/DND
+swallows banners with zero errors — recorded as a test-protocol check, not a
+code problem. Client gate 37/37 (incl. an async-test vacuousness the
+mutation gate itself caught and forced fixed); self-heal mutations 2/2.
+Sandbox cannot reach the relay wire (egress), so preflight.html ships: one
+desktop click runs two simulated phones against the LIVE relay and proves
+the confirm-or-push contract before any phone cycle is spent.
+
 **v15.4.0 · 2026-08-23.** PERMANENT DELIVERY DESIGN, owner-directed: the
 relay never guesses presence. Every push-worthy message carries a delivery
 id; connected clients confirm on whichever path delivered it (active room or

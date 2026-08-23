@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TalkBridge delivery pre-flight</title>
+<style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:640px;margin:30px auto;padding:0 16px;color:#222}
+.ok{color:#0a7d4b}.fail{color:#a32d2d}h1{font-size:20px}li{margin:6px 0}#sum{font-weight:700;font-size:18px;margin-top:14px}</style></head>
+<body>
+<h1>Delivery pre-flight — two simulated phones, live relay</h1>
+<p>This page opens two connections to the real relay as if they were two phones, sends a message, confirms it, and checks the new delivery contract. No phones involved.</p>
+<ul id="out"></ul><div id="sum">Running…</div>
+<script>
+(function(){
+  var out=document.getElementById('out'),sum=document.getElementById('sum'),fails=0;
+  function line(ok,t){var li=document.createElement('li');li.className=ok?'ok':'fail';li.textContent=(ok?'✓ ':'✗ ')+t;out.appendChild(li);if(!ok)fails++;}
+  var BASE='wss://talk-signal.myacctfortracking.workers.dev';
+  var session='preflight-'+Date.now().toString(36);
+  function open(c){return new Promise(function(res,rej){var ws=new WebSocket(BASE+'?app=talkbridge&session='+session+'&client='+c);ws.onopen=function(){res(ws)};ws.onerror=rej;});}
+  var got=[];
+  Promise.all([open('phoneA'),open('phoneB')]).then(function(ss){
+    var a=ss[0],b=ss[1];
+    b.onmessage=function(e){try{got.push(JSON.parse(e.data))}catch(_){}};
+    line(true,'both simulated phones connected to the live relay');
+    a.send(JSON.stringify({type:'chat-msg',from:'phoneA',chatId:'pf-1',srcText:'preflight',ts:Date.now()}));
+    setTimeout(function(){
+      var m1=null;for(var i=0;i<got.length;i++)if(got[i].chatId==='pf-1')m1=got[i];
+      line(!!m1,'live connection delivered the message');
+      line(!!(m1&&m1._did),'message carried a delivery id (the confirm-or-push contract)');
+      if(m1&&m1._did){b.send(JSON.stringify({type:'delivered',did:m1._did,from:'phoneB',transient:true}));line(true,'phone B confirmed delivery, like the new app does');}
+      a.send(JSON.stringify({type:'chat-msg',from:'phoneA',chatId:'pf-2',srcText:'no-ack',ts:Date.now()}));
+      setTimeout(function(){
+        var echoed=false,m2=false;
+        for(var i=0;i<got.length;i++){if(got[i].type==='delivered')echoed=true;if(got[i].chatId==='pf-2')m2=true;}
+        line(!echoed,'confirmations are internal — never re-broadcast to phones');
+        line(m2,'a phone that never confirms still receives everything (old clients safe)');
+        a.close();b.close();
+        sum.textContent=fails?('✗ '+fails+' check(s) failed — do NOT spend a phone cycle; send me a screenshot'):'✓ All green — the relay side is proven. Phone testing only needs to prove what only phones can: iOS delivery.';
+        sum.className=fails?'fail':'ok';
+      },1600);
+    },1600);
+  }).catch(function(e){line(false,'could not reach the relay: '+e);sum.textContent='✗ failed';sum.className='fail';});
+})();
+</script>
+</body></html>

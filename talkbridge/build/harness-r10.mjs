@@ -303,6 +303,30 @@ seed.w.close();
     w.relaySend = orig;
     A(!sent.some(m => m.type === 'delivered'), 'confirmed a message with no id');
   });
+  {
+    /* async, so NOT run through the sync T() — that made the first version
+       of these tests vacuous; the mutation gate caught it */
+    let healed = 0;
+    const orig = w.r10EnableNotifications;
+    w.r10EnableNotifications = () => { healed++; return Promise.resolve('on'); };
+    w.Notification.permission = 'granted';
+    /* jsdom's serviceWorker is non-configurable; give the heal its corpse by
+       overriding the ready promise the code actually awaits */
+    const fakeReg = { pushManager: { getSubscription: () => Promise.resolve(null) } };
+    try { Object.defineProperty(w.navigator.serviceWorker, 'ready', { configurable: true, value: Promise.resolve(fakeReg) }); }
+    catch (_) { w.navigator.serviceWorker.__proto__.ready = Promise.resolve(fakeReg); }
+    w.phSelfHeal();
+    await new Promise(res => setTimeout(res, 120));
+    T('H1 granted-but-dead subscription self-heals silently on open', () =>
+      A(healed === 1, 'dead subscription not healed (healed=' + healed + ')'));
+    healed = 0;
+    w.Notification.permission = 'default';
+    w.phSelfHeal();
+    await new Promise(res => setTimeout(res, 120));
+    w.r10EnableNotifications = orig;
+    T('H2 no permission means no silent prompting — heal never runs ungated', () =>
+      A(healed === 0, 'heal ran without permission'));
+  }
   T('F6 named font surfaces still raised', () => {
     const tt = d2.querySelector('.talking-to');
     A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');
