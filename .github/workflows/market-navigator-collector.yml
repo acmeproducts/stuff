@@ -73,15 +73,24 @@ jobs:
           root=Path('market-data')
           db=json.loads((root/'manifest.json').read_text())
           if db.get('schema')!='market-navigator-database-v1': raise SystemExit('Invalid database manifest schema')
-          if not db.get('validation',{}).get('ok'): raise SystemExit('Database reconciliation failed: '+str(db.get('validation')))
-          if db.get('indexes',{}).get('growth',{}).get('children') != ['qqq']:
-            raise SystemExit('Growth must measure growth leadership; financing conditions cannot be an equal-weight Growth child')
-          for name in ('risk','growth','macro','regime'):
-            p=root/'indexes'/f'{name}.json'
-            if not p.exists(): raise SystemExit(f'Missing derived index {name}')
-            obj=json.loads(p.read_text())
-            if not obj.get('observations'): raise SystemExit(f'Empty derived index {name}')
-          print('Validated database',db.get('revision'),'regime observations',db['indexes']['regime']['count'])
+          if not db.get('validation',{}).get('ok'): raise SystemExit('Database validation failed: '+str(db.get('validation')))
+          if db.get('databaseVersion')!='1.2.0': raise SystemExit('Expected database model 1.2.0')
+          model=json.loads((root/'model.json').read_text())
+          if model.get('schema')!='market-navigator-relative-model-v1': raise SystemExit('Missing T0-relative model')
+          for name in ('risk','growth','macro'):
+            cfg=model['indexes'][name]
+            total=sum(float(x['weight']) for x in cfg['components'])
+            if abs(total-1)>.0001: raise SystemExit(f'{name} weights do not sum to 1: {total}')
+            if not cfg['components']: raise SystemExit(f'{name} has no model components')
+          growth={x['id'] for x in model['indexes']['growth']['components']}
+          if 'tenYear' in growth: raise SystemExit('10Y financing conditions must not be a Growth component')
+          required_growth={'qqq','payrolls','industrialProduction','retailSales','realGdp'}
+          if not required_growth.issubset(growth): raise SystemExit('Growth economic dataset incomplete: '+str(required_growth-growth))
+          required_risk={'vix','hySpread','nfci','initialClaims'}
+          if not required_risk.issubset({x['id'] for x in model['indexes']['risk']['components']}): raise SystemExit('Risk dataset incomplete')
+          required_macro={'cpi','corePce','fedFunds','tenYear','curve10y2y','realTenYear','breakeven10y','wti'}
+          if not required_macro.issubset({x['id'] for x in model['indexes']['macro']['components']}): raise SystemExit('Macro dataset incomplete')
+          print('Validated T0-relative model',db.get('revision'))
           PY
 
       - name: Commit refreshed Market Navigator database and UI
