@@ -1,0 +1,63 @@
+name: WorldPulse RSS cache collector
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: worldpulse-rss-cache
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Refresh per-source and combined news caches
+        run: python3 worldpulse-rss-collector.py
+
+      - name: Migrate globe client to same-origin cache
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('globe.html')
+          s=p.read_text()
+          if "NEWS_CACHE_URL='./worldpulse-news-cache.json'" not in s:
+              s=re.sub(r'WorldPulse Sphere v2\.6\.\d+', 'WorldPulse Sphere v2.7.0', s)
+              s=re.sub(r"const VERSION='2\.6\.\d+'", "const VERSION='2.7.0'", s, count=1)
+              marker='start()})();</script>'
+              if marker not in s:
+                  raise SystemExit('final start marker not found')
+              override=r"""
+const NEWS_CACHE_URL='./worldpulse-news-cache.json',NEWS_CHECK_KEY='wp25.newsCacheCheckedAt',NEWS_GENERATED_KEY='wp25.newsCacheGeneratedAt',NEWS_TTL=5*60*1000;
+cacheSave=async function(rows){try{const d=await db(),t=d.transaction(STORE,'readwrite'),store=t.objectStore(STORE);store.clear();rows.forEach(x=>store.put(x));return await new Promise((ok,no)=>{t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){log('IndexedDB save failed: '+e.message)}};
+refresh=async function(background=false,force=false){if(refreshing)return;const last=Number(localStorage.getItem(NEWS_CHECK_KEY)||0),cacheAge=Date.now()-last;if(background&&!force&&last&&cacheAge<NEWS_TTL){log(`same-origin cache: fresh locally · next check in ${Math.ceil((NEWS_TTL-cacheAge)/60000)}m`);return}refreshing=true;if(!background)E.refresh.disabled=true;try{const bucket=force?Date.now():Math.floor(Date.now()/NEWS_TTL),url=`${NEWS_CACHE_URL}?v=${bucket}`;log(`same-origin cache: ${force?'forced refresh':'checking'} ${url}`);const r=await fetch(url,{cache:force?'reload':'no-cache'});if(!r.ok)throw Error(`HTTP ${r.status}`);const data=await r.json();localStorage.setItem(NEWS_CHECK_KEY,String(Date.now()));const incoming=Array.isArray(data.stories)?data.stories:[],generated=String(data.generatedAt||data.generatedAtMs||'');if(!incoming.length)throw Error('cache contains 0 stories');const previous=localStorage.getItem(NEWS_GENERATED_KEY)||'';if(generated&&generated===previous&&stories.length){E.live.className='live ok';E.live.querySelector('span').textContent=`Cached · ${stories.length} stories · current`;log(`same-origin cache unchanged · ${stories.length} local stories`)}else{stories=dedupe(incoming);await cacheSave(stories);if(generated)localStorage.setItem(NEWS_GENERATED_KEY,generated);E.live.className='live ok';E.live.querySelector('span').textContent=`Live cache · ${stories.length} stories`;applyFast();log(`same-origin cache updated · ${stories.length} stories · generated ${data.generatedAt||'unknown'}`)}for(const x of (data.sources||[])){const good=x.status==='healthy'||x.status==='not-modified',suffix=good?`${x.stories} cached`:`${x.status} · ${x.stories} retained${x.error?' · '+x.error:''}`;log(`${x.source}: ${suffix}`)}}catch(e){E.live.className=stories.length?'live ok':'live bad';E.live.querySelector('span').textContent=stories.length?`Cached · ${stories.length} stories · offline/stale`:'News cache unavailable';log(`same-origin cache failed: ${e.message}`)}finally{refreshing=false;E.refresh.disabled=false}};
+start=async function(){applyScheme();syncRibbon();renderConfig();bindConfig();progress(10,'Opening local cache…');stories=dedupe(await cacheRead());if(stories.length){progress(80,`Loaded ${stories.length} cached stories`);applyFast();E.live.className='live ok';E.live.querySelector('span').textContent=`Cached · ${stories.length} stories`;E.startup.classList.add('done');setTimeout(()=>refresh(true,false),40)}else{progress(35,'No local cache · reading WorldPulse snapshot…');await refresh(false,true);E.startup.classList.add('done')}};
+E.refresh.onclick=()=>refresh(false,true);
+"""
+              s=s.replace(marker,override+marker,1)
+              p.write_text(s)
+          PY
+
+      - name: Commit refreshed cache and migrated client
+        run: |
+          if [ -z "$(git status --porcelain -- globe.html worldpulse-source-cache.json worldpulse-news-cache.json)" ]; then
+            echo "No WorldPulse changes to commit."
+            exit 0
+          fi
+          git config user.name "worldpulse-bot"
+          git config user.email "worldpulse-bot@users.noreply.github.com"
+          git add globe.html worldpulse-source-cache.json worldpulse-news-cache.json
+          git commit -m "data: refresh WorldPulse RSS cache"
+          git pull --rebase origin main
+          git push origin HEAD:main
