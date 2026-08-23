@@ -188,11 +188,9 @@ select.input{appearance:auto}
     <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input" type="password" autocomplete="off" placeholder="sk-or-…">
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="orTest">Validate OpenRouter</button><span class="hint" id="orStatus"></span></div>
       <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
-    <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
     <div class="frow"><label>Default engine for new threads</label><select id="cfgengine" class="input">
       <option value="venice">Venice.ai</option>
-      <option value="openrouter">OpenRouter</option>
-      <option value="anthropic-direct">Anthropic API</option></select></div>
+      <option value="openrouter">OpenRouter</option></select></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn" id="openDebugBtn" style="margin-top:8px">Open Debug console</button>
     <div class="frow" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label>Appearance preset</label><select id="apPreset" class="input">
@@ -217,8 +215,7 @@ select.input{appearance:auto}
       <div class="hint" id="npHint">Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.</div></div>
     <div class="frow"><label>Engine</label><select id="npEngine" class="input">
       <option value="venice">Venice.ai</option>
-      <option value="openrouter">OpenRouter</option>
-      <option value="anthropic-direct">Anthropic API</option></select></div>
+      <option value="openrouter">OpenRouter</option></select></div>
     <button class="btn primary" id="npCreate" style="width:100%">Create project</button>
   </div>
 </div></div>
@@ -249,6 +246,7 @@ const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
 const now=()=>new Date().toISOString();
 const repoFull=()=>cfg.owner+'/'+cfg.repo;
+const validEngine=e=>e==='openrouter'?'openrouter':'venice';
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('toasts').appendChild(t);setTimeout(()=>t.remove(),2800)}
 function errbar(m){const b=$('error');if(!m){b.style.display='none';return}b.textContent=m;b.style.display='block'}
 function rel(iso){if(!iso)return'never';const s=(Date.now()-new Date(iso))/1e3;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
@@ -315,29 +313,31 @@ function saveSOT(msg){
 function dlog(line,cls){const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
 function debugHtml(){return debug.map(l=>{const[c,t]=l.includes('|')?l.split('|',2):['',l];return '<span class="'+(c==='E'?'erc':c==='K'?'okc':'')+'">'+esc(t)+'</span>'}).join('\n')}
 const inflight={};
-async function lfetch(label,url,opts){
-  const fkey=(opts&&opts.method||'GET')+' '+url.split('?')[0];
-  if(inflight[fkey])return inflight[fkey];           // single-flight: reuse identical in-flight GETs
+async function lfetch(label,url,opts={}){
+  const {timeoutMs=25000,...fetchOpts}=opts;
+  const method=fetchOpts.method||'GET',fkey=method+' '+url.split('?')[0];
+  if(method==='GET'&&inflight[fkey])return inflight[fkey];
   const run=(async()=>{
-    for(let attempt=1;attempt<=2;attempt++){
+    const attempts=method==='GET'?2:1; // never replay API writes or model requests
+    for(let attempt=1;attempt<=attempts;attempt++){
       const t0=performance.now();
-      const ac=new AbortController();const to=setTimeout(()=>ac.abort(),25000);
-      dlog('→ '+label+' '+(opts&&opts.method||'GET')+' '+url.replace(/^https:\/\//,'').split('?')[0]+(attempt>1?' (retry)':''));
+      const ac=new AbortController(),to=setTimeout(()=>ac.abort(),timeoutMs);
+      dlog('→ '+label+' '+method+' '+url.replace(/^https:\/\//,'').split('?')[0]+(attempt>1?' (retry)':''));
       try{
-        const r=await fetch(url,{...opts,signal:ac.signal});
+        const r=await fetch(url,{...fetchOpts,signal:ac.signal});
         clearTimeout(to);
         dlog((r.ok?'K|':'E|')+'← '+label+' '+r.status+' '+Math.round(performance.now()-t0)+'ms');
         return r;
       }catch(e){
         clearTimeout(to);
-        const msg=e.name==='AbortError'?'timeout 25s':e.message;
+        const msg=e.name==='AbortError'?'timeout '+Math.round(timeoutMs/1000)+'s':e.message;
         dlog('E|✕ '+label+' '+msg+' '+Math.round(performance.now()-t0)+'ms');
-        if(attempt===2)throw new Error(label+' network failure: '+msg);
+        if(attempt===attempts)throw new Error(label+' network failure: '+msg);
         await new Promise(r=>setTimeout(r,1200));
       }
     }
   })();
-  if((opts&&opts.method||'GET')==='GET'){inflight[fkey]=run;run.finally(()=>delete inflight[fkey])}
+  if(method==='GET'){inflight[fkey]=run;run.finally(()=>delete inflight[fkey])}
   return run;
 }
 function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugPanel"><div class="bar"><b>Debug</b><span class="grow"></span><button class="btn" id="dclose">✕</button></div><div class="debugTabs"><button class="debugTab active" data-tab="log">Log</button><button class="debugTab" data-tab="engines">Engines</button><button class="debugTab" data-tab="state">State</button></div><div class="debugTools"><span id="dinfo">'+debug.length+' entries (session)</span><span class="grow"></span><button class="btn" id="dcopy">Copy</button><button class="btn" id="dclear">Clear</button></div><pre id="debugOut"></pre></div>';
@@ -350,7 +350,7 @@ function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugP
 function renderDebugTab(){const o=$('debugOut');if(!o)return;
   if(debugTab==='log'){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight;return}
   if(debugTab==='engines'){const mask=k=>k?k.slice(0,7)+'…'+k.slice(-4)+' ('+k.length+' ch)':'NOT SET';
-    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nanthropic key: '+mask(cfg&&cfg.akey)+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
+    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
   o.textContent=JSON.stringify({activeProject,activeKey,threads:Object.keys(sot.threads).length,projects:Object.keys(sot.projects).length,engineConfig:sot.config||{}},null,1);
 }
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
@@ -603,11 +603,11 @@ async function newThreadForProject(){
   await guard(async()=>{
     const tree=await repoTree(true);
     const tid=file+(key.includes('#')?key.slice(key.indexOf('#')):'');
-    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
+    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:validEngine(cfg.engine),created:now(),
       messages:[{role:'agent',text:'This thread references the plan ('+p.planFile+'). Ask questions, add ideas or feedback — they update the plan. Say "build it" (or give build instructions) and the build happens here against '+file+'.',ts:now()}]};
     const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new thread '+key);
     threads[key]={data,sha};
-    sot.threads[key]={project:activeProject,file,tid,repo:repoFull(),engine:cfg.engine||'claude',state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+    sot.threads[key]={project:activeProject,file,tid,repo:repoFull(),engine:validEngine(cfg.engine),state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
     p.lastTouched=now();
     await saveSOT('devstream: new thread '+key);
     renderTabs();openThread(key);
@@ -636,7 +636,7 @@ function threadPath(key){const th=threads[key];return tpath(th.data.project,th.d
 function dispatch(key){runAgent(key)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
-/* ---- in-app agent (anthropic-direct) ---- */
+/* ---- in-app agents (direct provider APIs; no gateway) ---- */
 function agentSystem(codeFile,planFile){
   return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority). Rules: questions/ideas/feedback update the PLAN (or are just answered); explicit build instructions or "build it" mean implementing per the plan into the CODE file; update-plan-before-code is the house rule, but do at most ONE file write per response. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
 }
@@ -657,32 +657,28 @@ async function setState(key,patch){
   renderTabs();renderSidebar();if(activeKey===key)renderChat();
 }
 async function callEngine(eng,system,history,user){
-  if(eng==='anthropic-direct'){
-    const r=await lfetch('anthropic','https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})});
-    const j=await r.json();
-    if(!r.ok)throw new Error('Anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
-    return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-  }
-  const cfgs={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel},
-    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel}}[eng];
-  if(cfgs&&!cfgs.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
-  if(!cfgs)throw new Error('Unknown engine '+eng);
-  if(!cfgs.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
-  const r=await lfetch(eng,cfgs.url,{method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key},
-    body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
+  eng=validEngine(eng);
+  const provider={
+    venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel,headers:{}},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel,
+      headers:{'HTTP-Referer':location.href,'X-OpenRouter-Title':'devstream'}}
+  }[eng];
+  if(!provider.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
+  if(!provider.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
+  const r=await lfetch(eng,provider.url,{method:'POST',timeoutMs:300000,
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+provider.key,...provider.headers},
+    body:JSON.stringify({model:provider.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' returned non-JSON ('+r.status+') — possibly CORS-blocked in this browser')}
   if(!r.ok){let hint='';if(eng==='venice'&&r.status===402)hint=' — this model needs Venice API credits (VCU) or is not in your plan; Validate Venice and pick another model';throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown')+hint)}
-  return j.choices[0].message.content;
+  const content=j.choices?.[0]?.message?.content;
+  if(typeof content!=='string'||!content.trim())throw new Error(eng+' returned an empty or unsupported completion');
+  return content;
 }
 async function runAgent(key){
   if(agentBusy){toast('Agent already running');return}
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
-  const eng=t.engine||'venice';
-  if(eng==='anthropic-direct'&&!cfg.akey){errbar('No Anthropic API key in Settings.');return}
+  const eng=validEngine(t.engine);
   if(eng==='venice'&&!cfg.vkey){errbar('No Venice API key in Settings.');return}
   if(eng==='openrouter'&&!cfg.orkey){errbar('No OpenRouter API key in Settings.');return}
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
@@ -702,7 +698,8 @@ async function runAgent(key){
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
     const text=await callEngine(eng,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);
-    const{summary,target,body}=parseAgent(text);
+    const parsed=parseAgent(text),summary=parsed.summary,target=parsed.target,body=parsed.body;
+    if(!['NONE',codeFile,planFile].includes(target))throw new Error('Agent tried to write an unauthorized target: '+target);
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(target!=='NONE'){
       if(body.length<80)throw new Error('Agent returned no usable file content for '+target);
@@ -796,9 +793,9 @@ function renderDash(){
 }
 
 /* ---- settings / boot ---- */
-$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
+$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=validEngine(cfg.engine)}openModal('cfgModal');bindAppearanceUI()};
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
 $('vTest').onclick=async()=>{
   const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
@@ -838,7 +835,7 @@ $('sotValidate').onclick=async()=>{
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value||'',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
+  cfg={pat,owner,repo,branch,vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value||'',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value||'',engine:validEngine($('cfgengine').value)};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
   sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,appearance};   // model choices sync via SOT; keys NEVER leave this browser
@@ -875,11 +872,11 @@ applyAppearance();
 (async function boot(){
   // migrate v1 cfg
   const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
-  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
+  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){
-    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=validEngine(cfg.engine||sot.config.engine);localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');renderSidebar();renderTabs();
     dlog('boot ok · '+Object.keys(sot.threads).length+' threads');
