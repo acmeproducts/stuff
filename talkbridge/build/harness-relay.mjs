@@ -2,23 +2,27 @@
 /* Relay wake-decision gate. Tests the pure predicate the worker exports and
    statically verifies the two integration points. */
 import { readFileSync } from 'fs';
-import { isListening } from '../worker-talk.js';
+import { wakeDecision } from '../worker-talk.js';
 let pass = 0, fail = 0;
 const T = (n, f) => { try { f(); pass++; console.log('  ok  ' + n); } catch (e) { fail++; console.log('FAIL  ' + n + ' — ' + e.message); } };
 const A = (c, m) => { if (!c) throw new Error(m); };
-const now = 1000000;
-
-T('fresh ping + live socket = listening (no push)', () => A(isListening(true, now - 30000, now) === true, ''));
-T('silent 80s despite live socket = NOT listening (push) — the zombie case', () => A(isListening(true, now - 80000, now) === false, ''));
-T('no socket at all = not listening, regardless of pings', () => A(isListening(false, now - 1000, now) === false, ''));
-T('never seen (worker restarted) = stale = wake — fails safe', () => A(isListening(true, undefined, now) === false, ''));
-
 const src = readFileSync(new URL('../worker-talk.js', import.meta.url), 'utf8');
-T('inbound socket messages stamp lastSeen', () => A(src.includes('this.lastSeen[clientId] = Date.now()'), 'stamp missing'));
-T('wake decision uses the predicate, not raw socket presence', () => {
-  A(src.includes('isListening(connected.has(clientId), this.lastSeen[clientId], now)'), 'predicate not wired');
-  A(!src.includes('if (connected.has(clientId)) continue;             /* already listening */'), 'old socket-only check still present');
+T('no socket => push immediately, socket => await confirmation', () => {
+  A(wakeDecision(false) === 'push-now' && wakeDecision(true) === 'await-ack', 'decision wrong');
 });
+T('push-worthy messages carry a delivery id', () => A(src.includes("msg._did = (msg.ts || Date.now())"), 'no delivery id'));
+T('a delivered confirmation cancels exactly its pending push', () => {
+  A(src.includes("msg.type === 'delivered' && msg.did && clientId"), 'ack not handled');
+  A(src.includes('clearTimeout(t); this.pendingWakes.delete(key);'), 'ack does not cancel');
+});
+T('silence for the grace period fires the push', () => {
+  A(src.includes('setTimeout(') && src.includes('ACK_GRACE_MS'), 'grace timer missing');
+  A(src.includes('self._pushOne(clientId, rec)'), 'expiry does not push');
+});
+T("'delivered' is transient: never persisted, never re-broadcast", () =>
+  A(src.includes("'delivered']"), 'delivered not in transient set'));
+T('presence is never guessed: the old staleness heuristic is gone', () =>
+  A(!src.includes('PRESENCE_TTL_MS'), 'heuristic still present'));
 T('wakes request immediate delivery (Urgency high)', () => A(src.includes("Urgency: 'high'"), 'urgency header missing'));
 T('still payload-free: no message content leaves for the push service', () => A(src.includes("'Content-Length': '0'"), 'payload appeared'));
 

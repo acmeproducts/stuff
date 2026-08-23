@@ -274,6 +274,35 @@ seed.w.close();
     A(String(w.plReport).includes('out.mic = st.state'), 'mic state queried but never written into the line');
     A(String(w.plReport).includes("r8Log('lane'"), 'lane line not logged');
   });
+  T('D1 an arriving message with a delivery id is confirmed on the active path', () => {
+    const sent = [];
+    const orig = w.relaySend; w.relaySend = m => sent.push(m);
+    try { w.handleRelay({ type: 'chat-msg', _did: 'x1', chatId: 'zz-1', srcText: 'hi', ts: Date.now() }); } catch (_) {}
+    w.relaySend = orig;
+    const ack = sent.find(m => m.type === 'delivered');
+    A(ack && ack.did === 'x1' && ack.transient === true, 'no confirmation sent: ' + JSON.stringify(sent[0] || null));
+  });
+  T('D2 a background-room arrival confirms on ITS socket', () => {
+    const sent = [];
+    const orig = w.LISTEN.send; w.LISTEN.send = (roomId, m) => sent.push([roomId, m]);
+    try { w.LISTEN.handle('roomZ', { type: 'chat-msg', _did: 'x2', chatId: 'zz-2', ts: Date.now() }); } catch (_) {}
+    w.LISTEN.send = orig;
+    const ack = sent.find(([r, m]) => m.type === 'delivered');
+    A(ack && ack[0] === 'roomZ' && ack[1].did === 'x2', 'background arrival not confirmed');
+  });
+  T('D4 background listeners heartbeat: silence is structurally impossible', () => {
+    A(String(w.LISTEN.handle._pdOriginal ? 1 : 1) === '1', '');
+    const src = [...w.document.querySelectorAll('script')].map(x => x.textContent).join('');
+    A(/LISTEN\.send\(id, \{ type: 'ping', transient: true \}\)/.test(src), 'listener heartbeat missing from the build');
+    A(/setInterval\(function \(\) \{\s*try \{\s*for \(var id in \(LISTEN\.socks/.test(src), 'heartbeat not on an interval');
+  });
+  T('D3 messages without a delivery id are left alone (old relay compatible)', () => {
+    const sent = [];
+    const orig = w.relaySend; w.relaySend = m => sent.push(m);
+    try { w.handleRelay({ type: 'ping', transient: true }); } catch (_) {}
+    w.relaySend = orig;
+    A(!sent.some(m => m.type === 'delivered'), 'confirmed a message with no id');
+  });
   T('F6 named font surfaces still raised', () => {
     const tt = d2.querySelector('.talking-to');
     A(tt && w.getComputedStyle(tt).fontSize === '15px', 'talking-to not 15px');

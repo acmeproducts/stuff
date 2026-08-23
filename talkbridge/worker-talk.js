@@ -35,8 +35,20 @@
 const MAX_HISTORY = 500;
 const SESSION_TTL_MS = 12 * 60 * 1000;
 const SUB_TTL_MS = 90 * 24 * 60 * 60 * 1000;   /* a subscription unused for this long is dropped */
-const PRESENCE_TTL_MS = 75 * 1000;             /* matches the app: silent longer than this = not really here */
-const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack']);
+/* DELIVERY-CONFIRMED WAKES (permanent design, owner-directed 2026-08-23).
+   Presence is never guessed. Every push-worthy message gets a delivery id;
+   connected clients confirm receipt within ACK_GRACE_MS or the push fires.
+   A phone with no socket at all is pushed immediately — no waiting. This is
+   the industry pattern (send, confirm, escalate): zombie sockets, silent
+   background listeners, frozen JS, and lane drift are all covered by one
+   rule, with nothing to tune. A confirmed call screen IS the confirmation,
+   so a call never shows both a screen and a notification. Old clients that
+   don't confirm simply get a push after the grace — today's behavior, safe. */
+const ACK_GRACE_MS = 4000;
+export function wakeDecision(hasSocket) {
+  return hasSocket ? 'await-ack' : 'push-now';
+}
+const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack', 'delivered']);
 
 /* Public by design — handed to every browser that subscribes. */
 const VAPID_PUBLIC_KEY = 'BCpmWbu3Hdj3LM0tYiPkslNsr2hKUj1ol5VQBt_VLBuvgt4gimV7F0XfJTKlCk7OYxm8bvmIVbB34lRvd3-eIoc';
@@ -225,20 +237,30 @@ export class TalkSession {
   async _wakeOthers(msg, senderId) {
     if (!PUSH_WORTHY.has(msg.type)) return;
     const now = Date.now();
+    this.pendingWakes = this.pendingWakes || new Map();
+    const connected = this._connectedIds();
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
-      /* "Has a socket" used to mean "is listening" — but iOS suspends an app
-         without closing its socket, so a zombie connection made the relay skip
-         the push entirely: the stuck case. Presence now means heard-from
-         recently, which a suspended app cannot fake. */
-      const last = this.seen.get(clientId);
-      if (last && now - last < PRESENCE_TTL_MS) continue;
       if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
       }
-      jobs.push(this._pushOne(clientId, rec));
+      if (wakeDecision(connected.has(clientId)) === 'push-now') {
+        jobs.push(this._pushOne(clientId, rec));         /* no socket: no waiting */
+        continue;
+      }
+      /* Socket exists: the client has ACK_GRACE_MS to confirm this delivery
+         id; confirmation cancels the push, silence proves the screen never
+         got it. Timer is in-memory — if the object is evicted mid-grace the
+         failure direction is a missed cancel, i.e. an extra push: safe. */
+      const key = msg._did + '|' + clientId;
+      const self = this;
+      const t = setTimeout(() => {
+        self.pendingWakes.delete(key);
+        Promise.resolve(self._pushOne(clientId, rec)).catch(() => {});
+      }, ACK_GRACE_MS);
+      this.pendingWakes.set(key, t);
     }
     if (jobs.length) await Promise.all(jobs);
   }
@@ -309,10 +331,18 @@ export class TalkSession {
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
+    if (msg.type === 'delivered' && msg.did && clientId) {
+      const key = msg.did + '|' + clientId;
+      const t = this.pendingWakes && this.pendingWakes.get(key);
+      if (t) { clearTimeout(t); this.pendingWakes.delete(key); }
+      return;                                   /* pure confirmation, nothing else */
+    }
+
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     await this._touchSession();
 
     if (!isTransient) {
+      if (PUSH_WORTHY.has(msg.type)) msg._did = (msg.ts || Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
       await this._persist(msg);
     } else {
       this.seq++;

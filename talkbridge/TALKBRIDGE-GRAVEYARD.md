@@ -949,3 +949,16 @@ Rule (existing, reaffirmed): when cause is unknown, instrument and read the
 log; never declare root cause from reasoning. The next step is one Android
 debug log captured on the buried build's URL during a mic attempt — that log
 names the failing call. No rebuild before that evidence.
+
+## Presence heuristics — buried as a CLASS · Aug 23 2026
+
+The 75-second heard-from rule fixed zombie sockets and then broke against the
+silent background listeners the audit never inventoried: the relay pushed for
+rooms it was simultaneously delivering to live — notification and call screen
+together, inconsistently, by 75-second coin-flips. The failure wasn't the
+constant; it was GUESSING. Buried: every form of inferred presence. The
+permanent design is delivery confirmation — send on what's connected, the
+client confirms the id, silence for the grace fires the push. A confirmed
+call screen is the confirmation, so screen-and-notification can never
+coexist. Rule: when changing a contract, inventory EVERY party bound by it —
+the active socket was audited, the nine listeners were not.

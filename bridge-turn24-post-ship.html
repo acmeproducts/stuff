@@ -8115,6 +8115,62 @@ setTimeout(plReport, 1000);
 document.addEventListener('visibilitychange', function () {
   try { if (!document.hidden) plReport(); } catch (_) {}
 });
+
+/* ═══════════ GAP PART · PD-delivery-confirmation.js ═══════════ */
+/* @contract
+   wraps: handleRelay (confirms delivery, calls through), Listener.handle
+   (same, for background rooms), plus background listeners now heartbeat
+   adds: pdConfirm
+*/
+/* ─────────────────────────────────────────────────────────────────────────────
+   PERMANENT DELIVERY DESIGN (owner-directed 2026-08-23): the relay never
+   guesses presence. Every push-worthy message arrives carrying a delivery id
+   (_did); this device confirms receipt instantly on WHICHEVER path delivered
+   it — active room or background listener. Confirmed means the screen has
+   it, so no notification follows: a rendered call screen and a push can
+   never both happen. Silence for the relay's grace period means the screen
+   provably did not get it, and the push fires. Nothing to tune, no lanes to
+   drift.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+function pdConfirm(sendFn, d) {
+  try {
+    if (d && d._did) { sendFn({ type: 'delivered', did: d._did, transient: true }); return true; }
+  } catch (_) {}
+  return false;
+}
+
+(function () {
+  if (typeof handleRelay === 'function') {
+    var _pdHandleRelay = handleRelay;
+    handleRelay = function (d) {
+      pdConfirm(function (m) { relaySend(m); }, d);
+      return _pdHandleRelay.apply(this, arguments);
+    };
+    handleRelay._pdOriginal = _pdHandleRelay;
+  }
+})();
+
+(function () {
+  if (typeof LISTEN === 'object' && LISTEN && typeof LISTEN.handle === 'function') {
+    var _pdListenHandle = LISTEN.handle;
+    LISTEN.handle = function (roomId, d) {
+      var self = this;
+      pdConfirm(function (m) { self.send(roomId, m); }, d);
+      return _pdListenHandle.apply(this, arguments);
+    };
+    LISTEN.handle._pdOriginal = _pdListenHandle;
+  }
+  /* Background listeners speak too: the same 30s ping the active room sends,
+     so every connection this phone holds is a live, confirming one. */
+  if (typeof LISTEN === 'object' && LISTEN) {
+    setInterval(function () {
+      try {
+        for (var id in (LISTEN.socks || {})) LISTEN.send(id, { type: 'ping', transient: true });
+      } catch (_) {}
+    }, 30000);
+  }
+})();
 </script>
 </body>
 </html>

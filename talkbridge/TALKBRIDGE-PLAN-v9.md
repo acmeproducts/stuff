@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.3.0 -->
-# TALKBRIDGE MASTER PLAN v15.3.0
+<!-- TALKBRIDGE-PLAN v15.4.0 -->
+# TALKBRIDGE MASTER PLAN v15.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -575,6 +575,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.4.0 · 2026-08-23.** PERMANENT DELIVERY DESIGN, owner-directed: the
+relay never guesses presence. Every push-worthy message carries a delivery
+id; connected clients confirm on whichever path delivered it (active room or
+background listener — listeners also heartbeat now); no confirmation within
+4s fires the push; no socket at all pushes immediately. Screen-and-
+notification can never coexist: the confirmed screen IS the confirmation.
+The 75s heuristic is removed — presence guessing buried as a class
+(graveyard). Old clients degrade safely (push after grace). Relay gate 8/8 +
+4/4 mutations; client gate 35/35 + 3/3. Relay auto-deploys on push. Remaining
+owner tests: full matrix BOTH directions, iPhone log with lane line for the
+lag question.
 
 **v15.3.0 · 2026-08-22.** Owner ruling: the Android mic failure is accepted
 as the accidental android-pwa lane's permission state; the chase ends. ONE
