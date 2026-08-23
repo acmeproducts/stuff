@@ -5,7 +5,7 @@ REPORT_ROOT=/home/support/.openclaw/workspace/https/report
 SOT_STATE=/home/support/.openclaw/sot
 SOT_DATABASE="$SOT_STATE/sot.sqlite"
 SERVICE=openclaw-report-server.service
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/__PINNED_COMMIT__
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/52f6f6d17804bbe185b8d7361dc8b95088d1caf3
 PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260823-project-controls-3'
 EXPECTED_BUILD=2026.08.23.sot-project-controls-3
 TEMP_ROOT="$(mktemp -d)"
