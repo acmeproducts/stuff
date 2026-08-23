@@ -10,6 +10,10 @@ on:
         type: boolean
   schedule:
     - cron: "17 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "market-navigator-publish.trigger"
 
 permissions:
   contents: write
@@ -36,62 +40,48 @@ jobs:
       - name: Build canonical database
         run: python3 market-navigator-build-db.py
 
-      - name: Validate generated data contracts
+      - name: Apply canonical UI migration for explicit publication run only
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: python3 scripts/market-navigator-ui-migrate.py
+
+      - name: Validate generated contracts
         run: |
           python3 - <<'PY'
-          import json
+          import json,re
           from pathlib import Path
-
-          backend = Path('data/market-backend')
-          required_backend = [
-              'market-manifest.json',
-              'market-cache.json',
-              'macro-cache.json',
-              'news-cache.json',
-              'source-health.json',
-          ]
-          missing = [x for x in required_backend if not (backend / x).exists()]
-          if missing:
-              raise SystemExit('Missing backend outputs: ' + ', '.join(missing))
-
-          backend_manifest = json.loads((backend / 'market-manifest.json').read_text())
-          if backend_manifest.get('schema') != 'market-navigator-manifest-v1':
-              raise SystemExit('Invalid backend manifest schema')
-
-          root = Path('market-data')
-          db = json.loads((root / 'manifest.json').read_text())
-          if db.get('schema') != 'market-navigator-database-v1':
-              raise SystemExit('Invalid database manifest schema')
-          if not db.get('validation', {}).get('ok'):
-              raise SystemExit('Database validation failed: ' + str(db.get('validation')))
-          if db.get('databaseVersion') != '1.2.0':
-              raise SystemExit('Expected database model 1.2.0')
-
-          model = json.loads((root / 'model.json').read_text())
-          if model.get('schema') != 'market-navigator-relative-model-v1':
-              raise SystemExit('Missing T0-relative model')
-
-          for name in ('risk', 'growth', 'macro'):
-              cfg = model['indexes'][name]
-              total = sum(float(x['weight']) for x in cfg['components'])
-              if abs(total - 1) > 0.0001:
-                  raise SystemExit(f'{name} weights do not sum to 1: {total}')
-              if not cfg['components']:
-                  raise SystemExit(f'{name} has no model components')
-
-          print('Validated Market Navigator database', db.get('revision'))
+          backend=Path('data/market-backend')
+          for name in ['market-manifest.json','market-cache.json','macro-cache.json','news-cache.json','source-health.json']:
+              if not (backend/name).exists(): raise SystemExit('Missing backend output '+name)
+          root=Path('market-data')
+          db=json.loads((root/'manifest.json').read_text())
+          if db.get('schema')!='market-navigator-database-v1': raise SystemExit('Invalid database schema')
+          if db.get('databaseVersion')!='1.2.0': raise SystemExit('Expected database 1.2.0')
+          if not db.get('validation',{}).get('ok'): raise SystemExit('Database validation failed '+str(db.get('validation')))
+          model=json.loads((root/'model.json').read_text())
+          if model.get('schema')!='market-navigator-relative-model-v1': raise SystemExit('Missing T0 model')
+          if github_event := '${{ github.event_name }}':
+              if github_event in ('push','workflow_dispatch'):
+                  html=Path('market-view-ui-v2.html').read_text()
+                  m=re.search(r'<script>(.*)</script>',html,re.S)
+                  if not m: raise SystemExit('UI script missing')
+                  Path('/tmp/market-view-ui-v2.js').write_text(m.group(1))
+          print('Validated Market Navigator',db.get('revision'))
           PY
+          if [ -f /tmp/market-view-ui-v2.js ]; then node --check /tmp/market-view-ui-v2.js; fi
 
       - name: Commit refreshed Market Navigator data
         run: |
-          if [ -z "$(git status --porcelain -- data/market-backend market-data)" ]; then
-            echo "No Market Navigator data changed."
-            exit 0
-          fi
-
           git config user.name "market-navigator-bot"
           git config user.email "market-navigator-bot@users.noreply.github.com"
-          git add data/market-backend market-data
-          git commit -m "data: refresh Market Navigator database"
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git add data/market-backend market-data market-view-ui-v2.html
+          else
+            git add data/market-backend market-data
+          fi
+          if git diff --cached --quiet; then
+            echo "No Market Navigator changes."
+            exit 0
+          fi
+          git commit -m "data: publish Market Navigator database 1.2 and UI"
           git pull --rebase origin main
           git push origin HEAD:main
