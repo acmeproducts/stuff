@@ -3,7 +3,7 @@ name: WorldPulse v2.7 application migration
 on:
   workflow_dispatch:
   issues:
-    types: [opened]
+    types: [edited]
 
 permissions:
   contents: write
@@ -19,49 +19,61 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Migrate globe.html to same-origin cache client
+      - name: Migrate and validate globe.html
+        id: migrate
+        continue-on-error: true
         run: |
-          python3 - <<'PY'
+          set +e
+          python3 - <<'PY' > worldpulse-v27-migration.log 2>&1
           from pathlib import Path
           import re
 
           p = Path('globe.html')
           s = p.read_text()
+          print('starting globe migration')
+          print('has cache client:', "NEWS_CACHE_URL='./worldpulse-news-cache.json'" in s)
+          print('has marker:', 'start()})();</script>' in s)
 
-          if "NEWS_CACHE_URL='./worldpulse-news-cache.json'" in s:
-              print('globe.html is already migrated')
-              raise SystemExit(0)
+          if "NEWS_CACHE_URL='./worldpulse-news-cache.json'" not in s:
+              s = re.sub(r'WorldPulse Sphere v2\.6\.\d+', 'WorldPulse Sphere v2.7.0', s)
+              s = re.sub(r"const VERSION='2\.6\.\d+'", "const VERSION='2.7.0'", s, count=1)
+              marker = 'start()})();</script>'
+              if marker not in s:
+                  raise SystemExit('globe.html migration marker not found')
 
-          s = re.sub(r'WorldPulse Sphere v2\.6\.\d+', 'WorldPulse Sphere v2.7.0', s)
-          s = re.sub(r"const VERSION='2\.6\.\d+'", "const VERSION='2.7.0'", s, count=1)
-
-          marker = 'start()})();</script>'
-          if marker not in s:
-              raise SystemExit('globe.html migration marker not found')
-
-          override = r"""
+              override = r"""
 const NEWS_CACHE_URL='./worldpulse-news-cache.json',NEWS_CHECK_KEY='wp25.newsCacheCheckedAt',NEWS_GENERATED_KEY='wp25.newsCacheGeneratedAt',NEWS_TTL=15*60*1000;
 cacheSave=async function(rows){try{const d=await db(),t=d.transaction(STORE,'readwrite'),store=t.objectStore(STORE);store.clear();rows.forEach(x=>store.put(x));return await new Promise((ok,no)=>{t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){log('IndexedDB save failed: '+e.message)}};
 refresh=async function(background=false,force=false){if(refreshing)return;const last=Number(localStorage.getItem(NEWS_CHECK_KEY)||0),cacheAge=Date.now()-last;if(background&&!force&&last&&cacheAge<NEWS_TTL){log(`same-origin cache: fresh locally · next check in ${Math.ceil((NEWS_TTL-cacheAge)/60000)}m`);return}refreshing=true;if(!background)E.refresh.disabled=true;try{const bucket=force?Date.now():Math.floor(Date.now()/NEWS_TTL),url=`${NEWS_CACHE_URL}?v=${bucket}`;log(`same-origin cache: ${force?'forced refresh':'checking'} ${url}`);const r=await fetch(url,{cache:force?'reload':'no-cache'});if(!r.ok)throw Error(`HTTP ${r.status}`);const data=await r.json();localStorage.setItem(NEWS_CHECK_KEY,String(Date.now()));const incoming=Array.isArray(data.stories)?data.stories:[],generated=String(data.generatedAt||data.generatedAtMs||'');if(!incoming.length)throw Error('cache contains 0 stories');const previous=localStorage.getItem(NEWS_GENERATED_KEY)||'';if(generated&&generated===previous&&stories.length){E.live.className='live ok';E.live.querySelector('span').textContent=`Cached · ${stories.length} stories · current`;log(`same-origin cache unchanged · ${stories.length} local stories`)}else{stories=dedupe(incoming);await cacheSave(stories);if(generated)localStorage.setItem(NEWS_GENERATED_KEY,generated);E.live.className='live ok';E.live.querySelector('span').textContent=`Live cache · ${stories.length} stories`;applyFast();log(`same-origin cache updated · ${stories.length} stories · generated ${data.generatedAt||'unknown'}`)}for(const x of (data.sources||[])){const good=x.status==='healthy'||x.status==='not-modified',suffix=good?`${x.stories} cached`:`${x.status} · ${x.stories} retained${x.error?' · '+x.error:''}`;log(`${x.source}: ${suffix}`)}}catch(e){E.live.className=stories.length?'live ok':'live bad';E.live.querySelector('span').textContent=stories.length?`Cached · ${stories.length} stories · offline/stale`:'News cache unavailable';log(`same-origin cache failed: ${e.message}`)}finally{refreshing=false;E.refresh.disabled=false}};
 start=async function(){applyScheme();syncRibbon();renderConfig();bindConfig();progress(10,'Opening local cache…');stories=dedupe(await cacheRead());if(stories.length){progress(80,`Loaded ${stories.length} cached stories`);applyFast();E.live.className='live ok';E.live.querySelector('span').textContent=`Cached · ${stories.length} stories`;E.startup.classList.add('done');setTimeout(()=>refresh(true,false),40)}else{progress(35,'No local cache · reading WorldPulse snapshot…');await refresh(false,true);E.startup.classList.add('done')}};
 E.refresh.onclick=()=>refresh(false,true);
 """
-          s = s.replace(marker, override + marker, 1)
-          p.write_text(s)
+              s = s.replace(marker, override + marker, 1)
+              p.write_text(s)
+
+          out = p.read_text()
+          assert 'WorldPulse Sphere v2.7.0' in out, 'version migration failed'
+          assert "NEWS_CACHE_URL='./worldpulse-news-cache.json'" in out, 'cache URL missing'
+          assert 'same-origin cache' in out, 'cache client missing'
+          print('migration validation passed')
           PY
+          status=$?
+          echo "exit_status=$status" >> worldpulse-v27-migration.log
+          exit $status
 
-      - name: Validate migration
-        run: |
-          grep -q "WorldPulse Sphere v2.7.0" globe.html
-          grep -q "NEWS_CACHE_URL='./worldpulse-news-cache.json'" globe.html
-          grep -q "same-origin cache" globe.html
-
-      - name: Commit application change
+      - name: Commit application or diagnostic
+        if: always()
         run: |
           git config user.name "worldpulse-bot"
           git config user.email "worldpulse-bot@users.noreply.github.com"
-          git add globe.html
-          git diff --cached --quiet && exit 0
-          git commit -m "perf: WorldPulse v2.7 same-origin cached startup"
+          if grep -q "migration validation passed" worldpulse-v27-migration.log; then
+            rm -f worldpulse-v27-migration.log
+            git add globe.html
+            git diff --cached --quiet && exit 0
+            git commit -m "perf: WorldPulse v2.7 same-origin cached startup"
+          else
+            git add worldpulse-v27-migration.log
+            git commit -m "diag: WorldPulse v2.7 migration failure"
+          fi
           git pull --rebase origin main
           git push origin HEAD:main
