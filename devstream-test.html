@@ -153,16 +153,16 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
-  <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v2.0</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & tasks">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
 </aside>
 <main id="main">
-  <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a thread</div><div id="chatInfo">devstream orchestrator</div></div><span id="pill">idle</span><button class="btn" id="runPending" style="display:none">▶</button></div>
+  <div class="bar mainbar"><div class="titlewrap"><div id="chatTitle">Select a task</div><div id="chatInfo">devstream direct task runner</div></div><span id="pill">idle</span><button class="btn" id="runPending" style="display:none">▶</button></div>
   <div id="projectTabs"></div>
   <div id="error"></div>
-  <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file,<br>and its plan is born with it.</div></div></div>
+  <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">Create a project, then add planning or execution tabs.<br>Each tab is an independent task; an artifact path is optional.</div></div></div>
   <div id="chatArea">
     <div id="messages"></div>
     <div id="typing"><span class="spin"></span><span>Agent is working…</span></div>
@@ -188,11 +188,9 @@ select.input{appearance:auto}
     <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input" type="password" autocomplete="off" placeholder="sk-or-…">
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="orTest">Validate OpenRouter</button><span class="hint" id="orStatus"></span></div>
       <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
-    <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
-    <div class="frow"><label>Default engine for new threads</label><select id="cfgengine" class="input">
+    <div class="frow"><label>Default engine for new task tabs</label><select id="cfgengine" class="input">
       <option value="venice">Venice.ai</option>
-      <option value="openrouter">OpenRouter</option>
-      <option value="anthropic-direct">Anthropic API</option></select></div>
+      <option value="openrouter">OpenRouter</option></select></div>
     <button class="btn" id="sotValidate">Validate token</button> <span id="sotStatus" class="hint"></span>
     <button class="btn" id="openDebugBtn" style="margin-top:8px">Open Debug console</button>
     <div class="frow" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label>Appearance preset</label><select id="apPreset" class="input">
@@ -207,19 +205,25 @@ select.input{appearance:auto}
   </div>
 </div></div>
 
-<!-- New project modal: gg-style omni file picker -->
+<!-- New project modal -->
 <div class="modal" id="newProjModal"><div class="panel">
   <header>New project<button class="btn" data-close="newProjModal">✕</button></header>
   <div class="pbody">
     <div class="frow"><label>Project label</label><input id="npLabel" class="input" placeholder="e.g. Orbital8"></div>
-    <div class="frow"><label>File — type a partial and tap to select, or type a new name and press Enter</label>
-      <div class="omni-wrap"><input id="npFile" class="input mono" autocomplete="off" placeholder="myapp.html"><div class="omni-list" id="npOmni"></div></div>
-      <div class="hint" id="npHint">Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.</div></div>
-    <div class="frow"><label>Engine</label><select id="npEngine" class="input">
-      <option value="venice">Venice.ai</option>
-      <option value="openrouter">OpenRouter</option>
-      <option value="anthropic-direct">Anthropic API</option></select></div>
+    <div class="hint" style="margin-bottom:12px">A project is only a container. It does not create or require a plan file.</div>
     <button class="btn primary" id="npCreate" style="width:100%">Create project</button>
+  </div>
+</div></div>
+
+<!-- New task tab modal -->
+<div class="modal" id="newTaskModal"><div class="panel">
+  <header>New task tab<button class="btn" data-close="newTaskModal">✕</button></header>
+  <div class="pbody">
+    <div class="frow"><label>Tab label</label><input id="ntLabel" class="input" placeholder="e.g. Release plan or Build login"></div>
+    <div class="frow"><label>Task type</label><select id="ntMode" class="input"><option value="planning">Planning</option><option value="execution">Execution</option></select></div>
+    <div class="frow"><label>Artifact path (optional)</label><input id="ntFile" class="input mono" placeholder="docs/release-plan.md or app.html"><div class="hint">If set, the agent may read and replace only this file. Leave blank for a discussion-only task.</div></div>
+    <div class="frow"><label>Engine</label><select id="ntEngine" class="input"><option value="venice">Venice.ai</option><option value="openrouter">OpenRouter</option></select></div>
+    <button class="btn primary" id="ntCreate" style="width:100%">Create task tab</button>
   </div>
 </div></div>
 
@@ -238,29 +242,34 @@ select.input{appearance:auto}
 
 <script>
 'use strict';
-const LS='ds_cfg_v2';
+const LS='ds_cfg_v3';
 let cfg=JSON.parse(localStorage.getItem(LS)||'null');
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
-let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, agentBusy=false, npSelectedExisting=false;
+let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, agentBusy=false;
+const validationSig=(key,model)=>key&&model?key.length+':'+key.slice(-6)+':'+model:'';
+const providerValidated={venice:cfg?.validation?.venice||'',openrouter:cfg?.validation?.openrouter||''};
+const githubSig=(pat,owner,repo,branch)=>validationSig(pat,[owner,repo,branch].join('/'));
+let githubValidated=cfg?.validation?.github||'';
 
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
 const now=()=>new Date().toISOString();
 const repoFull=()=>cfg.owner+'/'+cfg.repo;
+const validEngine=e=>e==='openrouter'?'openrouter':'venice';
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('toasts').appendChild(t);setTimeout(()=>t.remove(),2800)}
 function errbar(m){const b=$('error');if(!m){b.style.display='none';return}b.textContent=m;b.style.display='block'}
 function rel(iso){if(!iso)return'never';const s=(Date.now()-new Date(iso))/1e3;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function linkify(s){return esc(s).replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')}
-const tkey=(p,f)=>p+'/'+f;
-const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+f.replace(/\//g,'_')+'.json';
-const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
+const slug=s=>encodeURIComponent(String(s||'task')).replace(/%/g,'_').replace(/\//g,'_');
+const tkey=(p,id)=>p+'/'+id;
+const tpath=(p,id)=>'devstream-v2/tasks/'+slug(p)+'__'+slug(id)+'.json';
 
 /* ---- github ---- */
 async function gh(path,opts={}){
-  const r=await lfetch('gh','https://api.github.com/repos/'+repoFull()+'/'+path,{...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
+  const r=await lfetch('gh','https://api.github.com/repos/'+repoFull()+'/'+path,{cache:'no-store',...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
   if(r.status===404&&opts.allow404)return null;
   if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:'')+' ('+path.split('?')[0]+')')}
   return r.status===204?{}:r.json();
@@ -280,10 +289,42 @@ async function putFile(path,content,message,sha){
   const body={message,content:enc(content),branch:cfg.branch};if(sha)body.sha=sha;
   return(await gh('contents/'+path,{method:'PUT',body:JSON.stringify(body)})).content.sha;
 }
-async function putFileSafe(path,content,message){
-  const cur=await getFile(path);
-  try{return await putFile(path,content,message,cur?cur.sha:null)}
-  catch(e){const c2=await getFile(path);return putFile(path,content,message,c2?c2.sha:null)}
+const fileQueues={};
+function putFileSafe(path,content,message){
+  const job=(fileQueues[path]||Promise.resolve()).then(async()=>{
+    const cur=await getFile(path);
+    try{return await putFile(path,content,message,cur?cur.sha:null)}
+    catch(e){if(/409/.test(e.message))throw new Error('File changed during this task; review the latest '+path+' and retry');throw e}
+  });
+  fileQueues[path]=job.catch(()=>{});return job;
+}
+function putArtifactSafe(path,content,message,expectedSha){
+  const job=(fileQueues[path]||Promise.resolve()).then(async()=>{
+    try{return await putFile(path,content,message,expectedSha||null)}
+    catch(e){if(/409|422/.test(e.message))throw new Error('Artifact changed while the model was working; reload '+path+' and retry');throw e}
+  });
+  fileQueues[path]=job.catch(()=>{});return job;
+}
+function saveThread(key,message){
+  const th=threads[key],path=threadPath(key);
+  const job=(fileQueues[path]||Promise.resolve()).then(async()=>{
+    for(let a=1;a<=6;a++){
+      const cur=await getFile(path);let remote={messages:[]};
+      if(cur){try{remote=JSON.parse(cur.content)}catch(e){throw new Error('Task history is invalid JSON: '+path)}}
+      const byId=new Map((remote.messages||[]).map(m=>[m.id||m.ts+'|'+m.role,m]));
+      for(const m of th.data.messages||[])byId.set(m.id||m.ts+'|'+m.role,{...(byId.get(m.id||m.ts+'|'+m.role)||{}),...m});
+      const merged={...remote,...th.data,messages:[...byId.values()].sort((x,y)=>(x.ts||'').localeCompare(y.ts||''))};
+      try{
+        const sha=await putFile(path,JSON.stringify(merged,null,1),message,cur?cur.sha:null);
+        th.data=merged;th.sha=sha;return sha;
+      }catch(e){
+        if(!/409/.test(e.message)||a===6)throw e;
+        dlog('task 409 — refetching and merging '+path+' (attempt '+a+')');
+        await new Promise(r=>setTimeout(r,150*a+Math.random()*300));
+      }
+    }
+  });
+  fileQueues[path]=job.catch(()=>{});return job;
 }
 async function repoTree(force){
   if(treeCache&&!force)return treeCache;
@@ -291,7 +332,7 @@ async function repoTree(force){
   treeCache=(j.tree||[]).filter(x=>x.type==='blob').map(x=>x.path);
   return treeCache;
 }
-const SOTPATH='devstream/devstream-status.json';
+const SOTPATH='devstream-v2/status.json';
 async function loadSOT(){
   const f=await getFile(SOTPATH);
   if(f){sot=JSON.parse(f.content);sotSha=f.sha}else{sot={threads:{},projects:{}};sotSha=null}
@@ -300,12 +341,19 @@ async function loadSOT(){
 let sotQueue=Promise.resolve();
 function saveSOT(msg){
   const job=sotQueue.then(async()=>{
-    for(let a=1;a<=4;a++){
-      try{sotSha=await putFile(SOTPATH,JSON.stringify(sot,null,1),msg,sotSha);return}
+    for(let a=1;a<=6;a++){
+      try{
+        const remote=await getFile(SOTPATH),base=remote?JSON.parse(remote.content):{threads:{},projects:{}};
+        base.projects={...(base.projects||{}),...(sot.projects||{})};
+        base.threads={...(base.threads||{}),...(sot.threads||{})};
+        if(sot.config)base.config={...(base.config||{}),...sot.config};
+        sotSha=await putFile(SOTPATH,JSON.stringify(base,null,1),msg,remote?remote.sha:null);
+        sot=base;return;
+      }
       catch(e){
-        if(!/409/.test(e.message)||a===4){dlog('E|status save failed: '+e.message);throw e}
-        dlog('status 409 — refreshing sha (attempt '+a+')');
-        const f=await getFile(SOTPATH);sotSha=f?f.sha:null;
+        if(!/409/.test(e.message)||a===6){dlog('E|status save failed: '+e.message);throw e}
+        dlog('status 409 — refetching and merging (attempt '+a+')');
+        await new Promise(r=>setTimeout(r,150*a+Math.random()*300));
       }
     }
   });
@@ -314,30 +362,29 @@ function saveSOT(msg){
 }
 function dlog(line,cls){const e=new Date().toISOString().slice(11,23)+' '+line;debug.push(cls?cls+'|'+e:e);if(debug.length>500)debug=debug.slice(-500);try{sessionStorage.setItem('ds_debug',JSON.stringify(debug))}catch(x){}const o=document.getElementById('debugOut');if(o){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight}}
 function debugHtml(){return debug.map(l=>{const[c,t]=l.includes('|')?l.split('|',2):['',l];return '<span class="'+(c==='E'?'erc':c==='K'?'okc':'')+'">'+esc(t)+'</span>'}).join('\n')}
-const inflight={};
-async function lfetch(label,url,opts){
-  const fkey=(opts&&opts.method||'GET')+' '+url.split('?')[0];
-  if(inflight[fkey])return inflight[fkey];           // single-flight: reuse identical in-flight GETs
+async function lfetch(label,url,opts={}){
+  const {timeoutMs=25000,...fetchOpts}=opts;
+  const method=fetchOpts.method||'GET';
   const run=(async()=>{
-    for(let attempt=1;attempt<=2;attempt++){
+    const attempts=method==='GET'?2:1; // never replay API writes or model requests
+    for(let attempt=1;attempt<=attempts;attempt++){
       const t0=performance.now();
-      const ac=new AbortController();const to=setTimeout(()=>ac.abort(),25000);
-      dlog('→ '+label+' '+(opts&&opts.method||'GET')+' '+url.replace(/^https:\/\//,'').split('?')[0]+(attempt>1?' (retry)':''));
+      const ac=new AbortController(),to=setTimeout(()=>ac.abort(),timeoutMs);
+      dlog('→ '+label+' '+method+' '+url.replace(/^https:\/\//,'').split('?')[0]+(attempt>1?' (retry)':''));
       try{
-        const r=await fetch(url,{...opts,signal:ac.signal});
+        const r=await fetch(url,{...fetchOpts,signal:ac.signal});
         clearTimeout(to);
         dlog((r.ok?'K|':'E|')+'← '+label+' '+r.status+' '+Math.round(performance.now()-t0)+'ms');
         return r;
       }catch(e){
         clearTimeout(to);
-        const msg=e.name==='AbortError'?'timeout 25s':e.message;
+        const msg=e.name==='AbortError'?'timeout '+Math.round(timeoutMs/1000)+'s':e.message;
         dlog('E|✕ '+label+' '+msg+' '+Math.round(performance.now()-t0)+'ms');
-        if(attempt===2)throw new Error(label+' network failure: '+msg);
+        if(attempt===attempts)throw new Error(label+' network failure: '+msg);
         await new Promise(r=>setTimeout(r,1200));
       }
     }
   })();
-  if((opts&&opts.method||'GET')==='GET'){inflight[fkey]=run;run.finally(()=>delete inflight[fkey])}
   return run;
 }
 function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugPanel"><div class="bar"><b>Debug</b><span class="grow"></span><button class="btn" id="dclose">✕</button></div><div class="debugTabs"><button class="debugTab active" data-tab="log">Log</button><button class="debugTab" data-tab="engines">Engines</button><button class="debugTab" data-tab="state">State</button></div><div class="debugTools"><span id="dinfo">'+debug.length+' entries (session)</span><span class="grow"></span><button class="btn" id="dcopy">Copy</button><button class="btn" id="dclear">Clear</button></div><pre id="debugOut"></pre></div>';
@@ -350,7 +397,7 @@ function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugP
 function renderDebugTab(){const o=$('debugOut');if(!o)return;
   if(debugTab==='log'){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight;return}
   if(debugTab==='engines'){const mask=k=>k?k.slice(0,7)+'…'+k.slice(-4)+' ('+k.length+' ch)':'NOT SET';
-    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nanthropic key: '+mask(cfg&&cfg.akey)+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
+    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
   o.textContent=JSON.stringify({activeProject,activeKey,threads:Object.keys(sot.threads).length,projects:Object.keys(sot.projects).length,engineConfig:sot.config||{}},null,1);
 }
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
@@ -368,15 +415,10 @@ function renderSidebar(){
   dc.onclick=()=>{sideOpen(false);openDash()};pl.appendChild(dc);
   Object.keys(sot.projects).filter(p=>!sot.projects[p].deleted).sort().forEach(p=>{
     const th=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
-    if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>t.file.toLowerCase().includes(q))))return;
+    if(q&&!(p.toLowerCase().includes(q)||th.some(([k,t])=>(t.label||'').toLowerCase().includes(q))))return;
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
-    const plan=pr.planFile;
-    d.innerHTML='<div class="cttl">'+esc(p)+'<button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
-    const pb=d.querySelector('.planlink');
-    pb.onclick=e=>{e.stopPropagation();
-      if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
-      else toast('Plan not created yet — the project thread builds it')};
+    d.innerHTML='<div class="cttl">'+esc(p)+'</div><div class="csub">'+th.length+' task'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
     d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderSidebar();renderTabs();sideOpen(false)};
     let lpT=null;
     d.addEventListener('touchstart',()=>{lpT=setTimeout(()=>{lpT=null;softDeleteProject(p)},650)});
@@ -385,8 +427,8 @@ function renderSidebar(){
     d.addEventListener('contextmenu',e=>{e.preventDefault();softDeleteProject(p)});
     pl.appendChild(d);
   });
-  const delP=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted).length;
-  const delT=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted).length;
+  const delP=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted&&!sot.projects[p].hardDeleted).length;
+  const delT=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!sot.threads[k].hardDeleted&&!(sot.projects[sot.threads[k].project]||{}).deleted).length;
   if(delP+delT>0){
     const rc=document.createElement('div');rc.className='card';rc.id='recycleCard';
     rc.innerHTML='<div class="cttl">♻ Recycle Bin</div><div class="csub">'+delP+' project'+(delP===1?'':'s')+' · '+delT+' thread'+(delT===1?'':'s')+'</div>';
@@ -397,8 +439,8 @@ function renderSidebar(){
 function openRecycle(){openModal('recycleModal');renderRecycle()}
 function renderRecycle(){
   const b=$('recycleBody');b.innerHTML='';
-  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted);
-  const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
+  const dp=Object.keys(sot.projects).filter(p=>sot.projects[p].deleted&&!sot.projects[p].hardDeleted);
+  const dt=Object.keys(sot.threads).filter(k=>sot.threads[k].deleted&&!sot.threads[k].hardDeleted&&!(sot.projects[sot.threads[k].project]||{}).deleted);
   if(!dp.length&&!dt.length){b.innerHTML='<div class="csub">Recycle Bin is empty.</div>';return}
   dp.forEach(p=>{
     const r=document.createElement('div');r.className='recRow';
@@ -424,7 +466,7 @@ function renderTabs(){
   projectThreads().filter(k=>!sot.threads[k].deleted).forEach(k=>{
     const t=sot.threads[k];
     const el=document.createElement('div');el.className='tab'+(k===activeKey?' active':'');
-    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.file)+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
+    el.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><span class="tname mono">'+esc(t.label||t.file)+'</span><button class="tabClose" title="Soft delete → Recycle Bin">×</button>';
     el.querySelector('.tabClose').onclick=e=>{e.stopPropagation();softDeleteThread(k)};
     el.onclick=()=>openThread(k);
     let lt=0;
@@ -439,7 +481,6 @@ function renderTabs(){
 function showCtx(tabEl,key){
   const c=$('tabContext');const r=tabEl.getBoundingClientRect();c.innerHTML='';
   [['Copy test URL',()=>{const u=sot.threads[key].testUrl;if(u){navigator.clipboard.writeText(u);toast('Copied')}else toast('No test URL yet')}],
-   ['Open plan',()=>{const p=sot.projects[sot.threads[key].project];if(p&&p.planFile&&p.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+p.planFile,'_blank');else toast('No plan yet')}],
    ['Soft delete (Recycle Bin)',()=>softDeleteThread(key)],
    ['Hard delete forever',()=>hardDeleteThread(key),'danger']
   ].forEach(([l,f,cls])=>{const b=document.createElement('button');b.textContent=l;if(cls)b.className=cls;b.onclick=()=>{c.style.display='none';f()};c.appendChild(b)});
@@ -451,8 +492,8 @@ function showCtx(tabEl,key){
 /* ---- threads ---- */
 async function loadThread(key){
   const t=sot.threads[key];
-  const f=await getFile(tpath(t.project,t.tid||t.file));
-  if(!f)throw new Error('Thread file missing: '+t.file);
+  const f=await getFile(tpath(t.project,t.id||t.tid||t.file));
+  if(!f)throw new Error('Task file missing: '+(t.label||t.file));
   threads[key]={data:JSON.parse(f.content),sha:f.sha};return threads[key];
 }
 async function openThread(key){
@@ -465,8 +506,8 @@ async function openThread(key){
 function renderChat(){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
-  $('chatTitle').textContent=t.project+' · '+t.file;
-  $('chatInfo').textContent=repoFull()+' · plan: '+(d.planFile||'—');
+  $('chatTitle').textContent=t.project+' · '+(t.label||t.file);
+  $('chatInfo').textContent=repoFull()+' · '+(d.mode||t.mode||'task')+(d.artifact?' · artifact: '+d.artifact:' · discussion only');
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
   $('engineFoot').textContent='engine: '+(t.engine||'venice');
   const pend=d.messages.some(m=>m.status==='pending');
@@ -508,10 +549,10 @@ async function restoreProject(p){sot.projects[p].deleted=false;delete sot.projec
 async function hardDeleteThread(key){
   if(!confirm('PERMANENTLY delete thread '+key+'? Chat history is destroyed. Repo code files are NOT touched.'))return;
   await guard(async()=>{
-    const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
+    const t=sot.threads[key];const p=tpath(t.project,t.id||t.tid||t.file);
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+key,sha:f.sha,branch:cfg.branch})});
-    delete sot.threads[key];delete threads[key];
+    sot.threads[key]={...t,deleted:true,hardDeleted:true,deletedAt:now()};delete threads[key];
     await saveSOT('devstream: hard delete '+key);
     renderSidebar();renderTabs();renderRecycle();
   });
@@ -520,12 +561,12 @@ async function hardDeleteProject(p){
   if(!confirm('PERMANENTLY delete project "'+p+'" and all its thread histories? Repo code files are NOT touched.'))return;
   await guard(async()=>{
     for(const k of Object.keys(sot.threads).filter(k=>sot.threads[k].project===p)){
-      const t=sot.threads[k];const pt=tpath(t.project,t.tid||t.file);
+      const t=sot.threads[k];const pt=tpath(t.project,t.id||t.tid||t.file);
       const f=await getFile(pt);
       if(f)await gh('contents/'+pt,{method:'DELETE',body:JSON.stringify({message:'devstream: hard delete '+k,sha:f.sha,branch:cfg.branch})});
-      delete sot.threads[k];delete threads[k];
+      sot.threads[k]={...t,deleted:true,hardDeleted:true,deletedAt:now()};delete threads[k];
     }
-    delete sot.projects[p];
+    sot.projects[p]={...sot.projects[p],deleted:true,hardDeleted:true,deletedAt:now()};
     await saveSOT('devstream: hard delete project '+p);
     renderSidebar();renderTabs();renderRecycle();
   });
@@ -533,95 +574,62 @@ async function hardDeleteProject(p){
 async function deleteThread(key){
   if(!confirm('Delete thread '+key+'? Repo files are NOT deleted.'))return;
   await guard(async()=>{
-    const t=sot.threads[key];const p=tpath(t.project,t.tid||t.file);
+    const t=sot.threads[key];const p=tpath(t.project,t.id||t.tid||t.file);
     const f=await getFile(p);
     if(f)await gh('contents/'+p,{method:'DELETE',body:JSON.stringify({message:'devstream: delete thread '+key,sha:f.sha,branch:cfg.branch})});
-    delete sot.threads[key];delete threads[key];
+    sot.threads[key]={...t,deleted:true,hardDeleted:true,deletedAt:now()};delete threads[key];
     if(activeKey===key){activeKey=null;$('chatArea').style.display='none';$('emptyState').style.display='flex'}
     await saveSOT('devstream: remove thread '+key);renderTabs();renderSidebar();
   });
 }
-/* ---- project genesis (gg-style omni) ---- */
-const PLAN_PROMPT=f=>'Create '+planOf(f)+' — the master plan for '+f+' — following the house planning-doc standard. Requisite sections, in order: (0) TURN/STAGE LEDGER: a table of turns/stages with status, where every future build session appends a row before touching code; (1) RELEASES: numbered release list with one-line goals; (2) per-release sections: scope (in/out), build gates (how we verify, on real devices), and backlog of deferred items; (3) FUTURE IDEAS: unscheduled parking lot; (4) IMMUTABLE WORKING RULES: mobile-first, all diagnostics in-app (never DevTools), update-plan-before-code, read-back verification after every push, no stubs or fake data; (5) DECISION LOG: dated owner decisions; (6) APPENDIX: authority order (this plan is the sole authority; chat history loses to the plan). Seed it with what is known so far about '+f+' and mark everything else TBD. Keep it tight and scannable on a phone.';
+/* ---- simple projects and independent task tabs ---- */
 $('projectAdd').onclick=()=>{
   if(!cfg){openModal('cfgModal');return}
-  $('npLabel').value='';$('npFile').value='';$('npEngine').value=cfg.engine||'venice';
-  npSelectedExisting=false;openModal('newProjModal');
+  $('npLabel').value='';openModal('newProjModal');
 };
-function npFilter(){
-  const q=($('npFile').value||'').toLowerCase().trim();
-  const L=$('npOmni');L.innerHTML='';
-  if(!q){L.style.display='none';return}
-  repoTree().then(paths=>{
-    let items=paths.filter(p=>p.toLowerCase().includes(q));
-    items.sort((a,b)=>(a.toLowerCase().endsWith(q)?0:a.length)-(b.toLowerCase().endsWith(q)?0:b.length));
-    items=items.slice(0,300);
-    items.forEach(p=>{const d=document.createElement('div');d.className='omni-item';d.textContent=p;
-      d.onclick=()=>{$('npFile').value=p;npSelectedExisting=true;L.style.display='none';$('npHint').textContent='Existing file — adopted as the codebase. Plan: '+planOf(p)};
-      L.appendChild(d)});
-    if(!items.length){const d=document.createElement('div');d.className='omni-item omni-new';d.textContent='↵ Enter creates new file: '+$('npFile').value;L.appendChild(d)}
-    L.style.display='block';
-  }).catch(()=>L.style.display='none');
-}
-$('npFile').addEventListener('input',()=>{npSelectedExisting=false;$('npHint').textContent='Selecting an existing file adopts it as the codebase. A new name starts from scratch. The plan lives beside it as the same name with .md.';npFilter()});
-$('npFile').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('npOmni').style.display='none';$('npCreate').click()}});
 $('npCreate').onclick=()=>guard(async()=>{
-  const label=$('npLabel').value.trim(), file=$('npFile').value.trim(), engine=$('npEngine').value;
+  const label=$('npLabel').value.trim();
   if(!label)throw new Error('Project label required');
-  if(!file)throw new Error('File required');
-  if(sot.projects[label])throw new Error('Project '+label+' already exists');
-  const plan=planOf(file);
-  const tree=await repoTree(true);
-  const fileExists=tree.includes(file), planExists=tree.includes(plan);
-  sot.projects[label]={notes:'',lastTouched:now(),planFile:plan,planExists,mainFile:file};
-  // first tab = the project thread
-  const key=tkey(label,file);
-  const msgs=[];
-  if(!planExists){
-    msgs.push({role:'user',text:PLAN_PROMPT(file)+(fileExists?'\n\n[codebase exists: '+file+' — read it and seed the plan from what it already does]':''),ts:now(),status:'pending',forcedTarget:plan});
-  }else{
-    msgs.push({role:'agent',text:'Plan found: '+plan+' — referencing it for all work in this thread.',ts:now()});
-  }
-  const data={project:label,outputFile:file,planFile:plan,inputFile:fileExists?file:null,repo:repoFull(),engine,created:now(),messages:msgs};
-  const sha=await putFileSafe(tpath(label,file),JSON.stringify(data,null,1),'devstream: new project '+label);
-  threads[key]={data,sha};
-  sot.threads[key]={project:label,file,repo:repoFull(),engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
-  await saveSOT('devstream: new project '+label);
-  activeProject=label;localStorage.setItem('ds_activeproj',label);
-  closeModals();renderSidebar();renderTabs();openThread(key);
-  if(!planExists){toast('Creating the plan…');dispatch(key)}
+  if(sot.projects[label]&&!sot.projects[label].deleted)throw new Error('Project '+label+' already exists');
+  sot.projects[label]={notes:'',lastTouched:now(),created:now()};
+  await saveSOT('devstream v2: new project '+label);
+  activeProject=label;activeKey=null;localStorage.setItem('ds_activeproj',label);
+  closeModals();renderSidebar();renderTabs();
+  $('chatArea').style.display='none';$('emptyState').style.display='flex';
+  toast('Project created — add a task tab');
 });
-/* ---- additional thread on a project (+ tab) ---- */
-async function newThreadForProject(){
-  const p=sot.projects[activeProject];if(!p)return;
-  const name=prompt('Thread output file (blank = work on '+p.mainFile+' in a new thread):','');
-  let file=(name||'').trim()||p.mainFile;
-  let key=tkey(activeProject,file);
-  if(sot.threads[key]){ // uniquify thread on same file
-    let i=2;while(sot.threads[key+'#'+i])i++;key=key+'#'+i;
-  }
-  await guard(async()=>{
-    const tree=await repoTree(true);
-    const tid=file+(key.includes('#')?key.slice(key.indexOf('#')):'');
-    const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
-      messages:[{role:'agent',text:'This thread references the plan ('+p.planFile+'). Ask questions, add ideas or feedback — they update the plan. Say "build it" (or give build instructions) and the build happens here against '+file+'.',ts:now()}]};
-    const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new thread '+key);
-    threads[key]={data,sha};
-    sot.threads[key]={project:activeProject,file,tid,repo:repoFull(),engine:cfg.engine||'claude',state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
-    p.lastTouched=now();
-    await saveSOT('devstream: new thread '+key);
-    renderTabs();openThread(key);
-  });
+function newThreadForProject(){
+  if(!activeProject||!sot.projects[activeProject])return;
+  $('ntLabel').value='';$('ntMode').value='planning';$('ntFile').value='';$('ntEngine').value=validEngine(cfg.engine);
+  openModal('newTaskModal');
 }
+$('ntCreate').onclick=()=>guard(async()=>{
+  const label=$('ntLabel').value.trim(),mode=$('ntMode').value==='execution'?'execution':'planning';
+  const artifact=$('ntFile').value.trim(),engine=validEngine($('ntEngine').value);
+  if(!label)throw new Error('Task tab label required');
+  if(artifact.startsWith('devstream-v2/')||artifact.startsWith('devstream/threads/'))throw new Error('Devstream storage paths cannot be task artifacts');
+  const apiKey=engine==='venice'?cfg.vkey:cfg.orkey,model=engine==='venice'?cfg.vmodel:cfg.ormodel;
+  if(providerValidated[engine]!==validationSig(apiKey,model))throw new Error('Validate and save the '+engine+' model in Settings before creating this task');
+  const id=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),key=tkey(activeProject,id);
+  const data={schema:2,project:activeProject,id,label,mode,artifact:artifact||null,repo:repoFull(),engine,created:now(),messages:[{id:'welcome-'+id,role:'agent',text:(mode==='planning'?'Planning':'Execution')+' task ready.'+(artifact?' The only writable artifact is '+artifact+'.':' This is discussion-only until an artifact path is assigned.'),ts:now()}]};
+  const sha=await putFileSafe(tpath(activeProject,id),JSON.stringify(data,null,1),'devstream v2: new task '+label);
+  threads[key]={data,sha};
+  sot.threads[key]={project:activeProject,id,label,mode,artifact:artifact||null,engine,state:'idle',startedAt:'',finishedAt:'',lastCommit:'',testUrl:'',error:''};
+  sot.projects[activeProject].lastTouched=now();
+  await saveSOT('devstream v2: add task '+label);
+  closeModals();renderSidebar();renderTabs();openThread(key);
+});
 /* ---- send / dispatch ---- */
 async function sendMessage(){
   const key=activeKey;const txt=$('message').value.trim();
   if(!key||!txt)return;
+  const engine=validEngine(sot.threads[key]?.engine),apiKey=engine==='venice'?cfg.vkey:cfg.orkey,model=engine==='venice'?cfg.vmodel:cfg.ormodel;
+  if(providerValidated[engine]!==validationSig(apiKey,model)){errbar('Validate and save the '+engine+' model in Settings before sending.');return}
   $('send').disabled=true;
   const ok=await guard(async()=>{
     const t=sot.threads[key],th=threads[key];
-    th.data.messages.push({role:'user',text:txt,ts:now(),status:'pending'});
-    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key);
+    th.data.messages.push({id:'m-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),role:'user',text:txt,ts:now(),status:'pending'});
+    th.sha=await saveThread(key,'devstream: message '+key);
     sot.projects[t.project].lastTouched=now();
     await saveSOT('devstream: touch '+key);
     $('message').value='';$('message').style.height='44px';renderChat();
@@ -632,13 +640,13 @@ async function sendMessage(){
 $('send').onclick=sendMessage;
 $('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $('message').addEventListener('input',function(){this.style.height='44px';this.style.height=Math.min(this.scrollHeight,130)+'px'});
-function threadPath(key){const th=threads[key];return tpath(th.data.project,th.data.tid||th.data.outputFile)}
+function threadPath(key){const th=threads[key];return tpath(th.data.project,th.data.id)}
 function dispatch(key){runAgent(key)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
-/* ---- in-app agent (anthropic-direct) ---- */
-function agentSystem(codeFile,planFile){
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority). Rules: questions/ideas/feedback update the PLAN (or are just answered); explicit build instructions or "build it" mean implementing per the plan into the CODE file; update-plan-before-code is the house rule, but do at most ONE file write per response. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
+/* ---- in-app agents (direct provider APIs; no gateway) ---- */
+function agentSystem(mode,artifact){
+  return 'You are the agent for one independent '+mode+' task tab. There is no mandatory plan, plan path, workflow, or relationship to any other tab. '+(artifact?'The one permitted artifact is "'+artifact+'". You may replace it only when the user asks; otherwise answer without a write.':'This tab is discussion-only and cannot write repository files.')+' Preserve existing artifact behavior unless the user asks to change it. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+(artifact?artifact+' or NONE':'NONE')+'>\n<blank line>\n<if TARGET is the artifact: its COMPLETE new content, no fences and nothing after it. If TARGET is NONE: your answer text.>';
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -657,77 +665,68 @@ async function setState(key,patch){
   renderTabs();renderSidebar();if(activeKey===key)renderChat();
 }
 async function callEngine(eng,system,history,user){
-  if(eng==='anthropic-direct'){
-    const r=await lfetch('anthropic','https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})});
-    const j=await r.json();
-    if(!r.ok)throw new Error('Anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
-    return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-  }
-  const cfgs={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel},
-    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel}}[eng];
-  if(cfgs&&!cfgs.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
-  if(!cfgs)throw new Error('Unknown engine '+eng);
-  if(!cfgs.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
-  const r=await lfetch(eng,cfgs.url,{method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key},
-    body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
+  eng=validEngine(eng);
+  const provider={
+    venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel,headers:{}},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel,
+      headers:{'HTTP-Referer':location.href,'X-OpenRouter-Title':'devstream'}}
+  }[eng];
+  if(!provider.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
+  if(!provider.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
+  const r=await lfetch(eng,provider.url,{method:'POST',timeoutMs:300000,
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+provider.key,...provider.headers},
+    body:JSON.stringify({model:provider.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' returned non-JSON ('+r.status+') — possibly CORS-blocked in this browser')}
   if(!r.ok){let hint='';if(eng==='venice'&&r.status===402)hint=' — this model needs Venice API credits (VCU) or is not in your plan; Validate Venice and pick another model';throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown')+hint)}
-  return j.choices[0].message.content;
+  const content=j.choices?.[0]?.message?.content;
+  if(typeof content!=='string'||!content.trim())throw new Error(eng+' returned an empty or unsupported completion');
+  return content;
 }
 async function runAgent(key){
   if(agentBusy){toast('Agent already running');return}
-  const t=sot.threads[key],th=threads[key];
-  if(!t||!th)return;
-  const eng=t.engine||'venice';
-  if(eng==='anthropic-direct'&&!cfg.akey){errbar('No Anthropic API key in Settings.');return}
-  if(eng==='venice'&&!cfg.vkey){errbar('No Venice API key in Settings.');return}
-  if(eng==='openrouter'&&!cfg.orkey){errbar('No OpenRouter API key in Settings.');return}
+  const t=sot.threads[key],th=threads[key];if(!t||!th)return;
+  const eng=validEngine(t.engine);
+  const apiKey=eng==='venice'?cfg.vkey:cfg.orkey,model=eng==='venice'?cfg.vmodel:cfg.ormodel;
+  if(!apiKey||!model||providerValidated[eng]!==validationSig(apiKey,model)){errbar('Validate and save the '+eng+' model in Settings before running this task.');return}
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
   if(!pend.length){toast('Nothing pending');return}
   agentBusy=true;
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
-    const codeFile=th.data.outputFile,planFile=th.data.planFile;
-    const planF=await getFile(planFile);
-    const codeF=await getFile(codeFile);
-    const inF=(!codeF&&th.data.inputFile)?await getFile(th.data.inputFile):null;
+    const mode=th.data.mode||t.mode||'planning',artifact=th.data.artifact||t.artifact||null;
+    const artifactFile=artifact?await getFile(artifact):null;
     let ctx='';
-    if(planF)ctx+='PLAN file '+planFile+':\n<plan>\n'+planF.content+'\n</plan>\n\n';
-    if(codeF)ctx+='CODE file '+codeFile+':\n<code>\n'+codeF.content+'\n</code>\n\n';
-    else if(inF)ctx+='INPUT codebase '+th.data.inputFile+':\n<code>\n'+inF.content+'\n</code>\n\n';
+    if(artifactFile)ctx+='CURRENT ARTIFACT '+artifact+':\n<artifact>\n'+artifactFile.content+'\n</artifact>\n\n';
+    else if(artifact)ctx+='The configured artifact '+artifact+' does not exist yet.\n\n';
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
-    const forced=pend.find(m=>m.forcedTarget);
-    const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const text=await callEngine(eng,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);
-    const{summary,target,body}=parseAgent(text);
-    let commit=null,testUrl=t.testUrl||'',reply=summary;
+    const text=await callEngine(eng,agentSystem(mode,artifact),history,ctx+'Instructions:\n'+pend.map(m=>m.text).join('\n\n'));
+    const parsed=parseAgent(text),summary=parsed.summary,target=parsed.target,body=parsed.body;
+    if(!['NONE',artifact].filter(Boolean).includes(target))throw new Error('Agent tried to write an unauthorized target: '+target);
+    let commit=null,testUrl='',reply=summary;
     if(target!=='NONE'){
-      if(body.length<80)throw new Error('Agent returned no usable file content for '+target);
-      commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
-      if(target===planFile){sot.projects[t.project].planExists=true;reply=summary+'\nPlan updated: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
-      else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply=summary+'\nTest: '+testUrl}
+      if(body.length<20)throw new Error('Agent returned no usable content for '+target);
+      commit=await putArtifactSafe(target,body,'devstream task: '+t.label+' — '+summary.slice(0,60),artifactFile?.sha);
+      testUrl=/\.html?$/i.test(target)?'https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now():'';
+      reply=summary+'\nUpdated: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+target+(testUrl?'\nTest: '+testUrl:'');
     }else reply=body||summary;
-    pend.forEach(m=>{m.status='done';delete m.forcedTarget});
-    th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined});
-    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
+    pend.forEach(m=>m.status='done');
+    th.data.messages.push({id:'m-'+Date.now().toString(36),role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined});
+    th.sha=await saveThread(key,'devstream: task reply '+key);
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
     toast('Done');
   }catch(e){
-    th.data.messages.push({role:'agent',text:'Failed: '+e.message,ts:now()});
-    try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key)}catch(e2){}
+    pend.forEach(m=>m.status='failed');
+    th.data.messages.push({id:'m-'+Date.now().toString(36),role:'agent',text:'Failed: '+e.message,ts:now()});
+    try{th.sha=await saveThread(key,'devstream: task error '+key)}catch(e2){}
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
-  }
-  agentBusy=false;
+  }finally{agentBusy=false}
 }
 /* ---- polling ---- */
 let pollBusy=false;
 function schedulePoll(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
-    if(!activeKey||document.hidden||pollBusy)return;
+    if(!activeKey||document.hidden||pollBusy||agentBusy)return;
     pollBusy=true;try{await pollOnce()}finally{pollBusy=false}
   },15000);
 }
@@ -768,19 +767,16 @@ function renderDash(){
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing').length;
-    sec.innerHTML='<div class="dpttl">'+esc(p)+(runs?' <span class="badge run">'+runs+' running</span>':'')+
-      (pr.planFile&&pr.planExists?' <button class="planlink">Plan ↗</button>':'')+'</div>'+
-      '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' thread'+(rows.length===1?'':'s')+'</div>';
-    const pl=sec.querySelector('.planlink');
-    if(pl)pl.onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+pr.planFile,'_blank');
+    sec.innerHTML='<div class="dpttl">'+esc(p)+(runs?' <span class="badge run">'+runs+' running</span>':'')+'</div>'+
+      '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' task'+(rows.length===1?'':'s')+'</div>';
     const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
-      state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
+      state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>(a[1].label||'').localeCompare(b[1].label||'')};
     rows.sort(sorters[dashSort]);
     rows.forEach(([k,t])=>{
       const r=document.createElement('div');r.className='trow';
       r.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><div class="ti">'+
-        '<div class="tf mono">'+esc(t.file)+'</div>'+
-        '<div class="tt">'+(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
+        '<div class="tf">'+esc(t.label||'Task')+'</div>'+
+        '<div class="tt">'+esc(t.mode||'task')+' · '+(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
         (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>';
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
@@ -796,12 +792,21 @@ function renderDash(){
 }
 
 /* ---- settings / boot ---- */
-$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
+$('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
-  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
+  if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=validEngine(cfg.engine)}openModal('cfgModal');bindAppearanceUI()};
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
+async function checkModel(eng,key,model){
+  const isOr=eng==='openrouter',url=isOr?'https://openrouter.ai/api/v1/chat/completions':'https://api.venice.ai/api/v1/chat/completions';
+  const r=await lfetch(eng+'-health',url,{method:'POST',timeoutMs:90000,headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,...(isOr?{'HTTP-Referer':location.href,'X-OpenRouter-Title':'devstream validation'}:{})},body:JSON.stringify({model,max_tokens:64,messages:[{role:'user',content:'Health check: calculate 6 multiplied by 7. Reply with exactly DEVSTREAM_OK_42 and nothing else.'}]})});
+  let j;try{j=await r.json()}catch(e){throw new Error('model returned non-JSON ('+r.status+')')}
+  if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'completion rejected'));
+  const answer=String(j.choices?.[0]?.message?.content||'').trim();
+  if(answer!=='DEVSTREAM_OK_42')throw new Error('model replied "'+answer.slice(0,80)+'" instead of DEVSTREAM_OK_42');
+  providerValidated[eng]=validationSig(key,model);return answer;
+}
 $('vTest').onclick=async()=>{
-  const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
+  const key=$('cfgvkey').value.trim(),selected=$('cfgvmodel').value;$('vStatus').textContent='Checking…';
   if(!key){$('vStatus').textContent='✗ enter the key first';return}
   try{
     const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{headers:{'Authorization':'Bearer '+key}});
@@ -809,12 +814,14 @@ $('vTest').onclick=async()=>{
     if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'rejected'));
     const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort();
     if(!ids.length)throw new Error('key accepted but no models returned');
-    fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
-    $('vStatus').textContent='✓ '+ids.length+' models';
+    fillModels('cfgvmodel',ids,selected||(cfg&&cfg.vmodel)||(sot.config&&sot.config.vmodel));
+    const model=$('cfgvmodel').value;$('vStatus').textContent='Calling '+model+'…';
+    await checkModel('venice',key,model);
+    $('vStatus').textContent='✓ '+model+' answered DEVSTREAM_OK_42';
   }catch(e){$('vStatus').textContent='✗ '+e.message;dlog('E|venice validate: '+e.message)}
 };
 $('orTest').onclick=async()=>{
-  const key=$('cfgorkey').value.trim();$('orStatus').textContent='Checking…';
+  const key=$('cfgorkey').value.trim(),selected=$('cfgormodel').value;$('orStatus').textContent='Checking…';
   if(!key){$('orStatus').textContent='✗ enter the key first';return}
   try{
     const r=await lfetch('or-auth','https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+key}});
@@ -823,22 +830,36 @@ $('orTest').onclick=async()=>{
     const rm=await lfetch('or-models','https://openrouter.ai/api/v1/models',{});
     const jm=await rm.json();
     const ids=(jm.data||[]).map(m=>m.id).filter(Boolean).sort();
-    fillModels('cfgormodel',ids,(sot.config&&sot.config.ormodel)||cfg&&cfg.ormodel);
-    $('orStatus').textContent='✓ key OK · '+ids.length+' models';
+    fillModels('cfgormodel',ids,selected||(cfg&&cfg.ormodel)||(sot.config&&sot.config.ormodel));
+    const model=$('cfgormodel').value;$('orStatus').textContent='Calling '+model+'…';
+    await checkModel('openrouter',key,model);
+    $('orStatus').textContent='✓ '+model+' answered DEVSTREAM_OK_42';
   }catch(e){$('orStatus').textContent='✗ '+e.message;dlog('E|openrouter validate: '+e.message)}
 };
+$('cfgvkey').oninput=$('cfgvmodel').onchange=()=>{$('vStatus').textContent='Not validated';providerValidated.venice=''};
+$('cfgorkey').oninput=$('cfgormodel').onchange=()=>{$('orStatus').textContent='Not validated';providerValidated.openrouter=''};
 $('sotValidate').onclick=async()=>{
-  const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim();
+  const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   $('sotStatus').textContent='Checking…';
   try{
-    const r=await fetch('https://api.github.com/repos/'+owner+'/'+repo,{headers:{'Authorization':'Bearer '+pat}});
-    $('sotStatus').textContent=r.ok?'✓ Token OK, repo reachable':'✗ '+r.status;
+    const headers={'Authorization':'Bearer '+pat,'Accept':'application/vnd.github+json'},r=await fetch('https://api.github.com/repos/'+owner+'/'+repo,{cache:'no-store',headers});
+    if(!r.ok)throw new Error('repository '+r.status);
+    const repoInfo=await r.json();if(repoInfo.permissions&&repoInfo.permissions.push===false)throw new Error('token is read-only; Contents write permission is required');
+    const tree=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/trees/'+encodeURIComponent(branch),{cache:'no-store',headers});
+    if(!tree.ok)throw new Error('branch '+branch+' '+tree.status);
+    githubValidated=githubSig(pat,owner,repo,branch);
+    $('sotStatus').textContent='✓ Token, repository, and '+branch+' branch reachable';
   }catch(e){$('sotStatus').textContent='✗ '+e.message}
 };
+for(const id of ['sotPat','sotOwner','sotRepo','sotBranch'])$(id).addEventListener('input',()=>{githubValidated='';$('sotStatus').textContent='Not validated'});
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value||'',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
+  if(githubValidated!==githubSig(pat,owner,repo,branch))throw new Error('Validate the GitHub token, repository, and branch before saving');
+  const engine=validEngine($('cfgengine').value),vkey=$('cfgvkey').value.trim(),vmodel=$('cfgvmodel').value||'',orkey=$('cfgorkey').value.trim(),ormodel=$('cfgormodel').value||'';
+  const chosenKey=engine==='venice'?vkey:orkey,chosenModel=engine==='venice'?vmodel:ormodel;
+  if(providerValidated[engine]!==validationSig(chosenKey,chosenModel))throw new Error('Validate the selected '+engine+' model successfully before saving');
+  cfg={pat,owner,repo,branch,vkey,vmodel,orkey,ormodel,engine,validation:{...providerValidated,github:githubValidated}};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
   sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,appearance};   // model choices sync via SOT; keys NEVER leave this browser
@@ -873,13 +894,14 @@ function bindAppearanceUI(){
 }
 applyAppearance();
 (async function boot(){
-  // migrate v1 cfg
-  const old=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
-  if(old&&!cfg){const[owner,repo]=(old.repo||'/').split('/');cfg={pat:old.pat,owner,repo,branch:old.branch||'main',akey:old.akey||'',engine:'venice'};localStorage.setItem(LS,JSON.stringify(cfg))}
+  // Keep local credentials when upgrading, but intentionally do not load legacy projects or threads.
+  const old2=JSON.parse(localStorage.getItem('ds_cfg_v2')||'null'),old1=JSON.parse(localStorage.getItem('ds_cfg_v1')||'null');
+  if(old2&&!cfg){cfg={...old2,engine:validEngine(old2.engine),validation:{}};localStorage.setItem(LS,JSON.stringify(cfg))}
+  if(old1&&!cfg){const[owner,repo]=(old1.repo||'/').split('/');cfg={pat:old1.pat,owner,repo,branch:old1.branch||'main',engine:'venice',validation:{}};localStorage.setItem(LS,JSON.stringify(cfg))}
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){
-    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=validEngine(cfg.engine||sot.config.engine);localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');renderSidebar();renderTabs();
     dlog('boot ok · '+Object.keys(sot.threads).length+' threads');
