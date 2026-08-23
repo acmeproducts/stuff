@@ -1,0 +1,51 @@
+name: Market Navigator UI publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "market-navigator-ui-publish.trigger"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-navigator-ui-publish
+  cancel-in-progress: true
+
+jobs:
+  publish-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply canonical UI migration
+        run: python3 scripts/market-navigator-ui-migrate.py
+      - name: Validate UI JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('market-view-ui-v2.html').read_text()
+          if 'UI semantics v2.2' not in html:
+              raise SystemExit('UI migration marker missing')
+          m=re.search(r'<script>(.*)</script>',html,re.S)
+          if not m: raise SystemExit('Inline script missing')
+          Path('/tmp/market-view-ui-v2.js').write_text(m.group(1))
+          PY
+          node --check /tmp/market-view-ui-v2.js
+      - name: Commit UI only
+        run: |
+          if git diff --quiet -- market-view-ui-v2.html; then
+            echo "UI already current."
+            exit 0
+          fi
+          git config user.name "market-navigator-ui-bot"
+          git config user.email "market-navigator-ui-bot@users.noreply.github.com"
+          git add market-view-ui-v2.html
+          git commit -m "ui: publish Market Navigator T0-relative model"
+          git pull --rebase origin main
+          git push origin HEAD:main
