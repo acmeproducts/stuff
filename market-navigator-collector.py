@@ -4,17 +4,22 @@ import datetime as dt, email.utils, hashlib, json, os, re, time, urllib.error, u
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-VERSION='2.1.0'; ROOT=Path('data/market-backend'); NEWS_DIR=ROOT/'sources/news'; MARKET_DIR=ROOT/'sources/market'; MACRO_DIR=ROOT/'sources/macro'; UA='MarketNavigatorCollector/2.1 (+https://github.com/acmeproducts/stuff)'; TIMEOUT=25
+VERSION='2.2.0'; ROOT=Path('data/market-backend'); NEWS_DIR=ROOT/'sources/news'; MARKET_DIR=ROOT/'sources/market'; MACRO_DIR=ROOT/'sources/macro'; UA='MarketNavigatorCollector/2.2 (+https://github.com/acmeproducts/stuff)'; TIMEOUT=25
 NEWS={'wsj-markets':('WSJ Markets','https://feeds.a.dj.com/rss/RSSMarketsMain.xml'),'bbc-business':('BBC Business','https://feeds.bbci.co.uk/news/business/rss.xml'),'bbc-world':('BBC World','https://feeds.bbci.co.uk/news/world/rss.xml'),'ft-markets':('Financial Times Markets','https://www.ft.com/markets?format=rss'),'ft-world':('Financial Times World','https://www.ft.com/world?format=rss'),'marketwatch':('MarketWatch','https://feeds.marketwatch.com/marketwatch/topstories/'),'morningstar':('Morningstar','https://www.morningstar.com/rss/market-news'),'cnbc-world':('CNBC World','https://www.cnbc.com/id/100727362/device/rss/rss.html'),'nyt-business':('New York Times Business','https://rss.nytimes.com/services/xml/rss/nyt/Business.xml'),'nyt-world':('New York Times World','https://rss.nytimes.com/services/xml/rss/nyt/World.xml')}
 MARKET={'spy':('SPY','SPY','Broad equities'),'qqq':('QQQ','QQQ','Growth equities'),'vix':('VIX','^VIX','Market fear'),'tenYear':('10Y','^TNX','Cost of capital'),'wti':('WTI','CL=F','U.S. oil benchmark'),'brent':('Brent','BZ=F','Global oil benchmark'),'gold':('Gold','GLD','Gold proxy'),'dxy':('DXY','DX-Y.NYB','U.S. dollar')}
-MACRO={'cpi':('CPI YoY','CPIAUCSL','monthly'),'fedFunds':('Fed Funds','DFF','daily'),'twoYear':('2Y','DGS2','daily'),'thirtyYear':('30Y','DGS30','daily')}
-GEO=re.compile(r'\b(iran|israel|gaza|ukraine|russia|china|taiwan|nato|missile|drone|strike|war|ceasefire|sanction|hormuz|red sea|shipping attack|opec)\b',re.I); OUTLOOK=re.compile(r'\b(outlook|forecast|expects?|expectations?|projection|guidance|strategy|target|scenario)\b',re.I)
+# key: display name, FRED series, cadence, transform
+MACRO={
+'cpi':('CPI YoY','CPIAUCSL','monthly','yoy'),'coreCpi':('Core CPI YoY','CPILFESL','monthly','yoy'),'pce':('PCE Inflation YoY','PCEPI','monthly','yoy'),'corePce':('Core PCE YoY','PCEPILFE','monthly','yoy'),
+'fedFunds':('Fed Funds','DFF','daily','level'),'twoYear':('2Y Treasury','DGS2','daily','level'),'thirtyYear':('30Y Treasury','DGS30','daily','level'),'curve10y2y':('10Y-2Y Curve','T10Y2Y','daily','level'),'realTenYear':('10Y Real Yield','DFII10','daily','level'),'breakeven10y':('10Y Breakeven','T10YIE','daily','level'),'hySpread':('High Yield Spread','BAMLH0A0HYM2','daily','level'),
+'nfci':('Chicago Fed NFCI','NFCI','weekly','level'),'initialClaims':('Initial Claims','ICSA','weekly','level'),
+'payrolls':('Nonfarm Payrolls','PAYEMS','monthly','level'),'industrialProduction':('Industrial Production','INDPRO','monthly','level'),'retailSales':('Retail Sales','RSAFS','monthly','level'),'realGdp':('Real GDP','GDPC1','quarterly','level')}
+TTL={'daily':1440,'weekly':4320,'monthly':10080,'quarterly':43200}
+GEO=re.compile(r'\b(iran|israel|gaza|ukraine|russia|china|taiwan|nato|missile|drone|strike|war|ceasefire|sanction|hormuz|red sea|shipping attack|opec)\b',re.I);OUTLOOK=re.compile(r'\b(outlook|forecast|expects?|expectations?|projection|guidance|strategy|target|scenario)\b',re.I)
 TOPICS=[('geopolitics',GEO),('oil',re.compile(r'\b(oil|crude|brent|wti|opec|gasoline|energy)\b',re.I)),('inflation',re.compile(r'\b(cpi|pce|inflation|prices?)\b',re.I)),('rates',re.compile(r'\b(fed|federal reserve|treasury|yield|interest rate|bond)\b',re.I)),('gold',re.compile(r'\b(gold|bullion|precious metal)\b',re.I)),('currency',re.compile(r'\b(dollar|dxy|currency|forex|yen|euro)\b',re.I)),('equities',re.compile(r'\b(stock|stocks|equities|s&p|nasdaq|dow|earnings)\b',re.I))]
 def now():return dt.datetime.now(dt.timezone.utc)
 def iso(t=None):return (t or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
 def ptime(v):
- try:
-  t=dt.datetime.fromisoformat(v.replace('Z','+00:00'));return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+ try:t=dt.datetime.fromisoformat(v.replace('Z','+00:00'));return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
  except:return None
 def load(p,d):
  try:return json.loads(p.read_text())
@@ -47,8 +52,7 @@ def node_link(n):
   if c.tag.split('}')[-1].lower()=='link':return (c.attrib.get('href') or c.text or '').strip()
  return ''
 def feed_time(v):
- try:
-  t=email.utils.parsedate_to_datetime(v);return iso(t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc))
+ try:t=email.utils.parsedate_to_datetime(v);return iso(t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc))
  except:
   try:return iso(dt.datetime.fromisoformat(v.replace('Z','+00:00')))
   except:return iso()
@@ -77,8 +81,7 @@ def ypoints(sym,rng,intv):
  if not r:raise RuntimeError('Yahoo returned no chart result')
  ts=r.get('timestamp') or [];cl=(((r.get('indicators') or {}).get('quote') or [{}])[0].get('close') or []);pts=[]
  for i,t in enumerate(ts):
-  try:
-   v=float(cl[i]);pts.append({'t':int(t)*1000,'v':v})
+  try:v=float(cl[i]);pts.append({'t':int(t)*1000,'v':v})
   except:pass
  if len(pts)<2:raise RuntimeError('Yahoo returned insufficient points')
  return pts,m
@@ -111,28 +114,26 @@ def fred_points(series):
   except:pass
  if len(out)<2:raise RuntimeError('FRED returned insufficient points')
  return out,m
-def cpi_yoy(raw):return [{'t':raw[i]['t'],'v':(raw[i]['v']/raw[i-12]['v']-1)*100} for i in range(12,len(raw)) if raw[i-12]['v']]
+def yoy(raw):return [{'t':raw[i]['t'],'v':(raw[i]['v']/raw[i-12]['v']-1)*100} for i in range(12,len(raw)) if raw[i-12]['v']]
 def collect_macro(force):
  out={};health={}
- for key,(short,series,cad) in MACRO.items():
-  p=MACRO_DIR/f'{key}.json';s=state(p,short,fred_url(series),1440);s['cadence']=cad;s['seriesId']=series
-  # Provider migration must not inherit Alpha Vantage backoff/expiry.
-  migrated=s.get('provider')!='FRED'
+ for key,(short,series,cad,transform) in MACRO.items():
+  ttl=TTL[cad];p=MACRO_DIR/f'{key}.json';s=state(p,short,fred_url(series),ttl);s['cadence']=cad;s['seriesId']=series;s['transform']=transform
+  migrated=s.get('provider')!='FRED' or s.get('seriesId')!=series
   if migrated:s['expiresAt']=None;s['nextRetry']=None;s['failureCount']=0
   if due(s,force) or migrated:
    try:
-    pts,m=fred_points(series);pts=cpi_yoy(pts) if key=='cpi' else pts;s['records']=pts[-6000:];s['provider']='FRED';ok(s,m,1440,len(s['records']))
+    pts,m=fred_points(series);pts=yoy(pts) if transform=='yoy' else pts;s['records']=pts[-6000:];s['provider']='FRED';ok(s,m,ttl,len(s['records']))
    except Exception as e:fail(s,e)
    write(p,s)
-  out[key]={'id':key,'short':short,'seriesId':series,'cadence':cad,'provider':'FRED','status':s.get('status'),'lastSuccess':s.get('lastSuccess'),'points':s.get('records') or []};health['macro:'+key]={k:v for k,v in s.items() if k!='records'}
+  out[key]={'id':key,'short':short,'seriesId':series,'cadence':cad,'transform':transform,'provider':'FRED','status':s.get('status'),'lastSuccess':s.get('lastSuccess'),'points':s.get('records') or []};health['macro:'+key]={k:v for k,v in s.items() if k!='records'}
  return out,health
 def dataset(path,schema,payload,health,extra=None):
  times=[ptime(x.get('lastSuccess')) for x in health.values() if x.get('lastSuccess')];obj={'schema':schema,'collectorVersion':VERSION,'generatedAt':iso(max(times) if times else now()),'data':payload};obj.update(extra or {});write(path,obj)
-def fileinfo(p):
- b=p.read_bytes();return {'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)}
+def fileinfo(p):b=p.read_bytes();return {'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)}
 def main():
  force=os.environ.get('MARKET_NAVIGATOR_FORCE','').lower() in ('1','true','yes');[p.mkdir(parents=True,exist_ok=True) for p in (NEWS_DIR,MARKET_DIR,MACRO_DIR)];news,nh=collect_news(force);market,mh=collect_market(force);macro,xh=collect_macro(force);health={**nh,**mh,**xh};np=ROOT/'news-cache.json';mp=ROOT/'market-cache.json';xp=ROOT/'macro-cache.json';hp=ROOT/'source-health.json';mf=ROOT/'market-manifest.json';dataset(np,'market-navigator-news-v1',news,nh,{'records':len(news)});dataset(mp,'market-navigator-market-v1',market,mh,{'series':len(market)});dataset(xp,'market-navigator-macro-v1',macro,xh,{'series':len(macro)});dataset(hp,'market-navigator-health-v1',health,health,{'records':len(health)});files={}
  for k,p in [('market',mp),('macro',xp),('news',np),('health',hp)]:
-  i=fileinfo(p);files[k]={**i,'path':str(p),'revision':i['sha256'][:16],'updatedAt':json.loads(p.read_text())['generatedAt'],'records':len(json.loads(p.read_text()).get('data',{})) if isinstance(json.loads(p.read_text()).get('data'),dict) else len(json.loads(p.read_text()).get('data',[]))}
- manifest={'schema':'market-navigator-manifest-v1','collectorVersion':VERSION,'generatedAt':iso(),'files':files,'policy':{'clientContract':'IndexedDB first; same-origin manifest check; download only changed revisions','fred':'FRED is authoritative for macro history; CPIAUCSL is transformed to YoY; DFF/DGS2/DGS30 retained as levels','macro':'24h eligibility; last-known-good retained','marketDailyHistory':'20h TTL; 5y daily foundation merged by timestamp','marketIntraday':'60m while market-active, 6h otherwise; last-known-good retained','news':'30m TTL; failure backoff 1h/3h/6h/12h; last-known-good retained'}};raw=json.dumps(manifest,sort_keys=True).encode();manifest['revision']=hashlib.sha256(raw).hexdigest()[:16];write(mf,manifest);print('Market Navigator collector',VERSION,manifest['revision'])
+  o=json.loads(p.read_text());i=fileinfo(p);files[k]={**i,'path':str(p),'revision':i['sha256'][:16],'updatedAt':o['generatedAt'],'records':len(o.get('data',{})) if isinstance(o.get('data'),dict) else len(o.get('data',[]))}
+ manifest={'schema':'market-navigator-manifest-v1','collectorVersion':VERSION,'generatedAt':iso(),'files':files,'policy':{'clientContract':'same-origin persistent database; UI never fans out to providers','fred':'FRED authoritative for economic history with cadence-aware TTLs and last-known-good retention','macroCadence':TTL,'marketDailyHistory':'20h TTL; 5y daily foundation merged by timestamp','marketIntraday':'60m while market-active, 6h otherwise','news':'30m TTL; failure backoff 1h/3h/6h/12h'}};manifest['revision']=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()[:16];write(mf,manifest);print('Market Navigator collector',VERSION,manifest['revision'])
 if __name__=='__main__':main()
