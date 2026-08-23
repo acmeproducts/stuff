@@ -1,0 +1,68 @@
+name: Market Navigator data collector
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Ignore source TTLs and attempt every source
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "*/30 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "market-navigator-collector.py"
+      - ".github/workflows/market-navigator-collector.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-navigator-data-collector
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      MARKET_NAVIGATOR_FORCE: ${{ inputs.force && 'true' || 'false' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect eligible sources and build manifest
+        run: python3 market-navigator-collector.py
+
+      - name: Validate generated contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('data/market-backend')
+          required=['market-manifest.json','market-cache.json','macro-cache.json','news-cache.json','source-health.json']
+          missing=[x for x in required if not (root/x).exists()]
+          if missing: raise SystemExit('Missing backend outputs: '+', '.join(missing))
+          manifest=json.loads((root/'market-manifest.json').read_text())
+          if manifest.get('schema')!='market-navigator-manifest-v1': raise SystemExit('Invalid manifest schema')
+          if set(manifest.get('files',{})) != {'market','macro','news','health'}: raise SystemExit('Incomplete manifest')
+          print('Validated manifest',manifest.get('revision'))
+          PY
+
+      - name: Commit refreshed backend cache
+        run: |
+          if [ -z "$(git status --porcelain -- data/market-backend)" ]; then
+            echo "No eligible Market Navigator data changed."
+            exit 0
+          fi
+          git config user.name "market-navigator-bot"
+          git config user.email "market-navigator-bot@users.noreply.github.com"
+          git add data/market-backend
+          git commit -m "data: refresh Market Navigator backend cache"
+          git pull --rebase origin main
+          git push origin HEAD:main
