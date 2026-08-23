@@ -82,7 +82,7 @@ async function main() {
 
   try {
     const health = await request(base, 'GET', '/api/sot/health');
-    assert.equal(health.payload.build, '2026.08.23.sot-clean-1');
+    assert.equal(health.payload.build, '2026.08.23.sot-project-ui-2');
     report.health_ms = health.milliseconds;
 
     const configured = await request(base, 'PUT', '/api/sot/admin/settings', { target_root: targetRoot, backup_root: backupRoot, hash_workers: 4 });
@@ -166,6 +166,10 @@ async function main() {
 
     const projectList = await request(base, 'GET', '/api/sot/turn01/projects');
     assert.equal(projectList.payload.projects.length, 1);
+    assert.equal(projectList.payload.projects[0].size_bytes, Buffer.byteLength(alpha) * 2 + Buffer.byteLength(changedBravo));
+    assert.equal(projectList.payload.projects[0].folder_count, 2);
+    assert.equal(projectList.payload.projects[0].top_level_item_count, 3);
+    assert.ok(projectList.payload.projects[0].indexed_at);
     assert.ok(projectList.milliseconds < 1000, `project list took ${projectList.milliseconds}ms`);
     report.project_list_ms = projectList.milliseconds;
 
@@ -175,11 +179,18 @@ async function main() {
     assert.ok(dump.payload.size > 0 && fs.existsSync(dump.payload.path));
     const dbStatus = await request(base, 'GET', '/api/sot/admin/db/status');
     assert.equal(dbStatus.payload.integrity.ok, true);
-    assert.equal(dbStatus.payload.migrations.length, 1);
+    assert.equal(dbStatus.payload.migrations.length, 2);
 
     const migrationStatus = database.status(databasePath);
     assert.equal(migrationStatus.ok, true);
     report.final_review = secondReview;
+    assert.equal(migrationStatus.current_version, 2);
+    report.project_metrics = {
+      size_bytes: projectList.payload.projects[0].size_bytes,
+      folder_count: projectList.payload.projects[0].folder_count,
+      top_level_item_count: projectList.payload.projects[0].top_level_item_count,
+      indexed_at: projectList.payload.projects[0].indexed_at
+    };
     report.migration = { current_version: migrationStatus.current_version, integrity: migrationStatus.integrity };
     report.result = 'PASS';
     console.log(JSON.stringify(report, null, 2));

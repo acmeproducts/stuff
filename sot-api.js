@@ -5,11 +5,11 @@ const fs = require('fs');
 const fsp = fs.promises;
 const os = require('os');
 const path = require('path');
-const { execFileSync, spawnSync } = require('child_process');
+const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const VERSION = '1.0.0';
-const BUILD = '2026.08.23.sot-clean-1';
-const EXPECTED_MIGRATION = 1;
+const BUILD = '2026.08.23.sot-project-ui-2';
+const EXPECTED_MIGRATION = 2;
 const SOT_ROOT = process.env.SOT_ROOT || path.join(os.homedir(), '.openclaw', 'sot');
 const DATABASE_PATH = process.env.SOT_DB_PATH || path.join(SOT_ROOT, 'sot.sqlite');
 const SNAPSHOT_DIR = process.env.SOT_SNAPSHOT_DIR || path.join(SOT_ROOT, 'db-snapshots');
@@ -18,9 +18,7 @@ const SQLITE3_AVAILABLE = !spawnSync('sqlite3', ['-version'], { encoding: 'utf8'
 const STEP_NAMES = { 1: 'project', 2: 'sources', 3: 'process', 4: 'review', 5: 'plan', 6: 'execute', 7: 'certify' };
 const runtime = {
   schemaReady: false,
-  scheduler: { running: false, queue: [], active: null, workers: [] },
-  processing: new Map(),
-  executions: new Map()
+  jobs: new Map()
 };
 
 function now() { return new Date().toISOString(); }
@@ -74,6 +72,7 @@ function ensureSchema() {
     }
   }
   runtime.schemaReady = true;
+  if (process.env.SOT_WORKER_PROCESS === '1') return;
   const interruptedAt = now();
   sqlite(`PRAGMA foreign_keys=ON;
     BEGIN IMMEDIATE;
@@ -197,7 +196,16 @@ function listProjects(query = '') {
   const where = needle ? ` AND (lower(project_name) LIKE ${sqlQuote(`%${needle}%`)} OR lower(project_note) LIKE ${sqlQuote(`%${needle}%`)})` : '';
   return rows(`SELECT p.*,
     (SELECT COUNT(*) FROM sources s WHERE s.project_token=p.project_token AND s.removed_at IS NULL) source_count,
-    (SELECT state FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) processing_state
+    (SELECT state FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) processing_state,
+    (SELECT bytes_discovered FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) size_bytes,
+    (SELECT folder_count FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) folder_count,
+    (SELECT top_level_item_count FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) top_level_item_count,
+    (SELECT files_discovered FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) files_discovered,
+    (SELECT files_processed FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) files_processed,
+    (SELECT bytes_processed FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) bytes_processed,
+    (SELECT hashes_reused FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) hashes_reused,
+    (SELECT updated_at FROM processing_runs r WHERE r.project_token=p.project_token ORDER BY started_at DESC LIMIT 1) progress_updated_at,
+    (SELECT ended_at FROM processing_runs r WHERE r.project_token=p.project_token AND r.state='Closed' ORDER BY ended_at DESC LIMIT 1) indexed_at
     FROM projects p WHERE p.deleted_at IS NULL${where} ORDER BY p.updated_at DESC, p.project_name COLLATE NOCASE;`);
 }
 
@@ -351,7 +359,7 @@ function runStatus(projectToken) {
       bytes_per_second: bytesPerSecond,
       eta_seconds: bytesPerSecond > 0 ? remaining / bytesPerSecond : null
     },
-    workers: runtime.scheduler.active?.runId === run.run_id ? runtime.scheduler.workers : []
+    workers: rows(`SELECT worker_id,phase,path,item,started_at,updated_at FROM processing_workers WHERE run_id=${sqlQuote(run.run_id)} ORDER BY worker_id;`)
   };
 }
 
@@ -367,36 +375,23 @@ async function hashFile(fullPath) {
   });
 }
 
-function enqueueRun(runId, projectToken) {
-  runtime.scheduler.queue.push({ runId, projectToken });
-  schedulerWake();
-}
-
-function schedulerWake() {
-  if (runtime.scheduler.running) return;
-  runtime.scheduler.running = true;
-  setImmediate(async () => {
-    try {
-      while (runtime.scheduler.queue.length) {
-        const job = runtime.scheduler.queue.shift();
-        runtime.scheduler.active = job;
-        await processRun(job.runId, job.projectToken);
-        runtime.scheduler.active = null;
-        runtime.scheduler.workers = [];
-      }
-    } finally {
-      runtime.scheduler.running = false;
-      runtime.scheduler.active = null;
-      runtime.scheduler.workers = [];
-      if (runtime.scheduler.queue.length) schedulerWake();
-    }
+function launchBackground(kind, id, projectToken, replace = false) {
+  const key = `${kind}:${id}`;
+  if (runtime.jobs.has(key) && !replace) return runtime.jobs.get(key);
+  const child = spawn(process.execPath, [path.join(__dirname, 'sot-worker.js'), kind, id, projectToken], {
+    cwd: __dirname,
+    env: { ...process.env, SOT_WORKER_PROCESS: '1' },
+    stdio: 'ignore'
   });
+  runtime.jobs.set(key, { kind, id, project_token: projectToken, pid: child.pid, started_at: now() });
+  const forget = () => { if (runtime.jobs.get(key)?.pid === child.pid) runtime.jobs.delete(key); };
+  child.once('exit', forget);
+  child.once('error', forget);
+  return runtime.jobs.get(key);
 }
 
-function processingControl(runId) {
-  let control = runtime.processing.get(runId);
-  if (!control) { control = { pause: false }; runtime.processing.set(runId, control); }
-  return control;
+function pauseRequested(runId) {
+  return Number(rows(`SELECT pause_requested FROM processing_runs WHERE run_id=${sqlQuote(runId)} LIMIT 1;`)[0]?.pause_requested || 0) === 1;
 }
 
 function insertRunFiles(runId, sourceId, files) {
@@ -406,11 +401,11 @@ function insertRunFiles(runId, sourceId, files) {
   transaction(statements);
 }
 
-async function enumerateSource(runId, source, control) {
+async function enumerateSource(runId, source) {
   const stack = [{ full: source.normalized_path, relative: '' }];
   let batch = [];
   while (stack.length) {
-    if (control.pause) throw new PauseRequested('pause requested');
+    if (pauseRequested(runId)) throw new PauseRequested('pause requested');
     const current = stack.pop();
     execute(`UPDATE processing_runs SET current_source=${sqlQuote(source.normalized_path)},current_item=${sqlQuote(current.full)},updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
     let entries;
@@ -419,14 +414,17 @@ async function enumerateSource(runId, source, control) {
       execute(`UPDATE processing_runs SET warning_count=warning_count+1,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
       continue;
     }
+    let childFolders = 0, directFiles = 0, directBytes = 0;
     for (const entry of entries) {
       const full = path.join(current.full, entry.name);
       if (recycleBinPath(full)) continue;
       const relative = current.relative ? `${current.relative}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) stack.push({ full, relative });
+      if (entry.isDirectory()) { childFolders += 1; stack.push({ full, relative }); }
       else if (entry.isFile()) {
         try {
           const stat = await fsp.stat(full);
+          directFiles += 1;
+          directBytes += Number(stat.size || 0);
           batch.push({ full, relative: relative.replace(/\\/g, '/'), size: stat.size, modified: stat.mtimeMs });
           if (batch.length >= 250) { insertRunFiles(runId, source.source_id, batch); batch = []; await new Promise(resolve => setImmediate(resolve)); }
         } catch {
@@ -434,12 +432,20 @@ async function enumerateSource(runId, source, control) {
         }
       }
     }
+    const updatedAt = now();
+    const topLevelIncrement = current.relative ? 0 : childFolders + directFiles;
+    transaction([
+      `INSERT INTO folder_progress(run_id,source_id,folder_path,relative_path,child_folders,files_discovered,bytes_discovered,updated_at) VALUES(${sqlQuote(runId)},${sqlQuote(source.source_id)},${sqlQuote(current.full)},${sqlQuote(current.relative)},${childFolders},${directFiles},${directBytes},${sqlQuote(updatedAt)}) ON CONFLICT(run_id,source_id,folder_path) DO UPDATE SET child_folders=excluded.child_folders,files_discovered=excluded.files_discovered,bytes_discovered=excluded.bytes_discovered,updated_at=excluded.updated_at;`,
+      `UPDATE processing_runs SET folder_count=folder_count+${childFolders},top_level_item_count=top_level_item_count+${topLevelIncrement},updated_at=${sqlQuote(updatedAt)} WHERE run_id=${sqlQuote(runId)};`
+    ]);
   }
   insertRunFiles(runId, source.source_id, batch);
 }
 
 async function processHashRow(runId, projectToken, item, workerId) {
-  runtime.scheduler.workers[workerId] = { worker_id: workerId + 1, project_token: projectToken, run_id: runId, phase: 'fingerprinting', path: item.full_path, item: item.relative_path, started_at: now() };
+  const workerNumber = workerId + 1;
+  const startedAt = now();
+  execute(`INSERT INTO processing_workers(run_id,worker_id,phase,path,item,started_at,updated_at) VALUES(${sqlQuote(runId)},${workerNumber},'fingerprinting',${sqlQuote(item.full_path)},${sqlQuote(item.relative_path)},${sqlQuote(startedAt)},${sqlQuote(startedAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='fingerprinting',path=excluded.path,item=excluded.item,started_at=excluded.started_at,updated_at=excluded.updated_at;`);
   try {
     const reusable = item.current_sha256 && Number(item.current_size) === Number(item.size) && Number(item.current_modified_ms) === Number(item.modified_ms);
     const contentSha = reusable ? item.current_sha256 : await hashFile(item.full_path);
@@ -447,18 +453,25 @@ async function processHashRow(runId, projectToken, item, workerId) {
   } catch (error) {
     return { item, contentSha: null, reused: 0, error: String(error.message || error) };
   } finally {
-    runtime.scheduler.workers[workerId] = { worker_id: workerId + 1, project_token: null, run_id: null, phase: 'idle', path: '', item: '', started_at: null };
+    execute(`UPDATE processing_workers SET phase='idle',path='',item='',started_at=NULL,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)} AND worker_id=${workerNumber};`);
   }
 }
 
 function persistHashResults(runId, projectToken, results) {
   const at = now();
   const statements = [];
+  const folderTotals = new Map();
   let processed = 0, bytes = 0, reused = 0, computed = 0, errors = 0;
   for (const result of results) {
     const item = result.item;
     processed += 1;
     bytes += Number(item.size || 0);
+    const folderPath = path.dirname(item.full_path);
+    const folderKey = `${item.source_id}\0${folderPath}`;
+    const folderTotal = folderTotals.get(folderKey) || { source_id: item.source_id, folder_path: folderPath, files: 0, bytes: 0 };
+    folderTotal.files += 1;
+    folderTotal.bytes += Number(item.size || 0);
+    folderTotals.set(folderKey, folderTotal);
     if (result.error) {
       errors += 1;
       statements.push(`UPDATE run_files SET state='error',error_message=${sqlQuote(result.error)} WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(item.source_id)} AND relative_path=${sqlQuote(item.relative_path)};`);
@@ -471,30 +484,35 @@ function persistHashResults(runId, projectToken, results) {
     const observationId = sha(`${item.source_id}\0${item.relative_path}\0${observationHash}`);
     statements.push(
       `INSERT INTO content(content_sha256,size,first_observed_at,last_observed_at) VALUES(${sqlQuote(result.contentSha)},${Number(item.size)},${sqlQuote(at)},${sqlQuote(at)}) ON CONFLICT(content_sha256) DO UPDATE SET last_observed_at=excluded.last_observed_at;`,
+      `INSERT INTO path_fingerprints(normalized_path,size,modified_ms,content_sha256,last_run_id,verified_at) VALUES(${sqlQuote(item.full_path)},${Number(item.size)},${Number(item.modified_ms)},${sqlQuote(result.contentSha)},${sqlQuote(runId)},${sqlQuote(at)}) ON CONFLICT(normalized_path) DO UPDATE SET size=excluded.size,modified_ms=excluded.modified_ms,content_sha256=excluded.content_sha256,last_run_id=excluded.last_run_id,verified_at=excluded.verified_at;`,
       `INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES(${sqlQuote(observationId)},${sqlQuote(projectToken)},${sqlQuote(item.source_id)},${sqlQuote(runId)},${sqlQuote(item.full_path)},${sqlQuote(item.relative_path)},${sqlQuote(path.basename(item.relative_path))},${Number(item.size)},${Number(item.modified_ms)},${sqlQuote(result.contentSha)},${sqlQuote(pathHash)},${sqlQuote(observationHash)},${sqlQuote(at)},${sqlQuote(at)}) ON CONFLICT(source_id,relative_path,observation_hash) DO UPDATE SET last_observed_at=excluded.last_observed_at;`,
       `UPDATE run_files SET state='done',content_sha256=${sqlQuote(result.contentSha)},observation_id=${sqlQuote(observationId)},reused=${result.reused},error_message='' WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(item.source_id)} AND relative_path=${sqlQuote(item.relative_path)};`
     );
+  }
+  for (const folder of folderTotals.values()) {
+    statements.push(`UPDATE folder_progress SET files_processed=files_processed+${folder.files},bytes_processed=bytes_processed+${folder.bytes},updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)} AND source_id=${sqlQuote(folder.source_id)} AND folder_path=${sqlQuote(folder.folder_path)};`);
   }
   statements.push(`UPDATE processing_runs SET files_processed=files_processed+${processed},bytes_processed=bytes_processed+${bytes},hashes_reused=hashes_reused+${reused},hashes_computed=hashes_computed+${computed},error_count=error_count+${errors},current_item=${sqlQuote(results.at(-1)?.item?.full_path || '')},updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`);
   transaction(statements);
 }
 
 async function processRun(runId, projectToken) {
-  const control = processingControl(runId);
   try {
     const sources = activeSources(projectToken).filter(source => source.preflight_status === 'ready');
-    execute(`UPDATE processing_runs SET state='WIP',phase='enumerating',updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
-    for (const source of sources) await enumerateSource(runId, source, control);
-    if (control.pause) throw new PauseRequested('pause requested');
+    execute(`UPDATE processing_runs SET state='WIP',phase='enumerating',worker_pid=${Number(process.pid)},folder_count=${sources.length},top_level_item_count=0,pause_requested=0,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
+    for (const source of sources) {
+      await enumerateSource(runId, source);
+    }
+    if (pauseRequested(runId)) throw new PauseRequested('pause requested');
     execute(`UPDATE processing_runs SET phase='fingerprinting',current_item='',updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)};`);
     const workerCount = Math.max(1, Math.min(16, Number(settings().hash_workers || 4)));
-    runtime.scheduler.workers = Array.from({ length: workerCount }, (_, index) => ({ worker_id: index + 1, project_token: null, run_id: null, phase: 'idle', path: '', item: '', started_at: null }));
+    const workerAt = now();
+    transaction(Array.from({ length: workerCount }, (_, index) => `INSERT INTO processing_workers(run_id,worker_id,phase,path,item,started_at,updated_at) VALUES(${sqlQuote(runId)},${index + 1},'idle','','',NULL,${sqlQuote(workerAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='idle',path='',item='',started_at=NULL,updated_at=excluded.updated_at;`));
     while (true) {
-      if (control.pause) throw new PauseRequested('pause requested');
-      const batch = rows(`SELECT rf.*,o.size current_size,o.modified_ms current_modified_ms,o.content_sha256 current_sha256
+      if (pauseRequested(runId)) throw new PauseRequested('pause requested');
+      const batch = rows(`SELECT rf.*,pf.size current_size,pf.modified_ms current_modified_ms,pf.content_sha256 current_sha256
         FROM run_files rf
-        LEFT JOIN current_observations co ON co.source_id=rf.source_id AND co.relative_path=rf.relative_path
-        LEFT JOIN observations o ON o.observation_id=co.observation_id
+        LEFT JOIN path_fingerprints pf ON pf.normalized_path=rf.full_path
         WHERE rf.run_id=${sqlQuote(runId)} AND rf.state='pending'
         ORDER BY rf.source_id,rf.relative_path LIMIT ${workerCount};`);
       if (!batch.length) break;
@@ -515,7 +533,7 @@ async function processRun(runId, projectToken) {
       );
     }
     statements.push(
-      `UPDATE processing_runs SET state='Closed',phase='complete',current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+      `UPDATE processing_runs SET state='Closed',phase='complete',worker_pid=NULL,pause_requested=0,current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
       `UPDATE projects SET workflow_step=4,evidence_revision=evidence_revision+1,status='Review',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
       `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved','complete');`,
       `UPDATE certifications SET status='invalidated',invalidated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND status='certified';`,
@@ -527,20 +545,18 @@ async function processRun(runId, projectToken) {
     if (error instanceof PauseRequested) {
       transaction([
         `UPDATE run_files SET state='pending' WHERE run_id=${sqlQuote(runId)} AND state='WIP';`,
-        `UPDATE processing_runs SET state='Paused',phase='paused',updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+        `UPDATE processing_runs SET state='Paused',phase='paused',worker_pid=NULL,pause_requested=0,updated_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
         `UPDATE projects SET status='Paused',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
       ]);
     } else {
       transaction([
         `UPDATE run_files SET state='pending' WHERE run_id=${sqlQuote(runId)} AND state='WIP';`,
-        `UPDATE processing_runs SET state='Error',phase='error',error_message=${sqlQuote(error.message)},updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
+        `UPDATE processing_runs SET state='Error',phase='error',worker_pid=NULL,pause_requested=0,error_message=${sqlQuote(error.message)},updated_at=${sqlQuote(at)},ended_at=${sqlQuote(at)} WHERE run_id=${sqlQuote(runId)};`,
         `UPDATE projects SET workflow_step=3,status='Error',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
         `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'processing.error',${sqlQuote(at)},${sqlQuote(JSON.stringify({ run_id: runId, error: error.message }))});`
       ]);
     }
-  } finally {
-    runtime.processing.delete(runId);
-  }
+  } finally { /* durable state is the scheduler authority */ }
 }
 
 function startProcessing(projectToken) {
@@ -556,15 +572,14 @@ function startProcessing(projectToken) {
     `UPDATE projects SET workflow_step=3,status='Processing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
     `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'processing.started',${sqlQuote(at)},${sqlQuote(JSON.stringify({ run_id: runId }))});`
   ]);
-  processingControl(runId);
-  enqueueRun(runId, projectToken);
-  return { project_token: projectToken, run_id: runId, status: 'Queued' };
+  const job = launchBackground('index', runId, projectToken);
+  return { project_token: projectToken, run_id: runId, status: 'Queued', worker_pid: job?.pid || null };
 }
 
 function pauseProcessing(projectToken) {
   const run = latestRun(projectToken);
   if (!run || !['Queued', 'WIP'].includes(run.state)) throw httpError(409, 'no active processing run');
-  processingControl(run.run_id).pause = true;
+  execute(`UPDATE processing_runs SET pause_requested=1,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(run.run_id)};`);
   return { project_token: projectToken, run_id: run.run_id, status: 'pausing' };
 }
 
@@ -574,12 +589,13 @@ function resumeProcessing(projectToken) {
   const at = now();
   transaction([
     `DELETE FROM run_files WHERE run_id=${sqlQuote(run.run_id)};`,
-    `UPDATE processing_runs SET state='Queued',phase='queued',files_discovered=0,bytes_discovered=0,files_processed=0,bytes_processed=0,hashes_reused=0,hashes_computed=0,warning_count=0,error_count=0,current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=NULL,error_message='' WHERE run_id=${sqlQuote(run.run_id)};`,
+    `DELETE FROM folder_progress WHERE run_id=${sqlQuote(run.run_id)};`,
+    `DELETE FROM processing_workers WHERE run_id=${sqlQuote(run.run_id)};`,
+    `UPDATE processing_runs SET state='Queued',phase='queued',files_discovered=0,bytes_discovered=0,files_processed=0,bytes_processed=0,hashes_reused=0,hashes_computed=0,warning_count=0,error_count=0,folder_count=0,top_level_item_count=0,worker_pid=NULL,pause_requested=0,current_source='',current_item='',updated_at=${sqlQuote(at)},ended_at=NULL,error_message='' WHERE run_id=${sqlQuote(run.run_id)};`,
     `UPDATE projects SET workflow_step=3,status='Processing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
   ]);
-  runtime.processing.set(run.run_id, { pause: false });
-  enqueueRun(run.run_id, projectToken);
-  return { project_token: projectToken, run_id: run.run_id, status: 'Queued', resumed: true };
+  const job = launchBackground('index', run.run_id, projectToken, true);
+  return { project_token: projectToken, run_id: run.run_id, status: 'Queued', resumed: true, worker_pid: job?.pid || null };
 }
 
 function review(projectToken) {
@@ -778,9 +794,7 @@ async function executePlan(planId) {
       `UPDATE projects SET workflow_step=6,status='ExecutionError',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`,
       `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'execution.error',${sqlQuote(at)},${sqlQuote(JSON.stringify({ plan_id: planId, error: error.message }))});`
     ]);
-  } finally {
-    runtime.executions.delete(planId);
-  }
+  } finally { /* durable plan/action rows are the execution authority */ }
 }
 
 function startExecution(projectToken) {
@@ -794,9 +808,8 @@ function startExecution(projectToken) {
     `UPDATE plans SET state='executing',approved_at=${sqlQuote(at)} WHERE plan_id=${sqlQuote(plan.plan_id)};`,
     `UPDATE projects SET workflow_step=6,status='Executing',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)};`
   ]);
-  runtime.executions.set(plan.plan_id, { project_token: projectToken, started_at: at });
-  setImmediate(() => executePlan(plan.plan_id));
-  return { project_token: projectToken, plan_id: plan.plan_id, status: 'executing' };
+  const job = launchBackground('execute', plan.plan_id, projectToken);
+  return { project_token: projectToken, plan_id: plan.plan_id, status: 'executing', worker_pid: job?.pid || null };
 }
 
 function certify(projectToken) {
@@ -895,14 +908,56 @@ function evidenceStatus() {
   return Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Number(value || 0)]));
 }
 
+function folderProgress(projectToken) {
+  if (!projectRow(projectToken)) throw httpError(404, 'project not found');
+  const run = latestRun(projectToken);
+  if (!run) return { project_token: projectToken, run_id: null, folders: [] };
+  const folders = rows(`SELECT fp.*,s.normalized_path source_path
+    FROM folder_progress fp JOIN sources s ON s.source_id=fp.source_id
+    WHERE fp.run_id=${sqlQuote(run.run_id)}
+    ORDER BY fp.updated_at DESC,fp.folder_path LIMIT 500;`);
+  return { project_token: projectToken, run_id: run.run_id, state: run.state, folders };
+}
+
+function sotRollup() {
+  const active = rows(`SELECT
+    COUNT(CASE WHEN state IN ('Queued','WIP') THEN 1 END) active_jobs,
+    COUNT(CASE WHEN state='Paused' THEN 1 END) paused_jobs,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN folder_count ELSE 0 END),0) folders_discovered,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN files_discovered ELSE 0 END),0) files_discovered,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_discovered ELSE 0 END),0) bytes_discovered,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN files_processed ELSE 0 END),0) files_processed,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_processed ELSE 0 END),0) bytes_processed,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN hashes_reused ELSE 0 END),0) hashes_reused,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN hashes_computed ELSE 0 END),0) hashes_computed,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN error_count ELSE 0 END),0) errors
+    FROM processing_runs;`)[0] || {};
+  const corpusBase = `FROM (SELECT DISTINCT o.normalized_path,o.content_sha256,o.size
+    FROM current_observations co
+    JOIN observations o ON o.observation_id=co.observation_id
+    JOIN sources s ON s.source_id=co.source_id AND s.removed_at IS NULL
+    JOIN projects p ON p.project_token=s.project_token AND p.deleted_at IS NULL) corpus`;
+  const totals = rows(`SELECT COUNT(*) files,COALESCE(SUM(size),0) bytes,COUNT(DISTINCT content_sha256) unique_content ${corpusBase};`)[0] || {};
+  const duplicates = rows(`SELECT COUNT(*) duplicate_groups,COALESCE(SUM(copies-1),0) duplicate_copies,COALESCE(SUM((copies-1)*size),0) duplicate_bytes FROM (SELECT content_sha256,COUNT(*) copies,MAX(size) size ${corpusBase} GROUP BY content_sha256 HAVING COUNT(*)>1);`)[0] || {};
+  const scope = rows(`WITH ranked AS (SELECT run_id,project_token,ROW_NUMBER() OVER(PARTITION BY project_token ORDER BY started_at DESC) choice FROM processing_runs WHERE state='Closed')
+    SELECT (SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL) projects,
+      COUNT(DISTINCT fp.folder_path) folders
+    FROM folder_progress fp JOIN ranked r ON r.run_id=fp.run_id AND r.choice=1;`)[0] || {};
+  const numberValues = value => Object.fromEntries(Object.entries(value).map(([key, item]) => [key, Number(item || 0)]));
+  return { build: BUILD, updated_at: now(), active: numberValues(active), corpus: { ...numberValues(scope), ...numberValues(totals), ...numberValues(duplicates) } };
+}
+
 function schedulerStatus() {
+  const jobs = rows(`SELECT run_id,project_token,state,phase,folder_count,files_discovered,bytes_discovered,files_processed,bytes_processed,hashes_reused,hashes_computed,error_count,current_item,worker_pid,updated_at
+    FROM processing_runs WHERE state IN ('Queued','WIP','Paused') ORDER BY started_at;`);
   return {
     build: BUILD,
     worker_pool: Math.max(1, Math.min(16, Number(settings().hash_workers || 4))),
-    running: runtime.scheduler.running,
-    active: runtime.scheduler.active,
-    queued: runtime.scheduler.queue,
-    workers: runtime.scheduler.workers
+    architecture: 'background-process-per-project',
+    running: jobs.some(job => ['Queued','WIP'].includes(job.state)),
+    active: jobs.filter(job => job.state === 'WIP'),
+    queued: jobs.filter(job => job.state === 'Queued'),
+    paused: jobs.filter(job => job.state === 'Paused')
   };
 }
 
@@ -971,7 +1026,7 @@ async function handle(req, res, inputUrl) {
   try {
     if (pathname === '/api/sot/health' && req.method === 'GET') {
       ensureSchema();
-      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'global-scheduler', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
+      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'non-blocking-background-workers', 'concurrent-project-indexing', 'global-path-fingerprint-reuse', 'realtime-folder-project-sot-rollups', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
     }
     if (pathname === '/api/sot/fs' && req.method === 'GET') { json(res, 200, await browse(url.searchParams.get('path') || '/')); return true; }
     if (pathname === '/api/sot/config' && req.method === 'GET') { json(res, 200, { database_path: DATABASE_PATH, ...settings() }); return true; }
@@ -983,6 +1038,7 @@ async function handle(req, res, inputUrl) {
     if (pathname === '/api/sot/admin/db/backups' && req.method === 'GET') { json(res, 200, databaseSnapshots()); return true; }
     if (pathname === '/api/sot/turn01/r1/evidence-status' && req.method === 'GET') { json(res, 200, { build: BUILD, ...evidenceStatus() }); return true; }
     if (pathname === '/api/sot/scheduler/status' && req.method === 'GET') { json(res, 200, schedulerStatus()); return true; }
+    if (pathname === '/api/sot/rollup' && req.method === 'GET') { json(res, 200, sotRollup()); return true; }
     if ((pathname === '/api/sot/turn01/projects' || pathname === '/api/sot/projects') && req.method === 'GET') {
       const projects = listProjects(url.searchParams.get('q') || '');
       json(res, 200, pathname.includes('/turn01/') ? { projects } : projects); return true;
@@ -1019,6 +1075,8 @@ async function handle(req, res, inputUrl) {
     }
     match = pathname.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/status$/);
     if (match && req.method === 'GET') { json(res, 200, runStatus(decodeURIComponent(match[1]))); return true; }
+    match = pathname.match(/^\/api\/sot\/projects\/([^/]+)\/fingerprint\/folders$/);
+    if (match && req.method === 'GET') { json(res, 200, folderProgress(decodeURIComponent(match[1]))); return true; }
     match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/review$/);
     if (match && req.method === 'GET') { json(res, 200, review(decodeURIComponent(match[1]))); return true; }
     match = pathname.match(/^\/api\/sot\/turn01\/projects\/([^/]+)\/plan$/);
@@ -1045,5 +1103,6 @@ module.exports = {
   VERSION,
   BUILD,
   EXPECTED_MIGRATION,
-  _test: { review, generatePlan, startProcessing, runStatus, startExecution, certify, configure, projectDetail, listProjects, runtime, sqlite }
+  _test: { review, generatePlan, startProcessing, runStatus, startExecution, certify, configure, projectDetail, listProjects, folderProgress, sotRollup, schedulerStatus, runtime, sqlite },
+  _worker: { processRun, executePlan }
 };

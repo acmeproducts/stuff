@@ -2,7 +2,7 @@
 
 **Repository:** `acmeproducts/stuff`
 **Single planning authority:** this file only (`project-backlog.md`)
-**Status:** CLEAN REBUILD AUTHORIZED
+**Status:** CLEAN REBUILD INSTALLED · PROJECT AND NON-BLOCKING SCHEDULER CORRECTION AUTHORIZED
 **Owner ruling:** 2026-08-23
 
 All earlier SOT plans, additive backend overlays, hotfixes, recovery installers, and historical database fixtures are non-authoritative. Git history is sufficient history. No implementation may reconstruct the next release by concatenating those layers.
@@ -40,7 +40,27 @@ This eliminates duplicate-column probes, request-time migration work, ambiguous 
 
 The application is one linear workflow:
 
-`PROJECT → SOURCES → PROCESS → REVIEW → PLAN → EXECUTE → CERTIFY`
+`PROJECT → PROCESS → REVIEW → EXECUTE → CERTIFY`
+
+Project owns source-scope definition. Sources and plan generation are internal capabilities, not separate primary destinations.
+
+### Project surface
+
+- Top ribbon: `SOT` with version/build, one prominent omnisearch, and an icon-only Admin gear.
+- Project ribbon: icon-only Add Project and Delete Selected Project actions.
+- The project table is the primary Project surface. Its initial columns are Name, Size, Folder Count, Top Level Item Count, and Last Updated.
+- Project name is editable inline and saves on Enter or blur without changing the immutable project token.
+- Size/count/update values are populated from durable processed observations; blank values mean that the scope has not yet been processed.
+
+### Add/Edit Project modal
+
+Project creation and scope editing use the established three-column interaction:
+
+1. actual available volumes/roots;
+2. a navigable folder explorer for the selected volume/path;
+3. paths currently staged in the Project.
+
+Selecting the current volume root or any parent folder adds that path once and includes all descendants recursively during Processing. The operator is never required to add every child folder. `$RECYCLE.BIN` is never selectable. Saving creates or updates the named project and its complete path membership atomically, then returns to the Project surface ready to proceed to Processing.
 
 Rules:
 
@@ -48,8 +68,11 @@ Rules:
 - one Back action moves exactly one step back where reversal is valid;
 - no free jumping ahead;
 - changing project scope invalidates downstream evidence, plans, and certifications;
-- Step 1 and Step 2 perform no corpus scans and must be effectively immediate;
+- Project setup performs no corpus scan and must be effectively immediate;
 - long-running processing and execution are asynchronous and expose current path/file, counters, warnings, errors, throughput, and state;
+- indexing/fingerprinting runs outside the HTTP/UI process, so no scan may starve navigation, search, review, planning, execution, administration, or status requests;
+- separate projects may index concurrently; a project may have only one active indexing run at a time;
+- indexing one project never blocks review, planning, execution, or certification work on another project whose own evidence gates are satisfied;
 - Admin is operational support, not a competing workflow;
 - source material is never deleted by SOT.
 
@@ -95,6 +118,10 @@ Processing performs:
 5. durable observation/content persistence;
 6. downstream invalidation when current evidence changes.
 
+Progress is durable and queryable while work is running. Folder, project, and SOT rollups expose accumulating folders, files, bytes, processed bytes, reusable hashes, computed hashes, active jobs, and errors. The SOT rollup also reports exact corpus-wide duplicate groups, duplicate copies, and duplicate bytes from distinct current physical paths.
+
+Fingerprint reuse is global, not confined to one project. When an already-observed normalized file path has the same size and modified time, its authoritative SHA-256 is reused across project membership and later runs. Content identity and verified Target/Backup holdings also remain global, so SOT never repeats hashing, copying, or verification work merely because the same path or content participates in another project.
+
 Review reports at minimum current file/byte totals, unique content, exact duplicates, changed paths, Target coverage, Backup coverage, required Target bytes, required Backup bytes, warnings, and blocking conditions.
 
 ## 7. Plan, execute, certify
@@ -123,6 +150,8 @@ Keep the existing production topology:
 
 Do not introduce another service, port, proxy, or Tailscale change.
 
+Indexing and execution workers are child processes owned by `openclaw-report-server.service`; they do not listen on another port. SQLite remains in WAL mode and every worker commits bounded transactions so read/status traffic continues during background work.
+
 ## 9. Required acceptance gate
 
 Before publication, a test must create a brand-new database and prove:
@@ -138,5 +167,8 @@ Before publication, a test must create a brand-new database and prove:
 9. A source mutation creates new evidence, invalidates downstream state, and generates the expected new plan.
 10. Migration status and SQLite integrity are clean.
 11. API module load and ordinary requests emit no schema or duplicate-column errors.
+12. Two project indexing runs can overlap while health, project list, SOT rollup, review, and plan requests remain responsive.
+13. A second project reuses an unchanged path fingerprint instead of hashing that file again.
+14. Folder, project, and SOT progress counters advance durably while indexing is active, including SOT duplicate totals after completion.
 
 The installer may wipe the live SOT database only after this empty-database acceptance test passes locally on the candidate artifacts.
