@@ -15,6 +15,7 @@ on:
     paths:
       - "market-navigator-collector.py"
       - "market-navigator-build-db.py"
+      - "scripts/market-navigator-ui-migrate.py"
       - ".github/workflows/market-navigator-collector.yml"
 
 permissions:
@@ -42,6 +43,21 @@ jobs:
       - name: Build canonical database and derived indexes
         run: python3 market-navigator-build-db.py
 
+      - name: Apply canonical UI semantics
+        run: python3 scripts/market-navigator-ui-migrate.py
+
+      - name: Validate UI JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('market-view-ui-v2.html').read_text()
+          m=re.search(r'<script>(.*)</script>',html,re.S)
+          if not m: raise SystemExit('Market Navigator inline script not found')
+          Path('/tmp/market-view-ui-v2.js').write_text(m.group(1))
+          PY
+          node --check /tmp/market-view-ui-v2.js
+
       - name: Validate generated backend and database contracts
         run: |
           python3 - <<'PY'
@@ -58,6 +74,8 @@ jobs:
           db=json.loads((root/'manifest.json').read_text())
           if db.get('schema')!='market-navigator-database-v1': raise SystemExit('Invalid database manifest schema')
           if not db.get('validation',{}).get('ok'): raise SystemExit('Database reconciliation failed: '+str(db.get('validation')))
+          if db.get('indexes',{}).get('growth',{}).get('children') != ['qqq']:
+            raise SystemExit('Growth must measure growth leadership; financing conditions cannot be an equal-weight Growth child')
           for name in ('risk','growth','macro','regime'):
             p=root/'indexes'/f'{name}.json'
             if not p.exists(): raise SystemExit(f'Missing derived index {name}')
@@ -66,15 +84,15 @@ jobs:
           print('Validated database',db.get('revision'),'regime observations',db['indexes']['regime']['count'])
           PY
 
-      - name: Commit refreshed Market Navigator database
+      - name: Commit refreshed Market Navigator database and UI
         run: |
-          if [ -z "$(git status --porcelain -- data/market-backend market-data)" ]; then
-            echo "No eligible Market Navigator data changed."
+          if [ -z "$(git status --porcelain -- data/market-backend market-data market-view-ui-v2.html)" ]; then
+            echo "No eligible Market Navigator data or UI changed."
             exit 0
           fi
           git config user.name "market-navigator-bot"
           git config user.email "market-navigator-bot@users.noreply.github.com"
-          git add data/market-backend market-data
-          git commit -m "data: refresh Market Navigator database"
+          git add data/market-backend market-data market-view-ui-v2.html
+          git commit -m "data: refresh Market Navigator database and UI"
           git pull --rebase origin main
           git push origin HEAD:main
