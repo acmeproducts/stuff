@@ -82,7 +82,7 @@ async function main() {
 
   try {
     const health = await request(base, 'GET', '/api/sot/health');
-    assert.equal(health.payload.build, '2026.08.23.sot-project-controls-3');
+    assert.equal(health.payload.build, '2026.08.23.sot-observability-4');
     report.health_ms = health.milliseconds;
 
     const configured = await request(base, 'PUT', '/api/sot/admin/settings', { target_root: targetRoot, backup_root: backupRoot, hash_workers: 4 });

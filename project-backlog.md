@@ -2,7 +2,7 @@
 
 **Repository:** `acmeproducts/stuff`
 **Single planning authority:** this file only (`project-backlog.md`)
-**Status:** CLEAN REBUILD INSTALLED · PROJECT AND NON-BLOCKING SCHEDULER CORRECTION AUTHORIZED
+**Status:** CLEAN REBUILD INSTALLED · OBSERVABILITY AND WORKER-LIFECYCLE CORRECTION AUTHORIZED
 **Owner ruling:** 2026-08-23
 
 All earlier SOT plans, additive backend overlays, hotfixes, recovery installers, and historical database fixtures are non-authoritative. Git history is sufficient history. No implementation may reconstruct the next release by concatenating those layers.
@@ -53,6 +53,8 @@ Project owns source-scope definition. Sources and plan generation are internal c
 - Size/count/update values are populated from durable processed observations; blank values mean that the scope has not yet been processed.
 - Every project row owns one Play/Pause toggle and one Stop control. Play starts or resumes indexing, Pause requests a recoverable pause, and Stop ends the current run without discarding fingerprints already completed.
 - Every row exposes its current run state and phase plus live files, folders, discovered bytes, processed bytes, reuse count, errors, and last activity. These counters update without opening the project.
+- Every active row exposes a determinate progress bar when totals are known, its active worker count, and the current file path owned by every non-idle fingerprint worker. A run may never appear idle merely because its first hash batch has not committed.
+- Each row has direct access to that project's durable activity history. The Project surface also has direct access to the SOT-wide activity history.
 
 ### Add/Edit Project modal
 
@@ -123,6 +125,17 @@ Processing performs:
 
 Progress is durable and queryable while work is running. Folder, project, and SOT rollups expose accumulating folders, files, bytes, processed bytes, reusable hashes, computed hashes, active jobs, and errors. The SOT rollup also reports exact corpus-wide duplicate groups, duplicate copies, and duplicate bytes from distinct current physical paths.
 
+Observability is part of correctness, not optional presentation:
+
+- the SOT ribbon reports active projects, active workers, phase counts, discovered/processed files and bytes, discovered folders, reused/computed hashes, errors, and stable corpus duplicate totals;
+- each project row reports the same project-scoped counters, progress percentage, active worker count, and live worker paths;
+- the Processing surface reports every live worker path, folder-level discovery/processing counters, and the project's recent durable activity;
+- SOT-wide and project-scoped activity APIs return ordered durable events with project name, event type, timestamp, and structured detail;
+- activity is visible from the Project ribbon, each project row, and Administration;
+- durable events cover worker launch, worker start, phase changes, periodic discovery progress, periodic fingerprint progress, pause, resume, stop, completion, error, and worker exit;
+- progress events are rate-limited and transactional so logging cannot become a throughput bottleneck;
+- worker standard error and exit code/signal are captured with a bounded size. An unexpected worker exit atomically changes an active run and its project to `Error`, clears its worker ownership, and records the failure. No exited worker may leave a durable run stranded at `Queued` or `WIP`.
+
 Fingerprint reuse is global, not confined to one project. When an already-observed normalized file path has the same size and modified time, its authoritative SHA-256 is reused across project membership and later runs. Content identity and verified Target/Backup holdings also remain global, so SOT never repeats hashing, copying, or verification work merely because the same path or content participates in another project.
 
 Pause and Stop are durable requests. A pause leaves the run resumable. A stop closes the run as operator-stopped; starting again creates a new run that reuses every completed global path fingerprint from the stopped run. Both requests interrupt an in-flight hash promptly and never delete source content or completed fingerprint evidence.
@@ -178,5 +191,9 @@ Before publication, a test must create a brand-new database and prove:
 15. Project-row Play/Pause affects only that project, resumes successfully, and keeps status traffic responsive.
 16. Project-row Stop closes only that run, preserves completed global fingerprints, and a later Play starts a clean run that reuses them.
 17. The project table updates state, phase, files, folders, bytes, reuse, errors, and last activity while work runs.
+18. The SOT ribbon, project row, Processing surface, and activity APIs expose live worker count and current file paths before the first hash batch commits.
+19. Durable activity records worker lifecycle, phase transitions, rate-limited discovery/fingerprint progress, operator controls, completion, and errors in chronological order.
+20. Killing an indexing child process produces a bounded worker-exit event and changes the active run/project to `Error`; it cannot remain `Queued` or `WIP`.
+21. The Project ribbon, every project row, and Administration open a live SOT-wide or project-scoped activity log without blocking indexing.
 
 The historical clean-cut installer could wipe the old SOT database only after its empty-database acceptance test. Every later updater must migrate the installed database in place and preserve all project/corpus rows.

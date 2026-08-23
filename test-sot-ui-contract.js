@@ -15,17 +15,29 @@ assert.match(html, /id="projectSearch"[^>]+placeholder="Omnisearch projects/);
 assert.match(html, /id="adminButton"[^>]+aria-label="Administration"/);
 assert.match(html, /id="newProject"[^>]+aria-label="Add project"/);
 assert.match(html, /id="deleteProject"[^>]+aria-label="Delete selected project"/);
-assert.match(html, /<th>Name<\/th><th>Size<\/th><th>Folder Count<\/th><th>Top Level Item Count<\/th><th>Last Updated<\/th><th>Index<\/th>/);
+assert.match(html, /id="activityButton"[^>]+aria-label="SOT activity log"/);
+assert.match(html, /<th>Name and live activity<\/th><th>Size<\/th><th>Folder Count<\/th><th>Top Level Item Count<\/th><th>Last Updated<\/th><th>Index<\/th>/);
 assert.match(html, /data-run-control="toggle"/);
 assert.match(html, /data-run-control="stop"/);
 assert.match(html, /aria-label="Stop indexing"/);
+assert.match(html, /data-project-activity=/);
+assert.match(html, /aria-label="Project activity log"/);
 assert.match(html, /projectRunReadout/);
+assert.match(html, /projectPercent/);
+assert.match(html, /workerReadout/);
+assert.match(html, /row-progress/);
+assert.match(html, /active_workers/);
+assert.match(html, /hashes_computed/);
 assert.match(html, /\['Volumes','Source\(s\)','Project'\]|<div class="picker-head">Volumes<\/div>[\s\S]+<div class="picker-head">Source\(s\)<\/div>[\s\S]+<div class="picker-head">Project<\/div>/);
 assert.match(html, /Add entire volume/);
 assert.match(html, /includes every descendant recursively/);
 assert.match(html, /fingerprint\/folders/);
 assert.match(html, /api\('\/rollup'\)/);
 assert.match(html, /duplicate copies/);
+assert.match(html, /async function openActivity/);
+assert.match(html, /Durable worker, phase, progress, control, completion, and error history/);
+assert.match(html, /Recent project activity/);
+assert.match(html, /id="adminActivity"/);
 assert.match(html, /Background indexing is isolated from the UI/);
 assert.match(html, /back\.textContent='← Projects'/);
 assert.match(html, /\.inline-name/);
@@ -35,6 +47,8 @@ console.log(JSON.stringify({
   project_columns: 'PASS',
   project_row_play_pause_stop: 'PASS',
   project_row_realtime_readout: 'PASS',
+  worker_paths_and_progress: 'PASS',
+  sot_and_project_activity_logs: 'PASS',
   three_column_recursive_picker: 'PASS',
   realtime_folder_project_sot_progress: 'PASS',
   background_navigation: 'PASS',
