@@ -34,18 +34,18 @@ node --check "$TEMP_ROOT/sot-db-manage.js"
 node --check "$TEMP_ROOT/integrate-sot-server.js"
 node --check "$TEMP_ROOT/test-sot-clean-e2e.js"
 python3 -m py_compile "$TEMP_ROOT/sot-sqlite.py"
-python3 - "$TEMP_ROOT/sot-turn01-r2-wizard.html" "$TEMP_ROOT/sot-dbadmin.html" "$TEMP_ROOT/ui.js" <<'PY'
+python3 - "$TEMP_ROOT/sot-turn01-r2-wizard.html" "$TEMP_ROOT/sot-dbadmin.html" "$TEMP_ROOT" <<'PY'
 import pathlib,re,sys
-scripts=[]
-for filename in sys.argv[1:3]:
+for index,filename in enumerate(sys.argv[1:3]):
     html=pathlib.Path(filename).read_text()
-    scripts.extend(re.findall(r'<script[^>]*>([\s\S]*?)</script>',html,re.I))
+    scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',html,re.I)
+    pathlib.Path(sys.argv[3],f'ui-{index}.js').write_text('\n;\n'.join(scripts))
 for marker in ['2026.08.23.sot-clean-ui-1','2026.08.23.sot-clean-admin-1']:
     if not any(marker in pathlib.Path(name).read_text() for name in sys.argv[1:3]):
         raise SystemExit('UI marker missing: '+marker)
-pathlib.Path(sys.argv[3]).write_text('\n;\n'.join(scripts))
 PY
-node --check "$TEMP_ROOT/ui.js"
+node --check "$TEMP_ROOT/ui-0.js"
+node --check "$TEMP_ROOT/ui-1.js"
 
 echo '=== EMPTY-DATABASE ACCEPTANCE TEST ==='
 (
