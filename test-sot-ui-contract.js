@@ -15,7 +15,11 @@ assert.match(html, /id="projectSearch"[^>]+placeholder="Omnisearch projects/);
 assert.match(html, /id="adminButton"[^>]+aria-label="Administration"/);
 assert.match(html, /id="newProject"[^>]+aria-label="Add project"/);
 assert.match(html, /id="deleteProject"[^>]+aria-label="Delete selected project"/);
-assert.match(html, /<th>Name<\/th><th>Size<\/th><th>Folder Count<\/th><th>Top Level Item Count<\/th><th>Last Updated<\/th>/);
+assert.match(html, /<th>Name<\/th><th>Size<\/th><th>Folder Count<\/th><th>Top Level Item Count<\/th><th>Last Updated<\/th><th>Index<\/th>/);
+assert.match(html, /data-run-control="toggle"/);
+assert.match(html, /data-run-control="stop"/);
+assert.match(html, /aria-label="Stop indexing"/);
+assert.match(html, /projectRunReadout/);
 assert.match(html, /\['Volumes','Source\(s\)','Project'\]|<div class="picker-head">Volumes<\/div>[\s\S]+<div class="picker-head">Source\(s\)<\/div>[\s\S]+<div class="picker-head">Project<\/div>/);
 assert.match(html, /Add entire volume/);
 assert.match(html, /includes every descendant recursively/);
@@ -29,6 +33,8 @@ assert.match(html, /\.inline-name/);
 console.log(JSON.stringify({
   ribbons: 'PASS',
   project_columns: 'PASS',
+  project_row_play_pause_stop: 'PASS',
+  project_row_realtime_readout: 'PASS',
   three_column_recursive_picker: 'PASS',
   realtime_folder_project_sot_progress: 'PASS',
   background_navigation: 'PASS',

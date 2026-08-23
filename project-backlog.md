@@ -51,6 +51,8 @@ Project owns source-scope definition. Sources and plan generation are internal c
 - The project table is the primary Project surface. Its initial columns are Name, Size, Folder Count, Top Level Item Count, and Last Updated.
 - Project name is editable inline and saves on Enter or blur without changing the immutable project token.
 - Size/count/update values are populated from durable processed observations; blank values mean that the scope has not yet been processed.
+- Every project row owns one Play/Pause toggle and one Stop control. Play starts or resumes indexing, Pause requests a recoverable pause, and Stop ends the current run without discarding fingerprints already completed.
+- Every row exposes its current run state and phase plus live files, folders, discovered bytes, processed bytes, reuse count, errors, and last activity. These counters update without opening the project.
 
 ### Add/Edit Project modal
 
@@ -73,6 +75,7 @@ Rules:
 - indexing/fingerprinting runs outside the HTTP/UI process, so no scan may starve navigation, search, review, planning, execution, administration, or status requests;
 - separate projects may index concurrently; a project may have only one active indexing run at a time;
 - indexing one project never blocks review, planning, execution, or certification work on another project whose own evidence gates are satisfied;
+- row controls are independent: pausing or stopping one project never affects another project or the HTTP/UI process;
 - Admin is operational support, not a competing workflow;
 - source material is never deleted by SOT.
 
@@ -122,6 +125,8 @@ Progress is durable and queryable while work is running. Folder, project, and SO
 
 Fingerprint reuse is global, not confined to one project. When an already-observed normalized file path has the same size and modified time, its authoritative SHA-256 is reused across project membership and later runs. Content identity and verified Target/Backup holdings also remain global, so SOT never repeats hashing, copying, or verification work merely because the same path or content participates in another project.
 
+Pause and Stop are durable requests. A pause leaves the run resumable. A stop closes the run as operator-stopped; starting again creates a new run that reuses every completed global path fingerprint from the stopped run. Both requests interrupt an in-flight hash promptly and never delete source content or completed fingerprint evidence.
+
 Review reports at minimum current file/byte totals, unique content, exact duplicates, changed paths, Target coverage, Backup coverage, required Target bytes, required Backup bytes, warnings, and blocking conditions.
 
 ## 7. Plan, execute, certify
@@ -170,5 +175,8 @@ Before publication, a test must create a brand-new database and prove:
 12. Two project indexing runs can overlap while health, project list, SOT rollup, review, and plan requests remain responsive.
 13. A second project reuses an unchanged path fingerprint instead of hashing that file again.
 14. Folder, project, and SOT progress counters advance durably while indexing is active, including SOT duplicate totals after completion.
+15. Project-row Play/Pause affects only that project, resumes successfully, and keeps status traffic responsive.
+16. Project-row Stop closes only that run, preserves completed global fingerprints, and a later Play starts a clean run that reuses them.
+17. The project table updates state, phase, files, folders, bytes, reuse, errors, and last activity while work runs.
 
-The installer may wipe the live SOT database only after this empty-database acceptance test passes locally on the candidate artifacts.
+The historical clean-cut installer could wipe the old SOT database only after its empty-database acceptance test. Every later updater must migrate the installed database in place and preserve all project/corpus rows.
