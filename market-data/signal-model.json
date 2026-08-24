@@ -1,0 +1,156 @@
+{
+  "schema": "market-navigator-signal-model-v2",
+  "modelVersion": "2.0.0",
+  "principles": {
+    "primaryQuestion": "How favorable is the current investment environment relative to the selected historical period, what evidence is driving that assessment, and is that evidence strengthening or weakening?",
+    "regimeIsArithmeticAverage": false,
+    "aiDeterminesClassification": false,
+    "selectedWindowDefinesComparisonContext": true,
+    "relativePosition": "percentile within selected valid observation window",
+    "colorSemantics": {
+      "favorable": "green",
+      "mixed": "amber",
+      "unfavorable": "red"
+    }
+  },
+  "trendRules": {
+    "daily": {
+      "recentPeriods": 20,
+      "confirmationPeriods": 60,
+      "description": "20 trading-day direction with 60 trading-day confirmation; one-day movement is not a trend"
+    },
+    "weekly": {
+      "recentPeriods": 6,
+      "confirmationPeriods": 13,
+      "description": "six weekly observations with roughly one-quarter confirmation"
+    },
+    "monthly": {
+      "recentPeriods": 3,
+      "confirmationPeriods": 6,
+      "description": "three successive releases define initial persistence; six releases provide stronger confirmation"
+    },
+    "quarterly": {
+      "recentPeriods": 2,
+      "confirmationPeriods": 4,
+      "description": "two successive quarters define direction; four quarters provide year-over-year context"
+    }
+  },
+  "relativePositionBands": [
+    {"maxPercentile": 10, "label": "Very Low"},
+    {"maxPercentile": 30, "label": "Low"},
+    {"maxPercentile": 70, "label": "Normal"},
+    {"maxPercentile": 90, "label": "High"},
+    {"maxPercentile": 100, "label": "Very High"}
+  ],
+  "signals": {
+    "inflationPressure": {
+      "question": "Is inflation pressure building, contained, or easing?",
+      "states": ["Easing", "Contained", "Building", "High & Persistent"],
+      "evidence": [
+        {"id": "cpi", "role": "realized headline inflation", "evidenceClass": "direct", "cadence": "monthly", "importance": "primary"},
+        {"id": "corePce", "role": "underlying inflation", "evidenceClass": "direct", "cadence": "monthly", "importance": "primary"},
+        {"id": "coreCpi", "role": "underlying consumer inflation confirmation", "evidenceClass": "direct", "cadence": "monthly", "importance": "secondary"},
+        {"id": "breakeven10y", "role": "market inflation expectations", "evidenceClass": "expectations", "cadence": "daily", "importance": "confirmation"},
+        {"id": "wti", "role": "energy/input inflation pressure", "evidenceClass": "input", "cadence": "daily", "importance": "confirmation"}
+      ],
+      "rules": [
+        "High or rising realized inflation confirmed by rising energy/input prices and/or breakevens increases evidence that inflation pressure is building.",
+        "Three successive monthly increases in realized inflation are persistent evidence; confirmation from WTI or breakevens increases confidence.",
+        "Falling realized inflation with stable/falling expectations and energy prices supports Easing.",
+        "Divergence between realized inflation and input/expectation measures is Mixed rather than forced into a directional state."
+      ]
+    },
+    "financialConditions": {
+      "question": "Are policy, rates, credit and liquidity becoming more supportive or restrictive?",
+      "states": ["Supportive", "Neutral", "Restrictive", "Very Restrictive"],
+      "evidence": [
+        {"id": "nfci", "role": "broad financial conditions", "evidenceClass": "direct-composite", "cadence": "weekly", "importance": "primary", "higherMeaning": "more restrictive"},
+        {"id": "hySpread", "role": "credit risk premium", "evidenceClass": "credit", "cadence": "daily", "importance": "primary", "higherMeaning": "more restrictive"},
+        {"id": "fedFunds", "role": "policy restraint", "evidenceClass": "policy", "cadence": "daily", "importance": "primary", "higherMeaning": "more restrictive"},
+        {"id": "realTenYear", "role": "real discount rate", "evidenceClass": "rates", "cadence": "daily", "importance": "primary", "higherMeaning": "more restrictive"},
+        {"id": "twoYear", "role": "near-term policy expectations", "evidenceClass": "rates", "cadence": "daily", "importance": "confirmation", "higherMeaning": "more restrictive"},
+        {"id": "tenYear", "role": "longer-term cost of capital", "evidenceClass": "rates", "cadence": "daily", "importance": "confirmation", "higherMeaning": "more restrictive"},
+        {"id": "curve10y2y", "role": "curve shape / policy-growth relationship", "evidenceClass": "leading", "cadence": "daily", "importance": "context"}
+      ],
+      "rules": [
+        "NFCI and credit spreads are direct evidence of financial-condition tightness and receive greater interpretive priority than any single Treasury yield.",
+        "High/rising real yields and policy rates reinforce a Restrictive classification when credit conditions are also tightening.",
+        "A yield-curve move is contextual: inversion or re-steepening must be interpreted alongside growth and credit conditions rather than assigned a universal sign.",
+        "Broad easing across NFCI, credit spreads and real/policy rates supports Supportive or Improving conditions."
+      ]
+    },
+    "growthMomentum": {
+      "question": "Is economic activity expanding, stable, slowing, or contracting?",
+      "states": ["Contracting", "Weakening", "Stable", "Improving", "Strong"],
+      "evidence": [
+        {"id": "payrolls", "role": "employment / coincident activity", "evidenceClass": "coincident", "cadence": "monthly", "importance": "primary"},
+        {"id": "industrialProduction", "role": "production / coincident activity", "evidenceClass": "coincident", "cadence": "monthly", "importance": "primary"},
+        {"id": "retailSales", "role": "consumption / coincident activity", "evidenceClass": "coincident", "cadence": "monthly", "importance": "primary"},
+        {"id": "realGdp", "role": "broad realized activity", "evidenceClass": "coincident-lagging", "cadence": "quarterly", "importance": "primary"},
+        {"id": "initialClaims", "role": "labor deterioration / leading stress", "evidenceClass": "leading", "cadence": "weekly", "importance": "confirmation", "higherMeaning": "weaker growth"},
+        {"id": "qqq", "role": "market growth leadership", "evidenceClass": "market-leading", "cadence": "daily", "importance": "context"},
+        {"id": "spy", "role": "broad market expectations", "evidenceClass": "market-leading", "cadence": "daily", "importance": "context"}
+      ],
+      "rules": [
+        "Payrolls, industrial production, retail sales and real GDP describe realized growth conditions; market prices do not replace them.",
+        "Initial claims can provide earlier warning of labor deterioration and increase confidence in a Weakening classification when coincident data also slows.",
+        "QQQ/SPY are expectation/leadership context and should not dominate the historical growth assessment.",
+        "Broad improvement across multiple coincident indicators supports Improving/Strong; broad deterioration supports Weakening/Contracting."
+      ]
+    },
+    "marketRisk": {
+      "question": "How elevated is current market and credit stress relative to the selected period?",
+      "states": ["Low", "Normal", "Elevated", "High", "Acute"],
+      "evidence": [
+        {"id": "vix", "role": "equity volatility / market stress", "evidenceClass": "direct", "cadence": "daily", "importance": "primary", "higherMeaning": "more risk"},
+        {"id": "hySpread", "role": "credit stress", "evidenceClass": "direct", "cadence": "daily", "importance": "primary", "higherMeaning": "more risk"},
+        {"id": "nfci", "role": "system-wide financial conditions/stress", "evidenceClass": "direct-composite", "cadence": "weekly", "importance": "primary", "higherMeaning": "more risk"},
+        {"id": "initialClaims", "role": "labor stress confirmation", "evidenceClass": "macro-confirmation", "cadence": "weekly", "importance": "confirmation", "higherMeaning": "more risk"},
+        {"id": "gold", "role": "safe-haven / inflation / real-rate context", "evidenceClass": "ambiguous-context", "cadence": "daily", "importance": "context"}
+      ],
+      "rules": [
+        "Risk classification is driven primarily by volatility, credit stress and broad financial conditions relative to the selected historical window.",
+        "Gold is contextual and may reflect safe-haven demand, inflation hedging or real-rate effects; it must not receive a forced universal sign.",
+        "Multiple primary stress indicators rising together increases confidence in Elevated/High/Acute risk.",
+        "Falling VIX alone does not establish Low risk if credit spreads or NFCI remain stressed."
+      ]
+    }
+  },
+  "dashboardMapping": {
+    "risk": ["marketRisk"],
+    "growth": ["growthMomentum"],
+    "macro": ["inflationPressure", "financialConditions"]
+  },
+  "regimeRules": [
+    {
+      "id": "favorable-expansion",
+      "label": "Favorable",
+      "when": "Growth Momentum is Improving/Strong; Inflation Pressure is Easing/Contained; Financial Conditions are Supportive/Neutral; Market Risk is Low/Normal"
+    },
+    {
+      "id": "late-cycle-caution",
+      "label": "Caution",
+      "when": "Growth remains Stable/Improving/Strong while Inflation Pressure is Building/High & Persistent and/or Financial Conditions are Restrictive; Market Risk may be Normal/Elevated"
+    },
+    {
+      "id": "stagflation-defensive",
+      "label": "Defensive",
+      "when": "Growth Momentum is Weakening/Contracting while Inflation Pressure is Building/High & Persistent and Financial Conditions are Restrictive/Very Restrictive"
+    },
+    {
+      "id": "contraction-defensive",
+      "label": "Defensive",
+      "when": "Growth Momentum is Weakening/Contracting with Market Risk High/Acute and/or materially restrictive financial conditions"
+    },
+    {
+      "id": "early-recovery",
+      "label": "Favorable — Improving",
+      "when": "Growth Momentum turns Improving from weak levels while Inflation Pressure is Easing/Contained, Financial Conditions are becoming less restrictive, and Market Risk is falling"
+    },
+    {
+      "id": "mixed",
+      "label": "Neutral / Mixed",
+      "when": "No other rule has sufficient confirmation or major signal families materially conflict"
+    }
+  ]
+}
