@@ -15,6 +15,7 @@ const fixtureRoot = path.join(temporaryRoot, 'fixture');
 process.env.SOT_ROOT = path.join(temporaryRoot, 'state');
 process.env.SOT_DB_PATH = databasePath;
 process.env.SOT_SQLITE_ADAPTER = path.join(__dirname, 'sot-sqlite.py');
+process.env.SOT_TEST_HASH_DELAY_MS = '3000';
 
 require('./sot-db-manage').create(databasePath);
 const api = require('./sot-api');
@@ -48,7 +49,7 @@ async function main() {
   await fsp.mkdir(fixtureRoot, { recursive: true });
   const largePath = path.join(fixtureRoot, 'large-current-file.bin');
   const descriptor = await fsp.open(largePath, 'w');
-  try { await descriptor.truncate(768 * 1024 * 1024); }
+  try { await descriptor.truncate(8 * 1024 * 1024); }
   finally { await descriptor.close(); }
 
   const server = http.createServer(async (req, res) => {

@@ -413,6 +413,8 @@ class PauseRequested extends Error {}
 class StopRequested extends Error {}
 
 async function hashFile(fullPath) {
+  const testDelay = Math.max(0, Math.min(10000, Number(process.env.SOT_TEST_HASH_DELAY_MS || 0)));
+  if (testDelay) await new Promise(resolve => setTimeout(resolve, testDelay));
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
     const stream = fs.createReadStream(fullPath);
