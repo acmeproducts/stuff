@@ -35,20 +35,7 @@
 const MAX_HISTORY = 500;
 const SESSION_TTL_MS = 12 * 60 * 1000;
 const SUB_TTL_MS = 90 * 24 * 60 * 60 * 1000;   /* a subscription unused for this long is dropped */
-/* DELIVERY-CONFIRMED WAKES (permanent design, owner-directed 2026-08-23).
-   Presence is never guessed. Every push-worthy message gets a delivery id;
-   connected clients confirm receipt within ACK_GRACE_MS or the push fires.
-   A phone with no socket at all is pushed immediately — no waiting. This is
-   the industry pattern (send, confirm, escalate): zombie sockets, silent
-   background listeners, frozen JS, and lane drift are all covered by one
-   rule, with nothing to tune. A confirmed call screen IS the confirmation,
-   so a call never shows both a screen and a notification. Old clients that
-   don't confirm simply get a push after the grace — today's behavior, safe. */
-const ACK_GRACE_MS = 4000;
-export function wakeDecision(hasSocket) {
-  return hasSocket ? 'await-ack' : 'push-now';
-}
-const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack', 'delivered']);
+const TRANSIENT_TYPES = new Set(['hello', 'ping', 'pong', 'typing', 'reattach', 'ack']);
 
 /* Public by design — handed to every browser that subscribes. */
 const VAPID_PUBLIC_KEY = 'BCpmWbu3Hdj3LM0tYiPkslNsr2hKUj1ol5VQBt_VLBuvgt4gimV7F0XfJTKlCk7OYxm8bvmIVbB34lRvd3-eIoc';
@@ -155,9 +142,6 @@ export class TalkSession {
     this.messages = [];
     this.lastActivity = 0;
     this.subs = {};                     /* clientId -> { sub, at } */
-    this.seen = new Map();              /* clientId -> last message time. In-memory only:
-                                           after a restart nobody is "seen", which errs toward
-                                           waking — the harmless direction. */
     this.ready = this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs']);
       this.seq = Number(stored.get('seq')) || 0;
@@ -216,11 +200,7 @@ export class TalkSession {
   async _pushOne(clientId, rec) {
     const endpoint = rec && rec.sub && rec.sub.endpoint;
     if (!endpoint) return;
-    /* Topic collapses everything queued for an unreachable device into ONE
-       push at the service — without it, every message queued while a phone
-       slept was delivered as its own push on reconnect: the flurry.
-       Urgency high stops the push service holding wakes back on low power. */
-    const headers = { TTL: '86400', 'Content-Length': '0', Topic: 'tb-wake', Urgency: 'high' };
+    const headers = { TTL: '86400', 'Content-Length': '0' };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
@@ -236,31 +216,17 @@ export class TalkSession {
 
   async _wakeOthers(msg, senderId) {
     if (!PUSH_WORTHY.has(msg.type)) return;
-    const now = Date.now();
-    this.pendingWakes = this.pendingWakes || new Map();
     const connected = this._connectedIds();
+    const now = Date.now();
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
+      if (connected.has(clientId)) continue;             /* already listening */
       if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
       }
-      if (wakeDecision(connected.has(clientId)) === 'push-now') {
-        jobs.push(this._pushOne(clientId, rec));         /* no socket: no waiting */
-        continue;
-      }
-      /* Socket exists: the client has ACK_GRACE_MS to confirm this delivery
-         id; confirmation cancels the push, silence proves the screen never
-         got it. Timer is in-memory — if the object is evicted mid-grace the
-         failure direction is a missed cancel, i.e. an extra push: safe. */
-      const key = msg._did + '|' + clientId;
-      const self = this;
-      const t = setTimeout(() => {
-        self.pendingWakes.delete(key);
-        Promise.resolve(self._pushOne(clientId, rec)).catch(() => {});
-      }, ACK_GRACE_MS);
-      this.pendingWakes.set(key, t);
+      jobs.push(this._pushOne(clientId, rec));
     }
     if (jobs.length) await Promise.all(jobs);
   }
@@ -327,22 +293,13 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
-    if (clientId) this.seen.set(clientId, Date.now());
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
-
-    if (msg.type === 'delivered' && msg.did && clientId) {
-      const key = msg.did + '|' + clientId;
-      const t = this.pendingWakes && this.pendingWakes.get(key);
-      if (t) { clearTimeout(t); this.pendingWakes.delete(key); }
-      return;                                   /* pure confirmation, nothing else */
-    }
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     await this._touchSession();
 
     if (!isTransient) {
-      if (PUSH_WORTHY.has(msg.type)) msg._did = (msg.ts || Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
       await this._persist(msg);
     } else {
       this.seq++;
