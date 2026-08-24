@@ -5,9 +5,9 @@ REPORT_ROOT=/home/support/.openclaw/workspace/https/report
 SOT_STATE=/home/support/.openclaw/sot
 SOT_DATABASE="$SOT_STATE/sot.sqlite"
 SERVICE=openclaw-report-server.service
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/3788062e3040f55f857faf40ebe4abf13b28ea61
-PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260823-observability-4'
-EXPECTED_BUILD=2026.08.23.sot-observability-4
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/4ee1b1a4cc86e998666320b7187cae6c2b8d4f06
+PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260824-live-progress-5'
+EXPECTED_BUILD=2026.08.24.sot-live-progress-5
 TEMP_ROOT="$(mktemp -d)"
 CUTOVER_STARTED=0
 SERVICE_STOPPED=0
@@ -20,6 +20,7 @@ TARGETS=(
   "$REPORT_ROOT/sot-db/migrations/001-initial.sql"
   "$REPORT_ROOT/sot-db/migrations/002-project-list-metrics.sql"
   "$REPORT_ROOT/sot-db/migrations/003-project-run-controls.sql"
+  "$REPORT_ROOT/sot-db/migrations/004-live-byte-progress.sql"
   "$REPORT_ROOT/integrate-sot-server.js"
   "$REPORT_ROOT/SOT/sot-turn01-r2-wizard.html"
   "$REPORT_ROOT/SOT/project.html"
@@ -61,7 +62,7 @@ systemctl is-active --quiet "$SERVICE"
 test -s "$SOT_DATABASE"
 mkdir -p "$TEMP_ROOT/sot-db/migrations"
 
-echo '=== FETCH OBSERVABILITY CANDIDATE ==='
+echo '=== FETCH LIVE PROGRESS CANDIDATE ==='
 FILES=(
   sot-api.js
   sot-worker.js
@@ -70,6 +71,7 @@ FILES=(
   sot-db/migrations/001-initial.sql
   sot-db/migrations/002-project-list-metrics.sql
   sot-db/migrations/003-project-run-controls.sql
+  sot-db/migrations/004-live-byte-progress.sql
   sot-turn01-r2-wizard.html
   sot-dbadmin.html
   integrate-sot-server.js
@@ -101,7 +103,7 @@ for index,filename in enumerate(sys.argv[1:3]):
     scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',html,re.I)
     if not scripts: raise SystemExit('inline script missing: '+filename)
     pathlib.Path(sys.argv[3],f'ui-{index}.js').write_text('\n;\n'.join(scripts))
-markers=['2026.08.23.sot-observability-4','2026.08.23.sot-clean-admin-1']
+markers=['2026.08.24.sot-live-progress-5','2026.08.23.sot-clean-admin-1']
 for marker,filename in zip(markers,sys.argv[1:3]):
     if marker not in pathlib.Path(filename).read_text():
         raise SystemExit('UI marker missing: '+marker)
@@ -109,7 +111,7 @@ PY
 node --check "$TEMP_ROOT/ui-0.js"
 node --check "$TEMP_ROOT/ui-1.js"
 
-echo '=== UI OBSERVABILITY CONTRACT TEST ==='
+echo '=== UI LIVE PROGRESS CONTRACT TEST ==='
 (
   cd "$TEMP_ROOT"
   node test-sot-ui-contract.js
@@ -143,22 +145,23 @@ echo '=== WORKER VISIBILITY + CRASH TEST ==='
 )
 grep -q '"result": "PASS"' "$TEMP_ROOT/observability.json"
 
-echo '=== VERSION 2 TO VERSION 3 MIGRATION GATE ==='
-mkdir -p "$TEMP_ROOT/v2-migrations"
-cp "$TEMP_ROOT/sot-db/migrations/001-initial.sql" "$TEMP_ROOT/v2-migrations/"
-cp "$TEMP_ROOT/sot-db/migrations/002-project-list-metrics.sql" "$TEMP_ROOT/v2-migrations/"
-SOT_MIGRATIONS_DIR="$TEMP_ROOT/v2-migrations" \
+echo '=== VERSION 3 TO VERSION 4 MIGRATION GATE ==='
+mkdir -p "$TEMP_ROOT/v3-migrations"
+cp "$TEMP_ROOT/sot-db/migrations/001-initial.sql" "$TEMP_ROOT/v3-migrations/"
+cp "$TEMP_ROOT/sot-db/migrations/002-project-list-metrics.sql" "$TEMP_ROOT/v3-migrations/"
+cp "$TEMP_ROOT/sot-db/migrations/003-project-run-controls.sql" "$TEMP_ROOT/v3-migrations/"
+SOT_MIGRATIONS_DIR="$TEMP_ROOT/v3-migrations" \
 SOT_SQLITE_ADAPTER="$TEMP_ROOT/sot-sqlite.py" \
-node "$TEMP_ROOT/sot-db-manage.js" create "$TEMP_ROOT/v2.sqlite" >/dev/null
+node "$TEMP_ROOT/sot-db-manage.js" create "$TEMP_ROOT/v3.sqlite" >/dev/null
 SOT_MIGRATIONS_DIR="$TEMP_ROOT/sot-db/migrations" \
 SOT_SQLITE_ADAPTER="$TEMP_ROOT/sot-sqlite.py" \
-node "$TEMP_ROOT/sot-db-manage.js" migrate "$TEMP_ROOT/v2.sqlite" > "$TEMP_ROOT/upgrade.json"
+node "$TEMP_ROOT/sot-db-manage.js" migrate "$TEMP_ROOT/v3.sqlite" > "$TEMP_ROOT/upgrade.json"
 python3 - "$TEMP_ROOT/upgrade.json" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1]))['status']
-if not x.get('ok') or x.get('integrity')!='ok' or x.get('current_version')!=3:
-    raise SystemExit('v2 to v3 migration gate failed: '+repr(x))
-print('migration: 2 -> 3; integrity: ok')
+if not x.get('ok') or x.get('integrity')!='ok' or x.get('current_version')!=4:
+    raise SystemExit('v3 to v4 migration gate failed: '+repr(x))
+print('migration: 3 -> 4; integrity: ok')
 PY
 
 echo '=== NON-DESTRUCTIVE CUTOVER ==='
@@ -180,6 +183,7 @@ install -m 0755 "$TEMP_ROOT/sot-sqlite.py" "$REPORT_ROOT/sot-sqlite.py"
 install -m 0644 "$TEMP_ROOT/sot-db/migrations/001-initial.sql" "$REPORT_ROOT/sot-db/migrations/001-initial.sql"
 install -m 0644 "$TEMP_ROOT/sot-db/migrations/002-project-list-metrics.sql" "$REPORT_ROOT/sot-db/migrations/002-project-list-metrics.sql"
 install -m 0644 "$TEMP_ROOT/sot-db/migrations/003-project-run-controls.sql" "$REPORT_ROOT/sot-db/migrations/003-project-run-controls.sql"
+install -m 0644 "$TEMP_ROOT/sot-db/migrations/004-live-byte-progress.sql" "$REPORT_ROOT/sot-db/migrations/004-live-byte-progress.sql"
 install -m 0644 "$TEMP_ROOT/integrate-sot-server.js" "$REPORT_ROOT/integrate-sot-server.js"
 install -m 0644 "$TEMP_ROOT/sot-turn01-r2-wizard.html" "$REPORT_ROOT/SOT/sot-turn01-r2-wizard.html"
 install -m 0644 "$TEMP_ROOT/sot-turn01-r2-wizard.html" "$REPORT_ROOT/SOT/project.html"
@@ -192,7 +196,7 @@ node "$REPORT_ROOT/integrate-sot-server.js" "$REPORT_ROOT/session-server.js"
 sudo systemctl start "$SERVICE"
 SERVICE_STOPPED=0
 
-echo '=== LIVE HEALTH + OBSERVABILITY GATES ==='
+echo '=== LIVE HEALTH + PROGRESS GATES ==='
 for attempt in {1..30}; do
   if curl --max-time 3 -fsS http://127.0.0.1:18080/api/sot/health -o "$TEMP_ROOT/health.json"; then break; fi
   sleep 1
@@ -202,9 +206,9 @@ import json,pathlib,sys
 p=pathlib.Path(sys.argv[1])
 if not p.exists(): raise SystemExit('SOT health did not become ready')
 x=json.loads(p.read_text())
-if x.get('status')!='ok' or x.get('build')!=sys.argv[2] or x.get('database_version')!=3:
+if x.get('status')!='ok' or x.get('build')!=sys.argv[2] or x.get('database_version')!=4:
     raise SystemExit('wrong live health: '+repr(x))
-required={'live-worker-paths','durable-activity-log','worker-exit-fail-closed'}
+required={'live-worker-paths','live-in-file-byte-progress','visible-ui-heartbeat','durable-activity-log','worker-exit-fail-closed'}
 if not required.issubset(set(x.get('capabilities') or [])):
     raise SystemExit('observability capabilities missing: '+repr(x))
 print(json.dumps(x,indent=2))
@@ -229,28 +233,31 @@ python3 - "$TEMP_ROOT/status.json" <<'PY'
 import json,sys
 x=json.load(open(sys.argv[1]))
 if not (x.get('integrity') or {}).get('ok'): raise SystemExit('live database integrity failed')
-if [m.get('version') for m in x.get('migrations',[])] != [1,2,3]: raise SystemExit('wrong live migration set')
+if [m.get('version') for m in x.get('migrations',[])] != [1,2,3,4]: raise SystemExit('wrong live migration set')
 print('database:',x.get('database_path'))
 print('integrity:',x['integrity']['result'])
-print('migrations: 001, 002, 003')
+print('migrations: 001, 002, 003, 004')
 PY
 
 echo '=== PUBLIC UI GATE ==='
 for attempt in {1..10}; do
   if curl --max-time 15 -fsS "$PUBLIC_URL" -o "$TEMP_ROOT/public.html" && \
-     grep -q '2026.08.23.sot-observability-4' "$TEMP_ROOT/public.html"; then
+     grep -q '2026.08.24.sot-live-progress-5' "$TEMP_ROOT/public.html"; then
     break
   fi
   sleep 2
 done
-grep -q '2026.08.23.sot-observability-4' "$TEMP_ROOT/public.html"
+grep -q '2026.08.24.sot-live-progress-5' "$TEMP_ROOT/public.html"
 grep -q 'Name and live activity' "$TEMP_ROOT/public.html"
 grep -q 'data-project-activity' "$TEMP_ROOT/public.html"
 grep -q 'SOT activity log' "$TEMP_ROOT/public.html"
 grep -q 'Recent project activity' "$TEMP_ROOT/public.html"
+grep -q 'id="liveHeartbeat"' "$TEMP_ROOT/public.html"
+grep -q 'Bytes actively hashing' "$TEMP_ROOT/public.html"
+grep -q 'Recent SOT activity' "$TEMP_ROOT/public.html"
 
 CUTOVER_STARTED=0
-echo '=== SOT OBSERVABILITY 4 INSTALLED ==='
+echo '=== SOT LIVE PROGRESS 5 INSTALLED ==='
 echo 'Existing SOT projects, fingerprints, observations, plans, events, and corpus rows were preserved.'
 echo 'Source, Target, and Backup file content was not deleted.'
 echo "URL: $PUBLIC_URL"
