@@ -82,7 +82,7 @@ async function main() {
 
   try {
     const health = await request(base, 'GET', '/api/sot/health');
-    assert.equal(health.payload.build, '2026.08.23.sot-observability-4');
+    assert.equal(health.payload.build, '2026.08.24.sot-live-progress-5');
     report.health_ms = health.milliseconds;
 
     const configured = await request(base, 'PUT', '/api/sot/admin/settings', { target_root: targetRoot, backup_root: backupRoot, hash_workers: 4 });
@@ -179,12 +179,12 @@ async function main() {
     assert.ok(dump.payload.size > 0 && fs.existsSync(dump.payload.path));
     const dbStatus = await request(base, 'GET', '/api/sot/admin/db/status');
     assert.equal(dbStatus.payload.integrity.ok, true);
-    assert.equal(dbStatus.payload.migrations.length, 3);
+    assert.equal(dbStatus.payload.migrations.length, 4);
 
     const migrationStatus = database.status(databasePath);
     assert.equal(migrationStatus.ok, true);
     report.final_review = secondReview;
-    assert.equal(migrationStatus.current_version, 3);
+    assert.equal(migrationStatus.current_version, 4);
     report.project_metrics = {
       size_bytes: projectList.payload.projects[0].size_bytes,
       folder_count: projectList.payload.projects[0].folder_count,

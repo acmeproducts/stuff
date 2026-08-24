@@ -98,7 +98,7 @@ async function main() {
     assert.equal(Number(restarted.run.files_processed), 30);
 
     const health = await request(base, 'GET', '/api/sot/health');
-    assert.equal(health.payload.database_version, 3);
+    assert.equal(health.payload.database_version, 4);
     assert.ok(health.milliseconds < 1000, `health took ${health.milliseconds}ms`);
 
     console.log(JSON.stringify({

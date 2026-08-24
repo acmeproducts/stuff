@@ -8,8 +8,8 @@ const path = require('path');
 const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const VERSION = '1.0.0';
-const BUILD = '2026.08.23.sot-observability-4';
-const EXPECTED_MIGRATION = 3;
+const BUILD = '2026.08.24.sot-live-progress-5';
+const EXPECTED_MIGRATION = 4;
 const SOT_ROOT = process.env.SOT_ROOT || path.join(os.homedir(), '.openclaw', 'sot');
 const DATABASE_PATH = process.env.SOT_DB_PATH || path.join(SOT_ROOT, 'sot.sqlite');
 const SNAPSHOT_DIR = process.env.SOT_SNAPSHOT_DIR || path.join(SOT_ROOT, 'db-snapshots');
@@ -146,7 +146,10 @@ function processingProgressEvent(runId, projectToken, type, force = false) {
   const timestamp = Date.now();
   if (!force && timestamp - Number(runtime.progressEvents.get(key) || 0) < 3000) return;
   runtime.progressEvents.set(key, timestamp);
-  const progress = rows(`SELECT run_id,state,phase,folder_count,top_level_item_count,files_discovered,bytes_discovered,files_processed,bytes_processed,hashes_reused,hashes_computed,warning_count,error_count,current_source,current_item,updated_at FROM processing_runs WHERE run_id=${sqlQuote(runId)} LIMIT 1;`)[0];
+  const progress = rows(`SELECT r.run_id,r.state,r.phase,r.folder_count,r.top_level_item_count,r.files_discovered,r.bytes_discovered,r.files_processed,
+    r.bytes_processed bytes_committed,r.bytes_processed+COALESCE((SELECT SUM(pw.bytes_hashed) FROM processing_workers pw WHERE pw.run_id=r.run_id AND pw.phase='fingerprinting'),0) bytes_processed,
+    r.hashes_reused,r.hashes_computed,r.warning_count,r.error_count,r.current_source,r.current_item,r.updated_at
+    FROM processing_runs r WHERE r.run_id=${sqlQuote(runId)} LIMIT 1;`)[0];
   if (progress) event(projectToken, type, progress);
 }
 
@@ -235,11 +238,12 @@ function listProjects(query = '') {
     ) SELECT p.*,
     (SELECT COUNT(*) FROM sources s WHERE s.project_token=p.project_token AND s.removed_at IS NULL) source_count,
     r.run_id processing_run_id,r.state processing_state,r.phase processing_phase,
-    r.bytes_discovered size_bytes,r.folder_count,r.top_level_item_count,r.files_discovered,r.files_processed,r.bytes_processed,
+    r.bytes_discovered size_bytes,r.folder_count,r.top_level_item_count,r.files_discovered,r.files_processed,
+    r.bytes_processed bytes_committed,r.bytes_processed+COALESCE((SELECT SUM(pw.bytes_hashed) FROM processing_workers pw WHERE pw.run_id=r.run_id AND pw.phase='fingerprinting'),0) bytes_processed,
     r.hashes_reused,r.hashes_computed,r.error_count processing_errors,r.warning_count processing_warnings,
     r.current_source,r.current_item,r.updated_at progress_updated_at,r.ended_at indexed_at,
     (SELECT COUNT(*) FROM processing_workers pw WHERE pw.run_id=r.run_id AND pw.phase<>'idle' AND r.state IN ('Queued','WIP')) active_workers,
-    (SELECT group_concat(CAST(pw.worker_id AS TEXT)||char(31)||pw.phase||char(31)||pw.path||char(31)||pw.item,char(30))
+    (SELECT group_concat(CAST(pw.worker_id AS TEXT)||char(31)||pw.phase||char(31)||pw.path||char(31)||pw.item||char(31)||CAST(pw.bytes_hashed AS TEXT)||char(31)||CAST(pw.bytes_total AS TEXT),char(30))
       FROM processing_workers pw WHERE pw.run_id=r.run_id AND pw.phase<>'idle' AND r.state IN ('Queued','WIP')) worker_activity
     FROM projects p LEFT JOIN latest r ON r.project_token=p.project_token AND r.choice=1
     WHERE p.deleted_at IS NULL${where} ORDER BY p.updated_at DESC, p.project_name COLLATE NOCASE;`);
@@ -248,8 +252,8 @@ function listProjects(query = '') {
     return {
       ...summary,
       workers: String(workerActivity || '').split(String.fromCharCode(30)).filter(Boolean).map(record => {
-        const [workerId, phase, workerPath, item] = record.split(String.fromCharCode(31));
-        return { worker_id: Number(workerId), phase, path: workerPath, item };
+        const [workerId, phase, workerPath, item, bytesHashed, bytesTotal] = record.split(String.fromCharCode(31));
+        return { worker_id: Number(workerId), phase, path: workerPath, item, bytes_hashed: Number(bytesHashed || 0), bytes_total: Number(bytesTotal || 0) };
       })
     };
   });
@@ -391,41 +395,46 @@ function latestRun(projectToken) {
 function runStatus(projectToken) {
   const run = latestRun(projectToken);
   if (!run) return { project_token: projectToken, run: null, state: 'NotStarted', workers: [] };
+  const workers = rows(`SELECT worker_id,phase,path,item,bytes_hashed,bytes_total,started_at,updated_at FROM processing_workers WHERE run_id=${sqlQuote(run.run_id)} ORDER BY worker_id;`);
+  const inFlightBytes = workers.filter(worker => worker.phase === 'fingerprinting').reduce((sum, worker) => sum + Number(worker.bytes_hashed || 0), 0);
+  const visibleBytes = Number(run.bytes_processed || 0) + inFlightBytes;
   const elapsed = Math.max(0.001, (Date.now() - Date.parse(run.started_at)) / 1000);
-  const bytesPerSecond = Number(run.bytes_processed || 0) / elapsed;
-  const remaining = Math.max(0, Number(run.bytes_discovered || 0) - Number(run.bytes_processed || 0));
+  const bytesPerSecond = visibleBytes / elapsed;
+  const remaining = Math.max(0, Number(run.bytes_discovered || 0) - visibleBytes);
   return {
     project_token: projectToken,
-    run,
+    run: { ...run, bytes_committed: Number(run.bytes_processed || 0), bytes_processed: visibleBytes, bytes_in_flight: inFlightBytes },
     state: run.state,
     phase: run.phase,
     progress: {
       files_percent: Number(run.files_discovered) ? Number(run.files_processed) / Number(run.files_discovered) * 100 : 0,
-      bytes_percent: Number(run.bytes_discovered) ? Number(run.bytes_processed) / Number(run.bytes_discovered) * 100 : 0,
+      bytes_percent: Number(run.bytes_discovered) ? visibleBytes / Number(run.bytes_discovered) * 100 : 0,
       bytes_per_second: bytesPerSecond,
       eta_seconds: bytesPerSecond > 0 ? remaining / bytesPerSecond : null
     },
-    workers: rows(`SELECT worker_id,phase,path,item,started_at,updated_at FROM processing_workers WHERE run_id=${sqlQuote(run.run_id)} ORDER BY worker_id;`)
+    workers
   };
 }
 
 class PauseRequested extends Error {}
 class StopRequested extends Error {}
 
-async function hashFile(fullPath) {
+async function hashFile(fullPath, onProgress = null) {
   const testDelay = Math.max(0, Math.min(10000, Number(process.env.SOT_TEST_HASH_DELAY_MS || 0)));
   if (testDelay) await new Promise(resolve => setTimeout(resolve, testDelay));
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(fullPath);
-    stream.on('data', chunk => {
-      if (workerStopSignal) { stream.destroy(new StopRequested('stop requested')); return; }
-      if (workerPauseSignal) { stream.destroy(new PauseRequested('pause requested')); return; }
-      hash.update(chunk);
-    });
-    stream.on('error', reject);
-    stream.on('end', () => resolve(hash.digest('hex')));
-  });
+  const testChunkDelay = Math.max(0, Math.min(1000, Number(process.env.SOT_TEST_HASH_CHUNK_DELAY_MS || 0)));
+  const hash = crypto.createHash('sha256');
+  const stream = fs.createReadStream(fullPath, { highWaterMark: 4 * 1024 * 1024 });
+  let bytesHashed = 0;
+  for await (const chunk of stream) {
+    if (workerStopSignal) throw new StopRequested('stop requested');
+    if (workerPauseSignal) throw new PauseRequested('pause requested');
+    hash.update(chunk);
+    bytesHashed += chunk.length;
+    if (onProgress) onProgress(bytesHashed);
+    if (testChunkDelay) await new Promise(resolve => setTimeout(resolve, testChunkDelay));
+  }
+  return hash.digest('hex');
 }
 
 function launchBackground(kind, id, projectToken, replace = false) {
@@ -542,16 +551,27 @@ async function enumerateSource(runId, source) {
 async function processHashRow(runId, projectToken, item, workerId) {
   const workerNumber = workerId + 1;
   const startedAt = now();
-  execute(`INSERT INTO processing_workers(run_id,worker_id,phase,path,item,started_at,updated_at) VALUES(${sqlQuote(runId)},${workerNumber},'fingerprinting',${sqlQuote(item.full_path)},${sqlQuote(item.relative_path)},${sqlQuote(startedAt)},${sqlQuote(startedAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='fingerprinting',path=excluded.path,item=excluded.item,started_at=excluded.started_at,updated_at=excluded.updated_at;`);
+  execute(`INSERT INTO processing_workers(run_id,worker_id,phase,path,item,bytes_hashed,bytes_total,started_at,updated_at) VALUES(${sqlQuote(runId)},${workerNumber},'fingerprinting',${sqlQuote(item.full_path)},${sqlQuote(item.relative_path)},0,${Number(item.size || 0)},${sqlQuote(startedAt)},${sqlQuote(startedAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='fingerprinting',path=excluded.path,item=excluded.item,bytes_hashed=0,bytes_total=excluded.bytes_total,started_at=excluded.started_at,updated_at=excluded.updated_at;`);
   try {
     const reusable = item.current_sha256 && Number(item.current_size) === Number(item.size) && Number(item.current_modified_ms) === Number(item.modified_ms);
-    const contentSha = reusable ? item.current_sha256 : await hashFile(item.full_path);
+    let lastPersistedAt = 0;
+    const contentSha = reusable ? item.current_sha256 : await hashFile(item.full_path, bytesHashed => {
+      const timestamp = Date.now();
+      if (bytesHashed < Number(item.size || 0) && timestamp - lastPersistedAt < 500) return;
+      lastPersistedAt = timestamp;
+      const updatedAt = now();
+      transaction([
+        `UPDATE processing_workers SET bytes_hashed=${Number(bytesHashed)},updated_at=${sqlQuote(updatedAt)} WHERE run_id=${sqlQuote(runId)} AND worker_id=${workerNumber};`,
+        `UPDATE processing_runs SET updated_at=${sqlQuote(updatedAt)} WHERE run_id=${sqlQuote(runId)};`
+      ]);
+      processingProgressEvent(runId, projectToken, 'processing.fingerprint.progress');
+    });
     return { item, contentSha, reused: reusable ? 1 : 0, error: null };
   } catch (error) {
     if (error instanceof StopRequested || error instanceof PauseRequested) throw error;
     return { item, contentSha: null, reused: 0, error: String(error.message || error) };
   } finally {
-    execute(`UPDATE processing_workers SET phase='idle',path='',item='',started_at=NULL,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)} AND worker_id=${workerNumber};`);
+    execute(`UPDATE processing_workers SET phase='idle',path='',item='',bytes_hashed=0,bytes_total=0,started_at=NULL,updated_at=${sqlQuote(now())} WHERE run_id=${sqlQuote(runId)} AND worker_id=${workerNumber};`);
   }
 }
 
@@ -617,7 +637,7 @@ async function processRun(runId, projectToken) {
     ]);
     const workerCount = Math.max(1, Math.min(16, Number(settings().hash_workers || 4)));
     const workerAt = now();
-    transaction(Array.from({ length: workerCount }, (_, index) => `INSERT INTO processing_workers(run_id,worker_id,phase,path,item,started_at,updated_at) VALUES(${sqlQuote(runId)},${index + 1},'idle','','',NULL,${sqlQuote(workerAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='idle',path='',item='',started_at=NULL,updated_at=excluded.updated_at;`));
+    transaction(Array.from({ length: workerCount }, (_, index) => `INSERT INTO processing_workers(run_id,worker_id,phase,path,item,bytes_hashed,bytes_total,started_at,updated_at) VALUES(${sqlQuote(runId)},${index + 1},'idle','','',0,0,NULL,${sqlQuote(workerAt)}) ON CONFLICT(run_id,worker_id) DO UPDATE SET phase='idle',path='',item='',bytes_hashed=0,bytes_total=0,started_at=NULL,updated_at=excluded.updated_at;`));
     while (true) {
       enforceRunControl(runId);
       const batch = rows(`SELECT rf.*,pf.size current_size,pf.modified_ms current_modified_ms,pf.content_sha256 current_sha256
@@ -1072,7 +1092,20 @@ function folderProgress(projectToken) {
     FROM folder_progress fp JOIN sources s ON s.source_id=fp.source_id
     WHERE fp.run_id=${sqlQuote(run.run_id)}
     ORDER BY fp.updated_at DESC,fp.folder_path LIMIT 500;`);
-  return { project_token: projectToken, run_id: run.run_id, state: run.state, folders };
+  const active = rows(`SELECT path,bytes_hashed,bytes_total FROM processing_workers WHERE run_id=${sqlQuote(run.run_id)} AND phase='fingerprinting' AND path<>'';`);
+  const liveByFolder = new Map();
+  for (const worker of active) {
+    const folderPath = path.dirname(worker.path);
+    const value = liveByFolder.get(folderPath) || { active_files: 0, active_bytes: 0, active_bytes_total: 0 };
+    value.active_files += 1;
+    value.active_bytes += Number(worker.bytes_hashed || 0);
+    value.active_bytes_total += Number(worker.bytes_total || 0);
+    liveByFolder.set(folderPath, value);
+  }
+  return { project_token: projectToken, run_id: run.run_id, state: run.state, folders: folders.map(folder => {
+    const live = liveByFolder.get(folder.folder_path) || { active_files: 0, active_bytes: 0, active_bytes_total: 0 };
+    return { ...folder, ...live, bytes_visible: Number(folder.bytes_processed || 0) + live.active_bytes };
+  }) };
 }
 
 function sotRollup() {
@@ -1087,7 +1120,9 @@ function sotRollup() {
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN files_discovered ELSE 0 END),0) files_discovered,
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_discovered ELSE 0 END),0) bytes_discovered,
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN files_processed ELSE 0 END),0) files_processed,
-    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_processed ELSE 0 END),0) bytes_processed,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_processed ELSE 0 END),0) bytes_committed,
+    COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN bytes_processed ELSE 0 END),0)+
+      COALESCE((SELECT SUM(pw.bytes_hashed) FROM processing_workers pw JOIN latest ar ON ar.run_id=pw.run_id AND ar.choice=1 WHERE ar.state IN ('Queued','WIP') AND pw.phase='fingerprinting'),0) bytes_processed,
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN hashes_reused ELSE 0 END),0) hashes_reused,
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused') THEN hashes_computed ELSE 0 END),0) hashes_computed,
     COALESCE(SUM(CASE WHEN state IN ('Queued','WIP','Paused','Error') THEN error_count ELSE 0 END),0) errors
@@ -1189,7 +1224,7 @@ async function handle(req, res, inputUrl) {
   try {
     if (pathname === '/api/sot/health' && req.method === 'GET') {
       ensureSchema();
-      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'non-blocking-background-workers', 'concurrent-project-indexing', 'project-row-play-pause-stop', 'global-path-fingerprint-reuse', 'realtime-folder-project-sot-rollups', 'live-worker-paths', 'durable-activity-log', 'worker-exit-fail-closed', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
+      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'non-blocking-background-workers', 'concurrent-project-indexing', 'project-row-play-pause-stop', 'global-path-fingerprint-reuse', 'realtime-folder-project-sot-rollups', 'live-worker-paths', 'live-in-file-byte-progress', 'visible-ui-heartbeat', 'durable-activity-log', 'worker-exit-fail-closed', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
     }
     if (pathname === '/api/sot/fs' && req.method === 'GET') { json(res, 200, await browse(url.searchParams.get('path') || '/')); return true; }
     if (pathname === '/api/sot/config' && req.method === 'GET') { json(res, 200, { database_path: DATABASE_PATH, ...settings() }); return true; }
