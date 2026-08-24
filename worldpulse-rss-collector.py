@@ -5,6 +5,7 @@ import json
 import re
 import time
 import urllib.request
+import urllib.error
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -12,9 +13,11 @@ from pathlib import Path
 
 SOURCE_CACHE = Path('worldpulse-source-cache.json')
 NEWS_CACHE = Path('worldpulse-news-cache.json')
-MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000
+MAX_SOURCE_STORIES = 600
+MAX_OUTPUT_STORIES = 10000
 TIMEOUT = 12
-UA = 'WorldPulse/2.7 personal-news-reader (+https://acmeproducts.github.io/stuff/globe.html)'
+UA = 'WorldPulse/2.8 personal-news-reader (+https://acmeproducts.github.io/stuff/)'
 
 FEEDS = [
     ('BBC World','https://feeds.bbci.co.uk/news/world/rss.xml'),
@@ -49,6 +52,33 @@ FEEDS = [
 
 POS = ['gain','rise','growth','deal','peace','recover','surge','improve','record','breakthrough','win','boost','agreement','success','strong','ceasefire']
 NEG = ['war','attack','kill','death','crisis','fall','drop','loss','fear','threat','strike','sanction','conflict','recession','collapse','warning','disaster','dead']
+
+TOPIC_TAGS = [
+    ('ai', r'\bai\b|artificial intelligence|openai|anthropic|machine learning|large language model|llm'),
+    ('apple', r'\bapple\b|iphone|ipad|macbook'),
+    ('google', r'\bgoogle\b|alphabet|android|gemini'),
+    ('microsoft', r'\bmicrosoft\b|windows|azure|copilot'),
+    ('chips', r'semiconductor|\bchip\b|nvidia|amd|intel|tsmc'),
+    ('crypto', r'bitcoin|ethereum|crypto|blockchain'),
+    ('markets', r'stock|market|bond|yield|treasury|earnings|investor'),
+    ('oil', r'\boil\b|opec|crude'),
+    ('climate', r'climate|warming|carbon|emission|wildfire|hurricane'),
+    ('space', r'nasa|space|moon|mars|rocket|satellite|astronom'),
+    ('health', r'health|medicine|medical|hospital|vaccine|virus|drug'),
+    ('ukraine', r'ukraine|kyiv|zelensky'),
+    ('russia', r'russia|moscow|putin'),
+    ('israel', r'israel|netanyahu'),
+    ('gaza', r'gaza|hamas'),
+    ('iran', r'iran|tehran'),
+    ('china', r'china|beijing|xi jinping'),
+    ('taiwan', r'taiwan|taipei'),
+    ('india', r'india|modi|new delhi'),
+    ('europe', r'european union|\beu\b|europe'),
+    ('us-politics', r'white house|congress|senate|president|election|democrat|republican'),
+    ('fifa', r'\bfifa\b|world cup'),
+    ('football', r'football|soccer|premier league|champions league'),
+]
+
 
 def now_ms(): return int(time.time() * 1000)
 def iso(ms=None):
@@ -118,6 +148,21 @@ def story_type(title,desc):
     if re.search(r'opinion|comment|editorial',t): return 'opinion'
     return 'report'
 
+def tagify(value):
+    value = re.sub(r'[^a-z0-9]+','-',str(value).lower()).strip('-')
+    return value[:48]
+
+def story_tags(title, desc, source, subj, reg, typ, sent):
+    text=(title+' '+desc).lower()
+    tags=[]
+    def add(v):
+        v=tagify(v)
+        if v and v not in tags: tags.append(v)
+    add(subj); add(reg); add(typ); add(sent); add(source)
+    for name,pattern in TOPIC_TAGS:
+        if re.search(pattern,text): add(name)
+    return tags[:12]
+
 def fetch(url, etag=None, modified=None):
     headers={'User-Agent':UA,'Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml, */*'}
     if etag: headers['If-None-Match']=etag
@@ -146,30 +191,55 @@ def parse_feed(raw, source):
         guid=child_text(node,['guid','id']) or link or (source+'|'+title)
         if not title or not link: continue
         text=title+' '+desc
+        subj=subject(text); reg=region(text); sent=sentiment(text); typ=story_type(title,desc)
         sid=hashlib.sha1(guid.encode('utf-8','ignore')).hexdigest()
-        items.append({'id':sid,'title':title,'link':link,'description':desc,'source':source,'publishedAt':published,'subject':subject(text),'region':region(text),'sentiment':sentiment(text),'type':story_type(title,desc)})
+        items.append({'id':sid,'title':title,'link':link,'description':desc,'source':source,'publishedAt':published,'subject':subj,'region':reg,'sentiment':sent,'type':typ,'tags':story_tags(title,desc,source,subj,reg,typ,sent)})
         if len(items)>=100: break
     return items
 
 def load_source_cache():
-    if not SOURCE_CACHE.exists(): return {'version':1,'sources':{}}
+    if not SOURCE_CACHE.exists(): return {'version':2,'sources':{}}
     try: return json.loads(SOURCE_CACHE.read_text())
-    except Exception: return {'version':1,'sources':{}}
+    except Exception: return {'version':2,'sources':{}}
+
+def ensure_tags(story):
+    if story.get('tags'): return story
+    text=(story.get('title','')+' '+story.get('description',''))
+    subj=story.get('subject') or subject(text)
+    reg=story.get('region') or region(text)
+    sent=story.get('sentiment') or sentiment(text)
+    typ=story.get('type') or story_type(story.get('title',''),story.get('description',''))
+    story['subject']=subj; story['region']=reg; story['sentiment']=sent; story['type']=typ
+    story['tags']=story_tags(story.get('title',''),story.get('description',''),story.get('source','Unknown'),subj,reg,typ,sent)
+    return story
+
+def merge_source_stories(previous, incoming):
+    cutoff=now_ms()-MAX_AGE_MS
+    merged={}
+    for s in list(previous or [])+list(incoming or []):
+        if int(s.get('publishedAt',0)) < cutoff: continue
+        ensure_tags(s)
+        k=re.sub(r'[?#].*$','',s.get('link') or s.get('id') or s.get('title',''))
+        if k not in merged or int(s.get('publishedAt',0))>int(merged[k].get('publishedAt',0)):
+            merged[k]=s
+    return sorted(merged.values(),key=lambda x:int(x.get('publishedAt',0)),reverse=True)[:MAX_SOURCE_STORIES]
 
 def main():
     cache=load_source_cache(); sources=cache.setdefault('sources',{}); started=now_ms()
     for name,url in FEEDS:
         prev=sources.get(name,{})
-        rec={'url':url,'lastAttempt':iso(),'lastAttemptMs':now_ms(),'lastSuccess':prev.get('lastSuccess'),'lastSuccessMs':prev.get('lastSuccessMs'),'etag':prev.get('etag'),'lastModified':prev.get('lastModified'),'stories':prev.get('stories',[]),'status':'stale','error':None,'failureCount':prev.get('failureCount',0)}
+        prev_stories=merge_source_stories(prev.get('stories',[]),[])
+        rec={'url':url,'lastAttempt':iso(),'lastAttemptMs':now_ms(),'lastSuccess':prev.get('lastSuccess'),'lastSuccessMs':prev.get('lastSuccessMs'),'etag':prev.get('etag'),'lastModified':prev.get('lastModified'),'stories':prev_stories,'status':'stale','error':None,'failureCount':prev.get('failureCount',0)}
         try:
             status,raw,etag,modified=fetch(url,prev.get('etag'),prev.get('lastModified'))
             if status==304:
                 rec.update(status='not-modified',error=None,failureCount=0,etag=etag,lastModified=modified,lastSuccess=prev.get('lastSuccess') or iso(),lastSuccessMs=prev.get('lastSuccessMs') or now_ms())
             else:
-                stories=parse_feed(raw,name)
-                if not stories: raise RuntimeError('feed parsed with 0 usable stories')
-                rec.update(status='healthy',error=None,failureCount=0,etag=etag,lastModified=modified,lastSuccess=iso(),lastSuccessMs=now_ms(),stories=stories)
-            print(f'{name}: {rec["status"]} · {len(rec["stories"])} stories')
+                fresh=parse_feed(raw,name)
+                if not fresh: raise RuntimeError('feed parsed with 0 usable stories')
+                accumulated=merge_source_stories(prev_stories,fresh)
+                rec.update(status='healthy',error=None,failureCount=0,etag=etag,lastModified=modified,lastSuccess=iso(),lastSuccessMs=now_ms(),stories=accumulated)
+            print(f'{name}: {rec["status"]} · {len(rec["stories"])} retained stories')
         except Exception as e:
             rec['status']='stale' if rec['stories'] else 'failed'
             rec['failureCount']=int(prev.get('failureCount',0))+1
@@ -177,22 +247,23 @@ def main():
             print(f'{name}: {rec["status"]} · keeping {len(rec["stories"])} cached · {rec["error"]}')
         sources[name]=rec
 
-    cutoff=now_ms()-MAX_AGE_MS; merged={}
-    statuses=[]
+    cutoff=now_ms()-MAX_AGE_MS; merged={}; statuses=[]
     for name,_ in FEEDS:
         rec=sources.get(name,{})
-        rows=[s for s in rec.get('stories',[]) if int(s.get('publishedAt',0))>=cutoff]
+        rows=merge_source_stories(rec.get('stories',[]),[])
         rec['stories']=rows
         statuses.append({'source':name,'status':rec.get('status','unknown'),'stories':len(rows),'lastSuccess':rec.get('lastSuccess'),'lastAttempt':rec.get('lastAttempt'),'failureCount':rec.get('failureCount',0),'error':rec.get('error')})
         for s in rows:
+            if int(s.get('publishedAt',0))<cutoff: continue
+            ensure_tags(s)
             k=re.sub(r'[?#].*$','',s.get('link') or s.get('title',''))
-            if k not in merged or s.get('publishedAt',0)>merged[k].get('publishedAt',0): merged[k]=s
-    stories=sorted(merged.values(),key=lambda x:x.get('publishedAt',0),reverse=True)[:5000]
+            if k not in merged or int(s.get('publishedAt',0))>int(merged[k].get('publishedAt',0)): merged[k]=s
+    stories=sorted(merged.values(),key=lambda x:int(x.get('publishedAt',0)),reverse=True)[:MAX_OUTPUT_STORIES]
     generated=now_ms()
-    cache.update({'version':1,'generatedAt':iso(generated),'generatedAtMs':generated,'durationMs':generated-started,'sources':sources})
+    cache.update({'version':2,'generatedAt':iso(generated),'generatedAtMs':generated,'durationMs':generated-started,'retentionDays':21,'sources':sources})
     SOURCE_CACHE.write_text(json.dumps(cache,separators=(',',':'),ensure_ascii=False))
-    out={'version':1,'generatedAt':iso(generated),'generatedAtMs':generated,'storyCount':len(stories),'sourceCount':len(FEEDS),'sources':statuses,'stories':stories}
+    out={'version':2,'generatedAt':iso(generated),'generatedAtMs':generated,'retentionDays':21,'storyCount':len(stories),'sourceCount':len(FEEDS),'sources':statuses,'stories':stories}
     NEWS_CACHE.write_text(json.dumps(out,separators=(',',':'),ensure_ascii=False))
-    print(f'Published {len(stories)} stories from {len(FEEDS)} configured sources')
+    print(f'Published {len(stories)} stories retained up to 21 days from {len(FEEDS)} configured sources')
 
 if __name__=='__main__': main()
