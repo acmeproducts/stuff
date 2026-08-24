@@ -33,12 +33,37 @@ jobs:
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
           cat /tmp/live-check.txt
+      - name: WebSocket handshake + delivery-contract check
+        run: |
+          npm i ws@8 >/dev/null 2>&1
+          cat > /tmp/wscheck.mjs <<'JS'
+          import WebSocket from 'ws';
+          const BASE='wss://talk-signal.myacctfortracking.workers.dev';
+          const s='ci-'+Date.now().toString(36);
+          const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
+          const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
+          try{
+            const a=await open('ciA'), b=await open('ciB');
+            const got=[]; b.on('message',d=>{try{got.push(JSON.parse(d))}catch(_){}});
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-1',srcText:'x',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,1500));
+            const m=got.find(x=>x.chatId==='ci-1');
+            console.log('ws-connect=ok');
+            console.log('ws-deliver='+(m?'ok':'FAIL'));
+            console.log('ws-did='+((m&&m._did)?'ok':'FAIL'));
+            if(m&&m._did){b.send(JSON.stringify({type:'delivered',did:m._did,from:'ciB',transient:true}));}
+            await new Promise(r=>setTimeout(r,400));
+            a.close();b.close();
+          }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));process.exitCode=0;}
+          JS
+          node /tmp/wscheck.mjs > /tmp/ws-check.txt 2>&1 || true
+          cat /tmp/ws-check.txt
       - name: Publish status
         if: always()
         run: |
           git config user.name deploy-bot
           git config user.email deploy-bot@local
-          { echo "run: ${{ github.run_id }}  $(date -u)"; echo '=== wrangler ==='; cat /tmp/deploy-out.txt 2>/dev/null; echo; echo '=== live check (vapid probe) ==='; cat /tmp/live-check.txt 2>/dev/null; echo; } > talkbridge/DEPLOY-STATUS.txt
+          { echo "run: ${{ github.run_id }}  $(date -u)"; echo '=== wrangler ==='; cat /tmp/deploy-out.txt 2>/dev/null; echo; echo '=== live check (vapid probe) ==='; cat /tmp/live-check.txt 2>/dev/null; echo; echo '=== websocket + delivery contract ==='; cat /tmp/ws-check.txt 2>/dev/null; echo; } > talkbridge/DEPLOY-STATUS.txt
           git add talkbridge/DEPLOY-STATUS.txt
           git commit -m "relay deploy status [skip ci]" || true
           git pull --rebase origin main || true
