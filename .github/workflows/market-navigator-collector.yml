@@ -32,6 +32,8 @@ jobs:
         run: python3 market-navigator-collector.py
       - name: Build canonical database
         run: python3 market-navigator-build-db.py
+      - name: Build economic signal snapshot
+        run: python3 market-navigator-build-signals.py
       - name: Validate generated data
         run: |
           python3 - <<'PY'
@@ -40,9 +42,19 @@ jobs:
           db=json.loads(Path('market-data/manifest.json').read_text())
           if db.get('databaseVersion')!='1.2.0' or not db.get('validation',{}).get('ok'):
               raise SystemExit('Invalid database '+str(db.get('validation')))
-          model=json.loads(Path('market-data/model.json').read_text())
-          if model.get('schema')!='market-navigator-relative-model-v1': raise SystemExit('Invalid model')
-          print('Validated Market Navigator',db.get('revision'))
+          signal_model=json.loads(Path('market-data/signal-model.json').read_text())
+          if signal_model.get('schema')!='market-navigator-signal-model-v2':
+              raise SystemExit('Invalid signal model')
+          snapshot=json.loads(Path('market-data/signals/current.json').read_text())
+          if snapshot.get('modelVersion')!=signal_model.get('modelVersion'):
+              raise SystemExit('Signal snapshot/model mismatch')
+          required={'inflationPressure','financialConditions','growthMomentum','marketRisk'}
+          for horizon,data in snapshot.get('horizons',{}).items():
+              if set(data.get('signals',{}))!=required:
+                  raise SystemExit('Missing signal family at '+horizon)
+              if not data.get('regime',{}).get('classification'):
+                  raise SystemExit('Missing regime classification at '+horizon)
+          print('Validated Market Navigator database + signal model',db.get('revision'))
           PY
       - name: Commit refreshed Market Navigator data
         run: |
