@@ -42,11 +42,12 @@ jobs:
           const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
           const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
-          const post=(c,body)=>fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();try{return JSON.parse(t)}catch(_){console.log('post-raw['+body.type+']='+r.status+' '+t.slice(0,120));return null}};
           const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
           try{
             const a=await open('ciA'), b=await open('ciB');
             const got=[]; b.on('message',d=>{try{got.push(JSON.parse(d))}catch(_){}});
+            await new Promise(r=>setTimeout(r,800));   /* let both attach server-side */
             a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-1',srcText:'x',ts:Date.now()}));
             await new Promise(r=>setTimeout(r,1500));
             const m=got.find(x=>x.chatId==='ci-1');
