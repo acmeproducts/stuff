@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.7.0 -->
-# TALKBRIDGE MASTER PLAN v15.7.0
+<!-- TALKBRIDGE-PLAN v15.8.0 -->
+# TALKBRIDGE MASTER PLAN v15.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -11,6 +11,21 @@ because section inserts duplicated rather than replaced. Nothing could be told
 apart. This version has one home for every item and no duplicated sections.
 
 ---
+
+## 0b · STANDING RULE — TESTING IS EXPENSIVE; CLAUDE OWNS PRE-FLIGHT (owner, 2026-08-24)
+
+The owner does not test that Claude executed correctly. Testing is expensive
+and reserved for what only devices can prove. Claude's obligations before
+handing anything to the owner:
+- Byte-verify every push against the exact commit SHA (never ref=main)
+- Run the full harness and mutation gate and state the scores
+- For relay changes: run the relay harness AND the deploy-pipeline WS probe
+- For any rollback: confirm the file bytes match the target source exactly
+- State what was proven and what remains for device testing — the owner tests
+  only the latter
+
+Asking the owner to "verify" a file copy, a byte match, or a deploy result
+is a violation of this rule.
 
 ## 0a · STANDING RULE — RULES PREVENT HARM, NOT PROGRESS (owner, 2026-08-21)
 
@@ -575,6 +590,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.8.0 · 2026-08-24.** Standing rule 0b added (owner ruling): testing is
+expensive; Claude byte-verifies, gates, and probes before any handover; the
+owner tests only what devices must prove. R10 rebuild scope to be declared
+and approved before any code is written.
 
 **v15.7.0 · 2026-08-24.** R10 post-ship abandoned as a single failure (seven
 unbounded patches, mismatched relay, owner could not send a message).
