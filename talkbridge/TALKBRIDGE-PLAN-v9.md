@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.8.0 -->
-# TALKBRIDGE MASTER PLAN v15.8.0
+<!-- TALKBRIDGE-PLAN v15.9.0 -->
+# TALKBRIDGE MASTER PLAN v15.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -224,6 +224,34 @@ failure that has cost this project the most; it is not repeated here.
 
 ---
 
+### 3b · Phrasebook items surfaced 2026-08-24 — to be folded into the next phrasebook release
+
+**PB-1 · Back-translation direction on target edit (design clarification needed):**
+The owner expects that when Target is edited, the back-translation runs in
+the SAME direction as the forward translation (i.e. for a vi→en card, BT
+should show Vietnamese, not English). The current code does the inverse —
+BT always goes target→source, which IS the standard back-translation
+definition. Need owner ruling on which behaviour is intended before any
+code change: standard BT (target→source, confirms the round-trip) or
+echo BT (target→same-direction, shows how the translation reads in the
+original language). Currently deferred pending that ruling.
+
+**PB-2 · Target-field edit full behaviour (new-card and edit-card):**
+When Target is edited and committed (Enter or blur), the expected outcome is:
+- Source is translated FROM the target text INTO sourceLang (reverse of normal)
+- Back-translation is updated per PB-1 ruling
+- Verdict is cleared; ✓Verified tag removed if present
+- Clarify stream updated: "Target updated (was X)" and "Source updated (was Y)"
+  even when Source was blank (new entry)
+- Applies identically whether editing a new card or an existing card
+
+The R9 build implements "target updated (was X)" on the clarify stream but
+does not yet fully implement the reverse-translation of source or the
+"source updated (was Y)" entry. Scope of fix: to be declared and approved
+before any code is written.
+
+---
+
 ## 4 · RELEASE 10 — PWA, NOTIFICATIONS, AND THE CUSTOMER JOURNEY (v15.0.0 rescope)
 
 ### 4a · FINDINGS — all evidence-backed, none re-litigated
@@ -354,6 +382,11 @@ rollback rules and required report format.
 ---
 
 ## 8 · FUTURE IDEAS — unscheduled, no release
+
+| # | Idea | Status |
+|---|---|---|
+| F2 | IndexedDB migration — replace localStorage as the phrasebook and room data store; required before phrasebook scales beyond ~1,500 cards; no behaviour change visible to the owner | Not scheduled |
+
 
 | # | Idea | Status |
 |---|---|---|
@@ -590,6 +623,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.9.0 · 2026-08-24.** Owner items recorded in plan: IndexedDB migration added
+as F2 (future, unscheduled); PB-1 (BT direction design clarification needed —
+awaiting owner ruling before any code) and PB-2 (full target-edit behaviour
+spec for new and existing cards) added as §3b pending items.
 
 **v15.8.0 · 2026-08-24.** Standing rule 0b added (owner ruling): testing is
 expensive; Claude byte-verifies, gates, and probes before any handover; the
