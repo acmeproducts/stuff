@@ -146,6 +146,13 @@ export default {
 export class TalkSession {
   constructor(state, env) {
     this.state = state;
+    /* RV2 state — in-memory BY DESIGN: a worker restart resets them, which
+       reads as stale, which wakes the phone: the safe direction. The earlier
+       deploy broke because this init was anchored on a line R7 never had and
+       silently never landed — every message handler then threw. Anchored on
+       the constructor now, which cannot not exist. */
+    this.lastSeen = new Map();
+    this.lastWake = null;
     this.env = env;
     this.seq = 0;
     this.messages = [];

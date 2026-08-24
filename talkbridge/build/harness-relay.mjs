@@ -12,6 +12,11 @@ T('RV2.1 socket alone is not presence — freshness required', () => {
 });
 T('RV2.1 every inbound message stamps lastSeen', () =>
   A(src.includes('this.lastSeen.set(clientId, Date.now())'), 'stamp missing'));
+T('RV2 state INITIALIZED in the constructor — the exact defect that 500d the deploy', () => {
+  const ctor = src.slice(src.indexOf('constructor(state, env)'), src.indexOf('this.ready ='));
+  A(ctor.includes('this.lastSeen = new Map()'), 'lastSeen never initialized');
+  A(ctor.includes('this.lastWake = null'), 'lastWake never initialized');
+});
 T('RV2.1 threshold 105s; missing entry = stale = wake (safe after restart)', () => {
   A(src.includes('SOCKET_STALE_MS = 105 * 1000'), 'threshold wrong');
   A(src.includes('this.lastSeen.has(clientId) &&'), 'missing-entry direction wrong');
