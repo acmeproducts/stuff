@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.11.0 -->
-# TALKBRIDGE MASTER PLAN v15.11.0
+<!-- TALKBRIDGE-PLAN v16.0.0 -->
+# TALKBRIDGE MASTER PLAN v16.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -245,85 +245,60 @@ ML anomaly on simple phrases is not a code defect.
 
 ---
 
-## 4 · RELEASE 10 — PWA, NOTIFICATIONS, AND THE CUSTOMER JOURNEY (v15.0.0 rescope)
+## 4 · RELEASE 10 — NOTIFICATIONS, PERFECT. NOTHING ELSE. (v16.0.0, owner-directed)
 
-### 4a · FINDINGS — all evidence-backed, none re-litigated
+**The single objective:** notifications working perfectly — every use case,
+every time, no lag. Everything else that ever lived in post-ship moves to
+R11. Source: `bridge-turn24-ship.html` (the only real thing). Target:
+`bridge-turn24-post-ship.html`.
 
-1. **Relay wake (FIXED, deployed, worker version 07eb97c1):** the relay
-   treated iOS zombie sockets as "still listening" and skipped the wake.
-   Listening now means heard-from within 75s; wakes carry Urgency:high and a
-   merge topic (newest-only, no backlog dumps).
-2. **Service worker (FIXED, deployed in tb-sw.js):** banner shows instantly
-   every time (iOS revokes subscriptions that receive silent pushes); richer
-   wording follows within a 2.5s cap; visible-app pushes show-and-close.
-3. **iPhone device evidence (log 2026-08-22):** candidate correct —
-   installed, standalone, SW registered — and notification permission NEVER
-   granted; zero subscription events. One cause explains every silent case
-   on that phone: locked, unfocused, and in-app other-room (osNotify no-ops
-   without permission). The enable control was an undiscoverable footer row.
-4. **Android device evidence (log 2026-08-22):** no candidate events at all —
-   stale pre-Phase-A build from an old bookmark. Nothing can ring until the
-   phone loads the current build.
-5. **Handoff identity bug:** a name entered in the Safari TAB before
-   installing can be lost — the installed PWA opened into a blank room. The
-   handoff's whole promise is that Safari-entered identity and room survive
-   into the PWA. This is a defect, not a design limit.
-6. **Install-as-gate is the wrong UX:** iPhone camera QR opens the DEFAULT
-   browser (often Chrome), which cannot install; people flounder. iPhone
-   users will not tolerate ceremony.
-7. **Apple's immovable law:** install only from Safari; the Allow-
-   notifications tap and the Add-to-Home-Screen tap must be the person's own
-   finger, inside the right context. No build removes these two taps; the
-   work is making them the ONLY taps and making them obvious.
+### 4a · Relay: rescued, then rebuilt once
 
-### 4b · THE JOURNEY — the agreed experience, both platforms
+DONE 2026-08-24: relay source reverted to PURE R7 (ship-era, device-verified),
+byte-verified against eb7f4cd6, auto-deployed, live probe green
+(connect/deliver/type all ok). This is the relay the ship passed on.
 
-**Universal rule: joining is never gated.** Scanning a QR or tapping an
-invite lands in a WORKING chat in the current tab — name asked once, room
-open, conversation flowing. Identity and room ride in the link itself, so
-nothing is ever lost moving between browsers. Install and ringing are an
-UPGRADE offered after you're already talking — never a prerequisite.
+**Relay v2 — one build on the R7 body, three changes only:**
+| # | Change | Why |
+|---|---|---|
+| RV2.1 | Freshness guard in the wake decision: a socket counts as listening only if heard-from within 105s (3 ping intervals + grace) | iOS freezes a PWA's JS but leaves the socket half-open; socket-presence alone caused BOTH the missed wakes on locked phones AND (with the client's silent listeners) the double alerts |
+| RV2.2 | `Urgency: high` + `Topic: tb-wake` headers on every wake | Apple defers normal-urgency payload-free pushes (the lag) and queues them (the flurry); Topic keeps only the newest |
+| RV2.3 | `{type:'diag'}` action returning connected clients, sub count, and the last wake attempt+result for the session | Makes the wake path OBSERVABLE so Claude can end-to-end test it without owner devices, and gives every future notification bug a first-class evidence source |
 
-**Android:** the tab itself can ring — Chrome supports push without install.
-The unmissable enable banner offers ringing in place; one tap, one Allow.
-Install is optional polish, never required.
+### 4b · Client: ship + the minimal notification stack, declared item by item
 
-**iPhone, landed in Safari:** chat immediately. After joining, a nudge:
-"Want this phone to ring when they call? Add to Home Screen." On the FIRST
-open of the installed app, the handoff restores identity and room, and the
-Allow prompt is surfaced immediately. Total: two taps beyond the scan, both
-explained, nothing re-entered.
+| # | Part | What it is |
+|---|---|---|
+| N1 | R10-phase-a (validated core) | Manifest + SW registration + install cookie-handoff + per-room push subscribe/unsubscribe. iOS can only push to an installed PWA; this is the owner-validated machinery, unchanged |
+| N2 | Enable surface (PA5) | The unmissable banner: rooms exist + push supported + permission not granted → one tap runs the enable flow; self-removes when on |
+| N3 | Subscription self-heal (PH) | Researched iOS reality: subscriptions die spontaneously. Every open: permission granted but subscription gone → silently resubscribe. Never prompts the ungranted |
+| N4 | Listener heartbeat | Background room listeners send the same 30s ping the active room sends, so the freshness guard is true for every socket the phone holds — no double alerts |
+| N5 | Lane telemetry (PL) | One boot log line: lane + mic + notif permission. Pure diagnostics; it is the reason the last three root causes were findable |
 
-**iPhone, landed anywhere else (Chrome etc.):** detected; the page still
-lets them chat in that tab, and shows one clear action to bring it to
-Safari (tap-to-copy link / open-in-Safari) for ringing. Everything survives
-the trip because the link carries it. Once in Safari, the path above.
+NOT in this release (→ R11): create-room name field, keyboard-aware name
+cards, font raises, journey bars (hand-to-Safari, install nudge, in-room
+enable), delivery-confirmation design (buried), anything else.
 
-### 4c · EXECUTION — rollback done, one tight rebuild
+### 4c · Claude's own testing — BEFORE the owner sees anything (rule 0b)
 
-`bridge-turn24-post-ship.html` has been ROLLED BACK to 24·ship content.
-The rebuild re-implements, in one gated build, everything proven plus the
-journey:
+1. Relay v2: harness + fresh mutations, all green.
+2. Staging-grade live test via the deploy pipeline: two simulated phones on
+   the LIVE relay — broadcast, hello, history; then subscribe a fake
+   endpoint, disconnect one phone, send a push-worthy message, and use
+   RV2.3 diag to PROVE the wake attempted for the absent phone and the dead
+   endpoint was pruned. The wake path is tested end-to-end by machine.
+3. Client: full harness (boot, enable banner placement/removal, self-heal
+   fires on corpse and never ungated, listener heartbeat present) + fresh
+   mutations, all green.
+4. Byte-verify client at the exact commit SHA; confirm relay deploy exit 0 +
+   live probes green.
+Only after ALL of that: handover with scores stated.
 
-| # | Item |
-|---|---|
-| P | Phase A parts as validated: manifest, SW registration, cookie handoff, per-room push, subscription sync |
-| F1 | Create-room window: card flag band; name field (own labelled field between selects and auto-read), prefilled, overridable; invite/QR carries the ROOM's name |
-| F2 | First-run name cards (S0, S10) recenter in the keyboard-shrunk visual viewport |
-| F3 | Named font raises (talking-to 15, pills 15, field labels 13) |
-| F4 | Unmissable enable banner, capability-gated, self-removing |
-| J1 | Tab-first join everywhere — no install gate, chat works immediately |
-| J2 | iOS non-Safari detection with one clear hand-to-Safari action; identity/room survive via the link |
-| J3 | Post-join install nudge (iOS Safari only): ringing as the reason, not ceremony |
-| J4 | First PWA open: handoff restore then IMMEDIATE Allow surface |
-| J5 | Identity survival bug fixed: a name entered in the tab always arrives in the PWA — the blank-room path dies |
-
-**Gate (owner device matrix, replaces old A8):** Android tab rings with
-phone locked · iPhone PWA rings with phone locked · missed call notifies ·
-QR scanned into Chrome-on-iOS reaches Safari with nothing lost · name
-entered in tab survives into the PWA · in-app other-room message alerts ·
-no batching pile-ups. Then A9 stop-gate report, then R11 → R12 → R13 to
-pilot.
+### 4d · Owner device matrix (the only thing devices must prove)
+Locked iPhone: message → one notification, promptly. Locked iPhone: call →
+rings/notifies, missed call notifies. App open in the room: zero
+notifications. App open, different room: alerted once, no double. Android
+tab, locked/backgrounded: same set. No flurries anywhere. Both directions.
 
 ---
 
@@ -631,6 +606,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.0.0 · 2026-08-24.** MAJOR, owner-directed reset of R10: notifications
+perfect, nothing else; all other post-ship work → R11. Relay reverted to pure
+R7 (byte-verified, deployed, probes green). Relay v2 = three declared changes
+on the R7 body. Client = ship + five declared notification parts (N1–N5).
+Claude tests everything per §4c before handover (rule 0b). Awaiting owner
+approval of this plan before any build.
 
 **v15.11.0 · 2026-08-24.** Owner correctly identified that R9 target-edit
 behaviour was never fully built. §3b rewritten as R9.1 (four incomplete
