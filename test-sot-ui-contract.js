@@ -11,6 +11,7 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(ma
 assert.equal(scripts.length, 1, 'project UI must have exactly one executable inline script');
 assert.equal((scripts[0].match(/const API=/g) || []).length, 1, 'API constant must be declared exactly once');
 assert.match(html, /SOT <small id="build">/);
+assert.match(html, /id="liveHeartbeat"[^>]*>Connecting/);
 assert.match(html, /id="projectSearch"[^>]+placeholder="Omnisearch projects/);
 assert.match(html, /id="adminButton"[^>]+aria-label="Administration"/);
 assert.match(html, /id="newProject"[^>]+aria-label="Add project"/);
@@ -26,6 +27,9 @@ assert.match(html, /projectRunReadout/);
 assert.match(html, /projectPercent/);
 assert.match(html, /workerReadout/);
 assert.match(html, /row-progress/);
+assert.match(html, /Live update #/);
+assert.match(html, /function updateHeartbeat/);
+assert.match(html, /state\.heartbeatTimer=setInterval\(updateHeartbeat,250\)/);
 assert.match(html, /active_workers/);
 assert.match(html, /hashes_computed/);
 assert.match(html, /\['Volumes','Source\(s\)','Project'\]|<div class="picker-head">Volumes<\/div>[\s\S]+<div class="picker-head">Source\(s\)<\/div>[\s\S]+<div class="picker-head">Project<\/div>/);
@@ -37,8 +41,12 @@ assert.match(html, /duplicate copies/);
 assert.match(html, /async function openActivity/);
 assert.match(html, /Durable worker, phase, progress, control, completion, and error history/);
 assert.match(html, /Recent project activity/);
+assert.match(html, /Recent SOT activity/);
+assert.match(html, /bytes_hashed/);
+assert.match(html, /Bytes actively hashing/);
+assert.match(html, /bytes_visible/);
 assert.match(html, /id="adminActivity"/);
-assert.match(html, /Background indexing is isolated from the UI/);
+assert.match(html, /Background indexing remains independent/);
 assert.match(html, /back\.textContent='← Projects'/);
 assert.match(html, /\.inline-name/);
 
@@ -47,6 +55,8 @@ console.log(JSON.stringify({
   project_columns: 'PASS',
   project_row_play_pause_stop: 'PASS',
   project_row_realtime_readout: 'PASS',
+  explicit_refresh_heartbeat: 'PASS',
+  live_in_file_byte_progress: 'PASS',
   worker_paths_and_progress: 'PASS',
   sot_and_project_activity_logs: 'PASS',
   three_column_recursive_picker: 'PASS',

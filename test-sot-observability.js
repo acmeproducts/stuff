@@ -16,6 +16,7 @@ process.env.SOT_ROOT = path.join(temporaryRoot, 'state');
 process.env.SOT_DB_PATH = databasePath;
 process.env.SOT_SQLITE_ADAPTER = path.join(__dirname, 'sot-sqlite.py');
 process.env.SOT_TEST_HASH_DELAY_MS = '3000';
+process.env.SOT_TEST_HASH_CHUNK_DELAY_MS = '250';
 
 require('./sot-db-manage').create(databasePath);
 const api = require('./sot-api');
@@ -49,7 +50,7 @@ async function main() {
   await fsp.mkdir(fixtureRoot, { recursive: true });
   const largePath = path.join(fixtureRoot, 'large-current-file.bin');
   const descriptor = await fsp.open(largePath, 'w');
-  try { await descriptor.truncate(8 * 1024 * 1024); }
+  try { await descriptor.truncate(24 * 1024 * 1024); }
   finally { await descriptor.close(); }
 
   const server = http.createServer(async (req, res) => {
@@ -76,12 +77,28 @@ async function main() {
     assert.equal(liveRow.files_processed, 0);
     assert.equal(liveRow.workers[0].item, 'large-current-file.bin');
 
+    const byteProgressRow = await poll(async () => {
+      const list = await request(base, 'GET', '/api/sot/turn01/projects');
+      return list.payload.projects.find(project => project.project_token === token);
+    }, row => Number(row?.workers?.[0]?.bytes_hashed) > 0 && Number(row.workers[0].bytes_hashed) < Number(row.workers[0].bytes_total), 'monotonic in-file byte progress');
+    assert.equal(Number(byteProgressRow.bytes_committed), 0);
+    assert.ok(Number(byteProgressRow.bytes_processed) > 0);
+    assert.equal(Number(byteProgressRow.workers[0].bytes_total), 24 * 1024 * 1024);
+
     const rollup = (await request(base, 'GET', '/api/sot/rollup')).payload;
     assert.equal(rollup.active.active_jobs, 1);
     assert.equal(rollup.active.active_workers, 1);
     assert.equal(rollup.active.files_discovered, 1);
     assert.equal(rollup.active.files_processed, 0);
+    assert.ok(Number(rollup.active.bytes_processed) > 0);
+    assert.equal(Number(rollup.active.bytes_committed), 0);
     assert.equal(rollup.phases.fingerprinting, 1);
+
+    const folderStatus = (await request(base, 'GET', `/api/sot/projects/${encoded}/fingerprint/folders`)).payload;
+    const activeFolder = folderStatus.folders.find(folder => folder.folder_path === fixtureRoot);
+    assert.equal(Number(activeFolder.active_files), 1);
+    assert.ok(Number(activeFolder.active_bytes) > 0);
+    assert.equal(Number(activeFolder.bytes_visible), Number(activeFolder.active_bytes));
 
     const before = (await request(base, 'GET', `/api/sot/activity?project_token=${encoded}&limit=100`)).payload.events;
     const beforeTypes = new Set(before.map(item => item.event_type));
@@ -117,6 +134,8 @@ async function main() {
 
     console.log(JSON.stringify({
       live_worker_path: liveRow.workers[0].path,
+      live_bytes_observed: Number(byteProgressRow.bytes_processed),
+      folder_live_bytes_observed: Number(activeFolder.active_bytes),
       sot_active_workers: rollup.active.active_workers,
       durable_events_before_exit: before.length,
       exit_signal: exitEvent.detail.signal,
