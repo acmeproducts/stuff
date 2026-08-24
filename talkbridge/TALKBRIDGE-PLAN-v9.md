@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.9.0 -->
-# TALKBRIDGE MASTER PLAN v15.9.0
+<!-- TALKBRIDGE-PLAN v15.10.0 -->
+# TALKBRIDGE MASTER PLAN v15.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -363,6 +363,23 @@ a named scale of fixed pixels is still fixed pixels.
 
 ---
 
+## 7 · RELEASE 12b — INDEXEDDB STORAGE MIGRATION
+
+Replace localStorage with IndexedDB as the backing store for phrasebook and
+room data. Required before pilot — localStorage limits will surface under
+real usage. Zero visible behaviour change; the same data, the same API
+surface, different storage backend. Must include a migration path from any
+existing localStorage data. Gate: phrasebook roundtrip, room persistence,
+and a localStorage-to-IndexedDB migration on a device with real data.
+
+| # | Item | Status |
+|---|---|---|
+| 12b.1 | IndexedDB wrapper with the same get/set/save interface the app currently uses against localStorage | Not started |
+| 12b.2 | One-time migration on first open: copy existing localStorage phrasebook and room data into IndexedDB, then clear the localStorage keys | Not started |
+| 12b.3 | Fallback: if IndexedDB is unavailable (private browsing), stay on localStorage silently | Not started |
+
+---
+
 ## 7 · RELEASE 13 — SECRET MIGRATION, PHASE B (GOVERNED, VERY LAST)
 
 Placed at the BACK of the schedule by owner ruling 2026-08-15: runs only
@@ -385,8 +402,6 @@ rollback rules and required report format.
 
 | # | Idea | Status |
 |---|---|---|
-| F2 | IndexedDB migration — replace localStorage as the phrasebook and room data store; required before phrasebook scales beyond ~1,500 cards; no behaviour change visible to the owner | Not scheduled |
-
 
 | # | Idea | Status |
 |---|---|---|
@@ -623,6 +638,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.10.0 · 2026-08-24.** Owner correction: IndexedDB is not a future item —
+moved into the release sequence as R12b between R12 (multi-party) and R13
+(Phase B). PB-1 closed: BT direction is confirmed correct (target→source);
+the English result on a simple Spanish phrase is ML inconsistency, not a
+code defect. PB-2 spec stands; no code until scheduled.
 
 **v15.9.0 · 2026-08-24.** Owner items recorded in plan: IndexedDB migration added
 as F2 (future, unscheduled); PB-1 (BT direction design clarification needed —
