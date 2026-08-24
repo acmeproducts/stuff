@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.10.0 -->
-# TALKBRIDGE MASTER PLAN v15.10.0
+<!-- TALKBRIDGE-PLAN v15.11.0 -->
+# TALKBRIDGE MASTER PLAN v15.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -224,31 +224,24 @@ failure that has cost this project the most; it is not repeated here.
 
 ---
 
-### 3b · Phrasebook items surfaced 2026-08-24 — to be folded into the next phrasebook release
+### 3b · R9 INCOMPLETE — target-edit full behaviour not shipped
 
-**PB-1 · Back-translation direction on target edit (design clarification needed):**
-The owner expects that when Target is edited, the back-translation runs in
-the SAME direction as the forward translation (i.e. for a vi→en card, BT
-should show Vietnamese, not English). The current code does the inverse —
-BT always goes target→source, which IS the standard back-translation
-definition. Need owner ruling on which behaviour is intended before any
-code change: standard BT (target→source, confirms the round-trip) or
-echo BT (target→same-direction, shows how the translation reads in the
-original language). Currently deferred pending that ruling.
+R9 shipped the "Target updated (was X)" clarify entry. The following behaviour
+was specified but NOT built — it must ship as R9.1 before R10:
 
-**PB-2 · Target-field edit full behaviour (new-card and edit-card):**
-When Target is edited and committed (Enter or blur), the expected outcome is:
-- Source is translated FROM the target text INTO sourceLang (reverse of normal)
-- Back-translation is updated per PB-1 ruling
-- Verdict is cleared; ✓Verified tag removed if present
-- Clarify stream updated: "Target updated (was X)" and "Source updated (was Y)"
-  even when Source was blank (new entry)
-- Applies identically whether editing a new card or an existing card
+| # | Item | Status |
+|---|---|---|
+| 9.1.1 | On target commit (Enter or blur): translate target INTO sourceLang to update source | Not built |
+| 9.1.2 | Clarify entry "Source updated (was X)" — even when source was blank (new card) | Not built |
+| 9.1.3 | Verdict cleared; ✓Verified tag removed if the card was previously verified | Not built |
+| 9.1.4 | Applies identically for new cards and existing cards | Not built |
 
-The R9 build implements "target updated (was X)" on the clarify stream but
-does not yet fully implement the reverse-translation of source or the
-"source updated (was Y)" entry. Scope of fix: to be declared and approved
-before any code is written.
+BT direction (PB-1) is confirmed correct — target→source is standard and the
+ML anomaly on simple phrases is not a code defect.
+
+**Source stage:** `bridge-turn24-ship.html`
+**Target stage:** `bridge-turn24-post-ship.html` (currently reset to ship bytes)
+**Gate:** new-card target edit → source updates to translated text, clarify shows both entries, verdict clear, Verified removed; same for existing-card edit.
 
 ---
 
@@ -638,6 +631,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.11.0 · 2026-08-24.** Owner correctly identified that R9 target-edit
+behaviour was never fully built. §3b rewritten as R9.1 (four incomplete
+items) — required before R10. The "was" clarify entry shipped in R9; source
+reverse-translation, "source updated" entry, verdict clear, and Verified-tag
+removal were specified but not built.
 
 **v15.10.0 · 2026-08-24.** Owner correction: IndexedDB is not a future item —
 moved into the release sequence as R12b between R12 (multi-party) and R13
