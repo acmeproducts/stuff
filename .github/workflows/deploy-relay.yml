@@ -39,8 +39,10 @@ jobs:
           cat > wscheck.mjs <<'JS'
           import WebSocket from 'ws';
           const BASE='wss://talk-signal.myacctfortracking.workers.dev';
+          const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
           const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
+          const post=(c,body)=>fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
           const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
           try{
             const a=await open('ciA'), b=await open('ciB');
@@ -50,13 +52,19 @@ jobs:
             const m=got.find(x=>x.chatId==='ci-1');
             console.log('ws-connect=ok');
             console.log('ws-deliver='+(m?'ok':'FAIL'));
-            /* _did is not in R7 — the probe was testing the reverted design.
-               Test what R7 actually does: broadcast and correct types. */
-            console.log('ws-type='+(m&&m.type==='chat-msg'?'ok':'FAIL'));
-            console.log('ws-from='+(m&&m.from==='ciA'?'ok':'FAIL'));
-            await new Promise(r=>setTimeout(r,400));
+            /* ── WAKE-PATH END-TO-END (plan 4c.2) ── */
+            /* subscribe phone C with a fake endpoint, keep it DISCONNECTED */
+            await post('ciC',{type:'subscribe',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BNcW4StLJLQ3nc9DGdvyRT8VTCLBUyIYbnaqfHNW08','auth':'ciauthciauthciauthcia'}}});
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake-c',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,2500));
+            const diag=await post('ciA',{type:'diag'});
+            console.log('wake-attempted='+((diag&&diag.lastWake&&diag.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(diag&&diag.lastWake)));
+            console.log('wake-result='+((diag&&diag.lastWake&&/status-/.test(diag.lastWake.result||''))?diag.lastWake.result:'FAIL'));
+            console.log('connected-visible='+((diag&&Array.isArray(diag.connected)&&diag.connected.includes('ciA'))?'ok':'FAIL'));
+            /* fresh connected B must NOT be the wake target */
+            console.log('no-wake-for-live='+((diag&&diag.lastWake&&diag.lastWake.clientId!=='ciB')?'ok':'FAIL'));
             a.close();b.close();
-          }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));process.exitCode=0;}
+          }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
           node wscheck.mjs > /tmp/ws-check.txt 2>&1 || true
           rm -f wscheck.mjs

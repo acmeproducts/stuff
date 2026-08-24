@@ -46,6 +46,15 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
 const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'history-sync']);
+/* RV2.1 — iOS freezes a backgrounded PWA's JS but leaves its socket half-open
+   for minutes. A frozen phone cannot ping, so a socket only counts as
+   listening if we've HEARD from it recently: three 30s ping intervals plus
+   grace. Missing entry (worker restart) = stale = wake — the safe direction. */
+const SOCKET_STALE_MS = 105 * 1000;
+/* RV2.2 — Apple defers normal-urgency payload-free pushes (the lag) and
+   queues one per message (the flurry). High urgency delivers now; the Topic
+   makes the queue keep only the newest wake per device. */
+const MERGE_TOPIC = 'tb-wake';
 
 function cors() {
   return {
@@ -198,15 +207,17 @@ export class TalkSession {
   /* A bare wake. No content leaves for the push service — the worker fetches
      what it missed over the history endpoint it already has. */
   async _pushOne(clientId, rec) {
+    this.lastWake = { clientId, at: Date.now(), result: 'attempting' };
     const endpoint = rec && rec.sub && rec.sub.endpoint;
     if (!endpoint) return;
-    const headers = { TTL: '86400', 'Content-Length': '0' };
+    const headers = { TTL: '86400', 'Content-Length': '0', Urgency: 'high', Topic: MERGE_TOPIC };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
       const res = await fetch(endpoint, { method: 'POST', headers });
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
          Keeping it would mean retrying forever against nothing. */
+      this.lastWake = { clientId, at: Date.now(), result: 'status-' + res.status };
       if (res.status === 404 || res.status === 410) {
         delete this.subs[clientId];
         await this._saveSubs();
@@ -221,7 +232,10 @@ export class TalkSession {
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
-      if (connected.has(clientId)) continue;             /* already listening */
+      /* RV2.1: socket alone is not presence — it must also have spoken. */
+      const fresh = this.lastSeen.has(clientId) &&
+                    (now - this.lastSeen.get(clientId)) < SOCKET_STALE_MS;
+      if (connected.has(clientId) && fresh) continue;    /* provably listening */
       if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
@@ -261,6 +275,16 @@ export class TalkSession {
       if (!clientId) return err('Missing client', 400);
       let body;
       try { body = await request.json(); } catch (_) { return err('Bad body'); }
+      if (body && body.type === 'diag') {
+        /* RV2.3 — the wake path made observable: who's connected, how many
+           subscriptions, what the last wake attempt did. Read-only. */
+        return json({
+          connected: [...this._connectedIds()],
+          subs: Object.keys(this.subs).length,
+          lastSeen: Object.fromEntries([...this.lastSeen].map(([k, v]) => [k, Date.now() - v])),
+          lastWake: this.lastWake
+        });
+      }
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'vapid') {
@@ -293,6 +317,7 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
+    if (clientId) this.lastSeen.set(clientId, Date.now());
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
