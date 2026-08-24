@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.0.0 -->
-# TALKBRIDGE MASTER PLAN v16.0.0
+<!-- TALKBRIDGE-PLAN v16.1.0 -->
+# TALKBRIDGE MASTER PLAN v16.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -606,6 +606,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.1.0 · 2026-08-24.** R10 built and machine-tested per §4c, all green:
+RELAY v2 live — gate 9/9, mutations 7/7 (incl. constructor-init defect that
+500'd the first deploy, caught and gated), and the wake path PROVEN
+end-to-end on the live relay by the deploy pipeline: disconnected subscribed
+phone wake-targeted, webpush POST actually fired (push service answered
+status-404 to the fake endpoint), fresh connected phone NOT pushed. CLIENT —
+ship + exactly N1..N5, harness 11/11 (boot clean, banner placement+removal,
+self-heal on corpse and never ungated, listener heartbeat, lane routing,
+phase-a core live), mutations 8/8, byte-verified at commit f035df64.
+Remaining: owner device matrix §4d only.
 
 **v16.0.0 · 2026-08-24.** MAJOR, owner-directed reset of R10: notifications
 perfect, nothing else; all other post-ship work → R11. Relay reverted to pure
