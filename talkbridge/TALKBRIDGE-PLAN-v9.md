@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.5.0 -->
-# TALKBRIDGE MASTER PLAN v15.5.0
+<!-- TALKBRIDGE-PLAN v15.6.0 -->
+# TALKBRIDGE MASTER PLAN v15.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -575,6 +575,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.6.0 · 2026-08-24.** Relay rolled back to R7 (device-verified) then
+re-fixed correctly by READING the code first. The surgical fix is 4 points on
+top of R7's unchanged body: lastSeen stamp on every inbound WS message;
+freshness guard in _wakeOthers (socket + heard-from within 105s); Urgency:
+high; Topic merge header. Client unchanged. Gate: 8/8 + 4/4 mutations;
+graveyard entry: read the code before changing it.
 
 **v15.5.0 · 2026-08-23.** Pre-flight + industry research (owner-directed).
 PRE-FLIGHT: the deployed relay class was integration-tested in-process with

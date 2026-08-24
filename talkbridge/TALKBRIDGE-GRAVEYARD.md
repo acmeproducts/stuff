@@ -962,3 +962,22 @@ client confirms the id, silence for the grace fires the push. A confirmed
 call screen is the confirmation, so screen-and-notification can never
 coexist. Rule: when changing a contract, inventory EVERY party bound by it —
 the active socket was audited, the nine listeners were not.
+
+## Every relay change since R7 was me building on an assumption instead of reading the code · Aug 24 2026
+
+R7 was device-verified working. I then made three relay changes, each one
+reversing the last, each one breaking the deployment window the owner needed
+to test. The root failure: I read what the relay SHOULD do from prose and
+theory instead of reading what it ACTUALLY does from the code first. Had I
+read `_wakeOthers` before touching anything, the fix was four lines and
+obvious: the zombie-socket bug is `if (connected.has(clientId)) continue` —
+socket presence with no freshness check. Everything else I built on top of
+that was in the wrong direction.
+
+The surgical relay fix (Aug 24) is built FROM R7's actual code by reading it
+first: four targeted points only — lastSeen stamp on inbound messages,
+freshness guard in the wake decision (socket + heard-from in 105s), Urgency
+header, Topic merge. The rest of R7 is untouched byte-for-byte.
+
+Rule: READ THE CODE BEFORE CHANGING IT. No description of intended behavior
+substitutes for the actual implementation.
