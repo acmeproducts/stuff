@@ -981,3 +981,25 @@ header, Topic merge. The rest of R7 is untouched byte-for-byte.
 
 Rule: READ THE CODE BEFORE CHANGING IT. No description of intended behavior
 substitutes for the actual implementation.
+
+## R10 post-ship — seven unbounded patches destroyed the build · ABANDONED · Aug 24 2026
+
+The entire post-ship attempt is buried as a single failure. Seven separate
+parts were appended across multiple sessions with no clean rebuild between
+them: R10-phase-a, PA4, PA5, PJ, PL, PD, PH. Each one was a response to a
+device failure, and each one patched forward on the previous patch. The relay
+was changed and rolled back three times independently. The client and relay
+ended up mismatched. The owner could not send a message. The owner correctly
+refused to accept further patches.
+
+Root cause, one sentence: scope was never declared before building, and the
+standard (rollback → graveyard → declared scope → clean rebuild) was ignored
+every single time a device failure came back.
+
+Buried. bridge-turn24-post-ship.html rolled back to bridge-turn24-ship.html
+bytes (the last device-passed build). The relay is on R7 (the last
+device-verified working relay). This is the clean baseline.
+
+R10 rebuild requires: a declared item list approved by the owner BEFORE any
+code is written, one clean build from 24-ship against exactly those items,
+one gate, one device test. Nothing else.

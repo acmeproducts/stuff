@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v15.6.0 -->
-# TALKBRIDGE MASTER PLAN v15.6.0
+<!-- TALKBRIDGE-PLAN v15.7.0 -->
+# TALKBRIDGE MASTER PLAN v15.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -575,6 +575,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v15.7.0 · 2026-08-24.** R10 post-ship abandoned as a single failure (seven
+unbounded patches, mismatched relay, owner could not send a message).
+bridge-turn24-post-ship.html reset to bridge-turn24-ship.html bytes. Relay
+on R7. Clean baseline established. R10 rebuild gated on a declared item list
+approved by the owner BEFORE any code is written.
 
 **v15.6.0 · 2026-08-24.** Relay rolled back to R7 (device-verified) then
 re-fixed correctly by READING the code first. The surgical fix is 4 points on
