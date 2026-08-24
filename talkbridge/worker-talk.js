@@ -46,12 +46,6 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
 const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'history-sync']);
-/* iOS freezes a backgrounded PWA but leaves its socket half-open for minutes.
-   A phone whose JS is frozen cannot send pings. We consider a socket dead
-   if we have not heard from it in SOCKET_STALE_MS (three ping intervals plus
-   grace). In-memory; missing entry = stale = push-now, the safe direction. */
-const SOCKET_STALE_MS = 105 * 1000;
-const MERGE_TOPIC     = 'tb-wake';         /* latest wake per device, not a queue */
 
 function cors() {
   return {
@@ -206,7 +200,7 @@ export class TalkSession {
   async _pushOne(clientId, rec) {
     const endpoint = rec && rec.sub && rec.sub.endpoint;
     if (!endpoint) return;
-    const headers = { TTL: '86400', 'Content-Length': '0', Urgency: 'high', Topic: MERGE_TOPIC };
+    const headers = { TTL: '86400', 'Content-Length': '0' };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
@@ -227,14 +221,8 @@ export class TalkSession {
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
-      /* A socket counts as live only if we've heard from it recently.
-         iOS freezes JS without closing the socket, so socket presence alone
-         is not enough — that was the zombie-socket bug that caused the
-         notification storm and the missed wakes on a locked phone. */
-      const recentlySeen = this.lastSeen.has(clientId) &&
-                           (now - this.lastSeen.get(clientId)) < SOCKET_STALE_MS;
-      if (connected.has(clientId) && recentlySeen) continue;   /* provably live */
-      if (rec.at && now - rec.at > SUB_TTL_MS) {               /* stale sub, drop */
+      if (connected.has(clientId)) continue;             /* already listening */
+      if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
       }
@@ -305,7 +293,6 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
-    if (clientId) this.lastSeen.set(clientId, Date.now());
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
