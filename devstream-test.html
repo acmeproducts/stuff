@@ -352,9 +352,11 @@ function openDebug(){debugTab='log';$('debugRoot').innerHTML='<div class="debugP
 function renderDebugTab(){const o=$('debugOut');if(!o)return;
   if(debugTab==='log'){o.innerHTML=debugHtml();o.scrollTop=o.scrollHeight;return}
   if(debugTab==='engines'){const mask=k=>k?k.slice(0,7)+'…'+k.slice(-4)+' ('+k.length+' ch)':'NOT SET';
-    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nanthropic key: '+mask(cfg&&cfg.akey)+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
+    const audit=k=>{if(!k)return'';const bad=[...k].map((c,i)=>[c.charCodeAt(0),i]).filter(([cc])=>cc<33||cc>126);return bad.length?'  ⚠ NON-PRINTABLE chars at pos '+bad.map(([cc,i])=>i+'(U+'+cc.toString(16).padStart(4,'0')+')').join(', '):'  ✓ all printable ASCII'};
+    o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+audit(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+audit(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nanthropic key: '+mask(cfg&&cfg.akey)+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
   o.textContent=JSON.stringify({activeProject,activeKey,threads:Object.keys(sot.threads).length,projects:Object.keys(sot.projects).length,engineConfig:sot.config||{}},null,1);
 }
+function cleanKey(k){return (k||'').replace(/[\s\u200B-\u200D\uFEFF\u00A0]/g,'')}
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
 /* ---- sidebar / projects ---- */
 function sideOpen(o){$('sidebar').classList.toggle('open',o);$('scrim').classList.toggle('open',o)}
@@ -814,7 +816,7 @@ $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value
   if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
 $('vTest').onclick=async()=>{
-  const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
+  const key=cleanKey($('cfgvkey').value);$('vStatus').textContent='Checking…';
   if(!key){$('vStatus').textContent='✗ enter the key first';return}
   try{
     const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
@@ -830,14 +832,14 @@ $('vTest').onclick=async()=>{
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
       body:JSON.stringify({model:pm,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
     let jp;try{jp=await rp.json()}catch(e){jp={}}
-    if(rp.status===401)throw new Error('key REJECTED on inference (401) — re-copy the full key from Venice');
+    if(rp.status===401){dlog('E|venice 401 body: '+JSON.stringify(jp).slice(0,300));throw new Error('inference 401 — Venice says: '+(JSON.stringify(jp.error||jp.details||jp).slice(0,180)))}
     if(rp.status===402)throw new Error('key OK but model "'+pm+'" needs credits/plan (402) — pick another model and re-Validate');
     if(!rp.ok)throw new Error('inference ping '+rp.status+': '+((jp.error&&(jp.error.message||jp.error))||''));
     $('vStatus').textContent='✓ inference verified on '+pm+' · '+ids.length+' models';
   }catch(e){$('vStatus').textContent='✗ '+e.message;dlog('E|venice validate: '+e.message)}
 };
 $('orTest').onclick=async()=>{
-  const key=$('cfgorkey').value.trim();$('orStatus').textContent='Checking…';
+  const key=cleanKey($('cfgorkey').value);$('orStatus').textContent='Checking…';
   if(!key){$('orStatus').textContent='✗ enter the key first';return}
   try{
     const r=await lfetch('or-auth','https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+key}});
@@ -861,7 +863,7 @@ $('sotValidate').onclick=async()=>{
 $('cfgSave').onclick=()=>guard(async()=>{
   const pat=$('sotPat').value.trim(),owner=$('sotOwner').value.trim(),repo=$('sotRepo').value.trim(),branch=$('sotBranch').value.trim()||'main';
   if(!pat||!owner||!repo)throw new Error('PAT, owner and repository are required');
-  cfg={pat,owner,repo,branch,akey:$('cfgakey').value.trim(),vkey:$('cfgvkey').value.trim(),vmodel:$('cfgvmodel').value||'',orkey:$('cfgorkey').value.trim(),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
+  cfg={pat,owner,repo,branch,akey:cleanKey($('cfgakey').value),vkey:cleanKey($('cfgvkey').value),vmodel:$('cfgvmodel').value||'',orkey:cleanKey($('cfgorkey').value),ormodel:$('cfgormodel').value||'',engine:$('cfgengine').value};
   localStorage.setItem(LS,JSON.stringify(cfg));treeCache=null;
   await loadSOT();
   sot.config={engine:cfg.engine,vmodel:cfg.vmodel,ormodel:cfg.ormodel,appearance};   // model choices sync via SOT; keys NEVER leave this browser
