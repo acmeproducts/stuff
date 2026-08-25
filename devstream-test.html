@@ -178,17 +178,17 @@ select.input{appearance:auto}
 <div class="modal" id="cfgModal"><div class="panel">
   <header>Settings<button class="btn" data-close="cfgModal">✕</button></header>
   <div class="pbody">
-    <div class="frow"><label>GitHub PAT</label><input id="sotPat" class="input" type="password" autocomplete="off" placeholder="ghp_…"></div>
+    <div class="frow"><label>GitHub PAT</label><input id="sotPat" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="ghp_…"></div>
     <div class="frow"><label>Owner / Organization</label><input id="sotOwner" class="input mono" placeholder="acmeproducts"></div>
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
     <div class="frow"><label>Branch</label><input id="sotBranch" class="input mono" placeholder="main"></div>
-    <div class="frow"><label>Venice API key</label><input id="cfgvkey" class="input" type="password" autocomplete="off" placeholder="…">
+    <div class="frow"><label>Venice API key</label><input id="cfgvkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="…">
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="vTest">Validate Venice</button><span class="hint" id="vStatus"></span></div>
       <select id="cfgvmodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
-    <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input" type="password" autocomplete="off" placeholder="sk-or-…">
+    <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="sk-or-…">
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="orTest">Validate OpenRouter</button><span class="hint" id="orStatus"></span></div>
       <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
-    <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+    <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="sk-ant-…"></div>
     <div class="frow"><label>Default engine for new threads</label><select id="cfgengine" class="input">
       <option value="venice">Venice.ai</option>
       <option value="openrouter">OpenRouter</option>
@@ -356,7 +356,7 @@ function renderDebugTab(){const o=$('debugOut');if(!o)return;
     o.textContent='default engine: '+(cfg&&cfg.engine||'venice')+'\n\nvenice key:    '+mask(cfg&&cfg.vkey)+audit(cfg&&cfg.vkey)+'\nvenice model:  '+(cfg&&cfg.vmodel||'—')+'\n\nopenrouter key:   '+mask(cfg&&cfg.orkey)+audit(cfg&&cfg.orkey)+'\nopenrouter model: '+(cfg&&cfg.ormodel||'—')+'\n\nanthropic key: '+mask(cfg&&cfg.akey)+'\n\nKeys live ONLY in this browser (localStorage). Model choices sync via GitHub.';return}
   o.textContent=JSON.stringify({activeProject,activeKey,threads:Object.keys(sot.threads).length,projects:Object.keys(sot.projects).length,engineConfig:sot.config||{}},null,1);
 }
-function cleanKey(k){return (k||'').replace(/[\s\u200B-\u200D\uFEFF\u00A0]/g,'')}
+function cleanKey(k){k=(k||'').trim().replace(/^bearer\s+/i,'');return k.replace(/[\s\u200B-\u200D\uFEFF\u00A0]/g,'')}
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
 /* ---- sidebar / projects ---- */
 function sideOpen(o){$('sidebar').classList.toggle('open',o);$('scrim').classList.toggle('open',o)}
@@ -674,6 +674,7 @@ async function callEngine(eng,system,history,user){
   if(cfgs&&!cfgs.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
   if(!cfgs)throw new Error('Unknown engine '+eng);
   if(!cfgs.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
+  dlog(eng+' call using key: '+cfgs.key.slice(0,14)+'…'+cfgs.key.slice(-4)+' ('+cfgs.key.length+' ch), model '+cfgs.model);
   const r=await lfetch(eng,cfgs.url,{method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key},
     body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
@@ -759,6 +760,11 @@ async function pollOnce(){
 /* ---- dashboard ---- */
 function openModal(id){$(id).classList.add('open')}
 function closeModals(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'))}
+document.querySelectorAll('.keyfield').forEach(f=>{
+  const eye=document.createElement('button');eye.textContent='👁';eye.className='btn';eye.style.cssText='margin-top:6px;font-size:12px';
+  eye.onclick=()=>{f.type=f.type==='password'?'text':'password';eye.textContent=f.type==='password'?'👁':'🙈'};
+  f.insertAdjacentElement('afterend',eye);
+});
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));
 function openDash(){openModal('dashModal');renderDash();
   clearInterval(dashTimer);
@@ -827,6 +833,7 @@ $('vTest').onclick=async()=>{
     fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
     // real auth probe: 1-token completion with the selected model — exactly what builds do
     $('vStatus').textContent='key ping…';
+    dlog('venice ping using key: '+key.slice(0,20)+'…'+key.slice(-4)+' ('+key.length+' ch)');
     const pm=$('cfgvmodel').value||ids[0];
     const rp=await lfetch('venice-ping','https://api.venice.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
