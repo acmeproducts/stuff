@@ -153,7 +153,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b15</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b16</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -233,7 +233,8 @@ select.input{appearance:auto}
       <option value="anthropic-direct">Anthropic API</option></select></div>
     <div class="frow"><label>Model for this thread</label><select id="teModel" class="input mono"></select>
       <div class="hint" id="teHint"></div></div>
-    <button class="btn primary" id="teSave" style="width:100%">Apply to this thread</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><button class="btn" id="teValidate">Validate</button><span class="hint" id="teStatus"></span></div>
+    <button class="btn primary" id="teSave" style="width:100%" disabled>Apply to this thread</button>
   </div>
 </div></div>
 
@@ -860,7 +861,7 @@ async function openEnginePicker(){
   if(!activeKey)return;
   const t=sot.threads[activeKey];
   $('teProvider').value=t.engine||'venice';
-  openModal('engModal');
+  openModal('engModal');$('teSave').disabled=true;$('teStatus').textContent='';
   const load=async()=>{
     const prov=$('teProvider').value;
     $('teHint').textContent='Loading models…';$('teModel').innerHTML='';
@@ -873,10 +874,37 @@ async function openEnginePicker(){
       $('teHint').textContent=ids.length+' models';
     }catch(e){$('teHint').textContent='✗ '+e.message}
   };
-  $('teProvider').onchange=load;
+  $('teProvider').onchange=()=>{$('teSave').disabled=true;$('teStatus').textContent='';load()};
+  $('teModel').onchange=()=>{$('teSave').disabled=true;$('teStatus').textContent=''};
   await load();
 }
 $('engineFoot').onclick=openEnginePicker;
+async function pingProviderModel(prov,model){
+  if(prov==='anthropic-direct'){
+    const r=await lfetch('anthropic-ping','https://api.anthropic.com/v1/messages',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:model,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error('anthropic '+r.status+': '+((j.error&&j.error.message)||''));
+    return;
+  }
+  const M={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey}}[prov];
+  if(!M.key)throw new Error(prov+' key not configured in ⚙');
+  const r=await lfetch(prov+'-ping',M.url,{method:'POST',cache:'no-store',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
+    body:JSON.stringify({model,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){let hint='';if(r.status===402)hint=' — model needs credits or is outside your plan';if(r.status===404)hint=' — model id not available to this key';
+    throw new Error(prov+' '+r.status+': '+JSON.stringify(j.error||j).slice(0,140)+hint)}
+}
+$('teValidate').onclick=async()=>{
+  const prov=$('teProvider').value,model=$('teModel').value;
+  if(!model){$('teStatus').textContent='✗ pick a model first';return}
+  $('teStatus').textContent='pinging '+model+'…';$('teSave').disabled=true;
+  try{await pingProviderModel(prov,model);$('teStatus').textContent='✓ verified — 1-token completion OK';$('teSave').disabled=false}
+  catch(e){$('teStatus').textContent='✗ '+e.message}
+};
 $('teSave').onclick=()=>guard(async()=>{
   const key=activeKey;if(!key)return;
   const t=sot.threads[key],th=threads[key];
