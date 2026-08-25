@@ -155,7 +155,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b18</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b19</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -375,6 +375,8 @@ function renderDebugTab(){const o=$('debugOut');if(!o)return;
   o.textContent=JSON.stringify({activeProject,activeKey,threads:Object.keys(sot.threads).length,projects:Object.keys(sot.projects).length,engineConfig:sot.config||{}},null,1);
 }
 function cleanKey(k){k=(k||'').trim().replace(/^bearer\s+/i,'');return k.replace(/[\s\u200B-\u200D\uFEFF\u00A0]/g,'')}
+function isStalled(t){return t&&t.state==='executing'&&t.startedAt&&(Date.now()-new Date(t.startedAt))>10*60*1000}
+function stallAge(t){const m=Math.round((Date.now()-new Date(t.startedAt))/60000);return m>=60?Math.round(m/60)+'h':m+'m'}
 async function guard(fn){try{errbar(null);await(typeof fn==='function'?fn():fn);return true}catch(e){errbar(e.message);toast(e.message);return false}}
 /* ---- sidebar / projects ---- */
 function sideOpen(o){$('sidebar').classList.toggle('open',o);$('scrim').classList.toggle('open',o)}
@@ -383,7 +385,7 @@ function renderSidebar(){
   const q=($('search').value||'').toLowerCase();
   const pl=$('projList');pl.innerHTML='';
   const live=Object.values(sot.threads).filter(t=>!t.deleted);
-  const runs=live.filter(t=>t.state==='executing').length;
+  const runs=live.filter(t=>t.state==='executing'&&!isStalled(t)).length;
   const errs=live.filter(t=>t.state==='error').length;
   const dc=document.createElement('div');dc.className='card';dc.id='dashcard';
   dc.innerHTML='<div class="cttl">Dashboard<span class="grow"></span>'+(runs?'<span class="badge run">'+runs+'</span>':'')+(errs?'<span class="badge err">'+errs+'</span>':'')+'</div><div class="csub">'+Object.keys(sot.projects).length+' projects · '+Object.keys(sot.threads).length+' threads</div>';
@@ -499,7 +501,7 @@ function renderChat(){
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const pend=d.messages.some(m=>m.status==='pending');
   $('runPending').style.display=pend?'inline-flex':'none';
-  $('typing').style.display=t.state==='executing'?'flex':'none';
+  $('typing').style.display=(t.state==='executing'&&!isStalled(t))?'flex':'none';
   const c=$('messages');c.innerHTML='';
   d.messages.forEach(m=>{
     const el=document.createElement('div');
@@ -963,7 +965,7 @@ function openDash(){openModal('dashModal');renderDash();
   dashTimer=setInterval(async()=>{
     if(!$('dashModal').classList.contains('open')){clearInterval(dashTimer);return}
     if(document.hidden||pollBusy)return;
-    if(Object.values(sot.threads).some(t=>t.state==='executing')){pollBusy=true;try{await loadSOT();renderDash();renderSidebar()}catch(e){}finally{pollBusy=false}}
+    if(Object.values(sot.threads).some(t=>t.state==='executing'&&!isStalled(t))){pollBusy=true;try{await loadSOT();renderDash();renderSidebar()}catch(e){}finally{pollBusy=false}}
   },30000);
 }
 $('dashRefresh').onclick=()=>guard(async()=>{await loadSOT();renderDash();renderSidebar();toast('Refreshed')});
@@ -980,7 +982,7 @@ function renderDash(){
     let rows=Object.entries(sot.threads).filter(([k,t])=>t.project===p&&!t.deleted);
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
-    const runs=rows.filter(([k,t])=>t.state==='executing').length;
+    const runs=rows.filter(([k,t])=>t.state==='executing'&&!isStalled(t)).length;
     const ph=pr.phase||'Define';
     sec.innerHTML='<div class="dpttl">'+esc(p)+' <span class="phase">'+ph+'</span>'+
       (PHASES.indexOf(ph)<PHASES.length-1?'<button class="phaseBtn">advance → '+PHASES[PHASES.indexOf(ph)+1]+'</button>':'')+
@@ -1008,10 +1010,15 @@ function renderDash(){
         r.querySelector('button').onclick=e=>{e.stopPropagation();hardDeleteThread(k)};
         sec.appendChild(r);return;
       }
-      r.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><div class="ti">'+
+      const stalled=isStalled(t);
+      r.innerHTML='<span class="dot '+(stalled?'error':(t.state||'idle'))+'"></span><div class="ti">'+
         '<div class="tf mono">'+esc(t.file)+'</div>'+
-        '<div class="tt">'+(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
-        (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>';
+        '<div class="tt">'+(stalled?'STALLED '+stallAge(t)+' (was executing)':(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt))+'</div>'+
+        (t.error?'<div class="terr">'+esc(t.error)+'</div>':'')+'</div>'+
+        (stalled?'<button class="recBtn">Reset</button>':'');
+      if(stalled)r.querySelector('.recBtn').onclick=e=>{e.stopPropagation();guard(async()=>{
+        t.state='error';t.error='stalled — reset by owner';t.finishedAt=now();
+        await saveSOT('devstream: reset stalled '+k);renderDash();renderSidebar();toast('Reset — open the thread and ▶ to retry')})};
       const ee=r.querySelector('.terr');
       if(ee)ee.onclick=e=>{e.stopPropagation();ee.classList.toggle('x')};
       r.onclick=()=>{activeProject=t.project;localStorage.setItem('ds_activeproj',t.project);closeModals();renderSidebar();renderTabs();openThread(k)};
@@ -1126,6 +1133,12 @@ applyAppearance();
   if(!cfg){openModal('cfgModal');return}
   const ok=await guard(loadSOT);
   if(ok){
+    let healed=0;
+    Object.entries(sot.threads).forEach(([k,t])=>{
+      if(t.state==='executing'&&t.startedAt&&(Date.now()-new Date(t.startedAt))>15*60*1000){
+        t.state='error';t.error='stalled — build interrupted (browser closed mid-run); re-send or ▶ to retry';t.finishedAt=now();healed++;
+      }});
+    if(healed){dlog('healed '+healed+' stalled thread(s)');saveSOT('devstream: heal stalled').catch(()=>{})}
     if(sot.config){cfg.vmodel=cfg.vmodel||sot.config.vmodel||'';cfg.ormodel=cfg.ormodel||sot.config.ormodel||'';cfg.engine=cfg.engine||sot.config.engine||'venice';localStorage.setItem(LS,JSON.stringify(cfg));
       if(!localStorage.getItem('ds_appearance')&&sot.config.appearance){appearance=sot.config.appearance;saveAppearance();applyAppearance()}}
     $('dot').classList.add('on');renderSidebar();renderTabs();
