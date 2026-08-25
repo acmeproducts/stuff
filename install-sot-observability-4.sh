@@ -5,9 +5,9 @@ REPORT_ROOT=/home/support/.openclaw/workspace/https/report
 SOT_STATE=/home/support/.openclaw/sot
 SOT_DATABASE="$SOT_STATE/sot.sqlite"
 SERVICE=openclaw-report-server.service
-BASE=https://raw.githubusercontent.com/acmeproducts/stuff/4ee1b1a4cc86e998666320b7187cae6c2b8d4f06
-PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260824-live-progress-5'
-EXPECTED_BUILD=2026.08.24.sot-live-progress-5
+BASE=https://raw.githubusercontent.com/acmeproducts/stuff/1515897ba38326e52b14717b918e5c9450e2f028
+PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/sot-turn01-r2-wizard.html?v=20260824-compact-destinations-6'
+EXPECTED_BUILD=2026.08.24.sot-compact-destinations-6
 TEMP_ROOT="$(mktemp -d)"
 CUTOVER_STARTED=0
 SERVICE_STOPPED=0
@@ -62,7 +62,7 @@ systemctl is-active --quiet "$SERVICE"
 test -s "$SOT_DATABASE"
 mkdir -p "$TEMP_ROOT/sot-db/migrations"
 
-echo '=== FETCH LIVE PROGRESS CANDIDATE ==='
+echo '=== FETCH COMPACT DESTINATION CANDIDATE ==='
 FILES=(
   sot-api.js
   sot-worker.js
@@ -103,7 +103,7 @@ for index,filename in enumerate(sys.argv[1:3]):
     scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',html,re.I)
     if not scripts: raise SystemExit('inline script missing: '+filename)
     pathlib.Path(sys.argv[3],f'ui-{index}.js').write_text('\n;\n'.join(scripts))
-markers=['2026.08.24.sot-live-progress-5','2026.08.23.sot-clean-admin-1']
+markers=['2026.08.24.sot-compact-destinations-6','2026.08.24.sot-compact-destinations-6']
 for marker,filename in zip(markers,sys.argv[1:3]):
     if marker not in pathlib.Path(filename).read_text():
         raise SystemExit('UI marker missing: '+marker)
@@ -111,7 +111,7 @@ PY
 node --check "$TEMP_ROOT/ui-0.js"
 node --check "$TEMP_ROOT/ui-1.js"
 
-echo '=== UI LIVE PROGRESS CONTRACT TEST ==='
+echo '=== UI VIEWPORT + DESTINATION CONTRACT TEST ==='
 (
   cd "$TEMP_ROOT"
   node test-sot-ui-contract.js
@@ -196,7 +196,7 @@ node "$REPORT_ROOT/integrate-sot-server.js" "$REPORT_ROOT/session-server.js"
 sudo systemctl start "$SERVICE"
 SERVICE_STOPPED=0
 
-echo '=== LIVE HEALTH + PROGRESS GATES ==='
+echo '=== LIVE HEALTH + COMPACT WORKFLOW GATES ==='
 for attempt in {1..30}; do
   if curl --max-time 3 -fsS http://127.0.0.1:18080/api/sot/health -o "$TEMP_ROOT/health.json"; then break; fi
   sleep 1
@@ -208,7 +208,7 @@ if not p.exists(): raise SystemExit('SOT health did not become ready')
 x=json.loads(p.read_text())
 if x.get('status')!='ok' or x.get('build')!=sys.argv[2] or x.get('database_version')!=4:
     raise SystemExit('wrong live health: '+repr(x))
-required={'live-worker-paths','live-in-file-byte-progress','visible-ui-heartbeat','durable-activity-log','worker-exit-fail-closed'}
+required={'live-worker-paths','live-in-file-byte-progress','visible-ui-heartbeat','viewport-contained-workflow-actions','three-panel-destination-picker','safe-folder-creation','durable-activity-log','worker-exit-fail-closed'}
 if not required.issubset(set(x.get('capabilities') or [])):
     raise SystemExit('observability capabilities missing: '+repr(x))
 print(json.dumps(x,indent=2))
@@ -242,12 +242,12 @@ PY
 echo '=== PUBLIC UI GATE ==='
 for attempt in {1..10}; do
   if curl --max-time 15 -fsS "$PUBLIC_URL" -o "$TEMP_ROOT/public.html" && \
-     grep -q '2026.08.24.sot-live-progress-5' "$TEMP_ROOT/public.html"; then
+     grep -q '2026.08.24.sot-compact-destinations-6' "$TEMP_ROOT/public.html"; then
     break
   fi
   sleep 2
 done
-grep -q '2026.08.24.sot-live-progress-5' "$TEMP_ROOT/public.html"
+grep -q '2026.08.24.sot-compact-destinations-6' "$TEMP_ROOT/public.html"
 grep -q 'Name and live activity' "$TEMP_ROOT/public.html"
 grep -q 'data-project-activity' "$TEMP_ROOT/public.html"
 grep -q 'SOT activity log' "$TEMP_ROOT/public.html"
@@ -255,9 +255,12 @@ grep -q 'Recent project activity' "$TEMP_ROOT/public.html"
 grep -q 'id="liveHeartbeat"' "$TEMP_ROOT/public.html"
 grep -q 'Bytes actively hashing' "$TEMP_ROOT/public.html"
 grep -q 'Recent SOT activity' "$TEMP_ROOT/public.html"
+grep -q 'Use current as Target' "$TEMP_ROOT/public.html"
+grep -q 'Create folder' "$TEMP_ROOT/public.html"
+grep -q 'projectTableScrollLeft' "$TEMP_ROOT/public.html"
 
 CUTOVER_STARTED=0
-echo '=== SOT LIVE PROGRESS 5 INSTALLED ==='
+echo '=== SOT COMPACT DESTINATIONS 6 INSTALLED ==='
 echo 'Existing SOT projects, fingerprints, observations, plans, events, and corpus rows were preserved.'
 echo 'Source, Target, and Backup file content was not deleted.'
 echo "URL: $PUBLIC_URL"
