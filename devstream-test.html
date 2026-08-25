@@ -256,7 +256,7 @@ const LS='ds_cfg_v2';
 let cfg=JSON.parse(localStorage.getItem(LS)||'null');
 let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
-let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, agentBusy=false, npSelectedExisting=false;
+let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false;
 
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
@@ -697,61 +697,152 @@ async function callEngine(eng,system,history,user,modelOverride){
   return j.choices[0].message.content;
 }
 async function runAgent(key){
-  if(agentBusy){toast('Agent already running');return}
   const t=sot.threads[key],th=threads[key];
   if(!t||!th)return;
-  const eng=t.engine||'venice';
-  if(eng==='anthropic-direct'&&!cfg.akey){errbar('No Anthropic API key in Settings.');return}
-  if(eng==='venice'&&!cfg.vkey){errbar('No Venice API key in Settings.');return}
-  if(eng==='openrouter'&&!cfg.orkey){errbar('No OpenRouter API key in Settings.');return}
+  if(t.state==='executing'){toast('This thread is already building');return}
   const pend=th.data.messages.filter(m=>m.role==='user'&&m.status==='pending');
   if(!pend.length){toast('Nothing pending');return}
-  agentBusy=true;
+  const eng=t.engine||'venice';
+  const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
+    .filter(x=>(x==='venice'&&cfg.vkey&&cfg.vmodel)||(x==='openrouter'&&cfg.orkey&&cfg.ormodel)||(x==='anthropic-direct'&&cfg.akey));
+  if(!chain.length){errbar('no engine is configured — open ⚙, validate at least one engine');return}
   try{
     await setState(key,{state:'executing',startedAt:now(),error:''});
-    const codeFile=th.data.outputFile,planFile=th.data.planFile;
-    const planF=await getFile(planFile);
-    const codeF=await getFile(codeFile);
-    const inF=(!codeF&&th.data.inputFile)?await getFile(th.data.inputFile):null;
-    let ctx='';
-    if(planF)ctx+='PLAN file '+planFile+':\n<plan>\n'+planF.content+'\n</plan>\n\n';
-    if(codeF)ctx+='CODE file '+codeFile+':\n<code>\n'+codeF.content+'\n</code>\n\n';
-    else if(inF)ctx+='INPUT codebase '+th.data.inputFile+':\n<code>\n'+inF.content+'\n</code>\n\n';
+    const codeFile=th.data.outputFile,planFile=th.data.planFile||planOf(codeFile);
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
-      .filter(x=>(x==='venice'&&cfg.vkey&&cfg.vmodel)||(x==='openrouter'&&cfg.orkey&&cfg.ormodel)||(x==='anthropic-direct'&&cfg.akey));
-    if(!chain.length)throw new Error('no engine is configured — open ⚙, validate at least one engine');
-    let text=null,usedEng=null,fails=[];
-    for(const e2 of chain){
-      try{text=await callEngine(e2,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr,e2===eng?t.model:null);usedEng=e2;break}
-      catch(err){fails.push(e2+': '+err.message);dlog('E|engine '+e2+' failed — '+(chain.indexOf(e2)<chain.length-1?'failing over':'no engines left'));
-        if(chain.indexOf(e2)<chain.length-1)toast(e2+' failed → trying '+chain[chain.indexOf(e2)+1])}
-    }
-    if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
-    if(usedEng!==eng)dlog('K|served by fallback engine '+usedEng);
-    const{summary,target,body}=parseAgent(text);
+    const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,
+      system:agentSystem(codeFile,planFile),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
+    const{summary,target,body,usedEng}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     if(target!=='NONE'){
-      if(body.length<80)throw new Error('Agent returned no usable file content for '+target);
+      if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
-      if(target===planFile){sot.projects[t.project].planExists=true;reply=summary+'\nPlan updated: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
-      else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply=summary+'\nTest: '+testUrl}
-    }else reply=body||summary;
+      if(target===planFile){sot.projects[t.project].planExists=true;reply+='\nPlan updated: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
+      else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply+='\nTest: '+testUrl}
+    }else reply=body||reply;
     pend.forEach(m=>{m.status='done';delete m.forcedTarget});
     th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined});
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
-    toast('Done');
+    toast(key+' done');
   }catch(e){
     th.data.messages.push({role:'agent',text:'Failed: '+e.message,ts:now()});
     try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key)}catch(e2){}
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
   }
-  agentBusy=false;
 }
+/* ---- blob worker pool (4) ---- */
+const WORKER_SRC=`
+'use strict';
+function parseAgent(text){
+  let summary='Done.',target='NONE';
+  const sm=text.match(/^SUMMARY:\\s*(.+)$/m);if(sm){summary=sm[1].trim()}
+  const tm=text.match(/^TARGET:\\s*(.+)$/m);if(tm){target=tm[1].trim()}
+  let body=text;
+  if(tm)body=text.slice(text.indexOf(tm[0])+tm[0].length);
+  else if(sm)body=text.slice(text.indexOf(sm[0])+sm[0].length);
+  body=body.trim();
+  if(body.startsWith('\\u0060\\u0060\\u0060')){body=body.replace(/^\\u0060\\u0060\\u0060[a-zA-Z]*\\n?/,'');const i=body.lastIndexOf('\\u0060\\u0060\\u0060');if(i>-1)body=body.slice(0,i);body=body.trim()}
+  return{summary,target,body};
+}
+async function ghGet(cfg,path){
+  const r=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('GitHub '+r.status+' reading '+path);
+  const j=await r.json();
+  let content=j.content?decodeURIComponent(escape(atob(j.content.replace(/\\n/g,'')))):'';
+  if(!content&&j.size>0){
+    const r2=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
+    if(!r2.ok)throw new Error('raw fallback '+r2.status+' on '+path);
+    content=await r2.text();
+  }
+  return content;
+}
+async function callEngine(cfg,eng,model,system,history,user){
+  if(eng==='anthropic-direct'){
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})});
+    const j=await r.json();
+    if(!r.ok)throw new Error('anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
+    return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  }
+  const M={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:model||cfg.vmodel},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:model||cfg.ormodel}}[eng];
+  if(!M)throw new Error('unknown engine '+eng);
+  if(!M.key)throw new Error(eng+' key not configured');
+  if(!M.model)throw new Error(eng+' model not selected');
+  const r=await fetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
+    body:JSON.stringify({model:M.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
+  let j;try{j=await r.json()}catch(e){throw new Error(eng+' non-JSON ('+r.status+')')}
+  if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
+  return j.choices[0].message.content;
+}
+self.onmessage=async e=>{
+  const job=e.data;
+  const post=(m)=>self.postMessage({jobId:job.jobId,...m});
+  try{
+    const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
+    let ctx='';
+    const pc=await ghGet(cfg,planFile);
+    if(pc)ctx+='PLAN file '+planFile+':\n<plan>\n'+pc+'\n</plan>\n\n';
+    const cc=await ghGet(cfg,codeFile);
+    if(cc)ctx+='CODE file '+codeFile+':\n<code>\n'+cc+'\n</code>\n\n';
+    else if(inputFile){const ic=await ghGet(cfg,inputFile);if(ic)ctx+='INPUT codebase '+inputFile+':\n<code>\n'+ic+'\n</code>\n\n'}
+    let text=null,usedEng=null,fails=[];
+    for(const eng of chain){
+      post({type:'log',line:'engine '+eng+' starting'});
+      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\n'+instr);usedEng=eng;break}
+      catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
+    }
+    if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
+    const{summary,target,body}=parseAgent(text);
+    post({type:'done',summary,target,body,usedEng});
+  }catch(err){post({type:'error',message:err.message})}
+};
+`;
+const WORKER_URL=URL.createObjectURL(new Blob([WORKER_SRC],{type:'application/javascript'}));
+const POOL_SIZE=4;
+const pool=[];const jobQ=[];const jobs={};let jobSeq=0;
+function getWorker(){
+  let w=pool.find(p=>!p.busy);
+  if(!w&&pool.length<POOL_SIZE){
+    const wk=new Worker(WORKER_URL);
+    w={wk,busy:false};
+    wk.onmessage=e=>{
+      const m=e.data;const job=jobs[m.jobId];if(!job)return;
+      if(m.type==='log'){dlog((m.err?'E|':'')+'[T'+m.jobId+' '+job.key+'] '+m.line);return}
+      w.busy=false;delete jobs[m.jobId];
+      (m.type==='done'?job.resolve(m):job.reject(new Error(m.message)));
+      pumpQ();
+    };
+    wk.onerror=err=>{dlog('E|worker crash: '+err.message)};
+    pool.push(w);
+  }
+  return w&&!w.busy?w:null;
+}
+function pumpQ(){
+  while(jobQ.length){
+    const w=getWorker();if(!w)break;
+    const job=jobQ.shift();w.busy=true;jobs[job.payload.jobId]=job;
+    dlog('[T'+job.payload.jobId+' '+job.key+'] dispatched to worker (pool '+pool.filter(p=>p.busy).length+'/'+POOL_SIZE+')');
+    w.wk.postMessage(job.payload);
+  }
+  renderWorkload();
+}
+function runJob(key,payload){
+  payload.jobId=++jobSeq;
+  return new Promise((resolve,reject)=>{jobQ.push({key,payload,resolve,reject});pumpQ()});
+}
+function renderWorkload(){
+  const n=pool.filter(p=>p.busy).length+jobQ.length;
+  const el=document.getElementById('pill');
+  if(el&&!activeKey)el.textContent=n?n+' running':'idle';
+}
+
 /* ---- polling ---- */
 let pollBusy=false;
 async function loadProviderModels(prov){
