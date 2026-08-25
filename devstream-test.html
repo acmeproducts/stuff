@@ -167,7 +167,7 @@ select.input{appearance:auto}
     <div id="messages"></div>
     <div id="typing"><span class="spin"></span><span>Agent is working…</span></div>
     <div id="composer"><div class="compose"><textarea id="message" class="input" rows="2" placeholder="Questions, ideas, feedback — or say build it"></textarea><button id="send" class="btn primary">Send</button></div>
-    <div class="foot"><span>Enter sends · Shift+Enter newline</span><span id="engineFoot"></span></div></div>
+    <div class="foot"><span>Enter sends · Shift+Enter newline</span><button id="engineFoot" style="color:var(--accent);font-size:10px;padding:2px 4px"></button></div></div>
   </div>
 </main>
 </div>
@@ -220,6 +220,20 @@ select.input{appearance:auto}
       <option value="openrouter">OpenRouter</option>
       <option value="anthropic-direct">Anthropic API</option></select></div>
     <button class="btn primary" id="npCreate" style="width:100%">Create project</button>
+  </div>
+</div></div>
+
+<!-- Thread engine modal -->
+<div class="modal" id="engModal"><div class="panel">
+  <header>Thread engine<button class="btn" data-close="engModal">✕</button></header>
+  <div class="pbody">
+    <div class="frow"><label>Provider for this thread</label><select id="teProvider" class="input">
+      <option value="venice">Venice.ai</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="anthropic-direct">Anthropic API</option></select></div>
+    <div class="frow"><label>Model for this thread</label><select id="teModel" class="input mono"></select>
+      <div class="hint" id="teHint"></div></div>
+    <button class="btn primary" id="teSave" style="width:100%">Apply to this thread</button>
   </div>
 </div></div>
 
@@ -472,7 +486,7 @@ function renderChat(){
   $('chatTitle').textContent=t.project+' · '+t.file;
   $('chatInfo').textContent=repoFull()+' · plan: '+(d.planFile||'—');
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
-  $('engineFoot').textContent='engine: '+(t.engine||'venice');
+  $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const pend=d.messages.some(m=>m.status==='pending');
   $('runPending').style.display=pend?'inline-flex':'none';
   $('typing').style.display=t.state==='executing'?'flex':'none';
@@ -660,7 +674,7 @@ async function setState(key,patch){
   await saveSOT('devstream: '+key+' -> '+(patch.state||'update')).catch(()=>{});
   renderTabs();renderSidebar();if(activeKey===key)renderChat();
 }
-async function callEngine(eng,system,history,user){
+async function callEngine(eng,system,history,user,modelOverride){
   if(eng==='anthropic-direct'){
     const r=await lfetch('anthropic','https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -669,8 +683,8 @@ async function callEngine(eng,system,history,user){
     if(!r.ok)throw new Error('Anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
     return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
   }
-  const cfgs={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:cfg.vmodel},
-    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:cfg.ormodel}}[eng];
+  const cfgs={venice:{url:'https://api.venice.ai/api/v1/chat/completions',key:cfg.vkey,model:(modelOverride||cfg.vmodel)},
+    openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:cfg.orkey,model:(modelOverride||cfg.ormodel)}}[eng];
   if(cfgs&&!cfgs.model)throw new Error(eng+' model not selected — open ⚙, Validate '+eng+', pick a model, Save');
   if(!cfgs)throw new Error('Unknown engine '+eng);
   if(!cfgs.key)throw new Error(eng+' key is not saved in Settings — open ⚙, paste the key, tap Save');
@@ -711,7 +725,7 @@ async function runAgent(key){
     if(!chain.length)throw new Error('no engine is configured — open ⚙, validate at least one engine');
     let text=null,usedEng=null,fails=[];
     for(const e2 of chain){
-      try{text=await callEngine(e2,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);usedEng=e2;break}
+      try{text=await callEngine(e2,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr,e2===eng?t.model:null);usedEng=e2;break}
       catch(err){fails.push(e2+': '+err.message);dlog('E|engine '+e2+' failed — '+(chain.indexOf(e2)<chain.length-1?'failing over':'no engines left'));
         if(chain.indexOf(e2)<chain.length-1)toast(e2+' failed → trying '+chain[chain.indexOf(e2)+1])}
     }
@@ -740,6 +754,47 @@ async function runAgent(key){
 }
 /* ---- polling ---- */
 let pollBusy=false;
+async function loadProviderModels(prov){
+  if(prov==='anthropic-direct')return['claude-sonnet-4-6'];
+  if(prov==='venice'){
+    const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.vkey}});
+    const j=await r.json();if(!r.ok)throw new Error('venice models '+r.status);
+    return(j.data||[]).map(m=>m.id).filter(Boolean).sort();
+  }
+  const r=await lfetch('or-models','https://openrouter.ai/api/v1/models',{cache:'no-store'});
+  const j=await r.json();if(!r.ok)throw new Error('openrouter models '+r.status);
+  return(j.data||[]).map(m=>m.id).filter(Boolean).sort();
+}
+async function openEnginePicker(){
+  if(!activeKey)return;
+  const t=sot.threads[activeKey];
+  $('teProvider').value=t.engine||'venice';
+  openModal('engModal');
+  const load=async()=>{
+    const prov=$('teProvider').value;
+    $('teHint').textContent='Loading models…';$('teModel').innerHTML='';
+    try{
+      const ids=await loadProviderModels(prov);
+      $('teModel').innerHTML='';
+      ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;$('teModel').appendChild(o)});
+      const cur=t.model||(prov==='venice'?cfg.vmodel:prov==='openrouter'?cfg.ormodel:'claude-sonnet-4-6');
+      if(cur&&ids.includes(cur))$('teModel').value=cur;
+      $('teHint').textContent=ids.length+' models';
+    }catch(e){$('teHint').textContent='✗ '+e.message}
+  };
+  $('teProvider').onchange=load;
+  await load();
+}
+$('engineFoot').onclick=openEnginePicker;
+$('teSave').onclick=()=>guard(async()=>{
+  const key=activeKey;if(!key)return;
+  const t=sot.threads[key],th=threads[key];
+  t.engine=$('teProvider').value;t.model=$('teModel').value||'';
+  th.data.engine=t.engine;th.data.model=t.model;
+  th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: engine '+t.engine+'/'+t.model+' for '+key);
+  await saveSOT('devstream: engine change '+key);
+  renderChat();closeModals();toast(t.engine+' · '+t.model);
+});
 function schedulePoll(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
