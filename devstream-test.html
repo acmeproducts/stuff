@@ -153,7 +153,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b16</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b17</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -396,7 +396,12 @@ function renderSidebar(){
     pb.onclick=e=>{e.stopPropagation();
       if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
       else toast('Plan not created yet — the project thread builds it')};
-    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);renderSidebar();renderTabs();sideOpen(false)};
+    d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);activeKey=null;
+      $('chatArea').style.display='none';$('emptyState').style.display='flex';
+      $('chatTitle').textContent=p;
+      $('chatInfo').textContent=(Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted).length)+' threads · '+repoFull();
+      $('pill').textContent='';$('pill').className='';
+      renderSidebar();renderTabs();sideOpen(false)};
     let lpT=null;
     d.addEventListener('touchstart',()=>{lpT=setTimeout(()=>{lpT=null;softDeleteProject(p)},650)});
     d.addEventListener('touchend',()=>{if(lpT)clearTimeout(lpT)});
@@ -972,7 +977,13 @@ function renderDash(){
       state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
     rows.sort(sorters[dashSort]);
     rows.forEach(([k,t])=>{
+      const corrupt=/^devstream\//.test(t.file||'');
       const r=document.createElement('div');r.className='trow';
+      if(corrupt){
+        r.innerHTML='<span class="dot error"></span><div class="ti"><div class="tf mono">[corrupt legacy thread] '+esc(t.file)+'</div><div class="tt">bad metadata from an early build</div></div><button class="recBtn danger">Purge</button>';
+        r.querySelector('button').onclick=e=>{e.stopPropagation();hardDeleteThread(k)};
+        sec.appendChild(r);return;
+      }
       r.innerHTML='<span class="dot '+(t.state||'idle')+'"></span><div class="ti">'+
         '<div class="tf mono">'+esc(t.file)+'</div>'+
         '<div class="tt">'+(t.state||'idle')+' · '+(t.engine||'venice')+' · '+rel(t.finishedAt||t.startedAt)+'</div>'+
@@ -982,6 +993,12 @@ function renderDash(){
       r.onclick=()=>{activeProject=t.project;localStorage.setItem('ds_activeproj',t.project);closeModals();renderSidebar();renderTabs();openThread(k)};
       sec.appendChild(r);
     });
+    if(!rows.length){
+      const cta=document.createElement('button');cta.className='btn';cta.textContent='+ start a thread in '+p;
+      cta.style.marginBottom='8px';
+      cta.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);closeModals();renderSidebar();renderTabs();newThreadForProject()};
+      sec.appendChild(cta);
+    }
     const nd=document.createElement('div');nd.className='notes';
     nd.innerHTML='<textarea class="input" placeholder="Notes for '+esc(p)+'…">'+esc(pr.notes||'')+'</textarea><button class="notesave">Save notes</button>';
     nd.querySelector('button').onclick=()=>guard(async()=>{pr.notes=nd.querySelector('textarea').value;await saveSOT('devstream: notes '+p);toast('Saved')});
