@@ -1,0 +1,58 @@
+<script>
+/* ═══════════ R10 PHASE A · PRE-BOOTSTRAP HANDOFF (governed) ═══════════
+   Runs BEFORE the TalkBridge startup code consumes location.hash, per the
+   governing prompt A3. Cookie name and attributes are specified exactly.
+   No invitation payload or credential value is ever logged — metadata only.
+   The raw j value is never decoded or re-encoded here; it is carried as-is. */
+(function () {
+  'use strict';
+  var COOKIE = 'tb_install_handoff_v1';
+  var ATTRS = 'Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+  var standalone = false;
+  try {
+    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                 (navigator.standalone === true);
+  } catch (_) {}
+  window.__TB_R10 = { standalone: standalone, staged: false, armed: false, rawLen: 0, log: [] };
+  function plog(ev, meta) { window.__TB_R10.log.push({ ev: ev, meta: meta || {}, ts: Date.now() }); }
+  function readCookie() {
+    var m = ('; ' + document.cookie).match('; ' + COOKIE + '=([^;]*)');
+    return m ? m[1] : null;
+  }
+  try {
+    var h = location.hash || '';
+    var hasJ = h.indexOf('#j=') === 0;
+    if (!standalone) {
+      /* Safari/browser tab: arm the handoff, then let the existing invitation
+         processing continue untouched. No prepare button, no ceremony. */
+      if (hasJ) {
+        var raw = h.slice(3);                       /* RAW existing j value */
+        var enc = encodeURIComponent(raw);
+        if (enc.length > 3800) {
+          plog('pwa_handoff_oversize', { bytes: enc.length, standalone: false });
+        } else {
+          document.cookie = COOKIE + '=' + enc + '; ' + ATTRS;
+          window.__TB_R10.armed = true;
+          window.__TB_R10.rawLen = raw.length;
+          plog('pwa_handoff_armed', { bytes: enc.length, standalone: false });
+        }
+      }
+    } else {
+      /* Standalone PWA: if the URL already carries j, leave it alone. If not,
+         recover the cookie's raw j and place it exactly where the existing
+         bootstrap reads it — location.hash — so the SAME join path runs. */
+      if (!hasJ) {
+        var c = readCookie();
+        if (c) {
+          var rawJ = decodeURIComponent(c);
+          window.__TB_R10.staged = true;
+          window.__TB_R10.rawLen = rawJ.length;
+          try { history.replaceState(null, '', location.pathname + location.search + '#j=' + rawJ); } catch (_) {}
+          if ((location.hash || '').indexOf('#j=') !== 0) location.hash = '#j=' + rawJ;
+          plog('pwa_handoff_staged', { bytes: rawJ.length, standalone: true });
+        }
+      }
+    }
+  } catch (e) { plog('pwa_handoff_error', { e: String(e && e.message || e) }); }
+})();
+</script>

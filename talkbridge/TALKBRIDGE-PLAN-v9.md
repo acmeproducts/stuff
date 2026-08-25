@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.2.0 -->
-# TALKBRIDGE MASTER PLAN v16.2.0
+<!-- TALKBRIDGE-PLAN v16.3.0 -->
+# TALKBRIDGE MASTER PLAN v16.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.3.0 · 2026-08-24.** Owner caught a process violation: label fix and N6
+were in-place edits to the built artifact. Answer to the question asked:
+application only, relay untouched since v2 — and yes, it was patching in
+method. Fixed structurally: part sources persisted (talkbridge/parts/),
+mechanical assembler added (build/assemble-r10.mjs), clean assembly proven
+equivalent (one newline in 404k chars) and adopted as canonical. Regated:
+13/13 + 9/9. The artifact is output only, forever.
 
 **v16.2.0 · 2026-08-24.** Two fixes from owner device evidence, both gated:
 (1) stale turn25 labels in the reused validated part corrected to

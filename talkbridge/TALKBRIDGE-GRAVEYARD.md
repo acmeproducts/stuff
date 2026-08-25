@@ -1003,3 +1003,19 @@ device-verified working relay). This is the clean baseline.
 R10 rebuild requires: a declared item list approved by the owner BEFORE any
 code is written, one clean build from 24-ship against exactly those items,
 one gate, one device test. Nothing else.
+
+## In-place edits to the deployed artifact · PROCESS VIOLATION, caught by the owner · Aug 24 2026
+
+The label fix and N6 were applied by editing the built artifact directly
+instead of fixing part sources and reassembling from ship. THE-METHOD forbids
+exactly this. The owner asked "aren't we just patching again" — yes, in
+method if not in content. Proven: a clean mechanical assembly from persisted
+part sources differed from the hand-edited artifact by one newline in 404k
+characters; content was equivalent, process was not.
+
+Corrected structurally, not with promises: the six part sources now live in
+talkbridge/parts/, the assembly is one command
+(talkbridge/build/assemble-r10.mjs), the artifact is bit-for-bit reproducible
+from it, and the canonical assembly replaced the hand-edited file. Rule:
+the artifact is OUTPUT ONLY — every change goes into a part source and
+through the assembler.
