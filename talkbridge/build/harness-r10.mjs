@@ -12,7 +12,7 @@ const A = (c, m) => { if (!c) throw new Error(m); };
 
 console.log('S · static contract');
 T('S1 exactly N1..N5 present; excluded parts absent; ship interior intact', () => {
-  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path'])
+  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path', 'N6-gesture-first-permission'])
     A(built.includes(p), p + ' missing');
   for (const p of ['PA4-create', 'PJ-customer', 'PD-delivery', '_did', 'ACK_GRACE'])
     A(!built.includes(p), p + ' leaked in');
@@ -103,6 +103,16 @@ T('N5 lane routing exact per user agent; boot line carries permissions', () => {
   A(L('Mozilla/5.0 (Linux; Android 14) Chrome/125 Mobile Safari/537.36', false) === 'android-tab', 'android tab');
   w.plBootLine();
   A(w.TB_LANE && w.TB_LANE.lane !== '?' && typeof w.TB_LANE.notif === 'string', 'lane line incomplete');
+});
+T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
+  let askedSync = false;
+  const OrigN = w.Notification;
+  w.Notification = class { static requestPermission(){ askedSync = true; return Promise.resolve('denied'); } };
+  w.Notification.permission = 'default';
+  w.r10EnableNotifications();          /* simulated tap */
+  const wasSync = askedSync;           /* read BEFORE any microtask runs */
+  w.Notification = OrigN;
+  A(wasSync === true, 'permission asked only after an await — iOS would show no prompt');
 });
 T('N1 handoff machinery live: cookie consume + subscription sync callable', () => {
   A(typeof w.r10ConsumeHandoff === 'function', 'consume missing');

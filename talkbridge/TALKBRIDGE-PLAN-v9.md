@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.1.0 -->
-# TALKBRIDGE MASTER PLAN v16.1.0
+<!-- TALKBRIDGE-PLAN v16.2.0 -->
+# TALKBRIDGE MASTER PLAN v16.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -274,6 +274,7 @@ byte-verified against eb7f4cd6, auto-deployed, live probe green
 | N3 | Subscription self-heal (PH) | Researched iOS reality: subscriptions die spontaneously. Every open: permission granted but subscription gone → silently resubscribe. Never prompts the ungranted |
 | N4 | Listener heartbeat | Background room listeners send the same 30s ping the active room sends, so the freshness guard is true for every socket the phone holds — no double alerts |
 | N5 | Lane telemetry (PL) | One boot log line: lane + mic + notif permission. Pure diagnostics; it is the reason the last three root causes were findable |
+| N6 | Gesture-first permission | Owner evidence: iPhone never showed a notification prompt — only camera/mic. The enable flow awaited serviceWorker.ready and getSubscription BEFORE requestPermission; iOS drops the gesture across awaits and refuses silently. Ask now happens synchronously inside the tap, then the original flow runs unchanged |
 
 NOT in this release (→ R11): create-room name field, keyboard-aware name
 cards, font raises, journey bars (hand-to-Safari, install nudge, in-room
@@ -606,6 +607,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.2.0 · 2026-08-24.** Two fixes from owner device evidence, both gated:
+(1) stale turn25 labels in the reused validated part corrected to
+turn24-post-ship; permanent NAME GATE added — any stale turn/stage label
+fails the build. Base proven intact (ship segments verified verbatim around
+the two declared insertion points). (2) N6 gesture-first permission: iOS
+never showed the notification prompt because the ask sat behind two awaits;
+it now fires synchronously inside the tap. Harness 13/13 (incl. same-tick
+ask), mutations 9/9. Byte-verified. Owner retest: force-refresh, tap enable,
+the iOS permission prompt must now actually appear.
 
 **v16.1.0 · 2026-08-24.** R10 built and machine-tested per §4c, all green:
 RELAY v2 live — gate 9/9, mutations 7/7 (incl. constructor-init defect that

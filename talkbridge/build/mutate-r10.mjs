@@ -21,6 +21,8 @@ const muts = [
   s => s.replace("TB_LANE.notif = (window.Notification && Notification.permission) || 'unsupported';", "TB_LANE.notif = 0;")],
  ['a buried design sneaks back in',
   s => s.replace("/* ═══════════ GAP PART · N4-listener-heartbeat.js", "var ACK_GRACE = 1; /* ═══════════ GAP PART · N4-listener-heartbeat.js")],
+ ['the permission ask slides back behind the awaits (no prompt on iOS)',
+  s => s.replace("var ask = (window.Notification && Notification.permission === 'default')", "var ask = false && (window.Notification && Notification.permission === 'default')")],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {
