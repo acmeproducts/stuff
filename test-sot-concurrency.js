@@ -88,6 +88,7 @@ async function main() {
   try {
     const targetRoot = path.join(temporaryRoot, 'target');
     const backupRoot = path.join(temporaryRoot, 'backup');
+    await Promise.all([fsp.mkdir(targetRoot), fsp.mkdir(backupRoot)]);
     await request(base, 'PUT', '/api/sot/admin/settings', { target_root: targetRoot, backup_root: backupRoot, hash_workers: 1 });
 
     const sharedOne = await createProject(base, 'Shared one', sharedRoot);

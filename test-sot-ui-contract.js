@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const html = fs.readFileSync(path.join(__dirname, 'sot-turn01-r2-wizard.html'), 'utf8');
+const dbAdminHtml = fs.readFileSync(path.join(__dirname, 'sot-dbadmin.html'), 'utf8');
 const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
 
 assert.equal(scripts.length, 1, 'project UI must have exactly one executable inline script');
@@ -45,10 +46,27 @@ assert.match(html, /Recent SOT activity/);
 assert.match(html, /bytes_hashed/);
 assert.match(html, /Bytes actively hashing/);
 assert.match(html, /bytes_visible/);
-assert.match(html, /id="adminActivity"/);
+assert.match(html, /id="destinationActivity"/);
 assert.match(html, /Background indexing remains independent/);
 assert.match(html, /back\.textContent='← Projects'/);
 assert.match(html, /\.inline-name/);
+assert.match(html, /html,body\{height:100%;min-height:0\}/);
+assert.match(html, /body\{[^}]*display:flex[^}]*overflow:hidden/);
+assert.match(html, /\.content\{[^}]*min-height:0[^}]*flex:1[^}]*overflow:auto/);
+assert.match(html, /\.footer-actions\{flex:0 0 auto/);
+assert.match(html, /<div class="picker-head">Volumes<\/div>[\s\S]+<div class="picker-head">Folders<\/div>[\s\S]+<div class="picker-head">Destinations<\/div>/);
+assert.match(html, /id="createDestinationFolder"[^>]*>Create folder/);
+assert.match(html, /id="useAsTarget"[^>]*>Use current as Target/);
+assert.match(html, /id="useAsBackup"[^>]*>Use current as Backup/);
+assert.match(html, /api\('\/fs\/folders'/);
+assert.match(html, /openDestinationSettings\(\{resumePlan:true\}\)/);
+assert.doesNotMatch(html, /id="(?:targetRoot|backupRoot)"/);
+assert.doesNotMatch(dbAdminHtml, /id="(?:targetRoot|backupRoot)"/);
+assert.match(html, /projectTableScrollLeft/);
+assert.match(html, /oldTable\.scrollLeft/);
+assert.match(html, /table\.scrollLeft=state\.projectTableScrollLeft/);
+assert.match(html, /\.project-table th:nth-last-child\(2\),\.project-table td:nth-last-child\(2\)\{position:sticky/);
+assert.match(html, /\.project-table th:last-child,\.project-table td:last-child\{position:sticky/);
 
 console.log(JSON.stringify({
   ribbons: 'PASS',
@@ -63,5 +81,10 @@ console.log(JSON.stringify({
   realtime_folder_project_sot_progress: 'PASS',
   background_navigation: 'PASS',
   inline_rename: 'PASS',
+  viewport_contained_actions: 'PASS',
+  three_panel_destination_picker: 'PASS',
+  safe_destination_folder_creation: 'PASS',
+  project_table_scroll_position: 'PASS',
+  pinned_status_and_controls: 'PASS',
   result: 'PASS'
 }, null, 2));

@@ -8,7 +8,7 @@ const path = require('path');
 const { execFileSync, spawn, spawnSync } = require('child_process');
 
 const VERSION = '1.0.0';
-const BUILD = '2026.08.24.sot-live-progress-5';
+const BUILD = '2026.08.24.sot-compact-destinations-6';
 const EXPECTED_MIGRATION = 4;
 const SOT_ROOT = process.env.SOT_ROOT || path.join(os.homedir(), '.openclaw', 'sot');
 const DATABASE_PATH = process.env.SOT_DB_PATH || path.join(SOT_ROOT, 'sot.sqlite');
@@ -164,11 +164,22 @@ function configure(input) {
   const workers = input.hash_workers == null ? Number(current.hash_workers || 4) : Number(input.hash_workers);
   if (!Number.isInteger(workers) || workers < 1 || workers > 16) throw httpError(400, 'hash_workers must be an integer from 1 to 16');
   if ((targetRoot || backupRoot) && (!targetRoot || !backupRoot)) throw httpError(400, 'target_root and backup_root must be configured together');
+  const storageChanged = input.target_root != null || input.backup_root != null;
   if (targetRoot && backupRoot) {
     const targetPrefix = targetRoot.endsWith(path.sep) ? targetRoot : targetRoot + path.sep;
     const backupPrefix = backupRoot.endsWith(path.sep) ? backupRoot : backupRoot + path.sep;
     if (targetRoot === backupRoot || targetRoot.startsWith(backupPrefix) || backupRoot.startsWith(targetPrefix)) {
       throw httpError(400, 'Target and Backup must be separate, non-nested paths');
+    }
+    if (storageChanged) {
+      for (const [label, root] of [['Target', targetRoot], ['Backup', backupRoot]]) {
+        let stat;
+        try { stat = fs.statSync(root); }
+        catch { throw httpError(400, `${label} root does not exist`); }
+        if (!stat.isDirectory()) throw httpError(400, `${label} root is not a directory`);
+        try { fs.accessSync(root, fs.constants.R_OK | fs.constants.W_OK); }
+        catch { throw httpError(400, `${label} root is not readable and writable`); }
+      }
     }
   }
   const at = now();
@@ -386,6 +397,32 @@ async function browse(value) {
     .map(entry => ({ name: entry.name, path: path.join(resolved, entry.name) }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return { path: resolved, parent: path.dirname(resolved), locations: [], folders };
+}
+
+async function createFolder(input) {
+  const parentValue = String(input.parent_path || input.parent || '').trim();
+  const name = String(input.name || '').trim();
+  if (!parentValue) throw httpError(400, 'parent_path is required');
+  if (!name) throw httpError(400, 'folder name is required');
+  if (name === '.' || name === '..' || /[\\/\0]/.test(name)) throw httpError(400, 'folder name must be one child name without separators');
+  if (recycleBinPath(name)) throw httpError(400, '$RECYCLE.BIN cannot be created or selected');
+  const parentPath = path.resolve(parentValue);
+  if (recycleBinPath(parentPath)) throw httpError(400, '$RECYCLE.BIN cannot be created or selected');
+  let parentStat;
+  try { parentStat = await fsp.stat(parentPath); }
+  catch { throw httpError(400, 'parent folder does not exist'); }
+  if (!parentStat.isDirectory()) throw httpError(400, 'parent_path is not a directory');
+  try { await fsp.access(parentPath, fs.constants.R_OK | fs.constants.W_OK); }
+  catch { throw httpError(400, 'parent folder is not readable and writable'); }
+  const createdPath = path.join(parentPath, name);
+  if (path.dirname(createdPath) !== parentPath) throw httpError(400, 'folder path escapes parent');
+  try { await fsp.mkdir(createdPath); }
+  catch (error) {
+    if (error.code === 'EEXIST') throw httpError(409, 'folder already exists');
+    throw httpError(400, `folder could not be created: ${error.message}`);
+  }
+  event('', 'storage.folder.created', { parent_path: parentPath, path: createdPath, name });
+  return { created: true, name, path: createdPath, parent: parentPath };
 }
 
 function latestRun(projectToken) {
@@ -1224,9 +1261,10 @@ async function handle(req, res, inputUrl) {
   try {
     if (pathname === '/api/sot/health' && req.method === 'GET') {
       ensureSchema();
-      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'non-blocking-background-workers', 'concurrent-project-indexing', 'project-row-play-pause-stop', 'global-path-fingerprint-reuse', 'realtime-folder-project-sot-rollups', 'live-worker-paths', 'live-in-file-byte-progress', 'visible-ui-heartbeat', 'durable-activity-log', 'worker-exit-fail-closed', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
+      json(res, 200, { service: 'sot', status: 'ok', version: VERSION, build: BUILD, database_version: EXPECTED_MIGRATION, port: 18080, capabilities: ['clean-schema-migrations', 'projects', 'source-preflight', 'non-blocking-background-workers', 'concurrent-project-indexing', 'project-row-play-pause-stop', 'global-path-fingerprint-reuse', 'realtime-folder-project-sot-rollups', 'live-worker-paths', 'live-in-file-byte-progress', 'visible-ui-heartbeat', 'viewport-contained-workflow-actions', 'three-panel-destination-picker', 'safe-folder-creation', 'durable-activity-log', 'worker-exit-fail-closed', 'incremental-sha256', 'deterministic-review', 'immutable-plans', 'verified-target-backup', 'certification', 'db-admin'] }); return true;
     }
     if (pathname === '/api/sot/fs' && req.method === 'GET') { json(res, 200, await browse(url.searchParams.get('path') || '/')); return true; }
+    if (pathname === '/api/sot/fs/folders' && req.method === 'POST') { json(res, 201, await createFolder(await requestBody(req))); return true; }
     if (pathname === '/api/sot/config' && req.method === 'GET') { json(res, 200, { database_path: DATABASE_PATH, ...settings() }); return true; }
     if (pathname === '/api/sot/admin/settings' && req.method === 'GET') { json(res, 200, settings()); return true; }
     if (pathname === '/api/sot/admin/settings' && req.method === 'PUT') { json(res, 200, configure(await requestBody(req))); return true; }

@@ -82,8 +82,17 @@ async function main() {
 
   try {
     const health = await request(base, 'GET', '/api/sot/health');
-    assert.equal(health.payload.build, '2026.08.24.sot-live-progress-5');
+    assert.equal(health.payload.build, '2026.08.24.sot-compact-destinations-6');
     report.health_ms = health.milliseconds;
+
+    const targetFolder = await request(base, 'POST', '/api/sot/fs/folders', { parent_path: temporaryRoot, name: 'target' }, [201]);
+    const backupFolder = await request(base, 'POST', '/api/sot/fs/folders', { parent_path: temporaryRoot, name: 'backup' }, [201]);
+    assert.equal(targetFolder.payload.path, targetRoot);
+    assert.equal(backupFolder.payload.path, backupRoot);
+    assert.equal(fs.statSync(targetRoot).isDirectory(), true);
+    assert.equal(fs.statSync(backupRoot).isDirectory(), true);
+    await request(base, 'POST', '/api/sot/fs/folders', { parent_path: temporaryRoot, name: '../escape' }, [400]);
+    await request(base, 'POST', '/api/sot/fs/folders', { parent_path: temporaryRoot, name: 'target' }, [409]);
 
     const configured = await request(base, 'PUT', '/api/sot/admin/settings', { target_root: targetRoot, backup_root: backupRoot, hash_workers: 4 });
     assert.equal(configured.payload.target_root, targetRoot);
@@ -191,6 +200,7 @@ async function main() {
       top_level_item_count: projectList.payload.projects[0].top_level_item_count,
       indexed_at: projectList.payload.projects[0].indexed_at
     };
+    report.destination_picker_backend = { target_created: true, backup_created: true, traversal_rejected: true, duplicate_rejected: true };
     report.migration = { current_version: migrationStatus.current_version, integrity: migrationStatus.integrity };
     report.result = 'PASS';
     console.log(JSON.stringify(report, null, 2));
