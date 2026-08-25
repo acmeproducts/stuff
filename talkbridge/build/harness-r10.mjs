@@ -23,6 +23,10 @@ T('S2 one manifest link, one pre-bootstrap, doctype first', () => {
   A(built.split('PRE-BOOTSTRAP HANDOFF').length === 2, 'pre-bootstrap count wrong');
   A(built.indexOf('<!DOCTYPE html>') < 200, 'doctype buried');
 });
+T('S2b THE NAME GATE: no stale turn/stage labels anywhere; the build names its own stage', () => {
+  A(!/turn ?25/.test(built), 'stale turn25 label present');
+  A(built.includes('turn24-post-ship'), 'build does not name its own stage');
+});
 T('S3 relay contract match: no client feature the R7-based relay lacks', () => {
   A(!/type:\s*'delivered'/.test(built), 'client confirms deliveries the relay never ids');
 });
