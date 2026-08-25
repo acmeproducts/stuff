@@ -146,6 +146,8 @@ select.input{appearance:auto}
 .recRow .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recBtn{font-size:12px;color:var(--accent);padding:7px 8px}
 .recBtn.danger{color:var(--err)}
+.phase{font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:700;letter-spacing:.3px}
+.phaseBtn{font-size:11px;color:var(--accent);padding:6px 8px}
 </style>
 </head>
 <body>
@@ -153,7 +155,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b17</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b18</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -259,6 +261,7 @@ let sot={threads:{},projects:{}}, sotSha=null;
 let threads={}, activeProject=localStorage.getItem('ds_activeproj')||null, activeKey=null;
 let debug=JSON.parse(sessionStorage.getItem('ds_debug')||'[]'),debugTab='log',treeCache=null, dashFilter='all', dashSort='last', pollTimer=null, dashTimer=null, npSelectedExisting=false;
 
+const PHASES=['Define','Design','Build','Ship'];
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
@@ -391,14 +394,15 @@ function renderSidebar(){
     const pr=sot.projects[p];
     const d=document.createElement('div');d.className='card'+(p===activeProject?' active':'');
     const plan=pr.planFile;
-    d.innerHTML='<div class="cttl">'+esc(p)+'<button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
+    const ph=pr.phase||'Define';
+    d.innerHTML='<div class="cttl">'+esc(p)+' <span class="phase">'+ph+'</span><button class="planlink '+(plan&&pr.planExists?'':'off')+'">'+(plan?'Plan ↗':'')+'</button></div><div class="csub">'+th.length+' thread'+(th.length===1?'':'s')+' · '+rel(pr.lastTouched)+'</div>';
     const pb=d.querySelector('.planlink');
     pb.onclick=e=>{e.stopPropagation();
       if(plan&&pr.planExists)window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+plan,'_blank');
       else toast('Plan not created yet — the project thread builds it')};
     d.onclick=()=>{activeProject=p;localStorage.setItem('ds_activeproj',p);activeKey=null;
       $('chatArea').style.display='none';$('emptyState').style.display='flex';
-      $('chatTitle').textContent=p;
+      $('chatTitle').textContent=p+' — '+(sot.projects[p].phase||'Define');
       $('chatInfo').textContent=(Object.keys(sot.threads).filter(k=>sot.threads[k].project===p&&!sot.threads[k].deleted).length)+' threads · '+repoFull();
       $('pill').textContent='';$('pill').className='';
       renderSidebar();renderTabs();sideOpen(false)};
@@ -489,8 +493,8 @@ async function openThread(key){
 function renderChat(){
   const key=activeKey;if(!key||!threads[key])return;
   const t=sot.threads[key],d=threads[key].data;
-  $('chatTitle').textContent=t.project+' · '+t.file;
-  $('chatInfo').textContent=repoFull()+' · plan: '+(d.planFile||'—');
+  $('chatTitle').textContent=t.project+' ['+(sot.projects[t.project]&&sot.projects[t.project].phase||'Define')+'] · '+t.file;
+  $('chatInfo').textContent=d.lastState?d.lastState:(repoFull()+' · plan: '+(d.planFile||'—'));
   $('pill').textContent=t.state||'idle';$('pill').className=t.state||'';
   $('engineFoot').textContent=(t.engine||'venice')+(t.model?' · '+t.model:'')+' ▾';
   const pend=d.messages.some(m=>m.status==='pending');
@@ -661,8 +665,13 @@ function dispatch(key){runAgent(key)}
 $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
 /* ---- in-app agent (anthropic-direct) ---- */
-function agentSystem(codeFile,planFile){
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority). Rules: questions/ideas/feedback update the PLAN (or are just answered); explicit build instructions or "build it" mean implementing per the plan into the CODE file; update-plan-before-code is the house rule, but do at most ONE file write per response. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
+function agentSystem(codeFile,planFile,phase){
+  const phaseGuide={
+    Define:'Current phase: DEFINE. Focus on WHAT and WHY: purpose, users, outcomes, success criteria. Write these into the plan\'s Define section. Do NOT write code in this phase; if asked to build, note it in the plan backlog and say the project is in Define.',
+    Design:'Current phase: DESIGN. Focus on HOW: architecture, UI model, data/persistence, constraints, release slicing. Write these into the plan\'s Design section. Code only as small spikes if explicitly demanded.',
+    Build:'Current phase: BUILD. Execution cycles: implement per the plan into the CODE file, plan-before-code, one release slice at a time.',
+    Ship:'Current phase: SHIP. Stabilize only: fixes, polish, docs. No new scope — new ideas go to the plan\'s Future Ideas.'}[phase]||'';
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -719,8 +728,8 @@ async function runAgent(key){
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
     const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,
-      system:agentSystem(codeFile,planFile),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
-    const{summary,target,body,usedEng}=res;
+      system:agentSystem(codeFile,planFile,(sot.projects[t.project]||{}).phase||'Define'),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
+    const{summary,target,body,state,usedEng}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     if(target!=='NONE'){
@@ -730,7 +739,9 @@ async function runAgent(key){
       else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply+='\nTest: '+testUrl}
     }else reply=body||reply;
     pend.forEach(m=>{m.status='done';delete m.forcedTarget});
-    th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined});
+    if(state)reply+='\n— '+state;
+    th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined});
+    th.data.lastState=state||th.data.lastState;
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
     toast(key+' done');
@@ -747,12 +758,14 @@ function parseAgent(text){
   let summary='Done.',target='NONE';
   const sm=text.match(/^SUMMARY:\\s*(.+)$/m);if(sm){summary=sm[1].trim()}
   const tm=text.match(/^TARGET:\\s*(.+)$/m);if(tm){target=tm[1].trim()}
+  let state='';const stm=text.match(/^STATE:\\s*(.+)$/m);if(stm){state=stm[1].trim()}
   let body=text;
-  if(tm)body=text.slice(text.indexOf(tm[0])+tm[0].length);
+  if(stm)body=text.slice(text.indexOf(stm[0])+stm[0].length);
+  else if(tm)body=text.slice(text.indexOf(tm[0])+tm[0].length);
   else if(sm)body=text.slice(text.indexOf(sm[0])+sm[0].length);
   body=body.trim();
   if(body.startsWith('\\u0060\\u0060\\u0060')){body=body.replace(/^\\u0060\\u0060\\u0060[a-zA-Z]*\\n?/,'');const i=body.lastIndexOf('\\u0060\\u0060\\u0060');if(i>-1)body=body.slice(0,i);body=body.trim()}
-  return{summary,target,body};
+  return{summary,target,body,state};
 }
 async function ghGet(cfg,path){
   const r=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}});
@@ -805,8 +818,8 @@ self.onmessage=async e=>{
       catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
     }
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
-    const{summary,target,body}=parseAgent(text);
-    post({type:'done',summary,target,body,usedEng});
+    const{summary,target,body,state}=parseAgent(text);
+    post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng});
   }catch(err){post({type:'error',message:err.message})}
 };
 `;
@@ -968,11 +981,22 @@ function renderDash(){
     if(dashFilter!=='all')rows=rows.filter(([k,t])=>(t.state||'idle')===dashFilter);
     const sec=document.createElement('div');sec.className='dsec';
     const runs=rows.filter(([k,t])=>t.state==='executing').length;
-    sec.innerHTML='<div class="dpttl">'+esc(p)+(runs?' <span class="badge run">'+runs+' running</span>':'')+
+    const ph=pr.phase||'Define';
+    sec.innerHTML='<div class="dpttl">'+esc(p)+' <span class="phase">'+ph+'</span>'+
+      (PHASES.indexOf(ph)<PHASES.length-1?'<button class="phaseBtn">advance → '+PHASES[PHASES.indexOf(ph)+1]+'</button>':'')+
+      (runs?' <span class="badge run">'+runs+' running</span>':'')+
       (pr.planFile&&pr.planExists?' <button class="planlink">Plan ↗</button>':'')+'</div>'+
       '<div class="dpsub">Last touched '+rel(pr.lastTouched)+' · '+rows.length+' thread'+(rows.length===1?'':'s')+'</div>';
     const pl=sec.querySelector('.planlink');
     if(pl)pl.onclick=()=>window.open('https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+pr.planFile,'_blank');
+    const pbtn=sec.querySelector('.phaseBtn');
+    if(pbtn)pbtn.onclick=()=>guard(async()=>{
+      const nx=PHASES[PHASES.indexOf(ph)+1];
+      if(!confirm('Advance '+p+' from '+ph+' to '+nx+'? The agent will be told and will log it in the plan ledger on its next run.'))return;
+      pr.phase=nx;pr.phaseChangedAt=now();
+      await saveSOT('devstream: '+p+' phase -> '+nx);
+      renderDash();renderSidebar();toast(p+' → '+nx);
+    });
     const sorters={last:(a,b)=>(b[1].finishedAt||b[1].startedAt||'').localeCompare(a[1].finishedAt||a[1].startedAt||''),
       state:(a,b)=>(a[1].state||'').localeCompare(b[1].state||''),file:(a,b)=>a[1].file.localeCompare(b[1].file)};
     rows.sort(sorters[dashSort]);
