@@ -262,7 +262,7 @@ const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
 
 /* ---- github ---- */
 async function gh(path,opts={}){
-  const r=await lfetch('gh','https://api.github.com/repos/'+repoFull()+'/'+path,{...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
+  const r=await lfetch('gh','https://api.github.com/repos/'+repoFull()+'/'+path,{cache:'no-store',...opts,headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json',...(opts.headers||{})}});
   if(r.status===404&&opts.allow404)return null;
   if(!r.ok){let msg='';try{msg=(await r.json()).message}catch(e){}throw new Error('GitHub '+r.status+(msg?': '+msg:'')+' ('+path.split('?')[0]+')')}
   return r.status===204?{}:r.json();
@@ -272,7 +272,7 @@ async function getFile(path){
   if(!j)return null;
   let content=j.content?dec(j.content):'';
   if(!content&&j.size>0){
-    const r=await lfetch('gh-raw','https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+cfg.branch,{headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
+    const r=await lfetch('gh-raw','https://api.github.com/repos/'+repoFull()+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
     if(!r.ok)throw new Error('raw fallback failed '+r.status);
     content=await r.text();
   }
@@ -676,7 +676,7 @@ async function callEngine(eng,system,history,user){
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfgs.key},
     body:JSON.stringify({model:cfgs.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' returned non-JSON ('+r.status+') — possibly CORS-blocked in this browser')}
-  if(!r.ok){let hint='';if(eng==='venice'&&r.status===402)hint=' — this model needs Venice API credits (VCU) or is not in your plan; Validate Venice and pick another model';throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown')+hint)}
+  if(!r.ok){let hint='';if(eng==='venice'&&r.status===402)hint=' — this model needs Venice API credits (VCU) or is not in your plan; Validate Venice and pick another model';if(r.status===401)hint=' — the saved key is being rejected; open ⚙, re-paste the RAW key value, Validate, Save';throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown')+hint)}
   return j.choices[0].message.content;
 }
 async function runAgent(key){
@@ -806,13 +806,17 @@ $('vTest').onclick=async()=>{
   const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
   if(!key){$('vStatus').textContent='✗ enter the key first';return}
   try{
-    const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{headers:{'Authorization':'Bearer '+key}});
+    // authenticated check first — /models is public and proves nothing about the key
+    const ra=await lfetch('venice-auth','https://api.venice.ai/api/v1/api_keys/rate_limits',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
+    if(ra.status===401)throw new Error('key REJECTED (401) — paste the raw key value itself, not its name/label');
+    if(!ra.ok&&ra.status!==404)throw new Error('auth check '+ra.status);
+    const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
     let j;try{j=await r.json()}catch(e){throw new Error('non-JSON reply — possible CORS block')}
     if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'rejected'));
     const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort();
-    if(!ids.length)throw new Error('key accepted but no models returned');
+    if(!ids.length)throw new Error('no models returned');
     fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
-    $('vStatus').textContent='✓ '+ids.length+' models';
+    $('vStatus').textContent='✓ key authenticated · '+ids.length+' models';
   }catch(e){$('vStatus').textContent='✗ '+e.message;dlog('E|venice validate: '+e.message)}
 };
 $('orTest').onclick=async()=>{
