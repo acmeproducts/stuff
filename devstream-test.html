@@ -703,9 +703,20 @@ async function runAgent(key){
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
     const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const text=await callEngine(eng,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);
+    const chain=[eng,...['venice','openrouter','anthropic-direct'].filter(x=>x!==eng)]
+      .filter(x=>(x==='venice'&&cfg.vkey&&cfg.vmodel)||(x==='openrouter'&&cfg.orkey&&cfg.ormodel)||(x==='anthropic-direct'&&cfg.akey));
+    if(!chain.length)throw new Error('no engine is configured — open ⚙, validate at least one engine');
+    let text=null,usedEng=null,fails=[];
+    for(const e2 of chain){
+      try{text=await callEngine(e2,agentSystem(codeFile,planFile),history,ctx+'Instructions:\n'+instr);usedEng=e2;break}
+      catch(err){fails.push(e2+': '+err.message);dlog('E|engine '+e2+' failed — '+(chain.indexOf(e2)<chain.length-1?'failing over':'no engines left'));
+        if(chain.indexOf(e2)<chain.length-1)toast(e2+' failed → trying '+chain[chain.indexOf(e2)+1])}
+    }
+    if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
+    if(usedEng!==eng)dlog('K|served by fallback engine '+usedEng);
     const{summary,target,body}=parseAgent(text);
     let commit=null,testUrl=t.testUrl||'',reply=summary;
+    if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     if(target!=='NONE'){
       if(body.length<80)throw new Error('Agent returned no usable file content for '+target);
       commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
@@ -806,17 +817,23 @@ $('vTest').onclick=async()=>{
   const key=$('cfgvkey').value.trim();$('vStatus').textContent='Checking…';
   if(!key){$('vStatus').textContent='✗ enter the key first';return}
   try{
-    // authenticated check first — /models is public and proves nothing about the key
-    const ra=await lfetch('venice-auth','https://api.venice.ai/api/v1/api_keys/rate_limits',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
-    if(ra.status===401)throw new Error('key REJECTED (401) — paste the raw key value itself, not its name/label');
-    if(!ra.ok&&ra.status!==404)throw new Error('auth check '+ra.status);
     const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
     let j;try{j=await r.json()}catch(e){throw new Error('non-JSON reply — possible CORS block')}
     if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'rejected'));
     const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort();
     if(!ids.length)throw new Error('no models returned');
     fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
-    $('vStatus').textContent='✓ key authenticated · '+ids.length+' models';
+    // real auth probe: 1-token completion with the selected model — exactly what builds do
+    $('vStatus').textContent='key ping…';
+    const pm=$('cfgvmodel').value||ids[0];
+    const rp=await lfetch('venice-ping','https://api.venice.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:pm,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
+    let jp;try{jp=await rp.json()}catch(e){jp={}}
+    if(rp.status===401)throw new Error('key REJECTED on inference (401) — re-copy the full key from Venice');
+    if(rp.status===402)throw new Error('key OK but model "'+pm+'" needs credits/plan (402) — pick another model and re-Validate');
+    if(!rp.ok)throw new Error('inference ping '+rp.status+': '+((jp.error&&(jp.error.message||jp.error))||''));
+    $('vStatus').textContent='✓ inference verified on '+pm+' · '+ids.length+' models';
   }catch(e){$('vStatus').textContent='✗ '+e.message;dlog('E|venice validate: '+e.message)}
 };
 $('orTest').onclick=async()=>{
