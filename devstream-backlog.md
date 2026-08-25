@@ -7,7 +7,7 @@ Test target: `https://acmeproducts.github.io/stuff/devstream-test.html`
 
 ## Status
 - Current release: v1.0 build 3 on devstream-test.html (2026-08-14)
-- Stage: TEST (build 5)
+- Stage: TEST (b18)
 
 ## Release Rules (inherited, proven)
 1. Mobile-first. All diagnostics in-app. No DevTools ever.
@@ -89,6 +89,9 @@ Parallel-run limits / file-lock queueing; cross-repo status aggregation; push no
 | DS-1 | Build v1.0 per spec above | OPEN |
 
 # Decision Log
+- 2026-08-25: Project lifecycle phases adopted: Define (what/why) -> Design (how) -> Build (execution cycles) -> Ship. Phase is project-level state (badge + explicit advance), not tabs. Agent prompt is phase-aware. Owner approved.
+- 2026-08-25: Continuity contract: agent replies MUST carry a STATE line (phase | open items | next step) and append a dated ledger row to the plan on every plan write. The plan is the sole persistent memory; chat is commentary. Owner approved.
+- 2026-08-25: Execution is a 4-worker blob pool (concurrent builds, UI never blocked). Per-thread provider+model with validate-before-apply. Keys localStorage-only with reveal toggle + sanitation (autofill mangling was a confirmed field defect).
 - 2026-08-14: App named devstream.html; standalone, not a session-manager version. Owner directive.
 - 2026-08-14: Memory resides in GitHub (kanban.html methodology), not OpenClaw. Owner recommendation, confirmed — IndexedDB browser isolation is a proven limitation.
 - 2026-08-14: Thread = output file (tab name) + optional input file. Owner directive.
