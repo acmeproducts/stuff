@@ -155,7 +155,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b21</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b22</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -185,11 +185,13 @@ select.input{appearance:auto}
     <div class="frow"><label>Repository</label><input id="sotRepo" class="input mono" placeholder="stuff"></div>
     <div class="frow"><label>Branch</label><input id="sotBranch" class="input mono" placeholder="main"></div>
     <div class="frow"><label>Venice API key</label><input id="cfgvkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="…">
-      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="vTest">Validate Venice</button><span class="hint" id="vStatus"></span></div>
-      <select id="cfgvmodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
+      <button class="btn" id="vLoad" style="margin-top:6px">Load Venice models</button>
+      <select id="cfgvmodel" class="input mono" style="margin-top:6px"><option value="">— load models first —</option></select>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="vTest">Validate &amp; save Venice</button><span class="hint" id="vStatus"></span></div></div>
     <div class="frow"><label>OpenRouter API key</label><input id="cfgorkey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="sk-or-…">
-      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="orTest">Validate OpenRouter</button><span class="hint" id="orStatus"></span></div>
-      <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— validate key to load models —</option></select></div>
+      <button class="btn" id="orLoad" style="margin-top:6px">Load OpenRouter models</button>
+      <select id="cfgormodel" class="input mono" style="margin-top:6px"><option value="">— load models first —</option></select>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" id="orTest">Validate &amp; save OpenRouter</button><span class="hint" id="orStatus"></span></div></div>
     <div class="frow"><label>Anthropic API key (optional)</label><input id="cfgakey" class="input keyfield" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="sk-ant-…"></div>
     <div class="frow"><label>Default engine for new threads</label><select id="cfgengine" class="input">
       <option value="venice">Venice.ai</option>
@@ -236,7 +238,7 @@ select.input{appearance:auto}
     <div class="frow"><label>Model for this thread</label><select id="teModel" class="input mono"></select>
       <div class="hint" id="teHint"></div></div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><button class="btn" id="teValidate">Validate</button><span class="hint" id="teStatus"></span></div>
-    <button class="btn primary" id="teSave" style="width:100%" disabled>Apply to this thread</button>
+    <button class="btn primary" id="teSave" style="width:100%">Done</button>
   </div>
 </div></div>
 
@@ -903,7 +905,7 @@ async function openEnginePicker(){
   if(!activeKey)return;
   const t=sot.threads[activeKey];
   $('teProvider').value=t.engine||'venice';
-  openModal('engModal');$('teSave').disabled=true;$('teStatus').textContent='';
+  openModal('engModal');$('teStatus').textContent='';
   const load=async()=>{
     const prov=$('teProvider').value;
     $('teHint').textContent='Loading models…';$('teModel').innerHTML='';
@@ -916,8 +918,8 @@ async function openEnginePicker(){
       $('teHint').textContent=ids.length+' models';
     }catch(e){$('teHint').textContent='✗ '+e.message}
   };
-  $('teProvider').onchange=()=>{$('teSave').disabled=true;$('teStatus').textContent='';load()};
-  $('teModel').onchange=()=>{$('teSave').disabled=true;$('teStatus').textContent=''};
+  $('teProvider').onchange=()=>{$('teStatus').textContent='';load()};
+  $('teModel').onchange=()=>{$('teStatus').textContent=''};
   await load();
 }
 $('engineFoot').onclick=openEnginePicker;
@@ -943,19 +945,20 @@ async function pingProviderModel(prov,model){
 $('teValidate').onclick=async()=>{
   const prov=$('teProvider').value,model=$('teModel').value;
   if(!model){$('teStatus').textContent='✗ pick a model first';return}
-  $('teStatus').textContent='pinging '+model+'…';$('teSave').disabled=true;
-  try{await pingProviderModel(prov,model);$('teStatus').textContent='✓ verified — 1-token completion OK';$('teSave').disabled=false}
-  catch(e){$('teStatus').textContent='✗ '+e.message}
+  $('teStatus').textContent='pinging '+prov+' · '+model+'…';
+  try{
+    await pingProviderModel(prov,model);
+    // success → persist to the thread immediately
+    const key=activeKey;const t=sot.threads[key],th=threads[key];
+    t.engine=prov;t.model=model;th.data.engine=prov;th.data.model=model;
+    th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: engine '+prov+'/'+model+' for '+key);
+    await saveSOT('devstream: engine change '+key);
+    renderChat();
+    $('teStatus').textContent='✓ verified & applied: '+prov+' · '+model;
+    toast(prov+' · '+model);
+  }catch(e){$('teStatus').textContent='✗ '+e.message}
 };
-$('teSave').onclick=()=>guard(async()=>{
-  const key=activeKey;if(!key)return;
-  const t=sot.threads[key],th=threads[key];
-  t.engine=$('teProvider').value;t.model=$('teModel').value||'';
-  th.data.engine=t.engine;th.data.model=t.model;
-  th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: engine '+t.engine+'/'+t.model+' for '+key);
-  await saveSOT('devstream: engine change '+key);
-  renderChat();closeModals();toast(t.engine+' · '+t.model);
-});
+$('teSave').onclick=()=>closeModals();
 function schedulePoll(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
@@ -1065,8 +1068,8 @@ $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
   if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
-$('vTest').onclick=async()=>{
-  const key=cleanKey($('cfgvkey').value);$('vStatus').textContent='Checking…';
+$('vLoad').onclick=async()=>{
+  const key=cleanKey($('cfgvkey').value);$('vStatus').textContent='';
   if(!key){$('vStatus').textContent='✗ enter the key first';return}
   try{
     const r=await lfetch('venice-models','https://api.venice.ai/api/v1/models',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
@@ -1075,32 +1078,56 @@ $('vTest').onclick=async()=>{
     const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort();
     if(!ids.length)throw new Error('no models returned');
     fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
-    // real auth probe: 1-token completion with the selected model — exactly what builds do
-    $('vStatus').textContent='key ping…';
-    dlog('venice ping using key: '+key.slice(0,20)+'…'+key.slice(-4)+' ('+key.length+' ch)');
-    const pm=$('cfgvmodel').value||ids[0];
+    $('vStatus').textContent=ids.length+' models loaded — pick one, then Validate';
+  }catch(e){$('vStatus').textContent='✗ '+e.message}
+};
+$('vTest').onclick=async()=>{
+  const key=cleanKey($('cfgvkey').value);const pm=$('cfgvmodel').value;
+  if(!key){$('vStatus').textContent='✗ enter the key first';return}
+  if(!pm){$('vStatus').textContent='✗ load models and pick one first';return}
+  $('vStatus').textContent='pinging '+pm+'…';
+  dlog('venice ping key '+key.slice(0,20)+'…'+key.slice(-4)+' model '+pm);
+  try{
     const rp=await lfetch('venice-ping','https://api.venice.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
       body:JSON.stringify({model:pm,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
     let jp;try{jp=await rp.json()}catch(e){jp={}}
     if(rp.status===401){dlog('E|venice 401 body: '+JSON.stringify(jp).slice(0,300));throw new Error('inference 401 — Venice says: '+(JSON.stringify(jp.error||jp.details||jp).slice(0,180)))}
-    if(rp.status===402)throw new Error('key OK but model "'+pm+'" needs credits/plan (402) — pick another model and re-Validate');
-    if(!rp.ok)throw new Error('inference ping '+rp.status+': '+((jp.error&&(jp.error.message||jp.error))||''));
-    $('vStatus').textContent='✓ inference verified on '+pm+' · '+ids.length+' models';
+    if(rp.status===402)throw new Error('model "'+pm+'" needs credits/plan (402) — pick another and re-Validate');
+    if(!rp.ok)throw new Error('ping '+rp.status+': '+((jp.error&&(jp.error.message||jp.error))||''));
+    cfg=cfg||{};cfg.vkey=key;cfg.vmodel=pm;localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sotSha!==null||Object.keys(sot.threads).length){sot.config=sot.config||{};sot.config.vmodel=pm;saveSOT('devstream: venice model '+pm).catch(()=>{})}
+    $('vStatus').textContent='✓ verified & saved: '+pm;
   }catch(e){$('vStatus').textContent='✗ '+e.message;dlog('E|venice validate: '+e.message)}
 };
-$('orTest').onclick=async()=>{
-  const key=cleanKey($('cfgorkey').value);$('orStatus').textContent='Checking…';
+$('orLoad').onclick=async()=>{
+  const key=cleanKey($('cfgorkey').value);$('orStatus').textContent='';
   if(!key){$('orStatus').textContent='✗ enter the key first';return}
   try{
-    const r=await lfetch('or-auth','https://openrouter.ai/api/v1/auth/key',{headers:{'Authorization':'Bearer '+key}});
+    const r=await lfetch('or-auth','https://openrouter.ai/api/v1/auth/key',{cache:'no-store',headers:{'Authorization':'Bearer '+key}});
     let j;try{j=await r.json()}catch(e){throw new Error('non-JSON reply — possible CORS block')}
     if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'key rejected'));
-    const rm=await lfetch('or-models','https://openrouter.ai/api/v1/models',{});
+    const rm=await lfetch('or-models','https://openrouter.ai/api/v1/models',{cache:'no-store'});
     const jm=await rm.json();
     const ids=(jm.data||[]).map(m=>m.id).filter(Boolean).sort();
     fillModels('cfgormodel',ids,(sot.config&&sot.config.ormodel)||cfg&&cfg.ormodel);
-    $('orStatus').textContent='✓ key OK · '+ids.length+' models';
+    $('orStatus').textContent=ids.length+' models loaded — pick one, then Validate';
+  }catch(e){$('orStatus').textContent='✗ '+e.message}
+};
+$('orTest').onclick=async()=>{
+  const key=cleanKey($('cfgorkey').value);const pm=$('cfgormodel').value;
+  if(!key){$('orStatus').textContent='✗ enter the key first';return}
+  if(!pm){$('orStatus').textContent='✗ load models and pick one first';return}
+  $('orStatus').textContent='pinging '+pm+'…';
+  try{
+    const rp=await lfetch('or-ping','https://openrouter.ai/api/v1/chat/completions',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:pm,max_tokens:1,messages:[{role:'user',content:'ping'}]})});
+    let jp;try{jp=await rp.json()}catch(e){jp={}}
+    if(!rp.ok)throw new Error('ping '+rp.status+': '+JSON.stringify(jp.error||jp).slice(0,140));
+    cfg=cfg||{};cfg.orkey=key;cfg.ormodel=pm;localStorage.setItem(LS,JSON.stringify(cfg));
+    if(sotSha!==null||Object.keys(sot.threads).length){sot.config=sot.config||{};sot.config.ormodel=pm;saveSOT('devstream: openrouter model '+pm).catch(()=>{})}
+    $('orStatus').textContent='✓ verified & saved: '+pm;
   }catch(e){$('orStatus').textContent='✗ '+e.message;dlog('E|openrouter validate: '+e.message)}
 };
 $('sotValidate').onclick=async()=>{
