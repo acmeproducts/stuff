@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.10.0 -->
-# TALKBRIDGE MASTER PLAN v16.10.0
+<!-- TALKBRIDGE-PLAN v16.11.0 -->
+# TALKBRIDGE MASTER PLAN v16.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,21 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.11.0 · 2026-08-26.** Both-logs milestone: for the first time BOTH
+phones hold live subscriptions simultaneously (iPhone: Apple endpoint since
+15:17:35, persisting; Android: all three rooms at boot). The iPhone's two
+7ms no-op enables are explained structurally, with a self-correction on
+record: the existing-subscription shortcut does NOT skip room sync (earlier
+claim wrong — code read deeper); the true hole was the flow's final catch
+swallowing a non-granted permission ANSWER silently while the permission
+PROPERTY read granted — a contradiction iOS produced twice. Fix: every
+terminal is loud — perm_answer logged verbatim with the property beside it,
+existing-subscription branch names its endpoint, enable_exit logs every
+swallow. Harness reproduces the exact contradiction (prop granted, answer
+denied) and requires both logs. 23/23 + 18/18. Owner test unchanged: locked
+iPhone, both directions; any post-subscription failure now localizes to a
+side.
 
 **v16.10.0 · 2026-08-26.** Owner pushed for research; research won. MDN: iOS
 16.4+ installs PWAs from the Share menu of Safari, Chrome, Edge, Firefox

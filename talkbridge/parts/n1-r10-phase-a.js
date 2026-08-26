@@ -115,9 +115,13 @@ function r10EnableNotifications() {
     if (!reg.pushManager) { r8Log('enable_branch', { b: 'no-reg-pushmanager' }, 'error'); r10NotifStatus('unsupported'); return; }
     r8Log('enable_branch', { b: 'proceed' }, 'ok');
     return reg.pushManager.getSubscription().then(function (existing) {
-      if (existing) return existing;
+      if (existing) {
+        r8Log('enable_src', { s: 'existing', host: (function(){try{return new URL(existing.endpoint).host}catch(_){return '?'}})() }, 'ok');
+        return existing;
+      }
       return Notification.requestPermission().then(function (perm) {
-        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied'); }
+        r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');
+        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied:' + perm); }
         return r10Vapid(rooms[0].id).then(function (v) {
           r8Log('heal_step', { s: 'vapid-answer', ok: !!(v && (v.key || v.vapid)), st: v && v._status }, 'ok');
           var vkey = v && (v.key || v.vapid);   /* the live relay names this field 'vapid' — the part expected 'key'; accept both */
@@ -132,7 +136,9 @@ function r10EnableNotifications() {
     r8Log('push_subscribed', { endpointHost: (function(){try{return new URL(sub.endpoint).host}catch(_){return '?'}})() }, 'ok');
     return r10SyncSubscriptions().then(function () { r10NotifStatus('on'); });
   }).catch(function (e) {
-    if (String(e && e.message) !== 'denied') r8Log('push_enable_failed', { e: String(e && e.message || e) }, 'error');
+    /* EVERY exit is loud — the silent 'denied' swallow masked the true
+       terminal from the heal's step tracker and cost a day of ghosts. */
+    r8Log('enable_exit', { e: String(e && e.message || e) }, 'error');
   });
 }
 

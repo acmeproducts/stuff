@@ -39,6 +39,10 @@ const muts = [
                  "if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }")],
  ['typing the name stops boarding the invite',
   s => s.replace("p.jn = v;", ';')],
+ ['exits go silent again (the masked-denied ghost returns)',
+  s => s.replace("r8Log('enable_exit', { e: String(e && e.message || e) }, 'error');", ';')],
+ ['the permission answer stops being recorded',
+  s => s.replace("r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');", ';')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

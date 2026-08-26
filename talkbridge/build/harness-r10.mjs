@@ -172,6 +172,27 @@ T('E2 typing the name live-updates the Safari link and the handoff cookie', () =
   A(ph && ph.jn === 'Carmen', 'typed name did not board the LIVE URL: ' + w.location.hash.slice(0, 30));
   w.location.hash = '';
 });
+{
+  /* E3: a denied permission answer can NEVER exit silently */
+  const logs = [];
+  const origLog = w.r8Log;
+  w.r8Log = (ev, meta, lvl) => { logs.push([ev, meta]); return origLog && origLog(ev, meta, lvl); };
+  const OrigNote2 = w.Notification;
+  w.Notification = class { static requestPermission(){ return Promise.resolve('denied'); } };
+  w.Notification.permission = 'granted';   /* the owner's exact contradiction: prop says granted, answer says denied */
+  Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true,
+    value: { register: () => Promise.resolve({}), ready: Promise.resolve({ pushManager: { getSubscription: () => Promise.resolve(null) } }), addEventListener(){} } });
+  await w.r10EnableNotifications().catch(() => {});
+  await new Promise(r => setTimeout(r, 120));
+  w.Notification = OrigNote2; w.r8Log = origLog;
+  T('E3 the denied path logs its answer and its exit — silence structurally gone', () => {
+    A(logs.some(([e, m]) => e === 'perm_answer' && m.perm === 'denied' && m.prop === 'granted'), 'permission answer not logged with the contradiction');
+    A(logs.some(([e, m]) => e === 'enable_exit' && /denied/.test(m.e)), 'exit swallowed silently again');
+  });
+  T('E4 an existing subscription names itself', () => {
+    A(built.includes("r8Log('enable_src', { s: 'existing'"), 'existing branch silent');
+  });
+}
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
   const OrigN = w.Notification;
