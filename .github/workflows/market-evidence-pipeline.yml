@@ -1,0 +1,59 @@
+name: Market Navigator canonical evidence pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: Rebuild up to ten years of canonical source history
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "37 23 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-navigator-canonical-evidence
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build canonical evidence store
+        env:
+          MARKET_NAVIGATOR_BOOTSTRAP: ${{ inputs.bootstrap && 'true' || 'false' }}
+        run: python3 market-navigator-data-pipeline.py
+      - name: Validate evidence contract
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
+          m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
+          assert c['canonical_horizons']==['1D','5D','1M','YTD','1Y','3Y','5Y']
+          assert m['schema']=='market-navigator-operational-manifest-v1'
+          for x in c['series']:
+              if not x.get('enabled',True): continue
+              sid=x['id']; s=m['series'][sid]
+              p=json.loads(Path('market-evidence/reports',sid+'.json').read_text())
+              assert list(p['reports'])==c['canonical_horizons']
+              assert p['computedRevision']==s['computed_revision']
+              assert Path('market-evidence/series',sid+'.json').exists()
+          print('Evidence contract validated:',m['revision'],'ready=',m['summary']['ready'])
+          PY
+      - name: Commit canonical evidence
+        run: |
+          git config user.name "market-evidence-bot"
+          git config user.email "market-evidence-bot@users.noreply.github.com"
+          git add market-evidence
+          if git diff --cached --quiet; then echo "No evidence changes."; exit 0; fi
+          git commit -m "data: refresh canonical Market Navigator evidence"
+          git pull --rebase origin main
+          git push origin HEAD:main
