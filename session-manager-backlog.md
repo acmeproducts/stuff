@@ -484,3 +484,6 @@ Applying a project snapshot replaced the whole project state and dropped card co
 
 # v2.10.3 PROJECT CARDS BEHAVE LIKE TABS — 2026-08-21
 Removed the ⋮ button from project cards. Cards now use the same gesture contract as tabs: tap selects, hold or slow-drag lifts for reorder (fast flick scrolls), long-press / right-click / double-tap opens the context menu, and the native long-press menu is suppressed while a drag gesture is in progress.
+
+# v2.10.4 MARKDOWN RENDER ROUTING — 2026-08-21
+A message containing any single HTML tag was routed to the raw-HTML path, so its markdown rendered as literal text. Markdown is now the default; the HTML path triggers only for actual HTML documents/block markup. Preview HTML button unchanged.
