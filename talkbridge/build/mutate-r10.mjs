@@ -23,6 +23,8 @@ const muts = [
   s => s.replace("/* ═══════════ GAP PART · N4-listener-heartbeat.js", "var ACK_GRACE = 1; /* ═══════════ GAP PART · N4-listener-heartbeat.js")],
  ['the permission ask slides back behind the awaits (no prompt on iOS)',
   s => s.replace("var ask = (window.Notification && Notification.permission === 'default')", "var ask = false && (window.Notification && Notification.permission === 'default')")],
+ ['the vapid field-name mismatch returns (subscriptions fail everywhere)',
+  s => s.replace("var vkey = v && (v.key || v.vapid);", "var vkey = v && v.key;")],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.3.0 -->
-# TALKBRIDGE MASTER PLAN v16.3.0
+<!-- TALKBRIDGE-PLAN v16.4.0 -->
+# TALKBRIDGE MASTER PLAN v16.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.4.0 · 2026-08-26.** The owner's suspicion of a client↔relay mismatch
+was CORRECT, and the Android log named it: push_selfheal →
+push_enable_failed "vapid". The relay answers the key request with field
+'vapid'; the validated part read field 'key' — every subscription attempt on
+every phone failed at that exact step, which is why both lanes showed
+granted-but-no-subscription and nothing could reach a locked phone. Fixed at
+the part source (accepts both names), rebuilt through the assembler,
+effect-tested against the relay's REAL response shape (V1), mutation for the
+exact mismatch caught. 14/14 + 10/10. Both device logs otherwise clean:
+lanes correct, permissions granted on both, N6 prompt worked, in-app rings
+worked, self-heal fired exactly as designed.
 
 **v16.3.0 · 2026-08-24.** Owner caught a process violation: label fix and N6
 were in-place edits to the built artifact. Answer to the question asked:

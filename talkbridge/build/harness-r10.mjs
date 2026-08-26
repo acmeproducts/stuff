@@ -104,6 +104,26 @@ T('N5 lane routing exact per user agent; boot line carries permissions', () => {
   w.plBootLine();
   A(w.TB_LANE && w.TB_LANE.lane !== '?' && typeof w.TB_LANE.notif === 'string', 'lane line incomplete');
 });
+{
+  /* N7-shape: enable must succeed against the LIVE relay's response shape */
+  let subscribedWith = null;
+  const reg = { pushManager: { getSubscription: () => Promise.resolve(null),
+    subscribe: o => { subscribedWith = o; return Promise.resolve({ endpoint: 'https://x/e' }); } } };
+  Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true,
+    value: { register: () => Promise.resolve({}), ready: Promise.resolve(reg), addEventListener(){} } });
+  const origFetch = w.fetch;
+  w.fetch = () => Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ ok: true, vapid: 'BQQQQQQQQQQQQQQQQQQQQQQ', push: true }) });
+  const OrigNote = w.Notification;
+  w.Notification = class { static requestPermission(){ return Promise.resolve('granted'); } };
+  w.Notification.permission = 'granted';
+  w.S.rooms = [{ id: 'rV', myName: 'x' }];
+  await w.r10EnableNotifications().catch(() => {});
+  await new Promise(r => setTimeout(r, 150));
+  w.fetch = origFetch; w.Notification = OrigNote;
+  T("V1 subscription completes against the relay's real 'vapid' field shape", () =>
+    A(subscribedWith && subscribedWith.applicationServerKey && subscribedWith.applicationServerKey.length > 0,
+      'subscribe never ran — the vapid field-name mismatch is back'));
+}
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
   const OrigN = w.Notification;
