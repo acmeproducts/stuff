@@ -7940,9 +7940,8 @@ document.addEventListener('visibilitychange', function () {
    Owner test case 2026-08-26: a FRESH iPhone user scans a QR — the camera
    opens the DEFAULT browser, often Chrome. Without these three pieces the
    ring is unreachable for that person, so they are R10 scope:
-   J2 — Chrome-on-iOS: chat right here, and ONE TAP to Safari via the
-        x-safari-https scheme (forces Safari directly; copy fallback shown
-        only if the scheme is blocked).
+   J2 — RETIRED same day (research): iOS 16.4+ installs from the Share menu
+        of every major browser, so the Safari detour is deleted, not shown.
    J3 — In Safari, joined, not installed: dismissible nudge — ringing is the
         reason to Add to Home Screen.
    J5 — The name typed in the tab rides the handoff cookie (jn) and is
@@ -7998,35 +7997,16 @@ function n7AugmentHandoff(p, name) {
   } catch (_) { return false; }
 }
 
-/* J2 — landed on iPhone outside Safari: chat here, one tap to Safari. */
-function n7SafariBar() {
-  try {
-    if (typeof plLane !== 'function' || plLane() !== 'ios-other-browser') return;
-    if (!N7.inviteHref) return;
-    if (document.getElementById('n7-safari-bar')) return;
-    var app = document.getElementById('app');
-    if (!app) return;
-    var safariHref = N7.inviteHref.replace(/^https:/, 'x-safari-https:');
-    var bar = document.createElement('div');
-    bar.id = 'n7-safari-bar';
-    bar.className = 'n7-bar';
-    bar.innerHTML = '<span>You can chat right here. To make this phone ring for calls:</span>' +
-      '<a href="' + safariHref.replace(/"/g, '&quot;') + '">Open in Safari</a>' +
-      '<button type="button">Copy link</button>';
-    bar.querySelector('button').addEventListener('click', function () {
-      var self = this;
-      try { navigator.clipboard.writeText(N7.inviteHref).then(function () { self.textContent = 'Copied ✓'; }); }
-      catch (_) { self.textContent = N7.inviteHref; }
-    });
-    app.insertBefore(bar, app.firstChild);
-    r8Log('n7_safari_bar', {}, 'ok');
-  } catch (_) {}
-}
+/* J2 retired 2026-08-26 after research: iOS 16.4+ installs from the Share
+   menu of Safari, Chrome, Edge, Firefox alike (MDN). The Safari detour was
+   built to a pre-16.4 assumption and is deleted, not improved. The nudge
+   below now serves every iOS browser. */
 
 /* J3 — iPhone Safari, joined, not installed: ringing is the pitch. */
 function n7InstallNudge() {
   try {
-    if (typeof plLane !== 'function' || plLane() !== 'ios-safari') return;
+    var l = (typeof plLane === 'function') ? plLane() : 'other';
+    if (l !== 'ios-safari' && l !== 'ios-other-browser') return;
     if (N7.dismissed || sessionStorage.getItem('n7_nudge_dismissed')) return;
     if (!(S.rooms && S.rooms.length)) return;
     if (document.getElementById('n7-nudge')) return;
@@ -8051,10 +8031,7 @@ function n7InstallNudge() {
     joinRoom = function (p) {
       try { n7AdoptName(p); } catch (_) {}
       var r = _n7JoinRoom.apply(this, arguments);
-      try {
-        n7AugmentHandoff(p, (S.user && S.user.name) || '');
-        n7InstallNudge();
-      } catch (_) {}
+      try { n7InstallNudge(); } catch (_) {}
       return r;
     };
     joinRoom._n7Original = _n7JoinRoom;
@@ -8074,9 +8051,9 @@ function n7NameSync(v) {
     p.jn = v;
     var newHash = '#j=' + encInv(p);
     N7.inviteHref = location.href.split('#')[0] + newHash;
-    var a = document.querySelector('#n7-safari-bar a');
-    if (a) a.href = N7.inviteHref.replace(/^https:/, 'x-safari-https:');
-    n7AugmentHandoff(p, v);
+    /* the URL itself is the handoff now: replace the live hash so Add to
+       Home Screen bookmarks the invite WITH the typed name aboard */
+    try { history.replaceState(null, '', newHash); } catch (_) {}
     r8Log('n7_name_synced', {}, 'ok');
   } catch (_) {}
 }
@@ -8094,7 +8071,6 @@ setTimeout(function () {
       try { p = decInv(location.hash.slice(3)); } catch (_) {}
       if (p) n7AdoptName(p);
     }
-    n7SafariBar();
     n7InstallNudge();
   } catch (_) {}
 }, 1000);

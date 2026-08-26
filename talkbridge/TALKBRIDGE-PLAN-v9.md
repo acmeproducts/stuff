@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.9.0 -->
-# TALKBRIDGE MASTER PLAN v16.9.0
+<!-- TALKBRIDGE-PLAN v16.10.0 -->
+# TALKBRIDGE MASTER PLAN v16.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.10.0 · 2026-08-26.** Owner pushed for research; research won. MDN: iOS
+16.4+ installs PWAs from the Share menu of Safari, Chrome, Edge, Firefox
+alike. The Safari detour was built to a pre-16.4 assumption — DELETED, not
+improved: J2 bar gone (name-gated in the harness), install nudge serves
+every iOS browser, manifest start_url REMOVED so the home-screen icon opens
+the invite URL itself — room and typed name ride the live hash
+(history.replaceState on typing), which retires the cookie handoff as the
+transfer mechanism. Fresh-user path is now identical for any default
+browser: scan → name → OK → Share → Add to Home Screen → Add → open icon →
+Allow. Everything after OK is Apple's floor. Honest unknown for the device:
+push parity for a Chrome-side install (installed app is WebKit regardless —
+expected identical, claimed only after the phone says so). 21/21 + 16/16.
 
 **v16.9.0 · 2026-08-26.** BOTH device logs read; the iPhone notification hell
 is root-caused FROM THE OWNER'S CAPTURE and fixed at source: the enable

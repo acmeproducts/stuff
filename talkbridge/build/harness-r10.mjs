@@ -137,10 +137,15 @@ T('A2 every heal step names itself with a deadline — silence is impossible', (
   A(built.includes("rej(new Error('timeout'))"), 'no deadlines — a hang could still be silent');
   A(built.includes("r8Log('heal_step', { s: name, ok: false"), 'failures are not logged — silence possible again');
 });
-T('J2 one-tap Safari: the bar carries an x-safari-https link to the exact invite', () => {
-  const barFn = built.slice(built.indexOf('function n7SafariBar'), built.indexOf('function n7InstallNudge'));
-  A(barFn.includes("x-safari-https:"), 'x-safari scheme missing from the BAR itself');
-  A(built.includes('You can chat right here'), 'J1 violated: bar gates instead of informing');
+T('J2 the Safari detour is DELETED — install happens in whatever browser you are in', () => {
+  A(!built.includes('x-safari-https'), 'the detour is back');
+  A(!built.includes('n7SafariBar()'), 'detour bar still invoked');
+  A(built.includes("l !== 'ios-safari' && l !== 'ios-other-browser'"), 'nudge does not serve every iOS browser');
+});
+T('J2b the icon opens the invite itself: no start_url override, name rides the live hash', () => {
+  const manifest = readFileSync(new URL('../../tb-manifest.webmanifest', import.meta.url), 'utf8');
+  A(!manifest.includes('start_url'), 'manifest still overrides the launch URL');
+  A(built.includes("history.replaceState(null, '', newHash)"), 'typed name does not board the live URL');
 });
 T('J5 a payload naming the joiner names this device once, and only once', () => {
   w.S.user.name = '';
@@ -163,8 +168,8 @@ T('E2 typing the name live-updates the Safari link and the handoff cookie', () =
   A(/x-safari-https:|https:/.test(w.N7.inviteHref) && w.N7.inviteHref.includes('#j='), 'invite href not rebuilt');
   const p1 = w.decInv(w.N7.inviteHref.split('#j=')[1]);
   A(p1 && p1.jn === 'Carmen' && p1.r === 'roomN', 'typed name did not board the link: ' + JSON.stringify(p1));
-  const mm = ('; ' + w.document.cookie).match('; tb_install_handoff_v1=([^;]*)');
-  A(mm && w.decInv(decodeURIComponent(mm[1])).jn === 'Carmen', 'typed name did not board the cookie');
+  const ph = w.decInv(w.location.hash.slice(3));
+  A(ph && ph.jn === 'Carmen', 'typed name did not board the LIVE URL: ' + w.location.hash.slice(0, 30));
   w.location.hash = '';
 });
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
