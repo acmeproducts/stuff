@@ -1019,3 +1019,24 @@ talkbridge/parts/, the assembly is one command
 from it, and the canonical assembly replaced the hand-edited file. Rule:
 the artifact is OUTPUT ONLY — every change goes into a part source and
 through the assembler.
+
+## A month lost to a constraint that stopped existing in iOS 16.4 · Aug 26 2026
+
+The owner's ORIGINAL design carried everything on the URL. I overrode it
+with a cookie handoff and a forced jump to Safari, built on the assumption
+that only Safari can install a PWA — true before iOS 16.4, false for every
+iOS the owner's devices run. That fake constraint spawned the hand-to-Safari
+bar, the x-safari scheme, the cookie augmentation, the blank-room bug, the
+name-carry bugs, and burned roughly a month of releases, rollbacks, and the
+owner's device-test cycles. One web search — performed only when the owner
+ordered it — deleted the entire branch of machinery in an afternoon and
+restored his design.
+
+Cost: ~a month of effort, multiple graveyard entries that were downstream of
+this one wrong assumption, and owner trust.
+
+Rule, permanent: before building ANY workaround for a platform limitation,
+SEARCH THE INTERNET and verify the limitation still exists. Claude's
+platform knowledge is stale by default. When the owner's design appears
+blocked by a platform, the first hypothesis is that the constraint model is
+outdated — not that the design is wrong.
