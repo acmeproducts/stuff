@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.7.0 -->
-# TALKBRIDGE MASTER PLAN v16.7.0
+<!-- TALKBRIDGE-PLAN v16.8.0 -->
+# TALKBRIDGE MASTER PLAN v16.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.8.0 · 2026-08-26.** Owner test case redefined the gate: a FRESH iPhone
+user via QR into the DEFAULT browser (often Chrome). Three journey pieces are
+load-bearing for the ring and pulled into R10 as N7: J2 Chrome-on-iOS bar
+with ONE-TAP "Open in Safari" (x-safari-https scheme; copy fallback), J3
+Add-to-Home-Screen nudge with ringing as the pitch, J5 typed-name-rides-the-
+handoff (blank-room path dead). With the load-time ask already in, the fresh
+path is: scan → chat in Chrome → one tap to Safari → Add to Home Screen →
+open icon (app asks permission itself). Apple's floor remains. 19/19 + 15/15,
+assembled from parts.
 
 **v16.7.0 · 2026-08-26.** Owner corrected v16.6.0's Safari-default
 assumption. J7 (paste-invite in app) and J8 (in-band cross-room invites)

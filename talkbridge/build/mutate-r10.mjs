@@ -29,6 +29,12 @@ const muts = [
   s => s.replace("var ask = (window.Notification && Notification.permission === 'default')", "var ask = false && (window.Notification && Notification.permission === 'default')")],
  ['the vapid field-name mismatch returns (subscriptions fail everywhere)',
   s => s.replace("var vkey = v && (v.key || v.vapid);", "var vkey = v && v.key;")],
+ ['the typed name never reaches the handoff cookie (blank rooms return)',
+  s => s.replace("p2.jn = String(name).slice(0, 40);", ';')],
+ ['an arriving payload overwrites an existing identity',
+  s => s.replace("if (p && p.jn && !(S.user && S.user.name)) {", 'if (p && p.jn) {')],
+ ['the one-tap Safari route quietly becomes copy-paste hoops',
+  s => s.replace("N7.inviteHref.replace(/^https:/, 'x-safari-https:')", 'N7.inviteHref')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

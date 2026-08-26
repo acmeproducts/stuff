@@ -12,7 +12,7 @@ const A = (c, m) => { if (!c) throw new Error(m); };
 
 console.log('S · static contract');
 T('S1 exactly N1..N5 present; excluded parts absent; ship interior intact', () => {
-  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path', 'N6-gesture-first-permission'])
+  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path', 'N6-gesture-first-permission', 'N7-fresh-iphone-path'])
     A(built.includes(p), p + ' missing');
   for (const p of ['PA4-create', 'PJ-customer', 'PD-delivery', '_did', 'ACK_GRACE'])
     A(!built.includes(p), p + ' leaked in');
@@ -134,6 +134,23 @@ T('A2 every heal step names itself with a deadline — silence is impossible', (
     A(built.includes(st), st + ' step unlogged');
   A(built.includes("rej(new Error('timeout'))"), 'no deadlines — a hang could still be silent');
   A(built.includes("r8Log('heal_step', { s: name, ok: false"), 'failures are not logged — silence possible again');
+});
+T('J2 one-tap Safari: the bar carries an x-safari-https link to the exact invite', () => {
+  A(built.includes("N7.inviteHref.replace(/^https:/, 'x-safari-https:')"), 'x-safari scheme missing');
+  A(built.includes('You can chat right here'), 'J1 violated: bar gates instead of informing');
+});
+T('J5 a payload naming the joiner names this device once, and only once', () => {
+  w.S.user.name = '';
+  A(w.n7AdoptName({ jn: 'Zoe' }) === true && w.S.user.name === 'Zoe', 'name not adopted');
+  A(w.n7AdoptName({ jn: 'Mallory' }) === false && w.S.user.name === 'Zoe', 'existing identity overwritten');
+});
+T('J5 the tab writes the typed name into the handoff cookie for the PWA', () => {
+  w.__TB_R10.standalone = false; w.__TB_R10.armed = true;
+  A(w.n7AugmentHandoff({ r: 'room9', k: 'kk' }, 'Zoe') === true, 'augment refused');
+  const mm = ('; ' + w.document.cookie).match('; tb_install_handoff_v1=([^;]*)');
+  A(mm, 'cookie missing');
+  const p = w.decInv(decodeURIComponent(mm[1]));
+  A(p && p.jn === 'Zoe' && p.r === 'room9' && p.k === 'kk', 'payload wrong: ' + JSON.stringify(p));
 });
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
