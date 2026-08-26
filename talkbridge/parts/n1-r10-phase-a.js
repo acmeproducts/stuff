@@ -104,10 +104,16 @@ function r10UrlB64ToU8(base64) {
 
 function r10EnableNotifications() {
   /* MUST be called from the user's gesture (A5). One control, no ceremony. */
-  if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }
+  /* iPhone evidence 2026-08-26: iOS PWAs can expose push on the service
+     worker REGISTRATION while window.PushManager is absent — the old gate
+     declared 'unsupported' in 8ms while holding a granted permission, six
+     boots in a row. Capability is now judged where it lives: on the reg. */
+  if (!('serviceWorker' in navigator)) { r8Log('enable_branch', { b: 'no-sw' }, 'error'); r10NotifStatus('unsupported'); return Promise.resolve(); }
   var rooms = r10ActiveRooms();
   if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
   return navigator.serviceWorker.ready.then(function (reg) {
+    if (!reg.pushManager) { r8Log('enable_branch', { b: 'no-reg-pushmanager' }, 'error'); r10NotifStatus('unsupported'); return; }
+    r8Log('enable_branch', { b: 'proceed' }, 'ok');
     return reg.pushManager.getSubscription().then(function (existing) {
       if (existing) return existing;
       return Notification.requestPermission().then(function (perm) {

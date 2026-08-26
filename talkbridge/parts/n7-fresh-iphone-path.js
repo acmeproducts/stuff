@@ -130,6 +130,32 @@ function n7InstallNudge() {
   }
 })();
 
+/* The name boards the invite the moment it is typed: the Safari link, the
+   copy text, and the handoff cookie all update live, so identity survives
+   Chrome → Safari → installed app in ANY order of operations. */
+function n7NameSync(v) {
+  try {
+    v = (v || '').trim().slice(0, 40);
+    if (!v || location.hash.indexOf('#j=') !== 0) return;
+    var p = null;
+    try { p = decInv(location.hash.slice(3)); } catch (_) { return; }
+    if (!p) return;
+    p.jn = v;
+    var newHash = '#j=' + encInv(p);
+    N7.inviteHref = location.href.split('#')[0] + newHash;
+    var a = document.querySelector('#n7-safari-bar a');
+    if (a) a.href = N7.inviteHref.replace(/^https:/, 'x-safari-https:');
+    n7AugmentHandoff(p, v);
+    r8Log('n7_name_synced', {}, 'ok');
+  } catch (_) {}
+}
+document.addEventListener('input', function (e) {
+  try {
+    var t = e.target;
+    if (t && (t.id === 's10-name' || t.id === 's0-name')) n7NameSync(t.value);
+  } catch (_) {}
+});
+
 setTimeout(function () {
   try {
     if (location.hash.indexOf('#j=') === 0) {

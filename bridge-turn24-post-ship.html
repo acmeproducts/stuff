@@ -7516,10 +7516,16 @@ function r10UrlB64ToU8(base64) {
 
 function r10EnableNotifications() {
   /* MUST be called from the user's gesture (A5). One control, no ceremony. */
-  if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }
+  /* iPhone evidence 2026-08-26: iOS PWAs can expose push on the service
+     worker REGISTRATION while window.PushManager is absent — the old gate
+     declared 'unsupported' in 8ms while holding a granted permission, six
+     boots in a row. Capability is now judged where it lives: on the reg. */
+  if (!('serviceWorker' in navigator)) { r8Log('enable_branch', { b: 'no-sw' }, 'error'); r10NotifStatus('unsupported'); return Promise.resolve(); }
   var rooms = r10ActiveRooms();
   if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
   return navigator.serviceWorker.ready.then(function (reg) {
+    if (!reg.pushManager) { r8Log('enable_branch', { b: 'no-reg-pushmanager' }, 'error'); r10NotifStatus('unsupported'); return; }
+    r8Log('enable_branch', { b: 'proceed' }, 'ok');
     return reg.pushManager.getSubscription().then(function (existing) {
       if (existing) return existing;
       return Notification.requestPermission().then(function (perm) {
@@ -7711,7 +7717,7 @@ var PA5_CSS =
 
 function pa5NeedsEnable() {
   try {
-    return !!window.PushManager && ('serviceWorker' in navigator) &&
+    return ('serviceWorker' in navigator) &&   /* window.PushManager dropped: iOS hides it while the reg has push */
       !!window.Notification && Notification.permission !== 'granted' &&
       !!(S.rooms && S.rooms.length);
   } catch (_) { return false; }
@@ -8054,6 +8060,32 @@ function n7InstallNudge() {
     joinRoom._n7Original = _n7JoinRoom;
   }
 })();
+
+/* The name boards the invite the moment it is typed: the Safari link, the
+   copy text, and the handoff cookie all update live, so identity survives
+   Chrome → Safari → installed app in ANY order of operations. */
+function n7NameSync(v) {
+  try {
+    v = (v || '').trim().slice(0, 40);
+    if (!v || location.hash.indexOf('#j=') !== 0) return;
+    var p = null;
+    try { p = decInv(location.hash.slice(3)); } catch (_) { return; }
+    if (!p) return;
+    p.jn = v;
+    var newHash = '#j=' + encInv(p);
+    N7.inviteHref = location.href.split('#')[0] + newHash;
+    var a = document.querySelector('#n7-safari-bar a');
+    if (a) a.href = N7.inviteHref.replace(/^https:/, 'x-safari-https:');
+    n7AugmentHandoff(p, v);
+    r8Log('n7_name_synced', {}, 'ok');
+  } catch (_) {}
+}
+document.addEventListener('input', function (e) {
+  try {
+    var t = e.target;
+    if (t && (t.id === 's10-name' || t.id === 's0-name')) n7NameSync(t.value);
+  } catch (_) {}
+});
 
 setTimeout(function () {
   try {

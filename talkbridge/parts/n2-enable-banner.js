@@ -34,7 +34,7 @@ var PA5_CSS =
 
 function pa5NeedsEnable() {
   try {
-    return !!window.PushManager && ('serviceWorker' in navigator) &&
+    return ('serviceWorker' in navigator) &&   /* window.PushManager dropped: iOS hides it while the reg has push */
       !!window.Notification && Notification.permission !== 'granted' &&
       !!(S.rooms && S.rooms.length);
   } catch (_) { return false; }

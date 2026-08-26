@@ -34,7 +34,12 @@ const muts = [
  ['an arriving payload overwrites an existing identity',
   s => s.replace("if (p && p.jn && !(S.user && S.user.name)) {", 'if (p && p.jn) {')],
  ['the one-tap Safari route quietly becomes copy-paste hoops',
-  s => s.replace("N7.inviteHref.replace(/^https:/, 'x-safari-https:')", 'N7.inviteHref')],
+  s => s.replace("var safariHref = N7.inviteHref.replace(/^https:/, 'x-safari-https:');", 'var safariHref = N7.inviteHref;')],
+ ['the window-level capability gate returns (the 8ms iOS exit)',
+  s => s.replace("if (!('serviceWorker' in navigator)) { r8Log('enable_branch', { b: 'no-sw' }, 'error'); r10NotifStatus('unsupported'); return Promise.resolve(); }",
+                 "if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }")],
+ ['typing the name stops boarding the invite',
+  s => s.replace("p.jn = v;", ';')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

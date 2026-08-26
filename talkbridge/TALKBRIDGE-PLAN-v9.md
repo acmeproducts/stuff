@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.8.0 -->
-# TALKBRIDGE MASTER PLAN v16.8.0
+<!-- TALKBRIDGE-PLAN v16.9.0 -->
+# TALKBRIDGE MASTER PLAN v16.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,21 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.9.0 · 2026-08-26.** BOTH device logs read; the iPhone notification hell
+is root-caused FROM THE OWNER'S CAPTURE and fixed at source: the enable
+flow's first line declared 'unsupported' when window.PushManager was absent —
+but iOS exposes push on the service worker REGISTRATION (the heal's own
+get-subscription succeeded every time), so the flow resolved 'ok' in 8ms
+doing nothing, six boots straight; the SAME wrong question gated the banner,
+which is why it never appeared. Capability is now judged on the reg, each
+branch logs itself (enable_branch), and the harness reproduces the exact iOS
+condition (window.PushManager deleted) end-to-end into a completed subscribe.
+NAME CARRY fixed: typing the name live-boards it into the Safari link, the
+copy text, and the handoff cookie (n7NameSync) — Chrome→Safari→PWA in any
+order, onboard once. Android log confirms: both rooms subscribed, heal
+correctly idle. 20/20 + 17/17, assembled from parts. Noted for R11: one rtc
+glare error (setRemoteDescription in stable state) with recovery engaging.
 
 **v16.8.0 · 2026-08-26.** Owner test case redefined the gate: a FRESH iPhone
 user via QR into the DEFAULT browser (often Chrome). Three journey pieces are

@@ -113,16 +113,18 @@ T('N5 lane routing exact per user agent; boot line carries permissions', () => {
     value: { register: () => Promise.resolve({}), ready: Promise.resolve(reg), addEventListener(){} } });
   const origFetch = w.fetch;
   w.fetch = () => Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve({ ok: true, vapid: 'BQQQQQQQQQQQQQQQQQQQQQQ', push: true }) });
+  const OrigPM = w.PushManager;
+  delete w.PushManager;                       /* the exact iOS-PWA condition from the owner's log */
   const OrigNote = w.Notification;
   w.Notification = class { static requestPermission(){ return Promise.resolve('granted'); } };
   w.Notification.permission = 'granted';
   w.S.rooms = [{ id: 'rV', myName: 'x' }];
   await w.r10EnableNotifications().catch(() => {});
   await new Promise(r => setTimeout(r, 150));
-  w.fetch = origFetch; w.Notification = OrigNote;
+  w.fetch = origFetch; w.Notification = OrigNote; w.PushManager = OrigPM;
   T("V1 subscription completes against the relay's real 'vapid' field shape", () =>
     A(subscribedWith && subscribedWith.applicationServerKey && subscribedWith.applicationServerKey.length > 0,
-      'subscribe never ran — the vapid field-name mismatch is back'));
+      'subscribe never ran — capability gate or vapid shape wrong (the 8ms iOS exit)'));
 }
 T('A1 the app asks on load — no tap, no footer hunt', () => {
   A(built.includes('setTimeout(pa5AutoAsk, 1200);'), 'load-time ask missing');
@@ -136,7 +138,8 @@ T('A2 every heal step names itself with a deadline — silence is impossible', (
   A(built.includes("r8Log('heal_step', { s: name, ok: false"), 'failures are not logged — silence possible again');
 });
 T('J2 one-tap Safari: the bar carries an x-safari-https link to the exact invite', () => {
-  A(built.includes("N7.inviteHref.replace(/^https:/, 'x-safari-https:')"), 'x-safari scheme missing');
+  const barFn = built.slice(built.indexOf('function n7SafariBar'), built.indexOf('function n7InstallNudge'));
+  A(barFn.includes("x-safari-https:"), 'x-safari scheme missing from the BAR itself');
   A(built.includes('You can chat right here'), 'J1 violated: bar gates instead of informing');
 });
 T('J5 a payload naming the joiner names this device once, and only once', () => {
@@ -151,6 +154,18 @@ T('J5 the tab writes the typed name into the handoff cookie for the PWA', () => 
   A(mm, 'cookie missing');
   const p = w.decInv(decodeURIComponent(mm[1]));
   A(p && p.jn === 'Zoe' && p.r === 'room9' && p.k === 'kk', 'payload wrong: ' + JSON.stringify(p));
+});
+T('E2 typing the name live-updates the Safari link and the handoff cookie', () => {
+  const p0 = { r: 'roomN', k: 'kk' };
+  w.location.hash = '#j=' + w.encInv(p0);
+  w.__TB_R10.standalone = false; w.__TB_R10.armed = true;
+  w.n7NameSync('Carmen');
+  A(/x-safari-https:|https:/.test(w.N7.inviteHref) && w.N7.inviteHref.includes('#j='), 'invite href not rebuilt');
+  const p1 = w.decInv(w.N7.inviteHref.split('#j=')[1]);
+  A(p1 && p1.jn === 'Carmen' && p1.r === 'roomN', 'typed name did not board the link: ' + JSON.stringify(p1));
+  const mm = ('; ' + w.document.cookie).match('; tb_install_handoff_v1=([^;]*)');
+  A(mm && w.decInv(decodeURIComponent(mm[1])).jn === 'Carmen', 'typed name did not board the cookie');
+  w.location.hash = '';
 });
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
