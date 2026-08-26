@@ -155,7 +155,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b20</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b21</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -769,14 +769,20 @@ function parseAgent(text){
   if(body.startsWith('\\u0060\\u0060\\u0060')){body=body.replace(/^\\u0060\\u0060\\u0060[a-zA-Z]*\\n?/,'');const i=body.lastIndexOf('\\u0060\\u0060\\u0060');if(i>-1)body=body.slice(0,i);body=body.trim()}
   return{summary,target,body,state};
 }
+async function tfetch(url,opts,ms){
+  const ac=new AbortController();const to=setTimeout(()=>ac.abort(),ms||25000);
+  try{return await fetch(url,{...opts,signal:ac.signal})}
+  catch(e){throw new Error((e.name==='AbortError'?'timeout '+Math.round((ms||25000)/1000)+'s':e.message)+' on '+url.split('/')[2])}
+  finally{clearTimeout(to)}
+}
 async function ghGet(cfg,path){
-  const r=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}});
+  const r=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}},25000);
   if(r.status===404)return null;
   if(!r.ok)throw new Error('GitHub '+r.status+' reading '+path);
   const j=await r.json();
   let content=j.content?decodeURIComponent(escape(atob(j.content.replace(/\\n/g,'')))):'';
   if(!content&&j.size>0){
-    const r2=await fetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}});
+    const r2=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}},25000);
     if(!r2.ok)throw new Error('raw fallback '+r2.status+' on '+path);
     content=await r2.text();
   }
@@ -784,9 +790,9 @@ async function ghGet(cfg,path){
 }
 async function callEngine(cfg,eng,model,system,history,user){
   if(eng==='anthropic-direct'){
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    const r=await tfetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})});
+      body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})},300000);
     const j=await r.json();
     if(!r.ok)throw new Error('anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
     return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -796,8 +802,8 @@ async function callEngine(cfg,eng,model,system,history,user){
   if(!M)throw new Error('unknown engine '+eng);
   if(!M.key)throw new Error(eng+' key not configured');
   if(!M.model)throw new Error(eng+' model not selected');
-  const r=await fetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
-    body:JSON.stringify({model:M.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})});
+  const r=await tfetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
+    body:JSON.stringify({model:M.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})},300000);
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' non-JSON ('+r.status+')')}
   if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
   return j.choices[0].message.content;
@@ -808,18 +814,21 @@ self.onmessage=async e=>{
   try{
     const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
     let ctx='';
+    post({type:'log',line:'reading plan '+planFile});
     const pc=await ghGet(cfg,planFile);
     if(pc)ctx+='PLAN file '+planFile+':\n<plan>\n'+pc+'\n</plan>\n\n';
+    post({type:'log',line:'reading code '+codeFile});
     const cc=await ghGet(cfg,codeFile);
     if(cc)ctx+='CODE file '+codeFile+':\n<code>\n'+cc+'\n</code>\n\n';
     else if(inputFile){const ic=await ghGet(cfg,inputFile);if(ic)ctx+='INPUT codebase '+inputFile+':\n<code>\n'+ic+'\n</code>\n\n'}
     let text=null,usedEng=null,fails=[];
     for(const eng of chain){
-      post({type:'log',line:'engine '+eng+' starting'});
+      post({type:'log',line:'engine '+eng+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)…'});
       try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\n'+instr);usedEng=eng;break}
       catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
     }
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
+    post({type:'log',line:'engine done ('+Math.round(text.length/1000)+'k chars out), parsing'});
     const{summary,target,body,state}=parseAgent(text);
     post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng});
   }catch(err){post({type:'error',message:err.message})}
@@ -848,7 +857,7 @@ function getWorker(){
 function pumpQ(){
   while(jobQ.length){
     const w=getWorker();if(!w)break;
-    const job=jobQ.shift();w.busy=true;jobs[job.payload.jobId]=job;
+    const job=jobQ.shift();w.busy=true;w.currentJob=job.payload.jobId;job.startedAt=Date.now();jobs[job.payload.jobId]=job;
     dlog('[T'+job.payload.jobId+' '+job.key+'] dispatched to worker (pool '+pool.filter(p=>p.busy).length+'/'+POOL_SIZE+')');
     w.wk.postMessage(job.payload);
   }
@@ -858,6 +867,19 @@ function runJob(key,payload){
   payload.jobId=++jobSeq;
   return new Promise((resolve,reject)=>{jobQ.push({key,payload,resolve,reject});pumpQ()});
 }
+setInterval(()=>{ // watchdog
+  Object.entries(jobs).forEach(([jid,job])=>{
+    if(!job.startedAt)return;
+    if(Date.now()-job.startedAt>8*60*1000){
+      dlog('E|watchdog: job T'+jid+' ('+job.key+') exceeded 8min — killing worker');
+      const w=pool.find(p=>p.busy&&p.currentJob===+jid);
+      if(w){try{w.wk.terminate()}catch(e){};pool.splice(pool.indexOf(w),1)}
+      delete jobs[jid];
+      job.reject(new Error('build timed out after 8 minutes (worker killed) — ▶ to retry'));
+      pumpQ();
+    }
+  });
+},30000);
 function renderWorkload(){
   const n=pool.filter(p=>p.busy).length+jobQ.length;
   const el=document.getElementById('pill');
