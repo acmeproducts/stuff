@@ -20,12 +20,21 @@ function phSelfHeal() {
   try {
     if (!('serviceWorker' in navigator) || !window.Notification) return;
     if (Notification.permission !== 'granted') return;      /* nothing granted, nothing to heal */
-    navigator.serviceWorker.ready.then(function (reg) {
-      if (!reg.pushManager) return;
-      return reg.pushManager.getSubscription().then(function (sub) {
+    /* iPhone evidence 2026-08-26: the heal fired then went silent for minutes.
+       Every step now names itself and carries a deadline — a hang cannot be
+       silent, and the next capture identifies the dying line. */
+    var step = function (name, ms, p) {
+      var t = new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); });
+      return Promise.race([p, t]).then(
+        function (v) { r8Log('heal_step', { s: name, ok: true }, 'ok'); return v; },
+        function (e) { r8Log('heal_step', { s: name, ok: false, e: String(e && e.message || e) }, 'error'); throw e; });
+    };
+    step('sw-ready', 6000, navigator.serviceWorker.ready).then(function (reg) {
+      if (!reg.pushManager) { r8Log('heal_step', { s: 'push-manager', ok: false }, 'error'); return; }
+      return step('get-subscription', 6000, reg.pushManager.getSubscription()).then(function (sub) {
         if (sub) return;                                    /* alive — the per-boot room sync covers the rest */
         r8Log('push_selfheal', { why: 'granted-but-no-subscription' }, 'ok');
-        return r10EnableNotifications();                    /* silent: permission already granted */
+        return step('enable-flow', 15000, r10EnableNotifications());
       });
     }).catch(function () {});
   } catch (_) {}

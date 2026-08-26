@@ -124,6 +124,17 @@ T('N5 lane routing exact per user agent; boot line carries permissions', () => {
     A(subscribedWith && subscribedWith.applicationServerKey && subscribedWith.applicationServerKey.length > 0,
       'subscribe never ran — the vapid field-name mismatch is back'));
 }
+T('A1 the app asks on load — no tap, no footer hunt', () => {
+  A(built.includes('setTimeout(pa5AutoAsk, 1200);'), 'load-time ask missing');
+  A(built.includes("r8Log('auto_prompt'"), 'auto-ask outcome not logged');
+  A(built.includes('#r10-notif{display:none !important}'), 'footer row not retired');
+});
+T('A2 every heal step names itself with a deadline — silence is impossible', () => {
+  for (const st of ["'sw-ready'", "'get-subscription'", "'enable-flow'", "'vapid-answer'", "'subscribe-call'"])
+    A(built.includes(st), st + ' step unlogged');
+  A(built.includes("rej(new Error('timeout'))"), 'no deadlines — a hang could still be silent');
+  A(built.includes("r8Log('heal_step', { s: name, ok: false"), 'failures are not logged — silence possible again');
+});
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
   const OrigN = w.Notification;

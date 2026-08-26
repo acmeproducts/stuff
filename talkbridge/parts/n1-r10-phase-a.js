@@ -113,8 +113,10 @@ function r10EnableNotifications() {
       return Notification.requestPermission().then(function (perm) {
         if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied'); }
         return r10Vapid(rooms[0].id).then(function (v) {
+          r8Log('heal_step', { s: 'vapid-answer', ok: !!(v && (v.key || v.vapid)), st: v && v._status }, 'ok');
           var vkey = v && (v.key || v.vapid);   /* the live relay names this field 'vapid' — the part expected 'key'; accept both */
           if (!vkey) throw new Error('vapid');
+          r8Log('heal_step', { s: 'subscribe-call', ok: true }, 'ok');
           return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: r10UrlB64ToU8(vkey) });
         });
       });

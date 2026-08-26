@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.4.0 -->
-# TALKBRIDGE MASTER PLAN v16.4.0
+<!-- TALKBRIDGE-PLAN v16.5.0 -->
+# TALKBRIDGE MASTER PLAN v16.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.5.0 · 2026-08-26.** Owner ruling folded in: the app asks for
+notification permission ON LOAD — no tap where the platform allows a
+promptless ask, the outcome logged (auto_prompt) so the iOS claim is tested
+on device rather than argued; the footer enable row is retired (hidden), the
+top-of-panel surface is the single tap where a platform insists on one.
+Same build carries the step-instrumented heal: sw-ready → get-subscription →
+enable-flow → vapid-answer → subscribe-call each log name+outcome with
+deadlines, so the iPhone's silent subscription death names its line in the
+next 30-second capture. Device-log findings recorded: Android subscription
+COMPLETE (vapid fix proven); message transit measured 67–120ms (fast); the
+felt lag is Deepgram multi-language finalization (~5s vs ~2s single-lang) —
+scheduling decision owner's. Gates 16/16 + 12/12; assembled from part
+sources.
 
 **v16.4.0 · 2026-08-26.** The owner's suspicion of a client↔relay mismatch
 was CORRECT, and the Android log named it: push_selfheal →
