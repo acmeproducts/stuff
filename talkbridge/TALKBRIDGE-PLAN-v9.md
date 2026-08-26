@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.11.0 -->
-# TALKBRIDGE MASTER PLAN v16.11.0
+<!-- TALKBRIDGE-PLAN v16.12.0 -->
+# TALKBRIDGE MASTER PLAN v16.12.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.12.0 · 2026-08-26.** Owner forced a re-audit of "nothing can be
+silent" — and was right. Three silent paths found and closed: (1) THE BIG
+ONE — the service worker was completely dark: push arrival, banner shown,
+banner failed all invisible to the debug log. tb-sw.js now writes every push
+terminal to a durable on-device store (IndexedDB), and N8 drains it into the
+debug log on every open: proof-of-delivery ON DEVICE. (2) the no-rooms exit
+resolved silently — now logs enable_exit. (3) per-room subscribe failures —
+audit confirmed already logged (push_room_subscribe_failed); no change
+needed, recorded for honesty. Gates 26/26 + 20/20. SW update reaches phones
+on next app open.
 
 **v16.11.0 · 2026-08-26.** Both-logs milestone: for the first time BOTH
 phones hold live subscriptions simultaneously (iPhone: Apple endpoint since

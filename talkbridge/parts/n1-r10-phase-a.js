@@ -110,7 +110,7 @@ function r10EnableNotifications() {
      boots in a row. Capability is now judged where it lives: on the reg. */
   if (!('serviceWorker' in navigator)) { r8Log('enable_branch', { b: 'no-sw' }, 'error'); r10NotifStatus('unsupported'); return Promise.resolve(); }
   var rooms = r10ActiveRooms();
-  if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
+  if (!rooms.length) { r8Log('enable_exit', { e: 'no-rooms' }, 'error'); r10NotifStatus('no-rooms'); return Promise.resolve(); }
   return navigator.serviceWorker.ready.then(function (reg) {
     if (!reg.pushManager) { r8Log('enable_branch', { b: 'no-reg-pushmanager' }, 'error'); r10NotifStatus('unsupported'); return; }
     r8Log('enable_branch', { b: 'proceed' }, 'ok');

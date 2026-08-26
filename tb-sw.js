@@ -112,8 +112,52 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(fetch(event.request));
 });
 
+/* ── RECEIPT LOG (2026-08-26): the service worker was the one dark segment
+   of the notification chain — pushes could arrive, fail, or show with zero
+   visibility in the debug log. Every push event is now written to a durable
+   store the app drains into its log on open: proof-of-delivery on device. */
+function swLog(entry) {
+  return new Promise((res) => {
+    try {
+      const open = indexedDB.open('tb-sw-log', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('e', { autoIncrement: true });
+      open.onsuccess = () => {
+        try {
+          const db = open.result;
+          const tx = db.transaction('e', 'readwrite');
+          tx.objectStore('e').add({ ts: Date.now(), ...entry });
+          tx.oncomplete = () => { db.close(); res(); };
+          tx.onerror = () => { db.close(); res(); };
+        } catch (_) { res(); }
+      };
+      open.onerror = () => res();
+    } catch (_) { res(); }
+  });
+}
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'tb-drain-log') return;
+  event.waitUntil((async () => {
+    try {
+      const open = indexedDB.open('tb-sw-log', 1);
+      await new Promise((res) => {
+        open.onupgradeneeded = () => open.result.createObjectStore('e', { autoIncrement: true });
+        open.onsuccess = res; open.onerror = res;
+      });
+      const db = open.result;
+      const tx = db.transaction('e', 'readwrite');
+      const store = tx.objectStore('e');
+      const all = store.getAll();
+      await new Promise((res) => { tx.oncomplete = res; tx.onerror = res; store.clear() && undefined; });
+      const entries = all.result || [];
+      db.close();
+      if (event.source) event.source.postMessage({ type: 'tb-sw-log', entries });
+    } catch (_) { try { if (event.source) event.source.postMessage({ type: 'tb-sw-log', entries: [] }); } catch (_) {} }
+  })());
+});
+
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
+    await swLog({ ev: 'push_arrived' });
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
     /* Tell any open window to reconcile, so returning to it is up to date. */
@@ -126,12 +170,18 @@ self.addEventListener('push', (event) => {
        again at once — the display requirement is met with nothing left on
        screen. The old handler's silent return here is the likely cause of
        subscriptions dying quietly ("stuck"). */
-    await self.registration.showNotification('TalkBridge', {
-      body: 'New activity',
-      tag: TAG,               /* replaces rather than stacks */
-      renotify: !visible,
-      data: { url: APP_URL }
-    });
+    try {
+      await self.registration.showNotification('TalkBridge', {
+        body: 'New activity',
+        tag: TAG,               /* replaces rather than stacks */
+        renotify: !visible,
+        data: { url: APP_URL }
+      });
+      await swLog({ ev: 'notification_shown', visible });
+    } catch (e) {
+      await swLog({ ev: 'notification_failed', e: String(e && e.message || e) });
+      throw e;
+    }
     if (visible) {
       const shown = await self.registration.getNotifications({ tag: TAG });
       shown.forEach((n) => n.close());
@@ -167,6 +217,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || APP_URL;
   event.waitUntil((async () => {
+    await swLog({ ev: 'push_arrived' });
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of clients) {
       if ('focus' in c) {

@@ -43,6 +43,10 @@ const muts = [
   s => s.replace("r8Log('enable_exit', { e: String(e && e.message || e) }, 'error');", ';')],
  ['the permission answer stops being recorded',
   s => s.replace("r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');", ';')],
+ ['drained receipts vanish before reaching the log',
+  s => s.replace("r8Log('sw_receipt', { ev: en.ev, at: en.ts, visible: en.visible, e: en.e }, en.ev === 'notification_failed' ? 'error' : 'ok');", ';')],
+ ['no-rooms goes silent again',
+  s => s.replace("r8Log('enable_exit', { e: 'no-rooms' }, 'error'); ", '')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

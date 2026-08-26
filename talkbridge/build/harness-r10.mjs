@@ -12,7 +12,7 @@ const A = (c, m) => { if (!c) throw new Error(m); };
 
 console.log('S · static contract');
 T('S1 exactly N1..N5 present; excluded parts absent; ship interior intact', () => {
-  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path', 'N6-gesture-first-permission', 'N7-fresh-iphone-path'])
+  for (const p of ['R10-phase-a', 'PA5-unmissable', 'PH-subscription-selfheal', 'N4-listener-heartbeat', 'PL-one-path', 'N6-gesture-first-permission', 'N7-fresh-iphone-path', 'N8-sw-receipts'])
     A(built.includes(p), p + ' missing');
   for (const p of ['PA4-create', 'PJ-customer', 'PD-delivery', '_did', 'ACK_GRACE'])
     A(!built.includes(p), p + ' leaked in');
@@ -46,8 +46,11 @@ const dom = new JSDOM(built, {
     w.speechSynthesis = { speak(){}, cancel(){}, getVoices(){ return []; } };
     w.SpeechSynthesisUtterance = class {};
     w.PushManager = class {};
-    Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true,
-      value: { register: () => Promise.resolve({}), ready: Promise.resolve({ pushManager: { getSubscription: () => Promise.resolve(null) } }), addEventListener(){} } });
+    const swTarget = new w.EventTarget();
+    swTarget.register = () => Promise.resolve({});
+    swTarget.ready = Promise.resolve({ pushManager: { getSubscription: () => Promise.resolve(null) } });
+    w.__swTarget = swTarget;   /* later tests replace the property; the part's listener lives HERE */
+    Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true, value: swTarget });
     w.Notification = class { static requestPermission(){ return Promise.resolve('denied'); } };
     w.Notification.permission = 'default';
     w.fetch = () => Promise.resolve({ ok: false, json: () => Promise.resolve({}), text: () => Promise.resolve('') });
@@ -193,6 +196,29 @@ T('E2 typing the name live-updates the Safari link and the handoff cookie', () =
     A(built.includes("r8Log('enable_src', { s: 'existing'"), 'existing branch silent');
   });
 }
+T('R1 the service worker is no longer dark: receipts written durably at every push terminal', () => {
+  const sw = readFileSync(new URL('../../tb-sw.js', import.meta.url), 'utf8');
+  A(sw.includes("swLog({ ev: 'push_arrived' })"), 'arrival unrecorded');
+  A(sw.includes("swLog({ ev: 'notification_shown', visible })"), 'shown unrecorded');
+  A(sw.includes("swLog({ ev: 'notification_failed'"), 'failure unrecorded');
+  A(sw.includes("indexedDB.open('tb-sw-log'"), 'receipts not durable');
+  A(sw.includes("'tb-drain-log'"), 'no drain path');
+});
+{
+  const logs = [];
+  const origLog2 = w.r8Log;
+  w.r8Log = (ev, meta, lvl) => { logs.push([ev, meta]); return origLog2 && origLog2(ev, meta, lvl); };
+  const evt = new w.MessageEvent('message', { data: { type: 'tb-sw-log', entries: [{ ev: 'push_arrived', ts: 1 }, { ev: 'notification_failed', ts: 2, e: 'boom' }] } });
+  w.__swTarget.dispatchEvent(evt);   /* the boot-time target the part actually listened on */
+  w.r8Log = origLog2;
+  T('R2 drained receipts land in the debug log, failures marked', () => {
+    A(logs.some(([e, m]) => e === 'sw_receipt' && m.ev === 'push_arrived'), 'arrival receipt not logged');
+    A(logs.some(([e, m]) => e === 'sw_receipt' && m.ev === 'notification_failed' && m.e === 'boom'), 'failure receipt not logged');
+  });
+}
+T('R3 no-rooms exits loudly now', () => {
+  A(built.includes("r8Log('enable_exit', { e: 'no-rooms' }"), 'no-rooms still silent');
+});
 T('N6 the permission ask happens synchronously inside the tap — before any await', () => {
   let askedSync = false;
   const OrigN = w.Notification;
