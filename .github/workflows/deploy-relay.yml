@@ -1,6 +1,11 @@
 name: Deploy relay
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      diag_session:
+        description: 'Optional real session id to diag'
+        required: false
+        default: '' {}
   push:
     branches: [main]
     paths:
@@ -68,6 +73,11 @@ jobs:
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
           node wscheck.mjs > /tmp/ws-check.txt 2>&1 || true
+          if [ -n "${{ github.event.inputs.diag_session }}" ]; then
+            curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
+            echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt
+            cat /tmp/real-diag.txt >> /tmp/ws-check.txt
+          fi
           rm -f wscheck.mjs
           cat /tmp/ws-check.txt
       - name: Publish status
