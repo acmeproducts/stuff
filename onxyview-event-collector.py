@@ -29,6 +29,10 @@ def tokens(text):
 def jaccard(a,b):
     if not a or not b: return 0.0
     return len(a & b)/len(a | b)
+def clean_text(text):
+    text=re.sub(r'<[^>]+>',' ',text or '')
+    text=re.sub(r'\s+',' ',text).strip()
+    return text
 def event_tags(rows):
     c=Counter()
     for s in rows:
@@ -42,6 +46,31 @@ def source_packs_for(rows):
     for name,members in SOURCE_PACKS.items():
         if src.intersection(members): out.append(name)
     return out
+
+def event_summary(rows, headline):
+    """Create a deterministic publisher-derived digest without inventing facts."""
+    candidates=[]; seen=set(); headline_tokens=tokens(headline)
+    for s in rows:
+        desc=clean_text(s.get('description') or s.get('summary') or '')
+        if len(desc)<45: continue
+        key=desc.lower()[:180]
+        if key in seen: continue
+        seen.add(key)
+        overlap=len(tokens(desc) & headline_tokens)
+        candidates.append((overlap, s.get('publishedAt',0), desc))
+    candidates.sort(reverse=True)
+    if not candidates: return ''
+    chosen=[]; used=set()
+    for _,_,desc in candidates:
+        first=re.split(r'(?<=[.!?])\s+',desc)[0].strip()
+        if len(first)<35: first=desc
+        first=first[:360].rstrip()
+        norm=re.sub(r'[^a-z0-9 ]','',first.lower())[:120]
+        if norm in used: continue
+        used.add(norm); chosen.append(first)
+        if len(chosen)>=2: break
+    digest=' '.join(chosen)
+    return digest[:640].rstrip()
 
 def corroboration_points(n):
     if n >= 10: return 28.0
@@ -61,7 +90,6 @@ def score_event(rows, first_seen, last_seen):
     persistence=min(8.0, 8.0*span_h/48.0)
     geo=min(7.0, 2.5*len(regions))
     freshness=15.0*math.exp(-age_h/30.0)
-    # Single-source items deliberately have a low ceiling unless exceptionally fresh/deep.
     raw=corroboration+report_depth+diversity+velocity+persistence+geo+freshness
     if len(fams)==1: raw=min(raw,34.0)
     elif len(fams)==2: raw=max(raw,35.0)
@@ -80,13 +108,11 @@ def canonical_headline(rows):
     return sorted(rows,key=lambda s:(fam_counts[family(s.get('source','Unknown'))],s.get('publishedAt',0)),reverse=True)[0].get('title','Untitled event')
 
 def match_score(s, st, b):
-    # Event identity is driven by shared entities/terms + tags + geography + temporal proximity.
     sim=jaccard(st,b['tokens'])
     tags=set(s.get('tags',[]) or []); tag_overlap=len(tags & b['tags'])
     sim += min(.22, tag_overlap*.045)
     if s.get('region') and s.get('region')==b['region']: sim += .055
     if s.get('subject') and s.get('subject')==b['subject']: sim += .035
-    # Strong token intersection is more useful than raw Jaccard for differently worded headlines.
     common=len(st & b['tokens'])
     if common >= 5: sim += .15
     elif common >= 3: sim += .08
@@ -110,9 +136,10 @@ def build_events(stories):
     out=[]
     for b in buckets:
         rows=sorted(b['rows'],key=lambda s:s.get('publishedAt',0),reverse=True); fams=sorted({family(s.get('source','Unknown')) for s in rows}); srcs=sorted({s.get('source','Unknown') for s in rows})
-        eid=hashlib.sha1(('|'.join(sorted(s.get('id','') for s in rows)) or canonical_headline(rows)).encode()).hexdigest()[:20]
+        headline=canonical_headline(rows)
+        eid=hashlib.sha1(('|'.join(sorted(s.get('id','') for s in rows)) or headline).encode()).hexdigest()[:20]
         importance=score_event(rows,b['first'],b['last']); sentiment_counts=Counter(s.get('sentiment','neutral') for s in rows)
-        event={'eventId':eid,'headline':canonical_headline(rows),'importance':importance,'editorialTier':tier_for(importance,len(fams)),
+        event={'eventId':eid,'headline':headline,'summary':event_summary(rows,headline),'importance':importance,'editorialTier':tier_for(importance,len(fams)),
           'firstSeen':b['first'],'lastSeen':b['last'],'subject':dominant(rows,'subject','World'),'region':dominant(rows,'region','Global'),
           'sentiment':dominant(rows,'sentiment','neutral'),'sentimentCounts':dict(sentiment_counts),'type':dominant(rows,'type','report'),
           'tags':event_tags(rows),'sourceCount':len(srcs),'independentSourceCount':len(fams),'articleCount':len(rows),'sources':srcs,'sourceFamilies':fams,
@@ -126,9 +153,10 @@ def main():
     if not INPUT.exists(): raise SystemExit('worldpulse-news-cache.json not found')
     data=json.loads(INPUT.read_text()); stories=data.get('stories',[]); events=build_events(stories); generated=now_ms()
     tiers=Counter(e['editorialTier'] for e in events)
-    output={'version':2,'generatedAt':iso(generated),'generatedAtMs':generated,'articleCount':len(stories),'eventCount':len(events),'sourcePacks':SOURCE_PACKS,'editorialTiers':['major','significant','developing','reported','background'],'tierCounts':dict(tiers),'events':events}
+    output={'version':3,'generatedAt':iso(generated),'generatedAtMs':generated,'articleCount':len(stories),'eventCount':len(events),'sourcePacks':SOURCE_PACKS,'editorialTiers':['major','significant','developing','reported','background'],'tierCounts':dict(tiers),'events':events}
     OUTPUT.write_text(json.dumps(output,separators=(',',':'),ensure_ascii=False))
     multi=sum(1 for e in events if e['independentSourceCount']>=2)
-    print(f'OnxyView v2 event intelligence: {len(events)} events from {len(stories)} articles · {multi} corroborated · tiers {dict(tiers)}')
+    summarized=sum(1 for e in events if e.get('summary'))
+    print(f'OnxyView v3 event intelligence: {len(events)} events from {len(stories)} articles · {multi} corroborated · {summarized} summarized · tiers {dict(tiers)}')
 
 if __name__=='__main__': main()
