@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.5.0 -->
-# TALKBRIDGE MASTER PLAN v16.5.0
+<!-- TALKBRIDGE-PLAN v16.6.0 -->
+# TALKBRIDGE MASTER PLAN v16.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.6.0 · 2026-08-26.** Owner design concern recorded — multi-room invites
+vs the single installed app. Ruling of the architecture as built: ONE
+installed TalkBridge handles EVERY room forever; an invite's only job is to
+hand the room over. The cookie handoff is room-agnostic: any invite opened in
+Safari arms it, and the person's EXISTING home-screen app consumes it on next
+open — new room appears, same identity, no second install, no second icon,
+ever. The missing piece is guidance only: the Safari tab after joining should
+say "Already installed? Just open your TalkBridge — this room is waiting
+there." → recorded as R11 journey item J6 (messaging line in the tab; no
+machinery change). 
 
 **v16.5.0 · 2026-08-26.** Owner ruling folded in: the app asks for
 notification permission ON LOAD — no tap where the platform allows a
