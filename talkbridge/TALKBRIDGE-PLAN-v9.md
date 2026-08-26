@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.6.0 -->
-# TALKBRIDGE MASTER PLAN v16.6.0
+<!-- TALKBRIDGE-PLAN v16.7.0 -->
+# TALKBRIDGE MASTER PLAN v16.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -608,16 +608,28 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v16.7.0 · 2026-08-26.** Owner corrected v16.6.0's Safari-default
+assumption. J7 (paste-invite in app) and J8 (in-band cross-room invites)
+recorded as the default-browser-proof mechanisms for R11.
+
 **v16.6.0 · 2026-08-26.** Owner design concern recorded — multi-room invites
 vs the single installed app. Ruling of the architecture as built: ONE
 installed TalkBridge handles EVERY room forever; an invite's only job is to
 hand the room over. The cookie handoff is room-agnostic: any invite opened in
 Safari arms it, and the person's EXISTING home-screen app consumes it on next
 open — new room appears, same identity, no second install, no second icon,
-ever. The missing piece is guidance only: the Safari tab after joining should
-say "Already installed? Just open your TalkBridge — this room is waiting
-there." → recorded as R11 journey item J6 (messaging line in the tab; no
-machinery change). 
+ever. CORRECTED same day by the owner: that note assumed Safari is the default
+browser. When it is not (owner's own case), a new-room link opens in Chrome,
+which shares nothing with Safari or the PWA — the handoff never arms and
+there is NO path to hand a second room to the installed app. Ruled fixes,
+both PWA-side and default-browser-proof, recorded for R11:
+J6 — guidance line in the Safari tab (kept, but only a slice of the answer).
+J7 — "Join with invite link" INSIDE the installed app: paste a link or short
+room code, the app parses and joins directly. Any browser politics, zero
+Safari after first install.
+J8 — in-band invites: a new-room invite to someone you already share a room
+with travels through that room; their app shows "X invited you to Y — Join?"
+One tap, no browser at all. Covers the dominant multi-room case. 
 
 **v16.5.0 · 2026-08-26.** Owner ruling folded in: the app asks for
 notification permission ON LOAD — no tap where the platform allows a
