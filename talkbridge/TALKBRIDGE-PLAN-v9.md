@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v17.1.0 -->
-# TALKBRIDGE MASTER PLAN v17.1.0
+<!-- TALKBRIDGE-PLAN v17.2.0 -->
+# TALKBRIDGE MASTER PLAN v17.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v17.2.0 · 2026-08-27.** Step 1 live and machine-proven (gate 5/5, mutations
+5/5, live wake probe green). STEP 2 DECLARED AND EXECUTING: post-ship = ship
++ ONE part (n1-step2-subscribe): SW registration, subscribe-as-authority
+(permission answers recorded, never trusted; NotAllowedError = the one real
+denial → banner names the exact Settings switch), per-room registration with
+the relay, load-time attempt + one visible enable button when needed. Assembler
++ client gate + mutations. Pair: app step2 / relay v3 — matched (client uses
+only v3 endpoints that R7 also had: vapid, subscribe). Device test: open app
+→ log shows Apple subscription + Apple's own acceptance status on first wake.
 
 **v17.1.0 · 2026-08-27.** Step 0 satisfied by math (owner ruling): post-ship
 == ship bytes and relay == ship R7, both cmp-verified; ship's Aug 15 device
