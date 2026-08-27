@@ -249,6 +249,13 @@ ML anomaly on simple phrases is not a code defect.
 
 **The promise:** no regressions, and a locked iPhone rings. Nothing else.
 
+**THE PAIR LAW (permanent, owner-dictated):** the app and the relay move as
+a matched pair, always. Every step below that touches either one names the
+required version of BOTH, and every handover states the pair as deployed:
+"app X / relay Y, matched." A mismatch is a forbidden state — discovering
+one means immediate rollback of whichever moved last, before anything else.
+Current pair, verified: app = ship bytes / relay = ship-approved R7. Matched.
+
 **The law of this road:** one step at a time. Every step is written here
 first, you approve it, I build and machine-test it, you test it on phones,
 and ONLY a pass unlocks the next step. Any regression to what ship does
