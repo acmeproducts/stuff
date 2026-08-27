@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.17.0 -->
-# TALKBRIDGE MASTER PLAN v16.17.0
+<!-- TALKBRIDGE-PLAN v17.0.0 -->
+# TALKBRIDGE MASTER PLAN v17.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -245,71 +245,51 @@ ML anomaly on simple phrases is not a code defect.
 
 ---
 
-## 4 · RELEASE 10 — NOTIFICATIONS, PERFECT. NOTHING ELSE. (v16.0.0, owner-directed)
+## 4 · RELEASE 10 — THE REBUILD ROAD (v17, plain English)
 
-**The single objective:** notifications working perfectly — every use case,
-every time, no lag. Everything else that ever lived in post-ship moves to
-R11. Source: `bridge-turn24-ship.html` (the only real thing). Target:
-`bridge-turn24-post-ship.html`.
+**The promise:** no regressions, and a locked iPhone rings. Nothing else.
 
-### 4a · Relay: rescued, then rebuilt once
+**The law of this road:** one step at a time. Every step is written here
+first, you approve it, I build and machine-test it, you test it on phones,
+and ONLY a pass unlocks the next step. Any regression to what ship does
+today = immediate rollback of that step, automatically, no debate.
 
-DONE 2026-08-24: relay source reverted to PURE R7 (ship-era, device-verified),
-byte-verified against eb7f4cd6, auto-deployed, live probe green
-(connect/deliver/type all ok). This is the relay the ship passed on.
+**STEP 0 — You revalidate ship. (Now.)**
+Relay: the exact one approved with ship — restored, verified, live.
+App at the post-ship link: byte-identical to ship — verified.
+You test whatever you trust: calls, chats, the homepage cards for missed
+calls and missed chats. When you say "ship is good," Step 1 unlocks.
 
-**Relay v2 — one build on the R7 body, three changes only:**
-| # | Change | Why |
-|---|---|---|
-| RV2.1 | Freshness guard in the wake decision: a socket counts as listening only if heard-from within 105s (3 ping intervals + grace) | iOS freezes a PWA's JS but leaves the socket half-open; socket-presence alone caused BOTH the missed wakes on locked phones AND (with the client's silent listeners) the double alerts |
-| RV2.2 | `Urgency: high` + `Topic: tb-wake` headers on every wake | Apple defers normal-urgency payload-free pushes (the lag) and queues them (the flurry); Topic keeps only the newest |
-| RV2.3 | `{type:'diag'}` action returning connected clients, sub count, and the last wake attempt+result for the session | Makes the wake path OBSERVABLE so Claude can end-to-end test it without owner devices, and gives every future notification bug a first-class evidence source |
+**STEP 1 — The relay learns to wake phones. One change.**
+What it means: when someone messages or calls a room, phones that aren't
+listening get a wake-up push. Phones that ARE listening get nothing extra.
+I prove it by machine on the live relay before you ever test.
+Your test: nothing changes in daily use — calls, chats, homepage all work
+exactly as in ship. That's the whole test: no regression.
 
-### 4b · Client: ship + the minimal notification stack, declared item by item
+**STEP 2 — The iPhone gets a working subscription.**
+What it means: the app registers your iPhone with Apple for pushes, and it
+does NOT trust iOS's lying permission answers — it just tries, and the
+attempt itself is the truth. If iOS genuinely blocks, the app tells you
+exactly which Settings switch to flip.
+Your test: open the app, the log says "subscribed to Apple" — and everything
+from ship still works untouched.
 
-| # | Part | What it is |
-|---|---|---|
-| N1 | R10-phase-a (validated core) | Manifest + SW registration + install cookie-handoff + per-room push subscribe/unsubscribe. iOS can only push to an installed PWA; this is the owner-validated machinery, unchanged |
-| N2 | Enable surface (PA5) | The unmissable banner: rooms exist + push supported + permission not granted → one tap runs the enable flow; self-removes when on |
-| N3 | Subscription self-heal (PH) | Researched iOS reality: subscriptions die spontaneously. Every open: permission granted but subscription gone → silently resubscribe. Never prompts the ungranted |
-| N4 | Listener heartbeat | Background room listeners send the same 30s ping the active room sends, so the freshness guard is true for every socket the phone holds — no double alerts |
-| N5 | Lane telemetry (PL) | One boot log line: lane + mic + notif permission. Pure diagnostics; it is the reason the last three root causes were findable |
-| N6 | Gesture-first permission | Owner evidence: iPhone never showed a notification prompt — only camera/mic. The enable flow awaited serviceWorker.ready and getSubscription BEFORE requestPermission; iOS drops the gesture across awaits and refuses silently. Ask now happens synchronously inside the tap, then the original flow runs unchanged |
+**STEP 3 — The locked iPhone rings.**
+What it means: with Steps 1+2 alive, a locked phone shows one notification
+with sound within ~5 seconds, and one missed-call notice if unanswered.
+(Apple's rule: a locked web app can't play a long ringtone — it's a
+notification with sound. Sustained ringing only with the app open.)
+Your test: the cell you've been owed for weeks. Lock it, call it.
 
-NOT in this release (→ R11): create-room name field, keyboard-aware name
-cards, font raises, journey bars (hand-to-Safari, install nudge, in-room
-enable), delivery-confirmation design (buried), anything else.
+**STEP 4 — No doubles, no gaps, on your full matrix.**
+Message and call, both directions, locked / same room / other room.
+Exactly one alert each, zero in the room you're looking at.
 
-### 4c · Claude's own testing — BEFORE the owner sees anything (rule 0b)
-
-1. Relay v2: harness + fresh mutations, all green.
-2. Staging-grade live test via the deploy pipeline: two simulated phones on
-   the LIVE relay — broadcast, hello, history; then subscribe a fake
-   endpoint, disconnect one phone, send a push-worthy message, and use
-   RV2.3 diag to PROVE the wake attempted for the absent phone and the dead
-   endpoint was pruned. The wake path is tested end-to-end by machine.
-3. Client: full harness (boot, enable banner placement/removal, self-heal
-   fires on corpse and never ungated, listener heartbeat present) + fresh
-   mutations, all green.
-4. Byte-verify client at the exact commit SHA; confirm relay deploy exit 0 +
-   live probes green.
-Only after ALL of that: handover with scores stated.
-
-### 4d · REQUIREMENT v2 (third-party-review-directed, measurable)
-Locked/backgrounded ≥120s (past the 105s freshness window):
-- Message → exactly one notification, visible ≤5s from send.
-- Call → exactly one alert with sound ≤5s of call start; if unanswered,
-  exactly one explicit missed-call alert (call-end is now wake-worthy).
-- iOS constraint (Apple's, documented): a suspended PWA cannot play a
-  sustained ringtone; locked "ring" = notification with sound. Sustained
-  ringing exists only with the app open.
-Foreground, same room: zero notifications, zero extras for 60s after.
-Foreground, other room: exactly one alert, no double.
-Acceptance: 12-cell matrix (2 directions × message/call × locked/same-room/
-other-room), 10 scripted reps per cell, 100% pass, timestamps correlated
-sender→relay→push_arrived→notification_shown. Follow-on burn-in: reviewer's
-100-rep soak across Wi-Fi and cellular. No finite test proves "always";
-this bounded matrix is the operational acceptance.
+That's the whole road. Four steps, four approvals, four device tests.
+No step ships with a known issue. No step touches anything outside its
+sentence. Every build is assembled by one command from part files, and every
+handover states its machine-test scores first.
 
 ---
 
@@ -617,6 +597,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v17.0.0 · 2026-08-27.** FULL RESET per owner. Relay byte-restored to the
+ship-approved R7 and deploy-verified live; post-ship byte-reset to ship and
+verified at the commit SHA; probe returned to the ship-era contract. Release
+10 rewritten as the four-step rebuild road above, plain English, one
+device-validated step at a time. Awaiting Step 0: owner revalidates ship.
 
 **v16.17.0 · 2026-08-27.** Owner directive: no known issues enter device
 testing — this approves the proposed RV2.4 for build, in order. DECLARED
