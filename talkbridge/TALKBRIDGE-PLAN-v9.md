@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.2.0 -->
-# TALKBRIDGE MASTER PLAN v19.2.0
+<!-- TALKBRIDGE-PLAN v19.3.0 -->
+# TALKBRIDGE MASTER PLAN v19.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -315,18 +315,19 @@ ship's interior is byte-preserved by the assembler; the gate proves the ship
 segments verbatim inside the build. The homepage cards update on open from
 room history exactly as ship does today.
 
-**P6 · IN-APP QR SCAN (owner-corrected: the QR IS the code; no typing, ever).**
-How room #2 reaches the one true install, on principle:
-- The installed app gets a Scan button (camera permission already exists —
-  video calls). An existing user opens THEIR TalkBridge, taps Scan, points
-  at the SAME QR everyone else sees → joined → that room subscribes. No
-  browser, no typing, no second icon, nothing new generated.
-- The gate screen's branch reads: "Already have TalkBridge? Open it and
-  scan this code with the in-app scanner."
-- Link-shaped invites (text/email): paste the same link into the app's
-  Join field — the fallback, still zero ceremony.
-The typed room code is dead on arrival — friction against the app's entire
-principle. QR decoding runs in-page (pure-JS decoder); no new permissions.
+**P6 · IN-BAND INVITES (owner-corrected, final): invites travel through
+the room.** Connected people already have a live channel — the invite is
+just a message on it:
+- A creates a new room → an invite card appears on B's left panel
+  automatically (room name, inviter, Accept). One tap: joined, subscribed.
+  Nothing to know, nothing to open — it arrives like a chat message does.
+  This is the mechanism for every repeat conversation between people who
+  already share any room: the dominant case.
+- Edge only — both have the app, zero shared rooms (no channel to carry a
+  card): the in-app Scan/paste-link path bootstraps the first connection.
+- New person, no app: QR → install gate → install once → in.
+Three cases, each with its natural mechanism. No typed codes, no cameras
+for connected people, no ceremony anywhere.
 
 ### 4.2 · Explicitly OUT of this release
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
@@ -668,6 +669,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.3.0 · 2026-08-27.** Owner corrected P6 again, decisively: connected
+people need no QR — the invite rides the existing room as an Accept card on
+the panel (this is J8, promoted from R11 to the primary multi-room
+mechanism). Scan/paste demoted to the both-installed-never-connected edge.
 
 **v19.2.0 · 2026-08-27.** Owner killed the typed code on principle —
 correctly. P6 rewritten: IN-APP QR SCAN (the same QR, scanned by the
