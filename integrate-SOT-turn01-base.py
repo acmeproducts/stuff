@@ -12,6 +12,8 @@ required = [
     'const EXPECTED_MIGRATION = 4;',
     'function sourcePreflight(source) {',
     "if (pathname === '/api/sot/health'",
+    'function generatePlan(projectToken) {',
+    'async function executePlan(planId) {',
 ]
 for marker in required:
     if marker not in src:
@@ -79,6 +81,12 @@ function validateDestination(candidate, label) {
   return resolved;
 }
 
+function pathWithin(root, candidate) {
+  const base = path.resolve(String(root || ''));
+  const value = path.resolve(String(candidate || ''));
+  return value === base || value.startsWith(base.endsWith(path.sep) ? base : base + path.sep);
+}
+
 function storageKey(projectToken, kind) {
   return `project.${projectToken}.${kind}_root`;
 }
@@ -92,6 +100,7 @@ function storageFor(projectToken, revalidate = false) {
   let target = map[targetKey]?.value || '';
   let backup = map[backupKey]?.value || '';
   if (revalidate) {
+    if (!target || !backup) throw httpError(409, 'select project Target and Backup before planning or execution');
     target = validateDestination(target, 'Target');
     backup = validateDestination(backup, 'Backup');
   }
@@ -120,12 +129,15 @@ function saveStorage(projectToken, input) {
       throw httpError(400, 'Target and Backup must be separate, non-nested folders');
     }
   }
+  const changed = target !== current.target_root || backup !== current.backup_root;
   const at = now();
-  transaction([
+  const statements = [
     `INSERT INTO settings(key,value,updated_at) VALUES(${sqlQuote(storageKey(projectToken,'target'))},${sqlQuote(target)},${sqlQuote(at)}) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at;`,
     `INSERT INTO settings(key,value,updated_at) VALUES(${sqlQuote(storageKey(projectToken,'backup'))},${sqlQuote(backup)},${sqlQuote(at)}) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at;`,
     `INSERT INTO events(project_token,event_type,created_at,detail_json) VALUES(${sqlQuote(projectToken)},'project.storage.updated',${sqlQuote(at)},${sqlQuote(JSON.stringify({target_root:target,backup_root:backup}))});`
-  ]);
+  ];
+  if (changed) statements.push(`UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND state IN ('draft','approved');`);
+  transaction(statements);
   return storageFor(projectToken);
 }
 
@@ -184,12 +196,26 @@ route_block = r'''if (pathname === '/api/sot/turn01/volumes' && req.method === '
     '''
 src = src[:idx] + route_block + src[idx:]
 
-old_plan = "const config = settings();\n  const targetRoot = config.target_root;\n  const backupRoot = config.backup_root;"
-new_plan = "const storage = storageFor(projectToken, true);\n  const targetRoot = storage.target_root;\n  const backupRoot = storage.backup_root;"
-count = src.count(old_plan)
-if count != 1:
-    raise SystemExit(f'expected exactly one global target/backup plan binding, found {count}')
-src = src.replace(old_plan, new_plan, 1)
+# Bind plan generation to the selected project storage instead of global settings.
+start = src.index('function generatePlan(projectToken) {')
+end = src.index('\nfunction latestPlan(projectToken)', start)
+plan = src[start:end]
+if plan.count('const config = settings();') != 1:
+    raise SystemExit('generatePlan global settings binding changed unexpectedly')
+plan = plan.replace('const config = settings();', 'const storage = storageFor(projectToken, true);', 1)
+plan = plan.replace('config.target_root', 'storage.target_root').replace('config.backup_root', 'storage.backup_root')
+src = src[:start] + plan + src[end:]
+
+# Revalidate current project storage immediately before immutable-plan execution.
+start = src.index('async function executePlan(planId) {')
+end = src.index('\nfunction startExecution(projectToken)', start)
+execution = src[start:end]
+needle = "  const projectToken = plan.project_token;\n  try {"
+if execution.count(needle) != 1:
+    raise SystemExit('executePlan insertion point changed unexpectedly')
+replacement = "  const projectToken = plan.project_token;\n  const storage = storageFor(projectToken, true);\n  for (const item of plan.items) {\n    if (item.action === 'establish_target_backup' && !pathWithin(storage.target_root, item.target_path)) throw httpError(409, 'plan Target no longer matches project Target; regenerate plan');\n    if (item.action !== 'none' && !pathWithin(storage.backup_root, item.backup_path)) throw httpError(409, 'plan Backup no longer matches project Backup; regenerate plan');\n  }\n  try {"
+execution = execution.replace(needle, replacement, 1)
+src = src[:start] + execution + src[end:]
 
 Path(sys.argv[2]).write_text(src)
 print('direct integration complete')
