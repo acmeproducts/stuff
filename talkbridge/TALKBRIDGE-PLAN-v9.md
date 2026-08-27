@@ -261,6 +261,17 @@ first, you approve it, I build and machine-test it, you test it on phones,
 and ONLY a pass unlocks the next step. Any regression to what ship does
 today = immediate rollback of that step, automatically, no debate.
 
+**VERDICT · Aug 27 2026 — THE WORLD IS SPLIT, AND WE'RE IN THE GOOD ONE.**
+The canonical reference PWA (zero TalkBridge code, industry-standard sender)
+SHOWED on the owner's locked iPhone. This device, its iOS, its settings, and
+Apple's delivery are CERTIFIED WORKING today. The fault is therefore
+provably inside TalkBridge — and the mechanical diff already names the
+prime suspect: the working push carried an ENCRYPTED PAYLOAD at URGENCY
+HIGH; TalkBridge's ship-era relay sends EMPTY pushes with NO urgency —
+exactly the class Apple defers or drops on locked devices. Step 1's spec is
+therefore no longer a theory: make the relay send what the reference sender
+sends. (Steps unchanged; Step 0 still first; pair law applies.)
+
 **STEP 0 — You revalidate ship. (Now.)**
 Relay: the exact one approved with ship — restored, verified, live.
 App at the post-ship link: byte-identical to ship — verified.
