@@ -44,8 +44,10 @@ jobs:
           cat > wscheck.mjs <<'JS'
           import WebSocket from 'ws';
           const BASE='wss://talk-signal.myacctfortracking.workers.dev';
+          const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
           const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
+          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();try{return JSON.parse(t)}catch(_){console.log('post-raw['+body.type+']='+r.status+' '+t.slice(0,100));return null}};
           const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
           try{
             const a=await open('ciA'), b=await open('ciB');
@@ -57,7 +59,14 @@ jobs:
             console.log('ws-connect=ok');
             console.log('ws-deliver='+(m?'ok':'FAIL'));
             console.log('ws-type='+((m&&m.type==='chat-msg')?'ok':'FAIL'));
-            console.log('ws-from='+((m&&m.from==='ciA')?'ok':'FAIL'));
+            /* v3 wake path: absent subscribed C must be wake-targeted with an ENCRYPTED payload */
+            await post('ciC',{type:'subscribe',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}});
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,2500));
+            const d=await post('ciA',{type:'diag'});
+            console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
+            console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
+            console.log('no-wake-for-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
             a.close();b.close();
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
