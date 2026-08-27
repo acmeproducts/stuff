@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v18.2.0 -->
-# TALKBRIDGE MASTER PLAN v18.2.0
+<!-- TALKBRIDGE-PLAN v18.3.0 -->
+# TALKBRIDGE MASTER PLAN v18.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v18.3.0 · 2026-08-27.** OWNER CORRECTION, accepted: the "wedge" is
+demoted from root cause to symptom. Owner's evidence: unique PWA name on
+every install; after deletion the app has no entry in Settings→Apps — no
+surface for a collision. The permission ghosts (granted-without-prompt,
+granted/denied contradictions) are downstream of the true structural killer:
+the browser-room-first onboarding, which put users in a context where push
+cannot exist, split storage between tab and app, and produced junk permission
+state on the installs that followed. FINAL ROOT-CAUSE COUNT: TWO. (1) Wrong
+push delivery class — empty, unmarked wakes Apple defers; proven by the
+reference 4/4 on the locked screen. (2) Browser-room-first onboarding —
+the fatal flaw; fix is the install gate (F4). F2/F3 notification
+reconciliation remains downstream cleanup. No code until owner approves.
 
 **v18.2.0 · 2026-08-27.** OWNER FINDINGS RECORDED + ROOT CAUSES RESEARCHED
 IN THE WILD (no code written; nothing builds until owner approves each).
