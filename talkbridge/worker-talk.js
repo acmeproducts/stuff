@@ -216,7 +216,7 @@ export class TalkSession {
   async _pushOne(clientId, rec) {
     this.lastWake = { clientId, at: Date.now(), result: 'attempting' };
     const endpoint = rec && rec.sub && rec.sub.endpoint;
-    if (!endpoint) return;
+    if (!endpoint) { this.lastWake = { clientId, at: Date.now(), result: 'no-endpoint' }; return; }
     const headers = { TTL: '86400', 'Content-Length': '0', Urgency: 'high', Topic: MERGE_TOPIC };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
@@ -229,7 +229,11 @@ export class TalkSession {
         delete this.subs[clientId];
         await this._saveSubs();
       }
-    } catch (_) {}
+    } catch (e) {
+      /* a NETWORK failure (fetch threw, no status) previously left the diag
+         frozen at 'attempting' — a lie of omission. Stamped now. */
+      this.lastWake = { clientId, at: Date.now(), result: 'fetch-error: ' + String(e && e.message || e).slice(0, 80) };
+    }
   }
 
   async _wakeOthers(msg, senderId) {

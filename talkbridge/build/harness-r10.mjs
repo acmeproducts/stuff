@@ -196,13 +196,21 @@ T('E2 typing the name live-updates the Safari link and the handoff cookie', () =
     A(built.includes("r8Log('enable_src', { s: 'existing'"), 'existing branch silent');
   });
 }
-T('R1 the service worker is no longer dark: receipts written durably at every push terminal', () => {
+T('R1 the service worker is no longer dark: receipts at EVERY terminal incl. tap and death', () => {
   const sw = readFileSync(new URL('../../tb-sw.js', import.meta.url), 'utf8');
   A(sw.includes("swLog({ ev: 'push_arrived' })"), 'arrival unrecorded');
   A(sw.includes("swLog({ ev: 'notification_shown', visible })"), 'shown unrecorded');
   A(sw.includes("swLog({ ev: 'notification_failed'"), 'failure unrecorded');
+  A(sw.includes("swLog({ ev: 'notification_tapped' })"), 'TAP unrecorded');
+  A(sw.includes("'tap_focus_failed'") && sw.includes("'tap_open_failed'") && sw.includes("'tap_no_path'"), 'tap outcomes can fail silently');
+  A(sw.includes("'pushsubscriptionchange'") && sw.includes("'subscription_changed'"), 'the assassination event is discarded');
+  A((sw.match(/ev: 'push_arrived'/g) || []).length === 1, 'arrival stamped in the wrong handler (the tap-mislabel defect)');
   A(sw.includes("indexedDB.open('tb-sw-log'"), 'receipts not durable');
   A(sw.includes("'tb-drain-log'"), 'no drain path');
+});
+T('R4 the drain itself cannot no-op silently', () => {
+  A(built.includes("r8Log('sw_drain_skipped', { why: 'no-active-worker' }"), 'inactive-worker skip silent');
+  A(built.includes("'ready-rejected'"), 'ready rejection swallowed');
 });
 {
   const logs = [];

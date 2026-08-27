@@ -30,6 +30,10 @@ T('RV2.3 diag action exists, read-only, reports connected/subs/lastSeen/lastWake
   A(src.includes('lastWake: this.lastWake'), 'lastWake not reported');
   A(!/diag[\s\S]{0,400}(this\.subs\[[^\]]*\]\s*=|_persist|_broadcast)/.test(src), 'diag is not read-only');
 });
+T('RV2.3b NO wake exit can freeze at attempting: network throw, no-endpoint both stamped', () => {
+  A(src.includes("result: 'fetch-error: '"), 'network throw still swallowed');
+  A(src.includes("result: 'no-endpoint'"), 'missing endpoint exits silently');
+});
 T('RV2.3 wake attempts recorded with their result', () => {
   A(src.includes("result: 'attempting'") && src.includes("'status-' + res.status"), 'attempt evidence missing');
 });

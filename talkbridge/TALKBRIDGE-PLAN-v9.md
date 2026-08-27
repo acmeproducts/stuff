@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.12.0 -->
-# TALKBRIDGE MASTER PLAN v16.12.0
+<!-- TALKBRIDGE-PLAN v16.13.0 -->
+# TALKBRIDGE MASTER PLAN v16.13.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -607,6 +607,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.13.0 · 2026-08-26.** Owner bet $1 on ≥2 uninstrumented + ≥1 swallow;
+owner wins. Closed: (I1) notificationclick — tap + focus/openWindow outcomes
+now receipted (tap_focus_ok/failed, tap_open_ok/failed, tap_no_path); (I2)
+pushsubscriptionchange — the browser's own announcement of subscription
+rotation/death was DISCARDED unlistened; now a durable receipt
+(subscription_changed) with old/new presence — the spontaneous-death witness;
+(S1) the receipt DRAIN itself could no-op silently when the worker wasn't
+active — now sw_drain_skipped with reason; (S2) relay _pushOne network-throw
+left diag frozen at 'attempting' — now stamps fetch-error, and the
+no-endpoint exit stamps too. BONUS defect found during the read: the earlier
+SW edit stamped 'push_arrived' inside notificationclick — taps were logged
+as arrivals; fixed and gated (single-occurrence check). Relay gate 10/10 +
+2/2; client 27/27 + 21/21. Relay auto-deploys; SW reaches phones next open.
 
 **v16.12.0 · 2026-08-26.** Owner forced a re-audit of "nothing can be
 silent" — and was right. Three silent paths found and closed: (1) THE BIG

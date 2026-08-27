@@ -217,14 +217,31 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || APP_URL;
   event.waitUntil((async () => {
-    await swLog({ ev: 'push_arrived' });
+    await swLog({ ev: 'notification_tapped' });
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of clients) {
       if ('focus' in c) {
         try { c.postMessage({ type: 'tb-notification-open' }); } catch (_) {}
-        return c.focus();
+        try { const r = await c.focus(); await swLog({ ev: 'tap_focus_ok' }); return r; }
+        catch (e) { await swLog({ ev: 'tap_focus_failed', e: String(e && e.message || e) }); throw e; }
       }
     }
-    if (self.clients.openWindow) return self.clients.openWindow(target);
+    if (self.clients.openWindow) {
+      try { const r = await self.clients.openWindow(target); await swLog({ ev: 'tap_open_ok' }); return r; }
+      catch (e) { await swLog({ ev: 'tap_open_failed', e: String(e && e.message || e) }); throw e; }
+    }
+    await swLog({ ev: 'tap_no_path' });
   })());
+});
+
+/* The assassination witness: the browser announces subscription rotation or
+   death with pushsubscriptionchange. Unlistened, the announcement is thrown
+   away and the phone goes silently unreachable until the next heal. The
+   receipt makes every spontaneous death a recorded event with a timestamp. */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(swLog({
+    ev: 'subscription_changed',
+    hadNew: !!(event.newSubscription),
+    hadOld: !!(event.oldSubscription)
+  }));
 });

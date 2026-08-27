@@ -16,8 +16,11 @@ function n8DrainSwLog() {
   try {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.addEventListener && navigator.serviceWorker.ready.then(function (reg) {
-      try { if (reg.active) reg.active.postMessage({ type: 'tb-drain-log' }); } catch (_) {}
-    }).catch(function () {});
+      try {
+        if (reg.active) reg.active.postMessage({ type: 'tb-drain-log' });
+        else r8Log('sw_drain_skipped', { why: 'no-active-worker' }, 'error');
+      } catch (e) { r8Log('sw_drain_skipped', { why: String(e && e.message || e) }, 'error'); }
+    }).catch(function (e) { r8Log('sw_drain_skipped', { why: 'ready-rejected' }, 'error'); });
   } catch (_) {}
 }
 (function () {

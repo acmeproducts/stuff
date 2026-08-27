@@ -47,6 +47,8 @@ const muts = [
   s => s.replace("r8Log('sw_receipt', { ev: en.ev, at: en.ts, visible: en.visible, e: en.e }, en.ev === 'notification_failed' ? 'error' : 'ok');", ';')],
  ['no-rooms goes silent again',
   s => s.replace("r8Log('enable_exit', { e: 'no-rooms' }, 'error'); ", '')],
+ ['the drain goes quietly dead when the worker is not active',
+  s => s.replace("else r8Log('sw_drain_skipped', { why: 'no-active-worker' }, 'error');", ';')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {
