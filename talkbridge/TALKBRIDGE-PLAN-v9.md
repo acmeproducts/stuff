@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.16.0 -->
-# TALKBRIDGE MASTER PLAN v16.16.0
+<!-- TALKBRIDGE-PLAN v16.17.0 -->
+# TALKBRIDGE MASTER PLAN v16.17.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -617,6 +617,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.17.0 · 2026-08-27.** Owner directive: no known issues enter device
+testing — this approves the proposed RV2.4 for build, in order. DECLARED
+SCOPE, exactly two changes, nothing else:
+1. RV2.4 (relay, one line): connection acceptance stamps liveness, closing
+   C7. Gate re-adds the accept-stamp test + deletion mutation.
+2. Probe de-blinding (CI only): subscribe the live client LAST so its wake,
+   if wrongly attempted, is the one the single-slot lastWake records — the
+   no-wake-for-live check becomes able to fail.
+Execution: build → gates → deploy → live probe green → THEN owner handover.
 
 **v16.16.0 · 2026-08-27.** Owner ordered rollback of the unapproved RV2.4;
 executed — relay is byte-restored to approved v2 (R7 + RV2.1/2.2/2.3), gate
