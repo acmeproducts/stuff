@@ -34,6 +34,7 @@ var PA5_CSS =
 
 function pa5NeedsEnable() {
   try {
+    if (window.TB_R10 && TB_R10.subscribeBlocked) return true;   /* subscribe() itself refused — the banner carries the escape hatch */
     return ('serviceWorker' in navigator) &&   /* window.PushManager dropped: iOS hides it while the reg has push */
       !!window.Notification && Notification.permission !== 'granted' &&
       !!(S.rooms && S.rooms.length);
@@ -50,7 +51,9 @@ function pa5Banner() {
     var b = document.createElement('button');
     b.id = 'pa5-nb';
     b.type = 'button';
-    b.textContent = '🔔 Turn on notifications — calls and messages will reach this phone even when it\'s locked. Tap to enable.';
+    b.textContent = (window.TB_R10 && TB_R10.subscribeBlocked)
+      ? '🔔 iOS is blocking notifications for TalkBridge. Open Settings → Notifications → TalkBridge, turn Allow Notifications OFF and back ON, then reopen the app.'
+      : '🔔 Turn on notifications — calls and messages will reach this phone even when it\'s locked. Tap to enable.';
     b.addEventListener('click', function () {
       r10EnableNotifications().then(function () { pa5Banner(); }).catch(function () { pa5Banner(); });
     });

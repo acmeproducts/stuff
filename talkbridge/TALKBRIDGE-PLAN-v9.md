@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.13.0 -->
-# TALKBRIDGE MASTER PLAN v16.13.0
+<!-- TALKBRIDGE-PLAN v16.14.0 -->
+# TALKBRIDGE MASTER PLAN v16.14.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -295,11 +295,21 @@ enable), delivery-confirmation design (buried), anything else.
    live probes green.
 Only after ALL of that: handover with scores stated.
 
-### 4d · Owner device matrix (the only thing devices must prove)
-Locked iPhone: message → one notification, promptly. Locked iPhone: call →
-rings/notifies, missed call notifies. App open in the room: zero
-notifications. App open, different room: alerted once, no double. Android
-tab, locked/backgrounded: same set. No flurries anywhere. Both directions.
+### 4d · REQUIREMENT v2 (third-party-review-directed, measurable)
+Locked/backgrounded ≥120s (past the 105s freshness window):
+- Message → exactly one notification, visible ≤5s from send.
+- Call → exactly one alert with sound ≤5s of call start; if unanswered,
+  exactly one explicit missed-call alert (call-end is now wake-worthy).
+- iOS constraint (Apple's, documented): a suspended PWA cannot play a
+  sustained ringtone; locked "ring" = notification with sound. Sustained
+  ringing exists only with the app open.
+Foreground, same room: zero notifications, zero extras for 60s after.
+Foreground, other room: exactly one alert, no double.
+Acceptance: 12-cell matrix (2 directions × message/call × locked/same-room/
+other-room), 10 scripted reps per cell, 100% pass, timestamps correlated
+sender→relay→push_arrived→notification_shown. Follow-on burn-in: reviewer's
+100-rep soak across Wi-Fi and cellular. No finite test proves "always";
+this bounded matrix is the operational acceptance.
 
 ---
 
@@ -607,6 +617,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.14.0 · 2026-08-27.** Third-party review adopted wholesale. SHIPPED:
+(1) subscribe() is the sole permission authority — the requestPermission
+answer and the permission property are both recorded but neither gates;
+NotAllowedError is the one authoritative denial and raises the banner with
+the documented Settings-toggle escape hatch; other errors keep their own
+names (reviewer step 6). (2) call-end is wake-worthy — locked missed-call
+wake now exists (reviewer gap). (3) Probe subscribes the LIVE client so
+no-wake-for-live can actually fail (reviewer gap). (4) Root package.json
+declares jsdom+ws so a clean checkout runs the gates (reviewer gap).
+(5) Harness contradiction test now REQUIRES a subscribe attempt (reviewer's
+required change). (6) §4d replaced with measurable Requirement v2 + 12-cell
+acceptance matrix. Client 27/27 + 23/23; relay 10/10.
 
 **v16.13.0 · 2026-08-26.** Owner bet $1 on ≥2 uninstrumented + ≥1 swallow;
 owner wins. Closed: (I1) notificationclick — tap + focus/openWindow outcomes

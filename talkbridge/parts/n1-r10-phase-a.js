@@ -120,8 +120,12 @@ function r10EnableNotifications() {
         return existing;
       }
       return Notification.requestPermission().then(function (perm) {
+        /* Reviewer-directed authority model: the ANSWER and the PROPERTY are
+           both unreliable narrators on iOS (documented disagreement in both
+           directions). Neither gates anything. Record all signals verbatim,
+           then let pushManager.subscribe() itself be the sole authority:
+           success = permitted; NotAllowedError = the one true denial. */
         r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');
-        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied:' + perm); }
         return r10Vapid(rooms[0].id).then(function (v) {
           r8Log('heal_step', { s: 'vapid-answer', ok: !!(v && (v.key || v.vapid)), st: v && v._status }, 'ok');
           var vkey = v && (v.key || v.vapid);   /* the live relay names this field 'vapid' — the part expected 'key'; accept both */
@@ -136,9 +140,19 @@ function r10EnableNotifications() {
     r8Log('push_subscribed', { endpointHost: (function(){try{return new URL(sub.endpoint).host}catch(_){return '?'}})() }, 'ok');
     return r10SyncSubscriptions().then(function () { r10NotifStatus('on'); });
   }).catch(function (e) {
-    /* EVERY exit is loud — the silent 'denied' swallow masked the true
-       terminal from the heal's step tracker and cost a day of ghosts. */
-    r8Log('enable_exit', { e: String(e && e.message || e) }, 'error');
+    /* Classified terminals (reviewer step 6): NotAllowedError is the one
+       authoritative permission refusal; everything else keeps its own name
+       so a vapid or network failure is never mislabeled as denial. */
+    var name = (e && e.name) || '';
+    var msg = String(e && e.message || e);
+    if (name === 'NotAllowedError') {
+      TB_R10.subscribeBlocked = true;                 /* the banner shows the Settings escape hatch */
+      r10NotifStatus('off');
+      r8Log('enable_exit', { e: 'denied-by-subscribe', name: name }, 'error');
+      try { pa5Banner(); } catch (_) {}
+    } else {
+      r8Log('enable_exit', { e: msg, name: name || 'Error' }, 'error');
+    }
   });
 }
 

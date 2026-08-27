@@ -49,6 +49,11 @@ const muts = [
   s => s.replace("r8Log('enable_exit', { e: 'no-rooms' }, 'error'); ", '')],
  ['the drain goes quietly dead when the worker is not active',
   s => s.replace("else r8Log('sw_drain_skipped', { why: 'no-active-worker' }, 'error');", ';')],
+ ['the lying answer regains veto power over subscribe',
+  s => s.replace("r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');",
+                 "r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error'); if (perm !== 'granted') throw new Error('denied:' + perm);")],
+ ['NotAllowedError loses its authoritative classification',
+  s => s.replace("if (name === 'NotAllowedError') {", 'if (false) {')],
 ];
 let caught = 0;
 for (const [name, fn] of muts) {

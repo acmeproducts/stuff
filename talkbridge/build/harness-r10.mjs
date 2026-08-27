@@ -188,9 +188,10 @@ T('E2 typing the name live-updates the Safari link and the handoff cookie', () =
   await w.r10EnableNotifications().catch(() => {});
   await new Promise(r => setTimeout(r, 120));
   w.Notification = OrigNote2; w.r8Log = origLog;
-  T('E3 the denied path logs its answer and its exit — silence structurally gone', () => {
+  T('E3 (reviewer-directed) the contradiction MUST still attempt subscribe — the attempt is the authority', () => {
     A(logs.some(([e, m]) => e === 'perm_answer' && m.perm === 'denied' && m.prop === 'granted'), 'permission answer not logged with the contradiction');
-    A(logs.some(([e, m]) => e === 'enable_exit' && /denied/.test(m.e)), 'exit swallowed silently again');
+    A(logs.some(([e, m]) => e === 'heal_step' && m.s === 'vapid-answer') || logs.some(([e]) => e === 'enable_src'),
+      'flow exited on the lying answer WITHOUT attempting subscribe');
   });
   T('E4 an existing subscription names itself', () => {
     A(built.includes("r8Log('enable_src', { s: 'existing'"), 'existing branch silent');

@@ -38,7 +38,7 @@ T('RV2.3 wake attempts recorded with their result', () => {
   A(src.includes("result: 'attempting'") && src.includes("'status-' + res.status"), 'attempt evidence missing');
 });
 T('R7 body otherwise intact: broadcast, history, hello, PUSH_WORTHY unchanged', () => {
-  for (const t of ["'chat-msg'", "'call-start'", '_broadcast', 'history']) A(src.includes(t), t + ' missing');
+  for (const t of ["'chat-msg'", "'call-start'", "'call-end'", '_broadcast', 'history']) A(src.includes(t), t + ' missing');
   A(!src.includes('_did') && !src.includes('ACK_GRACE'), 'buried designs leaked back in');
 });
 

@@ -45,7 +45,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
-const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'history-sync']);
+const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'call-end', 'history-sync']);  /* call-end: locked missed-call wake (reviewer gap #1) */
 /* RV2.1 — iOS freezes a backgrounded PWA's JS but leaves its socket half-open
    for minutes. A frozen phone cannot ping, so a socket only counts as
    listening if we've HEARD from it recently: three 30s ping intervals plus
