@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v17.0.0 -->
-# TALKBRIDGE MASTER PLAN v17.0.0
+<!-- TALKBRIDGE-PLAN v17.1.0 -->
+# TALKBRIDGE MASTER PLAN v17.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,21 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v17.1.0 · 2026-08-27.** Step 0 satisfied by math (owner ruling): post-ship
+== ship bytes and relay == ship R7, both cmp-verified; ship's Aug 15 device
+pass stands. STEP 1 DECLARED AND EXECUTING — relay v3 = ship R7 body + the
+wake path sends what the reference sender provably sends:
+(1) encrypted payload per RFC 8291 (aes128gcm, WebCrypto), correctness gated
+by the RFC's own Appendix-A test vector byte-exact — a mutation breaking the
+crypto fails the gate mathematically;
+(2) Urgency: high, Topic: tb-wake, TTL 60 — the reference's delivery class;
+(3) machine proof against the owner's REAL Apple endpoint (the pushref
+subscription): workflow subscribes it in a scratch session, triggers a wake,
+and requires Apple's 201 acceptance via diag. Owner's locked phone showing
+the TalkBridge push is the visible bonus, not the gate.
+Pair law: ship client never subscribes, so relay v3's wake path is inert for
+the app until Step 2 — pair stays matched (app ship / relay v3-compatible).
 
 **v17.0.0 · 2026-08-27.** FULL RESET per owner. Relay byte-restored to the
 ship-approved R7 and deploy-verified live; post-ship byte-reset to ship and
