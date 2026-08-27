@@ -4,6 +4,117 @@
 **Updated:** 2026-08-27  
 **Repository:** `acmeproducts/stuff`  
 **UI ancestor:** `session-manager-v3.html` / ProjectChat interaction shell  
+**Lineage model:** TalkBridge-style governed turn/stage chain  
+
+## 0. Turn / stage governance — the chain is the law
+
+SOT now starts a new governed artifact lineage. Every development turn follows exactly this sequence:
+
+`pre-base -> base -> pre-ship -> ship -> post-ship`
+
+A new turn begins only after the prior turn reaches `post-ship` and that stage is accepted as the source for the next turn's `pre-base`.
+
+### 0.1 Turn 01 artifact chain
+
+| Turn · Stage | Purpose | Status | Artifact |
+|---|---|---|---|
+| 01 · pre-base | Frozen starting point for the new SOT portal lineage | Planned first build | `SOT-turn01-pre-base.html` |
+| 01 · base | First small governed functional delta from pre-base | Not started | `SOT-turn01-base.html` |
+| 01 · pre-ship | Next independently testable delta from base | Not started | `SOT-turn01-pre-ship.html` |
+| 01 · ship | Candidate release built only from gated pre-ship | Not started | `SOT-turn01-ship.html` |
+| 01 · post-ship | Post-release hardening / final turn candidate | Not started | `SOT-turn01-post-ship.html` |
+
+Turn 02 begins by taking the accepted bytes of `SOT-turn01-post-ship.html` and emitting them as `SOT-turn02-pre-base.html` before any Turn 02 change is made.
+
+### 0.2 Naming is a hard gate
+
+Each build declares its turn and stage before implementation. A build emitted under the wrong filename fails qualification on naming alone.
+
+Canonical naming pattern:
+
+`SOT-turnNN-STAGE.html`
+
+where `STAGE` is exactly one of:
+
+- `pre-base`
+- `base`
+- `pre-ship`
+- `ship`
+- `post-ship`
+
+No `final`, `latest`, `fixed`, `v2`, `candidate2`, temporary wrapper, or alternate test filename becomes part of this lineage.
+
+### 0.3 No patch-forward from a failed stage
+
+A failed owner/device gate is failed evidence, not a new baseline.
+
+The recovery rule is:
+
+1. identify the declared clean source stage;
+2. restore/copy those exact bytes;
+3. rebuild only the scoped delta;
+4. run mechanical qualification;
+5. publish the same canonical stage filename;
+6. read it back and verify exact content;
+7. hand off only what still requires device/user testing.
+
+Do **not** patch the failed candidate forward. This is the primary reason for maintaining the five-stage chain.
+
+### 0.4 Testing is expensive; builder owns pre-flight
+
+Before any artifact is handed off for owner testing, the builder must prove everything that can be proven mechanically.
+
+At minimum:
+
+- verify the exact source artifact and source blob/commit used;
+- verify the target artifact filename matches the declared turn/stage;
+- syntax-check every executable inline script in the complete final HTML;
+- run relevant contract/unit/integration/harness tests;
+- verify required UI markers/IDs and backend contract markers;
+- verify no rejected architecture has reappeared;
+- publish through the normal repository path only;
+- read the published artifact back from the exact resulting commit/blob;
+- byte-verify when the stage is intended to be an exact copy/rollback;
+- state clearly what is mechanically proven and what remains for owner/device testing.
+
+Owner testing is reserved for behavior that static checks, automated tests, and read-back cannot establish: actual viewport behavior, touch interaction, perceived responsiveness, real-device storage mounting, and end-to-end operational judgment.
+
+### 0.5 Rules prevent harm, not progress
+
+Governance rules exist to prevent regressions, accidental mutation, untestable releases, and patch-forward failure chains. If a rule's literal wording makes its own safety objective impossible, the conflict must be surfaced explicitly and resolved according to the rule's intent rather than silently bypassed or used as an excuse to stall.
+
+### 0.6 Every stage has one source and one target
+
+Before coding a stage, record:
+
+- **Source artifact** — exact prior gated stage.
+- **Target artifact** — exact current-stage filename.
+- **Scope** — the small set of behaviors allowed to change.
+- **Protected behavior** — what must remain byte/functionally unchanged where practical.
+- **Mechanical gate** — what the builder must prove before handoff.
+- **Owner gate** — only what requires actual user/device judgment.
+
+This keeps a stage small enough to diagnose and roll back cheaply.
+
+### 0.7 Pre-base is a frozen recovery anchor
+
+`pre-base` is not a scratch file. It is the clean starting artifact for the turn.
+
+Once Turn 01 implementation starts, `SOT-turn01-pre-base.html` is frozen. If `base`, `pre-ship`, `ship`, or `post-ship` fails, recovery always returns to the appropriate prior accepted stage, never to an accumulated failed candidate.
+
+### 0.8 Stage intent
+
+The five stages are intentionally generic rather than tied forever to a particular feature type:
+
+- **pre-base** — exact clean turn starting point.
+- **base** — first small independently testable delta.
+- **pre-ship** — second small independently testable delta.
+- **ship** — integrated release candidate after prior gates.
+- **post-ship** — final hardening/observability/corrections for the turn, still governed by rollback discipline.
+
+For Turn 01, the exact feature allocation will be declared before implementation rather than forcing a large all-at-once build.
+
+---
 
 ## 1. Governing product model
 
