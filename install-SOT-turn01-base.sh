@@ -14,7 +14,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # Frozen, accepted pre-base backend source. Do not build from the rejected wrapper.
 CORE_URL='https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js'
-INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/b8ccdcebf2f94b92a09fa094686c9d2b322d28d2/integrate-SOT-turn01-base.py'
+INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/48308062f3ab181b55acaadf98b9b7caf226c480/integrate-SOT-turn01-base.py'
 # The UI delta was not the cause of the rejected deployment; its canonical Base bytes are retained and requalified here.
 HTML_URL='https://raw.githubusercontent.com/acmeproducts/stuff/41f18cd9088bd16f80a682c59ce0be937b794779/SOT-turn01-base.html'
 PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html'
