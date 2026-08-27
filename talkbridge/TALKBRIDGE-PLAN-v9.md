@@ -622,6 +622,21 @@ SW edit stamped 'push_arrived' inside notificationclick — taps were logged
 as arrivals; fixed and gated (single-occurrence check). Relay gate 10/10 +
 2/2; client 27/27 + 21/21. Relay auto-deploys; SW reaches phones next open.
 
+**v16.13.0 · 2026-08-27.** Session state at owner checkpoint. ANDROID
+(03:31–03:36 log, receipt build running): all three rooms subscribed within
+1s of boot, subscription alive, lane clean; placed NINE calls (voice+video,
+most ending in seconds — consistent with unanswered rings toward the
+iPhone); zero sw_receipts on Android as expected (in-app delivery rides the
+socket, not push). IPHONE: log for the same window NOT YET RECEIVED — repeated
+file attachments arrive empty; inline paste is the working path. The verdict
+on those nine calls is exactly the iPhone's receipt trail (push_arrived /
+notification_shown) against the relay's sent wakes. AWAITING: iPhone log.
+Chain instrumentation as of this build: perm_answer verbatim + property,
+enable_src/enable_exit on every terminal, heal steps with deadlines,
+per-room subscribe results, relay diag with lastWake, SW durable receipts
+drained on open. Both phones held live subscriptions simultaneously as of
+Aug 26 15:17 (iPhone, Apple endpoint) / continuously (Android).
+
 **v16.12.0 · 2026-08-26.** Owner forced a re-audit of "nothing can be
 silent" — and was right. Three silent paths found and closed: (1) THE BIG
 ONE — the service worker was completely dark: push arrival, banner shown,
