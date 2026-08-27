@@ -155,7 +155,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b22</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b23</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -277,7 +277,7 @@ function freshCb(u){try{const x=new URL(u);if(x.hostname.endsWith('.github.io'))
 function linkify(s){return esc(s).replace(/(https?:\/\/[^\s]+)/g,(m,u)=>'<a href="'+u+'" data-url="'+u+'" target="_blank" rel="noopener">'+u+'</a>')}
 document.addEventListener('click',e=>{const a=e.target.closest('a[data-url]');if(!a)return;e.preventDefault();window.open(freshCb(a.dataset.url),'_blank')});
 const tkey=(p,f)=>p+'/'+f;
-const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+f.replace(/\//g,'_')+'.json';
+const tpath=(p,f)=>'devstream/threads/'+encodeURIComponent(p).replace(/%/g,'_')+'__'+encodeURIComponent(f.replace(/\//g,'_'))+'.json';
 const planOf=f=>f.replace(/\.[^.]+$/,'')+'.md';
 
 /* ---- github ---- */
@@ -630,11 +630,11 @@ async function newThreadForProject(){
   let file=(name||'').trim()||p.mainFile;
   let key=tkey(activeProject,file);
   if(sot.threads[key]){ // uniquify thread on same file
-    let i=2;while(sot.threads[key+'#'+i])i++;key=key+'#'+i;
+    let i=2;while(sot.threads[key+'-t'+i])i++;key=key+'-t'+i;
   }
   await guard(async()=>{
     const tree=await repoTree(true);
-    const tid=file+(key.includes('#')?key.slice(key.indexOf('#')):'');
+    const tid=file+(key.includes('-t')&&/-t\d+$/.test(key)?key.match(/-t\d+$/)[0]:'');
     const data={project:activeProject,outputFile:file,tid,planFile:p.planFile,inputFile:tree.includes(file)?file:null,repo:repoFull(),engine:cfg.engine||'venice',created:now(),
       messages:[{role:'agent',text:'This thread references the plan ('+p.planFile+'). Ask questions, add ideas or feedback — they update the plan. Say "build it" (or give build instructions) and the build happens here against '+file+'.',ts:now()}]};
     const sha=await putFileSafe(tpath(activeProject,tid),JSON.stringify(data,null,1),'devstream: new thread '+key);
@@ -818,15 +818,15 @@ self.onmessage=async e=>{
     let ctx='';
     post({type:'log',line:'reading plan '+planFile});
     const pc=await ghGet(cfg,planFile);
-    if(pc)ctx+='PLAN file '+planFile+':\n<plan>\n'+pc+'\n</plan>\n\n';
+    if(pc)ctx+='PLAN file '+planFile+':\\n<plan>\\n'+pc+'\\n</plan>\\n\\n';
     post({type:'log',line:'reading code '+codeFile});
     const cc=await ghGet(cfg,codeFile);
-    if(cc)ctx+='CODE file '+codeFile+':\n<code>\n'+cc+'\n</code>\n\n';
-    else if(inputFile){const ic=await ghGet(cfg,inputFile);if(ic)ctx+='INPUT codebase '+inputFile+':\n<code>\n'+ic+'\n</code>\n\n'}
+    if(cc)ctx+='CODE file '+codeFile+':\\n<code>\\n'+cc+'\\n</code>\\n\\n';
+    else if(inputFile){const ic=await ghGet(cfg,inputFile);if(ic)ctx+='INPUT codebase '+inputFile+':\\n<code>\\n'+ic+'\\n</code>\\n\\n'}
     let text=null,usedEng=null,fails=[];
     for(const eng of chain){
       post({type:'log',line:'engine '+eng+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)…'});
-      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\n'+instr);usedEng=eng;break}
+      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\\n'+instr);usedEng=eng;break}
       catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
     }
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
