@@ -1,69 +1,96 @@
 #!/usr/bin/env node
-/* Fresh mutation gate for the v16.0.0 build — every planted defect must fail the harness. */
+/* Fresh mutation gate for the plan v19.5.0 build — every planted defect must fail the harness.
+   Usage: node mutate-r10.mjs <ship> <post-ship> <tb-sw.js> <worker-talk.js> */
 import { readFileSync, writeFileSync } from 'fs';
 import { spawnSync } from 'child_process';
-const [shipP, builtP] = process.argv.slice(2);
-const built = readFileSync(builtP, 'utf8');
-const muts = [
- ['enable banner never renders',
-  s => s.replace("host.parentNode.insertBefore(b, host);          /* TOP of the panel, unmissable */", ';')],
- ['banner lingers after permission granted',
-  s => s.replace("if (!pa5NeedsEnable()) { if (existing) existing.remove(); return; }", 'if (!pa5NeedsEnable()) { return; }')],
- ['self-heal stops resubscribing dead subscriptions',
-  s => s.replace("return step('enable-flow', 15000, r10EnableNotifications());", 'return;')],
- ['the load-time ask never fires (footer-hunt returns)',
-  s => s.replace('setTimeout(pa5AutoAsk, 1200);', ';')],
- ['a heal step dies silently again (instrumentation stripped)',
-  s => s.replace("function (e) { r8Log('heal_step', { s: name, ok: false, e: String(e && e.message || e) }, 'error'); throw e; });", 'function (e) { throw e; });')],
- ['self-heal prompts people who never granted',
-  s => s.replace("if (Notification.permission !== 'granted') return;      /* nothing granted, nothing to heal */", ';')],
- ['background listeners fall silent (the double-alert defect)',
-  s => s.replace("for (var id in (LISTEN.socks || {})) LISTEN.send(id, { type: 'ping', transient: true });", ';')],
- ['Chrome-on-iOS routed as Safari',
-  s => s.replace("if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\\//.test(ua) || !/Safari\\//.test(ua)) return 'ios-other-browser';", ';')],
- ['lane line loses its permission state',
-  s => s.replace("TB_LANE.notif = (window.Notification && Notification.permission) || 'unsupported';", "TB_LANE.notif = 0;")],
- ['a buried design sneaks back in',
-  s => s.replace("/* ═══════════ GAP PART · N4-listener-heartbeat.js", "var ACK_GRACE = 1; /* ═══════════ GAP PART · N4-listener-heartbeat.js")],
- ['the permission ask slides back behind the awaits (no prompt on iOS)',
-  s => s.replace("var ask = (window.Notification && Notification.permission === 'default')", "var ask = false && (window.Notification && Notification.permission === 'default')")],
- ['the vapid field-name mismatch returns (subscriptions fail everywhere)',
-  s => s.replace("var vkey = v && (v.key || v.vapid);", "var vkey = v && v.key;")],
-
- ['an arriving payload overwrites an existing identity',
-  s => s.replace("if (p && p.jn && !(S.user && S.user.name)) {", 'if (p && p.jn) {')],
- ['the typed name stops boarding the live URL (install loses identity)',
-  s => s.replace("try { history.replaceState(null, '', newHash); } catch (_) {}", ';')],
- ['the window-level capability gate returns (the 8ms iOS exit)',
-  s => s.replace("if (!('serviceWorker' in navigator)) { r8Log('enable_branch', { b: 'no-sw' }, 'error'); r10NotifStatus('unsupported'); return Promise.resolve(); }",
-                 "if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }")],
- ['typing the name stops boarding the invite',
-  s => s.replace("p.jn = v;", ';')],
- ['exits go silent again (the masked-denied ghost returns)',
-  s => s.replace("r8Log('enable_exit', { e: msg, name: name || 'Error' }, 'error');", ';')],
- ['the permission answer stops being recorded',
-  s => s.replace("r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');", ';')],
- ['drained receipts vanish before reaching the log',
-  s => s.replace("r8Log('sw_receipt', { ev: en.ev, at: en.ts, visible: en.visible, e: en.e }, en.ev === 'notification_failed' ? 'error' : 'ok');", ';')],
- ['no-rooms goes silent again',
-  s => s.replace("r8Log('enable_exit', { e: 'no-rooms' }, 'error'); ", '')],
- ['the drain goes quietly dead when the worker is not active',
-  s => s.replace("else r8Log('sw_drain_skipped', { why: 'no-active-worker' }, 'error');", ';')],
- ['the lying answer regains veto power over subscribe',
-  s => s.replace("r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error');",
-                 "r8Log('perm_answer', { perm: perm, prop: (window.Notification && Notification.permission) || '?' }, perm === 'granted' ? 'ok' : 'error'); if (perm !== 'granted') throw new Error('denied:' + perm);")],
- ['NotAllowedError loses its authoritative classification',
-  s => s.replace("if (name === 'NotAllowedError') {", 'if (false) {')],
+const [shipP, builtP, swP, relayP] = process.argv.slice(2);
+const built = readFileSync(builtP, 'utf8'), sw = readFileSync(swP, 'utf8');
+const app = [
+ ['the gate never renders — a browser tab runs the app',
+  s => s.replace("if (p2IsStandalone()) { p2Log('standalone', {}, 'ok'); return boot(); }\n  p2ShowGate();", "return boot();")],
+ ['the gate shows but the app still boots beneath it (relay activity in a tab)',
+  s => s.replace("  p2ShowGate();\n}", "  p2ShowGate(); boot();\n}")],
+ ['a name field leaks into the gate (browser-side name entry returns)',
+  s => s.replace("'<div class=\"p2-lead\">", "'<input id=\"p2-name\"><div class=\"p2-lead\">")],
+ ['the gate loses the room name',
+  s => s.replace("(roomName ? '<div class=\"p2-room\">' + esc(roomName) + '</div>' : '')", "''")],
+ ['the open-time subscription attempt never runs',
+  s => s.replace("if (p3LiveRooms().length) p3Attempt(false);", ";")],
+ ['the worker is never registered',
+  s => s.replace("return navigator.serviceWorker.register('./tb-sw.js')", "return Promise.resolve({ pushManager: { getSubscription: function(){ return Promise.resolve(null); }, subscribe: function(){ return Promise.resolve({ endpoint: 'x', toJSON: function(){ return {}; } }); } } })")],
+ ['the permission answer regains veto over subscribe',
+  s => s.replace("return answer.then(function () { return reg.pushManager.getSubscription(); })", "return answer.then(function (a) { if (a === 'denied') throw new Error('denied'); return reg.pushManager.getSubscription(); })")],
+ ['NotAllowedError loses its classification (no device recipe)',
+  s => s.replace("if (name === 'NotAllowedError') {", "if (false) {")],
+ ['a gesture-less refusal shows the recipe (fresh phones told they are broken)',
+  s => s.replace("      if (inGesture) p3ShowRecipe();\n      else p3ArmGesture();", "      p3ShowRecipe();")],
+ ['permission is asked after the awaits, not synchronously in the tap',
+  s => s.replace("var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }", "var asked = Promise.resolve().then(function(){ return Notification.requestPermission(); });").replace("A(w.__askCalls === 1", "A(w.__askCalls === 1")],
+ ['only the first room registers with the relay',
+  s => s.replace("if (!p3State.sub || !roomId) return Promise.resolve(false);", "if (!p3State.sub || !roomId || roomId !== p3LiveRooms()[0].id) return Promise.resolve(false);")],
+ ['background listeners fall silent',
+  s => s.replace("for (var id in (LISTEN.socks || {})) LISTEN.send(id, { type: 'ping', transient: true });", ";")],
+ ['a muted room stays subscribed at the relay',
+  s => s.replace("var room = roomById(roomId), want = !(room && room.muted);", "var room = roomById(roomId), want = true;")],
+ ['the ring screen no longer acks (banner beside every ring)',
+  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && roomById(roomId)) p4Ack(roomId); }", ";")],
+ ['the active room no longer acks',
+  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4Ack(S.roomId); }", ";")],
+ ['a hidden app acks (locked phone never pushed)',
+  s => s.replace("p4IsPushWorthy(d) && !document.hidden && roomById(roomId)) p4Ack(roomId);", "p4IsPushWorthy(d) && roomById(roomId)) p4Ack(roomId);")],
+ ['a notification stacks beside the ring screen',
+  s => s.replace("if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */", ";")],
+ ['notifications lose their per-room tag (stack, never replace)',
+  s => s.replace("tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] }", "tag: 'tb-' + roomId + '-' + Date.now(), renotify: true, data: { roomId: roomId }")],
+ ['opening a room leaves its stale notifications up',
+  s => s.replace("try { p4CloseTag(id); } catch (_) {}", ";")],
+ ['answering a call leaves its notification up',
+  s => s.replace("try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}", ";")],
+ ['the receipt drain goes silent',
+  s => s.replace("p4Log('sw_drained', { n: rows.length }, 'ok');", ";")],
+ ['the + control vanishes from room cards',
+  s => s.replace("if (h && r && !r.sendLocked) h = h.replace('</div><div class=\"rc2-flags\">',", "if (false) h = h.replace('</div><div class=\"rc2-flags\">',")],
+ ['tapping + opens the room instead of naming a thread',
+  s => s.replace("el.addEventListener('click', function (ev) { ev.stopPropagation(); ev.preventDefault(); p6AskName(el.dataset.thread); });", "el.addEventListener('click', function (ev) { p6AskName(el.dataset.thread); });")],
+ ['the invite never leaves for the relay',
+  s => s.replace("var sent = (S.roomId === parentId) ? relaySend(p6InviteMsg(parent, { id: t.id, name: name })) : LISTEN.send(parentId, p6InviteMsg(parent, { id: t.id, name: name }));", "var sent = false;")],
+ ['a pending invite is not re-sent when the partner reappears',
+  s => s.replace("    if (o.status !== 'pending') return;\n    var ok =", "    if (o.status !== 'never') return;\n    var ok =")],
+ ['the thread appears for Alice WITHOUT consent (invite auto-accepts)',
+  s => s.replace("  parent.threadInvites.push({ id: d.threadId,", "  S.rooms.push(p6ThreadRoom(parent, d.threadId, d.name)); parent.threadInvites.push({ id: d.threadId,")],
+ ['duplicate invites stack as duplicate cards',
+  s => s.replace("if (parent.threadInvites.some(function (i) { return i.id === d.threadId; })) return false;", ";")],
+ ['the decision is no longer stamped into the parent transcript',
+  s => s.replace("  p6Stamp(parentId, me + (accepted ? ' accepted ' : ' declined ')", "  (function(){})(parentId, me + (accepted ? ' accepted ' : ' declined ')")],
+ ['a decline creates the room anyway',
+  s => s.replace("if (accepted) { S.rooms.push(p6ThreadRoom(parent, threadId, inv.name)); }", "S.rooms.push(p6ThreadRoom(parent, threadId, inv.name));")],
+ ['the partner\'s answer never closes the offer (invites re-sent forever)',
+  s => s.replace("else if (d.type === 'sys-pill' && d.threadId) p6OnAnswer(roomId, d);", ";")],
+ ['a declined invite re-surfaces when re-sent',
+  s => s.replace("if ((parent.threadsAnswered || []).indexOf(d.threadId) >= 0) return false;", ";")],
+ ['ship interior altered (P5 broken)',
+  s => s.replace("function boot(){", "function boot(){ /* mutated */")],
 ];
-let caught = 0;
-for (const [name, fn] of muts) {
-  const m = fn(built);
-  if (m === built) { console.log('NOT APPLIED  ' + name); continue; }
-  writeFileSync('/tmp/mut-r10.html', m);
-  const r = spawnSync('node', ['harness-r10.mjs', shipP, '/tmp/mut-r10.html'], { timeout: 200000 });
-  const ok = r.status !== 0;
-  caught += ok;
-  console.log((ok ? 'caught  ' : 'MISSED  ') + name);
+const worker = [
+ ['the worker goes silent on a push (Apple revokes the subscription)',
+  s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })", "return Promise.resolve()")],
+ ['the worker stops journaling shown',
+  s => s.replace(".then(function () { return journal('shown', { room: roomId, kind: kind }); },", ".then(function () { return Promise.resolve(); },")],
+ ['a tap opens a second copy instead of focusing the app',
+  s => s.replace("if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }", ";")],
+ ['the room tag collapses to one global tag',
+  s => s.replace("var tag = 'tb-' + (roomId || 'unknown');", "var tag = 'tb-all';")],
+];
+let caught = 0, total = 0;
+function run(name, appText, swText) {
+  writeFileSync('/tmp/mut-app.html', appText); writeFileSync('/tmp/mut-sw.js', swText);
+  const r = spawnSync('node', [new URL('./harness-r10.mjs', import.meta.url).pathname, shipP, '/tmp/mut-app.html', '/tmp/mut-sw.js', relayP], { encoding: 'utf8' });
+  total++;
+  if (r.status !== 0) { caught++; console.log('  caught  ' + name); }
+  else console.log('ESCAPED  ' + name);
 }
-console.log('\n' + caught + '/' + muts.length + ' fresh defects caught');
-process.exit(caught === muts.length ? 0 : 1);
+const ONLY = process.env.ONLY ? process.env.ONLY.split(",").map(Number) : null;
+for (const [i, [name, fn]] of app.entries()) { if (ONLY && !ONLY.includes(i)) continue; const m = fn(built); if (m === built) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, m, sw); }
+for (const [name, fn] of worker) { if (ONLY) continue; const m = fn(sw); if (m === sw) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, built, m); }
+console.log(`\n${caught}/${total} mutations caught`);
+process.exit(caught === total ? 0 : 1);

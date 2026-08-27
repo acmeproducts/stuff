@@ -1,18 +1,16 @@
 #!/usr/bin/env node
-/* Mechanical assembly: ship + N1..N6, per plan v16 §4b. No hand edits, ever. */
+/* Mechanical assembly · R10 post-ship per plan v19.5.0 §4.1: ship + P2..P6. No hand edits, ever.
+   Outputs: bridge-turn24-post-ship.html (app) and tb-sw.js (worker). Pair: relay v4. */
 import { readFileSync, writeFileSync } from 'fs';
 const P = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const ship = P('../../bridge-turn24-ship.html');
-const headComment = '<!-- R10 build · notifications-only per plan v16.0.0 · source: bridge-turn24-ship.html (device-passed 2026-08-15) -->\n';
-const pre = P('../parts/n1-prebootstrap.html');
-const parts = ['../parts/n1-r10-phase-a.js','../parts/n2-enable-banner.js','../parts/n3-subscription-selfheal.js',
-               '../parts/n4-listener-heartbeat.js','../parts/n5-lane-telemetry.js','../parts/n6-gesture-first-permission.js','../parts/n7-fresh-iphone-path.js','../parts/n8-sw-receipts.js'].map(P);
-const anchor = '<div id="toast"></div>\n</div>\n';
+const headComment = '<!-- R10 build · bridge-turn24-post-ship · plan v19.5.0 §4.1 P2-P6 · source: bridge-turn24-ship.html (device-passed 2026-08-15, revalidated 2026-08-27) · pair: relay v4 -->\n';
+const parts = ['../parts/p2-install-gate.js', '../parts/p3-subscription.js', '../parts/p4-alert-hygiene.js', '../parts/p6-threads.js'].map(P);
 let out = headComment + ship;
-if (!out.includes(anchor)) throw new Error('anchor missing');
-out = out.replace(anchor, anchor + '\n' + pre + '\n');
 const idx = out.lastIndexOf('</script>');
 out = out.slice(0, idx) + '\n' + parts.join('') + '\n' + out.slice(idx);
 const target = process.argv[2] || '/tmp/assembled.html';
+const swTarget = process.argv[3] || '/tmp/tb-sw.js';
 writeFileSync(target, out);
-console.log('assembled', out.length, 'chars ->', target);
+writeFileSync(swTarget, P('../parts/p4-sw.js'));
+console.log('assembled', out.length, 'chars ->', target, '| worker ->', swTarget);
