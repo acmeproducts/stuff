@@ -57,5 +57,38 @@ await T('E3 state=on and no banner after success', () =>
 await T('E4 NotAllowedError → blocked state → banner names the Settings switch', () => {
   A(built.includes("n === 'NotAllowedError'") && built.includes('Settings → Notifications → TalkBridge'), 'authoritative denial path missing');
 });
+/* second boot: prop=DEFAULT, answer=denied — the ask actually fires and its
+   answer must still not veto the subscribe */
+{
+  const vc2 = new VirtualConsole(); vc2.on('jsdomError', () => {});
+  const dom2 = new JSDOM(built, { url: 'https://acmeproducts.github.io/stuff/x.html',
+    runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc2,
+    beforeParse(w2) {
+      w2.WebSocket = class { send(){} close(){} addEventListener(){} };
+      w2.RTCPeerConnection = class { addEventListener(){} createDataChannel(){ return { addEventListener(){} }; } close(){} };
+      w2.AudioContext = w2.webkitAudioContext = class { createMediaStreamSource(){ return { connect(){} }; } resume(){ return Promise.resolve(); } };
+      if (!w2.navigator.mediaDevices) Object.defineProperty(w2.navigator, 'mediaDevices', { value: {} });
+      w2.navigator.mediaDevices.getUserMedia = () => Promise.reject(new Error('x'));
+      w2.speechSynthesis = { speak(){}, cancel(){}, getVoices(){ return []; } };
+      w2.SpeechSynthesisUtterance = class {};
+      w2.matchMedia = () => ({ matches: false, addEventListener(){}, addListener(){} });
+      w2.HTMLMediaElement.prototype.play = function(){ return Promise.resolve(); };
+      w2.localStorage.setItem('tb_name', 'H');
+      w2.Notification = class { static requestPermission(){ return Promise.resolve('denied'); } };
+      w2.Notification.permission = 'default';
+      w2.__subscribedWith = null;
+      const reg2 = { pushManager: { getSubscription: () => Promise.resolve(null),
+        subscribe: o => { w2.__subscribedWith = o; return Promise.resolve({ endpoint: 'https://web.push.apple.com/y', toJSON: () => ({ endpoint: 'e', keys: { p256dh: 'p', auth: 'a' } }) }); } } };
+      Object.defineProperty(w2.navigator, 'serviceWorker', { configurable: true,
+        value: { register: () => Promise.resolve(reg2), ready: Promise.resolve(reg2), addEventListener(){} } });
+      w2.fetch = (u, o) => Promise.resolve({ status: 200, ok: true, json: () => Promise.resolve(
+        (o && o.body && o.body.includes('"vapid"')) ? { ok: true, vapid: 'BQQQ' } : { ok: true }) });
+    } });
+  const w2 = dom2.window;
+  w2.S.rooms = [{ id: 'roomZ' }];
+  await new Promise(r => setTimeout(r, 2400));
+  await T('E5 fresh-user path: the ask fires, answers denied, subscribe attempted anyway', () =>
+    A(w2.__subscribedWith && w2.__subscribedWith.applicationServerKey, 'the answer vetoed the attempt'));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
