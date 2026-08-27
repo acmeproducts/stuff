@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v18.5.0 -->
-# TALKBRIDGE MASTER PLAN v18.5.0
+<!-- TALKBRIDGE-PLAN v19.0.0 -->
+# TALKBRIDGE MASTER PLAN v19.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -245,72 +245,109 @@ ML anomaly on simple phrases is not a code defect.
 
 ---
 
-## 4 · RELEASE 10 — THE REBUILD ROAD (v17, plain English)
+## 4 · RELEASE 10 — POST-SHIP, COMPLETE SPECIFICATION (v19, definitive)
 
-**The promise:** no regressions, and a locked iPhone rings. Nothing else.
+**Source:** `bridge-turn24-ship.html` — the only device-approved base.
+**Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
+ship + the parts below by one command. The artifact is output only.
+**Pair:** app post-ship ⟷ relay v4. They ship together, are verified
+together, and every handover states both. Mismatch = rollback of whichever
+moved last, before anything else.
+**Promise:** no regression to anything ship does, and a locked iPhone gets
+exactly one prompt alert per message and per call, every time.
 
-**THE PAIR LAW (permanent, owner-dictated):** the app and the relay move as
-a matched pair, always. Every step below that touches either one names the
-required version of BOTH, and every handover states the pair as deployed:
-"app X / relay Y, matched." A mismatch is a forbidden state — discovering
-one means immediate rollback of whichever moved last, before anything else.
-Current pair, verified: app = ship bytes / relay = ship-approved R7. Matched.
+### 4.1 · What ships, piece by piece
 
-**The law of this road:** one step at a time. Every step is written here
-first, you approve it, I build and machine-test it, you test it on phones,
-and ONLY a pass unlocks the next step. Any regression to what ship does
-today = immediate rollback of that step, automatically, no debate.
+**P1 · Relay v4 (one worker file, from ship's R7 body):**
+- Wakes carry an ENCRYPTED payload (RFC 8291; correctness gated by the
+  RFC's own Appendix-A test vector, byte-exact) at Urgency high, Topic
+  newest-wins, TTL 60 — the delivery class the owner's locked iPhone
+  received 4/4 from the reference. Empty unmarked wakes are dead.
+- ACK-GATED PUSH: on a push-worthy event the relay delivers on the socket
+  and waits ~1s for that device's ack ("presenting"). Ack → no push to that
+  device. No ack → push, and it is that device's only alert. One event, one
+  arbiter, exactly one alert in every state. (~1s added before a locked
+  phone's banner: the professional cost.)
+- `call-end` is wake-worthy → a locked phone gets its missed-call alert.
+- Liveness: connection acceptance and every inbound message stamp the
+  device as alive; provably-live devices are never pushed.
+- Read-only `diag` (connected, sub count, last wake + result) so the wake
+  path is machine-observable forever.
 
-**VERDICT · Aug 27 2026 — THE WORLD IS SPLIT, AND WE'RE IN THE GOOD ONE.**
-The canonical reference PWA (zero TalkBridge code, industry-standard sender)
-SHOWED on the owner's locked iPhone. This device, its iOS, its settings, and
-Apple's delivery are CERTIFIED WORKING today. The fault is therefore
-provably inside TalkBridge — and the mechanical diff already names the
-prime suspect: the working push carried an ENCRYPTED PAYLOAD at URGENCY
-HIGH; TalkBridge's ship-era relay sends EMPTY pushes with NO urgency —
-exactly the class Apple defers or drops on locked devices. Step 1's spec is
-therefore no longer a theory: make the relay send what the reference sender
-sends. (Steps unchanged; Step 0 still first; pair law applies.)
-FINAL TALLY · 4 reference pushes sent, 4 delivered — including TWO to the
-LOCKED screen (pushes 1 and 4, owner-confirmed). Delivery to this locked
-iPhone is repeatable, not lucky. Diagnostic CLOSED.
+**P2 · App: install gate (the onboarding inversion):**
+- An invite opened in ANY browser shows ONE screen: the room's name and
+  install instructions for that platform (iOS 16.4+: Share → Add to Home
+  Screen, any browser; Android: its install flow). No name field. No room.
+  No chat. Nothing usable. The illusion of a working uninstalled app is
+  abolished — it is never an option not to be notified.
+- Standalone launch (self-detected) runs the real app. First run: ask the
+  name ONCE, join the invite's room (the icon carries the invite URL),
+  then P3. Identity never crosses from a browser; that idea is graveyarded.
 
-**STEP 0 — You revalidate ship. (Now.)**
-Relay: the exact one approved with ship — restored, verified, live.
-App at the post-ship link: byte-identical to ship — verified.
-You test whatever you trust: calls, chats, the homepage cards for missed
-calls and missed chats. When you say "ship is good," Step 1 unlocks.
+**P3 · App: subscription, attempt-as-authority:**
+- On standalone open with rooms: register the worker, then attempt the
+  subscription. Permission answers and properties are recorded verbatim but
+  NEVER gate — the subscribe attempt itself is the only truth.
+  NotAllowedError is the one real denial → the app shows the owner's F1
+  device recipe (Settings → Apps → [app] → Notifications: Allow ON, Lock
+  Screen/Notification Center/Banners, Sounds ON, banner style Temporary)
+  as the instructions screen. Every room registers with the relay; every
+  outcome logs by name; silence is structurally impossible.
+- Background room listeners heartbeat every 30s so the relay's liveness
+  view is true for every socket the phone holds.
 
-**STEP 1 — The relay learns to wake phones. One change.**
-What it means: when someone messages or calls a room, phones that aren't
-listening get a wake-up push. Phones that ARE listening get nothing extra.
-I prove it by machine on the live relay before you ever test.
-Your test: nothing changes in daily use — calls, chats, homepage all work
-exactly as in ship. That's the whole test: no regression.
+**P4 · App + worker: exactly-one-alert hygiene:**
+- The worker shows a notification for every push (Apple revokes silent
+  handlers — non-negotiable) with a per-room tag: successive pushes
+  REPLACE, never stack.
+- The app acks presentations to the relay (P1's gate), so a shown ring
+  screen means no banner ever existed for that device.
+- Housekeeping only: call answered elsewhere / room read → matching
+  notifications are closed as stale; a notification tap closes itself and
+  focuses the running app rather than opening a second copy.
+- The worker journals every push terminal (arrived / shown / failed) to a
+  durable on-device store the app drains into the debug log: proof of
+  delivery on the phone, forever.
 
-**STEP 2 — The iPhone gets a working subscription.**
-What it means: the app registers your iPhone with Apple for pushes, and it
-does NOT trust iOS's lying permission answers — it just tries, and the
-attempt itself is the truth. If iOS genuinely blocks, the app tells you
-exactly which Settings switch to flip.
-Your test: open the app, the log says "subscribed to Apple" — and everything
-from ship still works untouched.
+**P5 · Ship behavior, untouched by construction:**
+Chat, calls, phrasebook, homepage missed-call/missed-chat cards — all of
+ship's interior is byte-preserved by the assembler; the gate proves the ship
+segments verbatim inside the build. The homepage cards update on open from
+room history exactly as ship does today.
 
-**STEP 3 — The locked iPhone rings.**
-What it means: with Steps 1+2 alive, a locked phone shows one notification
-with sound within ~5 seconds, and one missed-call notice if unanswered.
-(Apple's rule: a locked web app can't play a long ringtone — it's a
-notification with sound. Sustained ringing only with the app open.)
-Your test: the cell you've been owed for weeks. Lock it, call it.
+### 4.2 · Explicitly OUT of this release
+Journey polish beyond the gate screen, in-band invites (J8), paste-invite
+(J7), transcription-lag work, rtc glare, R11+ items. Nothing else rides.
 
-**STEP 4 — No doubles, no gaps, on your full matrix.**
-Message and call, both directions, locked / same room / other room.
-Exactly one alert each, zero in the room you're looking at.
+### 4.3 · Machine proof before the owner sees a URL
+Relay: RFC vector byte-exact; ack-gate logic tests + mutations (ack
+suppresses, no-ack pushes, liveness stamps, constructor-anchored state);
+live deploy probe: delivered-on-socket, wake for the absent, no wake for
+the acked, missed-call wake, Apple-shape POST leaves.
+App: assembled-from-ship verification (ship segments verbatim); gate-screen
+behavior in browser context vs full app in standalone context; name asked
+once; subscribe attempted under the recorded device contradiction
+(prop granted / answer denied) and under fresh-default; every room
+registered; heartbeat present; tag replacement; ack sent on ring-present;
+stale-close on answer; zero UI outside declared surfaces. Fresh mutation
+set; every planted defect must fail. Byte-verify at the exact commit SHA.
+Handover states: scores, pair, and the one thing only devices can prove.
 
-That's the whole road. Four steps, four approvals, four device tests.
-No step ships with a known issue. No step touches anything outside its
-sentence. Every build is assembled by one command from part files, and every
-handover states its machine-test scores first.
+### 4.4 · Owner acceptance (the only device test)
+Requirement v2 matrix: locked/backgrounded ≥120s — message → exactly one
+notification ≤5s; call → exactly one alert with sound ≤5s; unanswered →
+exactly one missed-call alert. Foreground same-room: zero alerts.
+Foreground other-room: exactly one, no double. Both directions. iOS
+constraint stated honestly: a locked web app's "ring" is a notification
+with sound; sustained ringtone exists only with the app open (Apple's
+floor, all vendors).
+
+### 4.5 · Law
+Plan approved → build → gates → deploy → byte-verify → handover. Any
+regression to ship behavior = full stop and rollback of the pair. No scope
+outside 4.1. No repo artifacts beyond the declared build outputs and part
+sources. The graveyard is scanned before building; buried ideas stay
+buried (browser name-carry, patch-forward, flash-then-close as primary).
 
 ---
 
@@ -618,6 +655,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.0.0 · 2026-08-27.** The complete, coherent R10 specification written
+as one document (§4): one build from ship, relay v4 + install gate +
+attempt-as-authority subscription + exactly-one-alert hygiene + ship
+preserved, with the full machine-proof list and the owner acceptance
+matrix. Supersedes the incremental road. Builds on owner GO.
 
 **v18.5.0 · 2026-08-27.** Owner ruling: professional is not optional. Piece 3
 replaced — reconciliation-as-primary is out; ACK-GATED PUSH is the spec
