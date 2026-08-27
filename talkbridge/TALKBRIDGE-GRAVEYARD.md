@@ -1086,3 +1086,10 @@ in a browser tab creates the illusion of a working install that can never
 notify. The browser page's only legitimate jobs are: show the install gate.
 Name collection happens INSIDE the installed app, once, on first standalone
 open. It is never an option not to be notified.
+
+## Annotation · Aug 27 2026: delivery-confirmation, superseded by design
+
+The delivery-confirmation design buried during the patch-forward era stays
+buried AS BUILT. Its concept returns legitimately in plan v18.5.0 as
+ACK-GATED PUSH: declared scope, built from ship, gated, owner-approved
+process. The burial was about method; the method is now correct.
