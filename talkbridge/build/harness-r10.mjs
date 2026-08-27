@@ -134,6 +134,14 @@ T('A1 the app asks on load — no tap, no footer hunt', () => {
   A(built.includes("r8Log('auto_prompt'"), 'auto-ask outcome not logged');
   A(built.includes('#r10-notif{display:none !important}'), 'footer row not retired');
 });
+T('A2a every non-permission failure logs a named enable_exit', () => {
+  A(built.includes("r8Log('enable_exit', { e: msg, name: name || 'Error' }, 'error');"), 'generic exits can be silent again');
+});
+T('A2b NotAllowedError is classified as the authoritative denial with the escape hatch', () => {
+  A(built.includes("name === 'NotAllowedError'"), 'classification gone');
+  A(built.includes("TB_R10.subscribeBlocked = true"), 'escape-hatch flag gone');
+  A(built.includes("'denied-by-subscribe'"), 'authoritative terminal renamed/removed');
+});
 T('A2 every heal step names itself with a deadline — silence is impossible', () => {
   for (const st of ["'sw-ready'", "'get-subscription'", "'enable-flow'", "'vapid-answer'", "'subscribe-call'"])
     A(built.includes(st), st + ' step unlogged');

@@ -268,6 +268,7 @@ export class TalkSession {
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       pair[1].serializeAttachment({ clientId });
+      this.lastSeen.set(clientId, Date.now());   /* acceptance IS liveness: a connected-but-silent client must not be pushed (C7) */
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
