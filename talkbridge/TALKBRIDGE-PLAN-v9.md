@@ -271,6 +271,9 @@ HIGH; TalkBridge's ship-era relay sends EMPTY pushes with NO urgency —
 exactly the class Apple defers or drops on locked devices. Step 1's spec is
 therefore no longer a theory: make the relay send what the reference sender
 sends. (Steps unchanged; Step 0 still first; pair law applies.)
+FINAL TALLY · 4 reference pushes sent, 4 delivered — including TWO to the
+LOCKED screen (pushes 1 and 4, owner-confirmed). Delivery to this locked
+iPhone is repeatable, not lucky. Diagnostic CLOSED.
 
 **STEP 0 — You revalidate ship. (Now.)**
 Relay: the exact one approved with ship — restored, verified, live.
