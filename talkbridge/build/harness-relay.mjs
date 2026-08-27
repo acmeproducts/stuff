@@ -10,6 +10,10 @@ T('RV2.1 socket alone is not presence — freshness required', () => {
   A(src.includes('connected.has(clientId) && fresh'), 'freshness not in the wake decision');
   A(!src.includes("if (connected.has(clientId)) continue;             /* already listening */"), 'R7 socket-only line still live');
 });
+T('RV2.4 connection acceptance stamps liveness (C7 closed)', () => {
+  const acc = src.slice(src.indexOf('acceptWebSocket'), src.indexOf('acceptWebSocket') + 400);
+  A(acc.includes('this.lastSeen.set(clientId, Date.now())'), 'accept does not stamp');
+});
 T('RV2.1 every inbound message stamps lastSeen', () =>
   A(src.includes('this.lastSeen.set(clientId, Date.now())'), 'stamp missing'));
 T('RV2 state INITIALIZED in the constructor — the exact defect that 500d the deploy', () => {
