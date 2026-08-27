@@ -45,7 +45,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
-const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'history-sync']);
+const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'call-end', 'thread-invite', 'history-sync']);  /* P1: missed-call + thread invites wake locked phones */
 
 function cors() {
   return {
@@ -83,6 +83,63 @@ function bytesToB64url(bytes) {
 /* ── VAPID ────────────────────────────────────────────────────────────────
    A signed assertion that this server is who it claims to be. Cached per
    audience because it is valid for hours and signing it per push is waste. */
+
+/* ── STEP 1 (plan v17.1.0) · RFC 8291 payload encryption ─────────────────────
+   The reference push that showed on the owner's LOCKED iPhone four-for-four
+   carried an encrypted payload at Urgency: high. Empty unmarked pushes are
+   the class Apple defers on locked devices. This is that same delivery
+   class, implemented per RFC 8291 (aes128gcm) with WebCrypto, and gated by
+   the RFC's own Appendix-A test vector — byte-exact or the build fails. */
+function b64uToBytes(s) {
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const b = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  const a = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+  return a;
+}
+function concatBytes(...arrs) {
+  const n = arrs.reduce((t, a) => t + a.length, 0);
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+}
+async function hkdf(salt, ikm, info, len) {
+  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, len * 8);
+  return new Uint8Array(bits);
+}
+/* Encrypt plaintext for a push subscription (RFC 8291 single record).
+   testKeys (optional): { asPrivateJwk, asPublicRaw, salt } for the RFC vector. */
+async function webpushEncrypt(plaintext, p256dhB64u, authB64u, testKeys) {
+  const uaPub = b64uToBytes(p256dhB64u);
+  const authSecret = b64uToBytes(authB64u);
+  let asKeys, salt;
+  if (testKeys) {
+    asKeys = {
+      privateKey: await crypto.subtle.importKey('jwk', testKeys.asPrivateJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']),
+      publicRaw: b64uToBytes(testKeys.asPublicRaw)
+    };
+    salt = b64uToBytes(testKeys.salt);
+  } else {
+    const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+    asKeys = { privateKey: kp.privateKey, publicRaw: new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey)) };
+    salt = crypto.getRandomValues(new Uint8Array(16));
+  }
+  const uaKey = await crypto.subtle.importKey('raw', uaPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, asKeys.privateKey, 256));
+  const enc = new TextEncoder();
+  const keyInfo = concatBytes(enc.encode('WebPush: info\0'), uaPub, asKeys.publicRaw);
+  const ikm = await hkdf(authSecret, ecdh, keyInfo, 32);
+  const cek = await hkdf(salt, ikm, enc.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(salt, ikm, enc.encode('Content-Encoding: nonce\0'), 12);
+  const padded = concatBytes(enc.encode(plaintext), new Uint8Array([2]));   /* 0x02 = last record */
+  const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, padded));
+  const header = concatBytes(salt, new Uint8Array([0, 0, 16, 0, asKeys.publicRaw.length]), asKeys.publicRaw);
+  return concatBytes(header, ct);
+}
+
 const vapidCache = new Map();
 
 async function vapidHeader(env, endpoint) {
@@ -137,6 +194,9 @@ export default {
 export class TalkSession {
   constructor(state, env) {
     this.state = state;
+    this.lastWake = null;   /* observability — constructor-anchored */
+    this.lastSeen = new Map();      /* liveness: reset = stale = wake = safe */
+    this.pendingWakes = new Map();  /* P1 ack-gate: clientId -> timeout handle */
     this.env = env;
     this.seq = 0;
     this.messages = [];
@@ -195,16 +255,26 @@ export class TalkSession {
     await this.state.storage.put({ subs: this.subs });
   }
 
-  /* A bare wake. No content leaves for the push service — the worker fetches
-     what it missed over the history endpoint it already has. */
+  /* STEP 1: the reference delivery class — encrypted payload, high urgency,
+     newest-wins topic, short TTL. Proven on the owner's locked iPhone 4/4. */
   async _pushOne(clientId, rec) {
     const endpoint = rec && rec.sub && rec.sub.endpoint;
-    if (!endpoint) return;
-    const headers = { TTL: '86400', 'Content-Length': '0' };
+    const keys = rec && rec.sub && rec.sub.keys;
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
+    let body;
+    try {
+      body = await webpushEncrypt(JSON.stringify({ t: 'tb-wake', at: Date.now() }), keys.p256dh, keys.auth);
+    } catch (_) { return; }
+    const headers = {
+      TTL: '60', Urgency: 'high', Topic: 'tb-wake',
+      'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
+      'Content-Length': String(body.length)
+    };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
-      const res = await fetch(endpoint, { method: 'POST', headers });
+      const res = await fetch(endpoint, { method: 'POST', headers, body });
+      this.lastWake = { clientId, at: Date.now(), status: res.status };
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
          Keeping it would mean retrying forever against nothing. */
       if (res.status === 404 || res.status === 410) {
@@ -221,12 +291,22 @@ export class TalkSession {
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
-      if (connected.has(clientId)) continue;             /* already listening */
       if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
         delete this.subs[clientId];
         continue;
       }
-      jobs.push(this._pushOne(clientId, rec));
+      const fresh = this.lastSeen.has(clientId) && (now - this.lastSeen.get(clientId)) < 105000;
+      if (connected.has(clientId) && fresh) continue;    /* provably presenting: a push never exists */
+      if (connected.has(clientId)) {
+        /* Socket present but silent — the socket carries the event; the push
+           is a FALLBACK scheduled 1s out, cancelled by the device's next word. */
+        if (!this.pendingWakes.has(clientId)) {
+          const t = setTimeout(() => { this.pendingWakes.delete(clientId); this._pushOne(clientId, rec); }, 1000);
+          this.pendingWakes.set(clientId, t);
+        }
+        continue;
+      }
+      jobs.push(this._pushOne(clientId, rec));           /* absent: push is the only alert, now */
     }
     if (jobs.length) await Promise.all(jobs);
   }
@@ -243,6 +323,7 @@ export class TalkSession {
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       pair[1].serializeAttachment({ clientId });
+      this.lastSeen.set(clientId, Date.now());   /* acceptance IS liveness */
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
@@ -263,6 +344,9 @@ export class TalkSession {
       try { body = await request.json(); } catch (_) { return err('Bad body'); }
 
       /* The app asks for the public key before it can subscribe at all. */
+      if (body && body.type === 'diag') {
+        return json({ ok: true, connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, pending: this.pendingWakes.size });
+      }
       if (body && body.type === 'vapid') {
         return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
       }
@@ -293,6 +377,13 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
+    if (clientId) {
+      this.lastSeen.set(clientId, Date.now());
+      /* P1 ack-gate: ANY word from the device proves it is presenting — the
+         scheduled fallback push for it is cancelled. */
+      const t0 = this.pendingWakes.get(clientId);
+      if (t0) { clearTimeout(t0); this.pendingWakes.delete(clientId); }
+    }
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 

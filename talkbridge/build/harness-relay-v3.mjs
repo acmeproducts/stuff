@@ -44,15 +44,29 @@ await T('R7 body intact: subscribe, broadcast, history, vapid, prune-on-404/410'
   for (const t of ["type === 'subscribe'", '_broadcast', 'history', "type === 'vapid'", 'res.status === 404 || res.status === 410'])
     A(src.includes(t), t + ' missing');
 });
-await T('wake still skips the sender and the connected', () => {
+await T('wake still skips the sender; presenting devices exempt via freshness', () => {
   A(src.includes('if (clientId === senderId) continue;'), 'sender skip gone');
-  A(src.includes('if (connected.has(clientId)) continue;'), 'connected skip gone');
+  A(src.includes('connected.has(clientId) && fresh) continue;'), 'presenting exemption gone');
 });
 await T('observability: lastWake initialized IN THE CONSTRUCTOR and recorded per attempt; diag read-only', () => {
   const ctor = src.slice(src.indexOf('constructor(state, env)'), src.indexOf('this.ready ='));
   A(ctor.includes('this.lastWake = null'), 'lastWake not constructor-initialized — the exact defect class that 500d relay v2');
   A(src.includes('status: res.status'), 'wake result not recorded');
   A(src.includes("body.type === 'diag'"), 'diag missing');
+});
+await T('P1 wake set: call-end and thread-invite are wake-worthy (missed calls + invites reach locked phones)', () => {
+  A(src.includes("'call-end'") && src.includes("'thread-invite'"), 'wake set incomplete');
+});
+await T('P1 ack-gate: fallback scheduled for the silent-but-connected, cancelled by any inbound word, absent pushed now', () => {
+  A(src.includes('this.pendingWakes.set(clientId, t)') && src.includes('}, 1000);'), 'fallback not scheduled at 1s');
+  A(src.includes('clearTimeout(t0); this.pendingWakes.delete(clientId);'), 'ack does not cancel');
+  A(src.includes('/* absent: push is the only alert, now */'), 'absent path lost immediacy');
+  A(src.includes('connected.has(clientId) && fresh) continue;'), 'presenting devices not exempt');
+});
+await T('P1 liveness constructor-anchored + stamped at accept and inbound', () => {
+  const ctor = src.slice(src.indexOf('constructor(state, env)'), src.indexOf('this.ready ='));
+  A(ctor.includes('this.lastSeen = new Map()') && ctor.includes('this.pendingWakes = new Map()'), 'state not constructor-anchored');
+  A(src.includes('/* acceptance IS liveness */'), 'accept stamp missing');
 });
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
