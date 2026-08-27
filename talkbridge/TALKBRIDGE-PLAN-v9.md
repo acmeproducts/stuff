@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.4.0 -->
-# TALKBRIDGE MASTER PLAN v19.4.0
+<!-- TALKBRIDGE-PLAN v19.5.0 -->
+# TALKBRIDGE MASTER PLAN v19.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -315,17 +315,28 @@ ship's interior is byte-preserved by the assembler; the gate proves the ship
 segments verbatim inside the build. The homepage cards update on open from
 room history exactly as ship does today.
 
-**P6 · THREADS (owner design, final): + on the room card.**
-Bob and Alice are already known to each other — the app acts like it.
-- Every room card on the left panel has a + ("add a thread").
-- Tap + → name the thread → a new room is created inheriting the pair, the
-  languages, and both identities from the parent room.
-- The relay propagates it through the parent room: the new card simply
-  APPEARS on the partner's panel, already subscribed, announced by a normal
-  notification. No invite, no accept, no ceremony.
-- QR + install gate exist for genuinely new people only. (The
-  both-installed-never-connected edge keeps paste-link in the app; not a
-  primary surface.)
+**P6 · THREADS with consent (owner design, final):**
+- Every room card carries + ("add a thread"). Bob taps +, names the thread.
+- Alice receives an INVITE on her panel: thread name, from Bob, Accept /
+  Decline. Her choice — either way — is TIMESTAMPED INTO THE PARENT ROOM'S
+  TRANSCRIPT ("Alice accepted 'Trip planning' · 3:41 PM" / declined).
+- Accept: the thread card appears for her, subscribed, notified normally.
+  Decline: Bob sees it in the transcript; nothing appears for Alice.
+- The invite itself is push-worthy: a locked phone learns a thread was
+  offered.
+- QR + install gate remain for genuinely new people; paste-link stays as the
+  both-installed-never-connected edge.
+
+**Ecosystem map (why this design meets or beats the field on friction):**
+WhatsApp/iMessage get zero-tap adds only because your phone number and
+contact graph ARE the identity system — the exact surveillance surface
+TalkBridge exists to refuse. Signal, the privacy benchmark, requires
+consent to join groups — one tap, like ours. Telegram rides links — our QR
+IS that link, minus the account. Net: TalkBridge matches the privacy
+leader's tap count (1: Accept), beats the mainstream on privacy, and the
+decorum record (timestamped accept/decline in transcript) is something none
+of them surface — an auditable courtesy trail that fits a translation app
+used between strangers-becoming-partners.
 
 ### 4.2 · Explicitly OUT of this release
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
@@ -667,6 +678,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.5.0 · 2026-08-27.** P6 finalized with consent decorum per owner:
+Accept/Decline on thread invites, both outcomes timestamped into the parent
+transcript; invite is push-worthy. Ecosystem map added: matches Signal's
+consent friction (1 tap), beats contact-graph apps on privacy, and the
+transcript courtesy trail is a differentiator none of the field surfaces.
 
 **v19.4.0 · 2026-08-27.** P6 corrected to the owner's actual design:
 THREADS — + icon on each room card creates a derived room that auto-appears
