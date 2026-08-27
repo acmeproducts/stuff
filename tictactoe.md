@@ -1,0 +1,49 @@
+# tictactoe.md — Master Plan (sole authority)
+
+## Project
+**tictactoe.html** — a single-file, mobile-first HTML5 3D tic-tac-toe game that two people can play together.
+
+## DEFINE (current phase — WHAT & WHY, no code yet)
+
+### Purpose (WHY)
+- Give any two people an instant, zero-install way to play tic-tac-toe together — open one file in a browser and play.
+- Make a familiar game feel fresh through a 3D presentation (depth, tilt, animation) rather than a flat grid.
+- Mobile-first: designed for touch and small screens first, desktop second.
+
+### Users (WHO)
+- Casual players of all ages; friends, family, kids, coworkers.
+- Primary scenario: two people sharing one device (pass-and-play).
+- No accounts, no setup, no technical skill required — "anyone can play."
+
+### Outcomes (WHAT)
+- A complete two-player tic-tac-toe match playable end-to-end in one HTML file.
+- 3D visual board (rendered in-browser) with tap/click to place X or O.
+- Clear turn indicator, win and draw detection, winning-line highlight, play-again reset.
+- Score tally across rounds for the session.
+- All diagnostics/status shown in the app UI itself, never console-only.
+
+### Success criteria
+1. Two humans can finish a full game on one device using only touch/mouse.
+2. 3D effect is visible and performs smoothly on a mid-range phone.
+3. Game rules are enforced correctly (no overwriting cells, correct win/draw detection).
+4. Works from a single .html file opened directly in a modern browser.
+5. New round starts in ≤2 taps; scores persist for the session.
+
+### Open questions (need answers before/during build)
+- **Multiplayer mode:** "play with another person" — is local pass-and-play on one device sufficient (recommended for single-file), or is remote/online play required (needs a server or WebRTC signaling — larger scope)?
+- **3D technology:** CSS 3D transforms (lightweight, dependency-free) vs WebGL/Three.js via CDN (richer 3D, needs network for the library)? Default recommendation: CSS 3D for true single-file offline use.
+- **Extras:** single-player vs AI opponent, sound effects, theme options — in or out for v1?
+
+## Backlog (requested, awaiting build phase)
+- BUILD: implement the 3D two-player tic-tac-toe game in tictactoe.html per this plan (requested 2026-08-27, ×4 — user intent is emphatic). Blocked until Define scope confirmed (see open questions); on approval, proceed to code with in-app diagnostics.
+
+## Constraints & standing rules
+- Artifacts: CODE = tictactoe.html (single file, mobile-first); PLAN = this file (only persistent memory).
+- Update-plan-before-code; at most one file write per response.
+- All diagnostics in the app UI, never console-only.
+- Preserve existing functionality not explicitly changed.
+
+## TURN/STAGE LEDGER
+| Date | Stage | What happened this run |
+|---|---|---|
+| 2026-08-27 | DEFINE | Received repeated request to "create a html5 3d tictactie game that anyone can play with another person." Created plan; wrote Define section (purpose, users, outcomes, success criteria); logged build request in backlog; flagged open scope questions (local vs online multiplayer, CSS3D vs WebGL, extras). No code written — project is in Define. |
