@@ -1040,3 +1040,16 @@ SEARCH THE INTERNET and verify the limitation still exists. Claude's
 platform knowledge is stale by default. When the owner's design appears
 blocked by a platform, the first hypothesis is that the constraint model is
 outdated — not that the design is wrong.
+
+## RV2.4 accept-stamp · BURIED UNBUILT-IN-EFFECT · Aug 27 2026
+
+Shipped to the live relay without a plan entry and without owner approval —
+the exact risk the owner has expressly prohibited. Owner ordered rollback.
+The relay is back to its approved shape: R7 + RV2.1/2.2/2.3, nothing else.
+
+The defect it addressed is REAL and stays on the books as C7-KNOWN-RISK:
+after a worker restart, a connected-but-silent client can be wake-targeted
+until it next speaks (≤30s with heartbeats); the upgraded probe demonstrates
+it. If it is to be fixed, it enters the plan as a declared item, is approved,
+and only then is built. The lesson is not the one line — it is the order:
+plan, approve, execute. No exceptions for "small."

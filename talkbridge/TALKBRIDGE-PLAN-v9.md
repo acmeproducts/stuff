@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.15.0 -->
-# TALKBRIDGE MASTER PLAN v16.15.0
+<!-- TALKBRIDGE-PLAN v16.16.0 -->
+# TALKBRIDGE MASTER PLAN v16.16.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -617,6 +617,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.16.0 · 2026-08-27.** Owner ordered rollback of the unapproved RV2.4;
+executed — relay is byte-restored to approved v2 (R7 + RV2.1/2.2/2.3), gate
+10/10. C7 recorded as a KNOWN RISK with a proposed-item entry below; it is
+NOT built and will not be unless approved.
+
+**PROPOSED (awaiting owner decision, not built): RV2.4 — accept-stamp.**
+One line: connection acceptance stamps liveness, so a connected-but-silent
+client is not wake-targeted after a worker restart. Evidence: upgraded probe
+demonstrated the wake live. Without it: possible one extra notification per
+worker restart per silent client, self-healing within ≤30s (heartbeat).
+Approve = it ships alone as its own gated commit; reject = risk stays
+documented.
 
 **v16.15.0 · 2026-08-27.** Process correction (owner-caught): the C7 fix
 below shipped BEFORE this entry and without pausing for owner approval on a
