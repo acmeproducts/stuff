@@ -14,6 +14,7 @@ required = [
     "if (pathname === '/api/sot/health'",
     'function generatePlan(projectToken) {',
     'async function executePlan(planId) {',
+    'function startExecution(projectToken) {',
 ]
 for marker in required:
     if marker not in src:
@@ -206,14 +207,25 @@ plan = plan.replace('const config = settings();', 'const storage = storageFor(pr
 plan = plan.replace('config.target_root', 'storage.target_root').replace('config.backup_root', 'storage.backup_root')
 src = src[:start] + plan + src[end:]
 
-# Revalidate current project storage immediately before immutable-plan execution.
+# Fail synchronously before marking the immutable plan executing if storage changed or vanished.
+start = src.index('function startExecution(projectToken) {')
+end = src.index('\nfunction certify(projectToken)', start)
+starter = src[start:end]
+needle = "  if (Number(plan.evidence_revision) !== Number(project.evidence_revision)) throw httpError(409, 'plan is stale');\n  const at = now();"
+if starter.count(needle) != 1:
+    raise SystemExit('startExecution validation point changed unexpectedly')
+replacement = "  if (Number(plan.evidence_revision) !== Number(project.evidence_revision)) throw httpError(409, 'plan is stale');\n  const storage = storageFor(projectToken, true);\n  for (const item of plan.items) {\n    if (item.action === 'establish_target_backup' && !pathWithin(storage.target_root, item.target_path)) throw httpError(409, 'plan Target no longer matches project Target; regenerate plan');\n    if (item.action !== 'none' && !pathWithin(storage.backup_root, item.backup_path)) throw httpError(409, 'plan Backup no longer matches project Backup; regenerate plan');\n  }\n  const at = now();"
+starter = starter.replace(needle, replacement, 1)
+src = src[:start] + starter + src[end:]
+
+# Revalidate once more inside the worker to close the cutover/race window.
 start = src.index('async function executePlan(planId) {')
 end = src.index('\nfunction startExecution(projectToken)', start)
 execution = src[start:end]
 needle = "  const projectToken = plan.project_token;\n  try {"
 if execution.count(needle) != 1:
     raise SystemExit('executePlan insertion point changed unexpectedly')
-replacement = "  const projectToken = plan.project_token;\n  const storage = storageFor(projectToken, true);\n  for (const item of plan.items) {\n    if (item.action === 'establish_target_backup' && !pathWithin(storage.target_root, item.target_path)) throw httpError(409, 'plan Target no longer matches project Target; regenerate plan');\n    if (item.action !== 'none' && !pathWithin(storage.backup_root, item.backup_path)) throw httpError(409, 'plan Backup no longer matches project Backup; regenerate plan');\n  }\n  try {"
+replacement = "  const projectToken = plan.project_token;\n  try {\n    const storage = storageFor(projectToken, true);\n    for (const item of plan.items) {\n      if (item.action === 'establish_target_backup' && !pathWithin(storage.target_root, item.target_path)) throw httpError(409, 'plan Target no longer matches project Target; regenerate plan');\n      if (item.action !== 'none' && !pathWithin(storage.backup_root, item.backup_path)) throw httpError(409, 'plan Backup no longer matches project Backup; regenerate plan');\n    }"
 execution = execution.replace(needle, replacement, 1)
 src = src[:start] + execution + src[end:]
 
