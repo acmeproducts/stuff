@@ -1064,3 +1064,12 @@ Buried with this entry: shipping many changes between device tests. The new
 law for the rebuild: ONE step at a time, each device-validated before the
 next begins. A regression to ship-approved behavior is a full stop, never a
 "known issue" to test around.
+
+## Step 2 rolled back on sight · Aug 27 2026
+
+The road's Step 2 sentence promised a subscription and a log line. The build
+added a visible banner UI the owner never approved — scope invented beyond
+the approved sentence — and the owner's device showed it broken and useless.
+Rolled back on his word: app = ship bytes, relay = ship R7, pair matched and
+verified. Violation named: declaring and executing in one breath is not
+approval; UI is never implied scope.
