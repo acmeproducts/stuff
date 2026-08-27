@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.0.0 -->
-# TALKBRIDGE MASTER PLAN v19.0.0
+<!-- TALKBRIDGE-PLAN v19.1.0 -->
+# TALKBRIDGE MASTER PLAN v19.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -315,9 +315,23 @@ ship's interior is byte-preserved by the assembler; the gate proves the ship
 segments verbatim inside the build. The homepage cards update on open from
 room history exactly as ship does today.
 
+**P6 · PROPOSED (owner stress-test found the hole; awaiting approval):
+room codes — how room #2 reaches the one true install.**
+Owner scenario: an installed user scans a NEW room's QR in a browser. As
+specced above this dead-ends (gate can't detect installed; a second install
+means a second, separate iOS storage container — a stranger app; the
+existing app has no way to ingest the invite). Completion:
+- Room creation stores the invite payload at the relay under a short room
+  code; the code IS on the invite/QR screen.
+- The gate screen gains one branch: "Already have TalkBridge? Open it and
+  enter this code: XXXXXX" (code huge).
+- Inside the installed app: "Join with code" — type it, the app fetches the
+  invite from the relay, joins, subscribes that room. Any channel, any
+  browser, zero second icons, forever.
+
 ### 4.2 · Explicitly OUT of this release
-Journey polish beyond the gate screen, in-band invites (J8), paste-invite
-(J7), transcription-lag work, rtc glare, R11+ items. Nothing else rides.
+Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
+codes supersede paste-invite J7 if approved — transcription-lag work, rtc glare, R11+ items. Nothing else rides.
 
 ### 4.3 · Machine proof before the owner sees a URL
 Relay: RFC vector byte-exact; ack-gate logic tests + mutations (ack
@@ -655,6 +669,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.1.0 · 2026-08-27.** Owner stress-tested the foundation with the
+room-#2-via-external-QR scenario; spec found incomplete (gate dead-end,
+second-icon storage isolation). P6 room codes proposed as the completion —
+invite payload stored at relay under a short code; gate gains the
+"already installed" branch; app gains "Join with code." Awaiting owner
+approval of P6 alongside the GO.
 
 **v19.0.0 · 2026-08-27.** The complete, coherent R10 specification written
 as one document (§4): one build from ship, relay v4 + install gate +
