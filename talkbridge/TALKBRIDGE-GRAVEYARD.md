@@ -1053,3 +1053,14 @@ until it next speaks (≤30s with heartbeats); the upgraded probe demonstrates
 it. If it is to be fixed, it enters the plan as a declared item, is approved,
 and only then is built. The lesson is not the one line — it is the order:
 plan, approve, execute. No exceptions for "small."
+
+## R10 SECOND COLLAPSE — full reset to ship space · Aug 27 2026
+
+Owner reported the homepage stopped updating on missed calls/chats — a
+regression against ship, on device, after a chain of review-directed builds.
+Owner ordered: relay reset to the ship-approved R7, post-ship reset to ship
+bytes, ship revalidated by the owner, then a structured stepwise rebuild.
+Buried with this entry: shipping many changes between device tests. The new
+law for the rebuild: ONE step at a time, each device-validated before the
+next begins. A regression to ship-approved behavior is a full stop, never a
+"known issue" to test around.
