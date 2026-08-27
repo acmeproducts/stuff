@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.1.0 -->
-# TALKBRIDGE MASTER PLAN v19.1.0
+<!-- TALKBRIDGE-PLAN v19.2.0 -->
+# TALKBRIDGE MASTER PLAN v19.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -315,19 +315,18 @@ ship's interior is byte-preserved by the assembler; the gate proves the ship
 segments verbatim inside the build. The homepage cards update on open from
 room history exactly as ship does today.
 
-**P6 · PROPOSED (owner stress-test found the hole; awaiting approval):
-room codes — how room #2 reaches the one true install.**
-Owner scenario: an installed user scans a NEW room's QR in a browser. As
-specced above this dead-ends (gate can't detect installed; a second install
-means a second, separate iOS storage container — a stranger app; the
-existing app has no way to ingest the invite). Completion:
-- Room creation stores the invite payload at the relay under a short room
-  code; the code IS on the invite/QR screen.
-- The gate screen gains one branch: "Already have TalkBridge? Open it and
-  enter this code: XXXXXX" (code huge).
-- Inside the installed app: "Join with code" — type it, the app fetches the
-  invite from the relay, joins, subscribes that room. Any channel, any
-  browser, zero second icons, forever.
+**P6 · IN-APP QR SCAN (owner-corrected: the QR IS the code; no typing, ever).**
+How room #2 reaches the one true install, on principle:
+- The installed app gets a Scan button (camera permission already exists —
+  video calls). An existing user opens THEIR TalkBridge, taps Scan, points
+  at the SAME QR everyone else sees → joined → that room subscribes. No
+  browser, no typing, no second icon, nothing new generated.
+- The gate screen's branch reads: "Already have TalkBridge? Open it and
+  scan this code with the in-app scanner."
+- Link-shaped invites (text/email): paste the same link into the app's
+  Join field — the fallback, still zero ceremony.
+The typed room code is dead on arrival — friction against the app's entire
+principle. QR decoding runs in-page (pure-JS decoder); no new permissions.
 
 ### 4.2 · Explicitly OUT of this release
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
@@ -669,6 +668,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.2.0 · 2026-08-27.** Owner killed the typed code on principle —
+correctly. P6 rewritten: IN-APP QR SCAN (the same QR, scanned by the
+installed app itself; camera permission already held) + paste-the-link
+fallback for link-shaped invites. Zero typing, zero browser for room #2.
 
 **v19.1.0 · 2026-08-27.** Owner stress-tested the foundation with the
 room-#2-via-external-QR scenario; spec found incomplete (gate dead-end,
