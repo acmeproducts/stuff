@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v18.1.0 -->
-# TALKBRIDGE MASTER PLAN v18.1.0
+<!-- TALKBRIDGE-PLAN v18.2.0 -->
+# TALKBRIDGE MASTER PLAN v18.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,52 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v18.2.0 · 2026-08-27.** OWNER FINDINGS RECORDED + ROOT CAUSES RESEARCHED
+IN THE WILD (no code written; nothing builds until owner approves each).
+
+**F1 · Device config that made the locked iPhone notify (owner-discovered,
+owner-managed):** Settings → Apps → [the PWA] → Notifications: Allow ON;
+Lock Screen + Notification Center + Banners all checked; Sounds ON; Badges
+ON; Show Previews Always; grouping Automatic. Owner notes banner style
+should be TEMPORARY, not Persistent. Research: banner style and all of the
+above are USER-side iOS settings — no web API can set, read, or default
+them; industry ships an instructions screen. This block is the documented
+device recipe.
+
+**F2 · Double alert (in-app call screen + system notification together).**
+Root cause per platform docs: two independent presenters with no
+reconciliation — the socket draws the ring screen while the push shows a
+banner, and on iOS the service worker MUST show a notification for every
+push or Apple revokes the subscription after a few suppressed ones, so
+"don't show when foreground" (the standard practice everywhere else) cannot
+be applied raw on iOS. The reference solution in the wild is receiver-side
+reconciliation: the app, upon presenting the event itself (ring screen
+drawn, call answered, message read), closes the now-redundant system
+notification via the registration's notification list; notification tags
+make successive pushes replace instead of stack; the notification click
+handler closes its notification and focuses the existing window instead of
+opening a new one. MDN explicitly blesses exactly this: close() is for
+removing a notification made irrelevant because the user already saw the
+content in the app.
+
+**F3 · Notification lingers after the call is answered.** Same mechanism as
+F2: nothing ever closes it. The wild's pattern: on answer/read, enumerate
+and close matching notifications; on tap, close before focusing. The
+Persistent banner style (device setting, F1) amplifies the lingering but the
+root cause is the app never closing what it has superseded.
+
+**F4 · Onboarding is PWA-first, mandatory (owner ruling, industry-backed).**
+Confirmed in the wild: iOS shares NO storage between browser tabs and the
+installed app (name-carry is structurally impossible — see graveyard); push
+exists ONLY for the installed app; install cannot be triggered
+programmatically on iOS; installed-state cannot be detected from the browser
+side; standalone CAN be self-detected from inside (navigator.standalone /
+display-mode). The wild's pattern is the INSTALL GATE ("install this PWA to
+continue"): the invite page in a browser shows install instructions and
+nothing else — no name field, no room, no illusion of a working app. First
+standalone open: ask the name once, join the invite's room, subscribe.
+Documented as the R10 onboarding spec awaiting owner approval; no code.
 
 **v18.1.0 · 2026-08-27.** Owner rejected the fresh-path deviation: /stuff/tb/
 REMOVED, relay restored to ship R7. Pair = app ship / relay ship, verified.

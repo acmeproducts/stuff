@@ -1073,3 +1073,16 @@ the approved sentence — and the owner's device showed it broken and useless.
 Rolled back on his word: app = ship bytes, relay = ship R7, pair matched and
 verified. Violation named: declaring and executing in one breath is not
 approval; UI is never implied scope.
+
+## Browser-side name entry + name-carry into the PWA · BURIED PERMANENTLY · Aug 27 2026
+
+Industry documentation confirms the owner's ruling: on iOS, caches and
+locally-stored data are NOT shared between Safari, in-app browsers, and the
+installed web app. Carrying identity from a browser tab into the PWA is a
+structurally losing bet — we lost it every time we placed it (cookie handoff,
+jn-in-hash, augment-on-type: all variations of the same buried idea).
+Corollary buried with it: any onboarding step that lets a user "use the app"
+in a browser tab creates the illusion of a working install that can never
+notify. The browser page's only legitimate jobs are: show the install gate.
+Name collection happens INSIDE the installed app, once, on first standalone
+open. It is never an option not to be notified.
