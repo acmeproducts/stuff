@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v18.3.0 -->
-# TALKBRIDGE MASTER PLAN v18.3.0
+<!-- TALKBRIDGE-PLAN v18.4.0 -->
+# TALKBRIDGE MASTER PLAN v18.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,29 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v18.4.0 · 2026-08-27.** Owner ruling: ONE release, rebuilt FROM SHIP —
+never sequential patches. R10 = a single post-ship built fresh from ship
+bytes containing exactly four declared pieces, shipped as one gated unit
+with the relay as its matched pair:
+1. RELAY (v3 recipe): encrypted payload per RFC 8291 (gate = the RFC's own
+   test vector), Urgency high, Topic newest-wins, TTL 60, plus the
+   freshness/acceptance liveness rule so provably-connected phones are not
+   pushed (narrows the double-alert window at the sender).
+2. ONBOARDING: install gate. Invite in a browser shows install instructions
+   ONLY — no name, no room, no usable app. First standalone open: name once,
+   join invite room, Allow, subscribe (subscribe-attempt is the authority).
+3. RECONCILIATION: app closes the matching system notification the moment it
+   presents the call/message itself (ring shown, call answered, room read);
+   notification tap closes itself and focuses the app; tags replace, never
+   stack. (iOS forbids suppression at show-time — reconciliation is the
+   documented fix.)
+4. DEVICE RECIPE (F1): the owner's iOS settings block, shipped as the
+   instructions screen content; not code-settable.
+Gates before handover: RFC vector, client harness incl. install-gate
+behavior (browser context shows gate only; standalone runs onboarding),
+reconciliation effect tests, mutations, live relay probe, byte-verify, pair
+stated. Owner device test only after ALL green. Awaiting owner GO.
 
 **v18.3.0 · 2026-08-27.** OWNER CORRECTION, accepted: the "wedge" is
 demoted from root cause to symptom. Owner's evidence: unique PWA name on
