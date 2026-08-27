@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.3.0 -->
-# TALKBRIDGE MASTER PLAN v19.3.0
+<!-- TALKBRIDGE-PLAN v19.4.0 -->
+# TALKBRIDGE MASTER PLAN v19.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -315,19 +315,17 @@ ship's interior is byte-preserved by the assembler; the gate proves the ship
 segments verbatim inside the build. The homepage cards update on open from
 room history exactly as ship does today.
 
-**P6 · IN-BAND INVITES (owner-corrected, final): invites travel through
-the room.** Connected people already have a live channel — the invite is
-just a message on it:
-- A creates a new room → an invite card appears on B's left panel
-  automatically (room name, inviter, Accept). One tap: joined, subscribed.
-  Nothing to know, nothing to open — it arrives like a chat message does.
-  This is the mechanism for every repeat conversation between people who
-  already share any room: the dominant case.
-- Edge only — both have the app, zero shared rooms (no channel to carry a
-  card): the in-app Scan/paste-link path bootstraps the first connection.
-- New person, no app: QR → install gate → install once → in.
-Three cases, each with its natural mechanism. No typed codes, no cameras
-for connected people, no ceremony anywhere.
+**P6 · THREADS (owner design, final): + on the room card.**
+Bob and Alice are already known to each other — the app acts like it.
+- Every room card on the left panel has a + ("add a thread").
+- Tap + → name the thread → a new room is created inheriting the pair, the
+  languages, and both identities from the parent room.
+- The relay propagates it through the parent room: the new card simply
+  APPEARS on the partner's panel, already subscribed, announced by a normal
+  notification. No invite, no accept, no ceremony.
+- QR + install gate exist for genuinely new people only. (The
+  both-installed-never-connected edge keeps paste-link in the app; not a
+  primary surface.)
 
 ### 4.2 · Explicitly OUT of this release
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
@@ -669,6 +667,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v19.4.0 · 2026-08-27.** P6 corrected to the owner's actual design:
+THREADS — + icon on each room card creates a derived room that auto-appears
+on the partner's panel, subscribed and notified. Invite/accept ceremony
+between known parties abolished.
 
 **v19.3.0 · 2026-08-27.** Owner corrected P6 again, decisively: connected
 people need no QR — the invite rides the existing room as an Accept card on
