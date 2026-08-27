@@ -3,7 +3,7 @@
 import { readFileSync } from 'fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 const ship = readFileSync(new URL('../../bridge-turn24-ship.html', import.meta.url), 'utf8');
-const built = readFileSync(new URL('../../bridge-turn24-post-ship.html', import.meta.url), 'utf8');
+const built = readFileSync(new URL('../../tb/index.html', import.meta.url), 'utf8');
 let pass = 0, fail = 0;
 const T = (n, f) => Promise.resolve().then(f).then(() => { pass++; console.log('  ok  ' + n); }, e => { fail++; console.log('FAIL  ' + n + ' — ' + (e && e.message || e)); });
 const A = (c, m) => { if (!c) throw new Error(m); };
@@ -11,7 +11,7 @@ const A = (c, m) => { if (!c) throw new Error(m); };
 await T('S1 additive: ship intact, exactly one part, no old-R10 identifiers', () => {
   const idx = ship.lastIndexOf('</script>');
   A(built.includes(ship.slice(0, idx)), 'ship body altered');
-  A(built.includes('n1-step2-subscribe'), 'part missing');
+  A(built.includes('n1-silent-subscribe') || built.includes('s2Subscribe'), 'part missing');
   for (const bad of ['R10-phase-a', 'PA5-', 'PH-subscription', 'N6-gesture', 'pa5AutoAsk']) A(!built.includes(bad), bad + ' leaked in');
 });
 
@@ -52,10 +52,11 @@ await T('E1 THE DEVICE CONDITION: answer=denied + prop=granted → subscribe STI
     'the lying answer stopped the subscribe again'));
 await T('E2 every room registered with the relay', () =>
   A(w.S2 && w.S2.subscribedRooms.roomA === 1 && w.S2.subscribedRooms.roomB === 1, JSON.stringify(w.S2 && w.S2.subscribedRooms)));
-await T('E3 state=on and no banner after success', () =>
-  A(w.S2.state === 'on' && !w.document.getElementById('s2-nb'), 'state=' + (w.S2 && w.S2.state)));
-await T('E4 NotAllowedError → blocked state → banner names the Settings switch', () => {
-  A(built.includes("n === 'NotAllowedError'") && built.includes('Settings → Notifications → TalkBridge'), 'authoritative denial path missing');
+await T('E3 state=on after success', () => A(w.S2.state === 'on', 'state=' + (w.S2 && w.S2.state)));
+await T('E4 SILENT: zero UI anywhere in the part — no banner, no button, no element creation', () => {
+  A(built.includes("n === 'NotAllowedError'"), 'authoritative denial classification missing');
+  const part = built.slice(built.lastIndexOf('STEP 2 PART'));   /* the part itself, not the head comment */
+  A(!/createElement|innerHTML|textContent|insertBefore|appendChild/.test(part.slice(0, part.indexOf('</script>'))), 'the part touches the DOM');
 });
 /* second boot: prop=DEFAULT, answer=denied — the ask actually fires and its
    answer must still not veto the subscribe */
