@@ -14,7 +14,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # Frozen, accepted pre-base backend source. Do not build from the rejected wrapper.
 CORE_URL='https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js'
-INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/ed2d24016aea2cd780dbddc4e0f6696b01722718/integrate-SOT-turn01-base.py'
+INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/b8ccdcebf2f94b92a09fa094686c9d2b322d28d2/integrate-SOT-turn01-base.py'
 # The UI delta was not the cause of the rejected deployment; its canonical Base bytes are retained and requalified here.
 HTML_URL='https://raw.githubusercontent.com/acmeproducts/stuff/41f18cd9088bd16f80a682c59ce0be937b794779/SOT-turn01-base.html'
 PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html'
@@ -50,7 +50,6 @@ pathlib.Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
 PY
 node --check "$TMP/ui.js"
 
-# Mechanical DB gate before touching the service.
 echo '=== PRE-FLIGHT EXISTING DATABASE ==='
 python3 - "$DB" <<'PY'
 import sqlite3,sys
@@ -63,7 +62,6 @@ if str(ok).lower() != 'ok': raise SystemExit(f'integrity failed: {ok}')
 print('schema:',ver,'integrity:',ok)
 PY
 
-# Preserve exact currently working runtime before cutover.
 cp -a "$REPORT_ROOT/sot-api.js" "$RUNTIME_BACKUP"
 if [ -f "$SOT_DIR/SOT-turn01-base.html" ]; then cp -a "$SOT_DIR/SOT-turn01-base.html" "$HTML_BACKUP"; fi
 
@@ -125,7 +123,6 @@ for v in x['volumes']:
     print(' -',v.get('name'),v.get('path'),'free=',v.get('free_bytes'))
 PY
 
-# Read-only storage contract gate against the first existing project when available.
 curl --max-time 5 -fsS http://127.0.0.1:18080/api/sot/projects -o "$TMP/projects.json"
 PROJECT_TOKEN="$(python3 - "$TMP/projects.json" <<'PY'
 import json,sys
