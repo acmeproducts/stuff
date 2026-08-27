@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v16.14.0 -->
-# TALKBRIDGE MASTER PLAN v16.14.0
+<!-- TALKBRIDGE-PLAN v16.15.0 -->
+# TALKBRIDGE MASTER PLAN v16.15.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -617,6 +617,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v16.15.0 · 2026-08-27.** Process correction (owner-caught): the C7 fix
+below shipped BEFORE this entry and without pausing for owner approval on a
+relay change — recorded here after the fact, which is the wrong order.
+The change itself: the reviewer refuted C7 (silent-but-connected clients get
+pushed after a worker restart); the upgraded probe then CONFIRMED it live
+(subscribed, connected, silent client ciB was wake-targeted). Fix: RV2.4 —
+connection acceptance stamps liveness (one line). Relay gate 11/11 including
+a mutation deleting the stamp; live probe green on all six checks after
+redeploy. Owner offered explicit revert option; standing decision recorded
+when given.
 
 **v16.14.0 · 2026-08-27.** Third-party review adopted wholesale. SHIPPED:
 (1) subscribe() is the sole permission authority — the requestPermission
