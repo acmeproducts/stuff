@@ -83,63 +83,6 @@ function bytesToB64url(bytes) {
 /* ── VAPID ────────────────────────────────────────────────────────────────
    A signed assertion that this server is who it claims to be. Cached per
    audience because it is valid for hours and signing it per push is waste. */
-
-/* ── STEP 1 (plan v17.1.0) · RFC 8291 payload encryption ─────────────────────
-   The reference push that showed on the owner's LOCKED iPhone four-for-four
-   carried an encrypted payload at Urgency: high. Empty unmarked pushes are
-   the class Apple defers on locked devices. This is that same delivery
-   class, implemented per RFC 8291 (aes128gcm) with WebCrypto, and gated by
-   the RFC's own Appendix-A test vector — byte-exact or the build fails. */
-function b64uToBytes(s) {
-  const pad = '='.repeat((4 - s.length % 4) % 4);
-  const b = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
-  const a = new Uint8Array(b.length);
-  for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
-  return a;
-}
-function concatBytes(...arrs) {
-  const n = arrs.reduce((t, a) => t + a.length, 0);
-  const out = new Uint8Array(n);
-  let o = 0;
-  for (const a of arrs) { out.set(a, o); o += a.length; }
-  return out;
-}
-async function hkdf(salt, ikm, info, len) {
-  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, len * 8);
-  return new Uint8Array(bits);
-}
-/* Encrypt plaintext for a push subscription (RFC 8291 single record).
-   testKeys (optional): { asPrivateJwk, asPublicRaw, salt } for the RFC vector. */
-async function webpushEncrypt(plaintext, p256dhB64u, authB64u, testKeys) {
-  const uaPub = b64uToBytes(p256dhB64u);
-  const authSecret = b64uToBytes(authB64u);
-  let asKeys, salt;
-  if (testKeys) {
-    asKeys = {
-      privateKey: await crypto.subtle.importKey('jwk', testKeys.asPrivateJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']),
-      publicRaw: b64uToBytes(testKeys.asPublicRaw)
-    };
-    salt = b64uToBytes(testKeys.salt);
-  } else {
-    const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
-    asKeys = { privateKey: kp.privateKey, publicRaw: new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey)) };
-    salt = crypto.getRandomValues(new Uint8Array(16));
-  }
-  const uaKey = await crypto.subtle.importKey('raw', uaPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, asKeys.privateKey, 256));
-  const enc = new TextEncoder();
-  const keyInfo = concatBytes(enc.encode('WebPush: info\0'), uaPub, asKeys.publicRaw);
-  const ikm = await hkdf(authSecret, ecdh, keyInfo, 32);
-  const cek = await hkdf(salt, ikm, enc.encode('Content-Encoding: aes128gcm\0'), 16);
-  const nonce = await hkdf(salt, ikm, enc.encode('Content-Encoding: nonce\0'), 12);
-  const padded = concatBytes(enc.encode(plaintext), new Uint8Array([2]));   /* 0x02 = last record */
-  const aesKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, padded));
-  const header = concatBytes(salt, new Uint8Array([0, 0, 16, 0, asKeys.publicRaw.length]), asKeys.publicRaw);
-  return concatBytes(header, ct);
-}
-
 const vapidCache = new Map();
 
 async function vapidHeader(env, endpoint) {
@@ -194,7 +137,6 @@ export default {
 export class TalkSession {
   constructor(state, env) {
     this.state = state;
-    this.lastWake = null;   /* Step 1 observability — constructor-anchored (the anchor that cannot not exist) */
     this.env = env;
     this.seq = 0;
     this.messages = [];
@@ -253,26 +195,16 @@ export class TalkSession {
     await this.state.storage.put({ subs: this.subs });
   }
 
-  /* STEP 1: the reference delivery class — encrypted payload, high urgency,
-     newest-wins topic, short TTL. Proven on the owner's locked iPhone 4/4. */
+  /* A bare wake. No content leaves for the push service — the worker fetches
+     what it missed over the history endpoint it already has. */
   async _pushOne(clientId, rec) {
     const endpoint = rec && rec.sub && rec.sub.endpoint;
-    const keys = rec && rec.sub && rec.sub.keys;
-    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
-    let body;
-    try {
-      body = await webpushEncrypt(JSON.stringify({ t: 'tb-wake', at: Date.now() }), keys.p256dh, keys.auth);
-    } catch (_) { return; }
-    const headers = {
-      TTL: '60', Urgency: 'high', Topic: 'tb-wake',
-      'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
-      'Content-Length': String(body.length)
-    };
+    if (!endpoint) return;
+    const headers = { TTL: '86400', 'Content-Length': '0' };
     const auth = await vapidHeader(this.env, endpoint);
     if (auth) headers.Authorization = auth;
     try {
-      const res = await fetch(endpoint, { method: 'POST', headers, body });
-      this.lastWake = { clientId, at: Date.now(), status: res.status };
+      const res = await fetch(endpoint, { method: 'POST', headers });
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
          Keeping it would mean retrying forever against nothing. */
       if (res.status === 404 || res.status === 410) {
@@ -331,9 +263,6 @@ export class TalkSession {
       try { body = await request.json(); } catch (_) { return err('Bad body'); }
 
       /* The app asks for the public key before it can subscribe at all. */
-      if (body && body.type === 'diag') {
-        return json({ ok: true, connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake });
-      }
       if (body && body.type === 'vapid') {
         return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
       }

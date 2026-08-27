@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v18.0.0 -->
-# TALKBRIDGE MASTER PLAN v18.0.0
+<!-- TALKBRIDGE-PLAN v18.1.0 -->
+# TALKBRIDGE MASTER PLAN v18.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v18.1.0 · 2026-08-27.** Owner rejected the fresh-path deviation: /stuff/tb/
+REMOVED, relay restored to ship R7. Pair = app ship / relay ship, verified.
+The wedged iOS state gets cleared ON THE PHONE per owner's process, not by
+serving tricks. Repo rule reaffirmed: no artifacts without permission.
 
 **v18.0.0 · 2026-08-27.** EXECUTING (owner: stalled, act): TalkBridge moves
 to a fresh serving path /stuff/tb/ — iOS scopes web-app notification state
