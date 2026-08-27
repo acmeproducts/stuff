@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v17.2.0 -->
-# TALKBRIDGE MASTER PLAN v17.2.0
+<!-- TALKBRIDGE-PLAN v18.0.0 -->
+# TALKBRIDGE MASTER PLAN v18.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -618,6 +618,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v18.0.0 · 2026-08-27.** EXECUTING (owner: stalled, act): TalkBridge moves
+to a fresh serving path /stuff/tb/ — iOS scopes web-app notification state
+per path, the old path's state is wedged (fresh installs inherit granted
+without a prompt), the reference at a fresh path delivered 4/4 locked.
+Same origin → phrasebook/API keys in localStorage carry over. Old app stays
+untouched at the old path. SHIPPING AS ONE UNIT (pair law): relay v3
+restored (RFC-vector-gated encrypted push, urgency high, diag) + app at
+/stuff/tb/ = ship + one SILENT subscribe part (no UI whatsoever, log-only)
++ its own manifest and SW. Gates before handover. Handover = one URL.
 
 **v17.2.0 · 2026-08-27.** Step 1 live and machine-proven (gate 5/5, mutations
 5/5, live wake probe green). STEP 2 DECLARED AND EXECUTING: post-ship = ship
