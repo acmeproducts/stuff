@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- REFERENCE IMPLEMENTATION — deliberately NOT TalkBridge code.
+     Pattern follows the canonical minimal examples:
+     WebKit: "Web Push for Web Apps on iOS and iPadOS" (webkit.org/blog/13878)
+     MDN Push API guide. Zero TalkBridge machinery. One purpose:
+     does THIS iPhone show a push on the lock screen, yes or no. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="./manifest.json">
+<title>Push Reference</title>
+<style>
+ body{font-family:-apple-system,system-ui;margin:24px;line-height:1.5}
+ button{font-size:18px;padding:14px 18px;border-radius:10px;border:1px solid #888;background:#0a7;color:#fff;width:100%}
+ textarea{width:100%;height:150px;font-size:11px;margin-top:12px}
+ #st{font-weight:700;margin:12px 0}
+</style>
+</head>
+<body>
+<h2>Push Reference Test</h2>
+<ol>
+<li>Open this page in any browser on the iPhone</li>
+<li>Share → <b>Add to Home Screen</b> → Add</li>
+<li>Open the new <b>Push Reference</b> icon</li>
+<li>Tap the button, tap <b>Allow</b></li>
+<li>Copy the box, paste it to Claude</li>
+</ol>
+<button id="go">Enable & Subscribe</button>
+<div id="st">status: idle</div>
+<textarea id="out" readonly placeholder="subscription appears here"></textarea>
+<button id="cp" style="background:#357">Copy</button>
+<script>
+const PUB='BLIxDV0RZjr0r2kzIKkOBT6OVZBpBO8EZR5M5rQ-6xu0m-VqkWbOfaiS6KVh9wH_6J2R4O2vmnjcwHY2n3F-DnA';
+const st=t=>document.getElementById('st').textContent='status: '+t;
+function b64ToU8(s){const p='='.repeat((4-s.length%4)%4);const b=(s+p).replace(/-/g,'+').replace(/_/g,'/');const r=atob(b);const a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a}
+document.getElementById('go').addEventListener('click',()=>{
+  const perm=Notification.requestPermission();     /* first, synchronously, inside the tap */
+  st('asked ('+Notification.permission+')');
+  perm.then(async ans=>{
+    st('answer='+ans+' prop='+Notification.permission);
+    const reg=await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    try{
+      const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(PUB)});
+      st('SUBSCRIBED ✓ host='+new URL(sub.endpoint).host);
+      document.getElementById('out').value=JSON.stringify(sub.toJSON());
+    }catch(e){st('subscribe REFUSED: '+e.name+' — '+e.message)}
+  });
+});
+document.getElementById('cp').addEventListener('click',()=>{
+  const o=document.getElementById('out');o.select();document.execCommand('copy');st('copied');
+});
+if(location.search.includes('standalone')||matchMedia('(display-mode: standalone)').matches)st('installed app mode ✓');
+</script>
+</body>
+</html>

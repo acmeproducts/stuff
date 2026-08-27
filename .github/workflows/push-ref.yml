@@ -1,0 +1,24 @@
+name: push-ref-send
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Notification text'
+        default: 'Reference push — if you see this on the lock screen, delivery works'
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          npm install web-push --silent
+          node -e "
+          const wp=require('web-push');
+          const sub=JSON.parse(require('fs').readFileSync('pushref/subscription.json','utf8'));
+          wp.setVapidDetails('mailto:test@example.com','BLIxDV0RZjr0r2kzIKkOBT6OVZBpBO8EZR5M5rQ-6xu0m-VqkWbOfaiS6KVh9wH_6J2R4O2vmnjcwHY2n3F-DnA','kcoSO3p7gsUdZYkIyuD7crRnNncqXePBpIGvc7pmi9k');
+          wp.sendNotification(sub, process.env.MSG, {urgency:'high', TTL:60})
+            .then(r=>console.log('SENT status', r.statusCode))
+            .catch(e=>{console.log('SEND FAILED', e.statusCode, e.body||e.message);process.exit(1)});
+          "
+        env:
+          MSG: ${{ github.event.inputs.message }}
