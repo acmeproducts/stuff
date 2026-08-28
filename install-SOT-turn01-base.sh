@@ -4,22 +4,31 @@ set -euo pipefail
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Base-5 is failed evidence and is never installed directly by this wrapper.
-# Rebuild its installer definition, apply only the WSL2 9p mount correction,
-# and let the generated installer retain the existing archive/rollback/gates.
-BASE5_WRAPPER_URL='https://raw.githubusercontent.com/acmeproducts/stuff/a38287b25097289369ff92651e58654aec0dd69c/install-SOT-turn01-base.sh'
-INSTALLER_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/00f1edbf90ad19f9b946f6fc0ceebc21f68a29f7/patch-SOT-turn01-base-installer-wsl9p.py'
-WSL9P_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/f60d33eb5f1deaa250637a9e35f59a516ce73d96/patch-SOT-turn01-base-wsl9p.py'
+# Rebuild from the accepted pre-base lineage through the mechanically checked
+# Base-6 generator, then apply the two scoped Base-7 deltas before any live
+# cutover: full real-volume inventory and completed-project idle refresh.
+BASE6_GENERATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/e182835393f1ab7b9c2508684275b06d476e37f7/install-SOT-turn01-base.sh'
+WRAPPER7_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/86ae1db4260118780768fae7a2fe6bea85856998/patch-SOT-turn01-base-wrapper7.py'
 
-curl --max-time 30 -fsSL "$BASE5_WRAPPER_URL" -o "$TMP/base5-wrapper.sh"
-curl --max-time 30 -fsSL "$INSTALLER_PATCH_URL" -o "$TMP/patch-installer.py"
-curl --max-time 30 -fsSL "$WSL9P_PATCH_URL" -o "$TMP/patch-wsl9p.py"
+curl --max-time 30 -fsSL "$BASE6_GENERATOR_URL" -o "$TMP/base6-generator.sh"
+curl --max-time 30 -fsSL "$WRAPPER7_PATCH_URL" -o "$TMP/patch-wrapper7.py"
 
-python3 "$TMP/patch-installer.py" "$TMP/base5-wrapper.sh" "$TMP/base6-wrapper.sh" "$WSL9P_PATCH_URL"
-bash -n "$TMP/base6-wrapper.sh"
-grep -q "2026.08.28.sot-turn01-base-6" "$TMP/base6-wrapper.sh"
-grep -q "fstype === '9p' || fstype === 'drvfs'" "$TMP/patch-wsl9p.py"
-grep -q 'FSTYPE.*9p' "$TMP/base6-wrapper.sh"
-grep -q 'FSTYPE.*drvfs' "$TMP/base6-wrapper.sh"
+# Intercept the generated Base-6 wrapper before execution. Base-6 remains an
+# intermediate build artifact only; it is never installed live by this wrapper.
+python3 - "$TMP/base6-generator.sh" "$TMP/base7-generator.sh" "$WRAPPER7_PATCH_URL" <<'PY'
+from pathlib import Path
+import sys
+src=Path(sys.argv[1]).read_text()
+patch_url=sys.argv[3]
+old='exec bash "$TMP/base6-wrapper.sh"'
+new=f'''curl --max-time 30 -fsSL "{patch_url}" -o "$TMP/patch-wrapper7.py"\npython3 "$TMP/patch-wrapper7.py" "$TMP/base6-wrapper.sh" "$TMP/base7-wrapper.sh"\nbash -n "$TMP/base7-wrapper.sh"\ngrep -q "2026.08.28.sot-turn01-base-7" "$TMP/base7-wrapper.sh"\ngrep -q "patch-SOT-turn01-base-volume-union.py" "$TMP/base7-wrapper.sh"\ngrep -q "patch-SOT-turn01-base-idle-refresh.py" "$TMP/base7-wrapper.sh"\nexec bash "$TMP/base7-wrapper.sh"'''
+if src.count(old)!=1:
+    raise SystemExit(f'Base-6 execution anchor changed unexpectedly: {src.count(old)}')
+src=src.replace(old,new,1)
+Path(sys.argv[2]).write_text(src)
+PY
 
-exec bash "$TMP/base6-wrapper.sh"
+bash -n "$TMP/base7-generator.sh"
+grep -q 'patch-wrapper7.py' "$TMP/base7-generator.sh"
+
+exec bash "$TMP/base7-generator.sh"
