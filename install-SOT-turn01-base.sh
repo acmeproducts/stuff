@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP"' EXIT
 # Base-6 generator, then apply the two scoped Base-7 deltas before any live
 # cutover: full real-volume inventory and completed-project idle refresh.
 BASE6_GENERATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/e182835393f1ab7b9c2508684275b06d476e37f7/install-SOT-turn01-base.sh'
-WRAPPER7_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/86ae1db4260118780768fae7a2fe6bea85856998/patch-SOT-turn01-base-wrapper7.py'
+WRAPPER7_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/7e44fdf2fb5ef962102a35999f7014caedf1eab7/patch-SOT-turn01-base-wrapper7.py'
 
 curl --max-time 30 -fsSL "$BASE6_GENERATOR_URL" -o "$TMP/base6-generator.sh"
 curl --max-time 30 -fsSL "$WRAPPER7_PATCH_URL" -o "$TMP/patch-wrapper7.py"
