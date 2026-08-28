@@ -28,16 +28,16 @@ const app = [
   s => s.replace("var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }", "var asked = Promise.resolve().then(function(){ return Notification.requestPermission(); });").replace("A(w.__askCalls === 1", "A(w.__askCalls === 1")],
  ['only the first room registers with the relay',
   s => s.replace("if (!p3State.sub || !roomId) return Promise.resolve(false);", "if (!p3State.sub || !roomId || roomId !== p3LiveRooms()[0].id) return Promise.resolve(false);")],
- ['background listeners fall silent',
-  s => s.replace("for (var id in (LISTEN.socks || {})) LISTEN.send(id, { type: 'ping', transient: true });", ";")],
- ['a muted room stays subscribed at the relay',
+  ['a muted room stays subscribed at the relay',
   s => s.replace("var room = roomById(roomId), want = !(room && room.muted);", "var room = roomById(roomId), want = true;")],
- ['the ring screen no longer acks (banner beside every ring)',
-  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && roomById(roomId)) p4Ack(roomId); }", ";")],
- ['the active room no longer acks',
-  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4Ack(S.roomId); }", ";")],
- ['a hidden app acks (locked phone never pushed)',
-  s => s.replace("p4IsPushWorthy(d) && !document.hidden && roomById(roomId)) p4Ack(roomId);", "p4IsPushWorthy(d) && roomById(roomId)) p4Ack(roomId);")],
+    ['the ring screen no longer closes the stale lock-screen notification (the observed double)',
+  s => s.replace("try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4PresentedClose(room.id); } catch (_) {}", ";")],
+ ['the active room stops closing the banner for what it shows',
+  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4PresentedClose(S.roomId); }", ";")],
+ ['the delayed second close vanishes (late banners survive)',
+  s => s.replace("setTimeout(function () { p4CloseTag(roomId); }, 2500);", ";")],
+ ['a hidden app raises a surface beside the push',
+  s => s.replace("if (document.hidden) return;                                                        /* hidden: the push is the alert (ALWAYS-PUSH) */", ";")],
  ['a notification stacks beside the ring screen',
   s => s.replace("if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */", ";")],
  ['notifications lose their per-room tag (stack, never replace)',
@@ -72,6 +72,10 @@ const app = [
   s => s.replace("function boot(){", "function boot(){ /* mutated */")],
 ];
 const worker = [
+ ['a visible app on Android is shouted over (skip-when-visible removed)',
+  s => s.replace("if (vc && !isIOS()) {", "if (false) {")],
+ ['a visible app on iOS gets a silent handler (Apple revokes)',
+  s => s.replace("return /iPhone|iPad|iPod/.test(self.navigator.userAgent)", "return false && /iPhone|iPad|iPod/.test(self.navigator.userAgent)")],
  ['the worker goes silent on a push (Apple revokes the subscription)',
   s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })", "return Promise.resolve()")],
  ['the worker stops journaling shown',
@@ -92,5 +96,24 @@ function run(name, appText, swText) {
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",").map(Number) : null;
 for (const [i, [name, fn]] of app.entries()) { if (ONLY && !ONLY.includes(i)) continue; const m = fn(built); if (m === built) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, m, sw); }
 for (const [name, fn] of worker) { if (ONLY) continue; const m = fn(sw); if (m === sw) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, built, m); }
+const relayMuts = [
+ ['the presence guess returns (connected devices skipped)',
+  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      if (!this._connectedIds().has(clientId)) jobs.push(this._pushOne(clientId, rec));")],
+ ['a wake timer returns (the 1s race)',
+  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      setTimeout(() => this._pushOne(clientId, rec), 1000);")],
+ ['the sender starts waking itself',
+  s => s.replace("if (clientId === senderId) continue;", ";")],
+ ['non-worthy types start waking phones',
+  s => s.replace("if (!PUSH_WORTHY.has(msg.type)) return;", ";")],
+];
+const relaySrc = readFileSync(relayP, 'utf8');
+for (const [name, fn] of relayMuts) {
+  if (ONLY) continue;
+  const m = fn(relaySrc); total++;
+  if (m === relaySrc) { console.log('NO-OP    ' + name); continue; }
+  writeFileSync('/tmp/mut-relay.js', m);
+  const r = spawnSync('node', [new URL('./harness-relay-v42.mjs', import.meta.url).pathname, '/tmp/mut-relay.js'], { encoding: 'utf8' });
+  if (r.status !== 0) { caught++; console.log('  caught  ' + name); } else console.log('ESCAPED  ' + name);
+}
 console.log(`\n${caught}/${total} mutations caught`);
 process.exit(caught === total ? 0 : 1);

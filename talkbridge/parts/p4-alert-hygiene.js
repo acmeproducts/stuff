@@ -1,19 +1,20 @@
 
 /* ═══════════ R10 PART · P4-alert-hygiene.js ═══════════ */
 /* @contract
-   wraps: handleRelay, LISTEN.handle, osNotify, CALL.accept, enterRoom, saveRooms, p2Entry
-   adds: p4Log, p4Idb, p4Journal, p4Drain, p4SaveCtx, p4Ack, p4IsPushWorthy, p4CloseTag, p4State, p4SwNotify, p4OnSwMessage
-   Plan v19.5.0 §4.1 P4 — exactly-one-alert hygiene, app side.
-   - ACK: any push-worthy event the app PRESENTS while in the foreground is acked
-     on that room's socket at once, so the relay's 1s fallback push never fires.
-     A backgrounded/locked app acks nothing: the push is its only alert.
-   - Presentation on mobile: the ship's in-page notification is a no-op inside an
-     installed app on iOS and Android, so it is wrapped to also present through
-     the worker, tagged per room (replace, never stack). A ring screen is the
-     alert for a call; no notification is raised beside it.
+   wraps: handleRelay, osNotify, CALL.onIncoming, CALL.accept, enterRoom, saveRooms, p2Entry
+   adds: p4Log, p4Idb, p4Journal, p4Drain, p4SaveCtx, p4IsPushWorthy, p4CloseTag, p4PresentedClose, p4State, p4SwNotify, p4OnSwMessage
+   Plan v20.0.0 §4.6 P4v2 — device-side presentation under ALWAYS-PUSH.
+   - The relay pushes every event; the DEVICE decides what the person sees.
+   - An event the app presents while visible (active-room message, ring screen,
+     panel badge/toast) closes that room's notifications at once and again
+     ~2.5s later (P4v2-c) — the app's own surface is the alert.
+   - Presentation on mobile: the ship's in-page notification is a no-op inside
+     an installed app, so it is wrapped to also present through the worker,
+     tagged per room (replace, never stack). A ring screen is the alert for a
+     call; no notification is raised beside it.
    - Housekeeping: call answered / room opened → that room's notifications close.
-   - The worker's durable journal (arrived / shown / failed) is drained into the
-     debug log on every open and every return to the foreground.
+   - The worker's durable journal (arrived / shown / skipped / failed) is
+     drained into the debug log on every open and return to the foreground.
 */
 var p4State = { ctxTimer: null, drained: 0 };
 var P4_PUSH_WORTHY = { 'chat-msg': 1, 'sys-pill': 1, 'call-start': 1, 'call-end': 1, 'thread-invite': 1, 'history-sync': 1 };
@@ -54,11 +55,12 @@ function p4SaveCtx() {
   }, 400);
 }
 
-function p4Ack(roomId) {
-  var m = { type: 'ack', transient: true };
-  var ok = (roomId === S.roomId) ? relaySend(m) : LISTEN.send(roomId, m);
-  p4Log('ack', { room: String(roomId).slice(-6), sent: !!ok }, ok ? 'ok' : 'warn');
-  return ok;
+/* P4v2-c (plan v20.0.0 §4.6): the app closes what it has presented — at once,
+   and once more ~2.5s later, because under ALWAYS-PUSH a banner can land after
+   the socket already delivered the event to a visible app. */
+function p4PresentedClose(roomId) {
+  p4CloseTag(roomId);
+  setTimeout(function () { p4CloseTag(roomId); }, 2500);
 }
 function p4CloseTag(roomId) {
   try {
@@ -72,7 +74,8 @@ function p4CloseTag(roomId) {
 function p4SwNotify(title, body, roomId) {
   try {
     if (!('serviceWorker' in navigator) || !window.Notification || Notification.permission !== 'granted') return;
-    if (!document.hidden && S.view === 'room' && S.roomId === roomId) return;          /* on screen already */
+    if (document.hidden) return;                                                        /* hidden: the push is the alert (ALWAYS-PUSH) */
+    if (S.view === 'room' && S.roomId === roomId) return;                               /* on screen already */
     if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */
     navigator.serviceWorker.ready.then(function (reg) {
       return reg.showNotification(title, { body: (body || '').slice(0, 120), tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] } });
@@ -85,16 +88,24 @@ function p4OnSwMessage(ev) {
 }
 
 (function () {
+  /* A4 (plan v20.0.0): the ack machinery is deleted — nothing gates on it.
+     In its place, P4v2-c: an event the app presents while visible closes that
+     room's notifications, because the app's own surface is the alert. */
   var _p4HandleRelay = handleRelay;
   handleRelay = function (d) {
     var r = _p4HandleRelay.apply(this, arguments);
-    try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4Ack(S.roomId); } catch (e) { p4Log('ack_failed', { e: String(e && e.message || e) }, 'error'); }
+    try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4PresentedClose(S.roomId); } catch (e) { p4Log('close_failed', { e: String(e && e.message || e) }, 'error'); }
     return r;
   };
-  var _p4Listen = LISTEN.handle;
-  LISTEN.handle = function (roomId, d) {
-    var r = _p4Listen.apply(this, arguments);
-    try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && roomById(roomId)) p4Ack(roomId); } catch (e) { p4Log('ack_failed', { e: String(e && e.message || e) }, 'error'); }
+  /* Other-room events: the tagged notification IS the presentation — it stays;
+     an arriving push replaces it by tag. Only the ring (below) closes early. */
+  /* P4v2-c / A6 re-entry: the ring screen IS the alert — the moment it
+     presents, the room's stale banner closes (was rejected as a same-session
+     patch; enters here through plan v20.0.0 by name). */
+  var _p4OnIncoming = CALL.onIncoming;
+  CALL.onIncoming = function (room, d) {
+    var r = _p4OnIncoming.apply(this, arguments);
+    try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4PresentedClose(room.id); } catch (_) {}
     return r;
   };
   var _p4OsNotify = osNotify;

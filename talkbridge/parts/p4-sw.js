@@ -1,6 +1,10 @@
-/* TalkBridge service worker · R10 P4 (plan v19.5.0 §4.1) · source: talkbridge/parts/p4-sw.js — assembled, never hand-edited.
-   Rules it embodies:
-   - Every push shows a notification (Apple revokes silent handlers). Per-room tag: successive pushes REPLACE, never stack.
+/* TalkBridge service worker · R10.2 P4v2 (plan v20.0.0 §4.6 ALWAYS-PUSH) · source: talkbridge/parts/p4-sw.js — assembled, never hand-edited.
+   Rules it embodies (sources S1-S5 in the plan):
+   - The relay always pushes; THIS worker decides presentation from ground truth:
+     a VISIBLE window client exists → non-iOS: skip (the app is the alert; FCM /
+     web.dev reference pattern); iOS: show with the room tag and the app closes
+     it (Apple revokes silent handlers). No visible client → show.
+   - Per-room tag: successive pushes REPLACE, never stack.
    - A tap closes itself and focuses the running app rather than opening a second copy.
    - Every push terminal (arrived / shown / failed) is journaled durably on-device; the app drains it into its debug log.
    - The push carries no room; the room is resolved from the relay's own history (bounded), so message text never rides a push service. */
@@ -50,10 +54,28 @@ function resolveRoom(ctx) {
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
+function visibleClient() {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].visibilityState === 'visible' || list[i].focused) return list[i];
+    }
+    return null;
+  }).catch(function () { return null; });
+}
+function isIOS() {
+  try { return /iPhone|iPad|iPod/.test(self.navigator.userAgent) || (/Macintosh/.test(self.navigator.userAgent) && self.navigator.maxTouchPoints > 1); }
+  catch (_) { return false; }
+}
+
 self.addEventListener('push', function (e) {
   e.waitUntil((function () {
     var payload = null; try { payload = e.data ? e.data.json() : null; } catch (_) { payload = null; }
-    return journal('arrived', { kind: payload && payload.t }).then(function () { return loadCtx(); }).then(function (ctx) {
+    return journal('arrived', { kind: payload && payload.t }).then(function () { return visibleClient(); }).then(function (vc) {
+      if (vc && !isIOS()) {
+        /* The app is on screen and presents the event itself (S1/S2). */
+        return journal('skipped_visible', {});
+      }
+      return loadCtx().then(function (ctx) {
       return withTimeout(resolveRoom(ctx), LOOKUP_MS).then(function (hit) {
         var roomId = hit ? hit.room.id : null, kind = hit ? hit.msg.type : null;
         var title = 'TalkBridge';
@@ -63,6 +85,7 @@ self.addEventListener('push', function (e) {
         return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })
           .then(function () { return journal('shown', { room: roomId, kind: kind }); },
                 function (err) { return journal('failed', { e: String(err && err.message || err), room: roomId }).then(function () { return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback' }).catch(function () {}); }); });
+      });
       });
     });
   })());

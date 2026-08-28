@@ -2,7 +2,7 @@
 /* ═══════════ R10 PART · P3-subscription.js ═══════════ */
 /* @contract
    wraps: p2Entry (after the real app boots in standalone, the subscription attempt starts), enterRoom (a newly entered room is registered with the relay), renderPanel (registration re-synced to each room's mute)
-   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3SyncMutes, p3LiveRooms, p3ShowRecipe, p3Heartbeat, p3State
+   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3SyncMutes, p3LiveRooms, p3ShowRecipe, p3State
    Plan v19.5.0 §4.1 P3 — attempt-as-authority. On standalone open with rooms:
    register the worker, then ATTEMPT the subscription. Permission answers and
    properties are recorded verbatim and never gate. NotAllowedError inside a
@@ -10,8 +10,8 @@
    Safari/iOS demands a user gesture for the prompt (WebKit rule, verified
    2026-08-27), so an open-time attempt that is refused for want of a gesture is
    re-run on the next tap — same attempt, same truth.
-   Every live room registers with the relay; background listeners heartbeat
-   every 30s so the relay's liveness view is true for every socket.
+   Every live room registers with the relay. (A5: the 30s listener heartbeat
+   is deleted with the relay's liveness view — plan v20.0.0 §4.6.)
 */
 var p3State = { reg: null, sub: null, registered: {}, gestureArmed: false, lastError: null, attempts: 0 };
 function p3Log(what, data, level) { try { log('p3_' + what, data || {}, level || 'info'); } catch (_) {} }
@@ -135,18 +135,14 @@ function p3ShowRecipe() {
   p3Log('recipe_shown', {}, 'error');
 }
 
-/* Background listeners must speak every 30s or the relay rightly treats them as absent. */
-function p3Heartbeat() {
-  try { for (var id in (LISTEN.socks || {})) LISTEN.send(id, { type: 'ping', transient: true }); } catch (_) {}
-}
-
 (function () {
   var _p3Entry = p2Entry;
   p2Entry = function () {
     var r = _p3Entry.apply(this, arguments);
     try {
       if (p2IsStandalone()) {
-        setInterval(p3Heartbeat, HEARTBEAT_MS);
+        /* A5 (plan v20.0.0): the listener heartbeat is deleted — the relay
+           holds no liveness view for it to feed. */
         if (p3LiveRooms().length) p3Attempt(false);
         else p3Log('no_rooms_yet', {}, 'info');
       }

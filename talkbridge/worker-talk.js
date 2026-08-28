@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  push-capable replacement
+   TALK RELAY — worker-talk.js  ·  v4.2 ALWAYS-PUSH (plan v20.0.0 §4.6)\n   Lineage: ship R7 body + v4 RFC 8291 delivery class (e416a70), MINUS every\n   form of server-side presence inference (abandoned index A1-A3).
 
    Everything the existing relay did is unchanged: the same route, the same
    session addressing, the same broadcast, the same history and transient
@@ -45,7 +45,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
-const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'call-end', 'thread-invite', 'history-sync']);  /* P1: missed-call + thread invites wake locked phones */
+const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'call-end', 'thread-invite', 'history-sync']);  /* v4.2: missed-call + thread invites wake locked phones */
 
 function cors() {
   return {
@@ -195,8 +195,8 @@ export class TalkSession {
   constructor(state, env) {
     this.state = state;
     this.lastWake = null;   /* observability — constructor-anchored */
-    this.lastSeen = new Map();      /* liveness: reset = stale = wake = safe */
-    this.pendingWakes = new Map();  /* P1 ack-gate: clientId -> timeout handle */
+    /* v4.2 (plan v20.0.0 §4.6): lastSeen and pendingWakes are DELETED (A1/A2).
+       The relay holds no opinion about whether a device is watching. */
     this.env = env;
     this.seq = 0;
     this.messages = [];
@@ -284,9 +284,12 @@ export class TalkSession {
     } catch (_) {}
   }
 
+  /* v4.2 ALWAYS-PUSH (plan v20.0.0 §4.6, sources S1-S3): every push-worthy
+     event goes to every subscribed device except the sender, unconditionally.
+     A socket is not a person; the device decides presentation. The old
+     freshness exemption and 1s ack-gate (A1-A3) are deleted, not disabled. */
   async _wakeOthers(msg, senderId) {
     if (!PUSH_WORTHY.has(msg.type)) return;
-    const connected = this._connectedIds();
     const now = Date.now();
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
@@ -295,18 +298,7 @@ export class TalkSession {
         delete this.subs[clientId];
         continue;
       }
-      const fresh = this.lastSeen.has(clientId) && (now - this.lastSeen.get(clientId)) < 105000;
-      if (connected.has(clientId) && fresh) continue;    /* provably presenting: a push never exists */
-      if (connected.has(clientId)) {
-        /* Socket present but silent — the socket carries the event; the push
-           is a FALLBACK scheduled 1s out, cancelled by the device's next word. */
-        if (!this.pendingWakes.has(clientId)) {
-          const t = setTimeout(() => { this.pendingWakes.delete(clientId); this._pushOne(clientId, rec); }, 1000);
-          this.pendingWakes.set(clientId, t);
-        }
-        continue;
-      }
-      jobs.push(this._pushOne(clientId, rec));           /* absent: push is the only alert, now */
+      jobs.push(this._pushOne(clientId, rec));
     }
     if (jobs.length) await Promise.all(jobs);
   }
@@ -323,7 +315,6 @@ export class TalkSession {
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       pair[1].serializeAttachment({ clientId });
-      this.lastSeen.set(clientId, Date.now());   /* acceptance IS liveness */
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
@@ -345,7 +336,7 @@ export class TalkSession {
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'diag') {
-        return json({ ok: true, connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, pending: this.pendingWakes.size });
+        return json({ ok: true, v: '4.2', connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake });
       }
       if (body && body.type === 'vapid') {
         return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
@@ -377,13 +368,6 @@ export class TalkSession {
 
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
-    if (clientId) {
-      this.lastSeen.set(clientId, Date.now());
-      /* P1 ack-gate: ANY word from the device proves it is presenting — the
-         scheduled fallback push for it is cancelled. */
-      const t0 = this.pendingWakes.get(clientId);
-      if (t0) { clearTimeout(t0); this.pendingWakes.delete(clientId); }
-    }
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
