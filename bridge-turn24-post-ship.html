@@ -7607,7 +7607,7 @@ function p3Heartbeat() {
 
 /* ═══════════ R10 PART · P4-alert-hygiene.js ═══════════ */
 /* @contract
-   wraps: handleRelay, LISTEN.handle, osNotify, CALL.accept, enterRoom, saveRooms, p2Entry
+   wraps: handleRelay, LISTEN.handle, osNotify, CALL.onIncoming, CALL.accept, enterRoom, saveRooms, p2Entry
    adds: p4Log, p4Idb, p4Journal, p4Drain, p4SaveCtx, p4Ack, p4IsPushWorthy, p4CloseTag, p4State, p4SwNotify, p4OnSwMessage
    Plan v19.5.0 §4.1 P4 — exactly-one-alert hygiene, app side.
    - ACK: any push-worthy event the app PRESENTS while in the foreground is acked
@@ -7707,6 +7707,17 @@ function p4OnSwMessage(ev) {
   osNotify = function (title, body, roomId) {
     var r = _p4OsNotify.apply(this, arguments);
     try { p4SwNotify(title, body, roomId); } catch (_) {}
+    return r;
+  };
+  /* The ring screen IS the alert: the moment it presents, any lock-screen
+     notification for that room is stale and closes (device finding 2026-08-28:
+     a wake shown while the phone was away sat beside the ring screen until
+     accept; 10 stale notifications closed only at accept). Standard pattern:
+     getNotifications({tag}).close() when the app presents its own surface. */
+  var _p4OnIncoming = CALL.onIncoming;
+  CALL.onIncoming = function (room, d) {
+    var r = _p4OnIncoming.apply(this, arguments);
+    try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4CloseTag(room.id); } catch (_) {}
     return r;
   };
   var _p4Accept = CALL.accept;
