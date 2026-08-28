@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.6.0 -->
-# TALKBRIDGE MASTER PLAN v19.6.0
+<!-- TALKBRIDGE-PLAN v19.5.0 -->
+# TALKBRIDGE MASTER PLAN v19.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -678,37 +678,6 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
-
-**v19.6.0 · 2026-08-28.** First device session on the P2-P6 build, log-proven
-findings (joiner debug log, 03:16-03:27):
-
-*F-A - SILENCE (no alert at all), root cause in relay v4, FIX AWAITING OWNER GO.*
-The relay skips the push entirely for a device it heard from within the last
-105 seconds ("provably presenting"). Log proof: 03:24:32 incoming call while
-the app was backgrounded - the device had acked an earlier event 4s before, so
-the relay treated it as watching; no push was sent (drain on return: 0), no
-ring showed. The 105s freshness window is an inferred-presence heuristic - the
-exact class buried in the graveyard 2026-08-23. DECLARED ITEM P1b (relay
-v4.1): delete the freshness exemption; for EVERY push-worthy event to a
-connected device, schedule the 1s ack-gated fallback; only the device's own
-word within that second cancels it. One arbiter, no guessing. Pair moves
-together: relay v4.1 + current post-ship. Status: awaiting owner GO.
-
-*F-B - DOUBLE (ring screen beside a lock-screen banner), root cause in P4,
-FIXED this revision.* A wake shown while the phone was away stayed on the lock
-screen until the call was ACCEPTED (log: 10 stale notifications closed only at
-accept, 03:21:31). The ring screen is the alert; the fix closes the room's
-notifications the moment the ring presents, not only on accept/open. Standard
-pattern (getNotifications({tag}) then close when the app presents its own
-surface, per MDN Notifications API / SW push practice). Shipped app-side; no
-relay change.
-
-*F-C - FLURRY, recorded.* 4 wakes arrived within 200ms on reconnect and 5
-call-end notifications were shown despite Topic newest-wins and a shared tag
-(this device did not collapse by Topic or tag). F-B's ring-close and the
-room-open stale-close now clear them; residual stacking on platforms that
-ignore the tag is an OS behavior, recorded, not patched around.
-
 
 **v19.5.0 · 2026-08-27.** P6 finalized with consent decorum per owner:
 Accept/Decline on thread invites, both outcomes timestamped into the parent

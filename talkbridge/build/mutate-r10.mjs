@@ -44,8 +44,6 @@ const app = [
   s => s.replace("tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] }", "tag: 'tb-' + roomId + '-' + Date.now(), renotify: true, data: { roomId: roomId }")],
  ['opening a room leaves its stale notifications up',
   s => s.replace("try { p4CloseTag(id); } catch (_) {}", ";")],
- ['the ring screen no longer closes the stale lock-screen notification (the observed double)',
-  s => s.replace("try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4CloseTag(room.id); } catch (_) {}", ";")],
  ['answering a call leaves its notification up',
   s => s.replace("try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}", ";")],
  ['the receipt drain goes silent',

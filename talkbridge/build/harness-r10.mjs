@@ -232,29 +232,16 @@ console.log('H · exactly-one-alert hygiene (P4)');
     A(acks('r2') === 1, 'ack not sent: ' + acks('r2'));
     A(!w.__notifs.some(n => n.o.tag === 'tb-r2'), 'a notification stacked beside the ring');
   });
-  T('H1b a stale lock-screen notification for the room closes the moment the ring screen presents (not only on accept)', () => {
-    A(w.__notifs.length === 0 || w.__notifs.every(n => n.closed), 'pre-state dirty');
-    w.__notifs.push({ t: 'stale', o: { tag: 'tb-r2' } });
-    w.CALL.stopRing(); w.CALL.ringPending = null;
-    w.LISTEN.handle('r2', { type: 'call-start', from: 'partner-dev', kind: 'voice', name: 'Carl' });
-    return null;
-  });
-  await sleep(120);
-  T('H1c (async check) ring presented → stale tb-r2 closed', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'stale notification survived the ring'));
   w.CALL.stopRing(); w.CALL.ringPending = null;
-  const ackB = acks('r2'), noteB = w.__notifs.filter(x => x.o.tag === 'tb-r2' && !x.closed).length;
   w.LISTEN.handle('r2', { type: 'chat-msg', from: 'partner-dev', chatId: 'c1', srcText: 'hi', tgtText: 'สวัสดี', senderName: 'Carl' });
   await sleep(100);
   T('H2 foreground other-room message: presented through the worker with the room tag, and acked (relay push suppressed) = exactly one', () => {
-    A(acks('r2') === ackB + 1, 'ack missing for chat');
-    const n = w.__notifs.filter(x => x.o.tag === 'tb-r2' && !x.closed); A(n.length === noteB + 1 && n[n.length - 1].o.renotify === true, 'worker notification missing/untagged');
+    A(acks('r2') === 2, 'ack missing for chat');
+    const n = w.__notifs.filter(x => x.o.tag === 'tb-r2'); A(n.length === 1 && n[0].o.renotify === true, 'worker notification missing/untagged');
   });
   w.LISTEN.handle('r2', { type: 'chat-msg', from: 'partner-dev', chatId: 'c2', srcText: 'again', tgtText: 'อีก', senderName: 'Carl' });
   await sleep(100);
-  T('H3 tag replacement: a second message re-uses tag tb-r2 (replace, never stack)', () => {
-    const n = w.__notifs.filter(x => x.o.tag === 'tb-r2' && !x.closed);
-    A(n.length === noteB + 2 && n.every(x => x.o.tag === 'tb-r2'), 'tag changed');
-  });
+  T('H3 tag replacement: a second message re-uses tag tb-r2 (replace, never stack)', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.o.tag === 'tb-r2') && w.__notifs.filter(x => x.o.tag === 'tb-r2').length === 2, 'tag changed'));
   w.enterRoom('r2'); await sleep(100);
   T('H4 room opened → its notifications closed as stale', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'stale notifications not closed'));
   T('H5 active-room message in the foreground → acked on the active socket', () => {
