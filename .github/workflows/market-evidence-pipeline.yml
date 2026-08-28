@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'market-navigator-data-pipeline.py'
+      - 'market-navigator-bootstrap-prep.py'
       - 'data/market-backend/data-catalog.json'
+      - 'data/market-backend/data-catalog-amendment-v1.1.json'
       - '.github/workflows/market-evidence-pipeline.yml'
   workflow_dispatch:
     inputs:
@@ -32,6 +34,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Apply canonical provenance and historical bootstrap inputs
+        run: python3 market-navigator-bootstrap-prep.py
       - name: Build canonical evidence store
         env:
           MARKET_NAVIGATOR_BOOTSTRAP: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap) && 'true' || 'false' }}
@@ -44,8 +48,11 @@ jobs:
           c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
           m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
           expected=c['canonical_horizons']
+          assert c['version']=='1.1.0'
           assert expected==['1D','5D','1M','YTD','1Y','3Y','5Y']
           assert m['schema']=='market-navigator-operational-manifest-v1'
+          ten=next(x for x in c['series'] if x['id']=='tenYear')
+          assert ten['provider']=='FRED' and ten['provider_identifier']=='DGS10'
           for x in c['series']:
               if not x.get('enabled',True): continue
               sid=x['id']; s=m['series'][sid]
@@ -53,9 +60,11 @@ jobs:
               assert set(p['reports'])==set(expected)
               assert p['computedRevision']==s['computed_revision']
               assert Path('market-evidence/series',sid+'.json').exists()
-          print('Evidence contract validated:',m['revision'],'ready=',m['summary']['ready'])
-          if m['summary'].get('acceptanceBlockers'):
-              print('Acceptance blockers are published for inspection:', *m['summary']['acceptanceBlockers'], sep='\n- ')
+          assert m['series']['tenYear']['bootstrap_complete'], '10Y canonical history incomplete'
+          assert m['series']['hySpread']['bootstrap_complete'], 'HY spread historical bootstrap incomplete'
+          assert all(m['series']['hySpread']['horizon_readiness'].values()), 'HY spread canonical horizons incomplete'
+          assert m['summary']['ready'], 'Canonical evidence acceptance still blocked: '+str(m['summary']['acceptanceBlockers'])
+          print('Canonical evidence ACCEPTED:',m['revision'])
           PY
       - name: Commit canonical evidence
         run: |
