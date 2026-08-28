@@ -8,7 +8,7 @@ trap 'rm -rf "$TMP"' EXIT
 # Rebuild its installer definition, apply only the WSL2 9p mount correction,
 # and let the generated installer retain the existing archive/rollback/gates.
 BASE5_WRAPPER_URL='https://raw.githubusercontent.com/acmeproducts/stuff/a38287b25097289369ff92651e58654aec0dd69c/install-SOT-turn01-base.sh'
-INSTALLER_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/6cf85fc3f200f652b877e8eaed30586e594d4abf/patch-SOT-turn01-base-installer-wsl9p.py'
+INSTALLER_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/00f1edbf90ad19f9b946f6fc0ceebc21f68a29f7/patch-SOT-turn01-base-installer-wsl9p.py'
 WSL9P_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/f60d33eb5f1deaa250637a9e35f59a516ce73d96/patch-SOT-turn01-base-wsl9p.py'
 
 curl --max-time 30 -fsSL "$BASE5_WRAPPER_URL" -o "$TMP/base5-wrapper.sh"
