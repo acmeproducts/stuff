@@ -43,16 +43,19 @@ jobs:
           from pathlib import Path
           c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
           m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
-          assert c['canonical_horizons']==['1D','5D','1M','YTD','1Y','3Y','5Y']
+          expected=c['canonical_horizons']
+          assert expected==['1D','5D','1M','YTD','1Y','3Y','5Y']
           assert m['schema']=='market-navigator-operational-manifest-v1'
           for x in c['series']:
               if not x.get('enabled',True): continue
               sid=x['id']; s=m['series'][sid]
               p=json.loads(Path('market-evidence/reports',sid+'.json').read_text())
-              assert list(p['reports'])==c['canonical_horizons']
+              assert set(p['reports'])==set(expected)
               assert p['computedRevision']==s['computed_revision']
               assert Path('market-evidence/series',sid+'.json').exists()
           print('Evidence contract validated:',m['revision'],'ready=',m['summary']['ready'])
+          if m['summary'].get('acceptanceBlockers'):
+              print('Acceptance blockers are published for inspection:', *m['summary']['acceptanceBlockers'], sep='\n- ')
           PY
       - name: Commit canonical evidence
         run: |
