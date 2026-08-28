@@ -28,33 +28,30 @@ T('S2 exactly P2, P3, P4, P6 present; buried machinery absent', () => {
   A(built.indexOf('<!DOCTYPE html>') < 300, 'doctype buried');
   A(!/turn ?25/.test(built), 'stale turn25 label');
 });
-T('S3 pair (v20.2.0): relay v5 exact-ack contract present; abandoned machinery absent on BOTH sides', () => {
-  for (const t of ["'presented'", 'ALERT_TYPES', "type === 'mute'", "type === 'cursor'", "get('ledger') === '1'", 'PRESENT_WAIT_MS', 'pushLog']) A(relay.includes(t), 'relay v5 missing: ' + t);
+T('S3 pair (v20.0.0): relay is v4.2 ALWAYS-PUSH; abandoned machinery absent on BOTH sides', () => {
+  A(/PUSH_WORTHY = new Set\(\[[^\]]*'thread-invite'/.test(relay), 'relay lacks thread-invite');
+  A(/PUSH_WORTHY = new Set\(\[[^\]]*'call-end'/.test(relay), 'relay lacks call-end wake');
+  A(relay.includes("body.type === 'vapid'") && relay.includes("body.type === 'subscribe'") && relay.includes("body.type === 'unsubscribe'"), 'relay POST contract missing');
   const rcode = relay.replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const t of ['pendingWakes', 'lastSeen', '105000', "'tb-wake'"]) A(!rcode.includes(t), 'buried machinery in relay: ' + t);
-  A(!built.includes('p4Ack('), 'A4 ack machinery in client');
-  A(!built.includes('setInterval(p3Heartbeat'), 'A5 heartbeat in client');
-  A(!built.includes('p3SyncMutes'), 'mute-as-unsubscribe still in client');
-  A(built.includes("type: 'presented'"), 'client never sends presented');
-  A(built.includes('navigate: location.href'), 'subscription lacks navigate');
+  for (const t of ['pendingWakes', 'lastSeen', '105000']) A(!rcode.includes(t), 'A1/A2 still in relay: ' + t);
+  A(!built.includes("p4Ack("), 'A4 still in client');
+  A(!built.includes('setInterval(p3Heartbeat'), 'A5 still in client');
   A(built.includes("type: 'thread-invite'"), 'client never sends thread-invite');
 });
 T('S2b no querySelectorAll(...).forEach in the parts (older WebKit throws; build gate G2)', () => {
   const partsRegion = built.slice(built.indexOf('R10 PART · P2-install-gate'));
   A(!/querySelectorAll\([^)]*\)\.forEach\(/.test(partsRegion) && !/querySelectorAll\([^)]*\)\.forEach\(/.test(sw), 'NodeList.forEach present');
 });
-T('S4 worker: parses the one envelope, dedupes by eventId, journals telemetry, tap focuses the running app; no history guessing', () => {
+T('S4 worker: shows on every push, per-room tag replaces, journals terminals, tap focuses running app', () => {
   A(sw.includes("addEventListener('push'") && sw.includes('e.waitUntil'), 'push handler not awaited');
-  A(sw.includes('env.tb') && sw.includes('env.notification'), 'envelope not parsed');
-  A(sw.includes('seenBefore('), 'eventId dedupe missing');
-  A(sw.includes("journal('arrived'") && sw.includes("journal('shown'") && sw.includes("journal('failed'") && sw.includes("journal('deduped'") && sw.includes("journal('tap'"), 'journal telemetry incomplete');
+  A(sw.includes("tag: tag, renotify: true") && sw.includes("var tag = 'tb-' + (roomId || 'unknown')"), 'per-room tag missing');
+  A(sw.includes("journal('arrived'") && sw.includes("journal('shown'") && sw.includes("journal('failed'"), 'journal terminals missing');
   A(sw.includes("app.postMessage({ t: 'tb-open'") && sw.includes('app.focus'), 'tap does not focus the running app');
-  A(!sw.includes('since=') && !sw.includes('resolveRoom') && !sw.includes('visibleClient'), 'wake inference machinery still present');
-  A(!sw.includes('caches.open'), 'worker caches (stale-build risk)');
+  A(!sw.includes("caches.open") , 'worker caches (stale-build risk)');
 });
 
 /* ── boot helpers ─────────────────────────────────────────────────────── */
-function bootDom({ standalone, hash = '', name = 'Harness', rooms = null, perm = 'default', answer = 'denied', subscribeImpl = null, hidden = false, ledger = null }) {
+function bootDom({ standalone, hash = '', name = 'Harness', rooms = null, perm = 'default', answer = 'denied', subscribeImpl = null, hidden = false }) {
   const vc = new VirtualConsole(); vc.on('jsdomError', () => {});
   const errors = [], sockets = [], fetches = [];
   const dom = new JSDOM(built, {
@@ -82,21 +79,7 @@ function bootDom({ standalone, hash = '', name = 'Harness', rooms = null, perm =
       Object.defineProperty(w.navigator, 'serviceWorker', { configurable: true, value: swTarget });
       w.Notification = class { static requestPermission(){ w.__askCalls = (w.__askCalls || 0) + 1; w.__askSync = true; return Promise.resolve(answer); } };
       w.Notification.permission = perm;
-      w.fetch = (u, o) => {
-        const body = o && o.body ? JSON.parse(o.body) : null;
-        fetches.push({ u, body });
-        if (w.__failNext && body && body.type === w.__failNext.type) { w.__failNext = null; return Promise.reject(new Error('net down')); }
-        let payload = { ok: true, subscribed: true };
-        if (body && body.type === 'vapid') payload = { ok: true, vapid: 'BQQQQQQQQQQQQQQQQQQQQQQ', push: true };
-        else if (body && body.type === 'mute') payload = { ok: true, muted: body.muted === true };
-        else if (body && body.type === 'cursor') payload = { ok: true, cursor: body.l };
-        else if (!body && String(u).includes('ledger=1')) {
-          const m = String(u).match(/session=([^&]+)/);
-          const roomId = m ? decodeURIComponent(m[1]) : '';
-          payload = (ledger && ledger[roomId]) || { ok: true, cursor: 0, lseq: 0, complete: true, events: [] };
-        }
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload), text: () => Promise.resolve('') });
-      };
+      w.fetch = (u, o) => { fetches.push({ u, body: o && o.body ? JSON.parse(o.body) : null }); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(o && o.body && JSON.parse(o.body).type === 'vapid' ? { ok: true, vapid: 'BQQQQQQQQQQQQQQQQQQQQQQ', push: true } : { ok: true, subscribed: true }), text: () => Promise.resolve('') }); };
       w.matchMedia = q => ({ matches: standalone && q.includes('standalone'), addEventListener(){}, addListener(){} });
       w.HTMLMediaElement.prototype.play = function(){ return Promise.resolve(); };
       w.indexedDB = undefined;
@@ -218,160 +201,126 @@ console.log('P · attempt-as-authority (P3)');
     A(w.debugLog.filter(l => l.ev === 'p3_sub_failed' && l.d.name === 'NotAllowedError').length === 2, 'failures not logged by name');
   });
 }
-
-console.log('H · presented / counters / mute (P4 v3, review §7.2-§7.3)');
 {
-  const { w, d, sockets, fetches } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1'), room('r2', { partnerName: 'Carl' })], perm: 'granted',
-    ledger: { r2: { ok: true, cursor: 0, lseq: 2, complete: true, events: [{ l: 2, eventId: 'seed1', type: 'chat-msg', kind: null, callId: null, state: null, ts: 1 }] } } });
+  const { w, fetches } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1'), room('r2', { muted: true })] });
+  await sleep(1500);
+  T('B4 registration mirrors mute: muted room unsubscribed, live room subscribed', () => {
+    A(fetches.some(f => f.u.includes('session=r1') && f.body.type === 'subscribe'), 'r1 not subscribed');
+    A(fetches.some(f => f.u.includes('session=r2') && f.body.type === 'unsubscribe'), 'muted r2 not unsubscribed');
+    A(!fetches.some(f => f.u.includes('session=r2') && f.body.type === 'subscribe'), 'muted r2 subscribed');
+  });
+  w.S.rooms[1].muted = false; w.renderPanel(); await sleep(200);
+  T('B4b unmuting re-subscribes', () => A(fetches.some(f => f.u.includes('session=r2') && f.body.type === 'subscribe'), 'r2 not re-subscribed'));
+}
+
+console.log('H · exactly-one-alert hygiene (P4)');
+{
+  const { w, d, sockets } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1'), room('r2', { partnerName: 'Carl' })], perm: 'granted' });
   await sleep(1500);
   const sockFor = id => sockets.filter(s => s.url.includes('session=' + id)).slice(-1)[0];
-  const presents = id => sockets.filter(s => s.url.includes('session=' + id)).reduce((n, s) => n.concat((s.sent || []).filter(m => m.type === 'presented' && m.transient === true)), []);
-  w.__notifs.push({ t: 'stale', o: { tag: 'tb-r2' } });
-  w.LISTEN.handle('r2', { type: 'call-start', from: 'partner-dev', kind: 'voice', name: 'Carl', callId: 'K9', eventId: 'K9:start' });
+  w.__notifs.push({ t: 'stale', o: { tag: 'tb-r2' } });   /* a banner that landed while the phone was away */
+  w.LISTEN.handle('r2', { type: 'call-start', from: 'partner-dev', kind: 'voice', name: 'Carl' });
   await sleep(80);
-  T('H1 ring presented → presented(exact call eventId) on that socket; the stale banner closes cosmetically', () => {
+  T('H1 ring presented → it IS the alert: the room\'s stale banner closes at once, no new notification beside it', () => {
     A(d.getElementById('ring-overlay').classList.contains('show'), 'ring screen not shown');
-    const p = presents('r2'); A(p.length === 1 && p[0].eventId === 'K9:start', 'presented wrong: ' + JSON.stringify(p));
     A(w.__notifs.filter(n => n.o.tag === 'tb-r2').every(n => n.closed), 'stale banner survived the ring');
-    A(w.CALL.ringPending.callId === 'K9', 'callId not adopted by the ring');
+    A(!w.__notifs.some(n => n.o.tag === 'tb-r2' && !n.closed), 'a notification stacked beside the ring');
+    A(!w.debugLog.some(l => l.ev === 'p4_sw_notify' && l.d.room === '4wr2'.slice(-4)), 'x');
+    A(!w.debugLog.some(l => l.ev === 'p4_sw_notify'), 'a notification was even ATTEMPTED beside the ring — the guard is gone');
   });
-  T('H2 visible other-room chat: presented(exact eventId), NO OS-style surface raised by the app (§4.1 row 2)', () => {
-    const before = w.__notifs.filter(n => !n.closed).length;
-    w.CALL.stopRing(); w.CALL.ringPending = null;
-    w.LISTEN.handle('r2', { type: 'chat-msg', from: 'partner-dev', chatId: 'c1', eventId: 'c1', srcText: 'hi', tgtText: 'x', senderName: 'Carl' });
-    const p = presents('r2'); A(p.some(m => m.eventId === 'c1'), 'chat not presented');
-    A(w.__notifs.filter(n => !n.closed).length === before, 'app raised a notification while visible');
+  w.CALL.stopRing(); w.CALL.ringPending = null;
+  w.LISTEN.handle('r2', { type: 'chat-msg', from: 'partner-dev', chatId: 'c1', srcText: 'hi', tgtText: 'สวัสดี', senderName: 'Carl' });
+  await sleep(100);
+  T('H2 foreground other-room message: presented through the worker with the room tag = the one alert, and it STAYS', () => {
+    const n = w.__notifs.filter(x => x.o.tag === 'tb-r2' && !x.closed); A(n.length === 1 && n[0].o.renotify === true, 'worker notification missing/untagged/closed');
   });
-  T('H3 live eventIds are marked counted so the ledger can never re-count them', () => {
-    A(w.p4Counted('r2').indexOf('c1') >= 0 && w.p4Counted('r2').indexOf('K9:start') >= 0, 'counted set missing live events');
+  w.LISTEN.handle('r2', { type: 'chat-msg', from: 'partner-dev', chatId: 'c2', srcText: 'again', tgtText: 'อีก', senderName: 'Carl' });
+  await sleep(100);
+  T('H3 tag replacement: a second message re-uses tag tb-r2 (replace, never stack)', () => {
+    const n = w.__notifs.filter(x => x.o.tag === 'tb-r2' && !x.closed);
+    A(n.length === 2 && n.every(x => x.o.tag === 'tb-r2'), 'tag changed');
   });
-  T('H4 active-room chat: presented on the active socket with the exact id', () => {
-    w.__notifs.push({ t: 'stale2', o: { tag: 'tb-r2' } });   /* landed while away; must die on open */
-    w.enterRoom('r2');
-    w.handleRelay({ type: 'chat-msg', from: 'partner-dev', chatId: 'c3', eventId: 'c3', srcText: 'x', tgtText: 'y', senderName: 'Carl' });
-    const p = presents('r2'); A(p.some(m => m.eventId === 'c3'), 'active-room chat not presented');
+  w.enterRoom('r2'); await sleep(100);
+  T('H4 room opened → its notifications closed as stale', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'stale notifications not closed'));
+  T('H5 active-room message presented → the room\'s banner closes (the transcript is the alert)', () => {
+    w.__notifs.push({ t: 'late', o: { tag: 'tb-r2' } });   /* a late banner under ALWAYS-PUSH */
+    w.handleRelay({ type: 'chat-msg', from: 'partner-dev', chatId: 'c3', srcText: 'x', tgtText: 'y', senderName: 'Carl' });
+    return null;
   });
-  await sleep(150);
-  T('H5 opening the room: stale notifications closed, ledger consulted, cursor advanced (items seen, review §7.3)', () => {
-    A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'stale notifications not closed on open');
-    A(fetches.some(f => f.u.includes('session=r2') && f.u.includes('ledger=1')), 'enterRoom did not consult the ledger');
-    A(fetches.some(f => f.body && f.body.type === 'cursor' && f.u.includes('session=r2')), 'cursor not advanced on open');
-  });
-  T('H6 call answered → matching notification closed (cosmetic hygiene)', () => {
+  await sleep(120);
+  T('H5b (async) late banner for the presented event is closed', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'late banner survived'));
+  T('H5c the delayed second close exists for banners landing after the event (~2.5s)', () => A(built.includes("setTimeout(function () { p4CloseTag(roomId); }, 2500);"), 'delayed close missing'));
+  T('H6 call answered → matching notification closed', () => {
+    /* the call is in the ACTIVE room: no room entry happens, so only the answer itself can close it */
     w.__notifs.push({ t: 'Carl', o: { tag: 'tb-r2' } });
-    w.CALL.ringPending = { roomId: 'r2', kind: 'voice', name: 'Carl', callId: 'K9' };
+    w.CALL.ringPending = { roomId: 'r2', kind: 'voice', name: 'Carl' };
     w.CALL.accept();
   });
   await sleep(150);
-  T('H6b (async) answered in the active room → tb-r2 closed', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'not closed'));
-  T('H9 every call word carries stable identity by construction (relaySend enrichment)', () => {
-    w.S.roomId = 'r2'; w.S.view = 'room';
-    w.relaySend({ type: 'call-start', kind: 'video', name: 'Bob' });
-    const sent = sockets.reduce((a, s) => a.concat((s.sent || []).filter(m => m.type === 'call-start')), []).slice(-1)[0];
-    A(sent && sent.callId && sent.eventId === sent.callId + ':start' && sent.kind === 'video', 'call identity missing: ' + JSON.stringify(sent));
-    w.relaySend({ type: 'call-accept' });
-    const acc = sockets.reduce((a, s) => a.concat((s.sent || []).filter(m => m.type === 'call-accept')), []).slice(-1)[0];
-    A(acc && acc.callId === sent.callId, 'accept lost the callId');
-  });
+  T('H6b (async check) call answered in the active room → tb-r2 closed', () => A(w.__notifs.filter(x => x.o.tag === 'tb-r2').every(x => x.closed), 'not closed'));
 }
 {
-  const { w, sockets } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1')], perm: 'granted', hidden: true });
+  const { w } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1')], perm: 'granted', hidden: true });
   await sleep(1500);
   const n0 = w.__notifs.length;
-  w.LISTEN.handle('r1', { type: 'chat-msg', from: 'partner-dev', chatId: 'c9', srcText: 'hi', tgtText: 'x', senderName: 'Alice', eventId: 'c9' });
+  w.LISTEN.handle('r1', { type: 'chat-msg', from: 'partner-dev', chatId: 'c9', srcText: 'hi', tgtText: 'x', senderName: 'Alice' });
   await sleep(50);
-  T('H7 a hidden app acknowledges NOTHING and raises nothing — its push arrives untouched (§7.2)', () => {
-    A(!sockets.some(s => (s.sent || []).some(m => m.type === 'presented')), 'hidden app sent presented');
+  T('H7 a hidden (backgrounded) app presents nothing and closes nothing — the push is its only alert', () => {
     A(w.__notifs.length === n0, 'hidden app raised a surface');
+    A(!w.debugLog.some(l => l.ev === 'p4_stale_closed'), 'hidden app closed notifications');
   });
 }
-T('H8 worker receipts drain as telemetry — and never touch a counter', () => {
+T('H8 the journal drain logs every receipt by name and logs the empty drain too (silence impossible)', () => {
   A(built.includes("p4Log('sw_receipt'") && built.includes("p4Log('sw_drained', { n: rows.length }"), 'drain unlogged');
-  const drain = built.slice(built.indexOf('function p4Drain'), built.indexOf('function p4SaveCtx'));
-  A(!drain.includes('bumpWaiting') && !drain.includes('waitingOf'), 'journal feeds a counter (forbidden, review §7.3)');
+  A(built.includes("document.addEventListener('visibilitychange', function () { if (!document.hidden) p4Drain(); })"), 'no drain on return to foreground');
 });
 
-console.log('C · exact counters from the durable ledger (P4 v3, review §7.3)');
+console.log('W · the worker itself (P4), run headless');
 {
-  const ledgerResponses = { r1: { ok: true, cursor: 0, lseq: 4, complete: true, events: [
-    { l: 1, eventId: 'x1', type: 'chat-msg', kind: null, callId: null, state: null, ts: 1 },
-    { l: 2, eventId: 'x2', type: 'chat-msg', kind: null, callId: null, state: null, ts: 2 },
-    { l: 3, eventId: 'KV:start', type: 'call-start', kind: 'video', callId: 'KV', state: 'timed_out', ts: 3 },
-    { l: 4, eventId: 'KA:start', type: 'call-start', kind: 'voice', callId: 'KA', state: 'answered', ts: 4 } ] } };
-  const { w, fetches } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1')], perm: 'granted', ledger: ledgerResponses });
-  await sleep(1800);
-  T('C1 on open: exact counts — +2 chat, +1 video missed; answered call adds nothing; cursor advanced to max l', () => {
-    const r = w.S.rooms.find(x => x.id === 'r1'); const wt = w.waitingOf(r);
-    A(wt.chat === 2 && wt.video === 1 && (wt.voice || 0) === 0, 'counts wrong: ' + JSON.stringify(wt));
-    A(fetches.some(f => f.body && f.body.type === 'cursor' && f.body.l === 4), 'cursor not advanced to 4');
-  });
-  T('C2 replay of the same ledger events cannot double-increment (counted set)', async () => {
-    await w.p4LedgerSync();
-    await sleep(200);
-    const r = w.S.rooms.find(x => x.id === 'r1'); const wt = w.waitingOf(r);
-    A(wt.chat === 2 && wt.video === 1, 'double counted: ' + JSON.stringify(wt));
-  });
-}
-console.log('M · mute confirmed by the relay before the UI claims it (P3 v3, review §4.3)');
-{
-  const { w, d, fetches } = bootDom({ standalone: true, name: 'Bob', rooms: [room('r1')], perm: 'granted' });
-  await sleep(1500);
-  w.enterRoom('r1'); w.openRoomSettings && w.openRoomSettings();
-  const btn = d.getElementById('s4b-mute');
-  btn.click(); await sleep(150);
-  T('M1 toggle → relay mute POST → only the ack flips the state and the control', () => {
-    A(fetches.some(f => f.body && f.body.type === 'mute' && f.body.muted === true && f.u.includes('session=r1')), 'no mute POST');
-    A(w.S.rooms[0].muted === true && btn.classList.contains('off'), 'state not applied after ack');
-  });
-  w.__failNext = { type: 'mute' };
-  btn.click(); await sleep(150);
-  T('M2 relay unreachable → state unchanged, control unchanged, concise retry error', () => {
-    A(w.S.rooms[0].muted === true && btn.classList.contains('off'), 'state flipped without ack');
-    A(w.debugLog.some(l => l.ev === 'p3_mute_acked' && l.d.ok === false) || w.debugLog.some(l => l.ev === 'p3_mute_acked' && l.level === 'error'), 'failure not logged');
-  });
-  T('M3 subscribe carries the navigate target for declarative tap-through', () => {
-    A(fetches.some(f => f.body && f.body.type === 'subscribe' && String(f.body.navigate || '').includes('bridge-turn24-post-ship.html')), 'navigate missing from subscription');
-  });
-}
-
-console.log('W · the legacy worker parses the one envelope (P4-sw v3, review §7.4)');
-{
-  const journal = []; let shown = [];
+  const journal = []; let shown = [], ctxRec = null; const fetched = [];
   const store = { journal, kv: new Map() };
   const mkReq = (result) => { const r = {}; setTimeout(() => { r.result = result; r.onsuccess && r.onsuccess(); }, 0); return r; };
-  const fakeIdb = { open() { const r = {}; setTimeout(() => { r.result = { objectStoreNames: { contains: () => true }, transaction(name) { const tx = {}; setTimeout(() => tx.oncomplete && tx.oncomplete(), 2); return { objectStore() { return { add: v => { store.journal.push(v); }, get: k => mkReq(store.kv.get(k) ? { k, v: store.kv.get(k) } : null), put: v => store.kv.set(v.k, v.v) }; }, get oncomplete() { return tx.oncomplete; }, set oncomplete(f) { tx.oncomplete = f; }, set onerror(f) {} }; } }; r.onsuccess && r.onsuccess(); }, 0); return r; } };
+  const fakeIdb = { open() { const r = {}; setTimeout(() => { r.result = { objectStoreNames: { contains: () => true }, transaction(name) { const tx = {}; setTimeout(() => tx.oncomplete && tx.oncomplete(), 2); return { objectStore() { return { add: v => { store.journal.push(v); }, get: k => mkReq(store.kv.get(k) || null), put: v => store.kv.set(v.k, v) }; }, get oncomplete() { return tx.oncomplete; }, set oncomplete(f) { tx.oncomplete = f; }, set onerror(f) {} }; } }; r.onsuccess && r.onsuccess(); }, 0); return r; } };
+  const clientsList = [];
   const self = { listeners: {}, addEventListener(n, f) { this.listeners[n] = f; }, skipWaiting(){},
-    clients: { claim: () => Promise.resolve(), matchAll: () => Promise.resolve([{ url: 'https://x/stuff/bridge-turn24-post-ship.html', focus: () => { self.focused = true; return Promise.resolve(); }, postMessage: m => { self.posted = m; } }]), openWindow: u => { self.opened = u; return Promise.resolve(); } },
+    navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/125', maxTouchPoints: 0 },
+    clients: { claim: () => Promise.resolve(), matchAll: () => Promise.resolve(clientsList.length ? clientsList : [{ url: 'https://x/stuff/bridge-turn24-post-ship.html', focus: () => { self.focused = true; return Promise.resolve(); }, postMessage: m => { self.posted = m; } }]), openWindow: u => { self.opened = u; return Promise.resolve(); } },
     registration: { scope: 'https://x/stuff/', showNotification: (t, o) => { shown.push({ t, o }); return Promise.resolve(); } } };
-  const ctx = new vm.createContext({ self, indexedDB: fakeIdb, setTimeout, Promise, Array, Date, String, JSON, Object, console });
+  const ctx = new vm.createContext({ self, indexedDB: fakeIdb, setTimeout, fetch: u => { fetched.push(u); return Promise.resolve({ json: () => Promise.resolve(u.includes('session=rB') ? [{ type: 'chat-msg', from: 'other', ts: Date.now() - 1000, seq: 3 }] : [{ type: 'call-end', reason: 'missed', from: 'other', ts: Date.now() - 5000, seq: 2 }]) }); }, encodeURIComponent, Promise, Array, Date, String, JSON, Object, console });
   vm.runInContext(sw, ctx);
-  const envelope = { web_push: 8030, notification: { title: 'TalkBridge', body: 'Incoming video call', tag: 'tb-roomZ', navigate: 'https://x/stuff/bridge-turn24-post-ship.html#open=roomZ', silent: false }, tb: { v: 1, eventId: 'K1:start', roomId: 'roomZ', type: 'call-start', kind: 'video', callId: 'K1', ts: 1 } };
-  const push = { data: { json: () => envelope }, waitUntil: p => { self.pending = p; } };
-  self.listeners.push(push); await self.pending; await sleep(30);
-  T('W1 envelope push → shown with its tag, generic body, tap-through data; arrived+shown journaled with the eventId', () => {
-    A(shown.length === 1 && shown[0].o.tag === 'tb-roomZ' && shown[0].o.body === 'Incoming video call', 'display wrong: ' + JSON.stringify(shown));
-    A(shown[0].o.data.roomId === 'roomZ' && shown[0].o.data.eventId === 'K1:start' && String(shown[0].o.data.url).includes('#open=roomZ'), 'tap data wrong');
-    A(journal.some(j => j.ev === 'arrived' && j.eventId === 'K1:start') && journal.some(j => j.ev === 'shown' && j.eventId === 'K1:start'), 'journal incomplete');
+  store.kv.set('ctx', { k: 'ctx', v: { appUrl: 'https://x/stuff/bridge-turn24-post-ship.html', relay: 'https://relay/signal', app: 'talk-say-v1', client: 'me', rooms: [{ id: 'rA', title: 'Alice' }, { id: 'rB', title: 'Trip' }] } });
+  const push = { data: { json: () => ({ t: 'tb-wake', at: Date.now() }) }, waitUntil: p => { self.pending = p; } };
+  self.listeners.push(push); await self.pending; await sleep(20);
+  T('W1 push → notification shown, tagged by the resolved room (newest across rooms), journaled arrived + shown', () => {
+    A(shown.length === 1 && shown[0].o.tag === 'tb-rB' && shown[0].o.body.includes('New message') && shown[0].o.body.includes('Trip'), 'wrong notification: ' + JSON.stringify(shown));
+    A(journal.some(j => j.ev === 'arrived') && journal.some(j => j.ev === 'shown' && j.room === 'rB'), 'journal incomplete: ' + JSON.stringify(journal));
+    A(fetched.every(u => u.includes('client=me')), 'history fetched without the device id');
   });
-  self.listeners.push(push); await self.pending; await sleep(30);
-  T('W2 the same eventId again → deduped: at most one display attempt per event per device', () => {
-    A(shown.length === 1, 'displayed twice');
-    A(journal.some(j => j.ev === 'deduped' && j.eventId === 'K1:start'), 'dedupe not journaled');
-  });
-  const bad = { data: { json: () => { throw new Error('not json'); } }, waitUntil: p => { self.pending = p; } };
-  self.listeners.push(bad); await self.pending; await sleep(30);
-  T('W3 an unparseable push still shows something (fail toward delivery)', () => A(shown.length === 2, 'silent on bad payload'));
+  shown = []; store.kv.delete('ctx');
+  self.listeners.push(push); await self.pending; await sleep(20);
+  T('W2 no context → still a notification (Apple revokes silent handlers), tag tb-unknown', () => A(shown.length === 1 && shown[0].o.tag === 'tb-unknown', 'silent handler'));
   self.registration.showNotification = () => Promise.reject(new Error('boom'));
-  const envelope2 = { ...envelope, tb: { ...envelope.tb, eventId: 'K2:start' } };
-  self.listeners.push({ data: { json: () => envelope2 }, waitUntil: p => { self.pending = p; } }); await self.pending; await sleep(30);
-  T('W4 a failed show is journaled failed with its eventId and a fallback is attempted', () => A(journal.some(j => j.ev === 'failed' && j.eventId === 'K2:start'), 'failure not journaled'));
+  self.listeners.push(push); await self.pending; await sleep(20);
+  T('W3 a failed show is journaled as failed and a fallback is still attempted', () => A(journal.some(j => j.ev === 'failed' && j.e === 'boom'), 'failure not journaled'));
+  /* Visible-branch (P4v2-b): a visible client on non-iOS → no notification, journaled */
   self.registration.showNotification = (t, o) => { shown.push({ t, o }); return Promise.resolve(); };
-  self.listeners.notificationclick({ notification: { close(){ self.closed = true; }, data: { roomId: 'roomZ', url: 'https://x/stuff/bridge-turn24-post-ship.html', eventId: 'K1:start' } }, waitUntil: p => { self.pending = p; } });
-  await self.pending; await sleep(20);
-  T('W5 tap: journaled, closes itself, focuses the running app with the room (no second copy)', () => {
-    A(self.closed && self.focused && self.posted && self.posted.roomId === 'roomZ' && !self.opened, 'tap behavior wrong');
-    A(journal.some(j => j.ev === 'tap' && j.eventId === 'K1:start'), 'tap not journaled');
+  shown = []; const jN = journal.length;
+  store.kv.set('ctx', { k: 'ctx', v: { appUrl: 'x', relay: 'https://relay/signal', app: 'a', client: 'me', rooms: [{ id: 'rB', title: 'Trip' }] } });
+  clientsList.push({ url: 'https://x/stuff/bridge-turn24-post-ship.html', visibilityState: 'visible', focused: true });
+  self.listeners.push(push); await self.pending; await sleep(20);
+  T('W5 a VISIBLE app on non-iOS → the worker shows nothing (the app is the alert), journaled skipped_visible', () => {
+    A(shown.length === 0, 'notification shown over a visible app');
+    A(journal.slice(jN).some(j => j.ev === 'skipped_visible'), 'skip not journaled');
   });
+  self.navigator.userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15';
+  self.listeners.push(push); await self.pending; await sleep(20);
+  T('W6 a VISIBLE app on iOS → the worker still shows, room-tagged (Apple revokes silent handlers; the app closes it)', () => {
+    A(shown.length === 1 && shown[0].o.tag === 'tb-rB', 'iOS visible branch wrong: ' + JSON.stringify(shown));
+  });
+  clientsList.length = 0; self.navigator.userAgent = 'Mozilla/5.0 (Linux; Android 14) Chrome/125';
+  self.listeners.notificationclick({ notification: { close(){ self.closed = true; }, data: { roomId: 'rB', url: 'https://x/stuff/bridge-turn24-post-ship.html' } }, waitUntil: p => { self.pending = p; } });
+  await self.pending;
+  T('W4 tap closes itself and focuses the running app with the room (no second copy)', () => A(self.closed && self.focused && self.posted && self.posted.roomId === 'rB' && !self.opened, 'tap opened a second copy / no focus'));
 }
 
 console.log('T · threads with consent (P6)');
