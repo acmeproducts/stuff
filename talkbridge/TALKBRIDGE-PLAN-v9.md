@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.0.0 -->
-# TALKBRIDGE MASTER PLAN v20.0.0
+<!-- TALKBRIDGE-PLAN v20.1.0 -->
+# TALKBRIDGE MASTER PLAN v20.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -337,6 +337,43 @@ leader's tap count (1: Accept), beats the mainstream on privacy, and the
 decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
+
+### 4.7 · R10.3 / R10.4 — GATED ON THIRD-PARTY REVIEW (v20.1.0)
+
+**Status: DESIGN COMPLETE, BUILD FORBIDDEN.** The full design — outcome
+contract (call / missed / chat / MUTED-ROOM matrices, iOS-vs-Android
+difference list), exact baseline statement, and implementation approach
+(R10.3a declarative payloads · R10.3b ring cadence · R10.4 journal-drain home
+cards) — lives in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md` and is
+normative for this release. The matrices in that document REPLACE §4.4 as the
+device gate the moment the review clears.
+
+**Gate order, no exceptions:**
+1. External dev team reviews the package and answers its §7 questions.
+2. The dev team's WRITTEN FEEDBACK is pasted verbatim into §4.7.1 below —
+   that section is reserved for them and is expected to be filled before
+   anything else happens.
+3. Findings are dispositioned line-by-line (accepted → design change here;
+   rejected → reasoning here). The review document is updated to match.
+4. Owner gives written GO in this plan.
+5. Only then: parts + relay v4.3 built from the §2 baseline, full gate suite,
+   one paired commit, owner device matrix.
+
+Cutting code before §4.7.1 contains the reviewers' text and the owner's GO is
+the declare-and-execute violation buried 2026-08-28. It does not matter how
+small the change is.
+
+#### 4.7.1 · DEV TEAM WRITTEN FEEDBACK (reserved — paste verbatim below)
+
+> _Awaiting reviewer input. Expected: answers to §7 Q1–Q5 of the review
+> package, any attack on the outcome matrices (including the muted-room
+> rows and the open in-room-call-while-muted question), any production
+> evidence for or against the 3.5s/45s ring cadence, and anything the
+> baseline statement gets wrong._
+
+#### 4.7.2 · DISPOSITION LOG (one line per finding, filled after 4.7.1)
+
+> _Empty until feedback lands._
 
 ### 4.6 · R10.2 — ALWAYS-PUSH (owner-approved 2026-08-28, supersedes every alerting decision above)
 
@@ -755,6 +792,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.1.0 · 2026-08-28.** R10.3/R10.4 design frozen into the third-party
+review package (`THIRD-PARTY-REVIEW-2026-08-28.md`, commit 5424411): outcome
+matrices become the release contract, muted-room behavior specified, iOS/
+Android differences enumerated with sources. §4.7 added: build is FORBIDDEN
+until (1) the dev team's written feedback is pasted into §4.7.1, (2) findings
+are dispositioned in §4.7.2, (3) owner writes GO. Driving events: the home-
+card gap (waiting counters bump only on live-socket events; locked-phone
+events never bump — ship-era hole exposed by working push delivery) and iOS
+banner stacking, both device-found 2026-08-28.
+
 
 **v20.0.0 · 2026-08-28.** OWNER RULING after the first device session on the
 P2-P6 build: no more server-side guessing, no patching the failed build, and
