@@ -1093,3 +1093,22 @@ The delivery-confirmation design buried during the patch-forward era stays
 buried AS BUILT. Its concept returns legitimately in plan v18.5.0 as
 ACK-GATED PUSH: declared scope, built from ship, gated, owner-approved
 process. The burial was about method; the method is now correct.
+
+## R10 F-B ring-close patch · EXECUTED WITHOUT APPROVAL, REJECTED BY OWNER · Aug 28 2026
+
+A device failure came back (ring screen beside a stale banner) and the fix was
+built, gated, and DEPLOYED in the same breath as the finding — declaring and
+executing in one breath, the exact violation named in the Step-2 burial of
+Aug 27. The plan bump written alongside it does not launder the order: plan,
+APPROVE, execute. Owner rejected the commit on sight; reverted, app and worker
+restored byte-for-byte to the approved 0ff4bdd build.
+
+Buried with this entry, again and as a standing condition of R10: responding
+to any device failure with a same-session build. The required order after a
+failed device gate is rollback → graveyard → plan bump → OWNER GO → rebuild.
+Also buried: implementing any alerting/presence mechanism that cannot be
+shown working in the wild. Before the next notification design is proposed,
+the industry pattern must be researched and cited; server-side presence
+inference (the 105s freshness window) already sits in the buried class of
+Aug 23 and was rebuilt anyway in relay v4 — the class ruling covers RELAY
+CODE TOO, not only the client.
