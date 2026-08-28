@@ -25,27 +25,31 @@ const app = [
  ['a gesture-less refusal shows the recipe (fresh phones told they are broken)',
   s => s.replace("      if (inGesture) p3ShowRecipe();\n      else p3ArmGesture();", "      p3ShowRecipe();")],
  ['permission is asked after the awaits, not synchronously in the tap',
-  s => s.replace("var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }", "var asked = Promise.resolve().then(function(){ return Notification.requestPermission(); });").replace("A(w.__askCalls === 1", "A(w.__askCalls === 1")],
+  s => s.replace("var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }", "var asked = Promise.resolve().then(function(){ return Notification.requestPermission(); });")],
  ['only the first room registers with the relay',
   s => s.replace("if (!p3State.sub || !roomId) return Promise.resolve(false);", "if (!p3State.sub || !roomId || roomId !== p3LiveRooms()[0].id) return Promise.resolve(false);")],
-  ['a muted room stays subscribed at the relay',
-  s => s.replace("var room = roomById(roomId), want = !(room && room.muted);", "var room = roomById(roomId), want = true;")],
-    ['the ring screen no longer closes the stale lock-screen notification (the observed double)',
-  s => s.replace("try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4PresentedClose(room.id); } catch (_) {}", ";")],
- ['the active room stops closing the banner for what it shows',
-  s => s.replace("try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4PresentedClose(S.roomId); }", ";")],
- ['the delayed second close vanishes (late banners survive)',
-  s => s.replace("setTimeout(function () { p4CloseTag(roomId); }, 2500);", ";")],
- ['a hidden app raises a surface beside the push',
-  s => s.replace("if (document.hidden) return;                                                        /* hidden: the push is the alert (ALWAYS-PUSH) */", ";")],
- ['a notification stacks beside the ring screen',
-  s => s.replace("if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */", ";")],
- ['notifications lose their per-room tag (stack, never replace)',
-  s => s.replace("tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] }", "tag: 'tb-' + roomId + '-' + Date.now(), renotify: true, data: { roomId: roomId }")],
+ ['the subscription loses its navigate target (declarative tap-through dies)',
+  s => s.replace(", navigate: location.href.split('#')[0] }", " }")],
+ ['the mute UI claims muted before the relay acknowledges (review §4.3 inverted)',
+  s => s.replace("    p3MutePost(r.id, want).then(function () {\n      r.muted = want; saveRooms();", "    r.muted = want; saveRooms();\n    p3MutePost(r.id, want).then(function () {")],
+ ['a hidden app starts acknowledging presentation (locked phones fall silent)',
+  s => s.replace("  if (!eventId || document.hidden) return false;", "  if (!eventId) return false;")],
+ ['presented loses its exact event (an empty ack for everything)',
+  s => s.replace("var m = { type: 'presented', eventId: eventId, transient: true };", "var m = { type: 'presented', transient: true };")],
+ ['call words lose their stable identity',
+  s => s.replace("if (m.type === 'call-start') { m.callId = m.callId || p4State.callId || ('cl-' + uid()); p4State.callId = m.callId; m.eventId = m.callId + ':start'; }", ";")],
+ ['live events are no longer marked counted (socket + ledger double-count)',
+  s => s.replace("function p4MarkCounted(roomId, eventId) {\n  if (!eventId) return;", "function p4MarkCounted(roomId, eventId) {\n  return;\n  if (!eventId) return;")],
+ ['the ledger stops typing missed calls (video counted as nothing)',
+  s => s.replace("if (e.type === 'call-start' && e.state === 'timed_out') { var k = e.kind === 'video' ? 'video' : 'voice'; bumpWaiting(room, k); bumped[k]++; }", ";")],
+ ['the ledger sync stops advancing the cursor (counts replay forever)',
+  s => s.replace("    return p4AdvanceCursor(room.id, maxL);", "    return Promise.resolve();")],
+ ['worker receipts start feeding the counters (review §7.3 forbidden)',
+  s => s.replace("    rows.forEach(function (en) { p4Log('sw_receipt',", "    rows.forEach(function (en) { try { var rr = roomById(en.room); if (rr) bumpWaiting(rr, 'chat'); } catch (_) {} p4Log('sw_receipt',")],
  ['opening a room leaves its stale notifications up',
-  s => s.replace("try { p4CloseTag(id); } catch (_) {}", ";")],
+  s => s.replace("      p4CloseTag(id);", ";")],
  ['answering a call leaves its notification up',
-  s => s.replace("try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}", ";")],
+  s => s.replace("    try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}", ";")],
  ['the receipt drain goes silent',
   s => s.replace("p4Log('sw_drained', { n: rows.length }, 'ok');", ";")],
  ['the + control vanishes from room cards',
@@ -72,18 +76,16 @@ const app = [
   s => s.replace("function boot(){", "function boot(){ /* mutated */")],
 ];
 const worker = [
- ['a visible app on Android is shouted over (skip-when-visible removed)',
-  s => s.replace("if (vc && !isIOS()) {", "if (false) {")],
- ['a visible app on iOS gets a silent handler (Apple revokes)',
-  s => s.replace("return /iPhone|iPad|iPod/.test(self.navigator.userAgent)", "return false && /iPhone|iPad|iPod/.test(self.navigator.userAgent)")],
- ['the worker goes silent on a push (Apple revokes the subscription)',
-  s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })", "return Promise.resolve()")],
+ ['the worker goes silent on a push',
+  s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: false, data: data })", "return Promise.resolve()")],
+ ['eventId dedupe dies (every replayed push displays again)',
+  s => s.replace("    if (list.indexOf(eventId) >= 0) return true;", "    if (false) return true;")],
+ ['the envelope is ignored (bare generic banner, no tap-through room)',
+  s => s.replace("var tb = (env && env.tb) || {};", "var tb = {};")],
  ['the worker stops journaling shown',
-  s => s.replace(".then(function () { return journal('shown', { room: roomId, kind: kind }); },", ".then(function () { return Promise.resolve(); },")],
+  s => s.replace(".then(function () { return journal('shown', { eventId: tb.eventId, room: tb.roomId, kind: tb.type }); },", ".then(function () { return Promise.resolve(); },")],
  ['a tap opens a second copy instead of focusing the app',
-  s => s.replace("if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }", ";")],
- ['the room tag collapses to one global tag',
-  s => s.replace("var tag = 'tb-' + (roomId || 'unknown');", "var tag = 'tb-all';")],
+  s => s.replace("      if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }", ";")],
 ];
 let caught = 0, total = 0;
 function run(name, appText, swText) {
@@ -97,14 +99,26 @@ const ONLY = process.env.ONLY ? process.env.ONLY.split(",").map(Number) : null;
 for (const [i, [name, fn]] of app.entries()) { if (ONLY && !ONLY.includes(i)) continue; const m = fn(built); if (m === built) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, m, sw); }
 for (const [name, fn] of worker) { if (ONLY) continue; const m = fn(sw); if (m === sw) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, built, m); }
 const relayMuts = [
- ['the presence guess returns (connected devices skipped)',
-  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      if (!this._connectedIds().has(clientId)) jobs.push(this._pushOne(clientId, rec));")],
- ['a wake timer returns (the 1s race)',
-  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      setTimeout(() => this._pushOne(clientId, rec), 1000);")],
+ ['ANY inbound word cancels every pending push (presence inference returns)',
+  s => s.replace("    if (msg.type === 'presented' && msg.eventId && clientId) {\n      const key = clientId + '|' + msg.eventId;\n      const t = this.pendingPush.get(key);\n      if (t) { clearTimeout(t); this.pendingPush.delete(key);", "    if (clientId) {\n      for (const k of [...this.pendingPush.keys()]) if (k.startsWith(clientId + '|')) { clearTimeout(this.pendingPush.get(k)); this.pendingPush.delete(k); }\n      const t = null;\n      if (t) {")],
+ ['the burst rule vanishes (a push per chat, the forbidden flurry)',
+  s => s.replace("        if (!eligible) { this._logPush({ eventId: msg.eventId, client: clientId, outcome: 'burst-suppressed', status: -1, at: now }); continue; }", ";")],
+ ['mute is ignored at the relay (muted phones ding)',
+  s => s.replace("      if (this.mute[clientId]) { this._logPush({ eventId: msg.eventId, client: clientId, outcome: 'muted', status: -1, at: now }); continue; }", ";")],
+ ['a terminal call state stops cancelling the stale ring',
+  s => s.replace("      if (rec.state !== 'started') {\n        for (const key of [...this.pendingPush.keys()]) {", "      if (false) {\n        for (const key of [...this.pendingPush.keys()]) {")],
+ ['the ledger stops deduplicating retries (double counts)',
+  s => s.replace("      const dup = this.ledger.some((e) => e.eventId === msg.eventId && e.type === msg.type);", "      const dup = false;")],
+ ['the cursor loses monotonicity (consumed events resurrect)',
+  s => s.replace("        this.cursors[clientId] = Math.max(Number(this.cursors[clientId]) || 0, l);", "        this.cursors[clientId] = l;")],
+ ['the session reset takes the ledger with it (counts die at 12 minutes)',
+  s => s.replace("      this.seq = 0;\n      this.messages = [];\n      await this.state.storage.put({ seq: 0, messages: [], lastActivity: now });", "      this.seq = 0;\n      this.messages = [];\n      this.ledger = []; this.lseq = 0;\n      await this.state.storage.put({ seq: 0, messages: [], lastActivity: now, ledger: [], lseq: 0 });")],
  ['the sender starts waking itself',
-  s => s.replace("if (clientId === senderId) continue;", ";")],
- ['non-worthy types start waking phones',
-  s => s.replace("if (!PUSH_WORTHY.has(msg.type)) return;", ";")],
+  s => s.replace("      if (clientId === senderId) continue;", ";")],
+ ['the global wake topic returns',
+  s => s.replace("const topic = meta.type === 'call-start' ? topicSafe('c' + (meta.callId || meta.eventId)) : topicSafe('m' + this.sessionName);", "const topic = 'tb-wake';")],
+ ['history-sync becomes an alert (history-guessing wake returns)',
+  s => s.replace("const ALERT_TYPES = new Set(['chat-msg', 'sys-pill', 'call-start', 'thread-invite']);", "const ALERT_TYPES = new Set(['chat-msg', 'sys-pill', 'call-start', 'thread-invite', 'history-sync']);")],
 ];
 const relaySrc = readFileSync(relayP, 'utf8');
 for (const [name, fn] of relayMuts) {
@@ -112,7 +126,7 @@ for (const [name, fn] of relayMuts) {
   const m = fn(relaySrc); total++;
   if (m === relaySrc) { console.log('NO-OP    ' + name); continue; }
   writeFileSync('/tmp/mut-relay.js', m);
-  const r = spawnSync('node', [new URL('./harness-relay-v42.mjs', import.meta.url).pathname, '/tmp/mut-relay.js'], { encoding: 'utf8' });
+  const r = spawnSync('node', [new URL('./harness-relay-v5.mjs', import.meta.url).pathname, '/tmp/mut-relay.js'], { encoding: 'utf8' });
   if (r.status !== 0) { caught++; console.log('  caught  ' + name); } else console.log('ESCAPED  ' + name);
 }
 console.log(`\n${caught}/${total} mutations caught`);

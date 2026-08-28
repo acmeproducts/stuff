@@ -1,16 +1,13 @@
-/* TalkBridge service worker · R10.2 P4v2 (plan v20.0.0 §4.6 ALWAYS-PUSH) · source: talkbridge/parts/p4-sw.js — assembled, never hand-edited.
-   Rules it embodies (sources S1-S5 in the plan):
-   - The relay always pushes; THIS worker decides presentation from ground truth:
-     a VISIBLE window client exists → non-iOS: skip (the app is the alert; FCM /
-     web.dev reference pattern); iOS: show with the room tag and the app closes
-     it (Apple revokes silent handlers). No visible client → show.
-   - Per-room tag: successive pushes REPLACE, never stack.
-   - A tap closes itself and focuses the running app rather than opening a second copy.
-   - Every push terminal (arrived / shown / failed) is journaled durably on-device; the app drains it into its debug log.
-   - The push carries no room; the room is resolved from the relay's own history (bounded), so message text never rides a push service. */
+/* TalkBridge service worker · v3 (plan v20.2.0 §4.7.3, review §7.4) · source: talkbridge/parts/p4-sw.js — assembled, never hand-edited.
+   Legacy presentation path for the one event envelope. On supporting Apple
+   systems the OS displays the declarative payload itself; everywhere else this
+   worker parses THE SAME decrypted JSON and shows it. One push produces at
+   most one display attempt per device: events deduplicate by eventId. The
+   journal (arrived / shown / deduped / failed / tap) is delivery TELEMETRY
+   only — it never feeds a counter (review §7.3). No history fetching, no room
+   guessing, no visibility inference: a push that arrived is a push that was
+   not acknowledged, and it is shown. */
 var DB = 'tb-r10', JOURNAL = 'journal', KV = 'kv';
-var PUSH_WORTHY = { 'chat-msg': 'New message', 'sys-pill': 'Update', 'call-start': 'Incoming call', 'call-end': 'Missed call', 'thread-invite': 'Thread invite', 'history-sync': 'New activity' };
-var LOOKUP_MS = 1500, RECENT_MS = 120000;
 
 function idb() {
   return new Promise(function (res, rej) {
@@ -20,73 +17,45 @@ function idb() {
   });
 }
 function journal(ev, extra) {
-  var rec = { ev: ev, ts: Date.now(), e: (extra && extra.e) || null, room: (extra && extra.room) || null, kind: (extra && extra.kind) || null };
+  var rec = { ev: ev, ts: Date.now(), e: (extra && extra.e) || null, room: (extra && extra.room) || null, kind: (extra && extra.kind) || null, eventId: (extra && extra.eventId) || null };
   return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(JOURNAL, 'readwrite'); tx.objectStore(JOURNAL).add(rec); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; }); }).catch(function () {});
 }
-function loadCtx() {
-  return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(KV, 'readonly'); var g = tx.objectStore(KV).get('ctx'); g.onsuccess = function () { res(g.result ? g.result.v : null); }; g.onerror = function () { res(null); }; }); }).catch(function () { return null; });
+function kvGet(k) {
+  return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(KV, 'readonly'); var g = tx.objectStore(KV).get(k); g.onsuccess = function () { res(g.result ? g.result.v : null); }; g.onerror = function () { res(null); }; }); }).catch(function () { return null; });
 }
-function withTimeout(p, ms) { return Promise.race([p, new Promise(function (res) { setTimeout(function () { res(null); }, ms); })]); }
-
-/* Which room, which kind. Newest push-worthy message from someone else, recent, across the rooms the app told us about. */
-function resolveRoom(ctx) {
-  if (!ctx || !ctx.relay || !ctx.app || !ctx.client || !Array.isArray(ctx.rooms) || !ctx.rooms.length) return Promise.resolve(null);
-  var now = Date.now();
-  return Promise.all(ctx.rooms.map(function (room) {
-    var u = ctx.relay + '?app=' + encodeURIComponent(ctx.app) + '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(ctx.client) + '&since=0';
-    return fetch(u).then(function (r) { return r.json(); }).then(function (msgs) {
-      var best = null;
-      (Array.isArray(msgs) ? msgs : []).forEach(function (m) {
-        if (!m || !PUSH_WORTHY[m.type] || m.from === ctx.client) return;
-        if (m.type === 'call-end' && m.reason !== 'missed') return;
-        if (typeof m.ts !== 'number' || now - m.ts > RECENT_MS) return;
-        if (!best || m.ts > best.ts) best = m;
-      });
-      return best ? { room: room, msg: best } : null;
-    }).catch(function () { return null; });
-  })).then(function (hits) {
-    var best = null;
-    hits.forEach(function (h) { if (h && (!best || h.msg.ts > best.msg.ts)) best = h; });
-    return best;
+function kvSet(k, v) {
+  return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(KV, 'readwrite'); tx.objectStore(KV).put({ k: k, v: v }); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; }); }).catch(function () {});
+}
+/* eventId dedupe ring — one display attempt per event per device */
+function seenBefore(eventId) {
+  if (!eventId) return Promise.resolve(false);
+  return kvGet('seen').then(function (list) {
+    list = Array.isArray(list) ? list : [];
+    if (list.indexOf(eventId) >= 0) return true;
+    list.push(eventId); if (list.length > 300) list = list.slice(-300);
+    return kvSet('seen', list).then(function () { return false; });
   });
 }
 
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
-function visibleClient() {
-  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].visibilityState === 'visible' || list[i].focused) return list[i];
-    }
-    return null;
-  }).catch(function () { return null; });
-}
-function isIOS() {
-  try { return /iPhone|iPad|iPod/.test(self.navigator.userAgent) || (/Macintosh/.test(self.navigator.userAgent) && self.navigator.maxTouchPoints > 1); }
-  catch (_) { return false; }
-}
-
 self.addEventListener('push', function (e) {
   e.waitUntil((function () {
-    var payload = null; try { payload = e.data ? e.data.json() : null; } catch (_) { payload = null; }
-    return journal('arrived', { kind: payload && payload.t }).then(function () { return visibleClient(); }).then(function (vc) {
-      if (vc && !isIOS()) {
-        /* The app is on screen and presents the event itself (S1/S2). */
-        return journal('skipped_visible', {});
-      }
-      return loadCtx().then(function (ctx) {
-      return withTimeout(resolveRoom(ctx), LOOKUP_MS).then(function (hit) {
-        var roomId = hit ? hit.room.id : null, kind = hit ? hit.msg.type : null;
-        var title = 'TalkBridge';
-        var body = hit ? (PUSH_WORTHY[kind] + (hit.room.title ? ' · ' + hit.room.title : '')) : 'New activity';
-        var tag = 'tb-' + (roomId || 'unknown');
-        var appUrl = (ctx && ctx.appUrl) || (self.registration.scope + 'bridge-turn24-post-ship.html');
-        return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })
-          .then(function () { return journal('shown', { room: roomId, kind: kind }); },
-                function (err) { return journal('failed', { e: String(err && err.message || err), room: roomId }).then(function () { return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback' }).catch(function () {}); }); });
-      });
-      });
+    var env = null; try { env = e.data ? e.data.json() : null; } catch (_) { env = null; }
+    var tb = (env && env.tb) || {};
+    var note = (env && env.notification) || {};
+    return journal('arrived', { eventId: tb.eventId, room: tb.roomId, kind: tb.type }).then(function () {
+      return seenBefore(tb.eventId);
+    }).then(function (dup) {
+      if (dup) return journal('deduped', { eventId: tb.eventId, room: tb.roomId });
+      var title = note.title || 'TalkBridge';
+      var body = note.body || 'New activity';
+      var tag = note.tag || ('tb-' + (tb.roomId || 'unknown'));
+      var data = { roomId: tb.roomId || null, url: note.navigate || (self.registration.scope + 'bridge-turn24-post-ship.html'), eventId: tb.eventId || null };
+      return self.registration.showNotification(title, { body: body, tag: tag, renotify: false, data: data })
+        .then(function () { return journal('shown', { eventId: tb.eventId, room: tb.roomId, kind: tb.type }); },
+              function (err) { return journal('failed', { e: String(err && err.message || err), eventId: tb.eventId, room: tb.roomId }).then(function () { return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback' }).catch(function () {}); }); });
     });
   })());
 });
@@ -94,10 +63,14 @@ self.addEventListener('push', function (e) {
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var data = e.notification.data || {};
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
-    var app = null;
-    for (var i = 0; i < list.length; i++) { if (String(list[i].url).indexOf('bridge-turn24-post-ship') >= 0) { app = list[i]; break; } }
-    if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }
-    return self.clients.openWindow(data.url || self.registration.scope);
-  }));
+  e.waitUntil((function () {
+    return journal('tap', { eventId: data.eventId, room: data.roomId }).then(function () {
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    }).then(function (list) {
+      var app = null;
+      for (var i = 0; i < list.length; i++) { if (String(list[i].url).indexOf('bridge-turn24-post-ship') >= 0) { app = list[i]; break; } }
+      if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }
+      return self.clients.openWindow(data.url || self.registration.scope);
+    });
+  })());
 });
