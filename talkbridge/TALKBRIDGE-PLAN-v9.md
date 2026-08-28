@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v19.5.0 -->
-# TALKBRIDGE MASTER PLAN v19.5.0
+<!-- TALKBRIDGE-PLAN v20.0.0 -->
+# TALKBRIDGE MASTER PLAN v20.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -337,6 +337,83 @@ leader's tap count (1: Accept), beats the mainstream on privacy, and the
 decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
+
+### 4.6 · R10.2 — ALWAYS-PUSH (owner-approved 2026-08-28, supersedes every alerting decision above)
+
+**THE DECISION.** The relay stops deciding whether a device needs an alert.
+It cannot know; every attempt to know (socket presence, 75s/105s freshness,
+1-second ack timers) produced silence in one test and doubles in the next.
+The production-proven architecture is the opposite: THE SERVER ALWAYS SENDS
+THE PUSH FOR EVERY PUSH-WORTHY EVENT, and THE DEVICE — the only place the
+truth exists — decides what the person sees.
+
+**SOURCES (indexed; this is the in-the-wild proof the design is copied from):**
+- S1 Firebase Cloud Messaging web receive model — server always delivers;
+  foreground = the page presents, background = the service worker shows.
+  https://firebase.google.com/docs/cloud-messaging/js/receive
+- S2 Google reference pattern for exactly this case — service worker checks
+  for a visible/focused window client before showing.
+  https://web.dev/articles/push-notifications-common-notification-patterns
+- S3 Web Push Book, "Common Notification Patterns" (same pattern, canonical).
+  https://web-push-book.gauntface.com/common-notification-patterns/
+- S4 Apple/native model — the foreground app's delegate decides presentation;
+  the server never suppresses (OneSignal SDKs implement the same rule).
+  https://documentation.onesignal.com/docs/en/web-push-for-ios
+- S5 iOS constraint — a push handled without a shown notification risks
+  subscription revocation, so on iOS the visible-app branch shows-then-the-
+  app-closes instead of skipping.
+  https://github.com/mdn/browser-compat-data/issues/19318 (tag/getNotifications
+  iOS caveats) · S4 (revocation rule)
+
+**ABANDONED (indexed; buried as a class, relay and client alike):**
+- A1 Relay ack-gated push: the pendingWakes map, the 1-second fallback timer,
+  cancellation on any inbound word. Deleted.
+- A2 Relay liveness stamping (lastSeen) and the 105-second freshness
+  exemption ("provably presenting"). Deleted — this is the inferred-presence
+  class buried 2026-08-23, rebuilt in v4 by mistake.
+- A3 Relay connected-socket suppression (skip-push-because-a-socket-exists).
+  Deleted. A socket is not a person.
+- A4 Client ack-on-presentation machinery (p4Ack and its wraps). Deleted —
+  nothing gates on it anymore.
+- A5 The 30-second background-listener heartbeat. Deleted — it existed only
+  to feed the relay's liveness view, which no longer exists.
+- A6 The rejected 2026-08-28 same-session F-B patch AS AN ACT. Its content
+  (close a room's stale notifications the moment the ring screen presents)
+  re-enters here as declared item P4v2-c, through the plan, with approval.
+
+**BASELINE → PATCH → RESULT (traceability):**
+- Baseline app: bridge-turn24-ship.html, byte-preserved (device-passed
+  2026-08-15, owner-revalidated 2026-08-27).
+- Baseline relay: worker-talk.js v4 lineage (R7 body + RFC 8291 delivery
+  class, commit e416a70) minus A1-A3 → v4.2. The RFC Appendix-A vector gate
+  still applies byte-exact.
+- Patch (part sources, talkbridge/parts/): p2-install-gate.js (unchanged),
+  p3-subscription.js (minus A5), p4-alert-hygiene.js v2 (minus A4, plus
+  P4v2 below), p4-sw.js v2 (plus the S2 visible-client branch), p6-threads.js
+  (unchanged).
+- Result (one assembly command, artifacts are output only):
+  bridge-turn24-post-ship.html + tb-sw.js, shipped in the SAME commit as
+  relay v4.2 — the pair moves together.
+
+**P4v2 — device-side presentation rule (replaces every ack behavior):**
+- a. Relay v4.2 pushes every push-worthy event to every subscribed device
+  except the sender. No other condition exists.
+- b. Worker on push: if a VISIBLE window client exists — non-iOS: do not show
+  (S1/S2 pattern; journaled 'skipped_visible'); iOS: show with the room tag
+  (S5) and the app closes it. No visible client: show with the room tag.
+- c. App: any push-worthy event it presents while visible (active-room
+  message, ring screen, panel badge/toast) closes that room's notifications
+  immediately and once more ~2.5s later (a banner can land after the event).
+  Ring-present, answer, and room-open all close (A6 re-entry).
+- d. Registration still mirrors mute (a muted room is unsubscribed) — that is
+  declared state, not presence inference, and stays.
+
+**Gate additions:** relay harness v4.2 — every subscribed non-sender is pushed
+regardless of socket state; no pendingWakes, no lastSeen, RFC vector intact.
+App harness — visible-branch both ways, presented-close paths, plus the full
+existing R10 suite minus the abandoned ack tests. Fresh mutations for every
+new behavior. Owner device matrix per §4.4 is unchanged and remains the only
+gate that counts.
 
 ### 4.2 · Explicitly OUT of this release
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
@@ -678,6 +755,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.0.0 · 2026-08-28.** OWNER RULING after the first device session on the
+P2-P6 build: no more server-side guessing, no patching the failed build, and
+nothing ships that cannot be shown working in the wild. §4.6 R10.2 written:
+ALWAYS-PUSH — relay v4.2 deletes ack-gating, liveness, and freshness (A1-A3);
+the device presents (P4v2) per the FCM/web.dev/Web-Push-Book pattern (S1-S3)
+with the iOS show-then-close variant (S4-S5). Baseline = ship + relay v4
+lineage; patch = named part sources; result = one assembled pair. The
+2026-08-28 same-session F-B patch stands rejected and reverted; its content
+re-enters only as declared item P4v2-c. Device-session findings F-A/F-B/F-C
+(silence via 105s freshness · double via stale banner beside the ring ·
+reconnect flurry) are recorded here as the driving evidence, log-proven.
+
 
 **v19.5.0 · 2026-08-27.** P6 finalized with consent decorum per owner:
 Accept/Decline on thread invites, both outcomes timestamped into the parent
