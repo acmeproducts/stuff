@@ -1,135 +1,276 @@
-# TalkBridge R10.3 / R10.4 — Third-Party Review Package
-**Date:** 2026-08-28 · **Status:** DESIGN FOR VETTING — no code has been written against this document
-**Audience:** external dev team. You are asked to attack the outcome contract (§3–§4), the baseline claims (§2), and the implementation approach (§5) before anything is built.
+# TalkBridge R10.3 / R10.4 — Red-Team Reviewed Contract
+
+**Date:** 2026-08-28
+
+**Status:** REVIEW COMPLETE — revised design ready for the owner's written GO; no code has been built from this contract
+
+**Authority:** this document and master-plan §4.7 supersede the earlier R10.3/R10.4 proposal
 
 ---
 
-## 1 · What the product is
+## 1 · Product rule
 
-TalkBridge is a privacy-first, browser-based real-time bilingual translation app (chat + voice/video calls), installed as a web app from the browser (iOS 16.4+: Share → Add to Home Screen from any browser; Android: Install app). No app store, no accounts. Two people share a room; each sees the other's words in their own language. Infrastructure: a single Cloudflare Worker relay (WebSocket + Web Push sender), GitHub Pages static hosting. Push uses standard Web Push (VAPID → APNs/FCM), payloads end-to-end encrypted per RFC 8291 — push services never see content.
+The experience must be **simple and consistent**. Platform differences are
+acceptable only when they are current, documented limitations of installed
+web apps—not as a substitute for engineering a consistent product.
 
----
+For a locked/backgrounded iPhone, an incoming call is one system notification
+with the system sound. An installed web app cannot provide a native CallKit
+screen or a sustained background ringtone. TalkBridge will not imitate one by
+sending repeated pushes.
 
 ## 2 · Exact baseline
 
-Everything below is built as **baseline + patch = release**. Nothing is ever hand-edited into a release artifact.
+Everything is built as **baseline + named patch = release**. Release artifacts
+are never hand-edited.
 
-| Piece | Baseline | Where |
+| Piece | Baseline |
+|---|---|
+| App | `bridge-turn24-ship.html`, device-validated 2026-08-15 and revalidated 2026-08-27; its protected interior is byte-preserved by the assembler |
+| Parts | `talkbridge/parts/p2-install-gate.js`, `p3-subscription.js`, `p4-alert-hygiene.js`, `p4-sw.js`, `p6-threads.js` |
+| Worker | `tb-sw.js` assembled from the governed worker part |
+| Relay | `talkbridge/worker-talk.js` v4.2 at deployed pair commit `e74c7cb2` |
+| Current deployed artifact | `bridge-turn24-post-ship.html` at the same paired commit |
+| Plan | `talkbridge/TALKBRIDGE-PLAN-v9.md` v20.2.0 |
+
+R10.2's ALWAYS-PUSH relay is the historical deployed baseline. It is not an
+untouchable design decision for R10.3/R10.4. The next build replaces inference
+from socket presence with proof tied to the exact event, as specified in §7.
+
+## 3 · Scope lock
+
+### 3.1 In scope
+
+- Delivery and presentation of incoming chat/call notifications.
+- Exact missed chat, voice-call, and video-call counters on the app home page.
+- Per-room, per-device notification mute.
+- Event identity, call outcome state, delivery ledger, diagnostics, and gates
+  required to make those outcomes testable.
+
+### 3.2 Frozen and out of scope
+
+- Existing chat bubbles, transcript rendering, and the fact that a chat bubble
+  appears in the open room without sound or animation.
+- Existing message content, translations, call media, microphone/video mute,
+  phrasebook, threads, room layout, and install journey except where a named
+  notification hook is strictly required.
+- Native-call imitation, custom background sounds, and repeated push cadence.
+
+**Important distinction:** content already rendered in an open room is not a
+notification surface. Muting a room suppresses attention-seeking behavior; it
+does not hide or rewrite existing chat content.
+
+## 4 · User-experience contract
+
+"OS alert" means a system notification plus the platform's permitted system
+sound. "Home count" means the exact unread/missed count on TalkBridge's own
+home page. App-icon badges are best-effort mirrors only (§6).
+
+### 4.1 Unmuted chat
+
+| Receiver state | Existing bubble/content | OS alert | Home count |
+|---|---:|---:|---:|
+| App visible in that room | Yes, unchanged | None | None |
+| App visible in another room or on app home | Existing behavior unchanged | None | +1 exact chat |
+| App hidden, phone home, or locked | On next room open | One alert for the room burst, ≤5s | +1 per message, exact |
+
+A **room burst** begins with the first message after at least 10 seconds with no
+message in that room. The first message alerts immediately. Each later message
+within 10 seconds of the preceding message extends the burst, increments the
+home count, and does not generate another OS alert. A message after at least 10
+seconds of quiet may start one new alert. Bursts are per room and per receiving
+device.
+
+### 4.2 Unmuted voice/video call
+
+| Receiver state | Live presentation | OS alert | If unanswered |
+|---|---|---:|---|
+| App visible in any TalkBridge room or on app home | Existing in-app ring screen and ringtone | None | Existing transcript outcome; exact voice/video home count unless that room is already being viewed |
+| App hidden, phone home, or locked | No native call screen | Exactly one incoming-call alert with system sound, ≤5s; no repeats | No second OS alert; exact voice/video home count on next open |
+
+One `call-start` produces at most one OS alert. `answered`, `declined`, and
+`canceled` do not create a missed count. Only a terminal `timed_out` outcome
+creates the missed voice/video count. The existing transcript outcome remains
+unchanged.
+
+The incoming notification remains ordinary notification-center history. The
+release does not depend on iOS replacing or programmatically clearing it after
+delivery, because current WebKit does not make that behavior reliable enough
+to be a correctness condition.
+
+### 4.3 Room muted on this device
+
+Mute is per room and per device. It does not mute the partner or another
+device, and it is unrelated to call microphone/media controls.
+
+| Receiver state | Attention-seeking behavior | Existing content | Home count |
+|---|---:|---|---:|
+| App visible in the muted room | No sound, vibration, toast, ring screen, animation, or OS alert | Existing chat bubbles/transcript behavior remains unchanged | Exact missed chat/voice/video result when the user goes home |
+| App visible elsewhere in TalkBridge | None | No forced navigation | Exact missed chat/voice/video count |
+| App hidden, phone home, or locked | No OS alert or sound | Available when opened | Exact missed chat/voice/video count on next open |
+
+A mute toggle is shown as active only after the relay acknowledges the
+per-device room state. If that update cannot be confirmed, the app keeps the
+previous state and shows a concise retry error; it must never claim the room is
+muted while the relay may still send a declarative notification. The device
+also stores the state for the legacy service-worker path.
+
+## 5 · Red-team dispositions
+
+| Proposed change | Disposition | Required replacement or condition |
 |---|---|---|
-| App | `bridge-turn24-ship.html` — device-validated 2026-08-15, owner-revalidated 2026-08-27. Byte-preserved: the release is this file with part files appended before the final `</script>` by a mechanical assembler. A gate proves the ship bytes are verbatim in every build. | repo root |
-| Parts (the patch) | `talkbridge/parts/p2-install-gate.js` (browser tabs show only an install screen; only the installed app runs), `p3-subscription.js` (push subscribe on open; the attempt itself is the authority, permission answers are recorded but never gate), `p4-alert-hygiene.js` + `p4-sw.js` (device-side presentation, per-room notification tags, durable receipt journal), `p6-threads.js` (derived rooms with explicit Accept/Decline consent) | `talkbridge/parts/` |
-| Relay | `worker-talk.js` v4.2 — "ALWAYS-PUSH": every push-worthy event is pushed to every subscribed device except the sender, unconditionally. All server-side presence guessing (liveness stamps, freshness windows, ack timers) was deleted 2026-08-28 after log-proven failures. Crypto is gated byte-exact against RFC 8291 Appendix A. | `talkbridge/worker-talk.js` |
-| Plan | `TALKBRIDGE-PLAN-v9.md` v20.0.0 — carries the decision record, the source index (S1–S5), and the abandoned index (A1–A6) | `talkbridge/` |
-| Deployed pair | commit `e74c7cb` — app + worker + relay shipped in one commit; the pair always moves together | `main` |
+| Declarative Web Push | **Accepted with redesign** | Use one versioned encrypted event envelope with stable IDs; supporting Apple systems display it declaratively and the worker parses the same envelope elsewhere. Do not claim the service worker is never involved. |
+| Re-send `call-start` every 3.5s for 45s | **Rejected** | Send one call event and one OS alert. A push cadence is neither a ringtone nor reliably collapsed by iOS and creates the exact flurry/stacking failure the product forbids. |
+| Build home counters from the service-worker journal, measure the gap later | **Rejected** | Use a durable, deduplicated event ledger with a per-device seen cursor. The service-worker journal remains delivery telemetry only. Exact counts are a launch gate, not a post-launch experiment. |
+| Keep unconditional ALWAYS-PUSH as the permanent arbiter | **Re-engineered** | A visible app may suppress a push only by acknowledging presentation of the exact event. Absence of that exact acknowledgement falls back to push. Socket presence, heartbeat age, and unrelated traffic never suppress. |
+| Depend on notification `tag` to replace/clear banners | **Rejected as a correctness dependency** | Tags may be used as cosmetic hints, but correctness permits one push in the first place and never requires delivered iOS banners to replace or disappear. |
 
-**Design rule the reviewer should hold us to:** the server never decides whether a person is watching. The relay always sends; the device — the only place the truth exists — decides what is presented. This is the Firebase/web.dev/Apple-native model (sources in §6).
+## 6 · Platform contract
 
----
-
-## 3 · The outcome contract (this is what gets built and device-tested)
-
-✓ = happens, ✗ = does not happen. "Both platforms" unless a cell says otherwise.
-"Home card" = the room card on the app's own home page carrying missed chat/voice/video counts.
-
-### 3.1 Incoming call — room NOT muted
-
-| Device state | Ring screen + looping in-app ringtone | OS notification + sound | Home card updates |
-|---|---|---|---|
-| In that room | ✓ | ✗ | ✗ (pill in transcript) |
-| In another room | ✓ | ✗ | ✓ |
-| On app home page | ✓ | ✗ | ✓ (behind the ring screen) |
-| In another app | ✗ | ✓ repeating every 3–4s, ≤45s | ✓ on next open |
-| Phone home screen | ✗ | ✓ repeating | ✓ on next open |
-| Locked | ✗ | ✓ repeating, sound + vibration | ✓ on next open |
-
-### 3.2 Missed call (any row above, unanswered)
-
-| Device state was | One missed-call notification | Transcript pill | Home card count |
-|---|---|---|---|
-| App visible | ✗ | ✓ | ✓ (except in that room) |
-| App not visible / locked | ✓ (ring banner replaced by it) | ✓ | ✓ |
-
-### 3.3 Chat message — room NOT muted
-
-| Device state | OS notification + sound | Home card count |
+| Capability | iOS/iPadOS installed web app | Android installed web app |
 |---|---|---|
-| In that room | ✗ | ✗ |
-| In another room / app home | ✗ (in-app surfaces only) | ✓ |
-| Not visible / locked | ✓ | ✓ |
+| Hidden/locked call | One standard notification + system sound | One standard notification + system sound |
+| Sustained background ringtone/native answer UI | Not promised; requires native platform APIs | Not promised by this web build |
+| Declarative Web Push | Primary on iOS/iPadOS 18.4+ | Same envelope handled by the worker |
+| Legacy delivery | Service-worker notification where declarative delivery is unavailable | Service-worker notification |
+| App-icon badge | Best effort; may be affected by OS/user settings | Best effort; launcher-dependent |
+| In-app home counters | Authoritative and exact | Authoritative and exact |
 
-### 3.4 Room MUTED (per-room "ringer off" inside the app)
+The app-icon badge may mirror the total but is never the only record. The
+TalkBridge home page is the cross-platform source of truth.
 
-Mute is **total, per room, per device**. Mechanism: the muting device tells the relay to drop its push subscription for that room; the app additionally presents nothing for it. So a muted room is not "silenced" — nothing is ever sent to this device for it.
+## 7 · Engineering contract
 
-| Device state, room muted | Ring screen | OS notification / sound | Home card | What still happens |
-|---|---|---|---|---|
-| In that room | ✗ (call → missed pill, silently) | ✗ | ✗ | transcript updates live |
-| In another room / app home | ✗ | ✗ | ✗ (muted rooms never surface a home card) | panel card shows bell-off badge + unread count |
-| Not visible / locked | ✗ | ✗ (no push exists) | ✗ | messages/pills accumulate; visible on next open in the panel |
+### 7.1 One event envelope
 
-Documented edges the reviewer should sanity-check: (a) mute toggled while offline reaches the relay only on reconnect — a push can slip through in that window; (b) mute affects only this device; the partner and other devices are untouched; (c) phone-level layers (silent switch, Focus, DND) stack on top for unmuted rooms, exactly as with any messaging app. **Open design question for the owner:** should an incoming call present when the user is actively inside the muted room (current rule: no — mute is total)?
+Every push-worthy event has a stable `eventId`, `roomId`, `kind`, version,
+timestamp, and navigation target. Calls additionally carry `callId`,
+`voice|video`, and an explicit state (`started`, `answered`, `declined`,
+`canceled`, `timed_out`). A retry preserves the same IDs.
 
-### 3.5 iOS vs Android — the complete list of differences
+The encrypted payload contains only generic notification text and routing/
+dedupe metadata—never message or transcript content. `Topic` is derived from
+the event or room policy; the global `tb-wake` topic is forbidden because it
+can collapse unrelated outstanding events.
 
-| | Android | iOS |
-|---|---|---|
-| Notification sound when not visible | ✓ system sound per push | ✓ fixed system tritone per push; custom/looped sounds impossible (§6) |
-| One banner that re-alerts (replace, never stack) | ✓ | ✗ — may briefly stack 2–3; cleared on open/answer |
-| Continuous ringtone while not visible | ✗ | ✗ |
-| Native full-screen call UI while not visible | ✗ | ✗ (CallKit is native-app-only; even native ringing is capped at 60s by Apple) |
-| Notification display path | our service worker | OS-native via Declarative Web Push (§5.1), service worker optional |
-| Everything else in §3.1–§3.4 | identical | identical |
+### 7.2 Exact presentation acknowledgement
 
----
+1. Relay writes the event to the recipient's durable ledger and sends it on
+   that recipient's socket, if any.
+2. A **visible** app presents the applicable in-app experience and returns
+   `presented(eventId)`. Merely having a socket, receiving the event while
+   hidden, pinging, or sending unrelated traffic is not an acknowledgement.
+3. Relay waits no more than one second for that exact acknowledgement. If it
+   arrives, no push is sent for that event/device. If it does not, the relay
+   sends one encrypted push.
+4. App and worker deduplicate by `eventId`. A call-state transition cannot be
+   mistaken for an earlier `call-start`.
 
-## 4 · Why the current release misses two cells
+This is explicit presentation proof, not the abandoned presence/freshness
+heuristic. It preserves foreground silence while failing safe toward delivery.
 
-Both were found on-device 2026-08-28 and are log-proven:
+### 7.3 Durable counter ledger
 
-1. **"✓ on next open" home-card cells fail today.** The waiting counter that produces home cards bumps only when app JavaScript receives the event on a live socket. A locked iPhone's events arrive as pushes (service worker) and later as history catch-up — neither bumps. This is a ship-era gap that was invisible before locked-phone delivery existed; the counter mechanism itself is untouched ship code.
-2. **iOS banner stacking** (§3.5 row 2): device showed stacked banners for one room despite same-tag notifications; iOS tag/`getNotifications` support is unreliable (§6).
+The relay keeps ordered event metadata long enough to reconcile every device,
+with a monotonic per-room cursor and `eventId` deduplication. It is separate
+from the current 12-minute session-history lifetime. On open/reconnect the app
+requests events after its last durable cursor, applies call terminal states,
+updates exact chat/voice/video counters, then advances the cursor atomically.
 
----
+Unconsumed notification metadata is retained until that device acknowledges it
+seen or the device's existing 90-day subscription lifetime expires. A device
+absent beyond that lifetime is treated as a new/uninstalled device; the UI and
+diagnostics must say so rather than presenting an old count as complete.
+Consumed records may be compacted only behind the acknowledged cursor.
 
-## 5 · Implementation approach (to be built only after this review)
+Opening a room marks the applicable items seen using an acknowledged cursor.
+Replaying the same event, draining a worker receipt, reconnecting, or receiving
+both socket and push paths cannot increment twice. The service-worker journal
+records `arrived`, `shown`, `failed`, and tap results for diagnostics only.
 
-### 5.1 R10.3a — Declarative Web Push payloads (relay v4.3 + worker simplification)
-Adopt Apple's shipped standard (iOS/iPadOS 18.4+, Safari 18.5): the encrypted push payload becomes the standard declarative JSON — `{"web_push": 8030, "notification": {"title", "body", "tag", "navigate", "app_badge"}}` — which **the OS displays with no service worker involved** on supporting platforms, and which our existing worker parses and displays on Android/Chrome (Apple's own recommended backwards-compatible migration).
+### 7.4 Declarative and legacy presentation
 
-- The relay already knows the event type and the room (session) at send time; the tap-through `navigate` URL is supplied by each client at subscribe time. Notification text stays generic ("New message", "Incoming call", "Missed call") — content never rides a push, and RFC 8291 encryption is unchanged.
-- Deletes: the worker's current relay-history lookup used to guess which room a bare wake belonged to; the iOS silent-push penalty problem (no penalties apply to declarative messages — Apple's words); a class of "sometimes nothing" failures caused by worker eviction/revocation, because display no longer requires our code to run.
-- Keeps: subscription flow (unchanged), per-room tags, the receipt journal on the worker path.
+The relay emits Apple's versioned declarative JSON on supported systems. The
+same decrypted envelope is understood by the service worker on older iOS and
+Android. Declarative fallback behavior must be tested; the design does not say
+that a registered worker is categorically uninvolved. Notification text stays
+generic and one push always produces at most one display attempt per device.
 
-### 5.2 R10.3b — Ring cadence (client part + relay v4.3)
-Ship sends `call-start` once. New: while an outgoing call is ringing and unanswered, the caller's app re-sends the ring event every 3.5s for up to 45s; stops on answer/decline/cancel. Receiver de-duplicates (an already-ringing room ignores repeats). At the relay these repeats are **push-worthy but not persisted** (new transient-but-pushed class) so history doesn't bloat. Locked-phone result: repeated notification sound ≈ a ring pattern, within the same ceiling every web app on Earth has (§6).
+## 8 · Verification gates
 
-### 5.3 R10.4 — Home cards from the journal
-The worker journal already durably records every notification it shows, with room and kind; the app already drains it on every open. New: each drained "shown" receipt for a non-active room bumps that room's waiting counter (chat/voice/video), producing the §3 "✓ on next open" cells. Call receipts carry the call kind in the declarative payload so voice/video counts are exact.
-- **Known gap for the reviewer to weigh:** on iOS, when the OS displays declaratively *without* running our worker (worker evicted), no journal receipt exists — the notification shows but the card bump is missed. Candidate fallback: on open, reconcile counts from relay history since the last seen sequence number (mechanism exists in ship). We propose shipping journal-bump first and measuring the gap on-device before adding reconcile.
-- Stated imperfection: an event both journaled and re-delivered live can count twice on a card. The card is a summons, not a ledger.
+No device URL is handed to the owner until all machine gates are green at the
+exact commit SHA.
 
-### 5.4 Process guarantees
-- One gated pair: app + worker + relay in a single commit; byte-verification at the exact commit SHA.
-- Gates before any device test: ship-verbatim proof, full behavioral harness (headless boot of the real built artifact), relay harness with RFC 8291 byte-exact vector, and mutation testing (every planted defect must fail the suite; current suite: 43 tests, 42 mutations, all green).
-- The device matrix in §3 is the only gate that counts. Any deviation = rollback of the whole pair, graveyard entry, plan bump before rebuild.
-- Nothing in this document is built until the third-party review and the owner's written GO.
+1. Clean checkout: `npm ci`, complete app/worker/relay harness, then mutation
+   suite; all declared dependencies must be present in the lockfile.
+2. Assembly proof: protected ship segments are byte-identical and only named
+   part sources contribute to the artifact.
+3. Event proof: stable-ID retry dedupe; call-state transition table; no stale
+   `call-start` after cancel/answer; exact voice/video typing.
+4. Foreground proof: only `presented(theExactEventId)` suppresses that event's
+   push. Hidden clients, stale/live sockets, pings, and unrelated messages do
+   not suppress it.
+5. Alert proof: one call push only; one chat push per defined room burst; no
+   global wake topic; mute acknowledged before UI confirmation.
+6. Counter proof: reconnect, socket+push delivery, journal replay, and process
+   restart each leave exact counters with no double increment. Counter tests
+   cross the old 12-minute history boundary.
+7. Declarative/legacy proof: supporting Apple payload shape and fallback,
+   Android/legacy worker parsing, generic content, tap navigation, and failure
+   telemetry.
+8. Live probe: subscribe both a visible-ack client and an absent client. The
+   same traceable event must produce socket delivery/no push for the exact
+   acknowledged device and one real push attempt for the absent device. The
+   assertion uses per-event diagnostics, not a single overwriteable
+   `lastWake` slot.
+9. Adversarial gate: every planted defect corresponding to items 2–8 must fail
+   the suite. A same-tag mock alone is not evidence that iOS replaced a banner.
 
----
+### 8.1 Owner device matrix
 
-## 6 · Source index (the in-the-wild proof)
+Run the following 12 cases with iOS receiving from Android, then Android
+receiving from iOS. A result is recorded per cell with sender timestamp,
+receiver presentation time, count before/after, and event ID.
 
-- S1 Firebase Cloud Messaging receive model (server always sends; device decides): https://firebase.google.com/docs/cloud-messaging/js/receive
-- S2 Google's reference pattern for visible-app suppression: https://web.dev/articles/push-notifications-common-notification-patterns
-- S3 Web Push Book, common notification patterns: https://web-push-book.gauntface.com/common-notification-patterns/
-- S4 Apple, "Meet Declarative Web Push" (WebKit, shipped iOS 18.4 / Safari 18.5; no silent-push penalties; backwards-compatible migration): https://webkit.org/blog/16535/meet-declarative-web-push/ · WWDC25 session: https://developer.apple.com/videos/play/wwdc2025/235/
-- S5 No custom/looped web notification sounds — Apple engineer: https://developer.apple.com/forums/thread/736399 · sound removed from the standard, never implemented: https://pushpad.xyz/blog/sound-on-web-push-notifications · vendor corroboration: https://intercom.help/progressier/en/articles/6753668 , https://help.izooto.com/docs/notification-sounds
-- S6 Native call UI requires CallKit + PushKit (native-only), and native ringing is capped at 60s by design: https://primocys.com/blog/flutter-voip-incoming-call-callkit-connectionservice/ · https://getstream.io/video/docs/react-native/incoming-calls/overview/ · https://developer.apple.com/forums/thread/726015
-- S7 iOS notification tag/`getNotifications` unreliability: https://github.com/mdn/browser-compat-data/issues/19318
+| # | Case | Required result |
+|---:|---|---|
+| 1 | Unmuted chat, visible same room | Bubble unchanged; no OS alert; no home increment |
+| 2 | Unmuted chat, visible another room/home | No OS alert; exact +1 chat |
+| 3 | Unmuted chat, locked | One OS alert ≤5s; exact +1 chat on open |
+| 4 | Three chats in one defined burst, locked | One OS alert total; exact +3 chat |
+| 5 | Next chat after ≥10s quiet, locked | One new OS alert; exact +1 chat |
+| 6 | Muted chat, visible same room | Existing bubble unchanged; no attention signal; exact home result |
+| 7 | Muted chat, locked | No OS alert; exact +1 chat on open |
+| 8 | Unmuted call, app visible | In-app ring/ringtone; no OS alert |
+| 9 | Unmuted call, locked, then answered | One OS alert ≤5s; no missed count |
+| 10 | Unmuted call, locked, timed out | One OS alert total; exact +1 voice/video missed count; no second OS alert |
+| 11 | Call canceled after start | No missed count and no new/replayed incoming alert after the terminal state; an OS notification already delivered may remain in notification history |
+| 12 | Muted call, locked, timed out | No OS alert; exact +1 voice/video missed count on open |
 
-## 7 · Questions we want the reviewer to answer
+Each receiving platform must pass all 12 cases. Across the call rows, include
+at least one voice and one video call and reverse their assignment in the
+opposite direction. The owner runs this two-way matrix once against the same
+unchanged candidate; the dev team owns all machine-testable repetition before
+handover. Any failure, double, or flurry is a failed release—not a pass with a
+caveat or an invitation to patch the candidate in place.
 
-1. Does the §3 contract miss any state (multi-device same user, thread rooms, Do-Not-Disturb interactions)?
-2. Is the §5.3 journal-gap fallback (history reconcile) needed at launch, or is measure-first sound?
-3. Any known production evidence against the 3.5s/45s ring cadence (push-service throttling, APNs collapse behavior)?
-4. Muted-room row: should "in that room, call arrives" stay fully silent (current) or present in-room only?
-5. Anything in §5.1 that breaks non-Apple browsers we haven't named?
+## 9 · Evidence standard and current sources
+
+Platform assertions must be rechecked against current primary documentation at
+build time. Vendor/blog examples may corroborate behavior but cannot overrule
+the platform source or device evidence.
+
+- Apple WebKit, Declarative Web Push: https://webkit.org/blog/16535/meet-declarative-web-push/
+- Apple WWDC25 Declarative Web Push session: https://developer.apple.com/videos/play/wwdc2025/235/
+- Firebase, receive messages in web apps: https://firebase.google.com/docs/cloud-messaging/web/receive-messages
+- RFC 8030, Web Push `Topic` replacement semantics: https://www.rfc-editor.org/rfc/rfc8030
+- WebKit bug 258922, notification tag/replacement status: https://bugs.webkit.org/show_bug.cgi?id=258922
+
+## 10 · Release authority
+
+The red-team review is complete and its dispositions are incorporated. This
+document authorizes planning only. Code remains forbidden until the owner sends
+the dev team the exact published v20.2.0 commit with a written instruction to
+proceed; that message is the **GO**, and no second plan edit is required. After
+GO, the dev team builds only this contract, runs §8, and hands the owner one
+paired candidate for §8.1.

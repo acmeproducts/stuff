@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.1.0 -->
-# TALKBRIDGE MASTER PLAN v20.1.0
+<!-- TALKBRIDGE-PLAN v20.2.0 -->
+# TALKBRIDGE MASTER PLAN v20.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -245,7 +245,14 @@ ML anomaly on simple phrases is not a code defect.
 
 ---
 
-## 4 · RELEASE 10 — POST-SHIP, COMPLETE SPECIFICATION (v19, definitive)
+## 4 · RELEASE 10 — POST-SHIP
+
+**ACTIVE AUTHORITY (v20.2.0): §4.7 and
+`talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`.** Sections 4.1–4.4 and 4.6 are
+retained as historical release lineage and failed/previously deployed designs;
+§4.5 remains the release law. Where a historical section conflicts with §4.7,
+§4.7 controls. No builder may combine historical requirements with the active
+contract.
 
 **Source:** `bridge-turn24-ship.html` — the only device-approved base.
 **Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
@@ -253,10 +260,11 @@ ship + the parts below by one command. The artifact is output only.
 **Pair:** app post-ship ⟷ relay v4. They ship together, are verified
 together, and every handover states both. Mismatch = rollback of whichever
 moved last, before anything else.
-**Promise:** no regression to anything ship does, and a locked iPhone gets
-exactly one prompt alert per message and per call, every time.
+**Active promise (§4.7):** no regression to anything ship does; a locked
+iPhone gets one prompt alert per defined chat burst and one per call, with
+exact per-message/per-call home counts and no flurries.
 
-### 4.1 · What ships, piece by piece
+### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
 **P1 · Relay v4 (one worker file, from ship's R7 body):**
 - Wakes carry an ENCRYPTED payload (RFC 8291; correctness gated by the
@@ -338,44 +346,108 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.7 · R10.3 / R10.4 — GATED ON THIRD-PARTY REVIEW (v20.1.0)
+### 4.7 · R10.3 / R10.4 — ACTIVE RED-TEAM CONTRACT (v20.2.0)
 
-**Status: DESIGN COMPLETE, BUILD FORBIDDEN.** The full design — outcome
-contract (call / missed / chat / MUTED-ROOM matrices, iOS-vs-Android
-difference list), exact baseline statement, and implementation approach
-(R10.3a declarative payloads · R10.3b ring cadence · R10.4 journal-drain home
-cards) — lives in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md` and is
-normative for this release. The matrices in that document REPLACE §4.4 as the
-device gate the moment the review clears.
+**Status: REVIEW COMPLETE; REVISED DESIGN READY; OWNER GO PENDING.** The
+normative outcome, architecture, evidence limits, machine gates, and 12-case
+device matrix live in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`. That
+document replaces its v20.1 proposal and all conflicting alert/counter/mute
+rules in §§4.1–4.6.
 
-**Gate order, no exceptions:**
-1. External dev team reviews the package and answers its §7 questions.
-2. The dev team's WRITTEN FEEDBACK is pasted verbatim into §4.7.1 below —
-   that section is reserved for them and is expected to be filled before
-   anything else happens.
-3. Findings are dispositioned line-by-line (accepted → design change here;
-   rejected → reasoning here). The review document is updated to match.
-4. Owner gives written GO in this plan.
-5. Only then: parts + relay v4.3 built from the §2 baseline, full gate suite,
-   one paired commit, owner device matrix.
+#### 4.7.1 · RED-TEAM FEEDBACK INCORPORATED
 
-Cutting code before §4.7.1 contains the reviewers' text and the owner's GO is
-the declare-and-execute violation buried 2026-08-28. It does not matter how
-small the change is.
+The review did not reject Apple's Declarative Web Push work. It found that the
+proposal combined one sound platform direction with two unacceptable product
+mechanisms and several unproven assumptions:
 
-#### 4.7.1 · DEV TEAM WRITTEN FEEDBACK (reserved — paste verbatim below)
+1. Declarative Web Push is the right primary delivery path on supporting Apple
+   systems, but the payload needs stable event identity, the same envelope must
+   work through the legacy worker path, and the design cannot say a registered
+   service worker is categorically uninvolved.
+2. Repeating `call-start` every 3.5 seconds is rejected. It is push spam, not a
+   web-app ringtone, and depends on notification replacement that current
+   WebKit does not guarantee.
+3. Exact homepage counters are required, but the service-worker receipt
+   journal cannot be their source of truth. Declarative display may produce no
+   worker receipt and replay could double-count. A durable event ledger and
+   cursor replace that mechanism.
+4. The existing chat bubble/transcript behavior was never in dispute and is
+   frozen. A bubble rendered in an open room without sound or animation is
+   content, not a notification. No notification work may alter it.
+5. Room mute is per device. It suppresses attention surfaces, not history.
+   Exact chat/voice/video counts still appear on the TalkBridge home page.
+6. iOS notification tag replacement/clearing may be used cosmetically but is
+   not a release invariant. The design prevents extra pushes rather than
+   promising that iOS will clean up banners after delivery.
+7. The old global `Topic: tb-wake`, history `since=0` wake inference, and
+   single-slot live-probe diagnostic can collapse, misattribute, or hide
+   events. They are forbidden in the next build.
+8. A socket, freshness timestamp, heartbeat, or unrelated inbound word is not
+   proof of presentation. Only `presented(eventId)` from a visible app may
+   suppress that exact event's push.
+9. The current 12-minute relay history cannot support exact next-open counts;
+   counter metadata must have an independent durable lifetime.
+10. The same-tag harness check and the prior `no-wake-for-live` probe are not
+    proof of their labels. The replacement gates in review §8 must be able to
+    fail on the exact planted defects.
 
-> _Awaiting reviewer input. Expected: answers to §7 Q1–Q5 of the review
-> package, any attack on the outcome matrices (including the muted-room
-> rows and the open in-room-call-while-muted question), any production
-> evidence for or against the 3.5s/45s ring cadence, and anything the
-> baseline statement gets wrong._
+#### 4.7.2 · DISPOSITION LOG
 
-#### 4.7.2 · DISPOSITION LOG (one line per finding, filled after 4.7.1)
+| Proposed R10.3/R10.4 decision | Disposition | Active decision |
+|---|---|---|
+| Declarative Web Push | ACCEPTED WITH CORRECTIONS | One versioned encrypted event envelope; declarative on supported Apple systems, same envelope parsed by the legacy/Android worker |
+| 3.5s/45s incoming-call cadence | REJECTED | One `call-start`, at most one OS alert with system sound; no pseudo-ringtone |
+| Exact homepage chat/voice/video counters | ACCEPTED | Required in every matrix row, including muted rooms |
+| Counters sourced from worker journal; measure gaps later | REJECTED AND RE-ENGINEERED | Durable per-device event ledger, stable IDs, atomic cursor; journal is telemetry only |
+| R10.2 unconditional ALWAYS-PUSH as permanent arbiter | RE-ENGINEERED | Exact visible presentation ack suppresses only its own event; no ack means one push |
+| iOS tag replacement/clear as correctness | REJECTED | Cosmetic hint only; never required for pass |
 
-> _Empty until feedback lands._
+#### 4.7.3 · ACTIVE BUILD SCOPE AND LOCKS
 
-### 4.6 · R10.2 — ALWAYS-PUSH (owner-approved 2026-08-28, supersedes every alerting decision above)
+Build only the contract in the review package:
+
+- stable `eventId`; calls also use stable `callId`, voice/video kind, and
+  explicit terminal state;
+- generic encrypted declarative/legacy payload with event routing metadata;
+- exact-event presentation ack with ≤1-second push fallback;
+- one alert per call and one alert per defined 10-second quiet-separated chat
+  burst;
+- per-room/per-device mute confirmed by the relay before the UI claims it;
+- durable deduplicated ledger and cursor for exact home counts, retaining
+  unconsumed metadata until seen or the existing 90-day device-subscription
+  lifetime expires;
+- repaired clean-checkout, mutation, live-probe, call-state, counter, mute,
+  declarative/legacy, and adversarial gates from review §8.
+
+Frozen: existing bubbles, transcript, translations, media/microphone/video
+mute, phrasebook, threads, layout, and install UX beyond a named notification
+hook. No 3.5-second timer, no custom background ringtone, no global wake topic,
+no history-guessing wake, and no journal-derived counter may enter the build.
+
+#### 4.7.4 · AUTHORITY AND GATE ORDER
+
+1. **Owner written GO:** PENDING until the owner sends the dev team this exact
+   v20.2.0 commit with an instruction to proceed. The instruction to update the
+   plan authorized documentation only. The forwarding/proceed message is the
+   build GO; no second plan-edit cycle is required.
+2. After GO, dev team builds one app + worker + relay pair from the exact
+   baseline in review §2. No other scope rides.
+3. Run every machine gate in review §8 at the exact commit SHA. Any failure
+   stops before device testing.
+4. Owner runs review §8.1: 12 cases with iOS receiving from Android and 12 with
+   Android receiving from iOS, once against the unchanged candidate. Zero
+   failures, doubles, or flurries.
+5. Any deviation fails and rolls back the pair. A platform caveat cannot be
+   invented after the test; it must already be supported by current evidence
+   in review §9 and represented in the contract.
+
+Current owner direction is one red-team-reviewed build, not another chain of
+device-visible micro-iterations. This does not revive unreviewed bundling: the
+event envelope, exact presentation decision, mute state, and durable counter
+ledger are one inseparable notification-correctness system, and every component
+is machine-gated before the single owner matrix candidate exists.
+
+### 4.6 · HISTORICAL R10.2 — ALWAYS-PUSH (deployed baseline; superseded by §4.7 for the next build)
 
 **THE DECISION.** The relay stops deciding whether a device needs an alert.
 It cannot know; every attempt to know (socket presence, 75s/105s freshness,
@@ -452,11 +524,11 @@ existing R10 suite minus the abandoned ack tests. Fresh mutations for every
 new behavior. Owner device matrix per §4.4 is unchanged and remains the only
 gate that counts.
 
-### 4.2 · Explicitly OUT of this release
+### 4.2 · HISTORICAL v19 SCOPE — superseded by §4.7
 Journey polish beyond the gate screen, in-band invites (J8) — note: P6 room
 codes supersede paste-invite J7 if approved — transcription-lag work, rtc glare, R11+ items. Nothing else rides.
 
-### 4.3 · Machine proof before the owner sees a URL
+### 4.3 · HISTORICAL v19 MACHINE PROOF — superseded by §4.7
 Relay: RFC vector byte-exact; ack-gate logic tests + mutations (ack
 suppresses, no-ack pushes, liveness stamps, constructor-anchored state);
 live deploy probe: delivered-on-socket, wake for the absent, no wake for
@@ -470,7 +542,7 @@ stale-close on answer; zero UI outside declared surfaces. Fresh mutation
 set; every planted defect must fail. Byte-verify at the exact commit SHA.
 Handover states: scores, pair, and the one thing only devices can prove.
 
-### 4.4 · Owner acceptance (the only device test)
+### 4.4 · HISTORICAL v19 OWNER ACCEPTANCE — superseded by review §8.1
 Requirement v2 matrix: locked/backgrounded ≥120s — message → exactly one
 notification ≤5s; call → exactly one alert with sound ≤5s; unanswered →
 exactly one missed-call alert. Foreground same-room: zero alerts.
@@ -479,10 +551,10 @@ constraint stated honestly: a locked web app's "ring" is a notification
 with sound; sustained ringtone exists only with the app open (Apple's
 floor, all vendors).
 
-### 4.5 · Law
+### 4.5 · RELEASE LAW
 Plan approved → build → gates → deploy → byte-verify → handover. Any
 regression to ship behavior = full stop and rollback of the pair. No scope
-outside 4.1. No repo artifacts beyond the declared build outputs and part
+outside active §4.7. No repo artifacts beyond the declared build outputs and part
 sources. The graveyard is scanned before building; buried ideas stay
 buried (browser name-carry, patch-forward, flash-then-close as primary).
 
@@ -652,8 +724,13 @@ would touch a surface a later release also touches, they are the same release.
 ### 1.12 No stubs, no fake data, no partial interfaces
 Every release delivers real, cumulative, working value.
 
-### 1.13 Mute is total
-No transcription, no transmission, no bubbles. Not a comfort toggle.
+### 1.13 Mute terms are distinct
+Room notification mute (§4.7) is a per-device attention control: no alerting
+surface, but existing content/history and exact home counts remain. It never
+touches chat bubbles or the transcript. Call microphone/media mute is the
+pre-existing content rule—no transcription, transmission, or generated voice
+bubbles from that muted input—and is out of R10 notification scope. Neither
+control may silently change the other.
 
 ### 1.14 The chat surface and the call transcript are ONE transcript
 Calls are a live-media layer over it. The transcript, compose strip and
@@ -792,6 +869,22 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.2.0 · 2026-08-28.** Independent red-team review completed and
+incorporated. The v20.1 proposal is replaced by the active contract in §4.7
+and `THIRD-PARTY-REVIEW-2026-08-28.md`. Of its three principal changes:
+Declarative Web Push is accepted with a stable cross-platform event envelope;
+the 3.5s/45s call cadence is rejected; exact home counters are accepted but
+the journal-based mechanism is replaced by a durable deduplicated ledger.
+R10.2 ALWAYS-PUSH is the deployed baseline, not the next-build arbiter:
+only exact visible `presented(eventId)` proof suppresses that event's push.
+Mute is per room/per device, suppresses attention rather than content, and
+retains exact homepage counts. Existing bubbles/transcript are explicitly
+frozen. Global `tb-wake`, history guessing, notification replacement as a
+correctness condition, and the two blind/mislabeled probe assertions are
+forbidden. Review §8 defines repaired machine gates and one 12-case two-way
+owner device matrix. Plan-only change; owner GO remains pending; no app,
+worker, relay, workflow, or build file changed.
 
 **v20.1.0 · 2026-08-28.** R10.3/R10.4 design frozen into the third-party
 review package (`THIRD-PARTY-REVIEW-2026-08-28.md`, commit 5424411): outcome
@@ -1677,4 +1770,3 @@ across 79 distinct values with zero media queries, 102 globals with no
 collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
 and sizing are one job, not two — slices are by surface, converted end to end,
 because a named scale of fixed pixels is still fixed pixels.
-
