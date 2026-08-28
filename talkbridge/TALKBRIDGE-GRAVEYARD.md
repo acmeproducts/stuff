@@ -1112,3 +1112,36 @@ the industry pattern must be researched and cited; server-side presence
 inference (the 105s freshness window) already sits in the buried class of
 Aug 23 and was rebuilt anyway in relay v4 — the class ruling covers RELAY
 CODE TOO, not only the client.
+
+## 2026-08-28 · R10.3/R10.4 candidate 4f574f2 — FAILED owner device matrix (§8.1), pair rolled back at 0b5b230
+
+**What was buried (this exact composition — the mechanisms below may not return as designed):**
+- **Cold-launch tap navigation as payload-only.** The envelope carried the room;
+  a cold-opened iPhone app ignored it and landed on the homepage. The gate
+  proved the payload's shape, never that a cold-launched app OBEYS it. Any
+  successor must gate the cold-open handoff itself.
+- **The 1-second presentation-ack window as a wake-race.** A phone waking into
+  a ring cannot open a socket and acknowledge inside the window, so the push
+  fired beside the ring screen — banner + full screen, the forbidden double,
+  on the second call reliably. "Fail toward delivery" fails toward doubles on
+  iOS wake. A fixed 1s server-side window against a device that needs 2-10s to
+  re-establish transport is structurally wrong, not tunable.
+- **Machine-green as handover evidence for presentation flows.** 23/23 + 44/44
+  + 48/48 mutations, clean-checkout green — and the release failed its core
+  flow on both platforms in the first minutes of human use. The suites modeled
+  a running app; they cannot model wake, cold launch, or OS coalescing. A
+  candidate whose risk lives in device wake states must not be handed over on
+  machine gates alone; the gates' role is to make the device run cheap, not to
+  substitute for it.
+
+**Owner-observed failures driving this burial (verbatim intent):** tap on call
+notification → homepage, no answer surface; second call → notification AND
+ring screen; notifications delayed then bursting; Android received call rang
+without any surface; decline → homepage with no room record (unfriendly, goes
+to contract revision); banner-vs-fullscreen inconsistency (spec revision);
+iPhone caller "no Deepgram key" while text translation works (ship-era
+credential-grant issue, separate organ, NOT buried here).
+
+**Standing rule reaffirmed the hard way:** device failure → rollback the whole
+pair → graveyard → plan bump → research → review → GO → rebuild. Asking the
+owner to re-authorize the written protocol is itself a violation.

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.2.1 -->
-# TALKBRIDGE MASTER PLAN v20.2.1
+<!-- TALKBRIDGE-PLAN v20.3.0 -->
+# TALKBRIDGE MASTER PLAN v20.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -869,6 +869,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.3.0 · 2026-08-28.** Candidate 4f574f2 FAILED the owner §8.1 matrix
+(cold-launch tap → homepage; second-call banner+ring double via the 1s
+ack wake-race; delayed-then-burst; Android call without surface). Pair
+rolled back whole at 0b5b230, deploy verified. Graveyard entry written.
+R10.3/R10.4 return to DESIGN state: the failures F1-F4 require root-cause
+from device logs (owner to export both), and F5-F6 (decline leaves no room
+record; banner-vs-fullscreen inconsistency) are CONTRACT revisions for the
+dev team, not bugs. The §8.9 lesson is now standing law: presentation-flow
+candidates are not handed over on machine gates alone — the gates make the
+device run cheap; they do not replace it. Deepgram credential-grant finding
+(F7) is a separate ship-era work item, out of R10 scope. No rebuild before:
+logs → root cause → review-package addendum → dev team pass → owner GO.
+
 
 **v20.2.1 · 2026-08-28.** §4.7 EXECUTED on owner GO. Candidate pair at commit
 `4f574f2` (app + tb-sw + relay v5, one commit, byte-verified at the SHA;
