@@ -1145,3 +1145,23 @@ credential-grant issue, separate organ, NOT buried here).
 **Standing rule reaffirmed the hard way:** device failure → rollback the whole
 pair → graveyard → plan bump → research → review → GO → rebuild. Asking the
 owner to re-authorize the written protocol is itself a violation.
+
+## 2026-08-28 · OBS1 boundary — observation is not a disguised retry
+
+The owner authorized a comprehensive notification flight recorder after the
+4f574f2 rollback. This does not revive any behavior from that candidate. OBS1
+is built from the byte-verified R10.2 rollback and may only observe, correlate,
+redact, retain, and export existing behavior.
+
+Buried for OBS1: changing alert eligibility while adding logs; changing
+navigation while instrumenting taps; adding a longer or adaptive ack timer;
+deriving “locked” from page visibility; reporting push-service acceptance as
+delivery/display; treating a missing worker receipt as proof that no
+declarative notification appeared; logging message content, names, secrets,
+keys, endpoints, or raw room/device IDs; and calling a machine-green
+instrumentation build a notification pass.
+
+Replacement: explicit observed/test-supplied/unknown provenance; a bounded,
+redacted event timeline spanning sender, relay, worker, app, presentation and
+terminal outcome; `trace_gap` for missing evidence; `invariant_violation` for
+contradictory evidence; and mobile export of raw JSONL plus a human report.

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.3.0 -->
-# TALKBRIDGE MASTER PLAN v20.3.0
+<!-- TALKBRIDGE-PLAN v20.4.0 -->
+# TALKBRIDGE MASTER PLAN v20.4.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | REBUILT — awaiting owner device matrix | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed; whole pair rolled back; OBS1 authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -247,12 +247,13 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.2.0): §4.7 and
-`talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`.** Sections 4.1–4.4 and 4.6 are
-retained as historical release lineage and failed/previously deployed designs;
-§4.5 remains the release law. Where a historical section conflicts with §4.7,
-§4.7 controls. No builder may combine historical requirements with the active
-contract.
+**ACTIVE AUTHORITY (v20.4.0): §4.8 and
+`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`.** Sections 4.1–4.4 and 4.6
+are historical release lineage. Section 4.7 and
+`talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md` describe the failed 4f574f2
+candidate and are not build authority. Section 4.5 remains release law. No
+builder may revive or tune the failed acknowledgement race, cold-open handoff,
+or any other buried mechanism while building OBS1.
 
 **Source:** `bridge-turn24-ship.html` — the only device-approved base.
 **Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
@@ -260,9 +261,11 @@ ship + the parts below by one command. The artifact is output only.
 **Pair:** app post-ship ⟷ relay v4. They ship together, are verified
 together, and every handover states both. Mismatch = rollback of whichever
 moved last, before anything else.
-**Active promise (§4.7):** no regression to anything ship does; a locked
-iPhone gets one prompt alert per defined chat burst and one per call, with
-exact per-message/per-call home counts and no flurries.
+**Active objective (§4.8):** preserve the deployed R10.2 behavior byte-for-byte
+except for named, side-effect-free observation hooks; produce one correlated,
+mobile-exportable account of sender → relay → worker → app → surface for each
+notification or call event. OBS1 is evidence infrastructure, not a claim that
+the notification release is fixed.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -346,13 +349,137 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.7 · R10.3 / R10.4 — ACTIVE RED-TEAM CONTRACT (v20.2.0)
+### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.0)
 
-**Status: REVIEW COMPLETE; REVISED DESIGN READY; OWNER GO PENDING.** The
+**Status: OWNER GO RECEIVED 2026-08-28; BUILD AUTHORIZED.** The owner directed
+the plan update and execution after 38 failed versions. The exact normative
+contract is `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. This is the one
+permitted next build.
+
+#### 4.8.1 · WHY OBSERVATION PRECEDES ANOTHER BEHAVIOR DESIGN
+
+The failed candidate was machine-green yet its first device session produced
+four mutually confusing presentations: notification only, ring only, both,
+and neither useful surface. Its logs could not correlate relay decisions,
+worker arrival, lifecycle state, surface mount, ringtone, navigation, and
+terminal call state. Patching any one symptom now would be a guess and would
+repeat the buried 38-version cycle.
+
+OBS1 answers that evidence gap. It does not implement declarative push,
+ack-gated suppression, a new missed-call ledger, mute, counters, notification
+replacement, or a new call surface. Those product mechanisms return to design
+only after an OBS1 trace proves the failed branch and a new review addendum
+names the replacement.
+
+#### 4.8.2 · EXACT BASELINE AND PAIR
+
+- App, assembled worker, and relay are the whole-pair R10.2 rollback at commit
+  `0b5b230bc670e3bf9cfcc71f685d358c23249fd2`, byte-identical for those three
+  artifacts to paired baseline `e74c7cb2`.
+- The production relay is v4.2 and its post-rollback live probe is recorded at
+  `edaf98ad`: socket connect/delivery/type green, a real push-service request
+  returned 404 for the deliberately invalid probe subscription, and a live
+  client was not wake-targeted.
+- Source changes are limited to a named app observation part, observation hooks
+  in the existing worker and relay sources, their assembler declarations, and
+  their dedicated gates. The generated app and worker remain output-only.
+- OBS1 ships as one app + worker + relay version set. A mixed version makes a
+  trace invalid and is shown in the export as `version_mismatch`.
+
+#### 4.8.3 · HARD SCOPE LOCKS
+
+OBS1 may observe and export. It may not change alert eligibility, relay wake
+eligibility, notification text/tag/topic, ringtone timing, call state,
+navigation targets, counter math, transcript/bubbles, translations,
+credentials, mute, layout, onboarding, or subscription decisions. Existing
+content bubbles are not notification surfaces and must not be modified.
+
+The one allowed visible addition is a small **Diagnostics** control accessible
+from both the home screen and room. It opens an OBS1 panel that can start/name
+a test run, record the tester-supplied device condition, show version/trace
+health, and export/clear only diagnostic data. It may not cover existing
+controls or become part of the product acceptance design.
+
+OBS1 never records message/transcript text, names, secrets, keys, full push
+endpoints, raw room IDs, raw device IDs, IP addresses, SDP, or media. Room,
+device, endpoint, and subscription identifiers are per-install salted hashes.
+Credential diagnostics record only capability name, presence, source class,
+and validation result.
+
+#### 4.8.4 · REQUIRED EVIDENCE
+
+Every record follows the schema and event taxonomy in the flight-recorder
+spec. Correlation IDs include `testRunId`, `traceId`, `eventId`, and `callId`
+where available. Every record includes app/worker/relay versions, sequence,
+wall and monotonic time, source, action, outcome, reason, lifecycle/surface
+snapshot, and explicitly observed versus tester-supplied fields.
+
+The trace must cover:
+
+1. sender event creation and socket send;
+2. relay receive, recipient decision, socket send, wake suppression/attempt,
+   push-service response, and exception;
+3. worker push arrival, payload classification, client match, display attempt,
+   display result/failure, notification tap, focus/open request and result;
+4. app relay receipt, visibility/focus/current surface/current room, call
+   presentation request and confirmed mount, ringtone request/result,
+   notification-open message, navigation request/result, decline/answer/
+   timeout/cancel, transcript outcome, and home-counter delta;
+5. subscription and service-worker/controller state changes; and
+6. credential capability presence/source/validation without credential values.
+
+Web code cannot directly prove that a device is locked, that the OS displayed
+or sounded a notification, that the user saw it, or that a declarative push
+bypassed worker code. Those are never inferred. The tester labels
+`app_visible`, `other_app`, `home_screen`, or `locked`; the record marks that
+label `test_supplied`. Push-service acceptance is logged as `accepted`, never
+as `delivered` or `displayed`.
+
+#### 4.8.5 · DURABILITY AND OUTPUT
+
+- Device records use IndexedDB, survive app/worker restarts, are capped at
+  5,000 records and seven days, and prune oldest-first in bounded batches.
+- Relay records use a bounded per-event diagnostic ring with no message
+  content. The export requests the matching relay slice when reachable and
+  states a visible gap when it is not.
+- One export action creates raw JSONL plus a plain-language report from the
+  same records. The report contains version manifest, test label, event
+  timelines, presentation summaries, invariant violations, trace gaps, and a
+  matrix-ready roll-up. No console or desktop developer tools are required.
+- Missing stages are evidence: the report emits `trace_gap`; contradictory
+  stages emit `invariant_violation`. Silence is never rendered as success.
+
+#### 4.8.6 · BUILD AND HANDOVER GATES
+
+1. Protected ship segments remain byte-identical; only named OBS1 sources
+   contribute new code.
+2. Existing app, worker, relay, clean-checkout, and mutation gates remain green.
+3. Recorder schema validation, redaction, bounded retention, restart survival,
+   sequence ordering, cross-context ingestion, JSONL export, human-report
+   parity, and version-mismatch blocking are gated.
+4. Plant-and-catch mutations cover each source layer, each prohibited secret/
+   content field, lost correlation, false OS-delivery claim, swallowed error,
+   trace gap, and invariant violation.
+5. A synthetic event proves one merged timeline across app, worker, and relay;
+   deliberately remove one stage and require a named gap rather than a pass.
+6. Publish and byte-verify one paired OBS1 candidate. Before owner handover,
+   the dev team runs a minimal device smoke trace on its own hardware or names
+   the exact hardware limitation. The owner is not asked to repeat the
+   24-direction acceptance matrix for an observation build.
+
+OBS1 passes when it safely and accurately explains a run. It does **not** pass
+R10 notification acceptance. After one owner failure-class capture, the next
+step is trace-based root cause → review addendum → owner GO → one clean
+behavioral candidate. No patch is applied to OBS1 in place.
+
+### 4.7 · HISTORICAL FAILED RED-TEAM CONTRACT (v20.2.0; not build authority)
+
+**Status: BUILT AS 4f574f2; FAILED OWNER DEVICE MATRIX; WHOLE PAIR ROLLED BACK.** The
 normative outcome, architecture, evidence limits, machine gates, and 12-case
 device matrix live in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`. That
-document replaces its v20.1 proposal and all conflicting alert/counter/mute
-rules in §§4.1–4.6.
+document is retained for lineage but is superseded by §4.8. Its fixed one-
+second acknowledgement window and unproved cold-open handoff are buried and
+must not be tuned or rebuilt.
 
 #### 4.7.1 · RED-TEAM FEEDBACK INCORPORATED
 
@@ -869,6 +996,17 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.4.0 · 2026-08-28.** Owner GO received to update the plan and execute
+after 38 failed versions. R10.2 whole-pair rollback is byte-verified and stays
+the baseline. §4.8 authorizes exactly one instrumentation-only candidate,
+R10.2-OBS1, governed by `NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. The former
+§4.7 contract is historical: its fixed one-second acknowledgement race and
+cold-open assumptions may not be tuned or revived. OBS1 adds correlated,
+redacted, bounded app/worker/relay tracing plus mobile JSONL and human report
+export; it does not claim notification behavior is fixed and does not send the
+owner through the acceptance matrix. After one conclusive failure capture:
+root cause → review addendum → owner GO → clean behavioral rebuild.
 
 **v20.3.0 · 2026-08-28.** Candidate 4f574f2 FAILED the owner §8.1 matrix
 (cold-launch tap → homepage; second-call banner+ring double via the 1s

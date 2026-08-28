@@ -2,9 +2,13 @@
 
 **Date:** 2026-08-28
 
-**Status:** REVIEW COMPLETE — revised design ready for the owner's written GO; no code has been built from this contract
+**Status:** HISTORICAL — built as 4f574f2, failed the owner device matrix, and
+rolled back whole at 0b5b230. This is not current build authority.
 
-**Authority:** this document and master-plan §4.7 supersede the earlier R10.3/R10.4 proposal
+**Authority:** superseded by master-plan §4.8 and
+`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. In particular, the fixed
+one-second acknowledgement window and unproved cold-launch navigation handoff
+are buried and must not be tuned or rebuilt.
 
 ---
 
