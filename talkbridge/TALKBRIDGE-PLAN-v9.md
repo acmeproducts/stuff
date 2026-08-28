@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.2.0 -->
-# TALKBRIDGE MASTER PLAN v20.2.0
+<!-- TALKBRIDGE-PLAN v20.2.1 -->
+# TALKBRIDGE MASTER PLAN v20.2.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -869,6 +869,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.2.1 · 2026-08-28.** §4.7 EXECUTED on owner GO. Candidate pair at commit
+`4f574f2` (app + tb-sw + relay v5, one commit, byte-verified at the SHA;
+"Deploy relay" workflow success). Machine gates at that SHA: relay 23/23
+(RFC 8291 byte-exact; exact-ack E1-E5; burst B1-B2; call FSM F1-F5; mute
+M1-M3; ledger/cursor L1-L4 incl. survival across the 12-min reset; per-event
+diag D1; envelope V1), app 44/44, adversarial mutations 48/48 planted defects
+caught (two equivalent-mutants were eliminated by design change, one by test
+strengthening — recorded here per §8.9's spirit), clean-checkout `npm ci`
+gate green, artifacts byte-reproducible from a clean tree. §8.8 live probe:
+not runnable from the build sandbox (relay host unreachable from it); its
+evidence is the deploy workflow success plus the §8.1 device run. Awaiting
+the owner's §8.1 twelve-case two-way matrix against this unchanged candidate.
+
 
 **v20.2.0 · 2026-08-28.** Independent red-team review completed and
 incorporated. The v20.1 proposal is replaced by the active contract in §4.7
