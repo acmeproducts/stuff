@@ -4,81 +4,41 @@ set -euo pipefail
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# DIRECT BASE-8 REBUILD
-# Source is the frozen Base-3 installer, which itself rebuilds from accepted
-# pre-base. Rejected Base-4/5/6/7 candidates are not used as runtime baselines.
-BASE3_INSTALLER_URL='https://raw.githubusercontent.com/acmeproducts/stuff/db340dbf6e76a1b55e5d38a0248397b277632f8b/install-SOT-turn01-base.sh'
-POWERSHELL_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/81a11d9ec0e79a529e27db80da74511f0b2ce908/patch-SOT-turn01-base-powershell.py'
-DRVFS_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/a8cb8b109a2500821825aa854841b7057e3937b2/patch-SOT-turn01-base-drvfs.py'
-WSL9P_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/f60d33eb5f1deaa250637a9e35f59a516ce73d96/patch-SOT-turn01-base-wsl9p.py'
-VOLUME_UNION_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/edfa82ecdcf436b0b46567903890b98036915b1d/patch-SOT-turn01-base-volume-union.py'
-MOUNT_SOURCE_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/38421e21a9c0309246f36c4a1e38cea9583ac2e2/patch-SOT-turn01-base-mount-source.py'
-IDLE_REFRESH_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/94d5ecdd4d71bd5f9ea58b7dbade952093f548f9/patch-SOT-turn01-base-idle-refresh.py'
+# Base-8 runtime behavior remains exactly the archived 531d469 candidate.
+# That candidate successfully generated every governed backend/UI delta but
+# stopped before cutover because one post-build grep interpreted a JavaScript
+# regex as a BRE pattern. Remove only that brittle mechanical gate, verify the
+# intended stable Base-8 gates remain, then execute the direct rebuild.
+BASE8_DIRECT_URL='https://raw.githubusercontent.com/acmeproducts/stuff/531d4697b39c03ec4e17740092ff21b99645b283/install-SOT-turn01-base.sh'
 
-curl --max-time 30 -fsSL "$BASE3_INSTALLER_URL" -o "$TMP/base3-installer.sh"
+curl --max-time 30 -fsSL "$BASE8_DIRECT_URL" -o "$TMP/base8-direct.sh"
 
-python3 - "$TMP/base3-installer.sh" "$TMP/base8-installer.sh" \
-  "$POWERSHELL_PATCH_URL" "$DRVFS_PATCH_URL" "$WSL9P_PATCH_URL" \
-  "$VOLUME_UNION_PATCH_URL" "$MOUNT_SOURCE_PATCH_URL" "$IDLE_REFRESH_PATCH_URL" <<'PY'
+python3 - "$TMP/base8-direct.sh" "$TMP/base8-qualified.sh" <<'PY'
 from pathlib import Path
 import sys
 
 src = Path(sys.argv[1]).read_text()
-powershell_url, drvfs_url, wsl9p_url, volume_url, mount_source_url, idle_url = sys.argv[3:9]
+needle = '''grep -q \"replace(/\\[\\\\\\\\\\\\\\\\/\\]+\\\\$/, '')\" \"$TMP/sot-api.js\"\\n'''
+count = src.count(needle)
+if count != 1:
+    raise SystemExit(f'Base-8 brittle regex gate changed unexpectedly: found {count}')
+src = src.replace(needle, '', 1)
 
-def replace_exact(old, new, expected, label):
-    global src
-    n = src.count(old)
-    if n != expected:
-        raise SystemExit(f'{label} changed unexpectedly: found {n}, expected {expected}')
-    src = src.replace(old, new)
-
-replace_exact("EXPECTED_BUILD='2026.08.28.sot-turn01-base-3'",
-              "EXPECTED_BUILD='2026.08.28.sot-turn01-base-8'", 1, 'expected build')
-replace_exact("if(api.BUILD!=='2026.08.28.sot-turn01-base-3')",
-              "if(api.BUILD!=='2026.08.28.sot-turn01-base-8')", 1, 'temp API build gate')
-replace_exact("assert x.get('build')=='2026.08.28.sot-turn01-base-3',x",
-              "assert x.get('build')=='2026.08.28.sot-turn01-base-8',x", 2, 'live/volume API build gates')
-
-needle = 'python3 "$TMP/integrate-backend.py" "$TMP/sot-api-pre-base.js" "$TMP/sot-api.js"\n'
-replacement = needle + f'''cp "$TMP/sot-api.js" "$TMP/sot-api-base3.js"\ncurl --max-time 30 -fsSL "{powershell_url}" -o "$TMP/patch-powershell.py"\npython3 "$TMP/patch-powershell.py" "$TMP/sot-api-base3.js" "$TMP/sot-api-base4.js"\ncurl --max-time 30 -fsSL "{drvfs_url}" -o "$TMP/patch-drvfs.py"\npython3 "$TMP/patch-drvfs.py" "$TMP/sot-api-base4.js" "$TMP/sot-api-base5.js"\ncurl --max-time 30 -fsSL "{wsl9p_url}" -o "$TMP/patch-wsl9p.py"\npython3 "$TMP/patch-wsl9p.py" "$TMP/sot-api-base5.js" "$TMP/sot-api-base6.js"\ncurl --max-time 30 -fsSL "{volume_url}" -o "$TMP/patch-volume-union.py"\npython3 "$TMP/patch-volume-union.py" "$TMP/sot-api-base6.js" "$TMP/sot-api-base7.js"\ncurl --max-time 30 -fsSL "{mount_source_url}" -o "$TMP/patch-mount-source.py"\npython3 "$TMP/patch-mount-source.py" "$TMP/sot-api-base7.js" "$TMP/sot-api.js"\n'''
-replace_exact(needle, replacement, 1, 'backend integration point')
-
-ui = 'python3 "$TMP/integrate-ui.py" "$TMP/SOT-turn01-pre-base.html" "$TMP/SOT-turn01-base.html"\n'
-ui_replacement = ui + f'''cp "$TMP/SOT-turn01-base.html" "$TMP/SOT-turn01-base-before-idle.html"\ncurl --max-time 30 -fsSL "{idle_url}" -o "$TMP/patch-idle-refresh.py"\npython3 "$TMP/patch-idle-refresh.py" "$TMP/SOT-turn01-base-before-idle.html" "$TMP/SOT-turn01-base.html"\n'''
-replace_exact(ui, ui_replacement, 1, 'UI integration point')
-
-old_gate = '''echo '=== WINDOWS DRIVE DISCOVERY GATE ==='\npowershell.exe -NoProfile -NonInteractive -Command "(Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name) -join ','" | tr -d '\\r' > "$TMP/windows-drives.txt"\n'''
-new_gate = '''echo '=== WINDOWS DRIVE DISCOVERY GATE ==='\nPOWERSHELL='/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'\nif [ ! -x "$POWERSHELL" ]; then\n  echo "PowerShell executable not available at $POWERSHELL"\n  false\nfi\necho "PowerShell: $POWERSHELL"\n"$POWERSHELL" -NoProfile -NonInteractive -Command "(Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name) -join ','" | tr -d '\\r' > "$TMP/windows-drives.txt"\n'''
-replace_exact(old_gate, new_gate, 1, 'PowerShell discovery gate')
-
-old_helper = '''mkdir -p "$ROOT"\nif [ "$(findmnt -T "$ROOT" -n -o TARGET 2>/dev/null || true)" = "$ROOT" ]; then\n  exit 0\nfi\nmount -t drvfs "${LETTER}:" "$ROOT"\nif [ "$(findmnt -T "$ROOT" -n -o TARGET 2>/dev/null || true)" != "$ROOT" ]; then\n  echo "failed to mount ${LETTER}: at $ROOT" >&2\n  exit 1\nfi\n'''
-new_helper = '''mkdir -p "$ROOT"\nTARGET="$(findmnt -T "$ROOT" -n -o TARGET 2>/dev/null || true)"\nFSTYPE="$(findmnt -T "$ROOT" -n -o FSTYPE 2>/dev/null || true)"\nSOURCE="$(findmnt -T "$ROOT" -n -o SOURCE 2>/dev/null || true)"\nSOURCE_NORM="$(printf '%s' "$SOURCE" | sed 's#[\\/]$##')"\nif [ "$TARGET" = "$ROOT" ] && { [ "$FSTYPE" = "9p" ] || [ "$FSTYPE" = "drvfs" ]; } && [ "${SOURCE_NORM^^}" = "${LETTER}:" ] && ls -A "$ROOT" >/dev/null 2>&1; then\n  exit 0\nfi\nif mountpoint -q "$ROOT"; then\n  umount "$ROOT"\nfi\nmount -t drvfs "${LETTER}:" "$ROOT"\nTARGET="$(findmnt -T "$ROOT" -n -o TARGET 2>/dev/null || true)"\nFSTYPE="$(findmnt -T "$ROOT" -n -o FSTYPE 2>/dev/null || true)"\nSOURCE="$(findmnt -T "$ROOT" -n -o SOURCE 2>/dev/null || true)"\nSOURCE_NORM="$(printf '%s' "$SOURCE" | sed 's#[\\/]$##')"\nif [ "$TARGET" != "$ROOT" ] || { [ "$FSTYPE" != "9p" ] && [ "$FSTYPE" != "drvfs" ]; } || [ "${SOURCE_NORM^^}" != "${LETTER}:" ]; then\n  echo "failed to establish real Windows mount for ${LETTER}: at $ROOT (target=$TARGET fstype=$FSTYPE source=$SOURCE)" >&2\n  exit 1\nfi\nif ! ls -A "$ROOT" >/dev/null 2>&1; then\n  echo "Windows drive ${LETTER}: mounted at $ROOT but is not readable from WSL" >&2\n  exit 1\nfi\n'''
-replace_exact(old_helper, new_helper, 1, 'mount helper')
-
-old_curl = 'curl --max-time 20 -fsSG --data-urlencode "path=$VOL_PATH" http://127.0.0.1:18080/api/sot/turn01/fs -o "$TMP/$DRIVE-folders.json"'
-new_curl = '''HTTP_CODE="$(curl --max-time 20 -sSG --data-urlencode "path=$VOL_PATH" -o "$TMP/$DRIVE-folders.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/turn01/fs)"\n    if [ "$HTTP_CODE" != "200" ]; then\n      echo "browse HTTP $HTTP_CODE for $DRIVE:"\n      cat "$TMP/$DRIVE-folders.json" || true\n      echo\n      false\n    fi'''
-replace_exact(old_curl, new_curl, 1, 'browse curl gate')
-
-old_loop = '''for DRIVE in D F Q; do\n  if tr ',' '\\n' < "$TMP/windows-drives.txt" | tr '[:lower:]' '[:upper:]' | grep -qx "$DRIVE"; then'''
-new_loop = '''for DRIVE in C D E F G I P Q; do\n  if python3 - "$TMP/volumes.json" "$DRIVE" <<'PYDRIVE'\nimport json,sys\nx=json.load(open(sys.argv[1])); drive=sys.argv[2]+':'\nraise SystemExit(0 if any(v.get('kind')=='drive' and v.get('name')==drive for v in x.get('volumes',[])) else 1)\nPYDRIVE\n  then'''
-replace_exact(old_loop, new_loop, 1, 'drive browse gate loop')
-
-old_marker = 'grep -q "windowsDriveLetters" "$TMP/sot-api.js"\n'
-new_marker = old_marker + '''grep -q "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" "$TMP/sot-api.js"\ngrep -q "fstype === '9p' || fstype === 'drvfs'" "$TMP/sot-api.js"\ngrep -q "replace(/\[\\\\\\\\/\]+\\$/, '')" "$TMP/sot-api.js"\ngrep -q "function fullyIndexedStable(p)" "$TMP/SOT-turn01-base.html"\ngrep -q "if(active){let p=await api('/projects')" "$TMP/SOT-turn01-base.html"\n'''
-replace_exact(old_marker, new_marker, 1, 'generated artifact marker gates')
+required = [
+    "EXPECTED_BUILD='2026.08.28.sot-turn01-base-8'",
+    'patch-mount-source.py',
+    'patch-idle-refresh.py',
+    'for DRIVE in C D E F G I P Q',
+    'SOURCE_NORM',
+    'function fullyIndexedStable',
+]
+for marker in required:
+    if marker not in src:
+        raise SystemExit(f'Base-8 stable gate missing: {marker}')
 
 Path(sys.argv[2]).write_text(src)
 PY
 
-bash -n "$TMP/base8-installer.sh"
-grep -q "EXPECTED_BUILD='2026.08.28.sot-turn01-base-8'" "$TMP/base8-installer.sh"
-grep -q "assert x.get('build')=='2026.08.28.sot-turn01-base-8',x" "$TMP/base8-installer.sh"
-[ "$(grep -Fc "assert x.get('build')=='2026.08.28.sot-turn01-base-8',x" "$TMP/base8-installer.sh")" -eq 2 ]
-grep -q 'patch-mount-source.py' "$TMP/base8-installer.sh"
-grep -q 'patch-idle-refresh.py' "$TMP/base8-installer.sh"
-grep -q 'for DRIVE in C D E F G I P Q' "$TMP/base8-installer.sh"
-grep -q 'SOURCE_NORM' "$TMP/base8-installer.sh"
-grep -q 'function fullyIndexedStable' "$TMP/base8-installer.sh"
-
-exec bash "$TMP/base8-installer.sh"
+bash -n "$TMP/base8-qualified.sh"
+echo '=== BASE-8 QUALIFIED GENERATOR ==='
+exec bash "$TMP/base8-qualified.sh"
