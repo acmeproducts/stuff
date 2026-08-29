@@ -1,21 +1,23 @@
-# TalkBridge Notification Flight Recorder — OBS1 Contract
+# TalkBridge Notification Flight Recorder — Integrated Contract
 
-**Version:** 1.0.2
-**Date:** 2026-08-28  
-**Authority:** TalkBridge master plan v20.4.2 §4.8
-**Build:** R10.2-OBS1  
+**Version:** 1.1.0
+**Date:** 2026-08-29
+**Authority:** TalkBridge master plan v20.5.0 §4.9
+**Build:** R10.5 supporting subsystem
 **Purpose:** explain notification and call-presentation behavior without
-changing it
+changing the behavioral candidate's decisions
 
 ## 1 · Non-negotiable boundary
 
-OBS1 is an observation build from the byte-verified R10.2 rollback. It may add
-side-effect-free trace calls, bounded diagnostic storage, a read-only relay
-trace endpoint, and one mobile diagnostics/export panel. It may not repair,
-tune, suppress, resend, delay, reroute, or otherwise change product behavior.
+The recorder is supporting infrastructure inside the corrected R10.5
+behavioral build, never a standalone release. It may add side-effect-free
+trace calls, bounded diagnostic storage, a read-only relay trace endpoint, and
+one mobile diagnostics/export panel. It may not tune, suppress, resend, delay,
+reroute, or otherwise influence the product's presentation-owner decision.
 
-OBS1 does not prove R10 acceptance. A green OBS1 gate means the recorder is
-safe and truthful enough to diagnose one physical-device run.
+Recorder gates do not prove R10 acceptance. Green means the recorder is safe
+and truthful enough to explain the behavioral candidate during dev-team
+preflight or a failed owner matrix cell.
 
 ## 2 · Questions one export must answer
 
@@ -77,9 +79,10 @@ The following rules are mandatory:
 | `recordId` | Globally unique trace record ID |
 | `seq` | Monotonic integer allocated per source/context |
 
-OBS1 must not invent a product `eventId` and feed it back into behavior. When
-the R10.2 event has no stable event ID, the recorder creates only a diagnostic
-`traceId`, records `eventId: null`, and emits `id_gap`. The trace ID may travel
+The recorder must not invent a product `eventId` and feed it back into
+behavior. R10.5 supplies the stable product ID. If one is absent, the recorder
+creates only a diagnostic `traceId`, records `eventId: null`, and emits the
+release-blocking `id_gap`. The trace ID may travel
 in an additive diagnostic field only where doing so does not affect routing,
 deduplication, `Topic`, notification tags, or application decisions.
 
@@ -384,7 +387,7 @@ human report, and build/test output.
 
 ## 14 · Machine gates
 
-OBS1 cannot be published unless all are green:
+The R10.5 candidate cannot be published unless all recorder gates are green:
 
 1. Baseline assembly and protected-segment byte gates.
 2. Existing R10 app/worker/relay harnesses and mutations.
@@ -411,14 +414,13 @@ OBS1 cannot be published unless all are green:
     on mobile; clear leaves all product stores byte-equivalent.
 16. Mutation gate plants and catches at least one defect for every item 3–15.
 
-## 15 · Handover and next decision
+## 15 · Handover and failure use
 
-Publish one immutable paired OBS1 candidate and byte-verify its app, worker,
-relay, plan, and spec at the same commit. The handover states machine-gate
-scores and clearly says notification behavior is not yet an acceptance claim.
+There is no recorder-only publish or owner test. Publish one immutable paired
+R10.5 behavioral candidate and byte-verify its app, worker, relay, plan, and
+spec at the same commit. The dev team exercises and exports the recorder during
+its iOS/Android preflight. The owner receives the corrected build only.
 
-The owner performs one short run that reproduces any one of the observed
-failure classes and exports both outputs. No 12×2 acceptance matrix is run on
-OBS1. The export then determines which behavior contract changes. That change
-requires a written review addendum and one clean candidate from the governed
-baseline; OBS1 is never patched forward into a product fix.
+If an owner matrix cell fails, the same build exports raw JSONL and the human
+report for that cell. The trace informs the next engineering decision without
+asking the owner to install or rerun a separate diagnostic build.

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.4.2 -->
-# TALKBRIDGE MASTER PLAN v20.4.2
+<!-- TALKBRIDGE-PLAN v20.5.0 -->
+# TALKBRIDGE MASTER PLAN v20.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed/rolled back; R10.2-OBS1 machine-gated, relay deploy retry in v20.4.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | OBS1 rejected; R10.2 whole-pair rollback deploying; corrected behavior + recorder governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -247,13 +247,13 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.4.0): §4.8 and
-`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`.** Sections 4.1–4.4 and 4.6
-are historical release lineage. Section 4.7 and
-`talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md` describe the failed 4f574f2
-candidate and are not build authority. Section 4.5 remains release law. No
-builder may revive or tune the failed acknowledgement race, cold-open handoff,
-or any other buried mechanism while building OBS1.
+**ACTIVE AUTHORITY (v20.5.0): §4.9.** Sections 4.1–4.4 and 4.6 are historical
+release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
+describes rejected instrumentation-only candidate OBS1. Neither is build
+authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md` remains the
+privacy/schema requirement for instrumentation inside the corrected build,
+not authority to publish a diagnostic-only release. Section 4.5 remains
+release law.
 
 **Source:** `bridge-turn24-ship.html` — the only device-approved base.
 **Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
@@ -261,11 +261,9 @@ ship + the parts below by one command. The artifact is output only.
 **Pair:** app post-ship ⟷ relay v4. They ship together, are verified
 together, and every handover states both. Mismatch = rollback of whichever
 moved last, before anything else.
-**Active objective (§4.8):** preserve the deployed R10.2 behavior byte-for-byte
-except for named, side-effect-free observation hooks; produce one correlated,
-mobile-exportable account of sender → relay → worker → app → surface for each
-notification or call event. OBS1 is evidence infrastructure, not a claim that
-the notification release is fixed.
+**Active objective (§4.9):** one corrected behavioral candidate with the
+flight recorder built in as supporting infrastructure. The owner receives no
+instrumentation-only URL and does not test known-failing R10.2 behavior again.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -349,13 +347,140 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.2)
+### 4.9 · R10.5 — CORRECTED BEHAVIOR WITH INTEGRATED FLIGHT RECORDER (ACTIVE)
 
-**Status: BUILT AND MACHINE-GATED 2026-08-28; PAIRED PUBLISH IS THIS
-CHANGESET.** The owner directed the plan update and execution after 38 failed
-versions. The exact normative contract is
-`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. OBS1 remains an observation
-candidate, not a notification fix or acceptance pass.
+**Status: AUTHORIZED DESIGN AND BUILD INPUT.** First restore and verify the
+whole R10.2 pair. Then build one new app + worker + relay candidate from named
+sources. Instrumentation is mandatory inside that candidate but is never the
+candidate's purpose and is never handed to the owner as a separate test round.
+
+#### 4.9.1 · USER CONTRACT — SIMPLE AND CONSISTENT
+
+1. **App already visible when the event arrives:** the app owns presentation.
+   In the event room, chat remains ordinary content with no extra attention;
+   elsewhere in TalkBridge, the existing in-app chat/call surface is used.
+   There is no OS notification.
+2. **App hidden, closed, phone home, or locked:** the OS owns presentation.
+   One chat-burst notification or one call notification with system sound
+   appears within five seconds. The app may record state in the background but
+   must not also auto-open or auto-ring a call screen.
+3. **Notification tap:** the user reaches the event, never an unexplained home
+   page. If the call is still active, show its Accept/Decline screen. If it has
+   ended, open the room and show the durable answered/declined/canceled/missed
+   outcome. Decline writes the outcome before navigation.
+4. **Muted room on this device:** no sound, vibration, toast, ring screen,
+   animation, or OS alert. Existing chat content remains unchanged. Exact
+   missed chat/voice/video counts remain on TalkBridge home. App-icon badge is
+   a best-effort mirror, never the only record.
+5. **No flurries:** one stable event ID is one decision. Retries reuse the ID.
+   A call produces at most one OS notification; a chat burst produces at most
+   one. No delayed second surface may appear after the first decision.
+
+On iOS/iPadOS a hidden or locked web app gets a standard system notification,
+not CallKit, a sustained ringtone, or custom answer buttons. That limitation is
+accepted. Inconsistency is not. The hidden-state call screen appears only after
+the user activates the notification. WebKit's declarative `navigate` field is
+the primary path on iOS/iPadOS 18.4+; the service-worker path implements the
+same event URL elsewhere.
+
+Primary platform evidence:
+- WebKit Declarative Web Push (2025): required `navigate`, automatic visible
+  fallback, iOS/iPadOS 18.4+ — https://webkit.org/blog/16535/meet-declarative-web-push/
+- Apple Web Push documentation — https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers
+- Service-worker focus/open behavior and its SPA warning — https://developer.mozilla.org/en-US/docs/Web/API/Clients/openWindow
+
+#### 4.9.2 · ONE PRESENTATION OWNER — RELAY STATE MACHINE
+
+Every push-worthy event is first committed to a durable per-device ledger with
+stable `eventId`; calls also have stable `callId` and terminal state. The relay
+then makes exactly one irreversible presentation decision for that device:
+
+1. Send `presentation-offer(eventId)` on any existing socket.
+2. The page may answer `foreground-ready(eventId)` only if it was visible and
+   focused at receipt of that exact offer. A socket, heartbeat, reconnect,
+   page becoming visible later, or receipt of replayed history is not proof.
+3. On a valid answer, the relay commits `owner=in_app`, returns
+   `presentation-grant(eventId)`, and sends no push. The app presents only
+   after that grant.
+4. Without a valid answer inside the bounded delivery budget, the relay commits
+   `owner=os` and sends exactly one push. Any late app/reconnect path receives
+   `owner=os` and is forbidden to auto-ring or mount an incoming-call screen.
+5. A retry reads the committed owner and never makes a second decision.
+
+This repairs the failed one-second design rather than tuning it. Candidate
+`4f574f2` allowed a waking/reconnecting app to ring after the push path had
+already won. R10.5 requires a grant before in-app attention and permanently
+closes the losing path. The exact bounded wait is chosen from relay/device
+preflight measurements, is included in the five-second budget, and is not a
+presence heuristic.
+
+#### 4.9.3 · PAYLOAD, TAP, CALL OUTCOME, COUNTERS
+
+- One encrypted versioned envelope carries generic notification text,
+  `eventId`, `roomId` routing token, kind, timestamp, and canonical same-origin
+  event URL. Calls add `callId`, voice/video, and state. No message/transcript
+  content or credentials ride the push service.
+- Apple declarative push uses that event URL as `notification.navigate`.
+  Legacy/Android worker notifications store the identical URL and event ID.
+  The global `Topic: tb-wake` is forbidden; a topic may collapse only retries
+  of the same event or the explicitly defined chat burst.
+- Cold launch is a boot input, not a transient postMessage: the event URL is
+  parsed before initial routing and retained until the app confirms the event
+  screen mounted. For an existing client the worker focuses/navigates or
+  messages it, then requires the same mount confirmation. A test must cover
+  both paths. An absent confirmation is a named failure, not a homepage pass.
+- The ledger owns exact home counts and call terminal outcomes. Worker receipts
+  and display journals are diagnostic evidence only. Replay, socket+push,
+  reconnect, retry, restart, or tapping an old notification cannot double a
+  count. Opening the event room advances an acknowledged per-device cursor.
+- Per-room/per-device mute is acknowledged by the relay before the UI changes.
+  A muted device remains in the ledger but is ineligible for both presentation
+  owners.
+
+#### 4.9.4 · INTEGRATED INSTRUMENTATION
+
+The corrected candidate implements the redacted, bounded schema and export in
+`NOTIFICATION-FLIGHT-RECORDER-SPEC.md` across sender, relay, push service,
+worker, app lifecycle, presentation-owner decision, surface mount, tap route,
+terminal call state, counter delta, subscription, and credential capability.
+It records `accepted` from a push service—not `delivered` or `displayed`—and
+marks locked state as tester-supplied. The recorder may not alter timing or
+eligibility. The owner-facing diagnostics control is hidden from normal use
+and exported only when a matrix cell fails.
+
+#### 4.9.5 · PRE-FLIGHT AND ONE OWNER TEST
+
+The dev team, not the owner, first proves at the exact candidate SHA:
+
+1. clean assembly, dependency install, inherited gates, and mutations;
+2. state-machine races: foreground grant, hidden push commit, late reconnect,
+   retry, process restart, and socket+push replay each leave one owner/surface;
+3. declarative and legacy payload parity; no global topic; a real push-service
+   POST; fail-closed deployment manifest and per-event live probe;
+4. cold-start and warm-start tap both mount the event screen; active/ended call
+   branches and decline persistence; Android hidden call has an OS surface;
+5. exact counters/mute across restart and beyond the old 12-minute history;
+6. a three-cycle dev-device smoke run on iOS and Android with no delayed second
+   surface for 60 seconds; and
+7. recorder parity/redaction/retention/gap tests, attached to the handover but
+   not used as a substitute for behavior.
+
+Only then does the owner receive one URL and one 12-cell two-way matrix. Every
+cell records event ID, sender time, receiver time, expected/actual surface,
+tap destination, terminal outcome, counter delta, and whether any second
+surface appeared within 60 seconds. Pass requires all cells: correct surface,
+no double/flurry, correct destination/outcome/count, and alert latency ≤5s
+where an OS alert is required. One failure rejects and rolls back the pair;
+the attached trace is used by the dev team without asking the owner to rerun a
+diagnostic-only build.
+
+### 4.8 · R10.2-OBS1 — REJECTED INSTRUMENTATION-ONLY BUILD (v20.4.2)
+
+**Status: REJECTED 2026-08-28; WHOLE PAIR ROLLED BACK.** OBS1 was built and
+machine-gated, but publishing known-failing R10.2 behavior with instrumentation
+as the only product change did not satisfy the owner's authorization. The
+section is retained for lineage only. Its privacy/schema work may support
+§4.9; its standalone release architecture may not return.
 
 #### 4.8.1 · WHY OBSERVATION PRECEDES ANOTHER BEHAVIOR DESIGN
 
@@ -474,17 +599,16 @@ as `delivered` or `displayed`.
    the exact hardware limitation. The owner is not asked to repeat the
    24-direction acceptance matrix for an observation build.
 
-OBS1 passes when it safely and accurately explains a run. It does **not** pass
-R10 notification acceptance. After one owner failure-class capture, the next
-step is trace-based root cause → review addendum → owner GO → one clean
-behavioral candidate. No patch is applied to OBS1 in place.
+This was OBS1's former pass definition. It is void as a release gate: the owner
+is not asked for an OBS1 capture. Its recorder requirements now travel inside
+the §4.9 behavioral candidate.
 
 ### 4.7 · HISTORICAL FAILED RED-TEAM CONTRACT (v20.2.0; not build authority)
 
 **Status: BUILT AS 4f574f2; FAILED OWNER DEVICE MATRIX; WHOLE PAIR ROLLED BACK.** The
 normative outcome, architecture, evidence limits, machine gates, and 12-case
 device matrix live in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`. That
-document is retained for lineage but is superseded by §4.8. Its fixed one-
+document is retained for lineage but is superseded by §4.9. Its fixed one-
 second acknowledgement window and unproved cold-open handoff are buried and
 must not be tuned or rebuilt.
 
@@ -536,7 +660,7 @@ mechanisms and several unproven assumptions:
 | R10.2 unconditional ALWAYS-PUSH as permanent arbiter | RE-ENGINEERED | Exact visible presentation ack suppresses only its own event; no ack means one push |
 | iOS tag replacement/clear as correctness | REJECTED | Cosmetic hint only; never required for pass |
 
-#### 4.7.3 · ACTIVE BUILD SCOPE AND LOCKS
+#### 4.7.3 · HISTORICAL BUILD SCOPE AND LOCKS
 
 Build only the contract in the review package:
 
@@ -688,7 +812,7 @@ floor, all vendors).
 ### 4.5 · RELEASE LAW
 Plan approved → build → gates → deploy → byte-verify → handover. Any
 regression to ship behavior = full stop and rollback of the pair. No scope
-outside active §4.7. No repo artifacts beyond the declared build outputs and part
+outside active §4.9. No repo artifacts beyond the declared build outputs and part
 sources. The graveyard is scanned before building; buried ideas stay
 buried (browser name-carry, patch-forward, flash-then-close as primary).
 
@@ -1003,6 +1127,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.5.0 · 2026-08-29.** Owner rejected OBS1 as a standalone release: the
+agreement was rollback → corrected behavioral build with instrumentation, not
+another owner test of known-failing R10.2 with logs added. OBS1 product code is
+removed and the exact R10.2 app/worker/relay bytes restored. The fail-closed
+relay workflow repair is retained and retargeted to prove the rollback
+manifest. §4.9 is active authority: one irreversible presentation owner per
+event/device (`in_app` only after an exact foreground grant; otherwise `os`),
+late reconnects forbidden from auto-ringing, canonical event-URL navigation,
+durable call outcomes and exact counters, acknowledged per-device mute, and
+the redacted flight recorder integrated as supporting infrastructure. WebKit's
+2025 declarative `navigate` contract and the standard worker open/focus path
+are cited. Dev-team preflight includes three iOS/Android smoke cycles; the
+owner receives one corrected URL and one matrix, never a diagnostic-only URL.
 
 **v20.4.2 · 2026-08-28.** The first OBS1 relay upload was correctly rejected
 by Cloudflare because a diagnostic salt was generated in module-global scope,
