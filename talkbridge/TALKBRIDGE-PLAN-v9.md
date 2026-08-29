@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.5.1 -->
-# TALKBRIDGE MASTER PLAN v20.5.1
+<!-- TALKBRIDGE-PLAN v20.6.0 -->
+# TALKBRIDGE MASTER PLAN v20.6.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | OBS1 rejected; R10.2 rollback deployed and byte-verified at 4bdc8cf4; corrected behavior + recorder governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 corrected app + worker + relay v5.1 machine-gated; integrated recorder included; publication and hardware matrix governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -240,14 +240,14 @@ BT direction (PB-1) is confirmed correct — target→source is standard and the
 ML anomaly on simple phrases is not a code defect.
 
 **Source stage:** `bridge-turn24-ship.html`
-**Target stage:** `bridge-turn24-post-ship.html` (currently reset to ship bytes)
+**Target stage:** `bridge-turn24-post-ship.html` (now R10.5 output; R9.1 remains unbuilt)
 **Gate:** new-card target edit → source updates to translated text, clarify shows both entries, verdict clear, Verified removed; same for existing-card edit.
 
 ---
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.5.1): §4.9.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.6.0): §4.9.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
 describes rejected instrumentation-only candidate OBS1. Neither is build
 authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md` remains the
@@ -258,7 +258,7 @@ release law.
 **Source:** `bridge-turn24-ship.html` — the only device-approved base.
 **Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
 ship + the parts below by one command. The artifact is output only.
-**Pair:** app post-ship ⟷ relay v4. They ship together, are verified
+**Pair:** app post-ship + worker R10.5 ⟷ relay v5.1. They ship together, are verified
 together, and every handover states both. Mismatch = rollback of whichever
 moved last, before anything else.
 **Active objective (§4.9):** one corrected behavioral candidate with the
@@ -349,13 +349,16 @@ used between strangers-becoming-partners.
 
 ### 4.9 · R10.5 — CORRECTED BEHAVIOR WITH INTEGRATED FLIGHT RECORDER (ACTIVE)
 
-**Status: AUTHORIZED DESIGN AND BUILD INPUT; R10.2 ROLLBACK COMPLETE.** Live
-app, worker, and relay match the exact rollback blobs at product commit
-`4bdc8cf4`; Pages run `33246874798` and relay run `33246874675` succeeded, and
-the relay status commit is `07e67e37`. Build one new app + worker + relay
-candidate from named sources. Instrumentation is mandatory inside that
-candidate but is never the candidate's purpose and is never handed to the
-owner as a separate test round.
+**Status: R10.5 CORRECTED PAIR BUILT AND MACHINE-GATED; PUBLICATION IN
+PROGRESS.** The protected source remains byte-identical to Git blob `a6e1673c`.
+Candidate blobs are app `23bcc483`, worker `c00246fd`, and relay `11d000c5`.
+One reproducible command (`npm run gate:r105`) assembles the pair and passes
+49 app/worker behavior checks, 25 relay/deploy state/crypto checks, 22 integrated
+recorder/privacy checks, and all 34 planted defects. The recorder is inside
+this corrected candidate and hidden during normal use; there is no separate
+instrumentation release. Publication must use the updated fail-closed R10.5
+manifest/owner/push/ledger/recorder probe. The external iOS/Android hardware
+matrix remains the only proof of OS display and ≤5-second device latency.
 
 #### 4.9.1 · USER CONTRACT — SIMPLE AND CONSISTENT
 
@@ -1130,6 +1133,28 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.6.0 · 2026-08-29.** R10.5 executed as one corrected app/worker/relay
+candidate with the flight recorder integrated, not as a diagnostic-only
+release. The protected ship source is unchanged. The app attempts subscription
+regardless of contradictory permission answers; the relay commits one durable
+presentation owner per event/device before any attention surface; late pages
+cannot ring after `owner=os`; mute is relay-acknowledged; the event URL drives
+cold and warm notification taps; active calls mount Accept/Decline and ended
+calls mount their room plus durable outcome; the ledger owns exact chat,
+voice, and video counts beyond chat-history expiry. App-generated OS
+notifications and the global push topic remain forbidden. The integrated
+recorder is redacted, bounded, access-controlled, read-only, and absent from
+normal UI unless `tbDiagnostics=1` is explicit. Reproducible gates pass 49 app
+and worker checks, 25 relay/RFC/state/deploy checks, 22 recorder checks, and 34/34
+fresh planted defects. The relay deployment workflow now rejects any manifest
+other than v5.1 and live-probes foreground owner, OS owner-before-push, one
+real push-service POST, retry dedupe, missed-call ledger state, and recorder
+access. It also gates the prior Cloudflare failure class: randomness may not be
+generated at module scope. Candidate blob IDs: app `23bcc483`, worker
+`c00246fd`, relay `11d000c5`; live run IDs and final byte verification are
+recorded only after publication succeeds. OS display and latency remain
+hardware facts and are not claimed by machine gates.
 
 **v20.5.1 · 2026-08-29.** R10.2 rollback merged to `main` at product commit
 `4bdc8cf4` and is live. Public app blob `a5bcd189`, worker blob `953f99de`, and

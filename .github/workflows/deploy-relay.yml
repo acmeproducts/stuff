@@ -35,7 +35,7 @@ jobs:
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
           curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
-          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='4.2'||d.obs!==undefined)throw new Error('live R10.2 rollback manifest mismatch: '+JSON.stringify(d))"
+          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='5.1'||!Array.isArray(d.pushLog)||!d.owners)throw new Error('live R10.5 manifest mismatch: '+JSON.stringify(d))"
           cat /tmp/live-check.txt
           cat /tmp/live-manifest.txt
       - name: WebSocket handshake + delivery-contract check
@@ -47,37 +47,60 @@ jobs:
           const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
           const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
-          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();try{return JSON.parse(t)}catch(_){console.log('post-raw['+body.type+']='+r.status+' '+t.slice(0,100));return null}};
+          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();let data=null;try{data=JSON.parse(t)}catch(_){}return {status:r.status,data,text:t}};
+          const get=async(c,qs)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}&${qs}`);return {status:r.status,data:await r.json()}};
           const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
+          const wait=ms=>new Promise(r=>setTimeout(r,ms));
+          const fake=id=>({endpoint:`https://updates.push.services.mozilla.com/wpush/v2/${id}-${s}`,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}});
+          const nav='https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html';
           try{
             const a=await open('ciA'), b=await open('ciB');
-            const got=[]; b.on('message',d=>{try{got.push(JSON.parse(d))}catch(_){}});
-            await new Promise(r=>setTimeout(r,800));
-            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-1',srcText:'x',ts:Date.now()}));
-            await new Promise(r=>setTimeout(r,1500));
-            const m=got.find(x=>x.chatId==='ci-1');
+            const got=[];b.on('message',d=>{try{const m=JSON.parse(d);got.push(m);if(m.presentation==='offer'&&m.eventId==='ci-chat-1')b.send(JSON.stringify({type:'foreground-ready',eventId:m.eventId,transient:true}));}catch(_){}});
+            await post('ciC',{type:'subscribe',subscription:fake('ciC'),navigate:nav});
+            await wait(500);
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-chat-1',srcText:'probe',ts:Date.now()}));
+            await wait(2500);
+            const d1=(await post('ciA',{type:'diag'})).data;
+            const logs1=(d1&&d1.pushLog)||[],owners1=(d1&&d1.owners)||{};
+            const postedC=logs1.filter(x=>x.eventId==='ci-chat-1'&&x.client==='ciC'&&x.outcome==='pushed');
+            const postedB=logs1.filter(x=>x.eventId==='ci-chat-1'&&x.client==='ciB'&&x.outcome==='pushed');
+            const grant=got.find(x=>x.type==='presentation-grant'&&x.eventId==='ci-chat-1'&&x.owner==='in_app');
             console.log('ws-connect=ok');
-            console.log('ws-deliver='+(m?'ok':'FAIL'));
-            console.log('ws-type='+((m&&m.type==='chat-msg')?'ok':'FAIL'));
-            /* v4.2 wake path: absent subscribed C must be wake-targeted with an ENCRYPTED payload */
-            await post('ciC',{type:'subscribe',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}});
-            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));
-            await new Promise(r=>setTimeout(r,2500));
-            const d=await post('ciA',{type:'diag'});
-            console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
-            console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
-            console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
+            console.log('ws-deliver='+(got.some(x=>x.type==='chat-msg'&&x.eventId==='ci-chat-1'&&x.presentation==='offer')?'ok':'FAIL'));
+            console.log('foreground-owner='+((grant&&owners1['ciB|ci-chat-1']&&owners1['ciB|ci-chat-1'].owner==='in_app'&&postedB.length===0)?'ok':'FAIL'));
+            console.log('os-owner='+((owners1['ciC|ci-chat-1']&&owners1['ciC|ci-chat-1'].owner==='os')?'ok':'FAIL'));
+            console.log('push-post='+((postedC.length===1&&typeof postedC[0].status==='number')?'ok status-'+postedC[0].status:'FAIL'));
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-chat-1',srcText:'retry',ts:Date.now()}));
+            await wait(1000);
+            const d2=(await post('ciA',{type:'diag'})).data;
+            const retryCount=((d2&&d2.pushLog)||[]).filter(x=>x.eventId==='ci-chat-1'&&x.client==='ciC'&&x.outcome==='pushed').length;
+            console.log('retry-dedupe='+(retryCount===1?'ok':'FAIL '+retryCount));
+            await post('ciD',{type:'subscribe',subscription:fake('ciD'),navigate:nav});
+            a.send(JSON.stringify({type:'call-start',from:'ciA',callId:'ci-call',eventId:'ci-call:start',kind:'video',ts:Date.now()}));
+            await wait(1800);
+            a.send(JSON.stringify({type:'call-end',from:'ciA',callId:'ci-call',eventId:'ci-call:end',reason:'missed',ts:Date.now()}));
+            await wait(800);
+            const led=(await get('ciB','ledger=1')).data;
+            const ended=led&&led.events&&led.events.find(x=>x.eventId==='ci-call:end');
+            const d3=(await post('ciA',{type:'diag'})).data;
+            const callPush=((d3&&d3.pushLog)||[]).filter(x=>x.eventId==='ci-call:start'&&x.client==='ciD'&&x.outcome==='pushed');
+            const endOwner=d3&&d3.owners&&d3.owners['ciD|ci-call:end'];
+            console.log('missed-call-ledger='+((ended&&ended.state==='timed_out'&&ended.kind==='video'&&callPush.length===1&&!endOwner)?'ok':'FAIL'));
+            const trace=await post('ciB',{type:'diag-trace',since:0,limit:500});
+            console.log('recorder='+((trace.status===200&&trace.data&&trace.data.version==='r10.5-relay/1'&&Array.isArray(trace.data.records)&&trace.data.records.length<=500)?'ok':'FAIL'));
             a.close();b.close();
-          }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
+          }catch(e){console.log('ws-connect=FAIL '+(e&&e.stack||e));process.exitCode=1;}
           JS
           set -o pipefail
           node wscheck.mjs 2>&1 | tee /tmp/ws-check.txt
           grep -qx 'ws-connect=ok' /tmp/ws-check.txt
           grep -qx 'ws-deliver=ok' /tmp/ws-check.txt
-          grep -qx 'ws-type=ok' /tmp/ws-check.txt
-          grep -qx 'wake-attempted=ok' /tmp/ws-check.txt
-          grep -Eq '^wake-status=[0-9]+$' /tmp/ws-check.txt
-          grep -qx 'wake-not-targeted-at-unsubscribed-live=ok' /tmp/ws-check.txt
+          grep -qx 'foreground-owner=ok' /tmp/ws-check.txt
+          grep -qx 'os-owner=ok' /tmp/ws-check.txt
+          grep -Eq '^push-post=ok status-[0-9]+$' /tmp/ws-check.txt
+          grep -qx 'retry-dedupe=ok' /tmp/ws-check.txt
+          grep -qx 'missed-call-ledger=ok' /tmp/ws-check.txt
+          grep -qx 'recorder=ok' /tmp/ws-check.txt
           if [ -n "${{ github.event.inputs.diag_session }}" ]; then
             curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
             echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt
@@ -90,7 +113,7 @@ jobs:
         run: |
           git config user.name deploy-bot
           git config user.email deploy-bot@local
-          { echo "run: ${{ github.run_id }}  $(date -u)"; echo '=== wrangler ==='; cat /tmp/deploy-out.txt 2>/dev/null; echo; echo '=== live check (vapid probe) ==='; cat /tmp/live-check.txt 2>/dev/null; echo; echo '=== websocket + delivery contract ==='; cat /tmp/ws-check.txt 2>/dev/null; echo; } > talkbridge/DEPLOY-STATUS.txt
+          { echo "run: ${{ github.run_id }}  $(date -u)"; echo '=== wrangler ==='; cat /tmp/deploy-out.txt 2>/dev/null; echo; echo '=== live check (R10.5 manifest + VAPID) ==='; cat /tmp/live-check.txt 2>/dev/null; cat /tmp/live-manifest.txt 2>/dev/null; echo; echo '=== presentation-owner + delivery contract ==='; cat /tmp/ws-check.txt 2>/dev/null; echo; } > talkbridge/DEPLOY-STATUS.txt
           git add talkbridge/DEPLOY-STATUS.txt
           git commit -m "relay deploy status [skip ci]" || true
           git pull --rebase origin main || true
