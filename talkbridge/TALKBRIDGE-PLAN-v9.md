@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.4.0 -->
-# TALKBRIDGE MASTER PLAN v20.4.0
+<!-- TALKBRIDGE-PLAN v20.4.1 -->
+# TALKBRIDGE MASTER PLAN v20.4.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed; whole pair rolled back; OBS1 authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed/rolled back; R10.2-OBS1 machine-gated, paired publish in v20.4.1 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -349,12 +349,13 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.0)
+### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.1)
 
-**Status: OWNER GO RECEIVED 2026-08-28; BUILD AUTHORIZED.** The owner directed
-the plan update and execution after 38 failed versions. The exact normative
-contract is `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. This is the one
-permitted next build.
+**Status: BUILT AND MACHINE-GATED 2026-08-28; PAIRED PUBLISH IS THIS
+CHANGESET.** The owner directed the plan update and execution after 38 failed
+versions. The exact normative contract is
+`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. OBS1 remains an observation
+candidate, not a notification fix or acceptance pass.
 
 #### 4.8.1 · WHY OBSERVATION PRECEDES ANOTHER BEHAVIOR DESIGN
 
@@ -394,15 +395,18 @@ navigation targets, counter math, transcript/bubbles, translations,
 credentials, mute, layout, onboarding, or subscription decisions. Existing
 content bubbles are not notification surfaces and must not be modified.
 
-The one allowed visible addition is a small **Diagnostics** control accessible
-from both the home screen and room. It opens an OBS1 panel that can start/name
-a test run, record the tester-supplied device condition, show version/trace
-health, and export/clear only diagnostic data. It may not cover existing
-controls or become part of the product acceptance design.
+The one allowed visible addition is a small **OBS1** diagnostics control
+accessible from both the home screen and room. It opens a panel that starts a
+generated run after the tester selects only enumerated condition, event, and
+receiving platform values; no free-text name/note can leak user content. The
+panel shows version/trace health and exports/clears only diagnostic data. It
+may not cover existing controls or become part of the product acceptance
+design.
 
 OBS1 never records message/transcript text, names, secrets, keys, full push
-endpoints, raw room IDs, raw device IDs, IP addresses, SDP, or media. Room,
-device, endpoint, and subscription identifiers are per-install salted hashes.
+endpoints, raw room IDs, raw device IDs, IP addresses, SDP, or media. Device
+records use a per-install random salt; relay identifiers use a per-process
+random salt; only the content-free event trace hash is stable across layers.
 Credential diagnostics record only capability name, presence, source class,
 and validation result.
 
@@ -430,15 +434,18 @@ The trace must cover:
 
 Web code cannot directly prove that a device is locked, that the OS displayed
 or sounded a notification, that the user saw it, or that a declarative push
-bypassed worker code. Those are never inferred. The tester labels
-`app_visible`, `other_app`, `home_screen`, or `locked`; the record marks that
-label `test_supplied`. Push-service acceptance is logged as `accepted`, never
+bypassed worker code. Those are never inferred. The tester selects one of the
+enumerated foreground-home/event-room/other-room, background, locked, or
+muted-room conditions; the record marks that label `test_supplied`.
+Push-service acceptance is logged as `accepted`, never
 as `delivered` or `displayed`.
 
 #### 4.8.5 · DURABILITY AND OUTPUT
 
 - Device records use IndexedDB, survive app/worker restarts, are capped at
-  5,000 records and seven days, and prune oldest-first in bounded batches.
+  5,000 records and seven days, and prune oldest-first in batches no larger
+  than 100. App and worker write idempotent `recordId` entries to the same
+  `records` store; there is no lossy drain step.
 - Relay records use a bounded per-event diagnostic ring with no message
   content. The export requests the matching relay slice when reachable and
   states a visible gap when it is not.
@@ -996,6 +1003,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.4.1 · 2026-08-28.** R10.2-OBS1 built from the byte-verified rollback
+with one additive app part plus observation hooks in the existing worker and
+relay. The panel is reachable from home and room, uses enumerated test labels
+only, and exports one same-snapshot JSONL + human-report package. App and
+worker share bounded IndexedDB records; the relay exposes a relationship-
+scoped, read-only, redacted 2,000-record/24-hour ring. Machine gates: existing
+app/worker 43/43, relay 8/8, recorder 21/21; inherited mutations 42/42 and
+recorder mutations 31/31; clean `npm ci` green. These scores prove the
+instrumentation contract, not iOS/Android notification acceptance. Handover is
+blocked until the public app, service worker, and relay manifests all report
+OBS1 from the paired publish.
 
 **v20.4.0 · 2026-08-28.** Owner GO received to update the plan and execute
 after 38 failed versions. R10.2 whole-pair rollback is byte-verified and stays

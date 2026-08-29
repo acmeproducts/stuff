@@ -1,8 +1,8 @@
 # TalkBridge Notification Flight Recorder — OBS1 Contract
 
-**Version:** 1.0.0  
+**Version:** 1.0.1
 **Date:** 2026-08-28  
-**Authority:** TalkBridge master plan v20.4.0 §4.8  
+**Authority:** TalkBridge master plan v20.4.1 §4.8
 **Build:** R10.2-OBS1  
 **Purpose:** explain notification and call-presentation behavior without
 changing it
@@ -57,8 +57,8 @@ The following rules are mandatory:
   notification was displayed.
 - A worker observing zero window clients does not prove that the app is
   uninstalled, terminated, or the device locked.
-- Tester observation belongs in the run label/note, never in an `observed`
-  field.
+- Tester observation belongs only in the enumerated run condition/scenario,
+  never in an `observed` field.
 
 ## 4 · Identifiers and correlation
 
@@ -84,8 +84,10 @@ in an additive diagnostic field only where doing so does not affect routing,
 deduplication, `Topic`, notification tags, or application decisions.
 
 Raw room, device, subscription, and endpoint identifiers are normalized with
-a per-install random salt and SHA-256. Exports use the first 16 hexadecimal
-characters with a type prefix, for example `room:19af8b87b0c84be3`.
+SHA-256 and a random salt: per-install in app storage and per-process in the
+relay diagnostic ring. Exports use the first 16 hexadecimal characters with a
+type prefix, for example `room:19af8b87b0c84be3`. Only the content-free event
+trace hash uses the same domain across layers so a timeline can be joined.
 
 ## 5 · Canonical JSONL record
 
@@ -132,7 +134,7 @@ present so missing evidence is machine-visible.
     "socket": "open",
     "swController": "obs1-sw/1",
     "permission": "granted",
-    "testCondition": "app_visible",
+    "testCondition": "foreground_event_room",
     "testConditionProvenance": "test_supplied"
   },
   "detail": {
@@ -167,7 +169,8 @@ visible/focus states; the relay cannot. Reports must retain source ownership.
 
 ### 6.3 Tester condition
 
-`app_visible`, `other_app`, `home_screen`, `locked`, `unspecified`
+`foreground_home`, `foreground_event_room`, `foreground_other_room`,
+`background`, `locked`, `muted_room`
 
 The condition is selected before the event and is always `test_supplied`.
 
@@ -269,12 +272,13 @@ subscriptions, rooms, connections, history, or wake decisions.
 ### 9.1 Device
 
 - IndexedDB database `tb-flight-recorder`, schema version 1.
-- Stores: `records`, `runs`, `meta`, and `inbox`.
+- Stores: `records`, `runs`, and `meta`.
 - Maximum 5,000 records across all completed/current runs.
 - Maximum age seven days.
 - Prune oldest-first after writes in batches no larger than 100.
-- Worker-to-app records use a shared IndexedDB inbox. Drain is idempotent by
-  `recordId`; an interrupted drain cannot duplicate records.
+- App and worker write to the shared `records` store using globally unique
+  `recordId` keys. Reconciliation/export reads that store directly, so there is
+  no drain window that can lose or duplicate a worker record.
 - If IndexedDB is unavailable, keep a bounded in-memory buffer of 200 records,
   mark the run `durability_degraded`, and make that visible in the panel/export.
 
@@ -299,9 +303,11 @@ millisecond precision across phones, worker, and relay.
 The **Diagnostics** control is reachable from home and from a room. The panel:
 
 - shows build/app/worker/relay versions and blocks a valid-run badge on mismatch;
-- starts a run with a generated ID and optional short tester note;
-- requires one condition selection: app visible, other app, home screen,
-  locked, or unspecified;
+- starts a run with a generated ID and requires enumerated receiving condition,
+  event scenario, and receiving platform selections; there is no free-text
+  note/name field;
+- requires one condition selection: foreground home, foreground event room,
+  foreground other room, background, locked, or muted room;
 - shows record count, last event, durability status, trace gaps, invariant
   violations, and whether the relay slice was retrieved;
 - exports **JSONL** and **Human report** from one snapshot;
@@ -390,7 +396,8 @@ OBS1 cannot be published unless all are green:
 7. Redaction canaries fail every forbidden-field mutation.
 8. Retention: 5,001st record and eighth-day record prune correctly; batching is
    bounded.
-9. Restart: worker inbox and app records survive and drain once.
+9. Restart: worker and app records survive in the shared store without
+   duplication.
 10. Ordering: per-source sequence survives skewed wall clocks; uncertain cross-
     source order is labeled.
 11. Export parity: every human timeline/summary item maps to a JSONL record;

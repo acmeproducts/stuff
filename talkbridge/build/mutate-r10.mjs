@@ -77,11 +77,11 @@ const worker = [
  ['a visible app on iOS gets a silent handler (Apple revokes)',
   s => s.replace("return /iPhone|iPad|iPod/.test(self.navigator.userAgent)", "return false && /iPhone|iPad|iPod/.test(self.navigator.userAgent)")],
  ['the worker goes silent on a push (Apple revokes the subscription)',
-  s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })", "return Promise.resolve()")],
+  s => s.replace("return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind, tbfrTraceId:traceId } })", "return Promise.resolve()")],
  ['the worker stops journaling shown',
-  s => s.replace(".then(function () { return journal('shown', { room: roomId, kind: kind }); },", ".then(function () { return Promise.resolve(); },")],
+  s => s.replace(".then(function () { frRecord('notification','show_result','accepted',{traceKey:traceKey,eventType:kind,detail:{accepted:true}}); return journal('shown', { room: roomId, kind: kind }); },", ".then(function () { return Promise.resolve(); },")],
  ['a tap opens a second copy instead of focusing the app',
-  s => s.replace("if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }", ";")],
+  s => s.replace("if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null, tbfrTraceId:tapTrace }); } catch (_) {} var p=app.focus ? app.focus() : null; frRecord('notification_tap','focus_request','accepted',{traceId:tapTrace,detail:{target:data.roomId?'event_room':'home'}}); return p; }", ";")],
  ['the room tag collapses to one global tag',
   s => s.replace("var tag = 'tb-' + (roomId || 'unknown');", "var tag = 'tb-all';")],
 ];
@@ -94,21 +94,24 @@ function run(name, appText, swText) {
   else console.log('ESCAPED  ' + name);
 }
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",").map(Number) : null;
-for (const [i, [name, fn]] of app.entries()) { if (ONLY && !ONLY.includes(i)) continue; const m = fn(built); if (m === built) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, m, sw); }
-for (const [name, fn] of worker) { if (ONLY) continue; const m = fn(sw); if (m === sw) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, built, m); }
+const WORKER_ONLY = process.env.WORKER_ONLY === '1', RELAY_ONLY = process.env.RELAY_ONLY === '1';
+const WORKER_INDEX = process.env.WORKER_INDEX === undefined ? null : Number(process.env.WORKER_INDEX);
+const RELAY_INDEX = process.env.RELAY_INDEX === undefined ? null : Number(process.env.RELAY_INDEX);
+for (const [i, [name, fn]] of app.entries()) { if (WORKER_ONLY || RELAY_ONLY || (ONLY && !ONLY.includes(i))) continue; const m = fn(built); if (m === built) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, m, sw); }
+for (const [i, [name, fn]] of worker.entries()) { if (ONLY || RELAY_ONLY || (WORKER_INDEX !== null && i !== WORKER_INDEX)) continue; const m = fn(sw); if (m === sw) { console.log('NO-OP    ' + name + ' (mutation did not apply)'); total++; continue; } run(name, built, m); }
 const relayMuts = [
  ['the presence guess returns (connected devices skipped)',
-  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      if (!this._connectedIds().has(clientId)) jobs.push(this._pushOne(clientId, rec));")],
+  s => s.replace("      jobs.push(this._pushOne(clientId, rec, msg));", "      if (!this._connectedIds().has(clientId)) jobs.push(this._pushOne(clientId, rec, msg));")],
  ['a wake timer returns (the 1s race)',
-  s => s.replace("      jobs.push(this._pushOne(clientId, rec));", "      setTimeout(() => this._pushOne(clientId, rec), 1000);")],
+  s => s.replace("      jobs.push(this._pushOne(clientId, rec, msg));", "      setTimeout(() => this._pushOne(clientId, rec, msg), 1000);")],
  ['the sender starts waking itself',
-  s => s.replace("if (clientId === senderId) continue;", ";")],
+  s => s.replace("if (clientId === senderId) { frRecord(this.sessionId || msg.session, clientId, msg, 'wake_decision', 'recipient', 'sender_skipped', { worthy:true, attempted:false }); continue; }", ";")],
  ['non-worthy types start waking phones',
-  s => s.replace("if (!PUSH_WORTHY.has(msg.type)) return;", ";")],
+  s => s.replace("if (!PUSH_WORTHY.has(msg.type)) { frRecord(this.sessionId || msg.session, senderId, msg, 'wake_decision', 'event_class', 'not_worthy', { worthy:false }, true); return; }", ";")],
 ];
 const relaySrc = readFileSync(relayP, 'utf8');
-for (const [name, fn] of relayMuts) {
-  if (ONLY) continue;
+for (const [i, [name, fn]] of relayMuts.entries()) {
+  if (ONLY || WORKER_ONLY || (RELAY_INDEX !== null && i !== RELAY_INDEX)) continue;
   const m = fn(relaySrc); total++;
   if (m === relaySrc) { console.log('NO-OP    ' + name); continue; }
   writeFileSync('/tmp/mut-relay.js', m);
