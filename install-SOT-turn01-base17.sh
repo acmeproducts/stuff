@@ -180,6 +180,18 @@ then pass TEMP_DB_PREFLIGHT "$(cat "$QUAL_DIR/temp-preflight.json")"; else fail 
 POWERSHELL=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 [ -x "$POWERSHELL" ] && pass POWERSHELL "$POWERSHELL" || fail POWERSHELL "not executable: $POWERSHELL"
 if "$POWERSHELL" -NoProfile -NonInteractive -Command "(Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name) -join ','" | tr -d '\r' > "$QUAL_DIR/windows-drives.txt"; then pass WINDOWS_INVENTORY "$(cat "$QUAL_DIR/windows-drives.txt")"; else fail WINDOWS_INVENTORY 'PowerShell Get-PSDrive failed'; fi
+if python3 - "$QUAL_DIR/windows-drives.txt" <<'PY'
+import sys
+x={v.strip().upper() for v in open(sys.argv[1]).read().split(',') if v.strip()}
+assert x,'empty Windows filesystem inventory'
+assert 'C' in x,'C: missing from Windows filesystem inventory'
+print('count='+str(len(x))+' drives='+','.join(sorted(x)))
+PY
+then pass WINDOWS_INVENTORY_SANITY "$(python3 - "$QUAL_DIR/windows-drives.txt" <<'PY'
+import sys
+x={v.strip().upper() for v in open(sys.argv[1]).read().split(',') if v.strip()}; print('count='+str(len(x))+' drives='+','.join(sorted(x)))
+PY
+)"; else fail WINDOWS_INVENTORY_SANITY "inventory=$(cat "$QUAL_DIR/windows-drives.txt")"; fi
 
 LIVE_ARCHIVE="$ARCHIVE_ROOT/$STAMP-turn01-base9-before-base17"
 mkdir -p "$LIVE_ARCHIVE"
@@ -219,8 +231,8 @@ if python3 - "$QUAL_DIR/windows-drives.txt" "$QUAL_DIR/sot-volumes.json" > "$QUA
 import json,sys
 windows={x.strip().upper() for x in open(sys.argv[1]).read().split(',') if x.strip()}
 v=json.load(open(sys.argv[2])); seen={str(x.get('name','')).rstrip(':').upper() for x in v.get('volumes',[]) if x.get('kind')=='drive'}
-print('windows='+','.join(sorted(windows))); print('sot='+','.join(sorted(seen))); print('missing='+','.join(sorted(windows-seen)))
-if windows-seen: raise SystemExit(1)
+print('windows='+','.join(sorted(windows))); print('sot='+','.join(sorted(seen))); print('missing='+','.join(sorted(windows-seen))); print('extra='+','.join(sorted(seen-windows)))
+if windows!=seen: raise SystemExit(1)
 PY
 then pass INVENTORY_MATCH "$(tr '\n' ' ' < "$QUAL_DIR/inventory-compare.txt")"; else fail INVENTORY_MATCH "$(tr '\n' ' ' < "$QUAL_DIR/inventory-compare.txt" 2>/dev/null || true)"; fi
 
