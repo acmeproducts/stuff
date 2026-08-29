@@ -1,8 +1,8 @@
 
 /* ═══════════ R10 PART · P3-subscription.js ═══════════ */
 /* @contract
-   wraps: p2Entry (after the real app boots in standalone, the subscription attempt starts), enterRoom (a newly entered room is registered with the relay), renderPanel (registration re-synced to each room's mute)
-   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3SyncMutes, p3LiveRooms, p3ShowRecipe, p3State
+   wraps: p2Entry (after the real app boots in standalone, the subscription attempt starts), enterRoom (a newly entered room is registered with the relay)
+   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3MutePost, p3WireMuteConfirm, p3LiveRooms, p3ShowRecipe, p3State
    Plan v19.5.0 §4.1 P3 — attempt-as-authority. On standalone open with rooms:
    register the worker, then ATTEMPT the subscription. Permission answers and
    properties are recorded verbatim and never gate. NotAllowedError inside a
@@ -45,18 +45,56 @@ function p3Vapid() {
     return key;
   });
 }
-/* Registration mirrors the room's mute: a muted room is unsubscribed at the relay (ship rule — muted rooms raise nothing). */
+/* v20.2.0: every room subscribes (the ledger needs the device known). Mute is
+   its OWN relay state per device per room (review §4.3) — never unsubscribe.
+   The subscription carries the navigate target for declarative tap-through. */
 function p3RegisterRoom(roomId) {
   if (!p3State.sub || !roomId) return Promise.resolve(false);
-  var room = roomById(roomId), want = !(room && room.muted);
-  var body = want ? { type: 'subscribe', subscription: p3State.sub.toJSON ? p3State.sub.toJSON() : p3State.sub } : { type: 'unsubscribe' };
+  var body = { type: 'subscribe', subscription: p3State.sub.toJSON ? p3State.sub.toJSON() : p3State.sub, navigate: location.origin + location.pathname };
   return p3RelayPost(roomId, body)
-    .then(function (r) { var ok = !!(r && r.ok); if (ok) p3State.registered[roomId] = want; p3Log(want ? 'room_registered' : 'room_unregistered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error'); return ok; })
+    .then(function (r) {
+      var ok = !!(r && r.ok);
+      if (ok) p3State.registered[roomId] = true;
+      p3Log('room_registered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error');
+      var room = roomById(roomId);
+      if (ok && room && room.muted) return p3MutePost(roomId, true).then(function () { return ok; });
+      return ok;
+    })
     .catch(function (e) { p3Log('room_register_failed', { room: String(roomId).slice(-6), e: String(e && e.message || e) }, 'error'); return false; });
 }
-function p3SyncMutes() {
-  if (!p3State.sub) return;
-  p3LiveRooms().forEach(function (r) { var want = !r.muted; if (p3State.registered[r.id] !== want) p3RegisterRoom(r.id); });
+function p3MutePost(roomId, muted) {
+  return p3RelayPost(roomId, { type: 'mute', muted: !!muted }).then(function (r) {
+    var ok = !!(r && r.ok);
+    p3Log('mute_acked', { room: String(roomId).slice(-6), muted: !!muted, ok: ok }, ok ? 'ok' : 'error');
+    if (!ok) throw new Error('mute-not-acked');
+    return r;
+  }, function (e) {
+    p3Log('mute_acked', { room: String(roomId).slice(-6), muted: !!muted, ok: false, e: String(e && e.message || e) }, 'error');
+    throw e;
+  });
+}
+/* Review §4.3: the mute toggle claims nothing until the relay acknowledges the
+   per-device room state. This capture-phase hook is the one named notification
+   hook into the settings surface: it front-runs the ship handler, confirms
+   with the relay, then applies the exact ship behavior on success; on failure
+   it keeps the previous state and shows a concise retry error. */
+function p3WireMuteConfirm() {
+  var btn = $('s4b-mute');
+  if (!btn || btn.__p3wired) return;
+  btn.__p3wired = true;
+  btn.addEventListener('click', function (ev) {
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    var r = activeRoom(); if (!r) return;
+    var want = !r.muted;
+    p3MutePost(r.id, want).then(function () {
+      r.muted = want; saveRooms();
+      btn.classList.toggle('off', r.muted);
+      renderPanel();
+    }).catch(function () {
+      btn.classList.toggle('off', r.muted);   /* re-assert the unchanged truth */
+      toast('Could not update mute — try again');
+    });
+  }, true);
 }
 function p3RegisterAll() {
   return Promise.all(p3LiveRooms().map(function (r) { return p3RegisterRoom(r.id); }));
@@ -143,6 +181,7 @@ function p3ShowRecipe() {
       if (p2IsStandalone()) {
         /* A5 (plan v20.0.0): the listener heartbeat is deleted — the relay
            holds no liveness view for it to feed. */
+        p3WireMuteConfirm();
         if (p3LiveRooms().length) p3Attempt(false);
         else p3Log('no_rooms_yet', {}, 'info');
       }
@@ -152,12 +191,6 @@ function p3ShowRecipe() {
   document.removeEventListener('DOMContentLoaded', _p3Entry);
   document.addEventListener('DOMContentLoaded', function () { p2Entry(); });
 
-  var _p3RenderPanel = renderPanel;
-  renderPanel = function () {
-    var r = _p3RenderPanel.apply(this, arguments);
-    try { p3SyncMutes(); } catch (_) {}
-    return r;
-  };
   var _p3EnterRoom = enterRoom;
   enterRoom = function (id) {
     var r = _p3EnterRoom.apply(this, arguments);
