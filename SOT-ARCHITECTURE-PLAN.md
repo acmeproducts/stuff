@@ -1,7 +1,7 @@
 # SOT Architecture Plan
 
 **Status:** AUTHORITATIVE PRODUCT / ARCHITECTURE DIRECTION  
-**Updated:** 2026-08-27  
+**Updated:** 2026-08-29  
 **Repository:** `acmeproducts/stuff`  
 **UI ancestor:** `session-manager-v3.html` / ProjectChat interaction shell  
 **Lineage model:** TalkBridge-style governed turn/stage chain  
@@ -18,8 +18,8 @@ A new turn begins only after the prior turn reaches `post-ship` and that stage i
 
 | Turn · Stage | Purpose | Status | Artifact |
 |---|---|---|---|
-| 01 · pre-base | Frozen starting point for the new SOT portal lineage | Planned first build | `SOT-turn01-pre-base.html` |
-| 01 · base | First small governed functional delta from pre-base | Not started | `SOT-turn01-base.html` |
+| 01 · pre-base | Frozen starting point for the new SOT portal lineage | Accepted recovery anchor | `SOT-turn01-pre-base.html` |
+| 01 · base | First small governed functional delta from pre-base | Rebuild required after rejected Base-10/Base-11 mount-authority approach | `SOT-turn01-base.html` |
 | 01 · pre-ship | Next independently testable delta from base | Not started | `SOT-turn01-pre-ship.html` |
 | 01 · ship | Candidate release built only from gated pre-ship | Not started | `SOT-turn01-ship.html` |
 | 01 · post-ship | Post-release hardening / final turn candidate | Not started | `SOT-turn01-post-ship.html` |
@@ -113,6 +113,22 @@ The five stages are intentionally generic rather than tied forever to a particul
 - **post-ship** — final hardening/observability/corrections for the turn, still governed by rollback discipline.
 
 For Turn 01, the exact feature allocation will be declared before implementation rather than forcing a large all-at-once build.
+
+### 0.9 Turn 01 Base rollback correction — volume authority
+
+Base-10 and Base-11 are rejected evidence and are not valid implementation ancestors. Both candidates introduced a stricter WSL mount/readability validator as a prerequisite for accepting a Windows volume. That architectural choice regressed behavior already proven by earlier SOT lineage: Windows volumes were discovered dynamically and surfaced on the fly.
+
+The authoritative correction is rollback-first:
+
+1. Return to the accepted clean Turn 01 lineage rather than modifying Base-10 or Base-11.
+2. Recover the previously proven dynamic Windows volume discovery model as the authority for what volumes SOT can present.
+3. Source, Target, and Backup must consume the same discovered available-volume inventory.
+4. A newly introduced Node/WSL mount-shape or root-directory enumeration test must **not** become an independent authority that hides a Windows-readable volume that the proven discovery layer reports as available.
+5. Filesystem access required for an actual operation must still be validated at the operation boundary. Failure to access a selected volume is an actionable availability/error condition; it is not permission to silently remove that volume from discovery.
+6. The next Turn 01 Base candidate must be rebuilt from the accepted pre-base/clean integration lineage with only this governed storage-selection delta. No Base-10/Base-11 generated artifact, mount validator, or installer becomes a build input.
+7. Mechanical qualification must explicitly prove that the dynamic inventory remains intact and that Source, Target, and Backup are all driven by that same inventory before owner testing.
+
+Current accepted runtime after automatic rollback remains Base-9. That runtime fact is recovery evidence, not authorization to treat Base-9-generated storage experiments as the source for the new Base implementation.
 
 ---
 
@@ -233,6 +249,8 @@ Includes:
 **Source, Target, and Backup must all be selected from backend-discovered available volumes.** Target and Backup are project-owned configuration, not global free-text mount points.
 
 The Source/Target/Backup selector should use the established volume -> folders -> selected-folders interaction model.
+
+The available-volume list is a shared SOT resource and must preserve the proven dynamic discovery behavior. Source, Target, and Backup do not get separate or stricter definitions of volume availability. Operational readability/writability is validated when the relevant operation is attempted and surfaced as an explicit availability/error state rather than by silently suppressing a dynamically discovered volume.
 
 ### 5.2 Index
 
@@ -560,7 +578,7 @@ Global SOT-owned data includes:
 
 ## 18. Explicitly rejected architecture
 
-The following model is rejected and must not be restored as the governing SOT UI:
+The following model is rejected and must not be restored as the governing SOT UI or storage authority:
 
 - global stage/wizard rail;
 - bottom-of-page progression controls;
@@ -570,7 +588,9 @@ The following model is rejected and must not be restored as the governing SOT UI
 - inert Projects navigation requiring a separate Back control;
 - Target/Backup configured through global/free-text mount points;
 - project processing that blocks navigation or other projects;
-- treating fixed lifecycle surfaces as movable Session Manager tabs.
+- treating fixed lifecycle surfaces as movable Session Manager tabs;
+- replacing proven dynamic Windows volume discovery with a stricter WSL mount/readability gate that can suppress a Windows-readable volume;
+- treating Base-10 or Base-11 as a baseline after their owner/mechanical gate failures.
 
 ## 19. Architectural summary
 
