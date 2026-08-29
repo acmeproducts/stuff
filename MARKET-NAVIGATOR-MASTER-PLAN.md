@@ -45,10 +45,18 @@ There are three derived indices only: **Risk, Growth, Macro**. **Market is a con
 ## 6. Five chart views
 
 ### V1 — Market
-Risk, Growth and Macro together on the common engine, rebased to 100 at the selected horizon start. Colored `[RISK] [GROWTH] [MACRO]` pills select V2. Market AI POV sits beside the chart.
+Risk, Growth and Macro appear together on the common engine, rebased to 100 at the selected horizon start. V1 is the persistent upper Now chart.
+
+Its `[RSK] [GRW] [MAC]` pills are **context selectors for V2**, not navigation away from V1. Selecting Risk, Growth or Macro leaves V1 visible and unchanged while replacing the content of the persistent V2 chart below with the chosen index's components.
+
+There is therefore **no V1 → V2 page/view transition**. The relationship is **V1 controls V2 within Now**.
 
 ### V2 — Index
-All components of selected Risk/Growth/Macro together on the common engine using oriented Indexed-100 comparison. Persistent colored component pills map directly to lines. Selecting a component launches V3 on that exact canonical series. Index AI POV sits beside the chart.
+V2 is the persistent lower Now chart beneath V1. It shows all components of whichever Risk/Growth/Macro index is selected in V1, using the common engine and oriented Indexed-100 comparison.
+
+Persistent colored component pills map directly to lines. Selecting a V2 component is the first actual drill-down transition: it launches **V3 in Explore** on that exact canonical series.
+
+Changing the V1 index context replaces V2's component set and clears any V2 point-inspection state. It never removes or replaces V1.
 
 ### V3 — Component
 One canonical source series, large format, native values/units, all horizons, full axes, point inspection/crosshair, source/frequency/status metadata, Data, Statistics, POV, Export and Save.
@@ -87,6 +95,7 @@ Interaction:
 7. No popup enumerating every visible series is shown.
 8. The inspection is explicitly dismissible: tap/click the close control, press Escape where available, or tap outside the plot/inspection target. Dismissal removes guide, marker, value tag and date marker.
 9. Selecting a different line/pill immediately transfers inspection to that series rather than accumulating markers/readouts.
+10. Any view, index-context, horizon or series-set change clears the prior inspection state before the new chart is rendered.
 
 Touch behavior is first-class on Android. A tap pins the point; subsequent drag/movement may move along the active series. Inspection never depends on hover existing.
 
@@ -121,15 +130,23 @@ Rendering optimization may not alter canonical observations used by point inspec
 ## 11. Data fidelity and mixed frequency
 **plotted observation ↔ selected point value ↔ Data view ↔ Statistics input ↔ export** must reconcile.
 
-Monthly CPI and daily VIX must not be represented as though they published on identical dates. Point inspection always identifies the active series' actual source observation.
+Monthly CPI and daily market series can share a current X-axis without pretending they share observation cadence. CPI's line stops at its latest real published observation; a faster series may continue to the current market date. The chart exposes each series' latest actual observation date and never stretches or carries forward a source line merely for visual continuity.
 
 ## 12. NOW
-Now opens at 5D. Top: V1 Market chart + Market AI POV. Bottom: V2 selected-index chart + selected-index AI POV. Now remains curated; component selection launches Explore.
+Now opens at 5D and is a persistent two-level report:
+
+**Upper:** V1 Market chart + Market AI POV.
+
+**Lower:** V2 selected-index component chart + selected-index AI POV.
+
+V1 and V2 coexist. Selecting `RSK / GRW / MAC` in V1 changes only the V2 context below. It is not navigation and does not replace V1.
+
+Only selecting a component in V2 leaves Now and opens V3 in Explore.
 
 ## 13. EXPLORE / Analysis workspace
 Explore is a workspace, not a second chart engine.
 
-**Now → component → V3 → add series → automatic V4 → deliberate V5 when needed → Data/Statistics/POV → Save**.
+**Now V2 component → V3 → add series → automatic V4 → deliberate V5 when needed → Data/Statistics/POV → Save**.
 
 ## 14. Statistics and correlation
 Statistics are tied to exact analytical state. Correlation is a first-class artifact containing series pair, coefficient, range, alignment/frequency, observation count, transformation, method and appropriate visualization. Correlation is association, not causation.
@@ -153,6 +170,9 @@ Data Catalog defines canonical source series. Operational Manifest is runtime st
 The standalone HTML acceptance artifact exercises V1–V5 against real canonical evidence using the same engine.
 
 Mandatory acceptance includes:
+- **Now acceptance renders V1 and V2 concurrently**, proving the real V1-controls-V2 relationship
+- V1 selection changes V2 context without replacing V1
+- V2 component selection alone launches V3
 - V1/V2 populated from canonical derived-index definition
 - all seven horizons
 - V3 native single-series
@@ -163,9 +183,10 @@ Mandatory acceptance includes:
 - single active-series point inspection in V1–V5
 - one point marker + one point value tag + one X-axis date marker
 - explicit dismissal of inspection
+- inspection state cleared on any context/view/horizon/series change
 - no all-series crosshair popup
 - native evidence available from Indexed-100 point inspection
-- honest mixed-frequency observation dates
+- honest mixed-frequency observation dates and line termination
 - Android touch behavior
 - healthy/loading/partial/stale/missing/source-failure/insufficient-observation states
 
@@ -179,6 +200,8 @@ Acceptance remains: **“Yes. That's our chart.”**
 **Gate 3 — Application:** only after Gate 1 + Gate 2 approval, assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated at bottom. Gate 3 may not reinterpret the approved chart contract.
 
 ## 22. Rejected approaches
+- treating V1 and V2 as peer navigation destinations
+- replacing V1 when an index is selected
 - deep component drilldown inside Now
 - separate simple and Analysis chart engines
 - synthetic fourth Market score
