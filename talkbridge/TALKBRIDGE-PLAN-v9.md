@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.6.0 -->
-# TALKBRIDGE MASTER PLAN v20.6.0
+<!-- TALKBRIDGE-PLAN v20.6.1 -->
+# TALKBRIDGE MASTER PLAN v20.6.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 corrected app + worker + relay v5.1 machine-gated; integrated recorder included; publication and hardware matrix governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 corrected app + worker + relay v5.1 deployed and byte-verified; integrated recorder included; hardware matrix governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -247,7 +247,7 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.6.0): §4.9.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.6.1): §4.9.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
 describes rejected instrumentation-only candidate OBS1. Neither is build
 authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md` remains the
@@ -349,16 +349,21 @@ used between strangers-becoming-partners.
 
 ### 4.9 · R10.5 — CORRECTED BEHAVIOR WITH INTEGRATED FLIGHT RECORDER (ACTIVE)
 
-**Status: R10.5 CORRECTED PAIR BUILT AND MACHINE-GATED; PUBLICATION IN
-PROGRESS.** The protected source remains byte-identical to Git blob `a6e1673c`.
-Candidate blobs are app `23bcc483`, worker `c00246fd`, and relay `11d000c5`.
+**Status: R10.5 CORRECTED PAIR DEPLOYED AND BYTE-VERIFIED.** Product commit
+`13b3d9ae` is live; relay status commit `f2f4fe21` records the completed probe.
+Pages run `33257913179` and relay run `33257913219` succeeded. The protected
+source remains byte-identical to Git blob `a6e1673c`. Live blobs are app
+`23bcc483`, worker `c00246fd`, and relay source `11d000c5`; HTTP SHA-256 matches
+the gated app `06c3d8ae…e4fd` and worker `c2684e42…dc69`.
 One reproducible command (`npm run gate:r105`) assembles the pair and passes
 49 app/worker behavior checks, 25 relay/deploy state/crypto checks, 22 integrated
 recorder/privacy checks, and all 34 planted defects. The recorder is inside
 this corrected candidate and hidden during normal use; there is no separate
-instrumentation release. Publication must use the updated fail-closed R10.5
-manifest/owner/push/ledger/recorder probe. The external iOS/Android hardware
-matrix remains the only proof of OS display and ≤5-second device latency.
+instrumentation release. The fail-closed live probe passed WebSocket delivery,
+foreground owner, OS owner-before-push, one real push-service POST (`404` from
+the deliberately invalid endpoint), retry dedupe, missed-call ledger state,
+and recorder access. The external iOS/Android hardware matrix remains the only
+proof of OS display and ≤5-second device latency.
 
 #### 4.9.1 · USER CONTRACT — SIMPLE AND CONSISTENT
 
@@ -1133,6 +1138,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.6.1 · 2026-08-29.** R10.5 product commit `13b3d9ae` deployed
+successfully. Pages run `33257913179` serves the exact gated app and worker
+bytes; HTTP SHA-256 is app `06c3d8ae…e4fd` and worker `c2684e42…dc69`. Relay
+run `33257913219` deployed v5.1 and its fail-closed live probe passed socket
+delivery, `owner=in_app` with no push, `owner=os` committed before a real push
+POST, push-service response status 404 for the deliberate invalid endpoint,
+retry dedupe, durable timed-out video-call state, and authorized recorder
+access. Relay status commit `f2f4fe21` preserves the complete output. This is
+the corrected behavioral build with integrated instrumentation. It is ready
+for the single owner hardware matrix; machine gates do not claim OS display or
+device latency.
 
 **v20.6.0 · 2026-08-29.** R10.5 executed as one corrected app/worker/relay
 candidate with the flight recorder integrated, not as a diagnostic-only
