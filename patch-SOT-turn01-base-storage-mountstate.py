@@ -37,7 +37,7 @@ windows_fn = r'''function windowsDriveLetters() {
       encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024
     });
     for (const line of output.split(/\r?\n/)) {
-      const match = line.trim().match(/^\/mnt\/([a-z])\s+(9p|drvfs)\s+([a-z]):(?:\\x5c|\\x2f|[\\/])?(?:\s|$)/i);
+      const match = line.trim().match(/^\/mnt\/([a-z])\s+(9p|drvfs)\s+([a-z]):/i);
       if (match && match[1].toLowerCase() === match[3].toLowerCase()) letters.add(match[1].toLowerCase());
     }
   } catch { /* no additional real Windows-backed WSL mounts */ }
@@ -46,7 +46,8 @@ windows_fn = r'''function windowsDriveLetters() {
 
 function normalizeWindowsMountSource(value) {
   let source = String(value || '').trim();
-  source = source.split('\\x5c').join('\\').split('\\x2f').join('/');
+  source = source.replace(/\\x([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  source = source.replace(/\\([0-7]{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
   while (source.endsWith('\\') || source.endsWith('/')) source = source.slice(0, -1);
   return source.toUpperCase();
 }'''
@@ -71,8 +72,14 @@ drive_fn = r'''function driveMounted(letter) {
 }'''
 src = src[:start] + drive_fn + src[end:]
 
+old_ensure = "  if (!driveMounted(lower)) throw httpError(409, `${lower.toUpperCase()}: is visible in Windows but is not mounted in WSL`);"
+new_ensure = "  if (!driveMounted(lower)) {\n    const state = mountInfo(root);\n    throw httpError(409, `${lower.toUpperCase()}: mount helper completed but SOT rejected mount state target=${state.target || '-'} fstype=${state.fstype || '-'} source=${state.source || '-'} normalized=${normalizeWindowsMountSource(state.source) || '-'}`);\n  }"
+if src.count(old_ensure) != 1:
+    raise SystemExit(f'ensureWindowsDriveMounted postcondition changed unexpectedly: {src.count(old_ensure)}')
+src = src.replace(old_ensure, new_ensure, 1)
+
 old_build = "const BUILD = '2026.08.28.sot-turn01-base-3';"
-new_build = "const BUILD = '2026.08.28.sot-turn01-base-10';"
+new_build = "const BUILD = '2026.08.29.sot-turn01-base-11';"
 if src.count(old_build) != 1:
     raise SystemExit(f'Base-3 build marker changed unexpectedly: {src.count(old_build)}')
 src = src.replace(old_build, new_build, 1)
@@ -80,10 +87,12 @@ src = src.replace(old_build, new_build, 1)
 required = [
     '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
     'function normalizeWindowsMountSource(value)',
-    "split('\\\\x5c').join('\\\\')",
+    "source.replace(/\\\\x([0-9a-f]{2})/gi",
+    "source.replace(/\\\\([0-7]{3})/g",
     "['9p','drvfs'].includes(fstype)",
     'fs.readdirSync(root)',
-    "const BUILD = '2026.08.28.sot-turn01-base-10';",
+    'mount helper completed but SOT rejected mount state',
+    "const BUILD = '2026.08.29.sot-turn01-base-11';",
 ]
 for marker in required:
     if marker not in src:
@@ -93,4 +102,4 @@ if "execFileSync('powershell.exe'" in src:
     raise SystemExit('PATH-based PowerShell invocation remains')
 
 Path(sys.argv[2]).write_text(src)
-print('Turn 01 Base mount-state correction applied directly to frozen Base-3 integration; Base build 10 generated')
+print('Turn 01 Base mount-state correction applied directly to frozen Base-3 integration; Base build 11 generated')
