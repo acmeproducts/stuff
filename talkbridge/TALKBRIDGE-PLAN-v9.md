@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.4.1 -->
-# TALKBRIDGE MASTER PLAN v20.4.1
+<!-- TALKBRIDGE-PLAN v20.4.2 -->
+# TALKBRIDGE MASTER PLAN v20.4.2
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed/rolled back; R10.2-OBS1 machine-gated, paired publish in v20.4.1 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.3 failed/rolled back; R10.2-OBS1 machine-gated, relay deploy retry in v20.4.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -349,7 +349,7 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.1)
+### 4.8 · R10.2-OBS1 — ACTIVE NOTIFICATION FLIGHT-RECORDER BUILD (v20.4.2)
 
 **Status: BUILT AND MACHINE-GATED 2026-08-28; PAIRED PUBLISH IS THIS
 CHANGESET.** The owner directed the plan update and execution after 38 failed
@@ -1003,6 +1003,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.4.2 · 2026-08-28.** The first OBS1 relay upload was correctly rejected
+by Cloudflare because a diagnostic salt was generated in module-global scope,
+but the repository workflow masked Wrangler's nonzero exit and then probed the
+still-running old relay. No owner handover occurred. The salt now initializes
+lazily inside an event handler. The deploy job now fails on Wrangler failure,
+requires the live `v4.2 / obs1-relay/1` manifest, and installs its WebSocket
+probe dependency without modifying the checkout. This changeset retries only
+the OBS1 relay and its formerly blind deploy gate; public app/worker bytes from
+v20.4.1 remain unchanged.
 
 **v20.4.1 · 2026-08-28.** R10.2-OBS1 built from the byte-verified rollback
 with one additive app part plus observation hooks in the existing worker and

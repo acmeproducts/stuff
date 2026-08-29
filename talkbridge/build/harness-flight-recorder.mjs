@@ -66,6 +66,7 @@ await T('F14 cold-open navigation reconciles from the worker record without chan
 await T('F15 relay ring is 2,000/24h and trace query is bounded to 500',()=>{
   A(/FR_MAX\s*=\s*2000\b/.test(relay)&&relay.includes('FR_AGE_MS = 24 * 60 * 60 * 1000'),'relay retention');
   A(relay.includes('Math.min(500,')&&relay.includes("body.type === 'diag-trace'"),'query bound');
+  A(relay.includes('function frSalt()')&&!relay.includes('const FR_SALT = crypto.randomUUID'),'relay salt must initialize inside a handler');
 });
 await T('F16 relay instruments receive, socket delivery, recipient decision, push request/response and subscription',()=>{
   for(const token of ["'relay_receive'","'socket_delivery'","'wake_decision'","'push_attempt'","'push_service'","'subscription'"])A(relay.includes(token),token+' missing');

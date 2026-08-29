@@ -71,13 +71,19 @@ const FR_BUILD = 'R10.2-OBS1';
 const FR_VERSION = 'obs1-relay/1';
 const FR_MAX = 2000;
 const FR_AGE_MS = 24 * 60 * 60 * 1000;
-const FR_SALT = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+let FR_SALT = null;
 let frSeq = 0;
 const frRing = [];
+function frSalt() {
+  /* Cloudflare forbids random generation at module evaluation. frHash is
+     called from request/event handlers, so initialize lazily there. */
+  if (!FR_SALT) FR_SALT = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  return FR_SALT;
+}
 function frHex(buf) { let s=''; for (const n of new Uint8Array(buf)) s += n.toString(16).padStart(2,'0'); return s; }
 async function frHash(value, trace = false) {
   if (value === null || value === undefined || value === '') return null;
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode((trace ? 'tbfr-tr|' : `tbfr-id|${FR_SALT}|`) + String(value)));
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode((trace ? 'tbfr-tr|' : `tbfr-id|${frSalt()}|`) + String(value)));
   const h = frHex(b).slice(0, 16);
   return trace ? `trace:${h}` : h;
 }

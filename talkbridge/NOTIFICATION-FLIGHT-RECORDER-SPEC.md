@@ -1,8 +1,8 @@
 # TalkBridge Notification Flight Recorder — OBS1 Contract
 
-**Version:** 1.0.1
+**Version:** 1.0.2
 **Date:** 2026-08-28  
-**Authority:** TalkBridge master plan v20.4.1 §4.8
+**Authority:** TalkBridge master plan v20.4.2 §4.8
 **Build:** R10.2-OBS1  
 **Purpose:** explain notification and call-presentation behavior without
 changing it

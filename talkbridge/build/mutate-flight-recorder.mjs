@@ -35,7 +35,7 @@ const mutations=[
   ['relay internal scope keys leak','relay',s=>s.replace('delete o._roomKey; delete o._clientKey;',';')],
   ['relay query mutates sequence','relay',s=>s.replace("if (body && body.type === 'diag-trace') {","if (body && body.type === 'diag-trace') { this.seq++;")],
   ['relay receive stage disappears','relay',s=>s.replace("'relay_receive', 'websocket'","'receive_lost', 'websocket'")],
-  ['relay trace hash domain diverges','relay',s=>s.replace("'tbfr-tr|' : `tbfr-id|${FR_SALT}|`","'tbfr-other|' : `tbfr-id|${FR_SALT}|`")]
+  ['relay trace hash domain diverges','relay',s=>s.replace("'tbfr-tr|' : `tbfr-id|${frSalt()}|`","'tbfr-other|' : `tbfr-id|${frSalt()}|`")]
 ];
 const dir=mkdtempSync(join(tmpdir(),'tbfr-mut-'));
 let caught=0,total=0;

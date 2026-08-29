@@ -28,19 +28,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npm i -g wrangler@4 >/dev/null 2>&1
-          set +e
-          wrangler deploy > /tmp/deploy-out.txt 2>&1
-          echo "wrangler-exit=$?" >> /tmp/deploy-out.txt
-          set -e
-          cat /tmp/deploy-out.txt
+          set -o pipefail
+          wrangler deploy 2>&1 | tee /tmp/deploy-out.txt
       - name: Live check
         run: |
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
+          curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
+          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='4.2'||d.obs!=='obs1-relay/1')throw new Error('live relay manifest mismatch: '+JSON.stringify(d))"
           cat /tmp/live-check.txt
+          cat /tmp/live-manifest.txt
       - name: WebSocket handshake + delivery-contract check
         run: |
-          npm i ws@8 >/dev/null 2>&1
+          npm i ws@8 --no-save --package-lock=false >/dev/null 2>&1
           cat > wscheck.mjs <<'JS'
           import WebSocket from 'ws';
           const BASE='wss://talk-signal.myacctfortracking.workers.dev';
@@ -59,18 +59,25 @@ jobs:
             console.log('ws-connect=ok');
             console.log('ws-deliver='+(m?'ok':'FAIL'));
             console.log('ws-type='+((m&&m.type==='chat-msg')?'ok':'FAIL'));
-            /* v3 wake path: absent subscribed C must be wake-targeted with an ENCRYPTED payload */
+            /* v4.2 wake path: absent subscribed C must be wake-targeted with an ENCRYPTED payload */
             await post('ciC',{type:'subscribe',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}});
             a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));
             await new Promise(r=>setTimeout(r,2500));
             const d=await post('ciA',{type:'diag'});
             console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
             console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
-            console.log('no-wake-for-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
+            console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
             a.close();b.close();
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
-          node wscheck.mjs > /tmp/ws-check.txt 2>&1 || true
+          set -o pipefail
+          node wscheck.mjs 2>&1 | tee /tmp/ws-check.txt
+          grep -qx 'ws-connect=ok' /tmp/ws-check.txt
+          grep -qx 'ws-deliver=ok' /tmp/ws-check.txt
+          grep -qx 'ws-type=ok' /tmp/ws-check.txt
+          grep -qx 'wake-attempted=ok' /tmp/ws-check.txt
+          grep -Eq '^wake-status=[0-9]+$' /tmp/ws-check.txt
+          grep -qx 'wake-not-targeted-at-unsubscribed-live=ok' /tmp/ws-check.txt
           if [ -n "${{ github.event.inputs.diag_session }}" ]; then
             curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
             echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt
