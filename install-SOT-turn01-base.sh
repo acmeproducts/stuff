@@ -69,11 +69,23 @@ python3 "$TMP/integrate-ui.py" "$TMP/SOT-turn01-pre-base.html" "$TMP/SOT-turn01-
 python3 "$TMP/patch-idle.py" "$TMP/SOT-turn01-base-before-idle.html" "$TMP/SOT-turn01-base.html"
 
 node --check "$TMP/sot-api.js"
-grep -Fq "const BUILD = '$EXPECTED_BUILD';" "$TMP/sot-api.js"
-grep -Fq 'function normalizeWindowsMountSource(value)' "$TMP/sot-api.js"
-grep -Fq "split('\\x5c').join('\\')" "$TMP/sot-api.js"
-grep -Fq "['9p','drvfs'].includes(fstype)" "$TMP/sot-api.js"
-grep -Fq 'function fullyIndexedStable(p)' "$TMP/SOT-turn01-base.html"
+python3 - "$TMP/sot-api.js" "$TMP/SOT-turn01-base.html" "$EXPECTED_BUILD" <<'PY'
+from pathlib import Path
+import sys
+api = Path(sys.argv[1]).read_text()
+html = Path(sys.argv[2]).read_text()
+expected = sys.argv[3]
+checks = [
+    ('backend build', f"const BUILD = '{expected}';", api),
+    ('mount-source normalizer', 'function normalizeWindowsMountSource(value)', api),
+    ('9p/drvfs mount acceptance', "['9p','drvfs'].includes(fstype)", api),
+    ('idle refresh suppression', 'function fullyIndexedStable(p)', html),
+]
+for label, marker, body in checks:
+    if marker not in body:
+        raise SystemExit(f'generated-source gate failed: {label}: missing {marker!r}')
+print('generated-source contract: ok')
+PY
 
 python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 import pathlib,re,sys
