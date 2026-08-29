@@ -11,20 +11,20 @@ HELPER=/usr/local/sbin/sot-mount-drive
 SUDOERS=/etc/sudoers.d/sot-drvfs
 TMP="$(mktemp -d)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-EXPECTED_BUILD='2026.08.28.sot-turn01-base-10'
+EXPECTED_BUILD='2026.08.29.sot-turn01-base-11'
 PUBLIC_URL='https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html'
-RUNTIME_BACKUP="$TMP/sot-api.js.before-base10"
-HTML_BACKUP="$TMP/SOT-turn01-base.html.before-base10"
+RUNTIME_BACKUP="$TMP/sot-api.js.before-base11"
+HTML_BACKUP="$TMP/SOT-turn01-base.html.before-base11"
 HAD_HTML=0
 HAD_HELPER=0
 HAD_SUDOERS=0
 CUTOVER=0
 SUCCESS=0
 
-# Clean governed rebuild. No Base-4..9 generated candidate is a build input.
+# Clean governed rebuild. No rejected Base-4..10 generated candidate is a build input.
 BACKEND_PREBASE_URL='https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js'
 BACKEND_INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py'
-MOUNTSTATE_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/4d76edcc7846bd82163d02975a34280fb0ee1b47/patch-SOT-turn01-base-storage-mountstate.py'
+MOUNTSTATE_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/3b7694a0f542adcb247b0a8ac510071770c86c71/patch-SOT-turn01-base-storage-mountstate.py'
 UI_PREBASE_URL='https://raw.githubusercontent.com/acmeproducts/stuff/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html'
 UI_INTEGRATOR_URL='https://raw.githubusercontent.com/acmeproducts/stuff/e5a73821c7bd9296c8088b6d53e76082af2bf63b/integrate-SOT-turn01-base-ui.py'
 IDLE_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/94d5ecdd4d71bd5f9ea58b7dbade952093f548f9/patch-SOT-turn01-base-idle-refresh.py'
@@ -32,7 +32,7 @@ IDLE_PATCH_URL='https://raw.githubusercontent.com/acmeproducts/stuff/94d5ecdd4d7
 cleanup() {
   if [ "$CUTOVER" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then
     echo
-    echo '=== BASE-10 GATE FAILED — AUTOMATIC ROLLBACK ==='
+    echo '=== BASE-11 GATE FAILED — AUTOMATIC ROLLBACK ==='
     sudo systemctl stop "$SERVICE" || true
     [ -f "$RUNTIME_BACKUP" ] && install -m 0644 "$RUNTIME_BACKUP" "$REPORT_ROOT/sot-api.js"
     if [ "$HAD_HTML" -eq 1 ] && [ -f "$HTML_BACKUP" ]; then
@@ -54,7 +54,7 @@ trap cleanup EXIT
 
 mkdir -p "$SOT_DIR" "$ARCHIVE_ROOT"
 
-echo '=== TURN 01 BASE-10 CLEAN F/I MOUNT CORRECTION ==='
+echo '=== TURN 01 BASE-11 CLEAN F/I MOUNT-SOURCE CORRECTION ==='
 curl --max-time 30 -fsSL "$BACKEND_PREBASE_URL" -o "$TMP/sot-api-pre-base.js"
 curl --max-time 30 -fsSL "$BACKEND_INTEGRATOR_URL" -o "$TMP/integrate-backend.py"
 curl --max-time 30 -fsSL "$MOUNTSTATE_PATCH_URL" -o "$TMP/patch-mountstate.py"
@@ -78,7 +78,10 @@ expected = sys.argv[3]
 checks = [
     ('backend build', f"const BUILD = '{expected}';", api),
     ('mount-source normalizer', 'function normalizeWindowsMountSource(value)', api),
+    ('hex escape decoder', "source.replace(/\\\\x([0-9a-f]{2})/gi", api),
+    ('octal escape decoder', "source.replace(/\\\\([0-7]{3})/g", api),
     ('9p/drvfs mount acceptance', "['9p','drvfs'].includes(fstype)", api),
+    ('postmount diagnostic', 'mount helper completed but SOT rejected mount state', api),
     ('idle refresh suppression', 'function fullyIndexedStable(p)', html),
 ]
 for label, marker, body in checks:
@@ -112,16 +115,16 @@ SOT_DB_PATH="$TMP/test.sqlite" SOT_SQLITE_ADAPTER="$REPORT_ROOT/sot-sqlite.py" n
 const api=require(process.argv[2]);
 const projects=api._test.listProjects();
 if(!Array.isArray(projects)) throw new Error('project list contract failed');
-if(api.BUILD!=='2026.08.28.sot-turn01-base-10') throw new Error('wrong candidate build');
+if(api.BUILD!=='2026.08.29.sot-turn01-base-11') throw new Error('wrong candidate build');
 console.log('temp DB/API preflight: ok; projects:',projects.length,'build:',api.BUILD);
 NODE
 
 echo '=== ARCHIVE CURRENT LIVE BASE-9 BEFORE PATCH ==='
-LIVE_ARCHIVE="$ARCHIVE_ROOT/$STAMP-turn01-base9-before-fi-mount-correction"
+LIVE_ARCHIVE="$ARCHIVE_ROOT/$STAMP-turn01-base9-before-base11-fi-mount-correction"
 mkdir -p "$LIVE_ARCHIVE"
 cp -a "$REPORT_ROOT/sot-api.js" "$LIVE_ARCHIVE/sot-api.js"
 [ -f "$SOT_DIR/SOT-turn01-base.html" ] && cp -a "$SOT_DIR/SOT-turn01-base.html" "$LIVE_ARCHIVE/SOT-turn01-base.html"
-printf '%s\n' 'Accepted Base-9 live state archived immediately before scoped F:/I: WSL mount correction.' "Timestamp: $STAMP" > "$LIVE_ARCHIVE/ARCHIVE-MANIFEST.txt"
+printf '%s\n' 'Accepted Base-9 live state archived immediately before governed Base-11 F:/I: mount-source correction.' "Timestamp: $STAMP" > "$LIVE_ARCHIVE/ARCHIVE-MANIFEST.txt"
 echo "archive: $LIVE_ARCHIVE"
 
 echo '=== CAPTURE EXACT LIVE ROLLBACK ==='
@@ -147,8 +150,10 @@ mount_state() {
   FSTYPE="$(findmnt -T "$ROOT" -n -o FSTYPE 2>/dev/null || true)"
   SOURCE="$(findmnt -T "$ROOT" -n -o SOURCE 2>/dev/null || true)"
   SOURCE_NORM="$(python3 - "$SOURCE" <<'PY'
-import sys
-s=sys.argv[1].strip().replace('\\x5c','\\').replace('\\x2f','/')
+import re,sys
+s=sys.argv[1].strip()
+s=re.sub(r'\\x([0-9a-fA-F]{2})',lambda m: chr(int(m.group(1),16)),s)
+s=re.sub(r'\\([0-7]{3})',lambda m: chr(int(m.group(1),8)),s)
 print(s.rstrip('\\/').upper())
 PY
 )"
@@ -178,7 +183,7 @@ EOF
 chmod 0440 "$TMP/sot-drvfs"
 
 CUTOVER=1
-echo '=== INSTALL BASE-10 CANDIDATE ==='
+echo '=== INSTALL BASE-11 CANDIDATE ==='
 sudo install -o root -g root -m 0755 "$TMP/sot-mount-drive" "$HELPER"
 sudo install -o root -g root -m 0440 "$TMP/sot-drvfs" "$SUDOERS"
 sudo visudo -cf "$SUDOERS" >/dev/null
@@ -199,7 +204,7 @@ import json,sys
 x=json.load(open(sys.argv[1]))
 assert x.get('status')=='ok',x
 assert x.get('database_version')==4,x
-assert x.get('build')=='2026.08.28.sot-turn01-base-10',x
+assert x.get('build')=='2026.08.29.sot-turn01-base-11',x
 print('health:',x['status'],'schema:',x['database_version'],'build:',x['build'])
 PY
 
@@ -211,7 +216,7 @@ echo "Windows drives: $(cat "$TMP/windows-drives.txt")"
 curl --max-time 10 -fsS http://127.0.0.1:18080/api/sot/turn01/volumes -o "$TMP/volumes.json"
 python3 - "$TMP/volumes.json" "$TMP/windows-drives.txt" <<'PY'
 import json,sys
-x=json.load(open(sys.argv[1])); assert x.get('build')=='2026.08.28.sot-turn01-base-10',x
+x=json.load(open(sys.argv[1])); assert x.get('build')=='2026.08.29.sot-turn01-base-11',x
 windows={v.strip().upper() for v in open(sys.argv[2]).read().split(',') if v.strip()}
 seen={str(v.get('name','')).rstrip(':').upper() for v in x.get('volumes',[]) if v.get('kind')=='drive'}
 assert not windows-seen,f'Windows drives missing from SOT inventory: {sorted(windows-seen)}'
@@ -257,6 +262,6 @@ cmp -s "$TMP/SOT-turn01-base.html" "$TMP/live.html" || { echo 'served Base HTML 
 
 SUCCESS=1
 echo
-echo '=== TURN 01 BASE-10 MECHANICALLY QUALIFIED ==='
+echo '=== TURN 01 BASE-11 MECHANICALLY QUALIFIED ==='
 echo "TEST: $PUBLIC_URL"
 echo "ARCHIVE: $LIVE_ARCHIVE"
