@@ -1165,3 +1165,23 @@ Replacement: explicit observed/test-supplied/unknown provenance; a bounded,
 redacted event timeline spanning sender, relay, worker, app, presentation and
 terminal outcome; `trace_gap` for missing evidence; `invariant_violation` for
 contradictory evidence; and mobile export of raw JSONL plus a human report.
+
+## 2026-08-29 · OBS1 instrumentation-only release — REJECTED AND ROLLED BACK
+
+OBS1 was deployed as R10.2 behavior plus observation hooks and then offered to
+the owner as the next test URL. That was a contract failure. R10.2 was already
+known on the owner's devices to delay and burst notifications, produce
+notification/ring-screen inconsistency, lose call context on tap/decline, and
+omit an Android call surface. Instrumenting those failures did not make the
+build a meaningful 39th attempt.
+
+Buried as a class: a diagnostic-only product release on a known-failing
+behavioral baseline; making the owner reproduce a known failure merely to
+collect logs; treating comprehensive telemetry as the release objective; and
+separating instrumentation from the build whose behavior it must explain.
+
+Replacement: restore the whole R10.2 pair; keep the repaired fail-closed deploy
+workflow; build one corrected behavioral candidate with the redacted flight
+recorder integrated as supporting infrastructure. The dev team exercises the
+recorder during preflight. The owner receives one corrected URL and uses the
+export only if a matrix cell fails.
