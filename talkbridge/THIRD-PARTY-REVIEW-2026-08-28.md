@@ -5,10 +5,11 @@
 **Status:** HISTORICAL — built as 4f574f2, failed the owner device matrix, and
 rolled back whole at 0b5b230. This is not current build authority.
 
-**Authority:** superseded by master-plan §4.8 and
-`talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`. In particular, the fixed
-one-second acknowledgement window and unproved cold-launch navigation handoff
-are buried and must not be tuned or rebuilt.
+**Authority:** superseded by master-plan §4.9. The flight-recorder spec is now
+a supporting requirement inside the corrected behavioral build, not authority
+for a separate instrumentation release. In particular, the fixed one-second
+acknowledgement race and unproved cold-launch navigation handoff are buried and
+must not be tuned or rebuilt.
 
 ---
 

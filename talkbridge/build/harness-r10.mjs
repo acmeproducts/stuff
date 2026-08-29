@@ -20,8 +20,8 @@ T('S1 ship segments verbatim: build = header + ship-with-parts-before-last-</scr
   A(built.startsWith(head + ship.slice(0, idx)), 'ship head segment altered');
   A(built.endsWith(ship.slice(idx)), 'ship tail segment altered');
 });
-T('S2 exactly P2, P3, P4, P6 plus observation-only P7 present; buried machinery absent', () => {
-  for (const p of ['P2-install-gate', 'P3-subscription', 'P4-alert-hygiene', 'P6-threads', 'P7-flight-recorder']) A(built.includes('R10 PART · ' + p), p + ' missing');
+T('S2 exactly P2, P3, P4, P6 present; buried machinery absent', () => {
+  for (const p of ['P2-install-gate', 'P3-subscription', 'P4-alert-hygiene', 'P6-threads']) A(built.includes('R10 PART · ' + p), p + ' missing');
   for (const p of ['x-safari', 'tb_install_handoff', 'n7AdoptName', 'p.jn', 'pa5Banner', 'r10EnableNotifications', 'N4-listener-heartbeat', 'ACK_GRACE'])
     A(!built.includes(p), p + ' leaked in (buried)');
   A((built.match(/rel="manifest"/g) || []).length === 1, 'manifest count wrong');
