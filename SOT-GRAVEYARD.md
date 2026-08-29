@@ -117,3 +117,29 @@ The next Base rebuild must start from the frozen accepted Turn 01 sources and:
 5. mechanically browse every Windows-readable discovered drive before owner handoff.
 
 Base-12 remains failed evidence only.
+
+---
+
+## GY-004 — Brittle exact-text function-boundary surgery
+
+**Status:** REJECTED  
+**Evidence:** Turn 01 Base-13 generator failure  
+**Decision date:** 2026-08-29
+
+### Rejected approach
+
+Use a source-rewrite helper that finds a function body by assuming the next declaration always begins with the exact text `function <name>`.
+
+### Why it is rejected
+
+The clean accepted Base-3 source declares `async function createStorageFolder(...)`. Base-13's generator searched for `\nfunction createStorageFolder` while replacing `saveStorage`, so generation failed with `ValueError: substring not found` before a candidate could be emitted.
+
+### Do not repeat
+
+Do not use declaration-boundary surgery that distinguishes `function` and `async function` accidentally. Do not treat this failed generator as a source artifact.
+
+### Required replacement
+
+A replacement generator must start again from the frozen accepted sources and locate declaration boundaries deterministically with support for both `function` and `async function`, verify each intended source function exactly once before rewriting, and fail before cutover if any boundary is ambiguous.
+
+Base-13 remains failed build evidence only; accepted live runtime remained Base-9.
