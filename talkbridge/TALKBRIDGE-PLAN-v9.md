@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.5.0 -->
-# TALKBRIDGE MASTER PLAN v20.5.0
+<!-- TALKBRIDGE-PLAN v20.5.1 -->
+# TALKBRIDGE MASTER PLAN v20.5.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | OBS1 rejected; R10.2 whole-pair rollback deploying; corrected behavior + recorder governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | OBS1 rejected; R10.2 rollback deployed and byte-verified at 4bdc8cf4; corrected behavior + recorder governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -247,7 +247,7 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.5.0): §4.9.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.5.1): §4.9.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
 describes rejected instrumentation-only candidate OBS1. Neither is build
 authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md` remains the
@@ -349,10 +349,13 @@ used between strangers-becoming-partners.
 
 ### 4.9 · R10.5 — CORRECTED BEHAVIOR WITH INTEGRATED FLIGHT RECORDER (ACTIVE)
 
-**Status: AUTHORIZED DESIGN AND BUILD INPUT.** First restore and verify the
-whole R10.2 pair. Then build one new app + worker + relay candidate from named
-sources. Instrumentation is mandatory inside that candidate but is never the
-candidate's purpose and is never handed to the owner as a separate test round.
+**Status: AUTHORIZED DESIGN AND BUILD INPUT; R10.2 ROLLBACK COMPLETE.** Live
+app, worker, and relay match the exact rollback blobs at product commit
+`4bdc8cf4`; Pages run `33246874798` and relay run `33246874675` succeeded, and
+the relay status commit is `07e67e37`. Build one new app + worker + relay
+candidate from named sources. Instrumentation is mandatory inside that
+candidate but is never the candidate's purpose and is never handed to the
+owner as a separate test round.
 
 #### 4.9.1 · USER CONTRACT — SIMPLE AND CONSISTENT
 
@@ -1127,6 +1130,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.5.1 · 2026-08-29.** R10.2 rollback merged to `main` at product commit
+`4bdc8cf4` and is live. Public app blob `a5bcd189`, worker blob `953f99de`, and
+relay source blob `94c391e4` match the governed rollback exactly. Pages run
+`33246874798` and relay run `33246874675` completed successfully; live relay
+diagnostics report v4.2 with no OBS1 marker. Relay status commit `07e67e37`
+preserves those product blobs. The stage ledger and §4.9 now report deployment
+as complete. No behavioral-fix candidate has been built or handed over.
 
 **v20.5.0 · 2026-08-29.** Owner rejected OBS1 as a standalone release: the
 agreement was rollback → corrected behavioral build with instrumentation, not

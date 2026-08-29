@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0
 **Date:** 2026-08-29
-**Authority:** TalkBridge master plan v20.5.0 §4.9
+**Authority:** TalkBridge master plan v20.5.1 §4.9
 **Build:** R10.5 supporting subsystem
 **Purpose:** explain notification and call-presentation behavior without
 changing the behavioral candidate's decisions
