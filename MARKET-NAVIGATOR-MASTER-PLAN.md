@@ -9,306 +9,394 @@ Market Navigator is an evidence-backed market research environment.
 
 Architecture:
 
-**Sources → Acquisition → Smart Data Store → Dumb Report API/JSON → Visualization + AI POV**
+**Data Catalog → Collector → Smart Evidence Store → Operational Manifest → dumb visualization/API consumers + AI interpretation**
 
-The backend owns objective, deterministic and reproducible facts. The AI interprets those facts. Semantic conclusions are not baked into canonical data.
+The backend owns objective, deterministic and reproducible evidence. AI interprets evidence; it does not create source facts or silently become the calculator/source of record.
 
-**Library is living research, not storage.** Saving an analysis makes an investigation persistent. Its evidence, chart state, reasoning, notes and AI conversation can continue to evolve.
+The primary product promise is deliberately simple:
 
-## 2. Permanent navigation
+**Now explains. Explore investigates. Library remembers and continues. Health establishes trust.**
 
-Left navigation contains four primary destinations:
+## 2. Permanent application navigation
 
-1. **Now**
-2. **Explore**
-3. **Library**
-4. **Health**
+The left rail contains exactly four primary destinations:
 
-**Config** is separated at the bottom of the navigation.
+1. **NOW**
+2. **EXPLORE**
+3. **LIBRARY**
+4. **HEALTH**
+
+At the bottom, visually separated from those destinations:
+
+**CONFIG**
+
+Config is a utility/settings surface, not a fifth primary destination. Health remains separate from Config because they answer different questions: Health asks whether the evidence can be trusted; Config controls how the application is configured.
 
 ## 3. Canonical horizons
 
-The locked horizons are:
+Locked horizons:
 
 **1D · 5D · 1M · YTD · 1Y · 3Y · 5Y**
 
-V3, V4 and V5 own independent analytical state. Changing their horizon, series selection, normalization, axes or other analytical configuration MUST NOT mutate V1 or V2 state.
+Default on Now: **5D**.
 
-## 4. NOW — four-panel orientation surface
+Now and each Explore/Analysis workspace own independent horizon state. An analysis launched from Now may inherit the current Now horizon initially, but subsequent changes never mutate the other surface.
 
-Now is a 2×2 analytical surface.
+## 4. One chart engine / one visual contract
 
-| | Left | Right |
-|---|---|---|
-| Top | **V1 — Market chart** | **Market AI POV / conversation** |
-| Bottom | **V2 — Selected Index Components chart** | **Selected-index AI POV / conversation** |
+There is exactly **one canonical chart engine and framework**.
 
-### V1 — Market
+Views 1–5 are configurations/states of that engine, not separate chart implementations. No reduced-function duplicate chart may be created for Now, Explore, Library, print, or sharing.
 
-- Displays the three canonical indices together.
-- Legend entries are interactive chips, not passive labels.
-- Selecting an index makes it active and drives V2.
-- Rich time-series presentation; charts are not restricted to a few x-axis data points.
-- V1 remains stable when deeper Explore analyses change.
+The following visual and behavioral grammar must remain common everywhere:
+- series identity and color grammar
+- typography and line treatment
+- chart geometry and plot-area rules
+- horizon/time-axis logic
+- value and unit formatting
+- crosshair grammar
+- legend/chip grammar
+- missing-data and discontinuity treatment
+- normalization mathematics
+- source/frequency/status metadata grammar
+- responsive behavior
+- evidence fidelity
 
-### V2 — Index Components
+The canonical Analysis chart is the uncompromised implementation. Now uses curated configurations of the same engine.
 
-- Displays the components of the index selected in V1.
-- Component legends are interactive chips.
-- Selecting a component opens V3 for deeper investigation.
-- V2 remains stable when V3/V4/V5 state changes.
+## 5. The five chart views
 
-### NOW AI POV
-
-- AI POV is an ongoing contextual conversation, not a disposable summary.
-- Top-right conversation is grounded in V1 market/index evidence.
-- Bottom-right conversation is grounded in the active V2 index/component evidence.
-- User can question, challenge and refine the POV and request supporting evidence.
-
-## 5. EXPLORE — five-view analytical model
+The five views are the visual acceptance set for the common engine.
 
 ### V1 — Market
 
-Market-level view of all three indices. See Now definition.
+Location: **Now, upper-left**.
+
+Purpose: orient the user to the market through the three derived analytical indices **Risk, Growth and Macro**.
+
+Contract:
+- Risk, Growth and Macro appear together on one chart.
+- They share the selected Now horizon.
+- They are displayed from a common normalized starting point for visual comparison.
+- Market is a container, **not a fourth synthetic index or score**.
+- `[RISK] [GROWTH] [MACRO]` are substantial interactive chips. Selecting one drives V2.
+- Market AI POV sits beside V1 and interprets the relationships visible in the chart.
+- AI may not make unsupported causal claims.
+
+Critical integrity rule: Risk/Growth/Macro are derived analytical products and therefore require explicit component membership, sign orientation, normalization and aggregation definitions. **No historical weighted Risk/Growth/Macro scoring scheme is canonical merely because it exists in an older build.** Until the derived-index contract is explicitly defined and persisted, V1 must fail closed rather than fabricate an index.
 
 ### V2 — Index
 
-Component-level view of the V1-selected index. See Now definition.
+Location: **Now, lower-left**.
 
-### V3 — Same-index Component Compare
+Purpose: show all components of the index selected in V1 together.
 
-Purpose: investigate the component selected from V2 in a dedicated analytical window.
+Contract:
+- All components of the selected index are shown on one normalized chart.
+- The same common engine is used.
+- Component chips are interactive.
+- Selecting a component launches V3 in Explore on that exact series.
+- The selected-index AI POV sits beside V2 and interprets the components collectively.
+- V2 does not become an inline drill-down workspace.
 
-Requirements:
-- Opens with the component selected from V2.
-- May add one or more additional components **from the same index**.
-- Supports normalized comparison so unlike absolute values can be compared meaningfully.
-- Independent canonical horizon selection.
-- Rich time-series chart.
-- Interactive legend/chips.
-- Crosshair/tooltips expose readable values for active series.
-- Ongoing contextual AI conversation about this analysis.
-- Correlation data available to the research context.
-- Underlying analytical data can be copied/downloaded.
-- Analysis can be committed to Library, including its AI conversation and research state.
+V2 uses the same explicit derived-index membership contract required by V1. It may not invent component membership from historical UI groupings.
 
-### V4 — Cross-Index Custom Analysis
+### V3 — Component / single-series Analysis
 
-Purpose: construct an arbitrary comparison across the available component universe.
+Location: **Explore**.
 
-Requirements:
-- Add/remove arbitrary index components, including components from different indices.
-- Any useful subset is valid: 2 series, 5 series, all applicable series, etc.
-- Interactive show/hide chips.
-- Focus highlighting for an active series.
-- Normalized comparison where appropriate.
-- Crosshair/tooltips expose readable active-series values.
-- Independent canonical horizon selection.
-- Ongoing contextual AI conversation.
-- Correlation data available to the research context.
-- Underlying analytical data can be copied/downloaded.
-- Complete analysis can be committed to Library.
+Purpose: definitive large-format inspection of one canonical source series.
 
-### V5 — Dual-Y-Axis Analysis
+Contract:
+- Opens on the exact component selected from V2, or a series selected directly in Explore.
+- Native values and native units.
+- Full horizon selector.
+- Rich horizon-correct time axis.
+- Crosshair with exact date and value.
+- Source, frequency, latest-observation and data-status metadata.
+- Data, Statistics, POV, Export and Save affordances.
+- May evolve into V4 by adding series; this does not launch a different chart implementation.
 
-Purpose: compare series whose native units cannot responsibly share a single Y scale.
+### V4 — Multi-series Analysis
 
-Requirements:
-- Supports two independent Y axes.
-- Enables combinations such as Treasury yield (%) versus Brent crude ($).
-- Series-to-axis assignment must be explicit and visible.
-- Independent canonical horizon selection.
-- Rich time-series chart.
-- Interactive legends/chips and readable crosshair values.
-- Ongoing contextual AI conversation.
-- Correlation data available to the research context.
-- Underlying analytical data can be copied/downloaded.
-- Complete analysis can be committed to Library.
+Location: **Explore**; it is V3 after additional series are added.
 
-## 6. Chart density and time-axis contract
+Purpose: remain on the paved analytical road while comparing an arbitrary selected set without asking the user to design the chart.
 
-Charts MUST show enough observations and temporal structure to support actual research. They are not summary graphics limited to four or similarly sparse x-axis points.
+Contract:
+- 2–N selected series; **7 simultaneous real series is a mandatory stress/acceptance case**.
+- Fixed display treatment: **Indexed 100**. Every active series is rebased to 100 at the selected horizon start.
+- No dual-axis configuration and no arbitrary transform selector in V4.
+- Add/remove/show/hide series through chips.
+- Active-series focus may visually emphasize one line while de-emphasizing the others.
+- Crosshair organizes exact underlying values for every active series.
+- Changing horizon recomputes the rebasing from that horizon's starting observation.
+- The display transformation never silently changes the statistical transformation.
 
-The plotted data and the number of labeled axis ticks are separate concerns: the chart may plot all appropriate observations while labeling only a readable subset of dates.
+V4 answers one clear question: **How did these selected things move relative to their own common starting point?**
 
-Initial display guidance:
-- **1D:** intraday only if canonical intraday evidence exists; otherwise applicable native observations. **TBD pending canonical intraday policy.**
-- **5D:** daily/applicable observations; readable day labels.
-- **1M:** daily/applicable observations; label density chosen for legibility.
-- **YTD:** full available applicable observations; label monthly or otherwise readable intervals.
-- **1Y:** full applicable observations; approximately 12 monthly x-axis labels is reasonable.
-- **3Y:** full applicable observations; label density reduced appropriately (for example quarterly/semiannual landmarks). Final tick policy **TBD**.
-- **5Y:** full applicable observations; do not attempt 60 monthly labels. Use a readable lower-density time scale while retaining richer underlying observations. Final tick policy **TBD**.
+### V5 — Explore comparison
 
-No UI implementation may thin the underlying analytical evidence merely to simplify rendering. Rendering/downsampling policy for very dense series is **TBD**, but exported research data must retain the canonical observations used for analysis.
+Location: **Explore**.
 
-## 7. AI POV and research conversation contract
+Purpose: intentional investigation after leaving the paved-road V4 treatment.
 
-AI is a persistent contextual analyst.
+V5 has two clean comparison choices:
 
-Context follows the analytical level:
+1. **Native dual-axis** — exactly two series, common time X-axis, separate left/right Y-axes, each in its real native units.
+2. **Normalized multi-series** — multiple series compared from a common starting point.
 
-**Market → Index → Component comparison → Cross-index/custom analysis → Dual-axis analysis → Saved Library research**
+The primary chart remains visual-first. More scientific/statistical transforms belong in Statistics rather than cluttering the primary chart.
 
-Requirements:
-- Conversation persists with a saved analysis.
-- Reopening a Library analysis restores the conversation and allows it to continue.
-- AI can be challenged with user-supplied findings and external analysis.
-- A single research analysis may discuss different horizons and relationships without forcing separate saved objects.
-- Example: user can compare a 5-day correlation with a 5-year correlation in the same research thread.
-- AI must distinguish deterministic backend facts/calculations from interpretive conclusions.
-- Exact LLM/provider/context-window implementation: **TBD**.
+Hard rules:
+- Time always remains the common X-axis.
+- Native heterogeneous series may not be placed together on one raw Y-axis.
+- Native dual-axis is capped at two series; that limitation is an intentional guardrail.
+- Indexed comparison may scale to many series.
+- A display transformation must never masquerade as a statistical conclusion.
 
-## 8. Data extraction / research portability
+Example: CPI (%) versus WTI ($/barrel) is appropriate as native dual-axis. CPI + WTI + VIX + HY Spread + 10Y belongs in normalized multi-series comparison.
 
-V3, V4 and V5 MUST provide access to the data behind the analysis.
+## 6. NOW — curated report, not ad-hoc workspace
 
-At minimum an export/data modal supports:
-- **Copy**
-- **Download**
+Now opens at 5D and has two analytical halves:
 
-Export should include, as applicable:
-- series/component identifiers and descriptions
-- timestamps and aligned observations used by the analysis
-- units
-- selected horizon/configuration
-- normalization configuration/results
-- correlation data/results
-- source/provenance references
-- analysis metadata sufficient to understand the export
+Top:
+- V1 Market chart on the left
+- Market AI POV on the right
 
-Exact downloadable formats (CSV/JSON/XLSX/etc.): **TBD**.
+Bottom:
+- V2 selected-index component chart on the left
+- selected-index AI POV on the right
 
-Research portability is deliberate: a user can export the evidence, perform independent analysis elsewhere, return to the same Library research object, present findings, and challenge/refine the AI POV.
+Now is the **paved road**. It provides a tangible guided journey without exposing arbitrary chart configuration. Deeper investigation launches Explore rather than turning Now into a workbench.
 
-## 9. LIBRARY — living research workspace
+## 7. EXPLORE — canonical Analysis workspace
 
-Library is NOT a file cabinet, bookmark collection or static chart archive.
+Explore is a destination/workspace, **not a separate chart type**.
 
-A saved item is an **Analysis Card / persistent research object**.
+The canonical Analysis chart lives inside Explore before and whether it is saved. V3, V4 and V5 are states/configurations of the same chart object.
 
-### Analysis Card required state
+Canonical journey:
 
-Each card stores or references enough information to restore:
-- analysis title/name
-- analysis type (V3/V4/V5 or other supported research object)
-- selected series/components
-- chart configuration
-- horizon and normalization state
-- axis assignments where applicable
-- evidence/revisions/provenance required for reproducibility
-- correlation calculations/references
-- AI POV and complete continuing conversation
-- user comments/notes/findings
-- **created date**
-- **last updated date**
-- lifecycle/deletion state
+**Now → component chip → Explore/V3 → add series → V4 → deliberate comparison/V5 as needed → Data/Statistics/POV → Save**
 
-### Analysis Card actions
+Additional Analysis states, not additional chart views:
 
-Every Analysis Card must support:
-- Open / resume research
-- Continue AI conversation
-- View/add research notes/findings
-- Access/copy/download underlying analysis data
-- **Share a snapshot of the analysis**
-- **Print a snapshot/report of the analysis**
-- **Download a snapshot/report of the analysis**
-- **Soft delete**
-- **Hard delete**
+### Selected-range state
+While viewing a larger horizon, the user may select a narrower interval. Statistics, correlation, export and AI can operate on that exact evidence interval.
 
-Soft delete should be reversible through a Trash/deleted state. Hard delete is destructive and requires an explicit confirmation interaction. Retention period and exact confirmation language: **TBD**.
+### Evidence-inspection state
+Invoking Data or Statistics keeps the chart contextually present. The user is not sent to a disconnected table product. Chart, observations, statistics/correlation and POV are different examinations of the same analytical state.
 
-A shared/printed/downloaded snapshot is a point-in-time representation. It does not replace the living Library research object.
+## 8. Chart geometry and axis contract
 
-### Library Omnisearch
+Charts must show the actual temporal shape of the evidence. They may not be reduced to a few artificial X-axis points.
 
-Omnisearch is at the top of Library and searches the research corpus, not merely card titles.
+The number of plotted observations and number of labeled ticks are separate concerns.
 
-Searchable content includes:
-- analysis/card metadata
-- instruments, indices and components
-- analysis configuration
-- AI conversation
-- user comments and notes
-- research findings
-- correlation-related analysis content
-- underlying analytical data where practical/indexable
+Horizon behavior:
+- **1D:** use canonical intraday evidence only if it exists; otherwise use applicable native observations and state the limitation.
+- **5D:** applicable daily/native observations with readable day labels.
+- **1M:** applicable daily/native observations with legible date spacing.
+- **YTD:** full applicable observations with sensible month landmarks.
+- **1Y:** full applicable observations with roughly monthly landmarks where appropriate.
+- **3Y:** full applicable observations with reduced landmark density appropriate to the available width.
+- **5Y:** full applicable observations with year/quarter-scale landmarks appropriate to width; never fake a four-label time axis.
 
-Result behavior/ranking/highlighting: **TBD**, but a result should return the user to the relevant research object and, where practical, the matching context.
+Tick density must be width-aware and horizon-aware. Underlying evidence may not be thinned merely to make rendering easier. Any rendering downsampling must preserve chart geometry and may not alter the canonical data used by crosshair, Statistics, AI or export.
 
-## 10. Research lifecycle
+Single-series V3 uses native Y units. V4 uses Indexed 100. V5 native dual-axis uses two explicitly labeled native Y axes.
 
-Canonical user journey:
+## 9. Lines, crosshair, legends and interaction
 
-**Observe → Explore → Analyze → Discuss → Save → Research externally → Return → Challenge → Refine → Continue**
+- No arbitrary curve smoothing that changes the shape of evidence.
+- Missing observations and true discontinuities must be represented honestly.
+- Crosshair provides the nearest applicable observation date/time and exact values for visible series.
+- Mixed-frequency series must not imply observations that were never published.
+- Legend chips are first-class controls, not decorative labels.
+- All essential interactions must work by tap on Android phone/tablet; hover is enhancement only.
+- Responsive layouts may reflow controls and POV, but must not change analytical meaning or distort chart geometry.
 
-Typical path:
+## 10. Data fidelity and mixed frequency
 
-1. User opens Now and sees V1 plus Market AI POV.
-2. User selects an index chip; V2 shows its components and index AI POV.
-3. User selects a component; V3 opens a same-index comparison workspace.
-4. User may expand into V4 for cross-index comparison or V5 for unlike-unit dual-axis comparison.
-5. User discusses evidence with AI and can inspect/export underlying data and correlations.
-6. User commits the investigation to Library.
-7. Library preserves the analysis and conversation as living research.
-8. User can export evidence, conduct independent work, return, provide findings and continue/challenge the AI discussion.
-9. User can share, print or download a point-in-time snapshot without ending the research object's lifecycle.
+For any displayed analysis, the following must reconcile:
 
-## 11. HEALTH — evidence trust and operations
+**plotted observation ↔ crosshair value ↔ Data view ↔ Statistics input ↔ export**
+
+No undisclosed transformation is permitted.
+
+Mixed-frequency alignment must be explicit. Monthly CPI and daily VIX are not presented as if they share identical observation cadence. Correlation and other statistics must state the alignment/transformation used and the resulting observation count.
+
+## 11. Statistics and correlation
+
+Statistics are tied to the exact analytical state, not merely to series names.
+
+Correlation is a first-class evidence artifact with at least:
+- series pair
+- coefficient
+- analytical period/range
+- observation frequency/alignment
+- observation count
+- transformation
+- method
+- correlation/scatter visualization where appropriate
+
+Correlation is association, not causation.
+
+Repeated correlation questions under different horizons become comparable structured evidence within the same investigation rather than disposable chat answers.
+
+## 12. AI POV — interrogable argument
+
+POV is an argument grounded in the exact evidence state, not a verdict.
+
+AI receives the exact active series, horizon/range, transformations, aligned evidence and relevant deterministic statistics. Changing those inputs makes a prior POV stale until explicitly regenerated/re-evaluated.
+
+The user may challenge a POV with evidence or a counter-hypothesis. The system evaluates the challenge rather than merely agreeing or regenerating prose. Useful result states include Supported, Partially supported, Not supported and Incomparable.
+
+## 13. LIBRARY — living research
+
+Library is persistent living research, not favorites or a static archive.
+
+Entering Library shows:
+- Omnisearch
+- recent/saved Analysis cards
+- New Analysis as an action rather than the default screen
+
+Saving does not freeze or end an Analysis. Reopening restores the same analytical environment, evidence state and interrogation thread so research can continue.
+
+A saved Analysis preserves enough state to reproduce and resume:
+- title/topic/hypothesis
+- selected series
+- chart state and horizon/range
+- comparison/axis configuration
+- evidence/provenance references
+- statistics and structured correlation artifacts
+- AI POV and interrogation history
+- user notes/findings
+- created/updated history and recoverable analytical states
+
+Omnisearch searches the research corpus semantically, including series, horizons, title, hypotheses/questions, POVs, challenges, notes, tags and structured artifacts such as correlations. A search for `CPI VIX correlation` should locate the actual saved correlation investigation/point, not merely documents containing those words.
+
+## 14. Share, download and print
+
+Editable collaboration is not a V1 requirement.
+
+**Share = publish a polished read-only point-in-time snapshot.**
+
+**Download = take the analysis/evidence with you.** At minimum the product must support a polished report plus exact evidence export (CSV/JSON or equivalent finalized format).
+
+**Print = a deliberately formatted human-readable report, not a browser printout of application chrome.**
+
+A shared/downloaded/printed snapshot does not replace or freeze the living Library object.
+
+## 15. HEALTH — evidence trust
 
 Health exposes the objective state of the canonical evidence system:
 - source/provider
-- collection state
 - freshness
+- collection state
 - historical coverage
 - observation counts
 - provenance/revisions
 - horizon readiness
 - missing periods
-- errors/failures
-- operational controls where appropriate
+- failures/errors
+- pipeline status and appropriate operational controls
 
-Existing database viewer/cockpit functionality belongs to this operational/trust domain rather than defining the primary research UX.
+The existing Evidence Database Viewer/cockpit belongs in this trust/operations domain rather than defining the primary research UX.
 
-## 12. CONFIG
+## 16. CONFIG
 
-Config is accessible separately at the bottom of the left navigation.
+Config is visually separated at the bottom of the navigation.
 
-Configuration responsibilities: **TBD**. Candidate responsibilities include data-source controls, AI/provider settings, export preferences and operational credentials, but these are not yet canonical requirements.
+It contains application configuration such as:
+- OpenRouter/Venice or other approved AI-provider credentials
+- provider/model selection
+- applicable app-level settings
 
-## 13. Canonical backend contract
+Operational evidence health does not move into Config.
 
-- Minimum historical bootstrap: 6 years.
-- Preferred historical bootstrap: 10 years.
-- One-time full bootstrap followed by incremental maintenance.
-- Shared persisted canonical evidence plus device-local cache.
-- Raw observations and deterministic derived calculations remain traceable and reproducible.
-- AI does not become the calculator/source of record.
+## 17. Canonical backend contract
+
+- Data Catalog is the authoritative definition of canonical source series.
+- Operational Manifest is runtime state/daily to-do, not series definition.
+- Smart Evidence Store holds canonical observations and deterministic horizon records.
+- UI is a dumb consumer of canonical evidence; it does not fetch Yahoo/FRED and reconstruct the database in the browser.
+- Canonical horizons are 1D, 5D, 1M, YTD, 1Y, 3Y and 5Y.
+- Minimum historical bootstrap is 6 years; preferred is approximately 10 years.
+- One-time full bootstrap is followed by incremental maintenance.
 - Low-frequency series are not fabricated into daily observations.
+- All derived analytical products remain traceable to canonical observations.
 
-Current canonical evidence pipeline and operational manifest remain the data foundation for this UX.
+## 18. Derived-index definition gate
 
-## 14. Definition gaps / TBD register
+The repository currently contains canonical **source-series evidence**, but the present product conversation has **not canonically enumerated the Risk/Growth/Macro component memberships, sign orientation and aggregation formula**. Historical builds contain incompatible weighted schemes and are not authoritative.
 
-The product definition is substantially complete. Remaining decisions should not block the five-view UX approval artifact unless directly required by it.
+Therefore:
+- Do not resurrect an old weighted score.
+- Do not invent a Market score.
+- Do not silently infer index membership from old dashboard groupings.
+- V1/V2 acceptance is complete only when the derived-index definition is explicit, transparent, persisted and reproducible.
+- The five-view chart artifact must visibly fail closed for V1/V2 if that definition is absent, while V3/V4/V5 may operate directly on real canonical source-series evidence.
 
-1. Exact names/definitions of the three V1 indices, if not already fixed by the data/index model — **TBD / verify existing definition**.
-2. Exact chart library/rendering implementation — **TBD**.
-3. Intraday behavior for 1D given current canonical evidence policy — **TBD**.
-4. Exact 3Y/5Y x-axis tick algorithm — **TBD**; must preserve rich underlying data.
-5. Dense-series rendering/downsampling implementation — **TBD**; must not alter exported canonical analytical data.
-6. Exact export file formats beyond required Copy + Download — **TBD**.
-7. Library soft-delete retention period and Trash UX — **TBD**.
-8. Hard-delete confirmation wording and any recovery window — **TBD**.
-9. Share mechanism/permissions/link lifetime — **TBD**.
-10. Snapshot print/download report composition — **TBD**.
-11. Omnisearch ranking, indexing and result highlighting — **TBD**.
-12. AI provider/model, context packaging and token-management implementation — **TBD**.
-13. Exact Config surface — **TBD**.
+This is an integrity requirement, not permission to postpone the common chart engine.
 
-## 15. Governance / next gate
+## 19. Five-view real-data chart acceptance artifact
 
-This document is the canonical product-definition plan.
+Before the surrounding application is built, a standalone HTML artifact must exercise the common chart engine against real canonical Market Navigator evidence.
 
-Next deliverable is the **five-view chart/UI approval artifact**, built against the canonical evidence model and this plan. It must demonstrate the agreed interaction model and rich chart behavior. Product implementation beyond that artifact remains gated on owner approval of the plan/artifact.
+Acceptance sequence:
+
+**V1 Market → V2 Index → V3 Component → V4 Multi-series → V5 Explore**
+
+Required stress cases:
+- all seven horizons
+- one real source series in V3
+- 2, 5 and **7 simultaneous real series** in V4
+- add/remove/show/hide series without changing visual grammar
+- horizon changes with correct rebase behavior
+- native dual-axis V5 using two unlike-unit real series (for example CPI and WTI)
+- normalized V5 multi-series
+- crosshair exact values
+- mixed-frequency evidence
+- phone/tablet responsive behavior
+- loading, partial, stale, missing, source-failure, insufficient-observation and healthy states
+
+The artifact is an approval gate. The owner must be able to say: **“Yes. That's our chart.”**
+
+## 20. Build gates
+
+### Gate 1 — Plan
+This canonical plan captures the product and chart contract.
+
+### Gate 2 — Chart
+The standalone five-view artifact uses the common engine and real canonical evidence. Plan and chart are reviewed/blessed together; there is no artificial approval stop between drafting the plan and producing the chart artifact.
+
+### Gate 3 — Application
+Only after Gate 1 + Gate 2 approval is the surrounding application assembled as:
+
+**NOW · EXPLORE · LIBRARY · HEALTH**
+
+with **CONFIG** separated at the bottom.
+
+Gate 3 implements the approved product around the approved chart. Development does not reinterpret either contract while coding.
+
+## 21. Rejected / non-canonical approaches
+
+The following are explicitly rejected unless later changed by product decision:
+- deep component drill-down inside Now
+- separate simple-chart and Analysis-chart engines
+- a synthetic fourth Market score/index
+- arbitrary historical weighted scoring becoming canonical by inheritance
+- browser-side Yahoo/FRED acquisition/calculation as product architecture
+- raw heterogeneous multi-series on one Y-axis
+- fixed four-label X-axis shortcuts
+- allowing chart implementation decisions to be deferred to development
+- treating Library as a static archive
+- conflating Health with Config
+- editable collaboration before read-only sharing/reporting is excellent
+
+## 22. Next gate
+
+The next review package is **this corrected plan plus the working five-view real-data chart artifact**. The application shell remains gated until both are approved.
