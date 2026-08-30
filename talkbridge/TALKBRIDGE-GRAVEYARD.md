@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.9 | 2026-08-29 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.10 | 2026-08-29 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -26,6 +26,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G16 | Open-ended patch-release series inside a stage (v5.7.2.1–.8) | Eight sequential user-driven patches on one stage; stage structure suspended; each fix risked regressing the last; closed only by explicit owner order | On any post-gate defect: fix at the root baseline and rebuild the stage as one release; never accrete numbered patches on a shipped stage artifact |
 | G17 | Activating engine internals inside the bridge file while its lobby/onboarding was already condemned | T08 Base attempt 1: device gate failed on the bridge's own lobby (lang-model status stuck on Pages hosting); the effort was spent on a surface scheduled for deletion, and the container/shell — the actual app — remained unbuilt | Build stages on the surface that survives: container/shell first, migrate the engine into it; never invest a gate in a surface the same turn deletes |
 | G18 | R10.5 replay-time inference: deciding whether an event was missed from the page's state when the ledger is later synchronized | Events received while hidden were treated as seen when the app returned to the same room; the cursor advanced and permanently erased missed chat/call evidence; reconnects could leave home stale until unrelated traffic arrived | Keep per-device events unseen until real-time visible presentation or an explicit user room-open acknowledgement; reconcile on every lifecycle/transport return without silently advancing unseen events |
+| G19 | Carrying raw Deepgram/TURN credentials in an ordinary QR invite and retaining them only in page memory | The iPhone kept its saved room but, after the Safari-to-installed-PWA or restart boundary, logged `dg_no_key` and `turn_unavailable {"hasCreds":false}` while text translation still worked; calls repeatedly reported transcription disabled | QR carries only a one-time opaque authorization; the installed PWA recovers that authorization through the already-proven handoff and requests short-lived service credentials when needed; never persist or expose the long-lived Deepgram/TURN secrets |
 
 ## RULE
 Any new failure that triggers the exit condition (build outline §VI-2) is appended here with its signature, and this file is updated in project knowledge so it persists across sessions. The graveyard is scanned at workflow step 3 and before any retry. A match = forbidden path, full stop.
@@ -1240,6 +1241,26 @@ candidate is rejected. Machine proof again did not equal the phone contract.
    or disprove the reported display lag on the platform where lag mattered
    most; that interval must remain an explicit trace gap, not a pass.
 
+6. **The ordinary QR path saved the room but not the inherited calling
+   authorization.** The iPhone received the QR, retained the room, and could
+   continue text translation, yet repeatedly reported that the Deepgram key
+   was missing and transcription was disabled. Its log confirms the common
+   credential bundle was absent: `dg_no_key` and
+   `turn_unavailable {"hasCreds":false}`. This is not evidence of Unicode or
+   platform-specific character corruption. The invite encoder performs a
+   UTF-8/base64url round trip, Deepgram/TURN tokens are ASCII, and a damaged
+   nonempty key would reach an authentication-failure path rather than the
+   explicit no-key path. Shipped code placed `k`, `tid`, and `tok` in the QR
+   payload but assigned a plain invite's values only to `S.joinerKeys`, which
+   is page memory; it deliberately persisted credentials only for a grant
+   link. Safari and an installed iOS PWA have separate storage, and a cold
+   launch/restart destroys `S.joinerKeys` while the persisted room survives.
+   Relay reopening can separately trigger delayed home reconciliation, but the
+   relay does not restore these keys; the apparent simultaneous “unstick” was
+   two failures crossing in time, not one relay or encoding defect. This also
+   regressed the August 15 POC Phase 2 result, where Safari → Add to Home Screen
+   → installed PWA successfully recovered opaque authorization automatically.
+
 ### Buried as a class
 
 - Inferring “seen” from the room named by the router when replay occurs.
@@ -1253,6 +1274,12 @@ candidate is rejected. Machine proof again did not equal the phone contract.
   actual call-end words.
 - Claiming iPhone notification latency from push-service acceptance, a later
   app launch, or absence of a service-worker receipt.
+- Raw Deepgram/TURN secrets in QR payloads, URLs, page memory, or persistent
+  browser storage as the production inheritance mechanism.
+- Treating a saved room as proof that the room's calling authorization survived
+  the Safari-to-installed-PWA or restart boundary.
+- Patching invite character encoding when logs say credentials are absent,
+  rather than rejected.
 
 ### Replacement constraints for the later plan revision — not authorization to build
 
@@ -1274,6 +1301,14 @@ candidate is rejected. Machine proof again did not equal the phone contract.
 - iPhone OS-display latency is a hardware observation. Correlate relay time,
   tester-supplied display time, and tap/boot time; label the inaccessible OS
   interval unknown rather than filling it with inference.
+- Restore the proven opaque-capability handoff: the invite contains a one-time,
+  non-secret authorization; the installed PWA recovers it across the iOS
+  installation boundary and exchanges it for short-lived Deepgram/TURN service
+  credentials. Long-lived provider secrets never enter QR codes or client
+  storage. Gate the exact physical path: scan QR in Safari → Add to Home Screen
+  → launch installed PWA → cold restart → accept voice/video → transcription
+  works and TURN credentials are available, without opening the original link
+  again.
 
 Rollback is required for the whole live app/worker/relay pair. No R10.5 source
 or test may be used as a new baseline, and no corrective implementation begins
