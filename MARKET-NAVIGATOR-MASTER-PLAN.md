@@ -13,279 +13,234 @@ The backend owns objective, deterministic and reproducible evidence. AI interpre
 **Now explains. Explore investigates. Library remembers and continues. Health establishes trust.**
 
 ## 2. Permanent application frame and navigation
-The application frame has two sides:
 - **Left:** collapsible navigation rail for **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated at the bottom.
 - **Right:** analytical working panel; collapsed rail yields essentially full screen width.
 
-The working panel is a compact workspace, not a dashboard-card stack: two-row ribbon, legend/chart evidence body, AI interpretation and a persistent AI conversation/composer surface.
+The working panel is a compact workspace, not a dashboard-card stack.
 
 ## 3. Canonical horizons
-**1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**. Now defaults to **5D**. Horizon appears exactly once in ribbon row 2.
+**1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**. Now defaults to **5D**. The seven controls appear exactly once and use enlarged readable/tappable mobile typography and targets.
 
 ## 4. One chart engine / one visual contract
 There is exactly one canonical chart engine. V1/V2 and Analysis are states of the same engine, not separate implementations.
 
 Common everywhere: persistent series identity, typography/lines, geometry, horizon logic, visible axes/ticks/units, single-series inspection, legend grammar, missing-data treatment, normalization, provenance/status, touch behavior and evidence fidelity.
 
-Prior implementation `1257844` remains an interaction-quality donor.
-
 ## 5. Derived analytical indices
 Canonical definition: `data/market-backend/derived-index-definition.json`.
 
-Three derived indices only: **Risk, Growth, Macro**. Market is a container, not a fourth score.
+Three derived indices only: **Risk, Growth, Macro**. Market is a container, not a fourth score or selectable trendline.
 
-Semantic index colors:
-- **Risk = red**
-- **Growth = blue**
-- **Macro = white / neutral**
-
-Red/green/yellow are not generic decoration; use only where their conventional meaning is intentional. Ordinary component series use a non-semantic comparison palette.
+Semantic index colors: **Risk red · Growth blue · Macro white/neutral**. Ordinary components use a non-semantic comparison palette.
 
 ## 6. Analytical states
 
 ### V1 — Market
-Risk, Growth and Macro appear together, rebased to 100. No index is selected by default.
+Risk, Growth and Macro trendlines appear together, rebased to 100. No index is selected by default.
 
-Ribbon row 1: **`Market: <sentiment>`**. Legend immediately above chart contains interactive `RSK / GRW / MAC`. No duplicate selector cards.
+H1: **`Market: <sentiment>`** relative to selected horizon.
+Legend: compact `RSK / GRW / MAC`.
 
-Selecting an index transitions to V2.
+Tapping a V1 index legend chip remains the deliberate drill-down to V2 for that index.
 
-### V2 — Index
-Shows all components of selected Risk/Growth/Macro index using oriented Indexed-100 comparison.
+### V2 — Index + components
+V2 must render **the selected derived index trendline itself plus every component defined for that index**. The index line is the reference context against which component movement is interpreted. No defined component may silently disappear; unavailable evidence is explicitly exposed.
 
-Ribbon row 1 becomes **`Risk/Growth/Macro: <sentiment>`**. Component legend is the direct interaction surface. Selecting a component opens Analysis on that exact series.
+H1: actual index name + horizon-relative sentiment, e.g. **`Growth: <sentiment>`**.
+
+Component/index legend labels use stable three-character abbreviations wherever practical. Tapping a V2 component chip **does not navigate away**: it opens the About card for that exact component. The About card's explicit **More info** action opens a new standalone Analysis tab rooted at that component.
 
 ### V3 — Analysis: one or many series
-V3 is the canonical Analysis workspace. It begins with the component selected from V2 but is inherently additive: **one series and multi-series investigation are the same UX state.**
+Analysis begins with the selected/root component and is inherently additive. One-series and multi-series investigation are the same UX state.
 
-The former distinct V4 comparison state is collapsed into V3. Adding a second, third or sixth series does not create a new mode or page; the Analysis chart simply expands.
+Legend: `[series ×] … [+]`; sole/root series may suppress `×`.
 
-The legend is the series-management control:
-- each represented series is a chip
-- a **`+` icon sits at the end of the legend**
-- tapping `+` opens a searchable/selectable series-picker modal containing canonical series not already represented
-- no artificial series-count limit is imposed by the UX
-- added series appear immediately as legend chips and chart lines
-- each removable chip contains `×`; tapping it removes that series and recomputes the chart
-- the sole/root series may suppress `×` where removal would leave an invalid empty analysis
-- there is no separate Compare button and no side-by-side comparison-dropdown header
-
-V3 retains the parent index context that initiated the investigation even after additional series are added.
-
-### V4 — retired as a distinct UX state
-V4 survives only as historical/acceptance vocabulary for multi-series mechanics. It is not a separate user-facing state. Its capabilities are absorbed into V3 Analysis.
-
-### V5 — deliberate analytical transformations
-V5 remains conceptual shorthand for deliberate transformation choices within Analysis when required. It is not a separate chart engine.
+Adding series does not create a V4 page. Custom multi-series breadcrumb leaf is compactly represented as **`<root component> + Custom`**; full parent/index context remains in application state/About/provenance without forcing overflow into the ribbon.
 
 ## 7. Unit-family and axis assignment
-Axis assignment is determined by **compatible unit families, not number of series**.
-
-Automatic rule:
+Axis assignment is determined by compatible unit families, not number of series:
 1. one compatible unit family → one native Y-axis
-2. exactly two compatible unit families → two native Y-axes, regardless of series count
+2. exactly two compatible unit families → two native Y-axes
 3. more than two incompatible unit families → normalized representation such as Indexed 100 rather than a third native axis
 
-Six series are valid on two native Y-axes when, for example, three share `%` and three share `$`. Adding/removing any series immediately re-evaluates unit families and axis representation.
+## 8. Legend identity and About-card navigation
+The legend is designed for maximum visible series density without routine horizontal scrolling.
 
-## 8. Series identity, legend and contextual help
-Every series has a stable visual identity shared by line, legend chip, selected point/value and corresponding axis label.
+Rules:
+- abbreviate labels to **three characters wherever practical**; stable abbreviations are authoritative UI identities while full names remain in About/provenance
+- V1 `RSK / GRW / MAC` tap drills Market → selected V2 Index
+- V2 and Analysis chip tap opens an in-context **About card** rather than navigating
+- About answers: What is it? How is it used here? Why does it matter?
+- About has explicit close/outside dismissal
+- **More info** is the deliberate escape hatch: open a new standalone Analysis tab for the exact clicked series
+- no V2 component chip directly spawns a new tab
 
-Legend sits directly above chart and is both identity and series management. In Analysis it follows:
-**`[series ×] [series ×] … [+]`**.
-
-Dense legends may horizontally scroll/compact rather than wrap into chart space. Stable three-letter shorthand is allowed; full identity remains available contextually.
-
-### Legend chip help
-Hover/mouse-over on pointer devices, and an equivalent deliberate touch interaction on mobile, exposes a **brief contextual popover** for the series. It answers:
-- **What is it?** concise definition
-- **How is it used here?** role in the current index/analysis
-- **Why does it matter?** analytical relevance
-- **More →** opens a new browser tab containing a standalone Analysis workspace for **that exact clicked series**
-
-The popover is concise and dismissible. It has an explicit close control and may also dismiss by tapping/clicking outside. It does not become permanent chart chrome.
+This standardizes navigation: broad-context V1 drill-down is direct; component-level departure is deliberate through About → More info.
 
 ## 9. Canonical point inspection
-Crosshair inspects one series and one real observation at a time: active line/chip → nearest real observation → vertical guide → one marker → one value tag → one X-axis date marker. No all-series popup. Inspection clears before any context/horizon/series-set change renders.
+Inspection is transferable between visible series. A tap near a visible line chooses that series and its nearest **real observation**.
 
-Android touch is first-class.
+One contextual popup located at/near the selected observation contains **series · date · value · unit**. Do not split the date into a separate X-axis label. Render one vertical guide and one marker at the actual observation coordinates. A subsequent tap on another line immediately transfers inspection to that line/observation.
+
+No all-series popup. Inspection clears before context/horizon/series-set changes. Android touch is first-class.
 
 ## 10. Axis and time contract
-Every chart has visible Y-axis/ticks/unit and horizon-correct X-axis. Axis QA remains matrix-based across applicable analytical states × seven horizons × X/Y1/Y2.
+Every chart has visible Y-axis/ticks/unit and horizon-correct X-axis. Axis QA remains matrix-based across analytical states × seven horizons × X/Y1/Y2.
 
-No fixed four-label shortcut. Rendering optimization may not change canonical observations used by inspection/Data/Statistics/AI/export.
+Horizon semantics follow `data/market-backend/data-catalog.json`; 1D/5D use applicable observations/trading sessions rather than calendar approximations.
 
 ## 11. Data fidelity and mixed frequency
-Each line terminates at its own latest real observation. Slower-frequency sources are never stretched/carried forward to match faster sources. Selected point, Data, Statistics and export reconcile to canonical evidence.
+Each direct Analysis line terminates at its own latest real observation. Slower-frequency sources are never stretched/carried forward to match faster sources. Selected point, Data, Statistics, AI and export reconcile to canonical evidence.
 
-### Mandatory real-data validation — mixed-frequency chart behavior
-The application build must prove the production treatment of mixed-frequency evidence with canonical observations.
+**CPI versus WTI remains the mandatory Gate 4 mixed-frequency acceptance case.**
 
-Required case: a daily series and a monthly series on the same analytical chart. The implementation must demonstrate:
-- common time axis without fabricated observations
-- monthly line ending at its actual latest release
-- daily line continuing to its own later/latest observation
-- inspection snapping only to real observations for the active series
-- no interpolation/carry-forward merely to make visual endpoints align
-- readable geometry when one series has dramatically fewer observations than another
+Derived-index construction may use the explicit composite-timestamp rule in `derived-index-definition.json`; that rule must never leak into direct Analysis as fabricated source observations.
 
-**CPI versus WTI is the canonical acceptance example.** This is a Gate 4 release blocker until demonstrated.
+## 12. Three-row analytical top ribbon
+The previous two-row ribbon is retired.
 
-## 12. Workspace composition
-Right panel:
+### Row 1 — H1 context
+Large clear header naming the current analytical level plus horizon-relative sentiment:
+- `Market: <sentiment>`
+- `Growth: <sentiment>`
+- `Payroll: <sentiment>`
 
-### Ribbon row 1
-Active context + sentiment.
-
-### Ribbon row 2 — fixed three-zone navigation/control row
-The row is spatially fixed rather than content-centered:
-
-**far-left Breadcrumbs | fixed centered Horizon | far-right More (`…`)**
-
-The horizon group remains geometrically centered in the ribbon regardless of breadcrumb width or More-menu width. Breadcrumbs occupy the left zone and truncate/scroll rather than pushing the horizon off center. `…` is anchored at the far right.
-
-Canonical analytical breadcrumb lineage is:
+### Row 2 — compact breadcrumbs
+Breadcrumbs occupy their own row so they never compete with horizon controls. Use compact `/` separators and concise semantic lineage:
 - `Market`
-- `Market > Risk` / `Market > Growth` / `Market > Macro`
-- `Market > Risk > VIX` (equivalent index/component combinations)
+- `Market / Growth`
+- `Market / Growth / Payroll`
+- custom Analysis leaf: `Payroll + Custom`
 
-`Now` is **not** part of the analytical breadcrumb path. Breadcrumb segments are interactive navigation; the current leaf is not required to be interactive.
+Breadcrumbs are interactive. Labels compact/truncate only as a last resort; the naming convention is intentionally short enough to remain inside the top ribbon on mobile.
 
-The centered horizon remains `1D · 5D · MTD · YTD · 1YR · 3YR · 5YR`.
+### Row 3 — horizon + More
+The seven horizons are enlarged for readability/touch and remain geometrically centered. `…` More remains at far right.
 
-The `…` More menu contains distinct secondary actions:
-- **Add to Analysis** — modifies the active Analysis series set / invokes series selection; it does not save anything
-- **Add/Save to Library** — persists the current research state; it does not modify the active series set
+More contains distinct actions:
+- Add to Analysis
+- Add/Save to Library
 - Print
 - Download
 
-These commands must remain semantically and behaviorally separate even while prototype persistence is incomplete.
+## 13. Add Series modal
+The flat picker is retired.
 
-**Divider**
+Modal header/action controls remain visible at the **top**, including Add/Done/Close as applicable, so actions never disappear below a long suggestion list.
 
-### Legend / series management
-V1/V2 interactive identities; Analysis `[series ×] … [+]`.
+Categorized tabs:
+- **Market** — Risk, Growth, Macro as individually selectable index series. Market itself is only the tab/container and is **not** selectable as a fourth series.
+- **Risk** — Risk index itself + all Risk components
+- **Growth** — Growth index itself + all Growth components
+- **Macro** — Macro index itself + all Macro components
+- **Other** — canonical enabled series not constituents of any of the three indices
 
-### Chart
-Canonical evidence surface.
+Current confirmed Other outliers: **Brent, Gold, 2-Year Treasury, 30-Year Treasury, 10Y–2Y Treasury spread, Real GDP**. Membership is derived from catalog minus the union of index constituents, not hard-coded permanently.
 
-**Divider**
+Search remains available and works across tabs/canonical identities. Multi-select remains supported.
 
-### AI POV
-What changed / Why it matters. An unobtrusive **information (`ⓘ`) control lives here**.
+## 14. AI POV and operational conversation — active Gate 4 functionality
+AI is no longer a gated placeholder.
 
-The information surface is collapsed by default and may contain:
-- user-useful depth: sources, latest observation dates, cadence, units, methodology, normalization/axis decisions, provenance
-- QA/developer depth: diagnostics, freshness/matrix status, implementation metadata and other acceptance instrumentation
+AI POV is grounded in the exact active canonical evidence state and selected horizon. It provides concise **What changed / Why it matters**. `ⓘ` exposes sources, latest observation dates, cadence, units, methodology, normalization/axis decisions, provenance and relevant QA state.
 
-**Divider**
+The persistent composer is operational and interrogates the same exact evidence context. Series/horizon changes invalidate/stale the prior POV until re-evaluated.
 
-### Persistent AI conversation/composer surface
-The bottom surface is reserved for **discussion with the AI POV**, not navigation buttons.
+### Provider/config contract
+CONFIG adopts the proven `devstream-test.html` pattern:
+- Venice.ai
+- OpenRouter
+- Anthropic direct
+- API keys stored only in browser local storage
+- provider keys are cleaned/normalized before use
+- model discovery where supported
+- **real provider/model validation call at point of entry before configuration is accepted as functional**
+- clear validation success/failure status
+- provider/model can be switched from the persistent chat compose strip
+- selected provider/model is used for POV and conversation calls
 
-It provides the compose affordance for interrogating/challenging the current POV and evidence state. The composer remains tied to the exact current analysis context.
+No key is committed to repository evidence.
 
-Back/navigation belongs in breadcrumbs; Save and other document actions belong in `…`.
+## 15. LIBRARY — active Gate 4 functionality
+Add/Save to Library is operational, not a placeholder. Saved research state preserves at minimum: analytical lineage, root/added series set, horizon/range, axis/normalization state, canonical observation/provenance references, POV/conversation context sufficient to resume, and save timestamp/version.
 
-## 13. EXPLORE / Analysis journey
-**Market → Index → component opens V3 Analysis → `+` adds additional series → chips remove series → AI discussion / Data / Statistics / POV → Save.**
+Library can reopen a saved analysis into the same analytical state.
 
-Breadcrumbs preserve and expose the current lineage throughout.
-
-## 14. Statistics and correlation
+## 16. Statistics and correlation
 Statistics bind to exact analytical state. Correlation records series pair, coefficient, range, alignment/frequency, observation count, transformation and method. Correlation is association, not causation.
 
-## 15. AI POV and conversation surface
-POV is grounded in exact active evidence state. Series/horizon/transformation changes make prior POV stale until re-evaluated.
-
-The AI area exposes concise interpretation first. `ⓘ` expands deeper evidence/methodology/QA information. The persistent bottom composer allows the user to interrogate the POV without leaving the analytical workspace.
-
-## 16. LIBRARY
-Library is living research. Saving preserves series set, chart/horizon/range/axis state, provenance, statistics/correlations, POV/interrogation and recoverable history.
-
 ## 17. Share / download / print
-Share = polished snapshot. Download = report/evidence + exact data. Print = formatted report. These are secondary workspace actions exposed from the ribbon More menu rather than consuming the analytical body.
+Download = report/evidence + exact data. Print = formatted report. These remain secondary More-menu actions and reconcile to exact active evidence state.
 
 ## 18. HEALTH and CONFIG
-Health exposes freshness/source/collection/coverage/provenance/readiness/failures. Config remains separated at bottom of left rail.
+Health exposes freshness/source/collection/coverage/provenance/readiness/failures. Config remains separated at bottom of left rail and contains operational AI provider configuration described above.
 
 ## 19. Backend contract
 Data Catalog defines canonical series. Operational Manifest is runtime state. Smart Evidence Store holds canonical observations/horizon records. Browser does not reacquire Yahoo/FRED evidence.
 
 Gate 4 consumes canonical repository evidence directly; it does not create browser-side replacement acquisition paths.
 
-## 20. Gate 2 chart mechanics
-Gate 2 proved sufficient rudimentary chart mechanics and remains a QA/reference surface rather than product UI.
+## 20. Gate 3 — UX Journey Prototype
+**Status: APPROVED / ACCEPTED.**
 
-## 21. Gate 3 — UX Journey Prototype
-**Status: CORRECTIVE POC PATCH ACTIVE.**
+Approved corrective POC: `market-view-ux-gate3-p2.html`, commit **`cfba7320e42028f09f2967304cb0c0dd0cc2988d`**.
 
-### Governed implementation baseline
-The next POC is rebuilt from `market-view-ux-gate3.html` at commit **`5db1363447c70d5dd3bb5f1f6d03204af34b6eb7`**. The deficient descendant is recorded in `MARKET-NAVIGATOR-GRAVEYARD.md` and is not a patch-forward baseline.
+Gate 3 established the additive Analysis interaction model, multi-select picker, unit-family routing, chart journey and persistent analytical footer. Subsequent Gate 4 owner decisions supersede its two-row ribbon and direct V2 component-navigation details as explicitly documented in this plan.
 
-### Gate 3 corrective patch — G3-P2
-Apply the following bounded patch to that restored baseline:
-1. Add the two-row ribbon without changing the underlying analytical journey.
-2. Ribbon row 2 uses fixed spatial zones: breadcrumbs far left, seven horizons fixed and geometrically centered, `…` far right.
-3. Correct breadcrumb semantics to `Market > Index > Component`; never `Now > …`.
-4. Add legend contextual help while preserving the clicked series identity.
-5. Legend help includes an explicit close control plus outside-dismiss behavior.
-6. Legend help `More` opens a standalone Analysis view for the exact clicked series; it must not route to an unrelated/root series.
-7. Add the persistent bottom AI composer/footer ribbon without reinstating Back/Save navigation buttons.
-8. More-menu `Add to Analysis` and `Add/Save to Library` are distinct controls with distinct behavior; they may not alias the same action.
-9. Preserve the restored baseline's additive Analysis, multi-select picker, unit-family routing, chart geometry and point-inspection mechanics except where this patch explicitly changes them.
-10. Prototype curves may remain synthetic for this Gate 3 review; missing/placeholder evidence is not a reason to alter the UX baseline.
+## 21. Gate 4 — complete application build
+**Status: ACTIVE — REPLACEMENT RELEASE REQUIRED.**
 
-Gate 3 remains a reviewable POC until this corrective patch is accepted.
+Rejected first slice `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e` is recorded in `MARKET-NAVIGATOR-GRAVEYARD.md` and is **not** the patch-forward product baseline.
 
-## 22. Gate 4 — Application build
-**Status: PAUSED PENDING CORRECTED GATE 3 POC ACCEPTANCE.**
+### Governed lineage
+**Current Market Navigator 3 (`market-view.html`) application/runtime foundation + approved Gate 3 POC interaction model + approved three-row ribbon/footer decisions + canonical backend evidence.**
 
-After Gate 3 corrective POC acceptance, build the governed application surface using canonical repository evidence rather than prototype curves. Assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated in the left rail.
+The replacement release must preserve/reconcile required Market Navigator 3 application capabilities rather than becoming another POC-only rewrite.
 
-Mandatory Gate 4 build acceptance:
-- V1 Market and V2 Index from canonical derived-index definition
+### Nothing else is gated
+Gate 4 is an application assembly gate, not another chart-only prototype. The release includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore surfaces required by the application contract, and real canonical evidence integration.
+
+### Mandatory Gate 4 acceptance
+- V1 Market renders RSK/GRW/MAC across all horizons without silently missing an index line
+- V1 legend tap drills to V2
+- V2 renders selected index trendline **plus every defined component**
+- V2 component tap opens About; About → More info opens exact component Analysis tab
 - V3 additive Analysis from real canonical source records
+- compact three-character legend identities wherever practical
+- three-row ribbon with H1, compact breadcrumb row, enlarged seven-horizon row
+- transferable crosshair with one combined series/date/value/unit popup at actual observation
 - real mixed-frequency CPI + WTI demonstration
 - independent source endpoints and actual observation dates
 - one/two-axis unit-family behavior and Indexed-100 fallback
-- real-observation point inspection
-- legend `+`/`×` management and contextual help
-- corrected breadcrumbs, fixed-centered horizon and More row
-- AI POV/info placement and persistent composer
-- no prototype-only chart geometry or synthetic curves in the analytical path
+- categorized Add Series modal `Market | Risk | Growth | Macro | Other`, top-pinned actions, multi-select/search
+- operational Add/Save to Library and state restoration
+- operational AI POV and grounded chat
+- CONFIG patterned after `devstream-test.html`: Venice/OpenRouter/Anthropic, key/model validation and compose-strip switching
+- Health/source failures and provenance surfaced rather than silently omitted
+- no browser reacquisition of canonical Yahoo/FRED evidence
+- no prototype-only/synthetic curves in analytical path
+- systematic mobile/desktop QA across analytical states × seven horizons × X/Y1/Y2 and interaction paths
 
-## 23. Rejected approaches
-- patching forward from the deficient post-`5db1363` Gate 3 descendant
-- analytical breadcrumbs rooted at `Now`
-- horizon placement that moves because breadcrumb/menu content changes width
-- legend help without explicit dismissal
-- legend More routing to a series other than the clicked series
-- aliasing Add to Analysis with Add/Save to Library
-- distinct V4 comparison page/mode after adding series
-- separate Compare button
-- side-by-side series dropdowns as ordinary comparison UI
-- limiting native dual-axis to exactly two series rather than two unit families
-- arbitrary series-count limits
-- third/fourth native Y-axes
-- global QA button in primary ribbon
-- bottom Back/Save bar competing with the AI conversation surface
-- passive/non-interactive breadcrumbs
+## 22. Rejected approaches
+See `MARKET-NAVIGATOR-GRAVEYARD.md` for governed rejected lineages. Product-level prohibitions include:
+- patching forward rejected Gate 3 or Gate 4 descendants
+- chart/navigation-only Gate 4 releases while Library/AI/Config remain placeholders
+- breadcrumbs sharing the horizon row
+- verbose breadcrumb labels that cause ribbon overflow
+- direct V2 component legend navigation that bypasses About
+- V2 components without selected index reference line
+- incomplete index component sets
+- flat Add Series list and bottom-hidden modal actions
+- Market treated as a fourth selectable trendline
+- all-series or locked-series crosshair
+- split date/value inspection labels
+- distinct V4 comparison page/mode
+- arbitrary series-count limits or third/fourth native Y-axes
 - repeating horizon controls
 - card-stack analytical composition
 - duplicate index selector cards
-- explanatory scaffolding consuming chart space
-- preselecting an index in Market
-- arbitrary semantic index colors
 - separate chart engines
 - incompatible raw units silently sharing one axis
-- text-only legends
-- all-series crosshair popup
-- crosshair leakage
 - missing axes/ticks/units
-- fixed four-label X-axis
-- stretching slower-frequency series
-- QA instrumentation occupying default product layout
+- stretching slower-frequency direct Analysis series
 - omitting AI interpretation/conversation from the application
-- forcing desktop four-panel composition onto portrait mobile
-- deferring navigation/context behavior to late development
