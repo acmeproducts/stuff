@@ -101,9 +101,9 @@ Hover/mouse-over on pointer devices, and an equivalent deliberate touch interact
 - **What is it?** concise definition
 - **How is it used here?** role in the current index/analysis
 - **Why does it matter?** analytical relevance
-- **More →** opens a new browser tab containing a standalone Analysis workspace for that series
+- **More →** opens a new browser tab containing a standalone Analysis workspace for **that exact clicked series**
 
-The popover is concise and dismissible. It does not become permanent chart chrome.
+The popover is concise and dismissible. It has an explicit close control and may also dismiss by tapping/clicking outside. It does not become permanent chart chrome.
 
 ## 9. Canonical point inspection
 Crosshair inspects one series and one real observation at a time: active line/chip → nearest real observation → vertical guide → one marker → one value tag → one X-axis date marker. No all-series popup. Inspection clears before any context/horizon/series-set change renders.
@@ -137,27 +137,29 @@ Right panel:
 ### Ribbon row 1
 Active context + sentiment.
 
-### Ribbon row 2 — primary navigation/control row
-Three functional zones:
+### Ribbon row 2 — fixed three-zone navigation/control row
+The row is spatially fixed rather than content-centered:
 
-**Breadcrumbs | Horizon | More (`…`)**
+**far-left Breadcrumbs | fixed centered Horizon | far-right More (`…`)**
 
-Breadcrumb examples:
-- `Now`
-- `Now > Risk`
-- `Now > Risk > VIX`
+The horizon group remains geometrically centered in the ribbon regardless of breadcrumb width or More-menu width. Breadcrumbs occupy the left zone and truncate/scroll rather than pushing the horizon off center. `…` is anchored at the far right.
 
-Breadcrumb segments are interactive navigation, not passive text.
+Canonical analytical breadcrumb lineage is:
+- `Market`
+- `Market > Risk` / `Market > Growth` / `Market > Macro`
+- `Market > Risk > VIX` (equivalent index/component combinations)
+
+`Now` is **not** part of the analytical breadcrumb path. Breadcrumb segments are interactive navigation; the current leaf is not required to be interactive.
 
 The centered horizon remains `1D · 5D · MTD · YTD · 1YR · 3YR · 5YR`.
 
-The `…` More menu contains secondary actions that should not occupy chart space, including at minimum:
-- Add to Analysis / add series
-- Save to Library
+The `…` More menu contains distinct secondary actions:
+- **Add to Analysis** — modifies the active Analysis series set / invokes series selection; it does not save anything
+- **Add/Save to Library** — persists the current research state; it does not modify the active series set
 - Print
 - Download
 
-Share and other secondary actions may join this menu as the workflow develops.
+These commands must remain semantically and behaviorally separate even while prototype persistence is incomplete.
 
 **Divider**
 
@@ -216,32 +218,30 @@ Gate 4 consumes canonical repository evidence directly; it does not create brows
 Gate 2 proved sufficient rudimentary chart mechanics and remains a QA/reference surface rather than product UI.
 
 ## 21. Gate 3 — UX Journey Prototype
-**Status: APPROVED TO BUILD.**
+**Status: CORRECTIVE POC PATCH ACTIVE.**
 
-The approved contract includes:
-- collapsible left rail/full-width workspace
-- two-row ribbon
-- ribbon row 2 = breadcrumbs | single horizon control | More
-- interactive breadcrumbs
-- legend above chart
-- legend contextual popovers and standalone Analysis link
-- V3/V4 collapsed into one additive Analysis state
-- `+` series picker excluding represented series
-- `×` removal chips
-- no artificial series-count limit
-- automatic one/two-axis assignment by unit-family count
-- >2 unit families normalized rather than adding native axes
-- AI POV with `ⓘ` information surface
-- persistent bottom AI composer
-- no global QA button
-- no bottom Back/Save navigation bar
+### Governed implementation baseline
+The next POC is rebuilt from `market-view-ux-gate3.html` at commit **`5db1363447c70d5dd3bb5f1f6d03204af34b6eb7`**. The deficient descendant is recorded in `MARKET-NAVIGATOR-GRAVEYARD.md` and is not a patch-forward baseline.
+
+### Gate 3 corrective patch — G3-P2
+Apply the following bounded patch to that restored baseline:
+1. Add the two-row ribbon without changing the underlying analytical journey.
+2. Ribbon row 2 uses fixed spatial zones: breadcrumbs far left, seven horizons fixed and geometrically centered, `…` far right.
+3. Correct breadcrumb semantics to `Market > Index > Component`; never `Now > …`.
+4. Add legend contextual help while preserving the clicked series identity.
+5. Legend help includes an explicit close control plus outside-dismiss behavior.
+6. Legend help `More` opens a standalone Analysis view for the exact clicked series; it must not route to an unrelated/root series.
+7. Add the persistent bottom AI composer/footer ribbon without reinstating Back/Save navigation buttons.
+8. More-menu `Add to Analysis` and `Add/Save to Library` are distinct controls with distinct behavior; they may not alias the same action.
+9. Preserve the restored baseline's additive Analysis, multi-select picker, unit-family routing, chart geometry and point-inspection mechanics except where this patch explicitly changes them.
+10. Prototype curves may remain synthetic for this Gate 3 review; missing/placeholder evidence is not a reason to alter the UX baseline.
+
+Gate 3 remains a reviewable POC until this corrective patch is accepted.
 
 ## 22. Gate 4 — Application build
-**Status: ACTIVE.**
+**Status: PAUSED PENDING CORRECTED GATE 3 POC ACCEPTANCE.**
 
-Build the governed application surface using canonical repository evidence rather than prototype curves. Assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated in the left rail.
-
-The first Gate 4 implementation must prioritize the approved analytical journey and real-data chart fidelity before expanding secondary destinations.
+After Gate 3 corrective POC acceptance, build the governed application surface using canonical repository evidence rather than prototype curves. Assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated in the left rail.
 
 Mandatory Gate 4 build acceptance:
 - V1 Market and V2 Index from canonical derived-index definition
@@ -251,11 +251,17 @@ Mandatory Gate 4 build acceptance:
 - one/two-axis unit-family behavior and Indexed-100 fallback
 - real-observation point inspection
 - legend `+`/`×` management and contextual help
-- breadcrumbs, horizon and More row
+- corrected breadcrumbs, fixed-centered horizon and More row
 - AI POV/info placement and persistent composer
 - no prototype-only chart geometry or synthetic curves in the analytical path
 
 ## 23. Rejected approaches
+- patching forward from the deficient post-`5db1363` Gate 3 descendant
+- analytical breadcrumbs rooted at `Now`
+- horizon placement that moves because breadcrumb/menu content changes width
+- legend help without explicit dismissal
+- legend More routing to a series other than the clicked series
+- aliasing Add to Analysis with Add/Save to Library
 - distinct V4 comparison page/mode after adding series
 - separate Compare button
 - side-by-side series dropdowns as ordinary comparison UI
