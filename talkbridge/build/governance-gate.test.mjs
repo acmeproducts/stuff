@@ -68,8 +68,23 @@ test('current governed snapshot is legal', () => {
   assert.deepEqual(result, { ok: true, stage: state.stage, errors: [] });
 });
 
-test('catches frozen baseline modification', () => {
+test('catches frozen baseline modification of an undeclared file', () => {
   const root = fixture();
+  fs.appendFileSync(path.join(root, 'talkbridge/wrangler.jsonc'), '\n// mutation\n');
+  expectFailure(root, ['talkbridge/wrangler.jsonc'], /frozen baseline modified/);
+});
+
+test('declared product output may change after build authorization', () => {
+  const root = fixture();
+  mutateJson(root, state => { state.stage = 'build_authorized'; state.candidate.status = 'authorized'; });
+  fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\n<!-- r10-cr1 -->\n');
+  const previousState = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  const result = validateSnapshot({ root, changedFiles: ['bridge-turn24-post-ship.html'], previousState });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('product change before authorization is still pinned', () => {
+  const root = rootStageFixture();
   fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\nmutation\n');
   expectFailure(root, ['bridge-turn24-post-ship.html'], /frozen baseline modified/);
 });

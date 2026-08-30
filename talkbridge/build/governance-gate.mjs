@@ -55,6 +55,13 @@ function assert(condition, message, errors) {
   if (!condition) errors.push(message);
 }
 
+function isGovernedPath(rel) {
+  if (['bridge-turn24-post-ship.html', 'tb-sw.js', 'package.json'].includes(rel)) return true;
+  if (rel.startsWith('talkbridge/')) return true;
+  if (rel.startsWith('.github/workflows/') && /talkbridge|deploy-relay/.test(rel)) return true;
+  return false;
+}
+
 function isImplementationPath(rel) {
   if (['bridge-turn24-post-ship.html', 'tb-sw.js'].includes(rel)) return true;
   if (!rel.startsWith('talkbridge/')) return false;
@@ -158,9 +165,15 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   assert(state.schema === 1, 'unsupported governance schema', errors);
   assert(state.cycle === 'r10-recovery-2026-08-30', 'unexpected R10 recovery cycle', errors);
 
+  /* §4.11.1: after owner GO the three declared product outputs may change; every
+     undeclared baseline file (talkbridge/wrangler.jsonc) stays byte-frozen. Before
+     build authorization every baseline file is pinned. */
+  const buildAuthorized = stageIndex(state, state.stage) >= stageIndex(state, 'build_authorized');
+  const declaredOutputs = new Set(state.candidate?.allowed_output_files || []);
   for (const [rel, expected] of Object.entries(state.baseline?.files || {})) {
     const full = path.join(root, rel);
     assert(fs.existsSync(full), `frozen baseline file is missing: ${rel}`, errors);
+    if (buildAuthorized && declaredOutputs.has(rel)) continue;
     if (fs.existsSync(full)) assert(sha256File(root, rel) === expected, `frozen baseline modified: ${rel}`, errors);
   }
 
@@ -200,7 +213,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   } else {
     const governingStage = previousState?.stage || state.stage;
     const allowed = allowedForStage(state, governingStage);
-    for (const rel of changedFiles) {
+    for (const rel of changedFiles.filter(isGovernedPath)) {
       assert(allowedPath(allowed, rel), `file is out of order for ${governingStage}: ${rel}`, errors);
     }
   }
@@ -208,7 +221,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   const buildIndex = stageIndex(state, 'build_authorized');
   const previouslyAuthorized = previousState ? stageIndex(previousState, previousState.stage) >= buildIndex : stageIndex(state, state.stage) >= buildIndex;
   if (!previouslyAuthorized) {
-    for (const rel of changedFiles) assert(!isImplementationPath(rel), `implementation changed before build authorization: ${rel}`, errors);
+    for (const rel of changedFiles.filter(isGovernedPath)) assert(!isImplementationPath(rel), `implementation changed before build authorization: ${rel}`, errors);
   }
 
   for (const rel of changedFiles.filter(isImplementationPath)) {
