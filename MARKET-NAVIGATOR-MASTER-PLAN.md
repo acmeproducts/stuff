@@ -61,6 +61,8 @@ Changing the V1 index context replaces V2's component set and clears any V2 poin
 ### V3 — Component
 One canonical source series, large format, native values/units, all horizons, full axes, point inspection/crosshair, source/frequency/status metadata, Data, Statistics, POV, Export and Save.
 
+**V3 is a drill-down from V2; it is not the next peer chart in a V1→V2→V3 slideshow. V2 supplies context; V3 investigates the selected V2 component.** V3's title must retain enough parent/index context that the user knows what was drilled into and from where.
+
 ### V4 — Multi-series / paved-road comparison
 V3 becomes V4 when series are added. The engine automatically chooses the least-transformative valid representation:
 1. one series → native single Y-axis
@@ -69,6 +71,8 @@ V3 becomes V4 when series are added. The engine automatically chooses the least-
 4. 3+ incompatible-unit series → automatic Indexed 100
 
 Adding/removing series automatically re-evaluates the representation. No chart-configuration ceremony.
+
+For exactly two series, series controls are **two side-by-side series dropdowns**, preserving the direct visual pairing of left/right comparison rather than stacking the controls vertically.
 
 ### V5 — Explore / deliberate investigation
 Same engine, with deliberate ability to choose compatible native comparison, exactly-two-series native dual-axis, or Indexed-100 multi-series comparison. Scientific transforms belong in Statistics.
@@ -79,6 +83,8 @@ Every series receives a stable visual color for the analytical object. The same 
 A text-only multi-series legend is rejected. Pill → line → selected point → value must be visually unambiguous.
 
 Legend pills are also the direct way to select which series is being inspected. Selecting a pill does **not** request a simultaneous readout of every other line.
+
+**Legend layout may not wrap into or overlap a second chart row.** Dense V2/V3 drill-down contexts use an unambiguous **three-letter series shorthand** in the chart surface; the full series definition belongs in the chart title/context and metadata. Shorthand must remain stable for the same canonical series.
 
 ## 8. Canonical point inspection / crosshair contract
 The previous all-series crosshair-card interpretation is **rejected**.
@@ -96,6 +102,8 @@ Interaction:
 8. The inspection is explicitly dismissible: tap/click the close control, press Escape where available, or tap outside the plot/inspection target. Dismissal removes guide, marker, value tag and date marker.
 9. Selecting a different line/pill immediately transfers inspection to that series rather than accumulating markers/readouts.
 10. Any view, index-context, horizon or series-set change clears the prior inspection state before the new chart is rendered.
+
+**Crosshair/inspection state is component-local and must never persist visually into a previous or newly rendered component.** A chart/component transition clears the prior component's guide, marker, value tag, date marker and active-series inspection state before paint.
 
 Touch behavior is first-class on Android. A tap pins the point; subsequent drag/movement may move along the active series. Inspection never depends on hover existing.
 
@@ -115,6 +123,8 @@ Native single/common axis uses native units. Exactly two incompatible native ser
 
 Time is always the common X-axis. Incompatible raw units are never silently overlaid on one Y-axis.
 
+**Axis QA is matrix-based, not bug-by-bug.** Before a build is presented, every V1–V5 configuration must be checked across all seven horizons for **X, Y1 and Y2 where applicable**. The tester is not responsible for discovering each permutation independently. A defect found in one axis/view/horizon triggers review of the corresponding axis contract across the full matrix.
+
 ## 10. Time-axis geometry
 Charts show actual temporal shape. Plotted observations and labeled ticks are separate concerns. No fixed four-label shortcut.
 
@@ -130,7 +140,7 @@ Rendering optimization may not alter canonical observations used by point inspec
 ## 11. Data fidelity and mixed frequency
 **plotted observation ↔ selected point value ↔ Data view ↔ Statistics input ↔ export** must reconcile.
 
-Monthly CPI and daily market series can share a current X-axis without pretending they share observation cadence. CPI's line stops at its latest real published observation; a faster series may continue to the current market date. The chart exposes each series' latest actual observation date and never stretches or carries forward a source line merely for visual continuity.
+Monthly CPI and daily market series can share a current X-axis without pretending they share observation cadence. CPI's line stops at its latest real published observation; a faster series such as WTI may continue into a later month/current market date. The common X-axis spans the selected analytical range; **each line terminates at its own latest real observation**. The chart exposes each series' latest actual observation date and never stretches, interpolates, or carries forward a slower source merely for visual continuity.
 
 ## 12. NOW
 Now opens at 5D and is a persistent two-level report:
@@ -147,6 +157,8 @@ Only selecting a component in V2 leaves Now and opens V3 in Explore.
 Explore is a workspace, not a second chart engine.
 
 **Now V2 component → V3 → add series → automatic V4 → deliberate V5 when needed → Data/Statistics/POV → Save**.
+
+The transition into V3 preserves the selected V2 component identity and parent index context. Returning to Now restores the V1/V2 contextual report rather than treating V3 as its successor.
 
 ## 14. Statistics and correlation
 Statistics are tied to exact analytical state. Correlation is a first-class artifact containing series pair, coefficient, range, alignment/frequency, observation count, transformation, method and appropriate visualization. Correlation is association, not causation.
@@ -173,34 +185,44 @@ Mandatory acceptance includes:
 - **Now acceptance renders V1 and V2 concurrently**, proving the real V1-controls-V2 relationship
 - V1 selection changes V2 context without replacing V1
 - V2 component selection alone launches V3
+- V3 visibly preserves the selected V2 component and parent/index drill-down context
+- returning from V3 restores the contextual V1/V2 Now surface
 - V1/V2 populated from canonical derived-index definition
 - all seven horizons
 - V3 native single-series
 - V4 automatic native/common, dual-axis and Indexed-100 transitions
+- exactly-two-series comparison uses side-by-side series dropdowns
 - 2, 5 and 7 simultaneous real series
 - visible Y-axis with ticks/units in every view
+- X/Y1/Y2 QA across all applicable V1–V5 × seven-horizon permutations
 - colored legend/pill identity
+- three-letter shorthand where required to prevent legend second-row overlap, with full identity retained in title/context
 - single active-series point inspection in V1–V5
 - one point marker + one point value tag + one X-axis date marker
 - explicit dismissal of inspection
-- inspection state cleared on any context/view/horizon/series change
+- inspection state cleared on any context/view/horizon/series/component change
+- no crosshair residue from a previous component
 - no all-series crosshair popup
 - native evidence available from Indexed-100 point inspection
-- honest mixed-frequency observation dates and line termination
+- honest mixed-frequency observation dates and independent line termination, including monthly-vs-daily cases such as CPI versus WTI
 - Android touch behavior
 - healthy/loading/partial/stale/missing/source-failure/insufficient-observation states
+
+### QA-overlay presentation contract
+Acceptance/debug instrumentation must not distort the production chart surface being judged. Redlines, diagnostic labels, matrix status and other QA-only material live **behind a QA badge/control** and are hidden in the normal chart presentation. The default acceptance surface must therefore remain faithful to the intended production layout while retaining one-action access to QA evidence.
 
 Acceptance remains: **“Yes. That's our chart.”**
 
 ## 21. Build gates
-**Gate 1 — Plan:** this product/chart contract.
+**Gate 1 — Plan:** this product/chart contract, including all owner V1–V5 visual-review corrections captured above.
 
-**Gate 2 — Chart:** real-data five-view common-engine artifact. Plan and chart are reviewed together.
+**Gate 2 — Chart:** real-data five-view common-engine artifact. Plan and chart are reviewed together. **The next chart build must implement this amended plan; the owner-review corrections are not a separate backlog or optional QA pass.**
 
 **Gate 3 — Application:** only after Gate 1 + Gate 2 approval, assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated at bottom. Gate 3 may not reinterpret the approved chart contract.
 
 ## 22. Rejected approaches
 - treating V1 and V2 as peer navigation destinations
+- treating V2 and V3 as peer/sequential context views rather than V2 context → V3 drill-down
 - replacing V1 when an index is selected
 - deep component drilldown inside Now
 - separate simple and Analysis chart engines
@@ -209,12 +231,17 @@ Acceptance remains: **“Yes. That's our chart.”**
 - browser-side Yahoo/FRED acquisition
 - incompatible raw units on one Y-axis
 - text-only multi-series legends
+- legend wrapping/overlap into a second chart row when stable shorthand can preserve the surface
 - all-series crosshair popup
+- crosshair/inspection state leaking between components
 - non-dismissible point inspection
 - chart with no visible Y-axis/ticks/units
 - header-only readout disconnected from selected point
 - fixed four-label X-axis
 - forcing users to configure axes for ordinary V4 comparisons
+- making the owner enumerate axis bugs permutation-by-permutation instead of validating the full axis matrix
+- stretching/carrying forward lower-frequency series to match a faster series' latest date
+- QA/redline instrumentation permanently occupying or changing the production chart layout
 - deferring chart behavior to development
 - Library as static archive
 - Health conflated with Config
