@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.6.1 -->
-# TALKBRIDGE MASTER PLAN v20.6.1
+<!-- TALKBRIDGE-PLAN v20.7.0 -->
+# TALKBRIDGE MASTER PLAN v20.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 corrected app + worker + relay v5.1 deployed and byte-verified; integrated recorder included; hardware matrix governed by §4.9 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 REJECTED and buried as G18/G19; whole pair rolled back to R10.2 app/worker + relay v4.2; R10.6 recovery contract is §4.10 and is not built | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -84,7 +84,7 @@ overwritten with it.
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
 | 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | Built (candidate) |
+| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 governed by §4.10, not built |
 | 11 | — | Responsive layout and collision safety | Built (candidate) |
 | 12 | — | Multi-party (3+) | Built (candidate) |
 
@@ -240,30 +240,32 @@ BT direction (PB-1) is confirmed correct — target→source is standard and the
 ML anomaly on simple phrases is not a code defect.
 
 **Source stage:** `bridge-turn24-ship.html`
-**Target stage:** `bridge-turn24-post-ship.html` (now R10.5 output; R9.1 remains unbuilt)
+**Target stage:** `bridge-turn24-post-ship.html` (currently the R10.2 rollback; R9.1 remains unbuilt)
 **Gate:** new-card target edit → source updates to translated text, clarify shows both entries, verdict clear, Verified removed; same for existing-card edit.
 
 ---
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.6.1): §4.9.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.7.0): §4.10.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
-describes rejected instrumentation-only candidate OBS1. Neither is build
-authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md` remains the
-privacy/schema requirement for instrumentation inside the corrected build,
-not authority to publish a diagnostic-only release. Section 4.5 remains
-release law.
+describes rejected instrumentation-only candidate OBS1; §4.9 describes rejected
+R10.5. None is build authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`
+remains the privacy/schema requirement for instrumentation inside the recovery
+build, not authority to publish a diagnostic-only release. Section 4.5 remains
+release law. Graveyard G18 and G19 are mandatory design vetoes.
 
 **Source:** `bridge-turn24-ship.html` — the only device-approved base.
 **Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
 ship + the parts below by one command. The artifact is output only.
-**Pair:** app post-ship + worker R10.5 ⟷ relay v5.1. They ship together, are verified
-together, and every handover states both. Mismatch = rollback of whichever
-moved last, before anything else.
-**Active objective (§4.9):** one corrected behavioral candidate with the
-flight recorder built in as supporting infrastructure. The owner receives no
-instrumentation-only URL and does not test known-failing R10.2 behavior again.
+**Live rollback pair:** R10.2 app/worker blobs `a5bcd189` / `953f99de` ⟷ relay
+v4.2 source `94c391e4`, restored by PR #639 / merge `922378dd`. The next pair
+is R10.6 app + worker + relay and must ship, verify, and roll back together.
+**Active objective (§4.10):** one clean recovery build from the rollback/source
+baseline, with exact recipient state, transport-independent reconciliation,
+opaque invite authorization, short-lived Deepgram/TURN credentials, and the
+flight recorder integrated. The owner receives no diagnostic-only URL and
+does not test known-failing R10.2 or rejected R10.5 behavior again.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -347,23 +349,19 @@ decorum record (timestamped accept/decline in transcript) is something none
 of them surface — an auditable courtesy trail that fits a translation app
 used between strangers-becoming-partners.
 
-### 4.9 · R10.5 — CORRECTED BEHAVIOR WITH INTEGRATED FLIGHT RECORDER (ACTIVE)
+### 4.9 · R10.5 — REJECTED BEHAVIORAL BUILD (HISTORICAL; NOT AUTHORITY)
 
-**Status: R10.5 CORRECTED PAIR DEPLOYED AND BYTE-VERIFIED.** Product commit
-`13b3d9ae` is live; relay status commit `f2f4fe21` records the completed probe.
-Pages run `33257913179` and relay run `33257913219` succeeded. The protected
-source remains byte-identical to Git blob `a6e1673c`. Live blobs are app
-`23bcc483`, worker `c00246fd`, and relay source `11d000c5`; HTTP SHA-256 matches
-the gated app `06c3d8ae…e4fd` and worker `c2684e42…dc69`.
-One reproducible command (`npm run gate:r105`) assembles the pair and passes
-49 app/worker behavior checks, 25 relay/deploy state/crypto checks, 22 integrated
-recorder/privacy checks, and all 34 planted defects. The recorder is inside
-this corrected candidate and hidden during normal use; there is no separate
-instrumentation release. The fail-closed live probe passed WebSocket delivery,
-foreground owner, OS owner-before-push, one real push-service POST (`404` from
-the deliberately invalid endpoint), retry dedupe, missed-call ledger state,
-and recorder access. The external iOS/Android hardware matrix remains the only
-proof of OS display and ≤5-second device latency.
+**Status: REJECTED 2026-08-29; WHOLE PAIR ROLLED BACK.** Product commit
+`13b3d9ae` and relay v5.1 passed their machine gates but failed the two-phone
+run. The Android log showed a greater-than-five-second other-room update,
+duplicated owner/stale-close records, and `owner=os` attached to suppressed
+events. The iPhone log showed away-period events consumed as zero and its
+cursor advanced, reconnect races, and the whole inherited Deepgram/TURN bundle
+absent (`dg_no_key`, `turn_unavailable {"hasCreds":false}`). The build also
+made missed-call state depend on a caller-supplied `reason:"missed"` that the
+ordinary call-end path does not guarantee. Graveyard G18/G19 contains the
+binding burial. Everything in §4.9.1–§4.9.5 below is retained only to explain
+what failed; it may not be patched, tuned, or used as the R10.6 baseline.
 
 #### 4.9.1 · USER CONTRACT — SIMPLE AND CONSISTENT
 
@@ -485,13 +483,234 @@ where an OS alert is required. One failure rejects and rolls back the pair;
 the attached trace is used by the dev team without asking the owner to rerun a
 diagnostic-only build.
 
+### 4.10 · R10.6 — RECOVERY CONTRACT AFTER THE TWO-LOG R10.5 FAILURE (ACTIVE)
+
+**Status: PLAN READY; NO R10.6 CODE OR CANDIDATE EXISTS.** The owner ordered
+the graveyard update first and this plan revision second. R10.5 remains
+rejected and the live whole pair remains the byte-verified R10.2/v4.2 rollback.
+R10.6 is a clean rebuild from `bridge-turn24-ship.html` plus explicitly named
+parts; no R10.5 source or test is a baseline. Instrumentation is included in
+the behavioral candidate and is not a separate release.
+
+#### 4.10.1 · WHAT THE DEVICE EVIDENCE ESTABLISHED
+
+1. **Android transport works but the product contract did not.** Foreground
+   chats/calls arrived promptly and at least two worker push receipts recorded
+   `arrived` and `shown`, disproving a total relay outage. One other-room update
+   took about 6.7 seconds, exceeding the five-second contract. Duplicate owner
+   commits/stale closes and `owner=os, reason=burst-suppressed` prove that the
+   ownership record did not truthfully name the surface used.
+2. **iPhone missed state was destroyed during replay.** After an away period,
+   two ledger events were applied as chat/voice/video all zero and the cursor
+   advanced. The router still naming a room at replay time was incorrectly used
+   as proof that away-period events had been seen.
+3. **Call outcome was modeled globally instead of per recipient.** The missed
+   path required `call-end.reason === "missed"`, while ordinary teardown sends
+   a bare call end. A caller can cancel while the receiver still has a missed
+   incoming attempt; those are different facts.
+4. **Recovery depended on transport accidents.** The iPhone showed concurrent
+   reconnect attempts and home state appeared around later relay/peer activity.
+   Durable home state must not wait for a WebSocket or unrelated message.
+5. **The invite retained the room but lost its calling authorization.** The
+   iPhone connected a WebRTC call but logged `dg_no_key` and no TURN credentials.
+   The plain QR path held `k/tid/tok` only in page memory; restart or the
+   Safari-to-installed-PWA boundary removed them while the saved room survived.
+   This is absence, not Unicode corruption or a rejected malformed key.
+6. **iOS OS-display time remains a declared trace gap.** Push-service acceptance
+   and later app launch do not prove when Apple displayed a declarative
+   notification. The hardware observer supplies that timestamp.
+
+#### 4.10.2 · USER CONTRACT — THE TWO RULES ARE SIMPLE AND CONSISTENT
+
+| Receiver state | Chat | Voice/video call | Home record |
+|---|---|---|---|
+| Visible in the event room | Existing bubble only; no added sound, animation, toast, or OS notification | One existing in-app ring/Accept/Decline surface; no OS notification | Event handled in view; no missed increment |
+| Visible on home or in another room | One existing in-app waiting card/badge; no OS notification and no double | One in-app ring/Accept/Decline surface; no OS notification | Exact chat or missed-call count until that room is opened |
+| Hidden, closed, phone home, or locked | One system alert for the defined room burst within five seconds | One system call alert with permitted system sound within five seconds; no background call screen and no repeats | Exact unseen chat count; exact recipient call outcome |
+| Room muted on this device | No sound, vibration, toast, ring screen, animation, or OS notification; existing bubble/content behavior is unchanged | No incoming attention surface | Exact chat/voice/video count and TalkBridge home badge remain |
+
+Notification tap always opens the event, never an unexplained home page. An
+active call opens Accept/Decline. An ended call opens its room and durable
+recipient outcome. App-icon badge is a best-effort mirror; TalkBridge home is
+authoritative. A hidden iPhone/iPad receives a standard system notification,
+not CallKit, a sustained background ringtone, or custom notification buttons.
+One stable event is never allowed to create a delayed second surface or flurry.
+
+A chat burst starts with the first message after at least ten quiet seconds in
+that room. The first message alerts; later messages inside the burst add exact
+home counts but no additional OS alert. Burst suppression is recorded as
+`suppressed`, never falsely as `os`.
+
+#### 4.10.3 · DURABLE RECIPIENT STATE — HOME DOES NOT GUESS
+
+- The relay creates one durable record per event and recipient device before
+  delivery. It includes stable `eventId`, room, kind, created time, presentation
+  decision, recipient seen state, and—for calls—stable `callId` plus recipient
+  outcome. Retry preserves the identifiers.
+- Every record begins `unseen`. For an unmuted event it becomes seen only after
+  confirmation that the exact chat/call surface rendered while visible, or
+  after the user explicitly opens that room. A muted room's ordinary content
+  render is not an attention acknowledgement: its event remains in the home
+  record until the user explicitly opens/clears that post-event record. The
+  room currently named by the router during a later replay is never evidence
+  of earlier viewing.
+- Reconciliation is idempotent. Replaying socket history, push delivery,
+  notification navigation, worker receipts, process restart, or the same event
+  twice cannot double a count. A cursor never advances across an event that was
+  not durably applied.
+- The app reconciles on boot, focus, visibility return, notification navigation,
+  every room-listener open, and every relay open. A read-only HTTPS ledger path
+  performs the same operation when WebSocket recovery is unavailable, so the
+  home page never waits for unrelated peer traffic.
+- A room-open acknowledgement clears only events through the exact applied
+  cursor for that recipient. Muted events follow the same ledger and therefore
+  remain countable even though they have no attention surface.
+- Call outcome is recipient-specific. `accepted` and `declined` are explicit.
+  If an incoming attempt was created for a recipient and that recipient did not
+  accept or decline before the caller ended or the call expired, the recipient
+  outcome is `missed` even when the caller's global outcome is `canceled`.
+
+#### 4.10.4 · ONE PRESENTATION PATH, TRUTHFUL STATES, CONTROLLED RECONNECT
+
+1. Socket presence, freshness, heartbeat, current route, or a later reconnect
+   never suppresses a push. Only an exact visible-page readiness response for
+   that `eventId` may win the in-app path.
+2. The page presents attention only after the relay grants `in_app`. Without a
+   timely valid response, the relay selects `os` and requests one push. A late
+   page is forbidden to ring or mount a second incoming screen for that event.
+3. Presentation decisions are exactly `in_app`, `os`, `muted`, or `suppressed`.
+   `os` names the selected/requested path; separate fields record push-service
+   acceptance/failure, and neither field claims that the OS displayed it.
+4. Muting is effective only after relay acknowledgement. Every underlying
+   muted or burst-suppressed event still enters the unseen ledger.
+5. App, worker, and relay deduplicate with the same event/call IDs. A Topic may
+   collapse only a retry of that exact notification or its defined chat burst;
+   the global `tb-wake` topic is forbidden.
+6. Relay/listener reconnect is single-flight: one attempt at a time, bounded
+   backoff, stale attempts canceled, one synchronization after success. A
+   successful reopen always triggers ledger reconciliation before UI success is
+   reported.
+
+#### 4.10.5 · INVITE AND CALL CREDENTIALS — RESTORE THE PROVEN HANDOFF
+
+The August 15 POC Phase 2 proved Safari invite → Add to Home Screen → installed
+PWA opaque authorization recovery. R10.6 productionizes that mechanism:
+
+1. A QR/link contains a one-time, expiring, non-provider invite code. It never
+   contains Deepgram keys, TURN token IDs/API tokens, GitHub credentials, or
+   reusable room service credentials.
+2. The installed PWA exchanges the one-time code for one opaque TalkBridge
+   device authorization (`tb_auth_v1`) scoped to the relationship, device, and
+   allowed rooms. Replay is rejected. Delete/revoke disables descendants;
+   restore follows the already-proven grant rules.
+3. `/service deepgram-token`, authenticated with `X-TalkBridge-Auth`, returns a
+   Deepgram temporary token. Deepgram currently supports client tokens with a
+   default 30-second TTL and configurable 1–3600-second TTL. The long-lived API
+   key remains server-side. Every new or reconnected Deepgram session obtains
+   a fresh unexpired token; an established session is not torn down merely to
+   rotate a still-valid connection credential.
+4. `/service turn-credentials`, under the same authorization, uses the
+   server-held Cloudflare TURN key/API token to generate expiring ICE-server
+   credentials. The browser receives only those temporary credentials. Their
+   TTL covers the expected call and is refreshed with WebRTC configuration when
+   necessary; the long-lived TURN key is never exposed.
+5. Restart, cold launch, and network recovery retain/recover only the opaque
+   TalkBridge authorization and request fresh provider credentials as needed.
+   Text translation, voice transcription, voice/video media, and TURN fallback
+   must all work after restart without reopening the QR.
+6. Logs record authorization presence, scope class, expiry, request result, and
+   provider-token expiry only. They never record invite codes, authorization
+   values, provider tokens, API keys, or TURN passwords.
+
+Current primary implementation references:
+- Deepgram token authentication — https://developers.deepgram.com/guides/fundamentals/token-based-authentication
+- Deepgram grant-token API — https://developers.deepgram.com/reference/auth/tokens/grant
+- Cloudflare expiring TURN credentials — https://developers.cloudflare.com/realtime/turn/generate-credentials/
+
+This pulls only the Deepgram/TURN and invite-authorization minimum necessary
+for a working R10 call into R10.6. Release 13 retains the remaining secret
+migration, especially GitHub/PAT service actions, and must reuse this
+authorization abstraction instead of creating another one.
+
+#### 4.10.6 · INSTRUMENTATION MUST EXPLAIN, NOT CHANGE, THE RESULT
+
+The existing flight-recorder privacy/schema remains binding. For each event it
+correlates sender creation, relay ledger write, presentation decision, push
+request/acceptance, worker/declarative evidence where observable, app lifecycle,
+surface mount, tap route, recipient call outcome, counter change, and credential
+capability/token result. It records one human-readable summary and the same
+machine-readable records from one snapshot.
+
+The recorder never calls push acceptance “delivery” or “display,” never infers
+locked state, and never says an absent legacy worker receipt proves no iOS
+declarative display. The iOS display interval is explicitly `unknown` unless
+the tester supplies the observed display time. Instrumentation cannot alter
+eligibility, timing, routing, or counters.
+
+#### 4.10.7 · DEV-TEAM GATES BEFORE THE OWNER SEES A URL
+
+At the exact candidate SHA, the dev team must prove:
+
+1. clean assembly and install; protected ship segments preserved; inherited,
+   R10.6, credential, recorder, deployment, and mutation gates all green;
+2. the actual normal call teardown words—not a harness-invented `missed`
+   reason—produce correct recipient outcomes for answer, decline, caller end,
+   timeout, and replay;
+3. hidden events while the router still names that room remain unseen; old
+   events replay idempotently; cursor restart and socket loss/reopen produce
+   immediate exact home state without peer hello traffic;
+4. foreground grant, hidden OS selection, mute, chat-burst suppression, late
+   reconnect, retry, process restart, and socket+push replay each leave one
+   truthful presentation path and exact counters;
+5. cold and warm notification taps mount the active-call or ended-room target;
+   Android hidden calls have an OS surface; no late second surface appears for
+   60 seconds;
+6. on fresh scoped iOS and Android installs: scan QR in the browser → install →
+   standalone launch → cold restart → voice and video calls → transcription and
+   TURN credentials available, with no long-lived provider secret in the QR,
+   URL, client storage, logs, built artifact, or browser-to-TalkBridge request;
+7. Deepgram token expiry/renewal, TURN expiry/refresh, authorization revoke,
+   delete/restore, offline recovery, and service refusal fail clearly without
+   destroying the saved room or silently disabling transcription;
+8. three consecutive physical-device smoke cycles per receiving platform pass
+   before owner handoff. Machine gates never substitute for these dev devices.
+
+#### 4.10.8 · ONE OWNER MATRIX — PASS OR WHOLE-PAIR ROLLBACK
+
+Run the same unchanged candidate with iPhone receiving from Android, then
+Android receiving from iPhone. Every row records event ID, sender time,
+tester-observed receiver time, expected/actual surface, tap destination,
+recipient outcome, counter before/after, and any second surface within 60
+seconds.
+
+| # | Case | Required result |
+|---:|---|---|
+| 1 | Unmuted chat, visible same room | Existing bubble only; no added attention, OS alert, or home increment |
+| 2 | Unmuted chat, visible home/other room | One in-app waiting card/badge; no OS alert; exact +1 chat |
+| 3 | Unmuted chat, locked | One OS alert ≤5s; exact +1 chat until room open |
+| 4 | Three locked chats inside one burst | One OS alert total; exact +3 chat |
+| 5 | Muted chat, locked | No attention or OS alert; exact +1 chat and badge on open |
+| 6 | Unmuted call, app visible | One in-app ring/Accept/Decline; no OS alert |
+| 7 | Locked call, notification tapped while active, accepted | One OS alert ≤5s; tap opens active call; no missed count or second surface |
+| 8 | Locked call ends before notification tap | One OS alert total; tap opens the room and durable missed voice/video outcome |
+| 9 | Caller hangs up before receiver answers | Receiver gets exactly one missed voice/video home record; no replayed incoming ring |
+| 10 | Receiver declines | Durable declined outcome opens in the correct room; no missed increment |
+| 11 | Muted call ends unanswered | No attention or OS alert; exact +1 voice/video missed count and badge |
+| 12 | Return after socket loss/phone lock with app still routed to that room | Home immediately shows every unseen chat/call exactly once; no peer traffic required |
+
+Across call rows, test both voice and video and reverse their assignment in the
+opposite direction. All 12 rows must pass on both receiving platforms. Any
+wrong surface, delay, double, flurry, wrong destination/outcome/count, missing
+transcription, or credential loss rejects and rolls back the whole pair. The
+trace diagnoses that failure; the owner is not given a diagnostic-only retry.
+
 ### 4.8 · R10.2-OBS1 — REJECTED INSTRUMENTATION-ONLY BUILD (v20.4.2)
 
 **Status: REJECTED 2026-08-28; WHOLE PAIR ROLLED BACK.** OBS1 was built and
 machine-gated, but publishing known-failing R10.2 behavior with instrumentation
 as the only product change did not satisfy the owner's authorization. The
 section is retained for lineage only. Its privacy/schema work may support
-§4.9; its standalone release architecture may not return.
+§4.10; its standalone release architecture may not return.
 
 #### 4.8.1 · WHY OBSERVATION PRECEDES ANOTHER BEHAVIOR DESIGN
 
@@ -612,14 +831,14 @@ as `delivered` or `displayed`.
 
 This was OBS1's former pass definition. It is void as a release gate: the owner
 is not asked for an OBS1 capture. Its recorder requirements now travel inside
-the §4.9 behavioral candidate.
+the §4.10 behavioral candidate.
 
 ### 4.7 · HISTORICAL FAILED RED-TEAM CONTRACT (v20.2.0; not build authority)
 
 **Status: BUILT AS 4f574f2; FAILED OWNER DEVICE MATRIX; WHOLE PAIR ROLLED BACK.** The
 normative outcome, architecture, evidence limits, machine gates, and 12-case
 device matrix live in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`. That
-document is retained for lineage but is superseded by §4.9. Its fixed one-
+document is retained for lineage but is superseded by §4.10. Its fixed one-
 second acknowledgement window and unproved cold-open handoff are buried and
 must not be tuned or rebuilt.
 
@@ -823,7 +1042,7 @@ floor, all vendors).
 ### 4.5 · RELEASE LAW
 Plan approved → build → gates → deploy → byte-verify → handover. Any
 regression to ship behavior = full stop and rollback of the pair. No scope
-outside active §4.9. No repo artifacts beyond the declared build outputs and part
+outside active §4.10. No repo artifacts beyond the declared build outputs and part
 sources. The graveyard is scanned before building; buried ideas stay
 buried (browser name-carry, patch-forward, flash-then-close as primary).
 
@@ -875,21 +1094,25 @@ and a localStorage-to-IndexedDB migration on a device with real data.
 
 ---
 
-## 7 · RELEASE 13 — SECRET MIGRATION, PHASE B (GOVERNED, VERY LAST)
+## 7 · RELEASE 13 — REMAINING SECRET MIGRATION, PHASE B (GOVERNED, VERY LAST)
 
 Placed at the BACK of the schedule by owner ruling 2026-08-15: runs only
 after R9, Phase A (R10), R11, and R12 are done, and only on the owner's
-explicit go. Governed by the same document as R10:
+explicit go. The R10.5 device failure narrowly supersedes that sequence for
+the Deepgram/TURN invite path: §4.10.5 brings the already-proven opaque device
+authorization and temporary Deepgram/TURN credentials into R10.6 because an
+invited phone cannot complete calls reliably without them. The remainder is
+still governed by:
 
     talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
 
-Scope as governed (summary; the document owns the detail): move the four
-long-lived service secrets (tb_dg_key, tb_cf_tid, tb_cf_tok, tb_gh_pat)
-behind the EXISTING relay; one opaque TalkBridge authorization value replaces
-client-side service secrets; /service actions, client authorization
-abstraction, invite/grant/link payload changes, secret-leak audit, and the
-full Phase B test matrix — all exactly per the governing prompt, with its
-rollback rules and required report format.
+Remaining scope as governed (summary; the document owns the detail): migrate
+GitHub/PAT service actions and any other residual client-held provider secret
+behind the relay; finish the secret-leak audit and Phase B matrix; and reuse
+R10.6's `tb_auth_v1` authorization abstraction rather than creating a second
+identity/capability system. Phase B may harden or extend that abstraction but
+may not put raw Deepgram/TURN/provider credentials back into QR codes, URLs,
+page memory, local storage, logs, or built artifacts.
 
 ---
 
@@ -1010,10 +1233,13 @@ Two direction-specific books per language pair. GitHub is the source of truth;
 local storage is a disposable cache. The app never manages version numbers — it
 overwrites in place.
 
-### 1.16 Credentials are the only mechanism for capability
-There is exactly one thing that makes a device initiator-capable: valid
-credentials in its local storage. Never build permission flags, enforcement
-paths, or read-only modes.
+### 1.16 Server-validated authorization is the only mechanism for capability
+There is exactly one thing that makes a device initiator-capable: a valid,
+scoped TalkBridge device authorization accepted by the relay. UI flags and
+room-role labels never grant capability. Long-lived provider secrets are
+server-side; the client receives only the opaque TalkBridge authorization and
+short-lived service credentials. Invite/grant/device descendant scope,
+revocation, delete, and restore are enforced by the authorization chain.
 
 ### 1.17 Cosmetic work goes last
 Standing rule. Cosmetic-only work with no functional impact sits behind the
@@ -1057,8 +1283,9 @@ document in the same session or it does not exist.
 |---|---|
 | Relay | `wss://talk-signal.myacctfortracking.workers.dev/signal` |
 | Relay app | `talk-say-v1` |
-| TURN token id | `6ae776dc0b1df1b7ced8e6c4c6747e56` |
-| Deepgram key | local storage `tb_dg_key` |
+| TalkBridge authorization | Opaque scoped `tb_auth_v1`; server-validated, revocable; never logged |
+| TURN credentials | Expiring ICE credentials from authenticated `/service turn-credentials`; long-lived TURN key/API token server-side |
+| Deepgram credentials | Temporary token from authenticated `/service deepgram-token`; long-lived API key server-side |
 | Phrasebook store | `acmeproducts/stuff` under `/phrasebook/` |
 | Language model | `/fastType/` — absolute paths, resolved against the app location |
 | Pages | deploys from `main` root, live in ~1 minute |
@@ -1138,6 +1365,24 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.7.0 · 2026-08-29.** R10.5 is rejected after the paired Android/iPhone
+device logs. The whole app/worker/relay pair was restored by PR #639 / merge
+`922378dd`; the live baseline is R10.2 app/worker blobs `a5bcd189` / `953f99de`
+with relay v4.2 source `94c391e4`. Graveyard v2.10 records G18 (replay-time
+inference erased missed state) and G19 (plain QR retained a room while losing
+the inherited Deepgram/TURN bundle across the installed-PWA lifecycle). §4.10
+is now sole R10 build authority: recipient-specific unseen/outcome state,
+transport-independent reconciliation on every lifecycle/reopen path, truthful
+presentation states, single-flight reconnect, exact mute/burst counts, and
+the integrated recorder. The August 15 opaque-authorization POC is promoted
+into R10.6 only for the minimum invite/Deepgram/TURN path: one-time QR invite,
+scoped `tb_auth_v1`, Deepgram temporary tokens, and expiring Cloudflare TURN
+credentials; remaining GitHub/PAT migration stays in R13. The active 12-row
+two-way matrix now includes caller-hang-up-as-recipient-missed and away events
+while the app remains routed to that room. The plan, not product code, is the
+only artifact changed; R10.6 remains unbuilt pending owner acceptance of this
+revision.
 
 **v20.6.1 · 2026-08-29.** R10.5 product commit `13b3d9ae` deployed
 successfully. Pages run `33257913179` serves the exact gated app and worker
