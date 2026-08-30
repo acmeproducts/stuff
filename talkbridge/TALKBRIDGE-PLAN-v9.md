@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.7.0 -->
-# TALKBRIDGE MASTER PLAN v20.7.0
+<!-- TALKBRIDGE-PLAN v20.8.0 -->
+# TALKBRIDGE MASTER PLAN v20.8.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.5 REJECTED and buried as G18/G19; whole pair rolled back to R10.2 app/worker + relay v4.2; R10.6 recovery contract is §4.10 and is not built | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 machine-gated candidate built from frozen ship; deployment/live probes and physical-device matrix remain acceptance gates | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -84,7 +84,7 @@ overwritten with it.
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
 | 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 governed by §4.10, not built |
+| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 machine-gated candidate governed by §4.10; not device-accepted |
 | 11 | — | Responsive layout and collision safety | Built (candidate) |
 | 12 | — | Multi-party (3+) | Built (candidate) |
 
@@ -247,7 +247,7 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.7.0): §4.10.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.8.0): §4.10.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
 describes rejected instrumentation-only candidate OBS1; §4.9 describes rejected
 R10.5. None is build authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`
@@ -485,13 +485,37 @@ diagnostic-only build.
 
 ### 4.10 · R10.6 — RECOVERY CONTRACT AFTER THE TWO-LOG R10.5 FAILURE (ACTIVE)
 
-**Status: PLAN AUTHORIZED 2026-08-29; NO R10.6 CODE OR CANDIDATE EXISTS YET.**
+**Status: R10.6 MACHINE-GATED CANDIDATE BUILT 2026-08-30; LIVE DEPLOYMENT AND
+PHYSICAL-DEVICE ACCEPTANCE ARE NOT YET CLAIMED.**
 The owner's “please proceed” is the build GO for this exact contract; the dev
 team must not ask for a duplicate authorization. R10.5 remains rejected and
-the live whole pair remains the byte-verified R10.2/v4.2 rollback. R10.6 is a
-clean rebuild from `bridge-turn24-ship.html` plus explicitly named parts; no
-R10.5 source or test is a baseline. Instrumentation is included in the
-behavioral candidate and is not a separate release.
+the last accepted whole pair remains the byte-verified R10.2/v4.2 rollback.
+R10.6 is a clean rebuild from `bridge-turn24-ship.html` plus explicitly named
+parts; no R10.5 source or test is a baseline. Instrumentation is included in
+the behavioral candidate and is not a separate release.
+
+**Built evidence before deployment:** clean assembly generated the app and
+worker from frozen ship plus six named parts. The gates pass 21/21 app,
+18/18 relay, 12/12 deployment contract, and 26/26 planted defects caught. The
+relay gate includes ordinary bare caller hang-up → recipient `missed`, exact
+presentation ownership, mute/burst truth, process restart, stable retry
+dedupe, one-time invite replay rejection, and service authorization bound to
+the issuing device identifier. These scores prove the code paths under test;
+they do not prove Apple/Android display latency or physical TURN media.
+
+**Implemented architecture:** one durable recipient ledger; stable event/call
+IDs; exact `in_app`/`os`/`muted`/`suppressed` decisions; direct encrypted
+declarative-compatible push envelope; exact warm/cold event routing;
+transport-independent HTTPS reconciliation; single-flight relay/listener and
+subscription recovery; one-time install handoff; opaque `tb_auth_v1`; fresh
+Deepgram tokens and expiring TURN ICE credentials held only in memory; and one
+redacted human+machine flight snapshot. The deployment pipeline is fail-closed
+on the exact R10.6 manifest and the listed live behavior/service probes.
+
+**Remaining acceptance:** production deployment must pass every live probe,
+including real Deepgram/TURN issuance without printing values. Then the
+unchanged candidate runs §4.10.8 on physical iOS and Android. Until those gates
+pass, R10.6 is a candidate—not a completed release.
 
 #### 4.10.1 · WHAT THE DEVICE EVIDENCE ESTABLISHED
 
@@ -604,8 +628,9 @@ PWA opaque authorization recovery. R10.6 productionizes that mechanism:
    device authorization (`tb_auth_v1`) scoped to the relationship, device, and
    allowed rooms. Replay is rejected. Delete/revoke disables descendants;
    restore follows the already-proven grant rules.
-3. `/service deepgram-token`, authenticated with `X-TalkBridge-Auth`, returns a
-   Deepgram temporary token. Deepgram currently supports client tokens with a
+3. `/service deepgram-token`, authenticated with `X-TalkBridge-Auth` and the
+   issuing device identifier, returns a Deepgram temporary token. Deepgram
+   currently supports client tokens with a
    default 30-second TTL and configurable 1–3600-second TTL. The long-lived API
    key remains server-side. Every new or reconnected Deepgram session obtains
    a fresh unexpired token; an established session is not torn down merely to
@@ -632,6 +657,11 @@ This pulls only the Deepgram/TURN and invite-authorization minimum necessary
 for a working R10 call into R10.6. Release 13 retains the remaining secret
 migration, especially GitHub/PAT service actions, and must reuse this
 authorization abstraction instead of creating another one.
+
+In every R10.6 gate, “provider secret” means the long-lived Deepgram API key and
+Cloudflare TURN key ID/API token. It does not silently expand R10.6 into the
+GitHub/PAT migration: the existing GitHub phrasebook path remains unchanged and
+R13 owns that separate migration.
 
 #### 4.10.6 · INSTRUMENTATION MUST EXPLAIN, NOT CHANGE, THE RESULT
 
@@ -668,13 +698,15 @@ At the exact candidate SHA, the dev team must prove:
    60 seconds;
 6. on fresh scoped iOS and Android installs: scan QR in the browser → install →
    standalone launch → cold restart → voice and video calls → transcription and
-   TURN credentials available, with no long-lived provider secret in the QR,
-   URL, client storage, logs, built artifact, or browser-to-TalkBridge request;
+   TURN credentials available, with no long-lived Deepgram/TURN secret in the
+   QR, URL, client storage, logs, built artifact, or browser-to-TalkBridge
+   request; this statement does not move GitHub/PAT work out of R13;
 7. Deepgram token expiry/renewal, TURN expiry/refresh, authorization revoke,
    delete/restore, offline recovery, and service refusal fail clearly without
    destroying the saved room or silently disabling transcription;
-8. three consecutive physical-device smoke cycles per receiving platform pass
-   before owner handoff. Machine gates never substitute for these dev devices.
+8. the dev team completes every non-device pre-flight and live production probe
+   before owner handoff. Per standing rule §0b, the owner runs the physical iOS
+   and Android acceptance matrix; machine/live gates never substitute for it.
 
 #### 4.10.8 · ONE OWNER MATRIX — PASS OR WHOLE-PAIR ROLLBACK
 
@@ -1366,6 +1398,23 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.8.0 · 2026-08-30.** R10.6 is built as a machine-gated candidate from the
+frozen `bridge-turn24-ship.html` plus explicitly named P2 install handoff,
+opaque authorization/temporary provider services, P3 subscription, inherited
+P6 threads, recipient-event state, and flight-recorder parts. The app/worker,
+relay, deployment-contract, and mutation scores are 21/21, 18/18, 12/12, and
+26/26. Adversarial review added stable retry dedupe before history persistence,
+enforced the authorization's device identifier at each protected service,
+prevented a false “TURN missing” message when temporary ICE servers are active,
+and made push subscription self-heal single-flight on lifecycle return. The
+deployment workflow now fails closed on foreground ownership, a real encrypted
+push POST, ordinary hang-up → missed, retry dedupe, one-time invite replay,
+wrong-device refusal, and live Deepgram/TURN credential contracts without
+printing credential values. R10.6's secret scope is explicitly Deepgram/TURN;
+GitHub/PAT remains unchanged and assigned to R13. Production probes and the
+owner's unchanged physical two-way matrix remain required; no device pass is
+claimed by these machine results.
 
 **v20.7.0 · 2026-08-29.** R10.5 is rejected after the paired Android/iPhone
 device logs. The whole app/worker/relay pair was restored by PR #639 / merge
