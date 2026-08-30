@@ -241,3 +241,57 @@ The next Base rebuild must use one shared storage authority for Source, Target, 
 6. qualification proving Source and destination inventories are identical and that a Source on F:/I: preflights successfully.
 
 Base-20 remains rejected owner-gate evidence only. Failure archive: `SOT/archive/2026-08-30-0248-turn01-base20-owner-failure/ARCHIVE-MANIFEST.md`.
+
+---
+
+## GY-008 — Fragmented picker UX, repeated storage probing, deferred project validity and manual preflight
+
+**Status:** REJECTED  
+**Evidence:** Turn 01 Base-21 owner test  
+**Decision date:** 2026-08-30
+
+### Rejected approach
+
+Treat Source, Target and Backup as separate interaction implementations even when they share a backend storage authority; re-query live storage during ordinary selection/save flows; allow project creation before Source and Target are fully defined; and expose a separate operator-driven Preflight step to discover invalid path assignments after configuration.
+
+Also rejected: a folder selector where choosing an item merely copies it into a selected list while leaving the same item simultaneously present in the available list, plus analysis surfaces that force the operator through generic status/analysis views before seeing the immediately useful duplicate-group outcomes of fingerprinting.
+
+### Why it is rejected
+
+Base-21 proved the underlying Windows inventory/access corrections mechanically, but owner testing showed the interaction architecture still creates unnecessary latency and friction:
+
+- saving Source changes is slow because metadata selection is coupled to repeated live-storage work;
+- the Available and Selected panes do not behave as a true move-between-lists selector;
+- Source and destination selectors can still drift because they are separate implementations;
+- a newly created project can exist before its required Source/Target configuration is complete;
+- global Target/Backup defaults are not part of project setup;
+- a manual Preflight button asks the operator to validate data that should never have been accepted invalid in the first place;
+- plan generation can be coupled to transient live Source availability even when it is reasoning over already-persisted fingerprint evidence;
+- duplicate cardinality results are not promoted as the primary post-fingerprint outcome.
+
+### Do not repeat
+
+Do not:
+
+- implement Source/Target/Backup folder selection as separate UX components;
+- rescan/re-enumerate storage merely because a user selected, deselected or saved a folder assignment;
+- keep a selected folder simultaneously in the Available list for the same role/context;
+- create half-configured projects and send the operator back later to complete required storage setup;
+- rely on an operator-facing Preflight ceremony to compensate for permissive invalid assignment;
+- require an offline Source volume during plan generation when the plan only needs persisted fingerprint/evidence data;
+- bury duplicate-group cardinality behind generic analysis/navigation surfaces.
+
+### Required replacement
+
+The next clean Base must:
+
+1. use one canonical role-configured folder selector for Source, Target, Backup and default Target/Backup;
+2. implement deterministic Available ↔ Selected move semantics;
+3. maintain a shared runtime storage catalog/cache reused across projects and picker sessions, invalidated only by explicit refresh, known create/delete, or proven access failure;
+4. make assignment save a metadata transaction with no implicit rescan;
+5. make project creation include valid Source + Target and inherit overridable default Target/Backup;
+6. reject invalid assignments at assignment time and remove manual Preflight from the operator workflow;
+7. validate storage at the actual operation boundary: Source when fingerprinting reads it, destination when execution needs it; do not block evidence-only plan generation on transient Source availability;
+8. promote 2-copy, 3-copy and 4+-copy duplicate-group summaries with direct drill-down immediately after fingerprinting.
+
+Base-21 remains rejected owner-gate evidence only. Failure archive: `SOT/archive/2026-08-30-0352-turn01-base21-owner-rejection/ARCHIVE-MANIFEST.md`.
