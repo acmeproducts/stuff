@@ -45,3 +45,16 @@ The slice continued treating core product behavior as gated chart/navigation wor
 Do not patch this rejected slice forward as the product baseline. Gate 4 must be assembled from the governed lineage: current Market Navigator 3 application foundation + approved Gate 3 interaction model + approved ribbon/footer decisions + canonical backend evidence.
 
 The replacement must implement the complete active product contract in one governed release: three-row analytical ribbon; compact three-letter legends; contextual About cards; transferable real-observation inspection; V2 index + all component lines; Library; operational AI POV/chat; CONFIG provider/model validation; and categorized Add Series selection.
+
+## G4-R2 — Rejected inert replacement release
+
+**Rejected implementation:** `market-view-gate4-r2.html`, commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`.
+
+### Why it was rejected
+The published replacement was inert because its JavaScript did not pass syntax validation before release. This is a release-process failure in addition to an implementation failure: an executable HTML/JavaScript artifact must never be handed to the tester without at least parser/static validation.
+
+### Recovery / solve
+- Do not patch the inert R2 artifact forward as an accepted baseline.
+- Correct from the governed Gate 4 contract and publish a successor release.
+- Before publishing any successor test URL, extract/validate the JavaScript with a parser/runtime syntax check and perform structural checks for required Gate 4 surfaces.
+- A failed syntax check blocks publication.
