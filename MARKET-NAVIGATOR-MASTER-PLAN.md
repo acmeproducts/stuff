@@ -97,7 +97,7 @@ Legend sits directly above chart and is both identity and series management. In 
 Dense legends may horizontally scroll/compact rather than wrap into chart space. Stable three-letter shorthand is allowed; full identity remains available contextually.
 
 ### Legend chip help
-Hover/mouse-over on pointer devices, and an equivalent deliberate touch interaction on mobile, exposes a **brief contextual popover** for the series. It should answer:
+Hover/mouse-over on pointer devices, and an equivalent deliberate touch interaction on mobile, exposes a **brief contextual popover** for the series. It answers:
 - **What is it?** concise definition
 - **How is it used here?** role in the current index/analysis
 - **Why does it matter?** analytical relevance
@@ -118,18 +118,18 @@ No fixed four-label shortcut. Rendering optimization may not change canonical ob
 ## 11. Data fidelity and mixed frequency
 Each line terminates at its own latest real observation. Slower-frequency sources are never stretched/carried forward to match faster sources. Selected point, Data, Statistics and export reconcile to canonical evidence.
 
-### OPEN VALIDATION ITEM — mixed-frequency chart behavior
-The current Gate 3 mock data does not prove the production treatment of mixed-frequency evidence. This remains an explicit open item and must be validated against real canonical observations before Gate 3 closes.
+### Mandatory real-data validation — mixed-frequency chart behavior
+The application build must prove the production treatment of mixed-frequency evidence with canonical observations.
 
 Required case: a daily series and a monthly series on the same analytical chart. The implementation must demonstrate:
 - common time axis without fabricated observations
 - monthly line ending at its actual latest release
 - daily line continuing to its own later/latest observation
 - inspection snapping only to real observations for the active series
-- no interpolation/carry-forward merely to make the visual endpoints align
+- no interpolation/carry-forward merely to make visual endpoints align
 - readable geometry when one series has dramatically fewer observations than another
 
-CPI versus WTI remains the canonical acceptance example.
+**CPI versus WTI is the canonical acceptance example.** This is a Gate 4 release blocker until demonstrated.
 
 ## 12. Workspace composition
 Right panel:
@@ -147,7 +147,7 @@ Breadcrumb examples:
 - `Now > Risk`
 - `Now > Risk > VIX`
 
-Breadcrumb segments are interactive navigation, not passive text. They replace the ordinary bottom Back control as the primary contextual return mechanism.
+Breadcrumb segments are interactive navigation, not passive text.
 
 The centered horizon remains `1D · 5D · MTD · YTD · 1YR · 3YR · 5YR`.
 
@@ -183,7 +183,7 @@ The bottom surface is reserved for **discussion with the AI POV**, not navigatio
 
 It provides the compose affordance for interrogating/challenging the current POV and evidence state. The composer remains tied to the exact current analysis context.
 
-The previous bottom `Back | Save to Library` action row is retired. Back/navigation belongs in breadcrumbs; Save and other document actions belong in `…`.
+Back/navigation belongs in breadcrumbs; Save and other document actions belong in `…`.
 
 ## 13. EXPLORE / Analysis journey
 **Market → Index → component opens V3 Analysis → `+` adds additional series → chips remove series → AI discussion / Data / Statistics / POV → Save.**
@@ -210,16 +210,15 @@ Health exposes freshness/source/collection/coverage/provenance/readiness/failure
 ## 19. Backend contract
 Data Catalog defines canonical series. Operational Manifest is runtime state. Smart Evidence Store holds canonical observations/horizon records. Browser does not reacquire Yahoo/FRED evidence.
 
+Gate 4 consumes canonical repository evidence directly; it does not create browser-side replacement acquisition paths.
+
 ## 20. Gate 2 chart mechanics
 Gate 2 proved sufficient rudimentary chart mechanics and remains a QA/reference surface rather than product UI.
 
 ## 21. Gate 3 — UX Journey Prototype
-Gate 3 evaluates the actual application frame and interaction journey.
+**Status: APPROVED TO BUILD.**
 
-Current required journey:
-**Market → Risk → component → add/remove arbitrary series → inspect legend help / standalone More analysis → interrogate AI POV → navigate by breadcrumb → save/print/download from More → back to Market.**
-
-Acceptance focus:
+The approved contract includes:
 - collapsible left rail/full-width workspace
 - two-row ribbon
 - ribbon row 2 = breadcrumbs | single horizon control | More
@@ -236,16 +235,25 @@ Acceptance focus:
 - persistent bottom AI composer
 - no global QA button
 - no bottom Back/Save navigation bar
-- mixed-frequency real-data rendering remains an explicit open validation item
 
-## 22. Build gates
-**Gate 1 — Plan: APPROVED.**
+## 22. Gate 4 — Application build
+**Status: ACTIVE.**
 
-**Gate 2 — Chart mechanics: SUFFICIENT TO ADVANCE.**
+Build the governed application surface using canonical repository evidence rather than prototype curves. Assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated in the left rail.
 
-**Gate 3 — UX Journey Prototype: ACTIVE.** Gate 3 cannot close until the mixed-frequency real-data case is demonstrated.
+The first Gate 4 implementation must prioritize the approved analytical journey and real-data chart fidelity before expanding secondary destinations.
 
-**Gate 4 — Application:** after Gate 3 UX approval, assemble production NOW · EXPLORE · LIBRARY · HEALTH with CONFIG separated in left rail.
+Mandatory Gate 4 build acceptance:
+- V1 Market and V2 Index from canonical derived-index definition
+- V3 additive Analysis from real canonical source records
+- real mixed-frequency CPI + WTI demonstration
+- independent source endpoints and actual observation dates
+- one/two-axis unit-family behavior and Indexed-100 fallback
+- real-observation point inspection
+- legend `+`/`×` management and contextual help
+- breadcrumbs, horizon and More row
+- AI POV/info placement and persistent composer
+- no prototype-only chart geometry or synthetic curves in the analytical path
 
 ## 23. Rejected approaches
 - distinct V4 comparison page/mode after adding series
@@ -272,6 +280,6 @@ Acceptance focus:
 - fixed four-label X-axis
 - stretching slower-frequency series
 - QA instrumentation occupying default product layout
-- omitting AI interpretation/conversation from UX prototyping
+- omitting AI interpretation/conversation from the application
 - forcing desktop four-panel composition onto portrait mobile
 - deferring navigation/context behavior to late development
