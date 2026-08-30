@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.8.2 -->
-# TALKBRIDGE MASTER PLAN v20.8.2
+<!-- TALKBRIDGE-PLAN v20.9.0 -->
+# TALKBRIDGE MASTER PLAN v20.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 rejected and buried whole; exact R10.2/v4.2 rollback baseline live; no corrective build authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 rejected and buried whole; R10-CR1 replacement plan complete; owner GO required; exact R10.2/v4.2 rollback baseline live; no corrective build authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -84,7 +84,7 @@ overwritten with it.
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
 | 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | R10.5 and R10.6 rejected; exact R10.2/v4.2 baseline restored; design stopped |
+| 10 | — | Notifications and PWA | R10.5 and R10.6 rejected; R10-CR1 clean-replacement plan complete; owner GO required; exact R10.2/v4.2 baseline remains live |
 | 11 | — | Responsive layout and collision safety | Built (candidate) |
 | 12 | — | Multi-party (3+) | Built (candidate) |
 
@@ -247,20 +247,234 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.8.2): ROLLBACK ONLY; NO R10 BUILD IS AUTHORIZED.**
-Sections 4.1–4.4 and 4.6 are historical lineage. Sections 4.7, 4.8, 4.9, and
-4.10 describe rejected releases and are not build authority. The R10.6
-instrumentation, authorization, provider-token, event-state, worker, relay,
-test, and deployment designs are buried together by graveyard G20. None may be
-patched, repaired, configured, or carried forward. Section 4.5 remains release
-law. Graveyard G18–G20 are mandatory vetoes.
+**ACTIVE AUTHORITY (v20.9.0): §4.11 IS THE SOLE R10 REPLACEMENT PROPOSAL;
+OWNER GO IS REQUIRED BEFORE BUILD.** Sections 4.1–4.4 and 4.6 are historical
+lineage. Sections 4.7, 4.8, 4.9, and 4.10 describe rejected releases and are
+not build authority. The R10.6 instrumentation, authorization, provider-token,
+event-state, worker, relay, test, and deployment designs are buried together
+by graveyard G20. None may be patched, repaired, configured, or carried
+forward. Section 4.5 remains release law. Graveyard G18–G20 are mandatory
+vetoes. The whole-release root cause is complete in
+`TALKBRIDGE-R10-WHOLE-RELEASE-ROOT-CAUSE.md`; it governs §4.11.
 
 **Live rollback pair:** R10.2 app/worker blobs `a5bcd189` / `953f99de` ⟷ relay
 v4.2 source `94c391e4`, restored again by PR #644 / merge `a82ddb63` after the
 R10.6 rejection. Live app and worker bytes were verified against those exact
 blobs; the relay deployment and v4.2 live probes passed. This is the baseline,
 not a patch target. There is no active deliverable, recovery candidate, secret
-configuration step, test URL, or owner device test.
+configuration step, test URL, or owner device test. The plan is complete, but
+there is still **no corrective build authorized** until a new explicit owner
+GO advances the repository gate.
+
+### 4.11 · R10-CR1 — CLEAN REPLACEMENT PLAN (OWNER GO REQUIRED)
+
+**Status: PLAN COMPLETE; IMPLEMENTATION BLOCKED PENDING EXPLICIT OWNER GO.**
+R10-CR1 is a new clean replacement from the exact accepted R10.2/v4.2 bytes.
+It is not R10.5, R10.6, R10.7, a patch-forward, an instrumentation release, or
+a retry of any buried candidate. No line, service, test assumption, credential
+design, or deployment prerequisite from R10.5/R10.6 is an input. PR #647 and
+the pinned whole-release root-cause document are the causal authority for this
+contract.
+
+#### 4.11.1 · FROZEN INPUT, EXACT OUTPUT, AND SCOPE WALL
+
+The build must begin by proving these exact SHA-256 inputs from
+`talkbridge/governance/r10-cycle.json`:
+
+| Frozen input | SHA-256 |
+|---|---|
+| `bridge-turn24-post-ship.html` | `66f969d9302ec327ee596a8cc97d0f4918675816092014605b5550a68607c2fb` |
+| `tb-sw.js` | `c2af8db7614ad5480581574bf58929c52a9c3de52a7cf4fa73b7fcbadb994dc2` |
+| `talkbridge/worker-talk.js` | `18659b87ddfc832d51c9c655d7dfc59f05aa80504bd9d3e8da780f48ee4566d1` |
+| `talkbridge/wrangler.jsonc` | `2b3f1410052aaaf4678e2a1f93d2e08d079e6304ae7785742a70612769a523f9` |
+
+After owner GO, the only product outputs that may change are
+`bridge-turn24-post-ship.html`, `tb-sw.js`, and
+`talkbridge/worker-talk.js`. `talkbridge/wrangler.jsonc` remains byte-frozen.
+There is no alternate app filename, temporary wrapper, provider endpoint,
+external database, new secret, or new hosted service.
+
+The complete build-support allowance is also fixed before authorization:
+
+- `package.json`;
+- `talkbridge/build/assemble-r10-cr1.mjs`;
+- `talkbridge/build/harness-r10-cr1.mjs`;
+- `talkbridge/build/harness-relay-r10-cr1.mjs`;
+- `talkbridge/build/mutate-r10-cr1.mjs`;
+- `talkbridge/parts/r10-cr1-event-state.js`;
+- `talkbridge/parts/r10-cr1-sw.js`;
+- `.github/workflows/deploy-relay.yml`; and
+- `.github/workflows/talkbridge-r10-cr1.yml`.
+
+Those clean R10-CR1 source, assembly, scenario, mutation, and deployment gates
+must be created from this plan after GO. The buried R10.5/R10.6 assembler,
+parts, harnesses, mutations, and package scripts are not modified, invoked, or
+copied. No other repository path is authorized by this plan.
+
+The clean replacement preserves the baseline's room/install/QR path,
+Deepgram, TURN, media, transcription, phrasebook, threads, storage, identity,
+and UI behavior. Credential absence from the rejected run is excluded because
+it was not reproduced against this frozen baseline. Credential-path work may
+enter only a separate future cycle after frozen-baseline reproduction and
+explicit owner scope expansion.
+
+#### 4.11.2 · ONE RECIPIENT-EVENT AUTHORITY, NOT AN OVERLAY
+
+The existing relay Durable Object owns one durable record per event and
+recipient device. That record is the sole authority for presentation choice,
+push request result, seen state, recipient call outcome, and the TalkBridge
+home projection. The app may cache the projection for display; it may not keep
+a second counted set, replay-derived seen state, or independent missed-event
+truth.
+
+Each applicable record contains one stable `eventId`, recipient device, room,
+kind, created time, optional stable `callId`, presentation state, push state,
+seen state, and recipient outcome. Retry reuses the identifiers. The allowed
+facts remain distinct:
+
+- presentation: `pending`, `in_app`, `os_requested`, `suppressed`, or `muted`;
+- push: `not_requested`, `accepted`, `failed`, or `unknown`;
+- seen: `unseen` or `seen`, with the exact event transition recorded; and
+- recipient call outcome: `offered`, `accepted`, `declined`, `missed`, or
+  `ended` where applicable.
+
+`os_requested` means that TalkBridge requested the OS path. Push acceptance is
+not OS display, and OS display remains unknown unless the physical tester
+records it. `suppressed` and `muted` can never be logged as OS-owned.
+
+Seen changes only when the exact event is visibly handled while the receiver
+is in that room or the receiver explicitly opens that room. A route that still
+names the room when replay eventually occurs is never evidence that an event
+was seen earlier. A cursor is transport position only: it cannot mark an event
+seen or erase an unseen home record. Opening a room acknowledges only the exact
+set durably applied to that recipient.
+
+Home chat/voice/video counts and badges are an idempotent projection of unseen
+recipient records, not browser-side increments. Socket delivery, push,
+notification navigation, history replay, retry, process restart, and repeated
+reconciliation of the same event must produce the same single projection.
+
+#### 4.11.3 · RECIPIENT CALL OUTCOME AND ONE RECOVERY COORDINATOR
+
+Caller/global termination and receiver outcome are separate facts. For every
+incoming receiver, the record begins `offered`; Accept and Decline are explicit
+recipient transitions. If that receiver has neither accepted nor declined when
+the ordinary product's bare caller hang-up or expiry arrives, the receiver
+becomes `missed` exactly once even if the caller's own outcome is canceled or
+ended. No harness-only `reason:"missed"` word is permitted.
+
+One idempotent single-flight recovery coordinator owns visibility, focus,
+online, notification navigation, relay open, and room-listener open. Concurrent
+signals coalesce into one attempt, stale attempts cannot replace a newer
+socket, and each successful relay or listener open performs reconciliation
+before the home view is declared current. A read-only HTTPS reconciliation may
+be used against the same Durable Object authority when a socket is unavailable;
+it cannot create a second state model. Home recovery never waits for unrelated
+peer traffic.
+
+#### 4.11.4 · PRESENTATION CONTRACT
+
+| Receiver state | Chat | Voice/video call | Durable home result |
+|---|---|---|---|
+| Visible in the event room | Existing bubble only; no added attention or OS alert | One existing in-app Accept/Decline surface; no OS alert | Seen; no missed increment |
+| Visible on home or in another room | One existing in-app waiting card/badge; no OS alert | One in-app Accept/Decline surface; no OS alert | Exact unseen count until room open |
+| Hidden, closed, phone home, or locked | One OS alert for the defined room burst within five seconds | One OS call alert within five seconds; no background call screen | Exact unseen count and recipient outcome |
+| Muted on this device | No attention surface or OS alert | No incoming attention surface | Exact unseen chat/voice/video projection remains |
+
+A notification tap opens the exact event: an active incoming call opens the
+existing Accept/Decline surface; an ended call opens its room and durable
+recipient outcome. A stable event may never create a delayed second surface or
+flurry. The first chat after ten quiet seconds starts a room burst and may
+alert; later messages in that burst remain individually countable but are
+`suppressed`, not OS-owned.
+
+#### 4.11.5 · SCENARIO-FIRST MACHINE AND LIVE GATES
+
+Before any deployment, tests must drive the product's real event words and
+browser lifecycle rather than invoke internal helpers with manufactured state.
+Every row must have a paired planted defect proving the assertion can fail:
+
+1. hidden while still routed to the event room → event arrives → socket loss →
+   simultaneous visibility and focus → relay/listener reopen → replay; the
+   event remains unseen exactly once until explicit room open;
+2. ordinary bare caller hang-up before receiver answer; the receiver becomes
+   missed exactly once while caller termination remains separate;
+3. simultaneous visibility/focus/online signals and repeated open callbacks;
+   only one current socket per lane and one reconciliation transaction exist;
+4. room-listener reopen without relay traffic or peer hello; home becomes
+   current immediately;
+5. foreground grant, hidden OS request, mute, burst suppression, late readiness,
+   retry, socket-plus-push replay, and process restart; each leaves one truthful
+   presentation path and one exact home projection;
+6. warm and cold notification taps for active and ended calls; both reach the
+   exact existing product surface without a duplicate; and
+7. full baseline parity: QR/install, restart, Deepgram transcription, direct
+   and TURN media, phrasebook, threads, deletion/restore, and existing storage
+   all work without a new secret or credential path.
+
+The pre-deployment gate also rejects any changed frozen input, any R10.5/R10.6
+source or provider mechanism, any second event ledger/counted set, any
+replay-time route inference, any harness-invented missed reason, and any output
+outside the three declared files. Live probes must use only the baseline's
+existing services and prove relay connect, real encrypted push POST, retry
+dedupe, bare-hang-up recipient outcome, listener/relay reopen reconciliation,
+and deployed-byte identity. Machine or live results never claim physical OS
+display time.
+
+Read-only diagnostics are fields and transitions from the same recipient-event
+record. They may explain sender creation, relay write, presentation choice,
+push request result, lifecycle, exact surface acknowledgement, outcome, and
+home projection, with secrets redacted. They cannot hold independent state,
+change eligibility/timing/routing, or become a separate instrumentation
+release.
+
+#### 4.11.6 · OWNER DEVICE GATE — UNCHANGED CANDIDATE, BOTH DIRECTIONS
+
+Only after every machine and live gate passes does the owner receive one URL
+for one unchanged candidate. Run the matrix with iPhone receiving from Android
+and Android receiving from iPhone. Each row records event ID, sender time,
+tester-observed receiver time, expected/actual surface, tap destination,
+recipient outcome, counter before/after, and any second surface within 60
+seconds.
+
+| # | Case | Required result |
+|---:|---|---|
+| 1 | Unmuted chat, visible same room | Existing bubble only; no added attention, OS alert, or home increment |
+| 2 | Unmuted chat, visible home/other room | One in-app waiting card/badge; no OS alert; exact +1 chat |
+| 3 | Unmuted chat, locked | One OS alert ≤5s; exact +1 chat until room open |
+| 4 | Three locked chats inside one burst | One OS alert total; exact +3 chat |
+| 5 | Muted chat, locked | No attention or OS alert; exact +1 chat and badge on open |
+| 6 | Unmuted call, app visible | One in-app Accept/Decline surface; no OS alert |
+| 7 | Locked call tapped while active, accepted | One OS alert ≤5s; tap opens active call; no missed count or second surface |
+| 8 | Locked call ends before notification tap | One OS alert total; tap opens the room and durable missed voice/video outcome |
+| 9 | Caller hangs up before receiver answers | Receiver gets exactly one missed voice/video home record; no replayed ring |
+| 10 | Receiver declines | Durable declined outcome opens in the correct room; no missed increment |
+| 11 | Muted call ends unanswered | No attention or OS alert; exact +1 voice/video missed count and badge |
+| 12 | Return after socket loss/lock while app remains routed to that room | Home immediately shows every unseen chat/call once; no peer traffic required |
+
+Across call rows, test both voice and video and reverse their assignment in the
+opposite direction. Pass requires all 12 rows in both directions: correct
+surface, destination, outcome, and count; OS alert within five seconds where
+required; transcription/media/credential parity; and no double, flurry, or
+late second surface for 60 seconds. The first failure rejects and rolls back
+the entire app/worker/relay pair. The diagnostic record is used by development;
+the owner is not sent a diagnostic-only retry.
+
+#### 4.11.7 · ORDERED EXECUTION AND STOP CONDITIONS
+
+The repository gate enforces: completed root cause → this pinned plan → new
+explicit owner GO → clean build → candidate gates → owner device gate →
+acceptance. Until owner GO is banked, no product file may change. After GO,
+implementation is one clean replacement of the failed concern from the frozen
+baseline, not a series of symptom patches. Internal failing invariants are
+corrected before a candidate exists; they do not become releases.
+
+Before handoff, the app, worker, and relay deploy as one candidate and are
+verified byte-for-byte. Any machine, live, or device failure rejects the whole
+pair and restores all three frozen R10.2/v4.2 product files. The failed
+candidate is preserved as evidence, the graveyard and whole-release root cause
+are completed, and a new plan/GO cycle is required. There is no patch-forward,
+partial acceptance, secret-configuration detour, or same-candidate retry.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -1401,6 +1615,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.9.0 · 2026-08-30.** PR #647 banked the whole-release root cause and
+advanced the fail-closed repository state to `plan_required`. §4.11 now defines
+R10-CR1 as the sole clean-replacement proposal: exact R10.2/v4.2 inputs, one
+durable recipient-event authority, recipient-specific call outcomes, one
+single-flight recovery transaction, truthful presentation/push/seen facts,
+scenario-first lifecycle gates, the unchanged 12-row two-device acceptance
+matrix, and whole-pair rollback on the first failure. The R10.5/R10.6 source,
+tests, instrumentation layer, opaque authorization, provider-token services,
+new secrets, and credential diagnosis remain buried. No product file, service,
+secret, URL, or deployment changed. This plan advances governance only to
+`owner_go_required`; no corrective build authorized until a new explicit owner
+GO is recorded.
 
 **v20.8.2 · 2026-08-30.** Owner correction applied: rejecting R10.6 means
 restoring the credential-working R10.2/v4.2 baseline, not repairing R10.6,
