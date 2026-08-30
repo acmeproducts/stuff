@@ -1,0 +1,50 @@
+name: TalkBridge R10-CR1 candidate gates
+
+on:
+  pull_request:
+    paths:
+      - 'bridge-turn24-post-ship.html'
+      - 'tb-sw.js'
+      - 'talkbridge/worker-talk.js'
+      - 'talkbridge/parts/r10-cr1-*.js'
+      - 'talkbridge/build/*r10-cr1*.mjs'
+      - 'package.json'
+      - '.github/workflows/talkbridge-r10-cr1.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bridge-turn24-post-ship.html'
+      - 'tb-sw.js'
+      - 'talkbridge/worker-talk.js'
+      - 'talkbridge/parts/r10-cr1-*.js'
+      - 'talkbridge/build/*r10-cr1*.mjs'
+      - 'package.json'
+      - '.github/workflows/talkbridge-r10-cr1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Enforce TalkBridge release state
+        env:
+          TALKBRIDGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node talkbridge/build/governance-gate.mjs --base "$TALKBRIDGE_BASE_SHA"
+      - name: Frozen input and byte-identical assembly
+        run: node talkbridge/build/assemble-r10-cr1.mjs --check
+      - name: Relay scenarios (real product words, real Durable Object)
+        run: node talkbridge/build/harness-relay-r10-cr1.mjs
+      - name: App scenarios (assembled bytes, browser lifecycle, real relay authority)
+        run: |
+          npm i jsdom@24 --no-save --package-lock=false >/dev/null 2>&1
+          node talkbridge/build/harness-r10-cr1.mjs
+      - name: Planted defects must fail
+        run: node talkbridge/build/mutate-r10-cr1.mjs

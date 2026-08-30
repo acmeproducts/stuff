@@ -27,6 +27,13 @@ jobs:
         env:
           TALKBRIDGE_BASE_SHA: ${{ github.event.before }}
         run: node talkbridge/build/governance-gate.mjs --base "$TALKBRIDGE_BASE_SHA"
+      - name: Candidate gates (R10-CR1)
+        run: |
+          npm i jsdom@24 --no-save --package-lock=false >/dev/null 2>&1
+          node talkbridge/build/assemble-r10-cr1.mjs --check
+          node talkbridge/build/harness-relay-r10-cr1.mjs
+          node talkbridge/build/harness-r10-cr1.mjs
+          node talkbridge/build/mutate-r10-cr1.mjs
       - name: Deploy
         working-directory: talkbridge
         env:
@@ -41,7 +48,7 @@ jobs:
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
           curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
-          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='4.2'||d.obs!==undefined)throw new Error('live R10.2 rollback manifest mismatch: '+JSON.stringify(d))"
+          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='5.0-cr1'||d.obs!==undefined||!d.ev)throw new Error('live R10-CR1 manifest mismatch: '+JSON.stringify(d))"
           cat /tmp/live-check.txt
           cat /tmp/live-manifest.txt
       - name: WebSocket handshake + delivery-contract check
@@ -73,6 +80,21 @@ jobs:
             console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
             console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
             console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
+            /* R10-CR1 §4.11.5: bare hang-up recipient outcome + reconciliation roundtrip against the live authority */
+            a.send(JSON.stringify({type:'call-start',from:'ciA',kind:'voice',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,600));
+            const ringing=await post('ciB',{type:'events-sync'});
+            console.log('cr1-offered-presented-not-counted='+((ringing&&ringing.proj&&ringing.proj.voice===0&&ringing.unseen&&ringing.unseen.some(u=>u.o==='offered'))?'ok':'FAIL '+JSON.stringify(ringing)));
+            a.send(JSON.stringify({type:'call-end',from:'ciA',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,600));
+            const missed=await post('ciB',{type:'events-sync'});
+            console.log('cr1-bare-hangup-missed-once='+((missed&&missed.proj&&missed.proj.voice===1&&missed.proj.chat===2)?'ok':'FAIL '+JSON.stringify(missed&&missed.proj)));
+            const again=await post('ciB',{type:'events-sync'});
+            console.log('cr1-sync-idempotent='+((again&&again.proj&&again.proj.voice===1&&again.proj.chat===2)?'ok':'FAIL'));
+            const ack=await post('ciB',{type:'event-seen',ids:(missed&&missed.unseen||[]).map(u=>u.id)});
+            console.log('cr1-explicit-open-clears='+((ack&&ack.proj&&ack.proj.voice===0&&ack.proj.chat===0)?'ok':'FAIL '+JSON.stringify(ack&&ack.proj)));
+            const getr=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=ciB&events=1`).then(r=>r.json()).catch(()=>null);
+            console.log('cr1-readonly-reconciliation='+((getr&&getr.proj&&getr.proj.voice===0)?'ok':'FAIL'));
             a.close();b.close();
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
@@ -84,6 +106,11 @@ jobs:
           grep -qx 'wake-attempted=ok' /tmp/ws-check.txt
           grep -Eq '^wake-status=[0-9]+$' /tmp/ws-check.txt
           grep -qx 'wake-not-targeted-at-unsubscribed-live=ok' /tmp/ws-check.txt
+          grep -qx 'cr1-offered-presented-not-counted=ok' /tmp/ws-check.txt
+          grep -qx 'cr1-bare-hangup-missed-once=ok' /tmp/ws-check.txt
+          grep -qx 'cr1-sync-idempotent=ok' /tmp/ws-check.txt
+          grep -qx 'cr1-explicit-open-clears=ok' /tmp/ws-check.txt
+          grep -qx 'cr1-readonly-reconciliation=ok' /tmp/ws-check.txt
           if [ -n "${{ github.event.inputs.diag_session }}" ]; then
             curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
             echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt

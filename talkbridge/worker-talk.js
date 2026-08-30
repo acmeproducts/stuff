@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v4.2 ALWAYS-PUSH (plan v20.0.0 §4.6)\n   Lineage: ship R7 body + v4 RFC 8291 delivery class (e416a70), MINUS every\n   form of server-side presence inference (abandoned index A1-A3).
+   TALK RELAY — worker-talk.js  ·  v5.0-cr1 RECIPIENT-EVENT AUTHORITY (plan v20.9.0 §4.11)\n   Lineage: ship R7 body + v4 RFC 8291 delivery class (e416a70), MINUS every\n   form of server-side presence inference (abandoned index A1-A3).
 
    Everything the existing relay did is unchanged: the same route, the same
    session addressing, the same broadcast, the same history and transient
@@ -202,12 +202,24 @@ export class TalkSession {
     this.messages = [];
     this.lastActivity = 0;
     this.subs = {};                     /* clientId -> { sub, at } */
+    /* §4.11.2 — ONE recipient-event authority. One durable record per event and
+       recipient device; sole truth for presentation, push result, seen state,
+       recipient call outcome, and the home projection. */
+    this.events = {};                   /* eventId -> record */
+    this.roster = {};                   /* clientId -> lastSeenTs (devices that belong to this room) */
+    this.activeCall = null;             /* eventId of the open call event, if any */
+    this.lastChatPush = {};             /* clientId -> ts of last chat push (10s room burst) */
+    this.sessionId = '';
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'roster', 'activeCall', 'sessionId']);
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
       this.lastActivity = Number(stored.get('lastActivity')) || 0;
       this.subs = stored.get('subs') || {};
+      this.events = stored.get('events') || {};
+      this.roster = stored.get('roster') || {};
+      this.activeCall = stored.get('activeCall') || null;
+      this.sessionId = stored.get('sessionId') || '';
     });
   }
 
@@ -233,7 +245,7 @@ export class TalkSession {
   }
 
   _broadcast(payload, skipClientId) {
-    const text = JSON.stringify(payload);
+    const text = JSON.stringify(payload, (k, v) => (k === '_evtId' ? undefined : v));
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
       if (tag && tag.clientId === skipClientId) continue;
@@ -262,8 +274,12 @@ export class TalkSession {
     const keys = rec && rec.sub && rec.sub.keys;
     if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
     let body;
+    const ev = rec && rec._evt;
+    const payload = ev
+      ? { t: 'tb-evt', at: Date.now(), room: this.sessionId, id: ev.id, kind: ev.kind, call: ev.kind !== 'chat' ? (ev.ended ? 'ended' : 'active') : undefined }
+      : { t: 'tb-wake', at: Date.now() };
     try {
-      body = await webpushEncrypt(JSON.stringify({ t: 'tb-wake', at: Date.now() }), keys.p256dh, keys.auth);
+      body = await webpushEncrypt(JSON.stringify(payload), keys.p256dh, keys.auth);
     } catch (_) { return; }
     const headers = {
       TTL: '60', Urgency: 'high', Topic: 'tb-wake',
@@ -275,6 +291,7 @@ export class TalkSession {
     try {
       const res = await fetch(endpoint, { method: 'POST', headers, body });
       this.lastWake = { clientId, at: Date.now(), status: res.status };
+      if (rec && rec._evt) this._recordPush(rec._evt.id, clientId, res.status >= 200 && res.status < 300 ? 'accepted' : 'failed');
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
          Keeping it would mean retrying forever against nothing. */
       if (res.status === 404 || res.status === 410) {
@@ -291,6 +308,7 @@ export class TalkSession {
   async _wakeOthers(msg, senderId) {
     if (!PUSH_WORTHY.has(msg.type)) return;
     const now = Date.now();
+    const evt = msg._evtId ? this.events[msg._evtId] : null;
     const jobs = [];
     for (const [clientId, rec] of Object.entries(this.subs)) {
       if (clientId === senderId) continue;
@@ -298,9 +316,170 @@ export class TalkSession {
         delete this.subs[clientId];
         continue;
       }
-      jobs.push(this._pushOne(clientId, rec));
+      /* §4.11.4 room burst: the first chat after ten quiet seconds may alert;
+         later chats in the burst stay individually countable but are
+         'suppressed', never claimed as OS-owned. Calls always alert. */
+      if (evt && evt.kind === 'chat') {
+        const last = this.lastChatPush[clientId] || 0;
+        if (now - last < 10000) {
+          this._setPresentation(evt.id, clientId, 'suppressed');
+          continue;
+        }
+        this.lastChatPush[clientId] = now;
+      }
+      if (evt) this._setPresentation(evt.id, clientId, 'os_requested');
+      jobs.push(this._pushOne(clientId, evt ? Object.assign({ _evt: evt }, rec) : rec));
     }
     if (jobs.length) await Promise.all(jobs);
+  }
+
+  /* ── §4.11.2/4.11.3 · the recipient-event authority ─────────────────────── */
+  _touchRoster(clientId) {
+    if (!clientId) return false;
+    const isNew = !this.roster[clientId];
+    this.roster[clientId] = Date.now();
+    if (isNew) this.state.storage.put({ roster: this.roster });
+    return isNew;
+  }
+
+  async _saveEvents() {
+    await this.state.storage.put({ events: this.events, roster: this.roster, activeCall: this.activeCall });
+  }
+
+  _newRecord(id, kind, from, ts, extra) {
+    if (this.events[id]) return this.events[id];   /* retry reuses identifiers */
+    const rcp = {};
+    for (const clientId of Object.keys(this.roster)) {
+      if (clientId === from) continue;
+      rcp[clientId] = { p: 'pending', u: 'not_requested', s: 0, st: 0, o: kind === 'chat' ? undefined : 'offered' };
+    }
+    const rec = Object.assign({ id, kind, from, ts, ended: false, rcp }, extra || {});
+    this.events[id] = rec;
+    this._pruneEvents();
+    return rec;
+  }
+
+  _pruneEvents() {
+    const ids = Object.keys(this.events);
+    if (ids.length <= 300) return;
+    ids.sort((a, b) => (this.events[a].ts || 0) - (this.events[b].ts || 0));
+    const allSeen = (r) => Object.values(r.rcp).every((x) => x.s === 1 || x.o === 'missed' ? x.s === 1 : true);
+    for (const id of ids) {
+      if (Object.keys(this.events).length <= 300) break;
+      if (allSeen(this.events[id])) delete this.events[id];
+    }
+    for (const id of ids) {
+      if (Object.keys(this.events).length <= 300) break;
+      delete this.events[id];
+    }
+  }
+
+  _setPresentation(eventId, clientId, p) {
+    const rec = this.events[eventId];
+    if (!rec || !rec.rcp[clientId]) return;
+    const cur = rec.rcp[clientId].p;
+    /* suppressed and muted can never be relabelled OS-owned */
+    if ((cur === 'suppressed' || cur === 'muted') && p === 'os_requested') return;
+    rec.rcp[clientId].p = p;
+  }
+
+  _recordPush(eventId, clientId, u) {
+    const rec = this.events[eventId];
+    if (!rec || !rec.rcp[clientId]) return;
+    rec.rcp[clientId].u = u;
+    this.state.storage.put({ events: this.events }).catch?.(() => {});
+  }
+
+  /* Product words drive the authority. No harness-only words exist. */
+  async _recordEvent(msg, senderId) {
+    this._touchRoster(senderId);
+    this._closeStaleCalls();
+    const t = msg.type;
+    if (t === 'chat-msg' && msg.chatId) {
+      msg._evtId = 'chat:' + msg.chatId;
+      this._newRecord(msg._evtId, 'chat', senderId, msg.ts);
+    } else if (t === 'call-start') {
+      const kind = msg.kind === 'video' ? 'video' : 'voice';
+      const id = 'call:' + senderId + ':' + msg.ts;
+      this.activeCall = id;
+      msg._evtId = id;
+      this._newRecord(id, kind, senderId, msg.ts, { callId: id });
+    } else if (t === 'call-accept') {
+      const rec = this.activeCall && this.events[this.activeCall];
+      if (rec && rec.rcp[senderId] && rec.rcp[senderId].o === 'offered') {
+        rec.rcp[senderId].o = 'accepted'; rec.rcp[senderId].s = 1; rec.rcp[senderId].st = Date.now();
+      }
+    } else if (t === 'call-decline') {
+      const rec = this.activeCall && this.events[this.activeCall];
+      if (rec && rec.rcp[senderId] && rec.rcp[senderId].o === 'offered') {
+        rec.rcp[senderId].o = 'declined'; rec.rcp[senderId].s = 1; rec.rcp[senderId].st = Date.now();
+        rec.ended = true; this.activeCall = null;
+      }
+    } else if (t === 'call-end') {
+      /* §4.11.3: caller/global termination and receiver outcome are separate
+         facts. The ordinary product's BARE call-end makes every still-offered
+         receiver 'missed' exactly once — no reason word is consulted. */
+      const rec = this.activeCall && this.events[this.activeCall];
+      if (rec && !rec.ended) {
+        this._closeCall(rec);
+        msg._evtId = rec.id;
+      }
+      this.activeCall = null;
+    } else if (PUSH_WORTHY.has(t)) {
+      msg._evtId = 'other:' + t + ':' + (msg.ts || Date.now()) + ':' + senderId;
+      this._newRecord(msg._evtId, 'other', senderId, msg.ts);
+    }
+    await this._saveEvents();
+  }
+
+  _closeCall(rec) {
+    if (rec.ended) return;
+    rec.ended = true;
+    for (const state of Object.values(rec.rcp)) {
+      if (state.o === 'offered') state.o = 'missed';   /* unseen: counts until room open */
+    }
+  }
+
+  _closeStaleCalls() {
+    const now = Date.now();
+    for (const rec of Object.values(this.events)) {
+      if ((rec.kind === 'voice' || rec.kind === 'video') && !rec.ended && now - (rec.ts || 0) > 120000) {
+        this._closeCall(rec);
+        if (this.activeCall === rec.id) this.activeCall = null;
+      }
+    }
+  }
+
+  /* Idempotent projection of unseen recipient records (§4.11.2). Socket
+     delivery, push, tap navigation, replay, retry, restart, and repeated
+     reconciliation of the same event all produce this same single answer. */
+  _syncFor(clientId) {
+    this._touchRoster(clientId);
+    this._closeStaleCalls();
+    const proj = { chat: 0, voice: 0, video: 0 };
+    const unseen = [];
+    for (const rec of Object.values(this.events)) {
+      const st = rec.rcp[clientId];
+      if (!st || st.s === 1) continue;
+      if (rec.kind === 'chat') { proj.chat += 1; unseen.push({ id: rec.id, kind: rec.kind, ts: rec.ts, from: rec.from }); }
+      else if (rec.kind === 'voice' || rec.kind === 'video') {
+        if (st.o === 'missed') { proj[rec.kind] += 1; unseen.push({ id: rec.id, kind: rec.kind, ts: rec.ts, from: rec.from, o: st.o }); }
+        else if (st.o === 'offered' && !rec.ended) unseen.push({ id: rec.id, kind: rec.kind, ts: rec.ts, from: rec.from, o: 'offered' });
+      }
+    }
+    unseen.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    return { ok: true, v: '5.0-cr1', proj, unseen, seq: this.seq };
+  }
+
+  async _markSeen(clientId, ids) {
+    let changed = 0;
+    for (const id of Array.isArray(ids) ? ids : []) {
+      const rec = this.events[id];
+      const st = rec && rec.rcp[clientId];
+      if (st && st.s !== 1) { st.s = 1; st.st = Date.now(); changed += 1; }
+    }
+    if (changed) await this._saveEvents();
+    return changed;
   }
 
   async fetch(request) {
@@ -309,6 +488,9 @@ export class TalkSession {
 
     const url = new URL(request.url);
     const clientId = (url.searchParams.get('client') || '').trim();
+    const sess = (url.searchParams.get('session') || '').trim().slice(0, 128);
+    if (sess && this.sessionId !== sess) { this.sessionId = sess; await this.state.storage.put({ sessionId: sess }); }
+    if (clientId) { this._touchRoster(clientId); }
 
     if (request.headers.get('Upgrade') === 'websocket') {
       if (!clientId) return err('Missing client', 400);
@@ -319,6 +501,14 @@ export class TalkSession {
     }
 
     if (request.method === 'GET') {
+      /* §4.11.3 read-only HTTPS reconciliation against the same authority —
+         usable when a socket is unavailable; never a second state model. */
+      if (url.searchParams.get('events') === '1') {
+        if (!clientId) return err('Missing client', 400);
+        const out = this._syncFor(clientId);
+        await this._saveEvents();
+        return json(out);
+      }
       const since = Number(url.searchParams.get('since') || 0);
       const msgs = this.messages.filter((m) => {
         if (m.seq <= since) return false;
@@ -336,7 +526,27 @@ export class TalkSession {
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'diag') {
-        return json({ ok: true, v: '4.2', connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake });
+        return json({ ok: true, v: '5.0-cr1', connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, ev: { n: Object.keys(this.events).length, activeCall: this.activeCall || null } });
+      }
+      if (body && body.type === 'events-sync') {
+        const out = this._syncFor(clientId);
+        await this._saveEvents();
+        return json(out);
+      }
+      if (body && body.type === 'event-seen') {
+        /* Seen changes only on the app's explicit word for exactly these events
+           (§4.11.2). A cursor or a late route can never do this. */
+        const changed = await this._markSeen(clientId, body.ids);
+        return json(Object.assign({ changed }, this._syncFor(clientId)));
+      }
+      if (body && body.type === 'event-presented') {
+        const allowed = new Set(['pending', 'in_app', 'os_requested', 'suppressed', 'muted']);
+        if (body.id && allowed.has(body.p)) {
+          this._setPresentation(body.id, clientId, body.p);
+          await this._saveEvents();
+          return json({ ok: true });
+        }
+        return err('Bad presentation');
       }
       if (body && body.type === 'vapid') {
         return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
@@ -369,12 +579,14 @@ export class TalkSession {
     const tag = ws.deserializeAttachment() || {};
     const clientId = tag.clientId || msg.from || '';
     msg.from = msg.from || clientId;
+    this._touchRoster(clientId);   /* any inbound word proves the device belongs to this room */
     msg.ts = msg.ts || Date.now();
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     await this._touchSession();
 
     if (!isTransient) {
+      await this._recordEvent(msg, clientId);
       await this._persist(msg);
     } else {
       this.seq++;
