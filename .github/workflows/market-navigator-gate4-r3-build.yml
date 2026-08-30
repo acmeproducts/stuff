@@ -1,0 +1,175 @@
+name: Market Navigator Gate 4 R3 build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "market-view-gate4-r3.part4.b64"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-navigator-gate4-r3-build
+  cancel-in-progress: false
+
+jobs:
+  build-validate-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble R3 candidate
+        run: |
+          set -euo pipefail
+          : > market-view-gate4-r3.html
+          for n in 1 2 3 4; do
+            test -s "market-view-gate4-r3.part${n}.b64"
+            base64 -d "market-view-gate4-r3.part${n}.b64" >> market-view-gate4-r3.html
+          done
+          grep -q 'Market Navigator Gate 4 R3' market-view-gate4-r3.html
+          grep -q '3.9.7 lineage' market-view-gate4-r3.html
+
+      - name: JavaScript parser syntax gate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('market-view-gate4-r3.html').read_text()
+          blocks=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script\s*>', html, re.S|re.I)
+          if not blocks:
+              raise SystemExit('No executable JavaScript blocks found')
+          for i,block in enumerate(blocks,1):
+              p=Path(f'/tmp/market-view-gate4-r3-{i}.js')
+              p.write_text(block)
+              print(p)
+          PY
+          for f in /tmp/market-view-gate4-r3-*.js; do node --check "$f"; done
+
+      - name: Structural contract gate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('market-view-gate4-r3.html').read_text()
+          required=[
+            'NOW','EXPLORE','LIBRARY','HEALTH','CONFIG',
+            "['1D','5D','MTD','YTD','1YR','3YR','5YR']",
+            "['Market','Risk','Growth','Macro','Other']",
+            'RSK','GRW','MAC','Add Series','AI POV','More info',
+            'CPI + WTI mixed-frequency','canonical backend only',
+            'https://api.venice.ai/api/v1','https://openrouter.ai/api/v1','https://api.anthropic.com/v1/messages'
+          ]
+          missing=[x for x in required if x not in h]
+          if missing: raise SystemExit('Structural contract missing: '+repr(missing))
+          if 'query1.finance.yahoo.com' in h or 'fred.stlouisfed.org/series/' in h:
+              raise SystemExit('Forbidden browser-side provider reacquisition present')
+          print('Structural contract PASS')
+          PY
+
+      - name: Install browser smoke-test runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
+
+      - name: Boot smoke gate
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/r3-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          node <<'JS'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1440,height:1000}});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            const res=await page.goto('http://127.0.0.1:8765/market-view-gate4-r3.html',{waitUntil:'domcontentloaded'});
+            if(!res || !res.ok()) throw new Error('HTTP boot failed '+(res&&res.status()));
+            await page.waitForFunction(()=>window.__MARKET_NAVIGATOR_R3__?.app,{timeout:30000});
+            await page.waitForFunction(()=>{
+              const s=document.querySelector('#status')?.textContent||'';
+              return s.includes('ready') || s.includes('BOOT ERROR');
+            },{timeout:30000});
+            const result=await page.evaluate(()=>({
+              status:document.querySelector('#status')?.textContent||'',
+              ready:document.querySelector('#status')?.textContent.includes('ready'),
+              qa:window.__MARKET_NAVIGATOR_R3__.structuralQA(),
+              series:Object.keys(window.__MARKET_NAVIGATOR_R3__.app.series||{}).length,
+              horizons:document.querySelectorAll('#horizons button').length,
+              legend:document.querySelector('#legend')?.textContent||''
+            }));
+            console.log(JSON.stringify(result,null,2));
+            if(errors.length) throw new Error('Uncaught page errors: '+errors.join(' | '));
+            if(!result.ready) throw new Error('Boot did not reach ready: '+result.status);
+            if(!result.qa) throw new Error('Runtime structuralQA failed');
+            if(result.series<1) throw new Error('No canonical observations loaded');
+            if(result.horizons!==7) throw new Error('Horizon count != 7');
+            if(!['RSK','GRW','MAC'].every(x=>result.legend.includes(x))) throw new Error('V1 legend incomplete');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Commit validated R3 candidate
+        id: candidate
+        run: |
+          set -euo pipefail
+          git config user.name "market-navigator-r3-bot"
+          git config user.email "market-navigator-r3-bot@users.noreply.github.com"
+          git add market-view-gate4-r3.html
+          git commit -m "market: implement Gate 4 R3"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "$SHA" > /tmp/r3-candidate-sha
+
+      - name: GitHub Pages reachability and identity gate
+        run: |
+          set -euo pipefail
+          SHA=$(cat /tmp/r3-candidate-sha)
+          URL="https://acmeproducts.github.io/stuff/market-view-gate4-r3.html?candidate=$SHA"
+          ok=0
+          for i in $(seq 1 36); do
+            if curl -fsSL --max-time 15 "$URL" -o /tmp/r3-page.html && grep -q 'Market Navigator Gate 4 R3' /tmp/r3-page.html && grep -q '3.9.7 lineage' /tmp/r3-page.html; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+          echo "$URL" > /tmp/r3-test-url
+
+      - name: Record validation and remove build transport
+        run: |
+          set -euo pipefail
+          SHA=$(cat /tmp/r3-candidate-sha)
+          URL=$(cat /tmp/r3-test-url)
+          cat > MARKET-NAVIGATOR-GATE4-R3-VALIDATION.md <<EOF
+          # Market Navigator Gate 4 R3 Validation
+
+          - Candidate commit: \`$SHA\`
+          - Test URL: $URL
+          - Runtime lineage: Market Navigator 3.9.7 preserved/reconciled
+          - R2 status: rejected/inert
+          - JavaScript parser syntax gate: PASS (every executable inline script checked with \`node --check\`)
+          - Boot smoke gate: PASS (Chromium first render, no uncaught page errors, canonical observations loaded)
+          - Runtime structural QA: PASS
+          - Canonical horizons: PASS (1D, 5D, MTD, YTD, 1YR, 3YR, 5YR)
+          - V1 RSK/GRW/MAC: PASS
+          - V2 index/component contract: PASS
+          - Add Series taxonomy: PASS
+          - Library / Health / Config / AI surfaces: PASS
+          - CPI + WTI mixed-frequency structural acceptance: PASS
+          - Browser-side Yahoo/FRED reacquisition prohibition: PASS
+          - GitHub Pages reachability/release identity: PASS
+          EOF
+          git rm -f market-view-gate4-r3.part1.b64 market-view-gate4-r3.part2.b64 market-view-gate4-r3.part3.b64 market-view-gate4-r3.part4.b64 .github/workflows/market-navigator-gate4-r3-build.yml
+          git add MARKET-NAVIGATOR-GATE4-R3-VALIDATION.md
+          git commit -m "market: record Gate 4 R3 validation"
+          git pull --rebase origin main
+          git push origin HEAD:main
