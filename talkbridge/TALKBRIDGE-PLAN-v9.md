@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.8.0 -->
-# TALKBRIDGE MASTER PLAN v20.8.0
+<!-- TALKBRIDGE-PLAN v20.8.1 -->
+# TALKBRIDGE MASTER PLAN v20.8.1
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 machine-gated candidate built from frozen ship; deployment/live probes and physical-device matrix remain acceptance gates | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 production attempt rejected by provider gates; whole pair restored to R10.2/v4.2; R10.6 preserved at PR #643 / commit `95cd9593` | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -84,7 +84,7 @@ overwritten with it.
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
 | 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 machine-gated candidate governed by §4.10; not device-accepted |
+| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 rejected before device handoff and rolled back after live Deepgram/TURN gates failed |
 | 11 | — | Responsive layout and collision safety | Built (candidate) |
 | 12 | — | Multi-party (3+) | Built (candidate) |
 
@@ -247,7 +247,7 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.8.0): §4.10.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.8.1): §4.10.** Sections 4.1–4.4 and 4.6 are historical
 release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
 describes rejected instrumentation-only candidate OBS1; §4.9 describes rejected
 R10.5. None is build authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`
@@ -485,14 +485,26 @@ diagnostic-only build.
 
 ### 4.10 · R10.6 — RECOVERY CONTRACT AFTER THE TWO-LOG R10.5 FAILURE (ACTIVE)
 
-**Status: R10.6 MACHINE-GATED CANDIDATE BUILT 2026-08-30; LIVE DEPLOYMENT AND
-PHYSICAL-DEVICE ACCEPTANCE ARE NOT YET CLAIMED.**
+**Status: R10.6 PRODUCTION ATTEMPT REJECTED 2026-08-30; WHOLE APP/WORKER/RELAY
+PAIR RESTORED TO R10.2/v4.2 BY v20.8.1.**
 The owner's “please proceed” is the build GO for this exact contract; the dev
 team must not ask for a duplicate authorization. R10.5 remains rejected and
 the last accepted whole pair remains the byte-verified R10.2/v4.2 rollback.
 R10.6 is a clean rebuild from `bridge-turn24-ship.html` plus explicitly named
 parts; no R10.5 source or test is a baseline. Instrumentation is included in
 the behavioral candidate and is not a separate release.
+
+**Production gate evidence:** PR #643 merged the preserved R10.6 candidate
+(`95cd9593`). The static deployment succeeded and the relay deployed. The live
+probe then passed WebSocket connect, foreground ownership, an encrypted push
+POST, ordinary caller hang-up → missed, retry dedupe, one-time invite, and
+wrong-device refusal, but failed both `deepgram-token` and `turn-credentials`.
+The deployment therefore failed before any owner/device URL was authorized.
+The result proves that production did not have usable server-side Deepgram and
+TURN credential issuance; the existing probe output does not distinguish a
+missing Worker secret from an upstream provider refusal, so the next dev-team
+run must record only the HTTP status and safe error code for each refusal. It
+must never print a credential value.
 
 **Built evidence before deployment:** clean assembly generated the app and
 worker from frozen ship plus six named parts. The gates pass 21/21 app,
@@ -512,8 +524,10 @@ Deepgram tokens and expiring TURN ICE credentials held only in memory; and one
 redacted human+machine flight snapshot. The deployment pipeline is fail-closed
 on the exact R10.6 manifest and the listed live behavior/service probes.
 
-**Remaining acceptance:** production deployment must pass every live probe,
-including real Deepgram/TURN issuance without printing values. Then the
+**Remaining acceptance:** the dev team must first install/verify the long-lived
+Deepgram API key and Cloudflare TURN key ID/API token as Worker secrets, then
+production deployment must pass every live probe, including real
+Deepgram/TURN issuance without printing values. Then the
 unchanged candidate runs §4.10.8 on physical iOS and Android. Until those gates
 pass, R10.6 is a candidate—not a completed release.
 
@@ -1398,6 +1412,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.8.1 · 2026-08-30.** R10.6 was deployed by PR #643 and rejected by its own
+fail-closed production gate before owner handoff. Seven live behaviors passed:
+WebSocket connect, foreground ownership, encrypted push POST, bare caller
+hang-up → missed, retry dedupe, one-time invite replay protection, and
+device-scoped authorization. Both provider-contract checks failed:
+`deepgram-token` and `turn-credentials`. This version restores the whole
+app/worker/relay product to R10.2/v4.2 while preserving the exact R10.6
+candidate at commit `95cd9593`. The next attempt is blocked on verified
+server-side Deepgram and Cloudflare TURN configuration plus safe status/error
+diagnostics; it is not blocked on another owner decision or another
+instrumentation-only device build.
 
 **v20.8.0 · 2026-08-30.** R10.6 is built as a machine-gated candidate from the
 frozen `bridge-turn24-ship.html` plus explicitly named P2 install handoff,
