@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.10 | 2026-08-29 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.11 | 2026-08-30 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -26,7 +26,29 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G16 | Open-ended patch-release series inside a stage (v5.7.2.1–.8) | Eight sequential user-driven patches on one stage; stage structure suspended; each fix risked regressing the last; closed only by explicit owner order | On any post-gate defect: fix at the root baseline and rebuild the stage as one release; never accrete numbered patches on a shipped stage artifact |
 | G17 | Activating engine internals inside the bridge file while its lobby/onboarding was already condemned | T08 Base attempt 1: device gate failed on the bridge's own lobby (lang-model status stuck on Pages hosting); the effort was spent on a surface scheduled for deletion, and the container/shell — the actual app — remained unbuilt | Build stages on the surface that survives: container/shell first, migrate the engine into it; never invest a gate in a surface the same turn deletes |
 | G18 | R10.5 replay-time inference: deciding whether an event was missed from the page's state when the ledger is later synchronized | Events received while hidden were treated as seen when the app returned to the same room; the cursor advanced and permanently erased missed chat/call evidence; reconnects could leave home stale until unrelated traffic arrived | Keep per-device events unseen until real-time visible presentation or an explicit user room-open acknowledgement; reconcile on every lifecycle/transport return without silently advancing unseen events |
-| G19 | Carrying raw Deepgram/TURN credentials in an ordinary QR invite and retaining them only in page memory | The iPhone kept its saved room but, after the Safari-to-installed-PWA or restart boundary, logged `dg_no_key` and `turn_unavailable {"hasCreds":false}` while text translation still worked; calls repeatedly reported transcription disabled | QR carries only a one-time opaque authorization; the installed PWA recovers that authorization through the already-proven handoff and requests short-lived service credentials when needed; never persist or expose the long-lived Deepgram/TURN secrets |
+| G19 | Treating R10.5 credential loss as a defect in the credential-working rollback baseline | The rejected/instrumented release lost Deepgram and TURN together, but the baseline was not reproduced failing; the diagnosis was promoted into a baseline redesign anyway | Reject the release as a whole and restore the exact R10.2/v4.2 baseline; no credential-path change carries forward without a baseline reproduction and a new owner-approved contract |
+| G20 | R10.6 opaque authorization plus server-issued Deepgram/TURN token fork | Added a new Worker authorization service and three new production-secret dependencies, failed both live provider gates, and was presented as requiring no owner action | Bury R10.6 whole; retain no code, provider endpoint, secret prerequisite, test, or architectural assumption from it; any later R10 build starts clean from the exact rollback baseline |
+
+## G20 — 2026-08-30 — R10.6 whole-release rejection
+
+R10.6 was not a credential repair. It replaced the baseline credential path
+with a new Worker authorization service, one-time invite exchange, temporary
+Deepgram tokens, expiring TURN credentials, and three new production-secret
+dependencies. The candidate was machine-green but failed both live provider
+checks. Those prerequisites were not disclosed when the owner was told no
+action was required.
+
+The paired `dg_no_key` and `turn_unavailable {"hasCreds":false}` evidence came
+from the rejected/instrumented release. It was never reproduced against the
+restored R10.2/v4.2 baseline. Treating it as a baseline defect and designing a
+new authorization platform was therefore an unsupported scope expansion.
+
+The whole R10.6 release is buried: app parts, worker, relay changes,
+instrumentation, provider endpoints, secrets, harness assumptions, and retry
+path. No piece earns carry-forward because another piece passed. The live
+product remains the exact R10.2/v4.2 rollback. Any future proposal begins from
+that baseline and requires a new plan and explicit owner authorization before
+code.
 
 ## RULE
 Any new failure that triggers the exit condition (build outline §VI-2) is appended here with its signature, and this file is updated in project knowledge so it persists across sessions. The graveyard is scanned at workflow step 3 and before any retry. A match = forbidden path, full stop.
@@ -1301,14 +1323,10 @@ candidate is rejected. Machine proof again did not equal the phone contract.
 - iPhone OS-display latency is a hardware observation. Correlate relay time,
   tester-supplied display time, and tap/boot time; label the inaccessible OS
   interval unknown rather than filling it with inference.
-- Restore the proven opaque-capability handoff: the invite contains a one-time,
-  non-secret authorization; the installed PWA recovers it across the iOS
-  installation boundary and exchanges it for short-lived Deepgram/TURN service
-  credentials. Long-lived provider secrets never enter QR codes or client
-  storage. Gate the exact physical path: scan QR in Safari → Add to Home Screen
-  → launch installed PWA → cold restart → accept voice/video → transcription
-  works and TURN credentials are available, without opening the original link
-  again.
+- **Superseded and buried by G20:** do not restore the proposed opaque-capability
+  or server-token handoff. The credential symptom was not reproduced against
+  the rollback baseline. Restore the exact baseline and carry no credential
+  mechanism from R10.5 or R10.6 forward.
 
 Rollback is required for the whole live app/worker/relay pair. No R10.5 source
 or test may be used as a new baseline, and no corrective implementation begins

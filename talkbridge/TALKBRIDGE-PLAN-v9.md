@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.8.1 -->
-# TALKBRIDGE MASTER PLAN v20.8.1
+<!-- TALKBRIDGE-PLAN v20.8.2 -->
+# TALKBRIDGE MASTER PLAN v20.8.2
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,7 +52,7 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 production attempt rejected by provider gates; whole pair restored to R10.2/v4.2; R10.6 preserved at PR #643 / commit `95cd9593` | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 rejected and buried whole; exact R10.2/v4.2 rollback baseline live; no corrective build authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
 | 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
@@ -84,7 +84,7 @@ overwritten with it.
 | 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
 | 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
 | 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | R10.5 rejected/rolled back; R10.6 rejected before device handoff and rolled back after live Deepgram/TURN gates failed |
+| 10 | — | Notifications and PWA | R10.5 and R10.6 rejected; exact R10.2/v4.2 baseline restored; design stopped |
 | 11 | — | Responsive layout and collision safety | Built (candidate) |
 | 12 | — | Multi-party (3+) | Built (candidate) |
 
@@ -247,25 +247,20 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.8.1): §4.10.** Sections 4.1–4.4 and 4.6 are historical
-release lineage. Section 4.7 describes failed candidate `4f574f2`; §4.8
-describes rejected instrumentation-only candidate OBS1; §4.9 describes rejected
-R10.5. None is build authority. `talkbridge/NOTIFICATION-FLIGHT-RECORDER-SPEC.md`
-remains the privacy/schema requirement for instrumentation inside the recovery
-build, not authority to publish a diagnostic-only release. Section 4.5 remains
-release law. Graveyard G18 and G19 are mandatory design vetoes.
+**ACTIVE AUTHORITY (v20.8.2): ROLLBACK ONLY; NO R10 BUILD IS AUTHORIZED.**
+Sections 4.1–4.4 and 4.6 are historical lineage. Sections 4.7, 4.8, 4.9, and
+4.10 describe rejected releases and are not build authority. The R10.6
+instrumentation, authorization, provider-token, event-state, worker, relay,
+test, and deployment designs are buried together by graveyard G20. None may be
+patched, repaired, configured, or carried forward. Section 4.5 remains release
+law. Graveyard G18–G20 are mandatory vetoes.
 
-**Source:** `bridge-turn24-ship.html` — the only device-approved base.
-**Deliverable:** ONE build, `bridge-turn24-post-ship.html`, assembled from
-ship + the parts below by one command. The artifact is output only.
 **Live rollback pair:** R10.2 app/worker blobs `a5bcd189` / `953f99de` ⟷ relay
-v4.2 source `94c391e4`, restored by PR #639 / merge `922378dd`. The next pair
-is R10.6 app + worker + relay and must ship, verify, and roll back together.
-**Active objective (§4.10):** one clean recovery build from the rollback/source
-baseline, with exact recipient state, transport-independent reconciliation,
-opaque invite authorization, short-lived Deepgram/TURN credentials, and the
-flight recorder integrated. The owner receives no diagnostic-only URL and
-does not test known-failing R10.2 or rejected R10.5 behavior again.
+v4.2 source `94c391e4`, restored again by PR #644 / merge `a82ddb63` after the
+R10.6 rejection. Live app and worker bytes were verified against those exact
+blobs; the relay deployment and v4.2 live probes passed. This is the baseline,
+not a patch target. There is no active deliverable, recovery candidate, secret
+configuration step, test URL, or owner device test.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -483,16 +478,16 @@ where an OS alert is required. One failure rejects and rolls back the pair;
 the attached trace is used by the dev team without asking the owner to rerun a
 diagnostic-only build.
 
-### 4.10 · R10.6 — RECOVERY CONTRACT AFTER THE TWO-LOG R10.5 FAILURE (ACTIVE)
+### 4.10 · R10.6 — REJECTED AND BURIED WHOLE (HISTORICAL; NOT BUILD AUTHORITY)
 
 **Status: R10.6 PRODUCTION ATTEMPT REJECTED 2026-08-30; WHOLE APP/WORKER/RELAY
-PAIR RESTORED TO R10.2/v4.2 BY v20.8.1.**
-The owner's “please proceed” is the build GO for this exact contract; the dev
-team must not ask for a duplicate authorization. R10.5 remains rejected and
-the last accepted whole pair remains the byte-verified R10.2/v4.2 rollback.
-R10.6 is a clean rebuild from `bridge-turn24-ship.html` plus explicitly named
-parts; no R10.5 source or test is a baseline. Instrumentation is included in
-the behavioral candidate and is not a separate release.
+PAIR RESTORED TO R10.2/v4.2. R10.6 IS NOT REPAIRABLE.**
+The former “please proceed” authorization was consumed by the rejected build
+and does not authorize a retry. The last accepted whole pair is the
+byte-verified R10.2/v4.2 rollback. The owner established that credential loss
+was a regression of the rejected release, not permission to redesign the
+credential-working baseline. Rejection therefore means whole-release rollback,
+not a patch to the QR path and not a new credential architecture.
 
 **Production gate evidence:** PR #643 merged the preserved R10.6 candidate
 (`95cd9593`). The static deployment succeeded and the relay deployed. The live
@@ -506,7 +501,7 @@ missing Worker secret from an upstream provider refusal, so the next dev-team
 run must record only the HTTP status and safe error code for each refusal. It
 must never print a credential value.
 
-**Built evidence before deployment:** clean assembly generated the app and
+**Historical machine evidence:** clean assembly generated the app and
 worker from frozen ship plus six named parts. The gates pass 21/21 app,
 18/18 relay, 12/12 deployment contract, and 26/26 planted defects caught. The
 relay gate includes ordinary bare caller hang-up → recipient `missed`, exact
@@ -515,21 +510,20 @@ dedupe, one-time invite replay rejection, and service authorization bound to
 the issuing device identifier. These scores prove the code paths under test;
 they do not prove Apple/Android display latency or physical TURN media.
 
-**Implemented architecture:** one durable recipient ledger; stable event/call
+**Rejected architecture:** one durable recipient ledger; stable event/call
 IDs; exact `in_app`/`os`/`muted`/`suppressed` decisions; direct encrypted
 declarative-compatible push envelope; exact warm/cold event routing;
 transport-independent HTTPS reconciliation; single-flight relay/listener and
 subscription recovery; one-time install handoff; opaque `tb_auth_v1`; fresh
 Deepgram tokens and expiring TURN ICE credentials held only in memory; and one
-redacted human+machine flight snapshot. The deployment pipeline is fail-closed
-on the exact R10.6 manifest and the listed live behavior/service probes.
+redacted human+machine flight snapshot. All of these R10.6 mechanisms and their
+tests are historical evidence only. No provider secret may be added and no
+failed live probe may be rerun to revive this candidate.
 
-**Remaining acceptance:** the dev team must first install/verify the long-lived
-Deepgram API key and Cloudflare TURN key ID/API token as Worker secrets, then
-production deployment must pass every live probe, including real
-Deepgram/TURN issuance without printing values. Then the
-unchanged candidate runs §4.10.8 on physical iOS and Android. Until those gates
-pass, R10.6 is a candidate—not a completed release.
+**No remaining acceptance exists for R10.6.** It failed and is buried. Any
+future R10 proposal requires a new plan based on the exact rollback baseline
+and a new explicit owner authorization before code. It may not assume that an
+R10.5/R10.6 symptom exists in the baseline without reproducing it there first.
 
 #### 4.10.1 · WHAT THE DEVICE EVIDENCE ESTABLISHED
 
@@ -550,11 +544,12 @@ pass, R10.6 is a candidate—not a completed release.
 4. **Recovery depended on transport accidents.** The iPhone showed concurrent
    reconnect attempts and home state appeared around later relay/peer activity.
    Durable home state must not wait for a WebSocket or unrelated message.
-5. **The invite retained the room but lost its calling authorization.** The
+5. **The rejected build observed an absent calling-credential bundle.** The
    iPhone connected a WebRTC call but logged `dg_no_key` and no TURN credentials.
-   The plain QR path held `k/tid/tok` only in page memory; restart or the
-   Safari-to-installed-PWA boundary removed them while the saved room survived.
-   This is absence, not Unicode corruption or a rejected malformed key.
+   That proves paired absence in the rejected release only. It does not prove
+   that the rollback baseline drops credentials, and the former page-memory/QR
+   diagnosis was not reproduced against that baseline. G19/G20 forbid carrying
+   that diagnosis or its replacement architecture forward.
 6. **iOS OS-display time remains a declared trace gap.** Push-service acceptance
    and later app launch do not prove when Apple displayed a declarative
    notification. The hardware observer supplies that timestamp.
@@ -630,10 +625,10 @@ home counts but no additional OS alert. Burst suppression is recorded as
    successful reopen always triggers ledger reconciliation before UI success is
    reported.
 
-#### 4.10.5 · INVITE AND CALL CREDENTIALS — RESTORE THE PROVEN HANDOFF
+#### 4.10.5 · REJECTED INVITE/TOKEN FORK — HISTORICAL ONLY; DO NOT BUILD
 
-The August 15 POC Phase 2 proved Safari invite → Add to Home Screen → installed
-PWA opaque authorization recovery. R10.6 productionizes that mechanism:
+The following was the rejected R10.6 design. It is retained only to identify
+what G20 forbids and may not be implemented or used as a future baseline:
 
 1. A QR/link contains a one-time, expiring, non-provider invite code. It never
    contains Deepgram keys, TURN token IDs/API tokens, GitHub credentials, or
@@ -662,15 +657,14 @@ PWA opaque authorization recovery. R10.6 productionizes that mechanism:
    provider-token expiry only. They never record invite codes, authorization
    values, provider tokens, API keys, or TURN passwords.
 
-Current primary implementation references:
+Historical references used by the rejected design:
 - Deepgram token authentication — https://developers.deepgram.com/guides/fundamentals/token-based-authentication
 - Deepgram grant-token API — https://developers.deepgram.com/reference/auth/tokens/grant
 - Cloudflare expiring TURN credentials — https://developers.cloudflare.com/realtime/turn/generate-credentials/
 
-This pulls only the Deepgram/TURN and invite-authorization minimum necessary
-for a working R10 call into R10.6. Release 13 retains the remaining secret
-migration, especially GitHub/PAT service actions, and must reuse this
-authorization abstraction instead of creating another one.
+This scope was incorrectly characterized as a minimum. It was a new credential
+architecture and new production dependency. G20 rejects the entire fork;
+Release 13 may not reuse it.
 
 In every R10.6 gate, “provider secret” means the long-lived Deepgram API key and
 Cloudflare TURN key ID/API token. It does not silently expand R10.6 into the
@@ -692,7 +686,7 @@ declarative display. The iOS display interval is explicitly `unknown` unless
 the tester supplies the observed display time. Instrumentation cannot alter
 eligibility, timing, routing, or counters.
 
-#### 4.10.7 · DEV-TEAM GATES BEFORE THE OWNER SEES A URL
+#### 4.10.7 · REJECTED CANDIDATE'S FORMER DEV-TEAM GATES (HISTORICAL)
 
 At the exact candidate SHA, the dev team must prove:
 
@@ -722,7 +716,7 @@ At the exact candidate SHA, the dev team must prove:
    before owner handoff. Per standing rule §0b, the owner runs the physical iOS
    and Android acceptance matrix; machine/live gates never substitute for it.
 
-#### 4.10.8 · ONE OWNER MATRIX — PASS OR WHOLE-PAIR ROLLBACK
+#### 4.10.8 · REJECTED CANDIDATE'S FORMER OWNER MATRIX (HISTORICAL)
 
 Run the same unchanged candidate with iPhone receiving from Android, then
 Android receiving from iPhone. Every row records event ID, sender time,
@@ -756,8 +750,9 @@ trace diagnoses that failure; the owner is not given a diagnostic-only retry.
 **Status: REJECTED 2026-08-28; WHOLE PAIR ROLLED BACK.** OBS1 was built and
 machine-gated, but publishing known-failing R10.2 behavior with instrumentation
 as the only product change did not satisfy the owner's authorization. The
-section is retained for lineage only. Its privacy/schema work may support
-§4.10; its standalone release architecture may not return.
+section is retained for lineage only. Its privacy/schema work does not
+authorize instrumentation in a future build; its standalone release
+architecture may not return.
 
 #### 4.8.1 · WHY OBSERVATION PRECEDES ANOTHER BEHAVIOR DESIGN
 
@@ -877,15 +872,15 @@ as `delivered` or `displayed`.
    24-direction acceptance matrix for an observation build.
 
 This was OBS1's former pass definition. It is void as a release gate: the owner
-is not asked for an OBS1 capture. Its recorder requirements now travel inside
-the §4.10 behavioral candidate.
+is not asked for an OBS1 capture. Its recorder requirements do not travel
+forward automatically.
 
 ### 4.7 · HISTORICAL FAILED RED-TEAM CONTRACT (v20.2.0; not build authority)
 
 **Status: BUILT AS 4f574f2; FAILED OWNER DEVICE MATRIX; WHOLE PAIR ROLLED BACK.** The
 normative outcome, architecture, evidence limits, machine gates, and 12-case
 device matrix live in `talkbridge/THIRD-PARTY-REVIEW-2026-08-28.md`. That
-document is retained for lineage but is superseded by §4.10. Its fixed one-
+document is retained for lineage but is superseded by the v20.8.2 rollback ruling. Its fixed one-
 second acknowledgement window and unproved cold-open handoff are buried and
 must not be tuned or rebuilt.
 
@@ -1088,8 +1083,9 @@ floor, all vendors).
 
 ### 4.5 · RELEASE LAW
 Plan approved → build → gates → deploy → byte-verify → handover. Any
-regression to ship behavior = full stop and rollback of the pair. No scope
-outside active §4.10. No repo artifacts beyond the declared build outputs and part
+regression to baseline behavior = full stop and rollback of the pair. No R10
+scope exists until a new owner-approved contract is written from the exact
+rollback baseline. No repo artifacts beyond the declared build outputs and part
 sources. The graveyard is scanned before building; buried ideas stay
 buried (browser name-carry, patch-forward, flash-then-close as primary).
 
@@ -1144,22 +1140,17 @@ and a localStorage-to-IndexedDB migration on a device with real data.
 ## 7 · RELEASE 13 — REMAINING SECRET MIGRATION, PHASE B (GOVERNED, VERY LAST)
 
 Placed at the BACK of the schedule by owner ruling 2026-08-15: runs only
-after R9, Phase A (R10), R11, and R12 are done, and only on the owner's
-explicit go. The R10.5 device failure narrowly supersedes that sequence for
-the Deepgram/TURN invite path: §4.10.5 brings the already-proven opaque device
-authorization and temporary Deepgram/TURN credentials into R10.6 because an
-invited phone cannot complete calls reliably without them. The remainder is
-still governed by:
+after R9, a passed R10, R11, and R12 are done, and only on the owner's
+explicit go. R10.5 and R10.6 do not supersede that sequence. No R10.6
+authorization or provider-token mechanism carries into Release 13. Release 13
+remains governed by:
 
     talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
 
-Remaining scope as governed (summary; the document owns the detail): migrate
-GitHub/PAT service actions and any other residual client-held provider secret
-behind the relay; finish the secret-leak audit and Phase B matrix; and reuse
-R10.6's `tb_auth_v1` authorization abstraction rather than creating a second
-identity/capability system. Phase B may harden or extend that abstraction but
-may not put raw Deepgram/TURN/provider credentials back into QR codes, URLs,
-page memory, local storage, logs, or built artifacts.
+Remaining scope is governed by that document and must be redesigned from the
+then-current accepted baseline when the owner explicitly authorizes Release 13.
+The rejected R10.6 `tb_auth_v1`, Deepgram-token, and TURN-credential services
+are not a starting point.
 
 ---
 
@@ -1280,13 +1271,11 @@ Two direction-specific books per language pair. GitHub is the source of truth;
 local storage is a disposable cache. The app never manages version numbers — it
 overwrites in place.
 
-### 1.16 Server-validated authorization is the only mechanism for capability
-There is exactly one thing that makes a device initiator-capable: a valid,
-scoped TalkBridge device authorization accepted by the relay. UI flags and
-room-role labels never grant capability. Long-lived provider secrets are
-server-side; the client receives only the opaque TalkBridge authorization and
-short-lived service credentials. Invite/grant/device descendant scope,
-revocation, delete, and restore are enforced by the authorization chain.
+### 1.16 Credential architecture is frozen at the accepted baseline
+R10.6's server-validated authorization and temporary-provider-token design is
+rejected. No credential transport, storage, QR, provider, or relay capability
+change is active. Any future change belongs to a separately approved release
+and starts by proving a defect against the then-current accepted baseline.
 
 ### 1.17 Cosmetic work goes last
 Standing rule. Cosmetic-only work with no functional impact sits behind the
@@ -1330,9 +1319,9 @@ document in the same session or it does not exist.
 |---|---|
 | Relay | `wss://talk-signal.myacctfortracking.workers.dev/signal` |
 | Relay app | `talk-say-v1` |
-| TalkBridge authorization | Opaque scoped `tb_auth_v1`; server-validated, revocable; never logged |
-| TURN credentials | Expiring ICE credentials from authenticated `/service turn-credentials`; long-lived TURN key/API token server-side |
-| Deepgram credentials | Temporary token from authenticated `/service deepgram-token`; long-lived API key server-side |
+| TalkBridge authorization | Exact R10.2 baseline contract; no R10.6 `tb_auth_v1` service |
+| TURN credentials | Exact R10.2 baseline path; no `/service turn-credentials` endpoint |
+| Deepgram credentials | Exact R10.2 baseline path; no `/service/deepgram-token` endpoint |
 | Phrasebook store | `acmeproducts/stuff` under `/phrasebook/` |
 | Language model | `/fastType/` — absolute paths, resolved against the app location |
 | Pages | deploys from `main` root, live in ~1 minute |
@@ -1413,6 +1402,17 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
+**v20.8.2 · 2026-08-30.** Owner correction applied: rejecting R10.6 means
+restoring the credential-working R10.2/v4.2 baseline, not repairing R10.6,
+patching its credential symptom, or configuring its new services. Graveyard
+G19 is corrected because the rejected release's paired Deepgram/TURN loss was
+not reproduced against the rollback baseline. G20 buries the entire R10.6
+opaque-authorization/server-token fork, including its three new production
+secret dependencies, provider endpoints, client parts, relay changes, tests,
+and deployment assumptions. PR #644 / merge `a82ddb63` already restored and
+verified the exact baseline app/worker/relay bytes. No R10 build, credential
+change, test URL, provider-secret action, or device test is authorized.
+
 **v20.8.1 · 2026-08-30.** R10.6 was deployed by PR #643 and rejected by its own
 fail-closed production gate before owner handoff. Seven live behaviors passed:
 WebSocket connect, foreground ownership, encrypted push POST, bare caller
@@ -1420,10 +1420,9 @@ hang-up → missed, retry dedupe, one-time invite replay protection, and
 device-scoped authorization. Both provider-contract checks failed:
 `deepgram-token` and `turn-credentials`. This version restores the whole
 app/worker/relay product to R10.2/v4.2 while preserving the exact R10.6
-candidate at commit `95cd9593`. The next attempt is blocked on verified
-server-side Deepgram and Cloudflare TURN configuration plus safe status/error
-diagnostics; it is not blocked on another owner decision or another
-instrumentation-only device build.
+candidate at commit `95cd9593`. Its former prescription to configure
+server-side Deepgram and Cloudflare TURN services is explicitly withdrawn and
+void under v20.8.2.
 
 **v20.8.0 · 2026-08-30.** R10.6 is built as a machine-gated candidate from the
 frozen `bridge-turn24-ship.html` plus explicitly named P2 install handoff,
