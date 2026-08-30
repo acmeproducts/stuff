@@ -1,7 +1,7 @@
-<!-- v5.8.2.41 -->
+<!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.8 | 2026-08-13 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.9 | 2026-08-29 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -25,6 +25,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G15 | Starting Pre-ship before that turn's Base is confirmed BANKED in the ledger | Turn 07 Pre-ship (CONFIG release) was built before Base was a gated, banked release — sequence violated even though the copy-forward content was harmless | Before starting any stage's build, confirm the immediately prior stage shows BANKED in RUN HISTORY; if not, stop and bank it first (Base = checksum-verified copy-forward, no rebuild) |
 | G16 | Open-ended patch-release series inside a stage (v5.7.2.1–.8) | Eight sequential user-driven patches on one stage; stage structure suspended; each fix risked regressing the last; closed only by explicit owner order | On any post-gate defect: fix at the root baseline and rebuild the stage as one release; never accrete numbered patches on a shipped stage artifact |
 | G17 | Activating engine internals inside the bridge file while its lobby/onboarding was already condemned | T08 Base attempt 1: device gate failed on the bridge's own lobby (lang-model status stuck on Pages hosting); the effort was spent on a surface scheduled for deletion, and the container/shell — the actual app — remained unbuilt | Build stages on the surface that survives: container/shell first, migrate the engine into it; never invest a gate in a surface the same turn deletes |
+| G18 | R10.5 replay-time inference: deciding whether an event was missed from the page's state when the ledger is later synchronized | Events received while hidden were treated as seen when the app returned to the same room; the cursor advanced and permanently erased missed chat/call evidence; reconnects could leave home stale until unrelated traffic arrived | Keep per-device events unseen until real-time visible presentation or an explicit user room-open acknowledgement; reconcile on every lifecycle/transport return without silently advancing unseen events |
 
 ## RULE
 Any new failure that triggers the exit condition (build outline §VI-2) is appended here with its signature, and this file is updated in project knowledge so it persists across sessions. The graveyard is scanned at workflow step 3 and before any retry. A match = forbidden path, full stop.
@@ -1185,3 +1186,96 @@ workflow; build one corrected behavioral candidate with the redacted flight
 recorder integrated as supporting infrastructure. The dev team exercises the
 recorder during preflight. The owner receives one corrected URL and uses the
 export only if a matrix cell fails.
+
+## 2026-08-29 · R10.5 candidate 13b3d9ae — REJECTED: replay-time inference erased missed state and hid lag
+
+R10.5 passed 49 app/worker checks, 25 relay/deployment checks, 22 recorder
+checks, 34/34 planted mutations, byte verification, and the live relay probe.
+The owner device run still produced substantial delayed state and an iPhone
+home screen that did not reliably show missed chat/voice/video activity. The
+candidate is rejected. Machine proof again did not equal the phone contract.
+
+### Root causes confirmed from the two device logs and shipped code
+
+1. **The ledger decided whether an event was missed at replay time, not event
+   time.** `p4LedgerSyncRoom` computed `viewingNow` from the page's state when
+   synchronization eventually ran. If the app returned from hidden while its
+   router still named that room, every event accumulated while away was marked
+   counted, the cursor advanced, and no home count was created. The iPhone
+   proves the destructive path at 00:33:56: after roughly 29 hidden minutes,
+   `p4_ledger_applied` consumed two events with chat/voice/video all zero and
+   immediately advanced the cursor to 45. Those events could never surface as
+   missed afterward.
+
+2. **Missed-call classification was global and depended on a sender word the
+   ordinary end path does not guarantee.** Relay v5.1 typed an unanswered call
+   `timed_out` only when `call-end.reason === "missed"`; otherwise a started
+   call became `canceled`. The normal teardown path sends bare `call-end`.
+   Consequently the durable ledger often had no `timed_out` event for the
+   receiver, so the app's only missed-call counter branch could not run. The
+   harness concealed this by injecting `reason:"missed"` explicitly. More
+   fundamentally, one global call outcome cannot express “caller canceled”
+   and “receiver missed an incoming attempt” at the same time.
+
+3. **The durable ledger was not integrated with every reconnect path.** R10.5
+   synchronized on boot, visibility return, and room entry, but not on each
+   relay/listener reopen. During the failed run, the user reported that the
+   iPhone home record was absent and then appeared only after the peer's
+   `hello`/history-sync cycle. Exact missed state must not wait for unrelated
+   peer traffic or a later visibility event.
+
+4. **`owner=os` did not mean that the OS presented anything.** Chat events
+   inside the ten-second burst window were committed as
+   `owner=os, reason=burst-suppressed` with push disabled. A late exact
+   `foreground-ready` then caused the same commit to be sent and logged again.
+   The Android log shows both contradictions repeatedly. A suppressed event is
+   not OS-owned; overloading that state made the “one owner” invariant and its
+   telemetry untruthful even where the visible chat itself arrived promptly.
+
+5. **The iPhone's central latency interval remained unobservable.** Apple
+   declarative Web Push displayed outside the legacy service-worker handler,
+   so the iPhone log contains subscription success and eventual tap/boot
+   navigation but no device-side push-arrived or notification-shown receipt.
+   Relay acceptance is not OS display. The recorder therefore could not prove
+   or disprove the reported display lag on the platform where lag mattered
+   most; that interval must remain an explicit trace gap, not a pass.
+
+### Buried as a class
+
+- Inferring “seen” from the room named by the router when replay occurs.
+- Advancing a durable cursor over away-period events before the app has proved
+  real-time visible presentation or the user has explicitly opened them.
+- A single global call terminal state as the source of each recipient's missed
+  call record.
+- Requiring the caller to label the receiver's attempt `missed`.
+- Calling a no-push burst decision `owner=os`.
+- Gates that manufacture `reason:"missed"` instead of exercising the app's
+  actual call-end words.
+- Claiming iPhone notification latency from push-service acceptance, a later
+  app launch, or absence of a service-worker receipt.
+
+### Replacement constraints for the later plan revision — not authorization to build
+
+- Per-device event state remains unseen until exact visible real-time handling
+  or an explicit room-open acknowledgement. Synchronization is idempotent and
+  never converts “currently routed to this room” into proof of prior viewing.
+- Reconcile on boot, focus/visibility return, every relay/listener open, and
+  notification navigation. Reconciliation updates home immediately and does
+  not depend on peer hello/history traffic.
+- Call outcome is recipient-specific: answered/declined are explicit; an
+  incoming attempt not accepted by that recipient before terminal is missed
+  for that recipient even when the caller's global outcome is canceled.
+- Presentation decisions use truthful terminal states: `in_app`, `os`,
+  `suppressed`, `muted`, or `terminal`. Only `os` may invoke push.
+- Device preflight must include: event while hidden in the currently named
+  room; socket loss/reopen while visible; caller hang-up before answer; and
+  old-event replay after cursor restart. Each must preserve exact home state
+  with no delay or double.
+- iPhone OS-display latency is a hardware observation. Correlate relay time,
+  tester-supplied display time, and tap/boot time; label the inaccessible OS
+  interval unknown rather than filling it with inference.
+
+Rollback is required for the whole live app/worker/relay pair. No R10.5 source
+or test may be used as a new baseline, and no corrective implementation begins
+until the graveyard finding is incorporated into a revised plan and the owner
+authorizes that plan.
