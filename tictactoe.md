@@ -1,4 +1,5 @@
 <plan>
+<plan>
 # tictactoe.md — Master Plan (sole authority)
 
 ## Project
@@ -49,4 +50,6 @@
 |---|---|---|
 | 2026-08-27 | DEFINE | Received repeated request to "create a html5 3d tictactie game that anyone can play with another person." Created plan; wrote Define section (purpose, users, outcomes, success criteria); logged build request in backlog; flagged open scope questions (local vs online multiplayer, CSS3D vs WebGL, extras). No code written — project is in Define. |
 | 2026-08-28 | DEFINE | Received additional build request; updated backlog count to ×5; no code written; still in Define awaiting scope decisions. |
+| 2026-08-28 | DEFINE | Awaiting clarification on multiplayer mode (local pass‑and‑play), 3D rendering choice (CSS3D vs WebGL), and whether to include extra features (AI opponent, sounds, themes) before proceeding to BUILD. |
+</plan>
 </plan>
