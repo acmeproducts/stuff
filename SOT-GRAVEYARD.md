@@ -162,8 +162,36 @@ Base-17 proved inventory and runtime health, then failed the first Windows-nativ
 
 ### Required replacement
 
-Pass dynamic path/name values through an explicit deterministic channel that does not depend on PowerShell command-line positional parsing, such as process environment variables consumed as `$env:SOT_PATH` / `$env:SOT_NAME`. Preserve the script itself as a fixed argument.
-
-The qualification harness must exercise the exact candidate helper mechanism against every Windows-readable discovered drive **before cutover**. A transport/helper failure must therefore be caught while Base-9 is still live.
+Do not use trailing positional values for WSL-to-Windows PowerShell helper transport. Qualification must exercise the exact candidate helper mechanism before cutover.
 
 Base-17 remains failed evidence only. Its automatic rollback restored accepted Base-9.
+
+---
+
+## GY-006 — Implicit Linux environment propagation into Windows PowerShell
+
+**Status:** REJECTED  
+**Evidence:** Turn 01 Base-19 pre-cutover qualification  
+**Decision date:** 2026-08-29
+
+### Rejected approach
+
+Launch Windows `powershell.exe` from a WSL Node process with `execFileSync(..., {env:{...process.env,SOT_PATH:...}})` and assume arbitrary Linux environment variables will automatically appear inside the Windows process as `$env:SOT_PATH` / `$env:SOT_NAME`.
+
+### Why it is rejected
+
+Base-19 passed clean generation, syntax, schema-4 copied-DB preflight, Windows inventory `C,D,F,I,Q`, and Windows `Test-Path` readability for all five drives. The exact generated helper then failed before cutover on `C:` because PowerShell saw `$env:SOT_PATH` as null. No candidate runtime was installed and Base-9 remained live.
+
+This is a WSL process-boundary transport defect, not a drive discovery, drive readability, or F:/I: defect. WSL does not guarantee arbitrary Linux environment variables are exported into launched Windows processes without an explicit interoperability mechanism.
+
+### Do not repeat
+
+Do not rely on implicit environment propagation across WSL -> Windows process launch. Do not solve this by adding hidden machine-level WSLENV configuration or by changing the user's Windows/WSL environment merely to satisfy SOT.
+
+### Required replacement
+
+Use standard input as the explicit cross-boundary data channel. Node supplies the path or a JSON payload through `execFileSync(..., {input: ...})`; a fixed PowerShell command reads `[Console]::In.ReadToEnd()` and, where multiple values are required, parses JSON with `ConvertFrom-Json`.
+
+The next candidate must directly generate this transport from clean Base-3 and mechanically prove existence, enumeration, and folder creation through the exact generated helpers before cutover.
+
+Base-19 remains failed evidence only. The failure archive is `SOT/archive/2026-08-29-2235-turn01-base19-wsl-env-transport-failure/ARCHIVE-MANIFEST.md`.
