@@ -1,7 +1,7 @@
 # SOT Graveyard
 
 **Status:** AUTHORITATIVE REJECTED-APPROACH RECORD  
-**Updated:** 2026-08-29  
+**Updated:** 2026-08-30  
 **Repository:** `acmeproducts/stuff`
 
 This document records architectural and implementation approaches that have been rejected so they are not silently reintroduced in later SOT work.
@@ -195,3 +195,49 @@ Use standard input as the explicit cross-boundary data channel. Node supplies th
 The next candidate must directly generate this transport from clean Base-3 and mechanically prove existence, enumeration, and folder creation through the exact generated helpers before cutover.
 
 Base-19 remains failed evidence only. The failure archive is `SOT/archive/2026-08-29-2235-turn01-base19-wsl-env-transport-failure/ARCHIVE-MANIFEST.md`.
+
+---
+
+## GY-007 — Split Source versus Target/Backup storage authority
+
+**Status:** REJECTED  
+**Evidence:** Turn 01 Base-20 owner test  
+**Decision date:** 2026-08-30
+
+### Rejected approach
+
+Use the corrected Windows-discovered `/turn01/volumes` + Windows-native `/turn01/fs` path for Target/Backup while leaving Source selection and Source preflight on the older WSL-only `/fs`, `roots()`, `mountInfo()`, `fs.statSync()` and `fs.accessSync()` path.
+
+Also rejected: re-running dynamic drive discovery on every destination-folder navigation and using WSL filesystem statistics as the authoritative capacity source for Windows drives.
+
+### Why it is rejected
+
+Base-20 mechanically proved all Windows drives `C,D,F,I,Q` were readable and Windows-native browsing worked before and after cutover, including F: and I:. Owner testing then exposed three contradictions:
+
+- Target/Backup could see F: and I: but showed zero free space and visibly rescanned on repeated navigation.
+- Existing Sources already assigned to F: failed preflight.
+- Source selection omitted F: and I: entirely.
+
+Source and destination therefore still had separate definitions of storage availability. This directly violates the one-inventory architecture required by GY-001/GY-003 and the Base plan.
+
+### Do not repeat
+
+Do not:
+
+- keep Source on legacy `/fs` while Target/Backup use `/turn01/volumes` and `/turn01/fs`;
+- preflight Windows Sources through WSL mount equality or Node-only stat/access checks when the canonical Windows-native helper can validate them;
+- call Windows drive discovery again for every folder navigation inside one picker session;
+- report Windows drive free space as zero merely because WSL `statfs` cannot interrogate the volume.
+
+### Required replacement
+
+The next Base rebuild must use one shared storage authority for Source, Target, Backup, and Source preflight:
+
+1. a single Windows-discovered inventory snapshot reused throughout a picker session;
+2. Windows-native folder existence/enumeration for all Windows-backed Source/Target/Backup paths;
+3. Windows-native free/total capacity data for Windows volumes;
+4. Source picker driven by the same `/turn01/volumes` + `/turn01/fs` contract as destinations;
+5. Source preflight validating Windows Sources through the same Windows-native existence/readability authority;
+6. qualification proving Source and destination inventories are identical and that a Source on F:/I: preflights successfully.
+
+Base-20 remains rejected owner-gate evidence only. Failure archive: `SOT/archive/2026-08-30-0248-turn01-base20-owner-failure/ARCHIVE-MANIFEST.md`.
