@@ -42,26 +42,34 @@ Canonical transparent definition: `data/market-backend/derived-index-definition.
 
 There are three derived indices only: **Risk, Growth, Macro**. **Market is a container, not a fourth score.** Components/direction are explicit, equal-weighted and reproducible; no inherited opaque historical weighting.
 
-## 6. Five chart views
+### Semantic index colors
+The three top-level indices carry intentional semantic colors across the product:
+- **Risk = red**
+- **Growth = blue**
+- **Macro = white / neutral**
+
+These colors are not an arbitrary palette. Red, green and yellow are reserved for places where their conventional semantic meaning is intentional. Ordinary component-series colors must use a non-semantic comparison palette unless the series itself has an approved semantic identity.
+
+## 6. Five chart states
 
 ### V1 — Market
-Risk, Growth and Macro appear together on the common engine, rebased to 100 at the selected horizon start. V1 is the persistent upper Now chart.
+Risk, Growth and Macro appear together on the common engine, rebased to 100 at the selected horizon start. V1 is the default Now surface.
 
-Its `[RSK] [GRW] [MAC]` pills are **context selectors for V2**, not navigation away from V1. Selecting Risk, Growth or Macro leaves V1 visible and unchanged while replacing the content of the persistent V2 chart below with the chosen index's components.
+**No index is selected by default.** Risk, Growth and Macro are peers in the Market view. A line/pill may become the active inspection target for crosshair purposes without becoming the navigation/context selection.
 
-There is therefore **no V1 → V2 page/view transition**. The relationship is **V1 controls V2 within Now**.
+Selecting Risk, Growth or Macro transitions the primary context from **Market (V1)** to the selected **Index (V2)**. On portrait mobile, V1 does not remain as a competing chart behind or above V2. V2 becomes the visible analytical context for the next drill-down.
 
 ### V2 — Index
-V2 is the persistent lower Now chart beneath V1. It shows all components of whichever Risk/Growth/Macro index is selected in V1, using the common engine and oriented Indexed-100 comparison.
+V2 shows all components of the selected Risk/Growth/Macro index, using the common engine and oriented Indexed-100 comparison.
 
-Persistent colored component pills map directly to lines. Selecting a V2 component is the first actual drill-down transition: it launches **V3 in Explore** on that exact canonical series.
+V2 is the **context surface** for component investigation. Persistent colored component pills map directly to lines. Selecting a V2 component launches **V3 in Explore** on that exact canonical series.
 
-Changing the V1 index context replaces V2's component set and clears any V2 point-inspection state. It never removes or replaces V1.
+V2 retains a clear breadcrumb/back affordance to Market and enough index identity that the user understands the parent context.
 
 ### V3 — Component
 One canonical source series, large format, native values/units, all horizons, full axes, point inspection/crosshair, source/frequency/status metadata, Data, Statistics, POV, Export and Save.
 
-**V3 is a drill-down from V2; it is not the next peer chart in a V1→V2→V3 slideshow. V2 supplies context; V3 investigates the selected V2 component.** V3's title must retain enough parent/index context that the user knows what was drilled into and from where.
+**V3 is a drill-down from V2; it is not the next peer chart in a V1→V2→V3 slideshow. V2 supplies context; V3 investigates the selected V2 component.** V3's title/breadcrumb must retain enough parent/index context that the user knows what was drilled into and from where.
 
 ### V4 — Multi-series / paved-road comparison
 V3 becomes V4 when series are added. The engine automatically chooses the least-transformative valid representation:
@@ -143,28 +151,30 @@ Rendering optimization may not alter canonical observations used by point inspec
 Monthly CPI and daily market series can share a current X-axis without pretending they share observation cadence. CPI's line stops at its latest real published observation; a faster series such as WTI may continue into a later month/current market date. The common X-axis spans the selected analytical range; **each line terminates at its own latest real observation**. The chart exposes each series' latest actual observation date and never stretches, interpolates, or carries forward a slower source merely for visual continuity.
 
 ## 12. NOW
-Now opens at 5D and is a persistent two-level report:
+Now opens at 5D on **V1 Market**, with no index selected.
 
-**Upper:** V1 Market chart + Market AI POV.
+On portrait mobile, Now uses progressive disclosure rather than simultaneously stacking Market and Index charts:
 
-**Lower:** V2 selected-index component chart + selected-index AI POV.
+**Market (V1) → tap Risk/Growth/Macro → selected Index (V2).**
 
-V1 and V2 coexist. Selecting `RSK / GRW / MAC` in V1 changes only the V2 context below. It is not navigation and does not replace V1.
+The selected V2 Index is now the visible analytical context. Back returns to V1 Market. Selecting a component in V2 opens V3 in Explore.
 
-Only selecting a component in V2 leaves Now and opens V3 in Explore.
+Every V1/V2 context includes an AI interpretation layer in the information architecture. During UX prototyping this may be representative static copy, but its placement, hierarchy and affordances must be testable.
 
 ## 13. EXPLORE / Analysis workspace
 Explore is a workspace, not a second chart engine.
 
 **Now V2 component → V3 → add series → automatic V4 → deliberate V5 when needed → Data/Statistics/POV → Save**.
 
-The transition into V3 preserves the selected V2 component identity and parent index context. Returning to Now restores the V1/V2 contextual report rather than treating V3 as its successor.
+The transition into V3 preserves the selected V2 component identity and parent index context. Returning from V3 returns to that V2 index context; returning again returns to Market.
 
 ## 14. Statistics and correlation
 Statistics are tied to exact analytical state. Correlation is a first-class artifact containing series pair, coefficient, range, alignment/frequency, observation count, transformation, method and appropriate visualization. Correlation is association, not causation.
 
 ## 15. AI POV
 POV is an interrogable argument grounded in exact active evidence state. Changing series, horizon/range or transformation makes prior POV stale until re-evaluated. Challenges are tested against evidence.
+
+The AI layer must be represented during UX design, not bolted on after chart implementation. At minimum the user must be able to see a concise **What changed / Why it matters** interpretation and expand into evidence/deeper interrogation without permanently reducing the chart surface.
 
 ## 16. LIBRARY
 Library is persistent living research, not favorites/archive. Omnisearch, saved/recent analyses and New Analysis live here. Saving preserves series, chart/horizon/range/axis state, provenance, statistics/correlations, POV/interrogation and recoverable history.
@@ -178,52 +188,68 @@ Health exposes evidence freshness, source/provider, collection state, coverage, 
 ## 19. Backend contract
 Data Catalog defines canonical source series. Operational Manifest is runtime state. Smart Evidence Store holds canonical observations and deterministic horizon records. Browser UI does not reacquire Yahoo/FRED data. Derived products remain traceable to canonical observations.
 
-## 20. Five-view real-data acceptance artifact
-The standalone HTML acceptance artifact exercises V1–V5 against real canonical evidence using the same engine.
+## 20. Gate 2 chart acceptance artifact
+The standalone five-view HTML acceptance artifact proved the rudimentary common chart mechanics against real canonical evidence.
 
-Mandatory acceptance includes:
-- **Now acceptance renders V1 and V2 concurrently**, proving the real V1-controls-V2 relationship
-- V1 selection changes V2 context without replacing V1
-- V2 component selection alone launches V3
-- V3 visibly preserves the selected V2 component and parent/index drill-down context
-- returning from V3 restores the contextual V1/V2 Now surface
-- V1/V2 populated from canonical derived-index definition
-- all seven horizons
-- V3 native single-series
-- V4 automatic native/common, dual-axis and Indexed-100 transitions
-- exactly-two-series comparison uses side-by-side series dropdowns
-- 2, 5 and 7 simultaneous real series
-- visible Y-axis with ticks/units in every view
-- X/Y1/Y2 QA across all applicable V1–V5 × seven-horizon permutations
-- colored legend/pill identity
-- three-letter shorthand where required to prevent legend second-row overlap, with full identity retained in title/context
-- single active-series point inspection in V1–V5
-- one point marker + one point value tag + one X-axis date marker
-- explicit dismissal of inspection
-- inspection state cleared on any context/view/horizon/series/component change
-- no crosshair residue from a previous component
-- no all-series crosshair popup
-- native evidence available from Indexed-100 point inspection
-- honest mixed-frequency observation dates and independent line termination, including monthly-vs-daily cases such as CPI versus WTI
-- Android touch behavior
-- healthy/loading/partial/stale/missing/source-failure/insufficient-observation states
+Owner review has established sufficient confidence in:
+- all seven horizon mechanics
+- axes and time geometry at the acceptance level
+- single-series crosshair/point inspection
+- V1–V5 chart-state feasibility
+- dual-axis / Indexed-100 mechanics
+- mixed-frequency line termination
+
+Gate 2 is therefore treated as a **mechanics proving surface**, not the product UI. Further layout polishing in the isolated acceptance harness is not the primary path forward.
 
 ### QA-overlay presentation contract
-Acceptance/debug instrumentation must not distort the production chart surface being judged. Redlines, diagnostic labels, matrix status and other QA-only material live **behind a QA badge/control** and are hidden in the normal chart presentation. The default acceptance surface must therefore remain faithful to the intended production layout while retaining one-action access to QA evidence.
+Acceptance/debug instrumentation must not distort the production chart surface being judged. Redlines, diagnostic labels, freshness diagnostics, axis/mode explanations, matrix state, implementation metadata and other QA-only material live **behind a QA badge/control** and are hidden in the normal product presentation.
 
-Acceptance remains: **“Yes. That's our chart.”**
+## 21. Gate 3 — UX Journey Prototype
+Gate 3 is a lightweight, navigable, portrait-mobile-first prototype that reuses proven chart mechanics but intentionally avoids backend or production-scale expansion.
 
-## 21. Build gates
-**Gate 1 — Plan:** this product/chart contract, including all owner V1–V5 visual-review corrections captured above.
+Its purpose is to answer:
 
-**Gate 2 — Chart:** real-data five-view common-engine artifact. Plan and chart are reviewed together. **The next chart build must implement this amended plan; the owner-review corrections are not a separate backlog or optional QA pass.**
+> **What does the user see, understand, tap, and arrive at from Market → Index → Component → comparison/exploration → AI interpretation on a portrait phone?**
 
-**Gate 3 — Application:** only after Gate 1 + Gate 2 approval, assemble **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated at bottom. Gate 3 may not reinterpret the approved chart contract.
+### Gate 3 constraints
+- target a small mockup, not a 10–20K-line application build
+- no backend expansion
+- no new chart engine
+- no premature persistence/auth/config implementation
+- representative/static AI copy is acceptable
+- representative chart data is acceptable where needed for navigation/layout testing
+- default surface must look like the intended product, not a QA harness
+- QA instrumentation remains behind a QA control
 
-## 22. Rejected approaches
-- treating V1 and V2 as peer navigation destinations
-- treating V2 and V3 as peer/sequential context views rather than V2 context → V3 drill-down
-- replacing V1 when an index is selected
+### Required journey
+The prototype must make this path tangible on a portrait phone:
+
+**Market → Risk → component → back to Risk → Growth → component → compare two series → interpretation/evidence → back to Market**
+
+At every state the user should be able to answer immediately:
+- Where am I?
+- What am I looking at?
+- Why does it matter?
+- What can I do next?
+
+### Mobile four-panel principle
+The conceptual four-panel vision does **not** require four simultaneous physical panels on portrait mobile. Mobile uses progressive disclosure: one dominant analytical/context surface at a time, with secondary interpretation/evidence/actions available through compact cards, drawers/sheets, or other deliberate navigation. Gate 3 exists to determine the correct treatment before full application assembly.
+
+## 22. Build gates
+**Gate 1 — Plan: APPROVED.** Canonical product/chart contract.
+
+**Gate 2 — Chart mechanics: SUFFICIENT TO ADVANCE.** The real-data five-view common-engine artifact demonstrated the rudimentary mechanics. It remains a reference/QA surface, not the target product layout.
+
+**Gate 3 — UX Journey Prototype: ACTIVE.** Build and evaluate the navigable mobile-first product mockup described above. Navigation, context hierarchy, semantic color, AI placement and progressive disclosure are the acceptance focus.
+
+**Gate 4 — Application:** only after Gate 3 UX approval, assemble the production **NOW · EXPLORE · LIBRARY · HEALTH** application with **CONFIG** separated at bottom. Gate 4 may not reinterpret the approved journey contract without first amending this plan.
+
+## 23. Rejected approaches
+- treating V1/V2/V3 as a simple sequential slideshow
+- leaving V1 Market visually present as competing context after an index has become the active V2 context on portrait mobile
+- preselecting Risk/Growth/Macro in the default Market view
+- using arbitrary semantic colors for Risk/Growth/Macro
+- casual use of red/green/yellow where their conventional meaning is not intended
 - deep component drilldown inside Now
 - separate simple and Analysis chart engines
 - synthetic fourth Market score
@@ -242,6 +268,9 @@ Acceptance remains: **“Yes. That's our chart.”**
 - making the owner enumerate axis bugs permutation-by-permutation instead of validating the full axis matrix
 - stretching/carrying forward lower-frequency series to match a faster series' latest date
 - QA/redline instrumentation permanently occupying or changing the production chart layout
-- deferring chart behavior to development
+- omitting the AI interpretation layer from UX prototyping
+- literal four-panel desktop composition forced onto portrait mobile
+- continuing to polish the isolated chart acceptance harness after mechanics are sufficient to evaluate in product context
+- deferring navigation/context behavior to late development
 - Library as static archive
 - Health conflated with Config
