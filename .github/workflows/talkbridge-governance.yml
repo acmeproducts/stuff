@@ -1,0 +1,38 @@
+name: TalkBridge governance
+
+on:
+  pull_request:
+    paths:
+      - 'bridge-turn24-post-ship.html'
+      - 'tb-sw.js'
+      - 'talkbridge/**'
+      - '.github/workflows/deploy-relay.yml'
+      - '.github/workflows/talkbridge-governance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bridge-turn24-post-ship.html'
+      - 'tb-sw.js'
+      - 'talkbridge/**'
+      - '.github/workflows/deploy-relay.yml'
+      - '.github/workflows/talkbridge-governance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  govern:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Enforce release state
+        env:
+          TALKBRIDGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node talkbridge/build/governance-gate.mjs --base "$TALKBRIDGE_BASE_SHA"
+      - name: Prove planted violations fail
+        run: node --test talkbridge/build/governance-gate.test.mjs
