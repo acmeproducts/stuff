@@ -32,7 +32,7 @@ installer_commit=$INSTALLER_COMMIT
 frozen_ui=7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html
 clean_base22_ui_integrator=603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py
 clean_base24_behavior_integrator=083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py
-base25_ai_integrator=ff90636129ec2fb51a274b7f3af1307d629a802d/integrate-SOT-turn01-base25-ai.py
+base25_ai_integrator=d13a50912ed200450414fba101e6371a20d93b06/integrate-SOT-turn01-base25-ai.py
 backend_contract_unchanged=$EXPECTED_API_BUILD
 EOF
 pass RUN_MANIFEST "$QUAL_DIR/RUN-MANIFEST.txt"
@@ -61,7 +61,7 @@ BASE='https://raw.githubusercontent.com/acmeproducts/stuff'
 if curl --max-time 30 -fsSL "$BASE/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html" -o "$TMP/pre.html"; then pass FETCH_PRE_UI "bytes=$(stat -c %s "$TMP/pre.html")"; else die FETCH_PRE_UI failed; fi
 if curl --max-time 30 -fsSL "$BASE/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py" -o "$TMP/base22-ui.py"; then pass FETCH_BASE22_INTEGRATOR "bytes=$(stat -c %s "$TMP/base22-ui.py")"; else die FETCH_BASE22_INTEGRATOR failed; fi
 if curl --max-time 30 -fsSL "$BASE/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py" -o "$TMP/base24-ui.py"; then pass FETCH_BASE24_BEHAVIOR "bytes=$(stat -c %s "$TMP/base24-ui.py")"; else die FETCH_BASE24_BEHAVIOR failed; fi
-if curl --max-time 30 -fsSL "$BASE/ff90636129ec2fb51a274b7f3af1307d629a802d/integrate-SOT-turn01-base25-ai.py" -o "$TMP/base25-ai.py"; then pass FETCH_BASE25_AI "bytes=$(stat -c %s "$TMP/base25-ai.py")"; else die FETCH_BASE25_AI failed; fi
+if curl --max-time 30 -fsSL "$BASE/d13a50912ed200450414fba101e6371a20d93b06/integrate-SOT-turn01-base25-ai.py" -o "$TMP/base25-ai.py"; then pass FETCH_BASE25_AI "bytes=$(stat -c %s "$TMP/base25-ai.py")"; else die FETCH_BASE25_AI failed; fi
 python3 -m py_compile "$TMP/base22-ui.py" "$TMP/base24-ui.py" "$TMP/base25-ai.py" >/dev/null 2>&1 || die PYCOMPILE failed
 pass PYCOMPILE ok
 python3 "$TMP/base22-ui.py" "$TMP/pre.html" "$TMP/clean-base22.html" || die GENERATE_CLEAN_BASE22 failed
@@ -100,14 +100,14 @@ checks={
 'AI_VENICE_MODEL_DISCOVERY':'https://api.venice.ai/api/v1/models',
 'AI_OPENROUTER_MODEL_DISCOVERY':'https://openrouter.ai/api/v1/models',
 'AI_OPENROUTER_KEY_VALIDATION':'https://openrouter.ai/api/v1/auth/key',
-'AI_REAL_PROVIDER_VALIDATION':'async function aiValidate(provider,key,model)',
-'AI_ACTIVE_PROVIDER_MODEL_STATE':'sot.ai.activeProvider',
-'AI_KEYS_BROWSER_LOCAL_ONLY':'localStorage.setItem(s.key,key)',
-'AI_SUPERVISOR_PROMPT_PRESENT':'const SOT_SUPERVISOR_PROMPT=',
+'AI_REAL_PROVIDER_VALIDATION':'async function aiValidateProvider(provider,key,model)',
+'AI_ACTIVE_PROVIDER_MODEL_STATE':'const SOT_AI_KEYS=',
+'AI_KEYS_BROWSER_LOCAL_ONLY':"localStorage.getItem(k)",
+'AI_SUPERVISOR_PROMPT_PRESENT':'const SOT_AI_SUPERVISOR=',
 'AI_NO_ACTIVE_PROVIDER_EXPLICIT_STATE':'No validated AI provider is active.',
 'AI_INSIGHTS_CONFIG_RECOVERY':'Open Configuration',
-'AI_VENICE_VALIDATE_UI':'Validate & activate Venice',
-'AI_OPENROUTER_VALIDATE_UI':'Validate & activate OpenRouter',
+'AI_VALIDATE_UI':'Validate & activate',
+'AI_STORAGE_DEFAULTS_RETAINED':'Save storage defaults',
 }
 for k,v in checks.items():
     if v not in h: raise SystemExit(k+' missing')
@@ -115,17 +115,13 @@ if 'selectorDone' in h: raise SystemExit('SELECTOR_COMMIT_NOT_IN_PANEL3 failed')
 if "availableFolderSearch').oninput=e=>{filter=e.target.value;draw(lastData)" not in h: raise SystemExit('AVAILABLE_SEARCH_LOCAL_ONLY failed')
 m=re.search(r"\$\('availableFolderSearch'\)\.oninput=e=>\{([^}]*)\}",h)
 if not m or 'api(' in m.group(1): raise SystemExit('AVAILABLE_SEARCH_LOCAL_ONLY network call')
-# Verify inference request ordering, not merely prompt text presence.
-needle="messages=[{role:'system',content:SOT_SUPERVISOR_PROMPT},{role:'system',content:'SOT PROJECT / EVIDENCE CONTEXT (authoritative supplied data):\\n'+JSON.stringify(ctx,null,2)},...history,{role:'user',content:user}]"
+needle="messages=[{role:'system',content:SOT_AI_SUPERVISOR},{role:'system',content:context},...history,{role:'user',content:user}]"
 if needle not in h: raise SystemExit('AI_SUPERVISOR_FIRST_SYSTEM_MESSAGE / AI_PROJECT_EVIDENCE_AFTER_SUPERVISOR failed')
-# Provider validation itself must also be a real completion request with supervisor first.
-vm=re.search(r"async function aiValidate\(provider,key,model\)\{([\s\S]*?)\nasync function aiProjectContext",h)
-if not vm or '/chat/completions' not in vm.group(1) or "messages:[{role:'system',content:SOT_SUPERVISOR_PROMPT},{role:'user',content:'Reply with OK.'}]" not in vm.group(1):
+vm=re.search(r"async function aiValidateProvider\(provider,key,model\)\{([\s\S]*?)\nfunction aiActiveProvider",h)
+if not vm or '/chat/completions' not in vm.group(1) or "messages:[{role:'system',content:SOT_AI_SUPERVISOR},{role:'user',content:'Reply OK.'}]" not in vm.group(1):
     raise SystemExit('AI_REAL_PROVIDER_VALIDATION request contract failed')
-# Keys cannot be serialized into SOT backend payload vocabulary.
 for bad in ['venice_api_key','openrouter_api_key','provider_api_key','ai_api_key']:
     if bad in h: raise SystemExit('AI_KEYS_BROWSER_LOCAL_ONLY prohibited backend key field '+bad)
-# Closed branch must still retain duplicates and restart.
 mi=re.search(r"async function renderIndex\(p,silent=false\)\{([\s\S]*?)\nasync function",h)
 body=mi.group(1) if mi else h[h.index('async function renderIndex(p,silent=false)'):]
 for token in ["s.state==='Closed'",'data-bucket="2"','data-bucket="3"','data-bucket="4plus"',"runAction(p.project_token,'restart')"]:
@@ -135,11 +131,10 @@ Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
 PY
 rc=$?
 [ "$rc" -eq 0 ] || die STATIC_CONTRACTS "rc=$rc"
-for g in INDEX_ACTIVE_REFRESH_NO_LOADING_FLASH INDEX_COMPLETED_NO_POLL_RERENDER INDEX_COMPLETED_DUPLICATE_2 INDEX_COMPLETED_DUPLICATE_3 INDEX_COMPLETED_DUPLICATE_4PLUS INDEX_COMPLETED_DUPLICATE_DRILLDOWN PLAN_CURRENT_STALE_SEPARATION PLAN_GENERATE_SUCCESS_VISIBLE_CURRENT PLAN_NO_EVIDENCE_PERSISTENT_RECOVERY PLAN_REINDEX_ACTION AVAILABLE_PANEL_SCROLL SELECTED_PANEL_SCROLL AVAILABLE_SEARCH_PRESENT AVAILABLE_SEARCH_LOCAL_ONLY SELECTOR_COMMIT_IN_MODAL_FOOTER SELECTOR_COMMIT_NOT_IN_PANEL3 CANONICAL_SELECTOR PROJECT_CREATE_SOURCE_TARGET DEFAULT_TARGET DEFAULT_BACKUP MOVE_ADD MOVE_REMOVE AI_VENICE_MODEL_DISCOVERY AI_OPENROUTER_MODEL_DISCOVERY AI_OPENROUTER_KEY_VALIDATION AI_REAL_PROVIDER_VALIDATION AI_ACTIVE_PROVIDER_MODEL_STATE AI_KEYS_BROWSER_LOCAL_ONLY AI_SUPERVISOR_PROMPT_PRESENT AI_SUPERVISOR_FIRST_SYSTEM_MESSAGE AI_PROJECT_EVIDENCE_AFTER_SUPERVISOR AI_NO_ACTIVE_PROVIDER_EXPLICIT_STATE AI_INSIGHTS_CONFIG_RECOVERY AI_VENICE_VALIDATE_UI AI_OPENROUTER_VALIDATE_UI; do pass "$g" true; done
+for g in INDEX_ACTIVE_REFRESH_NO_LOADING_FLASH INDEX_COMPLETED_NO_POLL_RERENDER INDEX_COMPLETED_DUPLICATE_2 INDEX_COMPLETED_DUPLICATE_3 INDEX_COMPLETED_DUPLICATE_4PLUS INDEX_COMPLETED_DUPLICATE_DRILLDOWN PLAN_CURRENT_STALE_SEPARATION PLAN_GENERATE_SUCCESS_VISIBLE_CURRENT PLAN_NO_EVIDENCE_PERSISTENT_RECOVERY PLAN_REINDEX_ACTION AVAILABLE_PANEL_SCROLL SELECTED_PANEL_SCROLL AVAILABLE_SEARCH_PRESENT AVAILABLE_SEARCH_LOCAL_ONLY SELECTOR_COMMIT_IN_MODAL_FOOTER SELECTOR_COMMIT_NOT_IN_PANEL3 CANONICAL_SELECTOR PROJECT_CREATE_SOURCE_TARGET DEFAULT_TARGET DEFAULT_BACKUP MOVE_ADD MOVE_REMOVE AI_VENICE_MODEL_DISCOVERY AI_OPENROUTER_MODEL_DISCOVERY AI_OPENROUTER_KEY_VALIDATION AI_REAL_PROVIDER_VALIDATION AI_ACTIVE_PROVIDER_MODEL_STATE AI_KEYS_BROWSER_LOCAL_ONLY AI_SUPERVISOR_PROMPT_PRESENT AI_SUPERVISOR_FIRST_SYSTEM_MESSAGE AI_PROJECT_EVIDENCE_AFTER_SUPERVISOR AI_NO_ACTIVE_PROVIDER_EXPLICIT_STATE AI_INSIGHTS_CONFIG_RECOVERY AI_VALIDATE_UI AI_STORAGE_DEFAULTS_RETAINED; do pass "$g" true; done
 node --check "$TMP/ui.js" >/dev/null 2>&1 || die NODE_UI failed
 pass NODE_UI ok
 
-# Backend/storage authority remains unchanged; do not interrupt active fingerprint work.
 code="$(curl --max-time 8 -sS -o "$QUAL_DIR/volumes.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/turn01/volumes || true)"
 [ "$code" = 200 ] || die LIVE_VOLUMES "HTTP=$code"
 pass LIVE_VOLUMES HTTP=200
@@ -160,7 +155,7 @@ pass INSTALL_UI Base25
 code="$(curl --max-time 10 -sS -o "$QUAL_DIR/public.html" -w '%{http_code}' "$PUBLIC_URL" || true)"
 [ "$code" = 200 ] || die PUBLIC_PAGE_HTTP "$code"
 pass PUBLIC_PAGE_HTTP HTTP=200
-for marker in 'TURN01_BASE25_OPERATIONAL_AI' 'SOT_SUPERVISOR_PROMPT' 'Validate & activate Venice' 'Validate & activate OpenRouter' '2-copy groups' '3-copy groups' '4+ copy groups' 'Current Plan' 'Previous / Stale Plan' 'availableFolderSearch' 'selectorCommit'; do grep -Fq "$marker" "$QUAL_DIR/public.html" || die PUBLIC_PROTECTED_MARKER "missing $marker"; done
+for marker in 'TURN01_BASE25_OPERATIONAL_AI' 'SOT_AI_SUPERVISOR' 'Validate & activate' '2-copy groups' '3-copy groups' '4+ copy groups' 'Current Plan' 'Previous / Stale Plan' 'availableFolderSearch' 'selectorCommit' 'Save storage defaults'; do grep -Fq "$marker" "$QUAL_DIR/public.html" || die PUBLIC_PROTECTED_MARKER "missing $marker"; done
 pass PUBLIC_PROTECTED_MARKERS true
 code="$(curl --max-time 5 -sS -o "$QUAL_DIR/post-health.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health || true)"
 [ "$code" = 200 ] || die POST_HEALTH_HTTP "$code"
