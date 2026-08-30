@@ -33,12 +33,11 @@ jobs:
       - name: Live check
         run: |
           sleep 5
-          curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
+          curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt
           curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
-          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='4.2'||d.obs!==undefined)throw new Error('live R10.2 rollback manifest mismatch: '+JSON.stringify(d))"
-          cat /tmp/live-check.txt
+          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='R10.6')throw new Error('live R10.6 manifest mismatch: '+JSON.stringify(d))"
           cat /tmp/live-manifest.txt
-      - name: WebSocket handshake + delivery-contract check
+      - name: Live R10.6 behavior + credential-contract check
         run: |
           npm i ws@8 --no-save --package-lock=false >/dev/null 2>&1
           cat > wscheck.mjs <<'JS'
@@ -47,43 +46,72 @@ jobs:
           const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
           const u=c=>`${BASE}/signal?app=deploycheck&session=${s}&client=${c}`;
-          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const t=await r.text();try{return JSON.parse(t)}catch(_){console.log('post-raw['+body.type+']='+r.status+' '+t.slice(0,100));return null}};
+          const post=async(c,body)=>{const r=await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=${c}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();return {status:r.status,data:d}};
+          const service=async(action,body,auth,device='ci-owner')=>{const h={'Content-Type':'application/json'};if(auth){h['X-TalkBridge-Auth']=auth;h['X-TalkBridge-Device']=device}const r=await fetch(`${HTTP}/service/${action}`,{method:'POST',headers:h,body:JSON.stringify(body)});const d=await r.json();return {status:r.status,data:d}};
           const open=c=>new Promise((res,rej)=>{const w=new WebSocket(u(c));w.on('open',()=>res(w));w.on('error',e=>rej(e));setTimeout(()=>rej(new Error('timeout')),10000);});
           try{
             const a=await open('ciA'), b=await open('ciB');
-            const got=[]; b.on('message',d=>{try{got.push(JSON.parse(d))}catch(_){}});
-            await new Promise(r=>setTimeout(r,800));
-            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-1',srcText:'x',ts:Date.now()}));
-            await new Promise(r=>setTimeout(r,1500));
-            const m=got.find(x=>x.chatId==='ci-1');
+            const got=[];
+            b.on('message',raw=>{try{const m=JSON.parse(raw);got.push(m);if(m.type==='presentation-offer'&&m.event.eventId==='ci-foreground')b.send(JSON.stringify({type:'foreground-ready',eventId:m.event.eventId,transient:true}));}catch(_){}});
+            await new Promise(r=>setTimeout(r,300));
+            a.send(JSON.stringify({type:'chat-msg',eventId:'ci-foreground',chatId:'ci-foreground',srcText:'x',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,1000));
+            const grant=got.find(x=>x.type==='presentation-decision'&&x.event&&x.event.eventId==='ci-foreground');
             console.log('ws-connect=ok');
-            console.log('ws-deliver='+(m?'ok':'FAIL'));
-            console.log('ws-type='+((m&&m.type==='chat-msg')?'ok':'FAIL'));
-            /* v4.2 wake path: absent subscribed C must be wake-targeted with an ENCRYPTED payload */
-            await post('ciC',{type:'subscribe',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}});
-            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));
-            await new Promise(r=>setTimeout(r,2500));
-            const d=await post('ciA',{type:'diag'});
-            console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
-            console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
-            console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
+            console.log('foreground-grant='+(grant&&grant.presentation==='in_app'?'ok':'FAIL'));
+
+            await post('ciC',{type:'subscribe',navigate:'https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html',subscription:{endpoint:'https://updates.push.services.mozilla.com/wpush/v2/ci-fake-'+s,keys:{p256dh:'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4',auth:'BTBZMqHH6r4Tts7J_aSIgg'}}});
+            a.send(JSON.stringify({type:'chat-msg',eventId:'ci-os',chatId:'ci-os',srcText:'wake',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,2200));
+            const diag=(await post('ciA',{type:'diag'})).data;
+            const push=diag.pushLog.find(x=>x.eventId==='ci-os'&&x.clientId==='ciC');
+            console.log('push-post='+(push&&typeof push.status==='number'?'ok status-'+push.status:'FAIL'));
+
+            a.send(JSON.stringify({type:'call-start',eventId:'ci-call:start',callId:'ci-call',kind:'voice',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,100));
+            a.send(JSON.stringify({type:'call-end',eventId:'ci-call:end',callId:'ci-call',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,900));
+            const ledger=await (await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=ciC&ledger=1`)).json();
+            const missed=ledger.events.find(x=>x.eventId==='ci-call:start');
+            console.log('bare-hangup-missed='+(missed&&missed.outcome==='missed'?'ok':'FAIL'));
+            a.send(JSON.stringify({type:'chat-msg',eventId:'ci-os',chatId:'ci-os',srcText:'retry',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,900));
+            const replay=await (await fetch(`${HTTP}/signal?app=deploycheck&session=${s}&client=ciC&ledger=1`)).json();
+            console.log('retry-dedupe='+(replay.events.filter(x=>x.eventId==='ci-os').length===1?'ok':'FAIL'));
+
+            const boot=await service('bootstrap',{deviceId:'ci-owner',rooms:[s]},null);
+            const auth=boot.data.auth;
+            const invite=await service('invite-create',{roomId:s,invite:{r:s,ml:'en',tl:'es'},ttlSeconds:600},auth);
+            const exchanged=await service('invite-exchange',{code:invite.data.code,deviceId:'ci-join'},null);
+            const replayInvite=await service('invite-exchange',{code:invite.data.code,deviceId:'ci-replay'},null);
+            console.log('invite-once='+(exchanged.status===200&&replayInvite.status===410?'ok':'FAIL'));
+            const stolen=await service('status',{roomId:s},auth,'ci-thief');
+            console.log('device-scope='+(stolen.status===403?'ok':'FAIL'));
+            const dg=await service('deepgram-token',{roomId:s,ttlSeconds:30},auth);
+            const turn=await service('turn-credentials',{roomId:s,ttlSeconds:300},auth);
+            const dgContractOk=dg.status===200&&!!dg.data.access_token&&Number(dg.data.expires_in)>0;
+            const turnContractOk=turn.status===200&&Array.isArray(turn.data.iceServers)&&turn.data.iceServers.length>0;
+            console.log('deepgram-token='+(dgContractOk?'ok':'FAIL'));
+            console.log('turn-credentials='+(turnContractOk?'ok':'FAIL'));
             a.close();b.close();
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
           set -o pipefail
           node wscheck.mjs 2>&1 | tee /tmp/ws-check.txt
           grep -qx 'ws-connect=ok' /tmp/ws-check.txt
-          grep -qx 'ws-deliver=ok' /tmp/ws-check.txt
-          grep -qx 'ws-type=ok' /tmp/ws-check.txt
-          grep -qx 'wake-attempted=ok' /tmp/ws-check.txt
-          grep -Eq '^wake-status=[0-9]+$' /tmp/ws-check.txt
-          grep -qx 'wake-not-targeted-at-unsubscribed-live=ok' /tmp/ws-check.txt
+          grep -qx 'foreground-grant=ok' /tmp/ws-check.txt
+          grep -Eq '^push-post=ok status-[0-9]+$' /tmp/ws-check.txt
+          grep -qx 'bare-hangup-missed=ok' /tmp/ws-check.txt
+          grep -qx 'retry-dedupe=ok' /tmp/ws-check.txt
+          grep -qx 'invite-once=ok' /tmp/ws-check.txt
+          grep -qx 'device-scope=ok' /tmp/ws-check.txt
+          grep -qx 'deepgram-token=ok' /tmp/ws-check.txt
+          grep -qx 'turn-credentials=ok' /tmp/ws-check.txt
           if [ -n "${{ github.event.inputs.diag_session }}" ]; then
             curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
             echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt
             cat /tmp/real-diag.txt >> /tmp/ws-check.txt
           fi
-          rm -f wscheck.mjs
           cat /tmp/ws-check.txt
       - name: Publish status
         if: always()

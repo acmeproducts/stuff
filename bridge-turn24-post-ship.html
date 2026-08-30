@@ -1,4 +1,4 @@
-<!-- R10 build · bridge-turn24-post-ship · plan v19.5.0 §4.1 P2-P6 · source: bridge-turn24-ship.html (device-passed 2026-08-15, revalidated 2026-08-27) · pair: relay v4 -->
+<!-- TalkBridge R10.6 · clean assembly from bridge-turn24-ship.html · relay R10.6 -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -7352,402 +7352,500 @@ function pbCommitEditTargetMirror(c, v, changed, prior) {
 })();
 
 
-/* ═══════════ R10 PART · P2-install-gate.js ═══════════ */
-/* @contract
-   wraps: boot (the DOMContentLoaded entry is re-pointed through p2Entry; the original boot runs unchanged in standalone)
-   adds: p2IsStandalone, p2Platform, p2GateHtml, p2ShowGate, p2Entry, p2Log
-   Plan v19.5.0 §4.1 P2 — the onboarding inversion. In any browser tab the page
-   shows ONE screen: the room's name and install instructions for the platform.
-   No name field, no room, no chat, no relay. Only a standalone (installed) launch
-   runs the real app; the installed icon carries the invite URL, so the ship's own
-   first-run path (name once, join the invite's room) then runs unchanged.
-   Buried and NOT here: browser-side name entry, name-carry, hand-to-Safari.
-*/
-function p2Log(what, data, level) { try { log('p2_' + what, data || {}, level || 'info'); } catch (_) {} }
+/* ═══════════ R10.6 PART · P2 install handoff ═══════════ */
+/* Browser tabs are an installation handoff only.  The one-time invite code is
+   copied to a short-lived, path-scoped cookie so the installed PWA can recover
+   it even when iOS does not preserve the source tab's fragment. */
+var R106_INSTALL_COOKIE = 'tb_install_handoff_v1';
 
-function p2IsStandalone() {
-  try {
-    if (window.navigator && window.navigator.standalone === true) return true;
-    if (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) return true;
-  } catch (_) {}
-  return false;
+function r106P2Log(what, data, level) {
+  try { log('r106_install_' + what, data || {}, level || 'info'); } catch (_) {}
 }
-
-/* iOS 16.4+ installs from ANY browser's Share menu (verified 2026-08-26; the
-   Safari-only assumption is graveyarded). iPadOS reports as a Mac with touch. */
-function p2Platform() {
+function r106Standalone() {
+  try {
+    return navigator.standalone === true ||
+      (matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
+  } catch (_) { return false; }
+}
+function r106InviteCodeFromHash() {
+  var h = String(location.hash || '');
+  return h.indexOf('#i=') === 0 ? decodeURIComponent(h.slice(3)) : '';
+}
+function r106CookieGet(name) {
+  var rows = String(document.cookie || '').split(';');
+  for (var i = 0; i < rows.length; i++) {
+    var p = rows[i].trim().split('=');
+    if (p.shift() === name) return decodeURIComponent(p.join('='));
+  }
+  return '';
+}
+function r106CookiePut(code) {
+  if (!code) return;
+  document.cookie = R106_INSTALL_COOKIE + '=' + encodeURIComponent(code) + '; Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
+  r106P2Log('stored', { present: true, ttlSeconds: 600 }, 'ok');
+}
+function r106CookieClear() {
+  document.cookie = R106_INSTALL_COOKIE + '=; Path=/stuff/; Max-Age=0; SameSite=Lax; Secure';
+  r106P2Log('cleared', {}, 'ok');
+}
+function r106InstallPlatform() {
   var ua = navigator.userAgent || '';
-  var touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-  if (/iPhone|iPad|iPod/.test(ua) || touchMac) return 'ios';
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
   if (/Android/.test(ua)) return 'android';
   return 'desktop';
 }
-
-function p2GateHtml(roomName, platform) {
-  var steps;
-  if (platform === 'ios') {
-    steps = '<ol class="p2-steps"><li>Tap the <b>Share</b> button <span class="p2-ic">&#x2B06;&#xFE0E;</span></li><li>Choose <b>Add to Home Screen</b></li><li>Tap <b>Add</b>, then open <b>TalkBridge</b> from your Home Screen</li></ol>';
-  } else if (platform === 'android') {
-    steps = '<ol class="p2-steps"><li>Open the browser menu <b>&#8942;</b></li><li>Choose <b>Add to Home screen</b> or <b>Install app</b></li><li>Open <b>TalkBridge</b> from your Home screen</li></ol>';
-  } else {
-    steps = '<ol class="p2-steps"><li>Click the <b>Install</b> icon in the address bar</li><li>Open <b>TalkBridge</b> as an app</li></ol>';
-  }
-  return '<div class="p2-card">'
-    + '<div class="p2-brand">TalkBridge</div>'
-    + (roomName ? '<div class="p2-room">' + esc(roomName) + '</div>' : '')
-    + '<div class="p2-lead">Install TalkBridge to join. Messages and calls only reach an installed app.</div>'
-    + steps
-    + '</div>';
-}
-
-function p2ShowGate() {
-  var roomName = '';
-  try {
-    var h = location.hash || '';
-    if (h.indexOf('#j=') === 0) { var p = decInv(h.slice(3)); if (p && p.r) roomName = p.t || p.n || ''; }
-  } catch (_) {}
-  var platform = p2Platform();
-  var st = document.createElement('style');
-  st.textContent = '#p2-gate{position:fixed;inset:0;z-index:9999;background:var(--cream,#FDFAF7);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit}'
-    + '.p2-card{width:min(92vw,380px);background:#fff;border-radius:18px;padding:26px 24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:var(--ink,#1A1714)}'
-    + '.p2-brand{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--teal,#2E8B8B);text-transform:uppercase}'
-    + '.p2-room{font-size:22px;font-weight:700;margin-top:8px}'
-    + '.p2-lead{font-size:14.5px;line-height:1.5;margin-top:12px;color:#3a3633}'
-    + '.p2-steps{margin:16px 0 0;padding-left:20px;font-size:15px;line-height:1.7}'
-    + '.p2-ic{display:inline-block;color:var(--teal,#2E8B8B)}';
-  document.head.appendChild(st);
-  var g = document.createElement('div'); g.id = 'p2-gate';
-  g.innerHTML = p2GateHtml(roomName, platform);
-  document.body.appendChild(g);
+function r106InstallGate() {
+  var platform = r106InstallPlatform();
+  var code = r106InviteCodeFromHash();
+  if (code) r106CookiePut(code);
+  var steps = platform === 'ios'
+    ? '<li>Tap <b>Share</b></li><li>Choose <b>Add to Home Screen</b></li><li>Open <b>TalkBridge</b> from the new icon</li>'
+    : platform === 'android'
+      ? '<li>Open the browser menu</li><li>Choose <b>Install app</b> or <b>Add to Home screen</b></li><li>Open <b>TalkBridge</b> from the new icon</li>'
+      : '<li>Use the browser\'s <b>Install</b> control</li><li>Open TalkBridge as an app</li>';
+  var style = document.createElement('style');
+  style.textContent = '#r106-install{position:fixed;inset:0;z-index:10000;background:#FDFAF7;display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit}' +
+    '.r106-install-card{width:min(92vw,390px);background:#fff;border-radius:18px;padding:26px 24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:#1A1714}' +
+    '.r106-install-brand{font-size:13px;font-weight:700;letter-spacing:.08em;color:#2E8B8B;text-transform:uppercase}' +
+    '.r106-install-title{font-size:22px;font-weight:700;margin-top:8px}.r106-install-copy{font-size:14.5px;line-height:1.5;margin-top:12px}' +
+    '.r106-install-steps{margin:16px 0 0;padding-left:20px;font-size:15px;line-height:1.7}';
+  document.head.appendChild(style);
+  var gate = document.createElement('div');
+  gate.id = 'r106-install';
+  gate.innerHTML = '<div class="r106-install-card"><div class="r106-install-brand">TalkBridge</div>' +
+    '<div class="r106-install-title">Install to join</div><div class="r106-install-copy">Calls and messages reach this device through the installed app.</div>' +
+    '<ol class="r106-install-steps">' + steps + '</ol></div>';
+  document.body.appendChild(gate);
   var app = $('app'); if (app) app.style.display = 'none';
-  p2Log('gate_shown', { platform: platform, invite: !!roomName }, 'ok');
+  r106P2Log('gate', { platform: platform, invitePresent: !!code }, 'ok');
 }
 
-/* One entry, two worlds. Nothing of the app runs in a browser tab. */
-function p2Entry() {
-  if (p2IsStandalone()) { p2Log('standalone', {}, 'ok'); return boot(); }
-  p2ShowGate();
-}
-document.removeEventListener('DOMContentLoaded', boot);
-document.addEventListener('DOMContentLoaded', p2Entry);
-
-/* ═══════════ R10 PART · P3-subscription.js ═══════════ */
-/* @contract
-   wraps: p2Entry (after the real app boots in standalone, the subscription attempt starts), enterRoom (a newly entered room is registered with the relay), renderPanel (registration re-synced to each room's mute)
-   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3SyncMutes, p3LiveRooms, p3ShowRecipe, p3State
-   Plan v19.5.0 §4.1 P3 — attempt-as-authority. On standalone open with rooms:
-   register the worker, then ATTEMPT the subscription. Permission answers and
-   properties are recorded verbatim and never gate. NotAllowedError inside a
-   real gesture is the one real denial → the owner's F1 device recipe.
-   Safari/iOS demands a user gesture for the prompt (WebKit rule, verified
-   2026-08-27), so an open-time attempt that is refused for want of a gesture is
-   re-run on the next tap — same attempt, same truth.
-   Every live room registers with the relay. (A5: the 30s listener heartbeat
-   is deleted with the relay's liveness view — plan v20.0.0 §4.6.)
-*/
-var p3State = { reg: null, sub: null, registered: {}, gestureArmed: false, lastError: null, attempts: 0 };
-function p3Log(what, data, level) { try { log('p3_' + what, data || {}, level || 'info'); } catch (_) {} }
-function p3RelayHttp() { return RELAY_WS.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:'); }
-function p3RelayPost(roomId, body) {
-  var u = p3RelayHttp() + '?app=' + encodeURIComponent(RELAY_APP) + '&session=' + encodeURIComponent(roomId) + '&client=' + encodeURIComponent(deviceId);
-  return fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    .then(function (r) { return r.json(); });
-}
-function p3B64ToBytes(s) {
-  var b = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '=';
-  var bin = atob(b), out = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-function p3LiveRooms() { return S.rooms.filter(function (r) { return !r.deletedAt; }); }
-
-function p3Register() {
-  if (!('serviceWorker' in navigator)) { p3Log('sw_unsupported', {}, 'error'); return Promise.reject(new Error('no-sw')); }
-  return navigator.serviceWorker.register('./tb-sw.js').then(function (reg) {
-    p3State.reg = reg; p3Log('sw_registered', { scope: reg && reg.scope }, 'ok');
-    return navigator.serviceWorker.ready;
-  });
-}
-function p3Vapid() {
-  var rooms = p3LiveRooms(); if (!rooms.length) return Promise.reject(new Error('no-rooms'));
-  return p3RelayPost(rooms[0].id, { type: 'vapid' }).then(function (v) {
-    var key = v && (v.vapid || v.key);
-    p3Log('vapid', { got: !!key, push: v && v.push }, key ? 'ok' : 'error');
-    if (!key) throw new Error('no-vapid');
-    return key;
-  });
-}
-/* Registration mirrors the room's mute: a muted room is unsubscribed at the relay (ship rule — muted rooms raise nothing). */
-function p3RegisterRoom(roomId) {
-  if (!p3State.sub || !roomId) return Promise.resolve(false);
-  var room = roomById(roomId), want = !(room && room.muted);
-  var body = want ? { type: 'subscribe', subscription: p3State.sub.toJSON ? p3State.sub.toJSON() : p3State.sub } : { type: 'unsubscribe' };
-  return p3RelayPost(roomId, body)
-    .then(function (r) { var ok = !!(r && r.ok); if (ok) p3State.registered[roomId] = want; p3Log(want ? 'room_registered' : 'room_unregistered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error'); return ok; })
-    .catch(function (e) { p3Log('room_register_failed', { room: String(roomId).slice(-6), e: String(e && e.message || e) }, 'error'); return false; });
-}
-function p3SyncMutes() {
-  if (!p3State.sub) return;
-  p3LiveRooms().forEach(function (r) { var want = !r.muted; if (p3State.registered[r.id] !== want) p3RegisterRoom(r.id); });
-}
-function p3RegisterAll() {
-  return Promise.all(p3LiveRooms().map(function (r) { return p3RegisterRoom(r.id); }));
-}
-
-/* The attempt. `inGesture` says whether this call sits inside a user tap. */
-function p3Attempt(inGesture) {
-  p3State.attempts++;
-  var prop = (window.Notification && Notification.permission) || 'unsupported';
-  p3Log('perm_prop', { prop: prop, gesture: !!inGesture, n: p3State.attempts }, 'info');
-  var ready = p3State.reg ? navigator.serviceWorker.ready : p3Register();
-  var answer = Promise.resolve(null);
-  if (inGesture && window.Notification && Notification.requestPermission) {
-    /* Synchronously, inside the tap — the exact order the reference PWA used on the owner's iPhone (4/4). */
-    var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }
-    answer = asked
-      .then(function (a) { p3Log('perm_answer', { answer: a, prop: (window.Notification && Notification.permission) || '?' }, 'info'); return a; },
-            function (e) { p3Log('perm_answer', { answer: 'threw', e: String(e && e.message || e) }, 'info'); return null; });
-  }
-  return ready.then(function (reg) {
-    return answer.then(function () { return reg.pushManager.getSubscription(); }).then(function (existing) {
-      if (existing) { p3Log('sub_existing', {}, 'ok'); return existing; }
-      return p3Vapid().then(function (key) {
-        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: p3B64ToBytes(key) });
-      });
-    });
-  }).then(function (sub) {
-    p3State.sub = sub; p3State.lastError = null;
-    p3Log('sub_ok', { endpoint: String(sub && sub.endpoint || '').slice(0, 40) }, 'ok');
-    return p3RegisterAll().then(function () { return sub; });
+/* The async exchange completes before ship boot parses the invitation.  Only
+   non-secret room metadata is converted to the ship parser's existing shape. */
+function r106P2Entry() {
+  if (!r106Standalone()) { r106InstallGate(); return; }
+  var code = r106InviteCodeFromHash() || r106CookieGet(R106_INSTALL_COOKIE);
+  if (!code) { r106P2Log('standalone', { invitePresent: false }, 'ok'); boot(); return; }
+  r106P2Log('recover', { invitePresent: true }, 'info');
+  r106ExchangeInvite(code).then(function (result) {
+    if (!result || !result.invite) throw new Error('invite-exchange-empty');
+    r106CookieClear();
+    history.replaceState(null, '', location.pathname + location.search + '#j=' + encInv(result.invite));
+    r106P2Log('exchanged', { room: String(result.invite.r || '').slice(-6), replayRejected: false }, 'ok');
+    boot();
   }).catch(function (e) {
-    var name = (e && e.name) || 'Error', msg = String(e && e.message || e);
-    p3State.lastError = { name: name, msg: msg };
-    p3Log('sub_failed', { name: name, e: msg, gesture: !!inGesture }, 'error');
-    if (name === 'NotAllowedError') {
-      if (inGesture) p3ShowRecipe();
-      else p3ArmGesture();
-    } else if (!inGesture && msg !== 'no-rooms') {
-      p3ArmGesture();
-    }
+    r106P2Log('exchange_failed', { name: e && e.name || 'Error', status: e && e.status || 0 }, 'error');
+    var gate = document.createElement('div'); gate.id = 'r106-install';
+    gate.innerHTML = '<div class="r106-install-card"><div class="r106-install-brand">TalkBridge</div><div class="r106-install-title">This invitation cannot be used</div><div class="r106-install-copy">It expired, was already used, or the connection is offline. Ask for a new invitation.</div></div>';
+    document.body.appendChild(gate);
+    var app = $('app'); if (app) app.style.display = 'none';
+  });
+}
+
+document.removeEventListener('DOMContentLoaded', boot);
+document.addEventListener('DOMContentLoaded', r106P2Entry);
+
+
+/* ═══════════ R10.6 PART · opaque authorization + temporary call credentials ═══════════ */
+var R106_AUTH_KEY = 'tb_auth_v1';
+var R106_SERVICE_ROOT = RELAY_WS.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/signal$/, '/service');
+var r106Auth = { token: '', expiresAt: 0, rooms: [], canCreate: false, scopeClass: 'none' };
+var r106Provider = { dg: '', dgExp: 0, dgPending: null, ice: null, turnExp: 0, turnPending: null, turnTimer: null };
+
+function r106AuthLog(what, data, level) {
+  try { log('r106_auth_' + what, data || {}, level || 'info'); } catch (_) {}
+}
+function r106ReadAuth() {
+  try {
+    var rec = lsGet(R106_AUTH_KEY, null);
+    if (rec && rec.token) r106Auth = rec;
+  } catch (_) {}
+  return r106Auth;
+}
+function r106SaveAuth(data) {
+  r106Auth = {
+    token: data.auth,
+    expiresAt: Number(data.expiresAt) || 0,
+    rooms: Array.isArray(data.rooms) ? data.rooms : [],
+    canCreate: data.canCreate === true,
+    scopeClass: data.scopeClass || 'device'
+  };
+  lsSet(R106_AUTH_KEY, r106Auth);
+  r106AuthLog('stored', { present: true, scopeClass: r106Auth.scopeClass, rooms: r106Auth.rooms.length, expiresAt: r106Auth.expiresAt }, 'ok');
+  return r106Auth;
+}
+function r106Service(action, body, authenticated) {
+  var headers = { 'Content-Type': 'application/json' };
+  var auth = r106ReadAuth();
+  if (authenticated !== false && auth.token) {
+    headers['X-TalkBridge-Auth'] = auth.token;
+    headers['X-TalkBridge-Device'] = deviceId;
+  }
+  return fetch(R106_SERVICE_ROOT + '/' + action, {
+    method: 'POST', headers: headers, body: JSON.stringify(body || {})
+  }).then(function (res) {
+    return res.text().then(function (txt) {
+      var data = null; try { data = txt ? JSON.parse(txt) : {}; } catch (_) {}
+      if (!res.ok) { var e = new Error((data && data.error) || ('service-' + res.status)); e.status = res.status; throw e; }
+      return data || {};
+    });
+  });
+}
+function r106ExchangeInvite(code) {
+  return r106Service('invite-exchange', { code: code, deviceId: deviceId, currentAuth: r106ReadAuth().token || null }, false)
+    .then(function (data) { r106SaveAuth(data); return data; });
+}
+function r106EnsureAuth() {
+  var auth = r106ReadAuth();
+  if (auth.token && (!auth.expiresAt || auth.expiresAt > Date.now() + 60000)) return Promise.resolve(auth);
+  var rooms = S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) { return r.id; });
+  if (!rooms.length) return Promise.resolve(null);
+  /* Compatibility bootstrap: legacy room identifiers were already the relay
+     capabilities.  They are exchanged once for a device-bound opaque token;
+     no Deepgram/TURN value is sent or retained. */
+  return r106Service('bootstrap', { deviceId: deviceId, rooms: rooms }, false).then(function (data) {
+    r106SaveAuth(data); return r106Auth;
+  }).catch(function (e) {
+    r106AuthLog('bootstrap_failed', { status: e.status || 0, name: e.name || 'Error' }, 'error');
     return null;
   });
 }
-function p3AttemptInGesture() { return p3Attempt(true); }
-/* One-shot: the next real tap re-runs the attempt inside the gesture. */
-function p3ArmGesture() {
-  if (p3State.gestureArmed) return;
-  p3State.gestureArmed = true;
-  var h = function () {
-    document.removeEventListener('click', h, true);
-    p3State.gestureArmed = false;
-    p3AttemptInGesture();
-  };
-  document.addEventListener('click', h, true);
-  p3Log('gesture_armed', {}, 'info');
-}
-
-/* The owner's F1 device recipe — shown only on a real denial. */
-function p3ShowRecipe() {
-  if ($('p3-recipe')) return;
-  var st = document.createElement('style');
-  st.textContent = '#p3-recipe{position:fixed;inset:0;z-index:9998;background:var(--cream,#FDFAF7);display:flex;align-items:center;justify-content:center;padding:24px}'
-    + '.p3-card{width:min(92vw,380px);background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:var(--ink,#1A1714)}'
-    + '.p3-t{font-size:18px;font-weight:700}.p3-l{font-size:14px;line-height:1.5;margin-top:8px;color:#3a3633}'
-    + '.p3-steps{margin:14px 0 0;padding-left:20px;font-size:14.5px;line-height:1.7}.p3-row{margin-top:18px}';
-  document.head.appendChild(st);
-  var g = document.createElement('div'); g.id = 'p3-recipe';
-  g.innerHTML = '<div class="p3-card"><div class="p3-t">Notifications are off for TalkBridge</div>'
-    + '<div class="p3-l">Turn them on so calls and messages reach you when the phone is locked:</div>'
-    + '<ol class="p3-steps"><li>Open <b>Settings</b> → <b>Apps</b> → <b>TalkBridge</b> → <b>Notifications</b></li>'
-    + '<li><b>Allow Notifications</b>: ON</li><li><b>Lock Screen</b>, <b>Notification Center</b>, <b>Banners</b>: all on</li>'
-    + '<li><b>Sounds</b>: ON</li><li>Banner style: <b>Temporary</b></li></ol>'
-    + '<div class="p3-row"><button class="btn" id="p3-done">Done</button></div></div>';
-  document.body.appendChild(g);
-  $('p3-done').addEventListener('click', function () { g.remove(); p3AttemptInGesture(); });
-  p3Log('recipe_shown', {}, 'error');
-}
-
-(function () {
-  var _p3Entry = p2Entry;
-  p2Entry = function () {
-    var r = _p3Entry.apply(this, arguments);
-    try {
-      if (p2IsStandalone()) {
-        /* A5 (plan v20.0.0): the listener heartbeat is deleted — the relay
-           holds no liveness view for it to feed. */
-        if (p3LiveRooms().length) p3Attempt(false);
-        else p3Log('no_rooms_yet', {}, 'info');
-      }
-    } catch (e) { p3Log('entry_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-  document.removeEventListener('DOMContentLoaded', _p3Entry);
-  document.addEventListener('DOMContentLoaded', function () { p2Entry(); });
-
-  var _p3RenderPanel = renderPanel;
-  renderPanel = function () {
-    var r = _p3RenderPanel.apply(this, arguments);
-    try { p3SyncMutes(); } catch (_) {}
-    return r;
-  };
-  var _p3EnterRoom = enterRoom;
-  enterRoom = function (id) {
-    var r = _p3EnterRoom.apply(this, arguments);
-    try {
-      if (!p3State.sub && !p3State.attempts) p3Attempt(false);
-      else if (p3State.sub && !p3State.registered[id]) p3RegisterRoom(id);
-    } catch (e) { p3Log('enter_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
-  };
-})();
-
-/* ═══════════ R10 PART · P4-alert-hygiene.js ═══════════ */
-/* @contract
-   wraps: handleRelay, osNotify, CALL.onIncoming, CALL.accept, enterRoom, saveRooms, p2Entry
-   adds: p4Log, p4Idb, p4Journal, p4Drain, p4SaveCtx, p4IsPushWorthy, p4CloseTag, p4PresentedClose, p4State, p4SwNotify, p4OnSwMessage
-   Plan v20.0.0 §4.6 P4v2 — device-side presentation under ALWAYS-PUSH.
-   - The relay pushes every event; the DEVICE decides what the person sees.
-   - An event the app presents while visible (active-room message, ring screen,
-     panel badge/toast) closes that room's notifications at once and again
-     ~2.5s later (P4v2-c) — the app's own surface is the alert.
-   - Presentation on mobile: the ship's in-page notification is a no-op inside
-     an installed app, so it is wrapped to also present through the worker,
-     tagged per room (replace, never stack). A ring screen is the alert for a
-     call; no notification is raised beside it.
-   - Housekeeping: call answered / room opened → that room's notifications close.
-   - The worker's durable journal (arrived / shown / skipped / failed) is
-     drained into the debug log on every open and return to the foreground.
-*/
-var p4State = { ctxTimer: null, drained: 0 };
-var P4_PUSH_WORTHY = { 'chat-msg': 1, 'sys-pill': 1, 'call-start': 1, 'call-end': 1, 'thread-invite': 1, 'history-sync': 1 };
-function p4Log(what, data, level) { try { log('p4_' + what, data || {}, level || 'info'); } catch (_) {} }
-function p4IsPushWorthy(d) { return !!(d && d.type && P4_PUSH_WORTHY[d.type]); }
-
-function p4Idb() {
-  return new Promise(function (res, rej) {
-    if (!window.indexedDB) return rej(new Error('no-idb'));
-    var r = indexedDB.open('tb-r10', 1);
-    r.onupgradeneeded = function () { var d = r.result; if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { autoIncrement: true }); if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv', { keyPath: 'k' }); };
-    r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+function r106AuthorizeRoom(roomId) {
+  var auth = r106ReadAuth();
+  if (auth.rooms.indexOf(roomId) >= 0) return Promise.resolve(auth);
+  if (!auth.token) return r106EnsureAuth();
+  return r106Service('authorize-room', { roomId: roomId, deviceId: deviceId }).then(function (data) {
+    r106SaveAuth(data); return r106Auth;
   });
 }
-/* Read every worker receipt, log each by name, then clear. Silence is impossible: an empty drain logs too. */
-function p4Drain() {
-  return p4Idb().then(function (d) {
-    return new Promise(function (res) {
-      var tx = d.transaction('journal', 'readwrite'), st = tx.objectStore('journal'), rows = [];
-      var c = st.openCursor();
-      c.onsuccess = function () { var cur = c.result; if (cur) { rows.push(cur.value); cur.delete(); cur.continue(); } };
-      tx.oncomplete = function () { res(rows); }; tx.onerror = function () { res(rows); };
-    });
-  }).then(function (rows) {
-    rows.forEach(function (en) { p4Log('sw_receipt', { ev: en.ev, at: en.ts, room: en.room ? String(en.room).slice(-6) : null, kind: en.kind, e: en.e }, en.ev === 'failed' ? 'error' : 'ok'); });
-    p4State.drained += rows.length;
-    p4Log('sw_drained', { n: rows.length }, 'ok');
-    return rows;
-  }).catch(function (e) { p4Log('sw_drain_failed', { e: String(e && e.message || e) }, 'error'); return []; });
+
+/* One-time invitation links contain only a random code. */
+function r106InviteMeta(room, kind) {
+  var link = kind === 'link';
+  return {
+    r: room.id, ld: link ? 1 : 0, role: link ? room.role : 'joiner',
+    ml: room.myLang, tl: room.theirLang, myn: room.myName || S.user.name || '',
+    pn: room.partnerName || '', n: S.user.name || '', t: room.title || '', th: room.theme || null,
+    g: room.grant ? 1 : 0, exp: room.grantExpires || null
+  };
 }
-/* What a cold-started worker needs to name the room: where the app lives, the relay, this device, the live rooms. */
-function p4SaveCtx() {
-  clearTimeout(p4State.ctxTimer);
-  p4State.ctxTimer = setTimeout(function () {
-    var ctx = { k: 'ctx', v: { appUrl: location.href.split('#')[0], relay: p3RelayHttp(), app: RELAY_APP, client: deviceId,
-      rooms: S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) { return { id: r.id, title: roomTitle(r), muted: !!r.muted }; }) } };
-    p4Idb().then(function (d) { var tx = d.transaction('kv', 'readwrite'); tx.objectStore('kv').put(ctx); }).catch(function (e) { p4Log('ctx_save_failed', { e: String(e && e.message || e) }, 'error'); });
-  }, 400);
+function r106CreateInvite(room, kind) {
+  return r106AuthorizeRoom(room.id).then(function () {
+    return r106Service('invite-create', { roomId: room.id, deviceId: deviceId, invite: r106InviteMeta(room, kind), ttlSeconds: 600 });
+  }).then(function (data) {
+    if (!data.code) throw new Error('invite-code-missing');
+    r106AuthLog('invite_created', { room: String(room.id).slice(-6), kind: kind, expiresAt: data.expiresAt }, 'ok');
+    return location.origin + location.pathname + '#i=' + encodeURIComponent(data.code);
+  });
+}
+function r106PaintInvite(box, url, compact) {
+  box.innerHTML = (compact ? '' : '<div class="invite-title">Invite your partner</div>') +
+    '<div class="r106-qr"></div><div class="invite-link">' + esc(url) + '</div>' +
+    '<div class="invite-btns"><button class="btn ghost" data-r106-copy>Copy</button><button class="btn" data-r106-share>Share</button></div>';
+  try { var svg = QR.makeSvg(url); if (svg) box.querySelector('.r106-qr').appendChild(svg); } catch (_) {}
+  function copy() { if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Link copied'); }); }
+  box.querySelector('.invite-link').addEventListener('click', copy);
+  box.querySelector('[data-r106-copy]').addEventListener('click', copy);
+  box.querySelector('[data-r106-share]').addEventListener('click', function () {
+    if (navigator.share) navigator.share({ title: 'TalkBridge', url: url }).catch(function () {}); else copy();
+  });
 }
 
-/* P4v2-c (plan v20.0.0 §4.6): the app closes what it has presented — at once,
-   and once more ~2.5s later, because under ALWAYS-PUSH a banner can land after
-   the socket already delivered the event to a visible app. */
-function p4PresentedClose(roomId) {
-  p4CloseTag(roomId);
-  setTimeout(function () { p4CloseTag(roomId); }, 2500);
+invUrl = function () { return ''; };
+linkDeviceUrl = function () { return ''; };
+renderInviteCard = function () {
+  var old = document.querySelector('.invite-card'); if (old) old.remove();
+  var room = activeRoom(); if (!room || room.role !== 'creator' || room.joined) return;
+  var div = document.createElement('div'); div.className = 'invite-card';
+  div.innerHTML = '<div class="invite-title">Creating a secure invitation…</div>';
+  $('transcript').prepend(div);
+  r106CreateInvite(room, 'share').then(function (url) { if (div.parentNode) r106PaintInvite(div, url, false); })
+    .catch(function (e) { div.innerHTML = '<div class="invite-title">Invitation unavailable</div><div class="invite-link">Check the connection and try again.</div>'; r106AuthLog('invite_failed', { status: e.status || 0 }, 'error'); });
+};
+toggleDrawerQr = function (boxId, kind) {
+  var box = $(boxId); if (!box) return;
+  var other = $(boxId === 'dq-share' ? 'dq-link' : 'dq-share'); if (other) other.classList.remove('show');
+  if (box.classList.contains('show')) { box.classList.remove('show'); return; }
+  var room = activeRoom(); if (!room) return;
+  box.innerHTML = '<div class="invite-link">Creating a secure invitation…</div>'; box.classList.add('show');
+  r106CreateInvite(room, kind).then(function (url) { if (box.classList.contains('show')) r106PaintInvite(box, url, true); })
+    .catch(function (e) { box.innerHTML = '<div class="invite-link">Invitation unavailable. Check the connection and try again.</div>'; r106AuthLog('invite_failed', { status: e.status || 0 }, 'error'); });
+};
+
+/* Temporary provider credentials exist in memory only. */
+function r106DeepgramToken(roomId) {
+  if (r106Provider.dg && r106Provider.dgExp > Date.now() + 5000) return Promise.resolve(r106Provider.dg);
+  if (r106Provider.dgPending) return r106Provider.dgPending;
+  r106Provider.dgPending = r106AuthorizeRoom(roomId).then(function () {
+    return r106Service('deepgram-token', { roomId: roomId, ttlSeconds: 120 });
+  }).then(function (data) {
+    if (!data.access_token) throw new Error('deepgram-token-empty');
+    r106Provider.dg = data.access_token;
+    r106Provider.dgExp = Date.now() + (Number(data.expires_in) || 30) * 1000;
+    r106AuthLog('deepgram_token', { ok: true, expiresAt: r106Provider.dgExp }, 'ok');
+    return r106Provider.dg;
+  }).catch(function (e) {
+    r106AuthLog('deepgram_token', { ok: false, status: e.status || 0, name: e.name || 'Error' }, 'error');
+    throw e;
+  }).finally(function () { r106Provider.dgPending = null; });
+  return r106Provider.dgPending;
 }
-function p4CloseTag(roomId) {
-  try {
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.ready.then(function (reg) {
-      if (!reg.getNotifications) return;
-      return reg.getNotifications({ tag: 'tb-' + roomId }).then(function (ns) { ns.forEach(function (n) { try { n.close(); } catch (_) {} }); if (ns.length) p4Log('stale_closed', { room: String(roomId).slice(-6), n: ns.length }, 'ok'); });
+function r106TurnCredentials(roomId) {
+  if (r106Provider.ice && r106Provider.turnExp > Date.now() + 60000) return Promise.resolve(r106Provider.ice);
+  if (r106Provider.turnPending) return r106Provider.turnPending;
+  r106Provider.turnPending = r106AuthorizeRoom(roomId).then(function () {
+    return r106Service('turn-credentials', { roomId: roomId, ttlSeconds: 21600 });
+  }).then(function (data) {
+    if (!Array.isArray(data.iceServers) || !data.iceServers.length) throw new Error('turn-credentials-empty');
+    r106Provider.ice = data.iceServers;
+    r106Provider.turnExp = Number(data.expiresAt) || (Date.now() + 21600000);
+    r106AuthLog('turn_credentials', { ok: true, servers: data.iceServers.length, expiresAt: r106Provider.turnExp }, 'ok');
+    return data.iceServers;
+  }).catch(function (e) {
+    r106AuthLog('turn_credentials', { ok: false, status: e.status || 0, name: e.name || 'Error' }, 'error');
+    throw e;
+  }).finally(function () { r106Provider.turnPending = null; });
+  return r106Provider.turnPending;
+}
+
+r106ReadAuth();
+CALL.keys = function () { return { dg: r106Provider.dg || '', tid: '', tok: '' }; };
+hasOwnCredentials = function () {
+  var a = r106ReadAuth(); return !!(a.token && (!a.expiresAt || a.expiresAt > Date.now()));
+};
+
+var _r106StartDeepgram = startDeepgram;
+startDeepgram = function () {
+  var room = activeRoom();
+  if (!room || !(CALL.active || CHATMIC.on)) return;
+  if (r106Provider.dg && r106Provider.dgExp > Date.now() + 5000) return _r106StartDeepgram.apply(this, arguments);
+  r106DeepgramToken(room.id).then(function () { if ((CALL.active || CHATMIC.on) && !dgActive) _r106StartDeepgram(); })
+    .catch(function () { toast('Live transcription is temporarily unavailable'); });
+};
+
+var _r106SetupPC = CALL.setupPC;
+CALL.setupPC = async function () {
+  if (this.pc) return;
+  var room = activeRoom(); if (!room) return;
+  var ice, usingRelay = false;
+  try { ice = await r106TurnCredentials(room.id); usingRelay = true; }
+  catch (_) { ice = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]; }
+  var NativePC = window.RTCPeerConnection;
+  var NativeLog = log, NativeToast = toast;
+  function TempPC(cfg) {
+    var next = {}; var k;
+    for (k in (cfg || {})) next[k] = cfg[k];
+    next.iceServers = ice;
+    return new NativePC(next);
+  }
+  TempPC.prototype = NativePC.prototype;
+  window.RTCPeerConnection = TempPC;
+  if (usingRelay) {
+    log = function (ev, data, level) {
+      if (ev === 'turn_unavailable') { NativeLog('r106_auth_turn_selected', { servers: ice.length }, 'ok'); return; }
+      return NativeLog.apply(this, arguments);
+    };
+    toast = function (message) {
+      if (message === 'No call relay configured — add TURN keys') return;
+      return NativeToast.apply(this, arguments);
+    };
+  }
+  try { await _r106SetupPC.apply(this, arguments); }
+  finally { window.RTCPeerConnection = NativePC; log = NativeLog; toast = NativeToast; }
+  clearTimeout(r106Provider.turnTimer);
+  r106Provider.turnTimer = setTimeout(function () {
+    if (!CALL.active || !CALL.pc) return;
+    r106Provider.turnExp = 0;
+    r106TurnCredentials(room.id).then(function (servers) {
+      if (CALL.active && CALL.pc && CALL.pc.setConfiguration) {
+        CALL.pc.setConfiguration({ iceServers: servers });
+        r106AuthLog('turn_refreshed', { ok: true, servers: servers.length }, 'ok');
+      }
     }).catch(function () {});
-  } catch (_) {}
+  }, Math.max(60000, r106Provider.turnExp - Date.now() - 60000));
+};
+
+/* Remove the legacy long-lived call credentials after the new authorization
+   path has loaded.  GitHub PAT remains R13 scope and is untouched. */
+function r106RetireLegacyCallSecrets() {
+  var keys = ['tb_dg_key', 'tb_cf_tid', 'tb_cf_tok', 'tb_grant_dg', 'tb_grant_tid', 'tb_grant_tok'];
+  var removed = 0;
+  for (var i = 0; i < keys.length; i++) { if (localStorage.getItem(keys[i])) removed++; localStorage.removeItem(keys[i]); }
+  S.joinerKeys = null;
+  r106AuthLog('legacy_call_secrets_retired', { removed: removed }, removed ? 'warn' : 'ok');
 }
-function p4SwNotify(title, body, roomId) {
-  try {
-    if (!('serviceWorker' in navigator) || !window.Notification || Notification.permission !== 'granted') return;
-    if (document.hidden) return;                                                        /* hidden: the push is the alert (ALWAYS-PUSH) */
-    if (S.view === 'room' && S.roomId === roomId) return;                               /* on screen already */
-    if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */
-    navigator.serviceWorker.ready.then(function (reg) {
-      return reg.showNotification(title, { body: (body || '').slice(0, 120), tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] } });
-    }).then(function () { p4Log('sw_notify', { room: String(roomId).slice(-6) }, 'ok'); }, function (e) { p4Log('sw_notify_failed', { e: String(e && e.message || e) }, 'error'); });
-  } catch (_) {}
-}
-function p4OnSwMessage(ev) {
-  var d = ev && ev.data; if (!d || d.t !== 'tb-open') return;
-  try { if (d.roomId && roomById(d.roomId)) { closePanel(); enterRoom(d.roomId); } } catch (_) {}
-}
+var _r106OpenS11 = openS11;
+openS11 = function () {
+  var out = _r106OpenS11.apply(this, arguments);
+  ['k-dg', 'k-tid', 'k-tok'].forEach(function (id) {
+    var el = $(id); if (!el) return; el.value = ''; el.style.display = 'none';
+    var label = el.previousElementSibling; if (label) label.style.display = 'none';
+  });
+  return out;
+};
 
 (function () {
-  /* A4 (plan v20.0.0): the ack machinery is deleted — nothing gates on it.
-     In its place, P4v2-c: an event the app presents while visible closes that
-     room's notifications, because the app's own surface is the alert. */
-  var _p4HandleRelay = handleRelay;
-  handleRelay = function (d) {
-    var r = _p4HandleRelay.apply(this, arguments);
-    try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4PresentedClose(S.roomId); } catch (e) { p4Log('close_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
+  var _softDelete = softDeleteRoom;
+  softDeleteRoom = function (id) {
+    var out = _softDelete.apply(this, arguments);
+    r106Service('revoke', { roomId: id }).then(function (data) {
+      r106AuthLog('descendants_revoked', { room: String(id).slice(-6), count: Number(data.revoked) || 0 }, 'ok');
+    }).catch(function (e) { r106AuthLog('revoke_failed', { room: String(id).slice(-6), status: e.status || 0 }, 'error'); });
+    return out;
   };
-  /* Other-room events: the tagged notification IS the presentation — it stays;
-     an arriving push replaces it by tag. Only the ring (below) closes early. */
-  /* P4v2-c / A6 re-entry: the ring screen IS the alert — the moment it
-     presents, the room's stale banner closes (was rejected as a same-session
-     patch; enters here through plan v20.0.0 by name). */
-  var _p4OnIncoming = CALL.onIncoming;
-  CALL.onIncoming = function (room, d) {
-    var r = _p4OnIncoming.apply(this, arguments);
-    try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4PresentedClose(room.id); } catch (_) {}
-    return r;
-  };
-  var _p4OsNotify = osNotify;
-  osNotify = function (title, body, roomId) {
-    var r = _p4OsNotify.apply(this, arguments);
-    try { p4SwNotify(title, body, roomId); } catch (_) {}
-    return r;
-  };
-  var _p4Accept = CALL.accept;
-  CALL.accept = function () {
-    var p = this.ringPending;
-    var r = _p4Accept.apply(this, arguments);
-    try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}
-    return r;
-  };
-  var _p4EnterRoom = enterRoom;
+  var _enter = enterRoom;
   enterRoom = function (id) {
-    var r = _p4EnterRoom.apply(this, arguments);
-    try { p4CloseTag(id); } catch (_) {}
-    return r;
+    var out = _enter.apply(this, arguments);
+    r106AuthorizeRoom(id).catch(function (e) { r106AuthLog('room_authorize_failed', { room: String(id).slice(-6), status: e.status || 0 }, 'error'); });
+    return out;
   };
-  var _p4SaveRooms = saveRooms;
-  saveRooms = function () {
-    var r = _p4SaveRooms.apply(this, arguments);
-    try { p4SaveCtx(); } catch (_) {}
-    return r;
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!r106Standalone()) return;
+    r106EnsureAuth().then(function (a) { if (a) r106RetireLegacyCallSecrets(); });
+  });
+})();
+
+
+/* ═══════════ R10.6 PART · push subscription and acknowledged mute ═══════════ */
+var r106Push = { reg: null, sub: null, rooms: {}, attempts: 0, gestureArmed: false, pending: null };
+function r106PushLog(what, data, level) { try { log('r106_push_' + what, data || {}, level || 'info'); } catch (_) {} }
+function r106SignalHttp(roomId) {
+  return RELAY_WS.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:') + '?app=' + encodeURIComponent(RELAY_APP) +
+    '&session=' + encodeURIComponent(roomId) + '&client=' + encodeURIComponent(deviceId);
+}
+function r106SignalPost(roomId, body) {
+  return fetch(r106SignalHttp(roomId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); });
+}
+function r106B64Bytes(s) {
+  var b = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '=';
+  var raw = atob(b), out = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out;
+}
+function r106LiveRooms() { return S.rooms.filter(function (r) { return !r.deletedAt; }); }
+function r106RegisterWorker() {
+  if (!navigator.serviceWorker) return Promise.reject(new Error('service-worker-unsupported'));
+  return navigator.serviceWorker.register('./tb-sw.js').then(function (reg) {
+    r106Push.reg = reg; r106PushLog('worker_registered', { scope: reg.scope }, 'ok'); return navigator.serviceWorker.ready;
+  }).then(function (reg) {
+    try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ t: 'tb-drain' }); } catch (_) {}
+    return reg;
+  });
+}
+function r106RegisterRoom(roomId) {
+  if (!r106Push.sub || !roomId) return Promise.resolve(false);
+  var room = roomById(roomId);
+  return r106SignalPost(roomId, {
+    type: 'subscribe',
+    subscription: r106Push.sub.toJSON ? r106Push.sub.toJSON() : r106Push.sub,
+    navigate: location.origin + location.pathname,
+    muted: !!(room && room.muted)
+  }).then(function (data) {
+    var ok = !!(data && data.ok); if (ok) r106Push.rooms[roomId] = true;
+    r106PushLog('room_subscribed', { room: String(roomId).slice(-6), ok: ok, muted: !!(room && room.muted) }, ok ? 'ok' : 'error');
+    return ok;
+  }).catch(function (e) { r106PushLog('room_subscribe_failed', { room: String(roomId).slice(-6), name: e.name || 'Error' }, 'error'); return false; });
+}
+function r106RegisterAllRooms() { return Promise.all(r106LiveRooms().map(function (r) { return r106RegisterRoom(r.id); })); }
+function r106AttemptPush(inGesture) {
+  if (r106Push.pending) return r106Push.pending;
+  r106Push.attempts++;
+  var prop = window.Notification ? Notification.permission : 'unsupported';
+  r106PushLog('permission_property', { value: prop, gesture: !!inGesture, attempt: r106Push.attempts }, 'info');
+  var answer = Promise.resolve(null);
+  if (inGesture && window.Notification && Notification.requestPermission) {
+    try { answer = Promise.resolve(Notification.requestPermission()); } catch (e0) { answer = Promise.reject(e0); }
+    answer = answer.then(function (value) {
+      r106PushLog('permission_answer', { value: value, property: Notification.permission }, 'info'); return value;
+    }, function (e) { r106PushLog('permission_answer', { value: 'threw', name: e.name || 'Error' }, 'warn'); return null; });
+  }
+  var ready = r106Push.reg ? navigator.serviceWorker.ready : r106RegisterWorker();
+  var task = ready.then(function (reg) {
+    return answer.then(function () { return reg.pushManager.getSubscription(); }).then(function (existing) {
+      if (existing) return existing;
+      var room = r106LiveRooms()[0]; if (!room) throw new Error('no-rooms');
+      return r106SignalPost(room.id, { type: 'vapid' }).then(function (data) {
+        if (!data || !data.vapid) throw new Error('vapid-unavailable');
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: r106B64Bytes(data.vapid) });
+      });
+    });
+  }).then(function (sub) {
+    r106Push.sub = sub;
+    r106PushLog('subscription', { ok: true, endpointHost: (function () { try { return new URL(sub.endpoint).host; } catch (_) { return ''; } })() }, 'ok');
+    return r106RegisterAllRooms();
+  }).catch(function (e) {
+    r106PushLog('subscription', { ok: false, name: e.name || 'Error', gesture: !!inGesture }, 'error');
+    if (e.name === 'NotAllowedError' && inGesture) r106ShowNotificationHelp();
+    else if (e.message !== 'no-rooms') r106ArmPushGesture();
+    return null;
+  });
+  r106Push.pending = task.then(function (value) { r106Push.pending = null; return value; }, function (e) { r106Push.pending = null; throw e; });
+  return r106Push.pending;
+}
+function r106ArmPushGesture() {
+  if (r106Push.gestureArmed) return;
+  r106Push.gestureArmed = true;
+  var handler = function () {
+    document.removeEventListener('click', handler, true); r106Push.gestureArmed = false; r106AttemptPush(true);
   };
-  var _p4Entry = p2Entry;
-  p2Entry = function () {
-    var r = _p4Entry.apply(this, arguments);
-    try {
-      if (p2IsStandalone()) {
-        p4SaveCtx(); p4Drain();
-        document.addEventListener('visibilitychange', function () { if (!document.hidden) p4Drain(); });
-        if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', p4OnSwMessage);
-      }
-    } catch (e) { p4Log('entry_failed', { e: String(e && e.message || e) }, 'error'); }
-    return r;
+  document.addEventListener('click', handler, true);
+  r106PushLog('gesture_armed', {}, 'info');
+}
+function r106ShowNotificationHelp() {
+  if ($('r106-notification-help')) return;
+  var box = document.createElement('div'); box.id = 'r106-notification-help';
+  box.style.cssText = 'position:fixed;inset:0;z-index:10001;background:#FDFAF7;display:flex;align-items:center;justify-content:center;padding:24px';
+  box.innerHTML = '<div class="r106-install-card"><div class="r106-install-title">Turn on TalkBridge notifications</div>' +
+    '<div class="r106-install-copy">Open Settings → Apps → TalkBridge → Notifications. Turn on Allow Notifications, Lock Screen, Banners, and Sounds.</div>' +
+    '<div style="margin-top:18px"><button class="btn" id="r106-notification-done">Try again</button></div></div>';
+  document.body.appendChild(box);
+  $('r106-notification-done').addEventListener('click', function () { box.remove(); r106AttemptPush(true); });
+}
+function r106SetMute(room, wanted) {
+  return r106SignalPost(room.id, { type: 'mute', muted: !!wanted }).then(function (data) {
+    if (!data || !data.ok) throw new Error('mute-not-acknowledged');
+    room.muted = !!wanted; saveRooms(); renderPanel();
+    r106PushLog('mute_ack', { room: String(room.id).slice(-6), muted: !!wanted }, 'ok');
+    return true;
+  });
+}
+function r106WireMute() {
+  var btn = $('s4b-mute'); if (!btn || btn.__r106Mute) return; btn.__r106Mute = true;
+  btn.addEventListener('click', function (ev) {
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    var room = activeRoom(); if (!room) return;
+    r106SetMute(room, !room.muted).then(function () { btn.classList.toggle('off', room.muted); })
+      .catch(function () { btn.classList.toggle('off', room.muted); toast('Mute was not changed — try again'); });
+  }, true);
+}
+
+/* Page code never creates an OS notification.  The relay grant selects either
+   the in-app surface or the one service-worker/declarative OS path. */
+osNotify = function () { r106PushLog('page_os_blocked', {}, 'info'); };
+
+var _r106P2EntryForPush = r106P2Entry;
+function r106P3Entry() {
+  var out = _r106P2EntryForPush.apply(this, arguments);
+  if (r106Standalone()) {
+    r106WireMute();
+    if (r106LiveRooms().length) r106AttemptPush(false);
+  }
+  return out;
+}
+document.removeEventListener('DOMContentLoaded', _r106P2EntryForPush);
+document.addEventListener('DOMContentLoaded', r106P3Entry);
+window.addEventListener('focus', function () { if (r106Standalone() && r106LiveRooms().length) r106AttemptPush(false); });
+document.addEventListener('visibilitychange', function () { if (!document.hidden && r106Standalone() && r106LiveRooms().length) r106AttemptPush(false); });
+
+(function () {
+  var _enter = enterRoom;
+  enterRoom = function (id) {
+    var out = _enter.apply(this, arguments);
+    if (!r106Push.sub && !r106Push.attempts) r106AttemptPush(false);
+    else if (r106Push.sub && !r106Push.rooms[id]) r106RegisterRoom(id);
+    return out;
   };
 })();
+
 
 /* ═══════════ R10 PART · P6-threads.js ═══════════ */
 /* @contract
@@ -7945,6 +8043,376 @@ function p6AskName(parentId) {
     return r;
   };
 })();
+
+
+/* ═══════════ R10.6 PART · recipient ledger, one presentation path, recovery ═══════════ */
+var r106Event = {
+  pending: {}, applied: {}, outcomes: {}, roomRecords: {}, reconcile: {},
+  activeCallId: null, replyCallId: null, reconnect: { active: false, generation: 0 }
+};
+function r106EventLog(what, data, level) { try { log('r106_event_' + what, data || {}, level || 'info'); } catch (_) {} }
+function r106Visible() {
+  try { return !document.hidden && (!document.hasFocus || document.hasFocus()); } catch (_) { return !document.hidden; }
+}
+function r106Applied(roomId) {
+  if (!r106Event.applied[roomId]) r106Event.applied[roomId] = lsGet('tb_r106_applied_' + roomId, {}) || {};
+  return r106Event.applied[roomId];
+}
+function r106Outcomes(roomId) {
+  if (!r106Event.outcomes[roomId]) r106Event.outcomes[roomId] = lsGet('tb_r106_outcomes_' + roomId, {}) || {};
+  return r106Event.outcomes[roomId];
+}
+function r106RememberApplied(roomId, eventId) {
+  var set = r106Applied(roomId); set[eventId] = Date.now();
+  var ids = Object.keys(set); if (ids.length > 800) { ids.sort(function (a, b) { return set[a] - set[b]; }); for (var i = 0; i < ids.length - 800; i++) delete set[ids[i]]; }
+  lsSet('tb_r106_applied_' + roomId, set);
+}
+function r106EventId(prefix) { return prefix + '-' + deviceId.slice(0, 8) + '-' + uid(); }
+function r106PrepareOutgoing(m) {
+  if (!m || !m.type) return m;
+  if (m.type === 'chat-msg') m.eventId = m.eventId || ('chat:' + (m.chatId || r106EventId('cm')));
+  if (m.type === 'thread-invite') m.eventId = m.eventId || r106EventId('th');
+  if (m.type === 'call-start') {
+    m.callId = m.callId || r106EventId('call');
+    m.eventId = m.eventId || (m.callId + ':start');
+    r106Event.activeCallId = m.callId; CALL.r106CallId = m.callId;
+  }
+  if (m.type === 'call-accept' || m.type === 'call-decline') {
+    m.callId = m.callId || r106Event.replyCallId || CALL.r106CallId || r106Event.activeCallId;
+    m.eventId = m.eventId || ((m.callId || r106EventId('call')) + ':' + (m.type === 'call-accept' ? 'accept' : 'decline'));
+  }
+  if (m.type === 'call-end') {
+    m.callId = m.callId || CALL.r106CallId || r106Event.activeCallId || r106Event.replyCallId;
+    m.eventId = m.eventId || ((m.callId || r106EventId('call')) + ':end');
+  }
+  return m;
+}
+
+var _r106RelaySend = relaySend;
+relaySend = function (m) { return _r106RelaySend.call(this, r106PrepareOutgoing(m)); };
+var _r106ListenSend = LISTEN.send;
+LISTEN.send = function (roomId, m) { return _r106ListenSend.call(this, roomId, r106PrepareOutgoing(m)); };
+
+/* Preserve the call identity after the base ring object is cleared. */
+var _r106CallAccept = CALL.accept, _r106CallDecline = CALL.decline, _r106CallTeardown = CALL.teardown;
+CALL.accept = function () {
+  r106Event.replyCallId = this.ringPending && this.ringPending.r106CallId || this.r106CallId || r106Event.activeCallId;
+  this.r106CallId = r106Event.replyCallId; return _r106CallAccept.apply(this, arguments);
+};
+CALL.decline = function () {
+  r106Event.replyCallId = this.ringPending && this.ringPending.r106CallId || this.r106CallId || r106Event.activeCallId;
+  this.r106CallId = r106Event.replyCallId; return _r106CallDecline.apply(this, arguments);
+};
+CALL.teardown = function () {
+  var out = _r106CallTeardown.apply(this, arguments);
+  setTimeout(function () { r106Event.activeCallId = null; r106Event.replyCallId = null; CALL.r106CallId = null; }, 0);
+  return out;
+};
+
+function r106TransportSend(roomId, msg) {
+  if (S.roomId === roomId && _relayWs && _relayWs.readyState === 1) return relaySend(msg);
+  return LISTEN.send(roomId, msg);
+}
+function r106Route(roomId) {
+  if (S.view === 'room' && S.roomId === roomId) return 'same_room';
+  if (S.view === 'room') return 'other_room';
+  return 'home';
+}
+function r106OnOffer(roomId, packet) {
+  var ev = packet && packet.event; if (!ev || !ev.eventId) return;
+  r106Event.pending[ev.eventId] = { roomId: roomId, event: ev };
+  r106EventLog('offer', { eventId: ev.eventId, room: String(roomId).slice(-6), type: ev.type, visible: r106Visible(), route: r106Route(roomId) }, 'info');
+  if (!r106Visible()) return;
+  r106TransportSend(roomId, { type: 'foreground-ready', transient: true, eventId: ev.eventId, route: r106Route(roomId) });
+}
+
+var _r106BaseActiveHandle = handleRelay;
+var _r106BaseListenHandle = LISTEN.handle;
+function r106ApplyMessage(roomId, ev, allowAttention) {
+  if (!ev || !ev.message || !ev.eventId) return false;
+  var applied = r106Applied(roomId);
+  if (applied[ev.eventId]) return true;
+  var msg = ev.message;
+  try {
+    if (msg.type === 'call-start' && !allowAttention) { r106RememberApplied(roomId, ev.eventId); return true; }
+    if (S.view === 'room' && S.roomId === roomId) _r106BaseActiveHandle(msg);
+    else _r106BaseListenHandle.call(LISTEN, roomId, msg);
+    if (msg.type === 'call-start' && CALL.ringPending) {
+      CALL.ringPending.r106CallId = ev.callId || msg.callId || null;
+      CALL.r106CallId = CALL.ringPending.r106CallId;
+      r106Event.activeCallId = CALL.r106CallId;
+    }
+    r106RememberApplied(roomId, ev.eventId);
+    r106EventLog('content_applied', { eventId: ev.eventId, type: ev.type, attention: !!allowAttention }, 'ok');
+    return true;
+  } catch (e) {
+    r106EventLog('content_failed', { eventId: ev.eventId, name: e.name || 'Error' }, 'error'); return false;
+  }
+}
+function r106OnDecision(roomId, packet) {
+  var ev = packet && packet.event; if (!ev || !ev.eventId) return;
+  delete r106Event.pending[ev.eventId];
+  var owner = packet.presentation;
+  var attention = owner === 'in_app';
+  if (ev.type === 'chat-msg' || ev.type === 'thread-invite') r106ApplyMessage(roomId, ev, attention);
+  else if (ev.type === 'call-start' && attention) r106ApplyMessage(roomId, ev, true);
+  r106EventLog('presentation', { eventId: ev.eventId, presentation: owner, pushAccepted: packet.pushAccepted === true, pushStatus: packet.pushStatus || null }, owner === 'in_app' ? 'ok' : 'info');
+  if (attention || (owner === 'suppressed' && r106Visible())) {
+    var seen = ev.type === 'chat-msg' && r106Route(roomId) === 'same_room' && !(roomById(roomId) || {}).muted;
+    r106TransportSend(roomId, { type: 'surface-ready', transient: true, eventId: ev.eventId, seen: seen, route: r106Route(roomId) });
+  }
+  r106ReconcileRoom(roomId, 'presentation');
+}
+
+handleRelay = function (d) {
+  if (d && d.type === 'presentation-offer') { r106OnOffer(S.roomId, d); return; }
+  if (d && d.type === 'presentation-decision') { r106OnDecision(S.roomId, d); return; }
+  return _r106BaseActiveHandle.apply(this, arguments);
+};
+LISTEN.handle = function (roomId, d) {
+  if (d && d.type === 'presentation-offer') { r106OnOffer(roomId, d); return; }
+  if (d && d.type === 'presentation-decision') { r106OnDecision(roomId, d); return; }
+  return _r106BaseListenHandle.apply(this, arguments);
+};
+
+function r106LedgerUrl(roomId, extra) {
+  return r106SignalHttp(roomId) + '&ledger=1' + (extra || '');
+}
+function r106OutcomePill(roomId, rec) {
+  if (!rec.callId || !rec.outcome || rec.outcome === 'ringing') return;
+  var known = r106Outcomes(roomId), before = known[rec.callId];
+  if (before === rec.outcome) return;
+  known[rec.callId] = rec.outcome; lsSet('tb_r106_outcomes_' + roomId, known);
+  if (rec.outcome === 'missed') bgAddPill(roomId, 'Missed ' + (rec.kind === 'video' ? 'video' : 'voice') + ' call');
+  r106EventLog('call_outcome', { callId: rec.callId, outcome: rec.outcome, previous: before || null, room: String(roomId).slice(-6) }, 'info');
+}
+function r106Recount(roomId, records) {
+  var room = roomById(roomId); if (!room) return;
+  var counts = { chat: 0, voice: 0, video: 0 };
+  for (var i = 0; i < records.length; i++) {
+    var rec = records[i]; r106OutcomePill(roomId, rec);
+    if (rec.seen) continue;
+    if (rec.type === 'chat-msg') counts.chat++;
+    if (rec.type === 'call-start' && rec.outcome === 'missed') counts[rec.kind === 'video' ? 'video' : 'voice']++;
+  }
+  var prior = waitingOf(room);
+  room.waiting = counts; room.unread = counts.chat + counts.voice + counts.video; saveRooms();
+  renderPanel();
+  var total = 0;
+  S.rooms.forEach(function (r) { total += waitingTotal(r); });
+  try { if (navigator.setAppBadge) { if (total) navigator.setAppBadge(total); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } } catch (_) {}
+  r106EventLog('counter', { room: String(roomId).slice(-6), before: prior, after: counts, badge: total }, 'ok');
+}
+function r106ReconcileRoom(roomId, why) {
+  if (!roomId || !roomById(roomId)) return Promise.resolve(null);
+  if (r106Event.reconcile[roomId]) return r106Event.reconcile[roomId];
+  r106EventLog('reconcile_start', { room: String(roomId).slice(-6), why: why }, 'info');
+  r106Event.reconcile[roomId] = fetch(r106LedgerUrl(roomId)).then(function (r) {
+    if (!r.ok) throw new Error('ledger-' + r.status); return r.json();
+  }).then(function (data) {
+    var records = Array.isArray(data.events) ? data.events : [];
+    for (var i = 0; i < records.length; i++) {
+      var rec = records[i];
+      if (rec.message && (rec.type === 'chat-msg' || rec.type === 'thread-invite')) r106ApplyMessage(roomId, rec, false);
+    }
+    r106Event.roomRecords[roomId] = records;
+    r106Recount(roomId, records);
+    var appliedThrough = Number(data.lseq) || 0;
+    r106EventLog('reconcile_complete', { room: String(roomId).slice(-6), events: records.length, appliedThrough: appliedThrough, complete: data.complete !== false }, 'ok');
+    return { records: records, appliedThrough: appliedThrough };
+  }).catch(function (e) {
+    r106EventLog('reconcile_failed', { room: String(roomId).slice(-6), why: why, name: e.name || 'Error' }, 'error'); return null;
+  }).finally(function () { delete r106Event.reconcile[roomId]; });
+  return r106Event.reconcile[roomId];
+}
+function r106ReconcileAll(why) {
+  return Promise.all(S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) { return r106ReconcileRoom(r.id, why); }));
+}
+function r106SeenThrough(roomId, through, reason) {
+  if (!through) return Promise.resolve(false);
+  return r106SignalPost(roomId, { type: 'seen-through', through: through, reason: reason }).then(function (data) {
+    r106EventLog('seen_through', { room: String(roomId).slice(-6), through: through, ok: !!(data && data.ok), reason: reason }, data && data.ok ? 'ok' : 'error');
+    return r106ReconcileRoom(roomId, 'seen-ack');
+  });
+}
+
+/* Muted rooms remain on TalkBridge home; mute suppresses attention, not state. */
+homeCards = function () {
+  var dismissed = homeDismissed();
+  return S.rooms.filter(function (r) {
+    if (r.deletedAt || !waitingTotal(r)) return false;
+    var at = dismissed[r.id]; return typeof at !== 'number' || waitingTotal(r) > at;
+  }).sort(function (a, b) { return (b.lastAt || b.createdAt) - (a.lastAt || a.createdAt); });
+};
+
+var _r106EnterForSeen = enterRoom;
+enterRoom = function (id) {
+  var out = _r106EnterForSeen.apply(this, arguments);
+  r106ReconcileRoom(id, 'room-open').then(function (state) { if (state) r106SeenThrough(id, state.appliedThrough, 'explicit-room-open'); });
+  return out;
+};
+
+/* Single-flight wrappers stop lifecycle, focus, and socket-close triggers from
+   starting concurrent connections.  The ship transport still owns protocol
+   setup; this guard owns attempt concurrency and reconciliation. */
+var _r106RelayConnect = relayConnect;
+relayConnect = function () {
+  if (_relayWs && (_relayWs.readyState === 0 || _relayWs.readyState === 1)) {
+    r106EventLog('reconnect_coalesced', { state: _relayWs.readyState }, 'info'); return _relayWs;
+  }
+  if (r106Event.reconnect.active) { r106EventLog('reconnect_coalesced', { state: 'active' }, 'info'); return; }
+  r106Event.reconnect.active = true; r106Event.reconnect.generation++;
+  var generation = r106Event.reconnect.generation;
+  var out = _r106RelayConnect.apply(this, arguments), ws = _relayWs;
+  if (ws && ws.addEventListener) {
+    ws.addEventListener('open', function () {
+      if (generation !== r106Event.reconnect.generation) return;
+      r106Event.reconnect.active = false;
+      r106ReconcileRoom(S.roomId, 'relay-open');
+    });
+    ws.addEventListener('close', function () { if (generation === r106Event.reconnect.generation) r106Event.reconnect.active = false; });
+  } else r106Event.reconnect.active = false;
+  return out;
+};
+var _r106ListenOpen = LISTEN.open;
+LISTEN.open = function (room) {
+  var existing = this.socks[room.id];
+  if (existing && (existing.readyState === 0 || existing.readyState === 1)) return existing;
+  var out = _r106ListenOpen.apply(this, arguments), ws = this.socks[room.id];
+  if (ws && ws.addEventListener) ws.addEventListener('open', function () { r106ReconcileRoom(room.id, 'listener-open'); });
+  return out;
+};
+
+function r106OpenEvent(roomId, eventId, source) {
+  if (!roomId) return Promise.resolve(false);
+  var url = r106SignalHttp(roomId) + '&event=' + encodeURIComponent(eventId || '');
+  return fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+    var ev = data && data.event;
+    if (S.roomId !== roomId || S.view !== 'room') enterRoom(roomId);
+    if (ev && ev.type === 'call-start' && ev.outcome === 'ringing') r106ApplyMessage(roomId, ev, true);
+    else if (ev) { r106ApplyMessage(roomId, ev, false); r106OutcomePill(roomId, ev); }
+    r106EventLog('navigation', { eventId: eventId || null, room: String(roomId).slice(-6), source: source, target: ev && ev.outcome === 'ringing' ? 'call_screen' : 'room' }, 'ok');
+    return r106ReconcileRoom(roomId, 'notification-navigation');
+  }).catch(function (e) { r106EventLog('navigation_failed', { source: source, name: e.name || 'Error' }, 'error'); return false; });
+}
+function r106NavigationFromLocation() {
+  var q; try { q = new URL(location.href); } catch (_) { return; }
+  var roomId = q.searchParams.get('tbRoom'), eventId = q.searchParams.get('tbEvent');
+  if (!roomId) return;
+  q.searchParams.delete('tbRoom'); q.searchParams.delete('tbEvent'); q.searchParams.delete('tbType'); q.searchParams.delete('tbKind'); q.searchParams.delete('tbCall');
+  history.replaceState(null, '', q.pathname + (q.search ? q.search : '') + q.hash);
+  r106OpenEvent(roomId, eventId, 'cold-tap');
+}
+
+document.addEventListener('visibilitychange', function () { if (!document.hidden) r106ReconcileAll('visible'); });
+window.addEventListener('focus', function () { r106ReconcileAll('focus'); });
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', function (e) {
+  var d = e.data || {};
+  if (d.t === 'tb-open') r106OpenEvent(d.roomId, d.eventId, 'warm-tap');
+  if (d.t === 'tb-receipts') r106EventLog('worker_receipts', { count: Array.isArray(d.records) ? d.records.length : 0 }, 'info');
+});
+document.addEventListener('DOMContentLoaded', function () {
+  if (!r106Standalone()) return;
+  setTimeout(function () { r106ReconcileAll('boot'); r106NavigationFromLocation(); }, 0);
+});
+
+
+/* ═══════════ R10.6 PART · correlated, redacted flight recorder ═══════════ */
+var R106_TRACE = (function () {
+  var KEY = 'tb_r106_trace_v1', CAP = 1600, records = lsGet(KEY, []) || [], n = records.length;
+  var secretNames = /(^|_)(auth|authorization|token|secret|password|credential|api.?key|invite.?code|p256dh)($|_)/i;
+  var contentNames = /^(t|text|srcText|tgtText|sourceText|translatedText|body)$/i;
+  function clean(value, key, depth) {
+    if (secretNames.test(String(key || ''))) return '[redacted]';
+    if (contentNames.test(String(key || ''))) return '[content omitted]';
+    if (depth > 5) return '[depth]';
+    if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
+    if (typeof value === 'string') return value.length > 240 ? value.slice(0, 240) + '…' : value;
+    if (Array.isArray(value)) return value.slice(0, 40).map(function (x) { return clean(x, '', depth + 1); });
+    if (typeof value === 'object') {
+      var out = {}, keys = Object.keys(value).slice(0, 60);
+      for (var i = 0; i < keys.length; i++) out[keys[i]] = clean(value[keys[i]], keys[i], depth + 1);
+      return out;
+    }
+    return String(value);
+  }
+  function add(stage, action, outcome, detail) {
+    var d = clean(detail || {}, '', 0);
+    var rec = {
+      schema: 'talkbridge-flight-v1', build: 'R10.6', seq: ++n,
+      at: new Date().toISOString(), mono: Math.round(performance.now ? performance.now() : 0),
+      device: String(deviceId || '').slice(0, 12), stage: stage, action: action, outcome: outcome,
+      room: d.room || d.roomId || null, eventId: d.eventId || null, callId: d.callId || null, detail: d
+    };
+    records.push(rec); if (records.length > CAP) records = records.slice(-CAP);
+    if (n % 10 === 0 || /failed|error|rejected/.test(String(outcome))) try { lsSet(KEY, records); } catch (_) {}
+    return rec;
+  }
+  function human(list) {
+    return list.map(function (r) {
+      var ids = (r.eventId ? ' event=' + r.eventId : '') + (r.callId ? ' call=' + r.callId : '') + (r.room ? ' room=' + String(r.room).slice(-6) : '');
+      return r.at + ' [' + r.stage + '/' + r.action + '] ' + r.outcome + ids + ' ' + JSON.stringify(r.detail);
+    }).join('\n');
+  }
+  function snapshot() {
+    var copy = records.slice();
+    return { schema: 'talkbridge-flight-v1', build: 'R10.6', exportedAt: new Date().toISOString(), human: human(copy), records: copy };
+  }
+  function observedDisplay(eventId, at) {
+    add('os_observation', 'tester_display_time', 'observed', { eventId: eventId, observedAt: at || new Date().toISOString(), source: 'tester' });
+  }
+  return { add: add, snapshot: snapshot, observedDisplay: observedDisplay, records: function () { return records.slice(); } };
+})();
+
+var _r106BaseLog = log;
+log = function (ev, data, level) {
+  _r106BaseLog.apply(this, arguments);
+  try {
+    var stage = /^r106_push_|^p3_/.test(ev) ? 'push_client' :
+      /^r106_auth_/.test(ev) ? 'authorization' :
+      /^r106_event_/.test(ev) ? 'recipient_state' :
+      /^relay_|^listen_|^net_relay/.test(ev) ? 'transport' :
+      /^call_|^rtc_|^turn_/.test(ev) ? 'call' :
+      /^dg_/.test(ev) ? 'transcription' : 'app';
+    R106_TRACE.add(stage, ev, level || 'info', data || {});
+  } catch (_) {}
+};
+
+function r106TraceDownload() {
+  var snap = R106_TRACE.snapshot();
+  var blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'talkbridge-r106-flight.json'; a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+}
+function r106TraceWire() {
+  var open = $('s4b-debug'), copy = $('debug-copy'), dl = $('debug-dl');
+  if (open && !open.__r106Trace) {
+    open.__r106Trace = true;
+    open.addEventListener('click', function () {
+      var snap = R106_TRACE.snapshot(); $('debug-body').textContent = snap.human; $('m-debug').classList.add('show');
+    }, true);
+  }
+  if (copy && !copy.__r106Trace) {
+    copy.__r106Trace = true;
+    copy.addEventListener('click', function (ev) {
+      ev.stopImmediatePropagation(); var snap = R106_TRACE.snapshot();
+      if (navigator.clipboard) navigator.clipboard.writeText(snap.human).then(function () { toast('Flight log copied'); });
+    }, true);
+  }
+  if (dl && !dl.__r106Trace) {
+    dl.__r106Trace = true;
+    dl.addEventListener('click', function (ev) { ev.stopImmediatePropagation(); r106TraceDownload(); }, true);
+  }
+}
+['visibilitychange', 'freeze', 'resume', 'pageshow', 'pagehide'].forEach(function (name) {
+  window.addEventListener(name, function () { R106_TRACE.add('lifecycle', name, 'observed', { hidden: !!document.hidden, focused: document.hasFocus ? document.hasFocus() : null, view: S.view, room: S.roomId }); });
+});
+window.addEventListener('online', function () { R106_TRACE.add('network', 'online', 'observed', {}); });
+window.addEventListener('offline', function () { R106_TRACE.add('network', 'offline', 'observed', {}); });
+document.addEventListener('DOMContentLoaded', function () {
+  R106_TRACE.add('app', 'boot', 'observed', { version: 'R10.6', standalone: r106Standalone(), authPresent: !!r106ReadAuth().token, rooms: S.rooms.length });
+  setTimeout(r106TraceWire, 300);
+});
 
 </script>
 </body>
