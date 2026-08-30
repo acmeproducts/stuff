@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" style="margin:0;padding:0;background:#111;color:#eee;font-family:sans-serif;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>3D Tic‑Tac‑Toe</title>
+  <style>
+    html,body,#root{margin:0;padding:0;height:100%;}
+    .game{max-width:420px;margin:2rem auto;padding:1rem;background:#222;border-radius:8px;}
+    header{text-align:center;margin-bottom:1rem;}
+    #status{text-align:center;margin:1rem 0;font-size:1.2rem;}
+    .board{perspective:600px;transform-style:preserve-3d;margin:0 auto;}
+    .cell{width:64px;height:64px;margin:2px;position:relative;transform-style:preserve-3d;transition:transform .3s ease;background:#fff;border:2px solid #bbb;border-radius:4px;cursor:pointer;}
+    .cell .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:3rem;color:#d32f2f;user-select:none;}
+    .cell.x .mark{content:'X';}
+    .cell.o .mark{content:'O';}
+    .cell.flipped{transform:rotateY(180deg);}
+    .win .mark{animation:flash .5s forwards;}
+    @keyframes flash{0%{color:#d32f2f;}100%{color:#f9a825;}}
+  </style>
+</head>
+<body>
+  <div class="game">
+    <header>
+      <div id="score">X: <span id="sX">0</span> &nbsp; O: <span id="sO">0</span></div>
+      <div id="turn">Turn: X</div>
+    </header>
+    <section class="board" id="board"></section>
+    <div id="status" role="status" aria-live="polite"></div>
+  </div>
+
+<script>
+  // ———— game state ————
+  const WIN_COMBOS = [
+    [0,1,2],[3,4,5],[6,7,8], // rows
+    [0,3,6],[1,4,7],[2,5,8], // cols
+    [0,4,8],[2,4,6]          // diagonals
+  ];
+
+  const cells = [...document.querySelectorAll('.cell')];
+  const board = document.getElementById('board');
+  const turnDiv = document.getElementById('turn');
+  const scoreX = document.getElementById('sX');
+  const scoreO = document.getElementById('sO');
+  const statusDiv = document.getElementById('status');
+
+  let state = new Array(9).fill(null); // null, 'X', 'O'
+  let player = 'X'; // starting player
+  let xScore = 0, oScore = 0;
+
+  // initialise board
+  function initBoard(){
+    board.innerHTML = '';
+    for(let i=0;i<9;i++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.idx = i;
+      cell.addEventListener('click', onCellClick);
+      board.appendChild(cell);
+    }
+  }
+  initBoard();
+
+  function onCellClick(e){
+    const idx = +e.target.dataset.idx;
+    if(state[idx]) return; // already taken
+    // place mark
+    state[idx] = player;
+    e.target.classList.add(player.toLowerCase()); // adds 'x' or 'o' class
+    // flip 3D
+    e.target.classList.add('flipped');
+    // check win/draw
+    if(checkWin(player)){
+      announce(`<strong>${player}</strong> wins!`);
+      if(player==='X'){ xScore++; scoreX.textContent = xScore; }
+      else { oScore++; scoreO.textContent = oScore; }
+      // reset after 1.5s
+      setTimeout(resetRound,1500);
+      return;
+    }
+    if(state.every(v=>v)){ announce('Draw!'); setTimeout(resetRound,1500); return; }
+    // switch player
+    player = player==='X'?'O':'X';
+    turnDiv.textContent = `Turn: ${player}`;
+  }
+
+  function checkWin(p){
+    return WIN_COMBOS.some(c=>c.every(i=>state[i]===p));
+  }
+
+  function announce(msg){
+    statusDiv.innerHTML = msg;
+  }
+
+  function resetRound(){
+    // clear board state & classes
+    state.fill(null);
+    player = 'X';
+    turnDiv.textContent = `Turn: ${player}`;
+    statusDiv.textContent = '';
+    cells.forEach(c=>{ c.classList.remove('x','o','flipped'); });
+    initBoard(); // re‑create cells with fresh listeners
+  }
+</script>
+</body>
+</html>
