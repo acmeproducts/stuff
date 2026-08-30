@@ -1,78 +1,103 @@
-/* TalkBridge service worker · R10.6 · one envelope, stable-ID dedupe, tap routing. */
-var R106_DB = 'tb-r106-worker', R106_JOURNAL = 'journal', R106_SEEN = 'seen';
-function r106Db() {
-  return new Promise(function (resolve, reject) {
-    var req = indexedDB.open(R106_DB, 1);
-    req.onupgradeneeded = function () {
-      var db = req.result;
-      if (!db.objectStoreNames.contains(R106_JOURNAL)) db.createObjectStore(R106_JOURNAL, { autoIncrement: true });
-      if (!db.objectStoreNames.contains(R106_SEEN)) db.createObjectStore(R106_SEEN, { keyPath: 'id' });
-    };
-    req.onsuccess = function () { resolve(req.result); }; req.onerror = function () { reject(req.error); };
+/* TalkBridge service worker · R10.2 P4v2 (plan v20.0.0 §4.6 ALWAYS-PUSH) · source: talkbridge/parts/p4-sw.js — assembled, never hand-edited.
+   Rules it embodies (sources S1-S5 in the plan):
+   - The relay always pushes; THIS worker decides presentation from ground truth:
+     a VISIBLE window client exists → non-iOS: skip (the app is the alert; FCM /
+     web.dev reference pattern); iOS: show with the room tag and the app closes
+     it (Apple revokes silent handlers). No visible client → show.
+   - Per-room tag: successive pushes REPLACE, never stack.
+   - A tap closes itself and focuses the running app rather than opening a second copy.
+   - Every push terminal (arrived / shown / failed) is journaled durably on-device; the app drains it into its debug log.
+   - The push carries no room; the room is resolved from the relay's own history (bounded), so message text never rides a push service. */
+var DB = 'tb-r10', JOURNAL = 'journal', KV = 'kv';
+var PUSH_WORTHY = { 'chat-msg': 'New message', 'sys-pill': 'Update', 'call-start': 'Incoming call', 'call-end': 'Missed call', 'thread-invite': 'Thread invite', 'history-sync': 'New activity' };
+var LOOKUP_MS = 1500, RECENT_MS = 120000;
+
+function idb() {
+  return new Promise(function (res, rej) {
+    var r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = function () { var d = r.result; if (!d.objectStoreNames.contains(JOURNAL)) d.createObjectStore(JOURNAL, { autoIncrement: true }); if (!d.objectStoreNames.contains(KV)) d.createObjectStore(KV, { keyPath: 'k' }); };
+    r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
   });
 }
-function r106Journal(stage, tb, detail) {
-  var rec = { at: Date.now(), stage: stage, eventId: tb && tb.eventId || null, roomId: tb && tb.roomId || null, type: tb && tb.type || null, detail: detail || {} };
-  return r106Db().then(function (db) { return new Promise(function (resolve) {
-    var tx = db.transaction(R106_JOURNAL, 'readwrite'); tx.objectStore(R106_JOURNAL).add(rec);
-    tx.oncomplete = function () { resolve(); }; tx.onerror = function () { resolve(); };
-  }); }).catch(function () {});
+function journal(ev, extra) {
+  var rec = { ev: ev, ts: Date.now(), e: (extra && extra.e) || null, room: (extra && extra.room) || null, kind: (extra && extra.kind) || null };
+  return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(JOURNAL, 'readwrite'); tx.objectStore(JOURNAL).add(rec); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; }); }).catch(function () {});
 }
-function r106SeenBefore(id) {
-  if (!id) return Promise.resolve(false);
-  return r106Db().then(function (db) { return new Promise(function (resolve) {
-    var tx = db.transaction(R106_SEEN, 'readwrite'), store = tx.objectStore(R106_SEEN), get = store.get(id);
-    get.onsuccess = function () {
-      var existed = !!get.result; if (!existed) store.put({ id: id, at: Date.now() }); resolve(existed);
-    }; get.onerror = function () { resolve(false); };
-  }); }).catch(function () { return false; });
+function loadCtx() {
+  return idb().then(function (d) { return new Promise(function (res) { var tx = d.transaction(KV, 'readonly'); var g = tx.objectStore(KV).get('ctx'); g.onsuccess = function () { res(g.result ? g.result.v : null); }; g.onerror = function () { res(null); }; }); }).catch(function () { return null; });
 }
-function r106Drain() {
-  return r106Db().then(function (db) { return new Promise(function (resolve) {
-    var tx = db.transaction(R106_JOURNAL, 'readwrite'), store = tx.objectStore(R106_JOURNAL), get = store.getAll();
-    get.onsuccess = function () { var rows = get.result || []; store.clear(); resolve(rows); }; get.onerror = function () { resolve([]); };
-  }); }).catch(function () { return []; });
+function withTimeout(p, ms) { return Promise.race([p, new Promise(function (res) { setTimeout(function () { res(null); }, ms); })]); }
+
+/* Which room, which kind. Newest push-worthy message from someone else, recent, across the rooms the app told us about. */
+function resolveRoom(ctx) {
+  if (!ctx || !ctx.relay || !ctx.app || !ctx.client || !Array.isArray(ctx.rooms) || !ctx.rooms.length) return Promise.resolve(null);
+  var now = Date.now();
+  return Promise.all(ctx.rooms.map(function (room) {
+    var u = ctx.relay + '?app=' + encodeURIComponent(ctx.app) + '&session=' + encodeURIComponent(room.id) + '&client=' + encodeURIComponent(ctx.client) + '&since=0';
+    return fetch(u).then(function (r) { return r.json(); }).then(function (msgs) {
+      var best = null;
+      (Array.isArray(msgs) ? msgs : []).forEach(function (m) {
+        if (!m || !PUSH_WORTHY[m.type] || m.from === ctx.client) return;
+        if (m.type === 'call-end' && m.reason !== 'missed') return;
+        if (typeof m.ts !== 'number' || now - m.ts > RECENT_MS) return;
+        if (!best || m.ts > best.ts) best = m;
+      });
+      return best ? { room: room, msg: best } : null;
+    }).catch(function () { return null; });
+  })).then(function (hits) {
+    var best = null;
+    hits.forEach(function (h) { if (h && (!best || h.msg.ts > best.msg.ts)) best = h; });
+    return best;
+  });
 }
+
 self.addEventListener('install', function () { self.skipWaiting(); });
-self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
-self.addEventListener('push', function (event) {
-  event.waitUntil((function () {
-    var env = null; try { env = event.data ? event.data.json() : null; } catch (_) {}
-    var tb = env && env.tb || {}, note = env && env.notification || {};
-    return r106Journal('push_arrived', tb, { payload: !!env }).then(function () { return r106SeenBefore(tb.eventId); }).then(function (dupe) {
-      if (dupe) return r106Journal('push_deduped', tb, {});
-      var title = note.title || 'TalkBridge', body = note.body || 'New activity';
-      var opts = {
-        body: body, tag: note.tag || ('tb-event-' + (tb.eventId || 'unknown')), renotify: true,
-        data: { eventId: tb.eventId || null, roomId: tb.roomId || null, callId: tb.callId || null, type: tb.type || null, url: note.navigate || self.registration.scope },
-        badge: './icons/icon-192.png', icon: './icons/icon-192.png'
-      };
-      return self.registration.showNotification(title, opts).then(function () {
-        return r106Journal('notification_shown', tb, { tag: opts.tag });
-      }, function (err) { return r106Journal('notification_failed', tb, { name: err && err.name || 'Error' }); });
+self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+
+function visibleClient() {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].visibilityState === 'visible' || list[i].focused) return list[i];
+    }
+    return null;
+  }).catch(function () { return null; });
+}
+function isIOS() {
+  try { return /iPhone|iPad|iPod/.test(self.navigator.userAgent) || (/Macintosh/.test(self.navigator.userAgent) && self.navigator.maxTouchPoints > 1); }
+  catch (_) { return false; }
+}
+
+self.addEventListener('push', function (e) {
+  e.waitUntil((function () {
+    var payload = null; try { payload = e.data ? e.data.json() : null; } catch (_) { payload = null; }
+    return journal('arrived', { kind: payload && payload.t }).then(function () { return visibleClient(); }).then(function (vc) {
+      if (vc && !isIOS()) {
+        /* The app is on screen and presents the event itself (S1/S2). */
+        return journal('skipped_visible', {});
+      }
+      return loadCtx().then(function (ctx) {
+      return withTimeout(resolveRoom(ctx), LOOKUP_MS).then(function (hit) {
+        var roomId = hit ? hit.room.id : null, kind = hit ? hit.msg.type : null;
+        var title = 'TalkBridge';
+        var body = hit ? (PUSH_WORTHY[kind] + (hit.room.title ? ' · ' + hit.room.title : '')) : 'New activity';
+        var tag = 'tb-' + (roomId || 'unknown');
+        var appUrl = (ctx && ctx.appUrl) || (self.registration.scope + 'bridge-turn24-post-ship.html');
+        return self.registration.showNotification(title, { body: body, tag: tag, renotify: true, data: { roomId: roomId, url: appUrl, kind: kind } })
+          .then(function () { return journal('shown', { room: roomId, kind: kind }); },
+                function (err) { return journal('failed', { e: String(err && err.message || err), room: roomId }).then(function () { return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback' }).catch(function () {}); }); });
+      });
+      });
     });
   })());
 });
-self.addEventListener('notificationclick', function (event) {
-  var data = event.notification.data || {}; event.notification.close();
-  event.waitUntil(r106Journal('notification_tap', data, {}).then(function () {
-    return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  }).then(function (list) {
-    var target = null;
-    for (var i = 0; i < list.length; i++) {
-      if (String(list[i].url).indexOf('bridge-turn24-post-ship') >= 0) { target = list[i]; break; }
-    }
-    if (target) {
-      try { target.postMessage({ t: 'tb-open', eventId: data.eventId, roomId: data.roomId, callId: data.callId, type: data.type }); } catch (_) {}
-      return target.focus ? target.focus() : null;
-    }
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var data = e.notification.data || {};
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    var app = null;
+    for (var i = 0; i < list.length; i++) { if (String(list[i].url).indexOf('bridge-turn24-post-ship') >= 0) { app = list[i]; break; } }
+    if (app) { try { app.postMessage({ t: 'tb-open', roomId: data.roomId || null }); } catch (_) {} return app.focus ? app.focus() : null; }
     return self.clients.openWindow(data.url || self.registration.scope);
-  }));
-});
-self.addEventListener('message', function (event) {
-  var data = event.data || {};
-  if (data.t !== 'tb-drain') return;
-  event.waitUntil(r106Drain().then(function (records) {
-    if (event.source && event.source.postMessage) event.source.postMessage({ t: 'tb-receipts', records: records });
   }));
 });
