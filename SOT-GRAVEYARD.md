@@ -31,7 +31,7 @@ Base-11 demonstrated the contradiction directly:
 
 - Windows discovered `F:`.
 - Windows `Test-Path` reported `F:` readable.
-- WSL reported `/mnt/f` with fstype `9p` and source `F:\`.
+- WSL reported `/mnt/f` with fstype `9p` and source `F:\\`.
 - normalization correctly produced `F:`.
 - the mount helper completed.
 - SOT nevertheless rejected the volume because the new post-mount validator returned false.
@@ -143,3 +143,27 @@ Do not use declaration-boundary surgery that distinguishes `function` and `async
 A replacement generator must start again from the frozen accepted sources and locate declaration boundaries deterministically with support for both `function` and `async function`, verify each intended source function exactly once before rewriting, and fail before cutover if any boundary is ambiguous.
 
 Base-13 remains failed build evidence only; accepted live runtime remained Base-9.
+
+---
+
+## GY-005 — PowerShell `-Command` trailing-argument transport
+
+**Status:** REJECTED  
+**Evidence:** Turn 01 Base-17 mechanical qualification  
+**Decision date:** 2026-08-29
+
+### Rejected approach
+
+Invoke Windows PowerShell from Node as `powershell.exe -Command <script> <path>` and assume the trailing process argument will reliably appear inside the script as `$args[0]` (and `$args[1]`).
+
+### Why it is rejected
+
+Base-17 proved inventory and runtime health, then failed the first Windows-native browse on Windows-readable `C:`. PowerShell reported `Test-Path -LiteralPath $p` received null because `$args[0]` was not populated by that invocation shape. The same transport pattern was used by directory existence, directory enumeration, and folder creation, so it is a shared backend transport defect rather than a drive-specific failure.
+
+### Required replacement
+
+Pass dynamic path/name values through an explicit deterministic channel that does not depend on PowerShell command-line positional parsing, such as process environment variables consumed as `$env:SOT_PATH` / `$env:SOT_NAME`. Preserve the script itself as a fixed argument.
+
+The qualification harness must exercise the exact candidate helper mechanism against every Windows-readable discovered drive **before cutover**. A transport/helper failure must therefore be caught while Base-9 is still live.
+
+Base-17 remains failed evidence only. Its automatic rollback restored accepted Base-9.
