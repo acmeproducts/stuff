@@ -34,213 +34,94 @@ Three derived indices only: **Risk, Growth, Macro**. Market is a container, not 
 Semantic index colors: **Risk red · Growth blue · Macro white/neutral**. Ordinary components use a non-semantic comparison palette.
 
 ## 6. Analytical states
-
 ### V1 — Market
-Risk, Growth and Macro trendlines appear together, rebased to 100. No index is selected by default.
-
-H1: **`Market: <sentiment>`** relative to selected horizon.
-Legend: compact `RSK / GRW / MAC`.
-
-Tapping a V1 index legend chip remains the deliberate drill-down to V2 for that index.
+Risk, Growth and Macro trendlines appear together, rebased to 100. No index is selected by default. Legend `RSK / GRW / MAC`; tapping an index drills directly to V2.
 
 ### V2 — Index + components
-V2 must render **the selected derived index trendline itself plus every component defined for that index**. The index line is the reference context against which component movement is interpreted. No defined component may silently disappear; unavailable evidence is explicitly exposed.
+V2 renders the selected derived index trendline itself plus every component defined for that index. No component may silently disappear; unavailable evidence is explicitly exposed. Component/index legend labels use stable three-character abbreviations wherever practical. Component tap opens About; About → More info opens standalone Analysis for that exact component.
 
-H1: actual index name + horizon-relative sentiment, e.g. **`Growth: <sentiment>`**.
-
-Component/index legend labels use stable three-character abbreviations wherever practical. Tapping a V2 component chip **does not navigate away**: it opens the About card for that exact component. The About card's explicit **More info** action opens a new standalone Analysis tab rooted at that component.
-
-### V3 — Analysis: one or many series
-Analysis begins with the selected/root component and is inherently additive. One-series and multi-series investigation are the same UX state.
-
-Legend: `[series ×] … [+]`; sole/root series may suppress `×`.
-
-Adding series does not create a V4 page. Custom multi-series breadcrumb leaf is compactly represented as **`<root component> + Custom`**; full parent/index context remains in application state/About/provenance without forcing overflow into the ribbon.
+### V3 — Analysis
+Analysis begins with the selected/root component and is additive. One-series and multi-series investigation are the same state. Custom breadcrumb leaf is `<root component> + Custom`.
 
 ## 7. Unit-family and axis assignment
-Axis assignment is determined by compatible unit families, not number of series:
-1. one compatible unit family → one native Y-axis
-2. exactly two compatible unit families → two native Y-axes
-3. more than two incompatible unit families → normalized representation such as Indexed 100 rather than a third native axis
+One compatible unit family → one native Y-axis. Exactly two → two native Y-axes. More than two incompatible families → Indexed 100 rather than a third native axis.
 
 ## 8. Legend identity and About-card navigation
-The legend is designed for maximum visible series density without routine horizontal scrolling.
-
-Rules:
-- abbreviate labels to **three characters wherever practical**; stable abbreviations are authoritative UI identities while full names remain in About/provenance
-- V1 `RSK / GRW / MAC` tap drills Market → selected V2 Index
-- V2 and Analysis chip tap opens an in-context **About card** rather than navigating
-- About answers: What is it? How is it used here? Why does it matter?
-- About has explicit close/outside dismissal
-- **More info** is the deliberate escape hatch: open a new standalone Analysis tab for the exact clicked series
-- no V2 component chip directly spawns a new tab
-
-This standardizes navigation: broad-context V1 drill-down is direct; component-level departure is deliberate through About → More info.
+V1 index chips drill to V2. V2 and Analysis chips open an in-context About card. About answers What is it / How used here / Why matter and supports close/outside dismissal. More info opens exact clicked series as standalone Analysis.
 
 ## 9. Canonical point inspection
-Inspection is transferable between visible series. A tap near a visible line chooses that series and its nearest **real observation**.
-
-One contextual popup located at/near the selected observation contains **series · date · value · unit**. Do not split the date into a separate X-axis label. Render one vertical guide and one marker at the actual observation coordinates. A subsequent tap on another line immediately transfers inspection to that line/observation.
-
-No all-series popup. Inspection clears before context/horizon/series-set changes. Android touch is first-class.
+Inspection transfers between visible series. Tap near a line chooses that series and nearest real observation. One popup contains **series · date · value · unit**, with one vertical guide and marker at actual observation coordinates. Inspection clears on context/horizon/series-set changes.
 
 ## 10. Axis and time contract
-Every chart has visible Y-axis/ticks/unit and horizon-correct X-axis. Axis QA remains matrix-based across analytical states × seven horizons × X/Y1/Y2.
-
-Horizon semantics follow `data/market-backend/data-catalog.json`; 1D/5D use applicable observations/trading sessions rather than calendar approximations.
+Every chart has visible Y-axis/ticks/unit and horizon-correct X-axis. QA is matrix-based across analytical states × seven horizons × X/Y1/Y2. Horizon semantics follow `data/market-backend/data-catalog.json`; 1D/5D use applicable observations/trading sessions rather than calendar approximations.
 
 ## 11. Data fidelity and mixed frequency
-Each direct Analysis line terminates at its own latest real observation. Slower-frequency sources are never stretched/carried forward to match faster sources. Selected point, Data, Statistics, AI and export reconcile to canonical evidence.
-
-**CPI versus WTI remains the mandatory Gate 4 mixed-frequency acceptance case.**
-
-Derived-index construction may use the explicit composite-timestamp rule in `derived-index-definition.json`; that rule must never leak into direct Analysis as fabricated source observations.
+Each direct Analysis line terminates at its own latest real observation. Slower-frequency sources are never stretched to match faster sources. **CPI versus WTI is mandatory Gate 4 mixed-frequency acceptance.** Derived indices may use the explicit composite-timestamp rule in `derived-index-definition.json`; direct Analysis may not.
 
 ## 12. Three-row analytical top ribbon
-The previous two-row ribbon is retired.
-
-### Row 1 — H1 context
-Large clear header naming the current analytical level plus horizon-relative sentiment:
-- `Market: <sentiment>`
-- `Growth: <sentiment>`
-- `Payroll: <sentiment>`
-
-### Row 2 — compact breadcrumbs
-Breadcrumbs occupy their own row so they never compete with horizon controls. Use compact `/` separators and concise semantic lineage:
-- `Market`
-- `Market / Growth`
-- `Market / Growth / Payroll`
-- custom Analysis leaf: `Payroll + Custom`
-
-Breadcrumbs are interactive. Labels compact/truncate only as a last resort; the naming convention is intentionally short enough to remain inside the top ribbon on mobile.
-
-### Row 3 — horizon + More
-The seven horizons are enlarged for readability/touch and remain geometrically centered. `…` More remains at far right.
-
-More contains distinct actions:
-- Add to Analysis
-- Add/Save to Library
-- Print
-- Download
+Row 1: H1 context (`Market: <sentiment>`, `Growth: <sentiment>`, `Payroll: <sentiment>`). Row 2: compact interactive breadcrumbs using `/`. Row 3: enlarged seven horizons centered, More at far right. More contains Add to Analysis, Add/Save to Library, Print, Download.
 
 ## 13. Add Series modal
-The flat picker is retired.
+Top/sticky Add/Done/Close controls. Tabs: **Market | Risk | Growth | Macro | Other**. Market contains individually selectable Risk/Growth/Macro; Market itself is not selectable. Risk/Growth/Macro tabs contain index + all components. Other is catalog minus union of index constituents; confirmed outliers: Brent, Gold, 2Y, 30Y, 10Y–2Y spread, Real GDP. Search and multi-select are required.
 
-Modal header/action controls remain visible at the **top**, including Add/Done/Close as applicable, so actions never disappear below a long suggestion list.
+## 14. AI POV and operational conversation
+AI is active Gate 4 functionality. POV and chat are grounded in exact active canonical evidence/horizon. CONFIG follows `devstream-test.html`: Venice.ai, OpenRouter, Anthropic direct; browser-local keys; model discovery where supported; real provider/model validation call before acceptance; provider/model switching in persistent compose strip.
 
-Categorized tabs:
-- **Market** — Risk, Growth, Macro as individually selectable index series. Market itself is only the tab/container and is **not** selectable as a fourth series.
-- **Risk** — Risk index itself + all Risk components
-- **Growth** — Growth index itself + all Growth components
-- **Macro** — Macro index itself + all Macro components
-- **Other** — canonical enabled series not constituents of any of the three indices
-
-Current confirmed Other outliers: **Brent, Gold, 2-Year Treasury, 30-Year Treasury, 10Y–2Y Treasury spread, Real GDP**. Membership is derived from catalog minus the union of index constituents, not hard-coded permanently.
-
-Search remains available and works across tabs/canonical identities. Multi-select remains supported.
-
-## 14. AI POV and operational conversation — active Gate 4 functionality
-AI is no longer a gated placeholder.
-
-AI POV is grounded in the exact active canonical evidence state and selected horizon. It provides concise **What changed / Why it matters**. `ⓘ` exposes sources, latest observation dates, cadence, units, methodology, normalization/axis decisions, provenance and relevant QA state.
-
-The persistent composer is operational and interrogates the same exact evidence context. Series/horizon changes invalidate/stale the prior POV until re-evaluated.
-
-### Provider/config contract
-CONFIG adopts the proven `devstream-test.html` pattern:
-- Venice.ai
-- OpenRouter
-- Anthropic direct
-- API keys stored only in browser local storage
-- provider keys are cleaned/normalized before use
-- model discovery where supported
-- **real provider/model validation call at point of entry before configuration is accepted as functional**
-- clear validation success/failure status
-- provider/model can be switched from the persistent chat compose strip
-- selected provider/model is used for POV and conversation calls
-
-No key is committed to repository evidence.
-
-## 15. LIBRARY — active Gate 4 functionality
-Add/Save to Library is operational, not a placeholder. Saved research state preserves at minimum: analytical lineage, root/added series set, horizon/range, axis/normalization state, canonical observation/provenance references, POV/conversation context sufficient to resume, and save timestamp/version.
-
-Library can reopen a saved analysis into the same analytical state.
+## 15. LIBRARY
+Operational Add/Save to Library preserves analytical lineage, series set, horizon, axis/normalization state, evidence/provenance references, POV/conversation resume context and save version/time. Saved analysis reopens into same state.
 
 ## 16. Statistics and correlation
-Statistics bind to exact analytical state. Correlation records series pair, coefficient, range, alignment/frequency, observation count, transformation and method. Correlation is association, not causation.
+Statistics bind to exact analytical state. Correlation records pair, coefficient, range, alignment/frequency, observation count, transformation and method.
 
 ## 17. Share / download / print
-Download = report/evidence + exact data. Print = formatted report. These remain secondary More-menu actions and reconcile to exact active evidence state.
+Download = report/evidence + exact data. Print = formatted report. Both reconcile to exact active evidence.
 
 ## 18. HEALTH and CONFIG
-Health exposes freshness/source/collection/coverage/provenance/readiness/failures. Config remains separated at bottom of left rail and contains operational AI provider configuration described above.
+Health exposes freshness/source/collection/coverage/provenance/readiness/failures. Config is at bottom of rail and contains operational AI provider configuration.
 
 ## 19. Backend contract
 Data Catalog defines canonical series. Operational Manifest is runtime state. Smart Evidence Store holds canonical observations/horizon records. Browser does not reacquire Yahoo/FRED evidence.
 
-Gate 4 consumes canonical repository evidence directly; it does not create browser-side replacement acquisition paths.
-
 ## 20. Gate 3 — UX Journey Prototype
-**Status: APPROVED / ACCEPTED.**
-
-Approved corrective POC: `market-view-ux-gate3-p2.html`, commit **`cfba7320e42028f09f2967304cb0c0dd0cc2988d`**.
-
-Gate 3 established the additive Analysis interaction model, multi-select picker, unit-family routing, chart journey and persistent analytical footer. Subsequent Gate 4 owner decisions supersede its two-row ribbon and direct V2 component-navigation details as explicitly documented in this plan.
+**Status: APPROVED / ACCEPTED.** Approved POC: `market-view-ux-gate3-p2.html`, commit `cfba7320e42028f09f2967304cb0c0dd0cc2988d`. Gate 4 decisions supersede its two-row ribbon and direct V2 navigation details.
 
 ## 21. Gate 4 — complete application build
-**Status: ACTIVE — REPLACEMENT RELEASE REQUIRED.**
+**Status: ACTIVE — R3 SUCCESSOR REQUIRED.**
 
-Rejected first slice `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e` is recorded in `MARKET-NAVIGATOR-GRAVEYARD.md` and is **not** the patch-forward product baseline.
+Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e` and inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009` are graveyarded and are not patch-forward baselines.
 
 ### Governed lineage
-**Current Market Navigator 3 (`market-view.html`) application/runtime foundation + approved Gate 3 POC interaction model + approved three-row ribbon/footer decisions + canonical backend evidence.**
-
-The replacement release must preserve/reconcile required Market Navigator 3 application capabilities rather than becoming another POC-only rewrite.
+**Market Navigator 3.9.7 `market-view.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + Devstream provider-validation pattern.** R3 must preserve/reconcile the 3.9.7 application capabilities rather than become another standalone POC rewrite.
 
 ### Nothing else is gated
-Gate 4 is an application assembly gate, not another chart-only prototype. The release includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore surfaces required by the application contract, and real canonical evidence integration.
+R3 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
 
-### Mandatory Gate 4 acceptance
-- V1 Market renders RSK/GRW/MAC across all horizons without silently missing an index line
-- V1 legend tap drills to V2
-- V2 renders selected index trendline **plus every defined component**
-- V2 component tap opens About; About → More info opens exact component Analysis tab
-- V3 additive Analysis from real canonical source records
-- compact three-character legend identities wherever practical
-- three-row ribbon with H1, compact breadcrumb row, enlarged seven-horizon row
-- transferable crosshair with one combined series/date/value/unit popup at actual observation
-- real mixed-frequency CPI + WTI demonstration
-- independent source endpoints and actual observation dates
-- one/two-axis unit-family behavior and Indexed-100 fallback
-- categorized Add Series modal `Market | Risk | Growth | Macro | Other`, top-pinned actions, multi-select/search
-- operational Add/Save to Library and state restoration
-- operational AI POV and grounded chat
-- CONFIG patterned after `devstream-test.html`: Venice/OpenRouter/Anthropic, key/model validation and compose-strip switching
-- Health/source failures and provenance surfaced rather than silently omitted
-- no browser reacquisition of canonical Yahoo/FRED evidence
-- no prototype-only/synthetic curves in analytical path
-- systematic mobile/desktop QA across analytical states × seven horizons × X/Y1/Y2 and interaction paths
+### Mandatory acceptance
+- V1 RSK/GRW/MAC all horizons; V1 legend drills to V2
+- V2 selected index line + every defined component; missing evidence explicit
+- V2 component About → More info → exact Analysis
+- V3 additive Analysis from canonical source records
+- three-row ribbon and mobile-safe breadcrumbs/horizons
+- transferable crosshair and one combined inspection popup
+- CPI + WTI mixed-frequency proof
+- unit-family Y1/Y2 and Indexed-100 fallback
+- categorized searchable multi-select Add Series
+- operational Library restore
+- operational AI POV/chat and provider/model switching
+- Health/source failures/provenance surfaced
+- no browser Yahoo/FRED canonical reacquisition
+- no synthetic analytical curves
+- systematic mobile/desktop QA across state × horizon × X/Y1/Y2
+
+### Mandatory release validation gate
+A Gate 4 release is **not testable and must not be handed to the owner** until all of the following pass:
+1. Extract every executable JavaScript block/module from the candidate artifact and run a real JavaScript parser/static syntax check. A parser failure blocks publication.
+2. Run an application boot smoke check proving initialization reaches the first render without an uncaught exception. A boot failure blocks publication.
+3. Confirm the artifact is reachable at its intended GitHub Pages URL and that its release identity matches the candidate under test.
+4. Run structural checks for the three-row ribbon, seven horizons, RSK/GRW/MAC V1 identities, V2 index+component contract, Add Series taxonomy, Library, Health, Config and AI composer/provider controls.
+5. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, or previous release.
+
+R2's inert handoff is explicitly a release-process failure. The successor must be parser-validated before a test URL is issued.
 
 ## 22. Rejected approaches
-See `MARKET-NAVIGATOR-GRAVEYARD.md` for governed rejected lineages. Product-level prohibitions include:
-- patching forward rejected Gate 3 or Gate 4 descendants
-- chart/navigation-only Gate 4 releases while Library/AI/Config remain placeholders
-- breadcrumbs sharing the horizon row
-- verbose breadcrumb labels that cause ribbon overflow
-- direct V2 component legend navigation that bypasses About
-- V2 components without selected index reference line
-- incomplete index component sets
-- flat Add Series list and bottom-hidden modal actions
-- Market treated as a fourth selectable trendline
-- all-series or locked-series crosshair
-- split date/value inspection labels
-- distinct V4 comparison page/mode
-- arbitrary series-count limits or third/fourth native Y-axes
-- repeating horizon controls
-- card-stack analytical composition
-- duplicate index selector cards
-- separate chart engines
-- incompatible raw units silently sharing one axis
-- missing axes/ticks/units
-- stretching slower-frequency direct Analysis series
-- omitting AI interpretation/conversation from the application
+See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed the mandatory release validation gate.
