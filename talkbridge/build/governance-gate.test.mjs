@@ -68,10 +68,36 @@ test('current governed snapshot is legal', () => {
   assert.deepEqual(result, { ok: true, stage: state.stage, errors: [] });
 });
 
-test('catches frozen baseline modification', () => {
-  const root = fixture();
+test('catches frozen baseline modification before authorization', () => {
+  const root = rootStageFixture();
   fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\nmutation\n');
   expectFailure(root, ['bridge-turn24-post-ship.html'], /frozen baseline modified/);
+});
+
+test('wrangler.jsonc stays frozen even after build authorization', () => {
+  const root = fixture();
+  fs.appendFileSync(path.join(root, 'talkbridge/wrangler.jsonc'), '\n// mutation\n');
+  expectFailure(root, ['talkbridge/wrangler.jsonc'], /frozen baseline modified: talkbridge\/wrangler.jsonc/);
+});
+
+test('authorized candidate outputs may diverge from the frozen bytes', () => {
+  const root = fixture();
+  fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\n/* candidate */\n');
+  fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* candidate */\n');
+  const state = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  const result = validateSnapshot({ root, changedFiles: ['bridge-turn24-post-ship.html', 'talkbridge/worker-talk.js'], previousState: state });
+  assert.deepEqual(result.errors, []);
+});
+
+test('candidate outputs are not exempt before build authorization', () => {
+  const root = fixture();
+  mutateJson(root, state => {
+    state.stage = 'owner_go_required';
+    state.owner_authorization = { status: 'not_requested', approved_at: null, evidence: null, exact_words: null };
+    state.candidate = { status: 'blocked', allowed_output_files: [] };
+  });
+  fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* candidate */\n');
+  expectFailure(root, ['talkbridge/worker-talk.js'], /frozen baseline modified/);
 });
 
 test('catches stage skipping', () => {

@@ -140,6 +140,10 @@ function allowedForStage(state, governingStage) {
     statePath.add('talkbridge/governance/OWNER-GO.md');
   } else if (governingStage === 'build_authorized') {
     for (const rel of state.candidate?.allowed_output_files || []) statePath.add(rel);
+    /* §4.11.7: an internal failing invariant of the gate itself is corrected
+       before a candidate exists — the enforcement files may be repaired here. */
+    statePath.add('talkbridge/build/governance-gate.mjs');
+    statePath.add('talkbridge/build/governance-gate.test.mjs');
   } else if (['candidate_ready', 'device_gate', 'accepted'].includes(governingStage)) {
     statePath.add('talkbridge/governance/evidence/');
   }
@@ -158,9 +162,15 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   assert(state.schema === 1, 'unsupported governance schema', errors);
   assert(state.cycle === 'r10-recovery-2026-08-30', 'unexpected R10 recovery cycle', errors);
 
+  /* §4.11.1 / §4.11.7: once the owner GO is banked, the declared output files
+     are the candidate and may diverge from the frozen bytes; every other
+     baseline file (wrangler.jsonc) stays byte-frozen through acceptance. */
+  const buildAuthorized = stageIndex(state, state.stage) >= stageIndex(state, 'build_authorized');
+  const candidateOutputs = new Set(buildAuthorized ? (state.candidate?.allowed_output_files || []) : []);
   for (const [rel, expected] of Object.entries(state.baseline?.files || {})) {
     const full = path.join(root, rel);
     assert(fs.existsSync(full), `frozen baseline file is missing: ${rel}`, errors);
+    if (candidateOutputs.has(rel)) continue;
     if (fs.existsSync(full)) assert(sha256File(root, rel) === expected, `frozen baseline modified: ${rel}`, errors);
   }
 
