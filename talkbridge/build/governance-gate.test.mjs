@@ -18,6 +18,7 @@ const FILES = [
   '.github/workflows/deploy-relay.yml',
   '.github/workflows/talkbridge-governance.yml'
 ];
+const ROOT_CAUSE = 'talkbridge/TALKBRIDGE-R10-WHOLE-RELEASE-ROOT-CAUSE.md';
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-governance-'));
@@ -26,6 +27,23 @@ function fixture() {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(REPO, rel), target);
   }
+  if (fs.existsSync(path.join(REPO, ROOT_CAUSE))) {
+    const target = path.join(root, ROOT_CAUSE);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(path.join(REPO, ROOT_CAUSE), target);
+  }
+  return root;
+}
+
+function rootStageFixture() {
+  const root = fixture();
+  mutateJson(root, state => {
+    state.stage = 'root_cause_required';
+    state.root_cause = { status: 'required', file: ROOT_CAUSE, sha256: null };
+    state.replacement_plan = { status: 'blocked', file: 'talkbridge/TALKBRIDGE-PLAN-v9.md', version: null, sha256: null };
+    state.owner_authorization = { status: 'not_requested', approved_at: null, evidence: null, exact_words: null };
+    state.candidate = { status: 'blocked', allowed_output_files: [] };
+  });
   return root;
 }
 
@@ -43,10 +61,11 @@ function expectFailure(root, changedFiles, message) {
   assert.match(result.errors.join('\n'), message);
 }
 
-test('legal current state is root_cause_required', () => {
+test('current governed snapshot is legal', () => {
   const root = fixture();
   const result = validateSnapshot({ root, changedFiles: [], bootstrap: true });
-  assert.deepEqual(result, { ok: true, stage: 'root_cause_required', errors: [] });
+  const state = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  assert.deepEqual(result, { ok: true, stage: state.stage, errors: [] });
 });
 
 test('catches frozen baseline modification', () => {
@@ -56,7 +75,7 @@ test('catches frozen baseline modification', () => {
 });
 
 test('catches stage skipping', () => {
-  const root = fixture();
+  const root = rootStageFixture();
   const previousState = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
   mutateJson(root, state => { state.stage = 'owner_go_required'; });
   const result = validateSnapshot({ root, changedFiles: ['talkbridge/governance/r10-cycle.json'], previousState });
@@ -65,27 +84,27 @@ test('catches stage skipping', () => {
 });
 
 test('catches false owner authorization', () => {
-  const root = fixture();
+  const root = rootStageFixture();
   mutateJson(root, state => { state.owner_authorization.status = 'authorized'; });
   expectFailure(root, ['talkbridge/governance/r10-cycle.json'], /false authorization/);
 });
 
 test('catches buried R10.6 resurrection', () => {
-  const root = fixture();
+  const root = rootStageFixture();
   const rel = 'talkbridge/new-candidate.js';
   fs.writeFileSync(path.join(root, rel), "fetch('/service/deepgram-token');\n");
   expectFailure(root, [rel], /buried R10\.6 mechanism resurrected/);
 });
 
 test('catches implementation before authorization', () => {
-  const root = fixture();
+  const root = rootStageFixture();
   const rel = 'talkbridge/new-candidate.js';
   fs.writeFileSync(path.join(root, rel), 'export const candidate = true;\n');
   expectFailure(root, [rel], /implementation changed before build authorization/);
 });
 
 test('catches replacement-plan edits before root cause is complete', () => {
-  const root = fixture();
+  const root = rootStageFixture();
   const rel = 'talkbridge/TALKBRIDGE-PLAN-v9.md';
   fs.appendFileSync(path.join(root, rel), '\nPremature replacement plan.\n');
   const state = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));

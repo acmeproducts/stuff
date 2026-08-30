@@ -130,6 +130,10 @@ function allowedForStage(state, governingStage) {
   if (governingStage === 'root_cause_required') {
     statePath.add(state.root_cause?.file);
     statePath.add(GRAVEYARD_PATH);
+    /* The gate may be corrected only before the first governed transition.
+       Once root cause is banked, later stages lock the enforcement files. */
+    statePath.add('talkbridge/build/governance-gate.mjs');
+    statePath.add('talkbridge/build/governance-gate.test.mjs');
   } else if (governingStage === 'plan_required') {
     statePath.add(state.replacement_plan?.file);
   } else if (governingStage === 'owner_go_required') {
