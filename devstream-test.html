@@ -75,7 +75,7 @@ select.input{appearance:auto}
 .msg.pending{opacity:.75}
 .msg .mmeta{font-size:11px;color:var(--dim);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
 .msg a{color:var(--accent);word-break:break-all}
-#typing{display:none;align-items:center;gap:8px;padding:4px 14px 8px;color:var(--run);font-size:12px}
+#typing{display:none;align-items:center;gap:8px;padding:6px 14px 8px;color:var(--run);font-size:12px;border-top:1px dashed var(--line)}
 .spin{width:12px;height:12px;border:2px solid var(--run);border-top-color:transparent;border-radius:50%;animation:rot .8s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 #composer{border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
@@ -148,6 +148,9 @@ select.input{appearance:auto}
 .recBtn.danger{color:var(--err)}
 .phase{font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);font-weight:700;letter-spacing:.3px}
 .phaseBtn{font-size:11px;color:var(--accent);padding:6px 8px}
+.attChip{font-size:11px;padding:4px 9px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);display:flex;gap:6px;align-items:center}
+.attChip button{color:var(--err)}
+.msg img.att{max-width:220px;max-height:220px;border-radius:8px;display:block;margin-top:6px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -155,7 +158,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b23</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b24</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -167,8 +170,9 @@ select.input{appearance:auto}
   <div id="emptyState"><div><b>devstream</b><div style="margin-top:6px">+ New starts a project: pick or name its file,<br>and its plan is born with it.</div></div></div>
   <div id="chatArea">
     <div id="messages"></div>
-    <div id="typing"><span class="spin"></span><span>Agent is working…</span></div>
-    <div id="composer"><div class="compose"><textarea id="message" class="input" rows="2" placeholder="Questions, ideas, feedback — or say build it"></textarea><button id="send" class="btn primary">Send</button></div>
+    <div id="typing"><span class="spin"></span><span id="typingText">Agent is working…</span><span id="typingElapsed" class="mono" style="margin-left:auto"></span></div>
+    <div id="composer"><div id="attachList" style="display:flex;gap:6px;flex-wrap:wrap;padding:0 0 6px"></div>
+    <div class="compose"><button id="attachBtn" class="btn" title="Attach">📎</button><input type="file" id="attachInput" multiple style="display:none" accept="image/*,.txt,.md,.html,.js,.json,.css,.csv,.py,.xml,.svg"><textarea id="message" class="input" rows="2" placeholder="Questions, ideas, feedback — or say build it"></textarea><button id="send" class="btn primary">Send</button></div>
     <div class="foot"><span>Enter sends · Shift+Enter newline</span><button id="engineFoot" style="color:var(--accent);font-size:12px;min-height:34px;padding:4px 12px;border:1px solid var(--accent);border-radius:17px;background:var(--panel2)"></button></div></div>
   </div>
 </main>
@@ -512,7 +516,8 @@ function renderChat(){
     if(m.status==='pending')meta+='<span>⧗ queued</span>';
     if(m.commit)meta+='<span class="mono">'+m.commit.slice(0,10)+'</span>';
     if(m.target)meta+='<span class="mono">→ '+esc(m.target)+'</span>';
-    el.innerHTML=linkify(m.text)+meta+'</div>';
+    let attHtml='';(m.attachments||[]).forEach(a=>{attHtml+=a.kind==='image'?'<img class="att" src="'+esc(a.url)+'" alt="'+esc(a.name)+'">':'<div class="mmeta">📄 '+esc(a.name)+' ('+Math.round((a.text||'').length/1000)+'k)</div>'});
+    el.innerHTML=linkify(m.text)+attHtml+meta+'</div>';
     c.appendChild(el);
   });
   c.scrollTop=c.scrollHeight;
@@ -645,14 +650,41 @@ async function newThreadForProject(){
     renderTabs();openThread(key);
   });
 }
+/* ---- attachments ---- */
+let pendingAtt=[];
+$('attachBtn').onclick=()=>$('attachInput').click();
+$('attachInput').onchange=async e=>{
+  for(const f of e.target.files){
+    if(f.size>2*1024*1024){toast(f.name+' skipped (>2MB)');continue}
+    const isImg=/^image\//.test(f.type);
+    if(isImg){const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)});
+      pendingAtt.push({name:f.name,type:f.type,kind:'image',b64})}
+    else{const txt=await f.text();pendingAtt.push({name:f.name,type:f.type||'text/plain',kind:'text',text:txt.slice(0,300000)})}
+  }
+  e.target.value='';renderAttList();
+};
+function renderAttList(){const L=$('attachList');L.innerHTML='';pendingAtt.forEach((a,i)=>{const c=document.createElement('span');c.className='attChip';c.innerHTML=(a.kind==='image'?'🖼 ':'📄 ')+esc(a.name)+' <button>✕</button>';c.querySelector('button').onclick=()=>{pendingAtt.splice(i,1);renderAttList()};L.appendChild(c)})}
+async function storeAttachments(t,atts){
+  const out=[];
+  for(const a of atts){
+    if(a.kind==='image'){
+      const path='devstream/attachments/'+encodeURIComponent(t.project)+'/'+Date.now()+'-'+a.name.replace(/[^\w.\-]/g,'_');
+      await gh('contents/'+path,{method:'PUT',body:JSON.stringify({message:'devstream: attachment '+a.name,content:a.b64,branch:cfg.branch})});
+      out.push({name:a.name,type:a.type,kind:'image',path,url:'https://raw.githubusercontent.com/'+repoFull()+'/'+cfg.branch+'/'+path});
+    }else out.push({name:a.name,type:a.type,kind:'text',text:a.text});
+  }
+  return out;
+}
 /* ---- send / dispatch ---- */
 async function sendMessage(){
   const key=activeKey;const txt=$('message').value.trim();
-  if(!key||!txt)return;
+  if(!key||(!txt&&!pendingAtt.length))return;
   $('send').disabled=true;
   const ok=await guard(async()=>{
     const t=sot.threads[key],th=threads[key];
-    th.data.messages.push({role:'user',text:txt,ts:now(),status:'pending'});
+    const atts=pendingAtt.length?await storeAttachments(t,pendingAtt):[];
+    pendingAtt=[];renderAttList();
+    th.data.messages.push({role:'user',text:txt,ts:now(),status:'pending',attachments:atts.length?atts:undefined});
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: message '+key);
     sot.projects[t.project].lastTouched=now();
     await saveSOT('devstream: touch '+key);
@@ -730,14 +762,16 @@ async function runAgent(key){
     const codeFile=th.data.outputFile,planFile=th.data.planFile||planOf(codeFile);
     const history=th.data.messages.filter(m=>m.status!=='pending').map(m=>({role:m.role==='user'?'user':'assistant',content:m.summary||m.text})).slice(-14);
     const forced=pend.find(m=>m.forcedTarget);
-    const instr=pend.map(m=>m.text).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
-    const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,
+    const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
+    const images=pend.flatMap(m=>(m.attachments||[]).filter(a=>a.kind==='image').map(a=>({path:a.path,type:a.type,name:a.name})));
+    const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,
       system:agentSystem(codeFile,planFile,(sot.projects[t.project]||{}).phase||'Define'),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
     const{summary,target,body,state,usedEng}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     if(target!=='NONE'){
       if(body.length<80)throw new Error('agent returned no usable file content for '+target);
+      progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
       commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
       if(target===planFile){sot.projects[t.project].planExists=true;reply+='\nPlan updated: https://github.com/'+repoFull()+'/blob/'+cfg.branch+'/'+planFile}
       else{testUrl='https://'+cfg.owner+'.github.io/'+cfg.repo+'/'+target+'?cb='+Date.now();reply+='\nTest: '+testUrl}
@@ -746,12 +780,15 @@ async function runAgent(key){
     if(state)reply+='\n— '+state;
     th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined});
     th.data.lastState=state||th.data.lastState;
+    progress[key]={line:'saving reply',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
     th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent reply '+key);
+    delete progress[key];
     await setState(key,{state:'ok',finishedAt:now(),lastCommit:commit||t.lastCommit,testUrl,error:''});
     toast(key+' done');
   }catch(e){
     th.data.messages.push({role:'agent',text:'Failed: '+e.message,ts:now()});
     try{th.sha=await putFileSafe(threadPath(key),JSON.stringify(th.data,null,1),'devstream: agent error '+key)}catch(e2){}
+    delete progress[key];
     await setState(key,{state:'error',finishedAt:now(),error:e.message});
   }
 }
@@ -790,11 +827,13 @@ async function ghGet(cfg,path){
   }
   return content;
 }
-async function callEngine(cfg,eng,model,system,history,user){
+async function callEngine(cfg,eng,model,system,history,user,images){
+  images=images||[];
   if(eng==='anthropic-direct'){
+    const parts=[...images.map(im=>({type:'image',source:{type:'base64',media_type:im.type,data:im.b64}})),{type:'text',text:user}];
     const r=await tfetch('https://api.anthropic.com/v1/messages',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:user}]})},300000);
+      body:JSON.stringify({model:model||'claude-sonnet-4-6',max_tokens:64000,system,messages:[...history,{role:'user',content:parts}]})},300000);
     const j=await r.json();
     if(!r.ok)throw new Error('anthropic '+r.status+': '+((j.error&&j.error.message)||'unknown'));
     return(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
@@ -804,8 +843,10 @@ async function callEngine(cfg,eng,model,system,history,user){
   if(!M)throw new Error('unknown engine '+eng);
   if(!M.key)throw new Error(eng+' key not configured');
   if(!M.model)throw new Error(eng+' model not selected');
+  const userContent=(images.length&&eng==='openrouter')?[{type:'text',text:user},...images.map(im=>({type:'image_url',image_url:{url:'data:'+im.type+';base64,'+im.b64}}))]
+    :(images.length?user+'\\n\\n(Note: '+images.length+' image attachment(s) provided but this engine is text-only here: '+images.map(i=>i.name).join(', ')+')':user);
   const r=await tfetch(M.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+M.key},
-    body:JSON.stringify({model:M.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:user}]})},300000);
+    body:JSON.stringify({model:M.model,max_tokens:64000,messages:[{role:'system',content:system},...history,{role:'user',content:userContent}]})},300000);
   let j;try{j=await r.json()}catch(e){throw new Error(eng+' non-JSON ('+r.status+')')}
   if(!r.ok)throw new Error(eng+' '+r.status+': '+((j.error&&(j.error.message||j.error))||'unknown'));
   return j.choices[0].message.content;
@@ -815,6 +856,12 @@ self.onmessage=async e=>{
   const post=(m)=>self.postMessage({jobId:job.jobId,...m});
   try{
     const{cfg,codeFile,planFile,inputFile,system,history,instr,chain,threadModel,threadEngine}=job;
+    const images=[];
+    for(const im of (job.images||[])){
+      post({type:'log',line:'loading image '+im.name});
+      const r=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+im.path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}},25000);
+      if(r.ok){const j=await r.json();images.push({name:im.name,type:im.type,b64:(j.content||'').replace(/\\n/g,'')})}
+    }
     let ctx='';
     post({type:'log',line:'reading plan '+planFile});
     const pc=await ghGet(cfg,planFile);
@@ -826,7 +873,7 @@ self.onmessage=async e=>{
     let text=null,usedEng=null,fails=[];
     for(const eng of chain){
       post({type:'log',line:'engine '+eng+' call ('+Math.round((ctx.length+instr.length)/1000)+'k chars in)…'});
-      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\\n'+instr);usedEng=eng;break}
+      try{text=await callEngine(cfg,eng,eng===threadEngine?threadModel:null,system,history,ctx+'Instructions:\\n'+instr,images);usedEng=eng;break}
       catch(err){fails.push(eng+': '+err.message);post({type:'log',line:'engine '+eng+' failed: '+err.message,err:true})}
     }
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
@@ -838,7 +885,7 @@ self.onmessage=async e=>{
 `;
 const WORKER_URL=URL.createObjectURL(new Blob([WORKER_SRC],{type:'application/javascript'}));
 const POOL_SIZE=4;
-const pool=[];const jobQ=[];const jobs={};let jobSeq=0;
+const pool=[];const jobQ=[];const jobs={};let jobSeq=0;const progress={};
 function getWorker(){
   let w=pool.find(p=>!p.busy);
   if(!w&&pool.length<POOL_SIZE){
@@ -846,7 +893,7 @@ function getWorker(){
     w={wk,busy:false};
     wk.onmessage=e=>{
       const m=e.data;const job=jobs[m.jobId];if(!job)return;
-      if(m.type==='log'){dlog((m.err?'E|':'')+'[T'+m.jobId+' '+job.key+'] '+m.line);return}
+      if(m.type==='log'){dlog((m.err?'E|':'')+'[T'+m.jobId+' '+job.key+'] '+m.line);progress[job.key]={line:m.line,err:!!m.err,at:Date.now(),started:(progress[job.key]||{}).started||Date.now()};renderProgress();return}
       w.busy=false;delete jobs[m.jobId];
       (m.type==='done'?job.resolve(m):job.reject(new Error(m.message)));
       pumpQ();
@@ -860,13 +907,14 @@ function pumpQ(){
   while(jobQ.length){
     const w=getWorker();if(!w)break;
     const job=jobQ.shift();w.busy=true;w.currentJob=job.payload.jobId;job.startedAt=Date.now();jobs[job.payload.jobId]=job;
-    dlog('[T'+job.payload.jobId+' '+job.key+'] dispatched to worker (pool '+pool.filter(p=>p.busy).length+'/'+POOL_SIZE+')');
+    dlog('[T'+job.payload.jobId+' '+job.key+'] dispatched to worker (pool '+pool.filter(p=>p.busy).length+'/'+POOL_SIZE+')');progress[job.key]={line:'dispatched to worker',at:Date.now(),started:(progress[job.key]||{}).started||Date.now()};renderProgress();
     w.wk.postMessage(job.payload);
   }
   renderWorkload();
 }
 function runJob(key,payload){
   payload.jobId=++jobSeq;
+  progress[key]={line:'queued ('+jobQ.length+' ahead, pool '+pool.filter(p=>p.busy).length+'/'+POOL_SIZE+')',at:Date.now(),started:Date.now()};
   return new Promise((resolve,reject)=>{jobQ.push({key,payload,resolve,reject});pumpQ()});
 }
 setInterval(()=>{ // watchdog
@@ -882,6 +930,17 @@ setInterval(()=>{ // watchdog
     }
   });
 },30000);
+function renderProgress(){
+  if(!activeKey)return;const t=sot.threads[activeKey];const p=progress[activeKey];
+  const tt=$('typingText'),te=$('typingElapsed');if(!tt)return;
+  if(t&&t.state==='executing'&&!isStalled(t)){
+    tt.textContent=p?p.line:'running (started on another device or before reload)';
+    tt.style.color=p&&p.err?'var(--err)':'';
+    const st=(p&&p.started)||new Date(t.startedAt).getTime();
+    te.textContent=Math.round((Date.now()-st)/1000)+'s';
+  }
+}
+setInterval(renderProgress,1000);
 function renderWorkload(){
   const n=pool.filter(p=>p.busy).length+jobQ.length;
   const el=document.getElementById('pill');
