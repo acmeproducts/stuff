@@ -1,3 +1,4 @@
+<plan>
 # tictactoe.md — Master Plan (sole authority)
 
 ## Project
@@ -35,7 +36,7 @@
 - **Extras:** single-player vs AI opponent, sound effects, theme options — in or out for v1?
 
 ## Backlog (requested, awaiting build phase)
-- BUILD: implement the 3D two-player tic-tac-toe game in tictactoe.html per this plan (requested 2026-08-27, ×4 — user intent is emphatic). Blocked until Define scope confirmed (see open questions); on approval, proceed to code with in-app diagnostics.
+- BUILD: implement the 3D two-player tic-tac-toe game in tictactoe.html per this plan (requested 2026-08-27, ×5 — user intent is emphatic). Blocked until Define scope confirmed (see open questions); on approval, proceed to code with in-app diagnostics.
 
 ## Constraints & standing rules
 - Artifacts: CODE = tictactoe.html (single file, mobile-first); PLAN = this file (only persistent memory).
@@ -47,3 +48,5 @@
 | Date | Stage | What happened this run |
 |---|---|---|
 | 2026-08-27 | DEFINE | Received repeated request to "create a html5 3d tictactie game that anyone can play with another person." Created plan; wrote Define section (purpose, users, outcomes, success criteria); logged build request in backlog; flagged open scope questions (local vs online multiplayer, CSS3D vs WebGL, extras). No code written — project is in Define. |
+| 2026-08-28 | DEFINE | Received additional build request; updated backlog count to ×5; no code written; still in Define awaiting scope decisions. |
+</plan>
