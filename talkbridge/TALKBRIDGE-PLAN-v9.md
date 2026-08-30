@@ -485,12 +485,13 @@ diagnostic-only build.
 
 ### 4.10 · R10.6 — RECOVERY CONTRACT AFTER THE TWO-LOG R10.5 FAILURE (ACTIVE)
 
-**Status: PLAN READY; NO R10.6 CODE OR CANDIDATE EXISTS.** The owner ordered
-the graveyard update first and this plan revision second. R10.5 remains
-rejected and the live whole pair remains the byte-verified R10.2/v4.2 rollback.
-R10.6 is a clean rebuild from `bridge-turn24-ship.html` plus explicitly named
-parts; no R10.5 source or test is a baseline. Instrumentation is included in
-the behavioral candidate and is not a separate release.
+**Status: PLAN AUTHORIZED 2026-08-29; NO R10.6 CODE OR CANDIDATE EXISTS YET.**
+The owner's “please proceed” is the build GO for this exact contract; the dev
+team must not ask for a duplicate authorization. R10.5 remains rejected and
+the live whole pair remains the byte-verified R10.2/v4.2 rollback. R10.6 is a
+clean rebuild from `bridge-turn24-ship.html` plus explicitly named parts; no
+R10.5 source or test is a baseline. Instrumentation is included in the
+behavioral candidate and is not a separate release.
 
 #### 4.10.1 · WHAT THE DEVICE EVIDENCE ESTABLISHED
 
@@ -1381,8 +1382,9 @@ scoped `tb_auth_v1`, Deepgram temporary tokens, and expiring Cloudflare TURN
 credentials; remaining GitHub/PAT migration stays in R13. The active 12-row
 two-way matrix now includes caller-hang-up-as-recipient-missed and away events
 while the app remains routed to that room. The plan, not product code, is the
-only artifact changed; R10.6 remains unbuilt pending owner acceptance of this
-revision.
+only artifact changed. The owner's “please proceed” authorizes the dev team to
+build exactly §4.10 without another plan edit or GO request; R10.6 remains
+unbuilt at this plan commit.
 
 **v20.6.1 · 2026-08-29.** R10.5 product commit `13b3d9ae` deployed
 successfully. Pages run `33257913179` serves the exact gated app and worker
