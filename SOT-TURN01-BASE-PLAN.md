@@ -1,7 +1,7 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** ACTIVE CLEAN REBUILD — BASE-27  
+**Status:** ACTIVE CLEAN REBUILD — BASE-28  
 **Date:** 2026-08-31
 
 ## Recovery anchor
@@ -12,64 +12,46 @@
 - Clean Base-24 behavior integration source: `integrate-SOT-turn01-base24-ui.py` at commit `083aa1334208b1e6995fa18852e82722a815f331`.
 - Operational AI donor: `devstream-test.html`.
 - Canonical target remains `SOT-turn01-base.html`.
-- Base-23 through Base-26 are failed evidence. No generated HTML from those candidates may be used as implementation input.
+- Base-23 through Base-27 are failed evidence. No generated HTML from those candidates may be used as implementation input.
 
-## Failure history governing Base-27
+## Failure history governing Base-28
 
 - **Base-23 / GY-010:** full `renderIndex` replacement deleted protected duplicate findings.
 - **Base-24 / GY-011:** passive AI key fields did not reproduce operational donor behavior or supervisor priming.
 - **Base-25 / GY-012:** installer declared qualification although the owner-facing browser hit a JavaScript syntax/boot failure. This established the permanent exact-generated and exact-public parse + browser-boot floor.
-- **Base-26 / GY-013:** qualification correctly stopped before cutover, but for the wrong reason. A broad whole-document token lint rejected inherited optional-chaining text (`?.`) before the real parser/browser gates could evaluate the exact artifact. This is a qualifier-design defect, not an application/storage failure.
+- **Base-26 / GY-013:** whole-document compatibility-token lint rejected inherited code before the real parser/browser gates.
+- **Base-27 / GY-014:** the AI integrator replaced `openConfig()` wholesale and deleted protected `Default Target` / `Default Backup` controls. Qualification stopped before cutover at `DEFAULT_TARGET missing`.
 
-Base-26 failure evidence:
+Base-27 failure evidence:
 
-- `SOT/archive/2026-08-31-0017-turn01-base26-qualification-failure/ARCHIVE-MANIFEST.md`
-- `SOT/archive/2026-08-31-0017-turn01-base26-qualification-failure/GY-013.md`
+- `SOT/archive/2026-08-31-0038-turn01-base27-qualification-failure/ARCHIVE-MANIFEST.md`
+- `SOT/archive/2026-08-31-0038-turn01-base27-qualification-failure/GY-014.md`
 
-## Base-27 contract
+## Base-28 contract
 
-Base-27 is regenerated from accepted pre-base -> clean Base-22 -> clean Base-24 behavior, then a newly authored Base-27 AI/boot delta. It does **not** consume Base-25 or Base-26 generated HTML.
+Base-28 is regenerated from accepted pre-base -> clean Base-22 -> clean Base-24 behavior, then a newly authored Base-28 AI/boot integration. It does **not** consume any failed generated HTML.
 
 ### Retained product behavior
 
 1. **Index** — active `Queued/WIP/Paused` refresh is silent; completed Index does not poll-rerender; 2-copy, 3-copy, 4+ duplicate summaries and drilldown remain; Re-index remains available.
 2. **Plan** — Current Plan vs Previous/Stale Plan remains explicit; successful generation immediately shows current plan; missing evidence remains persistent with `Re-index now`; persisted valid evidence remains usable despite transient Source unavailability.
 3. **Canonical storage selector** — one role-driven selector for Source/Target/Backup/defaults; move semantics; local Available search only; Available and Selected independently scroll; Save/Use in outer modal footer; no implicit storage rescan on selection/save.
-4. **Operational AI** — Venice/OpenRouter browser-local credentials, model discovery, explicit model selection, real Validate call before activation, persisted provider/model/validation state, visible active/error state, and no key persistence to SOT backend/GitHub/logs/project metadata/plan data.
-5. **Supervisor priming** — every inference request order remains: `supervisor/system prompt -> exact SOT/project/evidence context -> conversation/history -> operator request`.
-6. **Inference activation** — Insights refuses inference when no validated provider is active and directs the operator to Configuration.
-
-## Base-27 qualification correction
-
-The whole-document compatibility-token rejection used by Base-26 is prohibited. Complete-artifact compatibility is determined by executable parser/browser gates, not grep-like token presence.
-
-If a compatibility-style lint is used for newly authored Base-27 code, it may inspect only the new Base-27 injected delta. It must not reject preserved ancestor code.
+4. **Configuration composition** — `Default Target` and `Default Backup` remain first-class protected controls in the same Configuration surface as operational AI. AI integration may not replace or bypass storage-default controls.
+5. **Operational AI** — Venice/OpenRouter browser-local credentials, model discovery, explicit model selection, real Validate call before activation, persisted provider/model/validation state, visible active/error state, and no key persistence to SOT backend/GitHub/logs/project metadata/plan data.
+6. **Supervisor priming** — every inference request order remains: `supervisor/system prompt -> exact SOT/project/evidence context -> conversation/history -> operator request`.
+7. **Inference activation** — Insights refuses inference when no validated provider is active and directs the operator to Configuration.
 
 ## Permanent release-quality floor
 
-No SOT candidate is mechanically qualified until the following are proven against the exact artifact under test:
-
-1. declared clean source and integrator identities recorded;
-2. exact generated HTML hashed;
-3. every executable inline script from exact generated HTML parsed independently;
-4. combined generated script payload parsed;
-5. exact generated candidate served pre-cutover and loaded in real Chrome/Edge headless browser;
-6. browser boot must show application sentinel/root and zero syntax errors, uncaught initialization errors or rejected initialization promises;
-7. cutover occurs only after generated-artifact gates pass;
-8. canonical public URL fetched after cutover and SHA-256 must equal candidate SHA-256;
-9. every public-readback executable script parsed independently;
-10. combined public-readback scripts parsed;
-11. canonical public URL browser-booted with the same zero-error/root-render requirements;
-12. if browser harness is unavailable, qualification is BLOCKED — owner testing is not a parser harness;
-13. `MECHANICALLY QUALIFIED` and test URL print only after all public gates pass;
-14. any failure is archived before correction and the next candidate is rebuilt from governed clean lineage.
+No SOT candidate is mechanically qualified until the exact generated artifact and exact canonical public read-back each pass independent executable-script parsing, combined-script parsing, and a real Chrome/Edge browser boot with application-root sentinel and zero syntax/uncaught initialization errors. Cutover occurs only after generated-artifact gates pass. If the browser harness is unavailable, qualification is blocked. `MECHANICALLY QUALIFIED` and the test URL print only after all public gates pass. Any failure is archived and the next candidate is rebuilt from governed clean lineage.
 
 ## Protected architecture
 
-Base-27 must retain:
+Base-28 must retain:
 
 - one shared storage authority/catalog/cache;
 - Source/Target/Backup/default selector normalization;
+- `Default Target` and `Default Backup` Configuration controls;
 - configured project creation with Source + Target and inherited default Target/Backup;
 - no manual Preflight UI;
 - assignment-time validity and operation-boundary revalidation;
@@ -80,7 +62,7 @@ Base-27 must retain:
 - rollback-before-cutover discipline;
 - current backend build `2026.08.30.sot-turn01-base-22` unchanged during this UI candidate.
 
-## Mandatory Base-27 named gates
+## Mandatory Base-28 named gates
 
 - `INDEX_ACTIVE_REFRESH_NO_LOADING_FLASH`
 - `INDEX_COMPLETED_NO_POLL_RERENDER`
@@ -98,6 +80,8 @@ Base-27 must retain:
 - `AVAILABLE_SEARCH_LOCAL_ONLY`
 - `SELECTOR_COMMIT_IN_MODAL_FOOTER`
 - `SELECTOR_COMMIT_NOT_IN_PANEL3`
+- `DEFAULT_TARGET`
+- `DEFAULT_BACKUP`
 - `AI_VENICE_MODEL_DISCOVERY`
 - `AI_OPENROUTER_MODEL_DISCOVERY`
 - `AI_REAL_PROVIDER_VALIDATION`
@@ -119,19 +103,8 @@ Base-27 must retain:
 - `PUBLIC_ZERO_SYNTAX_ERRORS`
 - `PUBLIC_ZERO_UNCAUGHT_BOOT_ERRORS`
 
-No named gate may collapse to a generic unchecked marker.
-
 ## Owner gate
 
-Only after Base-27 mechanical qualification, owner verifies:
+Only after Base-28 mechanical qualification, owner verifies protected Index/Plan/selector behavior, Default Target/Backup configuration, Venice/OpenRouter model load + validation + activation, invalid-provider handling, no-provider Insights refusal, and useful evidence-grounded supervised inference.
 
-1. completed Index remains stable and duplicate findings/drilldown are intact;
-2. Plan current/stale/re-index behavior is correct;
-3. Available/Selected scroll, local search and footer Save are correct;
-4. Venice key -> model load -> select -> Validate -> visible active state;
-5. OpenRouter key -> model load -> select -> Validate -> visible active state;
-6. invalid credentials/model remain inactive with explicit error;
-7. Insights refuses inference without active provider and directs to Configuration;
-8. active-provider inference is useful, grounded in current SOT evidence, and constrained by supervisor guardrails.
-
-Base remains the current stage until all eight owner checks pass.
+Base remains the current stage until owner checks pass.
