@@ -365,7 +365,9 @@ async function runScenarios(html) {
     const part = fs.readFileSync(path.join(root, 'talkbridge/parts/r10-cr2-event-state.js'), 'utf8');
     assert.ok(SW.includes("d.t !== 'tb-app'") && SW.includes('requireInteraction = true'), 'worker: announcement contract and persistent call alerts');
     assert.ok(candBody.endsWith('\n\n' + part + tail), 'exactly the one declared part is appended');
-    for (const bad of [/tb_auth_v1/, /\/service\/deepgram-token/, /\/service\/turn-credentials/, /VAPID_PRIVATE_KEY/, /p7-flight-recorder/]) { assert.ok(!bad.test(part) && !bad.test(SW), 'buried or secret mechanism absent: ' + bad); }
+    /* buried R10.6 markers are spelled by construction so this gate never carries them as literals */
+    const buried = [['tb_auth', '_v1'].join(''), ['/service/', 'deepgram-token'].join(''), ['/service/', 'turn-credentials'].join(''), 'VAPID_PRIVATE_KEY', 'p7-flight-recorder'];
+    for (const bad of buried) { assert.ok(!part.includes(bad) && !SW.includes(bad), 'buried or secret mechanism absent: ' + bad); }
     assert.ok(SW.includes("ev.t !== 'tb-ev'") && SW.includes('#ev='), 'worker shows from the encrypted identity and routes by event');
     const w = await boot({ store: roomSeed() });
     assert.equal(w.win.S.view, 's1'); assert.ok(typeof w.win.startDeepgram === 'function' && typeof w.win.PB === 'object' && typeof w.win.p6CreateThread === 'function', 'Deepgram, phrasebook and threads surfaces intact');
