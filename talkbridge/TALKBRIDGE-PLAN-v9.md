@@ -510,12 +510,16 @@ no push storm, one state word each way.
 
 #### 4.13.3 · Voice transcription on both phones (G24; root cause §11)
 
-The joiner phone's voice credentials must survive relaunch, lock and the
-release process, or their loss must be visible and explained on the device.
-The exact correction is bound by §11 once its evidence is read; whatever it
-is, it is built from the frozen bytes under the same wall, with a machine
-gate that relaunches the joiner and proves the key is still there, and a
-planted defect that drops it. No GO is requested until §11 is complete.
+Root cause §11 (complete): the joiner's granted key survives on disk for 30
+days but the frozen bytes' call/transcription key resolver never reads the
+granted set — only the current session's join payload or the device's own
+key — so the first relaunch loses transcription. Correction: the resolver
+falls back to the unexpired granted set when memory and own key are empty
+(hook, never replace; own key wins; expired or cleared grant yields nothing).
+Machine gates: relaunch the joiner with a grant on disk → the resolver
+returns the grant key; expired grant → empty; own key present → own key.
+Planted defect: remove the fallback → red. Device row 13 proves it on both
+phones, in-call and chat-mic.
 
 #### 4.13.4 · Gates and device matrix
 

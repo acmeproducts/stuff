@@ -401,7 +401,7 @@ proven on the CR1 run).
 `dg_no_key` on every Deepgram open on the iPhone (no voice transcription
 there). Ship-era credential issue, separate work item, not an R10 cause.
 
-## 11. iPhone voice transcription — "Deepgram key missing" (OPEN; evidence required before GO)
+## 11. iPhone voice transcription — "Deepgram key missing" (COMPLETE 2026-08-31 16:35 PT)
 
 **Retraction.** §10.4 and earlier cycles called this ship-era and out of
 scope. That was an unproven claim from 2026-08-28 (G24). Withdrawn. It is
@@ -440,3 +440,42 @@ pasted key or only the creator's link. Then the cause is named and, if it is
 the candidate's or the process's, buried and planned; if it is the baseline's
 design, planned as a §4.13 correction anyway because the owner requires
 voice transcription on both phones as a gate row.
+
+### 11.1 Evidence read (fresh launch, 2026-08-31 23:33 UTC)
+
+`lc_boot_check {grant:true, expires:2026-09-26, cleared:false, canCreate:true}`
+— the iPhone HOLDS a valid, unexpired grant with a Deepgram key in its store.
+In the same and the previous launched sessions every transcription open logs
+`dg_no_key`. The key is on the device; the transcription path cannot see it.
+
+### 11.2 Proven cause
+
+**C4 — the grant store is never read by the call/transcription key resolver.**
+In the frozen bytes the resolver behind every Deepgram and TURN open reads
+only (a) the join payload held in memory for the current app session and
+(b) the device's own pasted key. The granted set (written on a grant join,
+kept 30 days, revocable, passed on when building links or restoring a room)
+is consulted for capability checks and link building — never for a call.
+So transcription on a joiner works only in the app session that scanned the
+QR; the first relaunch loses it even though the grant is intact on disk.
+
+**Why it surfaced under the candidates and not before.** The candidates
+route notification taps into cold launches of the app (18:33:37 today: the
+tap and the app's boot announcement share the same millisecond), and multi-
+day testing on one install lets iOS end the app process overnight. Both
+relaunch the app; the baseline's own resolver then drops the key. The latent
+defect is the baseline's; its trigger frequency is the release's. Under G24
+it is in scope regardless.
+
+**Open observation (recorded, covered by row 13):** on 08-30 the same phone,
+with a live key, saw `dg_credential_failure 1005` on chat-mic opens before a
+call and clean opens during calls. Not root-caused; row 13 runs both the
+in-call and the chat-mic paths on both phones.
+
+### 11.3 Binding correction for §4.13.3
+
+The key resolver falls back to the unexpired granted set when memory and the
+device's own key are empty (hook, never replace; own key wins; expired or
+cleared grant yields nothing). Machine gate: relaunch the joiner with a grant
+on disk → the resolver returns the grant key; expired grant → empty; own key
+present → own key. Planted defect: remove the fallback → red.
