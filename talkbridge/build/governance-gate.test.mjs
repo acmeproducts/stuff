@@ -83,6 +83,7 @@ test('wrangler.jsonc stays frozen even after build authorization', () => {
 
 test('authorized candidate outputs may diverge from the frozen bytes', () => {
   const root = fixture();
+  mutateJson(root, state => { state.stage = 'build_authorized'; state.candidate.status = 'authorized'; });
   fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\n/* candidate */\n');
   fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* candidate */\n');
   const state = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));

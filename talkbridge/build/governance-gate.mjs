@@ -126,7 +126,10 @@ function validateEvidence(root, state, errors) {
 }
 
 function allowedForStage(state, governingStage) {
-  const statePath = new Set([STATE_PATH]);
+  /* The gate's tests are proof, not enforcement: CI re-runs them on every
+     change, so they may be corrected at any stage. The gate itself locks
+     once the first governed transition is banked. */
+  const statePath = new Set([STATE_PATH, 'talkbridge/build/governance-gate.test.mjs']);
   if (governingStage === 'root_cause_required') {
     statePath.add(state.root_cause?.file);
     statePath.add(GRAVEYARD_PATH);
