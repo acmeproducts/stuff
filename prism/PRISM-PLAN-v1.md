@@ -1,59 +1,59 @@
-<!-- PRISM-PLAN v2.0.0 -->
-# PRISM MASTER PLAN v2.0.0
+<!-- PRISM-PLAN v2.1.0 -->
+# PRISM MASTER PLAN v2.1.0
 
 ## Governance reset
-Owner-directed full rollback on 2026-08-31 closes Turn 01 pre-ship. R3/R4/R5 Explore implementations are rejected and inert. There is no R6 patch-forward.
+Owner-directed rollback closes Turn 01 Explore. R3/R4/R5 Explore implementations are rejected and inert. **The rollback applies to the failed Explore visualization architecture only; it does not authorize removing accepted product functionality.**
 
-The active lineage is now **Turn 02**, beginning again at **pre-base**.
+The active lineage is **Turn 02**, beginning at pre-base with the complete accepted non-Explore application substrate intact.
 
 ## Turn 02 recovery baseline
-Turn 02 starts from independently validated product foundations only:
+Turn 02 pre-base MUST include and keep working:
 - collapsible left navigation rail;
 - central work surface;
 - collapsible right context panel that resizes the work surface on desktop;
-- same-origin cache / IndexedDB direction;
+- same-origin cache + IndexedDB persistence direction;
 - Event → Coverage → Source Article canonical model;
-- ECharts-backed Map rather than hand-rolled layout;
-- functioning search, Feed and event reader;
+- live ECharts-backed Map;
+- live Feed;
+- global search;
+- multi-selection for AI evidence across Map/Feed;
+- event reader with coverage hyperlinks;
+- **source inventory/configuration modal**, enable/disable, custom source records;
+- **provider/model configuration and exact-model validation** for Venice/OpenRouter/Anthropic;
+- **AI POV** using selected events as evidence, Markdown rendering, safe working http(s) links, evidence deselection;
+- **durable Analysis Library** in IndexedDB with save/reopen/continue/delete/export/import;
 - one shared application state.
 
-The following are requirements to reintroduce later, but are not allowed to distort the pre-base rebuild:
-- source manager;
-- Devstream provider/model validation;
-- AI POV with Markdown + safe working links;
-- durable Library research threads.
+Removing Sources, AI POV, provider/model validation, Analysis, or Library during an Explore rollback is a regression and is prohibited.
 
 ## Explore reset
-**No Turn 01 Explore implementation is a baseline.** Specifically rejected:
-- corpus-wide sphere/card cloud;
-- R3 globe/sphere;
-- R4 perspective X×Y matrix;
-- R5 card-wall matrix.
+No Turn 01 Explore implementation is a baseline. Rejected: corpus-wide sphere/card cloud, R3 sphere, R4 perspective matrix, R5 wall-of-cards gate.
 
-Turn 02 pre-base intentionally contains no committed Explore visualization architecture. Explore begins as an empty governed surface until a new macro interaction is specified and mechanically prototyped without disabling Map, Feed, rail behavior, or reader behavior.
+Turn 02 pre-base intentionally leaves **only the Explore visualization itself** reset. The rest of PRISM remains fully functional while the new Explore macro interaction is designed.
 
 ## Pre-base acceptance gate
-A Turn 02 pre-base build is acceptable only if:
-1. left rail collapses and expands;
-2. Map is live and useful, not a dead nav item;
-3. Feed is live and shares search/state with Map;
-4. event detail opens in the right panel without underlap;
-5. right panel closes and restores work-space width;
+1. left rail collapses/expands;
+2. Map is live and useful;
+3. Feed is live and shares search/state;
+4. event detail opens in right panel without underlap;
+5. right panel closes and restores width;
 6. same-origin cache loads without publisher fan-out;
-7. Explore is visibly marked as reset / not yet implemented rather than presenting another speculative visualization;
-8. no Turn 01 Explore code is copied forward;
-9. no AI/Library/source-management regression is falsely represented as complete in pre-base.
+7. source management works;
+8. provider/model validation works;
+9. AI POV accepts selected evidence, renders Markdown and safe hyperlinks, and supports deselection;
+10. Library persists analyses and supports reopen/continue/delete/export/import;
+11. Explore is visibly reset and contains no rejected Turn 01 visualization code.
 
 ## Turn 02 stage sequence
-- **02·pre-base — ACTIVE:** clean shell + data + Map + Feed + reader; Explore reset.
-- 02·base: new Explore macro model only after pre-base owner acceptance.
-- 02·pre-ship: reintroduce source management, AI POV/provider validation, and Library against the accepted shell/Explore model.
-- 02·ship: integrated stabilization/performance/device gate.
-- 02·post-ship: release gate and durable lineage record.
+- **02·pre-base — ACTIVE:** full non-Explore functionality restored + Explore visualization reset.
+- 02·base: new Explore macro model only after the full pre-base is accepted.
+- 02·pre-ship: integrate accepted Explore with the already-live Sources/AI/Library substrate and perform cross-surface validation.
+- 02·ship: stabilization/performance/device gate.
+- 02·post-ship: release gate.
 
 ## Standing product laws
 1. One information state, multiple views.
-2. One global control system; no per-view competing analytical state.
+2. One global control system; no competing per-view analytical state.
 3. Event → Coverage → Source Article is canonical.
 4. Cache first; no publisher fan-out during normal startup.
 5. Reader never underlaps desktop analytical surfaces.
@@ -62,13 +62,12 @@ A Turn 02 pre-base build is acceptable only if:
 8. Source analytical filtering is distinct from source acquisition/configuration.
 9. AI is contextual research, not generic chat; provider/model must be verified.
 10. Library is a durable research workspace, not an inert export bucket.
+11. **Visualization rollback may never amputate unrelated accepted functionality.**
 
 ## Ledger
 - 01·pre-base: passed foundation.
 - 01·base: rejected UI architecture.
 - 01·pre-ship R1: superseded.
-- 01·pre-ship R2: recovery reference only.
-- 01·pre-ship R3: rejected Explore sphere/card cloud.
-- 01·pre-ship R4: rejected perspective X×Y card matrix.
-- 01·pre-ship R5: rejected wall-of-cluster-cards / isolated gate regression.
-- **02·pre-base: ACTIVE — full rollback clean rebuild.**
+- 01·pre-ship R2: recovery reference.
+- 01·pre-ship R3/R4/R5 Explore: rejected.
+- **02·pre-base: ACTIVE — full functional substrate restored; Explore reset only.**
