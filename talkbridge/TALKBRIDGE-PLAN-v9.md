@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.11.0 -->
-# TALKBRIDGE MASTER PLAN v20.11.0
+<!-- TALKBRIDGE-PLAN v20.12.0 -->
+# TALKBRIDGE MASTER PLAN v20.12.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -247,7 +247,7 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.11.0): §4.13 (R10-CR3) IS THE SOLE R10 REPLACEMENT
+**ACTIVE AUTHORITY (v20.12.0): §4.13 (R10-CR3) IS THE SOLE R10 REPLACEMENT
 PROPOSAL; OWNER GO IS REQUIRED BEFORE BUILD.** §4.12's pair `0422654` was
 rejected at the owner device gate (graveyard G23; root cause §10); its G21
 and G22 corrections were PROVEN live on that run and are inherited. §4.11 (R10-CR1) is retained
@@ -508,13 +508,24 @@ no seen word, no read acknowledgement of the projection; focus return in the
 routed room → exactly one explicit open; blur then focus within two seconds →
 no push storm, one state word each way.
 
-#### 4.13.3 · Gates and device matrix
+#### 4.13.3 · Voice transcription on both phones (G24; root cause §11)
+
+The joiner phone's voice credentials must survive relaunch, lock and the
+release process, or their loss must be visible and explained on the device.
+The exact correction is bound by §11 once its evidence is read; whatever it
+is, it is built from the frozen bytes under the same wall, with a machine
+gate that relaunches the joiner and proves the key is still there, and a
+planted defect that drops it. No GO is requested until §11 is complete.
+
+#### 4.13.4 · Gates and device matrix
 
 All §4.12.4 machine and live gates plus §4.13.2. Owner device gate: the
 §4.11.6 twelve rows, both directions, with the §4.12.4 Android additions,
 plus one iPhone addition recorded on the sheet: rows 2/3 are run by leaving
 the app with the screen ON (app switcher / another app) as well as by
-locking, since the failed state was a running, blurred page.
+locking, since the failed state was a running, blurred page. **Row 13 (both
+directions): a voice or video call transcribes speech live on BOTH phones —
+the `dg_no_key` / `dg_credential_failure` lines must be absent on both.**
 
 ### 4.12 · R10-CR2 — CLEAN REPLACEMENT, SECOND ATTEMPT (OWNER GO REQUIRED)
 
@@ -1713,6 +1724,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.12.0 · 2026-08-31.** Owner correction: the iPhone's missing Deepgram key
+was never proven ship-era (G24). Retracted; root cause §11 opened with an
+evidence plan; §4.13.3 binds a correction once §11 is read; device row 13
+(voice transcription on both phones) added. No GO requested until §11 closes.
 
 **v20.11.0 · 2026-08-31.** R10-CR2 pair `0422654` rejected at the owner device
 gate: iPhone kept running after blur/lock with the visibility flag stuck

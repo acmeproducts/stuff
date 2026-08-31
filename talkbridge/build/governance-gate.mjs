@@ -141,6 +141,13 @@ function allowedForStage(state, governingStage) {
     statePath.add(state.replacement_plan?.file);
   } else if (governingStage === 'owner_go_required') {
     statePath.add('talkbridge/governance/OWNER-GO.md');
+    /* Pre-GO the proposal is a draft: root cause, plan and graveyard may be
+       revised (the state re-pins their hashes) until the owner's GO is banked.
+       The gate itself may be corrected here for the same reason. */
+    if (state.owner_authorization?.status !== 'authorized') {
+      statePath.add(PLAN_PATH); statePath.add(GRAVEYARD_PATH); statePath.add(state.root_cause?.file);
+      statePath.add('talkbridge/build/governance-gate.mjs');
+    }
   } else if (governingStage === 'build_authorized') {
     for (const rel of state.candidate?.allowed_output_files || []) statePath.add(rel);
     /* §4.11.7: an internal failing invariant of the gate itself is corrected

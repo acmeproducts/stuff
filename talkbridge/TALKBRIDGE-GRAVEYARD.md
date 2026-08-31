@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.14 | 2026-08-31 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.15 | 2026-08-31 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -27,6 +27,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G17 | Activating engine internals inside the bridge file while its lobby/onboarding was already condemned | T08 Base attempt 1: device gate failed on the bridge's own lobby (lang-model status stuck on Pages hosting); the effort was spent on a surface scheduled for deletion, and the container/shell — the actual app — remained unbuilt | Build stages on the surface that survives: container/shell first, migrate the engine into it; never invest a gate in a surface the same turn deletes |
 | G18 | R10.5 replay-time inference: deciding whether an event was missed from the page's state when the ledger is later synchronized | Events received while hidden were treated as seen when the app returned to the same room; the cursor advanced and permanently erased missed chat/call evidence; reconnects could leave home stale until unrelated traffic arrived | Keep per-device events unseen until real-time visible presentation or an explicit user room-open acknowledgement; reconcile on every lifecycle/transport return without silently advancing unseen events |
 | G19 | Treating R10.5 credential loss as a defect in the credential-working rollback baseline | The rejected/instrumented release lost Deepgram and TURN together, but the baseline was not reproduced failing; the diagnosis was promoted into a baseline redesign anyway | Reject the release as a whole and restore the exact R10.2/v4.2 baseline; no credential-path change carries forward without a baseline reproduction and a new owner-approved contract |
+| G24 | Labelling a device-observed failure "ship-era / out of scope" by reasoning | The iPhone's missing Deepgram key was declared pre-R10 on 2026-08-28 without a baseline log showing it, then repeated as fact through three cycles while the owner saw it only on candidates | Nothing observed on the device during a gate is out of scope until a baseline log proves it was already there; absent that proof it is a candidate failure, root-caused from evidence |
 | G23 | R10-CR2 attendance read from document visibility alone | iPhone: after blur or lock the installed page kept RUNNING with the visibility flag still 'visible' — heartbeats kept telling the relay 'watching', so unfocused/locked chats were decided in-app, never pushed, and even acknowledged as seen while the owner saw nothing (rows 2/3 fail; pair 0422654 rejected) | A device is 'watching' only while visible AND focused; blur is announced to the relay immediately, and nothing is acknowledged as seen while unattended |
 | G22 | R10-CR1 worker focuses the first same-URL window on a notification tap | Android: the Chrome tab left open by the install step shares the worker with the installed app; every tap focused that tab (the install gate) instead of the app, so the tester never reached the answer surface and the notifications sat unread in the shade (rows 7/8 fail) | The installed app announces itself to the worker; a tap focuses only the announced app window, never a browser tab; with no announced window the worker opens the app URL and the app routes the event |
 | G21 | R10-CR1 listener lane opened only on the 60-second sync tick after leaving a room | Android, visible on home right after leaving the room: no relay lane for up to 60 s, so the relay pushed an OS banner beside the home view and the in-app ring arrived 7 s late (row 6 fail); pair 339eb40 rejected at device gate | Leaving a room must open that room's listener lane at once; no visible device may be laneless for any interval |
@@ -1393,3 +1394,16 @@ iPhone (no voice transcription there). Separate work item; not an R10 cause.
 
 Rollback: the whole pair restored to R10.2/v4.2 frozen bytes. Candidate
 preserved at `0422654`. New root cause → plan → GO cycle required.
+
+## G24 — 2026-08-31 — "out of scope" by assertion (owner correction)
+
+On 2026-08-28, during the R10.3 device rejection, the iPhone's "no Deepgram
+key" was labelled a ship-era credential-grant issue and excluded from R10 —
+by reasoning about which organ it belonged to, with no baseline log showing
+the symptom before any candidate. That label was carried into every cycle
+since. The owner has stated the failure was not present on the baseline.
+Standing law from here: a failure observed on a phone during a gate belongs
+to the candidate until a baseline log proves otherwise. The cause is
+unproven either way today; §11 of the root cause holds the evidence plan and
+the plan's device matrix gains a row for it. No GO is requested until §11 is
+complete.

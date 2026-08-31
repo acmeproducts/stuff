@@ -400,3 +400,43 @@ proven on the CR1 run).
 
 `dg_no_key` on every Deepgram open on the iPhone (no voice transcription
 there). Ship-era credential issue, separate work item, not an R10 cause.
+
+## 11. iPhone voice transcription — "Deepgram key missing" (OPEN; evidence required before GO)
+
+**Retraction.** §10.4 and earlier cycles called this ship-era and out of
+scope. That was an unproven claim from 2026-08-28 (G24). Withdrawn. It is
+treated as a candidate failure until a baseline log shows otherwise.
+
+**What the frozen bytes say (read, not reasoned).** The joiner phone gets
+voice credentials one of three ways: its own pasted key (kept in the app's
+own storage), a *grant* link from the creator (persisted 30 days, revocable
+by the creator, cleared on expiry or on a `grant-revoke` word), or a *plain*
+invite whose keys live only for that app session. The candidate parts and
+worker never read, write or clear any of these (grep count 0); the frozen
+bytes carrying that logic are byte-identical in every candidate.
+
+**What the logs say.** CR1 run (08-30): the iPhone HAD a key — rejected at
+first (`dg_credential_failure 1005` during chat-mic), then accepted in-call
+(`dg_open` + `dg_worklet_active` from the first video call on). CR2 run
+(08-31): `dg_no_key` on every open, from 18:34:29 onward. Between the two
+runs the key disappeared from the iPhone.
+
+**Suspects, in the order the evidence will be read.**
+1. The reinstall I asked for before the CR1 gate (an iOS reinstall wipes the
+   app's storage, including a pasted key or a stored grant) — and any further
+   reinstall since. Evidence: owner's answer; the app's `lc_*` lines
+   (`grant_accepted` / `joined_plain` / `granted_credentials_cleared` /
+   `grant_expired`) from a full iPhone log taken from app launch.
+2. A plain invite (session-only keys) rather than a grant link — keys vanish
+   on every relaunch by baseline design. Evidence: `joined_plain` in the log.
+3. A creator-sent `grant-revoke` (fires when the creator deletes the room).
+   Evidence: `granted_credentials_cleared reason=revoked`.
+4. Anything else — declared only from the log.
+
+**Required before this section closes:** the full iPhone debug log exported
+from app launch (not mid-session); the owner's answers to (a) was the iPhone
+reinstalled today or since the CR1 gate, (b) does the iPhone hold its own
+pasted key or only the creator's link. Then the cause is named and, if it is
+the candidate's or the process's, buried and planned; if it is the baseline's
+design, planned as a §4.13 correction anyway because the owner requires
+voice transcription on both phones as a gate row.
