@@ -1,204 +1,114 @@
-<!-- PRISM-GRAVEYARD v1.0.0 -->
-# PRISM GRAVEYARD v1.0.0
+<!-- PRISM-GRAVEYARD v1.1.0 -->
+# PRISM GRAVEYARD v1.1.0
 
-**Purpose:** release test results, rejected approaches, root causes, and non-repeatable failures for PRISM.
-
-This file is mandatory build input. A rejected approach is not merely historical; it becomes an explicit constraint on future implementation.
+**Purpose:** release test results, rejected approaches, root causes, and non-repeatable failures for PRISM. This file is mandatory build input.
 
 ---
 
 ## G0 · GOVERNANCE RULE
-
-Every rejected or materially failed build records:
-- turn / stage / release;
-- exact commit SHA / artifact;
-- date tested;
-- observed failure;
-- root cause if known;
-- architectural lesson;
-- explicit veto — what must not be repeated;
-- recovery baseline.
-
-Do not patch forward from a graveyarded implementation.
+Every materially failed or constrained release records turn/stage/release, exact commit/artifact, date, observed failure, root cause if known, architectural lesson, explicit veto, and recovery baseline. Do not patch forward from a graveyarded implementation.
 
 ---
 
-## G1 · Browser-side publisher fan-out as the normal startup path
+## G1 · Browser-side publisher fan-out as normal startup
+**Origin:** Globe / WorldPulse direct-RSS lineage.
+**Failure:** intermittent CORS/403/proxy/timeout failures; app availability tied to source freshness.
+**VETO:** PRISM normal startup must never fan out across publisher RSS feeds.
+**Replacement:** collector → last-known-good source cache → canonical event cache → same-origin fetch → IndexedDB.
 
-**Origin lineage:** Globe / WorldPulse and related direct-RSS experiments.
-
-**Observed failure:** many publisher sources fail intermittently or consistently in-browser while others succeed. Failures collapse CORS blocks, publisher anti-bot behavior, proxy failures, timeouts, invalid responses, and genuine feed failures into a broad `failed` result. Opening the app can trigger a near-complete network reload even when usable cached content already exists.
-
-**Root cause:** normal startup depends on direct publisher requests and public CORS-proxy fallback from the browser rather than a same-origin persistent collector cache.
-
-**Architectural lesson:** content freshness and app availability must be decoupled. A failed source refresh should produce stale data, not missing data or a degraded startup experience.
-
-**VETO:** PRISM normal startup must never fan out across all publisher RSS feeds from the browser.
-
-**Replacement:** scheduled collector → per-source last-known-good cache → canonical event cache → same-origin browser fetch → IndexedDB.
-
----
-
-## G2 · Article / headline as the master visualization object
-
-**Origin lineage:** early Globe / Luma behavior.
-
-**Observed failure:** the same real-world development can appear repeatedly as multiple publisher headlines. This creates duplicate visual objects, inflates density, fragments corroboration, and makes AI context less coherent.
-
-**Root cause:** visualization is attached directly to individual feed items instead of a canonical event object.
-
-**Architectural lesson:** publisher articles are evidence / coverage. Events are the thing the user is trying to understand.
-
-**VETO:** do not make raw article records the primary shared state model for PRISM.
-
+## G2 · Article/headline as master visualization object
+**Origin:** early Globe/Luma.
+**Failure:** duplicate real-world developments inflate density and fragment corroboration/AI context.
+**VETO:** raw articles may not be PRISM's primary shared object.
 **Replacement:** Event → Coverage → Source Article.
 
----
+## G3 · Separate state universes per visualization
+**Failure risk:** search/filter/selection/favorites diverge across views.
+**VETO:** Explore, Map, Feed may not own independent canonical state.
+**Replacement:** one shared application state.
 
-## G3 · Separate state universes for separate visualizations
+## G4 · Treemap-only identity
+Treemap is strong structurally but weak as sole discovery surface.
+**VETO:** PRISM may not collapse into a treemap-only product.
 
-**Origin lineage:** Globe, Luma, and Onyx evolved independently.
+## G5 · Sphere-only identity
+Sphere is engaging but weak for every reading/ranking/corroboration task.
+**VETO:** PRISM may not force all consumption through the sphere.
 
-**Observed failure risk:** filters, selection, search, favorites, and current information context can diverge when each visualization owns its own state.
+## G6 · AI as isolated chatbot
+**VETO:** no detached generic chat screen without structured event scope/provenance.
+**Replacement:** compose strip scoped to current PRISM information state.
 
-**Root cause:** each prototype was a standalone application rather than one view over a canonical information state.
-
-**Architectural lesson:** switching visualization should not mean switching datasets or losing context.
-
-**VETO:** Explore, Map, and Feed may not own independent canonical filter/search/selection state.
-
-**Replacement:** one shared application state with view-specific rendering only.
-
----
-
-## G4 · Treemap-only product identity
-
-**Origin lineage:** OnyxView.
-
-**Observed limitation:** treemap is strong for structural comparison and readability budgeting but weak as the sole discovery/engagement surface.
-
-**Architectural lesson:** structural analysis and immersive exploration solve different user needs and should coexist over one event model.
-
-**VETO:** do not collapse PRISM into a treemap-only application.
-
-**Replacement:** Explore + Map + Feed over one canonical event universe.
-
----
-
-## G5 · Sphere-only product identity
-
-**Origin lineage:** Globe / LumaSphere.
-
-**Observed limitation:** sphere exploration is engaging and high-density but is not ideal for every reading, ranking, or corroboration task.
-
-**Architectural lesson:** the sphere is a primary exploratory lens, not the entire information architecture.
-
-**VETO:** do not force all consumption and analysis through the sphere.
-
-**Replacement:** Explore for immersive discovery, Map for structure, Feed for linear consumption.
-
----
-
-## G6 · AI as an isolated chatbot
-
-**Origin:** prospective integration risk.
-
-**Failure mode avoided:** a generic chat page would lose the structured scope, selected events, source provenance, and current filters that make PRISM valuable.
-
-**Architectural lesson:** AI must operate on explicit current information context.
-
-**VETO:** do not implement AI as a detached chat screen with no structured event scope.
-
-**Replacement:** compose strip with explicit scope: This event / Selected events / Current view / Current filtered universe.
-
----
-
-## G7 · Provider/model controls buried only in Settings
-
-**Origin reference:** Devstream shows provider configuration and thread-level engine/model selection.
-
-**Failure mode avoided:** forcing a settings round-trip for every analytical question makes model switching cumbersome and hides which model produced a result.
-
-**Architectural lesson:** credential configuration and per-request model choice are different responsibilities.
-
-**VETO:** provider/model selection must not be available only through Settings.
-
-**Replacement:** Settings configures/tests providers and defaults; compose strip can switch provider/model for the current analysis.
-
----
+## G7 · Provider/model controls only in Settings
+Credential configuration and per-analysis model choice are separate responsibilities.
+**VETO:** provider/model choice cannot be Settings-only.
 
 ## G8 · Unverified provider/model use
+**VETO:** populated fields do not equal usable configuration.
+**Replacement:** explicit provider/model ping before verified status.
 
-**Origin reference:** Devstream model-ping behavior.
+## G9 · Disposable AI results
+**VETO:** completed analyses cannot be transient-only chat history.
+**Replacement:** durable Analysis object + Save to Library.
 
-**Failure mode avoided:** accepting an API key/model configuration without testing causes opaque 401/402/404/model-unavailable failures at analysis time.
-
-**Architectural lesson:** configuration should fail early and visibly.
-
-**VETO:** do not mark a provider/model usable merely because fields are populated.
-
-**Replacement:** explicit provider/model test before verified status.
-
----
-
-## G9 · Analysis results as disposable chat history
-
-**Origin:** prospective integration risk.
-
-**Failure mode avoided:** valuable analyses disappear with session state and cannot be exported or revisited with provenance.
-
-**Architectural lesson:** AI output is a durable analytical artifact.
-
-**VETO:** do not treat completed AI analysis as transient-only chat content.
-
-**Replacement:** stable Analysis object + Save to Library.
-
----
-
-## G10 · localStorage as the analysis library
-
-**Origin:** prospective implementation shortcut.
-
-**Failure mode avoided:** large AI responses and frozen source context exceed the intended use and practical capacity of localStorage.
-
-**Architectural lesson:** analysis artifacts require structured, larger local persistence.
-
-**VETO:** do not use localStorage as the primary PRISM analysis store.
-
-**Replacement:** IndexedDB with schema versioning and import/export.
-
----
+## G10 · localStorage analysis library
+**VETO:** do not use localStorage as the primary analysis store.
+**Replacement:** IndexedDB.
 
 ## G11 · Destructive library import
+**VETO:** import must not replace the whole local library by default.
+**Replacement:** validate + merge by `analysisId`.
 
-**Origin:** prospective implementation risk.
+## G12 · Patching legacy prototypes into PRISM
+`globe.html`, `lumasphere.html`, and `onxyview-newsmap-v15.html` contain conflicting architecture/state/rendering assumptions.
+**VETO:** do not turn one legacy file into PRISM by patch chains.
+**Replacement:** frozen references + new governed `prism/` lineage.
 
-**Failure mode avoided:** importing an older or partial library could erase analyses already stored locally.
+## G13 · Unexplained visual encoding
+**Origin:** PRISM Turn 01 pre-base owner test.
+**Observed failure:** sphere rendered colored/sized objects but no visible legend, leaving the user unable to know what the globe was communicating.
+**Root cause:** pre-base proved rendering connectivity but treated legend/explanation as presentation polish rather than part of the visualization contract.
+**Lesson:** encoded data without an in-view explanation is not useful information design.
+**VETO:** any PRISM view using Color, Size, Grouping, or aggregation must expose its active encoding in-view.
+**Replacement:** dynamic legends tied to active dimensions; labels/counts where aggregation occurs.
 
-**Architectural lesson:** portability must not threaten local history.
+## G14 · Controls without actual filtering
+**Origin:** PRISM Turn 01 pre-base owner test.
+**Observed failure:** controls existed but there was no useful visible filtering mechanism.
+**Root cause:** the foundation shell reserved filter state but did not expose operational filters.
+**Lesson:** filter state is not a feature until the user can see and change the population.
+**VETO:** do not hand off a data-view stage with merely reserved filter state.
+**Replacement:** visible Subject / Region / Sentiment chips with All state; one shared filter universe across Explore/Map/Feed.
 
-**VETO:** do not implement import as whole-database replacement by default.
+## G15 · Box collection mislabeled as treemap
+**Origin:** PRISM Turn 01 pre-base owner test.
+**Observed failure:** Map displayed groups/story boxes but did not encode hierarchy/value by occupied area, so it was not a treemap.
+**Root cause:** pre-base used a structural placeholder to prove shared event rendering.
+**Lesson:** a visualization name carries a behavioral/data-encoding contract.
+**VETO:** do not call a box/list/grid a treemap.
+**Replacement:** group rectangles and nested event rectangles must consume area according to explicit selected weights.
 
-**Replacement:** schema validation + merge by `analysisId` + imported/skipped/replaced counts.
+## G16 · Reader underlap
+**Origin:** PRISM Turn 01 pre-base owner test.
+**Observed failure:** Map content could extend beneath the reading pane.
+**Root cause:** reader was an overlay without desktop surface reflow.
+**Lesson:** event inspection must not make the visualization beneath it unreadable.
+**VETO:** desktop readers may not permanently overlay/underlap active information surfaces.
+**Replacement:** dedicated reader column on desktop; bottom overlay is acceptable on constrained mobile.
 
 ---
 
-## G12 · Patching legacy prototypes into the combined product
+# RELEASE TEST RECORDS
 
-**Origin lineages:** `globe.html`, `lumasphere.html`, `onxyview-newsmap-v15.html`.
+## T01-PREBASE · Foundation accepted with presentation findings
+**Stage:** 01·pre-base
+**Artifact:** `prism/prism-turn01-pre-base.html`
+**Commit:** `e5ae4beba3babb6297d63234f19519c28c68894a`
+**Owner test date:** 2026-08-31
+**Result:** **FOUNDATION PASSED; NOT A VALUE/PRESENTATION GATE.**
 
-**Observed risk:** each file contains independent architecture, state, rendering, and data assumptions. Incrementally welding features across them would preserve contradictions and produce regression-heavy patch chains.
+**Proven by owner:** basics work; shell/tab/state/data/presentation-layer connectivity is sufficient to advance.
 
-**Architectural lesson:** the references are evidence, not a merge base.
+**Findings carried to 01·base:** no legend; no useful filtering; Map was not a real treemap; Map underlapped reader; overall pre-base demonstrated acquisition/presentation connectivity more than end-user value.
 
-**VETO:** do not turn any of the three legacy HTML files into PRISM by repeated patching.
-
-**Replacement:** freeze them as reference implementations and establish a new `prism/` lineage governed by `PRISM-PLAN-v1.md`.
-
----
-
-## RELEASE TEST RECORDS
-
-No PRISM implementation release has been tested yet.
-
-First expected record: **Turn 01 · pre-base** after `prism-turn01-pre-base.html` is built and pre-flighted.
+**Recovery/forward baseline:** the exact pre-base commit above remains frozen. Corrections are implemented in the next governed stage `prism-turn01-base.html`, not patched into pre-base.
