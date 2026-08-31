@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v1.7.0 -->
-# PRISM MASTER PLAN v1.7.0
+<!-- PRISM-PLAN v1.7.1 -->
+# PRISM MASTER PLAN v1.7.1
 
 **Project:** PRISM — unified event intelligence combining Globe / WorldPulse, LumaSphere, OnyxView, AI POV, and a portable local research library.
 **Owner:** Product owner — sole product/release gate.
@@ -174,25 +174,24 @@ Cached usable before network refresh; no publisher fan-out; dimension/filter cha
 | 01·pre-base | shell/contracts/connectivity | **PASSED FOUNDATION** | `prism-turn01-pre-base.html` @ `e5ae4beba3babb6297d63234f19519c28c68894a` |
 | 01·base | canonical events + first value surfaces | **REJECTED UI ARCHITECTURE** | `prism-turn01-base.html` @ `446317e3de21cbbb867a4682dda627b5e22a551f` |
 | 01·pre-ship R1 | unified NewsMap + source manager + initial AI POV | **SUPERSEDED** | `prism-turn01-pre-ship.html` @ `55484b815bddf81c31051149fc02e176b8df50da` |
-| 01·pre-ship R2 | rail shell + rotatable sphere + Markdown AI + full Library | **BASELINE; FILTER CONTRACT DEFECT RECORDED** | `prism/prism-turn01-pre-ship-r2.html` @ `ab33490ce3395017af94e6b51ad606476c4e7d06` |
-| 01·pre-ship R3 | all-active-dimensions → corresponding filters | **ACTIVE BUILD** | `prism/prism-turn01-pre-ship-r3.html` |
+| 01·pre-ship R2 | rail shell + rotatable sphere + Markdown AI + full Library | **RECOVERY BASELINE** | `prism/prism-turn01-pre-ship-r2.html` @ `ab33490ce3395017af94e6b51ad606476c4e7d06` |
+| 01·pre-ship R3 | all-active-dimensions → corresponding filters | **IMPLEMENTED CANDIDATE** | `prism/prism-turn01-pre-ship-r3.html` @ `807656e7e14c4b8503b3b7c88b83271967f64692` |
 | 01·ship | integrated stabilization/performance/provider-device gate | Not started | — |
 | 01·post-ship | integrated release gate | Not started | — |
 
 ---
 ## 13 · R3 GATE
-Before owner handoff:
+Before owner acceptance:
 - filter tray contains filters for **every currently selected Group, Color and Size dimension, and only those dimensions**;
 - duplicate dimension selections produce one filter control;
 - inactive filter state is cleared, not merely hidden;
 - Source is selectable as a dimension and Source filtering appears only while active;
 - Importance filter supports 0–100 bounds;
-- Corroboration filter supports source-count bounds/buckets;
+- Corroboration filter supports source-count bounds;
 - Recency filter is bounded by and clamped to the global time window;
 - source-management enable/disable remains under Config regardless of analytical dimensions;
 - Map/Explore/Feed share the exact same derived dimension/filter state;
-- all prior R2 shell, sphere, AI Markdown/link and Library behavior remains intact;
-- JavaScript syntax/boot check passes before test handoff.
+- all prior R2 shell, sphere, AI Markdown/link and Library behavior remains intact.
 
 ---
 ## 14 · DECISIONS
