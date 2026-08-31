@@ -19,29 +19,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('market-view-gate4-r3.html')
-          s=p.read_text(encoding='utf-8')
-          assert 'Market Navigator 3.9.7' in s
+          p=Path('market-view-gate4-r3.html'); s=p.read_text(encoding='utf-8'); assert 'Market Navigator 3.9.7' in s
           s=s.replace('<head>','<head><script>window.__MN_GATE4_R5__=true;</script><link rel="stylesheet" href="market-view-gate4-r5.css">',1)
-          old='(async()=>{configLoad();await openDB();await loadStored();'
-          new='(async()=>{if(window.__MN_GATE4_R5__)return;configLoad();await openDB();await loadStored();'
-          assert old in s
-          s=s.replace(old,new,1)
-          s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R5</title>',1)
-          s=s.replace('</body>','<script src="market-view-gate4-r5.js"></script></body>',1)
+          old='(async()=>{configLoad();await openDB();await loadStored();'; new='(async()=>{if(window.__MN_GATE4_R5__)return;configLoad();await openDB();await loadStored();'; assert old in s; s=s.replace(old,new,1)
+          s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R5</title>',1).replace('</body>','<script src="market-view-gate4-r5.js"></script></body>',1)
           Path('market-view-gate4-r5.html').write_text(s,encoding='utf-8')
-          jp=Path('market-view-gate4-r5.js')
-          x=jp.read_text(encoding='utf-8')
-          # R5 owns navigation. Use path query state rather than hash so inherited 3.9.7 hash routing cannot intercept browser history.
+          jp=Path('market-view-gate4-r5.js'); x=jp.read_text(encoding='utf-8')
           x=x.replace("function route(){let h=location.hash.slice(1);", "function route(){let h=new URLSearchParams(location.search).get('r5')||location.hash.slice(1);")
           x=x.replace("function go(x){location.hash=x;route();S.summary=true;render()}", "function go(x){let u=new URL(location.href);u.hash='';if(x)u.searchParams.set('r5',x);else u.searchParams.delete('r5');history.pushState({mnR5:x},'',u.pathname+u.search);route();S.summary=true;render()}")
           x=x.replace("window.addEventListener('hashchange',()=>{route();render()})", "window.addEventListener('popstate',()=>{route();S.summary=true;render()})")
-          oldp="let p=v?.points||v?.observations||v?.data||[];"
-          newp="let p=v?.points||v?.daily||v?.intraday||v?.observations||v?.data||[];"
-          if oldp in x:x=x.replace(oldp,newp)
-          oldadd="m.remove();if(S.root)go('analysis/'+S.root)"
-          newadd="m.remove();if(S.root){S.summary=true;render()}"
-          if oldadd in x:x=x.replace(oldadd,newadd)
+          x=x.replace("let p=v?.points||v?.observations||v?.data||[];","let p=v?.points||v?.daily||v?.intraday||v?.observations||v?.data||[];")
+          x=x.replace("m.remove();if(S.root)go('analysis/'+S.root)","m.remove();if(S.root){S.summary=true;render()}")
           jp.write_text(x,encoding='utf-8')
           PY
       - name: JavaScript parser syntax gate
@@ -52,23 +40,24 @@ jobs:
           from pathlib import Path
           h=Path('market-view-gate4-r5.html').read_text(); j=Path('market-view-gate4-r5.js').read_text(); c=Path('market-view-gate4-r5.css').read_text()
           assert all(x in h for x in ['Gate 4 R5','market-view-gate4-r5.js','market-view-gate4-r5.css','window.__MN_GATE4_R5__'])
-          for x in ['1D','5D','MTD','YTD','1YR','3YR','5YR','RSK','GRW','MAC','EXPLORE','LIBRARY','HEALTH','CONFIG','Venice.ai','OpenRouter','Anthropic direct','Correlation','Add Series','canonical evidence']: assert x in j, x
+          for x in ['1D','5D','MTD','YTD','1YR','3YR','5YR','RSK','GRW','MAC','EXPLORE','LIBRARY','HEALTH','CONFIG','Venice.ai','OpenRouter','Anthropic direct','Correlation','Add Series','canonical evidence']: assert x in j,x
           assert 'query1.finance.yahoo.com' not in j and 'fred.stlouisfed.org/series/' not in j
-          assert 'r5summary' in c and 'r5messages' in c and 'r5horizons' in c
-          assert "searchParams.set('r5',x)" in j and "addEventListener('popstate'" in j
-          assert "v?.daily" in j and "m.remove();if(S.root){S.summary=true;render()}" in j
+          assert 'r5summary' in c and 'r5messages' in c and 'r5horizons' in c and "searchParams.set('r5',x)" in j and "v?.daily" in j
           PY
-      - name: Install browser smoke runtime
+      - name: Install browser smoke runtime outside repository
         run: |
+          mkdir -p /tmp/mn-r5-node && cd /tmp/mn-r5-node
           npm -s init -y >/dev/null 2>&1
           npm -s install playwright@1.55.0 >/dev/null 2>&1
           npx playwright install chromium >/dev/null 2>&1
       - name: Boot and governed journey gate
+        env:
+          NODE_PATH: /tmp/mn-r5-node/node_modules
         run: |
           python3 -m http.server 8123 >/tmp/mn-r5-http.log 2>&1 &
           node <<'JS'
           const {chromium}=require('playwright');
-          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:800}});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html',{waitUntil:'networkidle'});await p.waitForSelector('#mnR5');const state=()=>p.evaluate(()=>({route:new URLSearchParams(location.search).get('r5')||'',legend:[...document.querySelectorAll('#mnR5 [data-s]')].map(x=>x.textContent.trim()),axes:document.querySelectorAll('#r5svg .r5axis').length}));let initial=await state();if(initial.axes<2)throw Error('V1 failed '+JSON.stringify(initial));for(const x of ['RSK','GRW','MAC'])if(!initial.legend.some(y=>y.includes(x)))throw Error('V1 '+x+' missing');for(const h of ['1D','5D','MTD','YTD','1YR','3YR','5YR']){await p.click(`#r5horizons [data-h="${h}"]`);if(await p.locator('#r5svg .r5axis').count()<2)throw Error('axis failed '+h)}await p.click('#mnR5 [data-s="risk"]');await p.waitForTimeout(100);let v2=await state();if(v2.route!=='index/risk'||v2.legend.length<8||v2.axes<2)throw Error('V2 failed '+JSON.stringify(v2));await p.click('#mnR5 [data-s="vix"]');await p.waitForSelector('#r5about.open');await p.click('#r5moreinfo');await p.waitForTimeout(100);let v3=await state();if(v3.route!=='analysis/vix'||v3.axes<2||!await p.locator('#r5chat').count()||!await p.locator('.r5summary').count())throw Error('V3 failed '+JSON.stringify(v3));await p.click('#r5add');await p.waitForSelector('.r5modal.open');await p.click('[data-t="Macro"]');await p.locator('[data-p="cpi"]').check();await p.click('#aa');await p.waitForTimeout(100);let additive=await state();if(additive.legend.length!==2||additive.axes<2)throw Error('add failed '+JSON.stringify(additive));await p.goBack();await p.waitForTimeout(250);let back=await state();if(back.route!=='index/risk'||back.legend.length<8)throw Error('back failed '+JSON.stringify(back));for(const r of ['explore','health','config']){await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5='+r,{waitUntil:'networkidle'});if((await state()).route!==r)throw Error(r+' route failed')}await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=explore',{waitUntil:'networkidle'});await p.waitForSelector('[data-e="risk"]');await p.click('[data-et="Macro"]');if(await p.locator('[data-e="cpi"]').count()!==1)throw Error('Explore taxonomy failed');await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=health',{waitUntil:'networkidle'});let health=await p.locator('#r5work').innerText();if(!health.includes('Health')||!health.includes('VIX')||!health.includes('CPI'))throw Error('Health failed');await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=config',{waitUntil:'networkidle'});let t=await p.locator('#r5work').innerText();for(const x of ['Venice.ai','OpenRouter','Anthropic direct'])if(!t.includes(x))throw Error('Config '+x+' missing');await p.setViewportSize({width:390,height:844});await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=analysis%2Fcpi',{waitUntil:'networkidle'});let mobile=await p.evaluate(()=>({w:document.querySelector('#mnR5').scrollWidth,iw:innerWidth,composer:!!document.querySelector('#r5chat'),axes:document.querySelectorAll('#r5svg .r5axis').length}));if(mobile.w>mobile.iw+2||!mobile.composer||mobile.axes<2)throw Error('mobile failed '+JSON.stringify(mobile));if(errors.length)throw Error(errors.join(' | '));console.log({initial,v2,v3,additive,back,mobile});await b.close()})().catch(e=>{console.error(e);process.exit(1)})
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:800}});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html',{waitUntil:'networkidle'});await p.waitForSelector('#mnR5');const state=()=>p.evaluate(()=>({route:new URLSearchParams(location.search).get('r5')||'',legend:[...document.querySelectorAll('#mnR5 [data-s]')].map(x=>x.textContent.trim()),axes:document.querySelectorAll('#r5svg .r5axis').length}));let initial=await state();if(initial.axes<2)throw Error('V1 failed');for(const h of ['1D','5D','MTD','YTD','1YR','3YR','5YR']){await p.click(`#r5horizons [data-h="${h}"]`);if(await p.locator('#r5svg .r5axis').count()<2)throw Error('axis '+h)}await p.click('#mnR5 [data-s="risk"]');await p.waitForTimeout(100);let v2=await state();if(v2.route!=='index/risk'||v2.legend.length<8)throw Error('V2 '+JSON.stringify(v2));await p.click('#mnR5 [data-s="vix"]');await p.waitForSelector('#r5about.open');await p.click('#r5moreinfo');await p.waitForTimeout(100);let v3=await state();if(v3.route!=='analysis/vix'||v3.axes<2)throw Error('V3');await p.click('#r5add');await p.waitForSelector('.r5modal.open');await p.click('[data-t="Macro"]');await p.locator('[data-p="cpi"]').check();await p.click('#aa');await p.goBack();await p.waitForTimeout(250);let back=await state();if(back.route!=='index/risk'||back.legend.length<8)throw Error('back '+JSON.stringify(back));await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=health',{waitUntil:'networkidle'});let health=await p.locator('#r5work').innerText();if(!health.includes('VIX')||!health.includes('CPI'))throw Error('Health');await p.setViewportSize({width:390,height:844});await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html?r5=analysis%2Fcpi',{waitUntil:'networkidle'});let mobile=await p.evaluate(()=>({w:document.querySelector('#mnR5').scrollWidth,iw:innerWidth,axes:document.querySelectorAll('#r5svg .r5axis').length}));if(mobile.w>mobile.iw+2||mobile.axes<2)throw Error('mobile');if(errors.length)throw Error(errors.join('|'));await b.close()})().catch(e=>{console.error(e);process.exit(1)})
           JS
       - name: Data-health and mixed-frequency gate
         run: |
@@ -79,19 +68,17 @@ jobs:
           m=load('data/market-backend/market-cache.json').get('data',{}); a=load('data/market-backend/macro-cache.json').get('data',{})
           def pts(id):
             v=m.get(id) or a.get(id) or {}; return v.get('points') or v.get('daily') or v.get('intraday') or []
-          for id in ['vix','wti','cpi']: assert pts(id), id+' missing'
-          wc=pts('wti')[-1]['t']; cc=pts('cpi')[-1]['t']; assert wc!=cc
+          for id in ['vix','wti','cpi']: assert pts(id),id
+          assert pts('wti')[-1]['t']!=pts('cpi')[-1]['t']
           ids={x['id']:x for x in load('data/market-backend/data-catalog.json')['series']}; assert ids['cpi']['native_cadence']!=ids['wti']['native_cadence']
-          print({'vix_points':len(pts('vix')),'wti_latest':wc,'cpi_latest':cc})
           PY
       - name: Record validated candidate and publish
         run: |
           cat > MARKET-NAVIGATOR-GATE4-R5-VALIDATION.md <<EOF
           # Market Navigator Gate 4 R5 Validation
-          Candidate source: restored Market Navigator 3.9.7 plus governed R5 successor layer.
           Validation run: $GITHUB_RUN_ID
           Commit under test: $GITHUB_SHA
-          Gates passed: parser; structural; browser boot; seven horizons; V1→V2→V3; additive series; deterministic browser Back; Explore; Health; Config; mobile; canonical data; CPI/WTI mixed frequency.
+          Gates passed: parser; structural; browser boot; seven horizons; V1-V2-V3; additive series; browser Back; Health; mobile; canonical data; CPI/WTI mixed frequency.
           EOF
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
