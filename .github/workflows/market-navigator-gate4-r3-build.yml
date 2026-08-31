@@ -90,11 +90,34 @@ jobs:
             if(!res || !res.ok()) throw new Error('HTTP boot failed '+(res&&res.status()));
             await page.waitForFunction(()=>window.__MARKET_NAVIGATOR_R3__?.app,{timeout:30000});
             await page.waitForFunction(()=>{const s=document.querySelector('#status')?.textContent||'';return s.includes('ready')||s.includes('BOOT ERROR')},{timeout:30000});
-            const result=await page.evaluate(()=>({status:document.querySelector('#status')?.textContent||'',ready:document.querySelector('#status')?.textContent.includes('ready'),qa:window.__MARKET_NAVIGATOR_R3__.structuralQA(),series:Object.keys(window.__MARKET_NAVIGATOR_R3__.app.series||{}).length,horizons:document.querySelectorAll('#horizons button').length,legend:document.querySelector('#legend')?.textContent||''}));
+            const result=await page.evaluate(()=>{
+              const api=window.__MARKET_NAVIGATOR_R3__;
+              const qa=api.structuralQA();
+              const series=api.app.series||{};
+              const keys=Object.keys(series);
+              const cpi=keys.filter(k=>/cpi/i.test(k)).map(k=>({id:k,n:series[k]?.obs?.length||0,last:series[k]?.obs?.at?.(-1)?.date||series[k]?.obs?.at?.(-1)?.x||null}));
+              const wti=keys.filter(k=>/wti|oil/i.test(k)).map(k=>({id:k,n:series[k]?.obs?.length||0,last:series[k]?.obs?.at?.(-1)?.date||series[k]?.obs?.at?.(-1)?.x||null}));
+              return {
+                status:document.querySelector('#status')?.textContent||'',
+                ready:document.querySelector('#status')?.textContent.includes('ready'),
+                qa,
+                qaText:document.querySelector('#qaBody')?.innerText||'',
+                series:keys.length,
+                seriesKeys:keys,
+                cpi,wti,
+                v3SelectCount:document.querySelectorAll('#v3Selects select').length,
+                qaPanelDisplay:getComputedStyle(document.querySelector('#qaPanel')).display,
+                indices:Object.keys(api.app.indices||{}),
+                view:api.app.view,
+                visible:api.app.visible,
+                horizons:document.querySelectorAll('#horizons button').length,
+                legend:document.querySelector('#legend')?.textContent||''
+              };
+            });
             console.log(JSON.stringify(result,null,2));
             if(errors.length) throw new Error('Uncaught page errors: '+errors.join(' | '));
             if(!result.ready) throw new Error('Boot did not reach ready: '+result.status);
-            if(!result.qa) throw new Error('Runtime structuralQA failed');
+            if(!result.qa) throw new Error('Runtime structuralQA failed: '+result.qaText.replace(/\n/g,' | '));
             if(result.series<1) throw new Error('No canonical observations loaded');
             if(result.horizons!==7) throw new Error('Horizon count != 7');
             if(!['RSK','GRW','MAC'].every(x=>result.legend.includes(x))) throw new Error('V1 legend incomplete');
