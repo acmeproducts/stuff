@@ -350,3 +350,53 @@ affected: the browser tab and the installed app do not share a registration.
 3. The relay's per-room diagnostic must be readable without a deploy.
 4. Everything else in §4.11 stands: it passed on iPhone in all four states and
    on Android wherever a lane existed.
+
+## 10. R10-CR2 device-gate root cause (cycle `r10-recovery-2026-08-31b`)
+
+**Status:** Complete. **Rejected pair:** commit `0422654` (app `94bc9b6a`,
+worker `a8a49dbf`, relay v6.1 `158b34a3`). Graveyard G23.
+
+### 10.1 What this run proved
+
+- G21 fixed and proven live on both phones: leave → listener lane open in
+  ~0.4 s (Android 18:36:37.5→18:36:38.06; iPhone 18:33:44.7→18:33:44.97);
+  the very next calls rang in-app instantly with no OS banner.
+- G22 machinery armed (announcements logged); tap rows not reached before the
+  run stopped on the new failure.
+- Android in-room voice and video calls: correct surfaces, one missed pill
+  per bare hang-up, counts from the relay only.
+
+### 10.2 Proven cause
+
+**C3 — attendance read from document visibility alone (G23).** After the
+owner blurred or locked the iPhone, iOS kept the installed page RUNNING with
+the DOM visibility flag still "visible": the log renders every 20 s through
+the whole away window and `net_returned why:focus awayMs:52548/114458` proves
+the app was unfocused, yet no hidden announcement ever fired. The heartbeat
+therefore kept refreshing a "visible, in room" state at the relay; the relay —
+correctly, by its record — decided `in_app` for the chats at 18:35:26 and
+18:36:06, pushed nothing, and the app, believing itself watched, sent read
+receipts and seen acknowledgements for messages nobody saw. Blur and focus
+DID fire reliably on the same device. The defect is the app's definition of
+"watching", not the relay's decision, the push path, or iOS delivery (all
+proven on the CR1 run).
+
+### 10.3 Binding requirements for the CR3 plan
+
+1. A device is "watching" only while visible AND focused (attended). Window
+   blur flips attendance off and is announced to the relay at once; focus or
+   visibility return flips it on and recovers. The heartbeat carries the
+   attended truth, so an unattended page goes to `os_requested` immediately,
+   not after staleness.
+2. Nothing is acknowledged as seen, and no seen word is sent, while
+   unattended — even if the page is running in the event's room.
+3. Machine gates: blur without any visibility change → chat → OS request
+   raised, record `os_requested`, no seen word; focus return in the routed
+   room → one explicit open. Planted defects: ignore blur; acknowledge while
+   unattended.
+4. Everything else in §4.12 stands, including the proven G21/G22 corrections.
+
+### 10.4 Out of scope, reconfirmed on this run
+
+`dg_no_key` on every Deepgram open on the iPhone (no voice transcription
+there). Ship-era credential issue, separate work item, not an R10 cause.
