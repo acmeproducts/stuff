@@ -94,5 +94,8 @@ const style=document.createElement('style');style.id='g4style';style.textContent
 @media(max-width:780px){.g4composer{left:0}.g4h button{min-width:38px;font-size:11px;padding:7px 4px}.globalRange.g4r3{padding-left:0;padding-right:42px}.viewport{height:calc(100dvh - var(--head) - 128px - 58px)}.g4surface{grid-template-rows:auto auto auto minmax(220px,1fr) auto auto}.g4chartbox{min-height:220px}.g4r1 h1{font-size:15px}.g4r1 h1 span{display:block}.g4lib>button,.g4explore [data-open-series]{grid-template-columns:55px 1fr}.g4explore small{display:none}}
 @media(max-width:520px){.app main{padding-left:8px;padding-right:8px}.g4h{gap:0}.g4h button{min-width:36px;font-size:10.5px}.g4legendbar{justify-content:flex-start}.g4pov{font-size:12px}.g4stats{display:none}.g4modalRoot{padding:0;align-items:flex-end}.g4modal{border-radius:16px 16px 0 0;max-height:92vh}.g4picker{height:92vh}}
 `;document.head.appendChild(style);
+const legacyRenderAllG4=renderAll;
+renderAll=function(){if(G4.ready){renderGate4();return}return legacyRenderAllG4()};
+setTimeout(()=>{if(G4.ready)renderGate4()},450);
 bootGate4();
 })();
