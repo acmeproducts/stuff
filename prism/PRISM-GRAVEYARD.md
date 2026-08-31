@@ -1,14 +1,13 @@
-<!-- PRISM-GRAVEYARD v2.1.0 -->
-# PRISM GRAVEYARD v2.1.0
+<!-- PRISM-GRAVEYARD v2.2.0 -->
+# PRISM GRAVEYARD v2.2.0
 
 ## Governance
-Rejected architectures are not patched forward. Preserve accepted subsystems. A rollback of one failed architecture must not remove unrelated accepted product functionality.
+Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
 
 ## Standing vetoes
 - no browser publisher fan-out on startup;
 - no article-as-master-object; Event→Coverage→Source Article is canonical;
 - no separate state universes per visualization;
-- no sphere-only or treemap-only identity;
 - no isolated generic AI chat;
 - no unverified provider/model use;
 - no disposable/localStorage-only analysis library;
@@ -21,52 +20,47 @@ Rejected architectures are not patched forward. Preserve accepted subsystems. A 
 - no anonymous-dot Explore objects;
 - no hand-rolled treemap;
 - no filter catalog disconnected from selected dimensions;
-- **no visualization rollback that amputates Sources, AI POV, provider validation, Analysis, or Library.**
+- no rollback that removes unrelated accepted functionality;
+- **no synthesized rollback substitute when an exact prior repository version exists.**
 
 ## G22 · Corpus-wide sphere/card cloud
 **Origin:** R3 Explore.
 **Observed:** hundreds of event cards overlap inside a globe-like boundary.
-**VETO:** do not render the entire filtered corpus as individually readable cards in one sphere.
+**VETO:** do not preserve the R3 Explore visualization as the future Explore design.
+**Important:** this veto applies to the Explore visualization only. The exact R3 application remains the recovery baseline because its integrated non-Explore functionality is the required starting point.
 
 ## G23 · Giant perspective X×Y card matrix
-**Origin:** R4 Explore, `prism-turn01-pre-ship-r4.html` @ `7988e0f397152afc06f3ae57009682c31fb2fd86`.
-**Observed:** X×Y was implemented as a huge grid where each intersection immediately contained packed story cards.
-**VETO:** macro X×Y cells may not directly pack the full story set.
+**Origin:** R4 Explore @ `7988e0f397152afc06f3ae57009682c31fb2fd86`.
+**VETO:** rejected Explore descendant; not a rollback target.
 
 ## G24 · Separate legend duplicating filter semantics
-**VETO:** no inert duplicate legend. Color filter chips carry the same visual colors and serve as filter + legend.
+**VETO:** no inert duplicate legend. Color filter chips carry visual colors and serve as filter + legend.
 
 ## G25 · Raw Importance range control
-**VETO:** Importance must use useful governed buckets such as Critical / High / Medium / Low.
+**VETO:** Importance needs governed buckets when presented categorically.
 
 ## G26 · R5 wall-of-cluster-cards / false cluster abstraction
 **Origin:** R5 Explore gate @ `2439040d8e8764e86bc254a17c9247961faa9c63`.
-**Observed:** macro view remained a wall of large cards; focused gate also broke established application behavior.
-**VETO:** do not continue R5 or hand off isolated visualization gates that disable the app shell.
+**VETO:** rejected Explore descendant; not a rollback target.
 
-## G27 · Turn 01 pre-ship patch spiral
-**Observed:** repeated Explore replacements changed geometry while product-level stability degraded.
-**VETO:** no R6 patch-forward. Turn 01 Explore line is closed.
+## G27 · Turn 01 Explore patch spiral
+**Observed:** R3 → R4 → R5 changed Explore geometry repeatedly while destabilizing product-level behavior.
+**VETO:** do not continue patching those rejected Explore implementations.
 
 ## G28 · Over-rollback / application amputation
-**Origin:** initial Turn 02 pre-base @ `cc479854b86b6227a0ccd0976b3edcf6e9fd2495`.
-**Observed:** rollback correctly removed rejected Explore geometry but also removed Sources, provider/model configuration, AI POV, selected-evidence research, and the Analysis Library. This transformed an Explore rollback into an application-wide feature regression.
-**Root cause:** the reset incorrectly treated accepted non-Explore functionality as later-stage optional work instead of durable baseline functionality.
-**VETO:** a rollback may remove the rejected subsystem only. It may not downgrade unrelated accepted capabilities.
-**Replacement:** Turn 02 pre-base restores full Sources + provider validation + AI POV + Analysis Library + Map + Feed + search + reader + collapsible shell while leaving only Explore visualization reset.
+**Origin:** first Turn 02 pre-base attempt @ `cc479854b86b6227a0ccd0976b3edcf6e9fd2495`.
+**Observed:** Sources, provider/model configuration, AI POV and Analysis Library were removed along with Explore.
+**VETO:** a visualization rollback may not amputate established application functionality.
 
-## Recovery baseline for Turn 02
-Preserve and validate together:
-- collapsible left rail;
-- central work surface;
-- collapsible right context panel;
-- Map and Feed;
-- same-origin cache + IndexedDB;
-- Event → Coverage → Source Article;
-- global search and multi-selection;
-- source manager;
-- Devstream provider/model validation;
-- AI POV with Markdown and safe hyperlinks;
-- durable Analysis Library with reopen/continue/delete/export/import.
+## G29 · Synthesized rollback substitute
+**Origin:** Turn 02 pre-base reconstruction, including later restoration attempt @ `30289a0482aacd2dcc276958a4b1f1e9cb3c8b93`.
+**Observed:** instead of restoring a prior repository version, a new approximation was constructed and presented as the starting point. Even where features were re-added, this was not the exact previously tested application state and therefore violated the rollback process.
+**Root cause:** rollback was interpreted as reconstructing a desired feature set rather than selecting the exact historical artifact.
+**VETO:** never manufacture a new rollback baseline when the requested historical version still exists in the repository.
+**Replacement:** exact `prism/prism-turn01-pre-ship-r3.html` at original application commit `807656e7e14c4b8503b3b7c88b83271967f64692` is the active rollback baseline.
 
-Only the Turn 01 Explore visualization implementations remain excluded.
+## Active recovery baseline
+**Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`
+**Exact original application commit:** `807656e7e14c4b8503b3b7c88b83271967f64692`
+
+Preserve its integrated Sources, dimensions/filters, AI POV/provider validation, Analysis Library, Map, Feed, shell and selection behavior. Replace only the rejected Explore visualization in the next governed descendant unless the owner explicitly rejects another subsystem.
