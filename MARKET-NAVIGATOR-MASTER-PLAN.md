@@ -15,6 +15,7 @@ The backend owns objective, deterministic and reproducible evidence. AI interpre
 ## 2. Permanent application frame and navigation
 - **Left:** collapsible navigation rail for **NOW · EXPLORE · LIBRARY · HEALTH**, with **CONFIG** separated at the bottom.
 - **Right:** analytical working panel; collapsed rail yields essentially full screen width.
+- The hamburger control MUST collapse/restore the rail on desktop and open/close it on mobile. A non-functional collapse control is release-blocking.
 
 The working panel is a compact workspace, not a dashboard-card stack.
 
@@ -25,6 +26,8 @@ The working panel is a compact workspace, not a dashboard-card stack.
 There is exactly one canonical chart engine. V1/V2 and Analysis are states of the same engine, not separate implementations.
 
 Common everywhere: persistent series identity, typography/lines, geometry, horizon logic, visible axes/ticks/units, single-series inspection, legend grammar, missing-data treatment, normalization, provenance/status, touch behavior and evidence fidelity.
+
+Chart quality is acceptance-critical. A chart that is technically populated but visually chaotic, misleading, dominated by sparse/stale series, or rendered across invalid frequency mixtures is a failed chart.
 
 ## 5. Derived analytical indices
 Canonical definition: `data/market-backend/derived-index-definition.json`.
@@ -38,13 +41,17 @@ Semantic index colors: **Risk red · Growth blue · Macro white/neutral**. Ordin
 Risk, Growth and Macro trendlines appear together, rebased to 100. No index is selected by default. Legend `RSK / GRW / MAC`; tapping an index drills directly to V2.
 
 ### V2 — Index + components
-V2 renders the selected derived index trendline itself plus every component defined for that index. No component may silently disappear; unavailable evidence is explicitly exposed. Component/index legend labels use stable three-character abbreviations wherever practical. Component tap opens About; About → More info opens standalone Analysis for that exact component.
+V2 renders the selected derived index trendline itself plus every component defined for that index. No component may silently disappear; unavailable, stale, sparse or cadence-incompatible evidence is explicitly exposed. Component/index legend labels use stable three-character abbreviations wherever practical. Component tap opens About; About → More info opens standalone Analysis for that exact component.
+
+V2 must remain analytically legible. A component that cannot support the selected horizon must not be visually treated as equivalent to a dense/current component; its degraded status must be obvious and Health must explain why.
 
 ### V3 — Analysis
 Analysis begins with the selected/root component and is additive. One-series and multi-series investigation are the same state. Custom breadcrumb leaf is `<root component> + Custom`.
 
 ## 7. Unit-family and axis assignment
 One compatible unit family → one native Y-axis. Exactly two → two native Y-axes. More than two incompatible families → Indexed 100 rather than a third native axis.
+
+Indexed-100 is not permission to combine analytically incompatible evidence blindly. Before rendering, the engine must evaluate cadence, freshness, coverage and observation density for the active horizon and surface degraded/incomplete series conditions.
 
 ## 8. Legend identity and About-card navigation
 V1 index chips drill to V2. V2 and Analysis chips open an in-context About card. About answers What is it / How used here / Why matter and supports close/outside dismissal. More info opens exact clicked series as standalone Analysis.
@@ -55,17 +62,53 @@ Inspection transfers between visible series. Tap near a line chooses that series
 ## 10. Axis and time contract
 Every chart has visible Y-axis/ticks/unit and horizon-correct X-axis. QA is matrix-based across analytical states × seven horizons × X/Y1/Y2. Horizon semantics follow `data/market-backend/data-catalog.json`; 1D/5D use applicable observations/trading sessions rather than calendar approximations.
 
-## 11. Data fidelity and mixed frequency
+## 11. Data fidelity, cadence, freshness and mixed frequency
 Each direct Analysis line terminates at its own latest real observation. Slower-frequency sources are never stretched to match faster sources. **CPI versus WTI is mandatory Gate 4 mixed-frequency acceptance.** Derived indices may use the explicit composite-timestamp rule in `derived-index-definition.json`; direct Analysis may not.
+
+Every canonical series must expose operational cadence metadata sufficient to determine whether the current observation is expected or stale, including at minimum:
+- native frequency/cadence,
+- publication lag / expected availability rule,
+- latest observation date,
+- latest successful collection time,
+- expected next observation/publication window where determinable,
+- coverage for each canonical horizon,
+- health state: current / expected-lag / stale / missing / failed / sparse.
+
+Example acceptance: monthly CPI cannot simply end at June when July is publicly available. Health must distinguish a legitimate one-period publication lag from a collector/data failure. A stale series must not be analyzed as if current.
 
 ## 12. Three-row analytical top ribbon
 Row 1: H1 context (`Market: <sentiment>`, `Growth: <sentiment>`, `Payroll: <sentiment>`). Row 2: compact interactive breadcrumbs using `/`. Row 3: enlarged seven horizons centered, More at far right. More contains Add to Analysis, Add/Save to Library, Print, Download.
 
-## 13. Add Series modal
-Top/sticky Add/Done/Close controls. Tabs: **Market | Risk | Growth | Macro | Other**. Market contains individually selectable Risk/Growth/Macro; Market itself is not selectable. Risk/Growth/Macro tabs contain index + all components. Other is catalog minus union of index constituents; confirmed outliers: Brent, Gold, 2Y, 30Y, 10Y–2Y spread, Real GDP. Search and multi-select are required.
+## 13. Add Series and Explore — one mechanism
+There is one canonical series discovery/selection mechanism.
+
+The **Add Series** modal and **EXPLORE** must use the same taxonomy, search, item presentation, metadata, and selection semantics rather than two separate discovery implementations.
+
+Tabs: **Market | Risk | Growth | Macro | Other**. Market contains individually selectable Risk/Growth/Macro; Market itself is not selectable. Risk/Growth/Macro tabs contain index + all components. Other is catalog minus union of index constituents; confirmed outliers: Brent, Gold, 2Y, 30Y, 10Y–2Y spread, Real GDP. Search and multi-select are required.
+
+Explore is the full-page use of this same discovery component; Add Series is the modal use of the same component.
 
 ## 14. AI POV and operational conversation
-AI is active Gate 4 functionality. POV and chat are grounded in exact active canonical evidence/horizon. CONFIG follows `devstream-test.html`: Venice.ai, OpenRouter, Anthropic direct; browser-local keys; model discovery where supported; real provider/model validation call before acceptance; provider/model switching in persistent compose strip.
+AI is active Gate 4 functionality. POV and chat are grounded in exact active canonical evidence/horizon.
+
+### Provider/configuration donor — exact reuse required
+**Donor: `devstream-test.html`. Do not redesign or approximate its provider/model configuration behavior.** The successor must follow the donor's provider discovery, model discovery, credential entry/storage, validation, provider/model switching, failure messaging and composer interaction exactly unless the owner explicitly approves a deviation.
+
+Required providers remain Venice.ai, OpenRouter and Anthropic direct. Browser-local keys only where the donor does so. A provider/model is not accepted until the donor-equivalent real validation call succeeds.
+
+### POV intelligence contract
+AI POV is not allowed to summarize garbage input. Before generating, it must inspect the active evidence-health envelope and explicitly reason about:
+- stale or missing components,
+- incomplete horizon coverage,
+- publication lag versus actual collection failure,
+- sparse observation density,
+- mixed-frequency limitations,
+- unavailable component evidence,
+- whether the visible index/chart is sufficiently supported to interpret.
+
+If evidence is materially incomplete, POV must lead with that limitation and either narrow the inference to supported evidence or state that the requested interpretation is not reliable yet. It must not request or rely on out-of-scope series merely to manufacture a broader market narrative. Index POV should primarily interpret the index and its governed components; broader context is optional only when explicitly requested by the user.
+
+AI generation must have visible lifecycle/status and deterministic failure output. A request that spins and disappears without a response is release-blocking.
 
 ## 15. LIBRARY
 Operational Add/Save to Library preserves analytical lineage, series set, horizon, axis/normalization state, evidence/provenance references, POV/conversation resume context and save version/time. Saved analysis reopens into same state.
@@ -77,41 +120,51 @@ Statistics bind to exact analytical state. Correlation records pair, coefficient
 Download = report/evidence + exact data. Print = formatted report. Both reconcile to exact active evidence.
 
 ## 18. HEALTH and CONFIG
-Health exposes freshness/source/collection/coverage/provenance/readiness/failures. Config is at bottom of rail and contains operational AI provider configuration.
+Health is a first-class working surface, not a placeholder. Selecting **HEALTH** must show series-level and backend-level freshness/source/collection/coverage/provenance/readiness/failures, with cadence and expected-publication metadata sufficient to diagnose stale data without leaving the application.
+
+Health must make failures actionable: series, source, last observation, last successful collection, expected next update, current health classification, and failure/error detail when present.
+
+CONFIG is at bottom of rail and contains the exact donor-derived AI provider configuration behavior from `devstream-test.html`.
 
 ## 19. Backend contract
 Data Catalog defines canonical series. Operational Manifest is runtime state. Smart Evidence Store holds canonical observations/horizon records. Browser does not reacquire Yahoo/FRED evidence.
+
+The backend must carry enough cadence/freshness metadata for the frontend and AI to distinguish current, expected-lag, stale, sparse, missing and failed evidence deterministically.
 
 ## 20. Gate 3 — UX Journey Prototype
 **Status: APPROVED / ACCEPTED.** Approved POC: `market-view-ux-gate3-p2.html`, commit `cfba7320e42028f09f2967304cb0c0dd0cc2988d`. Gate 4 decisions supersede its two-row ribbon and direct V2 navigation details.
 
 ## 21. Gate 4 — complete application build
-**Status: ACTIVE — R4 SUCCESSOR REQUIRED.**
+**Status: ACTIVE — R5 SUCCESSOR REQUIRED. R4 IS REJECTED AND ROLLED BACK.**
 
-Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`, inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`, and rejected standalone-rewrite R3 candidate `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb` are graveyarded and are not patch-forward baselines.
+Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`, inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`, rejected standalone-rewrite R3 candidate `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`, and rejected R4 candidate `12450364b8298b9f7d1d96837c61654197e793f7` are graveyarded and are not patch-forward baselines.
 
 ### Governed lineage
-**Exact restored Market Navigator 3.9.7 `market-view-gate4-r3.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + Devstream provider-validation pattern.** The R4 successor must modify the restored 3.9.7 application in place. It may not replace it with a compact rewrite, parallel POC shell, or second chart engine.
+**Exact restored Market Navigator 3.9.7 `market-view-gate4-r3.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + exact `devstream-test.html` provider/configuration donor behavior.** The R5 successor must start again from the restored 3.9.7 baseline. It may not descend from R4 code, R4 overlay code, R4 workflows, or R4 generated artifact.
 
 ### Baseline preservation rule
 Before Gate 4 additions, preserve the 3.9.7 runtime behaviors unless this plan explicitly supersedes them: routing/history behavior, cleaned-observation model, chart rendering/inspection foundations, responsive frame, accessibility/keyboard behavior, export, persistence/cache behavior, and application error/status behavior. Each intentional replacement must be traceable to a Gate 4 contract item.
 
 ### Nothing else is gated
-R4 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
+R5 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
 
 ### Mandatory acceptance
+- hamburger rail collapse/restore works on desktop and mobile
 - V1 RSK/GRW/MAC all horizons; V1 legend drills to V2
-- V2 selected index line + every defined component; missing evidence explicit
+- V2 selected index line + every defined component; missing/stale/sparse evidence explicit
 - V2 component About → More info → exact Analysis
 - V3 additive Analysis from canonical source records
 - three-row ribbon and mobile-safe breadcrumbs/horizons
 - transferable crosshair and one combined inspection popup
 - CPI + WTI mixed-frequency proof
+- cadence/freshness metadata proof including CPI currentness and publication-lag classification
 - unit-family Y1/Y2 and Indexed-100 fallback
+- one shared Explore/Add-Series discovery mechanism
 - categorized searchable multi-select Add Series
 - operational Library restore
-- operational AI POV/chat and provider/model switching
-- Health/source failures/provenance surfaced
+- exact donor-equivalent AI provider/model discovery and validation behavior
+- AI POV evidence-health preflight and deterministic failure/status behavior
+- Health/source failures/provenance/cadence surfaced and usable
 - no browser Yahoo/FRED canonical reacquisition
 - no synthetic analytical curves
 - systematic mobile/desktop QA across state × horizon × X/Y1/Y2
@@ -121,13 +174,16 @@ A Gate 4 release is **not testable and must not be handed to the owner** until a
 1. Extract every executable JavaScript block/module from the candidate artifact and run a real JavaScript parser/static syntax check. A parser failure blocks publication.
 2. Run an application boot smoke check proving initialization reaches the first render without an uncaught exception. A boot failure blocks publication.
 3. Confirm the artifact is reachable at its intended GitHub Pages URL and that its release identity matches the candidate under test.
-4. Run structural checks for the three-row ribbon, seven horizons, RSK/GRW/MAC V1 identities, V2 index+component contract, Add Series taxonomy, Library, Health, Config and AI composer/provider controls.
-5. Run **baseline parity checks against the restored 3.9.7 artifact** for routing/back behavior, existing application frame, cleaned-observation model, chart/export entry points, keyboard/accessibility hooks and responsive behavior. Absence of a preserved baseline capability blocks publication unless the master plan explicitly replaces it.
-6. Run **journey/state-transition checks** for V1 → V2 → About → Analysis, Add Series additive analysis, Analysis → Library save → restore, and context/horizon changes clearing inspection state.
-7. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, and axes remain visible.
-8. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, previous release, or string-presence proxy.
+4. Run structural checks for the three-row ribbon, seven horizons, RSK/GRW/MAC V1 identities, V2 index+component contract, shared Explore/Add-Series taxonomy, Library, Health, Config and AI composer/provider controls.
+5. Run **baseline parity checks against the restored 3.9.7 artifact** for routing/back behavior, rail collapse, existing application frame, cleaned-observation model, chart/export entry points, keyboard/accessibility hooks and responsive behavior. Absence of a preserved baseline capability blocks publication unless the master plan explicitly replaces it.
+6. Run **journey/state-transition checks** for V1 → V2 → About → Analysis, Add Series additive analysis, Explore → same discovery/select behavior, Analysis → Library save → restore, and context/horizon changes clearing inspection state.
+7. Run **data-health checks** proving cadence/freshness classification for representative daily and monthly series, including CPI latest available observation and mixed-frequency CPI/WTI handling.
+8. Run **AI configuration parity checks against `devstream-test.html`** for provider discovery, model discovery, validation, switching and failure messaging.
+9. Run **AI POV degraded-evidence checks** proving stale/missing/sparse input is identified before interpretation and a failed generation cannot silently disappear.
+10. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, axes remain visible, and V1/V2 charts remain interpretable rather than merely populated.
+11. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, previous release, or string-presence proxy.
 
-R2's inert handoff and R3's superficially validated rewrite are both release-process failures. Syntax/boot success is necessary but not sufficient; parity and journey behavior now block release.
+R2's inert handoff, R3's superficially validated rewrite and R4's technically passing but product-invalid release are release-process failures. Syntax/boot success is necessary but not sufficient; parity, data health, AI donor parity, journey behavior and visual/analytical usefulness now block release.
 
 ## 22. Rejected approaches
-See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation.
+See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey, data-health, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
