@@ -1,8 +1,8 @@
-<!-- PRISM-GRAVEYARD v1.4.0 -->
-# PRISM GRAVEYARD v1.4.0
+<!-- PRISM-GRAVEYARD v2.0.0 -->
+# PRISM GRAVEYARD v2.0.0
 
 ## Governance
-Rejected architectures are not patched forward. Preserve accepted subsystems and replace only the failed architecture.
+Rejected architectures are not patched forward. Preserve only explicitly accepted subsystems. A full owner-directed rollback starts a new governed turn rather than continuing the rejected release line.
 
 ## Standing vetoes
 - no browser publisher fan-out on startup;
@@ -26,23 +26,43 @@ Rejected architectures are not patched forward. Preserve accepted subsystems and
 **Origin:** R3 Explore.
 **Observed:** hundreds of event cards overlap inside a globe-like boundary. Rotation/zoom does not solve collision or yield a macro analytical read.
 **VETO:** do not render the entire filtered corpus as individually readable cards in one sphere.
-**Replacement:** macro aggregation first; individual cards only after selecting a cluster.
 
 ## G23 · Giant perspective X×Y card matrix
 **Origin:** R4 Explore, `prism-turn01-pre-ship-r4.html` @ `7988e0f397152afc06f3ae57009682c31fb2fd86`.
-**Observed:** X×Y was implemented as a huge grid where each intersection immediately contained packed story cards. This is still a detail view masquerading as a macro view; perspective rotation adds complexity without analytical value.
-**Root cause:** the implementation skipped the aggregation boundary between macro matrix and drill-in.
-**VETO:** macro X×Y cells may not directly pack the full story set. A cell is one cluster summary.
-**Replacement:** flat 2D X×Y matrix → one summarized cluster per intersection → tap cluster → immersive Luma-like rotatable/zoomable tile field for that intersection only → × back to the preserved macro matrix state.
+**Observed:** X×Y was implemented as a huge grid where each intersection immediately contained packed story cards.
+**VETO:** macro X×Y cells may not directly pack the full story set.
 
 ## G24 · Separate legend duplicating filter semantics
-**Observed:** independent Color legend duplicated information already represented by filter chips.
 **VETO:** no inert duplicate legend. When a field is Color, its filter chips carry the same visual colors and therefore serve as both filter and legend.
 
 ## G25 · Raw Importance range control
-**Observed:** Importance 0–100 slider is technically accurate but inconsistent with the categorical scanning model used for Tier and Corroboration.
 **VETO:** do not expose Importance as only an undifferentiated range control in Explore.
-**Replacement:** Critical 80–100 / High 60–79 / Medium 40–59 / Low 0–39 buckets for filtering and cluster summary.
+**Replacement:** Critical 80–100 / High 60–79 / Medium 40–59 / Low 0–39 buckets.
 
-## Recovery baseline
-Preserve non-Explore R3/R4 behavior: rail/work/right-panel shell, Map, Feed, shared state, source management, AI POV/provider validation, Markdown/link handling, Library and selection semantics. Replace Explore architecture only.
+## G26 · R5 wall-of-cluster-cards / false cluster abstraction
+**Origin:** R5 Explore gate, `prism-turn01-pre-ship-r5-explore.html` @ `2439040d8e8764e86bc254a17c9247961faa9c63`.
+**Owner evidence:** screenshot 2026-08-31.
+**Observed:** the supposed macro cluster view is still a wall of large cards. Each X×Y intersection visually behaves like another content card instead of a compact analytical cluster. The surface communicates little beyond row/column labels and selected top headlines. In addition, the focused gate discarded working application behavior: Map was inert and the left rail did not collapse.
+**Root cause:** the build isolated Explore from the accepted application shell and substituted a card-based matrix for an actual analytical aggregation. It validated neither the whole application nor a useful macro representation.
+**VETO:** do not continue R5, do not patch its matrix, and do not hand off isolated Explore gates that disable established navigation/shell behavior.
+
+## G27 · Turn 01 pre-ship patch spiral
+**Origin:** R3 → R4 → R5.
+**Observed:** repeated local replacements of Explore changed geometry without restoring a stable product-level baseline. Each attempt accumulated new interpretation errors while other surfaces regressed or disappeared.
+**Root cause:** continuing inside `01·pre-ship` after the visualization contract had fundamentally failed.
+**VETO:** Turn 01 pre-ship is closed as a failed release line. No R6 patch-forward.
+**Replacement:** owner-directed full rollback and **Turn 02 pre-base** from a clean shell/data foundation.
+
+## Recovery baseline for Turn 02
+Reuse concepts/code only where independently validated:
+- collapsible left navigation rail;
+- central work surface;
+- collapsible right context panel;
+- same-origin cache / IndexedDB direction;
+- Event → Coverage → Source Article;
+- ECharts-backed Map rather than custom layout;
+- search and reader patterns;
+- AI provider/model validation contract and Markdown/link rules as later reintroduction requirements;
+- Library persistence contract as later reintroduction requirement.
+
+Do **not** inherit any Turn 01 Explore implementation (R2 sphere, R3 sphere, R4 perspective matrix, R5 card matrix) as a visual baseline.
