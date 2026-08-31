@@ -1371,7 +1371,127 @@ function selectFile(file,idx){
   Viewer.open(file,idx);
 }
 
-// ── App controller ────────────────────────────────────────
+// ── Left panel ────────────────────────────────────────────
+const LeftPanel={
+  render(){
+    const scroll=$('lp-scroll');if(!scroll)return;scroll.innerHTML='';
+    const rec=st.intel;
+    const enrolledIds=new Set(rec?.enrolledRoots||[]);
+    const allIds=new Set([...st.allFolders.map(f=>f.id),...enrolledIds]);
+    // Enrolled first, then unenrolled
+    const enrolled=st.allFolders.filter(f=>enrolledIds.has(f.id));
+    const unenrolled=st.allFolders.filter(f=>!enrolledIds.has(f.id));
+    // Also show enrolled roots that might not be in allFolders
+    const enrolledOnly=[...(rec?.enrolledRoots||[])].filter(id=>!st.allFolders.find(f=>f.id===id)).map(id=>rec?.folders?.[id]).filter(Boolean);
+    [...enrolled,...enrolledOnly].forEach(f=>this.renderNode(scroll,f.id,0));
+    if((enrolled.length||enrolledOnly.length)&&unenrolled.length){const sep=document.createElement('div');sep.style.cssText='height:1px;background:var(--b1);margin:4px 8px';scroll.appendChild(sep);}
+    unenrolled.forEach(f=>this.renderNode(scroll,f.id,0));
+    if(!allIds.size)scroll.innerHTML='<div style="padding:14px;font-size:11px;color:var(--t3)">No folders</div>';
+  },
+  renderNode(container,fid,indent){
+    const rec=st.intel,enrolled=rec?.enrolledRoots?.includes(fid)||false;
+    const fRec=rec?.folders?.[fid];
+    const f=fRec||st.allFolders.find(f=>f.id===fid)||{id:fid,name:fid};
+    const hasKids=fRec&&(fRec.children||[]).length>0;
+    const expanded=st.ui.expanded.has(fid);
+    const active=st.ui.selFolder===fid;
+    const status=fRec?.status||'current';
+    const agg=fRec?(fRec.aggS||fRec.stats):null;
+    const isIndexing=!!st.bgIdx[fid];
+    const dotCls=enrolled?(status==='changed'?'dn-chg':status==='new'?'dn-new':'dn-ok'):'dn-no';
+    let barHTML='';
+    if(enrolled&&agg?.byClass){
+      const total=agg.totalFiles||1;
+      barHTML='<div class="fn-bar">';
+      CK.forEach(k=>{const n=agg.byClass[k]||0;if(!n)return;const pct=Math.max(2,Math.round((n/total)*100));barHTML+=`<div class="fn-bar-s" style="flex:${pct};background:${CD[k].c}"></div>`;});
+      barHTML+='</div>';
+    }
+    if(isIndexing)barHTML+=`<div class="fn-prog" style="width:${st.bgIdx[fid].pct||0}%"></div>`;
+    const meta=agg?fmtN(agg.totalFiles)+' files · '+fmtSz(agg.totalSize):(enrolled?'empty':'not indexed');
+    const node=document.createElement('div');
+    node.className='fn'+(active?' act':'');
+    node.style.paddingLeft=(6+indent*14)+'px';
+    node.innerHTML=`
+      <div class="fn-tog${hasKids?(expanded?' open':''):''}">${hasKids?'▶':''}</div>
+      <div class="fn-dot ${dotCls}"></div>
+      <div class="fn-ic"><svg width="11" height="11" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg></div>
+      <div class="fn-body">
+        <div class="fn-name">${esc(f.name||fid)}</div>
+        <div class="fn-meta">${isIndexing?(st.bgIdx[fid].label||'Indexing…'):meta}</div>
+        ${barHTML}
+      </div>
+      ${!enrolled&&!isIndexing?'<span class="fn-badge">+</span>':''}`;
+    node.querySelector('.fn-tog').addEventListener('click',e=>{e.stopPropagation();if(!hasKids)return;st.ui.expanded.has(fid)?st.ui.expanded.delete(fid):st.ui.expanded.add(fid);this.render();saveUI();});
+    node.addEventListener('click',()=>{
+      st.ui.selFolder=fid;st.ui.selFile=null;st.ui.search='';st.ui.tokens=[];st.ui.classF=null;st.ui.stackF=null;
+      const omni=$('omni');if(omni){omni.value='';$('omni-clr')?.classList.remove('vis');}
+      renderOmniChips([]);this.render();
+      if(enrolled){FileList.refresh();Viewer.showFolderStats(fid);}
+      else if(!isIndexing){App.bgIndexFolder(fid);}
+    });
+    container.appendChild(node);
+    if(expanded&&hasKids&&fRec){(fRec.children||[]).forEach(cid=>{if(rec?.folders?.[cid])this.renderNode(container,cid,indent+1);});}
+  },
+};
+
+// ── File list ─────────────────────────────────────────────
+const FileList={
+  getFiles(){
+    const rec=st.intel;if(!rec)return[];
+    let files;
+    const fid=st.ui.selFolder;
+    if(fid&&rec.folders?.[fid]){
+      const desc=new Set();const q=[fid];const v=new Set();
+      while(q.length){const id=q.shift();if(v.has(id))continue;v.add(id);desc.add(id);(rec.folders[id]?.children||[]).forEach(c=>q.push(c));}
+      files=Object.values(rec.files||{}).filter(f=>desc.has(f.folderId));
+    }else{files=Object.values(rec.files||{});}
+    if(st.ui.tokens.length)files=files.filter(f=>matchOmni(st.ui.tokens,f.name,f));
+    if(st.ui.classF)files=files.filter(f=>f.class===st.ui.classF);
+    if(st.ui.stackF)files=files.filter(f=>f.stack===st.ui.stackF);
+    const col=st.ui.sortCol,asc=st.ui.sortDir==='asc';
+    files.sort((a,b)=>{const va=a[col]??'',vb=b[col]??'';const c=typeof va==='string'?va.localeCompare(vb):va-vb;return asc?c:-c;});
+    return files;
+  },
+  refresh(){
+    const files=this.getFiles();
+    const ctx=$('fl-ctx');if(ctx){const f=st.intel?.folders?.[st.ui.selFolder];ctx.textContent=f?f.name:'All Folders';}
+    const cnt=$('fl-cnt');if(cnt)cnt.textContent=fmtN(files.length)+' files';
+    this.renderChips(files);
+    if(st.ui.view==='list'){vlUpdate(files);}else{this.renderGrid(files);}
+    this.renderFooter();
+  },
+  renderChips(files){
+    const bar=$('fl-chips');if(!bar)return;bar.innerHTML='';
+    const counts=Object.fromEntries(CK.map(k=>[k,0]));
+    files.forEach(f=>counts[f.class]=(counts[f.class]||0)+1);
+    CK.forEach(k=>{const n=counts[k];if(!n&&st.ui.classF!==k)return;const chip=document.createElement('button');chip.className='fchip'+(st.ui.classF===k?' on':'');chip.innerHTML=`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${CD[k].c};margin-right:3px;vertical-align:middle"></span>${CD[k].l}<span style="opacity:.5;font-size:9px;margin-left:3px">${n}</span>`;chip.onclick=()=>{st.ui.classF=st.ui.classF===k?null:k;st.ui.stackF=null;this.refresh();};bar.appendChild(chip);});
+    const sc={inbox:0,keep:0,maybe:0,trash:0};files.forEach(f=>{if(sc[f.stack]!=null)sc[f.stack]++;});
+    [{k:'inbox',l:'Inbox'},{k:'keep',l:'Keep'},{k:'maybe',l:'Maybe'},{k:'trash',l:'Recycle'}].forEach(({k,l})=>{const n=sc[k];if(!n&&st.ui.stackF!==k)return;const chip=document.createElement('button');chip.className='fchip'+(st.ui.stackF===k?' on':'');chip.textContent=l+' '+n;chip.onclick=()=>{st.ui.stackF=st.ui.stackF===k?null:k;st.ui.classF=null;this.refresh();};bar.appendChild(chip);});
+  },
+  renderGrid(files){
+    const grid=$('fl-grid');if(!grid)return;const d=st.ui.portal.density;const pp=d*4;
+    const maxP=Math.max(1,Math.ceil(files.length/pp));if(st.ui.portal.page>maxP)st.ui.portal.page=maxP;
+    const slice=files.slice((st.ui.portal.page-1)*pp,st.ui.portal.page*pp);
+    grid.style.gridTemplateColumns=`repeat(${d},1fr)`;grid.innerHTML='';
+    slice.forEach((file,i)=>{
+      const tile=document.createElement('div');tile.className='ptl'+(st.ui.selFile===file.id?' sel':'');
+      const sz=Math.max(80,160/d);tile.style.cssText=`height:${sz+24}px`;
+      const imgDiv=document.createElement('div');imgDiv.className='ptl-img';imgDiv.style.height=sz+'px';
+      if(file.thumbnailUrl&&file.class==='image'){const img=document.createElement('img');img.dataset.src=file.thumbnailUrl;img.alt='';imgDiv.appendChild(img);thumbObs.observe(img);}
+      else{imgDiv.textContent=CD[file.class]?.ic||'📦';}
+      const nm=document.createElement('div');nm.className='ptl-nm';nm.textContent=file.name;
+      tile.appendChild(imgDiv);tile.appendChild(nm);tile.onclick=()=>selectFile(file,i);
+      grid.appendChild(tile);
+    });
+  },
+  renderFooter(){
+    const t=Intel.totals(),pct=t.files?~~(t.curated/t.files*100):0;
+    const s=id=>$(id);
+    if(s('ft-f'))s('ft-f').textContent=fmtN(t.folders);if(s('ft-i'))s('ft-i').textContent=fmtN(t.files);if(s('ft-c'))s('ft-c').textContent=pct+'%';if(s('ft-u'))s('ft-u').textContent=ago(st.intel?.lastUpdated);
+  },
+};
+
+
 const App={
   selectProvider(type){
     st.pvrType=type;
