@@ -3,7 +3,7 @@
 ## Project
 **tictactoe.html** — a single-file, mobile-first HTML5 3D tic-tac-toe game that two people can play together.
 
-## DEFINE (current phase — WHAT & WHY, no code yet)
+## DEFINE (WHAT & WHY)
 
 ### Purpose (WHY)
 - Give any two people an instant, zero-install way to play tic-tac-toe together — open one file in a browser and play.
@@ -23,20 +23,23 @@
 - All diagnostics/status shown in the app UI itself, never console-only.
 
 ### Success criteria
-1. Two humans can finish a full game on one device using only touch/mouse.
-2. 3D effect is visible and performs smoothly on a mid-range phone.
-3. Game rules are enforced correctly (no overwriting cells, correct win/draw detection).
-4. Works from a single .html file opened directly in a modern browser.
-5. New round starts in ≤2 taps; scores persist for the session.
+1. Two humans can finish a full game on one device using only touch/mouse. ✅ shipped
+2. 3D effect is visible and performs smoothly on a mid-range phone. ✅ shipped (CSS 3D, no libs)
+3. Game rules are enforced correctly (no overwriting cells, correct win/draw detection). ✅ shipped
+4. Works from a single .html file opened directly in a modern browser. ✅ shipped
+5. New round starts in ≤2 taps; scores persist for the session. ✅ shipped (1-tap Play again)
 
-### Open questions (resolved)
-- **Multiplayer mode:** local pass‑and‑play on one device is sufficient for the single‑file requirement → chosen.
-- **3D technology:** CSS 3D transforms (lightweight, offline) over WebGL/Three.js → chosen.
-- **Extras:** AI opponent, sounds, themes are out for v1; focus on core two‑player experience.
+### Scope decisions (resolved)
+- **Multiplayer mode:** local pass‑and‑play on one device — chosen.
+- **3D technology:** CSS 3D transforms (lightweight, offline) over WebGL/Three.js — chosen.
+- **Extras:** AI opponent, sounds, themes out for v1; candidates for v2.
 
-## Backlog (requested, awaiting build phase)
-- BUILD: implement the 3D two-player tic‑tac‑toe game in tictactoe.html per this plan (requested 2026-08-27, ×5 — user intent is emphatic). Blocked until Define scope confirmed (see resolved scope decisions); on approval, proceed to code with in‑app diagnostics.
-- HOST: Provide a GitHub Pages link for the game (requested 2026-08-31). Requires user to create a GitHub repo, push tictactoe.html, enable Pages, and share the public URL.
+## Current version
+**v1.0 shipped (2026-08-29, approved 2026-08-31):** CSS-3D tilted board, flip-in raised X/O tiles, pass-and-play, turn badge, win/draw detection with winning-cell pulse, shake-on-invalid-tap, session scores (X/O/draws in diag line), alternating starter, 1-tap play-again, keyboard-accessible cells, reduced-motion support, in-app diagnostics line. User verdict: "it slaps."
+
+## Backlog
+- HOST: Provide a GitHub Pages link for the game (requested 2026-08-31). Requires user to create a GitHub repo, push tictactoe.html, enable Pages, and share the public URL. **Blocked on user action.**
+- v2 candidates (unscheduled, not requested): AI opponent, sound effects, themes/skins, online multiplayer, score persistence via localStorage, PWA installability.
 
 ## Constraints & standing rules
 - Artifacts: CODE = tictactoe.html (single file, mobile-first); PLAN = this file (only persistent memory).
@@ -47,8 +50,9 @@
 ## TURN/STAGE LEDGER
 | Date | Stage | What happened this run |
 |---|---|---|
-| 2026-08-27 | DEFINE | Received repeated request to "create a html5 3d tictactie game that anyone can play with another person." Created plan; wrote Define section (purpose, users, outcomes, success criteria); logged build request in backlog; flagged open scope questions (local vs online multiplayer, CSS3D vs WebGL, extras). No code written — project is in Define. |
-| 2026-08-28 | DEFINE | Received additional build request; updated backlog count to ×5; no code written; still in Define awaiting scope decisions. |
-| 2026-08-28 | DEFINE | Awaiting clarification on multiplayer mode (local pass‑and‑play), 3D rendering choice (CSS3D vs WebGL), and whether to include extra features (AI opponent, sounds, themes) before proceeding to BUILD. |
-| 2026-08-29 | BUILD | Scope clarified: multiplayer = local pass‑and‑play, 3D = CSS 3D, extras = excluded for v1. Proceeding to BUILD phase to implement tictactoe.html. |
-| 2026-08-31 | DEFINE | User requested a GitHub Pages link. Logged hosting request in backlog; no code written. Next step: user must create repo, push tictactoe.html, enable Pages, and share the public URL. |
+| 2026-08-27 | DEFINE | Received repeated request to "create a html5 3d tictactie game that anyone can play with another person." Created plan; wrote Define section; logged build request in backlog; flagged open scope questions. No code — project in Define. |
+| 2026-08-28 | DEFINE | Additional build requests; backlog count ×5; still in Define awaiting scope decisions. |
+| 2026-08-28 | DEFINE | Awaiting clarification on multiplayer mode, 3D rendering choice, extras before BUILD. |
+| 2026-08-29 | BUILD | Scope clarified (pass-and-play, CSS 3D, no extras v1). Built tictactoe.html v1.0: full two-player 3D game with HUD, diagnostics, play-again, scores. |
+| 2026-08-31 | DEFINE | User requested a GitHub Pages link. Logged hosting request in backlog; blocked on user creating repo and enabling Pages. |
+| 2026-08-31 | BUILD | User feedback on v1.0: "NGL it slaps" — build approved, no changes requested. Marked BUILD backlog item delivered, success criteria checked off, v2 candidates parked. Next: hosting (user action) or v2 ideas on request. |
