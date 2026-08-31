@@ -123,3 +123,29 @@ R4 passed the automated release workflow but the workflow was still validating t
 - Use one shared series-discovery mechanism for Explore and Add Series.
 - Add release gates for real rail collapse behavior, exact donor parity, representative data currentness (including CPI), Health usability, degraded-evidence AI behavior, and visual/analytical usefulness of Market/Risk/Growth/Macro charts.
 - Automated PASS is not acceptance if it does not test the actual owner-visible contract.
+
+## G4-R5 — Rejected arbitrary-layout successor with non-diagnostic Health
+
+**Rejected implementation:** `market-view-gate4-r5.html`, release commit `4b1000e317375d9504fd14dcd5afae66f9654cdf`; validation run `33386160380`; Pages deployment run `33386297538`.
+
+**Rollback action:** R5 HTML, JS/CSS successor overlays and R5 workflow are removed from active `main`; the public R5 candidate is invalidated. R5 and descendants are not patch-forward baselines.
+
+### Owner-observed failures
+- The layout changed materially and arbitrarily from the approved/current product surface. This is rejected even if the implementation passes functional checks.
+- The Health surface does not explain why the underlying data is bad.
+- The Health surface does not explain why the visible charts are bad.
+- The Market/Risk/Growth/Macro chart presentation is visibly poor/misleading and therefore analytically unusable.
+- Arbitrary visual/product changes not explicitly authorized by the governed plan are forbidden.
+
+### Root causes
+- R5 treated functional contract assembly as permission to introduce a new application frame/layout instead of preserving approved visual structure.
+- The release gate checked geometry and journey completion but did not perform exact visual parity/redline review against the approved layout before adding new functionality.
+- Health reported status-like fields instead of performing root-cause diagnosis that connects source cadence, freshness, collector result, provenance, horizon coverage and missing/sparse observations to the actual chart degradation visible to the user.
+- Chart validation proved that SVG/axes/series existed rather than proving that the resulting chart was coherent, comparable and trustworthy.
+
+### Recovery / solve
+- Do not patch or reuse R5 HTML, JS/CSS overlay, workflow, layout or validation as the successor baseline.
+- Return to the exact restored Market Navigator 3.9.7 baseline plus approved Gate 3 P2 interaction model and governed Gate 4 contracts.
+- Visual parity is now a hard precondition: before functional additions are accepted, the successor must demonstrate that the approved application frame/layout is unchanged except where a specific plan clause explicitly authorizes a change.
+- Health must be diagnostic, not descriptive: for every degraded series/chart, identify the concrete cause and evidence path — source state, expected cadence/publication lag, latest publicly expected observation, actual latest observation, last collection attempt/result, coverage/density by horizon, provenance and the resulting chart impact.
+- Chart quality must be evaluated as a user-visible analytical output. A technically populated chart that is distorted by sparse, stale, cadence-incompatible or otherwise incomparable evidence is a release failure, and Health must explain the failure.
