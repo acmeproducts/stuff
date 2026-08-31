@@ -1094,8 +1094,13 @@ const Intel={
   async checkDeltas(){
     if(!st.intel)return{changed:[]};const rec=st.intel,changed=[];
     for(const rootId of rec.enrolledRoots){
-      if(!rec.folders[rootId]?.hash)continue;
-      try{const files=await st.pvr.getAllFiles(rootId);const h=hash(files.map(f=>`${f.id}:${f.modifiedTime||f.lastModifiedDateTime||''}`).sort().join('|'));if(h!==rec.folders[rootId].hash){changed.push(rootId);rec.folders[rootId].status='changed';}}catch(e){}
+      const folder=rec.folders[rootId];if(!folder)continue;
+      try{
+        // Lightweight: compare file count only. Full re-index if count changed.
+        const count=await st.pvr.quickCount(rootId);
+        const stored=folder.stats?.totalFiles||0;
+        if(Math.abs(count-stored)>0){changed.push(rootId);folder.status='changed';}
+      }catch(e){}
     }
     return{changed};
   },
@@ -1384,8 +1389,6 @@ const App={
     const rec=await Intel.load();
     if(rec&&rec.enrolledRoots.length>0){
       Intel.rollup(rec);LeftPanel.render();FileList.refresh();
-      // Background delta check after 6s
-      setTimeout(()=>this.bgDelta(),6000);
     }else{
       // First time — go to enrollment
       await this.loadEnrollment();scr('scr-enroll');
