@@ -248,9 +248,8 @@ p.cs{font-size:12px;color:var(--t2);margin-bottom:18px}
 .ptl-nm{font:500 10px/1.3 var(--ui);padding:4px 5px;border-top:1px solid var(--b1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1)}
 
 /* Right divider */
-#rd{width:4px;background:var(--b1);cursor:col-resize;flex-shrink:0;transition:background .15s}
-#rd:hover,#rd.drag{background:var(--ac)}
-#app.nv #rd,#app.nv #vw{display:none}
+#rd{display:none}
+#rd{display:none}
 
 /* ── Preview pane ── */
 #vw{width:var(--vw);min-width:0;display:flex;flex-direction:column;background:var(--sf);border-left:1px solid var(--b1);flex-shrink:0;overflow:hidden;transition:width .18s ease}
@@ -475,36 +474,32 @@ p.cs{font-size:12px;color:var(--t2);margin-bottom:18px}
       <div id="fl-grid"></div>
     </div>
 
-    <div id="rd"></div>
+  </div>
 
-    <!-- Preview pane -->
-    <div id="vw">
-      <div id="vw-empty-state" class="vw-empty" style="flex:1;display:flex">
-        <span style="font-size:28px;opacity:.15">🗂</span>
-        <span>Click a file to preview</span>
+<!-- Floating viewer -->
+<div id="fv" style="display:none;position:fixed;z-index:300;background:var(--sf);border:1px solid var(--b2);border-radius:10px;box-shadow:0 24px 72px rgba(0,0,0,.65);width:580px;min-width:300px;overflow:hidden;resize:both;flex-direction:column;display:none">
+  <div id="fv-bar" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--rs);border-bottom:1px solid var(--b1);cursor:move;flex-shrink:0;user-select:none">
+    <span id="fv-ic" style="font-size:14px;flex-shrink:0">📄</span>
+    <span id="fv-name" style="flex:1;font:600 12px/1.3 var(--ui);color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+    <button id="fv-newtab" title="Open in new tab" style="background:transparent;border:1px solid var(--b1);border-radius:4px;color:var(--t2);font-size:11px;padding:2px 6px;cursor:pointer;font-family:var(--ui)">↗</button>
+    <button id="fv-close" style="background:transparent;border:1px solid var(--b1);border-radius:4px;color:var(--t2);font-size:14px;padding:1px 7px;cursor:pointer;line-height:1;font-family:var(--ui)">✕</button>
+  </div>
+  <div id="fv-media" style="background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:auto;min-height:200px;height:340px;position:relative;flex-shrink:0"></div>
+  <div id="fv-meta" style="border-top:1px solid var(--b1);padding:8px 10px;flex-shrink:0">
+    <div class="vw-attrs" id="fv-attrs" style="margin-bottom:7px"></div>
+    <div class="vw-stacks" id="fv-stacks" style="margin-bottom:6px"></div>
+    <div class="vw-acts">
+      <button class="vw-fav" id="fv-fav">☆</button>
+      <button class="vw-del-s" id="fv-dels">Soft delete</button>
+      <button class="vw-del-p" id="fv-delp">Delete</button>
+      <div class="vw-nav">
+        <button id="fv-prev">‹</button>
+        <span id="fv-pos" style="font:10px/1 var(--mono);color:var(--t3)"></span>
+        <button id="fv-next">›</button>
       </div>
-      <div id="vw-file" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-        <div id="vw-media"></div>
-        <div id="vw-info">
-          <div class="vw-name" id="vw-name"></div>
-          <div class="vw-attrs" id="vw-attrs"></div>
-          <div class="vw-stacks" id="vw-stacks"></div>
-          <div class="vw-acts">
-            <button class="vw-fav" id="vw-fav">☆</button>
-            <button class="vw-del-s" id="vw-dels">Soft delete</button>
-            <button class="vw-del-p" id="vw-delp">Delete</button>
-            <div class="vw-nav">
-              <button id="vw-prev">‹</button>
-              <span id="vw-pos"></span>
-              <button id="vw-next">›</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Folder stats (shown when folder selected, no file) -->
-      <div id="vw-folder" style="display:none"></div>
     </div>
   </div>
+</div>
 
   <footer id="ftr">
     <div class="ft-it"><strong id="ft-f">0</strong> folders</div>
@@ -1106,14 +1101,14 @@ const Intel={
   },
   totals(){const rec=st.intel;if(!rec)return{folders:0,files:0,curated:0};let folders=Object.keys(rec.folders).length,files=0,curated=0;Object.values(rec.files||{}).forEach(f=>{files++;if(f.stack&&f.stack!=='inbox')curated++;});return{folders,files,curated};}
 };
-// ── Actions ───────────────────────────────────────────────
+// ── Actions ─────────────────────────────────────────────
 const Actions={
   async setStack(file,stack){
     const old=file.stack;file.stack=stack;
     if(st.intel?.files?.[file.id])st.intel.files[file.id].stack=stack;
     Intel.rollup(st.intel);Intel.save().catch(()=>{});
     try{await st.pvr.setStack(file.id,SPROP[stack]);}catch(e){file.stack=old;if(st.intel?.files?.[file.id])st.intel.files[file.id].stack=old;toast('Stack update failed','err');return;}
-    toast(SLBL[stack],'ok',1800);FileList.refresh();
+    toast(SLBL[stack],'ok',1800);FileList.refresh();Viewer.renderMeta(file);
   },
   async toggleFav(file){
     file.favorite=!file.favorite;if(st.intel?.files?.[file.id])st.intel.files[file.id].favorite=file.favorite;
@@ -1126,225 +1121,255 @@ const Actions={
     try{await st.pvr.deleteFile(file.id);}catch(e){toast('Delete failed: '+e.message,'err');return;}
     if(st.intel?.files?.[file.id])delete st.intel.files[file.id];
     if(st.intel)Intel.rollup(st.intel);Intel.save().catch(()=>{});
-    st.ui.selFile=null;FileList.refresh();Viewer.clear();toast('Deleted',undefined,2000);
+    st.ui.selFile=null;FileList.refresh();Viewer.close();toast('Deleted',undefined,2000);
   },
 };
 
-// ── Left panel ────────────────────────────────────────────
-const LeftPanel={
-  render(){
-    const scroll=$('lp-scroll');if(!scroll)return;scroll.innerHTML='';
-    // Show ALL level-1 folders
-    const all=[...new Set([...st.allFolders.map(f=>f.id),...(st.intel?.enrolledRoots||[])])];
-    const displayed=new Set();
-    // Enrolled roots first, then unenrolled
-    const enrolled=(st.intel?.enrolledRoots||[]).map(id=>st.intel?.folders?.[id]||st.allFolders.find(f=>f.id===id)).filter(Boolean);
-    const unenrolled=st.allFolders.filter(f=>!st.intel?.enrolledRoots?.includes(f.id));
-    enrolled.forEach(f=>{if(!displayed.has(f.id)){displayed.add(f.id);this.renderNode(scroll,f.id,0);}});
-    if(enrolled.length&&unenrolled.length){const sep=document.createElement('div');sep.style.cssText='height:1px;background:var(--b1);margin:4px 8px';scroll.appendChild(sep);}
-    unenrolled.forEach(f=>{if(!displayed.has(f.id)){displayed.add(f.id);this.renderNode(scroll,f.id,0);}});
-    if(!displayed.size)scroll.innerHTML='<div style="padding:14px;font-size:11px;color:var(--t3)">No folders</div>';
-  },
-  renderNode(container,fid,indent){
-    const rec=st.intel,enrolled=rec?.enrolledRoots?.includes(fid)||false;
-    const fRec=rec?.folders?.[fid];
-    const f=fRec||st.allFolders.find(f=>f.id===fid)||{id:fid,name:fid};
-    const hasKids=fRec&&(fRec.children||[]).length>0;
-    const expanded=st.ui.expanded.has(fid);
-    const active=st.ui.selFolder===fid;
-    const status=fRec?.status||'current';
-    const agg=fRec?(fRec.aggS||fRec.stats):null;
-    const isIndexing=!!st.bgIdx[fid];
-
-    const node=document.createElement('div');
-    node.className='fn'+(active?' act':'');
-    node.style.paddingLeft=(6+indent*14)+'px';
-
-    const dotCls=enrolled?(status==='changed'?'dn-chg':status==='new'?'dn-new':'dn-ok'):'dn-no';
-
-    // Type composition bar
-    let barHTML='';
-    if(enrolled&&agg?.byClass){
-      const total=agg.totalFiles||1;
-      barHTML='<div class="fn-bar">';
-      CK.forEach(k=>{const n=agg.byClass[k]||0;if(!n)return;const pct=Math.max(2,Math.round((n/total)*100));barHTML+=`<div class="fn-bar-s" style="flex:${pct};background:${CD[k].c}"></div>`;});
-      barHTML+='</div>';
-    }
-    if(isIndexing){barHTML+=`<div class="fn-prog" style="width:${st.bgIdx[fid].pct||0}%"></div>`;}
-
-    const meta=agg?fmtN(agg.totalFiles)+' files · '+fmtSz(agg.totalSize):'not indexed';
-
-    node.innerHTML=`
-      <div class="fn-tog${hasKids?(expanded?' open':''):''}">${hasKids?'▶':''}</div>
-      <div class="fn-dot ${dotCls}"></div>
-      <div class="fn-ic"><svg width="11" height="11" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg></div>
-      <div class="fn-body">
-        <div class="fn-name">${esc(f.name||fid)}</div>
-        <div class="fn-meta">${isIndexing?st.bgIdx[fid].label||'Indexing…':meta}</div>
-        ${barHTML}
-      </div>
-      ${!enrolled&&!isIndexing?'<span class="fn-badge">+</span>':''}`;
-
-    const tog=node.querySelector('.fn-tog');
-    tog.addEventListener('click',e=>{e.stopPropagation();if(!hasKids)return;st.ui.expanded.has(fid)?st.ui.expanded.delete(fid):st.ui.expanded.add(fid);this.render();saveUI();});
-
-    node.addEventListener('click',()=>{
-      st.ui.selFolder=fid;st.ui.selFile=null;st.ui.search='';st.ui.tokens=[];st.ui.classF=null;st.ui.stackF=null;
-      const omni=$('omni');if(omni){omni.value='';$('omni-clr')?.classList.remove('vis');}
-      renderOmniChips([]);
-      this.render();
-      if(enrolled){FileList.refresh();Viewer.showFolderStats(fid);}
-      else if(!isIndexing){App.bgIndexFolder(fid);}
-    });
-
-    container.appendChild(node);
-    if(expanded&&hasKids&&fRec){(fRec.children||[]).forEach(cid=>{if(rec.folders[cid])this.renderNode(container,rec.folders[cid].id?rec.folders[cid].id:cid,indent+1);});}
-  },
-};
-
-// ── File list ─────────────────────────────────────────────
-const FileList={
-  getFiles(){
-    const rec=st.intel;if(!rec)return[];
-    let files;
-    const fid=st.ui.selFolder;
-    if(fid&&rec.folders[fid]){
-      const desc=new Set();const q=[fid];const v=new Set();
-      while(q.length){const id=q.shift();if(v.has(id))continue;v.add(id);desc.add(id);(rec.folders[id]?.children||[]).forEach(c=>q.push(c));}
-      files=Object.values(rec.files).filter(f=>desc.has(f.folderId));
-    }else{files=Object.values(rec.files);}
-    // OmniSearch
-    if(st.ui.tokens.length) files=files.filter(f=>matchOmni(st.ui.tokens,f.name,f));
-    // Class filter
-    if(st.ui.classF) files=files.filter(f=>f.class===st.ui.classF);
-    // Stack filter
-    if(st.ui.stackF) files=files.filter(f=>f.stack===st.ui.stackF);
-    // Sort
-    const col=st.ui.sortCol,asc=st.ui.sortDir==='asc';
-    files.sort((a,b)=>{const va=a[col]??'',vb=b[col]??'';const c=typeof va==='string'?va.localeCompare(vb):va-vb;return asc?c:-c;});
-    return files;
-  },
-  refresh(){
-    const files=this.getFiles();
-    // Context label
-    const ctx=$('fl-ctx');if(ctx){const f=st.intel?.folders?.[st.ui.selFolder];ctx.textContent=f?f.name:'All Folders';}
-    // Count
-    const cnt=$('fl-cnt');if(cnt)cnt.textContent=fmtN(files.length)+' files';
-    // Type chips
-    this.renderChips(files);
-    if(st.ui.view==='list'){vlUpdate(files);}
-    else{this.renderGrid(files);}
-    this.renderFooter();
-  },
-  renderChips(files){
-    const bar=$('fl-chips');if(!bar)return;bar.innerHTML='';
-    const counts=Object.fromEntries(CK.map(k=>[k,0]));
-    files.forEach(f=>counts[f.class]++);
-    CK.forEach(k=>{const n=counts[k];if(!n&&st.ui.classF!==k)return;const chip=document.createElement('button');chip.className='fchip'+(st.ui.classF===k?' on':'');chip.innerHTML=`<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${CD[k].c};margin-right:3px;vertical-align:middle"></span>${CD[k].l}<span style="opacity:.5;font-size:9px;margin-left:3px">${n}</span>`;chip.onclick=()=>{st.ui.classF=st.ui.classF===k?null:k;st.ui.stackF=null;this.refresh();};bar.appendChild(chip);});
-    // Stack chips
-    const stackCounts={inbox:0,keep:0,maybe:0,trash:0};files.forEach(f=>{if(stackCounts[f.stack]!=null)stackCounts[f.stack]++;});
-    [{k:'inbox',l:'Inbox'},{k:'keep',l:'Keep'},{k:'maybe',l:'Maybe'},{k:'trash',l:'Recycle'}].forEach(({k,l})=>{const n=stackCounts[k];if(!n&&st.ui.stackF!==k)return;const chip=document.createElement('button');chip.className='fchip'+(st.ui.stackF===k?' on':'');chip.textContent=l+' '+n;chip.onclick=()=>{st.ui.stackF=st.ui.stackF===k?null:k;st.ui.classF=null;this.refresh();};bar.appendChild(chip);});
-  },
-  renderGrid(files){
-    const grid=$('fl-grid');if(!grid)return;
-    const d=st.ui.portal.density;const pp=d*4;
-    const maxP=Math.max(1,Math.ceil(files.length/pp));
-    if(st.ui.portal.page>maxP)st.ui.portal.page=maxP;
-    const slice=files.slice((st.ui.portal.page-1)*pp,st.ui.portal.page*pp);
-    grid.style.gridTemplateColumns=`repeat(${d},1fr)`;grid.innerHTML='';
-    slice.forEach((file,i)=>{
-      const tile=document.createElement('div');tile.className='ptl'+(st.ui.selFile===file.id?' sel':'');tile.style.height=(180/d*2.5)+'px';
-      const img_h=Math.max(50,150/d*2);
-      const imgDiv=document.createElement('div');imgDiv.className='ptl-img';imgDiv.style.height=img_h+'px';
-      if(file.thumbnailUrl&&file.class==='image'){const img=document.createElement('img');img.dataset.src=file.thumbnailUrl;img.alt='';imgDiv.appendChild(img);thumbObs.observe(img);}
-      else{imgDiv.textContent=CD[file.class]?.ic||'📦';}
-      const nm=document.createElement('div');nm.className='ptl-nm';nm.textContent=file.name;
-      tile.appendChild(imgDiv);tile.appendChild(nm);
-      tile.onclick=()=>selectFile(file,i);
-      grid.appendChild(tile);
-    });
-  },
-  renderFooter(){
-    const t=Intel.totals(),pct=t.files?~~(t.curated/t.files*100):0;
-    const s=id=>$(id);
-    if(s('ft-f'))s('ft-f').textContent=fmtN(t.folders);
-    if(s('ft-i'))s('ft-i').textContent=fmtN(t.files);
-    if(s('ft-c'))s('ft-c').textContent=pct+'%';
-    if(s('ft-u'))s('ft-u').textContent=ago(st.intel?.lastUpdated);
-  },
-};
-// ── Viewer ────────────────────────────────────────────────
+// ── Floating Viewer ───────────────────────────────────────
 const Viewer={
-  clear(){st.ui.selFile=null;$('vw-empty-state').style.display='flex';$('vw-file').style.display='none';$('vw-folder').style.display='none';vlRender(true);},
+  _file:null,
+  _blobCache:{}, // fileId→objectURL
+
+  open(file,idx){
+    this._file=file;st.ui.selFile=file.id;
+    vlRender(true);
+    // Show float
+    const fv=$('fv');
+    if(fv.style.display==='none'||!fv.style.display){
+      // Position: top-right area of viewport
+      const w=Math.min(600,window.innerWidth-40);
+      const h=Math.min(600,window.innerHeight-60);
+      fv.style.width=w+'px';
+      fv.style.left=Math.max(20,window.innerWidth-w-20)+'px';
+      fv.style.top='54px';
+      fv.style.height=h+'px';
+      fv.style.display='flex';
+      fv.style.flexDirection='column';
+    }
+    this.renderMeta(file);
+    this.loadPreview(file);
+    this.updateNav(idx);
+  },
+
+  close(){
+    $('fv').style.display='none';
+    st.ui.selFile=null;this._file=null;
+    vlRender(true);
+  },
+
+  renderMeta(file){
+    const def=CD[file.class]||CD.other;
+    $('fv-ic').textContent=def.ic;
+    $('fv-name').textContent=file.name;
+    $('fv-name').title=file.name;
+    // Attrs
+    const attrs=$('fv-attrs');attrs.innerHTML='';
+    const add=(k,v)=>{if(!v)return;const s=document.createElement('div');s.className='vw-attr';s.innerHTML=`<strong>${k}</strong> ${v}`;attrs.appendChild(s);};
+    add('Size',fmtSz(file.size));add('Date',fmtDt(file.effectiveDate));
+    if(file.meta?.w&&file.meta?.h)add('Dims',file.meta.w+'×'+file.meta.h);
+    if(file.meta?.cam)add('Camera',file.meta.cam);
+    if(file.meta?.dur)add('Duration',file.meta.dur+'s');
+    if(file.contentHash)add('Hash',file.contentHash.slice(0,12)+'…');
+    // Stacks
+    const stacks=$('fv-stacks');stacks.innerHTML='';
+    SSTK.forEach(sk=>{const b=document.createElement('button');b.className='vsk'+(file.stack===sk?' on':'');b.textContent=SLBL[sk];b.onclick=async()=>{await Actions.setStack(file,sk);this.renderMeta(file);};stacks.appendChild(b);});
+    // Fav
+    const fav=$('fv-fav');fav.textContent=file.favorite?'★':'☆';fav.className='vw-fav'+(file.favorite?' on':'');fav.onclick=async()=>{await Actions.toggleFav(file);this.renderMeta(file);};
+    // Soft/perm del
+    $('fv-dels').textContent=file.stack==='trash'?'Restore':'Soft delete';
+    $('fv-dels').onclick=async()=>{await Actions.softDelete(file);this.renderMeta(file);};
+    $('fv-delp').onclick=async()=>{await Actions.permDelete(file);};
+  },
+
+  updateNav(idx){
+    const files=FileList.getFiles();
+    idx=idx??files.findIndex(f=>f.id===this._file?.id);
+    $('fv-pos').textContent=(idx+1)+'/'+files.length;
+    $('fv-prev').onclick=()=>{if(idx>0){const f=files[idx-1];this.open(f,idx-1);}};
+    $('fv-next').onclick=()=>{if(idx<files.length-1){const f=files[idx+1];this.open(f,idx+1);}};
+    // New tab
+    $('fv-newtab').onclick=()=>{
+      if(this._file){
+        const url=this._lastUrl||'';if(url)window.open(url,'_blank');
+      }
+    };
+  },
+
+  _lastUrl:null,
+
+  async loadPreview(file){
+    const media=$('fv-media');
+    media.innerHTML='<div class="vw-loading"><span class="spin"></span> Loading…</div>';
+    this._lastUrl=null;
+    try{
+      const cls=file.class;
+
+      if(cls==='image'){
+        // Show thumbnail immediately, then full res
+        if(file.thumbnailUrl){
+          const img=document.createElement('img');img.src=file.thumbnailUrl;img.style.cssText='max-width:100%;max-height:100%;object-fit:contain';
+          media.innerHTML='';media.appendChild(img);
+        }
+        // Full res via blob
+        const url=await this.getBlobUrl(file);this._lastUrl=url;
+        const img2=document.createElement('img');img2.src=url;img2.style.cssText='max-width:100%;max-height:100%;object-fit:contain';
+        img2.onload=()=>{media.innerHTML='';media.appendChild(img2);};
+        img2.onerror=()=>{};// keep thumbnail if full fails
+      }
+
+      else if(cls==='video'){
+        // Use streaming URL with token for seekable playback
+        const url=await this.getStreamingUrl(file);this._lastUrl=url;
+        if(!url) throw new Error('No stream URL available');
+        const video=document.createElement('video');
+        video.controls=true;video.style.cssText='max-width:100%;max-height:100%;display:block';
+        video.setAttribute('preload','metadata');
+        const src=document.createElement('source');src.src=url;
+        if(file.mimeType)src.type=file.mimeType;
+        video.appendChild(src);
+        media.innerHTML='';media.appendChild(video);
+        video.load();
+      }
+
+      else if(cls==='audio'){
+        const url=await this.getStreamingUrl(file)||await this.getBlobUrl(file);this._lastUrl=url;
+        media.innerHTML=`<audio controls style="width:88%;margin:auto;display:block"><source src="${url}" type="${file.mimeType||''}"></audio>`;
+      }
+
+      else if(cls==='document'){
+        // PDF via blob URL in iframe
+        const url=await this.getBlobUrl(file);this._lastUrl=url;
+        media.innerHTML='';
+        const iframe=document.createElement('iframe');
+        iframe.src=url;iframe.style.cssText='width:100%;height:100%;border:none;min-height:320px';
+        iframe.title=file.name;
+        media.style.display='block';media.style.height='400px';
+        media.appendChild(iframe);
+      }
+
+      else if(cls==='web'){
+        // Render HTML in sandboxed srcdoc
+        const text=await this.fetchText(file);this._lastUrl=null;
+        media.innerHTML='';
+        const iframe=document.createElement('iframe');
+        iframe.srcdoc=text;
+        iframe.style.cssText='width:100%;height:100%;border:none;min-height:320px';
+        iframe.setAttribute('sandbox','allow-same-origin allow-scripts');
+        media.style.display='block';media.style.height='400px';
+        media.appendChild(iframe);
+      }
+
+      else if(cls==='text'||cls==='code'){
+        const text=await this.fetchText(file);
+        const pre=document.createElement('pre');
+        pre.style.cssText='padding:14px;font:11px/1.7 var(--mono);color:var(--t2);white-space:pre-wrap;word-break:break-all;overflow:auto;width:100%;max-height:400px;text-align:left';
+        pre.textContent=text.slice(0,40000)+(text.length>40000?'\n… (truncated)':'');
+        media.innerHTML='';media.style.display='block';media.appendChild(pre);
+      }
+
+      else if(cls==='text'&&file.name.match(/\.md$/i)){
+        // Markdown
+        const text=await this.fetchText(file);
+        const div=document.createElement('div');
+        div.style.cssText='padding:16px;overflow-y:auto;max-height:400px;font:13px/1.7 var(--ui);color:var(--t1);text-align:left;width:100%';
+        div.innerHTML=this.renderMarkdown(text);
+        media.innerHTML='';media.style.display='block';media.appendChild(div);
+      }
+
+      else{
+        // No preview — show metadata card
+        media.innerHTML=`<div style="text-align:center;padding:30px;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">${def.ic||'📦'}</div><div style="font-size:13px;font-weight:600;color:var(--t2);margin-bottom:6px">${esc(file.name)}</div><div style="font-size:11px">${def.l} · ${fmtSz(file.size)}</div></div>`;
+      }
+    }catch(e){
+      media.innerHTML=`<div style="padding:20px;text-align:center;color:var(--rd);font-size:12px">Preview failed<br><span style="color:var(--t3);font-size:10px">${esc(e.message)}</span></div>`;
+    }
+  },
+
+  // Get streaming URL — browser handles range requests natively
+  async getStreamingUrl(file){
+    if(st.pvrType==='googledrive'){
+      // Direct URL with token — browser can seek, range requests work
+      return `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&access_token=${encodeURIComponent(st.pvr.accessToken)}`;
+    }else{
+      // OneDrive pre-auth download URL
+      try{const r=await st.pvr.makeApiCall(`/me/drive/items/${file.id}?$select=@microsoft.graph.downloadUrl`);return(await r.json())['@microsoft.graph.downloadUrl']||null;}catch(e){return null;}
+    }
+  },
+
+  async getBlobUrl(file){
+    if(this._blobCache[file.id])return this._blobCache[file.id];
+    let url,headers={};
+    if(st.pvrType==='googledrive'){url=`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;headers={'Authorization':'Bearer '+st.pvr.accessToken};}
+    else{const t=await st.pvr.getAccessToken();url=`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;headers={'Authorization':'Bearer '+t};}
+    const r=await fetch(url,{headers});
+    if(!r.ok)throw new Error('HTTP '+r.status+' fetching file');
+    const blob=await r.blob();
+    const objUrl=URL.createObjectURL(blob);
+    this._blobCache[file.id]=objUrl;
+    return objUrl;
+  },
+
+  async fetchText(file){
+    const url=await this.getBlobUrl(file);
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('Text fetch failed');
+    return r.text();
+  },
+
+  renderMarkdown(md){
+    // Simple inline markdown renderer
+    let h=md
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^#### (.+)$/gm,'<h4 style="margin:.6em 0 .2em;color:var(--t1)">$1</h4>')
+      .replace(/^### (.+)$/gm,'<h3 style="margin:.8em 0 .3em;color:var(--t1)">$1</h3>')
+      .replace(/^## (.+)$/gm,'<h2 style="margin:1em 0 .4em;color:var(--t1)">$1</h2>')
+      .replace(/^# (.+)$/gm,'<h1 style="margin:1em 0 .5em;color:var(--t1)">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em style="color:var(--t2)">$1</em>')
+      .replace(/`([^`]+)`/g,'<code style="background:var(--rs);padding:1px 5px;border-radius:3px;font:11px/1.5 var(--mono);color:var(--ac)">$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" style="color:var(--bl)">$1</a>')
+      .replace(/^- (.+)$/gm,'<li style="margin:.2em 0">$1</li>')
+      .replace(/^&gt; (.+)$/gm,'<blockquote style="border-left:3px solid var(--b2);margin:.5em 0;padding:.3em .8em;color:var(--t2)">$1</blockquote>')
+      .replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid var(--b1);margin:1em 0">')
+      .replace(/(<li.*<\/li>\n?)+/g,'<ul style="padding-left:1.5em;margin:.5em 0">$&</ul>');
+    // Wrap bare paragraphs
+    h=h.split('\n\n').map(p=>p.trim()).filter(Boolean).map(p=>p.startsWith('<')?p:`<p style="margin:.6em 0">${p}</p>`).join('\n');
+    return h;
+  },
 
   showFolderStats(fid){
-    $('vw-empty-state').style.display='none';$('vw-file').style.display='none';
-    const el=$('vw-folder');el.style.display='block';
-    if(!st.intel?.folders?.[fid]){el.innerHTML='<div style="padding:14px;color:var(--t3);font-size:12px">Not indexed</div>';return;}
-    const f=st.intel.folders[fid];const agg=f.aggS||f.stats||{};const cur=f.aggC||f.cur||{};
+    // Show floating viewer with folder stats
+    const fv=$('fv');
+    if(fv.style.display==='none'||!fv.style.display){
+      fv.style.width='420px';fv.style.left=Math.max(20,window.innerWidth-440)+'px';fv.style.top='54px';
+      fv.style.display='flex';fv.style.flexDirection='column';
+    }
+    const f=st.intel?.folders?.[fid];
+    $('fv-ic').textContent='📁';
+    $('fv-name').textContent=f?.name||fid;
+    $('fv-stacks').innerHTML='';$('fv-attrs').innerHTML='';
+    $('fv-dels').style.display='none';$('fv-delp').style.display='none';$('fv-fav').style.display='none';
+    $('fv-pos').textContent='';
+    if(!f){$('fv-media').innerHTML='<div style="padding:20px;color:var(--t3);font-size:12px">Not indexed</div>';return;}
+    const agg=f.aggS||f.stats||{};const cur=f.aggC||f.cur||{};
     const total=agg.totalFiles||0;const curTot=(cur.inbox||0)+(cur.keep||0)+(cur.maybe||0)+(cur.trash||0);
     const decided=(cur.keep||0)+(cur.maybe||0)+(cur.trash||0);
     const pct=curTot?~~(decided/curTot*100):0;
-    let html=`<div class="vf-title">${esc(f.name)}</div>`;
-    html+=`<div class="vf-sec">Overview</div>`;
-    html+=`<div class="vf-stat"><div class="vf-stat-lbl">Total files</div><div class="vf-stat-val">${fmtN(total)}</div></div>`;
-    html+=`<div class="vf-stat"><div class="vf-stat-lbl">Total size</div><div class="vf-stat-val">${fmtSz(agg.totalSize)}</div></div>`;
-    html+=`<div class="vf-stat"><div class="vf-stat-lbl">Newest</div><div class="vf-stat-val">${fmtDt(agg.newest)}</div></div>`;
-    html+=`<div class="vf-stat"><div class="vf-stat-lbl">Oldest</div><div class="vf-stat-val">${fmtDt(agg.oldest)}</div></div>`;
-    html+=`<div class="vf-sec">By Type</div>`;
-    CK.forEach(k=>{const n=(agg.byClass||{})[k]||0;if(!n)return;const pct2=total?Math.max(2,~~(n/total*100)):0;html+=`<div class="vf-stat"><div class="vf-stat-dot" style="background:${CD[k].c}"></div><div class="vf-stat-lbl">${CD[k].l}</div><div class="vf-stat-val">${fmtN(n)}</div></div><div class="vf-bar"><div class="vf-bar-fill" style="width:${pct2}%;background:${CD[k].c}"></div></div>`;});
-    html+=`<div class="vf-sec">Curation</div>`;
-    html+=`<div class="vf-stat"><div class="vf-stat-lbl">Curated</div><div class="vf-stat-val" style="color:var(--gn)">${pct}%</div></div>`;
-    [{k:'inbox',l:'Inbox'},{k:'keep',l:'Keep'},{k:'maybe',l:'Maybe'},{k:'trash',l:'Recycle'}].forEach(({k,l})=>{const n=cur[k]||0;if(!n)return;html+=`<div class="vf-stat"><div class="vf-stat-lbl" style="color:var(--t2)">${l}</div><div class="vf-stat-val">${fmtN(n)}</div></div>`;});
-    el.innerHTML=html;
-    if(!st.ui.vOpen){st.ui.vOpen=true;applyShell();}
-  },
-
-  render(){
-    if(!st.ui.selFile){return;}
-    const file=st.intel?.files?.[st.ui.selFile];if(!file){this.clear();return;}
-    $('vw-empty-state').style.display='none';$('vw-folder').style.display='none';
-    $('vw-file').style.display='flex';
-    // Name
-    $('vw-name').textContent=file.name;
-    // Attrs
-    const attrs=$('vw-attrs');attrs.innerHTML='';
-    const add=(k,v)=>{if(v==null||v==='—'||v==='')return;const s=document.createElement('div');s.className='vw-attr';s.innerHTML=`<strong>${k}</strong> ${v}`;attrs.appendChild(s);};
-    add('Size',fmtSz(file.size));add('Date',fmtDt(file.effectiveDate));
-    if(file.meta?.w&&file.meta?.h)add('Dims',file.meta.w+'×'+file.meta.h);
-    if(file.meta?.cam)add('Camera',file.meta.cam);if(file.meta?.dur)add('Duration',file.meta.dur+'s');
-    if(file.contentHash)add('Hash',file.contentHash.slice(0,10)+'…');
-    // Stacks
-    const stacks=$('vw-stacks');stacks.innerHTML='';
-    SSTK.forEach(sk=>{const b=document.createElement('button');b.className='vsk'+(file.stack===sk?' on':'');b.textContent=SLBL[sk];b.onclick=async()=>{await Actions.setStack(file,sk);this.render();FileList.refresh();};stacks.appendChild(b);});
-    // Fav
-    const fav=$('vw-fav');fav.textContent=file.favorite?'★':'☆';fav.className='vw-fav'+(file.favorite?' on':'');fav.onclick=async()=>{await Actions.toggleFav(file);this.render();};
-    // Soft/perm del
-    $('vw-dels').textContent=file.stack==='trash'?'Restore':'Soft delete';
-    $('vw-dels').onclick=async()=>{await Actions.softDelete(file);this.render();FileList.refresh();};
-    $('vw-delp').onclick=async()=>{await Actions.permDelete(file);};
-    // Nav
-    const files=FileList.getFiles();const idx=files.findIndex(f=>f.id===file.id);
-    $('vw-pos').textContent=(idx+1)+'/'+files.length;
-    $('vw-prev').onclick=()=>{if(idx>0)selectFile(files[idx-1],idx-1);};
-    $('vw-next').onclick=()=>{if(idx<files.length-1)selectFile(files[idx+1],idx+1);};
-    // Preview
-    this.loadPreview(file);
-  },
-
-  async loadPreview(file){
-    const media=$('vw-media');
-    media.innerHTML='<div class="vw-loading"><span class="spin"></span> Loading…</div>';
-    try{
-      if(file.class==='image'){const url=await st.pvr.getBlobUrl(file);media.innerHTML='';const img=document.createElement('img');img.src=url;img.alt=file.name;media.appendChild(img);}
-      else if(file.class==='video'){const url=await(st.pvr.getStreamUrl?.(file).catch(()=>null))||await st.pvr.getBlobUrl(file);media.innerHTML=`<video controls style="max-width:100%;max-height:100%"><source src="${url}" type="${file.mimeType}"></video>`;}
-      else if(file.class==='audio'){const url=await st.pvr.getBlobUrl(file);media.innerHTML=`<audio controls style="width:88%;margin:auto;display:block"><source src="${url}" type="${file.mimeType}"></audio>`;}
-      else if(file.class==='document'){const url=await st.pvr.getBlobUrl(file);media.innerHTML=`<iframe src="${url}" title="${esc(file.name)}" style="width:100%;height:100%;border:none"></iframe>`;}
-      else if(['text','code','web'].includes(file.class)){const url=await st.pvr.getBlobUrl(file);const text=await(await fetch(url)).text();const pre=document.createElement('pre');pre.textContent=text.slice(0,25000);media.innerHTML='';media.appendChild(pre);}
-      else{media.innerHTML=`<div class="vw-noprev"><span style="font-size:32px">${CD[file.class]?.ic||'📦'}</span><div>${CD[file.class]?.l||'File'}</div></div>`;}
-    }catch(e){media.innerHTML=`<div class="vw-err">Preview failed: ${esc(e.message)}</div>`;}
+    let html=`<div style="padding:12px;text-align:left;width:100%">`;
+    html+=`<div style="font:700 9px/1 var(--ui);color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Overview</div>`;
+    const row=(l,v,c)=>`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;font-size:12px"><span style="color:var(--t2)">${l}</span><span style="font:11px/1 var(--mono);color:${c||'var(--t1)'};">${v}</span></div>`;
+    html+=row('Total files',fmtN(total));html+=row('Total size',fmtSz(agg.totalSize));
+    html+=row('Newest',fmtDt(agg.newest));html+=row('Oldest',fmtDt(agg.oldest));html+=row('Curated',pct+'%','var(--gn)');
+    html+=`<div style="font:700 9px/1 var(--ui);color:var(--t3);text-transform:uppercase;letter-spacing:.1em;margin:12px 0 8px">By Type</div>`;
+    CK.forEach(k=>{const n=(agg.byClass||{})[k]||0;if(!n)return;const w=total?Math.max(2,~~(n/total*100)):0;html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px"><span style="width:7px;height:7px;border-radius:50%;background:${CD[k].c};flex-shrink:0;display:inline-block"></span><span style="flex:1;color:var(--t2)">${CD[k].l}</span><span style="font:10px/1 var(--mono);color:var(--t1)">${fmtN(n)}</span></div><div style="height:2px;background:var(--rs);border-radius:1px;margin-bottom:5px;overflow:hidden"><div style="height:100%;background:${CD[k].c};border-radius:1px;width:${w}%"></div></div>`;});
+    html+=`</div>`;
+    $('fv-media').innerHTML=html;$('fv-media').style.display='block';
   },
 };
+
+function selectFile(file,idx){
+  Viewer.open(file,idx);
+}
 
 // ── App controller ────────────────────────────────────────
 const App={
@@ -1553,14 +1578,32 @@ function initEvents(){
   });
 
   // Dividers
-  function makeDivider(id,getW,setW){
-    const el=$(id);let drag=false,sx=0,sw=0;
-    el.addEventListener('pointerdown',e=>{drag=true;el.classList.add('drag');sx=e.clientX;sw=getW();el.setPointerCapture(e.pointerId);});
-    el.addEventListener('pointermove',e=>{if(!drag)return;setW(Math.max(160,Math.min(520,sw+(e.clientX-sx))));});
-    el.addEventListener('pointerup',()=>{drag=false;el.classList.remove('drag');saveUI();});
-  }
-  makeDivider('ld',()=>st.ui.lw,v=>{st.ui.lw=v;document.documentElement.style.setProperty('--lw',v+'px');});
-  makeDivider('rd',()=>st.ui.vw,v=>{st.ui.vw=v;document.documentElement.style.setProperty('--vw',v+'px');});
+  // Left divider only
+  const ldEl=$('ld');let ldDrag=false,ldSx=0,ldSw=0;
+  ldEl.addEventListener('pointerdown',e=>{ldDrag=true;ldEl.classList.add('drag');ldSx=e.clientX;ldSw=st.ui.lw;ldEl.setPointerCapture(e.pointerId);});
+  ldEl.addEventListener('pointermove',e=>{if(!ldDrag)return;st.ui.lw=Math.max(160,Math.min(520,ldSw+(e.clientX-ldSx)));document.documentElement.style.setProperty('--lw',st.ui.lw+'px');});
+  ldEl.addEventListener('pointerup',()=>{ldDrag=false;ldEl.classList.remove('drag');saveUI();});
+
+  // Floating viewer drag
+  const fvBar=$('fv-bar'),fvEl=$('fv');
+  let fvDrag=false,fvSx=0,fvSy=0,fvX=0,fvY=0;
+  fvBar.addEventListener('pointerdown',e=>{
+    if(e.target.tagName==='BUTTON')return;
+    fvDrag=true;fvBar.setPointerCapture(e.pointerId);
+    fvSx=e.clientX;fvSy=e.clientY;
+    fvX=parseInt(fvEl.style.left)||0;fvY=parseInt(fvEl.style.top)||0;
+  });
+  fvBar.addEventListener('pointermove',e=>{
+    if(!fvDrag)return;
+    const nx=Math.max(0,Math.min(window.innerWidth-100,fvX+(e.clientX-fvSx)));
+    const ny=Math.max(0,Math.min(window.innerHeight-60,fvY+(e.clientY-fvSy)));
+    fvEl.style.left=nx+'px';fvEl.style.top=ny+'px';
+  });
+  fvBar.addEventListener('pointerup',()=>{fvDrag=false;});
+
+  // Floating viewer close
+  $('fv-close').onclick=()=>Viewer.close();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('fv').style.display!=='none')Viewer.close();});
 
   // Resize: re-render vl
   if(window.ResizeObserver)new ResizeObserver(()=>vlRender(true)).observe($('fl-scroll'));
