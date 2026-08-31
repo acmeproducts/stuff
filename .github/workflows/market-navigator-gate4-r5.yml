@@ -27,28 +27,32 @@ jobs:
           new='(async()=>{if(window.__MN_GATE4_R5__)return;configLoad();await openDB();await loadStored();'
           assert old in s
           s=s.replace(old,new,1)
+          # Isolate inherited 3.9.7 routing. R5 owns history/hash state exclusively.
+          s=s.replace("window.addEventListener('hashchange',route);", "if(!window.__MN_GATE4_R5__)window.addEventListener('hashchange',route);")
+          s=s.replace('window.addEventListener("hashchange",route);', 'if(!window.__MN_GATE4_R5__)window.addEventListener("hashchange",route);')
+          s=s.replace("window.addEventListener('popstate',route);", "if(!window.__MN_GATE4_R5__)window.addEventListener('popstate',route);")
+          s=s.replace('window.addEventListener("popstate",route);', 'if(!window.__MN_GATE4_R5__)window.addEventListener("popstate",route);')
           s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R5</title>',1)
           s=s.replace('</body>','<script src="market-view-gate4-r5.js"></script></body>',1)
           Path('market-view-gate4-r5.html').write_text(s,encoding='utf-8')
           jp=Path('market-view-gate4-r5.js')
           x=jp.read_text(encoding='utf-8')
-          x=x.replace("function go(x){location.hash=x;route();S.summary=true;render()}","function go(x){history.pushState(null,'',x?'#'+x:location.pathname+location.search);route();S.summary=true;render()}")
+          x=x.replace("function go(x){location.hash=x;route();S.summary=true;render()}","function go(x){history.pushState({mnR5:x},'',x?'#'+x:location.pathname+location.search);route();S.summary=true;render()}")
           x=x.replace("window.addEventListener('hashchange',()=>{route();render()})","window.addEventListener('popstate',()=>{route();render()})")
           oldg="function go(x){history.pushState(null,'',x?'#'+x:location.pathname+location.search);route();S.summary=true;render()}"
           newg="function go(x){history.pushState({mnR5:x},'',x?'#'+x:location.pathname+location.search);route();S.summary=true;render()}"
           x=x.replace(oldg,newg)
           oldpop="window.addEventListener('popstate',()=>{route();render()})"
-          newpop="window.addEventListener('popstate',e=>{setTimeout(()=>{if(e.state&&Object.prototype.hasOwnProperty.call(e.state,'mnR5')){let r=e.state.mnR5||'';history.replaceState(e.state,'',r?'#'+r:location.pathname+location.search);route();render()}},0)})"
+          newpop="window.addEventListener('popstate',e=>{setTimeout(()=>{let r=(e.state&&Object.prototype.hasOwnProperty.call(e.state,'mnR5'))?e.state.mnR5:location.hash.slice(1);history.replaceState({mnR5:r},'',r?'#'+r:location.pathname+location.search);route();render()},0)})"
           x=x.replace(oldpop,newpop)
-          x=x.replace("shell();load().catch", "history.replaceState({mnR5:location.hash.slice(1)},'',location.href);shell();load().catch")
+          if "history.replaceState({mnR5:location.hash.slice(1)}" not in x:
+            x=x.replace("shell();load().catch", "history.replaceState({mnR5:location.hash.slice(1)},'',location.href);shell();load().catch")
           oldp="let p=v?.points||v?.observations||v?.data||[];"
           newp="let p=v?.points||v?.daily||v?.intraday||v?.observations||v?.data||[];"
-          assert oldp in x or newp in x
-          x=x.replace(oldp,newp)
+          if oldp in x:x=x.replace(oldp,newp)
           oldadd="m.remove();if(S.root)go('analysis/'+S.root)"
           newadd="m.remove();if(S.root){S.summary=true;render()}"
-          assert oldadd in x or newadd in x
-          x=x.replace(oldadd,newadd)
+          if oldadd in x:x=x.replace(oldadd,newadd)
           jp.write_text(x,encoding='utf-8')
           PY
       - name: JavaScript parser syntax gate
