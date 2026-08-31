@@ -1,66 +1,74 @@
-<!-- PRISM-PLAN v1.8.0 -->
-# PRISM MASTER PLAN v1.8.0
+<!-- PRISM-PLAN v2.0.0 -->
+# PRISM MASTER PLAN v2.0.0
 
-## Governance
-Every materially rejected architecture is recorded before replacement. Current work is still Turn 01 pre-ship.
+## Governance reset
+Owner-directed full rollback on 2026-08-31 closes Turn 01 pre-ship. R3/R4/R5 Explore implementations are rejected and inert. There is no R6 patch-forward.
 
-## Stable baseline
-Non-Explore baseline remains the accepted R3/R4 lineage: collapsible left rail, central work surface, collapsible right context panel, one global ribbon/state, Map, Feed, AI POV/provider validation, source management and Library. R4 Explore is rejected and is not a forward baseline.
+The active lineage is now **Turn 02**, beginning again at **pre-base**.
 
-## Explore contract — R5
-Explore is no longer a globe and no longer a giant perspective matrix.
+## Turn 02 recovery baseline
+Turn 02 starts from independently validated product foundations only:
+- collapsible left navigation rail;
+- central work surface;
+- collapsible right context panel that resizes the work surface on desktop;
+- same-origin cache / IndexedDB direction;
+- Event → Coverage → Source Article canonical model;
+- ECharts-backed Map rather than hand-rolled layout;
+- functioning search, Feed and event reader;
+- one shared application state.
 
-### Macro view
-A simple **2D X × Y matrix** is the default Explore surface.
-- X is a user-selected categorical dimension.
-- Y is a user-selected categorical dimension.
-- Z / Size is a third selected dimension and controls cluster prominence/weight.
-- Color is a selected categorical dimension.
-- Every X×Y intersection is one cluster, not a container full of individually laid-out stories.
-- A cluster summarizes count, dominant/selected Color values, Z distribution and top headlines.
-- Empty intersections may be suppressed or visually minimized; the macro view must remain readable.
+The following are requirements to reintroduce later, but are not allowed to distort the pre-base rebuild:
+- source manager;
+- Devstream provider/model validation;
+- AI POV with Markdown + safe working links;
+- durable Library research threads.
 
-Default: X=Subject, Y=Region, Z=Importance, Color=Sentiment.
+## Explore reset
+**No Turn 01 Explore implementation is a baseline.** Specifically rejected:
+- corpus-wide sphere/card cloud;
+- R3 globe/sphere;
+- R4 perspective X×Y matrix;
+- R5 card-wall matrix.
 
-### Cluster drill-in
-Tapping a cluster opens that one intersection as an immersive cluster view.
-- The selected X and Y values are frozen as the cluster context.
-- News tiles become individually selectable.
-- Tiles may use LumaSphere-like depth/rotation around the cluster center so the user can rotate and zoom the cluster, but this interaction exists **only inside the selected cluster**, never across the whole corpus.
-- wheel/trackpad and pinch zoom; drag rotates the cluster field.
-- clear visible `×` exits back to the exact macro X×Y matrix state.
-- selection persists when entering/exiting drill-in.
+Turn 02 pre-base intentionally contains no committed Explore visualization architecture. Explore begins as an empty governed surface until a new macro interaction is specified and mechanically prototyped without disabling Map, Feed, rail behavior, or reader behavior.
 
-### Filters are legends
-The filter chips are the legend. No second inert legend exists.
-- If Color=Sentiment, Positive/Neutral/Negative chips carry the same colors used in clusters/tiles.
-- If Color=Tier, Tier chips carry the colors.
-- If a selected dimension is not Color, its chips remain normal filter chips without redundant legend chrome.
+## Pre-base acceptance gate
+A Turn 02 pre-base build is acceptable only if:
+1. left rail collapses and expands;
+2. Map is live and useful, not a dead nav item;
+3. Feed is live and shares search/state with Map;
+4. event detail opens in the right panel without underlap;
+5. right panel closes and restores work-space width;
+6. same-origin cache loads without publisher fan-out;
+7. Explore is visibly marked as reset / not yet implemented rather than presenting another speculative visualization;
+8. no Turn 01 Explore code is copied forward;
+9. no AI/Library/source-management regression is falsely represented as complete in pre-base.
 
-### Bucketing
-Importance is categorical for filtering and cluster summary:
-- Critical 80–100
-- High 60–79
-- Medium 40–59
-- Low 0–39
+## Turn 02 stage sequence
+- **02·pre-base — ACTIVE:** clean shell + data + Map + Feed + reader; Explore reset.
+- 02·base: new Explore macro model only after pre-base owner acceptance.
+- 02·pre-ship: reintroduce source management, AI POV/provider validation, and Library against the accepted shell/Explore model.
+- 02·ship: integrated stabilization/performance/device gate.
+- 02·post-ship: release gate and durable lineage record.
 
-Tier remains Breaking / Major / Significant / Developing where data supports it. Corroboration remains 1 / 2 / 3 / 4+ sources. Recency uses governed time buckets when selected.
-
-### Dimension/filter law
-Every selected analytical dimension has one corresponding filter. The filter tray is exactly the deduplicated union of X, Y, Color and Z. Removing a dimension clears its stale filter state. Source filtering appears only when Source is selected as a dimension; Config→Sources remains acquisition configuration.
-
-## R5 acceptance gate
-1. Macro Explore is a clean 2D X×Y matrix with one summary cluster per intersection.
-2. No individual story-card packing in macro matrix cells.
-3. Cluster size/prominence reflects Z.
-4. Tap cluster → immersive cluster drill-in with news tiles, rotate, zoom and select.
-5. `×` → exact prior macro matrix state.
-6. Filter chips double as Color legend; no separate legend.
-7. Importance filter is bucketed, not a raw range slider.
-8. Existing non-Explore baseline is not redesigned by this gate.
+## Standing product laws
+1. One information state, multiple views.
+2. One global control system; no per-view competing analytical state.
+3. Event → Coverage → Source Article is canonical.
+4. Cache first; no publisher fan-out during normal startup.
+5. Reader never underlaps desktop analytical surfaces.
+6. Filters derive only from active dimensions, and every selected dimension has a corresponding filter.
+7. Filter chips serve as Color legend when Color is active; no redundant legend.
+8. Source analytical filtering is distinct from source acquisition/configuration.
+9. AI is contextual research, not generic chat; provider/model must be verified.
+10. Library is a durable research workspace, not an inert export bucket.
 
 ## Ledger
-- R2: recovery shell baseline.
-- R3: dimension/filter correction candidate.
-- R4: **REJECTED Explore implementation** — giant perspective X×Y card matrix is visually dense and misinterprets the macro-vs-drill requirement.
-- R5: **ACTIVE** — 2D X×Y cluster matrix → selected cluster immersive drill-in.
+- 01·pre-base: passed foundation.
+- 01·base: rejected UI architecture.
+- 01·pre-ship R1: superseded.
+- 01·pre-ship R2: recovery reference only.
+- 01·pre-ship R3: rejected Explore sphere/card cloud.
+- 01·pre-ship R4: rejected perspective X×Y card matrix.
+- 01·pre-ship R5: rejected wall-of-cluster-cards / isolated gate regression.
+- **02·pre-base: ACTIVE — full rollback clean rebuild.**
