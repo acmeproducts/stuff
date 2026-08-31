@@ -91,6 +91,13 @@ Explore is the full-page use of this same discovery component; Add Series is the
 ## 14. AI POV and operational conversation
 AI is active Gate 4 functionality. POV and chat are grounded in exact active canonical evidence/horizon.
 
+### Analysis conversation surface — exact approved layout
+Everything below the chart is reserved for the ongoing Analysis conversation. The conversation MUST follow the approved `test.html` presentation contract: user/AI chat bubbles, a visible date-and-time stamp on every bubble, and the persistent composer directly beneath the conversation.
+
+There are no **Tag**, **Clarify Stream**, or composer-level **Save** controls. The conversation is automatically part of the Analysis state and is persisted/restored with the corresponding Library analysis. AI POV is the opening AI turn in this same conversation; it is not a separate report/card below the chart.
+
+No statistics, series-ending-value block, correlation block, QA/debug content, or other permanent analytical card may consume the below-chart conversation region.
+
 ### Provider/configuration donor — exact reuse required
 **Donor: `devstream-test.html`. Do not redesign or approximate its provider/model configuration behavior.** The successor must follow the donor's provider discovery, model discovery, credential entry/storage, validation, provider/model switching, failure messaging and composer interaction exactly unless the owner explicitly approves a deviation.
 
@@ -113,8 +120,14 @@ AI generation must have visible lifecycle/status and deterministic failure outpu
 ## 15. LIBRARY
 Operational Add/Save to Library preserves analytical lineage, series set, horizon, axis/normalization state, evidence/provenance references, POV/conversation resume context and save version/time. Saved analysis reopens into same state.
 
-## 16. Statistics and correlation
+Analysis conversation persistence is automatic: every timestamped user/AI turn is saved and restored with the analysis. This does not require or expose a separate Save control in the conversation composer.
+
+## 16. Statistics, ending values and correlation
 Statistics bind to exact analytical state. Correlation records pair, coefficient, range, alignment/frequency, observation count, transformation and method.
+
+The visible series' latest real observation date/value and the active correlation score/summary MUST be presented together in one compact overlay card in the **upper-right of the chart**. The card has an explicit **×** dismiss control. Dismissal is presentation-only: it must not remove a series, reset correlation, change horizon, change axis assignment, change normalization, or otherwise mutate the Analysis state.
+
+The summary overlay must remain compact and mobile-safe and may not displace chart axes, legend, inspection geometry or the below-chart conversation. Persistent full-width/below-chart series-ending-value, statistics or correlation cards are prohibited.
 
 ## 17. Share / download / print
 Download = report/evidence + exact data. Print = formatted report. Both reconcile to exact active evidence.
@@ -161,9 +174,15 @@ R5 includes operational Library, AI POV, AI chat/composer, CONFIG/provider valid
 - unit-family Y1/Y2 and Indexed-100 fallback
 - one shared Explore/Add-Series discovery mechanism
 - categorized searchable multi-select Add Series
-- operational Library restore
+- operational Library restore including exact Analysis conversation history
 - exact donor-equivalent AI provider/model discovery and validation behavior
 - AI POV evidence-health preflight and deterministic failure/status behavior
+- below-chart region contains only the timestamped ongoing Analysis conversation and persistent composer
+- no Tag, Clarify Stream or composer-level Save controls
+- POV is the opening AI conversation bubble rather than a separate below-chart report block
+- latest visible-series ending values plus active correlation appear in one dismissible upper-right chart overlay
+- closing the chart summary overlay is presentation-only and does not mutate analytical state
+- no persistent below-chart statistics/correlation/ending-value cards
 - Health/source failures/provenance/cadence surfaced and usable
 - no browser Yahoo/FRED canonical reacquisition
 - no synthetic analytical curves
@@ -180,10 +199,10 @@ A Gate 4 release is **not testable and must not be handed to the owner** until a
 7. Run **data-health checks** proving cadence/freshness classification for representative daily and monthly series, including CPI latest available observation and mixed-frequency CPI/WTI handling.
 8. Run **AI configuration parity checks against `devstream-test.html`** for provider discovery, model discovery, validation, switching and failure messaging.
 9. Run **AI POV degraded-evidence checks** proving stale/missing/sparse input is identified before interpretation and a failed generation cannot silently disappear.
-10. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, axes remain visible, and V1/V2 charts remain interpretable rather than merely populated.
+10. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, axes remain visible, V1/V2 charts remain interpretable rather than merely populated, the below-chart region is exclusively the `test.html`-format timestamped conversation/composer, the upper-right ending-value/correlation overlay is compact and dismissible, and dismissing it leaves analytical state unchanged.
 11. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, previous release, or string-presence proxy.
 
 R2's inert handoff, R3's superficially validated rewrite and R4's technically passing but product-invalid release are release-process failures. Syntax/boot success is necessary but not sufficient; parity, data health, AI donor parity, journey behavior and visual/analytical usefulness now block release.
 
 ## 22. Rejected approaches
-See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey, data-health, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
+See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; persistent below-chart statistics/correlation/ending-value cards that displace the conversation; Tag/Clarify/composer-Save controls in the approved conversation surface; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey, data-health, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
