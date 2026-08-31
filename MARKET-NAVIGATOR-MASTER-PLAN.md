@@ -133,9 +133,11 @@ The summary overlay must remain compact and mobile-safe and may not displace cha
 Download = report/evidence + exact data. Print = formatted report. Both reconcile to exact active evidence.
 
 ## 18. HEALTH and CONFIG
-Health is a first-class working surface, not a placeholder. Selecting **HEALTH** must show series-level and backend-level freshness/source/collection/coverage/provenance/readiness/failures, with cadence and expected-publication metadata sufficient to diagnose stale data without leaving the application.
+Health is a first-class working diagnostic surface, not a placeholder or status table. Selecting **HEALTH** must show series-level and backend-level freshness/source/collection/coverage/provenance/readiness/failures, with cadence and expected-publication metadata sufficient to diagnose stale or malformed evidence without leaving the application.
 
-Health must make failures actionable: series, source, last observation, last successful collection, expected next update, current health classification, and failure/error detail when present.
+Health must answer **why the data or chart is bad**, not merely state that it is bad. For every degraded series or chart it must connect the evidence chain: series/source → expected cadence and publication lag → latest publicly expected observation → actual latest observation → last collection attempt and result → horizon coverage/observation density → provenance/error state → concrete impact on the visible chart. It must distinguish expected publication lag, stale source evidence, collector failure, missing data, sparse horizon coverage and cadence incompatibility.
+
+Health must make failures actionable: series, source, last observation, last successful collection, expected next update, current health classification, failure/error detail, and the reason the condition affects the active chart when applicable.
 
 CONFIG is at bottom of rail and contains the exact donor-derived AI provider configuration behavior from `devstream-test.html`.
 
@@ -148,20 +150,21 @@ The backend must carry enough cadence/freshness metadata for the frontend and AI
 **Status: APPROVED / ACCEPTED.** Approved POC: `market-view-ux-gate3-p2.html`, commit `cfba7320e42028f09f2967304cb0c0dd0cc2988d`. Gate 4 decisions supersede its two-row ribbon and direct V2 navigation details.
 
 ## 21. Gate 4 — complete application build
-**Status: ACTIVE — R5 SUCCESSOR REQUIRED. R4 IS REJECTED AND ROLLED BACK.**
+**Status: ACTIVE — R6 SUCCESSOR REQUIRED. R5 IS REJECTED AND ROLLED BACK.**
 
-Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`, inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`, rejected standalone-rewrite R3 candidate `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`, and rejected R4 candidate `12450364b8298b9f7d1d96837c61654197e793f7` are graveyarded and are not patch-forward baselines.
+Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`, inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`, rejected standalone-rewrite R3 candidate `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`, rejected R4 candidate `12450364b8298b9f7d1d96837c61654197e793f7`, and rejected R5 release commit `4b1000e317375d9504fd14dcd5afae66f9654cdf` are graveyarded and are not patch-forward baselines.
 
 ### Governed lineage
-**Exact restored Market Navigator 3.9.7 `market-view-gate4-r3.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + exact `devstream-test.html` provider/configuration donor behavior.** The R5 successor must start again from the restored 3.9.7 baseline. It may not descend from R4 code, R4 overlay code, R4 workflows, or R4 generated artifact.
+**Exact restored Market Navigator 3.9.7 `market-view-gate4-r3.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + exact `devstream-test.html` provider/configuration donor behavior.** The R6 successor must start again from the restored 3.9.7 baseline. It may not descend from R4 or R5 HTML, overlay code, workflows, generated artifacts, layout decisions or validation records.
 
-### Baseline preservation rule
-Before Gate 4 additions, preserve the 3.9.7 runtime behaviors unless this plan explicitly supersedes them: routing/history behavior, cleaned-observation model, chart rendering/inspection foundations, responsive frame, accessibility/keyboard behavior, export, persistence/cache behavior, and application error/status behavior. Each intentional replacement must be traceable to a Gate 4 contract item.
+### Baseline and visual-preservation rule
+Before Gate 4 additions, preserve the 3.9.7 runtime behaviors unless this plan explicitly supersedes them: routing/history behavior, cleaned-observation model, chart rendering/inspection foundations, responsive frame, accessibility/keyboard behavior, export, persistence/cache behavior, and application error/status behavior. Preserve the approved application frame/layout as a hard contract. No visual or spatial change is permitted merely because it is convenient for implementation; every intentional change must map to an explicit plan clause and survive a before/after visual redline against the approved baseline.
 
 ### Nothing else is gated
-R5 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
+R6 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
 
 ### Mandatory acceptance
+- approved application frame/layout preserved; no arbitrary layout changes
 - hamburger rail collapse/restore works on desktop and mobile
 - V1 RSK/GRW/MAC all horizons; V1 legend drills to V2
 - V2 selected index line + every defined component; missing/stale/sparse evidence explicit
@@ -183,7 +186,7 @@ R5 includes operational Library, AI POV, AI chat/composer, CONFIG/provider valid
 - latest visible-series ending values plus active correlation appear in one dismissible upper-right chart overlay
 - closing the chart summary overlay is presentation-only and does not mutate analytical state
 - no persistent below-chart statistics/correlation/ending-value cards
-- Health/source failures/provenance/cadence surfaced and usable
+- Health diagnoses the concrete root cause of stale/missing/sparse/cadence-incompatible data and explicitly explains resulting chart degradation
 - no browser Yahoo/FRED canonical reacquisition
 - no synthetic analytical curves
 - systematic mobile/desktop QA across state × horizon × X/Y1/Y2
@@ -194,15 +197,15 @@ A Gate 4 release is **not testable and must not be handed to the owner** until a
 2. Run an application boot smoke check proving initialization reaches the first render without an uncaught exception. A boot failure blocks publication.
 3. Confirm the artifact is reachable at its intended GitHub Pages URL and that its release identity matches the candidate under test.
 4. Run structural checks for the three-row ribbon, seven horizons, RSK/GRW/MAC V1 identities, V2 index+component contract, shared Explore/Add-Series taxonomy, Library, Health, Config and AI composer/provider controls.
-5. Run **baseline parity checks against the restored 3.9.7 artifact** for routing/back behavior, rail collapse, existing application frame, cleaned-observation model, chart/export entry points, keyboard/accessibility hooks and responsive behavior. Absence of a preserved baseline capability blocks publication unless the master plan explicitly replaces it.
+5. Run **baseline parity and visual-redline checks against the restored 3.9.7 artifact and approved Gate 3 P2 surface** for routing/back behavior, rail collapse, existing application frame/layout, cleaned-observation model, chart/export entry points, keyboard/accessibility hooks and responsive behavior. Any ungoverned visual or capability drift blocks publication.
 6. Run **journey/state-transition checks** for V1 → V2 → About → Analysis, Add Series additive analysis, Explore → same discovery/select behavior, Analysis → Library save → restore, and context/horizon changes clearing inspection state.
-7. Run **data-health checks** proving cadence/freshness classification for representative daily and monthly series, including CPI latest available observation and mixed-frequency CPI/WTI handling.
+7. Run **data-health/root-cause checks** proving cadence/freshness classification for representative daily and monthly series, including CPI latest available observation and mixed-frequency CPI/WTI handling, and proving Health can explain the exact collector/source/coverage/cadence reason for each degraded example and its chart impact.
 8. Run **AI configuration parity checks against `devstream-test.html`** for provider discovery, model discovery, validation, switching and failure messaging.
 9. Run **AI POV degraded-evidence checks** proving stale/missing/sparse input is identified before interpretation and a failed generation cannot silently disappear.
-10. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, axes remain visible, V1/V2 charts remain interpretable rather than merely populated, the below-chart region is exclusively the `test.html`-format timestamped conversation/composer, the upper-right ending-value/correlation overlay is compact and dismissible, and dismissing it leaves analytical state unchanged.
+10. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface and application layout remain faithful to the approved baseline except for specifically governed additions; the ribbon does not overflow; legends do not wrap into chart geometry; axes remain visible; V1/V2 charts are analytically coherent rather than merely populated; the below-chart region is exclusively the `test.html`-format timestamped conversation/composer; the upper-right ending-value/correlation overlay is compact and dismissible; and dismissing it leaves analytical state unchanged.
 11. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, previous release, or string-presence proxy.
 
-R2's inert handoff, R3's superficially validated rewrite and R4's technically passing but product-invalid release are release-process failures. Syntax/boot success is necessary but not sufficient; parity, data health, AI donor parity, journey behavior and visual/analytical usefulness now block release.
+R2's inert handoff, R3's superficially validated rewrite, R4's technically passing but product-invalid release, and R5's arbitrary-layout/non-diagnostic-Health release are release-process failures. Syntax/boot success is necessary but not sufficient; exact visual parity, data truth, root-cause Health diagnostics, AI donor parity, journey behavior and visual/analytical usefulness now block release.
 
 ## 22. Rejected approaches
-See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; persistent below-chart statistics/correlation/ending-value cards that displace the conversation; Tag/Clarify/composer-Save controls in the approved conversation surface; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey, data-health, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
+See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; reuse of R4/R5 generated artifacts, overlays, workflows or layout decisions; arbitrary application-frame/layout changes not explicitly governed by this plan; Health surfaces that merely list status without diagnosing source/collector/cadence/coverage root cause and chart impact; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; persistent below-chart statistics/correlation/ending-value cards that displace the conversation; Tag/Clarify/composer-Save controls in the approved conversation surface; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, exact baseline/visual parity, journey, data-health/root-cause, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
