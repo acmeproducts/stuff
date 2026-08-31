@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v1.1.0 -->
-# PRISM GRAVEYARD v1.1.0
+<!-- PRISM-GRAVEYARD v1.2.0 -->
+# PRISM GRAVEYARD v1.2.0
 
 **Purpose:** release test results, rejected approaches, root causes, and non-repeatable failures for PRISM. This file is mandatory build input.
 
@@ -68,33 +68,44 @@ Credential configuration and per-analysis model choice are separate responsibili
 **Origin:** PRISM Turn 01 pre-base owner test.
 **Observed failure:** sphere rendered colored/sized objects but no visible legend, leaving the user unable to know what the globe was communicating.
 **Root cause:** pre-base proved rendering connectivity but treated legend/explanation as presentation polish rather than part of the visualization contract.
-**Lesson:** encoded data without an in-view explanation is not useful information design.
 **VETO:** any PRISM view using Color, Size, Grouping, or aggregation must expose its active encoding in-view.
-**Replacement:** dynamic legends tied to active dimensions; labels/counts where aggregation occurs.
 
 ## G14 · Controls without actual filtering
 **Origin:** PRISM Turn 01 pre-base owner test.
-**Observed failure:** controls existed but there was no useful visible filtering mechanism.
-**Root cause:** the foundation shell reserved filter state but did not expose operational filters.
-**Lesson:** filter state is not a feature until the user can see and change the population.
 **VETO:** do not hand off a data-view stage with merely reserved filter state.
-**Replacement:** visible Subject / Region / Sentiment chips with All state; one shared filter universe across Explore/Map/Feed.
+**Replacement:** visible operational filters sharing one universe.
 
 ## G15 · Box collection mislabeled as treemap
 **Origin:** PRISM Turn 01 pre-base owner test.
-**Observed failure:** Map displayed groups/story boxes but did not encode hierarchy/value by occupied area, so it was not a treemap.
-**Root cause:** pre-base used a structural placeholder to prove shared event rendering.
-**Lesson:** a visualization name carries a behavioral/data-encoding contract.
 **VETO:** do not call a box/list/grid a treemap.
-**Replacement:** group rectangles and nested event rectangles must consume area according to explicit selected weights.
 
 ## G16 · Reader underlap
 **Origin:** PRISM Turn 01 pre-base owner test.
-**Observed failure:** Map content could extend beneath the reading pane.
-**Root cause:** reader was an overlay without desktop surface reflow.
-**Lesson:** event inspection must not make the visualization beneath it unreadable.
 **VETO:** desktop readers may not permanently overlay/underlap active information surfaces.
-**Replacement:** dedicated reader column on desktop; bottom overlay is acceptable on constrained mobile.
+
+## G17 · Per-tab control bars
+**Origin:** PRISM Turn 01 base owner test, commit `446317e3de21cbbb867a4682dda627b5e22a551f`.
+**Observed failure:** Explore and Map exposed separate control sets, making the application feel like disconnected tools and creating conflicting state affordances.
+**Root cause:** implementation put visualization controls inside each view instead of honoring the one-information-state contract at the shell level.
+**VETO:** PRISM may have only one global control/filter ribbon for the shared information universe. View-specific affordances may appear only when intrinsically required and must not duplicate global dimensions/filters.
+
+## G18 · Abstract dots as final Explore objects
+**Origin:** PRISM Turn 01 base owner test.
+**Observed failure:** even with a legend, colored dots do not communicate enough content to make the sphere useful; zoom was also omitted.
+**VETO:** Explore may not ship as unlabeled abstract dots. Event objects must be information cards/tiles with readable content cues, while color remains a secondary encoding. Sphere must support explicit zoom in/out plus direct manipulation.
+
+## G19 · Hand-rolled PRISM treemap
+**Origin:** PRISM Turn 01 base owner test.
+**Observed failure:** the custom strip/area layout was visually broken and did not achieve the proven NewsMap interaction/readability model.
+**Root cause:** unnecessary custom chart layout despite a suitable open-source reference implementation.
+**VETO:** do not continue the custom PRISM treemap algorithm.
+**Replacement:** adopt the NewsMap.JS layout/interaction model from `IJMacD/newsmap-js` as the reference implementation, adapted to PRISM canonical events and shared controls. Preserve its license/attribution requirements when code is incorporated.
+
+## G20 · AI deferred behind visualization polish
+**Origin:** PRISM Turn 01 base owner test.
+**Observed failure:** the planned stage sequence deferred the feature that turns multi-story selection into contextual intelligence.
+**VETO:** AI POV is now in scope for the next integrated stage. Do not treat it as a later cosmetic add-on.
+**Replacement:** multi-select events → contextual AI compose with suggested and ad-hoc questions → provider/model selectable at compose → saved Analysis → continuable research thread.
 
 ---
 
@@ -107,8 +118,13 @@ Credential configuration and per-analysis model choice are separate responsibili
 **Owner test date:** 2026-08-31
 **Result:** **FOUNDATION PASSED; NOT A VALUE/PRESENTATION GATE.**
 
-**Proven by owner:** basics work; shell/tab/state/data/presentation-layer connectivity is sufficient to advance.
+## T01-BASE · Rejected visualization architecture
+**Stage:** 01·base
+**Artifact:** `prism/prism-turn01-base.html`
+**Commit:** `446317e3de21cbbb867a4682dda627b5e22a551f`
+**Owner test date:** 2026-08-31
+**Result:** **REJECTED AS FORWARD UI BASELINE.**
 
-**Findings carried to 01·base:** no legend; no useful filtering; Map was not a real treemap; Map underlapped reader; overall pre-base demonstrated acquisition/presentation connectivity more than end-user value.
+**Observed:** operational filters and legend improved the foundation, but duplicated per-tab controls violated the unified-state product model; Explore remained abstract dots without explicit zoom; the custom treemap was broken/unacceptable; AI POV/provider-model workflow was still absent.
 
-**Recovery/forward baseline:** the exact pre-base commit above remains frozen. Corrections are implemented in the next governed stage `prism-turn01-base.html`, not patched into pre-base.
+**Recovery baseline:** retain the data acquisition, canonical-event, IndexedDB, shared-state, reader-column and filtering learnings from base, but do not patch its visualization architecture. Build `01·pre-ship` from the governed contract with Map/NewsMap first, one global ribbon, multi-select, AI POV, then derive Explore from the same event/filter state.
