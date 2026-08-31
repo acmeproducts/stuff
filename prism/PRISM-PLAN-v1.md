@@ -1,229 +1,213 @@
-<!-- PRISM-PLAN v1.1.0 -->
-# PRISM MASTER PLAN v1.1.0
+<!-- PRISM-PLAN v1.2.0 -->
+# PRISM MASTER PLAN v1.2.0
 
-**Location:** `prism/PRISM-PLAN-v1.md` in `acmeproducts/stuff`.
-**Project:** PRISM — unified event intelligence combining the strongest Globe / WorldPulse, LumaSphere, and OnyxView concepts with AI POV and a portable local analysis library.
-**Owner:** Product owner — sole product decision-maker and device release gate.
-**Builder:** ChatGPT — maintains this plan, graveyard, implementation lineage, and pre-flight evidence.
-
----
-
-## 0 · GOVERNANCE — THE CHAIN IS THE LAW
-
-Every turn runs **pre-base → base → pre-ship → ship → post-ship**, in order. A new turn begins only after post-ship completes. Every release declares its turn + stage here before implementation; artifact naming is part of the gate.
-
-### 0a · NO PATCHING A FAILED PATCH
-If a release fails: diagnose against the last verified stage; record the failed approach and evidence in `PRISM-GRAVEYARD.md`; update this plan if behavior/architecture/test contract changes; rebuild from the governed baseline; verify before owner testing.
-
-### 0b · TESTING IS EXPENSIVE; BUILDER OWNS PRE-FLIGHT
-Before handoff: exact artifact/commit verification, deterministic syntax/state/persistence/import-export/navigation checks, and a clear statement of what remains device-only.
-
-### 0c · ONE INFORMATION STATE, MULTIPLE VIEWS
-Explore, Map, Feed, and Library are views over one state. Search, time window, filters, selected events, favorites, and provider/model context survive view changes.
-
-### 0d · EVENT IS THE PRIMARY CONTENT OBJECT
-Canonical hierarchy: **Event → Coverage → Source Article**. Articles are provenance/evidence; events are the shared visualization and analysis unit.
-
-### 0e · CACHE FIRST
-Normal startup must become usable from IndexedDB first and must not fan out to publisher RSS feeds. Target path: publisher feeds → collector → last-known-good per-source cache → canonical event cache → same-origin fetch → IndexedDB → PRISM views.
-
-### 0f · A VISUALIZATION MUST EXPLAIN ITSELF
-A view that uses color, size, grouping, aggregation, or filtering must expose the active encoding in the view itself. An unlabeled globe or box layout is not a completed visualization.
-
-### 0g · READERS MAY NOT OCCLUDE THE INFORMATION SURFACE
-Desktop readers consume their own layout column; mobile readers may overlay from the bottom. Opening an event may not permanently hide or underlap unreadable visualization content.
+**Project:** PRISM — unified event intelligence combining Globe / WorldPulse, LumaSphere, OnyxView, AI POV, and a portable local research library.
+**Owner:** Product owner — sole product/release gate.
+**Builder:** ChatGPT — plan, graveyard, implementation lineage, pre-flight.
 
 ---
+## 0 · GOVERNANCE
+Every turn runs **pre-base → base → pre-ship → ship → post-ship**. Failed architecture is graveyarded before replacement; do not patch a rejected visualization forward. Owner device testing is reserved for behavior not mechanically provable.
 
-## 1 · PRODUCT THESIS / LINEAGE
-
-**Globe / WorldPulse contributes:** immersive sphere, high-density exploration, Cluster / Color / Size mapping, cluster focus.
-
-**LumaSphere contributes:** omnibox, compact progressive controls, favorites, unobtrusive event-card interaction, content-dominant chrome.
-
-**OnyxView contributes:** event abstraction, event → supporting coverage drill-down, importance/corroboration/editorial tier, source lenses, structural treemap, readability budgeting.
-
-**Devstream contributes:** Venice/OpenRouter/Anthropic-direct provider configuration, provider model discovery, local browser keys, explicit model test/ping, compose-time provider/model choice.
-
-**Market Navigator contributes:** local-first IndexedDB, render-before-refresh, durable analysis objects, Save/Add to Analysis, JSON portability.
-
-The reference implementations remain frozen: `/globe.html`, `/lumasphere.html`, `/onxyview-newsmap-v15.html`, `/devstream-test.html`, `/market-view.html`.
+### Immutable product laws
+1. **One information state, multiple views.** Search, time window, filters, selected events, favorites, provider/model context survive view changes.
+2. **One global control ribbon.** Shared dimensions and filters live once at shell level, never duplicated per tab.
+3. **Event → Coverage → Source Article** is canonical.
+4. **Cache first.** Normal startup uses IndexedDB + same-origin canonical cache, never publisher fan-out.
+5. **Visualizations explain themselves.** Labels, legends and encoding are part of the visualization contract.
+6. **Reader never underlaps desktop information surfaces.**
+7. **AI POV is contextual research, not generic chat.** Selection/provenance define its source context; outside research supplements rather than replaces that context.
+8. **Provider + model must be validated before use.** Keys remain local to this browser.
 
 ---
+## 1 · LINEAGE / REFERENCE IMPLEMENTATIONS
+Frozen references, never patch targets:
+- `/globe.html` — dense sphere/dimensional exploration.
+- `/lumasphere.html` — content-forward sphere interaction, category clustering, compact controls.
+- `/onxyview-newsmap-v15.html` — event abstraction, lenses, corroboration/importance.
+- `/devstream-test.html` — provider/model discovery, validation, compose-time engine selection.
+- `/market-view.html` — local analysis persistence pattern.
 
-## 2 · PRIMARY PRODUCT SURFACES
+External open-source reference:
+- `IJMacD/newsmap-js` — NewsMap.JS, a React/pure-JS visual representation of headlines with category enable/disable. PRISM will adopt its proven NewsMap layout/interaction principles rather than continue a hand-rolled treemap. Any incorporated source must retain applicable upstream license/attribution.
 
-### Explore
-Immersive sphere over canonical events. Requirements: dynamic legend for the active Color mapping; visible Subject/Region/Sentiment filtering; Cluster/Color/Size controls; deterministic re-layout after filtering; direct event selection; selected event preserved across tabs.
+---
+## 2 · PRIMARY SURFACES
+### Map — build first
+Map is the first fully resolved information surface. It uses a NewsMap-style area hierarchy: categories/groups own proportional screen area; event cards own proportional area inside their group; readable headline text appears directly on cards. The Map is not a generic chart placeholder.
 
-### Map
-A **real treemap**, not a list of boxes. Group rectangles consume area according to the selected grouping; event rectangles consume group area according to Importance / Corroboration / Recency. Grouping options include Subject, Region, Sentiment, Editorial Tier, Corroboration. Event selection opens the same shared reader without desktop underlap.
+### Explore — derive second
+Sphere uses the exact same filtered/selected event universe. Category clusters follow LumaSphere concepts. Objects are **information cards/tiles**, not anonymous colored dots. Explicit `− / zoom% / +` controls plus drag/pinch/wheel. Color is secondary encoding.
 
 ### Feed
-Linear canonical-event consumption with importance/recency/corroboration sorting, coverage count, favorites, shared search/filters, event reader, and later AI actions.
+Linear rendering of the same canonical events with shared selection and reader.
 
 ### Library
-IndexedDB analysis artifacts with open/delete, Export Library JSON, Import Library JSON, merge-by-`analysisId`, and no cloud sync in Turn 01.
+Saved AI analyses/research threads in IndexedDB with JSON export/import. Cloud centralization deferred.
 
 ---
+## 3 · GLOBAL RIBBON
+Exactly one shared ribbon below the top navigation. It applies to Map, Explore and Feed and remains stable when tabs change.
 
-## 3 · CANONICAL DATA MODEL
+Required controls:
+- Group/Cluster dimension: Subject / Region / Sentiment / Tier / Corroboration.
+- Size/Area dimension: Importance / Corroboration / Recency.
+- Color dimension: Sentiment / Subject / Region / Tier.
+- Time: 24h / 3d / 7d.
+- visible filter trigger / active-filter count.
+- selection count + `AI POV` action when one or more events are selected.
+- view-specific zoom may appear at the right edge only when Explore is active; it is not a second filter/control system.
 
-### Event
-```json
-{
-  "eventId":"stable-id",
-  "headline":"canonical headline",
-  "summary":"canonical summary",
-  "subject":"Technology",
-  "region":"Asia",
-  "sentiment":"neutral",
-  "importance":0,
-  "editorialTier":"developing",
-  "corroboration":3,
-  "firstSeen":0,
-  "lastSeen":0,
-  "tags":[],
-  "coverage":[]
-}
-```
-
-### Coverage
-```json
-{
-  "articleId":"stable-id",
-  "source":"BBC World",
-  "title":"publisher title",
-  "description":"publisher description",
-  "url":"https://...",
-  "publishedAt":0
-}
-```
-
-Required invariants: one article belongs to at most one event per cache revision; provenance is preserved; deterministic continuing-event IDs where possible; source refresh failure never deletes prior valid coverage; merges/splits become auditable when collector-side clustering lands.
+Filters: Subject, Region, Sentiment initially; chips live in one global expandable tray. Search is global. All changes update Map/Explore/Feed together.
 
 ---
-
-## 4 · CACHE / INGESTION ARCHITECTURE
-
-Target: publisher feeds → scheduled collector → per-source last-known-good snapshots → normalize/dedupe/classify/cluster → canonical event cache + manifest → GitHub Pages same-origin → IndexedDB → views.
-
-Browser startup: open DB; render cached events; fetch same-origin cache/manifest; canonicalize only when newer; persist; update views without resetting current state; fall back cleanly to saved events on refresh failure.
-
-**Turn 01 base compatibility rule:** the current centralized `data/market-backend/news-cache.json` is article-oriented. Base may deterministically adapt this same-origin cache into canonical events in-browser to prove the product model. It may not contact publishers. Collector-side event clustering remains the production target and is promoted once the client event contract is stable.
-
----
-
-## 5 · GLOBAL APPLICATION STATE
-
-At minimum: `view`, `query`, `timeWindow`, `filters`, `clusterDimension`, `colorDimension`, `sizeDimension`, `mapGroup`, `mapSize`, `lens`, `selectedEventIds[]`, `focusedEventId`, `favorites[]`, AI provider/model choice.
+## 4 · SELECTION CONTRACT
+Events support click/tap selection independent of opening the reader. Multi-select is first-class.
+- selected cards have unmistakable outline/check state;
+- selection persists across Map/Explore/Feed;
+- global ribbon shows `N selected`;
+- `Clear` removes selection;
+- opening details must not destroy multi-selection;
+- AI POV uses selected events as primary source context.
 
 ---
+## 5 · AI POV / RESEARCH CONTRACT
+### 5.1 Entry
+`AI POV` is enabled when events are selected. It opens a research workspace/panel containing:
+- selected-event source stack with event headline, summary, time, coverage sources and URLs;
+- suggested question chips generated as UI templates, not hard-coded answers;
+- ad-hoc prompt composer;
+- provider dropdown;
+- model dropdown;
+- send/run;
+- prior turns for this analysis/research thread;
+- Save Analysis.
 
-## 6 · AI POV — TURN 01 SHIP TARGET
+Initial suggested question templates include:
+- **Throughline:** “What is the throughline between these selected stories that may not be obvious?”
+- **Frequency:** “How often do developments like these occur? Find useful historical comparisons and distinguish close analogues from superficial ones.”
+- **Recency/context:** “How recent or unusual are these developments compared with relevant prior examples?”
+They are editable prompts and examples, not product logic. Future suggestions can be contextual/generated.
 
-AI is an analytical layer over current PRISM context, not a detached chatbot. Compose strip: prompt + Provider + Model + Scope. Phase-1 scopes: This event, Selected events, Current view, Current filtered universe.
+### 5.2 Research behavior
+The selected PRISM events are the **primary evidence packet**. AI may use its own knowledge and, where the chosen provider/model supports external/web research, outside information to add contextual texture. Responses must distinguish:
+- selected-event evidence/provenance;
+- outside/supplemental information;
+- inference/interpretation.
 
-Providers: Venice, OpenRouter, Anthropic direct. API keys remain local browser-only. Settings configures/tests credentials/defaults; compose strip can switch provider/model for the current analysis. Provider/model must pass an explicit test before verified status.
+PRISM must not imply that a provider performed live web research when the provider/model did not expose that capability. Phase 1 direct API calls provide structured selected-event context; richer external research tooling may be provider-dependent and is recorded in the analysis metadata.
 
-Bounded AI context contains selected canonical event metadata, summaries, supporting coverage titles/descriptions, timestamps, provenance, and current scope/filter description — never the entire cache by default.
-
-Completed output becomes a durable Analysis object with `analysisId`, `createdAt`, title, prompt, provider, model, scope, event IDs, source article IDs, and response; every result offers Save to Library.
+### 5.3 Continuable research
+An Analysis is a thread, not a one-shot answer:
+`analysisId, title, createdAt, updatedAt, provider, model, eventIds[], frozenSources[], turns[], researchMode/capabilities`.
+A saved analysis can be reopened from Library and continued with additional questions. Original frozen event/source provenance remains attached even as live news changes.
 
 ---
+## 6 · DEVSTREAM PROVIDER/MODEL CONTRACT — ADOPT EXACT BEHAVIOR
+PRISM adopts the validated Devstream flow rather than inventing another credential UX.
 
-## 7 · LOCAL LIBRARY
+### Venice
+1. User pastes Venice API key.
+2. `Load Venice models` calls `GET https://api.venice.ai/api/v1/models` with Bearer key.
+3. Returned model IDs populate the model selector.
+4. User chooses a model.
+5. `Validate & save Venice` calls `POST https://api.venice.ai/api/v1/chat/completions` with that **exact selected model**, `max_tokens:1`, user content `ping`.
+6. 401 = key rejected; 402 = selected model requires credits/plan; other non-2xx is explicit failure.
+7. Only a successful inference marks that provider/model verified and saves key/model locally.
 
-IndexedDB, not localStorage. Export carries schema version, exported timestamp, analyses, and frozen event/source references needed to understand them later. Import validates schema and merges by `analysisId`; malformed payloads fail safely; existing entries not present in an import remain untouched. Cloud centralization is deferred.
+### OpenRouter
+1. User pastes key.
+2. Validate key via `GET https://openrouter.ai/api/v1/auth/key` with Bearer key.
+3. Load models from `GET https://openrouter.ai/api/v1/models`.
+4. User chooses model.
+5. Validate the exact pair with `POST https://openrouter.ai/api/v1/chat/completions`, `max_tokens:1`, `ping`.
+6. Only success marks verified/saved.
+
+### Anthropic direct
+Key remains optional in phase 1. Direct calls use `https://api.anthropic.com/v1/messages`, `x-api-key`, `anthropic-version`, and browser-access header as in Devstream. Before PRISM exposes Anthropic as verified, the exact selected model must receive an equivalent minimal inference ping; do not merely accept a populated key.
+
+### Key handling / model switching
+- normalize pasted keys by trimming Bearer prefix and invisible whitespace, matching Devstream `cleanKey` behavior;
+- keys live only in browser localStorage; never Library export, event cache, GitHub, or analysis payload;
+- verification state is keyed to **provider + model + key fingerprint**; changing any one invalidates verification until re-tested;
+- Settings owns keys, model discovery and verification;
+- AI compose owns per-run provider/model choice from **verified pairs only**;
+- changing compose provider/model does not silently change the saved default.
 
 ---
+## 7 · CANONICAL DATA / CACHE
+Event fields: `eventId, headline, summary, subject, region, sentiment, importance, editorialTier, corroboration, firstSeen, lastSeen, tags[], coverage[]`.
+Coverage fields: `articleId, source, title, description, url, publishedAt`.
 
-## 8 · PERFORMANCE CONTRACT
-
-Cached app usable without waiting for network; no publisher fan-out; canvas/incremental rendering for dense Explore; no refetch on tab/selection changes; treemap and reader remain responsive; AI context bounded; source refresh failure degrades freshness rather than availability. Numeric gates will be set after Turn 01 instrumentation.
+Current Turn 01 compatibility: same-origin `data/market-backend/news-cache.json` may be deterministically adapted into canonical events in-browser. Production target remains collector-side normalize/dedupe/classify/cluster → canonical event cache + manifest → IndexedDB.
 
 ---
+## 8 · LIBRARY
+IndexedDB. Analysis records include complete research turns and frozen event/source references. `Save Analysis` persists current thread. Reopen continues it. Export produces portable versioned JSON; import validates and merges by `analysisId`, never destructive replacement. Keys are categorically excluded.
 
-## 9 · TURN / STAGE LEDGER
+---
+## 9 · PERFORMANCE
+- cached usable before network refresh;
+- no publisher fan-out;
+- Map must handle the current event universe without DOM/layout thrash;
+- selection/filter changes do not refetch data;
+- Explore uses performant card rendering and bounded labels;
+- AI sends only selected/bounded context, not entire cache;
+- no duplicate filter systems.
 
+---
+## 10 · TURN/STAGE LEDGER
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
-| 01·pre-base | Governance + shared shell / contracts / connectivity | **PASSED FOUNDATION 2026-08-31 — findings carried forward** | `prism/prism-turn01-pre-base.html` @ `e5ae4beba3babb6297d63234f19519c28c68894a` |
-| 01·base | Canonical event ingestion + meaningful Explore/Map presentation | **ACTIVE** | `prism/prism-turn01-base.html` |
-| 01·pre-ship | Full Explore + Map + Feed unified interaction/state refinement | Not started | — |
-| 01·ship | AI provider configuration + compose POV | Not started | — |
-| 01·post-ship | Local Library refinement + export/import + integrated release gate | Not started | — |
-
-No stage skips.
+| 01·pre-base | shell/contracts/connectivity | **PASSED FOUNDATION** | `prism-turn01-pre-base.html` @ `e5ae4beba3babb6297d63234f19519c28c68894a` |
+| 01·base | canonical events + first value surfaces | **REJECTED UI ARCHITECTURE** | `prism-turn01-base.html` @ `446317e3de21cbbb867a4682dda627b5e22a551f` |
+| 01·pre-ship | NewsMap-first unified controls + selection + AI POV/provider validation + derived Explore | **ACTIVE** | `prism/prism-turn01-pre-ship.html` |
+| 01·ship | integrated stabilization/performance/provider-device gate | Not started | — |
+| 01·post-ship | Library/research continuity + integrated release gate | Not started | — |
 
 ---
+## 11 · 01·PRE-SHIP BUILD ORDER / GATES
+### Gate A — Map first
+- single global ribbon/tray;
+- proper NewsMap-style proportional category/event layout based on upstream implementation principles;
+- headline text directly on event cards;
+- existing user filters operational;
+- multi-select 3+ stories;
+- shared reader column with no underlap.
 
-## 10 · PRE-BASE GATE RESULT / OWNER FINDINGS
+### Gate B — AI POV
+- selected events appear as source packet;
+- suggested Throughline/Frequency/Recency prompts + ad-hoc prompt;
+- Settings implements Devstream Venice/OpenRouter model load + exact-model inference validation;
+- compose selects only verified provider/model pairs;
+- live API answer can be saved as Analysis and continued.
 
-The pre-base proved shell/data/persistence connectivity and basic tab operation. Owner accepted the basics but correctly identified that it did **not yet deliver explanatory visual value**:
-- Explore had no legend, so Color meaning was opaque.
-- There was no useful visible filtering surface.
-- Map was boxes/list-like rather than a true area-encoded treemap.
-- Map content could underlap the event reader.
+### Gate C — Explore
+Only after A/B work: category-cluster sphere using same state and event cards; explicit zoom in/out; selection parity with Map; no separate filter controls.
 
-These are not patched into pre-base. They define the governed 01·base contract.
+### Gate D — Feed/Library continuity
+Feed reflects same filters/selections. Library opens saved analysis and preserves research turns/provenance; export/import round-trip.
 
----
-
-## 11 · TURN 01 · BASE SCOPE
-
-### 11.1 Canonical event adapter
-Read only the centralized same-origin news cache. Deterministically classify and cluster article records into Event → Coverage objects; preserve publisher URL/source/title/description/time; compute source corroboration and initial importance/tier signals; persist canonical events in IndexedDB.
-
-### 11.2 Explore actual-value gate
-- active Color legend visible on sphere;
-- Subject / Region / Sentiment filter chips with All state;
-- filters apply to Explore, Map, Feed together;
-- Cluster / Color / Size controls remain visible;
-- sphere is canvas-based and re-renders after filter/state changes;
-- event reader shows coverage and provenance.
-
-### 11.3 Map actual-value gate
-- genuine area-encoded treemap hierarchy: group area then event area;
-- grouping: Subject / Region / Sentiment / Tier / Corroboration;
-- area: Importance / Corroboration / Recency;
-- same Color mapping/legend as Explore;
-- desktop event reader gets a dedicated column; no underlap;
-- mobile reader may bottom-overlay.
-
-### 11.4 Feed
-Render the exact filtered canonical events with importance/recency/corroboration sort and same reader/selection state.
-
-### 11.5 Persistence / diagnostics
-IndexedDB schema version advances without destroying prior stores. Diagnostics show article count, canonical event count, merge count, cache collector version, same-origin network path, and self-test results.
-
-### 11.6 Base pre-flight gate
-Before owner handoff: JavaScript syntax pass; unique HTML IDs; four tabs present; same-origin cache path only; canonical events all contain coverage; event count does not exceed input article count; legend renderer present; filter state contract present; treemap renderer present; IndexedDB migration opens; legacy reference files untouched.
+### Pre-flight before owner handoff
+- JavaScript syntax pass;
+- one global ribbon exists; no per-tab duplicate filter bars;
+- Map renderer is not the rejected custom strip treemap;
+- all Map event rectangles remain inside their category rectangle;
+- selection survives tab switch;
+- AI POV context contains only selected events;
+- provider/model cannot run until exact pair validated;
+- keys absent from IndexedDB analysis export payload;
+- Explore zoom controls work mechanically;
+- reference lineage files unchanged.
 
 ---
-
-## 12 · OPEN DECISIONS
-
-| ID | Decision | Ruling |
-|---|---|---|
-| D1 | Project name | **PRISM** |
-| D2 | Primary content unit | **Event** |
-| D3 | Views | **Explore · Map · Feed · Library** |
-| D4 | Existing prototypes | **Frozen references; new lineage** |
-| D5 | AI provider behavior | **Configure/test in Settings; switch at compose** |
-| D6 | API key storage | **Local browser only, phase 1** |
-| D7 | Analysis storage | **IndexedDB + Export/Import; cloud later** |
-| D8 | Publisher retrieval | **Collector/cache; never normal browser fan-out** |
-| D9 | Temporary canonicalization | **Same-origin article-cache adapter allowed in 01·base; collector remains production target** |
+## 12 · DECISIONS
+D1 PRISM. D2 Event primary. D3 Explore/Map/Feed/Library. D4 frozen legacy references. D5 one global ribbon. D6 NewsMap-first Map. D7 information cards rather than dots in Explore. D8 AI POV promoted into pre-ship. D9 Devstream provider/model validation adopted. D10 Analysis is continuable research thread. D11 local IndexedDB + import/export; centralization later.
 
 ---
-
 ## 13 · DEFERRED
-
-Centralized multi-device library; accounts; server-side API-key custody; embeddings/vector search; geographic/network/timeline modes; automatic AI summaries for every event; full-article scraping; article-level sphere mode; collaborative analyses.
+Centralized multi-device library/accounts; server-side key custody; embeddings/vector search; geographic/network/timeline modes; automatic AI summaries of every event; full-article scraping; collaborative analyses. External research beyond the capabilities exposed by the selected direct API provider/model is not fabricated; richer browsing/search integrations can be added as a governed research capability later.
 
 ---
-
-## 14 · RELEASE RECORDING RULE
-
-Every rejected/superseded build records turn/stage/release, exact commit/artifact, test date, observed failure, root cause if known, architectural lesson, explicit veto, and recovery baseline in `PRISM-GRAVEYARD.md`. The graveyard is mandatory design input.
+## 14 · RELEASE RECORDING
+Every rejected/superseded build is recorded in `PRISM-GRAVEYARD.md` with artifact, exact commit, evidence, root cause/lesson, veto and recovery baseline.
