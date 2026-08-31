@@ -1,75 +1,70 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** ACTIVE CLEAN REBUILD — BASE-32  
+**Status:** ACTIVE — CANONICAL CLEAN REBUILD
 **Date:** 2026-08-31
 
 ## Recovery anchor
 
-- Frozen UI source: accepted `SOT-turn01-pre-base.html` at commit `7a377c27e1ac078510b9d1e4fe66da4f997f25f3`.
-- Frozen backend source: accepted pre-base `sot-api.js` at commit `9422453c180f8fce4e7d5fe362867912dc8005d1`, schema 4.
-- Clean Base-22 UI integration source: `integrate-SOT-turn01-base22-ui.py` at commit `603e8a331b13b72a097e9ebb9640e33707279777`.
-- Clean Base-24 behavior integration source: `integrate-SOT-turn01-base24-ui.py` at commit `083aa1334208b1e6995fa18852e82722a815f331`.
-- Clean Base-28 storage-default + operational-AI integrator: `integrate-SOT-turn01-base28-ai.py` at commit `8734014cec0aa8461d8dcdff784fdf18cc5a063f`.
-- Canonical target remains `SOT-turn01-base.html`.
-- No owner-rejected or failed generated HTML may be used as an implementation ancestor.
+- Accepted pre-base UI: `7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html`.
+- Accepted pre-base backend: `9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js`.
+- Clean Base UI integrators: Base-22 at `603e8a331b13b72a097e9ebb9640e33707279777` and Base-24 at `083aa1334208b1e6995fa18852e82722a815f331`.
+- Canonical AI/storage-default integrator: `integrate-SOT-turn01-base-ai.py`, rebuilt directly from clean Base-24 behavior. It replaces the defective Base-28 insertion boundary without consuming generated Base-28–Base-32 HTML.
+- Live backend remains build `2026.08.30.sot-turn01-base-22`, schema `4`.
+- Canonical target remains `SOT/SOT-turn01-base.html`.
 
-## Failure history governing Base-32
+## Simplified governance
 
-- Base-23 / GY-010: duplicate findings were erased by an over-broad UI replacement.
-- Base-24 / GY-011: AI configuration was passive and lacked operational validation/supervisor priming.
-- Base-25 / GY-012: owner-facing JavaScript failure proved pre-cutover syntax checking insufficient.
-- Base-26 / GY-013: whole-document compatibility grep overrode real executable gates.
-- Base-27: storage defaults were lost by whole-function AI replacement.
-- Base-28 / Base-29: qualifier contained nounset-unsafe Bash dependent-local declarations.
-- Base-31 / GY-017: generated artifact passed static + Node parsing, but the Windows Edge harness was launched with a WSL-backed `/tmp` profile. Edge/Crashpad failed on profile locking before page execution, so the boot sentinel could not be evaluated. No cutover occurred.
+Base development uses one plan, one graveyard, one canonical installer, and Git history as the version ledger.
 
-Evidence:
-- `SOT/archive/2026-08-31-0248-turn01-base31-browser-harness-failure/ARCHIVE-MANIFEST.md`
-- `SOT/archive/2026-08-31-0248-turn01-base31-browser-harness-failure/GY-017.md`
+1. `SOT-turn01-pre-base.html` is the frozen recovery anchor. Failed generated HTML is evidence only and is never an ancestor.
+2. `install-SOT-turn01-base.sh` is the only active Base installer. Candidate identity is its Git commit and file SHA; numbered installers are retained only as history and are never patched forward.
+3. Before an affected governed file changes, create one archive manifest under `SOT/archive/` containing the current commit, paths, and blob SHAs. Files already immutable in Git are not duplicated. Non-Git runtime evidence is copied into the archive.
+4. Update this plan only when the product, lineage, release floor, or stage contract changes. Record rejected approaches in `SOT-GRAVEYARD.md`. Mechanical defect iterations do not create new governance documents.
+5. The canonical installer generates from pinned clean sources, qualifies exact candidate bytes, archives the live target, cuts over once, qualifies exact public read-back, and rolls back automatically on any post-cutover failure.
+6. The owner is the product tester, not the build or qualification runner. Development proceeds autonomously to a mechanically qualified canonical test URL. Base remains the stage until product testing accepts it.
 
-## Base-32 contract
+## Base product contract
 
-Base-32 must regenerate only from the governed clean lineage and must not consume any failed generated artifact. It must preserve:
+The canonical Base must retain all of the following:
 
-1. Stable completed Index and duplicate 2/3/4+ findings/drilldown.
-2. Current vs stale Plan behavior and explicit re-index recovery.
-3. Canonical Source/Target/Backup/default selector with independent scrolling, local search, move semantics, and footer commit.
-4. Default Target and Default Backup controls.
-5. Operational Venice/OpenRouter model discovery, real validation, active provider/model persistence, browser-local credentials only.
-6. Mandatory SOT supervisor prompt before exact project/evidence context and operator history/request.
-7. Backend build `2026.08.30.sot-turn01-base-22`, schema 4, unchanged.
+1. Stable completed Index with `2-copy`, `3-copy`, and `4+ copy` findings and drill-down.
+2. Current versus stale Plan separation with explicit re-index recovery.
+3. One Source/Target/Backup/default selector with independent Available/Selected scrolling, local search, true move semantics, and a footer commit action.
+4. Default Target and Default Backup configuration.
+5. Dynamic Windows volume inventory shared across Source, Target, Backup, and defaults; operation-boundary validation remains deterministic.
+6. Operational Venice/OpenRouter model discovery, real completion validation, browser-local keys, and explicit active provider/model state.
+7. Every inference request begins with the SOT supervisor prompt, then exact project/evidence context, then conversation history and the operator request.
+8. AI remains advisory: `Inference -> structured proposal -> deterministic validation -> SOT Plan -> approval -> execution`.
 
-## Browser-harness architecture
+## Canonical source correction
 
-The browser harness is part of the release artifact QA and must prove itself before it can prove the application.
+The rejected Base-28 integrator inserted helpers at the inner `function` token of `async function openConfig`, leaving a standalone `async` expression before `const SOT_SUPERVISOR_PROMPT`. That JavaScript parses but throws `ReferenceError: async is not defined` at runtime.
 
-- Linux-native Chrome/Chromium/Edge uses a Linux-native temporary profile.
-- Windows Edge/Chrome launched through WSL MUST use a profile created in Windows-native `%TEMP%`; WSL `/tmp`, `\\wsl$`, and `\\wsl.localhost` profile paths are prohibited.
-- Windows-browser profile cleanup MUST use Windows-native PowerShell/cmd deletion rather than WSL `rm`.
-- Before candidate boot, the selected browser MUST pass a deterministic harness-liveness page whose DOM contains a known sentinel produced by executed JavaScript.
-- Failure of the harness self-test blocks release and is reported separately from application boot failure.
+The canonical integrator now:
+
+- inserts at the complete function-declaration boundary;
+- rejects any standalone `async` statement or `async` line-terminator hazard;
+- proves each replaced function remains unique and structurally balanced;
+- emits directly from clean Base-24 behavior.
 
 ## Release-quality floor
 
-A candidate is not mechanically qualified until all of the following pass on the exact generated bytes and again on the exact canonical public read-back:
+The exact generated candidate and exact canonical public read-back must each pass:
 
-- every executable inline script parses independently;
-- combined script payload parses;
-- no `async` + line-terminator + `function` declaration hazard exists;
-- browser harness self-test proves JavaScript execution and DOM dump;
-- real Chrome/Edge executes the candidate page;
-- application boot sentinel is present;
-- no boot error marker, `SyntaxError`, `ReferenceError`, `TypeError`, uncaught initialization error, or unhandled rejection is present;
-- candidate/public SHA-256 identity is exact;
-- backend build/schema remain unchanged.
+- per-inline-script JavaScript parse;
+- combined-script JavaScript parse;
+- standalone/line-terminated `async` runtime-hazard rejection;
+- protected product-contract checks;
+- exact SHA-256 identity through the served probe and canonical URL;
+- a real Chrome/Edge execution with application boot sentinel;
+- rendered application roots with no initialization error surface;
+- zero boot error marker, `SyntaxError`, `ReferenceError`, `TypeError`, uncaught initialization error, or unhandled rejection.
 
-The QA harness itself must pass Bash syntax validation plus structural detection of nounset-unsafe same-declaration variable expansion before execution. The owner is never the parser/runtime harness.
+The browser harness must first pass an exact-read-back JavaScript/DOM self-test. Windows Edge/Chrome launched from WSL must use a Windows-native `%TEMP%` profile, transport cleanup paths through standard input, prove profile deletion, and never use WSL/UNC profile storage.
 
-## Mandatory Base-32 gates
+Pre- and post-cutover health must prove backend build `2026.08.30.sot-turn01-base-22`, schema `4`, and status `ok`. The live volume gate must prove the current dynamic inventory and browse the required Windows volumes before cutover.
 
-`INDEX_ACTIVE_REFRESH_NO_LOADING_FLASH`, `INDEX_COMPLETED_NO_POLL_RERENDER`, `INDEX_COMPLETED_DUPLICATE_2`, `INDEX_COMPLETED_DUPLICATE_3`, `INDEX_COMPLETED_DUPLICATE_4PLUS`, `INDEX_COMPLETED_DUPLICATE_DRILLDOWN`, `PLAN_CURRENT_STALE_SEPARATION`, `PLAN_GENERATE_SUCCESS_VISIBLE_CURRENT`, `PLAN_NO_EVIDENCE_PERSISTENT_RECOVERY`, `PLAN_REINDEX_ACTION`, `AVAILABLE_PANEL_SCROLL`, `SELECTED_PANEL_SCROLL`, `AVAILABLE_SEARCH_PRESENT`, `AVAILABLE_SEARCH_LOCAL_ONLY`, `SELECTOR_COMMIT_IN_MODAL_FOOTER`, `SELECTOR_COMMIT_NOT_IN_PANEL3`, `DEFAULT_TARGET`, `DEFAULT_BACKUP`, `AI_VENICE_MODEL_DISCOVERY`, `AI_OPENROUTER_MODEL_DISCOVERY`, `AI_REAL_PROVIDER_VALIDATION`, `AI_ACTIVE_PROVIDER_MODEL_STATE`, `AI_KEYS_BROWSER_LOCAL_ONLY`, `AI_SUPERVISOR_PROMPT_PRESENT`, `AI_SUPERVISOR_FIRST_SYSTEM_MESSAGE`, `AI_PROJECT_EVIDENCE_AFTER_SUPERVISOR`, `AI_NO_ACTIVE_PROVIDER_EXPLICIT_STATE`, `ASYNC_DECLARATION_RUNTIME_SAFE`, `JS_GENERATED_PER_SCRIPT_PARSE`, `JS_GENERATED_COMBINED_PARSE`, `JS_BROWSER_HARNESS_SELFTEST`, `JS_GENERATED_BROWSER_BOOT`, `GENERATED_APP_ROOT_RENDERED`, `PUBLIC_ARTIFACT_IDENTITY`, `JS_PUBLIC_PER_SCRIPT_PARSE`, `JS_PUBLIC_COMBINED_PARSE`, `JS_PUBLIC_BROWSER_BOOT`, `PUBLIC_APP_ROOT_RENDERED`, `PUBLIC_ZERO_SYNTAX_ERRORS`, `PUBLIC_ZERO_UNCAUGHT_BOOT_ERRORS`.
+## Handoff rule
 
-## Owner gate
-
-Only after the installer prints the exact mechanical success marker may the owner test the canonical URL. Base remains the current stage until owner acceptance.
+No installer or qualification experiment is an owner handoff. The only Base handoff is the canonical URL after the success marker `=== TURN 01 BASE MECHANICALLY QUALIFIED ===` is recorded by the host run.

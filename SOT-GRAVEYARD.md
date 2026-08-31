@@ -1,7 +1,7 @@
 # SOT Graveyard
 
 **Status:** AUTHORITATIVE REJECTED-APPROACH RECORD  
-**Updated:** 2026-08-30  
+**Updated:** 2026-08-31
 **Repository:** `acmeproducts/stuff`
 
 This document records architectural and implementation approaches that have been rejected so they are not silently reintroduced in later SOT work.
@@ -295,3 +295,51 @@ The next clean Base must:
 8. promote 2-copy, 3-copy and 4+-copy duplicate-group summaries with direct drill-down immediately after fingerprinting.
 
 Base-21 remains rejected owner-gate evidence only. Failure archive: `SOT/archive/2026-08-30-0352-turn01-base21-owner-rejection/ARCHIVE-MANIFEST.md`.
+
+---
+
+## Later failure ledger
+
+The detailed evidence remains in the immutable archive files below. This ledger is the authoritative index so later decisions do not require reconstructing governance from scattered folders.
+
+| ID | Rejected approach | Evidence |
+|---|---|---|
+| GY-009 | Poll-driven completed-state rerender, ambiguous stale Plan, and non-operable selector panes | `SOT/archive/2026-08-30-1337-turn01-base22-owner-rejection/GY-009.md` |
+| GY-010 | Whole-function correction that erased protected completed-state behavior | `SOT/archive/2026-08-30-1405-turn01-base23-qualification-failure/GY-010.md` |
+| GY-011 | Passive AI key fields without operational validation and supervisor priming | `SOT/archive/2026-08-30-1418-turn01-base24-owner-rejection-ai/GY-011.md` |
+| GY-012 | Pre-cutover-only JavaScript qualification | `SOT/archive/2026-08-30-2348-turn01-base25-owner-rejection-js-syntax/GY-012.md` |
+| GY-013 | Whole-document token lint overriding parser/browser gates | `SOT/archive/2026-08-31-0017-turn01-base26-qualification-failure/GY-013.md` |
+| GY-014A | AI Configuration replacement deleted protected storage defaults | `SOT/archive/2026-08-31-0038-turn01-base27-qualification-failure/GY-014.md` |
+| GY-014B | Same-command dependent Bash locals under `set -u` | `SOT/archive/2026-08-31-0212-turn01-base28-qualification-failure/GY-014.md` |
+| GY-015 | Partial nounset correction without structural whole-installer audit | `SOT/archive/2026-08-31-0220-turn01-base29-qualification-failure/GY-015.md` |
+| GY-016 | Syntax-only checking that missed a runtime `async` line-terminator failure | `SOT/archive/2026-08-31-0224-turn01-runtime-async-failure/GY-016.md` |
+| GY-017 | Windows browser harness using a WSL-backed profile | `SOT/archive/2026-08-31-0248-turn01-base31-browser-harness-failure/GY-017.md` |
+
+The two historical `GY-014` files are preserved unchanged; the `A/B` suffixes above remove the numbering ambiguity without rewriting evidence.
+
+---
+
+## GY-018 — Numbered meta-installer patch chains and token-specific post-generation repair
+
+**Status:** REJECTED
+**Evidence:** Turn 01 Base-28 through Base-32 audit
+**Decision date:** 2026-08-31
+
+### Rejected approach
+
+Create another numbered installer by downloading a prior failed qualifier and performing exact-text substitutions against its shell source. Repair a generated HTML symptom with a token-specific post-generation regex instead of correcting the clean integrator that produced it. Hand the resulting installer to the owner as the next qualification experiment.
+
+### Why it is rejected
+
+Base-32 still generated the owner-observed runtime defect. The actual artifact contained a standalone `async` statement followed by `const SOT_SUPERVISOR_PROMPT`; its repair only searched for `async` followed by `function`, so syntax gates passed while runtime still failed. Base-32 also attempted Windows profile cleanup through an implicitly propagated WSL environment variable, repeating the transport architecture rejected by GY-006.
+
+The numbered wrapper chain made the qualifier itself the dominant source of defects and pushed host qualification onto the owner instead of producing a testable release.
+
+### Required replacement
+
+- Maintain one canonical `install-SOT-turn01-base.sh`; version it by Git commit, not filename.
+- Generate directly from the frozen pre-base and clean governed integrators.
+- Correct source integrators at their declaration boundaries; do not normalize failed generated HTML into a new ancestor.
+- Audit structural defect classes across the whole source and qualifier.
+- Use standard input for WSL-to-Windows cleanup transport and prove Windows-native profile removal.
+- Mechanically qualify and cut over before the owner receives the canonical test URL.
