@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT DEFINITION
-Updated: 2026-08-30
+Updated: 2026-08-31
 
 ## 1. Product principle
 Market Navigator is an evidence-backed market research environment.
@@ -86,15 +86,18 @@ Data Catalog defines canonical series. Operational Manifest is runtime state. Sm
 **Status: APPROVED / ACCEPTED.** Approved POC: `market-view-ux-gate3-p2.html`, commit `cfba7320e42028f09f2967304cb0c0dd0cc2988d`. Gate 4 decisions supersede its two-row ribbon and direct V2 navigation details.
 
 ## 21. Gate 4 — complete application build
-**Status: ACTIVE — R3 SUCCESSOR REQUIRED.**
+**Status: ACTIVE — R4 SUCCESSOR REQUIRED.**
 
-Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e` and inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009` are graveyarded and are not patch-forward baselines.
+Rejected `market-view-gate4.html` commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`, inert `market-view-gate4-r2.html` commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`, and rejected standalone-rewrite R3 candidate `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb` are graveyarded and are not patch-forward baselines.
 
 ### Governed lineage
-**Market Navigator 3.9.7 `market-view.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + Devstream provider-validation pattern.** R3 must preserve/reconcile the 3.9.7 application capabilities rather than become another standalone POC rewrite.
+**Exact restored Market Navigator 3.9.7 `market-view-gate4-r3.html` runtime/application + approved Gate 3 P2 interaction model + three-row ribbon/footer contract + canonical backend evidence + Devstream provider-validation pattern.** The R4 successor must modify the restored 3.9.7 application in place. It may not replace it with a compact rewrite, parallel POC shell, or second chart engine.
+
+### Baseline preservation rule
+Before Gate 4 additions, preserve the 3.9.7 runtime behaviors unless this plan explicitly supersedes them: routing/history behavior, cleaned-observation model, chart rendering/inspection foundations, responsive frame, accessibility/keyboard behavior, export, persistence/cache behavior, and application error/status behavior. Each intentional replacement must be traceable to a Gate 4 contract item.
 
 ### Nothing else is gated
-R3 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
+R4 includes operational Library, AI POV, AI chat/composer, CONFIG/provider validation/model switching, Health/Explore, canonical evidence integration, Statistics/correlation, Print and Download.
 
 ### Mandatory acceptance
 - V1 RSK/GRW/MAC all horizons; V1 legend drills to V2
@@ -119,9 +122,12 @@ A Gate 4 release is **not testable and must not be handed to the owner** until a
 2. Run an application boot smoke check proving initialization reaches the first render without an uncaught exception. A boot failure blocks publication.
 3. Confirm the artifact is reachable at its intended GitHub Pages URL and that its release identity matches the candidate under test.
 4. Run structural checks for the three-row ribbon, seven horizons, RSK/GRW/MAC V1 identities, V2 index+component contract, Add Series taxonomy, Library, Health, Config and AI composer/provider controls.
-5. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, or previous release.
+5. Run **baseline parity checks against the restored 3.9.7 artifact** for routing/back behavior, existing application frame, cleaned-observation model, chart/export entry points, keyboard/accessibility hooks and responsive behavior. Absence of a preserved baseline capability blocks publication unless the master plan explicitly replaces it.
+6. Run **journey/state-transition checks** for V1 → V2 → About → Analysis, Add Series additive analysis, Analysis → Library save → restore, and context/horizon changes clearing inspection state.
+7. Run **visual contract checks at mobile and desktop viewport sizes** proving the chart surface is not displaced by QA/debug material, the ribbon does not overflow, legends do not wrap into chart geometry, and axes remain visible.
+8. Record validation against the exact candidate commit. Do not infer validation from an ancestor, donor, previous release, or string-presence proxy.
 
-R2's inert handoff is explicitly a release-process failure. The successor must be parser-validated before a test URL is issued.
+R2's inert handoff and R3's superficially validated rewrite are both release-process failures. Syntax/boot success is necessary but not sufficient; parity and journey behavior now block release.
 
 ## 22. Rejected approaches
-See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed the mandatory release validation gate.
+See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, baseline-parity, journey and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation.
