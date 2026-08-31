@@ -1,4 +1,4 @@
-name: Fix Gate 4 R4 checkout
+name: Fix Gate 4 R4 overlay
 on:
   push:
     branches: [main]
@@ -14,9 +14,17 @@ jobs:
           fetch-depth: 1
       - run: |
           set -euo pipefail
-          sed -i 's/fetch-depth: 0/fetch-depth: 1/' .github/workflows/market-navigator-gate4-r4-build.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-gate4-r4-overlay.js')
+          s=p.read_text()
+          old="bootGate4();\n})();"
+          new="const legacyRenderAllG4=renderAll;\nrenderAll=function(){if(G4.ready){renderGate4();return}return legacyRenderAllG4()};\nsetTimeout(()=>{if(G4.ready)renderGate4()},450);\nbootGate4();\n})();"
+          if old not in s: raise SystemExit('overlay insertion point not found')
+          p.write_text(s.replace(old,new,1))
+          PY
           git config user.name market-navigator-r4-bot
           git config user.email market-navigator-r4-bot@users.noreply.github.com
-          git add .github/workflows/market-navigator-gate4-r4-build.yml
-          git commit -m 'build: use shallow checkout for Gate 4 R4 validation'
+          git add market-gate4-r4-overlay.js
+          git commit -m 'market: keep Gate 4 render authoritative after legacy startup'
           git push origin HEAD:main
