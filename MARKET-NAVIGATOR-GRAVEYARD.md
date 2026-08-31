@@ -80,3 +80,46 @@ R3 satisfied parser, boot and superficial structural checks but violated the gov
 - Reconcile approved Gate 3 P2 interaction patterns into the preserved runtime rather than replacing the runtime with a POC shell.
 - Add release gates for baseline capability parity, visual/application-frame integrity and state-transition behavior in addition to syntax/boot/structural checks.
 - No R3 code is a patch-forward baseline.
+
+## G4-R4 — Rejected technically-passing but product-invalid release
+
+**Rejected implementation:** `market-view-gate4-r4.html`, candidate commit `12450364b8298b9f7d1d96837c61654197e793f7`.
+
+**Rollback action:** active R4 artifact and its validation record were removed from `main`. R4 is historical evidence only and is not a patch-forward baseline.
+
+### Why it was rejected
+R4 passed the automated release workflow but the workflow was still validating the wrong things. It proved that the artifact booted, contained expected navigation/state markers, could complete scripted journeys, and met coarse geometry rules. It did not prove that the application was analytically useful, that operational data was current, that AI/provider behavior matched the approved donor, or that the visible interaction contract actually worked for the owner.
+
+### Owner-observed failures
+- Hamburger/rail collapse did not work. This alone invalidates baseline parity.
+- AI provider/model discovery diverged from the approved donor. Approximation of `devstream-test.html` is rejected; the donor behavior must be reused exactly.
+- AI POV could be useless or misleading because it analyzed incomplete/stale evidence rather than diagnosing the evidence first.
+- AI generation could spin and then disappear with no reply or deterministic failure state.
+- Market chart was not acceptable as an analytical surface.
+- Risk V2 was visually chaotic and analytically poor.
+- Growth V2 was visually degraded; AI attempted to broaden the context beyond the governed index/component scope rather than first interpreting the active index evidence.
+- Macro was unusable.
+- Health was effectively absent as an operational diagnostic surface, leaving no way to distinguish source lag, collection failure, stale evidence or missing observations.
+- CPI stopped at June even though July was available. This exposed the missing cadence/publication-lag/freshness contract in the canonical evidence path.
+- Explore and Add Series used different discovery mechanisms for the same conceptual operation, increasing inconsistency and maintenance cost.
+
+### Root causes
+- Release validation emphasized structural presence and scripted path completion over product usefulness and data truth.
+- Data health was treated as a UI surface rather than a prerequisite envelope around every analytical series.
+- The canonical backend did not expose enough deterministic cadence/publication metadata to distinguish expected lag from stale/failed collection.
+- The chart engine accepted sparse and mixed-frequency evidence into normalized comparisons without sufficient quality gating or degradation signaling.
+- AI POV consumed chart evidence before validating its completeness/currentness.
+- Provider/model configuration was reimplemented instead of using the exact approved donor behavior.
+- Explore and Add Series were implemented separately instead of sharing one series-discovery component.
+
+### Recovery / solve
+- Do not patch R4, its generated HTML, its overlay code, or its workflows.
+- Start R5 again from the exact restored 3.9.7 `market-view-gate4-r3.html` baseline.
+- Use `devstream-test.html` as an exact provider/model configuration donor; no substitute UX or discovery logic.
+- Make cadence/freshness metadata a backend contract before chart/AI interpretation: frequency, publication lag/expected availability, latest observation, last successful collection, expected next update, horizon coverage, and deterministic health classification.
+- Make Health a first-class working diagnostic surface backed by that metadata.
+- Make AI POV perform an evidence-health preflight and refuse/narrow unsupported inference instead of summarizing stale or incomplete input.
+- Make AI request lifecycle visible and failure deterministic; no silent disappearance.
+- Use one shared series-discovery mechanism for Explore and Add Series.
+- Add release gates for real rail collapse behavior, exact donor parity, representative data currentness (including CPI), Health usability, degraded-evidence AI behavior, and visual/analytical usefulness of Market/Risk/Growth/Macro charts.
+- Automated PASS is not acceptance if it does not test the actual owner-visible contract.
