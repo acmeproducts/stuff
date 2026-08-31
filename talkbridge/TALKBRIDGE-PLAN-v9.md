@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.10.0 -->
-# TALKBRIDGE MASTER PLAN v20.10.0
+<!-- TALKBRIDGE-PLAN v20.11.0 -->
+# TALKBRIDGE MASTER PLAN v20.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -247,8 +247,10 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.10.0): §4.12 (R10-CR2) IS THE SOLE R10 REPLACEMENT
-PROPOSAL; OWNER GO IS REQUIRED BEFORE BUILD.** §4.11 (R10-CR1) is retained
+**ACTIVE AUTHORITY (v20.11.0): §4.13 (R10-CR3) IS THE SOLE R10 REPLACEMENT
+PROPOSAL; OWNER GO IS REQUIRED BEFORE BUILD.** §4.12's pair `0422654` was
+rejected at the owner device gate (graveyard G23; root cause §10); its G21
+and G22 corrections were PROVEN live on that run and are inherited. §4.11 (R10-CR1) is retained
 as the design authority §4.12 inherits; its pair `339eb40` was rejected at the
 owner device gate (graveyard G21, G22; root cause §9). Sections 4.1–4.4 and 4.6 are historical
 lineage. Sections 4.7, 4.8, 4.9, and 4.10 describe rejected releases and are
@@ -477,6 +479,42 @@ pair and restores all three frozen R10.2/v4.2 product files. The failed
 candidate is preserved as evidence, the graveyard and whole-release root cause
 are completed, and a new plan/GO cycle is required. There is no patch-forward,
 partial acceptance, secret-configuration detour, or same-candidate retry.
+
+### 4.13 · R10-CR3 — CLEAN REPLACEMENT, THIRD ATTEMPT (OWNER GO REQUIRED)
+
+**Status: PLAN COMPLETE; IMPLEMENTATION BLOCKED PENDING EXPLICIT OWNER GO.**
+R10-CR3 is a new clean assembly from the exact frozen R10.2/v4.2 bytes. It
+inherits §4.12 whole — which itself inherits §4.11 — including the two
+corrections proven live at the last device gate (lane on room leave; the
+announced-window tap). It adds exactly the one correction the §10 root cause
+binds. Graveyard G21, G22, G23 are mandatory vetoes.
+
+#### 4.13.1 · Frozen input, exact output, scope wall
+
+Identical to §4.12.1 with `r10-cr2` renamed `r10-cr3` in every build path.
+
+#### 4.13.2 · Attendance, not visibility (G23)
+
+A device is "watching" only while visible AND focused. The truth the app
+tells the relay — on every lane open, every heartbeat, every state word — is
+this attended truth. Window blur flips it off and announces at once; window
+focus or a visibility return flips it on and runs the one recovery. While
+unattended: no seen word is sent for anything, the ring stays deferred, and
+the projection is applied silently. The relay is unchanged: it already
+decides `os_requested` for a device that is not watching; the app simply
+stops lying to it. Machine gates (each with a planted defect): blur with the
+visibility flag stuck "visible" → chat → push raised, record `os_requested`,
+no seen word, no read acknowledgement of the projection; focus return in the
+routed room → exactly one explicit open; blur then focus within two seconds →
+no push storm, one state word each way.
+
+#### 4.13.3 · Gates and device matrix
+
+All §4.12.4 machine and live gates plus §4.13.2. Owner device gate: the
+§4.11.6 twelve rows, both directions, with the §4.12.4 Android additions,
+plus one iPhone addition recorded on the sheet: rows 2/3 are run by leaving
+the app with the screen ON (app switcher / another app) as well as by
+locking, since the failed state was a running, blurred page.
 
 ### 4.12 · R10-CR2 — CLEAN REPLACEMENT, SECOND ATTEMPT (OWNER GO REQUIRED)
 
@@ -1675,6 +1713,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.11.0 · 2026-08-31.** R10-CR2 pair `0422654` rejected at the owner device
+gate: iPhone kept running after blur/lock with the visibility flag stuck
+"visible", so the relay was told "watching" and unfocused/locked chats were
+never pushed and were acknowledged unseen (G23, root cause §10). G21/G22
+proven live on the same run. Pair rolled back; cycle
+`r10-recovery-2026-08-31b`; §4.13 defines R10-CR3: attendance = visible AND
+focused, announced on blur, with no seen words while unattended.
 
 **v20.10.0 · 2026-08-31.** R10-CR1 pair `339eb40` rejected at the owner device
 gate: Android row 6 (laneless interval after room leave, G21) and rows 7/8
