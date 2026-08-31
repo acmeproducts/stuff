@@ -1,147 +1,86 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** ACTIVE CLEAN REBUILD — BASE-26  
-**Date:** 2026-08-30
+**Status:** ACTIVE CLEAN REBUILD — BASE-27  
+**Date:** 2026-08-31
 
 ## Recovery anchor
 
 - Frozen UI source: accepted `SOT-turn01-pre-base.html` at commit `7a377c27e1ac078510b9d1e4fe66da4f997f25f3`.
 - Frozen backend source: accepted pre-base `sot-api.js` at commit `9422453c180f8fce4e7d5fe362867912dc8005d1`, schema 4.
 - Clean Base-22 UI integration source: `integrate-SOT-turn01-base22-ui.py` at commit `603e8a331b13b72a097e9ebb9640e33707279777`.
+- Clean Base-24 behavior integration source: `integrate-SOT-turn01-base24-ui.py` at commit `083aa1334208b1e6995fa18852e82722a815f331`.
+- Operational AI donor: `devstream-test.html`.
 - Canonical target remains `SOT-turn01-base.html`.
-- Base-23, Base-24 and Base-25 are failed evidence only. No generated HTML from those candidates may be used as an implementation input.
+- Base-23 through Base-26 are failed evidence. No generated HTML from those candidates may be used as implementation input.
 
-## Failure history relevant to Base-26
+## Failure history governing Base-27
 
-### Base-23
+- **Base-23 / GY-010:** full `renderIndex` replacement deleted protected duplicate findings.
+- **Base-24 / GY-011:** passive AI key fields did not reproduce operational donor behavior or supervisor priming.
+- **Base-25 / GY-012:** installer declared qualification although the owner-facing browser hit a JavaScript syntax/boot failure. This established the permanent exact-generated and exact-public parse + browser-boot floor.
+- **Base-26 / GY-013:** qualification correctly stopped before cutover, but for the wrong reason. A broad whole-document token lint rejected inherited optional-chaining text (`?.`) before the real parser/browser gates could evaluate the exact artifact. This is a qualifier-design defect, not an application/storage failure.
 
-Base-23 failed qualification because its full `renderIndex` replacement deleted protected completed-state duplicate findings. Recorded in `GY-010`.
+Base-26 failure evidence:
 
-### Base-24
+- `SOT/archive/2026-08-31-0017-turn01-base26-qualification-failure/ARCHIVE-MANIFEST.md`
+- `SOT/archive/2026-08-31-0017-turn01-base26-qualification-failure/GY-013.md`
 
-Base-24 restored the duplicate findings behavior but failed owner testing because AI configuration did not reproduce the operational donor pattern or mandatory supervisor priming. Recorded in `GY-011`.
+## Base-27 contract
 
-### Base-25
+Base-27 is regenerated from accepted pre-base -> clean Base-22 -> clean Base-24 behavior, then a newly authored Base-27 AI/boot delta. It does **not** consume Base-25 or Base-26 generated HTML.
 
-Base-25 added operational Venice/OpenRouter configuration and supervisor/evidence request ordering. Its installer reported `NODE_UI ok` and full mechanical qualification, but the owner-facing browser then produced a JavaScript syntax error.
+### Retained product behavior
 
-That is a mechanical qualification failure, not an owner-testing burden. It is recorded in:
+1. **Index** — active `Queued/WIP/Paused` refresh is silent; completed Index does not poll-rerender; 2-copy, 3-copy, 4+ duplicate summaries and drilldown remain; Re-index remains available.
+2. **Plan** — Current Plan vs Previous/Stale Plan remains explicit; successful generation immediately shows current plan; missing evidence remains persistent with `Re-index now`; persisted valid evidence remains usable despite transient Source unavailability.
+3. **Canonical storage selector** — one role-driven selector for Source/Target/Backup/defaults; move semantics; local Available search only; Available and Selected independently scroll; Save/Use in outer modal footer; no implicit storage rescan on selection/save.
+4. **Operational AI** — Venice/OpenRouter browser-local credentials, model discovery, explicit model selection, real Validate call before activation, persisted provider/model/validation state, visible active/error state, and no key persistence to SOT backend/GitHub/logs/project metadata/plan data.
+5. **Supervisor priming** — every inference request order remains: `supervisor/system prompt -> exact SOT/project/evidence context -> conversation/history -> operator request`.
+6. **Inference activation** — Insights refuses inference when no validated provider is active and directs the operator to Configuration.
 
-- `SOT/archive/2026-08-30-2348-turn01-base25-owner-rejection-js-syntax/ARCHIVE-MANIFEST.md`
-- `SOT/archive/2026-08-30-2348-turn01-base25-owner-rejection-js-syntax/GY-012.md`
+## Base-27 qualification correction
 
-The old syntax gate is formally declared insufficient because it validated an intermediate extraction rather than proving that the exact public artifact loaded and booted without parser/runtime initialization failure.
+The whole-document compatibility-token rejection used by Base-26 is prohibited. Complete-artifact compatibility is determined by executable parser/browser gates, not grep-like token presence.
 
-## Base-26 contract
+If a compatibility-style lint is used for newly authored Base-27 code, it may inspect only the new Base-27 injected delta. It must not reject preserved ancestor code.
 
-Base-26 is a clean regeneration from the accepted pre-base -> clean Base-22 integration lineage. It must reintroduce the Base-24 accepted UX corrections and the Base-25 AI contract without using Base-24/Base-25 generated HTML as a source.
+## Permanent release-quality floor
 
-### 1. Index behavior retained
+No SOT candidate is mechanically qualified until the following are proven against the exact artifact under test:
 
-- `Queued` / `WIP` / `Paused`: refresh silently without replacing the surface with a Loading placeholder.
-- `Closed`: periodic polling does not rerender the Index surface.
-- `Closed`: retain 2-copy, 3-copy and 4+ duplicate summaries plus expandable drill-down.
-- Re-index remains available after completion.
-
-### 2. Plan behavior retained
-
-- Clearly separate **Current Plan** from **Previous / Stale Plan**.
-- Successful generation displays Current Plan immediately.
-- Missing current fingerprint evidence is a persistent inline state with direct **Re-index now** recovery.
-- Valid persisted evidence remains sufficient for planning even if Source storage is transiently offline.
-
-### 3. Canonical selector behavior retained
-
-One role-driven selector remains authoritative for Source, Target, Backup, Default Target and Default Backup.
-
-- Available ↔ Selected move semantics.
-- Available Folders client-side search over cached listing only.
-- Available and Selected independently scroll.
-- Save/Use action lives beside Cancel in the outer modal footer.
-- Selection/save performs no implicit storage rescan.
-
-### 4. Operational AI provider configuration
-
-Configuration must reuse the proven `devstream-test.html` interaction/request pattern.
-
-For Venice and OpenRouter:
-
-- credentials remain browser-local only;
-- model discovery/load is operational;
-- user selects a model;
-- **Validate** performs a real provider/model request before activation;
-- validated provider/model/validation state persist browser-locally;
-- UI distinguishes unconfigured / configured-not-validated / active / validation-error;
-- active provider/model can be changed without SOT database mutation;
-- no API key is sent to the SOT backend, GitHub, logs, project metadata or plan data.
-
-### 5. Mandatory SOT supervisor priming
-
-Every inference request must begin with a fixed SOT supervisor/system message before project evidence and before the operator request.
-
-The supervisor must establish that:
-
-1. SOT database and deterministic fingerprint/evidence records are factual authority.
-2. AI is analyst/advisor only, never filesystem, approval or execution authority.
-3. AI must not invent files, paths, hashes, capacities, volume state, duplicate groups, plan state, approvals or execution outcomes.
-4. Proposed actions remain proposals pending deterministic validation, plan compilation, approval and execution.
-5. Missing/stale/conflicting evidence must be stated explicitly.
-6. Project boundaries and cross-project implications must be preserved and surfaced.
-7. Recommendations must be explained from supplied evidence/provenance.
-
-Required request order:
-
-`supervisor/system prompt -> exact SOT/project/evidence context -> conversation/history -> operator request`
-
-A prompt present only as UI text or dead code does not satisfy the contract.
-
-### 6. Inference activation
-
-A provider is active only after successful validation for the selected provider/model. Insights must consume only the active provider/model. With no active provider, Insights must explicitly direct the operator to Configuration.
-
-## Mandatory release-quality floor — no preventable parser/boot defects may reach the owner
-
-This section is a hard governance rule for **every subsequent SOT candidate and stage**, not merely Base-26.
-
-The builder owns all preventable syntax/boot verification. Owner testing is reserved for actual owner/device judgment, not discovering parser errors that automation can detect.
-
-A candidate is **not mechanically qualified** until all of the following are proven against the exact artifact under test:
-
-1. **Declared-source proof** — verify the exact clean source lineage and generator/integrator identities before generation.
-2. **Per-script parse gate** — extract every executable inline `<script>` block from the complete generated HTML and syntax-parse each script independently. Any script parse failure blocks cutover.
-3. **Combined-script parse gate** — syntax-parse the combined executable JavaScript bundle as an additional consistency check.
-4. **Generated-artifact identity gate** — hash and record the exact candidate HTML before cutover.
-5. **Pre-cutover boot gate** — execute a real browser/DOM boot smoke test against the exact generated candidate and fail on any `SyntaxError`, uncaught exception, rejected initialization promise, or missing application-root render.
-6. **Cutover only after gates 1-5 pass.**
-7. **Exact public read-back** — fetch the canonical public URL after cutover and verify release marker/hash/identity against the intended candidate.
-8. **Public per-script parse gate** — re-extract every executable script from the publicly fetched HTML and syntax-parse those exact bytes independently.
-9. **Public combined-script parse gate** — syntax-parse the combined script payload from the public read-back.
-10. **Public browser boot gate** — load the exact canonical public URL in an automated browser/DOM harness and fail on any JavaScript syntax error, uncaught exception, initialization abort, missing application root, or critical console error.
-11. **No silent waiver** — if the environment cannot execute the browser boot gate, qualification is BLOCKED. The builder must add/repair the harness; the owner is not used as the parser/boot harness.
-12. **Success marker last** — `MECHANICALLY QUALIFIED` and a test URL may be emitted only after all public-artifact gates pass.
-13. **Failure means archive/rebuild** — any failure is archived before correction and the next candidate is rebuilt from the governed clean lineage; the failed generated artifact is not patched forward.
-
-A static marker check, a successful HTTP 200, or `node --check` against one intermediate extraction is explicitly insufficient evidence of a testable release.
+1. declared clean source and integrator identities recorded;
+2. exact generated HTML hashed;
+3. every executable inline script from exact generated HTML parsed independently;
+4. combined generated script payload parsed;
+5. exact generated candidate served pre-cutover and loaded in real Chrome/Edge headless browser;
+6. browser boot must show application sentinel/root and zero syntax errors, uncaught initialization errors or rejected initialization promises;
+7. cutover occurs only after generated-artifact gates pass;
+8. canonical public URL fetched after cutover and SHA-256 must equal candidate SHA-256;
+9. every public-readback executable script parsed independently;
+10. combined public-readback scripts parsed;
+11. canonical public URL browser-booted with the same zero-error/root-render requirements;
+12. if browser harness is unavailable, qualification is BLOCKED — owner testing is not a parser harness;
+13. `MECHANICALLY QUALIFIED` and test URL print only after all public gates pass;
+14. any failure is archived before correction and the next candidate is rebuilt from governed clean lineage.
 
 ## Protected architecture
 
-Base-26 must retain:
+Base-27 must retain:
 
-- one shared storage authority and catalog/cache;
+- one shared storage authority/catalog/cache;
 - Source/Target/Backup/default selector normalization;
-- project creation with Source + Target and default Target/Backup inheritance;
+- configured project creation with Source + Target and inherited default Target/Backup;
 - no manual Preflight UI;
-- assignment-time validity;
-- Windows-native inventory/capacity/browse with stdin PowerShell transport;
-- schema 4 and all existing project data;
-- duplicate cardinality endpoint and drill-down;
+- assignment-time validity and operation-boundary revalidation;
+- Windows-native dynamic inventory/capacity/browse behavior;
+- schema 4 and existing project data;
+- duplicate cardinality endpoint/drilldown;
 - evidence-only planning independence;
-- rollback-before-cutover discipline.
+- rollback-before-cutover discipline;
+- current backend build `2026.08.30.sot-turn01-base-22` unchanged during this UI candidate.
 
-## Mandatory Base-26 named gates
-
-In addition to all protected Base-22/Base-24/Base-25 behavior gates, qualification must include at minimum:
+## Mandatory Base-27 named gates
 
 - `INDEX_ACTIVE_REFRESH_NO_LOADING_FLASH`
 - `INDEX_COMPLETED_NO_POLL_RERENDER`
@@ -171,6 +110,7 @@ In addition to all protected Base-22/Base-24/Base-25 behavior gates, qualificati
 - `JS_GENERATED_PER_SCRIPT_PARSE`
 - `JS_GENERATED_COMBINED_PARSE`
 - `JS_GENERATED_BROWSER_BOOT`
+- `GENERATED_APP_ROOT_RENDERED`
 - `PUBLIC_ARTIFACT_IDENTITY`
 - `JS_PUBLIC_PER_SCRIPT_PARSE`
 - `JS_PUBLIC_COMBINED_PARSE`
@@ -179,19 +119,19 @@ In addition to all protected Base-22/Base-24/Base-25 behavior gates, qualificati
 - `PUBLIC_ZERO_SYNTAX_ERRORS`
 - `PUBLIC_ZERO_UNCAUGHT_BOOT_ERRORS`
 
-No planned gate may collapse to generic `UNHANDLED` only.
+No named gate may collapse to a generic unchecked marker.
 
 ## Owner gate
 
-Only after all mechanical gates above pass, owner verifies:
+Only after Base-27 mechanical qualification, owner verifies:
 
-1. completed Index remains stable and retains expandable duplicate findings;
-2. Plan current/stale/re-index behavior remains correct;
-3. Available/Selected scroll, local search and footer Save remain correct;
-4. Venice key -> model load -> select -> Validate produces visible active provider/model state;
-5. OpenRouter key -> model load -> select -> Validate produces visible active provider/model state;
+1. completed Index remains stable and duplicate findings/drilldown are intact;
+2. Plan current/stale/re-index behavior is correct;
+3. Available/Selected scroll, local search and footer Save are correct;
+4. Venice key -> model load -> select -> Validate -> visible active state;
+5. OpenRouter key -> model load -> select -> Validate -> visible active state;
 6. invalid credentials/model remain inactive with explicit error;
-7. Insights refuses inference without an active provider and directs to Configuration;
-8. active-provider inference is visibly useful and grounded in current SOT evidence under supervisor guardrails.
+7. Insights refuses inference without active provider and directs to Configuration;
+8. active-provider inference is useful, grounded in current SOT evidence, and constrained by supervisor guardrails.
 
 Base remains the current stage until all eight owner checks pass.
