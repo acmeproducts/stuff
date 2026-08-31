@@ -1,71 +1,133 @@
-<!-- PRISM-PLAN v2.2.0 -->
-# PRISM MASTER PLAN v2.2.0
+<!-- PRISM-PLAN v2.3.0 -->
+# PRISM MASTER PLAN v2.3.0
 
-## Governing correction
-The prior Turn 02 rebuilds are **not** the rollback baseline. They were synthesized replacements and therefore violated the rollback process.
+## Governing baseline
+The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
 
-The active recovery baseline is the **existing repository artifact exactly as previously published**:
+**ACTIVE BASELINE — DO NOT RECONSTRUCT OR SUBSTITUTE**
+- Artifact: `prism/prism-turn01-pre-ship.html`
+- Baseline URL: `https://acmeproducts.github.io/stuff/prism/prism-turn01-pre-ship.html?v=7988e0f397152afc06f3ae57009682c31fb2fd86`
+- Current file identity: title `PRISM · Turn 01 pre-ship.3`
+- Status: **ACTIVE FORWARD BASELINE**
 
-- **Artifact:** `prism/prism-turn01-pre-ship-r3.html`
-- **Original application commit:** `807656e7e14c4b8503b3b7c88b83271967f64692`
-- **Status:** **EXACT ROLLBACK BASELINE — DO NOT RECONSTRUCT OR SUBSTITUTE**
+The file at this artifact path is the product starting point. Forward work modifies/forks from this exact application; no synthesized replacement baseline is permitted.
 
-No new HTML is created to represent this rollback. Future work starts from that exact repository version.
+## Preserve unchanged
+The following are explicitly preserved unless the owner later changes scope:
+- **Explore stays exactly as it is for this gate.** No Explore redesign, geometry change, sphere replacement, or visualization experimentation.
+- **Config stays where it is.** Do not relocate or redesign the configuration entry/surface in this gate.
+- **AI stays where it is.** Do not relocate or redesign the AI POV entry/surface in this gate.
+- Existing Map, Feed, search, event reader, source handling, AI/provider behavior, selection semantics, and other working baseline behavior must not be removed while changing layout/filter/library behavior.
 
-## Why R3 is the recovery baseline
-R3 is the version that preserves the integrated product functionality that had already been established together:
-- one global analytical ribbon;
-- Group / Color / Size dimensions;
-- dimension-derived filters;
-- Source as an analytical dimension;
-- Map;
-- Explore, even though its sphere/card-cloud visualization is known to be unacceptable;
-- Feed;
-- collapsible left rail;
-- collapsible right context panel;
-- source inventory/configuration and custom-source management;
-- multi-select AI evidence and deselection;
-- AI POV;
-- Venice / OpenRouter / Anthropic configuration and exact-model validation;
-- Markdown AI rendering with safe external links;
-- durable Analysis Library with save, reopen, continue, delete, export and import.
+## ACTIVE WORKSTREAM 1 — Portal shell
+Introduce the classic PRISM portal shell around the existing application without changing Config or AI placement.
 
-The known Explore defect does **not** invalidate those integrated subsystems. It is the subsystem to replace from this baseline, not a reason to replace the application.
+Required behavior:
+- left navigation rail;
+- rail collapses and expands from a persistent control;
+- central work surface resizes when the rail changes state;
+- existing primary surfaces remain reachable: Explore, Map, Feed, Library;
+- desktop/tablet layout must not underlap the work surface;
+- shell state changes must not reset search, dimensions, filters, selection, AI evidence, or current view;
+- the portal work is a shell/layout change only, not a reason to rewrite working feature implementations.
 
-## Rollback law
-A rollback means selecting an **existing, identified repository artifact/commit** and restoring that as the working baseline. It does not mean synthesizing a new approximation of that version.
+## ACTIVE WORKSTREAM 2 — Analysis → Library
+Activate the existing analysis/library path so an AI result can become a durable Library object.
 
-Therefore:
-1. `prism-turn02-pre-base.html` is not a product baseline and must not be used as the source for forward development.
-2. R4 and R5 remain rejected descendants.
-3. R3 remains intact and is the sole recovery baseline.
-4. Any future Explore replacement must fork conceptually and technically from the exact R3 application while preserving all non-Explore functionality unless the owner explicitly rejects a specific subsystem.
-5. No established feature may be removed merely to simplify visualization development.
+Required behavior:
+- a completed AI POV result exposes **Add to Library** / **Save Analysis** as an active action;
+- saving persists the exact analysis, including selected-event evidence/provenance, provider/model, prompt, response Markdown, timestamps, and source references;
+- saving must not store API keys;
+- saved analyses appear immediately in Library without reload;
+- Library can open the saved analysis as a complete research object, not a title-only placeholder;
+- duplicate saves of the same active analysis must update/continue that analysis rather than silently create uncontrolled duplicates;
+- existing import/export behavior remains compatible with saved Analysis objects.
 
-## Next governed step
-The next release is a new descendant of the exact R3 baseline. Its scope is **Explore replacement only**, plus any explicitly requested filter/visual-encoding corrections. It must preserve R3 Sources, dimensions, filters, AI POV, provider/model configuration, Analysis Library, Map, Feed, selection state, and shell behavior.
+## ACTIVE WORKSTREAM 3 — Dimension / filter system
+The analytical controls must become internally consistent and dynamic.
 
-Before implementation, the replacement Explore contract must be written against the R3 application and must not reuse the rejected R3/R4/R5 visualization architectures.
+### Core law
+**Every selectable dimension has one corresponding filter, and only currently selected dimensions appear as filters.**
 
-## Standing product laws
-1. One information state, multiple views.
-2. One global analytical control system.
-3. Event → Coverage → Source Article is canonical.
-4. Cache first; no normal-startup publisher fan-out.
-5. Reader never underlaps desktop analytical surfaces.
-6. Every selected dimension has a corresponding filter; the filter tray is derived only from active dimensions.
-7. Color filter chips serve as the visual legend; no redundant inert legend.
-8. Source analytical filtering is distinct from Source acquisition/configuration.
-9. AI POV is contextual research using selected evidence; provider/model must be verified.
-10. Library is a durable continuable research workspace.
-11. Rollbacks use exact repository artifacts, never synthesized substitutes.
+The visible filter set is the deduplicated union of the active analytical dimension roles (currently Group, Color, Size; future roles follow the same law).
 
-## Ledger
-- 01·pre-base: passed foundation.
-- 01·base: rejected UI architecture.
-- 01·pre-ship R1: superseded.
-- 01·pre-ship R2: historical recovery reference.
-- **01·pre-ship R3 @ `807656e7e14c4b8503b3b7c88b83271967f64692`: ACTIVE EXACT ROLLBACK BASELINE.**
-- 01·pre-ship R4: rejected Explore descendant.
-- 01·pre-ship R5: rejected Explore descendant.
-- Turn 02 synthesized pre-base attempts: rejected as rollback-process violations; not forward baselines.
+If a dimension leaves all active roles, its filter disappears and its filter state is cleared so there is no invisible filtering.
+
+### Dimension eligibility
+A field may be offered as a dimension only if it has explicit bucket/value semantics that can also be rendered as filter chips.
+
+Current governed dimensions include:
+- Subject
+- Region
+- Sentiment
+- Tier
+- Source
+- Corroboration
+- Importance
+- Recency
+
+### Required bucketing
+Dimensions that are not naturally discrete must be bucketed before they can function coherently as both dimensions and filters.
+
+**Importance**
+- Critical: 80–100
+- High: 60–79
+- Medium: 40–59
+- Low: 0–39
+
+**Tier**
+Use the actual tier values supported by the canonical event data. Where present, expose the governed buckets consistently (for example Breaking / Major / Significant / Developing). Do not invent a tier value for events that do not have one.
+
+**Corroboration**
+- 1 source
+- 2 sources
+- 3 sources
+- 4+ sources
+
+**Recency**
+Use stable age buckets inside the selected global time window rather than a raw continuous slider. Bucket labels must remain understandable as the 24h / 3d / 7d window changes.
+
+### Filter chips are the legend
+There is **no separate inert legend**.
+
+Every dimension value is represented by a chip. Chips have two simultaneous jobs:
+1. show the visual encoding/color for that value when the dimension is being used for Color;
+2. act as the toggle filter for that value.
+
+Rules:
+- when Color=Sentiment, Positive / Neutral / Negative filter chips carry the exact colors used in Map/Explore/Feed;
+- when Color=Tier, Tier chips carry the exact tier colors;
+- when Color=Subject, Subject chips carry the exact subject colors;
+- the same rule applies to Region, Source, Corroboration, Importance, Recency, or any future color-capable dimension;
+- no second row of legend-only chips may duplicate those filter chips;
+- chip state must clearly distinguish included/excluded values while retaining the color cue;
+- if the same dimension is selected in multiple roles, it still renders only one filter-chip set.
+
+### Dynamic alignment examples
+- Group=Subject + Color=Sentiment + Size=Importance → filters: Subject + Sentiment + Importance.
+- Group=Tier + Color=Sentiment + Size=Importance → filters: Tier + Sentiment + Importance.
+- Group=Source + Color=Tier + Size=Corroboration → filters: Source + Tier + Corroboration.
+- Group=Subject + Color=Subject + Size=Importance → one Subject filter set + one Importance filter set.
+- Change Group from Source to Region → Source filter disappears and clears; Region filter appears.
+
+## This gate is explicitly NOT an Explore redesign
+The immediate objective is to get the **portal layout**, **Analysis → Library**, and **dimension/filter model** correct while preserving the current Explore implementation exactly enough to avoid another visualization tangent.
+
+Do not change Explore merely because the new dimensions/filters affect the data it receives. Its rendering code is frozen for this gate except for the minimum wiring required to consume the corrected shared state without visual redesign.
+
+## Acceptance gate
+The next candidate is acceptable only if all of the following are true:
+1. it starts from `prism/prism-turn01-pre-ship.html` baseline, not another artifact;
+2. left portal rail collapses/expands and the central surface resizes correctly;
+3. Config remains in its current product location/flow;
+4. AI remains in its current product location/flow;
+5. a completed AI analysis can be saved into Library and reopened as a complete analysis;
+6. every active dimension has exactly one corresponding filter;
+7. no inactive dimension has a visible or hidden active filter;
+8. Importance, Corroboration, Recency, and Tier use governed bucket/value semantics suitable for dimensions and filters;
+9. filter chips are colored and serve as the legend; there is no redundant legend chip system;
+10. Map, Feed, Sources, AI/provider configuration, event reader, selection, and Library do not regress;
+11. Explore remains visually/interaction-wise the current baseline implementation for this gate.
+
+## Standing process law
+Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must point to that artifact until the owner explicitly changes it.
