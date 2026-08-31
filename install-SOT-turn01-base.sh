@@ -54,7 +54,7 @@ remove_windows_profile(){
   local profile
   profile="$1"
   [ -n "$profile" ] || return 0
-  printf '%s' "$profile" | powershell.exe -NoProfile -NonInteractive -Command '
+  printf '%s' "$profile" | "$POWERSHELL" -NoProfile -NonInteractive -Command '
     $p=[Console]::In.ReadToEnd()
     if([string]::IsNullOrWhiteSpace($p)){exit 2}
     for($i=0;$i -lt 12 -and (Test-Path -LiteralPath $p);$i++){
@@ -66,8 +66,8 @@ remove_windows_profile(){
 }
 
 cleanup(){
-  local rc final_rc
-  rc=$?
+  local rc=$?
+  local final_rc
   final_rc=$rc
   set +e
   if [ -n "$WINDOWS_PROFILE_ACTIVE" ]; then
@@ -113,10 +113,23 @@ cleanup(){
 trap cleanup EXIT
 trap 'record FAIL INTERRUPTED "signal received; exit=130"; exit 130' HUP INT TERM
 
-for tool in bash curl install node powershell.exe python3 sha256sum timeout; do
+for tool in bash curl install node python3 sha256sum timeout; do
   command -v "$tool" >/dev/null 2>&1 || die REQUIRE_TOOL "$tool"
 done
 pass REQUIRE_TOOLS ok
+
+find_powershell(){
+  local found candidate
+  found="$(command -v powershell.exe 2>/dev/null || true)"
+  [ -n "$found" ] && { printf '%s\n' "$found"; return 0; }
+  for candidate in "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/PowerShell.exe" "/mnt/c/Program Files/PowerShell/7/pwsh.exe"; do
+    [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+  done
+  return 1
+}
+POWERSHELL="$(find_powershell || true)"
+[ -n "$POWERSHELL" ] || die REQUIRE_POWERSHELL 'Windows PowerShell executable not found on PATH or canonical Windows paths'
+pass REQUIRE_POWERSHELL "$POWERSHELL"
 
 bash -n "${BASH_SOURCE[0]}" || die INSTALLER_BASH_PARSE failed
 python3 - "${BASH_SOURCE[0]}" <<'PY'
@@ -131,7 +144,7 @@ for n,line in enumerate(s.splitlines(),1):
     for name in names:
         if re.search(r'\$\{?'+re.escape(name)+r'\}?',decl):
             raise SystemExit(f'nounset-unsafe local declaration at line {n}: {name}')
-required=['set -Eeuo pipefail','Join-Path $env:TEMP','[Console]::In.ReadToEnd()','JS_BROWSER_HARNESS_SELFTEST','PUBLIC_ARTIFACT_IDENTITY']
+required=['set -Eeuo pipefail','find_powershell','Join-Path $env:TEMP','[Console]::In.ReadToEnd()','JS_BROWSER_HARNESS_SELFTEST','PUBLIC_ARTIFACT_IDENTITY']
 for marker in required:
     if marker not in s: raise SystemExit('installer contract missing '+marker)
 for rejected in ['wslpath -w "$profile"','SOT_BASE32_WIN_PROFILE','base28.sh" "$RUN"']:
@@ -368,7 +381,7 @@ run_browser(){
   cleanup_rc=0
   if [[ "$BROWSER" == *.exe ]]; then
     windows=1
-    profile="$(powershell.exe -NoProfile -NonInteractive -Command '$p=Join-Path $env:TEMP ("sot-base-"+[guid]::NewGuid().ToString("N"));New-Item -ItemType Directory -Force -Path $p|Out-Null;[Console]::Out.Write($p)' 2>/dev/null | tr -d '\r\n')"
+    profile="$("$POWERSHELL" -NoProfile -NonInteractive -Command '$p=Join-Path $env:TEMP ("sot-base-"+[guid]::NewGuid().ToString("N"));New-Item -ItemType Directory -Force -Path $p|Out-Null;[Console]::Out.Write($p)' 2>/dev/null | tr -d '\r\n')"
     [ -n "$profile" ] || { echo 'Windows-native browser profile creation failed'; return 1; }
     [[ "$profile" =~ ^[A-Za-z]:\\ ]] || { echo "non-native Windows profile rejected: $profile"; return 1; }
     [[ "$profile" != \\\\* ]] || { echo "UNC browser profile rejected: $profile"; return 1; }
@@ -422,7 +435,7 @@ pass JS_GENERATED_BROWSER_BOOT true
 pass GENERATED_APP_ROOT_RENDERED true
 rm -f "$PROBE_PATH"
 
-WINDOWS_DRIVES="$(powershell.exe -NoProfile -NonInteractive -Command '$n=@(Get-PSDrive -PSProvider FileSystem|ForEach-Object{[string]$_.Name}|Where-Object{$_ -match "^[A-Za-z]$"}|Sort-Object -Unique);[Console]::Out.Write(($n -join ","))' 2>/dev/null | tr -d '\r\n')"
+WINDOWS_DRIVES="$("$POWERSHELL" -NoProfile -NonInteractive -Command '$n=@(Get-PSDrive -PSProvider FileSystem|ForEach-Object{[string]$_.Name}|Where-Object{$_ -match "^[A-Za-z]$"}|Sort-Object -Unique);[Console]::Out.Write(($n -join ","))' 2>/dev/null | tr -d '\r\n')"
 [ -n "$WINDOWS_DRIVES" ] || die WINDOWS_VOLUME_DISCOVERY empty
 printf '%s\n' "$WINDOWS_DRIVES" > "$QUAL_DIR/windows-drives.csv"
 pass WINDOWS_VOLUME_DISCOVERY "$WINDOWS_DRIVES"
