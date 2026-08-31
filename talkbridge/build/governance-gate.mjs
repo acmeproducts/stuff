@@ -163,7 +163,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   const state = readJson(root, STATE_PATH);
 
   assert(state.schema === 1, 'unsupported governance schema', errors);
-  assert(/^r10-recovery-\d{4}-\d{2}-\d{2}$/.test(String(state.cycle)), 'unexpected R10 recovery cycle', errors);
+  assert(/^r10-recovery-\d{4}-\d{2}-\d{2}[a-z]?$/.test(String(state.cycle)), 'unexpected R10 recovery cycle', errors);
 
   /* §4.11.1 / §4.11.7: once the owner GO is banked, the declared output files
      are the candidate and may diverge from the frozen bytes; every other
