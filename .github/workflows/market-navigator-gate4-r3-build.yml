@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "market-view-gate4-r3.part4.b64"
+      - ".github/workflows/market-navigator-gate4-r3-build.yml"
 
 permissions:
   contents: write
@@ -65,8 +66,19 @@ jobs:
           ]
           missing=[x for x in required if x not in h]
           if missing: raise SystemExit('Structural contract missing: '+repr(missing))
-          if 'query1.finance.yahoo.com' in h or 'fred.stlouisfed.org/series/' in h:
-              raise SystemExit('Forbidden browser-side provider reacquisition present')
+          forbidden=['query1.finance.yahoo.com','fred.stlouisfed.org/series/']
+          hits=[]
+          for token in forbidden:
+            start=0
+            while True:
+              i=h.find(token,start)
+              if i<0: break
+              hits.append((token,i,h[max(0,i-900):min(len(h),i+1200)]))
+              start=i+len(token)
+          if hits:
+            for token,i,ctx in hits:
+              print(f'FORBIDDEN {token} at {i}\n---CONTEXT---\n{ctx}\n---END CONTEXT---')
+            raise SystemExit('Forbidden browser-side provider reacquisition present')
           print('Structural contract PASS')
           PY
 
