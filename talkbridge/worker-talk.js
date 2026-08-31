@@ -378,10 +378,10 @@ export class TalkSession {
     }
     if (msg.type === 'ev-open') {
       /* Opening the room acknowledges exactly the set durably applied to this recipient. */
-      const ids = this._projection(clientId).unseen.map((u) => u.id);
-      const n = await this._markSeen(clientId, ids, 'room_open');
+      const acked = this._projection(clientId).unseen;
+      const n = await this._markSeen(clientId, acked.map((u) => u.id), 'room_open');
       const p = this._projection(clientId);
-      return { ok: true, seen: n, acked: ids, proj: p.proj, unseen: p.unseen, calls: p.calls };
+      return { ok: true, seen: n, acked, proj: p.proj, unseen: p.unseen, calls: p.calls };
     }
     if (msg.type === 'events-sync') {
       const p = this._projection(clientId);

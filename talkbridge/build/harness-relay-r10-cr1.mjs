@@ -92,7 +92,7 @@ await scenario('R1 replay-seen · hidden-in-room receiver, socket loss, reopen, 
   const h = await w.history('B'); assert.equal(h.filter((m) => m.type === 'chat-msg').length, 1, 'replay delivers the chat');
   let p = await proj(b); assert.deepEqual(p.proj, { chat: 1, voice: 0, video: 0 }, 'replay does not mark seen');
   p = await proj(b); assert.deepEqual(p.proj, { chat: 1, voice: 0, video: 0 }, 'reconciliation is idempotent');
-  const o = await b.ask({ type: 'ev-open' }); assert.deepEqual(o.proj, { chat: 0, voice: 0, video: 0 }); assert.deepEqual(o.acked, ['c1']);
+  const o = await b.ask({ type: 'ev-open' }); assert.deepEqual(o.proj, { chat: 0, voice: 0, video: 0 }); assert.deepEqual(o.acked.map((u) => u.id), ['c1']);
   p = await proj(b); assert.deepEqual(p.proj, { chat: 0, voice: 0, video: 0 });
   assert.equal(pushes.length, 1, 'reopen and replay push nothing new');
 });

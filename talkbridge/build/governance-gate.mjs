@@ -195,12 +195,23 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
 
   validateEvidence(root, state, errors);
 
+  /* §4.11.7: a machine, live, or device failure rejects the whole pair. The
+     only backward transition is the rejection restart — from candidate_ready
+     or device_gate straight to root_cause_required of a NEW cycle, with every
+     frozen product file restored (the hash rule above applies again below
+     build_authorized) and the candidate blocked. */
+  const rejectionRestart = Boolean(previousState
+    && ['candidate_ready', 'device_gate'].includes(previousState.stage)
+    && state.stage === 'root_cause_required'
+    && state.candidate?.status === 'blocked'
+    && state.owner_authorization?.status !== 'authorized');
   if (previousState) {
     const previousIndex = stageIndex(previousState, previousState.stage);
     const currentIndex = stageIndex(state, state.stage);
-    assert(currentIndex === previousIndex || currentIndex === previousIndex + 1, `illegal stage transition: ${previousState.stage} -> ${state.stage}`, errors);
-    assert(state.cycle === previousState.cycle, 'cycle identity changed during an active recovery', errors);
+    assert(rejectionRestart || currentIndex === previousIndex || currentIndex === previousIndex + 1, `illegal stage transition: ${previousState.stage} -> ${state.stage}`, errors);
+    assert(rejectionRestart || state.cycle === previousState.cycle, 'cycle identity changed during an active recovery', errors);
     assert(JSON.stringify(state.baseline) === JSON.stringify(previousState.baseline), 'frozen baseline manifest changed', errors);
+    if (rejectionRestart) assert(state.cycle !== previousState.cycle, 'a rejection restart must open a new cycle', errors);
   } else if (!bootstrap) {
     assert(state.stage === 'root_cause_required', 'base state is unavailable; only root_cause_required is fail-closed', errors);
   }
@@ -210,6 +221,11 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   } else {
     const governingStage = previousState?.stage || state.stage;
     const allowed = allowedForStage(state, governingStage);
+    if (rejectionRestart) {
+      for (const rel of Object.keys(state.baseline?.files || {})) allowed.add(rel);
+      allowed.add(GRAVEYARD_PATH); allowed.add(PLAN_PATH); allowed.add(state.root_cause?.file);
+      allowed.add('talkbridge/governance/evidence/');
+    }
     for (const rel of changedFiles) {
       assert(allowedPath(allowed, rel), `file is out of order for ${governingStage}: ${rel}`, errors);
     }

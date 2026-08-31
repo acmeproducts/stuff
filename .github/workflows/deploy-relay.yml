@@ -41,7 +41,8 @@ jobs:
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
           curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
-          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='4.2'||d.obs!==undefined)throw new Error('live R10.2 rollback manifest mismatch: '+JSON.stringify(d))"
+          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='6.0'||!Array.isArray(d.events))throw new Error('live R10-CR1 relay manifest mismatch: '+JSON.stringify(d))"
+          echo "source-sha256=$(sha256sum talkbridge/worker-talk.js | cut -c1-64)" | tee -a /tmp/live-check.txt
           cat /tmp/live-check.txt
           cat /tmp/live-manifest.txt
       - name: WebSocket handshake + delivery-contract check
@@ -73,7 +74,27 @@ jobs:
             console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
             console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
             console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
-            a.close();b.close();
+            /* R10-CR1 §4.11.5 live probes against the deployed recipient-event authority */
+            const ev=(id)=>(d2&&d2.events||[]).find(e=>e.id===id);
+            a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));   /* retry: same chat again */
+            await new Promise(r=>setTimeout(r,1200));
+            a.send(JSON.stringify({type:'call-start',from:'ciA',kind:'voice',callId:'ci-k',ts:Date.now()}));
+            await new Promise(r=>setTimeout(r,800));
+            a.send(JSON.stringify({type:'call-end',from:'ciA',callId:'ci-k',ts:Date.now()}));                  /* bare hang-up, no reason word */
+            await new Promise(r=>setTimeout(r,1200));
+            let d2=await post('ciA',{type:'diag'});
+            const rec2=ev('ci-2'), reck=ev('ci-k');
+            console.log('retry-dedupe='+((rec2&&(d2.events.filter(e=>e.id==='ci-2').length===1)&&rec2.rcp.ciC&&rec2.rcp.ciC.push==='accepted')?'ok':'FAIL '+JSON.stringify(rec2)));
+            console.log('bare-hangup-missed='+((reck&&reck.ended&&reck.rcp.ciB&&reck.rcp.ciB.o==='missed'&&reck.rcp.ciC&&reck.rcp.ciC.o==='missed')?'ok':'FAIL '+JSON.stringify(reck)));
+            const sync=await post('ciB',{type:'events-sync'});
+            console.log('reconcile-projection='+((sync&&sync.proj&&sync.proj.chat===2&&sync.proj.voice===1)?'ok':'FAIL '+JSON.stringify(sync&&sync.proj)));
+            b.close();
+            const b2=await open('ciB'); const got2=[]; b2.on('message',x=>{try{got2.push(JSON.parse(x))}catch(_){}});
+            b2.send(JSON.stringify({type:'ev-open',from:'ciB'}));
+            await new Promise(r=>setTimeout(r,1200));
+            const rep=got2.find(x=>x.type==='ev-reply'&&x.of==='ev-open');
+            console.log('reopen-open-acks='+((rep&&rep.proj&&rep.proj.chat===0&&rep.proj.voice===0&&rep.acked&&rep.acked.length===3)?'ok':'FAIL '+JSON.stringify(rep)));
+            a.close();b2.close();
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
           set -o pipefail
@@ -84,6 +105,10 @@ jobs:
           grep -qx 'wake-attempted=ok' /tmp/ws-check.txt
           grep -Eq '^wake-status=[0-9]+$' /tmp/ws-check.txt
           grep -qx 'wake-not-targeted-at-unsubscribed-live=ok' /tmp/ws-check.txt
+          grep -qx 'retry-dedupe=ok' /tmp/ws-check.txt
+          grep -qx 'bare-hangup-missed=ok' /tmp/ws-check.txt
+          grep -qx 'reconcile-projection=ok' /tmp/ws-check.txt
+          grep -qx 'reopen-open-acks=ok' /tmp/ws-check.txt
           if [ -n "${{ github.event.inputs.diag_session }}" ]; then
             curl -s -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=talk-say-v1&session=${{ github.event.inputs.diag_session }}&client=ci-diag" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/real-diag.txt || true
             echo '=== REAL SESSION DIAG ===' >> /tmp/ws-check.txt

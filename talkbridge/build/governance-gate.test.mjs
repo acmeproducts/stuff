@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { validateSnapshot } from './governance-gate.mjs';
 
@@ -153,4 +154,35 @@ test('catches weakened relay deployment gate', () => {
   const file = path.join(root, rel);
   fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('node talkbridge/build/governance-gate.mjs', 'echo bypassed'));
   expectFailure(root, [rel], /deployment gate command was removed/);
+});
+
+test('a device-gate failure may restart as a new cycle only with the frozen pair restored', () => {
+  const root = fixture();
+  const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  previous.stage = 'device_gate'; previous.candidate.status = 'testing';
+  mutateJson(root, state => {
+    state.stage = 'root_cause_required'; state.cycle = 'r10-recovery-2026-09-01';
+    state.root_cause = { status: 'required', file: ROOT_CAUSE, sha256: null };
+    state.replacement_plan = { status: 'blocked', file: 'talkbridge/TALKBRIDGE-PLAN-v9.md', version: null, sha256: null };
+    state.owner_authorization = { status: 'not_requested', approved_at: null, evidence: null, exact_words: null };
+    state.candidate = { status: 'blocked', allowed_output_files: [] };
+  });
+  for (const rel of Object.keys(previous.baseline.files)) {   /* the restart restores the frozen bytes */
+    fs.writeFileSync(path.join(root, rel), execFileSync('git', ['show', `${previous.baseline.rollback_merge_commit}:${rel}`], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 }));
+  }
+  const changed = ['talkbridge/governance/r10-cycle.json', 'bridge-turn24-post-ship.html', 'tb-sw.js', 'talkbridge/worker-talk.js', 'talkbridge/TALKBRIDGE-GRAVEYARD.md'];
+  const ok = validateSnapshot({ root, changedFiles: changed, previousState: previous });
+  assert.deepEqual(ok.errors.filter(e => !/unexpected R10 recovery cycle/.test(e)), []);
+  fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* not restored */\n');
+  const bad = validateSnapshot({ root, changedFiles: changed, previousState: previous });
+  assert.match(bad.errors.join('\n'), /frozen baseline modified: talkbridge\/worker-talk.js/);
+});
+
+test('a backward transition that keeps the candidate live is still illegal', () => {
+  const root = fixture();
+  const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  previous.stage = 'device_gate';
+  mutateJson(root, state => { state.stage = 'build_authorized'; });
+  const result = validateSnapshot({ root, changedFiles: ['talkbridge/governance/r10-cycle.json'], previousState: previous });
+  assert.match(result.errors.join('\n'), /illegal stage transition/);
 });
