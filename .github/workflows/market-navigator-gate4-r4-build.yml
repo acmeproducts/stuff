@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Assemble from restored 3.9.7 baseline
         run: |
@@ -112,27 +112,23 @@ jobs:
             if(!['RSK','GRW','MAC'].every(x=>s.legend.includes(x)))throw Error('V1 legend incomplete');
             if(JSON.stringify(s.nav)!==JSON.stringify(['NOW','EXPLORE','LIBRARY','HEALTH']))throw Error('Primary nav mismatch '+JSON.stringify(s.nav));
 
-            // V1 -> V2.
             await page.locator('.g4legend').filter({hasText:'RSK'}).click();
             await page.waitForFunction(()=>window.__MARKET_GATE4_R4__.G4.view==='v2');
             let v2=await page.evaluate(()=>({index:window.__MARKET_GATE4_R4__.G4.index,count:document.querySelectorAll('.g4legend').length,expected:1+window.__MARKET_GATE4_R4__.G4.defs.indices.risk.components.length,labels:[...document.querySelectorAll('.g4legend b')].map(x=>x.textContent)}));
             console.log('V2',JSON.stringify(v2));
             if(v2.index!=='risk'||v2.count!==v2.expected)throw Error('V2 index+all-components contract failed');
 
-            // Component About -> exact Analysis.
             const component=await page.evaluate(()=>window.__MARKET_GATE4_R4__.G4.defs.indices.risk.components[0].id);
             await page.locator(`[data-g4series="${component}"]`).click();
             if(!(await page.locator('#g4about').isVisible()))throw Error('About card did not open');
             await page.locator('#g4moreInfo').click();
             await page.waitForFunction(c=>window.__MARKET_GATE4_R4__.G4.view==='v3'&&window.__MARKET_GATE4_R4__.G4.root===c,component);
 
-            // Add Series taxonomy.
             await page.locator('#g4addInline').click();
             const tabs=await page.evaluate(()=>[...document.querySelectorAll('#g4addModal [data-tab]')].map(x=>x.textContent));
             if(JSON.stringify(tabs)!==JSON.stringify(['Market','Risk','Growth','Macro','Other']))throw Error('Add Series taxonomy failed '+JSON.stringify(tabs));
             await page.locator('#g4addModal [data-close]').click();
 
-            // CPI + WTI direct mixed-frequency and dual axes.
             const mixed=await page.evaluate(()=>{
               const api=window.__MARKET_GATE4_R4__,g=api.G4;g.view='v3';g.index='macro';g.root='cpi';g.analysis=['cpi','wti'];g.horizon='1YR';api.renderGate4();
               const c=api.dataFor('cpi'),w=api.dataFor('wti');return{cN:c.length,wN:w.length,cLast:c.at(-1)?.t,wLast:w.at(-1)?.t,plan:api.axisPlan(['cpi','wti'])};
@@ -142,11 +138,9 @@ jobs:
             if(mixed.cLast===mixed.wLast)throw Error('Mixed-frequency endpoints were improperly aligned');
             if(mixed.plan.mode!=='dual')throw Error('CPI/WTI should use dual native axes');
 
-            // Three incompatible families -> Indexed 100.
             const fallback=await page.evaluate(()=>window.__MARKET_GATE4_R4__.axisPlan(['cpi','wti','payrolls']));
             if(fallback.mode!=='indexed')throw Error('3+ family Indexed-100 fallback failed');
 
-            // Library state persistence + restore.
             await page.evaluate(()=>window.__MARKET_GATE4_R4__.saveLibrary());
             await page.locator('[data-g4nav="library"]').click();
             await page.locator('[data-g4lib]').first().click();
@@ -154,13 +148,11 @@ jobs:
             const restored=await page.evaluate(()=>({root:window.__MARKET_GATE4_R4__.G4.root,a:window.__MARKET_GATE4_R4__.G4.analysis,h:window.__MARKET_GATE4_R4__.G4.horizon}));
             if(restored.root!=='cpi'||restored.h!=='1YR'||!restored.a.includes('wti'))throw Error('Library restore failed '+JSON.stringify(restored));
 
-            // Desktop visual integrity.
             await page.locator('[data-g4nav="now"]').click();
             const desktop=await page.evaluate(()=>{const main=document.querySelector('main').getBoundingClientRect(),c=document.querySelector('#g4chart').getBoundingClientRect(),r3=document.querySelector('.g4r3').getBoundingClientRect();return{mainW:main.width,canvasW:c.width,canvasH:c.height,r3W:r3.width,r3Scroll:document.querySelector('.g4r3').scrollWidth,bodyScroll:document.documentElement.scrollWidth,inner:innerWidth}});
             console.log('DESKTOP',JSON.stringify(desktop));
             if(desktop.canvasW<600||desktop.canvasH<220||desktop.r3Scroll>desktop.r3W+3||desktop.bodyScroll>desktop.inner+3)throw Error('Desktop visual contract failed');
 
-            // Mobile visual integrity.
             await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);
             const mobile=await page.evaluate(()=>{const c=document.querySelector('#g4chart').getBoundingClientRect(),r3=document.querySelector('.g4r3').getBoundingClientRect(),legend=document.querySelector('.g4legendbar').getBoundingClientRect();return{canvasW:c.width,canvasH:c.height,r3W:r3.width,r3Scroll:document.querySelector('.g4r3').scrollWidth,legendW:legend.width,bodyScroll:document.documentElement.scrollWidth,inner:innerWidth}});
             console.log('MOBILE',JSON.stringify(mobile));
