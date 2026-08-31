@@ -1,7 +1,7 @@
 <!-- v5.8.2.42 -->
 # TALKBRIDGE — THE GRAVEYARD (living; keep in project knowledge)
 ## Approaches PROVEN to fail. Scanned before every change and at every exit condition. Never resurrect.
-**Version: 2.12 | 2026-08-31 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
+**Version: 2.13 | 2026-08-31 | Maintained in GitHub by the build process (raw.githubusercontent.com/acmeproducts/stuff/main/talkbridge/TALKBRIDGE-GRAVEYARD.md). Updated on every exit-condition burial.**
 
 
 Each entry: the approach, its failure signature, what replaces it. A change matching a signature is forbidden BEFORE it is attempted — not rediscovered as if new.
@@ -27,6 +27,7 @@ Each entry: the approach, its failure signature, what replaces it. A change matc
 | G17 | Activating engine internals inside the bridge file while its lobby/onboarding was already condemned | T08 Base attempt 1: device gate failed on the bridge's own lobby (lang-model status stuck on Pages hosting); the effort was spent on a surface scheduled for deletion, and the container/shell — the actual app — remained unbuilt | Build stages on the surface that survives: container/shell first, migrate the engine into it; never invest a gate in a surface the same turn deletes |
 | G18 | R10.5 replay-time inference: deciding whether an event was missed from the page's state when the ledger is later synchronized | Events received while hidden were treated as seen when the app returned to the same room; the cursor advanced and permanently erased missed chat/call evidence; reconnects could leave home stale until unrelated traffic arrived | Keep per-device events unseen until real-time visible presentation or an explicit user room-open acknowledgement; reconcile on every lifecycle/transport return without silently advancing unseen events |
 | G19 | Treating R10.5 credential loss as a defect in the credential-working rollback baseline | The rejected/instrumented release lost Deepgram and TURN together, but the baseline was not reproduced failing; the diagnosis was promoted into a baseline redesign anyway | Reject the release as a whole and restore the exact R10.2/v4.2 baseline; no credential-path change carries forward without a baseline reproduction and a new owner-approved contract |
+| G22 | R10-CR1 worker focuses the first same-URL window on a notification tap | Android: the Chrome tab left open by the install step shares the worker with the installed app; every tap focused that tab (the install gate) instead of the app, so the tester never reached the answer surface and the notifications sat unread in the shade (rows 7/8 fail) | The installed app announces itself to the worker; a tap focuses only the announced app window, never a browser tab; with no announced window the worker opens the app URL and the app routes the event |
 | G21 | R10-CR1 listener lane opened only on the 60-second sync tick after leaving a room | Android, visible on home right after leaving the room: no relay lane for up to 60 s, so the relay pushed an OS banner beside the home view and the in-app ring arrived 7 s late (row 6 fail); pair 339eb40 rejected at device gate | Leaving a room must open that room's listener lane at once; no visible device may be laneless for any interval |
 | G20 | R10.6 opaque authorization plus server-issued Deepgram/TURN token fork | Added a new Worker authorization service and three new production-secret dependencies, failed both live provider gates, and was presented as requiring no owner action | Bury R10.6 whole; retain no code, provider endpoint, secret prerequisite, test, or architectural assumption from it; any later R10 build starts clean from the exact rollback baseline |
 
@@ -1346,18 +1347,22 @@ machine and live gates green. Device result (Android receiving from iPhone):
    on home, and the in-app Accept/Decline surface appeared 7 s late from the
    listener's first reconciliation. Cause: the recovery coordinator opened lanes
    on visibility/focus/online/tap/open but not on room leave. Buried.
-2. **Rows 3/7/8 (hidden and locked) — pipeline proven, display unproven.**
-   The worker journal shows every hidden-state push arriving and reported
-   shown within ~300 ms (06:26:43.66→.69, 06:27:00.60→.64). The tester saw
-   nothing. Chrome reports shown even when Android suppresses the site's
-   notifications at the OS level (Android 13+ app-level permission is separate
-   from the web permission). Not a candidate cause until the device setting is
-   verified; recorded as an open observation.
+2. **Rows 3/7/8 (hidden and locked) — display PROVEN, tap destination FAILED.**
+   The worker journal shows every hidden-state push arriving and shown within
+   ~300 ms, and the owner's notification shade screenshot shows them all
+   (23:25–23:27 = the hidden-state calls). The OS displayed them. What failed
+   is the tap: the worker focused the first window whose URL matched, and on
+   Android that was the Chrome tab left open from the install step (showing
+   the install gate), not the installed app. The tester therefore never saw an
+   answer surface and read the alerts as "did not work". Buried as G22.
 3. **Open observation:** the 06:26:16 video call produced no push receipt on
    Android while the two calls around it did. Relay-side push result for that
    record not yet read.
 
 iPhone receiving from Android: all four states reported working by the owner.
+
+Android OS settings verified by screenshot: notifications allowed, lock screen,
+pop-up and sound on. Not a device-setting cause.
 
 Rollback: the whole pair is restored to R10.2/v4.2 frozen bytes. The failed
 candidate is preserved at commit 339eb40. A new root cause → plan → GO cycle is

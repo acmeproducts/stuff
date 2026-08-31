@@ -284,3 +284,69 @@ unsupported credential diagnosis:
 
 The only legal next action is to revise the master plan from these findings.
 No product implementation or owner device test is authorized by this document.
+
+## 9. R10-CR1 device-gate root cause (cycle `r10-recovery-2026-08-31`)
+
+**Status:** Complete. **Rejected pair:** commit `339eb40` (app `bde6714e`,
+worker `37f8027a`, relay v6.0 `8f787ae5`). Graveyard G21, G22.
+
+### 9.1 What the device gate proved
+
+- iPhone receiving: all four states (in room, home, hidden, locked) correct.
+- Android receiving, visible: correct once a relay lane existed; the in-app
+  Accept/Decline surface, missed pills and home counts were right (log
+  06:25:20–06:25:34, 06:26:06–06:26:07).
+- Android receiving, hidden/locked: the OS alert was requested, delivered and
+  shown within ~300 ms (worker journal 06:26:43, 06:27:00; owner's shade
+  screenshot 23:25–23:27). Delivery is not the defect.
+
+### 9.2 Proven causes
+
+**C1 — laneless interval after leaving a room (G21).** The recovery
+coordinator opened lanes on visibility, focus, online, tap and open, but not
+on room leave. Between 06:25:43 (leave) and 06:25:58 (60-second sync tick) the
+relay held no connection for the device, so its record correctly said
+`os_requested` for the 06:25:51 call: an OS banner appeared beside the visible
+home and the in-app ring arrived 7 s late from the listener's first
+reconciliation. Row 6 failed. The relay was right; the app lied by absence.
+
+**C2 — tap focused a browser tab instead of the installed app (G22).** On
+Android the install step leaves a Chrome tab open at the app URL; that tab
+shares the service-worker registration with the installed app. The worker's
+tap handler focused the first window whose URL contained the app file name,
+which was that tab (showing the install gate), and posted the open message to
+it, where nothing listens. Rows 7 and 8 failed on destination. This is a known
+platform behaviour (w3c/ServiceWorker #720: a browser tab and the installed
+app both match; the worker cannot tell them apart from the URL). iOS is not
+affected: the browser tab and the installed app do not share a registration.
+
+### 9.3 Open observations (not causes until reproduced)
+
+- The 06:26:16 video call produced no push receipt on Android while the calls
+  around it did; the relay-side push result for that record was not read
+  (the diagnostic dispatch is blocked by the locked deploy workflow's
+  version probe). To be read in the CR2 live gate.
+- Whether the Android heads-up pop-up appeared on the lock screen is
+  unverified; the shade entries prove display, not pop-up.
+
+### 9.4 Why the machine gates passed
+
+- No scenario left a room and measured the lane within the next 60 seconds.
+- No scenario ran two window clients for the same URL (an installed window and
+  a browser tab); the tap scenario had exactly one.
+- The live probe reads the relay's own records, but the diagnostic path for a
+  real room depends on a workflow input the governance lock made unusable at
+  `candidate_ready`. Operational, not causal; fixed in the CR2 plan.
+
+### 9.5 Binding requirements for the CR2 plan
+
+1. Leaving a room opens that room's listener lane at once; no visible device
+   is laneless for any interval. Machine gate: leave → call within 2 s → in-app
+   surface, no OS request.
+2. The installed app announces its window to the worker; a tap focuses only an
+   announced window, never a browser tab; with no announced window the worker
+   opens the app URL with the event hash. Machine gate: a gate tab and an app
+   window coexist → tap reaches the app window only.
+3. The relay's per-room diagnostic must be readable without a deploy.
+4. Everything else in §4.11 stands: it passed on iPhone in all four states and
+   on Android wherever a lane existed.
