@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v1.5.0 -->
-# PRISM MASTER PLAN v1.5.0
+<!-- PRISM-PLAN v1.6.0 -->
+# PRISM MASTER PLAN v1.6.0
 
 **Project:** PRISM — unified event intelligence combining Globe / WorldPulse, LumaSphere, OnyxView, AI POV, and a portable local research library.
 **Owner:** Product owner — sole product/release gate.
@@ -10,20 +10,21 @@
 Every turn runs **pre-base → base → pre-ship → ship → post-ship**. Failed architecture is graveyarded before replacement; behavior/architecture changes are written here before implementation.
 
 ### Immutable product laws
-1. **One information state, multiple views.** Search, time window, filters, selected events, favorites, provider/model context survive view changes.
+1. **One information state, multiple views.** Search, time window, selected events, favorites, dimensions, filters and provider/model context survive view changes.
 2. **One global control ribbon.** Shared dimensions and filters live once at shell level, never duplicated per tab.
 3. **Event → Coverage → Source Article** is canonical.
 4. **Cache first.** Normal startup uses IndexedDB + same-origin canonical cache, never publisher fan-out.
-5. **Visualizations explain themselves.** Labels, legends and encoding are part of the visualization contract.
-6. **Desktop shell is rail + work surface + collapsible right context panel.** The left rail collapses/expands; event detail, AI research and Library inspection use one right-side context panel rather than unrelated overlays.
+5. **Visualizations explain themselves.** Labels, legends and active encodings are part of the visualization contract.
+6. **Desktop shell is rail + work surface + collapsible right context panel.** Event detail, AI research, Config and Library inspection use one right-side context panel.
 7. **AI POV is contextual research, not generic chat.** Selection/provenance define its source context; outside research supplements rather than replaces it.
 8. **Provider + model must be validated before use.** Keys remain local to this browser.
-9. **Every exposed discrete dimension is filterable.** Group/Color fields automatically participate in the global filter system.
-10. **Sources are user-manageable.** Source inventory/configuration lives in Settings without introducing a second global control system.
-11. **Natural gesture parity.** Explore uses wheel/trackpad and pinch zoom like Map; no redundant +/- zoom chrome.
-12. **AI output is document-quality.** Markdown renders correctly; further-reading/source references must use working clickable http(s) hyperlinks when a reliable URL is available.
-13. **Explore is a real rotatable sphere.** Pointer/touch drag rotates yaw/pitch. Events remain organized into labeled clusters *inside the sphere* according to the active Group dimension while the sphere rotates.
-14. **Library is a first-class workspace.** It is not an inert export bucket: analyses are searchable, openable, deletable, exportable/importable, and continuable as research threads with preserved Markdown and provenance.
+9. **Filters are generated from the dimensions the user actually selected — and only those dimensions.** A dimension that is not currently selected as Group, Color or another discrete analytical dimension must not appear as a filter. Selecting or removing a dimension immediately adds/removes its filter row. Duplicate selections produce one filter row. Stale filter state from a no-longer-selected dimension is cleared so invisible filters can never constrain the dataset.
+10. **Source is a normal discrete dimension, not a permanent special filter.** Source appears in the filter tray only when Source has been selected as an active dimension. Source enable/disable remains a separate acquisition/configuration concern under Config → Sources.
+11. **Sources are user-manageable.** Source inventory/configuration lives in Config without introducing a second analytical filter system.
+12. **Natural gesture parity.** Explore uses pointer/touch rotation, wheel/trackpad zoom and pinch zoom; no redundant +/- controls.
+13. **AI output is document-quality.** Markdown renders correctly; further-reading/source references use working clickable http(s) hyperlinks when reliable URLs are available.
+14. **Explore is a real rotatable sphere.** Events remain organized into labeled clusters inside the sphere according to the active Group dimension while the sphere rotates.
+15. **Library is a first-class workspace.** Analyses are searchable, openable, deletable, exportable/importable and continuable with preserved Markdown and provenance.
 
 ---
 ## 1 · LINEAGE / REFERENCES
@@ -33,109 +34,105 @@ Frozen references, never patch targets:
 - `/onxyview-newsmap-v15.html` — event abstraction, lenses, corroboration/importance.
 - `/devstream-test.html` — provider/model discovery and validation.
 - `/market-view.html` — local analysis persistence.
-- `/market-view-ux-gate3-p2.html` — shell reference: collapsible left navigation rail, central work surface, persistent analytical composition pattern.
+- `/market-view-ux-gate3-p2.html` — collapsible left navigation rail, central work surface and persistent analytical composition pattern.
 
-External reference: `IJMacD/newsmap-js` for NewsMap interaction principles. PRISM uses a proven library-backed treemap rather than the rejected hand-rolled layout.
+External reference: `IJMacD/newsmap-js` for NewsMap interaction principles. PRISM uses a library-backed treemap rather than the rejected hand-rolled layout.
 
 ---
 ## 2 · SHELL
 Desktop/tablet shell:
 `collapsible left rail | central work surface | collapsible right context panel`.
 
-Left rail owns primary navigation: Map, Explore, Feed, Library, Config. A menu button collapses/expands it without changing information state.
-
-Right context panel owns mutually exclusive contextual modes:
-- Event details / coverage
-- AI POV / selected evidence / research thread
-- Library analysis detail / continuation
-- Config / provider settings
-
-Opening or closing the right panel must resize the work surface rather than underlap it. Mobile may use the same panel as a full/near-full overlay.
+Left rail owns primary navigation: Map, Explore, Feed, Library, Config. Right panel owns Event, AI POV, Library detail and Config. Opening the right panel resizes the center rather than underlapping it. Mobile may overlay.
 
 ---
 ## 3 · PRIMARY SURFACES
 ### Map
-Library-backed NewsMap-style proportional category/event hierarchy. Readable headline text, multi-select, reader inspection, map-native pan/zoom.
+Library-backed NewsMap-style proportional category/event hierarchy. Readable headline text, multi-select, event inspection, native pan/zoom.
 
 ### Explore
-Same filtered/selected universe in a Luma-style rotatable sphere. Events are compact information cards rendered within labeled clusters. Requirements:
-- group cluster centers distributed inside the sphere;
-- events packed around their cluster center with deterministic 3D offsets;
-- drag rotates yaw/pitch;
-- wheel/trackpad zoom desktop;
-- two-finger pinch zoom touch;
-- no +/- buttons;
-- selection parity with Map/Feed;
-- cluster labels rotate/project with the sphere;
-- zoom/rotation update projection only, not the event universe.
+Same filtered/selected universe in a Luma-style rotatable sphere. Compact information cards remain grouped around deterministic 3D cluster centers. Drag rotates yaw/pitch; wheel/trackpad and pinch zoom; no +/- controls; selection parity with Map/Feed.
 
 ### Feed
-Linear canonical events with shared filtering, selection and right-panel reader.
+Linear canonical events with the same dimensions, filters, selection and right-panel reader.
 
 ### Library
-Full research workspace. Main Library surface lists saved analyses with search, recency, provider/model and event counts. Selecting an analysis opens its complete Markdown research thread and frozen evidence/provenance in the right panel. Actions: Continue research, Delete, Export one, Export all, Import/merge.
+Full research workspace: saved-analysis search/list, complete Markdown research thread, frozen evidence/provenance, Continue research, Delete, Export one/all and Import/merge.
 
 ---
-## 4 · GLOBAL RIBBON / DYNAMIC FILTERS
-Exactly one shared ribbon in the central work surface.
+## 4 · DIMENSION → FILTER CONTRACT
+The analytical ribbon selects dimensions. The filter tray is a direct projection of those choices; it is not an independent catalog of possible fields.
 
-Shared controls:
-- Group/Cluster: Subject / Region / Sentiment / Tier / Corroboration.
-- Size/Area: Importance / Corroboration / Recency.
-- Color: Sentiment / Subject / Region / Tier.
-- Time: 24h / 3d / 7d.
-- active dynamic filter tray.
-- selection count + Clear + AI POV.
+### 4.1 Current dimension roles
+**Group / Cluster** is discrete and filter-producing:
+- Subject
+- Region
+- Sentiment
+- Editorial Tier
+- Corroboration bucket
+- Source
 
-Filterable fields: Subject, Region, Sentiment, Editorial Tier, Corroboration bucket, Source. Active Group/Color dimensions appear first. State is shared across Map/Explore/Feed.
+**Color** is discrete and filter-producing:
+- Sentiment
+- Subject
+- Region
+- Editorial Tier
+- Source
+
+**Size / Area** is primarily quantitative:
+- Importance
+- Corroboration
+- Recency
+
+A quantitative Size selection does not create a categorical filter unless a governed bucketing mode is explicitly introduced. Corroboration **bucket** as Group is categorical and therefore does create a filter.
+
+### 4.2 Filter derivation
+`activeFilterDimensions = unique(discrete(Group), discrete(Color), any future explicitly-discrete selected dimension)`.
+
+Examples:
+- Group=Subject + Color=Sentiment → filters are **Subject + Sentiment only**.
+- Group=Tier + Color=Sentiment → filters are **Tier + Sentiment only**.
+- Group=Source + Color=Sentiment → filters are **Source + Sentiment only**.
+- Group=Subject + Color=Subject → one **Subject** filter, not two.
+- Change Group from Source to Region → Source filter disappears immediately and any Source analytical filter state is cleared; Region appears.
+
+### 4.3 Source distinction
+There are two separate concepts:
+- **Source dimension/filter:** analytical view of the currently available corpus; exists only if Source is selected as a dimension.
+- **Source management:** acquisition configuration under Config → Sources; controls which sources are enabled in the corpus and is always available in Config.
+
+Do not conflate the two.
+
+### 4.4 Invisible-filter veto
+No inactive dimension may continue filtering silently. When a dimension leaves `activeFilterDimensions`, its filter Set is cleared before the next render.
 
 ---
 ## 5 · SOURCE MANAGEMENT
 Config → **Sources → Manage sources…** opens a dedicated modal.
 
-Requirements:
-- list every cache source with article/event counts;
-- enable/disable per source;
-- Enable all / Disable all;
-- user-added source records with name + URL + type;
-- local persistence;
-- Source filter integration;
-- enabled/disabled source state applied before visualization and AI evidence construction.
+Requirements: list every cache source with article/event counts; enable/disable per source; Enable all / Disable all; user-added records with name + URL + type; local persistence. Source enable/disable is applied before visualization/AI evidence construction but does **not** cause Source chips to appear unless Source is an active selected dimension.
 
 Normal startup may not silently fetch arbitrary user-added publisher URLs. Custom activation remains collector/same-origin work.
 
 ---
-## 6 · SELECTION / AI EVIDENCE MANAGEMENT
-Multi-select is independent of opening the reader. Selection persists across views. Ribbon exposes count + Clear. Reader can Select/Deselect for AI. AI POV shows the selected evidence stack with per-event remove and Clear all. Deselect immediately updates all views and the next evidence packet. Each completed AI turn freezes its exact evidence packet.
+## 6 · SELECTION / AI EVIDENCE
+Multi-select persists across views. Ribbon exposes count + Clear. Reader can Select/Deselect for AI. AI POV exposes each selected event with per-item remove + Clear all. Each completed AI turn freezes its exact evidence packet.
 
 ---
 ## 7 · AI POV / RESEARCH
-AI POV is a continuable research workspace in the right context panel with selected-event evidence, editable suggested prompts, ad-hoc composer, provider/model selectors, prior turns and Save Analysis.
+AI POV is a continuable right-panel research workspace with selected evidence, suggested/editable prompts, ad-hoc composer, provider/model selectors, prior turns and Save Analysis.
 
-Starter prompt templates: Throughline, Frequency, Recency/precedent, Missing context.
+Starter templates: Throughline, Frequency, Recency/precedent, Missing context.
 
-### 7.1 Markdown rendering
-AI responses are Markdown documents.
-- headings, paragraphs, ordered/unordered lists, emphasis, block quotes, tables, inline code and fenced code render;
-- raw HTML is escaped/sanitized;
-- Markdown links render clickable only for `http://` / `https://`;
-- bare http(s) URLs are autolinked;
-- external links use `target="_blank" rel="noopener noreferrer"`;
-- non-http(s) schemes are not promoted as external links.
+AI Markdown contract: headings, lists, emphasis, block quotes, tables, inline/fenced code; sanitized raw HTML; only http(s) external links; external links use `target="_blank" rel="noopener noreferrer"`. Sources/Further reading/Research leads must include complete working hyperlinks when reliably known; no fabricated URLs.
 
-### 7.2 Further reading / sources
-The system instruction requires that any **Sources**, **Further reading**, **Research leads**, or comparable navigational references include complete working Markdown hyperlinks when a reliable URL is known. The model must not fabricate URLs. If it knows only a publication/source conceptually, it must label it as an unlinked research lead.
-
-### 7.3 Continuity
-An Analysis is a thread: `analysisId, title, createdAt, updatedAt, provider, model, eventIds[], frozenSources[], turns[], researchMode/capabilities`. Reopen/continue preserves Markdown responses and provenance.
+Analysis thread schema includes `analysisId, title, createdAt, updatedAt, provider, model, eventIds[], frozenSources[], turns[], researchMode/capabilities`.
 
 ---
 ## 8 · DEVSTREAM PROVIDER/MODEL CONTRACT
-PRISM adopts Devstream behavior.
+**Venice:** paste key → GET `/models` → choose exact model → POST `/chat/completions` with selected model, `max_tokens:1`, `ping` → only success verified.
 
-**Venice:** paste key → GET `/models` → choose exact model → POST `/chat/completions` with selected model, `max_tokens:1`, `ping` → only success is verified.
-
-**OpenRouter:** paste key → GET `/auth/key` → GET `/models` → choose exact model → POST `/chat/completions` minimal ping → only success is verified.
+**OpenRouter:** paste key → GET `/auth/key` → GET `/models` → choose exact model → POST `/chat/completions` minimal ping → only success verified.
 
 **Anthropic direct:** `/v1/messages`, `x-api-key`, `anthropic-version`, browser-access header, exact-model minimal inference ping.
 
@@ -143,27 +140,18 @@ Keys are cleaned of Bearer prefix/invisible whitespace and live only in localSto
 
 ---
 ## 9 · CANONICAL DATA / CACHE
-Event fields: `eventId, headline, summary, subject, region, sentiment, importance, editorialTier, corroboration, firstSeen, lastSeen, tags[], coverage[]`.
+Event: `eventId, headline, summary, subject, region, sentiment, importance, editorialTier, corroboration, firstSeen, lastSeen, tags[], coverage[]`.
 Coverage: `articleId, source, title, description, url, publishedAt`.
 
-Turn 01 may deterministically adapt same-origin `data/market-backend/news-cache.json` into canonical events in-browser. Production target remains collector-side normalization/dedupe/clustering → canonical event cache + manifest → IndexedDB.
+Turn 01 may adapt same-origin `data/market-backend/news-cache.json` into canonical events in-browser. Production target remains collector-side normalization/dedupe/clustering → canonical event cache + manifest → IndexedDB.
 
 ---
 ## 10 · LIBRARY STORAGE / PORTABILITY
-IndexedDB. Saved analyses include full turns, rendered Markdown source text, exact provider/model, frozen event/source references and timestamps. Reopen continues research.
-
-Export one analysis or complete Library as versioned JSON. Import validates and merges by `analysisId`; no destructive replacement. API keys are excluded categorically.
+IndexedDB. Saved analyses include full turns, Markdown source text, provider/model, frozen event/source references and timestamps. Export one or complete Library as versioned JSON. Import validates and merges by `analysisId`; API keys are excluded.
 
 ---
 ## 11 · PERFORMANCE
-- cached usable before network refresh;
-- no publisher fan-out;
-- Map handles current universe without layout thrash;
-- selection/filter/source changes do not refetch unchanged data;
-- Explore rotation/zoom update projection only;
-- AI sends bounded context only;
-- one filter/control system only;
-- collapsed rail/right panel recover central pixels without reloading data.
+Cached usable before network refresh; no publisher fan-out; dimension/filter changes never refetch unchanged data; removed dimensions clear filter state synchronously; Map handles current universe without layout thrash; Explore rotation/zoom updates projection only; AI sends bounded context only.
 
 ---
 ## 12 · TURN/STAGE LEDGER
@@ -171,40 +159,28 @@ Export one analysis or complete Library as versioned JSON. Import validates and 
 |---|---|---|---|
 | 01·pre-base | shell/contracts/connectivity | **PASSED FOUNDATION** | `prism-turn01-pre-base.html` @ `e5ae4beba3babb6297d63234f19519c28c68894a` |
 | 01·base | canonical events + first value surfaces | **REJECTED UI ARCHITECTURE** | `prism-turn01-base.html` @ `446317e3de21cbbb867a4682dda627b5e22a551f` |
-| 01·pre-ship R1 | unified NewsMap + dynamic filters + source manager + initial AI POV | **SUPERSEDED BY OWNER FINDINGS** | `prism/prism-turn01-pre-ship.html` @ `55484b815bddf81c31051149fc02e176b8df50da` |
-| 01·pre-ship R2 | rail shell + real rotatable clustered sphere + Markdown/link-safe AI + full Library | **ACTIVE** | `prism/prism-turn01-pre-ship-r2.html` |
+| 01·pre-ship R1 | unified NewsMap + source manager + initial AI POV | **SUPERSEDED** | `prism-turn01-pre-ship.html` @ `55484b815bddf81c31051149fc02e176b8df50da` |
+| 01·pre-ship R2 | rail shell + rotatable sphere + Markdown AI + full Library | **ACTIVE; DIMENSION/FILTER CORRECTION REQUIRED** | `prism/prism-turn01-pre-ship-r2.html` @ `ab33490ce3395017af94e6b51ad606476c4e7d06` |
+| 01·pre-ship R3 | dimension-derived filter correction | **NEXT BUILD** | `prism/prism-turn01-pre-ship-r3.html` |
 | 01·ship | integrated stabilization/performance/provider-device gate | Not started | — |
 | 01·post-ship | integrated release gate | Not started | — |
 
 ---
-## 13 · 01·PRE-SHIP R2 GATES
-### Gate A — shell / Map
-Collapsible left rail; one global ribbon; ECharts/NewsMap map; collapsible right context panel; no underlap.
-
-### Gate B — Explore
-Real sphere rotation by drag; cluster centers + event cards remain grouped within sphere; wheel/trackpad + pinch zoom; no +/- buttons; selection parity.
-
-### Gate C — AI POV
-Evidence remove/Clear all; suggested + ad-hoc prompts; Devstream provider/model validation; only verified pairs runnable; Markdown rendering; working http(s) source/further-reading links; save/continue.
-
-### Gate D — Library
-Search/list analyses; open detail; render complete Markdown turns; frozen evidence/provenance; continue research; delete; export one/all; import/merge.
-
-### Pre-flight
-- JavaScript syntax pass;
-- one global ribbon;
-- no Explore +/- zoom buttons;
-- wheel + pinch + pointer-drag rotation handlers present;
-- cluster projection logic present;
-- Markdown renderer escapes raw HTML and constrains links to http(s);
-- right panel and left rail are collapsible;
-- selection survives view switch;
-- keys absent from analysis export;
-- legacy reference files unchanged.
+## 13 · R3 GATE
+Before owner handoff:
+- filter tray contains **only** currently selected discrete dimensions;
+- Source exists as a Group/Color dimension option and its chips appear only when selected;
+- Tier chips appear only when Tier is selected;
+- inactive filter Sets are cleared, not merely hidden;
+- duplicate Group/Color dimension produces one filter row;
+- Size=Corroboration does not accidentally create Corroboration-bucket filtering;
+- source-management enable/disable remains in Config regardless of selected analytical dimensions;
+- Map/Explore/Feed share the exact same derived filter state;
+- all prior R2 shell, sphere, AI Markdown/link and Library behavior remains intact.
 
 ---
 ## 14 · DECISIONS
-D1 PRISM. D2 Event primary. D3 Map/Explore/Feed/Library. D4 frozen legacy references. D5 one global ribbon. D6 NewsMap-first Map. D7 information cards not dots. D8 AI POV in pre-ship. D9 Devstream validation adopted. D10 Analysis is continuable research. D11 IndexedDB + import/export. D12 source manager under Config. D13 dynamic filters. D14 AI evidence deselect. D15 Explore zoom wheel/pinch, no +/- controls. D16 Markdown/link-safe AI. **D17 left rail + central work + collapsible right context panel. D18 sphere must rotate and maintain visible in-sphere clusters. D19 Library is a full workspace, modeled on the Market View Gate 3 shell rather than an inert tab.**
+D1 PRISM. D2 Event primary. D3 Map/Explore/Feed/Library. D4 frozen references. D5 one global ribbon. D6 NewsMap-first Map. D7 information cards not dots. D8 AI POV in pre-ship. D9 Devstream validation. D10 Analysis continuable. D11 IndexedDB + import/export. D12 source manager under Config. D13 AI evidence deselect. D14 wheel/pinch Explore. D15 Markdown/link-safe AI. D16 left rail + right context. D17 rotatable clustered sphere. D18 full Library. **D19 filters are a projection of selected dimensions only. D20 Source filter exists only when Source is selected as a dimension.**
 
 ---
 ## 15 · DEFERRED
