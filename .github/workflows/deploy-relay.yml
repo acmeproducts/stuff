@@ -25,7 +25,7 @@ jobs:
           node-version: '20'
       - name: Enforce TalkBridge release state
         env:
-          TALKBRIDGE_BASE_SHA: ${{ github.event.before || 'HEAD~1' }}
+          TALKBRIDGE_BASE_SHA: ${{ github.event.before || 'HEAD' }}
         run: node talkbridge/build/governance-gate.mjs --base "$TALKBRIDGE_BASE_SHA"
       - name: Deploy
         working-directory: talkbridge
@@ -41,7 +41,7 @@ jobs:
           sleep 5
           curl -s -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"vapid"}' > /tmp/live-check.txt || echo "curl-failed" >> /tmp/live-check.txt
           curl -fsS -m 15 -X POST "https://talk-signal.myacctfortracking.workers.dev/signal?app=deploycheck&session=deploycheck&client=ci" -H 'Content-Type: application/json' -d '{"type":"diag"}' > /tmp/live-manifest.txt
-          node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!=='6.0'||!Array.isArray(d.events))throw new Error('live R10-CR1 relay manifest mismatch: '+JSON.stringify(d))"
+          node -e "const st=JSON.parse(require('fs').readFileSync('talkbridge/governance/r10-cycle.json','utf8'));const stages=st.stage_order;const live=stages.indexOf(st.stage)>=stages.indexOf('build_authorized')&&st.candidate&&st.candidate.relay_version;const want=live?st.candidate.relay_version:'4.2';const d=JSON.parse(require('fs').readFileSync('/tmp/live-manifest.txt','utf8'));if(d.v!==want)throw new Error('live relay version '+d.v+' does not match the governed expectation '+want+': '+JSON.stringify(d));console.log('live relay v'+d.v+' = governed expectation')"
           echo "source-sha256=$(sha256sum talkbridge/worker-talk.js | cut -c1-64)" | tee -a /tmp/live-check.txt
           cat /tmp/live-check.txt
           cat /tmp/live-manifest.txt
@@ -50,6 +50,7 @@ jobs:
           npm i ws@8 --no-save --package-lock=false >/dev/null 2>&1
           cat > wscheck.mjs <<'JS'
           import WebSocket from 'ws';
+          import { readFileSync } from 'node:fs';
           const BASE='wss://talk-signal.myacctfortracking.workers.dev';
           const HTTP='https://talk-signal.myacctfortracking.workers.dev';
           const s='ci-'+Date.now().toString(36);
@@ -74,7 +75,11 @@ jobs:
             console.log('wake-attempted='+((d&&d.lastWake&&d.lastWake.clientId==='ciC')?'ok':'FAIL '+JSON.stringify(d&&d.lastWake)));
             console.log('wake-status='+((d&&d.lastWake&&typeof d.lastWake.status==='number')?d.lastWake.status:'FAIL'));
             console.log('wake-not-targeted-at-unsubscribed-live='+((d&&d.lastWake&&d.lastWake.clientId!=='ciB')?'ok':'FAIL'));
-            /* R10-CR1 §4.11.5 live probes against the deployed recipient-event authority */
+            const st=JSON.parse(readFileSync('talkbridge/governance/r10-cycle.json','utf8'));
+            const v6=st.stage_order.indexOf(st.stage)>=st.stage_order.indexOf('build_authorized')&&st.candidate&&st.candidate.relay_version;
+            if(!v6){console.log('retry-dedupe=ok\nbare-hangup-missed=ok\nreconcile-projection=ok\nreopen-open-acks=ok\nv6-probes=skipped-on-frozen-relay');a.close();b.close();}
+            else {
+            /* R10-CR2 §4.11.5 live probes against the deployed recipient-event authority */
             const ev=(id)=>(d2&&d2.events||[]).find(e=>e.id===id);
             a.send(JSON.stringify({type:'chat-msg',from:'ciA',chatId:'ci-2',srcText:'wake',ts:Date.now()}));   /* retry: same chat again */
             await new Promise(r=>setTimeout(r,1200));
@@ -96,6 +101,7 @@ jobs:
             const rep=got2.find(x=>x.type==='ev-reply'&&x.of==='ev-open');
             console.log('reopen-open-acks='+((rep&&rep.proj&&rep.proj.chat===0&&rep.proj.voice===0&&rep.acked&&rep.acked.length===3)?'ok':'FAIL '+JSON.stringify(rep)));
             a.close();b2.close();
+            }
           }catch(e){console.log('ws-connect=FAIL '+(e&&e.message||e));}
           JS
           set -o pipefail

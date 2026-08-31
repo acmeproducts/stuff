@@ -1,35 +1,30 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v4.2 ALWAYS-PUSH (plan v20.0.0 §4.6)\n   Lineage: ship R7 body + v4 RFC 8291 delivery class (e416a70), MINUS every\n   form of server-side presence inference (abandoned index A1-A3).
+   TALK RELAY — worker-talk.js  ·  v6.1 R10-CR2 (plan v20.10.0 §4.12; §4.11 authority)
+   Lineage: v4.2 body (route, session addressing, broadcast, history, transient
+   handling, subscribe/unsubscribe, RFC 8291 encrypted push) — unchanged —
+   plus ONE recipient-event authority (§4.11.2), owned by this Durable Object.
 
-   Everything the existing relay did is unchanged: the same route, the same
-   session addressing, the same broadcast, the same history and transient
-   handling. Three things are added, and nothing existing is altered.
+   For every chat, call start, call end and thread invite the session keeps one
+   durable record per event and per recipient device:
+     presentation  pending | in_app | os_requested | suppressed | muted
+     push          not_requested | accepted | failed | unknown
+     seen          unseen | seen  (with the exact transition recorded)
+     outcome       offered | accepted | declined | missed | ended  (calls)
+   That record — not the app, not a replay, not a route — decides what a device
+   is asked to show, whether a push was requested, whether the event was seen,
+   what a receiver's call outcome is, and what the home projection reads.
 
-     POST /signal?app=&session=&client=   body {type:'subscribe', ...}
-         stores a push subscription for a client in that session.
-     POST … {type:'unsubscribe'}          removes it.
-     Any persisted message broadcast to a session also wakes every other
-         subscribed client in it by push.
+   Devices tell the relay two truths, over the socket they already hold:
+     {type:'ev-state', visible, inRoom, muted}   who is looking, where, muted?
+     {type:'ev-seen', ids:[…]} / {type:'ev-open'} exact events visibly handled /
+                                                 explicit room open
+   and ask it one question, over the socket or read-only HTTPS:
+     {type:'events-sync'}  → { proj:{chat,voice,video}, unseen:[…], calls:[…] }
 
-   PUSH CARRIES NO PAYLOAD, DELIBERATELY. A payload would have to be encrypted
-   per subscription, which is a large amount of cryptography to get exactly
-   right, and it would put message content in a third party's queue. Instead the
-   push is a bare wake: the service worker receives it, fetches what it missed
-   over the existing history endpoint, and decides what to show. The relay never
-   sends content to a push service, and the encryption problem disappears.
-
-   SETUP IS ONE SECRET. The public key and the contact subject are in this file
-   below — the public key is handed to every browser that subscribes, so it is
-   not a secret and keeping it in configuration only makes deployment harder.
-
-     In the worker's settings, add one entry of type Secret:
-        VAPID_PRIVATE_KEY   the base64url PKCS#8 string
-
-   With that secret absent the worker runs exactly as the current one does and
-   simply never pushes, so this file can be deployed before push is wanted.
-
-   The relay is deliberately decoupled from where the app is hosted: nothing
-   here refers to an origin, an account, or a repository.
+   The push, when the record says os_requested, carries the ENCRYPTED event
+   identity (id, room, kind, callId, sender name — never message text) at
+   Urgency high, so the service worker shows a banner at once with nothing to
+   look up. Setup is the same one secret as v4.2: VAPID_PRIVATE_KEY.
    ───────────────────────────────────────────────────────────────────────────── */
 
 const MAX_HISTORY = 500;
@@ -45,7 +40,15 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 
 /* Types worth waking a device for. A wake is cheap but not free, and waking for
    a heartbeat would be worse than not waking at all. */
-const PUSH_WORTHY = new Set(['chat-msg', 'sys-pill', 'call-start', 'call-end', 'thread-invite', 'history-sync']);  /* v4.2: missed-call + thread invites wake locked phones */
+/* v6: only events that own a recipient record can alert. Everything else is
+   data on the socket, never a wake. */
+const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
+const RELAY_VERSION = '6.1';
+const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_EVENTS = 400;
+const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
+const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
+const EV_TYPES = new Set(['ev-state', 'ev-seen', 'ev-open', 'events-sync']);
 
 function cors() {
   return {
@@ -60,6 +63,7 @@ function json(body, status = 200) {
     headers: { ...cors(), 'Content-Type': 'application/json' }
   });
 }
+function sessionOf(ws) { try { const t = ws.deserializeAttachment(); return (t && t.sessionId) || ''; } catch (_) { return ''; } }
 function err(msg, status = 400) {
   return new Response(msg, { status, headers: cors() });
 }
@@ -202,18 +206,198 @@ export class TalkSession {
     this.messages = [];
     this.lastActivity = 0;
     this.subs = {};                     /* clientId -> { sub, at } */
+    this.events = {};                   /* eventId -> recipient-event record (the one authority) */
+    this.devices = {};                  /* clientId -> { at } every device ever seen in this session */
+    this.states = {};                   /* clientId -> { visible, inRoom, muted, at } last reported, in memory only */
     this.ready = this.state.blockConcurrencyWhile(async () => {
-      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs']);
+      const stored = await this.state.storage.get(['seq', 'messages', 'lastActivity', 'subs', 'events', 'devices']);
       this.seq = Number(stored.get('seq')) || 0;
       this.messages = stored.get('messages') || [];
       this.lastActivity = Number(stored.get('lastActivity')) || 0;
       this.subs = stored.get('subs') || {};
+      this.events = stored.get('events') || {};
+      this.devices = stored.get('devices') || {};
     });
+  }
+
+  /* ── recipient-event authority ─────────────────────────────────────────── */
+  async _saveEvents() {
+    const now = Date.now();
+    const ids = Object.keys(this.events).filter((id) => now - (this.events[id].ts || 0) < EVENT_TTL_MS);
+    ids.sort((a, b) => (this.events[a].seq || 0) - (this.events[b].seq || 0));
+    const keep = ids.slice(-MAX_EVENTS);
+    const next = {};
+    for (const id of keep) next[id] = this.events[id];
+    this.events = next;
+    await this.state.storage.put({ events: this.events });
+  }
+  async _noteDevice(clientId) {
+    if (!clientId) return;
+    if (!this.devices[clientId]) {
+      this.devices[clientId] = { at: Date.now() };
+      await this.state.storage.put({ devices: this.devices });
+    }
+  }
+  _stateOf(clientId) {
+    const st = this.states[clientId];
+    if (!st) return null;
+    if (Date.now() - st.at > STATE_FRESH_MS) return null;   /* stale: a suspended app is not looking */
+    return st;
+  }
+  _isConnected(clientId) { return this._connectedIds().has(clientId); }
+  _lastOsChat(clientId) {
+    let last = 0;
+    for (const ev of Object.values(this.events)) {
+      if (ev.kind !== 'chat') continue;
+      const r = ev.rcp[clientId];
+      if (r && r.p === 'os_requested' && ev.ts > last) last = ev.ts;
+    }
+    return last;
+  }
+  /* Presentation for one recipient, from what the relay durably knows. */
+  _decide(ev, clientId, now) {
+    const st = this._stateOf(clientId);
+    if (st && st.muted) return 'muted';
+    if (st && st.visible && this._isConnected(clientId)) return 'in_app';
+    if (ev.kind === 'chat' && now - this._lastOsChat(clientId) < BURST_MS) return 'suppressed';
+    return 'os_requested';
+  }
+  _projection(clientId) {
+    const proj = { chat: 0, voice: 0, video: 0 };
+    const unseen = [];
+    const calls = [];
+    for (const ev of Object.values(this.events)) {
+      const r = ev.rcp[clientId];
+      if (!r) continue;
+      if (ev.kind === 'call' && r.o === 'offered' && !ev.ended) calls.push({ id: ev.id, callId: ev.callId, callKind: ev.callKind, from: ev.from, name: ev.name || null, ts: ev.ts });
+      if (r.s !== 'unseen') continue;
+      if (ev.kind === 'chat') { proj.chat += 1; unseen.push({ id: ev.id, kind: 'chat', ts: ev.ts, p: r.p }); }
+      else if (ev.kind === 'call' && r.o === 'missed') { proj[ev.callKind] += 1; unseen.push({ id: ev.id, kind: ev.callKind, callId: ev.callId, ts: ev.ts, o: r.o, p: r.p }); }
+    }
+    return { proj, unseen, calls };
+  }
+  _sendTo(clientId, payload) {
+    const text = JSON.stringify(payload);
+    for (const ws of this.state.getWebSockets()) {
+      const tag = ws.deserializeAttachment();
+      if (tag && tag.clientId === clientId) { try { ws.send(text); } catch (_) {} }
+    }
+  }
+  _pushProjection(clientId) {
+    const p = this._projection(clientId);
+    this._sendTo(clientId, { type: 'ev-proj', transient: true, proj: p.proj, unseen: p.unseen, calls: p.calls, ts: Date.now() });
+  }
+  _recipients(senderId) {
+    const ids = new Set(Object.keys(this.devices));
+    for (const id of Object.keys(this.subs)) ids.add(id);
+    for (const id of this._connectedIds()) ids.add(id);
+    ids.delete(senderId);
+    ids.delete('');
+    return [...ids];
+  }
+  /* One durable record per event and recipient, created before any delivery. */
+  async _recordEvent(msg, senderId) {
+    const kind = RECORD_KIND[msg.type];
+    if (!kind) return null;
+    const id = String(msg.eventId || (kind === 'call' && msg.callId) || msg.chatId || msg.inviteId || (msg.type + '-' + msg.seq + '-' + msg.ts));
+    if (this.events[id]) { msg.eventId = id; return this.events[id]; }   /* retry reuses the record */
+    const now = Date.now();
+    const ev = { id, seq: msg.seq, type: msg.type, kind, from: senderId, ts: now, name: msg.name || msg.senderName || null, rcp: {} };
+    if (kind === 'call') {
+      ev.callId = String(msg.callId || id);
+      ev.callKind = msg.kind === 'video' ? 'video' : 'voice';
+      ev.ended = false;
+    }
+    for (const cid of this._recipients(senderId)) {
+      const p = this._decide(ev, cid, now);
+      ev.rcp[cid] = { p, push: 'not_requested', s: 'unseen', o: kind === 'call' ? 'offered' : null, at: now, seenAt: null, seenBy: null };
+    }
+    this.events[id] = ev;
+    msg.eventId = id;
+    if (kind === 'call') msg.callId = ev.callId;
+    await this._saveEvents();
+    return ev;
+  }
+  _openCall(callId) {
+    for (const ev of Object.values(this.events)) if (ev.kind === 'call' && ev.callId === callId && !ev.ended) return ev;
+    return null;
+  }
+  _latestOpenCallFrom(fromId) {
+    let best = null;
+    for (const ev of Object.values(this.events)) {
+      if (ev.kind !== 'call' || ev.ended) continue;
+      if (fromId && ev.from !== fromId && !ev.rcp[fromId]) continue;
+      if (!best || ev.ts > best.ts) best = ev;
+    }
+    return best;
+  }
+  /* Recipient outcome transitions ride the product's own call words. */
+  async _applyCallWord(msg, clientId) {
+    const ev = (msg.callId && this._openCall(String(msg.callId))) || this._latestOpenCallFrom(clientId);
+    if (!ev) return;
+    msg.callId = ev.callId; msg.eventId = ev.id;
+    const r = ev.rcp[clientId];
+    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'accept'; } }
+    else if (msg.type === 'call-decline') { if (r && r.o === 'offered') { r.o = 'declined'; r.s = 'seen'; r.seenAt = Date.now(); r.seenBy = 'decline'; } }
+    else if (msg.type === 'call-end') {
+      /* Caller/global termination is separate from each receiver's outcome:
+         a receiver who neither accepted nor declined becomes missed exactly once. */
+      if (clientId === ev.from || !r) {
+        ev.ended = true; ev.endedAt = Date.now();
+        for (const [cid, rr] of Object.entries(ev.rcp)) { if (rr.o === 'offered') rr.o = 'missed'; else if (rr.o === 'accepted') rr.o = 'ended'; }
+      } else {
+        if (r.o === 'accepted') r.o = 'ended';
+        else if (r.o === 'offered') r.o = 'missed';
+        ev.ended = true; ev.endedAt = Date.now();
+        for (const rr of Object.values(ev.rcp)) { if (rr.o === 'offered') rr.o = 'missed'; else if (rr.o === 'accepted') rr.o = 'ended'; }
+      }
+    }
+    await this._saveEvents();
+    for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
+  }
+  async _markSeen(clientId, ids, by) {
+    let changed = 0;
+    const now = Date.now();
+    for (const id of ids) {
+      const ev = this.events[id]; if (!ev) continue;
+      const r = ev.rcp[clientId]; if (!r || r.s === 'seen') continue;
+      r.s = 'seen'; r.seenAt = now; r.seenBy = by; changed += 1;
+    }
+    if (changed) await this._saveEvents();
+    return changed;
+  }
+  async _handleEventWord(msg, clientId) {
+    if (msg.type === 'ev-state') {
+      this.states[clientId] = { visible: msg.visible === true, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
+      return { ok: true };
+    }
+    if (msg.type === 'ev-seen') {
+      const n = await this._markSeen(clientId, Array.isArray(msg.ids) ? msg.ids.map(String) : [], 'in_room');
+      const p = this._projection(clientId);
+      return { ok: true, seen: n, proj: p.proj, unseen: p.unseen, calls: p.calls };
+    }
+    if (msg.type === 'ev-open') {
+      /* Opening the room acknowledges exactly the set durably applied to this recipient. */
+      const acked = this._projection(clientId).unseen;
+      const n = await this._markSeen(clientId, acked.map((u) => u.id), 'room_open');
+      const p = this._projection(clientId);
+      return { ok: true, seen: n, acked, proj: p.proj, unseen: p.unseen, calls: p.calls };
+    }
+    if (msg.type === 'events-sync') {
+      const p = this._projection(clientId);
+      return { ok: true, proj: p.proj, unseen: p.unseen, calls: p.calls };
+    }
+    return null;
+  }
+  /* Read-only diagnostics: fields and transitions of the same record, secrets redacted. */
+  _diagEvents() {
+    return Object.values(this.events).slice(-40).map((ev) => ({ id: ev.id, type: ev.type, kind: ev.kind, callKind: ev.callKind || null, callId: ev.callId || null, ended: !!ev.ended, ts: ev.ts, rcp: ev.rcp }));
   }
 
   async _touchSession() {
     const now = Date.now();
     if (this.lastActivity && now - this.lastActivity > SESSION_TTL_MS) {
+      /* History resets at the session boundary; the recipient-event records do not. */
       this.seq = 0;
       this.messages = [];
       await this.state.storage.put({ seq: 0, messages: [], lastActivity: now });
@@ -257,16 +441,19 @@ export class TalkSession {
 
   /* STEP 1: the reference delivery class — encrypted payload, high urgency,
      newest-wins topic, short TTL. Proven on the owner's locked iPhone 4/4. */
-  async _pushOne(clientId, rec) {
+  async _pushOne(clientId, rec, ev, sessionId) {
+    const r = ev.rcp[clientId];
     const endpoint = rec && rec.sub && rec.sub.endpoint;
     const keys = rec && rec.sub && rec.sub.keys;
-    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) { r.push = 'failed'; r.pushErr = 'no-subscription'; return; }
     let body;
     try {
-      body = await webpushEncrypt(JSON.stringify({ t: 'tb-wake', at: Date.now() }), keys.p256dh, keys.auth);
-    } catch (_) { return; }
+      /* The event identity only — never message text. */
+      const payload = { t: 'tb-ev', id: ev.id, room: sessionId, kind: ev.kind === 'call' ? ev.callKind : 'chat', callId: ev.callId || null, name: ev.name || null, ts: ev.ts };
+      body = await webpushEncrypt(JSON.stringify(payload), keys.p256dh, keys.auth);
+    } catch (e) { r.push = 'failed'; r.pushErr = 'encrypt'; return; }
     const headers = {
-      TTL: '60', Urgency: 'high', Topic: 'tb-wake',
+      TTL: '60', Urgency: 'high', Topic: ev.kind === 'call' ? ('tb-call-' + ev.callId).slice(0, 32) : ('tb-' + sessionId).slice(0, 32),
       'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
       'Content-Length': String(body.length)
     };
@@ -274,33 +461,32 @@ export class TalkSession {
     if (auth) headers.Authorization = auth;
     try {
       const res = await fetch(endpoint, { method: 'POST', headers, body });
-      this.lastWake = { clientId, at: Date.now(), status: res.status };
+      this.lastWake = { clientId, at: Date.now(), status: res.status, eventId: ev.id };
+      r.push = (res.status >= 200 && res.status < 300) ? 'accepted' : 'failed';
+      r.pushStatus = res.status;
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
          Keeping it would mean retrying forever against nothing. */
       if (res.status === 404 || res.status === 410) {
         delete this.subs[clientId];
         await this._saveSubs();
       }
-    } catch (_) {}
+    } catch (_) { r.push = 'unknown'; }
   }
 
-  /* v4.2 ALWAYS-PUSH (plan v20.0.0 §4.6, sources S1-S3): every push-worthy
-     event goes to every subscribed device except the sender, unconditionally.
-     A socket is not a person; the device decides presentation. The old
-     freshness exemption and 1s ack-gate (A1-A3) are deleted, not disabled. */
-  async _wakeOthers(msg, senderId) {
-    if (!PUSH_WORTHY.has(msg.type)) return;
+  /* v6: the record decides. Only os_requested recipients are pushed; the push
+     result is written back to the same record. Nothing here waits for an ack. */
+  async _deliverByRecord(ev, sessionId) {
+    if (!ev) return;
     const now = Date.now();
     const jobs = [];
-    for (const [clientId, rec] of Object.entries(this.subs)) {
-      if (clientId === senderId) continue;
-      if (rec.at && now - rec.at > SUB_TTL_MS) {         /* stale, drop it */
-        delete this.subs[clientId];
-        continue;
-      }
-      jobs.push(this._pushOne(clientId, rec));
+    for (const [clientId, r] of Object.entries(ev.rcp)) {
+      if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
+      const rec = this.subs[clientId];
+      if (rec && rec.at && now - rec.at > SUB_TTL_MS) { delete this.subs[clientId]; r.push = 'failed'; r.pushErr = 'stale-subscription'; continue; }
+      jobs.push(this._pushOne(clientId, rec, ev, sessionId));
     }
     if (jobs.length) await Promise.all(jobs);
+    await this._saveEvents();
   }
 
   async fetch(request) {
@@ -309,12 +495,14 @@ export class TalkSession {
 
     const url = new URL(request.url);
     const clientId = (url.searchParams.get('client') || '').trim();
+    const sessionId = (url.searchParams.get('session') || '').trim().slice(0, 128);
 
     if (request.headers.get('Upgrade') === 'websocket') {
       if (!clientId) return err('Missing client', 400);
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
-      pair[1].serializeAttachment({ clientId });
+      pair[1].serializeAttachment({ clientId, sessionId });
+      await this._noteDevice(clientId);
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
@@ -336,7 +524,13 @@ export class TalkSession {
 
       /* The app asks for the public key before it can subscribe at all. */
       if (body && body.type === 'diag') {
-        return json({ ok: true, v: '4.2', connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake });
+        return json({ ok: true, v: RELAY_VERSION, connected: [...this._connectedIds()], subs: Object.keys(this.subs).length, lastWake: this.lastWake, events: this._diagEvents(), states: this.states });
+      }
+      /* Read-only reconciliation against the same authority when a socket is unavailable. */
+      if (body && EV_TYPES.has(body.type)) {
+        await this._noteDevice(clientId);
+        const out = await this._handleEventWord(body, clientId);
+        return json(out || { ok: false });
       }
       if (body && body.type === 'vapid') {
         return json({ ok: true, vapid: VAPID_PUBLIC_KEY, push: !!this.env.VAPID_PRIVATE_KEY });
@@ -345,6 +539,7 @@ export class TalkSession {
       if (body && body.type === 'subscribe' && body.subscription && body.subscription.endpoint) {
         this.subs[clientId] = { sub: body.subscription, at: Date.now() };
         await this._saveSubs();
+        await this._noteDevice(clientId);
         return json({ ok: true, subscribed: true, vapid: VAPID_PUBLIC_KEY });
       }
 
@@ -371,8 +566,20 @@ export class TalkSession {
     msg.from = msg.from || clientId;
     msg.ts = msg.ts || Date.now();
 
-    const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     await this._touchSession();
+
+    /* Event words: answered to this device only, never broadcast, never history. */
+    if (EV_TYPES.has(msg.type)) {
+      await this._noteDevice(clientId);
+      const out = await this._handleEventWord(msg, clientId);
+      if (out) { out.type = 'ev-reply'; out.of = msg.type; out.transient = true; out.reqId = msg.reqId || null; try { ws.send(JSON.stringify(out)); } catch (_) {} }
+      return;
+    }
+
+    const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
+    if (msg.type === 'hello') await this._noteDevice(clientId);
+    /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
+    if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
 
     if (!isTransient) {
       await this._persist(msg);
@@ -381,13 +588,20 @@ export class TalkSession {
       await this.state.storage.put({ seq: this.seq });
     }
 
+    /* The recipient record exists before delivery; the socket copy carries its id. */
+    let ev = null;
+    if (!isTransient) {
+      try { ev = await this._recordEvent(msg, clientId); } catch (_) {}
+      if (msg.type === 'call-accept' || msg.type === 'call-decline' || msg.type === 'call-end') { try { await this._applyCallWord(msg, clientId); } catch (_) {} }
+    }
+
     this._broadcast(msg, clientId);
 
-    /* Waking a sleeping device must never delay or endanger delivery to one
-       that is awake, so it happens after the broadcast and its failures are
-       swallowed. */
-    if (!isTransient) {
-      try { await this._wakeOthers(msg, clientId); } catch (_) {}
+    if (ev) {
+      for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
+      /* Pushing must never delay or endanger delivery to one that is awake, so it
+         happens after the broadcast and its failures are swallowed. */
+      try { await this._deliverByRecord(ev, sessionOf(ws)); } catch (_) {}
     }
   }
 
