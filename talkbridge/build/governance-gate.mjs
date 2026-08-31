@@ -125,7 +125,7 @@ function validateEvidence(root, state, errors) {
   }
 }
 
-function allowedForStage(state, governingStage) {
+function allowedForStage(state, governingStage, bankedAuthorized) {
   /* The gate's tests are proof, not enforcement: CI re-runs them on every
      change, so they may be corrected at any stage. The gate itself locks
      once the first governed transition is banked. */
@@ -144,7 +144,7 @@ function allowedForStage(state, governingStage) {
     /* Pre-GO the proposal is a draft: root cause, plan and graveyard may be
        revised (the state re-pins their hashes) until the owner's GO is banked.
        The gate itself may be corrected here for the same reason. */
-    if (state.owner_authorization?.status !== 'authorized') {
+    if (!bankedAuthorized && state.owner_authorization?.status !== 'authorized') {
       statePath.add(PLAN_PATH); statePath.add(GRAVEYARD_PATH); statePath.add(state.root_cause?.file);
       statePath.add('talkbridge/build/governance-gate.mjs');
     }
@@ -230,7 +230,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
     for (const rel of changedFiles) assert(BOOTSTRAP_PATHS.has(rel), `bootstrap changed a non-enforcement file: ${rel}`, errors);
   } else {
     const governingStage = previousState?.stage || state.stage;
-    const allowed = allowedForStage(state, governingStage);
+    const allowed = allowedForStage(state, governingStage, previousState?.owner_authorization?.status === 'authorized');
     if (rejectionRestart) {
       for (const rel of Object.keys(state.baseline?.files || {})) allowed.add(rel);
       allowed.add(GRAVEYARD_PATH); allowed.add(PLAN_PATH); allowed.add(state.root_cause?.file);
