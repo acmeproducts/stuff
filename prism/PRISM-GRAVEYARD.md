@@ -1,91 +1,138 @@
-<!-- PRISM-GRAVEYARD v1.6.0 -->
-# PRISM GRAVEYARD v1.6.0
+<!-- PRISM-GRAVEYARD v1.3.0 -->
+# PRISM GRAVEYARD v1.3.0
 
 **Purpose:** release test results, rejected approaches, root causes, and non-repeatable failures for PRISM. This file is mandatory build input.
 
 ---
 ## G0 · GOVERNANCE RULE
-Every materially failed or constrained release records stage/artifact/commit, observed failure, root cause/lesson, explicit veto, and recovery baseline. Do not patch a rejected architecture forward without first changing the plan.
+Every materially failed or constrained release records turn/stage/release, exact commit/artifact, date, observed failure, root cause if known, architectural lesson, explicit veto, and recovery baseline. Do not patch forward from a graveyarded implementation.
 
----
-## DURABLE VETOES
+## G1 · Browser-side publisher fan-out as normal startup
+**Origin:** Globe / WorldPulse direct-RSS lineage.
+**Failure:** intermittent CORS/403/proxy/timeout failures; app availability tied to source freshness.
+**VETO:** PRISM normal startup must never fan out across publisher RSS feeds.
+**Replacement:** collector → last-known-good source cache → canonical event cache → same-origin fetch → IndexedDB.
 
-### G1 · Browser publisher fan-out
-Normal startup may not independently fetch publisher RSS feeds. Use same-origin cache/IndexedDB.
+## G2 · Article/headline as master visualization object
+**Origin:** early Globe/Luma.
+**Failure:** duplicate real-world developments inflate density and fragment corroboration/AI context.
+**VETO:** raw articles may not be PRISM's primary shared object.
+**Replacement:** Event → Coverage → Source Article.
 
-### G2 · Article as master object
-Raw headlines may not be the shared visualization object. Use Event → Coverage → Source Article.
+## G3 · Separate state universes per visualization
+**Failure risk:** search/filter/selection/favorites diverge across views.
+**VETO:** Explore, Map, Feed may not own independent canonical state.
+**Replacement:** one shared application state.
 
-### G3 · Separate state universes
-Map/Explore/Feed may not maintain independent search/filter/selection state.
+## G4 · Treemap-only identity
+Treemap is strong structurally but weak as sole discovery surface.
+**VETO:** PRISM may not collapse into a treemap-only product.
 
-### G4 / G5 · Single-view identity
-PRISM may be neither treemap-only nor sphere-only.
+## G5 · Sphere-only identity
+Sphere is engaging but weak for every reading/ranking/corroboration task.
+**VETO:** PRISM may not force all consumption through the sphere.
 
-### G6 · Detached generic AI chat
-AI must be scoped to PRISM evidence and preserve provenance.
+## G6 · AI as isolated chatbot
+**VETO:** no detached generic chat screen without structured event scope/provenance.
+**Replacement:** compose strip scoped to current PRISM information state.
 
-### G7 / G8 · Settings-only or unverified model use
-Settings owns credentials/model discovery; compose can choose verified pairs. A populated field is not verification.
+## G7 · Provider/model controls only in Settings
+Credential configuration and per-analysis model choice are separate responsibilities.
+**VETO:** provider/model choice cannot be Settings-only.
 
-### G9 · Disposable AI answers
-Research outputs become durable Analysis threads and can be saved/continued.
+## G8 · Unverified provider/model use
+**VETO:** populated fields do not equal usable configuration.
+**Replacement:** explicit provider/model ping before verified status.
 
-### G10 / G11 · localStorage Library / destructive import
-Library uses IndexedDB; import merges by analysisId.
+## G9 · Disposable AI results
+**VETO:** completed analyses cannot be transient-only chat history.
+**Replacement:** durable Analysis object + Save to Library.
 
-### G12 · Patch legacy prototypes into PRISM
-Globe/Luma/Onyx are frozen references, not patch targets.
+## G10 · localStorage analysis library
+**VETO:** do not use localStorage as the primary analysis store.
+**Replacement:** IndexedDB.
 
-### G13 · Unexplained encoding
-Any active Color/Size/Group mapping must explain itself in-view.
+## G11 · Destructive library import
+**VETO:** import must not replace the whole local library by default.
+**Replacement:** validate + merge by `analysisId`.
 
-### G14 · Controls without operational filtering
-Reserved state is not a filter feature.
+## G12 · Patching legacy prototypes into PRISM
+`globe.html`, `lumasphere.html`, and `onxyview-newsmap-v15.html` contain conflicting architecture/state/rendering assumptions.
+**VETO:** do not turn one legacy file into PRISM by patch chains.
+**Replacement:** frozen references + new governed `prism/` lineage.
 
-### G15 · Box collection mislabeled treemap
-Do not call list/grid boxes a treemap.
+## G13 · Unexplained visual encoding
+**Origin:** PRISM Turn 01 pre-base owner test.
+**Observed failure:** sphere rendered colored/sized objects but no visible legend, leaving the user unable to know what the globe was communicating.
+**VETO:** any PRISM view using Color, Size, Grouping, or aggregation must expose its active encoding in-view.
 
-### G16 · Reader underlap
-Desktop contextual reading must resize the work surface.
+## G14 · Controls without actual filtering
+**Origin:** PRISM Turn 01 pre-base owner test.
+**VETO:** do not hand off a data-view stage with merely reserved filter state.
 
-### G17 · Per-tab control bars
-There is one global analytical ribbon.
+## G15 · Box collection mislabeled as treemap
+**Origin:** PRISM Turn 01 pre-base owner test.
+**VETO:** do not call a box/list/grid a treemap.
 
-### G18 · Anonymous dots as final Explore objects
-Explore uses readable information cards/tiles and meaningful cluster labels.
+## G16 · Reader underlap
+**Origin:** PRISM Turn 01 pre-base owner test.
+**VETO:** desktop readers may not permanently overlay/underlap active information surfaces.
 
-### G19 · Hand-rolled PRISM treemap
-Rejected. Use proven library-backed NewsMap/treemap behavior.
+## G17 · Per-tab control bars
+**Origin:** PRISM Turn 01 base owner test, commit `446317e3de21cbbb867a4682dda627b5e22a551f`.
+**Observed failure:** Explore and Map exposed separate control sets, making the application feel like disconnected tools.
+**VETO:** PRISM may have only one global analytical control/filter ribbon.
 
-### G20 · AI deferred behind visualization work
-AI POV is part of the integrated pre-ship value gate.
+## G18 · Abstract dots as final Explore objects
+**Origin:** PRISM Turn 01 base owner test.
+**VETO:** Explore may not ship as unlabeled abstract dots. Event objects must be information cards/tiles.
 
-### G21 · Filter catalog disconnected from selected dimensions
+## G19 · Hand-rolled PRISM treemap
+**Origin:** PRISM Turn 01 base owner test.
+**Observed failure:** custom strip/area layout was visually broken and did not achieve the proven NewsMap model.
+**VETO:** do not continue the custom PRISM treemap algorithm.
+**Replacement:** library-backed NewsMap-style implementation.
+
+## G20 · AI deferred behind visualization polish
+**Origin:** PRISM Turn 01 base owner test.
+**VETO:** AI POV is in the integrated pre-ship scope.
+
+## G21 · Independent filter catalog disconnected from selected dimensions
 **Origin:** PRISM Turn 01 pre-ship R2 owner test.
 **Artifact:** `prism/prism-turn01-pre-ship-r2.html` @ `ab33490ce3395017af94e6b51ad606476c4e7d06`.
-**Observed failure:** the filter tray showed Subject, Region, Sentiment, Tier, Corroboration and Source even when those fields had not been selected as active analytical dimensions. This made the ribbon read as two unrelated configuration systems and made Source especially confusing because it appeared as a filter without being selected as a dimension.
-**Root cause:** `filterFields()` promoted active Group/Color dimensions but then appended the entire catalog of filterable fields, so every possible filter was always visible. The architecture therefore violated the intended dimension → filter relationship.
-**Lesson:** filters are not an independent facet browser in PRISM. They refine the dimensions the user chose to visualize.
-**VETO:** never display a filter for a discrete field that is not currently selected as an analytical dimension. Never leave an inactive dimension's filter state silently constraining the corpus.
-**Replacement:** derive `activeFilterDimensions` only from currently selected discrete roles; deduplicate; clear filters immediately when their dimension becomes inactive. Source becomes a selectable Group/Color dimension and appears as a filter only when selected. Source enable/disable remains separate under Config → Sources.
-**Recovery baseline:** preserve all accepted R2 shell, Map, sphere gestures/clustering, AI Markdown/link handling, selection and Library behavior; change only the dimension/filter contract in R3.
+**Observed failure:** the filter tray exposed fields that were not selected as analytical dimensions, including Source/Tier, making filters feel like an unrelated control system. The first correction then incorrectly exempted quantitative Size dimensions from the filter contract.
+**Root cause:** filter generation was modeled as a catalog of possible facets rather than as the direct projection of active Group/Color/Size dimensions.
+**VETO:** no standalone analytical filter catalog. Every active selectable dimension must have a corresponding filter; no inactive dimension may appear or continue constraining the dataset invisibly.
+**Replacement:** R3 derives `unique(Group, Color, Size, …)` and renders exactly one field-appropriate filter for each active dimension: chips for categorical dimensions, bounded range controls for quantitative dimensions.
+**Recovery baseline:** preserve R2 shell, Map, rotatable clustered sphere, AI Markdown/link behavior, source management, evidence management, and Library.
 
 ---
 # RELEASE TEST RECORDS
 
-## T01-PREBASE · Foundation accepted
-**Artifact:** `prism/prism-turn01-pre-base.html` @ `e5ae4beba3babb6297d63234f19519c28c68894a`
-**Result:** foundation passed; presentation findings carried forward.
+## T01-PREBASE · Foundation accepted with presentation findings
+**Stage:** 01·pre-base
+**Artifact:** `prism/prism-turn01-pre-base.html`
+**Commit:** `e5ae4beba3babb6297d63234f19519c28c68894a`
+**Owner test date:** 2026-08-31
+**Result:** **FOUNDATION PASSED; NOT A VALUE/PRESENTATION GATE.**
 
 ## T01-BASE · Rejected visualization architecture
-**Artifact:** `prism/prism-turn01-base.html` @ `446317e3de21cbbb867a4682dda627b5e22a551f`
-**Result:** rejected as forward UI baseline.
+**Stage:** 01·base
+**Artifact:** `prism/prism-turn01-base.html`
+**Commit:** `446317e3de21cbbb867a4682dda627b5e22a551f`
+**Owner test date:** 2026-08-31
+**Result:** **REJECTED AS FORWARD UI BASELINE.**
 
-## T01-PRE-SHIP R1 · Superseded
-**Artifact:** `prism/prism-turn01-pre-ship.html` @ `55484b815bddf81c31051149fc02e176b8df50da`
-**Result:** superseded by rail/right-panel, sphere gesture, Markdown and Library findings.
+## T01-PRESHIP-R1 · Superseded
+**Artifact:** `prism/prism-turn01-pre-ship.html`
+**Commit:** `55484b815bddf81c31051149fc02e176b8df50da`
+**Result:** superseded by R2 shell/interaction correction.
 
-## T01-PRE-SHIP R2 · Accepted direction, filter contract rejected
-**Artifact:** `prism/prism-turn01-pre-ship-r2.html` @ `ab33490ce3395017af94e6b51ad606476c4e7d06`
-**Result:** shell/Map/Explore/AI/Library direction retained; always-on filter catalog rejected. R3 must preserve R2 behavior while making filters a strict projection of selected dimensions.
+## T01-PRESHIP-R2 · Baseline with filter-model defect
+**Artifact:** `prism/prism-turn01-pre-ship-r2.html`
+**Commit:** `ab33490ce3395017af94e6b51ad606476c4e7d06`
+**Result:** **PRESERVE AS RECOVERY BASELINE, DO NOT PRESERVE FILTER CATALOG MODEL.**
+
+**Accepted forward:** collapsible left rail, central work surface, collapsible right context, ECharts Map, rotatable clustered sphere with wheel/pinch zoom, Markdown/link-safe AI, source manager, evidence deselection, full Library.
+
+**Rejected:** filter catalog independent from selected dimensions; categorical-only interpretation of the dimension/filter rule.
