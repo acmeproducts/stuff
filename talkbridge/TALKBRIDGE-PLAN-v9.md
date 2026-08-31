@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.9.0 -->
-# TALKBRIDGE MASTER PLAN v20.9.0
+<!-- TALKBRIDGE-PLAN v20.10.0 -->
+# TALKBRIDGE MASTER PLAN v20.10.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -247,8 +247,10 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.9.0): §4.11 IS THE SOLE R10 REPLACEMENT PROPOSAL;
-OWNER GO IS REQUIRED BEFORE BUILD.** Sections 4.1–4.4 and 4.6 are historical
+**ACTIVE AUTHORITY (v20.10.0): §4.12 (R10-CR2) IS THE SOLE R10 REPLACEMENT
+PROPOSAL; OWNER GO IS REQUIRED BEFORE BUILD.** §4.11 (R10-CR1) is retained
+as the design authority §4.12 inherits; its pair `339eb40` was rejected at the
+owner device gate (graveyard G21, G22; root cause §9). Sections 4.1–4.4 and 4.6 are historical
 lineage. Sections 4.7, 4.8, 4.9, and 4.10 describe rejected releases and are
 not build authority. The R10.6 instrumentation, authorization, provider-token,
 event-state, worker, relay, test, and deployment designs are buried together
@@ -475,6 +477,64 @@ pair and restores all three frozen R10.2/v4.2 product files. The failed
 candidate is preserved as evidence, the graveyard and whole-release root cause
 are completed, and a new plan/GO cycle is required. There is no patch-forward,
 partial acceptance, secret-configuration detour, or same-candidate retry.
+
+### 4.12 · R10-CR2 — CLEAN REPLACEMENT, SECOND ATTEMPT (OWNER GO REQUIRED)
+
+**Status: PLAN COMPLETE; IMPLEMENTATION BLOCKED PENDING EXPLICIT OWNER GO.**
+R10-CR2 is a new clean assembly from the exact frozen R10.2/v4.2 bytes
+(§4.11.1 hashes, unchanged). It inherits §4.11.2–§4.11.7 whole — the one
+recipient-event authority, recipient call outcomes, the recovery coordinator,
+the presentation contract, the scenario-first gates and the device gate —
+because the device run proved that design on iPhone in all four states and on
+Android wherever the app held a relay lane. It adds exactly the two contract
+corrections the root cause (§9) binds, and nothing else. No line from the
+rejected pair is an input; the parts are re-derived from this plan and
+re-gated. Graveyard G21 and G22 are mandatory vetoes.
+
+#### 4.12.1 · Frozen input, exact output, scope wall
+
+Identical to §4.11.1. The only product outputs are
+`bridge-turn24-post-ship.html`, `tb-sw.js`, `talkbridge/worker-talk.js`;
+`talkbridge/wrangler.jsonc` stays byte-frozen. Build-support allowance is the
+§4.11.1 list with `r10-cr1` renamed `r10-cr2` in every path, plus
+`.github/workflows/talkbridge-governance.yml` is NOT touched. The relay
+diagnostic for a real room must be readable from `talkbridge-r10-cr2.yml`
+on `workflow_dispatch` without a deploy (§9.5-3).
+
+#### 4.12.2 · Lane continuity (G21)
+
+A visible device is never laneless. Leaving a room opens that room's listener
+lane in the same action; the coordinator treats room leave as a recovery
+signal. Machine gate: enter → leave → call within 2 s → in-app Accept/Decline
+surface, no OS request, record `in_app`. Planted defect: remove the leave
+signal → gate red.
+
+#### 4.12.3 · Tap reaches only the installed app (G22)
+
+The installed app, on every standalone boot and every return to visible,
+announces its window to the worker; the worker keeps that client identity
+durably (same on-device store, no independent state). A notification tap
+focuses only an announced window and posts the exact event to it. A window
+that has not announced — a browser tab showing the install gate — is never
+focused and never messaged. With no announced window alive the worker opens
+the app URL carrying the event hash, and the app routes it (§4.11.4 cold
+path). Machine gate: an install-gate tab and an announced app window coexist
+→ tap focuses the app window, the gate tab receives nothing; the app window
+alone → same; neither → open with hash. Planted defects: focus-first-match;
+message-every-window → gate red. Search-before-build note: this is the
+documented platform limitation (w3c/ServiceWorker #720); the announcement is
+the replacement, not a URL heuristic.
+
+#### 4.12.4 · Gates and device matrix
+
+All §4.11.5 machine and live gates, plus §4.12.2 and §4.12.3 rows, each with
+a planted defect. The live gate reads the real test room's relay record after
+the owner run (§9.3 open observation: the 06:26:16 call with no push receipt)
+and files it as evidence. Owner device gate: §4.11.6 matrix, 12 rows, both
+directions, with two additions to the Android procedure recorded on the
+sheet: (a) row 6 is run immediately after leaving the room; (b) rows 7/8 are
+run with the install-step Chrome tab still open — the tab must never come to
+front. Pass/fail and rollback exactly as §4.11.6–§4.11.7.
 
 ### 4.1 · HISTORICAL v19 SPECIFICATION — retained for lineage only
 
@@ -1615,6 +1675,15 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.10.0 · 2026-08-31.** R10-CR1 pair `339eb40` rejected at the owner device
+gate: Android row 6 (laneless interval after room leave, G21) and rows 7/8
+(tap focused the install-step browser tab, G22); iPhone passed all four
+states; Android OS display proven by the shade. Whole pair rolled back to the
+frozen bytes; cycle `r10-recovery-2026-08-31` opened; root cause §9 complete.
+§4.12 defines R10-CR2: §4.11 inherited whole plus lane continuity on room
+leave and app-announced tap targeting, each with machine gates and planted
+defects. Owner GO required before build.
 
 **v20.9.0 · 2026-08-30.** PR #647 banked the whole-release root cause and
 advanced the fail-closed repository state to `plan_required`. §4.11 now defines
