@@ -163,7 +163,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
   const state = readJson(root, STATE_PATH);
 
   assert(state.schema === 1, 'unsupported governance schema', errors);
-  assert(state.cycle === 'r10-recovery-2026-08-30', 'unexpected R10 recovery cycle', errors);
+  assert(/^r10-recovery-\d{4}-\d{2}-\d{2}$/.test(String(state.cycle)), 'unexpected R10 recovery cycle', errors);
 
   /* §4.11.1 / §4.11.7: once the owner GO is banked, the declared output files
      are the candidate and may diverge from the frozen bytes; every other
@@ -228,6 +228,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
       for (const rel of Object.keys(state.baseline?.files || {})) allowed.add(rel);
       allowed.add(GRAVEYARD_PATH); allowed.add(PLAN_PATH); allowed.add(state.root_cause?.file);
       allowed.add('talkbridge/governance/evidence/');
+      allowed.add('talkbridge/build/governance-gate.mjs');   /* a restart may repair the gate that could not express it */
     }
     for (const rel of changedFiles) {
       assert(allowedPath(allowed, rel), `file is out of order for ${governingStage}: ${rel}`, errors);

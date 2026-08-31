@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,6 +49,18 @@ function rootStageFixture() {
   return root;
 }
 
+/* A self-contained build_authorized state: root cause and plan pinned to the fixture's own bytes. */
+function authorizeFixture(root) {
+  const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+  mutateJson(root, state => {
+    state.stage = 'build_authorized';
+    state.root_cause = { status: 'complete', file: ROOT_CAUSE, sha256: sha(ROOT_CAUSE) };
+    state.replacement_plan = { status: 'complete', file: 'talkbridge/TALKBRIDGE-PLAN-v9.md', version: '20.9.0', sha256: sha('talkbridge/TALKBRIDGE-PLAN-v9.md') };
+    state.owner_authorization = { status: 'authorized', approved_at: '2026-08-30T14:06:48-07:00', evidence: 'fixture', exact_words: 'Go' };
+    state.candidate = { status: 'authorized', allowed_output_files: ['bridge-turn24-post-ship.html', 'tb-sw.js', 'talkbridge/worker-talk.js'] };
+  });
+}
+
 function mutateJson(root, fn) {
   const rel = 'talkbridge/governance/r10-cycle.json';
   const file = path.join(root, rel);
@@ -83,7 +96,7 @@ test('wrangler.jsonc stays frozen even after build authorization', () => {
 
 test('authorized candidate outputs may diverge from the frozen bytes', () => {
   const root = fixture();
-  mutateJson(root, state => { state.stage = 'build_authorized'; state.candidate.status = 'authorized'; });
+  authorizeFixture(root);
   fs.appendFileSync(path.join(root, 'bridge-turn24-post-ship.html'), '\n/* candidate */\n');
   fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* candidate */\n');
   const state = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
@@ -173,7 +186,7 @@ test('a device-gate failure may restart as a new cycle only with the frozen pair
   }
   const changed = ['talkbridge/governance/r10-cycle.json', 'bridge-turn24-post-ship.html', 'tb-sw.js', 'talkbridge/worker-talk.js', 'talkbridge/TALKBRIDGE-GRAVEYARD.md'];
   const ok = validateSnapshot({ root, changedFiles: changed, previousState: previous });
-  assert.deepEqual(ok.errors.filter(e => !/unexpected R10 recovery cycle/.test(e)), []);
+  assert.deepEqual(ok.errors, []);
   fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* not restored */\n');
   const bad = validateSnapshot({ root, changedFiles: changed, previousState: previous });
   assert.match(bad.errors.join('\n'), /frozen baseline modified: talkbridge\/worker-talk.js/);
