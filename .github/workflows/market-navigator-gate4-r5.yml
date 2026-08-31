@@ -1,0 +1,96 @@
+name: Market Navigator Gate 4 R5
+on:
+  push:
+    branches: [main]
+    paths:
+      - market-view-gate4-r5.js
+      - market-view-gate4-r5.css
+      - .github/workflows/market-navigator-gate4-r5.yml
+permissions:
+  contents: write
+jobs:
+  build-validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Assemble from restored 3.9.7 baseline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('market-view-gate4-r3.html')
+          s=p.read_text(encoding='utf-8')
+          assert 'Market Navigator 3.9.7' in s
+          s=s.replace('<head>','<head><script>window.__MN_GATE4_R5__=true;</script><link rel="stylesheet" href="market-view-gate4-r5.css">',1)
+          old='(async()=>{configLoad();await openDB();await loadStored();'
+          new='(async()=>{if(window.__MN_GATE4_R5__)return;configLoad();await openDB();await loadStored();'
+          assert old in s
+          s=s.replace(old,new,1)
+          s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R5</title>',1)
+          s=s.replace('</body>','<script src="market-view-gate4-r5.js"></script></body>',1)
+          Path('market-view-gate4-r5.html').write_text(s,encoding='utf-8')
+          PY
+      - name: JavaScript parser syntax gate
+        run: node --check market-view-gate4-r5.js
+      - name: Structural contract gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          h=Path('market-view-gate4-r5.html').read_text()
+          j=Path('market-view-gate4-r5.js').read_text()
+          c=Path('market-view-gate4-r5.css').read_text()
+          req=['Gate 4 R5','market-view-gate4-r5.js','market-view-gate4-r5.css','window.__MN_GATE4_R5__']
+          assert all(x in h for x in req)
+          for x in ['1D','5D','MTD','YTD','1YR','3YR','5YR','RSK','GRW','MAC','EXPLORE','LIBRARY','HEALTH','CONFIG','Venice.ai','OpenRouter','Anthropic direct','Correlation','Add Series','canonical evidence']:
+            assert x in j, x
+          assert 'query1.finance.yahoo.com' not in j
+          assert 'fred.stlouisfed.org/series/' not in j
+          assert 'r5summary' in c and 'r5messages' in c and 'r5horizons' in c
+          PY
+      - name: Install browser smoke runtime
+        run: |
+          npm -s init -y >/dev/null 2>&1
+          npm -s install playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install chromium >/dev/null 2>&1
+      - name: Boot and journey smoke gate
+        run: |
+          python3 -m http.server 8123 >/tmp/mn-r5-http.log 2>&1 &
+          echo $! >/tmp/mn-r5-http.pid
+          node <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1280,height:800}});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html',{waitUntil:'networkidle'});await p.waitForSelector('#mnR5');const initial=await p.evaluate(()=>({title:document.title,h:[...document.querySelectorAll('#r5horizons [data-h]')].map(x=>x.textContent),legend:[...document.querySelectorAll('[data-s]')].map(x=>x.textContent.trim()),work:document.querySelector('#r5work')?.innerText||''}));if(initial.h.length!==7)throw Error('seven horizons missing');for(const x of ['RSK','GRW','MAC'])if(!initial.legend.some(y=>y.includes(x)))throw Error('V1 '+x+' missing');await p.click('[data-s="risk"]');await p.waitForTimeout(200);if(!location){}const v2=await p.evaluate(()=>({hash:location.hash,legend:[...document.querySelectorAll('[data-s]')].map(x=>x.textContent.trim())}));if(!v2.hash.includes('index/risk')||v2.legend.length<2)throw Error('V2 drilldown failed');await p.click('[data-s="vix"]');await p.waitForSelector('#r5about.open');await p.click('#r5moreinfo');await p.waitForTimeout(200);const v3=await p.evaluate(()=>({hash:location.hash,composer:!!document.querySelector('#r5chat'),summary:!!document.querySelector('.r5summary'),axes:document.querySelectorAll('#r5svg .r5axis').length}));if(!v3.hash.includes('analysis/vix')||!v3.composer||!v3.summary||v3.axes<2)throw Error('Analysis journey failed');await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html#health',{waitUntil:'networkidle'});if(!(await p.locator('#r5work').innerText()).includes('Health'))throw Error('Health failed');await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html#config',{waitUntil:'networkidle'});let t=await p.locator('#r5work').innerText();for(const x of ['Venice.ai','OpenRouter','Anthropic direct'])if(!t.includes(x))throw Error('Config '+x+' missing');await p.setViewportSize({width:390,height:844});await p.goto('http://127.0.0.1:8123/market-view-gate4-r5.html#analysis/cpi',{waitUntil:'networkidle'});let mobile=await p.evaluate(()=>({w:document.documentElement.scrollWidth,iw:innerWidth,composer:!!document.querySelector('#r5chat')}));if(mobile.w>mobile.iw+2||!mobile.composer)throw Error('mobile contract failed');if(errors.length)throw Error('page errors: '+errors.join(' | '));console.log(JSON.stringify({initial,v2,v3,mobile}));await b.close()})().catch(e=>{console.error(e);process.exit(1)})
+          JS
+      - name: Data-health gate
+        run: |
+          python - <<'PY'
+          import json
+          def load(p):
+            with open(p,encoding='utf-8') as f:return json.load(f)
+          m=load('data/market-backend/market-cache.json').get('data',{})
+          a=load('data/market-backend/macro-cache.json').get('data',{})
+          def pts(id):return (m.get(id) or a.get(id) or {}).get('points',[])
+          assert pts('wti'), 'WTI missing'
+          assert pts('cpi'), 'CPI missing'
+          wc=pts('wti')[-1]['t']; cc=pts('cpi')[-1]['t']
+          assert wc!=cc, 'CPI/WTI mixed-frequency proof missing'
+          cat=load('data/market-backend/data-catalog.json')
+          ids={x['id']:x for x in cat['series']}
+          assert ids['cpi']['native_cadence']!=ids['wti']['native_cadence']
+          print({'wti_latest':wc,'cpi_latest':cc,'wti_cadence':ids['wti']['native_cadence'],'cpi_cadence':ids['cpi']['native_cadence']})
+          PY
+      - name: Record validated candidate and publish
+        run: |
+          cat > MARKET-NAVIGATOR-GATE4-R5-VALIDATION.md <<EOF
+          # Market Navigator Gate 4 R5 Validation
+          Candidate source: restored Market Navigator 3.9.7 market-view-gate4-r3.html plus Gate 4 R5 CSS/JS successor layer.
+          Validation run: $GITHUB_RUN_ID
+          Commit under test: $GITHUB_SHA
+          Gates passed: JavaScript parser; structural contract; browser boot; V1→V2→About→Analysis journey; Health; Config provider surface; mobile viewport; CPI/WTI mixed-frequency backend proof.
+          EOF
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-view-gate4-r5.html MARKET-NAVIGATOR-GATE4-R5-VALIDATION.md
+          git commit -m 'release: publish validated Market Navigator Gate 4 R5'
+          git pull --rebase origin main
+          git push origin main
