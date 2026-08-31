@@ -1,106 +1,268 @@
 <!doctype html>
-<html lang="en" style="margin:0;padding:0;background:#111;color:#eee;font-family:sans-serif;">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>3D Tic‑Tac‑Toe</title>
-  <style>
-    html,body,#root{margin:0;padding:0;height:100%;}
-    .game{max-width:420px;margin:2rem auto;padding:1rem;background:#222;border-radius:8px;}
-    header{text-align:center;margin-bottom:1rem;}
-    #status{text-align:center;margin:1rem 0;font-size:1.2rem;}
-    .board{perspective:600px;transform-style:preserve-3d;margin:0 auto;}
-    .cell{width:64px;height:64px;margin:2px;position:relative;transform-style:preserve-3d;transition:transform .3s ease;background:#fff;border:2px solid #bbb;border-radius:4px;cursor:pointer;}
-    .cell .mark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:3rem;color:#d32f2f;user-select:none;}
-    .cell.x .mark{content:'X';}
-    .cell.o .mark{content:'O';}
-    .cell.flipped{transform:rotateY(180deg);}
-    .win .mark{animation:flash .5s forwards;}
-    @keyframes flash{0%{color:#d32f2f;}100%{color:#f9a825;}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1220">
+<title>3D Tic-Tac-Toe — Two Players</title>
+<style>
+  :root{
+    --bg:#0e1220; --panel:#171c2e; --ink:#eef1ff; --muted:#8b93b8;
+    --x:#ff5d5d; --o:#ffd166; --accent:#4f7cff;
+    --gap:clamp(6px,2vw,10px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh; min-height:100svh;
+    background:radial-gradient(1200px 800px at 50% -10%, #1c2340, var(--bg));
+    color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    padding:16px 12px calc(16px + env(safe-area-inset-bottom));
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none; -webkit-user-select:none;
+  }
+  .game{width:min(94vw,430px); display:flex; flex-direction:column; gap:14px}
+  header{text-align:center}
+  h1{font-size:1.35rem; margin:.2em 0 .1em; letter-spacing:.02em}
+  h1 .dim{color:var(--muted); font-weight:500}
+  .sub{color:var(--muted); font-size:.8rem; margin:0}
+
+  .hud{display:flex; align-items:center; justify-content:space-between; gap:8px;
+       background:var(--panel); border:1px solid #262d47; border-radius:14px; padding:10px 12px}
+  .score{display:flex; flex-direction:column; align-items:center; min-width:64px}
+  .score .who{font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
+  .score .num{font-size:1.4rem; font-weight:700}
+  .score.xs .num{color:var(--x)} .score.os .num{color:var(--o)}
+  .turn{flex:1; text-align:center}
+  .badge{display:inline-block; padding:6px 14px; border-radius:999px; font-weight:700;
+         background:#222a45; border:1px solid #2e3757; transition:all .25s}
+  .badge.tx{color:var(--x); border-color:var(--x); box-shadow:0 0 12px rgba(255,93,93,.35)}
+  .badge.to{color:var(--o); border-color:var(--o); box-shadow:0 0 12px rgba(255,209,102,.35)}
+
+  .scene{perspective:1000px; perspective-origin:50% 28%}
+  .board{
+    transform-style:preserve-3d;
+    transform:rotateX(46deg);
+    display:grid; grid-template-columns:repeat(3,1fr); gap:var(--gap);
+    background:linear-gradient(160deg,#20294a,#141a30);
+    padding:var(--gap); border-radius:18px;
+    border:1px solid #2b3454;
+    box-shadow:0 30px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.05);
+    animation:settle .8s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes settle{from{transform:rotateX(70deg) translateY(-40px); opacity:0} to{transform:rotateX(46deg); opacity:1}}
+
+  .cell{
+    position:relative; aspect-ratio:1/1; transform-style:preserve-3d;
+    border-radius:12px; cursor:pointer;
+    background:#0d1122; box-shadow:inset 0 3px 8px rgba(0,0,0,.6);
+    border:1px solid #232b48;
+  }
+  .cell:not(.played):hover{background:#131a33}
+  .cell:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .tile{position:absolute; inset:0; transform-style:preserve-3d;
+        transition:transform .45s cubic-bezier(.3,1.4,.5,1)}
+  .face{position:absolute; inset:0; border-radius:12px;
+        backface-visibility:hidden; -webkit-backface-visibility:hidden;
+        display:flex; align-items:center; justify-content:center; font-weight:800}
+  .face.front{background:transparent}
+  .face.back{
+    transform:rotateY(180deg) translateZ(9px);
+    font-size:clamp(2rem,12vw,3.2rem);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 10px 18px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.18);
+  }
+  .cell.played .tile{transform:rotateY(180deg)}
+  .cell.played{cursor:default}
+  .face.back.mx{background:linear-gradient(160deg,#3a1520,#2a0f18); color:var(--x); text-shadow:0 0 14px rgba(255,93,93,.55)}
+  .face.back.mo{background:linear-gradient(160deg,#3a2f10,#2a220c); color:var(--o); text-shadow:0 0 14px rgba(255,209,102,.55)}
+  .cell.win .face.back{animation:winpulse .5s ease-in-out infinite alternate; border-color:currentColor}
+  @keyframes winpulse{from{box-shadow:0 10px 18px rgba(0,0,0,.5)} to{box-shadow:0 0 26px currentColor, 0 10px 18px rgba(0,0,0,.5)}}
+  .cell.denied{animation:shake .25s}
+  @keyframes shake{25%{transform:translateX(-4px)} 75%{transform:translateX(4px)}}
+
+  .status{min-height:2.8em; text-align:center; font-size:1.05rem;
+          display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap}
+  .status .msg{font-weight:600}
+  .status button{flex:0 0 auto; padding:9px 16px}
+
+  .controls{display:flex; gap:10px}
+  button{flex:1; padding:12px; border-radius:12px; border:1px solid #2e3757;
+         background:#222a45; color:var(--ink); font-size:1rem; font-weight:600; cursor:pointer}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent); border-color:var(--accent)}
+  .diag{text-align:center; color:var(--muted); font-size:.72rem; font-variant-numeric:tabular-nums}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important}
+  }
+</style>
 </head>
 <body>
   <div class="game">
     <header>
-      <div id="score">X: <span id="sX">0</span> &nbsp; O: <span id="sO">0</span></div>
-      <div id="turn">Turn: X</div>
+      <h1>3D Tic-Tac-Toe <span class="dim">· two players</span></h1>
+      <p class="sub">One device, pass &amp; play. X goes first in round 1 — starter alternates after that.</p>
     </header>
-    <section class="board" id="board"></section>
-    <div id="status" role="status" aria-live="polite"></div>
+
+    <div class="hud">
+      <div class="score xs"><span class="who">Player X</span><span class="num" id="sX">0</span></div>
+      <div class="turn"><span class="badge tx" id="badge">X to play</span></div>
+      <div class="score os"><span class="who">Player O</span><span class="num" id="sO">0</span></div>
+    </div>
+
+    <div class="scene">
+      <div class="board" id="board" role="grid" aria-label="Tic-tac-toe board"></div>
+    </div>
+
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="msg" id="msg">Round 1 — X starts.</span>
+      <button id="again" class="primary" hidden>▶ Play again</button>
+    </div>
+
+    <div class="controls">
+      <button id="newRound">↻ New round</button>
+      <button id="resetScores">Reset scores</button>
+    </div>
+
+    <div class="diag" id="diag">boot…</div>
   </div>
 
 <script>
-  // ———— game state ————
-  const WIN_COMBOS = [
-    [0,1,2],[3,4,5],[6,7,8], // rows
-    [0,3,6],[1,4,7],[2,5,8], // cols
-    [0,4,8],[2,4,6]          // diagonals
-  ];
+(function(){
+  "use strict";
+  var WIN=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  var boardEl=document.getElementById('board');
+  var msg=document.getElementById('msg');
+  var badge=document.getElementById('badge');
+  var againBtn=document.getElementById('again');
+  var sX=document.getElementById('sX'), sO=document.getElementById('sO');
+  var diag=document.getElementById('diag');
 
-  const cells = [...document.querySelectorAll('.cell')];
-  const board = document.getElementById('board');
-  const turnDiv = document.getElementById('turn');
-  const scoreX = document.getElementById('sX');
-  const scoreO = document.getElementById('sO');
-  const statusDiv = document.getElementById('status');
+  var state=Array(9).fill(null);
+  var current='X', starter='X', moves=0, round=1, locked=false;
+  var score={X:0,O:0,D:0};
+  var cells=[];
 
-  let state = new Array(9).fill(null); // null, 'X', 'O'
-  let player = 'X'; // starting player
-  let xScore = 0, oScore = 0;
-
-  // initialise board
-  function initBoard(){
-    board.innerHTML = '';
-    for(let i=0;i<9;i++){
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.idx = i;
-      cell.addEventListener('click', onCellClick);
-      board.appendChild(cell);
+  function buildBoard(){
+    for(var i=0;i<9;i++){
+      var c=document.createElement('div');
+      c.className='cell';
+      c.dataset.idx=i;
+      c.setAttribute('role','button');
+      c.setAttribute('tabindex','0');
+      c.setAttribute('aria-label','Cell '+(i+1)+', empty');
+      var tile=document.createElement('div'); tile.className='tile';
+      var f=document.createElement('div'); f.className='face front';
+      var b=document.createElement('div'); b.className='face back';
+      tile.appendChild(f); tile.appendChild(b);
+      c.appendChild(tile);
+      c.addEventListener('click',onPlay);
+      c.addEventListener('keydown',function(ev){
+        if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); onPlay(ev); }
+      });
+      boardEl.appendChild(c);
+      cells.push(c);
     }
   }
-  initBoard();
 
-  function onCellClick(e){
-    const idx = +e.target.dataset.idx;
-    if(state[idx]) return; // already taken
-    // place mark
-    state[idx] = player;
-    e.target.classList.add(player.toLowerCase()); // adds 'x' or 'o' class
-    // flip 3D
-    e.target.classList.add('flipped');
-    // check win/draw
-    if(checkWin(player)){
-      announce(`<strong>${player}</strong> wins!`);
-      if(player==='X'){ xScore++; scoreX.textContent = xScore; }
-      else { oScore++; scoreO.textContent = oScore; }
-      // reset after 1.5s
-      setTimeout(resetRound,1500);
-      return;
+  function onPlay(ev){
+    var c=ev.currentTarget, i=+c.dataset.idx;
+    if(locked){ say('Round over — tap “▶ Play again”.'); deny(c); return; }
+    if(state[i]){ say('Cell taken — pick another.'); deny(c); return; }
+    state[i]=current; moves++;
+    var back=c.querySelector('.face.back');
+    back.textContent=current;
+    back.classList.add(current==='X'?'mx':'mo');
+    c.classList.add('played');
+    c.setAttribute('aria-label','Cell '+(i+1)+', '+current);
+    var combo=winCombo(current);
+    if(combo){ endRound(current,combo); }
+    else if(moves===9){ endRound(null,null); }
+    else{
+      current=(current==='X')?'O':'X';
+      say(''); updateBadge(); updateDiag();
     }
-    if(state.every(v=>v)){ announce('Draw!'); setTimeout(resetRound,1500); return; }
-    // switch player
-    player = player==='X'?'O':'X';
-    turnDiv.textContent = `Turn: ${player}`;
   }
 
-  function checkWin(p){
-    return WIN_COMBOS.some(c=>c.every(i=>state[i]===p));
+  function winCombo(p){
+    for(var k=0;k<WIN.length;k++){
+      var combo=WIN[k];
+      if(state[combo[0]]===p && state[combo[1]]===p && state[combo[2]]===p) return combo;
+    }
+    return null;
   }
 
-  function announce(msg){
-    statusDiv.innerHTML = msg;
+  function endRound(winner,combo){
+    locked=true;
+    if(winner){
+      score[winner]++;
+      combo.forEach(function(i){ cells[i].classList.add('win'); });
+      say(winner+' wins the round! 🎉');
+    }else{
+      score.D++;
+      say('Draw — nobody takes it.');
+    }
+    sX.textContent=score.X; sO.textContent=score.O;
+    badge.textContent='Round over';
+    badge.className='badge';
+    againBtn.hidden=false;
+    try{ againBtn.focus({preventScroll:true}); }catch(e){}
+    updateDiag();
   }
 
-  function resetRound(){
-    // clear board state & classes
-    state.fill(null);
-    player = 'X';
-    turnDiv.textContent = `Turn: ${player}`;
-    statusDiv.textContent = '';
-    cells.forEach(c=>{ c.classList.remove('x','o','flipped'); });
-    initBoard(); // re‑create cells with fresh listeners
+  function newRound(){
+    starter=(starter==='X')?'O':'X';
+    current=starter;
+    state=Array(9).fill(null);
+    moves=0; locked=false; round++;
+    cells.forEach(function(c,i){
+      c.classList.remove('played','win','denied');
+      var b=c.querySelector('.face.back');
+      b.textContent=''; b.classList.remove('mx','mo');
+      c.setAttribute('aria-label','Cell '+(i+1)+', empty');
+    });
+    againBtn.hidden=true;
+    say('Round '+round+' — '+current+' starts.');
+    updateBadge(); updateDiag();
   }
+
+  function resetScores(){
+    score.X=0; score.O=0; score.D=0;
+    sX.textContent='0'; sO.textContent='0';
+    round=0; starter='O';
+    newRound();
+  }
+
+  function say(t){ msg.textContent = t ? t : (current+' to play.'); }
+
+  function updateBadge(){
+    badge.textContent=current+' to play';
+    badge.className='badge '+(current==='X'?'tx':'to');
+  }
+
+  function deny(c){
+    c.classList.remove('denied');
+    void c.offsetWidth;
+    c.classList.add('denied');
+    updateDiag();
+  }
+
+  function updateDiag(){
+    diag.textContent='round '+round+' · move '+moves+' · '+(locked?'over':'playing')+
+      ' · starter '+starter+' · draws '+score.D+' · v1.0';
+  }
+
+  buildBoard();
+  document.getElementById('newRound').addEventListener('click',newRound);
+  document.getElementById('resetScores').addEventListener('click',resetScores);
+  againBtn.addEventListener('click',newRound);
+  say('Round 1 — X starts.');
+  updateBadge(); updateDiag();
+})();
 </script>
 </body>
 </html>
