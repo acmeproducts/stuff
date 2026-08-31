@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-08-30
+Updated: 2026-08-31
 
 ## G3-R1 — Rejected post-baseline Gate 3 ribbon/help patch
 
@@ -58,3 +58,25 @@ The published replacement was inert because its JavaScript did not pass syntax v
 - Correct from the governed Gate 4 contract and publish a successor release.
 - Before publishing any successor test URL, extract/validate the JavaScript with a parser/runtime syntax check and perform structural checks for required Gate 4 surfaces.
 - A failed syntax check blocks publication.
+
+## G4-R3 — Rejected standalone rewrite masquerading as governed lineage
+
+**Rejected implementation:** `market-view-gate4-r3.html`, candidate commit `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`. Owner rejected the release immediately as materially worse than the prior failure; no defect-by-defect catalog is authoritative or required.
+
+### Why it was rejected
+R3 satisfied parser, boot and superficial structural checks but violated the governing lineage requirement in substance. Instead of preserving the full Market Navigator 3.9.7 runtime/application and reconciling Gate 4 into it, the candidate was effectively a compact standalone replacement whose release checks proved only that a smaller app booted and contained expected labels. This allowed severe capability and presentation regression to pass the gate.
+
+### Rejected approach
+- Replacing the 3.9.7 application with a newly authored compact shell and calling it lineage preservation.
+- Treating string-presence/DOM-count checks as proof of feature parity.
+- Treating boot success as proof that existing navigation, data, charting, responsive behavior, accessibility, export, interaction and application capabilities survived.
+- Reconstructing canonical data ingestion generically when the accepted runtime already provides a known application/data model that should be adapted deliberately.
+- Publishing a release without a baseline-parity gate against the preserved 3.9.7 application and approved Gate 3 P2 interaction model.
+
+### Recovery / solve
+- Roll back `market-view-gate4-r3.html` to the exact pre-R3 3.9.7 runtime artifact before any successor work.
+- The successor must start from that restored file, not from R3 code.
+- Preserve the 3.9.7 runtime/application code by default; make explicit governed changes only where Gate 4 requires a different contract.
+- Reconcile approved Gate 3 P2 interaction patterns into the preserved runtime rather than replacing the runtime with a POC shell.
+- Add release gates for baseline capability parity, visual/application-frame integrity and state-transition behavior in addition to syntax/boot/structural checks.
+- No R3 code is a patch-forward baseline.
