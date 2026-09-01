@@ -39,31 +39,40 @@ jobs:
         run: |
           set -euo pipefail
           cp market-view-gate4-r3.html market-view-gate4-r6.html
+          cp market-view-gate4-r6.js market-view-gate4-r6-runtime.js
           python3 - <<'PY'
           from pathlib import Path
+          # Normalize JavaScript object keys that begin with digits in the authored R6 source.
+          # Runtime is generated deterministically and is the exact file qualified/published.
+          rp=Path('market-view-gate4-r6-runtime.js')
+          js=rp.read_text()
+          js=js.replace("Object.assign(H,{1d:{label:'1D'},5d:{label:'5D'},mtd:{label:'MTD',mtd:true},ytd:{label:'YTD',ytd:true},1y:{label:'1YR',days:365},3y:{label:'3YR',days:1095},5y:{label:'5YR',days:1825}})",
+                        "Object.assign(H,{'1d':{label:'1D'},'5d':{label:'5D'},mtd:{label:'MTD',mtd:true},ytd:{label:'YTD',ytd:true},'1y':{label:'1YR',days:365},'3y':{label:'3YR',days:1095},'5y':{label:'5YR',days:1825}})")
+          rp.write_text(js)
+
           p=Path('market-view-gate4-r6.html')
           s=p.read_text()
-          old='(async()=>{configLoad();await openDB();await loadStored();renderAll();setSection(\'now\');'
-          new='(async()=>{if(window.__MN_R6_BUILD__)return;configLoad();await openDB();await loadStored();renderAll();setSection(\'now\');'
+          old="(async()=>{configLoad();await openDB();await loadStored();renderAll();setSection('now');"
+          new="(async()=>{if(window.__MN_R6_BUILD__)return;configLoad();await openDB();await loadStored();renderAll();setSection('now');"
           if old not in s: raise SystemExit('legacy startup signature not found')
           s=s.replace(old,new,1)
           s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R6</title>',1)
           s=s.replace('</head>','<link rel="stylesheet" href="market-view-gate4-r6.css"><script>window.__MN_R6_BUILD__=true;</script></head>',1)
-          s=s.replace('</body>','<script src="market-view-gate4-r6.js"></script></body>',1)
+          s=s.replace('</body>','<script src="market-view-gate4-r6-runtime.js"></script></body>',1)
           p.write_text(s)
           PY
-          grep -q 'market-view-gate4-r6.js' market-view-gate4-r6.html
+          grep -q 'market-view-gate4-r6-runtime.js' market-view-gate4-r6.html
           grep -q 'window.__MN_R6_BUILD__=true' market-view-gate4-r6.html
 
       - name: Parser and structural gates
         run: |
           set -euo pipefail
-          node --check market-view-gate4-r6.js
+          node --check market-view-gate4-r6-runtime.js
           python3 -m json.tool data/market-backend/publication-rules.json >/dev/null
           python3 - <<'PY'
-          import json,re
+          import json
           from pathlib import Path
-          js=Path('market-view-gate4-r6.js').read_text()
+          js=Path('market-view-gate4-r6-runtime.js').read_text()
           required=['NOW','EXPLORE','LIBRARY','HEALTH','CONFIG','1D','5D','MTD','YTD','1YR','3YR','5YR','Evidence-health preflight','AI POV','Venice.ai','OpenRouter','Anthropic API','r6SummaryOverlay','r6Conversation']
           miss=[x for x in required if x not in js]
           if miss: raise SystemExit('missing structural contracts: '+repr(miss))
@@ -136,12 +145,13 @@ jobs:
             await page.locator('#hamb').click();
             await page.close();
             const mobile=await browser.newPage({viewport:{width:390,height:844}});
-            await mobile.goto(base+'market-view-gate4-r6.html',{waitUntil:'domcontentloaded'});await mobile.waitForFunction(()=>window.__MN_R6_READY__===true,{timeout:30000});
+            await mobile.goto(base+'market-view-gate4-r6.html',{waitUntil:'domcontentloaded'});
+            await mobile.waitForFunction(()=>window.__MN_R6_READY__===true,{timeout:30000});
             await mobile.locator('#hamb').click();
             if(!await mobile.evaluate(()=>document.body.classList.contains('drawer')))throw Error('mobile drawer did not open');
             await mobile.locator('#nav button[data-nav="providers"]').click();
             await mobile.waitForSelector('.r6HealthRow');
-            if((await mobile.locator('body').evaluate(el=>el.scrollWidth>el.clientWidth)))throw Error('mobile horizontal overflow');
+            if(await mobile.locator('body').evaluate(el=>el.scrollWidth>el.clientWidth))throw Error('mobile horizontal overflow');
             if(errors.length)throw Error('page errors: '+errors.join(' | '));
             if(external.some(u=>/finance\.yahoo\.com|fred\.stlouisfed\.org/.test(u)))throw Error('canonical provider fanout detected: '+external.join(','));
             await browser.close();
@@ -163,7 +173,6 @@ jobs:
           assert cpi[-1]['t'] < wti[-1]['t'], 'CPI/WTI must retain distinct real ending dates'
           hc=health['macro:cpi']; assert hc['http']==200 and hc['lastSuccess']
           latest=datetime.datetime.fromtimestamp(cpi[-1]['t']/1000,datetime.timezone.utc).strftime('%Y-%m')
-          # On 2026-08-31 the deterministic rule expects July CPI. This gate proves currentness, not just HTTP health.
           assert latest >= '2026-07', f'CPI canonical evidence stale: {latest}'
           print('CPI latest',latest,'WTI latest',datetime.datetime.fromtimestamp(wti[-1]['t']/1000,datetime.timezone.utc).date())
           PY
@@ -199,7 +208,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add market-view-gate4-r6.html MARKET-NAVIGATOR-GATE4-R6-VALIDATION.md
+          git add market-view-gate4-r6.html market-view-gate4-r6-runtime.js MARKET-NAVIGATOR-GATE4-R6-VALIDATION.md
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'market: publish mechanically qualified Gate 4 R6'
           git push origin HEAD:main
