@@ -181,6 +181,14 @@ R7 corrects selected-Source group identity, applies deliberately separated gover
 
 Owner testing then exposed a separate source-acquisition defect: Add source confirmed configuration even though no feed request, parsing, normalization or corpus merge existed. R7 remains preserved as the exact rejected artifact; the correction proceeds in R8.
 
+## R8 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r8.html`
+- Application commit: `6b4e5cbee56d8c00a459d891e5d38d936ae75255`
+- Blob: `d9288fbe212497a0fe1937f542f9cb81779e5831`
+- Status: **STATIC VALIDATION PASSED — DEPLOYED RSS/ATOM/JSON INGESTION TEST PENDING**
+
+R8 replaces the metadata-only Add source path with live custom-source acquisition. Existing R7 custom-source configurations migrate forward and refresh automatically. Add + fetch, startup refresh, RSS/Atom and common JSON normalization, shared-corpus recomputation, device article persistence, direct/relay mode disclosure, status/count truthfulness, duplicate protection, retry and non-destructive removal are implemented without changing Explore, AI, Config placement, Portal, reader or Library architecture.
+
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
 
