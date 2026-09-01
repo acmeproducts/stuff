@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.12.0 -->
-# TALKBRIDGE MASTER PLAN v20.12.0
+<!-- TALKBRIDGE-PLAN v20.13.0 -->
+# TALKBRIDGE MASTER PLAN v20.13.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -52,9 +52,9 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | R10.6 rejected and buried whole; R10-CR1 replacement plan complete; owner GO required; exact R10.2/v4.2 rollback baseline live; no corrective build authorized | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
-| 25·pre-base | Snapshot of 24·post-ship once it passes | Not started | — |
-| 25·base | R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | Not started | — |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
+| 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 planned §5; owner GO required | — |
 | 25·pre-ship | R12 — multi-party | Not started | — |
 | 25·ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
 | 25·post-ship | Unassigned — reserved | — | — |
@@ -245,21 +245,71 @@ ML anomaly on simple phrases is not a code defect.
 
 ---
 
+## 5 · RELEASE 11.0 — LOG FIDELITY (25·base prelude; OWNER GO REQUIRED)
+
+**Status: PLAN COMPLETE; BUILD BLOCKED PENDING OWNER GO.** Baseline: the
+accepted 24·post-ship bytes (25·pre-base). One change, nothing else.
+
+### 5a · The problem, as the device showed it
+
+The debug log keeps 400 lines and drops the oldest. Every ~20 s the periodic
+refresh writes `rc_panel_rendered`, `rc_home_rendered` and
+`joiner_create_control` — three to five lines per refresh, more per open
+room. With five rooms the Android wrote ~15 lines every 20 s and the whole
+buffer turned over in ~9 minutes: the CR3 device run's Android export held
+nothing but idle refreshes (evidence: `governance/evidence/r10-cr3-owner-
+acceptance.md`, finding 1). The log is the only instrument the owner and the
+builder share; it must survive an hour of testing.
+
+### 5b · The change (hook, never replace)
+
+1. **Refresh lines fold.** A declared set of refresh events
+   (`rc_panel_rendered`, `rc_home_rendered`, `joiner_create_control`,
+   `r8_menu_labels`, `r8_flag_bands`) is folded: a repeat with the same
+   event and identical data updates the existing line's count and last-seen
+   time instead of adding a line. A refresh whose data CHANGED (a card
+   appeared, a count moved) is a new line, as today. No other event is
+   touched — every call, chat, lane, attendance, push receipt and error line
+   is recorded exactly as now, one line per occurrence.
+2. **Buffer raised** from 400 to 1200 lines.
+3. **Export unchanged in shape**; folded lines carry `n` and `last` in their
+   data so a reader sees "this refresh repeated 180 times until 04:19:54".
+
+Implemented as an appended part over the frozen bytes (the logging function
+is wrapped and calls through; the refresh set is declared in the part).
+Declare-before-build contract: wraps `log`; adds the refresh set and the fold;
+replaces nothing.
+
+### 5c · Gates
+
+- **Machine (jsdom):** 60 minutes of refresh ticks (5 rooms, every 20 s) plus
+  20 real events spread through the hour → the export holds all 20 real
+  events in order, each with its own timestamp, and the refresh lines are
+  folded with correct counts; a refresh whose data changed appears as its
+  own line. Planted defects: fold removed → the 20 do not all survive; fold
+  too greedy (folds a non-refresh event) → a repeated real event loses a
+  line; count not incremented → wrong `n`.
+- **Parity:** frozen bytes carried verbatim; exactly one appended part.
+- **Relay, worker:** untouched.
+- **Device (owner, light):** run for ~30 minutes with several rooms open,
+  export both logs — the exports must show the session's events, not only
+  refreshes. No matrix re-run.
+
+### 5d · Outputs and wall
+
+Output: `bridge-turn25-base.html` (the stale R10-A alias of that name is
+overwritten; it was retired by the R10 acceptance). The live 24·post-ship URL
+stays as accepted until the owner moves to the 25·base URL. Same tb-sw.js and
+relay. Build support: `talkbridge/parts/r11-0-log-fidelity.js`,
+`talkbridge/build/assemble-r11-0.mjs`, `talkbridge/build/harness-r11-0.mjs`,
+`talkbridge/build/mutate-r11-0.mjs`, `package.json` scripts.
+
 ## 4 · RELEASE 10 — POST-SHIP
 
-**ACTIVE AUTHORITY (v20.12.0): §4.13 (R10-CR3) IS THE SOLE R10 REPLACEMENT
-PROPOSAL; OWNER GO IS REQUIRED BEFORE BUILD.** §4.12's pair `0422654` was
-rejected at the owner device gate (graveyard G23; root cause §10); its G21
-and G22 corrections were PROVEN live on that run and are inherited. §4.11 (R10-CR1) is retained
-as the design authority §4.12 inherits; its pair `339eb40` was rejected at the
-owner device gate (graveyard G21, G22; root cause §9). Sections 4.1–4.4 and 4.6 are historical
-lineage. Sections 4.7, 4.8, 4.9, and 4.10 describe rejected releases and are
-not build authority. The R10.6 instrumentation, authorization, provider-token,
-event-state, worker, relay, test, and deployment designs are buried together
-by graveyard G20. None may be patched, repaired, configured, or carried
-forward. Section 4.5 remains release law. Graveyard G18–G20 are mandatory
-vetoes. The whole-release root cause is complete in
-`TALKBRIDGE-R10-WHOLE-RELEASE-ROOT-CAUSE.md`; it governs §4.11.
+**ACTIVE AUTHORITY (v20.13.0): R10 IS CLOSED — R10-CR3 (pair `ac541c1`) IS
+THE ACCEPTED 24·POST-SHIP. 25·PRE-BASE IS ITS BYTE-IDENTICAL SNAPSHOT.
+§5 (R11.0, LOG FIDELITY) IS THE SOLE OPEN PROPOSAL; OWNER GO IS REQUIRED
+BEFORE BUILD.**
 
 **Live rollback pair:** R10.2 app/worker blobs `a5bcd189` / `953f99de` ⟷ relay
 v4.2 source `94c391e4`, restored again by PR #644 / merge `a82ddb63` after the
@@ -1728,6 +1778,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.13.0 · 2026-08-31.** R10 closed: R10-CR3 pair `ac541c1` accepted by the
+owner as 24·post-ship (acceptance record in governance/evidence; gaps
+recorded). 25·pre-base frozen as its byte-identical snapshot. §5 defines
+R11.0 log fidelity (refresh lines fold, buffer 1200) as the 25·base prelude;
+owner GO required. Backlog captured: Android alert presentation (#652), Join
+thread via clock long-press (#653).
 
 **v20.12.0 · 2026-08-31.** Owner correction: the iPhone's missing Deepgram key
 was never proven ship-era (G24). Retracted; root cause §11 opened with an
