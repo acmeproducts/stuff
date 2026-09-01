@@ -171,7 +171,7 @@ async function drawCategory(){const key=state.detail.category,c=CATEGORY[key],z=
 async function openDetail(id){state.detail={id,range:state.range};$('#detailModal .modalPanel').classList.remove('categoryMode397');$('#saveDetail').style.display='';$('#detailModal').classList.add('open');await drawDetail()}
 async function drawDetail(){const {id}=state.detail,range=state.range,m=META[id];state.detail.range=range;$('#detailKicker').textContent=m.role;$('#detailTitle').textContent=m.name;$('#detailRanges').innerHTML=Object.entries(H).map(([k,v])=>`<button data-dr="${k}" class="${k===range?'active':''}">${v.label}</button>`).join('');let data;if(H[range].intraday&&m.symbol){if(!state.intraday[`${id}:${range}`]){progress(true,'Loading intraday data',`${m.name} · ${H[range].label}`,30);try{state.intraday[`${id}:${range}`]=await yahoo(id,H[range].range,H[range].interval)}catch(e){toast('Intraday data unavailable')}progress(false)}data=state.intraday[`${id}:${range}`]||[]}else{if(m.symbol&&!coverage(id,range)){progress(true,'Extending history',`${m.name} · ${H[range].label}`,30);try{await saveSeries(id,await yahoo(id,range==='5y'||range==='max'?'5y':'1y','1d'))}catch(e){toast('Historical data unavailable')}progress(false)}data=rangeData(id,range)}$('#detailTitle').innerHTML=`${m.name}<div class="dateRange">${dateRangeLabel392(data,range)}</div>`;chart($('#detailChart'),[{id,name:m.short,color:m.color,data}],{range,axes:true});const z=quoteAny(data),start=data[0],end=data.at(-1);$('#detailStats').innerHTML=`<div class="stat"><span class="kicker">LATEST</span><b>${end?fmt(id,end.v):'Unavailable'}</b></div><div class="stat"><span class="kicker">${H[range].label} CHANGE</span><b>${z?pct(z.p):'Unavailable'}</b></div><div class="stat"><span class="kicker">OBS</span><b>${data.length}</b></div><div class="stat"><span class="kicker">FROM</span><b>${start?new Date(start.t).toLocaleDateString():'—'}</b></div><div class="stat"><span class="kicker">TO</span><b>${end?new Date(end.t).toLocaleDateString():'—'}</b></div>`;$$('[data-dr]').forEach(b=>b.onclick=async()=>{state.range=b.dataset.dr;state.detail.range=state.range;renderGlobalRange();renderAll();await drawDetail()});$('#saveDetail').textContent='Add to Analysis';$('#saveDetail').onclick=()=>saveAnalysis(`${m.short} ${H[range].label} detail`,{type:'series',id,range,data:data.slice(-500)})}
 const _renderAll390=renderAll;renderAll=function(){_renderAll390();renderGlobalRange()};
-setTimeout(()=>{renderGlobalRange();renderAll()},0);
+/* Gate 4 R6: legacy scheduled repaint disabled. */
 
 
 /* 3.9.1: every rendered chart carries a visible legend identifying its series. */
@@ -220,10 +220,10 @@ async function drawDetail391(){const id=state.detail?.id,range=state.range,m=MET
 async function route391(){const h=location.hash||'#home';if(h==='#home'||h==='#'){state.detail=null;$('#detailModal').classList.remove('open');setSection('now','nowSnapshot');renderNow();return}const m=h.match(/^#detail\/([^/?#]+)/);if(m){const id=decodeURIComponent(m[1]);if(META[id]){state.detail={id,range:state.range};$('#detailModal').classList.add('open');await drawDetail();return}}location.replace('#home')}
 function renderRegimeTrend(){const d=regimeHistorySlice(state.range),z=regimeSummary(state.range);$('#nowTrend').innerHTML=`<div class="snapshot"><article class="card" style="height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden"><div class="row"><div><div class="kicker">REGIME SENTIMENT INDEX · ${H[state.range].label}</div><h2>${z?`${z.score}/100 · ${z.label}`:'Unavailable'}</h2><div class="muted tiny">Baseline 50 · selected-horizon change ${z&&Number.isFinite(z.periodPct)?pct(z.periodPct):'Unavailable'}</div></div>${chip391(z?.score>=58?'Positive':z?.score<=42?'Negative':'Neutral',z?.score>=58?'good':z?.score<=42?'bad':'neutral')}</div><div class="chartBox"><canvas id="regimeChart" class="chart"></canvas></div><div class="actions"><button class="btn primary" id="saveRegime">Save to Analysis</button><button class="btn" id="csvRegime391">Export CSV</button></div></article></div>`;setTimeout(()=>{chart($('#regimeChart'),[{id:'regime',name:'Regime sentiment index',color:'#74c0ff',data:d}],{range:state.range,axes:true,index:true});$('#saveRegime').onclick=()=>saveAnalysis(`Regime ${H[state.range].label}`,{type:'regime',range:state.range,data:d});$('#csvRegime391').onclick=()=>{const rows=[['series','timestamp','score'],...d.map(p=>['Regime sentiment index',new Date(p.t).toISOString(),p.v])],blob=new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`regime-${state.range}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}} ,0);renderGlobalRange()}
 const drawCategory391Legacy=drawCategory;
-window.addEventListener('hashchange',route391);
+/* Gate 4 R6 owns hash routing. */
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#detailModal').classList.contains('open'))history.back()});
 $('#detailClose').onclick=()=>{$('#detailModal').classList.remove('open');state.detail=null;renderGlobalRange();renderNow();if(location.hash.startsWith('#detail/'))history.replaceState(null,'','#home')};
-setTimeout(()=>{if(!location.hash)history.replaceState(null,'','#home');route391();$('#status').textContent='Connecting to market data…'},0);
+/* Gate 4 R6 owns initial route and status. */
 
 
 /* 3.9.6 authoritative Now / drill-down contract. This block intentionally comes last. */
@@ -750,6 +750,6 @@ function g4Boot(){
   if(location.hash!=="#market")history.replaceState(null,"","#market");
   g4Render();g4Load();
 }
-setTimeout(g4Boot,0);
+g4Boot();
 
 </script></body></html>
