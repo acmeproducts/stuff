@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.2.0 -->
-# PRISM GRAVEYARD v2.2.0
+<!-- PRISM-GRAVEYARD v2.3.0 -->
+# PRISM GRAVEYARD v2.3.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -21,6 +21,9 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 - no hand-rolled treemap;
 - no filter catalog disconnected from selected dimensions;
 - no rollback that removes unrelated accepted functionality;
+- no Library surface that inherits or persists visualization dimensions/filters;
+- no Library continuation that returns the user to the event reader or global AI drawer;
+- no unlinked AI research leads or paywalled AI references other than WSJ;
 - **no synthesized rollback substitute when an exact prior repository version exists.**
 
 ## G22 · Corpus-wide sphere/card cloud
@@ -58,6 +61,12 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **Root cause:** rollback was interpreted as reconstructing a desired feature set rather than selecting the exact historical artifact.
 **VETO:** never manufacture a new rollback baseline when the requested historical version still exists in the repository.
 **Replacement:** exact `prism/prism-turn01-pre-ship-r3.html` at original application commit `807656e7e14c4b8503b3b7c88b83271967f64692` is the active rollback baseline.
+
+## G30 · Library as a visualization-state replay/list
+**Origin:** R6 Library presentation.
+**Observed:** Library remained a flat export/import list and reopened saved work in the global AI drawer. That model blurred saved research with Map/Explore state and required leaving Library to continue the conversation.
+**VETO:** Library may not inherit persistent Group/Color/Size/filter controls, reopen saved work in the event reader/global AI drawer, or require returning to another surface to read or continue a saved Analysis.
+**Replacement:** a Library-local left rail with Omnisearch and Analysis cards plus an independent analysis/conversation work surface with a persistent bottom composer.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`

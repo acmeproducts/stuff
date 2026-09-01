@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.5.0 -->
-# PRISM MASTER PLAN v2.5.0
+<!-- PRISM-PLAN v2.6.0 -->
+# PRISM MASTER PLAN v2.6.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -27,15 +27,34 @@ Introduce the classic portal shell around the baseline application:
 - rail changes do not reset search, dimensions, filters, selection, AI evidence, or active view;
 - Config and AI are not moved into the rail.
 
-## ACTIVE WORKSTREAM 2 — Analysis → Library
-A completed AI POV result must become a durable Analysis object:
-- **Add Analysis to Library** becomes active after a successful AI result;
-- save exact prompt, response Markdown, provider/model, selected evidence/provenance, event/source references and timestamps;
-- never store API keys in Analysis objects;
-- saved analyses appear in Library immediately;
-- Library opens a saved analysis for review/continuation;
-- saving the same active analysis updates it rather than generating uncontrolled duplicates;
-- import/export stays compatible.
+## ACTIVE WORKSTREAM 2 — Analysis → self-contained Library research portal
+A completed AI POV result becomes a durable Analysis object through **Add Analysis to Library**. Save the exact prompt, response Markdown, provider/model, selected evidence/provenance, event/source references, full timestamped conversation and timestamps. Never store API keys in Analysis objects. Saving the same active analysis updates it rather than generating uncontrolled duplicates.
+
+Library is a self-contained research surface after an Analysis has been saved. It is not a replay of Map/Explore controls and it does not persist or present Group, Color, Size, time-window or filter state.
+
+Required Library structure:
+- Library has its own left rail inside the Library surface;
+- the Library rail contains Library Omnisearch and the filtered Analysis cards;
+- selecting an Analysis opens the complete saved analysis and its continuing conversation in the Library work surface;
+- a persistent compose strip at the bottom continues the selected Analysis without returning to Map, Explore, Feed, the event reader or the global AI drawer;
+- every successful continuation is appended to the same Analysis and persisted on the device immediately;
+- Library search state is local to Library and does not alter global search, visualization dimensions, filters, selection or source configuration.
+
+Library Omnisearch searches titles, prompts, responses, event metadata, source names and source URLs. It supports:
+- ordinary positive terms;
+- `-negative` exclusions;
+- `*` and `?` wildcards;
+- `source:` and `url:` field qualifiers, including negative and wildcard forms.
+
+Examples: `federal reserve`, `rates -crypto`, `source:Reuters`, `-source:*tabloid*`, `url:*federalreserve.gov*`.
+
+Library portability:
+- each Analysis can be downloaded independently as JSON or CSV;
+- JSON and CSV Analysis files can be imported/merged through the existing top-right Config gear surface;
+- import is non-destructive and updates by Analysis identity rather than erasing unrelated saved work;
+- existing whole-Library JSON import remains compatible where practical.
+
+AI POV and every Library continuation must render Markdown links as active direct URLs. Any external fact, source, further-reading item, related topic or research suggestion introduced by AI must have its direct URL adjacent to it. If the model cannot supply a reliable direct URL, it must omit that external reference rather than produce an unlinked lead or fabricate a URL. Paywalled material must not be referenced or recommended, with one explicit exception: WSJ is allowed because the owner has a subscription.
 
 ## ACTIVE WORKSTREAM 3 — Dimension / filter system
 ### Core law
@@ -163,7 +182,7 @@ The next candidate is acceptable only if:
 2. left portal rail collapses/expands and center resizes correctly;
 3. Config remains in its baseline location/flow;
 4. AI remains in its baseline location/flow;
-5. completed AI analysis can be added to Library and reopened;
+5. completed AI analysis can be added to Library and opened entirely inside the Library portal;
 6. every active dimension has exactly one corresponding filter;
 7. no inactive dimension has a visible or hidden active filter;
 8. Importance, Corroboration, Recency and Tier use governed bucket/value semantics;
@@ -171,8 +190,13 @@ The next candidate is acceptable only if:
 10. a Source-only filter cannot leave an unselected Source group visible;
 11. Map tiles use available area for richer information when geometry permits;
 12. Size produces materially visible bucket/value area differences;
-13. Map, Feed, Sources, AI/provider configuration, reader, selection and Library do not regress;
-14. Explore remains the baseline visualization for this gate.
+13. Library has no persistent dimension/filter controls and has its own Omnisearch + Analysis-card left rail;
+14. Library Omnisearch proves positive, `-negative`, wildcard, `source:` and `url:` matching;
+15. a selected Analysis renders its complete timestamped conversation and continues from a bottom compose strip with device persistence;
+16. each Analysis downloads as JSON and CSV, and Config imports/merges both formats non-destructively;
+17. AI prompt policy requires direct URLs for every external reference/research suggestion and excludes paywalled references except WSJ;
+18. Map, Feed, Sources, AI/provider configuration, reader, selection and Library do not regress;
+19. Explore remains the baseline visualization for this gate.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
