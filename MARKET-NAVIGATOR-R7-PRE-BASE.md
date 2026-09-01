@@ -1,6 +1,6 @@
 # Market Navigator — Gate 4 R7 Pre-Base
 
-Status: FROZEN PRE-BASE / BACKEND SOURCE BLOCKED
+Status: FROZEN PRE-BASE / OWNER-APPROVED BACKEND RETRY
 Date: 2026-08-31
 
 ## Authority
@@ -42,7 +42,7 @@ Clean R7 backend code has been added from the governed baseline/process rather t
 
 The first clean R7 backend qualification run was `33473034022`. Catalog reconciliation passed. The canonical evidence collector completed for every accepted component except PMI. Health generation completed. Publication/backend truth correctly blocked commit because PMI was unavailable. No partial reconciled backend was published as canonical.
 
-## Concrete PMI source blocker
+## Historical PMI source blocker — resolved by owner contract change
 The accepted Growth definition requires **PMI +1** and the Master Plan explicitly forbids silent component substitution.
 
 The following candidate public sources were actually tested:
@@ -69,7 +69,7 @@ One sanctioned source capable of supplying historical and current U.S. manufactu
 
 No R7 test URL may be issued until the current Master Plan release gate passes against the exact deployed candidate.
 
-## PMI licensing/source retry — 2026-09-01
+## Historical PMI licensing/source retry — 2026-09-01
 The owner-directed rollback and retry rechecked the remaining PMI blocker before any new R7 UI implementation.
 
 - The official ISM Manufacturing PMI report is publicly viewable, but ISM's published terms prohibit creating, recreating, distributing or incorporating the PMI index/content into another work without prior written authorization. Public-page scraping is therefore not a sanctioned canonical source.
@@ -81,4 +81,16 @@ Authoritative references:
 - https://www.ismworld.org/supply-management-news-and-reports/reports/ism-pmi-reports/
 - https://news.research.stlouisfed.org/2016/06/institute-for-supply-management-data-to-be-removed-from-fred/
 
-**Result:** R7 remains blocked on one sanctioned, licensed source for historical and current U.S. ISM Manufacturing PMI, or an explicit owner-approved change to the Growth component contract. The UI lineage must not proceed to candidate/ship by fabricating, scraping, or substituting this component.
+**Historical result before owner decision:** R7 was blocked pending either a sanctioned source or an explicit Growth-contract change. The owner subsequently authorized the contract change recorded below.
+
+## Owner-approved Growth definition change — 2026-09-01
+The owner rejected a paid PMI subscription and explicitly authorized changing the Growth definition when no suitable open source replacement existed.
+
+R7 therefore:
+- excludes **ISM Manufacturing PMI** from Growth;
+- replaces it with the Federal Reserve Board's open **Industrial Production: Manufacturing (NAICS)** series, canonical id `manufacturingProduction`, FRED identifier `IPMAN`;
+- preserves the seven-component equal-weight Growth definition by replacing one governed component, not by reducing the denominator silently;
+- records in derived-index metadata that IPMAN is a manufacturing-output measure and is **not** PMI;
+- requires Growth V2/About/Analysis construction detail to state that PMI was explicitly excluded because a permissible free historical/current source was unavailable and that IPMAN is the owner-approved replacement.
+
+This decision removes the PMI source blocker. Backend qualification must now collect IPMAN, prove its publication-aware Health state, regenerate the Growth index, and pass the full exact-component gate before R7 UI candidate work advances to ship.
