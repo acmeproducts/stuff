@@ -150,7 +150,6 @@ R4 passed the automated release workflow but the workflow was still validating t
 - Health must be diagnostic, not descriptive: for every degraded series/chart, identify the concrete cause and evidence path — source state, expected cadence/publication lag, latest publicly expected observation, actual latest observation, last collection attempt/result, coverage/density by horizon, provenance and the resulting chart impact.
 - Chart quality must be evaluated as a user-visible analytical output. A technically populated chart that is distorted by sparse, stale, cadence-incompatible or otherwise incomparable evidence is a release failure, and Health must explain the failure.
 
-
 ## G4-R6-D1 — Rejected split-brain index and health inputs
 
 **Rejected approach:** selecting whichever repository model or freshness field is easiest for the browser, or treating a collector status as sufficient proof that a chart is current.
@@ -165,3 +164,36 @@ R4 passed the automated release workflow but the workflow was still validating t
 - Use the derived-index definition, data catalog, canonical series files, operational manifest and source-health collector record in their declared roles.
 - Classify evidence as current, expected-lag, stale, missing, failed or sparse using native cadence and publication schedule.
 - Preserve every component in V2 and Health even when degraded, explicitly show chart impact, and never invent observations.
+
+## G4-R6 — Rejected mechanically-qualified but contract-invalid release
+
+**Rejected implementation:** `market-view-gate4-r6.html`, published commit `6ca2f390f4b217f905bd74484756a8d2cc07fdac`; mechanical qualification run `33467031960`; Pages deployment run `33467069423`.
+
+**Rollback action:** R6 HTML/runtime/source/style artifacts and its validation record are removed from active `main`. R6 and all descendants are forbidden patch-forward baselines.
+
+### Owner-observed failures
+- Data quality and Health contradict each other. CPI/Core CPI/PCE/Core PCE were shown ending June 30 while Health called them `expected-lag`, despite the governed acceptance requirement that publicly available later observations must be recognized and collector/storage failures distinguished from legitimate publication lag.
+- V1 Market output was analytically distorted: Macro diverged massively from Risk/Growth while the application still presented all three as comparable derived-index evidence.
+- The accepted V1 → V2 → About → More info → Analysis journey was abandoned. R6 bypassed the required About step and collapsed component navigation directly into an Analysis modal.
+- The accepted analytical lineage was replaced by implementation-shaped modal behavior and duplicate controls, including duplicate AI POV entry points.
+- The derived-index definition used by R6 had itself drifted from the previously accepted Risk/Growth/Macro component contract, allowing a mechanically consistent but product-wrong model to pass.
+- CONFIG showed a Venice.ai provider/model as validated while Analysis simultaneously returned `Configure and validate an AI provider/model first.` AI validation state and AI execution state were split-brain.
+- AI POV was therefore operationally inert despite successful provider/model validation.
+
+### Root causes
+- R6 validation encoded implementation-shaped assertions rather than independently checking the authoritative product journey. A direct V2→V3 click was accepted even though the Master Plan explicitly requires V2 component About → More info → Analysis.
+- Data-health checks proved collector success and simple observation dates but did not prove latest-publicly-expected observation correctness or storage-pipeline completeness.
+- The Health classifier treated cadence as an explanation without independently establishing whether a newer observation should already exist.
+- The release gate did not compare the active derived-index component definitions against the accepted product definition; definition drift became self-validating.
+- Provider validation and AI request execution did not share one authoritative provider/model state machine from `devstream-test.html`.
+- Mechanical PASS was incorrectly treated as sufficient evidence of contract conformance.
+
+### Recovery / solve
+- Do not patch, reuse, or descend from R6 HTML, JS/CSS/runtime, workflows, generated artifacts, validation logic, layout decisions, or state-transition shortcuts.
+- Re-establish the accepted analytical product contract before implementation: V1 Market → V2 Index + Components → About → More info → Analysis, with Analysis additive from the exact selected root component.
+- Reconcile `data/market-backend/derived-index-definition.json` against the accepted Risk/Growth/Macro component definitions before any chart work. A backend definition is not authoritative merely because a rejected release used it.
+- Repair canonical evidence freshness before derived indices are rendered. Health must compare latest publicly expected observation with actual canonical observation and identify source-not-published vs collector failure vs persistence/cache failure vs insufficient horizon coverage.
+- Make bad evidence block or visibly degrade the affected index/chart; never let stale/sparse/cadence-incompatible inputs silently produce a normal-looking derived index.
+- Reuse the exact donor AI provider/model state and validation/execution path. A validated provider/model must be the same state consumed by POV/chat; a contradictory `not configured` result is release-blocking.
+- Build the next successor from the restored 3.9.7 baseline and approved Gate 3 P2 interaction lineage only.
+- The next release gate must test owner-visible journey semantics, independent data truth, accepted index-definition identity, and a real validated-provider → AI response round trip before publication.
