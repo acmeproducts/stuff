@@ -157,6 +157,14 @@ Explore consumes the corrected shared dimensions/filters and color encoding, but
 
 R6 established the portal, Analysis → Library path, and compact dynamic filter surface, but it is not accepted until the source-filter truthfulness and Map density/size corrections above are mechanically addressed.
 
+## R7 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r7.html`
+- Application commit: `17c27b402bcbb04b3f80cc07e2a0ebc78c768a85`
+- Blob: `c12e254450f724e9b3d0fdcd4c13867d7603279f`
+- Status: **STATIC/FUNCTIONAL VALIDATION PASSED — LIVE BROWSER / OWNER TEST PENDING**
+
+R7 corrects selected-Source group identity, applies deliberately separated governed Size weights, adds geometry-tolerant richer Map labels, and replaces the R6 Library list presentation with the governed self-contained Library research portal. Explore geometry, global AI placement, Config placement, Portal shell and reader architecture remain unchanged.
+
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
 
