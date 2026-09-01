@@ -3,197 +3,209 @@
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
 Updated: 2026-08-31
 
+This file is a negative specification. A rejected implementation, workflow, validation technique, layout decision or analytical shortcut is historical evidence only. It is not a successor baseline.
+
+## Permanent process rule
+**DO NOT PATCH FORWARD FROM A REJECTED RELEASE.**
+
+Required cycle:
+
+**diagnose → record failure here → update Master Plan → restore approved baseline → pre-base → base → pre-ship → ship → owner test → post-ship only after acceptance**
+
+A rejected ship is rolled back. It does not become the next pre-base.
+
+---
+
 ## G3-R1 — Rejected post-baseline Gate 3 ribbon/help patch
 
-**Rejected implementation lineage:** changes applied after Gate 3 baseline commit `5db1363447c70d5dd3bb5f1f6d03204af34b6eb7`, culminating in the deficient `market-view-ux-gate3.html` state.
+**Rejected lineage:** deficient `market-view-ux-gate3.html` descendants after baseline commit `5db1363447c70d5dd3bb5f1f6d03204af34b6eb7`.
 
-**Restore authority:** `5db1363447c70d5dd3bb5f1f6d03204af34b6eb7` is the implementation baseline for the next Gate 3 POC. Do not patch the deficient descendant forward.
+### Rejected
+- ribbon geometry that loses fixed breadcrumb/horizon/more alignment;
+- breadcrumbs rooted incorrectly at Now;
+- contextual help without explicit close;
+- legend More actions that lose clicked-series identity;
+- treating Add to Analysis and Add/Save to Library as equivalent;
+- reusing a deficient descendant because it contains some desired changes.
 
-### Rejected behaviors
-- Ribbon row 2 that does not keep breadcrumbs at the far left, horizons fixed/centered, and `…` at the far right.
-- Breadcrumb lineage rooted at `Now`.
-- Legend contextual-help cards without an explicit close/dismiss control.
-- Legend `More` links that open the wrong analytical destination or lose the clicked series identity.
-- Treating `Add to Analysis` and `Add/Save to Library` as equivalent actions.
-- Reusing an incorrect descendant as the next implementation baseline merely because it contains some desired ribbon/footer features.
+### Recovery
+Restore the approved baseline and apply only governed changes. Preserve the accepted chart/analysis journey unless the current Master Plan explicitly supersedes it.
 
-### Recovery rule
-Rebuild from the restored baseline and apply only the governed Gate 3 corrective patch documented in `MARKET-NAVIGATOR-MASTER-PLAN.md`. Preserve the baseline chart/analysis interaction model unless that patch explicitly changes it.
+---
 
-## G4-R1 — Rejected first Gate 4 application slice
+## G4-R1 — Rejected first Gate 4 slice
 
-**Rejected implementation:** `market-view-gate4.html` first slice, commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`.
+**Rejected implementation:** `market-view-gate4.html`, commit `38a35279f4aea9c99d6fcb70518e06c31371cf3e`.
 
-### Why it was rejected
-The slice continued treating core product behavior as gated chart/navigation work instead of assembling the complete application contract. It also exposed interaction and evidence defects that must be solved structurally rather than patched one-by-one.
+### Rejected
+- incomplete chart/navigation slice presented as Gate 4;
+- two-row ribbon;
+- weak mobile horizon targets;
+- long legends/direct-new-tab behavior that loses context;
+- incomplete V1/V2 lines/components;
+- locked crosshair and split inspection;
+- Library/AI/CONFIG deferred out of the release;
+- flat Add Series list with hidden actions.
 
-### Rejected behaviors
-- Two-row ribbon with breadcrumbs sharing the horizon/control row. This creates mobile overflow pressure and makes the analytical hierarchy less legible.
-- Breadcrumb labels that consume unnecessary width. Canonical compact lineage is `Market / Growth / Payroll`; additive analysis becomes `Payroll + Custom` while preserving parent context internally.
-- Small horizon targets/font that are harder to read and tap on mobile.
-- Long legend labels and direct V2 component-to-new-tab behavior that sacrifice context and horizontal capacity.
-- Market 5D rendering that can omit an index line such as Growth.
-- Crosshair locked to one series rather than transferring to the line/observation tapped.
-- Split crosshair annotation with date at the X axis and value at the point rather than one contextual observation popup.
-- V2 chart showing components without the selected derived index trendline as the reference context.
-- V2 failing to expose every defined component of the selected index.
-- Treating Library, AI POV, AI chat, provider configuration, provider validation and model selection as later gated surfaces.
-- Flat Add Series list with bottom actions that become undiscoverable in a long list.
-- Add Series taxonomy that does not expose `Market | Risk | Growth | Macro | Other` navigation.
+### Recovery
+Build the complete governed application from the accepted lineage rather than extending this slice.
 
-### Recovery / solve
-Do not patch this rejected slice forward as the product baseline. Gate 4 must be assembled from the governed lineage: current Market Navigator 3 application foundation + approved Gate 3 interaction model + approved ribbon/footer decisions + canonical backend evidence.
+---
 
-The replacement must implement the complete active product contract in one governed release: three-row analytical ribbon; compact three-letter legends; contextual About cards; transferable real-observation inspection; V2 index + all component lines; Library; operational AI POV/chat; CONFIG provider/model validation; and categorized Add Series selection.
-
-## G4-R2 — Rejected inert replacement release
+## G4-R2 — Rejected inert replacement
 
 **Rejected implementation:** `market-view-gate4-r2.html`, commit `141739606b0e2fe61e22ab7fa9b51936c20c8009`.
 
-### Why it was rejected
-The published replacement was inert because its JavaScript did not pass syntax validation before release. This is a release-process failure in addition to an implementation failure: an executable HTML/JavaScript artifact must never be handed to the tester without at least parser/static validation.
+### Failure
+Published JavaScript did not pass syntax validation and the replacement was inert.
 
-### Recovery / solve
-- Do not patch the inert R2 artifact forward as an accepted baseline.
-- Correct from the governed Gate 4 contract and publish a successor release.
-- Before publishing any successor test URL, extract/validate the JavaScript with a parser/runtime syntax check and perform structural checks for required Gate 4 surfaces.
-- A failed syntax check blocks publication.
+### Permanent lesson
+No owner test URL before real syntax/parser and boot gates pass.
 
-## G4-R3 — Rejected standalone rewrite masquerading as governed lineage
+---
 
-**Rejected implementation:** `market-view-gate4-r3.html`, candidate commit `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`. Owner rejected the release immediately as materially worse than the prior failure; no defect-by-defect catalog is authoritative or required.
+## G4-R3 — Rejected standalone rewrite masquerading as lineage preservation
 
-### Why it was rejected
-R3 satisfied parser, boot and superficial structural checks but violated the governing lineage requirement in substance. Instead of preserving the full Market Navigator 3.9.7 runtime/application and reconciling Gate 4 into it, the candidate was effectively a compact standalone replacement whose release checks proved only that a smaller app booted and contained expected labels. This allowed severe capability and presentation regression to pass the gate.
+**Rejected candidate:** `market-view-gate4-r3.html`, commit `2a5daaf19a68cad2dc8c04cab3deaf3ea1680dcb`.
 
-### Rejected approach
-- Replacing the 3.9.7 application with a newly authored compact shell and calling it lineage preservation.
-- Treating string-presence/DOM-count checks as proof of feature parity.
-- Treating boot success as proof that existing navigation, data, charting, responsive behavior, accessibility, export, interaction and application capabilities survived.
-- Reconstructing canonical data ingestion generically when the accepted runtime already provides a known application/data model that should be adapted deliberately.
-- Publishing a release without a baseline-parity gate against the preserved 3.9.7 application and approved Gate 3 P2 interaction model.
+### Failure
+A compact replacement shell passed superficial parser/boot/string checks while discarding Market Navigator 3.9.7 behavior and product fidelity.
 
-### Recovery / solve
-- Roll back `market-view-gate4-r3.html` to the exact pre-R3 3.9.7 runtime artifact before any successor work.
-- The successor must start from that restored file, not from R3 code.
-- Preserve the 3.9.7 runtime/application code by default; make explicit governed changes only where Gate 4 requires a different contract.
-- Reconcile approved Gate 3 P2 interaction patterns into the preserved runtime rather than replacing the runtime with a POC shell.
-- Add release gates for baseline capability parity, visual/application-frame integrity and state-transition behavior in addition to syntax/boot/structural checks.
-- No R3 code is a patch-forward baseline.
+### Rejected
+- replacing 3.9.7 with a rewrite and calling it preservation;
+- DOM/string-count checks as parity proof;
+- boot success as capability/visual proof;
+- generic reimplementation of accepted runtime/data behavior;
+- release without baseline visual/capability comparison.
+
+### Recovery
+The active `market-view-gate4-r3.html` was restored to exact 3.9.7 and is a baseline artifact only. The rejected candidate code is not a patch-forward source.
+
+---
 
 ## G4-R4 — Rejected technically-passing but product-invalid release
 
-**Rejected implementation:** `market-view-gate4-r4.html`, candidate commit `12450364b8298b9f7d1d96837c61654197e793f7`.
-
-**Rollback action:** active R4 artifact and its validation record were removed from `main`. R4 is historical evidence only and is not a patch-forward baseline.
-
-### Why it was rejected
-R4 passed the automated release workflow but the workflow was still validating the wrong things. It proved that the artifact booted, contained expected navigation/state markers, could complete scripted journeys, and met coarse geometry rules. It did not prove that the application was analytically useful, that operational data was current, that AI/provider behavior matched the approved donor, or that the visible interaction contract actually worked for the owner.
+**Rejected candidate:** `market-view-gate4-r4.html`, commit `12450364b8298b9f7d1d96837c61654197e793f7`.
 
 ### Owner-observed failures
-- Hamburger/rail collapse did not work. This alone invalidates baseline parity.
-- AI provider/model discovery diverged from the approved donor. Approximation of `devstream-test.html` is rejected; the donor behavior must be reused exactly.
-- AI POV could be useless or misleading because it analyzed incomplete/stale evidence rather than diagnosing the evidence first.
-- AI generation could spin and then disappear with no reply or deterministic failure state.
-- Market chart was not acceptable as an analytical surface.
-- Risk V2 was visually chaotic and analytically poor.
-- Growth V2 was visually degraded; AI attempted to broaden the context beyond the governed index/component scope rather than first interpreting the active index evidence.
-- Macro was unusable.
-- Health was effectively absent as an operational diagnostic surface, leaving no way to distinguish source lag, collection failure, stale evidence or missing observations.
-- CPI stopped at June even though July was available. This exposed the missing cadence/publication-lag/freshness contract in the canonical evidence path.
-- Explore and Add Series used different discovery mechanisms for the same conceptual operation, increasing inconsistency and maintenance cost.
+- hamburger/rail collapse failed;
+- provider/model behavior diverged from `devstream-test.html`;
+- POV analyzed incomplete/stale evidence;
+- AI could spin then disappear;
+- Market/Risk/Growth/Macro charts were not analytically useful;
+- Health did not diagnose evidence freshness/failure;
+- CPI stopped at June when a newer observation was available;
+- Explore and Add Series diverged.
 
 ### Root causes
-- Release validation emphasized structural presence and scripted path completion over product usefulness and data truth.
-- Data health was treated as a UI surface rather than a prerequisite envelope around every analytical series.
-- The canonical backend did not expose enough deterministic cadence/publication metadata to distinguish expected lag from stale/failed collection.
-- The chart engine accepted sparse and mixed-frequency evidence into normalized comparisons without sufficient quality gating or degradation signaling.
-- AI POV consumed chart evidence before validating its completeness/currentness.
-- Provider/model configuration was reimplemented instead of using the exact approved donor behavior.
-- Explore and Add Series were implemented separately instead of sharing one series-discovery component.
+Validation emphasized structural presence and scripted completion instead of product usefulness, data truth and exact donor behavior.
 
-### Recovery / solve
-- Do not patch R4, its generated HTML, its overlay code, or its workflows.
-- Start R5 again from the exact restored 3.9.7 `market-view-gate4-r3.html` baseline.
-- Use `devstream-test.html` as an exact provider/model configuration donor; no substitute UX or discovery logic.
-- Make cadence/freshness metadata a backend contract before chart/AI interpretation: frequency, publication lag/expected availability, latest observation, last successful collection, expected next update, horizon coverage, and deterministic health classification.
-- Make Health a first-class working diagnostic surface backed by that metadata.
-- Make AI POV perform an evidence-health preflight and refuse/narrow unsupported inference instead of summarizing stale or incomplete input.
-- Make AI request lifecycle visible and failure deterministic; no silent disappearance.
-- Use one shared series-discovery mechanism for Explore and Add Series.
-- Add release gates for real rail collapse behavior, exact donor parity, representative data currentness (including CPI), Health usability, degraded-evidence AI behavior, and visual/analytical usefulness of Market/Risk/Growth/Macro charts.
-- Automated PASS is not acceptance if it does not test the actual owner-visible contract.
+### Recovery
+Do not reuse R4 HTML, generated code, workflows or validation. Health must surround chart/AI evidence; AI must preflight evidence; provider configuration must use the exact donor; discovery must be shared.
+
+---
 
 ## G4-R5 — Rejected arbitrary-layout successor with non-diagnostic Health
 
-**Rejected implementation:** `market-view-gate4-r5.html`, release commit `4b1000e317375d9504fd14dcd5afae66f9654cdf`; validation run `33386160380`; Pages deployment run `33386297538`.
-
-**Rollback action:** R5 HTML, JS/CSS successor overlays and R5 workflow are removed from active `main`; the public R5 candidate is invalidated. R5 and descendants are not patch-forward baselines.
+**Rejected release:** `market-view-gate4-r5.html`, commit `4b1000e317375d9504fd14dcd5afae66f9654cdf`; qualification run `33386160380`; Pages run `33386297538`.
 
 ### Owner-observed failures
-- The layout changed materially and arbitrarily from the approved/current product surface. This is rejected even if the implementation passes functional checks.
-- The Health surface does not explain why the underlying data is bad.
-- The Health surface does not explain why the visible charts are bad.
-- The Market/Risk/Growth/Macro chart presentation is visibly poor/misleading and therefore analytically unusable.
-- Arbitrary visual/product changes not explicitly authorized by the governed plan are forbidden.
+- approved application layout changed arbitrarily;
+- Health did not explain why data was bad;
+- Health did not explain why visible charts were bad;
+- Market/Risk/Growth/Macro charts were visibly misleading/unusable.
 
 ### Root causes
-- R5 treated functional contract assembly as permission to introduce a new application frame/layout instead of preserving approved visual structure.
-- The release gate checked geometry and journey completion but did not perform exact visual parity/redline review against the approved layout before adding new functionality.
-- Health reported status-like fields instead of performing root-cause diagnosis that connects source cadence, freshness, collector result, provenance, horizon coverage and missing/sparse observations to the actual chart degradation visible to the user.
-- Chart validation proved that SVG/axes/series existed rather than proving that the resulting chart was coherent, comparable and trustworthy.
+Functional assembly was treated as permission to redesign. Geometry checks replaced visual redline review. Health was descriptive rather than causal. Chart tests proved existence rather than coherence.
 
-### Recovery / solve
-- Do not patch or reuse R5 HTML, JS/CSS overlay, workflow, layout or validation as the successor baseline.
-- Return to the exact restored Market Navigator 3.9.7 baseline plus approved Gate 3 P2 interaction model and governed Gate 4 contracts.
-- Visual parity is now a hard precondition: before functional additions are accepted, the successor must demonstrate that the approved application frame/layout is unchanged except where a specific plan clause explicitly authorizes a change.
-- Health must be diagnostic, not descriptive: for every degraded series/chart, identify the concrete cause and evidence path — source state, expected cadence/publication lag, latest publicly expected observation, actual latest observation, last collection attempt/result, coverage/density by horizon, provenance and the resulting chart impact.
-- Chart quality must be evaluated as a user-visible analytical output. A technically populated chart that is distorted by sparse, stale, cadence-incompatible or otherwise incomparable evidence is a release failure, and Health must explain the failure.
+### Recovery
+R5 HTML/JS/CSS/workflow/validation/layout are forbidden successor inputs. Preserve the approved frame and make Health explain source → publication expectation → canonical observation → collector/persistence → coverage/density → chart impact.
 
-## G4-R6-D1 — Rejected split-brain index and health inputs
+---
 
-**Rejected approach:** selecting whichever repository model or freshness field is easiest for the browser, or treating a collector status as sufficient proof that a chart is current.
+## G4-R6-D1 — Rejected split-brain evidence-health model
 
-### Why it is rejected
-- market-data/model.json defines a different weighted 0–100 model and cannot be mixed with the canonical equal-weight rebased-100 Gate 4 definition.
-- Catalog metadata, collector state, operational coverage and canonical observations answer different questions. Collapsing them produces false freshness claims and misleading chart readiness.
-- Calendar age alone misclassifies low-frequency evidence. In particular, July CPI can be current or expected-lag before the next scheduled publication and must not be labeled stale merely because a daily threshold was applied.
-- Browser reacquisition would create a second canonical store and make Health unable to explain the evidence actually drawn.
+### Rejected
+- treating whichever repository model is easiest to consume as product authority;
+- treating collector HTTP success as proof of evidence currentness;
+- calendar age alone as low-frequency freshness logic;
+- browser-side Yahoo/FRED reacquisition creating a second canonical store.
 
-### Governed replacement
-- Use the derived-index definition, data catalog, canonical series files, operational manifest and source-health collector record in their declared roles.
-- Classify evidence as current, expected-lag, stale, missing, failed or sparse using native cadence and publication schedule.
-- Preserve every component in V2 and Health even when degraded, explicitly show chart impact, and never invent observations.
+### Permanent lesson
+Catalog definition, canonical observations, operational manifest and collector health answer different questions. Health must reconcile them rather than collapse them.
+
+---
 
 ## G4-R6 — Rejected mechanically-qualified but contract-invalid release
 
-**Rejected implementation:** `market-view-gate4-r6.html`, published commit `6ca2f390f4b217f905bd74484756a8d2cc07fdac`; mechanical qualification run `33467031960`; Pages deployment run `33467069423`.
+**Rejected implementation:** `market-view-gate4-r6.html`, release commit `6ca2f390f4b217f905bd74484756a8d2cc07fdac`; qualification run `33467031960`; Pages deployment `33467069423`.
 
-**Rollback action:** R6 HTML/runtime/source/style artifacts and its validation record are removed from active `main`. R6 and all descendants are forbidden patch-forward baselines.
+**Rollback:** R6 HTML, source JS, CSS, generated runtime JS, validation record and R6 qualification/diagnostic/release workflows were removed from active `main`. R6 and descendants are forbidden patch-forward baselines.
 
 ### Owner-observed failures
-- Data quality and Health contradict each other. CPI/Core CPI/PCE/Core PCE were shown ending June 30 while Health called them `expected-lag`, despite the governed acceptance requirement that publicly available later observations must be recognized and collector/storage failures distinguished from legitimate publication lag.
-- V1 Market output was analytically distorted: Macro diverged massively from Risk/Growth while the application still presented all three as comparable derived-index evidence.
-- The accepted V1 → V2 → About → More info → Analysis journey was abandoned. R6 bypassed the required About step and collapsed component navigation directly into an Analysis modal.
-- The accepted analytical lineage was replaced by implementation-shaped modal behavior and duplicate controls, including duplicate AI POV entry points.
-- The derived-index definition used by R6 had itself drifted from the previously accepted Risk/Growth/Macro component contract, allowing a mechanically consistent but product-wrong model to pass.
-- CONFIG showed a Venice.ai provider/model as validated while Analysis simultaneously returned `Configure and validate an AI provider/model first.` AI validation state and AI execution state were split-brain.
-- AI POV was therefore operationally inert despite successful provider/model validation.
+- **Data/Health contradiction:** CPI/Core CPI/PCE/Core PCE ended June 30 while Health called the condition `expected-lag`, despite newer publicly expected/available evidence requirements.
+- **Bad V1 output:** Macro was massively distorted relative to Risk/Growth while the UI presented all three as normal comparable indices.
+- **Accepted analytical lineage abandoned:** the accepted product relationship is V1 Market + V2 selected Index simultaneously in NOW; selecting a V2 component launches exact V3 Component Analysis; former V4 multi-series behavior is collapsed into V3; V5 is abandoned. R6 instead reshaped this into implementation-driven modal behavior and lost the accepted V1+V2 composition.
+- **Derived-index definition drift:** R6 consumed a Risk/Growth/Macro component definition that no longer matched the accepted product definitions.
+- **Duplicate/incorrect analytical controls:** implementation-shaped controls, including duplicate AI POV entry points, appeared.
+- **AI split brain:** CONFIG showed Venice.ai/model validated while Analysis returned `Configure and validate an AI provider/model first.`
+- **AI POV inert:** provider/model validation did not produce an operational AI request path.
 
 ### Root causes
-- R6 validation encoded implementation-shaped assertions rather than independently checking the authoritative product journey. A direct V2→V3 click was accepted even though the Master Plan explicitly requires V2 component About → More info → Analysis.
-- Data-health checks proved collector success and simple observation dates but did not prove latest-publicly-expected observation correctness or storage-pipeline completeness.
-- The Health classifier treated cadence as an explanation without independently establishing whether a newer observation should already exist.
-- The release gate did not compare the active derived-index component definitions against the accepted product definition; definition drift became self-validating.
-- Provider validation and AI request execution did not share one authoritative provider/model state machine from `devstream-test.html`.
-- Mechanical PASS was incorrectly treated as sufficient evidence of contract conformance.
+- Validation encoded R6's implementation shape instead of independently testing the accepted product contract.
+- Health tests used collector success and simple age/cadence checks rather than latest-publicly-expected observation versus actual canonical evidence.
+- A drifted backend definition became self-validating because release tests checked presence, not identity against the accepted product definition.
+- CONFIG validation state and Analysis execution state were separate systems instead of one donor-derived state path.
+- Mechanical PASS was treated as proof of product conformance.
 
-### Recovery / solve
-- Do not patch, reuse, or descend from R6 HTML, JS/CSS/runtime, workflows, generated artifacts, validation logic, layout decisions, or state-transition shortcuts.
-- Re-establish the accepted analytical product contract before implementation: V1 Market → V2 Index + Components → About → More info → Analysis, with Analysis additive from the exact selected root component.
-- Reconcile `data/market-backend/derived-index-definition.json` against the accepted Risk/Growth/Macro component definitions before any chart work. A backend definition is not authoritative merely because a rejected release used it.
-- Repair canonical evidence freshness before derived indices are rendered. Health must compare latest publicly expected observation with actual canonical observation and identify source-not-published vs collector failure vs persistence/cache failure vs insufficient horizon coverage.
-- Make bad evidence block or visibly degrade the affected index/chart; never let stale/sparse/cadence-incompatible inputs silently produce a normal-looking derived index.
-- Reuse the exact donor AI provider/model state and validation/execution path. A validated provider/model must be the same state consumed by POV/chat; a contradictory `not configured` result is release-blocking.
-- Build the next successor from the restored 3.9.7 baseline and approved Gate 3 P2 interaction lineage only.
-- The next release gate must test owner-visible journey semantics, independent data truth, accepted index-definition identity, and a real validated-provider → AI response round trip before publication.
+### Correct analytical journey after owner clarification
+The accepted lineage is:
+
+**V1 Market + V2 selected Index together in NOW → direct V2 component → exact V3 Component Analysis → additive/multi-series V3 Analysis.**
+
+- V1 remains visible while V2 changes below it.
+- V2 is not a peer top-level page.
+- Direct V2 component → exact V3 is accepted.
+- Former V4 automatic multi-series capability belongs inside V3.
+- Historical V5 is abandoned and must not return as a separate state.
+
+Any earlier recovery wording proposing an About → More info step between V2 and V3 is superseded by this owner clarification and the current Master Plan.
+
+### R7 recovery
+- Start only from exact restored 3.9.7 plus the accepted chart lineage in `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md` as superseded by the current Master Plan.
+- Reconcile `data/market-backend/derived-index-definition.json` to the accepted Risk/Growth/Macro component definitions before chart implementation.
+- Missing accepted components are backend gaps; do not silently substitute different series.
+- Repair canonical freshness before derived-index rendering, beginning with CPI and all stale/expected-lag contradictions.
+- Health must distinguish source-not-published, collector miss/failure, persistence/cache failure, sparse coverage and cadence incompatibility.
+- Bad evidence must visibly degrade/block the affected analytical output rather than produce a normal-looking index.
+- Reuse exact `devstream-test.html` provider/model state so validation and execution are one state machine.
+- Require a real validated-provider → AI request → persistent AI response round trip before release.
+- Do not reuse R6 code or its validation shortcuts.
+
+---
+
+## Permanent prohibited patterns
+- patching rejected releases forward;
+- arbitrary application-frame redesign;
+- V1 disappearing when V2 is selected;
+- V1/V2 as unrelated peer product pages;
+- recreating V4 or V5 as separate states;
+- silent derived-index component substitution;
+- accepting a backend file as product authority solely because it is labeled canonical;
+- cadence-only Health classification;
+- collector-success-as-currentness;
+- stretched/fabricated slow-frequency source observations;
+- separate Explore/Add-Series discovery implementations;
+- duplicate chart engines;
+- missing/incorrect X/Y1/Y2 axes;
+- all-series inspection popup;
+- provider validation separated from AI execution;
+- CONFIG validated while Analysis reports unconfigured;
+- AI POV without evidence-health preflight;
+- spin-and-disappear AI execution;
+- duplicate AI POV controls;
+- Tag/Clarify/composer-Save in approved conversation surface;
+- persistent below-chart statistics/correlation blocks that displace conversation;
+- browser-side canonical Yahoo/FRED reacquisition;
+- release gates that validate internal function calls, labels or DOM presence instead of actual owner-visible behavior;
+- handing the owner any release with known data, chart, AI or journey defects.
