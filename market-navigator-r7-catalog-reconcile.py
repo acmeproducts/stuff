@@ -49,17 +49,18 @@ def main():
         if x['id'] in required: x['required']=True; x['enabled']=True
     write(CATALOG,c)
     d={
-      'schema':'market-navigator-derived-index-definition-v1','version':'2.1.0','status':'canonical-r7-reconciled','effective_date':'2026-08-31',
-      'purpose':'Accepted Market Navigator Risk/Growth/Macro definitions. Equal-weight, direction-adjusted, rebased 100 where ratio rebasing is mathematically meaningful.',
+      'schema':'market-navigator-derived-index-definition-v1','version':'3.0.0','status':'canonical-r7-reconciled','effective_date':'2026-09-01',
+      'purpose':'Accepted Market Navigator Risk/Growth/Macro definitions. Equal-weight, direction-adjusted, rebased 100 using unitless robust normalization so rates, spreads, prices and macro levels contribute coherently.',
       'display_contract':{
         'v1':'Risk, Growth and Macro are displayed together in NOW from a common baseline of 100.',
         'v2':'The selected index reference plus all components are displayed below V1 from a common baseline of 100.',
         'baseline':100,'weighting':'equal',
-        'component_formula':'oriented_index_t = 100 + direction * ((value_t / value_t0) - 1) * 100',
+        'component_formula':'oriented_index_t = 100 + 10 * direction * ((value_t - value_t0) / trailing_5y_robust_scale)',
         'index_formula':'index_t = arithmetic mean of available oriented_index_t component values',
-        'ratio_eligibility_rule':'Ratio rebasing is structurally invalid for a canonical series whose observed history spans zero or contains zero. Such a component is omitted consistently from ratio-derived composites and the omission is exposed; it is never conditionally included merely because one selected horizon happens to start positive.',
-        'nonpositive_baseline_rule':'A zero or negative baseline is not ratio-rebased. No substitute transformation is invented inside the derived-index pipeline.',
-        'mixed_frequency_rule':'Derived composites may carry each component most recent real observation internally; source observation dates remain traceable and no synthetic source observation is written.',
+        'normalization_rule':'Each component uses one fixed trailing-five-year level scale at the common market anchor. Scale = max(1.4826 * MAD(levels), 0.5 * population standard deviation(levels), 0.1 * observed five-year range). One normalization-scale move equals 10 index points.',
+        'zero_crossing_rule':'Zero, negative values, near-zero policy rates and zero-crossing spreads are valid under difference-based robust normalization; percentage-ratio rebasing is prohibited for derived indices because it can create denominator explosions unrelated to economic significance.',
+        'mixed_frequency_rule':'Derived composites use each component most recent real observation at or before the common anchors; source observation dates remain traceable and no synthetic source observation is written.',
+        'no_release_rule':'If a low-frequency component has no new observation inside a selected horizon, its horizon contribution is exactly 100 and is explicitly identified as no-new-release.',
         'interpretation_rule':'Derived indices are transparent comparative analytical products, not causal or predictive verdicts.'},
       'indices':{
         'risk':{'name':'Risk','higher_means':'more market and financial stress','components':[
