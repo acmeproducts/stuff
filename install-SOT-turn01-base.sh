@@ -147,8 +147,14 @@ for n,line in enumerate(s.splitlines(),1):
 required=['set -Eeuo pipefail','find_powershell','Join-Path $env:TEMP','[Console]::In.ReadToEnd()','JS_BROWSER_HARNESS_SELFTEST','PUBLIC_ARTIFACT_IDENTITY']
 for marker in required:
     if marker not in s: raise SystemExit('installer contract missing '+marker)
-for rejected in ['wslpath -w "$profile"','SOT_BASE32_WIN_PROFILE','base28.sh" "$RUN"']:
+for rejected in [
+    ''.join(('SOT_', 'BASE32_WIN_PROFILE')),
+    'base28' + '.sh',
+]:
     if rejected in s: raise SystemExit('rejected installer pattern present '+rejected)
+rejected = 'wsl' + 'path'
+if rejected in s:
+    raise SystemExit('rejected installer pattern present ' + rejected)
 PY
 pass INSTALLER_BASH_PARSE true
 pass INSTALLER_STRUCTURAL_AUDIT true
