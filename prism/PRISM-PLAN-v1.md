@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.9.0 -->
-# PRISM MASTER PLAN v2.9.0
+<!-- PRISM-PLAN v2.10.0 -->
+# PRISM MASTER PLAN v2.10.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -223,7 +223,7 @@ Owner review corrected the portal control ownership: the hamburger was placed in
 - Artifact: `prism/prism-turn01-pre-ship-r10.html`
 - Application commit: `01a6e026c52f38b7986d01ae2e237e863d3fc8c4`
 - Blob: `6e8219577693e1b6244c64269740e80bb9ff1325`
-- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **SUPERSEDED FOR CORRECTION — HAMBURGER WAS TOP-RIGHT WITHIN THE RAIL**
 
 R10 moves the hamburger into the left rail header. Its sole action is to collapse or expand that rail. The collapsed state retains a narrow rail strip containing the same toggle so the user can reopen it on desktop and mobile; the toggle exposes truthful expand/collapse title, label and `aria-expanded` state. The global top header no longer contains a portal toggle. Map, Explore, Feed, AI, Config, Sources and Library behavior remain unchanged.
 
@@ -233,6 +233,16 @@ Deployed qualification at application commit `01a6e026c52f38b7986d01ae2e237e863d
 - the global top header contains no hamburger;
 - collapse and expand produce the matching title, accessible label and `aria-expanded` state;
 - collapsed desktop and mobile rules retain the 44-pixel rail strip containing the toggle.
+
+Owner review clarified that rail ownership also requires conventional placement: the hamburger must be the first control at the top-left of the rail. Branding is secondary and may yield space to the toggle. R10 remains preserved as the exact rail-local-control artifact; the position correction proceeds in R11.
+
+## R11 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r11.html`
+- Application commit: **PENDING DEPLOYMENT**
+- Blob: **PENDING DEPLOYMENT**
+- Status: **ACTIVE CORRECTION CANDIDATE — TOP-LEFT RAIL TOGGLE**
+
+R11 makes the hamburger the first element in the left rail header, placing it at the rail's top-left on desktop and mobile. Compact branding follows to its right and remains hidden in the collapsed state. Collapse/expand behavior, the persistent collapsed toggle strip and all product surfaces remain unchanged.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -278,6 +288,7 @@ The next candidate is acceptable only if:
 21. a custom source refresh failure is visible and cannot masquerade as successful ingestion; cached fallback, retry and removal behave non-destructively.
 22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
 23. the hamburger exists inside the left portal rail, performs only rail collapse/expand, remains reachable while collapsed, and is absent from the global top header.
+24. the hamburger is the first control in the rail header and occupies the rail's top-left position; branding is secondary to its right.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
