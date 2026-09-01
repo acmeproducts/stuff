@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<!--
+Market Navigator · Gate 4 R6
+Governed candidate built from the accepted 3.9.7 baseline.
+Usage: open market-view.html on GitHub Pages. The app fetches live/historical Yahoo market data, cleans it in a blob WebWorker, persists canonical observations locally, and routes between #home and #detail/<ticker>.
+Version: Gate 4 R6
+Verification checklist:
+1. Data loads from fetch() and the status reports the market-data connection rather than a stored-data placeholder.
+2. #home and #detail/<ticker> navigation work; browser Back returns to the prior view without re-fetching already-loaded series.
+3. Worker-cleaned observations contain finite positive numeric values, use dot-decimal JavaScript numbers, and duplicate timestamps/dates are removed.
+4. CSV export downloads the cleaned selected-horizon data client-side.
+5. Keyboard: ticker rows accept ArrowUp/ArrowDown focus movement and Enter opens detail.
+6. Accessibility: focus rings, contrast, semantic table/buttons and readable chart legends/tooltips meet the intended WCAG AA presentation.
+7. Responsive: home/detail charts remain within the viewport on mobile and desktop without page scrolling.
+8. Charts: every chart shows a legend; hover/touch inspection shows series name, value and timestamp; index charts never show a dollar-sign Y axis.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08111f">
+<title>Market Navigator · Gate 4 R6</title>
+<style>
+:root{--bg:#08111f;--nav:#0b1525;--panel:#101b2d;--panel2:#0d1727;--line:#263854;--text:#eef5ff;--muted:#91a3bb;--good:#2dd47b;--warn:#f3b347;--bad:#ef6670;--accent:#6db7ff;--head:64px;--side:214px}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden}body{background:var(--bg);color:var(--text);font:14px/1.42 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}button,input,select{font:inherit}button{cursor:pointer}.top{position:fixed;z-index:30;inset:0 0 auto;height:var(--head);display:flex;align-items:center;gap:12px;padding:0 14px;background:#070e1a;border-bottom:1px solid var(--line)}.hamb{width:42px;height:42px;border:1px solid var(--line);border-radius:10px;background:#152238;color:var(--text);font-size:20px}.brand{flex:1}.brand b{display:block;font-size:18px}.brand small,.muted{color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--warn);margin-right:6px}.dot.good{background:var(--good)}.dot.bad{background:var(--bad)}.side{position:fixed;z-index:20;top:var(--head);bottom:0;left:0;width:var(--side);background:var(--nav);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column}.nav{display:grid;gap:4px}.nav button,.configBtn{border:0;border-radius:9px;background:transparent;color:var(--muted);padding:12px;text-align:left;font-weight:760}.nav button.active,.nav button:hover,.configBtn:hover{background:#1b3151;color:var(--text)}.configBtn{margin-top:auto}.app{height:100%;padding-left:var(--side)}main{height:100vh;padding:calc(var(--head) + 12px) 16px 12px;overflow:hidden}.pagebar{height:52px;display:flex;align-items:center;justify-content:space-between}.pagebar h1{margin:0;font-size:24px}.kicker{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:850}.tabs{height:42px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto}.tabs button{border:0;border-radius:8px;background:transparent;color:var(--muted);padding:8px 12px;font-weight:760;white-space:nowrap}.tabs button.active{background:#18263d;color:var(--text)}.globalRange{height:42px;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:5px;align-items:center;padding:5px 0}.globalRange button{min-width:0;border:1px solid var(--line);background:#111d31;color:var(--muted);border-radius:999px;padding:6px 4px;font-size:11px;font-weight:800}.globalRange button.active{background:#203b61;border-color:var(--accent);color:var(--text)}.viewport{height:calc(100vh - var(--head) - 148px);padding-top:8px;overflow:hidden}.section,.story{display:none}.section.active,.story.active{display:block;height:100%}.snapshot{height:100%;display:grid;gap:10px;grid-template-rows:auto minmax(0,1fr)}.hero{display:grid;grid-template-columns:.9fr 1.4fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:13px;min-width:0}.card h2,.card h3{margin:4px 0}.regime{display:flex;align-items:center;gap:14px}.gauge{width:86px;height:86px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--warn) 180deg,#273850 0);position:relative;flex:none}.gauge:after{content:"";position:absolute;inset:9px;border-radius:50%;background:#101b2d}.gauge strong{z-index:1;font-size:24px}.actions{display:flex;gap:7px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:9px;background:#1a2942;color:var(--text);padding:8px 11px;font-weight:780}.btn.primary{border:0;background:var(--accent);color:#07111e}.storyGrid{display:grid;gap:10px;height:100%;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}.storyCard{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;cursor:pointer;min-height:0}.storyCard:hover{border-color:var(--accent)}.row{display:flex;justify-content:space-between;gap:8px}.value{font-size:24px;font-weight:900}.chip,.badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:850;padding:4px 8px;border-radius:999px;white-space:nowrap;border:1px solid transparent}.chip.good,.badge.good{color:#9af0bd;background:#12352b;border-color:#205943}.chip.bad,.badge.bad{color:#ffb7bc;background:#3b2229;border-color:#63313b}.chip.neutral,.badge.neutral{color:#f7d782;background:#342f23;border-color:#5b4e2c}.spark{width:100%;height:100%;min-height:62px;touch-action:none;cursor:crosshair}.meta{font-size:10px;color:var(--muted)}.macroGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;height:100%}.newsList,.libraryList,.logList{height:100%;display:grid;gap:6px;align-content:start}.newsRow,.libraryRow,.logRow{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-height:0}.newsRow{display:grid;grid-template-columns:1fr auto;gap:10px}.newsRow a{color:var(--text);text-decoration:none;font-weight:800}.newsMeta{font-size:10px;color:var(--muted);margin-top:3px}.analysisGrid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:10px;height:100%}.analysisControls{display:grid;align-content:start;gap:9px}.field{display:grid;gap:4px}.field label{font-size:11px;color:var(--muted);font-weight:800}select,input{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#091424;color:var(--text)}.chartBox{height:100%;min-height:0}.chart{width:100%;height:100%;touch-action:none}.providerGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;height:100%;align-content:start}.provider dl{display:grid;grid-template-columns:1fr 1fr;gap:5px}.provider dt{color:var(--muted)}.provider dd{margin:0;text-align:right}.modal{position:fixed;z-index:100;inset:0;background:#02060ddd;display:none;align-items:center;justify-content:center;padding:16px}.modal.open{display:flex}.modalPanel{width:min(960px,100%);height:min(88vh,760px);background:#101b2d;border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:10px}.modalHead{display:flex;align-items:center;justify-content:space-between}.rangebar{display:flex;gap:6px;flex-wrap:wrap}.rangebar button{border:1px solid var(--line);background:#15223a;color:var(--muted);border-radius:999px;padding:7px 10px}.rangebar button.active{border-color:var(--accent);color:var(--text)}.modalChart{min-height:0}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.stat{background:#0c1728;border:1px solid var(--line);border-radius:9px;padding:8px}.stat b{display:block;margin-top:2px}.progress{position:fixed;z-index:130;inset:0;background:#02060ddd;display:none;align-items:center;justify-content:center}.progress.open{display:flex}.progressBox{width:min(520px,90vw);background:#101b2d;border:1px solid var(--line);border-radius:14px;padding:18px}.bar{height:10px;border-radius:999px;background:#223149;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent)}.toast{position:fixed;z-index:140;left:50%;bottom:18px;transform:translateX(-50%);background:#eef5ff;color:#07111e;padding:8px 12px;border-radius:9px;display:none}.toast.show{display:block}@media(max-width:1050px){.storyGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.macroGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.providerGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:780px){.side{transform:translateX(-100%)}body.drawer .side{transform:none}.app{padding-left:0}.brand small{display:none}.hero{grid-template-columns:1fr 1.2fr}.storyGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.analysisGrid{grid-template-columns:220px minmax(0,1fr)}}@media(max-width:520px){.globalRange{height:70px;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:30px}.viewport{height:calc(100vh - var(--head) - 176px)}.hero{grid-template-columns:1fr}.storyGrid,.macroGrid,.providerGrid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(2,1fr)}.modal{padding:0}.modalPanel{width:100%;height:100%;max-height:none;border-radius:0;overflow:hidden}.analysisGrid{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}}
+.chartLegend{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:24px;padding:2px 2px 6px;color:var(--muted);font-size:10px}.chartLegendItem{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.chartLegendItem i{display:inline-block;width:18px;height:3px;border-radius:3px}.chartLegendItem b{color:var(--text);font-size:11px}.chartLegendItem em{font-style:normal;color:var(--muted);margin-left:2px}@media(max-width:520px){.chartLegend{gap:8px;overflow-x:auto;flex-wrap:nowrap;min-height:26px}.chartLegendItem em{display:none}}
+
+.chartTipRow{display:grid;grid-template-columns:10px 1fr;gap:7px;align-items:center}.chartTipSwatch{width:9px;height:9px;border-radius:50%;display:inline-block}.throughline{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:center;margin-top:8px}.throughNode{background:#0b1728;border:1px solid var(--line);border-radius:10px;padding:9px;min-width:0}.throughArrow{color:var(--accent);font-weight:900}.dateRange{font-size:11px;color:var(--muted);margin-top:2px}@media(max-width:520px){.throughline{grid-template-columns:1fr;gap:5px}.throughArrow{transform:rotate(90deg);justify-self:center}.modalPanel{grid-template-rows:auto auto minmax(0,1fr) auto}.chartLegend{min-height:22px}}
+
+.now393{height:100%;display:grid;grid-template-rows:minmax(0,1.15fr) minmax(0,.85fr);gap:10px}.regime393{display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;cursor:pointer}.regime393:hover,.category393:hover{border-color:var(--accent)}.regimeHead393{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.regimeMetric393{display:flex;align-items:baseline;gap:9px}.regimeMetric393 strong{font-size:30px}.categoryGrid393{height:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.category393{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:5px;cursor:pointer;min-height:0}.category393 .spark{min-height:54px}.microGrid393{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;height:100%;align-content:stretch}.micro393{border:1px solid var(--line);background:#0b1728;border-radius:12px;padding:10px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:7px;cursor:pointer;min-height:0;color:var(--text);text-align:left}.micro393:hover,.micro393:focus-visible{border-color:var(--accent);outline:2px solid #9ed1ff;outline-offset:2px}.microChart393{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;min-height:90px;padding:6px 10px 0}.microCol393{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:5px;align-items:end;height:100%}.microBar393{width:100%;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#6db7ff,#2a6fb4);min-height:3px}.microBar393.end{background:linear-gradient(180deg,#48d88a,#258f60)}.microLabel393{font-size:10px;color:var(--muted);text-align:center}.microValues393{display:flex;justify-content:space-between;gap:8px;font-size:11px}.modalSub393{font-size:11px;color:var(--muted);margin-top:3px}.flow393{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)}.flow393 b{color:var(--text)}@media(max-width:760px){.now393{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}.categoryGrid393{grid-template-columns:repeat(3,minmax(0,1fr))}.category393{padding:10px}.category393 .value{font-size:20px}.microGrid393{grid-template-columns:1fr}.micro393{grid-template-columns:1fr 150px 1fr;grid-template-rows:auto;align-items:center}.microChart393{min-height:74px}}@media(max-width:520px){.now393{grid-template-rows:minmax(0,1.05fr) minmax(0,.95fr)}.categoryGrid393{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.category393{padding:8px}.category393 h3{font-size:13px}.category393 .chip{font-size:9px;padding:3px 5px}.category393 .value{font-size:18px}.category393 .muted{font-size:9px}.regimeMetric393 strong{font-size:25px}.micro393{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto}.microChart393{min-height:92px}}
+
+/* 3.9.6 authoritative Now contract */
+.now396{height:100%;display:grid;grid-template-rows:minmax(0,1.35fr) minmax(0,.65fr);gap:10px;overflow:hidden}.regime396{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;cursor:pointer}.regime396:hover,.regime396:focus-visible,.category396:hover,.category396:focus-visible{border-color:var(--accent);outline:2px solid #9ed1ff;outline-offset:2px}.regime396Head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.regime396Metric{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.regime396Metric strong{font-size:28px}.categoryGrid396{min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.category396{min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:4px;cursor:pointer}.category396 .value{font-size:22px}.category396 canvas{min-height:0;width:100%;height:100%}.driverNote396{font-size:10px;color:var(--muted)}.microGrid396{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;height:100%;min-height:0}.micro396{border:1px solid var(--line);background:#0b1728;color:var(--text);border-radius:14px;padding:10px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:7px;min-height:0;text-align:left;cursor:pointer}.micro396:hover,.micro396:focus-visible{border-color:var(--accent);outline:2px solid #9ed1ff;outline-offset:2px}.microBars396{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end;min-height:70px}.microCol396{height:100%;display:grid;grid-template-rows:minmax(0,1fr) auto;align-items:end;gap:4px}.microBar396{width:100%;min-height:3px;border-radius:6px 6px 2px 2px;background:#6db7ff}.microBar396.end{background:#2dd47b}.microLegend396{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted)}.modalPanel{border-radius:18px;overflow:hidden}.modalChart,.stats{min-height:0}.stats{overflow:hidden}@media(max-width:520px){.now396{grid-template-rows:minmax(0,1.28fr) minmax(0,.72fr)}.categoryGrid396{gap:6px}.category396{padding:8px}.category396 h3{font-size:13px}.category396 .value{font-size:18px}.category396 .chip{font-size:9px;padding:3px 5px}.modal{padding:10px}.modalPanel{width:calc(100% - 4px);height:calc(100dvh - 20px);max-height:none;border-radius:18px}.microGrid396{grid-template-columns:1fr}.micro396{grid-template-columns:1fr 120px 1fr;grid-template-rows:auto;align-items:center}.microBars396{min-height:60px}}
+
+/* 3.9.7 category drill-down + indexed micro columns */
+.categoryMode397{grid-template-rows:auto auto minmax(170px,.85fr) minmax(220px,1.15fr)!important;overflow:hidden}.categoryMode397 .modalChart{min-height:170px}.categoryMode397 #detailStats{display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;min-height:0}.categorySummary397{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.driverArea397{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px}.categoryMode397 .microGrid393{grid-template-columns:repeat(2,minmax(0,1fr));height:100%;min-height:0}.micro397{grid-template-rows:auto auto minmax(92px,1fr);gap:5px;overflow:hidden}.microHead397,.microValues397{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.microChange397{font-size:12px;font-weight:900;color:var(--text)}.microValues397 span{display:grid;gap:1px}.microValues397 span:last-child{text-align:right}.microValues397 small{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.microValues397 b{font-size:11px}.microPlot397{display:grid;grid-template-columns:22px minmax(0,1fr);gap:5px;min-height:92px}.microYAxis397{display:flex;flex-direction:column;justify-content:space-between;color:var(--muted);font-size:8px;padding:1px 0 17px;text-align:right}.microBars397{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(12px,1fr);align-items:end;gap:4px;border-left:1px solid var(--line);border-bottom:1px solid var(--line);padding:2px 3px 0;min-width:0}.microBucket397{height:100%;display:grid;grid-template-rows:minmax(0,1fr) 16px;align-items:end;min-width:0}.microBar397{width:72%;max-width:24px;justify-self:center;background:linear-gradient(180deg,#6db7ff,#2a6fb4);border-radius:4px 4px 0 0;min-height:4px}.microX397{font-size:7px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:clip;transform:translateY(1px)}
+@media(max-width:720px){.categoryMode397{height:96vh!important;border-radius:16px!important;padding:12px!important;grid-template-rows:auto auto minmax(150px,.75fr) minmax(250px,1.25fr)!important}.categoryMode397 .microGrid393{grid-template-columns:1fr 1fr;gap:6px}.micro397{padding:7px}.microX397{font-size:6px}.categorySummary397{gap:5px}.categorySummary397 .stat{padding:6px;font-size:10px}}
+
+/* Gate 4 R6 governed additions */
+:root{--g4-cyan:#7dd3fc;--g4-purple:#a78bfa;--g4-pink:#f472b6;--g4-grid:#22334c;--g4-rail:198px}
+body{letter-spacing:.005em}.top{height:60px;padding:0 18px;background:#060d18}.top .hamb{display:none}.brand b{font-size:17px}.side{top:60px;width:var(--g4-rail);padding:18px 12px}.app{padding-left:var(--g4-rail)}main{height:100vh;padding:60px 0 0;overflow:hidden}
+.g4Nav{display:grid;gap:5px}.g4Nav button,.g4Config{width:100%;border:0;border-radius:9px;background:transparent;color:#91a3bb;padding:11px 12px;text-align:left;font-size:12px;font-weight:850;letter-spacing:.1em}.g4Nav button.active{background:#17304f;color:#f5f9ff}.g4Config{margin-top:auto;border-top:1px solid #263854;border-radius:0;padding-top:18px}
+.g4Shell{height:100%;display:grid;grid-template-rows:132px minmax(0,1fr)}.g4Ribbon{border-bottom:1px solid #263854;background:#0a1423;padding:10px 18px;display:grid;grid-template-rows:31px 31px 36px;gap:6px;min-width:0}.g4RibbonRow{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto}.g4Title{font-size:20px;font-weight:900;margin-right:auto;white-space:nowrap}.g4Crumb{color:#91a3bb;font-size:11px;white-space:nowrap}.g4Modes,.g4Ranges{display:flex;gap:5px}.g4Pill{border:1px solid #2a3e5c;border-radius:999px;background:#101e32;color:#9eb0c7;padding:6px 10px;font-size:11px;font-weight:800;white-space:nowrap}.g4Pill.active{background:#21466d;border-color:#7dd3fc;color:#fff}.g4HealthChip{margin-left:auto}.g4Status{display:inline-flex;align-items:center;gap:6px;border:1px solid #30506c;border-radius:999px;padding:5px 9px;font-size:10px;color:#c8d6e8;white-space:nowrap}.g4Status i{width:7px;height:7px;border-radius:50%;background:#f3b347}.g4Status.current i{background:#2dd47b}.g4Status.failed i,.g4Status.stale i{background:#ef6670}
+.g4Workspace{min-height:0;overflow:auto;padding:14px 18px}.g4Page{min-height:100%;display:grid;gap:12px}.g4Grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.g4IndexCard,.g4Panel,.g4ChartCard{background:linear-gradient(180deg,#101c2e,#0c1728);border:1px solid #263854;border-radius:14px;min-width:0}.g4IndexCard{padding:15px;display:grid;gap:10px;text-align:left;color:#eef5ff;cursor:pointer}.g4IndexCard:hover,.g4IndexCard:focus-visible{border-color:#7dd3fc;outline:none}.g4IndexHead{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.g4IndexValue{font-size:27px;font-weight:950}.g4IndexValue small{font-size:11px;color:#91a3bb}.g4Mini{height:92px;width:100%}.g4Panel{padding:15px}.g4PanelHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.g4Panel h2,.g4Panel h3,.g4ChartCard h2{margin:0}.g4Eyebrow{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#91a3bb;font-weight:850}.g4Meta{font-size:11px;color:#91a3bb}.g4Actions{display:flex;gap:7px;flex-wrap:wrap}.g4Btn{border:1px solid #314867;border-radius:9px;background:#17263d;color:#eef5ff;padding:8px 11px;font-weight:800}.g4Btn.primary{background:#7dd3fc;border-color:#7dd3fc;color:#07111e}.g4Btn.danger{color:#ffb7bc}.g4Btn:disabled{opacity:.45;cursor:not-allowed}
+.g4ChartCard{min-height:520px;padding:14px;display:grid;grid-template-rows:auto auto minmax(310px,1fr);position:relative}.g4Legend{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;padding:8px 2px;min-height:36px}.g4Legend button{border:0;background:transparent;color:#c8d6e8;padding:2px;display:inline-flex;gap:6px;align-items:center;font-size:11px}.g4Legend i{width:18px;height:3px;border-radius:3px}.g4Legend b{color:#fff}.g4CanvasWrap{position:relative;min-height:310px}.g4Canvas{width:100%;height:100%;touch-action:none}.g4Summary{position:absolute;z-index:4;right:14px;top:82px;width:min(265px,42%);padding:11px;border:1px solid #334d70;border-radius:11px;background:#07111eea;box-shadow:0 8px 28px #0008}.g4SummaryHead{display:flex;justify-content:space-between;gap:8px}.g4Summary table{width:100%;border-collapse:collapse;margin-top:6px;font-size:10px}.g4Summary th,.g4Summary td{padding:4px;text-align:right;border-top:1px solid #263854}.g4Summary th:first-child,.g4Summary td:first-child{text-align:left}.g4IconBtn{border:0;background:transparent;color:#c8d6e8;padding:2px 5px;font-size:17px}.g4Tip{position:fixed;z-index:250;pointer-events:none;background:#f5f9ff;color:#07111e;padding:8px 10px;border-radius:9px;box-shadow:0 8px 28px #0009;font-size:11px;max-width:260px}
+.g4Split{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;min-height:0}.g4Conversation{background:#0c1728;border:1px solid #263854;border-radius:14px;min-height:520px;display:grid;grid-template-rows:auto minmax(0,1fr) auto}.g4ConversationHead{padding:13px;border-bottom:1px solid #263854}.g4Messages{padding:13px;overflow:auto;display:grid;align-content:start;gap:10px}.g4Bubble{max-width:92%;padding:10px 11px;border-radius:12px;background:#15243a}.g4Bubble.user{justify-self:end;background:#21466d}.g4Bubble.ai{justify-self:start}.g4Bubble time{display:block;color:#8fa2ba;font-size:9px;margin-top:6px}.g4Md{font-size:12px;line-height:1.5}.g4Md h1,.g4Md h2,.g4Md h3{font-size:13px;margin:8px 0 4px}.g4Md p{margin:5px 0}.g4Md a{color:#7dd3fc}.g4Composer{border-top:1px solid #263854;padding:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.g4Composer textarea{resize:none;min-height:42px;max-height:110px;background:#081423;border:1px solid #314867;color:#eef5ff;border-radius:9px;padding:9px}
+.g4Discovery{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}.g4DiscoveryTabs{display:flex;gap:6px;overflow-x:auto}.g4DiscoveryList{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.g4SeriesCard{border:1px solid #2b405e;border-radius:11px;background:#0c1728;color:#eef5ff;padding:11px;text-align:left;display:grid;gap:5px}.g4SeriesCard:hover{border-color:#7dd3fc}.g4SeriesCard strong{font-size:13px}.g4SeriesCard small{color:#91a3bb}
+.g4LibraryList{display:grid;gap:9px}.g4LibraryItem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid #263854;border-radius:11px;background:#0c1728;padding:12px}.g4Empty{border:1px dashed #34506f;border-radius:13px;padding:38px;text-align:center;color:#91a3bb}
+.g4HealthSummary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.g4Stat{border:1px solid #263854;border-radius:10px;background:#0c1728;padding:10px}.g4Stat b{display:block;font-size:20px;margin-top:3px}.g4TableWrap{overflow:auto;border:1px solid #263854;border-radius:12px}.g4HealthTable{width:100%;border-collapse:collapse;min-width:1450px;font-size:10px}.g4HealthTable th{position:sticky;top:0;background:#111f33;color:#bac9dc;text-align:left;padding:8px;z-index:2}.g4HealthTable td{padding:8px;border-top:1px solid #21334c;vertical-align:top}.g4HealthTable tr[data-open]{cursor:pointer}.g4HealthTable tr[data-open]:hover{background:#14243a}.g4Tag{display:inline-flex;border-radius:999px;padding:3px 7px;font-weight:850;border:1px solid #35506f}.g4Tag.current{color:#9af0bd;border-color:#205943;background:#12352b}.g4Tag.expected-lag,.g4Tag.sparse{color:#f7d782;border-color:#5b4e2c;background:#342f23}.g4Tag.stale,.g4Tag.missing,.g4Tag.failed{color:#ffb7bc;border-color:#63313b;background:#3b2229}
+.g4Modal{position:fixed;z-index:180;inset:0;background:#02060ddd;display:none;align-items:center;justify-content:center;padding:18px}.g4Modal.open{display:flex}.g4ModalPanel{width:min(980px,100%);max-height:min(90vh,820px);overflow:auto;background:#101b2d;border:1px solid #334b6b;border-radius:16px;padding:16px}.g4ModalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.g4PickerPanel{height:min(86vh,760px);display:grid;grid-template-rows:auto minmax(0,1fr)}.g4PickerPanel .g4Discovery{overflow:auto}.g4ConfigGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.g4Provider{border:1px solid #2b405e;border-radius:12px;padding:12px;background:#0c1728;display:grid;align-content:start;gap:8px}.g4Provider input,.g4Provider select,.g4Default{width:100%;border:1px solid #314867;border-radius:8px;background:#081423;color:#eef5ff;padding:9px}.g4Provider output{font-size:10px;min-height:30px;color:#91a3bb}.g4Menu{position:fixed;z-index:210;display:none;min-width:190px;border:1px solid #334b6b;border-radius:10px;background:#111f33;padding:6px;box-shadow:0 12px 30px #000a}.g4Menu.open{display:grid}.g4Menu button{border:0;background:transparent;color:#eef5ff;text-align:left;padding:8px;border-radius:7px}.g4Menu button:hover{background:#203653}
+.g4Loading{display:grid;place-items:center;min-height:320px;color:#91a3bb}.g4Error{border:1px solid #63313b;background:#3b2229;color:#ffccd0;border-radius:12px;padding:14px}.g4Foot{color:#7e91aa;font-size:9px;padding:4px 2px}.g4Release{font-variant-numeric:tabular-nums}
+@media(max-width:1050px){.g4Split{grid-template-columns:1fr}.g4Conversation{min-height:420px}.g4DiscoveryList{grid-template-columns:repeat(2,minmax(0,1fr))}.g4ConfigGrid{grid-template-columns:1fr}.g4HealthSummary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:780px){:root{--g4-rail:0px}.side{transform:translateX(-100%);width:210px;z-index:90}.side.open{transform:none}.app{padding-left:0}.top .hamb{display:block}.g4Shell{grid-template-rows:146px minmax(0,1fr)}.g4Ribbon{height:146px;padding:8px 10px;grid-template-rows:31px 31px 48px}.g4Workspace{padding:10px}.g4Grid3{grid-template-columns:1fr}.g4ChartCard{min-height:480px}.g4Summary{width:min(245px,72%)}}
+@media(max-width:520px){.brand small{display:block;font-size:9px}.status{display:none}.g4Ribbon{grid-template-rows:31px 31px 48px}.g4Title{font-size:17px}.g4Ranges{overflow-x:auto}.g4Pill{padding:6px 9px}.g4Workspace{padding:8px}.g4DiscoveryList{grid-template-columns:1fr}.g4ChartCard{padding:9px;min-height:440px;grid-template-rows:auto auto minmax(280px,1fr)}.g4Summary{right:8px;top:78px;width:78%;max-height:180px;overflow:auto}.g4HealthSummary{grid-template-columns:repeat(2,1fr)}.g4LibraryItem{grid-template-columns:1fr}.g4Modal{padding:0}.g4ModalPanel{width:100%;height:100dvh;max-height:none;border-radius:0;padding:12px}.g4PickerPanel{height:100dvh}.g4Actions .g4Btn{padding:7px 9px}.g4Conversation{min-height:400px}}
+
+</style></head><body>
+<header class="top"><button class="hamb" id="hamb">☰</button><div class="brand"><b>Market Navigator</b><small>Directional situational awareness · Version 3.9.6</small></div><div class="status"><span id="dot" class="dot"></span><span id="status">Connecting to market data…</span></div></header>
+<aside class="side"><nav id="nav" class="nav"></nav><button id="configBtn" class="configBtn">⚙ Configuration</button></aside>
+<div class="app"><main><div class="pagebar"><div><div class="kicker">CURRENT MARKET</div><h1 id="pageTitle">Now</h1></div></div><div id="tabs" class="tabs"></div><div id="globalRange" class="globalRange"></div><div class="viewport">
+<section id="now" class="section active"><div id="nowSnapshot" class="story active"></div><div id="nowTrend" class="story"></div></section>
+<section id="macro" class="section"><div id="macroInflation" class="story active"></div><div id="macroRates" class="story"></div></section>
+<section id="news" class="section"><div id="newsLatest" class="story active"></div><div id="newsGeo" class="story"></div><div id="newsOutlook" class="story"></div></section>
+<section id="analysis" class="section"><div id="analysisCompare" class="story active"></div><div id="analysisCorrelation" class="story"></div></section>
+<section id="library" class="section"><div id="librarySaved" class="story active"></div></section>
+<section id="providers" class="section"><div id="providersHealth" class="story active"></div></section>
+<section id="logs" class="section"><div id="logsActivity" class="story active"></div></section>
+<section id="about" class="section"><div id="aboutMain" class="story active"></div></section>
+</div></main></div>
+<div id="detailModal" class="modal"><div class="modalPanel"><div class="modalHead"><div><div id="detailKicker" class="kicker"></div><h2 id="detailTitle" style="margin:2px 0"></h2></div><button id="detailClose" class="btn">×</button></div><div id="detailRanges" class="rangebar"></div><div class="modalChart"><canvas id="detailChart" class="chart"></canvas></div><div><div id="detailStats" class="stats"></div><div class="actions" style="margin-top:8px"><button id="saveDetail" class="btn primary">Save to Analysis</button></div></div></div></div>
+<div id="configModal" class="modal"><div class="modalPanel" style="height:auto;max-height:88vh;overflow:auto"><div class="modalHead"><h2>Configuration</h2><button id="configClose" class="btn">×</button></div><div class="field"><label>Alpha Vantage key</label><input id="avKey" type="password"></div><div class="field"><label>OpenRouter key</label><input id="orKey" type="password"></div><div class="field"><label>OpenRouter model</label><input id="orModel" value="openrouter/free"></div><div class="actions"><button id="saveConfig" class="btn primary">Save</button></div></div></div>
+<div id="progress" class="progress"><div class="progressBox"><h2 id="progressTitle">Preparing history</h2><p id="progressText" class="muted"></p><div class="bar"><i id="progressBar"></i></div></div></div><div id="toast" class="toast"></div>
+<script>
+/* Accepted 3.9.7 visual frame retained; superseded browser-acquisition runtime is intentionally non-executable in Gate 4 R6. */
+/* Gate 4 R6 governed runtime */
+const G4_RELEASE="Gate 4 R6";
+const G4_STORE="market-navigator-g4-r6";
+const G4_AI_STORE="market-navigator-g4-ai";
+const G4_HORIZONS=["1D","5D","MTD","YTD","1YR","3YR","5YR"];
+const G4_COLORS=["#7dd3fc","#a78bfa","#f472b6","#34d399","#fbbf24","#fb7185","#60a5fa","#c084fc"];
+const G4={
+  route:"now",mode:"v1",index:"risk",root:null,series:[],horizon:"1YR",summaryOpen:true,
+  tab:"Market",catalog:null,definition:null,manifest:null,sourceHealth:null,data:{},health:[],
+  conversations:{},library:[],loading:true,error:null,chart:null,inspect:null,menuOpen:false
+};
+function g4$(s,r){return (r||document).querySelector(s)}
+function g4$$(s,r){return Array.from((r||document).querySelectorAll(s))}
+function g4Esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]})}
+function g4Date(t){return t?new Date(t).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}):"—"}
+function g4Time(t){return new Date(t||Date.now()).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}
+function g4Num(v,unit){
+  if(!Number.isFinite(v))return "—";
+  var x=Math.abs(v)>=1000?v.toLocaleString(undefined,{maximumFractionDigits:1}):v.toLocaleString(undefined,{maximumFractionDigits:2});
+  if(unit==="percent")return x+"%";
+  if(unit==="USD")return "$"+x;
+  return x;
+}
+function g4Pct(v){return Number.isFinite(v)?(v>=0?"+":"")+v.toFixed(2)+"%":"—"}
+function g4Meta(id){return (G4.catalog&&G4.catalog.series||[]).find(function(x){return x.id===id})||{id:id,name:id,short_name:id,native_unit:"index",native_cadence:"unknown",provider:"Unknown"}}
+function g4IndexDef(id){return G4.definition&&G4.definition.indices&&G4.definition.indices[id]}
+function g4IndexName(id){var d=g4IndexDef(id);return d&&d.name?d.name:(id.charAt(0).toUpperCase()+id.slice(1))}
+function g4CleanObs(a){return (a||[]).filter(function(p){return Number.isFinite(+p.t)&&Number.isFinite(+p.v)}).map(function(p){return{t:+p.t,v:+p.v}}).sort(function(a,b){return a.t-b.t}).filter(function(p,i,x){return !i||p.t!==x[i-1].t})}
+function g4End(){var vals=Object.values(G4.data).map(function(x){return x.observations&&x.observations.length?x.observations[x.observations.length-1].t:0});return Math.max.apply(null,vals.concat([Date.now()]))}
+function g4Anchor(){var m=G4.manifest&&Date.parse(G4.manifest.generatedAt);if(Number.isFinite(m))return m;var vals=Object.values(G4.data).map(function(x){return x.observations&&x.observations.length?x.observations[x.observations.length-1].t:0});return Math.max.apply(null,vals.concat([Date.now()]))}
+function g4Cutoff(h,end){
+  var d=new Date(end),x;
+  if(h==="MTD")return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1);
+  if(h==="YTD")return Date.UTC(d.getUTCFullYear(),0,1);
+  x=new Date(end);
+  if(h==="1YR")x.setUTCFullYear(x.getUTCFullYear()-1);
+  if(h==="3YR")x.setUTCFullYear(x.getUTCFullYear()-3);
+  if(h==="5YR")x.setUTCFullYear(x.getUTCFullYear()-5);
+  return +x;
+}
+function g4Slice(id,h,withBaseline){
+  var a=g4CleanObs(G4.data[id]&&G4.data[id].observations),end=g4Anchor();a=a.filter(function(p){return p.t<=end});
+  if(!a.length)return[];
+  if(h==="1D")return a.slice(-2);
+  if(h==="5D")return a.slice(-6);
+  var cut=g4Cutoff(h,end),inside=a.filter(function(p){return p.t>=cut&&p.t<=end});
+  if(withBaseline){
+    var prior=a.filter(function(p){return p.t<cut}).pop();
+    if(prior)inside.unshift(prior);
+  }
+  return inside;
+}
+function g4Rebase(a,direction){
+  if(!a.length||!Number.isFinite(a[0].v)||a[0].v<=0)return[];
+  var b=a[0].v,dir=direction==null?1:direction;
+  return a.map(function(p){return{t:p.t,v:100+dir*((p.v/b)-1)*100,sourceT:p.t,raw:p.v}})
+}
+function g4IndexData(indexId,h){
+  var def=g4IndexDef(indexId),components=def&&def.components||[],sets=[];
+  components.forEach(function(c){
+    var raw=g4Slice(c.id,h,true),reb=g4Rebase(raw,c.direction);
+    if(reb.length)sets.push({id:c.id,points:reb,baseline:reb[0].t});
+  });
+  if(!sets.length)return[];
+  var times=[];
+  sets.forEach(function(s){s.points.forEach(function(p){if(times.indexOf(p.t)<0)times.push(p.t)})});
+  times.sort(function(a,b){return a-b});
+  if(h!=="1D"&&h!=="5D"){var windowStart=g4Cutoff(h,g4Anchor());times=times.filter(function(t){return t>=windowStart})}
+  var out=times.map(function(t){
+    var vals=sets.map(function(s){var p=s.points.filter(function(q){return q.t<=t}).pop();return p&&p.v}).filter(Number.isFinite);
+    return vals.length?{t:t,v:vals.reduce(function(a,b){return a+b},0)/vals.length}:null;
+  }).filter(Boolean);
+  if(h==="1D")out=out.slice(-2);
+  if(h==="5D")out=out.slice(-6);
+  return out;
+}
+function g4Change(a){return a.length>1&&a[0].v!==0?(a[a.length-1].v/a[0].v-1)*100:NaN}
+function g4Correlation(a,b){
+  var bm=new Map(b.map(function(p){return[p.t,p.v]})),pairs=a.map(function(p){return[p.v,bm.get(p.t)]}).filter(function(x){return Number.isFinite(x[1])});
+  if(pairs.length<3)return NaN;
+  var ax=pairs.reduce(function(s,x){return s+x[0]},0)/pairs.length,bx=pairs.reduce(function(s,x){return s+x[1]},0)/pairs.length;
+  var num=0,da=0,db=0;pairs.forEach(function(x){var u=x[0]-ax,v=x[1]-bx;num+=u*v;da+=u*u;db+=v*v});
+  return da&&db?num/Math.sqrt(da*db):NaN;
+}
+function g4HealthSource(id){
+  var d=G4.sourceHealth&&G4.sourceHealth.data||{},keys=Object.keys(d);
+  return d[keys.find(function(k){return k.split(":").pop()===id})]||null;
+}
+function g4Expected(meta){
+  var ps=G4.catalog&&G4.catalog.publication_schedule||{},ov=ps.series_overrides&&ps.series_overrides[meta.id],rule=ps.cadence_rules&&ps.cadence_rules[meta.native_cadence];
+  return ov&&ov.label||rule&&rule.label||meta.native_cadence||"unknown";
+}
+function g4Classify(meta,run,src){
+  var obs=G4.data[meta.id]&&G4.data[meta.id].observations||[],last=obs.length?obs[obs.length-1].t:0;
+  if((run&&run.last_error)||(src&&src.lastError)||(run&&run.status&&run.status!=="healthy"))return{status:"failed",reason:(run&&run.last_error)||(src&&src.lastError)||"collector status "+run.status};
+  if(!last)return{status:"missing",reason:"No canonical observations"};
+  var age=(g4End()-last)/864e5,c=meta.native_cadence,ps=G4.catalog&&G4.catalog.publication_schedule||{},rule=ps.cadence_rules&&ps.cadence_rules[c]||{};
+  var sparse=g4Slice(meta.id,G4.horizon,false).length<2;
+  if(sparse&&(G4.horizon==="1D"||G4.horizon==="5D"||G4.horizon==="MTD"))return{status:"sparse",reason:"No new "+c+" release inside "+G4.horizon};
+  var current=Number.isFinite(rule.current_max_age_days)?rule.current_max_age_days:(c==="monthly"?45:c==="quarterly"?110:c==="weekly"?10:5);
+  var lag=Number.isFinite(rule.expected_lag_max_age_days)?rule.expected_lag_max_age_days:(c==="monthly"?75:c==="quarterly"?150:c==="weekly"?18:7);
+  if(age<=current)return{status:"current",reason:"Latest scheduled "+c+" observation present"};
+  if(age<=lag)return{status:"expected-lag",reason:"Within governed "+c+" publication lag"};
+  return{status:"stale",reason:"Beyond governed "+c+" publication window"};
+}
+function g4BuildHealth(){
+  G4.health=(G4.catalog&&G4.catalog.series||[]).filter(function(m){return m.enabled!==false}).map(function(meta){
+    var run=G4.manifest&&G4.manifest.series&&G4.manifest.series[meta.id]||{},src=g4HealthSource(meta.id),cl=g4Classify(meta,run,src);
+    var obs=G4.data[meta.id]&&G4.data[meta.id].observations||[];
+    return{meta:meta,run:run,src:src,status:cl.status,reason:cl.reason,latest:obs.length?obs[obs.length-1].t:null,count:obs.length,
+      impact:cl.status==="failed"||cl.status==="missing"||cl.status==="stale"?"Excluded or degraded in affected charts":cl.status==="sparse"?"Visible; no invented observations":"Ready for governed charts"};
+  });
+}
+async function g4FetchJSON(path){var r=await fetch(path,{cache:"no-store"});if(!r.ok)throw new Error(path+" · HTTP "+r.status);return r.json()}
+async function g4Load(){
+  G4.loading=true;G4.error=null;g4Render();
+  try{
+    var core=await Promise.all([
+      g4FetchJSON("data/market-backend/data-catalog.json"),
+      g4FetchJSON("data/market-backend/derived-index-definition.json"),
+      g4FetchJSON("market-evidence/operational-manifest.json"),
+      g4FetchJSON("data/market-backend/source-health.json")
+    ]);
+    G4.catalog=core[0];G4.definition=core[1];G4.manifest=core[2];G4.sourceHealth=core[3];
+    var ids=G4.catalog.series.filter(function(x){return x.enabled!==false}).map(function(x){return x.id});
+    var settled=await Promise.allSettled(ids.map(function(id){return g4FetchJSON("market-evidence/series/"+id+".json")}));
+    settled.forEach(function(x,i){G4.data[ids[i]]=x.status==="fulfilled"?x.value:{id:ids[i],observations:[],last_error:x.reason&&x.reason.message}});
+    g4BuildHealth();G4.loading=false;
+    var bad=G4.health.filter(function(x){return x.status==="failed"||x.status==="missing"||x.status==="stale"}).length;
+    g4$("#dot").className="dot "+(bad?"":"good");g4$("#status").textContent=bad?bad+" sources need review":"Canonical evidence ready · "+G4.manifest.revision;
+    g4Render();
+  }catch(e){G4.loading=false;G4.error=e.message;g4$("#dot").className="dot bad";g4$("#status").textContent="Canonical evidence unavailable";g4Render()}
+}
+function g4EvidenceStatus(ids){
+  var rows=G4.health.filter(function(x){return ids.indexOf(x.meta.id)>=0}),bad=rows.filter(function(x){return["failed","missing","stale"].indexOf(x.status)>=0});
+  if(!rows.length||bad.length>=Math.max(2,Math.ceil(rows.length/2)))return{level:"inadequate",lead:"Evidence preflight failed: too much required evidence is unavailable.",rows:rows};
+  if(bad.length||rows.some(function(x){return x.status==="sparse"}))return{level:"degraded",lead:"Evidence preflight is degraded. Interpret narrowly and distinguish missing releases.",rows:rows};
+  return{level:"healthy",lead:"Evidence preflight passed against canonical observations and runtime health.",rows:rows};
+}
+
+function g4ViewSeries(){
+  if(G4.mode==="v1")return["risk","growth","macro"].map(function(id,i){return{id:"index:"+id,name:g4IndexName(id),unit:"Indexed 100",color:G4_COLORS[i],data:g4IndexData(id,G4.horizon),kind:"index",index:id}});
+  if(G4.mode==="v2"){
+    var def=g4IndexDef(G4.index),out=[{id:"index:"+G4.index,name:g4IndexName(G4.index)+" index",unit:"Indexed 100",color:G4_COLORS[0],data:g4IndexData(G4.index,G4.horizon),kind:"index",index:G4.index}];
+    (def&&def.components||[]).forEach(function(c,i){
+      var m=g4Meta(c.id),raw=g4Slice(c.id,G4.horizon,true);
+      out.push({id:c.id,name:m.short_name||m.name,unit:"Indexed 100",nativeUnit:m.native_unit,color:G4_COLORS[(i+1)%G4_COLORS.length],data:g4Rebase(raw,c.direction).filter(function(p){return G4.horizon==="1D"||G4.horizon==="5D"||p.t>=g4Cutoff(G4.horizon,g4Anchor())}),raw:raw,kind:"component",direction:c.direction,role:c.role});
+    });return out;
+  }
+  var ids=[G4.root].concat(G4.series).filter(Boolean).filter(function(x,i,a){return a.indexOf(x)===i});
+  return ids.map(function(id,i){
+    if(id.indexOf("index:")===0){var ix=id.split(":")[1];return{id:id,name:g4IndexName(ix)+" index",unit:"Indexed 100",color:G4_COLORS[i%G4_COLORS.length],data:g4IndexData(ix,G4.horizon),kind:"index",index:ix}}
+    var m=g4Meta(id);return{id:id,name:m.short_name||m.name,unit:m.native_unit||"value",color:G4_COLORS[i%G4_COLORS.length],data:g4Slice(id,G4.horizon,false),kind:"component"};
+  });
+}
+function g4AxisPlan(input){
+  var units=input.map(function(s){return s.unit}).filter(function(x,i,a){return a.indexOf(x)===i});
+  if(units.length<=2)return{series:input.map(function(s){return Object.assign({},s,{axis:units.indexOf(s.unit)?"y2":"y1"})}),units:units,indexed:false};
+  return{series:input.map(function(s){
+    var d=g4Rebase(s.data,1);return Object.assign({},s,{data:d,unit:"Indexed 100",axis:"y1",wasUnit:s.unit});
+  }),units:["Indexed 100"],indexed:true};
+}
+function g4Extent(a){
+  var vals=a.filter(Number.isFinite);if(!vals.length)return[0,1];
+  var lo=Math.min.apply(null,vals),hi=Math.max.apply(null,vals);if(lo===hi){lo-=Math.abs(lo||1)*.05;hi+=Math.abs(hi||1)*.05}
+  var pad=(hi-lo)*.09;return[lo-pad,hi+pad];
+}
+function g4ChartEngine(canvas,input,opt){
+  opt=opt||{};if(!canvas)return;
+  var plan=g4AxisPlan(input),series=plan.series.filter(function(s){return s.data&&s.data.length}),all=series.flatMap(function(s){return s.data});
+  var ratio=Math.max(1,window.devicePixelRatio||1),rect=canvas.getBoundingClientRect(),w=Math.max(220,Math.round(rect.width)),h=Math.max(opt.mini?100:260,Math.round(rect.height));
+  canvas.width=w*ratio;canvas.height=h*ratio;var c=canvas.getContext("2d");c.setTransform(ratio,0,0,ratio,0,0);
+  var pad=opt.mini?{l:34,r:10,t:10,b:23}:{l:52,r:plan.units.length===2?54:18,t:16,b:35};
+  var times=all.map(function(p){return p.t}),t0=Math.min.apply(null,times.length?times:[Date.now()-864e5]),t1=Math.max.apply(null,times.length?times:[Date.now()]);
+  if(t0===t1)t1=t0+864e5;
+  var axes={};plan.units.forEach(function(u,i){axes[i?"y2":"y1"]=g4Extent(series.filter(function(s){return s.axis===(i?"y2":"y1")}).flatMap(function(s){return s.data.map(function(p){return p.v})}))});
+  function xp(t){return pad.l+(t-t0)/(t1-t0)*(w-pad.l-pad.r)}
+  function yp(v,axis){var e=axes[axis]||[0,1];return pad.t+(e[1]-v)/(e[1]-e[0])*(h-pad.t-pad.b)}
+  function paint(hit){
+    c.clearRect(0,0,w,h);c.font=(opt.mini?"8":"10")+"px system-ui";c.textBaseline="middle";
+    c.strokeStyle="#22334c";c.lineWidth=1;
+    for(var i=0;i<5;i++){var y=pad.t+i*(h-pad.t-pad.b)/4;c.beginPath();c.moveTo(pad.l,y);c.lineTo(w-pad.r,y);c.stroke()}
+    c.fillStyle="#94a7bf";
+    ["y1","y2"].forEach(function(axis,ai){if(!axes[axis])return;var e=axes[axis];for(var j=0;j<5;j++){var v=e[1]-j*(e[1]-e[0])/4,y=yp(v,axis),lab=Math.abs(v)>=1000?v.toFixed(0):v.toFixed(Math.abs(e[1]-e[0])<10?2:1);c.textAlign=ai?"left":"right";c.fillText(lab,ai?w-pad.r+5:pad.l-6,y)}});
+    for(var k=0;k<3;k++){var t=t0+k*(t1-t0)/2,x=xp(t);c.textAlign=k===0?"left":k===2?"right":"center";c.fillText(new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric",year:k===0&&G4.horizon.indexOf("YR")>0?"2-digit":undefined}),x,h-12)}
+    c.textAlign="left";if(axes.y1)c.fillText(plan.units[0]||"",pad.l,pad.t-7);if(axes.y2){c.textAlign="right";c.fillText(plan.units[1]||"",w-pad.r,pad.t-7)}
+    series.forEach(function(s){
+      c.strokeStyle=s.color;c.lineWidth=opt.mini?1.7:2;c.beginPath();
+      s.data.forEach(function(p,i){var x=xp(p.t),y=yp(p.v,s.axis);if(i)c.lineTo(x,y);else c.moveTo(x,y)});c.stroke();
+    });
+    if(hit){
+      c.strokeStyle="#e5eefb88";c.beginPath();c.moveTo(hit.x,pad.t);c.lineTo(hit.x,h-pad.b);c.stroke();
+      c.fillStyle=hit.s.color;c.beginPath();c.arc(hit.x,hit.y,4,0,Math.PI*2);c.fill();c.strokeStyle="#fff";c.stroke();
+    }
+  }
+  paint(null);
+  function inspect(ev){
+    if(!series.length)return;var r=canvas.getBoundingClientRect(),mx=(ev.clientX-r.left)*w/r.width,my=(ev.clientY-r.top)*h/r.height,best=null;
+    series.forEach(function(s){s.data.forEach(function(p){var x=xp(p.t),y=yp(p.v,s.axis),d=Math.hypot(x-mx,y-my);if(!best||d<best.d)best={s:s,p:p,x:x,y:y,d:d}})});
+    paint(best);document.querySelector(".g4Tip")&&document.querySelector(".g4Tip").remove();
+    var tip=document.createElement("div");tip.className="g4Tip";tip.innerHTML='<b>'+g4Esc(best.s.name)+'</b><div>'+g4Date(best.p.sourceT||best.p.t)+' · '+g4Num(best.p.raw==null?best.p.v:best.p.raw,best.s.nativeUnit||best.s.unit)+'</div><small>'+g4Esc(best.s.unit)+(best.p.sourceT&&best.p.sourceT!==best.p.t?" · carried to composite timestamp":"")+'</small>';
+    tip.style.left=Math.min(innerWidth-270,ev.clientX+12)+"px";tip.style.top=Math.max(8,ev.clientY-76)+"px";document.body.appendChild(tip);
+  }
+  canvas.onpointermove=inspect;canvas.onpointerdown=inspect;canvas.onpointerleave=function(){paint(null);document.querySelector(".g4Tip")&&document.querySelector(".g4Tip").remove()};
+  canvas.setAttribute("aria-label",(opt.label||"Market chart")+" with visible X, "+plan.units.map(function(u,i){return(i?"Y2 ":"Y1 ")+u}).join(" and ")+" axes");
+  return plan;
+}
+function g4SummaryHTML(series){
+  if(!G4.summaryOpen||!series.length)return"";
+  var base=series[0],rows=series.map(function(s){var p=s.data&&s.data[s.data.length-1],cor=s===base?1:g4Correlation(base.data||[],s.data||[]);return'<tr><td><i style="background:'+s.color+'"></i>'+g4Esc(s.name)+'</td><td>'+g4Esc(p?g4Num(p.raw==null?p.v:p.raw,s.nativeUnit||s.unit):"—")+'</td><td>'+(Number.isFinite(cor)?cor.toFixed(2):"—")+'</td></tr>'}).join("");
+  return'<aside class="g4Summary"><div class="g4SummaryHead"><div><b>Ending values</b><div class="g4Meta">Correlation vs '+g4Esc(base.name)+'</div></div><button class="g4IconBtn" data-summary-close aria-label="Close summary">×</button></div><table><thead><tr><th>Series</th><th>End</th><th>ρ</th></tr></thead><tbody>'+rows+'</tbody></table></aside>';
+}
+function g4LegendHTML(series){
+  return series.map(function(s){var h=G4.health.find(function(x){return x.meta.id===s.id}),status=h?h.status:"current";return'<button data-legend="'+g4Esc(s.id)+'" title="'+g4Esc(s.role||s.name)+'"><i style="background:'+s.color+'"></i><b>'+g4Esc(s.name)+'</b><span class="g4Tag '+status+'">'+status+'</span></button>'}).join("");
+}
+function g4Mount(){
+  g4$$(".g4Modal,#g4Menu").forEach(function(x){x.remove()});
+  document.title="Market Navigator · Gate 4 R6";
+  g4$(".brand").innerHTML="<b>Market Navigator</b><small>Governed evidence workspace · Gate 4 R6</small>";
+  g4$(".side").innerHTML='<nav class="g4Nav">'+[["now","NOW"],["explore","EXPLORE"],["library","LIBRARY"],["health","HEALTH"]].map(function(x){return'<button data-g4-nav="'+x[0]+'">'+x[1]+'</button>'}).join("")+'</nav><button class="g4Config" data-config>⚙ CONFIG</button>';
+  g4$("main").innerHTML='<div class="g4Shell"><header class="g4Ribbon"><div class="g4RibbonRow"><span class="g4Title" id="g4Title">Market</span><span class="g4Crumb" id="g4Crumb"></span><span class="g4Status g4HealthChip" id="g4RibbonHealth"><i></i><span>Loading health</span></span></div><div class="g4RibbonRow"><div class="g4Modes" id="g4Modes"></div><div class="g4Actions" style="margin-left:auto"><button class="g4Btn" data-add>+ Add series</button><button class="g4Btn" data-more>More ▾</button></div></div><div class="g4RibbonRow"><div class="g4Ranges" id="g4Ranges"></div></div></header><div class="g4Workspace" id="g4Workspace"></div></div>';
+  g4$$(".modal").forEach(function(x){x.remove()});
+  document.body.insertAdjacentHTML("beforeend",
+    '<div class="g4Modal" id="g4About"><div class="g4ModalPanel"><div class="g4ModalHead"><div><div class="g4Eyebrow" id="g4AboutEye"></div><h2 id="g4AboutTitle"></h2></div><button class="g4IconBtn" data-close="g4About">×</button></div><div id="g4AboutBody"></div></div></div>'+
+    '<div class="g4Modal" id="g4Picker"><div class="g4ModalPanel g4PickerPanel"><div class="g4ModalHead"><div><div class="g4Eyebrow">ONE DISCOVERY MECHANISM</div><h2>Add series</h2></div><button class="g4IconBtn" data-close="g4Picker">×</button></div><div id="g4PickerBody"></div></div></div>'+
+    '<div class="g4Modal" id="g4Config"><div class="g4ModalPanel"><div class="g4ModalHead"><div><div class="g4Eyebrow">BROWSER-LOCAL CREDENTIALS</div><h2>AI provider configuration</h2></div><button class="g4IconBtn" data-close="g4Config">×</button></div><div id="g4ConfigBody"></div></div></div>'+
+    '<div class="g4Menu" id="g4Menu"></div>');
+  g4$$("[data-g4-nav]").forEach(function(b){b.onclick=function(){G4.route=b.dataset.g4Nav;if(G4.route==="now"&&G4.mode==="v3")G4.mode="v1";g4Render()}});
+  g4$(".hamb").onclick=function(){g4$(".side").classList.toggle("open")};
+  g4$("[data-config]").onclick=g4OpenConfig;
+  g4$("[data-add]").onclick=function(){g4OpenPicker("add")};
+  g4$("[data-more]").onclick=g4ToggleMenu;
+  g4$$("[data-close]").forEach(function(b){b.onclick=function(){g4$("#"+b.dataset.close).classList.remove("open")}});
+  window.addEventListener("resize",function(){if(G4.chart)g4RenderChart()});
+}
+function g4Ribbon(){
+  var titles={now:"Market",explore:"Explore",library:"Library",health:"Health"},crumb=G4.mode==="v1"?"V1 · Market":G4.mode==="v2"?"V2 · "+g4IndexName(G4.index):G4.mode==="v3"?"V3 · Analysis":"";
+  g4$("#g4Title").textContent=titles[G4.route];g4$("#g4Crumb").textContent=G4.route==="now"?crumb:"";
+  g4$("#g4Modes").innerHTML=G4.route==="now"?["v1","v2","v3"].map(function(m){var enabled=m!=="v3"||G4.root;return'<button class="g4Pill '+(G4.mode===m?"active":"")+'" data-mode="'+m+'" '+(enabled?"":"disabled")+">"+m.toUpperCase()+"</button>"}).join(""):"";
+  g4$("#g4Ranges").innerHTML=G4_HORIZONS.map(function(h){return'<button class="g4Pill '+(G4.horizon===h?"active":"")+'" data-range="'+h+'">'+h+"</button>"}).join("");
+  var bad=G4.health.filter(function(x){return["failed","missing","stale"].indexOf(x.status)>=0}).length,chip=g4$("#g4RibbonHealth");chip.className="g4Status g4HealthChip "+(bad?"stale":"current");chip.innerHTML="<i></i><span>"+(G4.loading?"Loading health":bad?bad+" source issues":"Evidence ready")+"</span>";
+  g4$$("[data-mode]").forEach(function(b){b.onclick=function(){G4.mode=b.dataset.mode;if(G4.mode==="v2"&&!G4.index)G4.index="risk";g4Render()}});
+  g4$$("[data-range]").forEach(function(b){b.onclick=function(){G4.horizon=b.dataset.range;g4BuildHealth();g4Render()}});
+  g4$$("[data-g4-nav]").forEach(function(b){b.classList.toggle("active",b.dataset.g4Nav===G4.route)});
+}
+
+function g4ChartCard(series,title,subtitle){
+  var display=g4AxisPlan(series);if(display.indexed)subtitle+=" · DISPLAY MODE: Indexed 100 (>2 units)";
+  return'<section class="g4ChartCard"><div class="g4PanelHead"><div><div class="g4Eyebrow">'+g4Esc(G4.mode==="v3"?"EXACT SERIES ANALYSIS":"GOVERNED COMPARISON")+'</div><h2>'+g4Esc(title)+'</h2><div class="g4Meta">'+g4Esc(subtitle)+'</div></div></div><div class="g4Legend" id="g4Legend">'+g4LegendHTML(display.series)+'</div><div class="g4CanvasWrap"><canvas class="g4Canvas" id="g4MainChart"></canvas></div>'+g4SummaryHTML(series)+'</section>';
+}
+function g4RenderNow(){
+  if(G4.mode==="v1"){
+    var series=g4ViewSeries();
+    return'<div class="g4Page"><div class="g4Grid3">'+series.map(function(s,i){var p=s.data[s.data.length-1],chg=g4Change(s.data),def=g4IndexDef(s.index);return'<button class="g4IndexCard" data-index-card="'+s.index+'"><div class="g4IndexHead"><div><div class="g4Eyebrow">'+g4Esc((s.index==="risk"?"RSK":s.index==="growth"?"GRW":"MAC")+' · INDEXED 100')+'</div><h2>'+g4Esc(s.name)+'</h2></div><span class="g4Tag current">defined</span></div><div class="g4IndexValue">'+(p?p.v.toFixed(1):"—")+' <small>'+g4Pct(chg)+'</small></div><canvas class="g4Mini" data-mini="'+i+'"></canvas><div class="g4Meta">'+g4Esc(def&&def.higher_means||"Transparent equal-weight index")+'</div></button>'}).join("")+'</div>'+g4ChartCard(series,"Risk · Growth · Macro","All three governed indices · common baseline 100 · "+G4.horizon)+'<div class="g4Foot">Derived index definition '+g4Esc(G4.definition&&G4.definition.version||"—")+' · canonical manifest '+g4Esc(G4.manifest&&G4.manifest.revision||"—")+"</div></div>";
+  }
+  if(G4.mode==="v2"){
+    var s2=g4ViewSeries(),def2=g4IndexDef(G4.index);
+    return'<div class="g4Page">'+g4ChartCard(s2,g4IndexName(G4.index)+" index and every component","Equal weight · direction-oriented · mixed frequency held only at composite timestamps")+'<section class="g4Panel"><div class="g4PanelHead"><div><div class="g4Eyebrow">DEFINITION</div><h3>'+g4Esc(def2&&def2.higher_means||"")+'</h3></div><button class="g4Btn" data-about-index="'+G4.index+'">About index</button></div><div class="g4Grid3">'+(def2&&def2.components||[]).map(function(c){var h=G4.health.find(function(x){return x.meta.id===c.id}),m=g4Meta(c.id);return'<button class="g4SeriesCard" data-about-series="'+c.id+'"><span class="g4Tag '+(h?h.status:"missing")+'">'+(h?h.status:"missing")+'</span><strong>'+g4Esc(m.short_name||m.name)+'</strong><small>'+g4Esc(c.role)+' · direction '+(c.direction>0?"+":"−")+'</small></button>'}).join("")+"</div></section></div>";
+  }
+  var s3=g4ViewSeries(),root=s3[0],ids=s3.map(function(x){return x.id}).filter(function(x){return x.indexOf("index:")!==0}),pre=g4EvidenceStatus(ids);
+  return'<div class="g4Page g4Split"><div>'+g4ChartCard(s3,root?root.name:"Analysis","Exact native observations; Y2 only for a second unit; >2 units switch visibly to Indexed 100")+'<div class="g4Foot">No observation is fabricated. Each line ends on its own latest canonical date.</div></div>'+g4ConversationHTML(pre)+"</div>";
+}
+function g4ConversationKey(){return(G4.root||"analysis")+"|"+G4.series.join(",")+"|"+G4.horizon}
+function g4EnsureConversation(pre){
+  var k=g4ConversationKey();if(!G4.conversations[k])G4.conversations[k]=[{role:"ai",at:Date.now(),text:"**AI POV evidence preflight**\n\n"+pre.lead+"\n\nNo model call has been made. Generate a POV when you want a bounded interpretation of the visible evidence."}];return G4.conversations[k];
+}
+function g4ConversationHTML(pre){
+  var rows=g4EnsureConversation(pre);
+  return'<aside class="g4Conversation"><div class="g4ConversationHead"><div class="g4Eyebrow">AI POV · '+g4Esc(pre.level.toUpperCase())+'</div><b>Evidence-bounded conversation</b><div class="g4Meta">Every response is tied to visible series, health, and manifest revision.</div></div><div class="g4Messages" id="g4Messages">'+rows.map(function(x){return'<div class="g4Bubble '+x.role+'"><div class="g4Md">'+g4Md(x.text)+'</div><time>'+g4Time(x.at)+"</time></div>"}).join("")+'</div><form class="g4Composer" id="g4Composer"><textarea aria-label="Ask about this evidence" placeholder="Ask about the visible evidence…"></textarea><button class="g4Btn primary">Send</button></form></aside>';
+}
+function g4BindNow(){
+  g4$$("[data-index-card]").forEach(function(b){b.onclick=function(){G4.index=b.dataset.indexCard;G4.mode="v2";g4Render()}});
+  g4$$("[data-about-index]").forEach(function(b){b.onclick=function(){g4OpenAbout("index:"+b.dataset.aboutIndex)}});
+  g4$$("[data-about-series]").forEach(function(b){b.onclick=function(){g4OpenAbout(b.dataset.aboutSeries)}});
+  if(G4.mode==="v1"){var ss=g4ViewSeries();g4$$("[data-mini]").forEach(function(c){var s=ss[+c.dataset.mini];g4ChartEngine(c,[s],{mini:true,label:s.name})})}
+  g4RenderChart();
+  var form=g4$("#g4Composer");if(form)form.onsubmit=function(e){e.preventDefault();var t=g4$("textarea",form),q=t.value.trim();if(!q)return;t.value="";g4Ask(q)};
+}
+function g4RenderChart(){
+  var canvas=g4$("#g4MainChart");if(!canvas)return;var series=g4ViewSeries();G4.chart=series;g4ChartEngine(canvas,series,{label:"Market Navigator "+G4.mode+" chart"});
+  var close=g4$("[data-summary-close]");if(close)close.onclick=function(){G4.summaryOpen=false;g4Render()};
+  g4$$("[data-legend]").forEach(function(b){b.onclick=function(){var id=b.dataset.legend;if(G4.mode==="v1"&&id.indexOf("index:")===0){G4.index=id.split(":")[1];G4.mode="v2";g4Render()}else g4OpenAbout(id)}});
+}
+function g4Taxonomy(tab){
+  var union=[];["risk","growth","macro"].forEach(function(k){(g4IndexDef(k)&&g4IndexDef(k).components||[]).forEach(function(c){if(union.indexOf(c.id)<0)union.push(c.id)})});
+  if(tab==="Market")return[{id:"index:risk",name:"Risk index",desc:"Higher means more market and financial stress"},{id:"index:growth",name:"Growth index",desc:"Higher means stronger growth momentum"},{id:"index:macro",name:"Macro index",desc:"Higher means greater inflation and policy pressure"}];
+  if(["Risk","Growth","Macro"].indexOf(tab)>=0){var k=tab.toLowerCase(),d=g4IndexDef(k);return[{id:"index:"+k,name:tab+" index",desc:d&&d.higher_means||""}].concat((d&&d.components||[]).map(function(c){var m=g4Meta(c.id);return{id:c.id,name:m.name,desc:c.role}}))}
+  return(G4.catalog&&G4.catalog.series||[]).filter(function(m){return m.enabled!==false&&union.indexOf(m.id)<0}).map(function(m){return{id:m.id,name:m.name,desc:m.domain+" · "+m.category}});
+}
+function g4DiscoveryHTML(context){
+  var tabs=["Market","Risk","Growth","Macro","Other"],items=g4Taxonomy(G4.tab);
+  return'<div class="g4Discovery"><div class="g4DiscoveryTabs">'+tabs.map(function(t){return'<button class="g4Pill '+(G4.tab===t?"active":"")+'" data-disc-tab="'+t+'">'+t+"</button>"}).join("")+'</div><div class="g4DiscoveryList">'+items.map(function(x){var m=x.id.indexOf("index:")===0?null:g4Meta(x.id),h=m&&G4.health.find(function(z){return z.meta.id===x.id});return'<button class="g4SeriesCard" data-disc-id="'+x.id+'" data-disc-context="'+context+'">'+(h?'<span class="g4Tag '+h.status+'">'+h.status+"</span>":"")+'<strong>'+g4Esc(x.name)+'</strong><small>'+g4Esc(x.desc)+'</small>'+(m?'<small>'+g4Esc(m.provider)+' · '+g4Esc(m.native_cadence)+' · '+g4Esc(m.native_unit)+"</small>":"")+"</button>"}).join("")+"</div></div>";
+}
+function g4BindDiscovery(root,context){
+  g4$$("[data-disc-tab]",root).forEach(function(b){b.onclick=function(){G4.tab=b.dataset.discTab;if(context==="picker")g4$("#g4PickerBody").innerHTML=g4DiscoveryHTML("picker"),g4BindDiscovery(g4$("#g4PickerBody"),"picker");else g4Render()}});
+  g4$$("[data-disc-id]",root).forEach(function(b){b.onclick=function(){g4SelectDiscovery(b.dataset.discId,context)}});
+}
+function g4SelectDiscovery(id,context){
+  if(id.indexOf("index:")===0){G4.index=id.split(":")[1];G4.mode="v2";G4.route="now"}
+  else if(context==="picker"&&G4.mode==="v3"&&G4.root){if(id!==G4.root&&G4.series.indexOf(id)<0)G4.series.push(id)}
+  else{G4.root=id;G4.series=[];G4.mode="v3";G4.route="now"}
+  g4$("#g4Picker").classList.remove("open");g4Render();
+}
+function g4RenderExplore(){return'<div class="g4Page"><section class="g4Panel"><div class="g4PanelHead"><div><div class="g4Eyebrow">CANONICAL CATALOG</div><h2>Explore and add series</h2><div class="g4Meta">This is the same discovery mechanism used by Add series.</div></div></div>'+g4DiscoveryHTML("explore")+"</section></div>"}
+function g4OpenPicker(){g4$("#g4PickerBody").innerHTML=g4DiscoveryHTML("picker");g4BindDiscovery(g4$("#g4PickerBody"),"picker");g4$("#g4Picker").classList.add("open")}
+function g4OpenAbout(id){
+  var isIndex=id.indexOf("index:")===0,key=isIndex?id.split(":")[1]:id,m=isIndex?null:g4Meta(id),d=isIndex?g4IndexDef(key):null,h=!isIndex&&G4.health.find(function(x){return x.meta.id===id});
+  g4$("#g4AboutEye").textContent=isIndex?"DERIVED INDEX DEFINITION":"CANONICAL SERIES";
+  g4$("#g4AboutTitle").textContent=isIndex?g4IndexName(key)+" index":m.name;
+  g4$("#g4AboutBody").innerHTML=isIndex?
+    '<p>'+g4Esc(d.higher_means)+'</p><p class="g4Meta">Equal weight · baseline 100 · '+(d.components||[]).length+' governed components.</p><div class="g4Grid3">'+d.components.map(function(c){return'<div class="g4SeriesCard"><strong>'+g4Esc(g4Meta(c.id).name)+'</strong><small>'+g4Esc(c.role)+' · direction '+c.direction+"</small></div>"}).join("")+"</div>":
+    '<p>'+g4Esc(m.description)+'</p><div class="g4HealthSummary"><div class="g4Stat"><span class="g4Eyebrow">HEALTH</span><b class="g4Tag '+h.status+'">'+h.status+'</b></div><div class="g4Stat"><span class="g4Eyebrow">LATEST</span><b>'+g4Date(h.latest)+'</b></div><div class="g4Stat"><span class="g4Eyebrow">OBS</span><b>'+h.count+'</b></div></div><p class="g4Meta">'+g4Esc(h.reason)+'</p><p><a href="'+g4Esc(m.source_reference_url)+'" target="_blank" rel="noopener">Primary source reference ↗</a></p><div class="g4Actions"><button class="g4Btn primary" data-more-info="'+id+'">More info in Analysis</button><button class="g4Btn" data-health-open="'+id+'">Open health lineage</button></div>';
+  g4$("#g4About").classList.add("open");
+  var more=g4$("[data-more-info]");if(more)more.onclick=function(){G4.root=id;G4.series=[];G4.mode="v3";G4.route="now";g4$("#g4About").classList.remove("open");g4Render()};
+  var ho=g4$("[data-health-open]");if(ho)ho.onclick=function(){G4.route="health";g4$("#g4About").classList.remove("open");g4Render();setTimeout(function(){g4$('[data-open="'+id+'"]')&&g4$('[data-open="'+id+'"]').scrollIntoView({block:"center"})},0)};
+}
+function g4Snapshot(){
+  var ids=g4ViewSeries().map(function(x){return x.id}).filter(function(x){return x.indexOf("index:")!==0});
+  return{release:G4_RELEASE,savedAt:new Date().toISOString(),state:{mode:G4.mode,index:G4.index,root:G4.root,series:G4.series.slice(),horizon:G4.horizon,conversation:JSON.parse(JSON.stringify(G4.conversations[g4ConversationKey()]||[])),summaryOpen:G4.summaryOpen},
+    revisions:{catalog:G4.catalog&&G4.catalog.version,definition:G4.definition&&G4.definition.version,manifest:G4.manifest&&G4.manifest.revision},
+    evidence:ids.map(function(id){var h=G4.health.find(function(x){return x.meta.id===id});return{id:id,latest:h&&h.latest,count:h&&h.count,status:h&&h.status,source_revision:h&&h.run&&h.run.source_revision}})
+  };
+}
+function g4SaveLibrary(){
+  var snap=g4Snapshot();snap.id="view-"+Date.now();snap.title=(G4.mode==="v3"?(g4ViewSeries()[0]&&g4ViewSeries()[0].name):G4.mode.toUpperCase()+" "+g4IndexName(G4.index))+" · "+G4.horizon;G4.library.unshift(snap);g4Persist();g4Toast("Exact view and conversation saved");
+}
+function g4Restore(id){
+  var x=G4.library.find(function(y){return y.id===id});if(!x)return;Object.assign(G4,x.state);G4.series=(x.state.series||[]).slice();var k=g4ConversationKey();G4.conversations[k]=JSON.parse(JSON.stringify(x.state.conversation||[]));G4.route="now";g4Persist();g4Render();
+}
+function g4RenderLibrary(){
+  return'<div class="g4Page"><section class="g4Panel"><div class="g4PanelHead"><div><div class="g4Eyebrow">EXACT STATE + CONVERSATION</div><h2>Library</h2></div></div><div class="g4LibraryList">'+(G4.library.length?G4.library.map(function(x){return'<article class="g4LibraryItem"><div><b>'+g4Esc(x.title)+'</b><div class="g4Meta">Saved '+g4Esc(new Date(x.savedAt).toLocaleString())+' · manifest '+g4Esc(x.revisions.manifest||"—")+' · '+x.state.conversation.length+' messages</div></div><div class="g4Actions"><button class="g4Btn primary" data-restore="'+x.id+'">Restore exact view</button><button class="g4Btn danger" data-delete-save="'+x.id+'">Delete</button></div></article>'}).join(""):'<div class="g4Empty">No saved views yet. Use More → Save exact view.</div>')+"</div></section></div>";
+}
+function g4HealthRow(x){
+  var r=x.run||{},s=x.src||{},ready=r.horizon_readiness&&(r.horizon_readiness[G4.horizon]||r.horizon_readiness[G4.horizon.replace("YR","Y")]||r.horizon_readiness[G4.horizon==="MTD"?"1M":G4.horizon]);
+  return'<tr data-open="'+x.meta.id+'"><td><b>'+g4Esc(x.meta.short_name||x.meta.name)+'</b><br>'+g4Esc(x.meta.id)+'</td><td>'+g4Esc(x.meta.provider)+'<br>'+g4Esc(s.seriesId||x.meta.provider_identifier||"—")+'</td><td>'+g4Esc(x.meta.native_cadence)+'</td><td>'+g4Esc(g4Expected(x.meta))+'</td><td>'+g4Date(x.latest)+'</td><td>'+g4Esc(r.last_attempted||s.lastAttempt||"—")+'</td><td>'+g4Esc(r.last_successful||s.lastSuccess||"—")+'</td><td>'+g4Esc(r.last_error||s.lastError||"—")+'</td><td>'+x.count+' obs<br>'+g4Date(r.first_observation)+' → '+g4Date(r.latest_observation)+'</td><td>'+g4Esc(x.meta.provider)+' → collector → canonical JSON</td><td>'+(ready===false?"not ready":"ready")+'</td><td><span class="g4Tag '+x.status+'">'+x.status+'</span><br>'+g4Esc(x.reason)+'</td><td>'+g4Esc(x.impact)+'</td></tr>';
+}
+function g4RenderHealth(){
+  var counts={};["current","expected-lag","stale","missing","failed","sparse"].forEach(function(k){counts[k]=G4.health.filter(function(x){return x.status===k}).length});
+  return'<div class="g4Page"><div class="g4HealthSummary">'+Object.keys(counts).map(function(k){return'<div class="g4Stat"><span class="g4Eyebrow">'+k+'</span><b>'+counts[k]+"</b></div>"}).join("")+'</div><section class="g4Panel"><div class="g4PanelHead"><div><div class="g4Eyebrow">SOURCE → PUBLICATION → COLLECTOR → CANONICAL STORE → COVERAGE</div><h2>Evidence health and chart impact</h2><div class="g4Meta">Classification respects native cadence. Monthly CPI is not labeled stale while inside its expected publication window.</div></div></div><div class="g4TableWrap"><table class="g4HealthTable"><thead><tr>'+["Series","Source / ID","Cadence","Expected","Canonical latest","Attempt","Success","Error","Coverage","Provenance","Readiness","Classification / reason","Chart impact"].map(function(x){return"<th>"+x+"</th>"}).join("")+"</tr></thead><tbody>"+G4.health.map(g4HealthRow).join("")+"</tbody></table></div></section></div>";
+}
+function g4BindPage(){
+  if(G4.route==="now")g4BindNow();
+  if(G4.route==="explore")g4BindDiscovery(g4$("#g4Workspace"),"explore");
+  if(G4.route==="library"){
+    g4$$("[data-restore]").forEach(function(b){b.onclick=function(){g4Restore(b.dataset.restore)}});
+    g4$$("[data-delete-save]").forEach(function(b){b.onclick=function(){G4.library=G4.library.filter(function(x){return x.id!==b.dataset.deleteSave});g4Persist();g4Render()}});
+  }
+  if(G4.route==="health")g4$$("[data-open]").forEach(function(r){r.onclick=function(){g4OpenAbout(r.dataset.open)}});
+}
+function g4Render(){
+  if(!g4$("#g4Workspace"))return;g4Ribbon();var w=g4$("#g4Workspace");
+  if(G4.loading){w.innerHTML='<div class="g4Loading">Loading governed canonical evidence…</div>';return}
+  if(G4.error){w.innerHTML='<div class="g4Error"><b>Canonical evidence could not load.</b><div>'+g4Esc(G4.error)+'</div><button class="g4Btn" data-retry>Retry</button></div>';g4$("[data-retry]").onclick=g4Load;return}
+  w.innerHTML=G4.route==="now"?g4RenderNow():G4.route==="explore"?g4RenderExplore():G4.route==="library"?g4RenderLibrary():g4RenderHealth();
+  g4BindPage();g4Persist();
+}
+function g4Persist(){
+  try{localStorage.setItem(G4_STORE,JSON.stringify({route:G4.route,mode:G4.mode,index:G4.index,root:G4.root,series:G4.series,horizon:G4.horizon,summaryOpen:G4.summaryOpen,tab:G4.tab,conversations:G4.conversations,library:G4.library}))}catch(e){}
+}
+function g4RestoreLocal(){
+  try{var x=JSON.parse(localStorage.getItem(G4_STORE)||"{}");["route","mode","index","root","horizon","summaryOpen","tab"].forEach(function(k){if(x[k]!=null)G4[k]=x[k]});G4.series=Array.isArray(x.series)?x.series:[];G4.conversations=x.conversations||{};G4.library=Array.isArray(x.library)?x.library:[]}catch(e){}
+}
+function g4Download(){
+  var blob=new Blob([JSON.stringify(g4Snapshot(),null,2)],{type:"application/json"}),u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="market-navigator-"+G4.mode+"-"+G4.horizon+".json";a.click();setTimeout(function(){URL.revokeObjectURL(u)},1000);
+}
+function g4Print(){window.print()}
+function g4ToggleMenu(e){
+  var m=g4$("#g4Menu"),r=e.currentTarget.getBoundingClientRect();m.innerHTML=(G4.mode==="v3"?'<button data-menu="pov">Generate AI POV</button>':"")+'<button data-menu="analysis">Add to Analysis</button><button data-menu="save">Save exact view</button><button data-menu="print">Print</button><button data-menu="download">Download JSON</button>';m.style.top=(r.bottom+5)+"px";m.style.left=Math.max(8,r.right-200)+"px";m.classList.toggle("open");
+  g4$$("[data-menu]",m).forEach(function(b){b.onclick=function(){m.classList.remove("open");var a=b.dataset.menu;if(a==="pov")g4GeneratePOV();if(a==="analysis"){var first=g4ViewSeries().find(function(x){return x.kind==="component"});if(first){G4.root=first.id;G4.series=[];G4.mode="v3";g4Render()}else g4OpenPicker()}if(a==="save")g4SaveLibrary();if(a==="print")g4Print();if(a==="download")g4Download()}});
+}
+function g4Toast(s){var t=document.createElement("div");t.className="toast show";t.textContent=s;document.body.appendChild(t);setTimeout(function(){t.remove()},1800)}
+
+function g4Md(src){
+  var links=[],s=String(src||"").replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,function(_,a,u){var k="@@G4LINK"+links.length+"@@";links.push('<a href="'+g4Esc(u)+'" target="_blank" rel="noopener">'+g4Esc(a)+"</a>");return k});
+  s=g4Esc(s).replace(/(^|[\s>])(https?:\/\/[^\s<]+)/g,function(_,p,u){return p+'<a href="'+u+'" target="_blank" rel="noopener">'+u+"</a>"});
+  links.forEach(function(x,i){s=s.replace("@@G4LINK"+i+"@@",x)});
+  s=s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>").replace(/\x60([^\x60]+)\x60/g,"<code>$1</code>");
+  var lines=s.split(/\n/),out=[],list=false;
+  lines.forEach(function(line){
+    var h=line.match(/^(#{1,3})\s+(.+)/),li=line.match(/^[-*]\s+(.+)/);
+    if(h){if(list){out.push("</ul>");list=false}out.push("<h"+h[1].length+">"+h[2]+"</h"+h[1].length+">")}
+    else if(li){if(!list){out.push("<ul>");list=true}out.push("<li>"+li[1]+"</li>")}
+    else{if(list){out.push("</ul>");list=false}if(line.trim())out.push("<p>"+line+"</p>")}
+  });if(list)out.push("</ul>");return out.join("");
+}
+function g4AIConfig(){try{return JSON.parse(localStorage.getItem(G4_AI_STORE)||'{"default":"","providers":{}}')}catch(e){return{default:"",providers:{}}}}
+function g4AISet(x){localStorage.setItem(G4_AI_STORE,JSON.stringify(x))}
+function g4OpenConfig(){
+  var cfg=g4AIConfig(),valid=Object.keys(cfg.providers||{}).filter(function(k){return cfg.providers[k]&&cfg.providers[k].validatedAt});
+  g4$("#g4ConfigBody").innerHTML='<label class="g4Eyebrow">DEFAULT VALIDATED PROVIDER</label><select class="g4Default" id="g4DefaultAI"><option value="">Choose after validation</option>'+valid.map(function(k){return'<option value="'+k+'" '+(cfg.default===k?"selected":"")+'>'+k[0].toUpperCase()+k.slice(1)+" · "+g4Esc(cfg.providers[k].model)+"</option>"}).join("")+'</select><p class="g4Meta">Keys stay in this browser. A provider is available to AI POV only after a successful live validation.</p><div class="g4ConfigGrid">'+
+    g4ProviderCard("venice","Venice","Discovers models from Venice after key entry.")+
+    g4ProviderCard("openrouter","OpenRouter","Validates the key before model discovery.")+
+    g4ProviderCard("anthropic","Anthropic","Fixed model: claude-sonnet-4-6.")+
+    '</div>';
+  g4$("#g4DefaultAI").onchange=function(){var x=g4AIConfig();x.default=this.value;g4AISet(x)};
+  ["venice","openrouter"].forEach(function(p){g4$('[data-models="'+p+'"]').onclick=function(){g4LoadModels(p)}});
+  ["venice","openrouter","anthropic"].forEach(function(p){g4$('[data-validate="'+p+'"]').onclick=function(){g4ValidateProvider(p)}});
+  g4$("#g4Config").classList.add("open");
+}
+function g4ProviderCard(id,label,copy){
+  var cfg=g4AIConfig(),p=cfg.providers&&cfg.providers[id]||{},fixed=id==="anthropic";
+  return'<section class="g4Provider"><div><div class="g4Eyebrow">'+label.toUpperCase()+'</div><h3>'+label+'</h3></div><div class="g4Meta">'+copy+'</div><input id="g4Key-'+id+'" type="password" autocomplete="off" placeholder="'+label+' API key" value="'+g4Esc(p.key||"")+'">'+
+    (fixed?'<select id="g4Model-'+id+'"><option value="claude-sonnet-4-6">claude-sonnet-4-6</option></select>':'<select id="g4Model-'+id+'"><option value="'+g4Esc(p.model||"")+'">'+g4Esc(p.model||"Load models first")+"</option></select>")+
+    '<div class="g4Actions">'+(fixed?"":'<button class="g4Btn" data-models="'+id+'">Load models</button>')+'<button class="g4Btn primary" data-validate="'+id+'">Validate & save</button></div><output id="g4Out-'+id+'">'+(p.validatedAt?"Validated "+g4Esc(new Date(p.validatedAt).toLocaleString()):"Not validated")+"</output></section>";
+}
+async function g4Net(url,opt){
+  var ctrl=new AbortController(),timer=setTimeout(function(){ctrl.abort()},25000);try{var r=await fetch(url,Object.assign({},opt||{},{signal:ctrl.signal})),body=await r.text(),j;try{j=JSON.parse(body)}catch(e){j={raw:body}}if(!r.ok)throw new Error("HTTP "+r.status+" · "+(j.error&&j.error.message||j.message||body.slice(0,160)));return j}finally{clearTimeout(timer)}
+}
+function g4Key(p){return(g4$("#g4Key-"+p)&&g4$("#g4Key-"+p).value||"").trim()}
+function g4Models(payload){var a=payload.data||payload.models||[];return a.map(function(x){return typeof x==="string"?x:(x.id||x.name||x.model)}).filter(Boolean).sort()}
+async function g4LoadModels(p){
+  var out=g4$("#g4Out-"+p),key=g4Key(p);if(!key){out.textContent="Enter a key first.";return}out.textContent="Loading models…";
+  try{
+    if(p==="openrouter")await g4Net("https://openrouter.ai/api/v1/auth/key",{headers:{Authorization:"Bearer "+key}});
+    var url=p==="venice"?"https://api.venice.ai/api/v1/models":"https://openrouter.ai/api/v1/models",j=await g4Net(url,{headers:{Authorization:"Bearer "+key}}),models=g4Models(j),sel=g4$("#g4Model-"+p);
+    if(!models.length)throw new Error("No models returned");sel.innerHTML=models.map(function(x){return'<option value="'+g4Esc(x)+'">'+g4Esc(x)+"</option>"}).join("");out.textContent=models.length+" models loaded. Validate the selected model.";
+  }catch(e){out.textContent="Model discovery failed: "+e.message}
+}
+async function g4ValidateProvider(p){
+  var out=g4$("#g4Out-"+p),key=g4Key(p),model=g4$("#g4Model-"+p).value;if(!key||!model){out.textContent="Key and model are required.";return}out.textContent="Validating with a minimal live request…";
+  try{
+    if(p==="anthropic")await g4Net("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:model,max_tokens:1,messages:[{role:"user",content:"ping"}]})});
+    else{
+      var url=p==="venice"?"https://api.venice.ai/api/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions";
+      await g4Net(url,{method:"POST",headers:{"content-type":"application/json",Authorization:"Bearer "+key},body:JSON.stringify({model:model,max_tokens:1,messages:[{role:"user",content:"ping"}]})});
+    }
+    var cfg=g4AIConfig();cfg.providers=cfg.providers||{};cfg.providers[p]={key:key,model:model,validatedAt:new Date().toISOString()};if(!cfg.default)cfg.default=p;g4AISet(cfg);out.textContent="Validated and saved for this browser.";g4OpenConfig();
+  }catch(e){out.textContent="Validation failed: "+e.message}
+}
+function g4EvidencePackage(){
+  var series=g4ViewSeries(),ids=series.map(function(s){return s.id}).filter(function(id){return id.indexOf("index:")!==0}),pre=g4EvidenceStatus(ids);
+  return{scope:{release:G4_RELEASE,mode:G4.mode,horizon:G4.horizon,manifestRevision:G4.manifest&&G4.manifest.revision,catalogVersion:G4.catalog&&G4.catalog.version,indexDefinitionVersion:G4.definition&&G4.definition.version},
+    preflight:{level:pre.level,lead:pre.lead,series:pre.rows.map(function(x){return{id:x.meta.id,status:x.status,reason:x.reason,latest:g4Date(x.latest),provider:x.meta.provider,source:x.meta.source_reference_url}})},
+    visibleSeries:series.map(function(s){return{id:s.id,name:s.name,unit:s.unit,first:s.data[0]||null,last:s.data[s.data.length-1]||null,changePct:g4Change(s.data),actualObservations:(s.raw||s.data).slice(-24)}}),
+    rules:["Use only this evidence.","Separate directly observed facts from interpretation.","Do not imply causality or prediction.","Name missing, sparse, stale, or failed evidence.","Include primary source links from preflight when referencing a series."]};
+}
+function g4AIText(j,p){
+  if(p==="anthropic")return(j.content||[]).map(function(x){return x.text||""}).join("\n").trim();
+  return j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content||"";
+}
+async function g4CallAI(prompt){
+  var cfg=g4AIConfig(),p=cfg.default,pc=cfg.providers&&cfg.providers[p];if(!p||!pc||!pc.validatedAt)throw new Error("No validated default provider. Open CONFIG, validate a provider and choose it as default.");
+  var pack=g4EvidencePackage(),pre=pack.preflight;if(pre.level==="inadequate")return pre.lead+"\n\nI will not generate a market interpretation until the required evidence is adequate.";
+  var system="You are Market Navigator AI POV. "+pre.lead+" Work only from the supplied evidence package. Separate Facts, Interpretation, Risks to the interpretation, and What to watch. Use concise Markdown. Link primary source_reference URLs when citing source evidence. Never claim causality or prediction.";
+  var user=prompt+"\n\nEVIDENCE PACKAGE\n"+JSON.stringify(pack);
+  if(p==="anthropic"){var ja=await g4Net("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":pc.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:pc.model,max_tokens:1000,system:system,messages:[{role:"user",content:user}]})});return g4AIText(ja,p)}
+  var url=p==="venice"?"https://api.venice.ai/api/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",j=await g4Net(url,{method:"POST",headers:{"content-type":"application/json",Authorization:"Bearer "+pc.key},body:JSON.stringify({model:pc.model,max_tokens:1000,messages:[{role:"system",content:system},{role:"user",content:user}]})});return g4AIText(j,p);
+}
+function g4AddMessage(role,text,retry){
+  var k=g4ConversationKey(),rows=G4.conversations[k]||(G4.conversations[k]=[]);rows.push({role:role,text:text,at:Date.now(),retry:retry||null});g4Persist();
+}
+async function g4Ask(q){
+  g4AddMessage("user",q);g4Render();try{var answer=await g4CallAI(q);g4AddMessage("ai",answer||"The configured provider returned an empty response.")}catch(e){g4AddMessage("ai","**AI request failed.** Evidence and prompt are preserved.\n\n"+e.message,q)}g4Render();
+}
+function g4GeneratePOV(){g4Ask("Generate a bounded AI POV for the visible evidence. Separate facts from interpretation, identify caveats, and state what to watch next.")}
+g4ConversationHTML=function(pre){
+  var rows=g4EnsureConversation(pre);
+  return'<aside class="g4Conversation"><div class="g4ConversationHead"><div class="g4Eyebrow">AI POV · '+g4Esc(pre.level.toUpperCase())+'</div><b>Evidence-bounded conversation</b><div class="g4Meta">Every response is tied to visible series, health, and manifest revision.</div></div><div class="g4Messages" id="g4Messages">'+rows.map(function(x,i){return'<div class="g4Bubble '+x.role+'"><div class="g4Md">'+g4Md(x.text)+'</div><time>'+g4Time(x.at)+'</time>'+(x.retry?'<button class="g4Btn" data-ai-retry="'+i+'">Retry same prompt</button>':"")+"</div>"}).join("")+'</div><form class="g4Composer" id="g4Composer"><textarea aria-label="Ask about this evidence" placeholder="Ask about the visible evidence…"></textarea><button class="g4Btn primary">Send</button></form></aside>';
+};
+var g4BindNowOriginal=g4BindNow;
+g4BindNow=function(){g4BindNowOriginal();g4$$("[data-ai-retry]").forEach(function(b){b.onclick=function(){var x=G4.conversations[g4ConversationKey()][+b.dataset.aiRetry];if(x&&x.retry)g4Ask(x.retry)}});var m=g4$("#g4Messages");if(m)m.scrollTop=m.scrollHeight};
+function g4Boot(){
+  document.documentElement.dataset.g4Stage="start";
+  try{
+    g4RestoreLocal();document.documentElement.dataset.g4Stage="restored";
+    g4Mount();document.documentElement.dataset.g4Stage="mounted";
+    try{window.removeEventListener("hashchange",route391)}catch(e){}
+    try{route391=function(){};ensureFoundation392=async function(){return false};refreshStale392=async function(){return true};renderAll=function(){g4Render()};renderNow=function(){g4Render()};renderGlobalRange=function(){};setSection=function(){g4Render()}}catch(e){}
+    if(location.hash!=="#market")history.replaceState(null,"","#market");
+    g4Render();document.documentElement.dataset.g4Stage="rendered";
+    g4Load();document.documentElement.dataset.g4Stage="loading";
+    [100,400,1200,4000].forEach(function(delay){setTimeout(function(){if(!g4$("#g4Workspace")){g4Mount();g4Render();document.documentElement.dataset.g4Stage="recovered"}},delay)});
+  }catch(e){
+    document.documentElement.dataset.g4Stage="error";
+    document.documentElement.dataset.g4Error=String(e&&e.message||e);
+    console.error("Gate 4 R6 boot failed",e);
+  }
+}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",g4Boot,{once:true})}else{g4Boot()}
+
+</script></body></html>
