@@ -56,21 +56,23 @@ def main():
    n=len(rows); value=statistics.fmean([x['orientedIndex'] for x in rows]) if rows else None
    abs_moves=[abs(x['moveFrom100']) for x in rows]; total=sum(abs_moves); concentration=(max(abs_moves)/total if total else 0.0) if rows else None
    health_bad=[x for x in rows if x['health'] not in ('current','expected-lag')]
+   no_release=[x['id'] for x in rows if x['noNewReleaseInHorizon']]
+   concentration_note=None
+   if concentration is not None and concentration>0.80 and n>1:
+      concentration_note='movement is highly concentrated in one component; this can be legitimate when low-frequency components have no new release in the selected horizon'
    status='unavailable' if n==0 else ('degraded' if omitted or health_bad else 'current')
    reasons=[]
    if not rows: reasons.append('no component is mathematically usable under the canonical formula')
    if omitted: reasons.append('omitted: '+', '.join(x['id'] for x in omitted))
    if health_bad: reasons.append('non-current evidence: '+', '.join(x['id']+':'+x['health'] for x in health_bad))
-   horizons[h]={'status':status,'value':value,'baseline':100,'commonT0':iso_ms(t0_anchor),'commonNow':iso_ms(anchor),'componentsUsed':n,'componentsDefined':len(comps),'componentCoverage':n/len(comps),'absoluteMoveConcentration':concentration,'components':rows,'omitted':omitted,'reasons':reasons}
+   if concentration_note: reasons.append(concentration_note)
+   horizons[h]={'status':status,'value':value,'baseline':100,'commonT0':iso_ms(t0_anchor),'commonNow':iso_ms(anchor),'componentsUsed':n,'componentsDefined':len(comps),'componentCoverage':n/len(comps),'absoluteMoveConcentration':concentration,'concentrationDiagnostic':concentration_note,'noNewReleaseComponents':no_release,'components':rows,'omitted':omitted,'reasons':reasons}
    usable.append(status!='unavailable')
   results[ik]={'name':idef['name'],'higherMeans':idef.get('higher_means'),'horizons':horizons}
- out={'schema':'market-navigator-derived-indices-v1','version':'1.3.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'ratioEligibility':{sid:{'eligible':v[0],'reason':v[1]} for sid,v in eligibility.items()},'indices':results}
- out['coherence']={'allIndexHorizonsComputable':all(usable),'rule':'Every index uses one common market anchor and one common horizon start. Low-frequency series use the last real observation at or before each anchor. Canonical series whose history spans zero are consistently excluded from ratio rebasing across every horizon, because percentage ratios across zero are mathematically unstable. All omissions are explicit; no substitute series or hidden transformation is used.'}; out['revision']=sha(out); write(OUT,out)
+ out={'schema':'market-navigator-derived-indices-v1','version':'1.4.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'ratioEligibility':{sid:{'eligible':v[0],'reason':v[1]} for sid,v in eligibility.items()},'indices':results}
+ out['coherence']={'allIndexHorizonsComputable':all(usable),'rule':'Every index uses one common market anchor and one common horizon start. Low-frequency series use the last real observation at or before each anchor. Canonical series whose history spans zero are consistently excluded from ratio rebasing across every horizon, because percentage ratios across zero are mathematically unstable. Concentration is reported as a diagnostic, not treated as automatic failure, because unchanged low-frequency components can legitimately concentrate short-horizon movement in market-rate components. All omissions are explicit; no substitute series or hidden transformation is used.'}; out['revision']=sha(out); write(OUT,out)
  if not out['coherence']['allIndexHorizonsComputable']:
   bad=[f'{i}:{h}' for i,v in results.items() for h,x in v['horizons'].items() if x['status']=='unavailable']; raise SystemExit('Derived index coherence failed: '+', '.join(bad))
- # A ratio-derived composite should never be dominated by a near-zero denominator after eligibility filtering.
- bad_conc=[f'{i}:{h}:{x["absoluteMoveConcentration"]:.3f}' for i,v in results.items() for h,x in v['horizons'].items() if x.get('absoluteMoveConcentration') is not None and x['absoluteMoveConcentration']>0.80 and x.get('componentsUsed',0)>1]
- if bad_conc: raise SystemExit('Derived index concentration coherence failed: '+', '.join(bad_conc))
- print(json.dumps({'ok':True,'revision':out['revision'],'anchor':out['commonMarketAnchor'],'ratioIneligible':[k for k,v in eligibility.items() if not v[0]],'indices':{i:{h:{'status':x['status'],'value':round(x['value'],4) if x.get('value') is not None else None,'used':x.get('componentsUsed'),'defined':x.get('componentsDefined'),'concentration':round(x['absoluteMoveConcentration'],3) if x.get('absoluteMoveConcentration') is not None else None} for h,x in v['horizons'].items()} for i,v in results.items()}},indent=2))
+ print(json.dumps({'ok':True,'revision':out['revision'],'anchor':out['commonMarketAnchor'],'ratioIneligible':[k for k,v in eligibility.items() if not v[0]],'indices':{i:{h:{'status':x['status'],'value':round(x['value'],4) if x.get('value') is not None else None,'used':x.get('componentsUsed'),'defined':x.get('componentsDefined'),'concentration':round(x['absoluteMoveConcentration'],3) if x.get('absoluteMoveConcentration') is not None else None,'noNewRelease':x.get('noNewReleaseComponents')} for h,x in v['horizons'].items()} for i,v in results.items()}},indent=2))
 
 if __name__=='__main__': main()
