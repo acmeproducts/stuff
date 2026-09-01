@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.8.0 -->
-# PRISM MASTER PLAN v2.8.0
+<!-- PRISM-PLAN v2.9.0 -->
+# PRISM MASTER PLAN v2.9.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -203,7 +203,7 @@ Owner testing then exposed that the default source set was runtime-derived and c
 - Artifact: `prism/prism-turn01-pre-ship-r9.html`
 - Application commit: `6d0b240f3f83ae846b321d33286c85f37c6e4463`
 - Blob: `8e2a0ad0beb3fbdd6b7ad853dc4d4a9b6c0b19f1`
-- Status: **DEPLOYED FUNCTIONAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **SUPERSEDED FOR CORRECTION — PORTAL TOGGLE WAS OUTSIDE ITS LEFT RAIL**
 
 R9 makes the nine repository sources an explicit permanent inventory independent of cache/runtime availability. A one-time source-configuration migration restores all nine when the prior R8 state had hidden every default, while later deliberate Disable all choices remain persistent under the new schema. Sources exposes an explicit Restore defaults action and distinguishes default loading/cache/unavailable status truthfully.
 
@@ -216,6 +216,16 @@ Deployed qualification at application commit `6d0b240f3f83ae846b321d33286c85f37c
 - Explore rendered the same filtered corpus, the portal rail collapsed/expanded, and Config plus AI remained in their established locations;
 - Library retained its own Analysis-card rail, Omnisearch and independent work surface with no visualization controls;
 - application-origin console warning/error log remained empty.
+
+Owner review corrected the portal control ownership: the hamburger was placed in the global top header even though it controlled only the left portal rail. R9 remains preserved as the exact source-default correction artifact; the scoped placement correction proceeds in R10.
+
+## R10 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r10.html`
+- Application commit: **PENDING DEPLOYMENT**
+- Blob: **PENDING DEPLOYMENT**
+- Status: **ACTIVE CORRECTION CANDIDATE — LEFT-RAIL TOGGLE OWNERSHIP**
+
+R10 moves the hamburger into the left rail header. Its sole action is to collapse or expand that rail. The collapsed state retains a narrow rail strip containing the same toggle so the user can reopen it on desktop and mobile; the toggle exposes truthful expand/collapse title, label and `aria-expanded` state. The global top header no longer contains a portal toggle. Map, Explore, Feed, AI, Config, Sources and Library behavior remain unchanged.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -260,6 +270,7 @@ The next candidate is acceptable only if:
 20. adding a valid custom RSS/Atom or JSON source fetches and normalizes its articles, exposes truthful status/counts, and makes the source available throughout the shared corpus and Source controls;
 21. a custom source refresh failure is visible and cannot masquerade as successful ingestion; cached fallback, retry and removal behave non-destructively.
 22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
+23. the hamburger exists inside the left portal rail, performs only rail collapse/expand, remains reachable while collapsed, and is absent from the global top header.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
