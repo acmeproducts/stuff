@@ -184,6 +184,20 @@ Any earlier recovery wording proposing an About → More info step between V2 an
 
 ---
 
+
+## G4-R7-D1 — Rejected unlicensed PMI scraping or silent proxy substitution
+
+### Rejected
+- scraping official ISM report pages to recreate/incorporate the Manufacturing PMI without the required permission;
+- treating removed FRED NAPM endpoints as a temporary network failure;
+- using a Trading Economics guest credential after guest API access was discontinued;
+- silently replacing ISM Manufacturing PMI with S&P Global PMI, Industrial Production or another proxy.
+
+### Permanent lesson
+A product-contract component must have a sanctioned canonical source. Public visibility is not redistribution permission, and a similarly named indicator is not the same governed component. R7 remains source-blocked until licensed ISM PMI evidence is available or the owner explicitly changes the Growth definition.
+
+---
+
 ## Permanent prohibited patterns
 - patching rejected releases forward;
 - arbitrary application-frame redesign;
@@ -208,4 +222,5 @@ Any earlier recovery wording proposing an About → More info step between V2 an
 - persistent below-chart statistics/correlation blocks that displace conversation;
 - browser-side canonical Yahoo/FRED reacquisition;
 - release gates that validate internal function calls, labels or DOM presence instead of actual owner-visible behavior;
+- unlicensed PMI scraping or silent PMI proxy substitution;
 - handing the owner any release with known data, chart, AI or journey defects.
