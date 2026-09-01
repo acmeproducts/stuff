@@ -1,0 +1,40 @@
+name: Market Navigator Gate 4 R6 diagnostic v3
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/market-navigator-gate4-r6-diagnostic-v3.yml']
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1}
+      - name: Assemble and capture V3 rejection
+        run: |
+          set -euo pipefail
+          cp market-view-gate4-r3.html market-view-gate4-r6.html
+          cp market-view-gate4-r6.js market-view-gate4-r6-runtime.js
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-view-gate4-r6-runtime.js');s=p.read_text()
+          s=s.replace("Object.assign(H,{1d:{label:'1D'},5d:{label:'5D'},mtd:{label:'MTD',mtd:true},ytd:{label:'YTD',ytd:true},1y:{label:'1YR',days:365},3y:{label:'3YR',days:1095},5y:{label:'5YR',days:1825}})","Object.assign(H,{'1d':{label:'1D'},'5d':{label:'5D'},mtd:{label:'MTD',mtd:true},ytd:{label:'YTD',ytd:true},'1y':{label:'1YR',days:365},'3y':{label:'3YR',days:1095},'5y':{label:'5YR',days:1825}})")
+          s=s.replace("function metaFromCatalog(){","function metaFromCatalog(){state.meta=state.meta||{};",1)
+          s=s.replace("CATEGORY[k].components=defs[k].components.map(x=>x.id)}\nfunction componentDef","CATEGORY[k].components=defs[k].components.map(x=>x.id)}}\nfunction componentDef",1)
+          s=s.replace("effect:null}})}}\n}\nfunction expectedFor","effect:null}})}}\nfunction expectedFor",1)
+          marker="async function drawV3(ids){"
+          delegate="document.addEventListener('click',e=>{const b=e.target.closest?.('[data-r6-component]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();drawV3([b.dataset.r6Component]).catch(err=>{window.__MN_R6_V3ERR__=err.stack||String(err);console.error('V3ERR',err.stack||err)});},true);\n"
+          s=s.replace(marker,delegate+marker,1);p.write_text(s)
+          h=Path('market-view-gate4-r6.html');x=h.read_text()
+          x=x.replace("(async()=>{configLoad();await openDB();await loadStored();renderAll();setSection('now');","(async()=>{if(window.__MN_R6_BUILD__)return;configLoad();await openDB();await loadStored();renderAll();setSection('now');",1)
+          x=x.replace("setTimeout(()=>{renderGlobalRange();renderAll()},0);","if(!window.__MN_R6_BUILD__)setTimeout(()=>{renderGlobalRange();renderAll()},0);",1)
+          x=x.replace("window.addEventListener('hashchange',route391);","if(!window.__MN_R6_BUILD__)window.addEventListener('hashchange',route391);",1)
+          x=x.replace("setTimeout(()=>{if(!location.hash)history.replaceState(null,'','#home');route391();$('#status').textContent='Connecting to market data…'},0);","if(!window.__MN_R6_BUILD__)setTimeout(()=>{if(!location.hash)history.replaceState(null,'','#home');route391();$('#status').textContent='Connecting to market data…'},0);",1)
+          x=x.replace('</head>','<link rel="stylesheet" href="market-view-gate4-r6.css"><script>window.__MN_R6_BUILD__=true;</script></head>',1).replace('</body>','<script src="market-view-gate4-r6-runtime.js"></script></body>',1);h.write_text(x)
+          PY
+          node --check market-view-gate4-r6-runtime.js
+          mkdir -p /tmp/mnr6 && cd /tmp/mnr6 && npm init -y >/dev/null 2>&1 && npm i playwright@1.55.0 >/dev/null 2>&1 && npx playwright install chromium >/dev/null 2>&1
+          cd "$GITHUB_WORKSPACE";python3 -m http.server 8765 >/tmp/http.log 2>&1 &
+          cat >/tmp/mnr6/t.js <<'JS'
+          const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({headless:true}),p=await b.newPage({viewport:{width:1366,height:768}});p.on('console',m=>console.log('CONSOLE',m.type(),m.text()));p.on('pageerror',e=>console.log('PAGEERROR',e.stack||e));await p.goto('http://127.0.0.1:8765/market-view-gate4-r6.html');await p.waitForTimeout(2500);await p.locator('[data-r6-index="risk"]').click();await p.waitForTimeout(300);console.log('BUTTON',await p.locator('[data-r6-component]').first().evaluate(e=>({id:e.dataset.r6Component,onclick:typeof e.onclick,html:e.outerHTML})));await p.locator('[data-r6-component]').first().click();await p.waitForTimeout(1000);console.log('STATE',await p.evaluate(()=>({v3err:window.__MN_R6_V3ERR__||null,title:document.querySelector('#detailTitle')?.textContent,statsClass:document.querySelector('#detailStats')?.className,overlay:document.querySelectorAll('.r6SummaryOverlay').length,series:window.__MN_R6__?.health?.().vix||null})));await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/mnr6/t.js
