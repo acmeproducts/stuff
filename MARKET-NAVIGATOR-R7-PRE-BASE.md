@@ -68,3 +68,17 @@ One sanctioned source capable of supplying historical and current U.S. manufactu
 7. Prove a real validated-provider → AI request → persistent AI response round trip before release.
 
 No R7 test URL may be issued until the current Master Plan release gate passes against the exact deployed candidate.
+
+## PMI licensing/source retry — 2026-09-01
+The owner-directed rollback and retry rechecked the remaining PMI blocker before any new R7 UI implementation.
+
+- The official ISM Manufacturing PMI report is publicly viewable, but ISM's published terms prohibit creating, recreating, distributing or incorporating the PMI index/content into another work without prior written authorization. Public-page scraping is therefore not a sanctioned canonical source.
+- FRED is not a fallback: the Federal Reserve Bank of St. Louis removed all ISM Manufacturing and Non-Manufacturing series from FRED, its APIs and related services in June 2016. The missing historical NAPM endpoint is expected, not a transient collector defect.
+- Trading Economics guest API access has been discontinued; the tested endpoint requires a licensed credential.
+- S&P Global Manufacturing PMI is a different product and cannot silently replace the owner-approved ISM Manufacturing PMI component.
+
+Authoritative references:
+- https://www.ismworld.org/supply-management-news-and-reports/reports/ism-pmi-reports/
+- https://news.research.stlouisfed.org/2016/06/institute-for-supply-management-data-to-be-removed-from-fred/
+
+**Result:** R7 remains blocked on one sanctioned, licensed source for historical and current U.S. ISM Manufacturing PMI, or an explicit owner-approved change to the Growth component contract. The UI lineage must not proceed to candidate/ship by fabricating, scraping, or substituting this component.
