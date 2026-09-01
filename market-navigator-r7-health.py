@@ -80,7 +80,7 @@ def main():
   s=read(SERIES/f'{sid}.json')
   if s.get('last'):anchors.append(int(s['last']))
  market_anchor=max(anchors) if anchors else None
- indices={'risk':['spy','vix','hySpread','hyg','dxy','move','nfci'],'growth':['qqq','copper','smallCaps','pmi','wti','unemployment','payrolls'],'macro':['tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds']}
+ indices={'risk':['spy','vix','hySpread','hyg','dxy','move','nfci'],'growth':['qqq','copper','smallCaps','manufacturingProduction','wti','unemployment','payrolls'],'macro':['tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds']}
  impacts={}
  for k,ids in indices.items():
   for sid in ids:impacts.setdefault(sid,[]).append(k)
