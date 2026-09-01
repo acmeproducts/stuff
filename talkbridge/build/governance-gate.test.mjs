@@ -206,7 +206,10 @@ test('before GO is banked the proposal may be revised; after GO it may not', () 
   const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
   previous.stage = 'owner_go_required';
   previous.owner_authorization = { status: 'not_requested', approved_at: null, evidence: null, exact_words: null };
-  mutateJson(root, state => { state.stage = 'owner_go_required'; state.owner_authorization = previous.owner_authorization; });
+  mutateJson(root, state => { state.stage = 'owner_go_required'; state.owner_authorization = previous.owner_authorization; state.candidate = { status: 'blocked', allowed_output_files: [] }; });
+  for (const rel of Object.keys(previous.baseline.files)) {   /* pre-GO the product files are the frozen bytes */
+    fs.writeFileSync(path.join(root, rel), execFileSync('git', ['show', `${previous.baseline.rollback_merge_commit}:${rel}`], { cwd: REPO, maxBuffer: 64 * 1024 * 1024 }));
+  }
   fs.appendFileSync(path.join(root, 'talkbridge/TALKBRIDGE-PLAN-v9.md'), '\nrevision\n');
   mutateJson(root, state => { state.replacement_plan.sha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'talkbridge/TALKBRIDGE-PLAN-v9.md'))).digest('hex'); });
   const ok = validateSnapshot({ root, changedFiles: ['talkbridge/governance/r10-cycle.json', 'talkbridge/TALKBRIDGE-PLAN-v9.md'], previousState: previous });
