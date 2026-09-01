@@ -201,13 +201,21 @@ Owner testing then exposed that the default source set was runtime-derived and c
 
 ## R9 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r9.html`
-- Application commit: **PENDING DEPLOYMENT**
-- Blob: **PENDING DEPLOYMENT**
-- Status: **ACTIVE CORRECTION CANDIDATE — DEFAULT SOURCE INVARIANT**
+- Application commit: `6d0b240f3f83ae846b321d33286c85f37c6e4463`
+- Blob: `8e2a0ad0beb3fbdd6b7ad853dc4d4a9b6c0b19f1`
+- Status: **DEPLOYED FUNCTIONAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R9 makes the nine repository sources an explicit permanent inventory independent of cache/runtime availability. A one-time source-configuration migration restores all nine when the prior R8 state had hidden every default, while later deliberate Disable all choices remain persistent under the new schema. Sources exposes an explicit Restore defaults action and distinguishes default loading/cache/unavailable status truthfully.
 
 Source-article persistence moves to an isolated `prism_sources` database. The existing shared PRISM database is opened without a version upgrade, so an older open tab cannot block startup merely because R9 needs source storage. Existing R8 source articles migrate forward when available. Explore, AI, Config placement, Portal, reader and Library architecture remain unchanged.
+
+Deployed qualification at application commit `6d0b240f3f83ae846b321d33286c85f37c6e4463`:
+- clean startup loaded 283 articles into 270 canonical events and reported all nine repository defaults active;
+- Disable all left all nine default inventory rows visible and unchecked; Restore defaults returned all nine to enabled state;
+- Source grouping exposed exactly the nine governed defaults, and selecting BBC Business produced 28 current-window events;
+- Explore rendered the same filtered corpus, the portal rail collapsed/expanded, and Config plus AI remained in their established locations;
+- Library retained its own Analysis-card rail, Omnisearch and independent work surface with no visualization controls;
+- application-origin console warning/error log remained empty.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
