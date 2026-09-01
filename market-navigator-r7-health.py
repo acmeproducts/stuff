@@ -13,6 +13,8 @@ UTC=dt.timezone.utc
 def read(p,d=None):
  try:return json.loads(p.read_text())
  except:return {} if d is None else d
+def write(p,o):
+ p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(o,ensure_ascii=False,indent=2,sort_keys=True)+'\n')
 def iso_date(ms):
  if not ms:return None
  return dt.datetime.fromtimestamp(ms/1000,UTC).date().isoformat()
@@ -20,15 +22,10 @@ def month_end(y,m):return dt.date(y,m,calendar.monthrange(y,m)[1])
 def prev_month(y,m,n=1):
  x=y*12+(m-1)-n;return x//12,x%12+1
 def expected_month(today,release_day):
- # Monthly releases generally publish the prior reference month during the current month.
- # Before the governed release day, two months prior is the latest deterministically expected reference month.
  n=1 if today.day>=release_day else 2
  return prev_month(today.year,today.month,n)
 def expected_quarter(today,release_day=30):
- # Conservative advance-GDP expectation: prior quarter after approximately day 30 of the first month following quarter end.
- q=(today.month-1)//3+1
- if today.month in (1,4,7,10) and today.day<release_day:q-=1
- else:q-=1
+ q=(today.month-1)//3+1;q-=1
  if q<=0:return today.year-1,4
  return today.year,q
 def latest_expected(meta,catalog,today):
@@ -41,8 +38,7 @@ def latest_expected(meta,catalog,today):
  return None,None
 def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
  cad=meta.get('native_cadence') or meta.get('canonical_storage_cadence') or 'unknown';actual=dt.datetime.fromtimestamp(actual_ms/1000,UTC).date() if actual_ms else None;expected,note=latest_expected(meta,catalog,today)
- last_attempt=state.get('last_attempted');last_success=state.get('last_successful');err=state.get('last_error');status=state.get('status');fetch_latest=state.get('last_fetch_latest_observation')
- why=[];root='current';next_expected=None
+ last_success=state.get('last_successful');err=state.get('last_error');status=state.get('status');why=[];root='current'
  if not actual:
   root='failed' if err or status=='unavailable' else 'missing';why.append('No canonical observation exists.')
  elif expected:
@@ -57,15 +53,12 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
    root='current';why.append(f"Canonical evidence reaches {actual.isoformat()}, satisfying the deterministic expected reference period through {expected.isoformat()}.")
   if note:why.append(note+'.')
  else:
-  # Daily/trading-day/weekly uses the common market anchor plus cadence tolerance, not wall-clock age alone.
-  anchor=dt.datetime.fromtimestamp(market_anchor/1000,UTC).date() if market_anchor else today
-  age=(anchor-actual).days
+  anchor=dt.datetime.fromtimestamp(market_anchor/1000,UTC).date() if market_anchor else today;age=(anchor-actual).days
   cur={'trading-day':5,'daily':5,'weekly':10}.get(cad,7);lag={'trading-day':7,'daily':7,'weekly':18}.get(cad,14)
   if err and age>cur:root='failed';why.append(f"Canonical evidence ends {actual.isoformat()} ({age} days behind the common market anchor) and collection failed: {err}")
   elif age<=cur:root='current';why.append(f"Canonical evidence ends {actual.isoformat()}, within the governed {cad} allowance relative to the common market anchor {anchor.isoformat()}.")
   elif age<=lag:root='expected-lag';why.append(f"Canonical evidence ends {actual.isoformat()}, beyond current allowance but still inside the governed {cad} expected-lag window relative to {anchor.isoformat()}.")
   else:root='stale';why.append(f"Canonical evidence ends {actual.isoformat()}, {age} days behind common market anchor {anchor.isoformat()}, beyond the governed {cad} freshness allowance.")
- # Collector diagnostics are supplementary only.
  if collector:
   if collector.get('lastAttempt'):why.append('Collector last attempt '+str(collector.get('lastAttempt'))+'.')
   if collector.get('lastSuccess'):why.append('Collector last success '+str(collector.get('lastSuccess'))+'.')
@@ -76,10 +69,9 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
 
 def main():
  c=read(CAT);m=read(MAN);sh=(read(SOURCE_HEALTH).get('data') or {});today=dt.datetime.now(UTC).date();metas={x['id']:x for x in c.get('series',[]) if x.get('enabled',True)}
- # Common anchor is actual latest date among liquid daily market proxies, not wall clock.
  anchors=[]
  for sid in ('spy','qqq','vix'):
-  s=read(SERIES/f'{sid}.json');
+  s=read(SERIES/f'{sid}.json')
   if s.get('last'):anchors.append(int(s['last']))
  market_anchor=max(anchors) if anchors else None
  indices={'risk':['spy','vix','hySpread','hyg','dxy','move','nfci'],'growth':['qqq','copper','smallCaps','pmi','wti','unemployment','payrolls'],'macro':['tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds']}
@@ -93,7 +85,6 @@ def main():
   idx=impacts.get(sid,[]);impact=('Affects '+', '.join(x.title() for x in idx)+' derived index/V2 evidence and any Analysis using '+(meta.get('short_name') or sid)+'.') if idx else ('Affects direct Analysis using '+(meta.get('short_name') or sid)+'.')
   rows[sid]={'id':sid,'name':meta.get('name'),'shortName':meta.get('short_name'),'provider':meta.get('provider'),'providerIdentifier':meta.get('provider_identifier'),'cadence':meta.get('native_cadence'),'classification':cls,'latestPubliclyExpectedObservation':expected,'actualLatestCanonicalObservation':iso_date(actual),'lastCollectionAttempt':st.get('last_attempted'),'lastSuccessfulCollection':st.get('last_successful'),'collectorStatus':collector.get('status'),'collectorError':collector.get('lastError') or st.get('last_error'),'horizonCoverage':coverage,'observationCount':density,'why':why,'chartImpact':impact,'affectedIndices':idx}
  out={'schema':'market-navigator-health-envelope-v1','version':'1.0.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'marketAnchor':iso_date(market_anchor),'summary':{'series':len(rows),**counts},'series':rows};write(OUT,out)
- # Truth gates: every accepted component exists; monthly classification cannot hide an expected missing month.
  required=set(sum(indices.values(),[]));missing=required-set(rows)
  if missing:raise SystemExit('Missing accepted health components: '+','.join(sorted(missing)))
  for sid in ('cpi','corePce','payrolls'):
