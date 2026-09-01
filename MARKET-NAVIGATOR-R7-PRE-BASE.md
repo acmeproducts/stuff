@@ -1,6 +1,6 @@
 # Market Navigator — Gate 4 R7 Pre-Base
 
-Status: FROZEN PRE-BASE / NO IMPLEMENTATION DELTA
+Status: FROZEN PRE-BASE / BACKEND SOURCE BLOCKED
 Date: 2026-08-31
 
 ## Authority
@@ -33,17 +33,38 @@ The owner-confirmed lineage is:
 - Historical V4 automatic multi-series capability is collapsed into V3.
 - Historical V5 is abandoned and must not return as a separate state.
 
-## Required recovery before R7 UI implementation
-1. Reconcile `data/market-backend/derived-index-definition.json` to the exact accepted Risk/Growth/Macro definitions in the Master Plan. Do not substitute available series for required series.
-2. Audit/reconcile the Data Catalog for every required component. Missing required components are backend gaps, not UI omissions.
-3. Establish publication-aware health using latest publicly expected observation, actual canonical observation, collector result, persistence/cache/manifest result and horizon coverage/density.
-4. Correct CPI and any other source where Health currently classifies stale canonical evidence as legitimate cadence lag.
-5. Prove V1 + V2 simultaneous NOW composition and direct V2 component → exact V3 using actual UI events before integrating later Gate 4 surfaces.
-6. Implement former V4 automatic native/Y1-Y2/Indexed behavior inside additive V3; do not create V4/V5 product pages.
-7. Reuse the donor provider/model state so CONFIG validation and POV/chat execution consume the same authoritative state.
-8. Prove a real validated-provider → AI request → persistent AI response round trip before release.
+## R7 backend work completed before UI implementation
+Clean R7 backend code has been added from the governed baseline/process rather than from R6:
+- `market-navigator-r7-catalog-reconcile.py` reconciles the accepted component identities and canonical horizon vocabulary.
+- `market-navigator-r7-data-pipeline.py` builds canonical source observations/reports/operational manifest without browser Yahoo/FRED reacquisition.
+- `market-navigator-r7-health.py` builds a publication-aware health envelope using latest-publicly-expected observation, actual canonical observation, collection result and horizon readiness.
+- `.github/workflows/market-evidence-pipeline.yml` now hard-gates the exact accepted component identities, CPI currentness and mixed-frequency truth before committing canonical evidence.
 
-## Known backend gap
-The currently deployed catalog/derived definition does not represent the accepted component contract and uses legacy horizon vocabulary. R7 backend work must repair those definitions and acquire the missing accepted source series before any derived chart can be considered valid.
+The first clean R7 backend qualification run was `33473034022`. Catalog reconciliation passed. The canonical evidence collector completed for every accepted component except PMI. Health generation completed. Publication/backend truth correctly blocked commit because PMI was unavailable. No partial reconciled backend was published as canonical.
+
+## Concrete PMI source blocker
+The accepted Growth definition requires **PMI +1** and the Master Plan explicitly forbids silent component substitution.
+
+The following candidate public sources were actually tested:
+- FRED historical `NAPM` / ISM Manufacturing PMI: current fetch returns HTTP 404 / unavailable.
+- FXMacroData documented USD PMI endpoint: HTTP 404 with `Unsupported currency (USD) or indicator (pmi)`.
+- Trading Economics historical ISM Manufacturing PMI API using the former guest credential: HTTP 410; guest access has been discontinued and now requires a subscription/API credential.
+- Repository search found no existing sanctioned PMI provider credential/integration that can be reused.
+
+DBnomics exposes an ISM PMI dataset, but its published series is stale/invalid for this release path: it was retrieved in January 2026, ends in 2025, and contains anomalous late-2025 values. It cannot satisfy currentness/data-quality acceptance.
+
+Therefore the exact accepted Growth index cannot yet be built truthfully from the available unauthenticated canonical sources. R7 must not substitute Industrial Production, another PMI, or an ETF proxy merely to obtain a green workflow.
+
+### What unblocks this
+One sanctioned source capable of supplying historical and current U.S. manufacturing PMI is required. Examples include a licensed Trading Economics/API source, another owner-approved provider with adequate historical coverage, or an approved change to the Growth component contract. Until one of those exists, Growth V1/V2 cannot pass the exact-component/data-truth gate.
+
+## Required recovery after PMI is unblocked
+1. Wire the approved PMI source into the catalog and R7 data pipeline.
+2. Rerun the canonical backend workflow until the exact accepted component identity/currentness gates pass and commit the reconciled evidence.
+3. Verify CPI and all other publication-aware Health classifications against the committed evidence.
+4. Implement/prove V1 + V2 simultaneous NOW composition and direct V2 component → exact V3 using actual UI events.
+5. Implement former V4 automatic native/Y1-Y2/Indexed behavior inside additive V3; do not create V4/V5 product pages.
+6. Reuse the donor provider/model state so CONFIG validation and POV/chat execution consume the same authoritative state.
+7. Prove a real validated-provider → AI request → persistent AI response round trip before release.
 
 No R7 test URL may be issued until the current Master Plan release gate passes against the exact deployed candidate.
