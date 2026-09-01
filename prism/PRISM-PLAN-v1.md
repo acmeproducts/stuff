@@ -238,11 +238,17 @@ Owner review clarified that rail ownership also requires conventional placement:
 
 ## R11 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r11.html`
-- Application commit: **PENDING DEPLOYMENT**
-- Blob: **PENDING DEPLOYMENT**
-- Status: **ACTIVE CORRECTION CANDIDATE — TOP-LEFT RAIL TOGGLE**
+- Application commit: `f590c7742d13d9e8497fd8d3e7ff3d73644e4d6d`
+- Blob: `5d91e005940d632b74d6dd59a9aa0ae645c40433`
+- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R11 makes the hamburger the first element in the left rail header, placing it at the rail's top-left on desktop and mobile. Compact branding follows to its right and remains hidden in the collapsed state. Collapse/expand behavior, the persistent collapsed toggle strip and all product surfaces remain unchanged.
+
+Deployed qualification at application commit `f590c7742d13d9e8497fd8d3e7ff3d73644e4d6d`:
+- deployed inline JavaScript parses successfully;
+- the hamburger is the first element in the left rail header;
+- compact branding follows the hamburger rather than preceding it;
+- the R10 collapse/expand handler and persistent collapsed rail strip are unchanged.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
