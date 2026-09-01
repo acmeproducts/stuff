@@ -183,11 +183,19 @@ Owner testing then exposed a separate source-acquisition defect: Add source conf
 
 ## R8 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r8.html`
-- Application commit: `6b4e5cbee56d8c00a459d891e5d38d936ae75255`
-- Blob: `d9288fbe212497a0fe1937f542f9cb81779e5831`
-- Status: **STATIC VALIDATION PASSED — DEPLOYED RSS/ATOM/JSON INGESTION TEST PENDING**
+- Application commit: `2499dc68169ce27f7ca431a4f36c0736218d9803`
+- Blob: `8aa25482879705c95dfcf28ad560b43f55d46ac5`
+- Status: **DEPLOYED FUNCTIONAL VALIDATION PASSED — OWNER TEST PENDING**
 
-R8 replaces the metadata-only Add source path with live custom-source acquisition. Existing R7 custom-source configurations migrate forward and refresh automatically. Add + fetch, startup refresh, RSS/Atom and common JSON normalization, shared-corpus recomputation, device article persistence, direct/relay mode disclosure, status/count truthfulness, duplicate protection, retry and non-destructive removal are implemented without changing Explore, AI, Config placement, Portal, reader or Library architecture.
+R8 replaces the metadata-only Add source path with live custom-source acquisition. Existing R7 custom-source configurations migrate forward and refresh automatically. Add + fetch, startup refresh, RSS/Atom and common JSON normalization, shared-corpus recomputation, device article persistence, direct/repository-cache/relay mode disclosure, status/count truthfulness, duplicate protection, retry and non-destructive removal are implemented without changing Explore, AI, Config placement, Portal, reader or Library architecture.
+
+Deployed qualification at application commit `2499dc68169ce27f7ca431a4f36c0736218d9803`:
+- an existing configured BBC Business RSS URL refreshed automatically after reload;
+- the RSS source reported `ready · repository cache`, 42 articles and 40 canonical events;
+- selecting that custom source as the sole Source filter produced 32 current-window events and a rendered treemap;
+- a same-origin JSON source reported `ready · direct` with 250 normalized articles;
+- source-local removal deleted the JSON source while preserving the RSS source and shared corpus;
+- application console warning/error log remained empty.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
