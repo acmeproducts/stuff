@@ -63,7 +63,7 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
   cur={'trading-day':5,'daily':5,'weekly':10}.get(cad,7);lag={'trading-day':7,'daily':7,'weekly':18}.get(cad,14)
   if err and age>cur:root='failed';why.append(f"Canonical evidence ends {actual.isoformat()} ({age} days behind the common market anchor) and collection failed: {err}")
   elif age<=cur:root='current';why.append(f"Canonical evidence ends {actual.isoformat()}, within the governed {cad} allowance relative to the common market anchor {anchor.isoformat()}.")
-  elif age<=lag:root='expected-lag';why.append(f"Canonical evidence ends {actual.isoformat()}, beyond current allowance but still inside the governed {cad} expected-lag window relative to {anchor.isoformat()}.")
+  elif age<=lag:root='stale';why.append(f"Canonical evidence ends {actual.isoformat()}, beyond the governed {cad} current allowance relative to {anchor.isoformat()}; no provider-publication evidence proves that the gap is legitimate expected lag.")
   else:root='stale';why.append(f"Canonical evidence ends {actual.isoformat()}, {age} days behind common market anchor {anchor.isoformat()}, beyond the governed {cad} freshness allowance.")
  if collector:
   if collector.get('lastAttempt'):why.append('Collector last attempt '+str(collector.get('lastAttempt'))+'.')
