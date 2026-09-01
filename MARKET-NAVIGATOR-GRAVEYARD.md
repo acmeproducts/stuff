@@ -149,3 +149,19 @@ R4 passed the automated release workflow but the workflow was still validating t
 - Visual parity is now a hard precondition: before functional additions are accepted, the successor must demonstrate that the approved application frame/layout is unchanged except where a specific plan clause explicitly authorizes a change.
 - Health must be diagnostic, not descriptive: for every degraded series/chart, identify the concrete cause and evidence path — source state, expected cadence/publication lag, latest publicly expected observation, actual latest observation, last collection attempt/result, coverage/density by horizon, provenance and the resulting chart impact.
 - Chart quality must be evaluated as a user-visible analytical output. A technically populated chart that is distorted by sparse, stale, cadence-incompatible or otherwise incomparable evidence is a release failure, and Health must explain the failure.
+
+
+## G4-R6-D1 — Rejected split-brain index and health inputs
+
+**Rejected approach:** selecting whichever repository model or freshness field is easiest for the browser, or treating a collector status as sufficient proof that a chart is current.
+
+### Why it is rejected
+- market-data/model.json defines a different weighted 0–100 model and cannot be mixed with the canonical equal-weight rebased-100 Gate 4 definition.
+- Catalog metadata, collector state, operational coverage and canonical observations answer different questions. Collapsing them produces false freshness claims and misleading chart readiness.
+- Calendar age alone misclassifies low-frequency evidence. In particular, July CPI can be current or expected-lag before the next scheduled publication and must not be labeled stale merely because a daily threshold was applied.
+- Browser reacquisition would create a second canonical store and make Health unable to explain the evidence actually drawn.
+
+### Governed replacement
+- Use the derived-index definition, data catalog, canonical series files, operational manifest and source-health collector record in their declared roles.
+- Classify evidence as current, expected-lag, stale, missing, failed or sparse using native cadence and publication schedule.
+- Preserve every component in V2 and Health even when degraded, explicitly show chart impact, and never invent observations.
