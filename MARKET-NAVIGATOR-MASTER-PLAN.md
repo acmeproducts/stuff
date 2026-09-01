@@ -100,10 +100,12 @@ The accepted product definitions below are authoritative. `data/market-backend/d
 - Nasdaq +1
 - copper +1
 - small caps +1
-- PMI +1
+- Federal Reserve Manufacturing Production (IPMAN) +1
 - WTI +1
 - unemployment −1
 - payrolls +1
+
+**Growth construction disclosure:** ISM Manufacturing PMI is explicitly excluded as of 2026-09-01 because no permissible free historical/current source exists: FRED removed ISM data, public ISM pages prohibit recreating/incorporating the index without authorization, and available API access is licensed. The owner-approved replacement is the Federal Reserve Board's open **Industrial Production: Manufacturing (NAICS), IPMAN** series. Growth V2/About/Analysis build detail must display this exclusion and replacement; it must never imply that IPMAN is PMI.
 
 ### Macro
 - 10Y +1
