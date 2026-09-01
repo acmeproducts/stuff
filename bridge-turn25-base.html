@@ -1,4 +1,4 @@
-<!-- R10-A candidate build · bridge-turn25-base.html · source: bridge-turn24-ship.html (approved 2026-08-15) · governed by talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt -->
+<!-- 25·base · R11.0 log fidelity · bridge-turn25-base.html · frozen 25·pre-base bytes 6abc47d77ed2 + talkbridge/parts/r11-0-log-fidelity.js · pair: tb-sw.js + relay v6.2 unchanged -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -325,7 +325,6 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 <meta name="apple-mobile-web-app-title" content="TalkBridge">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png" type="image/png">
-<link rel="manifest" href="./tb-manifest.webmanifest">
 </head>
 <body>
 <div id="app">
@@ -604,64 +603,6 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
   <div class="status-pop" id="status-pop"></div>
   <div id="toast"></div>
 </div>
-<script>
-/* ═══════════ R10 PHASE A · PRE-BOOTSTRAP HANDOFF (governed) ═══════════
-   Runs BEFORE the TalkBridge startup code consumes location.hash, per the
-   governing prompt A3. Cookie name and attributes are specified exactly.
-   No invitation payload or credential value is ever logged — metadata only.
-   The raw j value is never decoded or re-encoded here; it is carried as-is. */
-(function () {
-  'use strict';
-  var COOKIE = 'tb_install_handoff_v1';
-  var ATTRS = 'Path=/stuff/; Max-Age=600; SameSite=Lax; Secure';
-  var standalone = false;
-  try {
-    standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-                 (navigator.standalone === true);
-  } catch (_) {}
-  window.__TB_R10 = { standalone: standalone, staged: false, armed: false, rawLen: 0, log: [] };
-  function plog(ev, meta) { window.__TB_R10.log.push({ ev: ev, meta: meta || {}, ts: Date.now() }); }
-  function readCookie() {
-    var m = ('; ' + document.cookie).match('; ' + COOKIE + '=([^;]*)');
-    return m ? m[1] : null;
-  }
-  try {
-    var h = location.hash || '';
-    var hasJ = h.indexOf('#j=') === 0;
-    if (!standalone) {
-      /* Safari/browser tab: arm the handoff, then let the existing invitation
-         processing continue untouched. No prepare button, no ceremony. */
-      if (hasJ) {
-        var raw = h.slice(3);                       /* RAW existing j value */
-        var enc = encodeURIComponent(raw);
-        if (enc.length > 3800) {
-          plog('pwa_handoff_oversize', { bytes: enc.length, standalone: false });
-        } else {
-          document.cookie = COOKIE + '=' + enc + '; ' + ATTRS;
-          window.__TB_R10.armed = true;
-          window.__TB_R10.rawLen = raw.length;
-          plog('pwa_handoff_armed', { bytes: enc.length, standalone: false });
-        }
-      }
-    } else {
-      /* Standalone PWA: if the URL already carries j, leave it alone. If not,
-         recover the cookie's raw j and place it exactly where the existing
-         bootstrap reads it — location.hash — so the SAME join path runs. */
-      if (!hasJ) {
-        var c = readCookie();
-        if (c) {
-          var rawJ = decodeURIComponent(c);
-          window.__TB_R10.staged = true;
-          window.__TB_R10.rawLen = rawJ.length;
-          try { history.replaceState(null, '', location.pathname + location.search + '#j=' + rawJ); } catch (_) {}
-          if ((location.hash || '').indexOf('#j=') !== 0) location.hash = '#j=' + rawJ;
-          plog('pwa_handoff_staged', { bytes: rawJ.length, standalone: true });
-        }
-      }
-    }
-  } catch (e) { plog('pwa_handoff_error', { e: String(e && e.message || e) }); }
-})();
-</script>
 <script>
 "use strict";
 /* ════════════ CORE / STATE ════════════ */
@@ -7410,267 +7351,990 @@ function pbCommitEditTargetMirror(c, v, changed, prior) {
   pbCommitEdit._r9Original = _r9CommitEdit;
 })();
 
-/* ═══════════ GAP PART · R10-phase-a.js ═══════════ */
+
+/* ═══════════ R10 PART · P2-install-gate.js ═══════════ */
 /* @contract
-   wraps: saveRooms (lifecycle-driven subscription/context sync), handleRelay
-          (records last seen relay seq per room — read-only otherwise)
-   adds: TB_R10, r10RelayHttp, r10Post, r10Vapid, r10SyncSubscriptions,
-         r10Unsubscribe, r10PostContext, r10EnableNotifications,
-         r10NotifStatus, r10RenderNotifRow, r10ConsumeHandoff,
-         _r10SaveRooms, _r10HandleRelay
-   Build: R10-A candidate · bridge-turn25-base.html · governed by
-          talkbridge/TALKBRIDGE-GOVERNING-PHASE-A-PHASE-B-EXECUTION-PROMPT.txt
-   Phase A rules honoured: relay untouched; credentials untouched (tb_dg_key,
-   tb_cf_tid, tb_cf_tok, tb_gh_pat remain exactly where they are); no cache in
-   the SW; no payloads in push; no new lifecycle; smallest possible change. */
+   wraps: boot (the DOMContentLoaded entry is re-pointed through p2Entry; the original boot runs unchanged in standalone)
+   adds: p2IsStandalone, p2Platform, p2GateHtml, p2ShowGate, p2Entry, p2Log
+   Plan v19.5.0 §4.1 P2 — the onboarding inversion. In any browser tab the page
+   shows ONE screen: the room's name and install instructions for the platform.
+   No name field, no room, no chat, no relay. Only a standalone (installed) launch
+   runs the real app; the installed icon carries the invite URL, so the ship's own
+   first-run path (name once, join the invite's room) then runs unchanged.
+   Buried and NOT here: browser-side name entry, name-carry, hand-to-Safari.
+*/
+function p2Log(what, data, level) { try { log('p2_' + what, data || {}, level || 'info'); } catch (_) {} }
 
-var TB_R10 = {
-  build: 'R10-A · turn25-base',
-  standalone: !!(window.__TB_R10 && window.__TB_R10.standalone),
-  subscribedRooms: {},          /* roomId -> true once registered this run */
-  swReady: false
-};
-
-function r10RelayHttp() { return RELAY_WS.replace(/^ws/, 'http'); }
-
-function r10Post(sessionId, body) {
-  var url = r10RelayHttp() + '?app=' + encodeURIComponent(RELAY_APP) +
-    '&session=' + encodeURIComponent(sessionId) +
-    '&client=' + encodeURIComponent(deviceId);
-  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body) }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
-    });
-}
-
-function r10Vapid(sessionId) { return r10Post(sessionId, { type: 'vapid' }); }
-
-/* ── handoff consumption check (A3.3e/f) — runs after the existing boot has
-      had its chance to consume the staged j through its own path ─────────── */
-function r10ConsumeHandoff() {
-  var st = window.__TB_R10;
-  if (!st || !st.staged) return;
-  var consumed = false;
+function p2IsStandalone() {
   try {
-    /* Consumption evidence, judged by the EXISTING code's own effects: the
-       boot path either created/entered the room (device-link), or staged the
-       joiner landing (S.invitePayload). Either way decInv succeeded. */
-    if (S && (S.invitePayload || S.joinerKeys)) consumed = true;
-    if (!consumed && S && S.rooms && S.rooms.length) {
-      var h = (window.__TB_R10.rawLen > 0);
-      /* device-link path clears the hash after joining; a room now exists */
-      if (h && location.hash.indexOf('#j=') !== 0) consumed = true;
-    }
+    if (window.navigator && window.navigator.standalone === true) return true;
+    if (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) return true;
   } catch (_) {}
-  if (consumed) {
-    document.cookie = 'tb_install_handoff_v1=; Path=/stuff/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-    try { if (location.hash.indexOf('#j=') === 0) history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
-    r8Log('pwa_handoff_consumed', { standalone: TB_R10.standalone }, 'ok');
+  return false;
+}
+
+/* iOS 16.4+ installs from ANY browser's Share menu (verified 2026-08-26; the
+   Safari-only assumption is graveyarded). iPadOS reports as a Mac with touch. */
+function p2Platform() {
+  var ua = navigator.userAgent || '';
+  var touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  if (/iPhone|iPad|iPod/.test(ua) || touchMac) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+function p2GateHtml(roomName, platform) {
+  var steps;
+  if (platform === 'ios') {
+    steps = '<ol class="p2-steps"><li>Tap the <b>Share</b> button <span class="p2-ic">&#x2B06;&#xFE0E;</span></li><li>Choose <b>Add to Home Screen</b></li><li>Tap <b>Add</b>, then open <b>TalkBridge</b> from your Home Screen</li></ol>';
+  } else if (platform === 'android') {
+    steps = '<ol class="p2-steps"><li>Open the browser menu <b>&#8942;</b></li><li>Choose <b>Add to Home screen</b> or <b>Install app</b></li><li>Open <b>TalkBridge</b> from your Home screen</li></ol>';
   } else {
-    /* Do not delete the cookie; surface the failure in the existing log. */
-    r8Log('pwa_handoff_failed', { standalone: TB_R10.standalone, rawLen: window.__TB_R10.rawLen }, 'error');
+    steps = '<ol class="p2-steps"><li>Click the <b>Install</b> icon in the address bar</li><li>Open <b>TalkBridge</b> as an app</li></ol>';
   }
+  return '<div class="p2-card">'
+    + '<div class="p2-brand">TalkBridge</div>'
+    + (roomName ? '<div class="p2-room">' + esc(roomName) + '</div>' : '')
+    + '<div class="p2-lead">Install TalkBridge to join. Messages and calls only reach an installed app.</div>'
+    + steps
+    + '</div>';
 }
 
-/* ── push subscription (A5) — proven path, existing relay, existing SW ───── */
-function r10ActiveRooms() {
-  return (S.rooms || []).filter(function (r) { return !r.deletedAt; });
+function p2ShowGate() {
+  var roomName = '';
+  try {
+    var h = location.hash || '';
+    if (h.indexOf('#j=') === 0) { var p = decInv(h.slice(3)); if (p && p.r) roomName = p.t || p.n || ''; }
+  } catch (_) {}
+  var platform = p2Platform();
+  var st = document.createElement('style');
+  st.textContent = '#p2-gate{position:fixed;inset:0;z-index:9999;background:var(--cream,#FDFAF7);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit}'
+    + '.p2-card{width:min(92vw,380px);background:#fff;border-radius:18px;padding:26px 24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:var(--ink,#1A1714)}'
+    + '.p2-brand{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--teal,#2E8B8B);text-transform:uppercase}'
+    + '.p2-room{font-size:22px;font-weight:700;margin-top:8px}'
+    + '.p2-lead{font-size:14.5px;line-height:1.5;margin-top:12px;color:#3a3633}'
+    + '.p2-steps{margin:16px 0 0;padding-left:20px;font-size:15px;line-height:1.7}'
+    + '.p2-ic{display:inline-block;color:var(--teal,#2E8B8B)}';
+  document.head.appendChild(st);
+  var g = document.createElement('div'); g.id = 'p2-gate';
+  g.innerHTML = p2GateHtml(roomName, platform);
+  document.body.appendChild(g);
+  var app = $('app'); if (app) app.style.display = 'none';
+  p2Log('gate_shown', { platform: platform, invite: !!roomName }, 'ok');
 }
 
-function r10SyncSubscriptions() {
-  if (!('serviceWorker' in navigator)) return Promise.resolve();
-  return navigator.serviceWorker.ready.then(function (reg) {
-    if (!reg.pushManager) return;
-    return reg.pushManager.getSubscription().then(function (sub) {
-      if (!sub) return;
-      var subJson = sub.toJSON();
-      var jobs = r10ActiveRooms().filter(function (r) { return !TB_R10.subscribedRooms[r.id]; })
-        .map(function (r) {
-          return r10Post(r.id, { type: 'subscribe', subscription: subJson }).then(function (res) {
-            if (res && (res.ok === true || res._status === 200)) {
-              TB_R10.subscribedRooms[r.id] = true;
-              r8Log('push_room_subscribed', { room: String(r.id).slice(-6) }, 'ok');
-            } else r8Log('push_room_subscribe_failed', { room: String(r.id).slice(-6), status: res && res._status }, 'error');
-          }).catch(function (e) { r8Log('push_room_subscribe_failed', { e: String(e && e.message || e) }, 'error'); });
-        });
-      return Promise.all(jobs).then(r10PostContext);
-    });
-  }).catch(function () {});
+/* One entry, two worlds. Nothing of the app runs in a browser tab. */
+function p2Entry() {
+  if (p2IsStandalone()) { p2Log('standalone', {}, 'ok'); return boot(); }
+  p2ShowGate();
 }
+document.removeEventListener('DOMContentLoaded', boot);
+document.addEventListener('DOMContentLoaded', p2Entry);
 
-function r10Unsubscribe(roomId) {
-  /* room-specific by design: subscriptions live per room Durable Object */
-  return r10Post(roomId, { type: 'unsubscribe' }).then(function () {
-    delete TB_R10.subscribedRooms[roomId];
-    r8Log('push_room_unsubscribed', { room: String(roomId).slice(-6) }, 'ok');
-  }).catch(function () {});
+/* ═══════════ R10 PART · P3-subscription.js ═══════════ */
+/* @contract
+   wraps: p2Entry (after the real app boots in standalone, the subscription attempt starts), enterRoom (a newly entered room is registered with the relay), renderPanel (registration re-synced to each room's mute)
+   adds: p3Log, p3RelayHttp, p3RelayPost, p3B64ToBytes, p3Register, p3Vapid, p3Attempt, p3AttemptInGesture, p3ArmGesture, p3RegisterAll, p3RegisterRoom, p3SyncMutes, p3LiveRooms, p3ShowRecipe, p3State
+   Plan v19.5.0 §4.1 P3 — attempt-as-authority. On standalone open with rooms:
+   register the worker, then ATTEMPT the subscription. Permission answers and
+   properties are recorded verbatim and never gate. NotAllowedError inside a
+   real gesture is the one real denial → the owner's F1 device recipe.
+   Safari/iOS demands a user gesture for the prompt (WebKit rule, verified
+   2026-08-27), so an open-time attempt that is refused for want of a gesture is
+   re-run on the next tap — same attempt, same truth.
+   Every live room registers with the relay. (A5: the 30s listener heartbeat
+   is deleted with the relay's liveness view — plan v20.0.0 §4.6.)
+*/
+var p3State = { reg: null, sub: null, registered: {}, gestureArmed: false, lastError: null, attempts: 0 };
+function p3Log(what, data, level) { try { log('p3_' + what, data || {}, level || 'info'); } catch (_) {} }
+function p3RelayHttp() { return RELAY_WS.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:'); }
+function p3RelayPost(roomId, body) {
+  var u = p3RelayHttp() + '?app=' + encodeURIComponent(RELAY_APP) + '&session=' + encodeURIComponent(roomId) + '&client=' + encodeURIComponent(deviceId);
+  return fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); });
 }
-
-function r10UrlB64ToU8(base64) {
-  var pad = '='.repeat((4 - base64.length % 4) % 4);
-  var b = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
-  var raw = atob(b); var out = new Uint8Array(raw.length);
-  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+function p3B64ToBytes(s) {
+  var b = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '=';
+  var bin = atob(b), out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+function p3LiveRooms() { return S.rooms.filter(function (r) { return !r.deletedAt; }); }
 
-function r10EnableNotifications() {
-  /* MUST be called from the user's gesture (A5). One control, no ceremony. */
-  if (!('serviceWorker' in navigator) || !window.PushManager) { r10NotifStatus('unsupported'); return Promise.resolve(); }
-  var rooms = r10ActiveRooms();
-  if (!rooms.length) { r10NotifStatus('no-rooms'); return Promise.resolve(); }
-  return navigator.serviceWorker.ready.then(function (reg) {
-    return reg.pushManager.getSubscription().then(function (existing) {
-      if (existing) return existing;
-      return Notification.requestPermission().then(function (perm) {
-        if (perm !== 'granted') { r10NotifStatus('off'); throw new Error('denied'); }
-        return r10Vapid(rooms[0].id).then(function (v) {
-          if (!v || !v.key) throw new Error('vapid');
-          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: r10UrlB64ToU8(v.key) });
-        });
+function p3Register() {
+  if (!('serviceWorker' in navigator)) { p3Log('sw_unsupported', {}, 'error'); return Promise.reject(new Error('no-sw')); }
+  return navigator.serviceWorker.register('./tb-sw.js').then(function (reg) {
+    p3State.reg = reg; p3Log('sw_registered', { scope: reg && reg.scope }, 'ok');
+    return navigator.serviceWorker.ready;
+  });
+}
+function p3Vapid() {
+  var rooms = p3LiveRooms(); if (!rooms.length) return Promise.reject(new Error('no-rooms'));
+  return p3RelayPost(rooms[0].id, { type: 'vapid' }).then(function (v) {
+    var key = v && (v.vapid || v.key);
+    p3Log('vapid', { got: !!key, push: v && v.push }, key ? 'ok' : 'error');
+    if (!key) throw new Error('no-vapid');
+    return key;
+  });
+}
+/* Registration mirrors the room's mute: a muted room is unsubscribed at the relay (ship rule — muted rooms raise nothing). */
+function p3RegisterRoom(roomId) {
+  if (!p3State.sub || !roomId) return Promise.resolve(false);
+  var room = roomById(roomId), want = !(room && room.muted);
+  var body = want ? { type: 'subscribe', subscription: p3State.sub.toJSON ? p3State.sub.toJSON() : p3State.sub } : { type: 'unsubscribe' };
+  return p3RelayPost(roomId, body)
+    .then(function (r) { var ok = !!(r && r.ok); if (ok) p3State.registered[roomId] = want; p3Log(want ? 'room_registered' : 'room_unregistered', { room: String(roomId).slice(-6), ok: ok }, ok ? 'ok' : 'error'); return ok; })
+    .catch(function (e) { p3Log('room_register_failed', { room: String(roomId).slice(-6), e: String(e && e.message || e) }, 'error'); return false; });
+}
+function p3SyncMutes() {
+  if (!p3State.sub) return;
+  p3LiveRooms().forEach(function (r) { var want = !r.muted; if (p3State.registered[r.id] !== want) p3RegisterRoom(r.id); });
+}
+function p3RegisterAll() {
+  return Promise.all(p3LiveRooms().map(function (r) { return p3RegisterRoom(r.id); }));
+}
+
+/* The attempt. `inGesture` says whether this call sits inside a user tap. */
+function p3Attempt(inGesture) {
+  p3State.attempts++;
+  var prop = (window.Notification && Notification.permission) || 'unsupported';
+  p3Log('perm_prop', { prop: prop, gesture: !!inGesture, n: p3State.attempts }, 'info');
+  var ready = p3State.reg ? navigator.serviceWorker.ready : p3Register();
+  var answer = Promise.resolve(null);
+  if (inGesture && window.Notification && Notification.requestPermission) {
+    /* Synchronously, inside the tap — the exact order the reference PWA used on the owner's iPhone (4/4). */
+    var asked; try { asked = Promise.resolve(Notification.requestPermission()); } catch (e0) { asked = Promise.reject(e0); }
+    answer = asked
+      .then(function (a) { p3Log('perm_answer', { answer: a, prop: (window.Notification && Notification.permission) || '?' }, 'info'); return a; },
+            function (e) { p3Log('perm_answer', { answer: 'threw', e: String(e && e.message || e) }, 'info'); return null; });
+  }
+  return ready.then(function (reg) {
+    return answer.then(function () { return reg.pushManager.getSubscription(); }).then(function (existing) {
+      if (existing) { p3Log('sub_existing', {}, 'ok'); return existing; }
+      return p3Vapid().then(function (key) {
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: p3B64ToBytes(key) });
       });
     });
   }).then(function (sub) {
-    if (!sub) throw new Error('no-sub');
-    r8Log('push_subscribed', { endpointHost: (function(){try{return new URL(sub.endpoint).host}catch(_){return '?'}})() }, 'ok');
-    return r10SyncSubscriptions().then(function () { r10NotifStatus('on'); });
+    p3State.sub = sub; p3State.lastError = null;
+    p3Log('sub_ok', { endpoint: String(sub && sub.endpoint || '').slice(0, 40) }, 'ok');
+    return p3RegisterAll().then(function () { return sub; });
   }).catch(function (e) {
-    if (String(e && e.message) !== 'denied') r8Log('push_enable_failed', { e: String(e && e.message || e) }, 'error');
+    var name = (e && e.name) || 'Error', msg = String(e && e.message || e);
+    p3State.lastError = { name: name, msg: msg };
+    p3Log('sub_failed', { name: name, e: msg, gesture: !!inGesture }, 'error');
+    if (name === 'NotAllowedError') {
+      if (inGesture) p3ShowRecipe();
+      else p3ArmGesture();
+    } else if (!inGesture && msg !== 'no-rooms') {
+      p3ArmGesture();
+    }
+    return null;
   });
 }
-
-/* ── status + the one concise control (A5 production UX) ─────────────────── */
-function r10NotifStatus(state) {
-  TB_R10.notifState = state;
-  var el = document.getElementById('r10-notif');
-  if (!el) return;
-  var lbl = el.querySelector('.r10-n-label');
-  var btn = el.querySelector('.r10-n-btn');
-  if (state === 'on') { if (lbl) lbl.textContent = 'Notifications: On'; if (btn) btn.style.display = 'none'; }
-  else if (state === 'off') { if (lbl) lbl.textContent = 'Notifications: Off'; if (btn) btn.style.display = 'none'; }
-  else if (state === 'prompt') { if (lbl) lbl.textContent = 'Notifications'; if (btn) btn.style.display = ''; }
-  else { if (lbl) lbl.textContent = 'Notifications: unavailable'; if (btn) btn.style.display = 'none'; }
+function p3AttemptInGesture() { return p3Attempt(true); }
+/* One-shot: the next real tap re-runs the attempt inside the gesture. */
+function p3ArmGesture() {
+  if (p3State.gestureArmed) return;
+  p3State.gestureArmed = true;
+  var h = function () {
+    document.removeEventListener('click', h, true);
+    p3State.gestureArmed = false;
+    p3AttemptInGesture();
+  };
+  document.addEventListener('click', h, true);
+  p3Log('gesture_armed', {}, 'info');
 }
 
-function r10RenderNotifRow() {
-  var body = document.getElementById('panel-body');
-  var host = body ? body.parentNode : null;
-  if (!host || document.getElementById('r10-notif')) return;
-  var row = document.createElement('div');
-  row.id = 'r10-notif';
-  row.className = 'app-build-row';
-  if (TB_R10.standalone) {
-    row.innerHTML = '<span class="r10-n-label">Notifications</span>' +
-      '<button class="r10-n-btn" type="button">Enable notifications</button>' +
-      '<span class="r10-build">' + TB_R10.build + '</span>';
-    row.querySelector('.r10-n-btn').addEventListener('click', function () { r10EnableNotifications(); });
-  } else {
-    /* Safari tab: push cannot complete here — say so in the info surface. */
-    row.innerHTML = '<span class="r10-n-label">Add TalkBridge to Home Screen to enable iPhone notifications</span>' +
-      '<span class="r10-build">' + TB_R10.build + '</span>';
-  }
-  host.appendChild(row);
-  if (!TB_R10.standalone) return;
-  if (!('Notification' in window)) { r10NotifStatus('unsupported'); return; }
-  if (Notification.permission === 'denied') { r10NotifStatus('off'); return; }
-  if (Notification.permission === 'granted') {
-    navigator.serviceWorker.ready.then(function (reg) {
-      return reg.pushManager && reg.pushManager.getSubscription();
-    }).then(function (sub) { r10NotifStatus(sub ? 'on' : 'prompt'); }).catch(function () { r10NotifStatus('prompt'); });
-  } else r10NotifStatus('prompt');
+/* The owner's F1 device recipe — shown only on a real denial. */
+function p3ShowRecipe() {
+  if ($('p3-recipe')) return;
+  var st = document.createElement('style');
+  st.textContent = '#p3-recipe{position:fixed;inset:0;z-index:9998;background:var(--cream,#FDFAF7);display:flex;align-items:center;justify-content:center;padding:24px}'
+    + '.p3-card{width:min(92vw,380px);background:#fff;border-radius:18px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.12);color:var(--ink,#1A1714)}'
+    + '.p3-t{font-size:18px;font-weight:700}.p3-l{font-size:14px;line-height:1.5;margin-top:8px;color:#3a3633}'
+    + '.p3-steps{margin:14px 0 0;padding-left:20px;font-size:14.5px;line-height:1.7}.p3-row{margin-top:18px}';
+  document.head.appendChild(st);
+  var g = document.createElement('div'); g.id = 'p3-recipe';
+  g.innerHTML = '<div class="p3-card"><div class="p3-t">Notifications are off for TalkBridge</div>'
+    + '<div class="p3-l">Turn them on so calls and messages reach you when the phone is locked:</div>'
+    + '<ol class="p3-steps"><li>Open <b>Settings</b> → <b>Apps</b> → <b>TalkBridge</b> → <b>Notifications</b></li>'
+    + '<li><b>Allow Notifications</b>: ON</li><li><b>Lock Screen</b>, <b>Notification Center</b>, <b>Banners</b>: all on</li>'
+    + '<li><b>Sounds</b>: ON</li><li>Banner style: <b>Temporary</b></li></ol>'
+    + '<div class="p3-row"><button class="btn" id="p3-done">Done</button></div></div>';
+  document.body.appendChild(g);
+  $('p3-done').addEventListener('click', function () { g.remove(); p3AttemptInGesture(); });
+  p3Log('recipe_shown', {}, 'error');
 }
 
-/* ── service-worker context (A6) — ids and cursors only, never secrets ───── */
-function r10PostContext() {
-  try {
-    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
-    navigator.serviceWorker.controller.postMessage({
-      type: 'tb-context',
-      context: {
-        relay: RELAY_WS,
-        app: RELAY_APP,
-        client: deviceId,
-        rooms: r10ActiveRooms().map(function (r) { return { id: r.id, since: r.r10Since || 0 }; })
+(function () {
+  var _p3Entry = p2Entry;
+  p2Entry = function () {
+    var r = _p3Entry.apply(this, arguments);
+    try {
+      if (p2IsStandalone()) {
+        /* A5 (plan v20.0.0): the listener heartbeat is deleted — the relay
+           holds no liveness view for it to feed. */
+        if (p3LiveRooms().length) p3Attempt(false);
+        else p3Log('no_rooms_yet', {}, 'info');
       }
+    } catch (e) { p3Log('entry_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  document.removeEventListener('DOMContentLoaded', _p3Entry);
+  document.addEventListener('DOMContentLoaded', function () { p2Entry(); });
+
+  var _p3RenderPanel = renderPanel;
+  renderPanel = function () {
+    var r = _p3RenderPanel.apply(this, arguments);
+    try { p3SyncMutes(); } catch (_) {}
+    return r;
+  };
+  var _p3EnterRoom = enterRoom;
+  enterRoom = function (id) {
+    var r = _p3EnterRoom.apply(this, arguments);
+    try {
+      if (!p3State.sub && !p3State.attempts) p3Attempt(false);
+      else if (p3State.sub && !p3State.registered[id]) p3RegisterRoom(id);
+    } catch (e) { p3Log('enter_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ═══════════ R10 PART · P4-alert-hygiene.js ═══════════ */
+/* @contract
+   wraps: handleRelay, osNotify, CALL.onIncoming, CALL.accept, enterRoom, saveRooms, p2Entry
+   adds: p4Log, p4Idb, p4Journal, p4Drain, p4SaveCtx, p4IsPushWorthy, p4CloseTag, p4PresentedClose, p4State, p4SwNotify, p4OnSwMessage
+   Plan v20.0.0 §4.6 P4v2 — device-side presentation under ALWAYS-PUSH.
+   - The relay pushes every event; the DEVICE decides what the person sees.
+   - An event the app presents while visible (active-room message, ring screen,
+     panel badge/toast) closes that room's notifications at once and again
+     ~2.5s later (P4v2-c) — the app's own surface is the alert.
+   - Presentation on mobile: the ship's in-page notification is a no-op inside
+     an installed app, so it is wrapped to also present through the worker,
+     tagged per room (replace, never stack). A ring screen is the alert for a
+     call; no notification is raised beside it.
+   - Housekeeping: call answered / room opened → that room's notifications close.
+   - The worker's durable journal (arrived / shown / skipped / failed) is
+     drained into the debug log on every open and return to the foreground.
+*/
+var p4State = { ctxTimer: null, drained: 0 };
+var P4_PUSH_WORTHY = { 'chat-msg': 1, 'sys-pill': 1, 'call-start': 1, 'call-end': 1, 'thread-invite': 1, 'history-sync': 1 };
+function p4Log(what, data, level) { try { log('p4_' + what, data || {}, level || 'info'); } catch (_) {} }
+function p4IsPushWorthy(d) { return !!(d && d.type && P4_PUSH_WORTHY[d.type]); }
+
+function p4Idb() {
+  return new Promise(function (res, rej) {
+    if (!window.indexedDB) return rej(new Error('no-idb'));
+    var r = indexedDB.open('tb-r10', 1);
+    r.onupgradeneeded = function () { var d = r.result; if (!d.objectStoreNames.contains('journal')) d.createObjectStore('journal', { autoIncrement: true }); if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv', { keyPath: 'k' }); };
+    r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+  });
+}
+/* Read every worker receipt, log each by name, then clear. Silence is impossible: an empty drain logs too. */
+function p4Drain() {
+  return p4Idb().then(function (d) {
+    return new Promise(function (res) {
+      var tx = d.transaction('journal', 'readwrite'), st = tx.objectStore('journal'), rows = [];
+      var c = st.openCursor();
+      c.onsuccess = function () { var cur = c.result; if (cur) { rows.push(cur.value); cur.delete(); cur.continue(); } };
+      tx.oncomplete = function () { res(rows); }; tx.onerror = function () { res(rows); };
     });
+  }).then(function (rows) {
+    rows.forEach(function (en) { p4Log('sw_receipt', { ev: en.ev, at: en.ts, room: en.room ? String(en.room).slice(-6) : null, kind: en.kind, e: en.e }, en.ev === 'failed' ? 'error' : 'ok'); });
+    p4State.drained += rows.length;
+    p4Log('sw_drained', { n: rows.length }, 'ok');
+    return rows;
+  }).catch(function (e) { p4Log('sw_drain_failed', { e: String(e && e.message || e) }, 'error'); return []; });
+}
+/* What a cold-started worker needs to name the room: where the app lives, the relay, this device, the live rooms. */
+function p4SaveCtx() {
+  clearTimeout(p4State.ctxTimer);
+  p4State.ctxTimer = setTimeout(function () {
+    var ctx = { k: 'ctx', v: { appUrl: location.href.split('#')[0], relay: p3RelayHttp(), app: RELAY_APP, client: deviceId,
+      rooms: S.rooms.filter(function (r) { return !r.deletedAt; }).map(function (r) { return { id: r.id, title: roomTitle(r), muted: !!r.muted }; }) } };
+    p4Idb().then(function (d) { var tx = d.transaction('kv', 'readwrite'); tx.objectStore('kv').put(ctx); }).catch(function (e) { p4Log('ctx_save_failed', { e: String(e && e.message || e) }, 'error'); });
+  }, 400);
+}
+
+/* P4v2-c (plan v20.0.0 §4.6): the app closes what it has presented — at once,
+   and once more ~2.5s later, because under ALWAYS-PUSH a banner can land after
+   the socket already delivered the event to a visible app. */
+function p4PresentedClose(roomId) {
+  p4CloseTag(roomId);
+  setTimeout(function () { p4CloseTag(roomId); }, 2500);
+}
+function p4CloseTag(roomId) {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(function (reg) {
+      if (!reg.getNotifications) return;
+      return reg.getNotifications({ tag: 'tb-' + roomId }).then(function (ns) { ns.forEach(function (n) { try { n.close(); } catch (_) {} }); if (ns.length) p4Log('stale_closed', { room: String(roomId).slice(-6), n: ns.length }, 'ok'); });
+    }).catch(function () {});
   } catch (_) {}
 }
-
-/* record last seen RELAY sequence per room, read-only wrap (A6 'since') */
-(function () {
-  var _r10HandleRelay = handleRelay;
-  handleRelay = function (d) {
-    try {
-      if (d && typeof d.seq === 'number' && S.roomId) {
-        var r = roomById(S.roomId);
-        if (r && (!r.r10Since || d.seq > r.r10Since)) r.r10Since = d.seq;
-      }
-    } catch (_) {}
-    return _r10HandleRelay.apply(this, arguments);
-  };
-  handleRelay._r10Original = _r10HandleRelay;
-})();
-
-/* lifecycle-driven sync: hard delete -> room-specific unsubscribe; new or
-   restored room -> register the same subscription; always refresh context.
-   Existing lifecycle messages and semantics are untouched (A7). */
-(function () {
-  var _r10SaveRooms = saveRooms;
-  var known = {};
-  function snapshot() {
-    known = {};
-    (S.rooms || []).forEach(function (r) { known[r.id] = { deletedAt: !!r.deletedAt }; });
-  }
-  snapshot();
-  saveRooms = function () {
-    var out = _r10SaveRooms.apply(this, arguments);
-    try {
-      var seen = {};
-      (S.rooms || []).forEach(function (r) {
-        seen[r.id] = true;
-        var prev = known[r.id];
-        if (!prev || (prev.deletedAt && !r.deletedAt)) {
-          /* new or restored room: make sure this device's subscription is
-             registered with that room's relay session */
-          delete TB_R10.subscribedRooms[r.id];
-          r10SyncSubscriptions();
-        }
-      });
-      Object.keys(known).forEach(function (id) {
-        if (!seen[id]) r10Unsubscribe(id);   /* hard delete: gone entirely */
-      });
-      snapshot();
-      r10PostContext();
-    } catch (_) {}
-    return out;
-  };
-  saveRooms._r10Original = _r10SaveRooms;
-})();
-
-/* ── init ─────────────────────────────────────────────────────────────────── */
-setTimeout(function () {
+function p4SwNotify(title, body, roomId) {
   try {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./tb-sw.js').then(function () {
-        TB_R10.swReady = true;
-        r8Log('sw_registered', { standalone: TB_R10.standalone }, 'ok');
-        r10PostContext();
-        r10SyncSubscriptions();
-      }).catch(function (e) { r8Log('sw_register_failed', { e: String(e && e.message || e) }, 'error'); });
-    }
-    /* replay pre-bootstrap logs into the app's own log, metadata only */
-    if (window.__TB_R10) (window.__TB_R10.log || []).forEach(function (l) { r8Log(l.ev, l.meta, 'ok'); });
-    r10ConsumeHandoff();
-    r10RenderNotifRow();
-    var st = document.createElement('style');
-    st.id = 'r10-css';
-    st.textContent = '.app-build-row{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;color:var(--ink-mid);border-top:1px solid var(--border)}' +
-      '.app-build-row .r10-n-btn{font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:8px;background:var(--cream)}' +
-      '.app-build-row .r10-build{margin-left:auto;color:var(--ink-dim);font-size:10.5px}';
-    document.head.appendChild(st);
-    r8Log('r10_init', { standalone: TB_R10.standalone, build: TB_R10.build }, 'ok');
-  } catch (e) { r8Log('r10_init_failed', { e: String(e && e.message || e) }, 'error'); }
-}, 700);
+    if (!('serviceWorker' in navigator) || !window.Notification || Notification.permission !== 'granted') return;
+    if (document.hidden) return;                                                        /* hidden: the push is the alert (ALWAYS-PUSH) */
+    if (S.view === 'room' && S.roomId === roomId) return;                               /* on screen already */
+    if (CALL.ringPending && CALL.ringPending.roomId === roomId) return;                 /* the ring screen IS the alert */
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.showNotification(title, { body: (body || '').slice(0, 120), tag: 'tb-' + roomId, renotify: true, data: { roomId: roomId, url: location.href.split('#')[0] } });
+    }).then(function () { p4Log('sw_notify', { room: String(roomId).slice(-6) }, 'ok'); }, function (e) { p4Log('sw_notify_failed', { e: String(e && e.message || e) }, 'error'); });
+  } catch (_) {}
+}
+function p4OnSwMessage(ev) {
+  var d = ev && ev.data; if (!d || d.t !== 'tb-open') return;
+  try { if (d.roomId && roomById(d.roomId)) { closePanel(); enterRoom(d.roomId); } } catch (_) {}
+}
+
+(function () {
+  /* A4 (plan v20.0.0): the ack machinery is deleted — nothing gates on it.
+     In its place, P4v2-c: an event the app presents while visible closes that
+     room's notifications, because the app's own surface is the alert. */
+  var _p4HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    var r = _p4HandleRelay.apply(this, arguments);
+    try { if (d && d.from !== deviceId && p4IsPushWorthy(d) && !document.hidden && S.roomId) p4PresentedClose(S.roomId); } catch (e) { p4Log('close_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  /* Other-room events: the tagged notification IS the presentation — it stays;
+     an arriving push replaces it by tag. Only the ring (below) closes early. */
+  /* P4v2-c / A6 re-entry: the ring screen IS the alert — the moment it
+     presents, the room's stale banner closes (was rejected as a same-session
+     patch; enters here through plan v20.0.0 by name). */
+  var _p4OnIncoming = CALL.onIncoming;
+  CALL.onIncoming = function (room, d) {
+    var r = _p4OnIncoming.apply(this, arguments);
+    try { if (this.ringPending && room && this.ringPending.roomId === room.id) p4PresentedClose(room.id); } catch (_) {}
+    return r;
+  };
+  var _p4OsNotify = osNotify;
+  osNotify = function (title, body, roomId) {
+    var r = _p4OsNotify.apply(this, arguments);
+    try { p4SwNotify(title, body, roomId); } catch (_) {}
+    return r;
+  };
+  var _p4Accept = CALL.accept;
+  CALL.accept = function () {
+    var p = this.ringPending;
+    var r = _p4Accept.apply(this, arguments);
+    try { if (p && p.roomId) p4CloseTag(p.roomId); } catch (_) {}
+    return r;
+  };
+  var _p4EnterRoom = enterRoom;
+  enterRoom = function (id) {
+    var r = _p4EnterRoom.apply(this, arguments);
+    try { p4CloseTag(id); } catch (_) {}
+    return r;
+  };
+  var _p4SaveRooms = saveRooms;
+  saveRooms = function () {
+    var r = _p4SaveRooms.apply(this, arguments);
+    try { p4SaveCtx(); } catch (_) {}
+    return r;
+  };
+  var _p4Entry = p2Entry;
+  p2Entry = function () {
+    var r = _p4Entry.apply(this, arguments);
+    try {
+      if (p2IsStandalone()) {
+        p4SaveCtx(); p4Drain();
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) p4Drain(); });
+        if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', p4OnSwMessage);
+      }
+    } catch (e) { p4Log('entry_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+/* ═══════════ R10 PART · P6-threads.js ═══════════ */
+/* @contract
+   wraps: roomCardHtml, wireRoomCards, renderPanel, handleRelay, LISTEN.handle
+   adds: p6Log, p6State, p6CSS, p6AskName, p6CreateThread, p6InviteMsg, p6ResendPending, p6OnInvite, p6Accept, p6Decline, p6InviteCardHtml, p6Stamp, p6OnAnswer, p6Answer, p6ThreadRoom, p6Parent
+   Plan v19.5.0 §4.1 P6 — THREADS with consent, owner design.
+   Every room card carries + ("add a thread"). Bob taps +, names it; a derived
+   room appears for him and an INVITE rides the parent room to Alice's panel:
+   thread name, from Bob, Accept / Decline. Either answer is timestamped into
+   the PARENT room's transcript on both sides (the ship's own sys-pill, which
+   already carries date + time). Accept: the thread card appears for her,
+   subscribed (P3 registration) and notified normally. Decline: nothing appears
+   for her. The invite is push-worthy at relay v4; a pending invite is re-sent
+   whenever the partner (re)appears on the parent socket, so a phone that was
+   asleep still receives it — de-duplicated by thread id on arrival.
+*/
+var p6State = { modalWired: false };
+function p6Log(what, data, level) { try { log('p6_' + what, data || {}, level || 'info'); } catch (_) {} }
+var p6CSS =
+  '.rc2-plus{background:none;border:1.5px solid var(--teal);color:var(--teal);border-radius:50%;width:22px;height:22px;line-height:0;font-size:17px;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;margin-left:auto}' +
+  '.p6-inv{background:#fff;border:1.5px solid var(--teal);border-radius:14px;padding:11px 12px;margin-bottom:8px}' +
+  '.p6-inv-t{font-size:14.5px;font-weight:700}.p6-inv-s{font-size:12.5px;color:var(--ink-dim);margin-top:2px}' +
+  '.p6-inv-row{display:flex;gap:8px;margin-top:10px}.p6-inv-row .btn{flex:1;padding:8px 0;font-size:13.5px}';
+
+function p6Parent(room) { return room && room.parentId ? roomById(room.parentId) : null; }
+function p6Stamp(parentId, text, threadId, answer) {
+  /* Into the parent transcript on this side now, and to the other side on the ship's own sys-pill path
+     (extra fields ride along; the ship ignores them, the offerer reads them to close the offer). */
+  var id = 'p6-' + uid();
+  var tr = loadTr(parentId);
+  if (!tr.some(function (x) { return x.id === id; })) {
+    if (S.roomId === parentId) addSysPill(text, id); else { tr.push({ id: id, kind: 'sys', text: text, ts: Date.now() }); lsSet(trKey(parentId), tr); }
+  }
+  var m = { type: 'sys-pill', text: text, pillId: id, threadId: threadId, answer: answer };
+  return (S.roomId === parentId) ? relaySend(m) : LISTEN.send(parentId, m);
+}
+function p6OnAnswer(parentId, d) {
+  var parent = roomById(parentId); if (!parent || !d || !d.threadId || !parent.threadsOffered) return;
+  parent.threadsOffered.forEach(function (o) { if (o.id === d.threadId && o.status === 'pending') { o.status = d.answer === 'accepted' ? 'accepted' : 'declined'; o.answeredAt = Date.now(); } });
+  saveRooms();
+  p6Log('offer_closed', { parent: String(parentId).slice(-6), thread: String(d.threadId).slice(-6), answer: d.answer }, 'ok');
+}
+function p6ThreadRoom(parent, threadId, name) {
+  return { id: threadId, role: parent.role, title: name, partnerName: parent.partnerName || '', myLang: parent.myLang, theirLang: parent.theirLang, myName: parent.myName || S.user.name || '',
+    autoRead: !!parent.autoRead, muted: false, goBtn: true, meta: parent.meta || 'top', ear: parent.ear !== false, theme: parent.theme || undefined,
+    createdAt: Date.now(), lastAt: Date.now(), joined: true, unread: 0, parentId: parent.id, threadName: name };
+}
+function p6InviteMsg(parent, t) {
+  return { type: 'thread-invite', threadId: t.id, name: t.name, fromName: parent.myName || S.user.name || '' };
+}
+function p6CreateThread(parentId, name) {
+  var parent = roomById(parentId); if (!parent) return null;
+  name = norm(name || '').slice(0, 60); if (!name) return null;
+  var t = p6ThreadRoom(parent, uid(), name);
+  S.rooms.push(t);
+  parent.threadsOffered = parent.threadsOffered || [];
+  parent.threadsOffered.push({ id: t.id, name: name, at: Date.now(), status: 'pending' });
+  saveRooms();
+  var sent = (S.roomId === parentId) ? relaySend(p6InviteMsg(parent, { id: t.id, name: name })) : LISTEN.send(parentId, p6InviteMsg(parent, { id: t.id, name: name }));
+  p6Log('thread_created', { parent: String(parentId).slice(-6), thread: String(t.id).slice(-6), sent: !!sent }, 'ok');
+  renderPanel();
+  try { LISTEN.sync(); } catch (_) {}
+  try { if (typeof p3RegisterRoom === 'function') p3RegisterRoom(t.id); } catch (_) {}
+  return t;
+}
+/* Pending invites ride again whenever the partner speaks on the parent — the phone that slept still gets it. */
+function p6ResendPending(parentId) {
+  var parent = roomById(parentId); if (!parent || !parent.threadsOffered) return 0;
+  var n = 0;
+  parent.threadsOffered.forEach(function (o) {
+    if (o.status !== 'pending') return;
+    var ok = (S.roomId === parentId) ? relaySend(p6InviteMsg(parent, o)) : LISTEN.send(parentId, p6InviteMsg(parent, o));
+    if (ok) n++;
+  });
+  if (n) p6Log('invites_resent', { parent: String(parentId).slice(-6), n: n }, 'ok');
+  return n;
+}
+function p6OnInvite(parentId, d) {
+  var parent = roomById(parentId); if (!parent || !d || !d.threadId) return false;
+  if (roomById(d.threadId)) return false;                                   /* already accepted → a card exists */
+  parent.threadInvites = parent.threadInvites || [];
+  if (parent.threadInvites.some(function (i) { return i.id === d.threadId; })) return false;
+  if ((parent.threadsAnswered || []).indexOf(d.threadId) >= 0) return false; /* already declined */
+  parent.threadInvites.push({ id: d.threadId, name: String(d.name || 'Thread').slice(0, 60), from: String(d.fromName || parent.partnerName || 'Partner').slice(0, 40), at: d.ts || Date.now() });
+  saveRooms(); renderPanel();
+  toast((d.fromName || parent.partnerName || 'Partner') + ' invited you to \u2018' + (d.name || 'a thread') + '\u2019');
+  p6Log('invite_received', { parent: String(parentId).slice(-6), thread: String(d.threadId).slice(-6) }, 'ok');
+  return true;
+}
+function p6Answer(parentId, threadId, accepted) {
+  var parent = roomById(parentId); if (!parent) return;
+  var inv = (parent.threadInvites || []).filter(function (i) { return i.id === threadId; })[0]; if (!inv) return;
+  parent.threadInvites = parent.threadInvites.filter(function (i) { return i.id !== threadId; });
+  parent.threadsAnswered = parent.threadsAnswered || []; parent.threadsAnswered.push(threadId);
+  var me = parent.myName || S.user.name || 'Partner';
+  if (accepted) { S.rooms.push(p6ThreadRoom(parent, threadId, inv.name)); }
+  saveRooms();
+  p6Stamp(parentId, me + (accepted ? ' accepted ' : ' declined ') + '\u2018' + inv.name + '\u2019', threadId, accepted ? 'accepted' : 'declined');
+  p6Log(accepted ? 'invite_accepted' : 'invite_declined', { parent: String(parentId).slice(-6), thread: String(threadId).slice(-6) }, 'ok');
+  renderPanel();
+  if (accepted) { try { LISTEN.sync(); } catch (_) {} try { if (typeof p3RegisterRoom === 'function') p3RegisterRoom(threadId); } catch (_) {} }
+}
+function p6Accept(parentId, threadId) { p6Answer(parentId, threadId, true); }
+function p6Decline(parentId, threadId) { p6Answer(parentId, threadId, false); }
+function p6InviteCardHtml(parent, inv) {
+  return '<div class="p6-inv" data-p6-parent="' + parent.id + '" data-p6-thread="' + inv.id + '">' +
+    '<div class="p6-inv-t">' + esc(inv.name) + '</div>' +
+    '<div class="p6-inv-s">Thread from ' + esc(inv.from) + ' \u00b7 in ' + esc(roomTitle(parent)) + '</div>' +
+    '<div class="p6-inv-row"><button class="btn ghost" data-p6-decline="1">Decline</button><button class="btn" data-p6-accept="1">Accept</button></div></div>';
+}
+/* Name the thread — the ship's own modal chrome. */
+function p6AskName(parentId) {
+  var scrim = $('m-p6');
+  if (!scrim) {
+    scrim = document.createElement('div'); scrim.className = 'modal-scrim'; scrim.id = 'm-p6';
+    scrim.innerHTML = '<div class="modal"><div class="modal-title">Add a thread</div><input class="field-input" id="p6-name" maxlength="60" placeholder="Thread name" autocomplete="off">' +
+      '<div class="modal-row"><button class="btn ghost" id="p6-cancel">Cancel</button><button class="btn" id="p6-ok">OK</button></div></div>';
+    $('app').appendChild(scrim);
+    $('p6-cancel').addEventListener('click', function () { scrim.classList.remove('show'); });
+    $('p6-ok').addEventListener('click', function () {
+      var v = norm($('p6-name').value); if (!v) return;
+      scrim.classList.remove('show');
+      p6CreateThread(scrim.dataset.parent, v);
+    });
+    $('p6-name').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('p6-ok').click(); });
+  }
+  scrim.dataset.parent = parentId; $('p6-name').value = ''; scrim.classList.add('show');
+  try { $('p6-name').focus(); } catch (_) {}
+}
+
+(function () {
+  try { var st = document.createElement('style'); st.textContent = p6CSS; document.head.appendChild(st); } catch (_) {}
+
+  var _p6CardHtml = roomCardHtml;
+  roomCardHtml = function (r, where) {
+    var h = _p6CardHtml.apply(this, arguments);
+    try {
+      if (h && r && !r.sendLocked) h = h.replace('</div><div class="rc2-flags">', '<button class="rc2-plus" data-thread="' + r.id + '" aria-label="Add a thread">+</button></div><div class="rc2-flags">');
+    } catch (_) {}
+    return h;
+  };
+  var _p6Wire = wireRoomCards;
+  wireRoomCards = function (host) {
+    var r = _p6Wire.apply(this, arguments);
+    try {
+      if (host) Array.prototype.forEach.call(host.querySelectorAll('[data-thread]'), function (el) {
+        el.addEventListener('click', function (ev) { ev.stopPropagation(); ev.preventDefault(); p6AskName(el.dataset.thread); });
+      });
+    } catch (e) { p6Log('wire_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  var _p6RenderPanel = renderPanel;
+  renderPanel = function () {
+    var r = _p6RenderPanel.apply(this, arguments);
+    try {
+      var body = $('panel-body'); if (!body) return r;
+      var h = '';
+      S.rooms.filter(function (x) { return !x.deletedAt && x.threadInvites && x.threadInvites.length; }).forEach(function (parent) {
+        parent.threadInvites.forEach(function (inv) { h += p6InviteCardHtml(parent, inv); });
+      });
+      if (h) {
+        var wrap = document.createElement('div'); wrap.id = 'p6-invites'; wrap.innerHTML = h;
+        body.insertBefore(wrap, body.firstChild);
+        Array.prototype.forEach.call(wrap.querySelectorAll('.p6-inv'), function (card) {
+          var pid = card.dataset.p6Parent, tid = card.dataset.p6Thread;
+          card.querySelector('[data-p6-accept]').addEventListener('click', function (ev) { ev.stopPropagation(); p6Accept(pid, tid); });
+          card.querySelector('[data-p6-decline]').addEventListener('click', function (ev) { ev.stopPropagation(); p6Decline(pid, tid); });
+        });
+      }
+    } catch (e) { p6Log('panel_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  var _p6HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    var r = _p6HandleRelay.apply(this, arguments);
+    try {
+      if (d && d.from !== deviceId && S.roomId) {
+        if (d.type === 'thread-invite') p6OnInvite(S.roomId, d);
+        else if (d.type === 'sys-pill' && d.threadId) p6OnAnswer(S.roomId, d);
+        else if (d.type === 'hello' || d.type === 'hello-ack') p6ResendPending(S.roomId);
+      }
+    } catch (e) { p6Log('relay_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  var _p6Listen = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    var r = _p6Listen.apply(this, arguments);
+    try {
+      if (d && d.from !== deviceId) {
+        if (d.type === 'thread-invite') p6OnInvite(roomId, d);
+        else if (d.type === 'sys-pill' && d.threadId) p6OnAnswer(roomId, d);
+        else if (d.type === 'hello' || d.type === 'hello-ack') p6ResendPending(roomId);
+      }
+    } catch (e) { p6Log('listen_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+
+/* ═══════════ R10-CR3 PART · r10-cr3-event-state.js ═══════════ */
+/* @contract  (plan v20.12.0 §4.13; §4.12 and §4.11 inherited)
+   wraps: relayConnect, reconnectRelayNow, LISTEN.open, relaySend, handleRelay, LISTEN.handle,
+          CALL.onIncoming, enterRoom, leaveRoomInternals, saveRooms, onVisible, p2Entry, p4OnSwMessage, bgAddPill,
+          waitingOf, bumpWaiting
+   replaces: osNotify — retained, never invoked: the relay's recipient-event
+          record now owns every OS alert (a device-side alert beside a relay
+          push is the buried double).
+   adds:  cr3State, cr3Log, cr3Send, cr3StateWord, cr3Sockets, cr3Announce,
+          cr3OnOpen, cr3Apply, cr3PresentCalls, cr3PillMissed, cr3Recover,
+          cr3RouteEvent, cr3Heartbeat, cr3IsRecord, cr3Pilled, cr3AnnounceWindow, cr3Attended, cr3SetAttended
+   wraps (added in CR3): CALL.keys
+   G23: a device is "watching" only while visible AND focused. Window blur
+        flips attendance off and is announced to the relay at once; focus or a
+        visibility return flips it on and runs the one recovery. Nothing is
+        acknowledged as seen while unattended, even in the event's room.
+   §11: the call/transcription key resolver falls back to the unexpired
+        granted set when memory and the device's own key are empty (own key
+        wins; expired or cleared grant yields nothing).
+   G21: leaving a room is a recovery signal — the room's listener lane opens
+        in the same action; no visible device is laneless for any interval.
+   G22: the installed app announces its window to the worker on every
+        standalone boot and every return to visible, so a notification tap can
+        only ever focus this window — never the install-step browser tab.
+   Cold-open exception to the base's "cold boot never auto-opens a room"
+   tripwire: a tap on an OS notification (the #ev= hash written only by the
+   service worker) opens the exact event — §4.11.4. Invite links are untouched.
+
+   The relay's per-recipient record is the ONE authority. This part:
+   - tells the relay the device's truth (visible / in this room / muted) on
+     every socket open, every visibility change, every heartbeat;
+   - acknowledges the exact events it visibly handled (ev-seen) and the exact
+     durable set on an explicit room open (ev-open);
+   - displays the relay's projection (chat/voice/video) — never a browser-side
+     count; bumpWaiting is a no-op;
+   - never presents a ring while hidden: the OS alert is the surface, and the
+     relay's active-call list re-presents it once on return;
+   - runs ONE single-flight recovery coordinator for visibility/focus/online/
+     tap/open signals; one socket per lane, one reconciliation per open;
+   - routes a notification tap (warm or cold) to the exact event.
+*/
+var cr3State = { attended: (typeof document !== 'undefined') ? !document.hidden : true, armed: false, recovering: false, recoverTimer: null, lastRecoverWhy: null, rung: {}, openPending: {}, hb: null, sync: {}, recoveries: 0, opens: 0 };
+function cr3Log(what, data, level) { try { log('cr3_' + what, data || {}, level || 'info'); } catch (_) {} }
+function cr3IsRecord(d) { return !!(d && (d.type === 'chat-msg' || d.type === 'thread-invite' || d.type === 'call-start')); }
+function cr3Pilled() { return lsGet('tb_cr3_pilled', {}); }
+
+/* One word, one lane: the active room rides the relay socket, every other room its listener. */
+function cr3Send(roomId, m) {
+  try {
+    if (S.roomId === roomId && typeof _relayWs !== 'undefined' && _relayWs && _relayWs.readyState === 1) { m.transient = true; return relaySend(m); }
+    var ws = LISTEN.socks[roomId];
+    if (ws && ws.readyState === 1) { m.transient = true; return LISTEN.send(roomId, m); }
+  } catch (e) { cr3Log('send_failed', { e: String(e && e.message || e) }, 'error'); }
+  return false;
+}
+/* G23: watching = visible AND focused. */
+function cr3Attended() { return !document.hidden && cr3State.attended !== false; }
+function cr3SetAttended(on, why) {
+  var was = cr3State.attended;
+  cr3State.attended = !!on;
+  if (was !== cr3State.attended) cr3Log('attended', { on: cr3State.attended, why: why });
+}
+function cr3StateWord(roomId) {
+  var room = roomById(roomId);
+  var visible = cr3Attended();
+  return { type: 'ev-state', visible: visible, inRoom: visible && S.view === 'room' && S.roomId === roomId, muted: !!(room && room.muted) };
+}
+function cr3Sockets() {
+  var out = [];
+  try { if (S.roomId && typeof _relayWs !== 'undefined' && _relayWs && _relayWs.readyState === 1) out.push(S.roomId); } catch (_) {}
+  try { Object.keys(LISTEN.socks).forEach(function (id) { var ws = LISTEN.socks[id]; if (ws && ws.readyState === 1 && out.indexOf(id) < 0) out.push(id); }); } catch (_) {}
+  return out;
+}
+/* The device's truth to every lane it holds. */
+function cr3Announce(why) {
+  cr3Sockets().forEach(function (id) { cr3Send(id, cr3StateWord(id)); });
+  cr3Log('announce', { why: why, visible: cr3Attended(), lanes: cr3Sockets().length });
+}
+/* A lane opened: state first, then exactly one reconciliation. Visible in the
+   routed room counts as the explicit open (§4.11.2). */
+function cr3OnOpen(roomId, ws, current) {
+  if (!current()) { cr3Log('open_stale', { room: roomId }, 'warn'); return; }
+  cr3State.opens++; try { ws._cr3OpenedAt = Date.now(); } catch (_) {}
+  cr3Send(roomId, cr3StateWord(roomId));
+  var explicit = cr3Attended() && S.view === 'room' && S.roomId === roomId;
+  if (explicit || cr3State.openPending[roomId]) { delete cr3State.openPending[roomId]; cr3Send(roomId, { type: 'ev-open' }); }
+  else cr3Send(roomId, { type: 'events-sync' });
+  cr3Log('lane_open', { room: roomId, explicit: explicit }, 'ok');
+}
+/* The relay's projection is the only count the home ever shows. */
+function cr3Apply(roomId, d) {
+  var room = roomById(roomId); if (!room) return;
+  if (d.proj) {
+    room.waiting = { chat: d.proj.chat || 0, voice: d.proj.voice || 0, video: d.proj.video || 0 };
+    room.unread = room.waiting.chat + room.waiting.voice + room.waiting.video;
+    saveRooms();
+  }
+  (d.unseen || []).concat(d.acked || []).forEach(function (u) { if (u && u.o === 'missed' && u.callId) cr3PillMissed(roomId, u); });
+  cr3PresentCalls(roomId, d.calls || []);
+  try { renderPanel(); } catch (_) {}
+}
+/* Durable missed outcome → one transcript pill, keyed by the call, never twice. */
+function cr3PillMissed(roomId, u) {
+  var pilled = cr3Pilled(); if (pilled[u.callId]) return;
+  pilled[u.callId] = 1; lsSet('tb_cr3_pilled', pilled);
+  var text = 'Missed ' + (u.kind === 'video' ? 'video' : 'voice') + ' call';
+  try {
+    if (S.roomId === roomId) addSysPill(text, 'miss-' + u.callId);
+    else { var tr = loadTr(roomId); tr.push({ id: 'miss-' + u.callId, kind: 'sys', text: text, ts: u.ts || Date.now() }); lsSet(trKey(roomId), tr); }
+    cr3Log('missed_pill', { room: roomId, callId: u.callId }, 'ok');
+  } catch (e) { cr3Log('pill_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+/* An active offered call, and the app visible: the existing Accept/Decline
+   surface — once per call, never a second surface. */
+function cr3PresentCalls(roomId, calls) {
+  if (!cr3Attended()) return;
+  var room = roomById(roomId); if (!room || room.muted) return;
+  calls.forEach(function (c) {
+    if (!c || !c.callId || cr3State.rung[c.callId]) return;
+    if (CALL.active || CALL.ringPending) return;
+    cr3State.rung[c.callId] = 1;
+    try { CALL.onIncoming(room, { type: 'call-start', kind: c.callKind, name: c.name || room.partnerName, callId: c.callId, from: c.from, eventId: c.id }); } catch (e) { cr3Log('present_failed', { e: String(e && e.message || e) }, 'error'); }
+    cr3Log('call_presented', { room: roomId, callId: c.callId }, 'ok');
+  });
+}
+/* ONE recovery coordinator: coalesced, single-flight, reconciliation per lane open. */
+function cr3Recover(why) {
+  cr3State.lastRecoverWhy = why;
+  if (cr3State.recoverTimer) return;
+  cr3State.recoverTimer = setTimeout(function () {
+    cr3State.recoverTimer = null;
+    if (cr3State.recovering) return;
+    cr3State.recovering = true; cr3State.recoveries++;
+    try {
+      cr3Announce(cr3State.lastRecoverWhy);
+      /* A lane that just opened has already reconciled; only a lane that was
+         open before this recovery is asked again. */
+      var settled = function (w) { return w && w.readyState === 1 && w._cr3OpenedAt && (Date.now() - w._cr3OpenedAt) > 500; };
+      if (S.roomId) {
+        var ws = (typeof _relayWs !== 'undefined') ? _relayWs : null;
+        if (settled(ws)) { var explicit = cr3Attended() && S.view === 'room'; cr3Send(S.roomId, { type: explicit ? 'ev-open' : 'events-sync' }); }
+        else if (!ws || ws.readyState > 1) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; relayConnect(); }
+      }
+      LISTEN.sync();
+      Object.keys(LISTEN.socks).forEach(function (id) { var lw = LISTEN.socks[id]; if (settled(lw)) cr3Send(id, { type: 'events-sync' }); });
+      cr3Log('recover', { why: cr3State.lastRecoverWhy, n: cr3State.recoveries, inRoom: !!S.roomId }, 'ok');
+    } catch (e) { cr3Log('recover_failed', { e: String(e && e.message || e) }, 'error'); }
+    cr3State.recovering = false;
+  }, 40);
+}
+/* A tap (warm: worker message; cold: #ev= hash) opens the exact event. */
+function cr3RouteEvent(roomId, eventId, why) {
+  var room = roomById(roomId);
+  if (!room || room.deletedAt) { cr3Log('route_unknown', { room: roomId, why: why }, 'warn'); return false; }
+  if (!document.hidden) cr3SetAttended(true, why);   /* a tap on our own alert is the user arriving */
+  try { closePanel(); } catch (_) {}
+  if (!(S.view === 'room' && S.roomId === roomId)) { cr3State.openPending[roomId] = 1; enterRoom(roomId); }
+  else cr3Send(roomId, { type: 'ev-open' });
+  cr3Log('route', { room: roomId, eventId: eventId || null, why: why }, 'ok');
+  cr3Recover('route');
+  return true;
+}
+/* G22: tell the worker which window is the installed app. Only an announced
+   window may be focused by a tap. */
+function cr3AnnounceWindow(why) {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(function (reg) {
+      var target = (navigator.serviceWorker.controller) || (reg && reg.active);
+      if (!target) { cr3Log('announce_window_no_worker', { why: why }, 'warn'); return; }
+      target.postMessage({ t: 'tb-app', why: why, at: Date.now() });
+      cr3Log('announce_window', { why: why }, 'ok');
+    }).catch(function (e) { cr3Log('announce_window_failed', { e: String(e && e.message || e) }, 'error'); });
+  } catch (e) { cr3Log('announce_window_failed', { e: String(e && e.message || e) }, 'error'); }
+}
+function cr3Heartbeat() {
+  if (!cr3Attended()) return;
+  cr3Sockets().forEach(function (id) { cr3Send(id, cr3StateWord(id)); });
+}
+
+(function () {
+  /* One socket per lane: a connect while the lane is still connecting is a duplicate, not a recovery. */
+  var _cr3RelayConnect = relayConnect;
+  relayConnect = function () {
+    try {
+      var room = activeRoom();
+      var ws = (typeof _relayWs !== 'undefined') ? _relayWs : null;
+      if (ws && ws.readyState === 0 && room && ws._cr3Room === room.id) { cr3Log('connect_coalesced', { room: room.id }); return; }
+    } catch (_) {}
+    var r = _cr3RelayConnect.apply(this, arguments);
+    try {
+      var cur = _relayWs, rid = S.roomId;
+      if (cur && cur.addEventListener) { cur._cr3Room = rid; cur.addEventListener('open', function () { cr3OnOpen(rid, cur, function () { return cur === _relayWs && S.roomId === rid; }); }); }
+    } catch (e) { cr3Log('hook_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  /* A lane that is already connecting is not reopened by a second signal. */
+  var _cr3ReconnectNow = reconnectRelayNow;
+  reconnectRelayNow = function (why) {
+    try {
+      var ws = (typeof _relayWs !== 'undefined') ? _relayWs : null;
+      if (ws && ws.readyState === 0 && ws._cr3Room === S.roomId) { cr3Log('reconnect_coalesced', { why: why }); return false; }
+    } catch (_) {}
+    return _cr3ReconnectNow.apply(this, arguments);
+  };
+  var _cr3ListenOpen = LISTEN.open;
+  LISTEN.open = function (room) {
+    var r = _cr3ListenOpen.apply(this, arguments);
+    try {
+      var self = this, cur = this.socks[room.id];
+      if (cur && cur.addEventListener) cur.addEventListener('open', function () { cr3OnOpen(room.id, cur, function () { return self.socks[room.id] === cur; }); });
+    } catch (e) { cr3Log('listen_hook_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  /* The heartbeat carries the device's truth, so a suspended phone goes stale, never "watching". */
+  var _cr3RelaySend = relaySend;
+  relaySend = function (m) {
+    try { if (m && m.type === 'ping') { var w = cr3StateWord(S.roomId); m.visible = w.visible; m.inRoom = w.inRoom; m.muted = w.muted; } } catch (_) {}
+    return _cr3RelaySend.apply(this, arguments);
+  };
+  /* Relay answers ride each lane; they are the authority's word, not a peer's. */
+  var _cr3HandleRelay = handleRelay;
+  handleRelay = function (d) {
+    if (d && (d.type === 'ev-proj' || d.type === 'ev-reply')) { try { if (S.roomId) cr3Apply(S.roomId, d); } catch (e) { cr3Log('apply_failed', { e: String(e && e.message || e) }, 'error'); } return; }
+    var wasAttended = cr3Attended();
+    var r = _cr3HandleRelay.apply(this, arguments);
+    try {
+      if (d && d.from !== deviceId && d.eventId && cr3IsRecord(d) && d.type !== 'call-start' && wasAttended && S.view === 'room' && S.roomId) cr3Send(S.roomId, { type: 'ev-seen', ids: [String(d.eventId)] });
+    } catch (e) { cr3Log('seen_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  var _cr3ListenHandle = LISTEN.handle;
+  LISTEN.handle = function (roomId, d) {
+    if (d && (d.type === 'ev-proj' || d.type === 'ev-reply')) { try { cr3Apply(roomId, d); } catch (e) { cr3Log('apply_failed', { e: String(e && e.message || e) }, 'error'); } return; }
+    return _cr3ListenHandle.apply(this, arguments);
+  };
+  /* Hidden: no ring. The relay asked the OS; return re-presents an active call once. */
+  var _cr3OnIncoming = CALL.onIncoming;
+  CALL.onIncoming = function (room, d) {
+    if (!cr3Attended()) { cr3Log('ring_deferred_hidden', { room: room && room.id, callId: d && d.callId }, 'ok'); return; }
+    if (d && d.callId) cr3State.rung[d.callId] = 1;
+    return _cr3OnIncoming.apply(this, arguments);
+  };
+  /* The relay's missed outcome is the only source of a missed pill. */
+  var _cr3BgAddPill = bgAddPill;
+  bgAddPill = function (roomId, text) {
+    if (typeof text === 'string' && text.indexOf('Missed ') === 0) { cr3Log('local_missed_pill_dropped', { room: roomId }); return; }
+    return _cr3BgAddPill.apply(this, arguments);
+  };
+  var _cr3OsNotify = osNotify;
+  osNotify = function (title, body, roomId) { cr3Log('os_notify_owned_by_relay', { room: roomId }); };
+  osNotify._cr3Original = _cr3OsNotify;
+  /* Display cache of the projection; never an increment. */
+  var _cr3WaitingOf = waitingOf;
+  waitingOf = function (r) { if (!r) return { chat: 0, voice: 0, video: 0 }; if (!r.waiting) r.waiting = { chat: 0, voice: 0, video: 0 }; return r.waiting; };
+  waitingOf._cr3Original = _cr3WaitingOf;
+  var _cr3BumpWaiting = bumpWaiting;
+  bumpWaiting = function (r, kind) { cr3Log('bump_ignored', { room: r && r.id, kind: kind }); };
+  bumpWaiting._cr3Original = _cr3BumpWaiting;
+  /* Explicit open acknowledges the exact durable set. */
+  var _cr3EnterRoom = enterRoom;
+  enterRoom = function (id) {
+    var before = S.roomId;
+    var r = _cr3EnterRoom.apply(this, arguments);
+    try {
+      if (S.roomId === id) {
+        var ws = (typeof _relayWs !== 'undefined') ? _relayWs : null;
+        if (ws && ws.readyState === 1 && before === id) cr3Send(id, { type: 'ev-open' });
+        else cr3State.openPending[id] = 1;
+      }
+    } catch (e) { cr3Log('enter_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  /* A mute toggle is part of the device's truth; the relay hears it at once. */
+  var _cr3SaveRooms = saveRooms;
+  saveRooms = function () {
+    var r = _cr3SaveRooms.apply(this, arguments);
+    try {
+      var sig = S.rooms.map(function (x) { return x.id + ':' + (x.muted ? 1 : 0); }).join(',');
+      if (cr3State.muteSig !== undefined && cr3State.muteSig !== sig) { clearTimeout(cr3State.muteTimer); cr3State.muteTimer = setTimeout(function () { cr3Announce('mute'); }, 100); }
+      cr3State.muteSig = sig;
+    } catch (_) {}
+    return r;
+  };
+  /* G21: leaving a room opens that room's listener lane in the same action. */
+  var _cr3Leave = leaveRoomInternals;
+  leaveRoomInternals = function () {
+    var left = S.roomId;
+    var r = _cr3Leave.apply(this, arguments);
+    try { LISTEN.sync(); cr3Log('leave_lane', { room: left }, 'ok'); cr3Recover('leave'); } catch (e) { cr3Log('leave_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+  /* §11: the granted set is on disk for 30 days; the resolver never read it.
+     Own key wins; memory wins; the unexpired grant fills what is empty. */
+  var _cr3Keys = CALL.keys;
+  CALL.keys = function () {
+    var k = _cr3Keys.apply(this, arguments) || {};
+    try {
+      if (k.dg && k.tid && k.tok) return k;
+      var rec = (typeof grantRecord === 'function') ? grantRecord() : null;
+      if (!rec || (typeof grantExpired === 'function' && grantExpired(rec))) return k;
+      var g = (typeof grantedCreds === 'function') ? grantedCreds() : null;
+      if (!g) return k;
+      var out = { dg: k.dg || g.dg || '', tid: k.tid || g.tid || '', tok: k.tok || g.tok || '' };
+      if (!k.dg && out.dg && !cr3State.grantUsedLogged) { cr3State.grantUsedLogged = true; cr3Log('grant_keys_used', { room: S.roomId }, 'ok'); }
+      return out;
+    } catch (e) { cr3Log('grant_keys_failed', { e: String(e && e.message || e) }, 'error'); return k; }
+  };
+  var _cr3OnVisible = onVisible;
+  onVisible = function (why) {
+    var r = _cr3OnVisible.apply(this, arguments);
+    try { cr3Recover(why); } catch (_) {}
+    return r;
+  };
+  var _cr3SwMessage = p4OnSwMessage;
+  p4OnSwMessage = function (ev) {
+    var d = ev && ev.data;
+    if (d && d.t === 'tb-open' && d.roomId) { try { cr3RouteEvent(d.roomId, d.eventId || null, 'tap_warm'); } catch (e) { cr3Log('tap_failed', { e: String(e && e.message || e) }, 'error'); } return; }
+    return _cr3SwMessage.apply(this, arguments);
+  };
+  var _cr3Entry = p2Entry;
+  p2Entry = function () {
+    var r = _cr3Entry.apply(this, arguments);
+    try {
+      if (!p2IsStandalone() || cr3State.armed) return r;
+      cr3State.armed = true;
+      document.addEventListener('visibilitychange', function () { if (document.hidden) { cr3SetAttended(false, 'hidden'); cr3Announce('hidden'); } else { cr3SetAttended(true, 'visible'); cr3Recover('visible'); cr3AnnounceWindow('visible'); } });
+      /* G23: blur is the reliable "left the app" signal on iOS; announce it at once. */
+      window.addEventListener('blur', function () { cr3SetAttended(false, 'blur'); cr3Announce('blur'); });
+      window.addEventListener('focus', function () { if (!document.hidden) { cr3SetAttended(true, 'focus'); cr3Recover('focus'); } });
+      cr3AnnounceWindow('boot');
+      window.addEventListener('online', function () { cr3Recover('online'); });
+      window.addEventListener('pageshow', function () { cr3Recover('pageshow'); });
+      cr3State.hb = setInterval(cr3Heartbeat, 20000);
+      var h = location.hash || '';
+      if (h.indexOf('#ev=') === 0) {
+        var parts = h.slice(4).split('.'); var roomId = decodeURIComponent(parts[0] || ''), eventId = decodeURIComponent(parts.slice(1).join('.') || '');
+        try { history.replaceState(null, '', location.pathname); } catch (_) {}
+        setTimeout(function () { cr3RouteEvent(roomId, eventId, 'tap_cold'); }, 0);
+      }
+      cr3Log('armed', {}, 'ok');
+    } catch (e) { cr3Log('entry_failed', { e: String(e && e.message || e) }, 'error'); }
+    return r;
+  };
+})();
+
+
+/* ═══════════ R11.0 PART · r11-0-log-fidelity.js ═══════════ */
+/* @contract  (plan v20.13.0 §5)
+   wraps: log; debugLog.shift (instance)
+   adds:  R110_REFRESH, R110_MAX, r110State, r110Fold
+   replaces: nothing
+   The debug log is the one instrument the owner and the builder share. A
+   declared set of periodic refresh events is FOLDED: a repeat with the same
+   event and identical data updates the existing line's count (n) and
+   last-seen time (last) instead of adding a line. A refresh whose data
+   changed is a new line. Every other event is recorded exactly as before,
+   one line per occurrence. Buffer raised from 400 to 1200: the base trims by
+   calling shift() past 400; the array's own shift now yields only past 1200. */
+var R110_REFRESH = { rc_panel_rendered: 1, rc_home_rendered: 1, joiner_create_control: 1, r8_menu_labels: 1, r8_flag_bands: 1 };
+var R110_MAX = 1200;
+var r110State = { folded: 0 };
+function r110Fold(ev, d) {
+  if (!R110_REFRESH[ev]) return false;
+  var key;
+  try { key = JSON.stringify(d || {}); } catch (_) { return false; }
+  /* only the most recent line of this event can absorb a repeat */
+  for (var i = debugLog.length - 1; i >= 0; i--) {
+    var r = debugLog[i];
+    if (r.ev !== ev) continue;
+    var rd = r.d || {}, c = {};
+    for (var k in rd) if (k !== 'n' && k !== 'last') c[k] = rd[k];
+    var rk; try { rk = JSON.stringify(c); } catch (_) { return false; }
+    if (rk !== key) return false;
+    rd.n = (rd.n || 1) + 1; rd.last = new Date().toISOString(); r.d = rd; r110State.folded++;
+    return true;
+  }
+  return false;
+}
+(function () {
+  var _r110Log = log;
+  log = function (ev, d, lvl) {
+    try { if (r110Fold(ev, d)) return; } catch (_) {}
+    return _r110Log.apply(this, arguments);
+  };
+  debugLog.shift = function () { return this.length > R110_MAX ? Array.prototype.shift.call(this) : undefined; };
+})();
+
 </script>
 </body>
 </html>

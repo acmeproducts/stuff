@@ -54,7 +54,7 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 planned §5; owner GO required | — |
+| 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 BUILT 2026-08-31 (owner GO "Go"): machine 4/4, 4 planted defects caught, relay/worker gates green; awaiting owner light check (§5c) | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
 | 25·pre-ship | R12 — multi-party | Not started | — |
 | 25·ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
 | 25·post-ship | Unassigned — reserved | — | — |
@@ -247,8 +247,9 @@ ML anomaly on simple phrases is not a code defect.
 
 ## 5 · RELEASE 11.0 — LOG FIDELITY (25·base prelude; OWNER GO REQUIRED)
 
-**Status: PLAN COMPLETE; BUILD BLOCKED PENDING OWNER GO.** Baseline: the
-accepted 24·post-ship bytes (25·pre-base). One change, nothing else.
+**Status: BUILT 2026-08-31 on owner GO ("Go"); live at bridge-turn25-base.html;
+owner light check pending.** Baseline: the accepted 24·post-ship bytes
+(25·pre-base). One change, nothing else.
 
 ### 5a · The problem, as the device showed it
 
