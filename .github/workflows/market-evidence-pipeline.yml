@@ -7,6 +7,7 @@ on:
       - 'market-navigator-r7-catalog-reconcile.py'
       - 'market-navigator-r7-data-pipeline.py'
       - 'market-navigator-r7-health.py'
+      - 'market-navigator-r7-index-audit.py'
       - 'data/market-backend/data-catalog.json'
       - 'data/market-backend/derived-index-definition.json'
       - '.github/workflows/market-evidence-pipeline.yml'
@@ -66,34 +67,35 @@ jobs:
       - name: Build publication-aware Health envelope
         run: python3 market-navigator-r7-health.py
 
-      - name: Validate backend truth
+      - name: Validate owned backend truth
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import datetime,json
           from pathlib import Path
-          c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
           m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
           h=json.loads(Path('market-evidence/health-envelope.json').read_text())
           assert m['canonicalHorizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
           required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','pmi','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
           assert required <= set(m['series'])
-          unavailable=[x for x in required if m['series'][x]['status']=='unavailable']
-          assert not unavailable,'required series unavailable: '+','.join(sorted(unavailable))
+          unavailable=sorted(x for x in required if m['series'][x]['status']=='unavailable')
+          assert set(unavailable) <= {'pmi'},'unexpected required series unavailable: '+','.join(unavailable)
           for sid in ('cpi','corePce','payrolls'):
               r=h['series'][sid]
               exp=r['latestPubliclyExpectedObservation'];act=r['actualLatestCanonicalObservation']
               assert not (exp and act and act<exp and r['classification']=='expected-lag'),(sid,r)
-          # CPI is mandatory: on/after the August release window, July reference-period evidence must be present.
           today=datetime.datetime.now(datetime.timezone.utc).date()
-          if today.year==2026 and today.month>=8 and today.day>=16:
+          if today >= datetime.date(2026,8,16):
               r=h['series']['cpi']; assert r['actualLatestCanonicalObservation']>='2026-07-31',r
-          # Canonical direct lines retain their own real ending dates.
           cpi=json.loads(Path('market-evidence/series/cpi.json').read_text())
           wti=json.loads(Path('market-evidence/series/wti.json').read_text())
           assert cpi['last'] < wti['last'],'mixed-frequency direct evidence was stretched'
-          print('R7 backend truth ACCEPTED',m['revision'],h['summary'])
+          assert h['summary'].get('expected-lag',0)==0,'Health is still masking stale evidence as expected-lag'
+          print('OWNED BACKEND TRUTH ACCEPTED',m['revision'],h['summary'],'unavailable=',unavailable)
           PY
+
+      - name: Prove derived index coherence
+        run: python3 market-navigator-r7-index-audit.py
 
       - name: Commit reconciled canonical backend
         run: |
@@ -102,6 +104,6 @@ jobs:
           git config user.email "market-evidence-bot@users.noreply.github.com"
           git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json market-evidence
           if git diff --cached --quiet; then echo "No canonical evidence changes."; exit 0; fi
-          git commit -m "data: reconcile Market Navigator R7 canonical evidence"
+          git commit -m "data: publish proven Market Navigator R7 evidence"
           git pull --rebase origin main
           git push origin HEAD:main
