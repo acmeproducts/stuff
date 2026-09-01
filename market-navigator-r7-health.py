@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import calendar,datetime as dt,json
+import datetime as dt,json
 from pathlib import Path
 
 CAT=Path('data/market-backend/data-catalog.json')
@@ -18,23 +18,29 @@ def write(p,o):
 def iso_date(ms):
  if not ms:return None
  return dt.datetime.fromtimestamp(ms/1000,UTC).date().isoformat()
-def month_end(y,m):return dt.date(y,m,calendar.monthrange(y,m)[1])
 def prev_month(y,m,n=1):
  x=y*12+(m-1)-n;return x//12,x%12+1
 def expected_month(today,release_day):
  n=1 if today.day>=release_day else 2
  return prev_month(today.year,today.month,n)
 def expected_quarter(today,release_day=30):
- q=(today.month-1)//3+1;q-=1
- if q<=0:return today.year-1,4
+ # Latest completed reference quarter expected to have published by the governed release window.
+ q=(today.month-1)//3+1
+ if today.month in (1,4,7,10) and today.day<release_day:q-=2
+ else:q-=1
+ while q<=0:q+=4;today=dt.date(today.year-1,today.month,today.day)
  return today.year,q
 def latest_expected(meta,catalog,today):
  cad=meta.get('native_cadence') or meta.get('canonical_storage_cadence')
  ov=(catalog.get('publication_schedule') or {}).get('series_overrides',{}).get(meta['id'],{})
  if cad=='monthly':
-  day=int(ov.get('expected_day_of_month') or 20);y,m=expected_month(today,day);return month_end(y,m),f"monthly release around day {day}; latest expected reference month {y:04d}-{m:02d}"
+  day=int(ov.get('expected_day_of_month') or 20);y,m=expected_month(today,day)
+  # FRED monthly observations are timestamped at the first day of the reference month.
+  return dt.date(y,m,1),f"monthly release around day {day}; latest expected reference month {y:04d}-{m:02d}"
  if cad=='quarterly':
-  day=int(ov.get('expected_day_of_month') or 30);y,q=expected_quarter(today,day);m=q*3;return month_end(y,m),f"quarterly release around day {day}; latest expected reference quarter Q{q} {y}"
+  day=int(ov.get('expected_day_of_month') or 30);y,q=expected_quarter(today,day);m=(q-1)*3+1
+  # FRED quarterly observations are timestamped at the first day of the reference quarter.
+  return dt.date(y,m,1),f"quarterly release around day {day}; latest expected reference quarter Q{q} {y}"
  return None,None
 def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
  cad=meta.get('native_cadence') or meta.get('canonical_storage_cadence') or 'unknown';actual=dt.datetime.fromtimestamp(actual_ms/1000,UTC).date() if actual_ms else None;expected,note=latest_expected(meta,catalog,today)
@@ -44,13 +50,13 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
  elif expected:
   if actual < expected:
    if err:
-    root='failed';why.append(f"A {cad} observation through {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} and the latest collection attempt failed: {err}")
+    root='failed';why.append(f"A {cad} reference period beginning {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} and the latest collection attempt failed: {err}")
    elif last_success:
-    root='stale';why.append(f"A {cad} observation through {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} even though collection reports success. The successful fetch/persistence path did not yield the publicly expected reference period.")
+    root='stale';why.append(f"A {cad} reference period beginning {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} even though collection reports success. The successful fetch/persistence path did not yield the publicly expected reference period.")
    else:
-    root='stale';why.append(f"A {cad} observation through {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} and there is no successful collection proving the gap is legitimate publication lag.")
+    root='stale';why.append(f"A {cad} reference period beginning {expected.isoformat()} is expected, but canonical evidence ends {actual.isoformat()} and there is no successful collection proving the gap is legitimate publication lag.")
   else:
-   root='current';why.append(f"Canonical evidence reaches {actual.isoformat()}, satisfying the deterministic expected reference period through {expected.isoformat()}.")
+   root='current';why.append(f"Canonical evidence reaches reference period {actual.isoformat()}, satisfying the deterministic expected reference period beginning {expected.isoformat()}.")
   if note:why.append(note+'.')
  else:
   anchor=dt.datetime.fromtimestamp(market_anchor/1000,UTC).date() if market_anchor else today;age=(anchor-actual).days
@@ -84,7 +90,7 @@ def main():
   actual=s.get('last') or st.get('latest_observation');cls,expected,why,coverage,density=classify(meta,actual,st,collector,c,today,market_anchor);counts[cls]=counts.get(cls,0)+1
   idx=impacts.get(sid,[]);impact=('Affects '+', '.join(x.title() for x in idx)+' derived index/V2 evidence and any Analysis using '+(meta.get('short_name') or sid)+'.') if idx else ('Affects direct Analysis using '+(meta.get('short_name') or sid)+'.')
   rows[sid]={'id':sid,'name':meta.get('name'),'shortName':meta.get('short_name'),'provider':meta.get('provider'),'providerIdentifier':meta.get('provider_identifier'),'cadence':meta.get('native_cadence'),'classification':cls,'latestPubliclyExpectedObservation':expected,'actualLatestCanonicalObservation':iso_date(actual),'lastCollectionAttempt':st.get('last_attempted'),'lastSuccessfulCollection':st.get('last_successful'),'collectorStatus':collector.get('status'),'collectorError':collector.get('lastError') or st.get('last_error'),'horizonCoverage':coverage,'observationCount':density,'why':why,'chartImpact':impact,'affectedIndices':idx}
- out={'schema':'market-navigator-health-envelope-v1','version':'1.0.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'marketAnchor':iso_date(market_anchor),'summary':{'series':len(rows),**counts},'series':rows};write(OUT,out)
+ out={'schema':'market-navigator-health-envelope-v1','version':'1.1.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'marketAnchor':iso_date(market_anchor),'summary':{'series':len(rows),**counts},'series':rows};write(OUT,out)
  required=set(sum(indices.values(),[]));missing=required-set(rows)
  if missing:raise SystemExit('Missing accepted health components: '+','.join(sorted(missing)))
  for sid in ('cpi','corePce','payrolls'):
