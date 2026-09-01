@@ -194,7 +194,10 @@ Any earlier recovery wording proposing an About → More info step between V2 an
 - silently replacing ISM Manufacturing PMI with S&P Global PMI, Industrial Production or another proxy.
 
 ### Permanent lesson
-A product-contract component must have a sanctioned canonical source. Public visibility is not redistribution permission, and a similarly named indicator is not the same governed component. R7 remains source-blocked until licensed ISM PMI evidence is available or the owner explicitly changes the Growth definition.
+A product-contract component must have a sanctioned canonical source. Public visibility is not redistribution permission, and a similarly named indicator is not the same governed component.
+
+### Owner-approved resolution — 2026-09-01
+The owner explicitly changed the Growth definition rather than buying a proprietary source. ISM Manufacturing PMI is excluded. Its governed replacement is the Federal Reserve Board's open Industrial Production: Manufacturing (NAICS) series, FRED identifier **IPMAN**. Every Growth construction-detail surface must disclose both the exclusion and the fact that IPMAN is a replacement, not PMI. Silent substitution remains prohibited.
 
 ---
 
