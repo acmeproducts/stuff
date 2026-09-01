@@ -207,5 +207,19 @@ A Gate 4 release is **not testable and must not be handed to the owner** until a
 
 R2's inert handoff, R3's superficially validated rewrite, R4's technically passing but product-invalid release, and R5's arbitrary-layout/non-diagnostic-Health release are release-process failures. Syntax/boot success is necessary but not sufficient; exact visual parity, data truth, root-cause Health diagnostics, AI donor parity, journey behavior and visual/analytical usefulness now block release.
 
+
+## 21A. Gate 4 R6 source-of-truth resolution
+
+R6 resolves the repository's split-brain analytical inputs before implementation:
+
+- data/market-backend/derived-index-definition.json is the sole authoritative Risk/Growth/Macro model. Its equal-weight, direction-oriented, rebased-100 formula governs V1 and V2.
+- data/market-backend/data-catalog.json defines canonical identity, native unit, cadence, provider, publication schedule and required/enabled state.
+- market-evidence/series/<id>.json is the sole canonical observation store used by the browser.
+- market-evidence/operational-manifest.json is the authoritative runtime coverage and collection manifest.
+- data/market-backend/source-health.json contributes collector diagnostics but cannot replace the canonical observation or operational manifest.
+- market-data/model.json is a different historical 0–100 weighted model and is explicitly rejected for Gate 4 R6.
+- Browser-side Yahoo/FRED reacquisition is disabled in R6. The UI diagnoses canonical evidence; it does not silently replace it.
+- Product horizons are exactly 1D, 5D, MTD, YTD, 1YR, 3YR, 5YR. Legacy catalog keys 1M and 1Y remain compatibility metadata only; the R6 UI computes true month-to-date and presents the governed product labels.
+
 ## 22. Rejected approaches
 See `MARKET-NAVIGATOR-GRAVEYARD.md`. Prohibited: patching rejected descendants; reuse of R4/R5 generated artifacts, overlays, workflows or layout decisions; arbitrary application-frame/layout changes not explicitly governed by this plan; Health surfaces that merely list status without diagnosing source/collector/cadence/coverage root cause and chart impact; chart-only Gate 4 releases; two-row ribbon; direct V2 component navigation; V2 without index reference; incomplete component sets; flat picker/bottom-hidden actions; Market as fourth trendline; locked/all-series crosshair; split inspection; V4 comparison page; arbitrary series limits/third native axis; repeated horizons; card-stack analytical composition; duplicate chart engines; incompatible units on one axis; missing axes; stretched slow-frequency direct series; omitted AI conversation; persistent below-chart statistics/correlation/ending-value cards that displace the conversation; Tag/Clarify/composer-Save controls in the approved conversation surface; browser-side canonical Yahoo/FRED reacquisition; handing off an artifact that has not passed syntax, boot, exact baseline/visual parity, journey, data-health/root-cause, AI donor-parity and visual release gates; replacing the 3.9.7 runtime with a standalone rewrite while claiming lineage preservation; maintaining separate Explore and Add-Series discovery implementations; accepting AI output that ignores stale/incomplete evidence; redesigning provider/model discovery instead of using the exact approved donor behavior.
