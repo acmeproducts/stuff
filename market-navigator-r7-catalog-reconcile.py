@@ -21,7 +21,7 @@ def series(id,name,short,description,domain,category,provider,pid,url,unit,caden
 
 def main():
     c=load(CATALOG)
-    c['version']='1.2.0'; c['status']='authoritative-r7-reconciled'; c['canonical_horizons']=H[:]
+    c['version']='1.3.0'; c['status']='authoritative-r7-reconciled'; c['canonical_horizons']=H[:]
     c['horizon_policy']={
       '1D':'Latest valid observation versus the immediately preceding applicable observation/session.',
       '5D':'Latest valid observation versus the nearest valid observation five applicable observation/trading days earlier.',
@@ -37,19 +37,23 @@ def main():
       series('move','ICE BofA MOVE Index','MOVE','Treasury-market implied volatility index used as a rates-volatility stress component.','market','volatility','Yahoo Finance','^MOVE','https://finance.yahoo.com/quote/%5EMOVE/','index','trading-day'),
       series('copper','Copper Futures','COP','COMEX copper futures used as a cyclical growth/industrial-demand market proxy.','market','commodities','Yahoo Finance','HG=F','https://finance.yahoo.com/quote/HG%3DF/','USD per pound','trading-day'),
       series('smallCaps','Russell 2000 ETF','IWM','iShares Russell 2000 ETF used as a small-cap growth/risk proxy.','market','equities','Yahoo Finance','IWM','https://finance.yahoo.com/quote/IWM/','USD','trading-day'),
-      series('pmi','ISM Manufacturing PMI','PMI','ISM manufacturing purchasing managers index used as a monthly growth-cycle measure.','macro','growth','FRED','NAPM','https://fred.stlouisfed.org/series/NAPM','index','monthly'),
+      series('manufacturingProduction','Industrial Production: Manufacturing (NAICS)','MFG','Federal Reserve real manufacturing-output index. Owner-approved open replacement for explicitly excluded ISM Manufacturing PMI; this series is not PMI.','macro','growth','FRED','IPMAN','https://fred.stlouisfed.org/series/IPMAN','Index 2017=100','monthly'),
       series('unemployment','Unemployment Rate','UNE','U.S. civilian unemployment rate used as an inverse growth/labor component.','macro','labor','FRED','UNRATE','https://fred.stlouisfed.org/series/UNRATE','percent','monthly'),
       series('curve10y3m','10-Year minus 3-Month Treasury Spread','3M','10-year Treasury yield minus 3-month Treasury yield spread.','macro','rates','FRED','T10Y3M','https://fred.stlouisfed.org/series/T10Y3M','percent','daily')]
     for x in additions:
         if x['id'] in existing: existing[x['id']].update(x)
         else: c['series'].append(x); existing[x['id']]=x
+    pmi=existing.get('pmi')
+    if pmi:
+        pmi['enabled']=False; pmi['required']=False; pmi['status']='excluded-by-owner'; pmi['excluded_on']='2026-09-01'; pmi['exclusion_reason']='No permissible free ISM PMI source; owner-approved replacement is manufacturingProduction/IPMAN.'
+    c.setdefault('publication_schedule',{}).setdefault('series_overrides',{})['manufacturingProduction']={'expected_day_of_month':18,'label':'Monthly Federal Reserve G.17 · about day 18'}
     for x in c['series']: x['supported_horizons']=H[:]
-    required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','pmi','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
+    required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','manufacturingProduction','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
     for x in c['series']:
         if x['id'] in required: x['required']=True; x['enabled']=True
     write(CATALOG,c)
     d={
-      'schema':'market-navigator-derived-index-definition-v1','version':'2.1.0','status':'canonical-r7-reconciled','effective_date':'2026-08-31',
+      'schema':'market-navigator-derived-index-definition-v1','version':'2.2.0','status':'canonical-r7-reconciled','effective_date':'2026-09-01',
       'purpose':'Accepted Market Navigator Risk/Growth/Macro definitions. Equal-weight, direction-adjusted, rebased 100 where ratio rebasing is mathematically meaningful.',
       'display_contract':{
         'v1':'Risk, Growth and Macro are displayed together in NOW from a common baseline of 100.',
@@ -64,8 +68,8 @@ def main():
       'indices':{
         'risk':{'name':'Risk','higher_means':'more market and financial stress','components':[
           {'id':'spy','direction':-1,'role':'broad equity risk appetite'},{'id':'vix','direction':1,'role':'equity volatility'},{'id':'hySpread','direction':1,'role':'credit spread'},{'id':'hyg','direction':-1,'role':'high-yield bond price/risk appetite'},{'id':'dxy','direction':1,'role':'dollar/global financial-conditions pressure'},{'id':'move','direction':1,'role':'Treasury volatility'},{'id':'nfci','direction':1,'role':'financial conditions restriction'}]},
-        'growth':{'name':'Growth','higher_means':'stronger growth momentum','components':[
-          {'id':'qqq','direction':1,'role':'Nasdaq/growth leadership'},{'id':'copper','direction':1,'role':'industrial/cyclical demand'},{'id':'smallCaps','direction':1,'role':'small-cap growth/risk appetite'},{'id':'pmi','direction':1,'role':'manufacturing cycle'},{'id':'wti','direction':1,'role':'cyclical demand context'},{'id':'unemployment','direction':-1,'role':'labor deterioration'},{'id':'payrolls','direction':1,'role':'employment activity'}]},
+        'growth':{'name':'Growth','higher_means':'stronger growth momentum','construction_detail':'Growth explicitly excludes ISM Manufacturing PMI because no permissible free source exists. Federal Reserve IPMAN manufacturing production is the owner-approved open replacement and is not PMI.','excluded_components':[{'id':'pmi','name':'ISM Manufacturing PMI','excluded_on':'2026-09-01','reason':'No permissible free historical/current source; owner approved replacement.','replacement_id':'manufacturingProduction','replacement_name':'Industrial Production: Manufacturing (NAICS)','distinction':'IPMAN is a real-output index, not a PMI diffusion index.'}],'components':[
+          {'id':'qqq','direction':1,'role':'Nasdaq/growth leadership'},{'id':'copper','direction':1,'role':'industrial/cyclical demand'},{'id':'smallCaps','direction':1,'role':'small-cap growth/risk appetite'},{'id':'manufacturingProduction','direction':1,'role':'Federal Reserve manufacturing output; owner-approved open replacement for explicitly excluded ISM PMI'},{'id':'wti','direction':1,'role':'cyclical demand context'},{'id':'unemployment','direction':-1,'role':'labor deterioration'},{'id':'payrolls','direction':1,'role':'employment activity'}]},
         'macro':{'name':'Macro','higher_means':'greater inflation and monetary-policy pressure','components':[
           {'id':'tenYear','direction':1,'role':'10-year nominal rate'},{'id':'twoYear','direction':1,'role':'2-year nominal rate'},{'id':'curve10y2y','direction':1,'role':'10Y-2Y curve'},{'id':'curve10y3m','direction':1,'role':'10Y-3M curve'},{'id':'cpi','direction':1,'role':'headline inflation'},{'id':'corePce','direction':1,'role':'core PCE inflation'},{'id':'fedFunds','direction':1,'role':'policy rate'}]}}
     }
