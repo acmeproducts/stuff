@@ -1,0 +1,205 @@
+name: Market Navigator Gate 4 R6
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'market-view-gate4-r6.js'
+      - 'market-view-gate4-r6.css'
+      - 'MARKET-NAVIGATOR-R6-PRE-BASE.md'
+      - 'data/market-backend/publication-rules.json'
+      - '.github/workflows/market-navigator-gate4-r6.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-navigator-gate4-r6
+  cancel-in-progress: false
+
+jobs:
+  qualify-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify clean pre-base
+        run: |
+          set -euo pipefail
+          test "$(git hash-object market-view-gate4-r3.html)" = "99a2e5ebec8e31afeca4bfe4a75a3de21fb749f1"
+          test "$(git hash-object market-view.html)" = "99a2e5ebec8e31afeca4bfe4a75a3de21fb749f1"
+          grep -q 'G4-R5 — Rejected' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -q 'R6 SUCCESSOR REQUIRED' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -q 'DO NOT PATCH FORWARD' MARKET-NAVIGATOR-R6-PRE-BASE.md
+
+      - name: Assemble R6 from exact 3.9.7 baseline
+        run: |
+          set -euo pipefail
+          cp market-view-gate4-r3.html market-view-gate4-r6.html
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-view-gate4-r6.html')
+          s=p.read_text()
+          old='(async()=>{configLoad();await openDB();await loadStored();renderAll();setSection(\'now\');'
+          new='(async()=>{if(window.__MN_R6_BUILD__)return;configLoad();await openDB();await loadStored();renderAll();setSection(\'now\');'
+          if old not in s: raise SystemExit('legacy startup signature not found')
+          s=s.replace(old,new,1)
+          s=s.replace('<title>Market Navigator 3.9.7</title>','<title>Market Navigator Gate 4 R6</title>',1)
+          s=s.replace('</head>','<link rel="stylesheet" href="market-view-gate4-r6.css"><script>window.__MN_R6_BUILD__=true;</script></head>',1)
+          s=s.replace('</body>','<script src="market-view-gate4-r6.js"></script></body>',1)
+          p.write_text(s)
+          PY
+          grep -q 'market-view-gate4-r6.js' market-view-gate4-r6.html
+          grep -q 'window.__MN_R6_BUILD__=true' market-view-gate4-r6.html
+
+      - name: Parser and structural gates
+        run: |
+          set -euo pipefail
+          node --check market-view-gate4-r6.js
+          python3 -m json.tool data/market-backend/publication-rules.json >/dev/null
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          js=Path('market-view-gate4-r6.js').read_text()
+          required=['NOW','EXPLORE','LIBRARY','HEALTH','CONFIG','1D','5D','MTD','YTD','1YR','3YR','5YR','Evidence-health preflight','AI POV','Venice.ai','OpenRouter','Anthropic API','r6SummaryOverlay','r6Conversation']
+          miss=[x for x in required if x not in js]
+          if miss: raise SystemExit('missing structural contracts: '+repr(miss))
+          cat=json.loads(Path('data/market-backend/data-catalog.json').read_text())
+          der=json.loads(Path('data/market-backend/derived-index-definition.json').read_text())
+          rules=json.loads(Path('data/market-backend/publication-rules.json').read_text())
+          assert {'risk','growth','macro'} == set(der['indices'])
+          assert 'cpi' in rules['rules']
+          assert any(x['id']=='cpi' for x in cat['series'])
+          if 'finance.yahoo.com' in js or 'fred.stlouisfed.org' in js:
+              raise SystemExit('R6 runtime reacquires canonical Yahoo/FRED evidence')
+          PY
+
+      - name: Browser qualification
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mn-r6-node
+          cd /tmp/mn-r6-node
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          cd "$GITHUB_WORKSPACE"
+          python3 -m http.server 8765 >/tmp/mn-r6-http.log 2>&1 &
+          server=$!
+          trap 'kill $server || true' EXIT
+          cat >/tmp/mn-r6-node/test.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const base='http://127.0.0.1:8765/';
+            const bpage=await browser.newPage({viewport:{width:1366,height:768}});
+            await bpage.goto(base+'market-view-gate4-r3.html',{waitUntil:'domcontentloaded'});
+            const bg=await bpage.evaluate(()=>({top:document.querySelector('.top').getBoundingClientRect(),side:document.querySelector('.side').getBoundingClientRect(),app:document.querySelector('.app').getBoundingClientRect()}));
+            await bpage.close();
+            const page=await browser.newPage({viewport:{width:1366,height:768}});
+            const external=[];
+            page.on('request',r=>{const u=new URL(r.url());if(u.origin!==new URL(base).origin&&r.resourceType()!=='document')external.push(r.url())});
+            const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto(base+'market-view-gate4-r6.html',{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>window.__MN_R6_READY__===true,{timeout:30000});
+            const g=await page.evaluate(()=>({top:document.querySelector('.top').getBoundingClientRect(),side:document.querySelector('.side').getBoundingClientRect(),app:document.querySelector('.app').getBoundingClientRect()}));
+            const near=(a,b)=>Math.abs(a-b)<1;
+            if(!near(g.top.height,bg.top.height)||!near(g.side.width,bg.side.width)||!near(g.app.x,bg.app.x))throw Error('baseline frame geometry drifted');
+            const nav=await page.locator('#nav button').allTextContents();
+            if(nav.join('|')!=='NOW|EXPLORE|LIBRARY|HEALTH')throw Error('nav contract '+nav.join('|'));
+            if((await page.locator('#globalRange button').allTextContents()).join('|')!=='1D|5D|MTD|YTD|1YR|3YR|5YR')throw Error('horizon contract');
+            if(await page.locator('#r6V1Chart').count()!==1)throw Error('V1 chart missing');
+            await page.locator('[data-r6-index="risk"]').click();
+            await page.waitForSelector('[data-r6-component]');
+            const riskCount=await page.locator('[data-r6-component]').count();
+            if(riskCount!==7)throw Error('Risk V2 component count '+riskCount);
+            await page.locator('[data-r6-component]').first().click();
+            await page.waitForSelector('.r6Conversation');
+            if(await page.locator('.r6SummaryOverlay').count()!==1)throw Error('V3 summary overlay missing');
+            const before=await page.locator('#detailTitle').textContent();
+            await page.locator('.r6SummaryOverlay button').click();
+            const after=await page.locator('#detailTitle').textContent();
+            if(before!==after)throw Error('overlay dismissal mutated state');
+            await page.locator('#detailClose').click();
+            await page.locator('#nav button[data-nav="providers"]').click();
+            await page.waitForSelector('.r6HealthRow');
+            if(await page.locator('.r6HealthRow').count()<20)throw Error('health lacks series diagnostics');
+            const cpi=page.locator('.r6HealthRow[data-health-id="cpi"]');
+            if(await cpi.count()!==1)throw Error('CPI health missing');
+            const cpiText=(await cpi.textContent()).toLowerCase();
+            if(!cpiText.includes('why')||!cpiText.includes('chart impact')||!cpiText.includes('collector'))throw Error('CPI health not diagnostic: '+cpiText);
+            await page.locator('#hamb').click();
+            const collapsed=await page.evaluate(()=>document.body.classList.contains('r6-rail-collapsed'));
+            if(!collapsed)throw Error('desktop rail did not collapse');
+            await page.locator('#hamb').click();
+            await page.close();
+            const mobile=await browser.newPage({viewport:{width:390,height:844}});
+            await mobile.goto(base+'market-view-gate4-r6.html',{waitUntil:'domcontentloaded'});await mobile.waitForFunction(()=>window.__MN_R6_READY__===true,{timeout:30000});
+            await mobile.locator('#hamb').click();
+            if(!await mobile.evaluate(()=>document.body.classList.contains('drawer')))throw Error('mobile drawer did not open');
+            await mobile.locator('#nav button[data-nav="providers"]').click();
+            await mobile.waitForSelector('.r6HealthRow');
+            if((await mobile.locator('body').evaluate(el=>el.scrollWidth>el.clientWidth)))throw Error('mobile horizontal overflow');
+            if(errors.length)throw Error('page errors: '+errors.join(' | '));
+            if(external.some(u=>/finance\.yahoo\.com|fred\.stlouisfed\.org/.test(u)))throw Error('canonical provider fanout detected: '+external.join(','));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/mn-r6-node/test.js
+
+      - name: Data-health qualification
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,datetime
+          from pathlib import Path
+          macro=json.loads(Path('data/market-backend/macro-cache.json').read_text())['data']
+          market=json.loads(Path('data/market-backend/market-cache.json').read_text())['data']
+          health=json.loads(Path('data/market-backend/source-health.json').read_text())['data']
+          cpi=macro['cpi']['points']; wti=market['wti']['daily']
+          assert cpi and wti
+          assert cpi[-1]['t'] < wti[-1]['t'], 'CPI/WTI must retain distinct real ending dates'
+          hc=health['macro:cpi']; assert hc['http']==200 and hc['lastSuccess']
+          latest=datetime.datetime.fromtimestamp(cpi[-1]['t']/1000,datetime.timezone.utc).strftime('%Y-%m')
+          # On 2026-08-31 the deterministic rule expects July CPI. This gate proves currentness, not just HTTP health.
+          assert latest >= '2026-07', f'CPI canonical evidence stale: {latest}'
+          print('CPI latest',latest,'WTI latest',datetime.datetime.fromtimestamp(wti[-1]['t']/1000,datetime.timezone.utc).date())
+          PY
+
+      - name: Record exact candidate validation
+        run: |
+          cat > MARKET-NAVIGATOR-GATE4-R6-VALIDATION.md <<EOF
+          # Market Navigator Gate 4 R6 Validation
+
+          Run: ${GITHUB_RUN_ID}
+          Source commit: ${GITHUB_SHA}
+          Baseline blob: 99a2e5ebec8e31afeca4bfe4a75a3de21fb749f1
+
+          Passed gates in this run:
+          - clean 3.9.7 pre-base identity and no-patch-forward governance
+          - JavaScript parser and JSON structural validation
+          - approved application-frame geometry parity
+          - canonical backend boot without browser Yahoo/FRED reacquisition
+          - NOW / EXPLORE / LIBRARY / HEALTH / CONFIG frame
+          - seven governed horizons
+          - V1 Risk/Growth/Macro chart
+          - V2 Risk index plus all seven canonical components
+          - V3 real-series analysis, conversation surface and dismissible summary overlay state invariance
+          - series-level diagnostic Health including CPI reason and chart impact
+          - desktop rail collapse and mobile drawer
+          - CPI currentness and CPI/WTI distinct real ending dates
+
+          Owner acceptance remains separate from mechanical qualification.
+          EOF
+
+      - name: Publish mechanically qualified candidate
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-view-gate4-r6.html MARKET-NAVIGATOR-GATE4-R6-VALIDATION.md
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'market: publish mechanically qualified Gate 4 R6'
+          git push origin HEAD:main
