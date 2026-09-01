@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.6.0 -->
-# PRISM MASTER PLAN v2.6.0
+<!-- PRISM-PLAN v2.7.0 -->
+# PRISM MASTER PLAN v2.7.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -146,6 +146,20 @@ Required sizing law:
 - Recency buckets must likewise produce meaningful area differences;
 - preserve usable treemap hierarchy and avoid one extreme tile consuming the entire map.
 
+## ACTIVE WORKSTREAM 5 — Truthful custom-source ingestion
+Owner testing of R7 proved that Config → Sources → Add source was a metadata-only control. It stored the source in browser configuration but never fetched or parsed the feed, never merged its articles into the canonical corpus, and therefore could not expose the source in the active source inventory, Source filter or event provenance.
+
+Required behavior:
+- a custom RSS, Atom, JSON or public API source appears in the source inventory immediately when added;
+- PRISM fetches it on add and refreshes configured custom sources on startup;
+- RSS/Atom XML and supported JSON article arrays normalize into the existing Source Article schema before Event canonicalization;
+- successfully ingested articles join Map, Explore, Feed, reader provenance, search, Source grouping/filtering and AI evidence without creating a separate state universe;
+- custom source articles persist on the device so an established source can remain available as explicitly marked cached content when a later refresh fails;
+- each custom source reports fetching, ready, cached or failed status plus article/event counts; configuration success may never be presented as ingestion success;
+- direct browser fetch is attempted first; when blocked by cross-origin policy, the existing static deployment may use an explicitly disclosed compatibility relay and must report that mode;
+- Refresh and Remove are source-local, with removal deleting that source's cached articles and recomputing the corpus without disturbing other sources or Library Analyses;
+- duplicate source names and duplicate URLs are rejected rather than silently creating ambiguous Source identities.
+
 ## This gate is explicitly NOT an Explore redesign
 Explore consumes the corrected shared dimensions/filters and color encoding, but its baseline layout/geometry remains untouched for this gate.
 
@@ -161,9 +175,11 @@ R6 established the portal, Analysis → Library path, and compact dynamic filter
 - Artifact: `prism/prism-turn01-pre-ship-r7.html`
 - Application commit: `17c27b402bcbb04b3f80cc07e2a0ebc78c768a85`
 - Blob: `c12e254450f724e9b3d0fdcd4c13867d7603279f`
-- Status: **STATIC/FUNCTIONAL VALIDATION PASSED — LIVE BROWSER / OWNER TEST PENDING**
+- Status: **REJECTED — CUSTOM SOURCE CONTROL SAVED METADATA WITHOUT INGESTING CONTENT**
 
 R7 corrects selected-Source group identity, applies deliberately separated governed Size weights, adds geometry-tolerant richer Map labels, and replaces the R6 Library list presentation with the governed self-contained Library research portal. Explore geometry, global AI placement, Config placement, Portal shell and reader architecture remain unchanged.
+
+Owner testing then exposed a separate source-acquisition defect: Add source confirmed configuration even though no feed request, parsing, normalization or corpus merge existed. R7 remains preserved as the exact rejected artifact; the correction proceeds in R8.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -204,7 +220,9 @@ The next candidate is acceptable only if:
 16. each Analysis downloads as JSON and CSV, and Config imports/merges both formats non-destructively;
 17. AI prompt policy requires direct URLs for every external reference/research suggestion and excludes paywalled references except WSJ;
 18. Map, Feed, Sources, AI/provider configuration, reader, selection and Library do not regress;
-19. Explore remains the baseline visualization for this gate.
+19. Explore remains the baseline visualization for this gate;
+20. adding a valid custom RSS/Atom or JSON source fetches and normalizes its articles, exposes truthful status/counts, and makes the source available throughout the shared corpus and Source controls;
+21. a custom source refresh failure is visible and cannot masquerade as successful ingestion; cached fallback, retry and removal behave non-destructively.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.

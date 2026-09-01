@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.3.0 -->
-# PRISM GRAVEYARD v2.3.0
+<!-- PRISM-GRAVEYARD v2.4.0 -->
+# PRISM GRAVEYARD v2.4.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -15,6 +15,7 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 - no patching legacy prototypes into PRISM;
 - no unexplained visual encoding;
 - no controls without actual filtering;
+- no source-add control that saves configuration without ingesting or truthfully failing;
 - no reader underlap;
 - no per-tab analytical control systems;
 - no anonymous-dot Explore objects;
@@ -67,6 +68,13 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **Observed:** Library remained a flat export/import list and reopened saved work in the global AI drawer. That model blurred saved research with Map/Explore state and required leaving Library to continue the conversation.
 **VETO:** Library may not inherit persistent Group/Color/Size/filter controls, reopen saved work in the event reader/global AI drawer, or require returning to another surface to read or continue a saved Analysis.
 **Replacement:** a Library-local left rail with Omnisearch and Analysis cards plus an independent analysis/conversation work surface with a persistent bottom composer.
+
+## G31 · Metadata-only custom source
+**Origin:** R7 Config → Sources → Add source.
+**Observed:** the control saved name, URL and type to local configuration and displayed “Source configuration added,” but the application booted exclusively from the fixed repository cache. The custom feed was never fetched, parsed, normalized or merged, so it could not appear in active Sources or contribute events.
+**Root cause:** source configuration was mistaken for source acquisition, and the UI confirmed the former without disclosing the absence of the latter at the action point.
+**VETO:** a source-add action may not claim success unless the source is immediately represented with truthful ingestion status. Metadata-only source controls are prohibited.
+**Replacement:** fetch on add and startup; normalize RSS/Atom/JSON articles into the shared corpus; persist successful custom articles; expose ready/cached/error status and counts; provide source-local retry and removal.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`
