@@ -57,7 +57,28 @@ remove_windows_profile(){
   printf '%s' "$profile" | "$POWERSHELL" -NoProfile -NonInteractive -Command '
     $p=[Console]::In.ReadToEnd()
     if([string]::IsNullOrWhiteSpace($p)){exit 2}
-    for($i=0;$i -lt 12 -and (Test-Path -LiteralPath $p);$i++){
+    function Get-ProfileProcess {
+      @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+          $_.CommandLine -and
+          $_.CommandLine.IndexOf($p,[StringComparison]::OrdinalIgnoreCase) -ge 0
+        })
+    }
+    for($i=0;$i -lt 20;$i++){
+      $procs=@(Get-ProfileProcess)
+      if($procs.Count -eq 0){break}
+      foreach($proc in $procs){
+        Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+      }
+      Start-Sleep -Milliseconds 250
+    }
+    $remaining=@(Get-ProfileProcess)
+    if($remaining.Count -gt 0){
+      $ids=($remaining|ForEach-Object{$_.ProcessId}) -join ","
+      Write-Error "browser profile processes remained: $ids"
+      exit 4
+    }
+    for($i=0;$i -lt 40 -and (Test-Path -LiteralPath $p);$i++){
       try{Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop}catch{}
       if(Test-Path -LiteralPath $p){Start-Sleep -Milliseconds 250}
     }
