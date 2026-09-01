@@ -221,11 +221,18 @@ Owner review corrected the portal control ownership: the hamburger was placed in
 
 ## R10 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r10.html`
-- Application commit: **PENDING DEPLOYMENT**
-- Blob: **PENDING DEPLOYMENT**
-- Status: **ACTIVE CORRECTION CANDIDATE — LEFT-RAIL TOGGLE OWNERSHIP**
+- Application commit: `01a6e026c52f38b7986d01ae2e237e863d3fc8c4`
+- Blob: `6e8219577693e1b6244c64269740e80bb9ff1325`
+- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R10 moves the hamburger into the left rail header. Its sole action is to collapse or expand that rail. The collapsed state retains a narrow rail strip containing the same toggle so the user can reopen it on desktop and mobile; the toggle exposes truthful expand/collapse title, label and `aria-expanded` state. The global top header no longer contains a portal toggle. Map, Explore, Feed, AI, Config, Sources and Library behavior remain unchanged.
+
+Deployed qualification at application commit `01a6e026c52f38b7986d01ae2e237e863d3fc8c4`:
+- deployed inline JavaScript parses successfully;
+- exactly one hamburger exists and it is a descendant of the left portal rail;
+- the global top header contains no hamburger;
+- collapse and expand produce the matching title, accessible label and `aria-expanded` state;
+- collapsed desktop and mobile rules retain the 44-pixel rail strip containing the toggle.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
