@@ -156,6 +156,9 @@ function allowedForStage(state, governingStage, bankedAuthorized) {
     statePath.add('talkbridge/build/governance-gate.test.mjs');
   } else if (['candidate_ready', 'device_gate', 'accepted'].includes(governingStage)) {
     statePath.add('talkbridge/governance/evidence/');
+    /* The closing transition (device_gate → accepted) may carry the release
+       rule that lets the gate stand down once the cycle is closed. */
+    if (governingStage === 'device_gate' && state.stage === 'accepted') { statePath.add('talkbridge/build/governance-gate.mjs'); statePath.add('talkbridge/build/governance-gate.test.mjs'); }
   }
   return statePath;
 }
@@ -168,6 +171,13 @@ function allowedPath(allowed, rel) {
 export function validateSnapshot({ root, changedFiles = [], previousState = null, bootstrap = false }) {
   const errors = [];
   const state = readJson(root, STATE_PATH);
+  /* A closed cycle governs nothing: once the banked state is `accepted`, the
+     R10 recovery is over and the next release owns these paths under its own
+     plan. The state file itself may not be rewound. */
+  if (previousState && previousState.stage === 'accepted') {
+    if (state && state.stage !== 'accepted') errors.push('a closed R10 cycle cannot be reopened in place; open a new cycle file');
+    return { state, errors, closed: true };
+  }
 
   assert(state.schema === 1, 'unsupported governance schema', errors);
   assert(/^r10-recovery-\d{4}-\d{2}-\d{2}[a-z]?$/.test(String(state.cycle)), 'unexpected R10 recovery cycle', errors);

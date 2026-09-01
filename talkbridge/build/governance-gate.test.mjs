@@ -218,3 +218,17 @@ test('before GO is banked the proposal may be revised; after GO it may not', () 
   const bad = validateSnapshot({ root, changedFiles: ['talkbridge/governance/r10-cycle.json', 'talkbridge/TALKBRIDGE-PLAN-v9.md'], previousState: authorized });
   assert.match(bad.errors.join('\n'), /out of order for owner_go_required: talkbridge\/TALKBRIDGE-PLAN-v9.md/);
 });
+
+test('a closed (accepted) cycle governs nothing except its own state', () => {
+  const root = fixture();
+  const previous = JSON.parse(fs.readFileSync(path.join(root, 'talkbridge/governance/r10-cycle.json'), 'utf8'));
+  previous.stage = 'accepted'; previous.candidate.status = 'accepted';
+  mutateJson(root, state => { state.stage = 'accepted'; state.candidate.status = 'accepted'; });
+  fs.appendFileSync(path.join(root, 'talkbridge/worker-talk.js'), '\n/* turn25 */\n');
+  fs.appendFileSync(path.join(root, 'talkbridge/TALKBRIDGE-PLAN-v9.md'), '\nturn25\n');
+  const ok = validateSnapshot({ root, changedFiles: ['talkbridge/worker-talk.js', 'talkbridge/TALKBRIDGE-PLAN-v9.md'], previousState: previous });
+  assert.deepEqual(ok.errors, []);
+  mutateJson(root, state => { state.stage = 'device_gate'; });
+  const bad = validateSnapshot({ root, changedFiles: ['talkbridge/governance/r10-cycle.json'], previousState: previous });
+  assert.match(bad.errors.join('\n'), /cannot be reopened/);
+});
