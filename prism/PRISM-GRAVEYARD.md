@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.4.0 -->
-# PRISM GRAVEYARD v2.4.0
+<!-- PRISM-GRAVEYARD v2.5.0 -->
+# PRISM GRAVEYARD v2.5.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -75,6 +75,13 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **Root cause:** source configuration was mistaken for source acquisition, and the UI confirmed the former without disclosing the absence of the latter at the action point.
 **VETO:** a source-add action may not claim success unless the source is immediately represented with truthful ingestion status. Metadata-only source controls are prohibited.
 **Replacement:** fetch on add and startup; normalize RSS/Atom/JSON articles into the shared corpus; persist successful custom articles; expose ready/cached/error status and counts; provide source-local retry and removal.
+
+## G32 · Runtime-derived default source inventory
+**Origin:** R8 source persistence and Sources inventory.
+**Observed:** the nine established repository sources were inferred only from loaded articles/events. A persisted state that disabled all defaults could therefore make the Source filter appear empty, and the R8 source-article store required upgrading the shared PRISM IndexedDB from v3 to v4. An older open tab could block that upgrade and strand startup before any source inventory rendered.
+**Root cause:** permanent product defaults were treated as an incidental property of successfully loaded runtime data, and a source-cache implementation detail was coupled to the shared application database schema.
+**VETO:** default source identity may not depend on cache success, current event coverage or a shared-database version upgrade. Persisted filter state may disable defaults but may not remove their inventory identity.
+**Replacement:** explicit governed default inventory; one-time repair of the all-hidden legacy state; visible Restore defaults control; isolated source-article database with legacy migration.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`

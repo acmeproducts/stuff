@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.7.0 -->
-# PRISM MASTER PLAN v2.7.0
+<!-- PRISM-PLAN v2.8.0 -->
+# PRISM MASTER PLAN v2.8.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -185,7 +185,7 @@ Owner testing then exposed a separate source-acquisition defect: Add source conf
 - Artifact: `prism/prism-turn01-pre-ship-r8.html`
 - Application commit: `2499dc68169ce27f7ca431a4f36c0736218d9803`
 - Blob: `8aa25482879705c95dfcf28ad560b43f55d46ac5`
-- Status: **DEPLOYED FUNCTIONAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **REJECTED FOR CORRECTION — DEFAULT SOURCE INVENTORY COULD DISAPPEAR IN PERSISTED STATE**
 
 R8 replaces the metadata-only Add source path with live custom-source acquisition. Existing R7 custom-source configurations migrate forward and refresh automatically. Add + fetch, startup refresh, RSS/Atom and common JSON normalization, shared-corpus recomputation, device article persistence, direct/repository-cache/relay mode disclosure, status/count truthfulness, duplicate protection, retry and non-destructive removal are implemented without changing Explore, AI, Config placement, Portal, reader or Library architecture.
 
@@ -196,6 +196,18 @@ Deployed qualification at application commit `2499dc68169ce27f7ca431a4f36c073621
 - a same-origin JSON source reported `ready · direct` with 250 normalized articles;
 - source-local removal deleted the JSON source while preserving the RSS source and shared corpus;
 - application console warning/error log remained empty.
+
+Owner testing then exposed that the default source set was runtime-derived and could disappear from the Source surface when an older persisted configuration had disabled every default. R8 also coupled the new source-article store to a version upgrade of the shared PRISM database; an older open tab could block that upgrade and leave startup at an empty source state. R8 remains preserved as the exact rejected artifact; the correction proceeds in R9.
+
+## R9 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r9.html`
+- Application commit: **PENDING DEPLOYMENT**
+- Blob: **PENDING DEPLOYMENT**
+- Status: **ACTIVE CORRECTION CANDIDATE — DEFAULT SOURCE INVARIANT**
+
+R9 makes the nine repository sources an explicit permanent inventory independent of cache/runtime availability. A one-time source-configuration migration restores all nine when the prior R8 state had hidden every default, while later deliberate Disable all choices remain persistent under the new schema. Sources exposes an explicit Restore defaults action and distinguishes default loading/cache/unavailable status truthfully.
+
+Source-article persistence moves to an isolated `prism_sources` database. The existing shared PRISM database is opened without a version upgrade, so an older open tab cannot block startup merely because R9 needs source storage. Existing R8 source articles migrate forward when available. Explore, AI, Config placement, Portal, reader and Library architecture remain unchanged.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -239,6 +251,7 @@ The next candidate is acceptable only if:
 19. Explore remains the baseline visualization for this gate;
 20. adding a valid custom RSS/Atom or JSON source fetches and normalizes its articles, exposes truthful status/counts, and makes the source available throughout the shared corpus and Source controls;
 21. a custom source refresh failure is visible and cannot masquerade as successful ingestion; cached fallback, retry and removal behave non-destructively.
+22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
