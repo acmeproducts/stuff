@@ -37,7 +37,7 @@ def main():
   for h in H:
    rows=[]; omitted=[]; t0_anchor=starts[h]
    if not t0_anchor:
-    horizons[h]={'status':'unavailable','reason':'common market anchor lacks horizon history'}; usable.append(False); continue
+    horizons[h]={'status':'unavailable','reason':'common market anchor lacks horizon history','componentsUsed':0,'componentsDefined':len(comps),'componentCoverage':0}; usable.append(False); continue
    for c in comps:
     sid=c['id']; sp=SERIES/f'{sid}.json'
     if not sp.exists(): omitted.append({'id':sid,'reason':'canonical evidence file missing'}); continue
@@ -47,24 +47,26 @@ def main():
       omitted.append({'id':sid,'reason':'insufficient canonical history at common horizon anchors'}); continue
     t0=float(p0['v']); now=float(p1['v'])
     if not math.isfinite(t0) or not math.isfinite(now) or t0<=0:
-      omitted.append({'id':sid,'reason':'nonpositive or invalid baseline; ratio rebasing not meaningful'}); continue
+      omitted.append({'id':sid,'reason':'nonpositive or invalid baseline; ratio rebasing not meaningful under the canonical definition'}); continue
     oriented=100 + int(c['direction'])*((now/t0)-1)*100
     rows.append({'id':sid,'direction':int(c['direction']),'commonT0':iso_ms(t0_anchor),'sourceT0Date':iso_ms(p0['t']),'t0Value':t0,'commonNow':iso_ms(anchor),'sourceNowDate':iso_ms(p1['t']),'nowValue':now,'orientedIndex':oriented,'moveFrom100':oriented-100,'health':health.get('series',{}).get(sid,{}).get('classification','unknown'),'noNewReleaseInHorizon':p0['t']==p1['t']})
-   n=len(rows); needed=max(5,len(comps)-1); value=statistics.fmean([x['orientedIndex'] for x in rows]) if rows else None
+   n=len(rows); value=statistics.fmean([x['orientedIndex'] for x in rows]) if rows else None
    abs_moves=[abs(x['moveFrom100']) for x in rows]; total=sum(abs_moves); concentration=(max(abs_moves)/total if total else 0.0) if rows else None
    health_bad=[x for x in rows if x['health'] not in ('current','expected-lag')]
-   status='unavailable' if n<needed else ('degraded' if omitted or health_bad else 'current')
+   # Canonical definition explicitly says arithmetic mean of available components and contains no minimum-count rule.
+   # Do not invent one here. Any governed omission makes the result degraded and is exposed in metadata.
+   status='unavailable' if n==0 else ('degraded' if omitted or health_bad else 'current')
    reasons=[]
-   if n<needed: reasons.append(f'only {n}/{len(comps)} components are mathematically usable; minimum {needed}')
+   if not rows: reasons.append('no component is mathematically usable under the canonical formula')
    if omitted: reasons.append('omitted: '+', '.join(x['id'] for x in omitted))
    if health_bad: reasons.append('non-current evidence: '+', '.join(x['id']+':'+x['health'] for x in health_bad))
    horizons[h]={'status':status,'value':value,'baseline':100,'commonT0':iso_ms(t0_anchor),'commonNow':iso_ms(anchor),'componentsUsed':n,'componentsDefined':len(comps),'componentCoverage':n/len(comps),'absoluteMoveConcentration':concentration,'components':rows,'omitted':omitted,'reasons':reasons}
    usable.append(status!='unavailable')
   results[ik]={'name':idef['name'],'higherMeans':idef.get('higher_means'),'horizons':horizons}
- out={'schema':'market-navigator-derived-indices-v1','version':'1.1.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'indices':results}
- out['coherence']={'allIndexHorizonsUsable':all(usable),'rule':'Every index uses one common market anchor and one common horizon start. Each component contributes its last actual published observation at or before each anchor; low-frequency series with no new release contribute 100, not a month-over-month move mislabeled as 1D/5D. At least 6 of 7 defined components must be mathematically usable; omissions are explicit and never substituted.'}; out['revision']=sha(out); write(OUT,out)
- if not out['coherence']['allIndexHorizonsUsable']:
+ out={'schema':'market-navigator-derived-indices-v1','version':'1.2.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'definitionVersion':d.get('version'),'commonMarketAnchor':iso_ms(anchor),'formula':d.get('display_contract',{}).get('index_formula'),'indices':results}
+ out['coherence']={'allIndexHorizonsComputable':all(usable),'rule':'Every index uses one common market anchor and one common horizon start. Each component contributes its last actual published observation at or before each anchor; low-frequency series with no new release contribute 100, not a month-over-month move mislabeled as 1D/5D. The canonical definition requires the arithmetic mean of available components and specifies no minimum component threshold. Every omission is explicit and causes degraded status; no substitute series or transformation is invented.'}; out['revision']=sha(out); write(OUT,out)
+ if not out['coherence']['allIndexHorizonsComputable']:
   bad=[f'{i}:{h}' for i,v in results.items() for h,x in v['horizons'].items() if x['status']=='unavailable']; raise SystemExit('Derived index coherence failed: '+', '.join(bad))
- print(json.dumps({'ok':True,'revision':out['revision'],'anchor':out['commonMarketAnchor'],'indices':{i:{h:{'status':x['status'],'value':round(x['value'],4) if x.get('value') is not None else None,'used':x.get('componentsUsed')} for h,x in v['horizons'].items()} for i,v in results.items()}},indent=2))
+ print(json.dumps({'ok':True,'revision':out['revision'],'anchor':out['commonMarketAnchor'],'indices':{i:{h:{'status':x['status'],'value':round(x['value'],4) if x.get('value') is not None else None,'used':x.get('componentsUsed'),'defined':x.get('componentsDefined')} for h,x in v['horizons'].items()} for i,v in results.items()}},indent=2))
 
 if __name__=='__main__': main()
