@@ -10,6 +10,7 @@ on:
       - 'market-navigator-r7-index-audit.py'
       - 'data/market-backend/data-catalog.json'
       - 'data/market-backend/derived-index-definition.json'
+      - 'data/market-backend/publication-rules.json'
       - '.github/workflows/market-evidence-pipeline.yml'
   workflow_dispatch:
     inputs:
@@ -49,13 +50,17 @@ jobs:
           assert c['canonical_horizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
           exp={
             'risk':[('spy',-1),('vix',1),('hySpread',1),('hyg',-1),('dxy',1),('move',1),('nfci',1)],
-            'growth':[('qqq',1),('copper',1),('smallCaps',1),('pmi',1),('wti',1),('unemployment',-1),('payrolls',1)],
+            'growth':[('qqq',1),('copper',1),('smallCaps',1),('manufacturingProduction',1),('wti',1),('unemployment',-1),('payrolls',1)],
             'macro':[('tenYear',1),('twoYear',1),('curve10y2y',1),('curve10y3m',1),('cpi',1),('corePce',1),('fedFunds',1)]}
           for k,v in exp.items():
               got=[(x['id'],x['direction']) for x in d['indices'][k]['components']]
               assert got==v,(k,got,v)
           ids={x['id'] for x in c['series']}
           assert set(sum(([x[0] for x in v] for v in exp.values()),[])) <= ids
+          pmi=next(x for x in c['series'] if x['id']=='pmi')
+          assert pmi['enabled'] is False and pmi['required'] is False,pmi
+          excluded=d['indices']['growth'].get('excluded_components') or []
+          assert excluded and excluded[0]['id']=='pmi' and excluded[0]['replacement_id']=='manufacturingProduction',excluded
           print('R7 accepted definitions reconciled')
           PY
 
@@ -76,10 +81,10 @@ jobs:
           m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
           h=json.loads(Path('market-evidence/health-envelope.json').read_text())
           assert m['canonicalHorizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
-          required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','pmi','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
+          required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','manufacturingProduction','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
           assert required <= set(m['series'])
           unavailable=sorted(x for x in required if m['series'][x]['status']=='unavailable')
-          assert set(unavailable) <= {'pmi'},'unexpected required series unavailable: '+','.join(unavailable)
+          assert not unavailable,'required series unavailable: '+','.join(unavailable)
           for sid in ('cpi','corePce','payrolls'):
               r=h['series'][sid]
               exp=r['latestPubliclyExpectedObservation'];act=r['actualLatestCanonicalObservation']
