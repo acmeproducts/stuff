@@ -1,20 +1,21 @@
-name: Market Navigator canonical evidence pipeline
+name: Market Navigator canonical evidence pipeline R7
 
 on:
   push:
     branches: [main]
     paths:
-      - 'market-navigator-data-pipeline.py'
-      - 'market-navigator-bootstrap-prep.py'
+      - 'market-navigator-r7-catalog-reconcile.py'
+      - 'market-navigator-r7-data-pipeline.py'
+      - 'market-navigator-r7-health.py'
       - 'data/market-backend/data-catalog.json'
-      - 'data/market-backend/data-catalog-amendment-v1.1.json'
+      - 'data/market-backend/derived-index-definition.json'
       - '.github/workflows/market-evidence-pipeline.yml'
   workflow_dispatch:
     inputs:
       bootstrap:
         description: Rebuild up to ten years of canonical source history
         required: false
-        default: false
+        default: true
         type: boolean
   schedule:
     - cron: "37 23 * * *"
@@ -23,58 +24,84 @@ permissions:
   contents: write
 
 concurrency:
-  group: market-navigator-canonical-evidence
+  group: market-navigator-canonical-evidence-r7
   cancel-in-progress: false
 
 jobs:
   evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply canonical provenance and historical bootstrap inputs
-        run: python3 market-navigator-bootstrap-prep.py
-      - name: Build canonical evidence store
-        env:
-          MARKET_NAVIGATOR_BOOTSTRAP: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap) && 'true' || 'false' }}
-        run: python3 market-navigator-data-pipeline.py
-      - name: Validate evidence contract
+
+      - name: Reconcile accepted R7 catalog and derived definitions
         run: |
+          set -euo pipefail
+          python3 market-navigator-r7-catalog-reconcile.py
           python3 - <<'PY'
           import json
           from pathlib import Path
           c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
-          m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
-          expected=c['canonical_horizons']
-          assert c['version']=='1.1.0'
-          assert expected==['1D','5D','1M','YTD','1Y','3Y','5Y']
-          assert m['schema']=='market-navigator-operational-manifest-v1'
-          ten=next(x for x in c['series'] if x['id']=='tenYear')
-          assert ten['provider']=='FRED' and ten['provider_identifier']=='DGS10'
-          for x in c['series']:
-              if not x.get('enabled',True): continue
-              sid=x['id']; s=m['series'][sid]
-              p=json.loads(Path('market-evidence/reports',sid+'.json').read_text())
-              assert set(p['reports'])==set(expected)
-              assert p['computedRevision']==s['computed_revision']
-              assert Path('market-evidence/series',sid+'.json').exists()
-          assert m['series']['tenYear']['bootstrap_complete'], '10Y canonical history incomplete'
-          assert m['series']['hySpread']['bootstrap_complete'], 'HY spread historical bootstrap incomplete'
-          assert all(m['series']['hySpread']['horizon_readiness'].values()), 'HY spread canonical horizons incomplete'
-          assert m['summary']['ready'], 'Canonical evidence acceptance still blocked: '+str(m['summary']['acceptanceBlockers'])
-          print('Canonical evidence ACCEPTED:',m['revision'])
+          d=json.loads(Path('data/market-backend/derived-index-definition.json').read_text())
+          assert c['canonical_horizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
+          exp={
+            'risk':[('spy',-1),('vix',1),('hySpread',1),('hyg',-1),('dxy',1),('move',1),('nfci',1)],
+            'growth':[('qqq',1),('copper',1),('smallCaps',1),('pmi',1),('wti',1),('unemployment',-1),('payrolls',1)],
+            'macro':[('tenYear',1),('twoYear',1),('curve10y2y',1),('curve10y3m',1),('cpi',1),('corePce',1),('fedFunds',1)]}
+          for k,v in exp.items():
+              got=[(x['id'],x['direction']) for x in d['indices'][k]['components']]
+              assert got==v,(k,got,v)
+          ids={x['id'] for x in c['series']}
+          assert set(sum(([x[0] for x in v] for v in exp.values()),[])) <= ids
+          print('R7 accepted definitions reconciled')
           PY
-      - name: Commit canonical evidence
+
+      - name: Build canonical evidence
+        env:
+          MARKET_NAVIGATOR_BOOTSTRAP: ${{ (github.event_name == 'schedule' && 'false') || 'true' }}
+        run: python3 market-navigator-r7-data-pipeline.py
+
+      - name: Build publication-aware Health envelope
+        run: python3 market-navigator-r7-health.py
+
+      - name: Validate backend truth
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,json
+          from pathlib import Path
+          c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
+          m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
+          h=json.loads(Path('market-evidence/health-envelope.json').read_text())
+          assert m['canonicalHorizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
+          required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','pmi','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
+          assert required <= set(m['series'])
+          unavailable=[x for x in required if m['series'][x]['status']=='unavailable']
+          assert not unavailable,'required series unavailable: '+','.join(sorted(unavailable))
+          for sid in ('cpi','corePce','payrolls'):
+              r=h['series'][sid]
+              exp=r['latestPubliclyExpectedObservation'];act=r['actualLatestCanonicalObservation']
+              assert not (exp and act and act<exp and r['classification']=='expected-lag'),(sid,r)
+          # CPI is mandatory: on/after the August release window, July reference-period evidence must be present.
+          today=datetime.datetime.now(datetime.timezone.utc).date()
+          if today.year==2026 and today.month>=8 and today.day>=16:
+              r=h['series']['cpi']; assert r['actualLatestCanonicalObservation']>='2026-07-31',r
+          # Canonical direct lines retain their own real ending dates.
+          cpi=json.loads(Path('market-evidence/series/cpi.json').read_text())
+          wti=json.loads(Path('market-evidence/series/wti.json').read_text())
+          assert cpi['last'] < wti['last'],'mixed-frequency direct evidence was stretched'
+          print('R7 backend truth ACCEPTED',m['revision'],h['summary'])
+          PY
+
+      - name: Commit reconciled canonical backend
+        run: |
+          set -euo pipefail
           git config user.name "market-evidence-bot"
           git config user.email "market-evidence-bot@users.noreply.github.com"
-          # bootstrap-prep intentionally materializes the amended canonical catalog;
-          # commit that generated definition together with its evidence so the
-          # worktree is clean before rebasing/publishing.
-          git add data/market-backend/data-catalog.json market-evidence
+          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json market-evidence
           if git diff --cached --quiet; then echo "No canonical evidence changes."; exit 0; fi
-          git commit -m "data: refresh canonical Market Navigator evidence"
+          git commit -m "data: reconcile Market Navigator R7 canonical evidence"
           git pull --rebase origin main
           git push origin HEAD:main
