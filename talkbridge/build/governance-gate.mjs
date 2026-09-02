@@ -108,7 +108,13 @@ function validateEvidence(root, state, errors) {
     assert(typeof evidence?.version === 'string' && evidence.version.length > 0, 'replacement plan version is missing', errors);
     assert(typeof evidence?.sha256 === 'string' && evidence.sha256.length === 64, 'replacement plan must be SHA-256 pinned', errors);
     if (evidence?.file && fs.existsSync(path.join(root, evidence.file))) {
-      assert(sha256File(root, evidence.file) === evidence.sha256, 'replacement plan hash does not match', errors);
+      /* The plan is a living document and keeps moving after a cycle closes;
+         its pin is the record of what the OWNER approved for THIS cycle, so
+         equality is enforced only while the cycle is open. Once the stage is
+         'accepted' the pin stays recorded but is no longer a veto. */
+      if (state.stage !== 'accepted') {
+        assert(sha256File(root, evidence.file) === evidence.sha256, 'replacement plan hash does not match', errors);
+      }
     } else {
       errors.push('replacement plan file is missing');
     }

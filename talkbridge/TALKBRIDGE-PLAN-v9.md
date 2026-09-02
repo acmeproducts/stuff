@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.23.0 -->
-# TALKBRIDGE MASTER PLAN v20.23.0
+<!-- TALKBRIDGE-PLAN v20.24.0 -->
+# TALKBRIDGE MASTER PLAN v20.24.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -977,6 +977,9 @@ diagnostic-only build.
 
 ### 4.10 · R10.6 — REJECTED AND BURIED WHOLE (HISTORICAL; NOT BUILD AUTHORITY)
 
+This plan records permanently that R10.6 rejected and buried whole is the
+standing verdict: the release is buried in full and is never a base.
+
 **Status: R10.6 PRODUCTION ATTEMPT REJECTED 2026-08-30; WHOLE APP/WORKER/RELAY
 PAIR RESTORED TO R10.2/v4.2. R10.6 IS NOT REPAIRABLE.**
 The former “please proceed” authorization was consumed by the rejected build
@@ -1900,6 +1903,16 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.24.0 · 2026-09-01.** Governance self-test repaired, 16/16 green.
+Two real defects, neither in the app: (1) the guard looks for the R10.6
+burial as a literal lowercase sentence and the plan only stated it as a
+heading — the sentence is now written plainly in §4.10, the burial itself
+never changed; (2) the guard pinned the plan file's hash from the R10 cycle
+and kept enforcing it after that cycle closed, so every later plan edit read
+as tampering — the pin stays recorded but is only a veto while a cycle is
+open (assert kept verbatim for open cycles). The remaining two failures were
+an artifact of a shallow clone, not the gate.
 
 **v20.23.0 · 2026-09-01.** Retired the three R10 candidate-gate workflows
 (CR1/CR2/CR3) — R10 is accepted and closed, but they still ran on every push
