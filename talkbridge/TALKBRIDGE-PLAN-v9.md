@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.18.0 -->
-# TALKBRIDGE MASTER PLAN v20.18.0
+<!-- TALKBRIDGE-PLAN v20.19.0 -->
+# TALKBRIDGE MASTER PLAN v20.19.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -69,9 +69,13 @@ built yet.
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
 | 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 BUILT 2026-08-31 (owner GO "Go"): machine 4/4, 4 planted defects caught, relay/worker gates green; awaiting owner light check (§5c) | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | Android alert presentation + PRISM scope un-hijack + #653 rejoin-thread + #650 video layout + B-8c invite name (owner directives 2026-09-01; scope §5.1) | Planned — owner GO required | — |
-| 25·ship | R12 — multi-party | Not started | — |
-| 25·post-ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
+| 25·pre-ship | Notifications close-out — everything outstanding: Android alert presentation (§5.1) + the five unproven sheet rows | Planned — owner GO required | — |
+| 25·ship | PRISM scope un-hijack (§5.2) | Planned | — |
+| 25·post-ship | Call & video experience (§5.3): caller mute + call screen + ring-back, synced timers (B-8a), WhatsApp-grade video (#650 expanded), screen share (desktop-gated) | Planned | — |
+| 26·pre-base | Snapshot of accepted 25·post-ship | — | — |
+| 26·base | Multi-user | Not started | — |
+| 26·pre-ship | IndexedDB storage migration (§7 R12b) | Not started | — |
+| 26·ship | Code refactor — tight, non-redundant codebase; LAST before pilot | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -309,7 +313,7 @@ relay. Build support: `talkbridge/parts/r11-0-log-fidelity.js`,
 `talkbridge/build/assemble-r11-0.mjs`, `talkbridge/build/harness-r11-0.mjs`,
 `talkbridge/build/mutate-r11-0.mjs`, `package.json` scripts.
 
-## 5.1 · RELEASE — TURN25 PRE-SHIP: ANDROID ALERT PRESENTATION + PRISM SCOPE UN-HIJACK (OWNER GO REQUIRED)
+## 5.1 · 25·PRE-SHIP — NOTIFICATIONS CLOSE-OUT (OWNER GO REQUIRED)
 
 **Problem (r10-cr3 acceptance, finding 2):** Android alerts arrive as a
 generic bell icon and a dot in the shade — no heads-up banner.
@@ -341,6 +345,13 @@ generic bell icon and a dot in the shade — no heads-up banner.
   banner behavior recorded in both channel states; the five unproven sheet
   rows (2/3/7/8 Android, 13 Android→iPhone) read from the now-foldable log.
 
+**Sequencing:** builds on turn25-base after the owner's light check of
+R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker,
+accepted files untouched (rule 0c). Nothing but notifications in this
+release (owner, 2026-09-01).
+
+## 5.2 · 25·SHIP — PRISM SCOPE UN-HIJACK (OWNER GO REQUIRED)
+
 **Part 2 — PRISM scope un-hijack (owner directive 2026-09-01):**
 - Root cause (proven, G25): root-hosted app + manifest with no explicit scope
   claims all of `/stuff/`; every sibling app (PRISM) opens inside TalkBridge.
@@ -364,9 +375,38 @@ generic bell icon and a dot in the shade — no heads-up banner.
   standing name but can be overridden per room; the invite/QR carries that
   room's name (owner ruling of 2026-08-16 as written in §2e).
 
-**Sequencing:** builds on turn25-base after the owner's light check of
-R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker
-under the new folder, accepted files untouched (rule 0c).
+
+## 5.3 · 25·POST-SHIP — CALL & VIDEO EXPERIENCE (OWNER SPEC 2026-09-01, verbatim intent)
+
+**Placing a call (voice AND video):**
+- The microphone is MUTED while placing the call.
+- A call screen appears and a ringing (ring-back) sound plays for the caller
+  — you are making a call and it must feel like one.
+- Timers sync as part of this work: both sides anchor the clock to the
+  accept (B-8a folds in here).
+
+**Video — behave like WhatsApp (#650 expanded by owner):**
+- Back button → 9:16 full-size view collapses to PiP: a very small inlay,
+  call stays ACTIVE — the user can check email or browse while the video
+  stays visible. No transcript in PiP, video only.
+- Full-size mode: tapping the large OR the small video swaps them.
+- The small video is draggable across the ENTIRE screen surface, not
+  confined to the video pane — and may sit partially off-screen with only a
+  sliver visible, draggable back (WhatsApp behavior).
+- Full-size mode must offer camera swap (front/back).
+- PiP mode offers exactly two controls: a diagonal double-arrow to expand
+  back to full size, and an X that ends the video call.
+
+**Screen share (builder recommendation, owner asked):**
+- Implemented as a swap of the outgoing video track behind a "Share screen"
+  control; control shown ONLY where the browser supports display capture.
+- Platform fact (sourced 2026-09-01): screen capture is desktop-only on the
+  web — iOS Safari and Android Chrome do not support it. Phones never see
+  the control; laptop/desktop users get it. Re-verify support at build time
+  (platform knowledge is stale by default).
+
+**Unassigned backlog remains:** #653 rejoin-declined-thread, B-8c invite
+name, B-8b live rename, declarative web push — scheduled only by owner.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
@@ -1842,6 +1882,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.19.0 · 2026-09-01.** Owner release ladder restructure: 25·pre-ship =
+notifications close-out ONLY; 25·ship = PRISM un-hijack (§5.2); 25·post-ship
+= call & video experience (§5.3: caller mute + call screen + ring-back,
+synced timers/B-8a, WhatsApp-grade video, desktop-gated screen share);
+turn26 = multi-user → IndexedDB → code refactor (last before pilot).
+#653/B-8c pulled back out of the near release into unassigned backlog.
 
 **v20.18.0 · 2026-09-01.** Correction: B-8a is NOT addressed — verified in
 the live build (caller clock at placement, callee at accept). Reopened in
