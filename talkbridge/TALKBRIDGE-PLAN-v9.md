@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.19.0 -->
-# TALKBRIDGE MASTER PLAN v20.19.0
+<!-- TALKBRIDGE-PLAN v20.20.0 -->
+# TALKBRIDGE MASTER PLAN v20.20.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -66,16 +66,17 @@ built yet.
 | 24·base | R8a — chat surface & chrome | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-base.html |
 | 24·pre-ship | R8b — call surface | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-pre-ship.html |
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
-| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
-| 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 BUILT 2026-08-31 (owner GO "Go"): machine 4/4, 4 planted defects caught, relay/worker gates green; awaiting owner light check (§5c) | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | Notifications close-out — everything outstanding: Android alert presentation (§5.1) + the five unproven sheet rows | Planned — owner GO required | — |
-| 25·ship | PRISM scope un-hijack (§5.2) | Planned | — |
-| 25·post-ship | Call & video experience (§5.3): caller mute + call screen + ring-back, synced timers (B-8a), WhatsApp-grade video (#650 expanded), screen share (desktop-gated) | Planned | — |
-| 26·pre-base | Snapshot of accepted 25·post-ship | — | — |
-| 26·base | Multi-user | Not started | — |
+| 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
+| 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
+| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | R11.0 part BUILT and device-confirmed; remainder planned — owner GO required | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·pre-ship | PRISM scope un-hijack (§5.2) | Planned | — |
+| 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
+| 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
+| 26·pre-base | = accepted 25·post-ship, byte-identical snapshot | — | — |
+| 26·base | Multi-user (§6) | Not started | — |
 | 26·pre-ship | IndexedDB storage migration (§7 R12b) | Not started | — |
-| 26·ship | Code refactor — tight, non-redundant codebase; LAST before pilot | Not started | — |
+| 26·ship | Code refactor — tight, non-redundant codebase; LAST build release | Not started | — |
+| 26·post-ship | R13 — remaining secret migration Phase B (governed, owner explicit go), then PILOT | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -313,7 +314,7 @@ relay. Build support: `talkbridge/parts/r11-0-log-fidelity.js`,
 `talkbridge/build/assemble-r11-0.mjs`, `talkbridge/build/harness-r11-0.mjs`,
 `talkbridge/build/mutate-r11-0.mjs`, `package.json` scripts.
 
-## 5.1 · 25·PRE-SHIP — NOTIFICATIONS CLOSE-OUT (OWNER GO REQUIRED)
+## 5.1 · 25·BASE — NOTIFICATIONS, COMPLETE (OWNER LOCK 2026-09-01; GO REQUIRED)
 
 **Problem (r10-cr3 acceptance, finding 2):** Android alerts arrive as a
 generic bell icon and a dot in the shade — no heads-up banner.
@@ -345,12 +346,21 @@ generic bell icon and a dot in the shade — no heads-up banner.
   banner behavior recorded in both channel states; the five unproven sheet
   rows (2/3/7/8 Android, 13 Android→iPhone) read from the now-foldable log.
 
-**Sequencing:** builds on turn25-base after the owner's light check of
-R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker,
-accepted files untouched (rule 0c). Nothing but notifications in this
-release (owner, 2026-09-01).
+**Also in this release (owner lock 2026-09-01):**
+- R11.0 log fidelity formally closes here — already device-confirmed
+  (Android export: folded lines with n/last, session fits buffer); it is
+  gated together with this release in ONE device session, never separately.
+- iPhone silence (no sound on arrival) — instrument and resolve.
+- Declarative web push (iOS 18.4+): the push payload carries the alert so
+  the OS shows it without waking the worker.
+- #653 — rejoin a declined room: fourth option on the left-rail clock
+  long-press, "Join thread" — camera (QR) or paste-a-URL.
 
-## 5.2 · 25·SHIP — PRISM SCOPE UN-HIJACK (OWNER GO REQUIRED)
+**Sequencing:** builds on the R11.0 turn25-base bytes. Output:
+`bridge-turn25-base.html` (this stage's artifact) + versioned worker;
+accepted files untouched (rule 0c).
+
+## 5.2 · 25·PRE-SHIP — PRISM SCOPE UN-HIJACK (OWNER GO REQUIRED)
 
 **Part 2 — PRISM scope un-hijack (owner directive 2026-09-01):**
 - Root cause (proven, G25): root-hosted app + manifest with no explicit scope
@@ -376,7 +386,7 @@ release (owner, 2026-09-01).
   room's name (owner ruling of 2026-08-16 as written in §2e).
 
 
-## 5.3 · 25·POST-SHIP — CALL & VIDEO EXPERIENCE (OWNER SPEC 2026-09-01, verbatim intent)
+## 5.3 · 25·SHIP — CALL & VIDEO EXPERIENCE (OWNER SPEC 2026-09-01, verbatim intent)
 
 **Placing a call (voice AND video):**
 - The microphone is MUTED while placing the call.
@@ -384,6 +394,11 @@ release (owner, 2026-09-01).
   — you are making a call and it must feel like one.
 - Timers sync as part of this work: both sides anchor the clock to the
   accept (B-8a folds in here).
+- B-8b folds in: a room rename reaches a partner sitting in the open room
+  menu live, without exiting it.
+- B-8c folds in: room creation gets a name field that suggests the standing
+  name but can be overridden per room; the invite/QR carries that room's
+  name (owner ruling 2026-08-16).
 
 **Video — behave like WhatsApp (#650 expanded by owner):**
 - Back button → 9:16 full-size view collapses to PiP: a very small inlay,
@@ -405,8 +420,9 @@ release (owner, 2026-09-01).
   the control; laptop/desktop users get it. Re-verify support at build time
   (platform knowledge is stale by default).
 
-**Unassigned backlog remains:** #653 rejoin-declined-thread, B-8c invite
-name, B-8b live rename, declarative web push — scheduled only by owner.
+**Backlog: NONE.** Every item is assigned in the §0 ledger (owner lock
+2026-09-01). 11.7 rides here (video surface, DO-NOT-BREAK rule attached);
+R11 layout items 11.1–11.6/11.8/11.9 are 25·post-ship.
 
 ## 4 · RELEASE 10 — POST-SHIP
 
@@ -1647,6 +1663,8 @@ are not a starting point.
 | F3 | Broadcasting — list, message, scheduled | Idea |
 | F4 | Reminders | Idea |
 | F5 | Invites | Idea |
+| F6 | Room-scoped phrasebook pairs — a phrasebook that belongs to a room, not only the device | Idea (post-pilot) |
+| F7 | Phrasebook-informed translation — staged: exact-match bypass first (no new dependencies), then LLM-assisted for curated terms in novel sentences; pre-substitution and post-correction REJECTED by owner (broken-grammar risk) | Idea (post-pilot) |
 
 ---
 
@@ -1882,6 +1900,14 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.20.0 · 2026-09-01.** OWNER LOCK — final ladder, zero backlog:
+25·base notifications-complete (log fidelity closes here, one gate; #652,
+iPhone silence, five rows, declarative push, #653); 25·pre-ship PRISM;
+25·ship call & video (owner spec + B-8a/B-8b/B-8c + #650 + 11.7 + desktop
+screen share); 25·post-ship layout (R11 minus 11.7); 26 = multi-user →
+IndexedDB → refactor (last build) → R13 then PILOT. Phrasebook enhancements
+recorded as F6/F7 (post-pilot). &debug=1 stays cut by owner ruling.
 
 **v20.19.0 · 2026-09-01.** Owner release ladder restructure: 25·pre-ship =
 notifications close-out ONLY; 25·ship = PRISM un-hijack (§5.2); 25·post-ship
