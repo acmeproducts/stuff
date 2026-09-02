@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.13.0 -->
-# TALKBRIDGE MASTER PLAN v20.13.0
+<!-- TALKBRIDGE-PLAN v20.14.0 -->
+# TALKBRIDGE MASTER PLAN v20.14.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1779,6 +1779,33 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.14.0 · 2026-09-01.** R12 scope migration (owner-directed, single pass).
+**Root cause:** the app lived at the repository root, its manifest carried no
+explicit scope (defaulting to the start page's folder, `/stuff/`) and its
+worker was registered from the root — so the installed TalkBridge claimed the
+entire `/stuff/` path and captured PRISM launches into the app window.
+**Fix:** canonical app, worker, manifest and icons consolidated under
+`/stuff/talkbridge/`; manifest now declares `scope`/`start_url` there
+explicitly, with `id` set to the legacy install identity
+(`/stuff/bridge-turn24-post-ship.html`) so browsers that honor the id member
+update the existing install in place; worker registered with explicit scope.
+**Migration:** the root app URL is now a stub that forwards every launch
+(hash/query intact) to the canonical URL — legacy installed icons and legacy
+notification taps keep working; the canonical page then, only after its own
+scoped worker is ready and its push subscription exists (bounded wait),
+unsubscribes and unregisters legacy workers matched by EXACT scope
+(`/stuff/`) AND script URL (`/stuff/tb-sw.js`, `/stuff/sw.js`) — PRISM and
+foreign workers are provably untouched, no storage is cleared, rooms and
+device data survive. Legacy worker files stay hosted so not-yet-migrated
+devices keep receiving pushes. **Retired root manifests:** `manifest.json`,
+`manifest.webmanifest`, `talk.webmanifest`, `testpwa.webmanifest`.
+Worker bytes unchanged (assembled R10-CR3 artifact, byte-verified); relay
+untouched — pair remains v6.0 in sync. Gate: `build/check-r12-scope.mjs`,
+18/18 with mutation kills on scope regression and loose worker matching.
+Residual: on devices whose browser ignores the manifest id member, the
+installed icon keeps the old identity and a one-time reinstall is needed for
+the icon to launch the canonical URL directly (it still works via the stub).
 
 **v20.13.0 · 2026-08-31.** R10 closed: R10-CR3 pair `ac541c1` accepted by the
 owner as 24·post-ship (acceptance record in governance/evidence; gaps
