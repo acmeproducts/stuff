@@ -1,6 +1,6 @@
 # Market Navigator — Gate 4 R7 Pre-Base
 
-Status: FROZEN PRE-BASE / OWNER-APPROVED BACKEND RETRY
+Status: SUPERSEDED BY CLEAN R7 BASE CANDIDATE
 Date: 2026-08-31
 
 ## Authority
@@ -94,3 +94,17 @@ R7 therefore:
 - requires Growth V2/About/Analysis construction detail to state that PMI was explicitly excluded because a permissible free historical/current source was unavailable and that IPMAN is the owner-approved replacement.
 
 This decision removes the PMI source blocker. Backend qualification must now collect IPMAN, prove its publication-aware Health state, regenerate the Growth index, and pass the full exact-component gate before R7 UI candidate work advances to ship.
+
+## Backend qualification completed — 2026-09-02
+
+The reconciled R7 backend now publishes canonical IPMAN evidence, the seven-component Growth definition, operational manifest, publication-aware Health envelope, and derived indices. The exact Growth identity gate passes. PMI remains disabled and explicitly excluded.
+
+WTI remains part of the accepted Growth definition and is visible in the UI, but the ratio-rebased derived calculation omits it with the canonical reason that its history spans zero and ratio rebasing is structurally unstable. This is a disclosed degraded state, not a silent component removal.
+
+## Clean R7 base candidate — 2026-09-02
+
+`market-view-gate4-r7.html` is the new single-file candidate. It was rebuilt from the exact preserved 3.9.7 baseline and current governed inputs without patch-forward from rejected R4/R5/R6 application code.
+
+Local deterministic qualification passes, including the common canonical boot, exact Growth/IPMAN contract, one chart engine, download integrity, and the 105-state axis audit. See `MARKET-NAVIGATOR-R7-VALIDATION.md`.
+
+The candidate is ready for the deployed owner-visible UI and real saved-provider AI gates. It is not post-ship accepted until those gates pass and the owner accepts it.

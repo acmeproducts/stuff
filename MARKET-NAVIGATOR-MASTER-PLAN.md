@@ -326,7 +326,9 @@ Approved POC: `market-view-ux-gate3-p2.html`, commit `cfba7320e42028f09f2967304c
 Use it as an interaction reference where consistent with this plan. Current plan explicitly governs the V1+V2 NOW composition and V2→V3 transition.
 
 ## 23. Gate 4 status
-**ACTIVE — R7 SUCCESSOR REQUIRED. R6 IS REJECTED AND ROLLED BACK.**
+**ACTIVE — CLEAN R7 OWNER-TEST CANDIDATE. R6 IS REJECTED AND ROLLED BACK.**
+
+The clean `market-view-gate4-r7.html` base candidate has passed deterministic pre-ship qualification. Desktop/mobile owner review, a real saved-provider AI round trip, and owner acceptance remain mandatory before post-ship qualification or canonical-page promotion.
 
 Rejected/inert lineages include Gate4 R1, R2, rejected rewrite R3, R4, R5 and R6. See Graveyard.
 
