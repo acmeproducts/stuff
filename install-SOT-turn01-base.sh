@@ -93,9 +93,10 @@ required=[
   '/T /F',
   'Join-Path $env:TEMP',
   'JS_BROWSER_HARNESS_SELFTEST',
-  'JS_GENERATED_PER_SCRIPT_PARSE',
-  'JS_GENERATED_COMBINED_PARSE',
-  'JS_PUBLIC_BROWSER_BOOT',
+  'parse_scripts "$TMP/candidate.html" generated',
+  'node --check "$combined"',
+  'run_browser "$PROBE_URL" generated app',
+  'run_browser "$PUBLIC_URL" public app',
   'PUBLIC_ARTIFACT_IDENTITY',
   '=== TURN 01 BASE MECHANICALLY QUALIFIED ===',
 ]
