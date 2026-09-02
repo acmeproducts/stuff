@@ -290,11 +290,21 @@ Owner mobile testing then exposed three R12 readability defects: selector values
 
 ## R13 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r13.html`
-- Application commit: **PENDING**
-- Blob: **PENDING**
-- Status: **LOCAL CANDIDATE — QUALIFICATION PENDING**
+- Application commit: `e3f657b6a45129aace2e5f4b90280a4a9a4c0583`
+- Blob: `246938c8ebf54afa2856a6cbe4233c40545774e4`
+- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R13 keeps the R12 two-row control and AI architecture while making the mobile surface readable. Row 1 selector values contain only dimension names. Row 2 always contains three controls aligned to Group, Color and Size; duplicate underlying dimensions remain visible and mirror one shared filter state. Map sizing uses the bounded governed 64 / 44 / 29 / 19 scale, larger wrapped labels with progressive metadata, and a compact dark tooltip confined to the viewport.
+
+Deployed qualification at application commit `e3f657b6a45129aace2e5f4b90280a4a9a4c0583`:
+- inline JavaScript parses successfully and boot reaches Ready from the 269-article repository cache with a rendered ECharts treemap;
+- Group, Color and Size selectors display only dimension names, with their roles retained in accessible labels and fixed position;
+- the default state and a duplicate Group=Subject / Color=Subject state both render exactly three ordered filter controls;
+- duplicate Subject controls mirror one shared subset and the underlying predicate is evaluated once;
+- a selected Source still governs both event inclusion and the only visible Source group identity;
+- Importance weights resolve exactly to 64 / 44 / 29 / 19, large labels wrap with context and metrics, and the dark tooltip is viewport-confined;
+- the exact R12 artifact remains unchanged at blob `4069ec8db8f803cda14d3572ff8c04cd3522de6c`;
+- the public GitHub Pages artifact returns HTTP 200 and hashes to the committed R13 blob above.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
