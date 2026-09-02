@@ -412,3 +412,15 @@ The next candidate is acceptable only if:
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
+
+## R16 correction — 2026-09-02
+**Stage:** Turn 01 · pre-ship R16
+**Test URL:** https://acmeproducts.github.io/stuff/prism/prism-turn01-pre-ship-r16.html
+
+- Direct R15 descendant; no unrelated architecture changes.
+- Library mobile uses one stage at a time: Library rail/Omnisearch or selected Analysis.
+- Analysis retains its transcript and persistent continuation composer with **Research web**.
+- Explorer overview cluster count equals unique first/Group-dimension cardinality after active filters.
+- Duplicate per-event dimension identities are removed before cluster membership.
+- Explorer does not rebuild the hidden Sources diagnostics panel during ordinary interaction.
+- Cluster painting is contained/content-virtualized.

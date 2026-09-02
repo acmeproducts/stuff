@@ -124,3 +124,10 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **Exact original application commit:** `807656e7e14c4b8503b3b7c88b83271967f64692`
 
 Preserve its integrated Sources, dimensions/filters, AI POV/provider validation, Analysis Library, Map, Feed, shell and selection behavior. Replace only the rejected Explore visualization in the next governed descendant unless the owner explicitly rejects another subsystem.
+
+## 2026-09-02 — R15 rejected / R16 correction
+- Rejected: desktop two-column Library geometry on mobile.
+- Rejected: hiding or squeezing Library Omnisearch, Analysis continuation, or **Research web** compose strip.
+- Rejected: Explorer overview driven by event-cloud rendering rather than first-dimension cardinality.
+- Required: seven active Source identities means exactly seven Source clusters.
+- Rejected: rebuilding hidden Sources diagnostics during ordinary Explorer renders.
