@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.16.0 -->
-# TALKBRIDGE MASTER PLAN v20.16.0
+<!-- TALKBRIDGE-PLAN v20.17.0 -->
+# TALKBRIDGE MASTER PLAN v20.17.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -69,7 +69,7 @@ built yet.
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
 | 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 BUILT 2026-08-31 (owner GO "Go"): machine 4/4, 4 planted defects caught, relay/worker gates green; awaiting owner light check (§5c) | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | Android alert presentation + PRISM scope un-hijack (owner directive 2026-09-01; scope §5.1) | Planned — owner GO required | — |
+| 25·pre-ship | Android alert presentation + PRISM scope un-hijack + #653 rejoin-thread + #650 video layout + B-8c invite name (owner directives 2026-09-01; scope §5.1) | Planned — owner GO required | — |
 | 25·ship | R12 — multi-party | Not started | — |
 | 25·post-ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
 
@@ -152,8 +152,7 @@ mutation-tested with fresh defects. Nothing ships red.
 
 ### 2e · Backlog — owner observations, recorded not scheduled
 
-(B-8a) Timer values differ between sides by the time between call placed and
-call answered.
+(B-8a) Timer values differ between sides — OWNER 2026-09-01: addressed, closed.
 (B-8b) A room-name change doesn't reach a partner sitting in the room menu
 until they exit it.
 (B-8c, 2026-08-16) The invite link/QR carries the name captured when the room
@@ -352,6 +351,15 @@ generic bell icon and a dot in the shade — no heads-up banner.
 - Gates add: QR join → install on iPhone AND Android lands in the room;
   PRISM opens from Chrome in a plain tab; no duplicate alerts; rooms and
   device data intact.
+
+**Part 3 — owner-selected backlog (2026-09-01):**
+- **#653 — rejoin a declined thread.** Fourth option on the left-rail clock
+  long-press: "Join thread" — camera (QR) or paste-a-URL (acceptance
+  finding 3).
+- **#650 — video call layout.** Tap-to-swap, 9:16 layout, floating PiP.
+- **B-8c — invite name.** Room creation gets a name field that suggests the
+  standing name but can be overridden per room; the invite/QR carries that
+  room's name (owner ruling of 2026-08-16 as written in §2e).
 
 **Sequencing:** builds on turn25-base after the owner's light check of
 R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker
@@ -1831,6 +1839,10 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.17.0 · 2026-09-01.** Owner: B-8a closed as addressed; #653, #650 and
+B-8c pulled into 25·pre-ship (§5.1 parts 3). Declarative web push stays
+backlog as the future iOS notification path.
 
 **v20.16.0 · 2026-09-01.** Owner plan cleanup: §1 stale duplicate status
 table removed — §0 ledger is the single authority; R9 marked passed (24·ship)
