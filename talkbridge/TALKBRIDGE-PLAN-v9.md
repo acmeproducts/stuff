@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.21.0 -->
-# TALKBRIDGE MASTER PLAN v20.21.0
+<!-- TALKBRIDGE-PLAN v20.22.0 -->
+# TALKBRIDGE MASTER PLAN v20.22.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,8 +68,8 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | PRISM scope un-hijack (§5.2) | Planned | — |
+| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·pre-ship | (absorbed into 25·base by owner GO 2026-09-01: PRISM un-hijack ships with N1/N2) | — | — |
 | 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
 | 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
 | 26·pre-base | = accepted 25·post-ship, byte-identical snapshot | — | — |
@@ -1900,6 +1900,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.22.0 · 2026-09-01.** N2 (PRISM un-hijack, §5.2) absorbed into the
+25·base candidate on owner GO ("go"): canonical home `/stuff/talkbridge/`
+(app + worker + manifest + icons); manifest declares scope, NO start
+address (G25), stable id `/stuff/tb`; worker registered at explicit
+canonical scope; root 25·base URL forwards with query+hash intact; the
+migration part retires legacy root-scoped workers (`tb-sw.js`, `sw.js`,
+`tb-sw-25b.js`) by exact scope+script only, unsubscribe before unregister,
+after the new subscription exists; declarative taps now land on the
+canonical URL (relay redeployed, same source version). Accepted pair and the
+root manifest the accepted app links are byte-untouched (rule 0c, gated).
+Gates: N2 14/14 + 3 mutations caught (incl. the exact G25 defect replanted);
+N1 suites re-green on the canonical artifact; R11.0 4/4 with byte-parity
+ownership moved to harness-n1-parity; CR3 relay 10/10.
 
 **v20.21.0 · 2026-09-01.** N1 built on owner GO ("go"): (1) #652 — worker
 `tb-sw-25b.js` (frozen r10-cr3 bytes + wrapper part) injects icon/badge and

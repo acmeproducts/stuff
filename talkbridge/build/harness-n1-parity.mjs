@@ -14,10 +14,12 @@ exp = '<!-- 25·base · R11.0 log fidelity · bridge-turn25-base.html · frozen 
 const tail = '\n</script>\n</body>\n</html>';
 exp = exp.slice(0, -tail.length) + '\n\n' + r11 + tail;
 exp = exp.replace("return navigator.serviceWorker.register('./tb-sw.js').then(function (reg) {",
-                  "return navigator.serviceWorker.register('./tb-sw-25b.js').then(function (reg) {");
+                  "return navigator.serviceWorker.register('./tb-sw-25b.js', { scope: '/stuff/talkbridge/' }).then(function (reg) {");
 exp = exp.slice(0, -tail.length) + '\n\n' + n1 + tail;
-const got = fs.readFileSync('bridge-turn25-base.html', 'utf8');
-ok(got === exp, 'artifact = frozen bytes + R11.0 part + ONE declared line + N1 part, nothing else');
+const n2 = fs.readFileSync('talkbridge/parts/n2-scope-migration.js', 'utf8');
+exp = exp.slice(0, -tail.length) + '\n\n' + n2 + tail;
+const got = fs.readFileSync('talkbridge/bridge-turn25-base.html', 'utf8');
+ok(got === exp, 'canonical artifact = frozen bytes + R11.0 + declared reg line + N1 + N2 parts, nothing else');
 // worker parity
 const swBase = fs.readFileSync('tb-sw.js');
 const swPart = fs.readFileSync('talkbridge/parts/n1-sw-alerts.js');

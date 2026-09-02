@@ -46,7 +46,7 @@ const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start':
 const RELAY_VERSION = '6.2';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /* N1: declarative-tap destination — the 25\u00b7base stage artifact. Revisit at the PRISM release when addresses become canonical. */
-const DECL_APP_URL = 'https://acmeproducts.github.io/stuff/bridge-turn25-base.html';
+const DECL_APP_URL = 'https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html';
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
 const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */

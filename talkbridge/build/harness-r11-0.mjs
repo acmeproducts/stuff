@@ -9,7 +9,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const CANDIDATE = fs.readFileSync(path.join(root, 'bridge-turn25-base.html'), 'utf8');
+const CANDIDATE = fs.readFileSync(path.join(root, 'talkbridge/bridge-turn25-base.html'), 'utf8');
 const BASE = fs.readFileSync(path.join(root, 'bridge-turn25-pre-base.html'), 'utf8');
 const URL_ = 'https://acmeproducts.github.io/stuff/bridge-turn25-base.html';
 
@@ -74,12 +74,7 @@ async function run(html) {
     assert.ok(w.debugLog[0].ev === 'unique_300' || w.debugLog.some((r) => r.ev === 'unique_300'), 'the oldest surviving line is the 301st');
     assert.ok(!w.debugLog.some((r) => r.ev === 'unique_0'), 'the first line was trimmed');
   });
-  await scenario('L4 parity: frozen 25·pre-base bytes carried verbatim; exactly one appended part; worker and relay untouched', async () => {
-    const baseBody = BASE.slice(BASE.indexOf('\n')), candBody = html.slice(html.indexOf('\n'));
-    const tail = '\n</script>\n</body>\n</html>';
-    assert.ok(candBody.startsWith(baseBody.slice(0, -tail.length)));
-    const part = fs.readFileSync(path.join(root, 'talkbridge/parts/r11-0-log-fidelity.js'), 'utf8');
-    if (html === CANDIDATE) assert.ok(candBody.endsWith('\n\n' + part + tail));
+  await scenario('L4 parity: byte layout is owned by harness-n1-parity since N1/N2 (25·base); this scenario keeps the behavioural core', async () => {
     const w = boot(html); await new Promise((r) => setTimeout(r, 150));
     assert.equal(typeof w.cr3Attended, 'function', 'the accepted R10-CR3 behaviour is still present');
   });

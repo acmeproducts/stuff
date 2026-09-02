@@ -2,10 +2,10 @@
 import fs from 'fs'; import { JSDOM } from 'jsdom';
 const partSrc = fs.readFileSync(process.argv[2] || 'talkbridge/parts/n1-app-join-thread.js', 'utf8');
 // prove the assembled artifact actually carries this part
-const html = fs.readFileSync('bridge-turn25-base.html', 'utf8');
+const html = fs.readFileSync('talkbridge/bridge-turn25-base.html', 'utf8');
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 ok(html.includes('n1-app-join-thread') || html.includes('n1_join_thread_wired'), 'part present in assembled artifact');
-ok(html.includes("register('./tb-sw-25b.js')"), 'artifact registers the N1 worker');
+ok(html.includes("register('./tb-sw-25b.js', { scope: '/stuff/talkbridge/' })"), 'artifact registers the N1 worker at the canonical scope');
 const dom = new JSDOM('<body><div class="modal-scrim" id="m-s13"><div class="modal"><button id="s13-keys"></button></div></div></body>', { url: 'https://acmeproducts.github.io/stuff/bridge-turn25-base.html', runScripts: 'outside-only' });
 const w = dom.window; const logged = [];
 w.log = (ev, d) => logged.push(ev);
