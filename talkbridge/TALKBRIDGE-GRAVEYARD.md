@@ -1489,3 +1489,17 @@ Rules carried forward: one behavioural change per candidate, device-gated
 before the next is started; when a cause is unknown, ship instrumentation
 first and read the log; never append code that assumes it can intercept
 listeners the frozen artifact already registered.
+
+## G29 — 2026-09-01 — renotify:false on tagged notifications (buried)
+
+Buried: showing tagged push notifications with `renotify: false`. Introduced
+by commit `339eb402` (R10-CR1); every earlier worker back to `a7983a12` used
+`renotify: true`. Because notifications use a stable per-room tag, each push
+after the first replaces the one in the shade, and Android only re-alerts on
+a replacement when renotify is true — so the phone went silent whenever it was
+unfocused or locked, while still ringing with the app open because that sound
+comes from the page's own ringer. Cost: two device gates and two wrong
+root-cause assertions before the answer was found by diffing worker versions
+in this repo. Rule carried forward: when a behaviour used to work, diff the
+versions that had it against the one that lost it BEFORE proposing a cause or
+an instrumentation build — the answer is usually already in the repo.

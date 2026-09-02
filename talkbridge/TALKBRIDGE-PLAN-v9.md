@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.27.0 -->
-# TALKBRIDGE MASTER PLAN v20.27.0
+<!-- TALKBRIDGE-PLAN v20.28.0 -->
+# TALKBRIDGE MASTER PLAN v20.28.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,35 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.28.0 · 2026-09-01.** ANDROID RING REGRESSION — ROOT CAUSE FOUND IN THE
+REPO, as the owner instructed, by comparing versions instead of instrumenting.
+Every worker from the first PWA build (`a7983a12`, 2026-08-09) through R10.2
+(`e74c7cb2`) showed push notifications with **renotify: true**. Commit
+`339eb402` (R10-CR1) changed it to **renotify: false**. Notifications carry a
+stable per-room tag, so each push after the first REPLACES the notification
+already in the shade, and Android re-alerts on a replacement only when
+renotify is true — with it false the replacement is silent. That is exactly
+the reported behaviour: rings while the app is open (the page's own ringer
+plays) and silent when unfocused or locked (only the OS can alert, and it had
+been told not to). The app's foreground path still passes renotify:true and
+never regressed, which is why only the background case broke. No
+instrumentation build was needed and none was spent.
+**N5 candidate (worker-only, one change):** the assembled worker forces
+renotify back on for every tagged notification and supplies the icon and
+badge (#652). It wraps `showNotification`, which resolves at call time — the
+G28 lesson that an appended `addEventListener` wrapper can never see
+listeners the frozen worker already registered. App changes by exactly one
+declared line (registers the new worker). No scope move, no relay change, no
+call-surface change in this candidate.
+**Presence/delivered-indicator regression (previous candidate):** attributed
+to the buried scope migration, which unsubscribed and unregistered the
+root-scoped worker that was still controlling the open page, cutting the
+acknowledgement path the indicators ride on. Recorded so the PRISM release
+proves the indicators before and after migration on the same device.
+Gates: N5 12/12 with 4 mutations caught (including the exact `339eb402`
+regression replanted), R11.0 4/4 + 4/4 mutations, CR3 relay 10/10,
+release-law PASS. Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.27.0 · 2026-09-01.** FULL ROLLBACK to the last known-good state
 (commit `2b58bbf`): app `bridge-turn25-base.html` at the root with R11.0
