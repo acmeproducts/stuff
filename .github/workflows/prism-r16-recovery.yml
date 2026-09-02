@@ -1,5 +1,5 @@
 name: PRISM R16 Recovery
-on:
+'on':
   push:
     branches: [main]
     paths: ['.github/workflows/prism-r16-recovery.yml']
@@ -20,7 +20,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
           src=Path('prism/prism-turn01-pre-ship-r15.html')
           dst=Path('prism/prism-turn01-pre-ship-r16.html')
           html=src.read_text(encoding='utf-8')
@@ -28,11 +27,11 @@ jobs:
           html=html.replace('Turn 01 pre-ship R15','Turn 01 pre-ship R16').replace('Turn 01 · pre-ship R15','Turn 01 · pre-ship R16')
           old="function exploreGroups(){const groups=new Map;for(const e of filtered()){let keys=state.group==='source'?dimValuesForEvent(e,'source'):[groupVal(e,state.group)];if(state.group==='source'&&state.filters.source?.size)keys=keys.filter(k=>state.filters.source.has(String(k)));for(const k of keys){if(k==='Unknown')continue;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e)}}return[...groups.entries()].sort((a,b)=>b[1].length-a[1].length||a[0].localeCompare(b[0]))}"
           new="function exploreGroups(){const groups=new Map;for(const e of filtered()){let keys=state.group==='source'?dimValuesForEvent(e,'source'):[groupVal(e,state.group)];if(state.group==='source'&&state.filters.source?.size)keys=keys.filter(k=>state.filters.source.has(String(k)));keys=[...new Set(keys.map(k=>String(k)).filter(k=>k&&k!=='Unknown'))];for(const k of keys){if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e)}}return[...groups.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]),undefined,{numeric:true,sensitivity:'base'}))}"
-          assert old in html, 'exploreGroups anchor changed'
+          assert old in html
           html=html.replace(old,new,1)
           old_render="function render(){renderFilters();$('eventCount').textContent=filtered().length+' items';renderSelection();if(state.view==='map')renderMap();if(state.view==='explore')renderSphere();if(state.view==='feed')renderFeed();if(state.view==='library')renderLibrary();renderSources()}"
           new_render="function render(){renderFilters();$('eventCount').textContent=filtered().length+' items';renderSelection();if(state.view==='map')renderMap();if(state.view==='explore')renderSphere();if(state.view==='feed')renderFeed();if(state.view==='library')renderLibrary();if(state.view!=='explore')renderSources()}"
-          assert old_render in html, 'render anchor changed'
+          assert old_render in html
           html=html.replace(old_render,new_render,1)
           css='''\n/* R16 recovery: Library mobile contract + lightweight Explore cluster paint */
 .exploreCluster{content-visibility:auto;contain:layout paint style;contain-intrinsic-size:220px}
@@ -48,20 +47,14 @@ jobs:
   #libraryPortal .libraryCompose{position:sticky;bottom:0;z-index:8;background:#081522}
 }
 '''
-          assert '</style>' in html
           html=html.replace('</style>',css+'</style>',1)
           dst.write_text(html,encoding='utf-8')
-
-          plan=Path('prism/PRISM-PLAN-v1.md')
-          plan_text=plan.read_text(encoding='utf-8')
+          plan=Path('prism/PRISM-PLAN-v1.md'); p=plan.read_text(encoding='utf-8')
           note='''\n\n## R16 correction candidate — 2026-09-02\n- Forks directly from R15; no architecture redesign.\n- Library: restores the governed single-stage mobile flow. The Library rail owns Omnisearch; selecting an Analysis replaces the rail with the complete analysis transcript while the persistent Library/Omnisearch row remains available. The bottom continuation composer remains a dedicated layout row and exposes **Research web** using the verified Config provider.\n- Explore: the first/Group dimension is the sole cluster key. Cluster overview cardinality is exactly the unique cardinality of that dimension after active filters; e.g. seven active Source identities produce seven Source clusters. Duplicate per-event dimension values are de-duplicated before membership.\n- Performance: Explore cluster paint is contained/content-virtualized and ordinary Explore renders no longer rebuild the hidden source diagnostics panel. Hidden analytical surfaces remain unrendered.\n- Mechanical gate: required Library Omnisearch/composer/current-web controls, cardinality clustering, mobile one-stage CSS, and JavaScript syntax are release-blocking checks.\n'''
-          if '## R16 correction candidate — 2026-09-02' not in plan_text:
-              plan.write_text(plan_text.rstrip()+note+'\n',encoding='utf-8')
-          grave=Path('prism/PRISM-GRAVEYARD.md')
-          grave_text=grave.read_text(encoding='utf-8')
+          if '## R16 correction candidate — 2026-09-02' not in p: plan.write_text(p.rstrip()+note+'\n',encoding='utf-8')
+          grave=Path('prism/PRISM-GRAVEYARD.md'); g=grave.read_text(encoding='utf-8')
           gnote='''\n\n## 2026-09-02 — R15 owner rejection / R16 correction\n- Rejected: mobile Library retaining the desktop two-column rail + stage geometry; this squeezed the Library into an unusable surface and effectively hid Omnisearch and the continuation/current-web composer.\n- Rejected: any Library implementation that omits or obscures Library-local Omnisearch, the continuing Analysis transcript, or the persistent **Research web** compose strip.\n- Rejected: Explore work that scales with the event-card cloud instead of first-dimension cardinality. Overview cluster count must equal the unique Group-dimension cardinality after filtering.\n- Rejected: rebuilding hidden source diagnostics during every Explore render; hidden administrative surfaces may not tax interactive Explore.\n'''
-          if '## 2026-09-02 — R15 owner rejection / R16 correction' not in grave_text:
-              grave.write_text(grave_text.rstrip()+gnote+'\n',encoding='utf-8')
+          if '## 2026-09-02 — R15 owner rejection / R16 correction' not in g: grave.write_text(g.rstrip()+gnote+'\n',encoding='utf-8')
       - name: Mechanical qualification
         shell: bash
         run: |
@@ -72,21 +65,19 @@ jobs:
           grep -q 'id="libraryCompose" class="libraryCompose"' "$f"
           grep -q '>Research web<' "$f"
           grep -q 'Current web' "$f"
-          grep -q 'keys=\[...new Set' "$f"
-          grep -q '#libraryPortal.detailOpen .libraryRail{display:none}' "$f"
-          grep -q "if(state.view!=='explore')renderSources()" "$f"
+          grep -Fq 'keys=[...new Set' "$f"
+          grep -Fq '#libraryPortal.detailOpen .libraryRail{display:none}' "$f"
+          grep -Fq "if(state.view!=='explore')renderSources()" "$f"
           python - <<'PY'
           from pathlib import Path
           import re
           h=Path('prism/prism-turn01-pre-ship-r16.html').read_text()
-          scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',h,re.S|re.I)
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',h,re.S|re.I)
           inline='\n'.join(x for x in scripts if x.strip())
           Path('/tmp/prism-r16-inline.js').write_text(inline)
-          assert inline.strip(), 'no inline JavaScript extracted'
+          assert inline.strip()
           PY
           node --check /tmp/prism-r16-inline.js
-          test -s prism/PRISM-PLAN-v1.md
-          test -s prism/PRISM-GRAVEYARD.md
           echo 'PASS R16 required DOM/CSS/cardinality/performance anchors'
           echo 'PASS R16 inline JavaScript node --check'
       - name: Publish and self-remove
