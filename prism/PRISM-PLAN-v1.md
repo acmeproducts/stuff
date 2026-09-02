@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.13.0 -->
-# PRISM MASTER PLAN v2.13.0
+<!-- PRISM-PLAN v2.14.0 -->
+# PRISM MASTER PLAN v2.14.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -13,7 +13,7 @@ The owner has identified the exact existing application baseline. All prior roll
 The baseline remains frozen. Forward candidates fork from this exact application; no synthesized replacement baseline is permitted.
 
 ## Preserve unchanged
-- **Explore stays as the baseline implementation for this gate.** No Explore redesign, geometry replacement, or new visualization experiment.
+- **Explore changes only for the owner-activated R15 performance correction:** replace the frozen all-event DOM cloud with cardinality-driven Group clusters and a bounded drill-in. Shared dimensions, filters, selection and reader behavior remain canonical.
 - **Config stays where it is:** top-right configuration entry and existing configuration surface.
 - **AI remains global:** Row 1 → AI POV and the established right-panel analytical flow. Provider keys, model selection and validation remain exclusively in top-right Config; the AI panel consumes that verified runtime and does not repeat configuration.
 - Existing Map, Feed, search, event reader, source handling, AI/provider behavior, selection semantics, and cache architecture must not be removed.
@@ -35,8 +35,10 @@ Library is a self-contained research surface after an Analysis has been saved. I
 Required Library structure:
 - Library has its own left rail inside the Library surface;
 - the Library rail contains Library Omnisearch and the filtered Analysis cards;
+- on mobile, selecting an Analysis may replace the rail with the research work surface, but a persistent Library/Omnisearch row must keep rail search immediately reachable while the Analysis is open;
 - selecting an Analysis opens the complete saved analysis and its continuing conversation in the Library work surface;
-- a persistent compose strip at the bottom continues the selected Analysis without returning to Map, Explore, Feed, the event reader or the global AI drawer;
+- a persistent compose strip occupying the bottom layout row continues the selected Analysis without returning to Map, Explore, Feed, the event reader or the global AI drawer; browser chrome or transcript overflow may never cover it;
+- the continuation action is explicitly labeled **Research web**, shows the active Config-selected provider and invokes current-web search over the saved PRISM package and prior turns;
 - every successful continuation is appended to the same Analysis and persisted on the device immediately;
 - Library search state is local to Library and does not alter global search, visualization dimensions, filters, selection or source configuration.
 
@@ -181,8 +183,18 @@ Required behavior:
 - Refresh and Remove are source-local, with removal deleting that source's cached articles and recomputing the corpus without disturbing other sources or Library Analyses;
 - duplicate source names and duplicate URLs are rejected rather than silently creating ambiguous Source identities.
 
-## This gate is explicitly NOT an Explore redesign
-Explore consumes the corrected shared dimensions/filters and color encoding, but its baseline layout/geometry remains untouched for this gate.
+## ACTIVE WORKSTREAM 6 — Smooth cardinality-driven Explore
+R14 owner testing found the inherited Explore event-card cloud effectively frozen on mobile. It created and continuously transformed hundreds of DOM cards and rerendered Map, Explore and Feed after every selection even though only one surface was visible.
+
+Required R15 behavior:
+- the selected Group dimension is the single cluster key;
+- overview cluster count equals the cardinality of that first/Group dimension after the active time window, search, source enablement and filters are applied;
+- example: Group=Source with seven active Source identities produces exactly seven Source clusters;
+- overview renders one lightweight, readable cluster card per value, including name, event count and a small representative headline sample—not hundreds of overlapping event cards;
+- tapping a cluster focuses only that cluster's events; the named × control returns to the complete cluster overview;
+- event selection, reader opening, AI selection and shared filters remain intact;
+- selection rerenders only the currently visible analytical surface, avoiding hidden Map/Explore/Feed work;
+- the Explore surface uses ordinary vertical scrolling and touch behavior; wheel/pinch transforms and permanent `will-change` layers are removed.
 
 ## R6 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r6.html`
@@ -317,7 +329,7 @@ Owner mobile testing showed that R13 still packed most events into unlabeled or 
 - Application commit: `7eec8d502600c090b263e74fad7c564ebbf89ee3`
 - Blob: `56ba6eb63bf27073399c471fde44164e16c3990f`
 - Test URL: `https://acmeproducts.github.io/stuff/prism/prism-turn01-pre-ship-r14.html?v=7eec8d502600c090b263e74fad7c564ebbf89ee3`
-- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **REJECTED — MOBILE LIBRARY WORKFLOW NOT REACHABLE / EXPLORE FROZEN**
 
 R14 keeps Explore, global AI placement, top-right Config placement, Portal shell and reader architecture unchanged. It removes AI runtime setup from the AI panel, enables provider-native current-web research automatically, requires adjacent direct URLs and enforces the WSJ-only paywall exception. The panel is Context → Prompt → Analysis with a sticky run/save footer and no Continue action.
 
@@ -333,6 +345,18 @@ Deployed qualification at application commit `7eec8d502600c090b263e74fad7c564ebb
 - Library card selection opens the flowing research workspace, URL Omnisearch and negative URL exclusion pass, live-web provenance survives JSON/CSV normalization, and Markdown/PDF/JSON/CSV artifact actions are present;
 - the exact R13 artifact remains unchanged at blob `246938c8ebf54afa2856a6cbe4233c40545774e4`;
 - the public GitHub Pages artifact returns HTTP 200, contains 104,580 bytes and hashes exactly to the committed R14 blob above.
+
+Owner device testing rejected R14 because Omnisearch was no longer reachable in the open-Analysis mobile state, the continuation composer/current-web action was not visible, and the inherited Explore all-event DOM cloud froze in use. R14 remains preserved as the exact rejected artifact; the correction proceeds in R15.
+
+## R15 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r15.html`
+- Application commit: **PENDING DEPLOYMENT**
+- Blob: **PENDING DEPLOYMENT**
+- Status: **LOCAL IMPLEMENTATION / QUALIFICATION IN PROGRESS**
+
+R15 keeps the R14 Map, Feed, AI, Config, Portal, source ingestion and artifact architecture. Mobile Library detail gains an always-visible Library/Omnisearch row, and the compose strip is a protected bottom grid row with an explicit Research web action and active-provider status.
+
+Explore becomes a lightweight cardinality view governed by the selected Group dimension. The overview creates exactly one readable cluster card per filtered value; tapping a cluster renders only that cluster's events, and × returns to the full cluster set. Hidden analytical surfaces no longer rerender after every selection, and the transformed hundreds-card layer is removed.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -373,7 +397,7 @@ The next candidate is acceptable only if:
 16. each Analysis exports as Markdown, print-to-PDF, JSON and CSV, and Config imports/merges JSON/CSV non-destructively;
 17. AI prompt policy requires direct URLs for every external reference/research suggestion and excludes paywalled references except WSJ;
 18. Map, Feed, Sources, AI/provider configuration, reader, selection and Library do not regress;
-19. Explore remains the baseline visualization for this gate;
+19. Explore overview cluster count equals the filtered cardinality of the selected Group dimension, cluster drill-in preserves selection/reader behavior, and interaction does not build or transform the complete event-card corpus;
 20. adding a valid custom RSS/Atom or JSON source fetches and normalizes its articles, exposes truthful status/counts, and makes the source available throughout the shared corpus and Source controls;
 21. a custom source refresh failure is visible and cannot masquerade as successful ingestion; cached fallback, retry and removal behave non-destructively.
 22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
@@ -384,6 +408,7 @@ The next candidate is acceptable only if:
 27. AI processing remains visible in Row 1 and the fixed panel header, while Run analysis and one-click Add to Library remain available in a fixed panel footer without scrolling; the panel contains no provider/key/model setup and no Continue action.
 28. Library continuation automatically uses the Config-selected verified provider, searches the current web over the saved PRISM package and persists the appended turn without leaving Library.
 29. tapping a Map group focuses that group and exposes a named × control that restores all groups; unreadably small tile geometry does not display initials as substitute content.
+30. while a mobile Library Analysis is open, Library Omnisearch remains immediately reachable and the bottom Research web composer remains visible above browser safe-area chrome.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.

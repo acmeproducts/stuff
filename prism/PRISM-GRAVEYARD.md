@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.8.0 -->
-# PRISM GRAVEYARD v2.8.0
+<!-- PRISM-GRAVEYARD v2.9.0 -->
+# PRISM GRAVEYARD v2.9.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -109,6 +109,15 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **VETO:** no bottom-sheet filter for a control in the top ribbon; no initials as a substitute for readable treemap content; no duplicated provider/key/model setup in AI POV; no Continue action in AI POV; no Library record trapped inside an archival analysis card; no research continuation without current-web retrieval and direct source URLs.
 
 **Replacement:** trigger-anchored chip popover; full-canvas treemap with steep governed weights, progressive multi-line labels and group focus; Config-selected AI runtime; Context → Prompt → Analysis with fixed run/save footer; flowing Library transcript with bottom composer, current-web continuation and Markdown/PDF/JSON/CSV artifact output.
+
+## G36 · Mobile Library dead end and all-event Explore DOM cloud
+**Origin:** R14 owner device testing.
+
+**Observed:** after an Analysis opened on mobile, the Library rail disappeared without keeping Omnisearch present in the work surface, and the continuation/current-web compose strip was not reachable. Explore continued to build and transform the entire filtered event corpus as individual DOM cards, producing a frozen or heavily contended interaction surface.
+
+**VETO:** no mobile Analysis state that hides both the Library rail and Omnisearch; no transcript layout that can displace or cover the continuation composer; no ambiguous continuation action that fails to disclose current-web research; no Explore implementation that creates and continuously transforms one DOM card per event or rerenders every hidden visualization after selection.
+
+**Replacement:** persistent mobile Library/Omnisearch row plus a protected bottom Research web composer; Group-cardinality Explore overview with one lightweight cluster per value, bounded cluster drill-in, ordinary vertical touch scrolling and visible-surface-only rerendering.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`
