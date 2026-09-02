@@ -314,13 +314,25 @@ Owner mobile testing showed that R13 still packed most events into unlabeled or 
 
 ## R14 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r14.html`
-- Application commit: **PENDING DEPLOYMENT**
-- Blob: **PENDING DEPLOYMENT**
-- Status: **LOCAL IMPLEMENTATION / QUALIFICATION IN PROGRESS**
+- Application commit: `7eec8d502600c090b263e74fad7c564ebbf89ee3`
+- Blob: `56ba6eb63bf27073399c471fde44164e16c3990f`
+- Test URL: `https://acmeproducts.github.io/stuff/prism/prism-turn01-pre-ship-r14.html?v=7eec8d502600c090b263e74fad7c564ebbf89ee3`
+- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R14 keeps Explore, global AI placement, top-right Config placement, Portal shell and reader architecture unchanged. It removes AI runtime setup from the AI panel, enables provider-native current-web research automatically, requires adjacent direct URLs and enforces the WSJ-only paywall exception. The panel is Context → Prompt → Analysis with a sticky run/save footer and no Continue action.
 
 Library becomes a flowing master/detail research workspace with its own Omnisearch rail, full transcript, persistent bottom research composer, device-persisted continuation, and Markdown/PDF/JSON/CSV artifacts. The filter chip popover anchors to the tapped Row 2 control. The Map fills its canvas, uses 144 / 64 / 28 / 12 governed weights, spends large geometry on readable multi-line content, suppresses unreadable micro-labels, and supports one-tap group focus/clear.
+
+Deployed qualification at application commit `7eec8d502600c090b263e74fad7c564ebbf89ee3`:
+- inline JavaScript parses successfully, DOM IDs are unique, and the application boots from the 269-article repository cache with a rendered ECharts treemap;
+- exactly three role-aligned filters render, the selector anchors immediately below its trigger, and a selected Source governs both event inclusion and the only visible Source group;
+- governed Importance weights resolve to 144 / 64 / 28 / 12, the treemap occupies the full canvas, hero labels use 22-pixel multi-line text, and unreadable geometry suppresses labels;
+- a group click focuses that group and exposes the named × control, which restores the all-groups map;
+- AI POV contains Context → Prompt → Analysis and only Run analysis plus Add to Library in its fixed footer; API keys, provider/model validation and the default runtime remain in Config;
+- OpenRouter, Anthropic and Venice request contracts enable provider-native current-web search, append returned direct citations, and reject non-WSJ paywalled references;
+- Library card selection opens the flowing research workspace, URL Omnisearch and negative URL exclusion pass, live-web provenance survives JSON/CSV normalization, and Markdown/PDF/JSON/CSV artifact actions are present;
+- the exact R13 artifact remains unchanged at blob `246938c8ebf54afa2856a6cbe4233c40545774e4`;
+- the public GitHub Pages artifact returns HTTP 200, contains 104,580 bytes and hashes exactly to the committed R14 blob above.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
