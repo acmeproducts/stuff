@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.17.0 -->
-# TALKBRIDGE MASTER PLAN v20.17.0
+<!-- TALKBRIDGE-PLAN v20.18.0 -->
+# TALKBRIDGE MASTER PLAN v20.18.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -152,7 +152,10 @@ mutation-tested with fresh defects. Nothing ships red.
 
 ### 2e · Backlog — owner observations, recorded not scheduled
 
-(B-8a) Timer values differ between sides — OWNER 2026-09-01: addressed, closed.
+(B-8a) Timer values differ between sides — OPEN, verified in code
+2026-09-01: the caller anchors its clock at call placement (mount before
+call-start is sent), the callee at accept; the skew equals ring/answer time.
+Fix when scheduled: both sides anchor to one shared event (the accept).
 (B-8b) A room-name change doesn't reach a partner sitting in the room menu
 until they exit it.
 (B-8c, 2026-08-16) The invite link/QR carries the name captured when the room
@@ -1839,6 +1842,10 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.18.0 · 2026-09-01.** Correction: B-8a is NOT addressed — verified in
+the live build (caller clock at placement, callee at accept). Reopened in
+backlog with the code-proven cause; v20.17.0's closure was premature.
 
 **v20.17.0 · 2026-09-01.** Owner: B-8a closed as addressed; #653, #650 and
 B-8c pulled into 25·pre-ship (§5.1 parts 3). Declarative web push stays
