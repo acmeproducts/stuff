@@ -265,13 +265,15 @@ Deployed qualification at application commit `f590c7742d13d9e8497fd8d3e7ff3d7364
 
 ## R12 candidate
 - Artifact: `prism/prism-turn01-pre-ship-r12.html`
-- Status: **VALIDATED CANDIDATE — PUBLICATION PENDING**
+- Application commit: `0f8932c61125b32661d28c688eac902b1afd6c07`
+- Blob: `4069ec8db8f803cda14d3572ff8c04cd3522de6c`
+- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
 
 R12 replaces the expanding inline filter-value row with the governed two-row control hierarchy. Row 1 contains the three dimension controls followed by fixed AI POV and filtered item count. Row 2 contains one compact summary per active deduplicated filter. Each summary opens the chip-only adaptive modal/bottom sheet described above.
 
 The existing AI right panel is reorganized—not replaced—into a fixed status header, scrollable context/prompt/result body and fixed action footer. AI POV exposes `Analyzing…` in Row 1 and the panel header for the full request duration. Research with AI, Continue and Add to Library remain reachable without scrolling. A completed analysis saves or updates its stable Analysis identity with one click and changes immediately to `Saved to Library`, preventing duplicate clicks.
 
-Local mechanical qualification:
+Deployed qualification at application commit `0f8932c61125b32661d28c688eac902b1afd6c07`:
 - inline JavaScript parses successfully;
 - all DOM IDs are unique and required R12 controls exist;
 - boot reaches Ready against the repository cache and renders the ECharts treemap;
