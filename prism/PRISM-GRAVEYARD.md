@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.5.0 -->
-# PRISM GRAVEYARD v2.5.0
+<!-- PRISM-GRAVEYARD v2.6.0 -->
+# PRISM GRAVEYARD v2.6.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -82,6 +82,15 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **Root cause:** permanent product defaults were treated as an incidental property of successfully loaded runtime data, and a source-cache implementation detail was coupled to the shared application database schema.
 **VETO:** default source identity may not depend on cache success, current event coverage or a shared-database version upgrade. Persisted filter state may disable defaults but may not remove their inventory identity.
 **Replacement:** explicit governed default inventory; one-time repair of the all-hidden legacy state; visible Restore defaults control; isolated source-article database with legacy migration.
+
+## G33 · Expanding inline filter ribbon and scroll-hidden AI actions
+**Origin:** R11 analytical ribbon and AI panel presentation.
+
+**Observed:** every value for every active dimension rendered persistently in Row 2. Higher-cardinality dimensions made the ribbon grow horizontally and forced the user to scroll to reach AI POV. In the AI panel, processing feedback and Add to Library lived inside the same scrolling body as evidence, prompt and output, so neither state nor save action was reliably visible.
+
+**VETO:** do not persistently enumerate every dimension value in the ribbon; do not place AI POV inside filter overflow; do not make the user scroll to confirm that AI is processing or to save a completed analysis.
+
+**Replacement:** fixed Row 1 dimensions + AI POV + item count; compact Row 2 filter summaries; chip-only adaptive selector; fixed AI status header and fixed action footer with one-click Add to Library.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`

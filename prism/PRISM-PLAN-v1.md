@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.10.0 -->
-# PRISM MASTER PLAN v2.10.0
+<!-- PRISM-PLAN v2.11.0 -->
+# PRISM MASTER PLAN v2.11.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -15,7 +15,7 @@ The baseline remains frozen. Forward candidates fork from this exact application
 ## Preserve unchanged
 - **Explore stays as the baseline implementation for this gate.** No Explore redesign, geometry replacement, or new visualization experiment.
 - **Config stays where it is:** top-right configuration entry and existing configuration surface.
-- **AI stays where it is:** global analytical ribbon → AI POV and existing AI panel flow.
+- **AI remains global:** Row 1 → AI POV and the existing right-panel analytical flow. R12 may improve processing visibility, context density and access to Add to Library without changing provider, prompt, evidence or Library architecture.
 - Existing Map, Feed, search, event reader, source handling, AI/provider behavior, selection semantics, and cache architecture must not be removed.
 
 ## ACTIVE WORKSTREAM 1 — Portal shell
@@ -62,6 +62,19 @@ AI POV and every Library continuation must render Markdown links as active direc
 
 Visible filters = deduplicated union of active Group + Color + Size dimensions. If a dimension leaves all active roles, its filter disappears and its state is cleared.
 
+### Two-row control contract
+The analytical ribbon is a fixed two-row hierarchy with no horizontal scrolling:
+
+- Row 1: Group dimension • Color dimension • Size dimension | AI POV | filtered item count.
+- The global time-window control remains available in the top utility header because it is not a visualization dimension.
+- Row 2: one compact summary control for each active deduplicated dimension filter.
+- Summary controls display `All`, the sole selected value, or `N of M`; they never enumerate an expanding value catalog inline.
+- AI POV and the filtered item count remain outside every scrolling filter surface.
+
+Tapping a Row 2 summary opens an adaptive selection surface: a centered content-sized modal on wider screens and a bottom sheet on narrow screens. The selection surface contains toggle chips only—no checkboxes, `Only` buttons, include/exclude modes or Apply button.
+
+When the committed filter state is `All`, opening the selector presents the individual value chips off, ready for narrowing. Tapping individual chips selects the exact desired subset. Tapping the `All` chip activates every current value, after which unwanted chips can be turned off. Closing the surface commits automatically. Zero selected values and every current value selected both normalize to the semantic `All` state so newly ingested sources remain included.
+
 ### Governed dimensions
 - Subject
 - Region
@@ -101,10 +114,10 @@ where supported by canonical event data.
 - 3–7d
 with the available chip set constrained by the active global time window.
 
-### Filter chips are the legend
+### Filter chips carry the color key
 There is **no separate inert legend**.
 
-Every dimension value is represented by a colored toggle chip. The same dimension/value color is used when that field drives visual Color. Therefore the filter chips are simultaneously the interactive filter and the legend.
+Every dimension value in the adaptive selector is represented by a colored toggle chip. The same dimension/value color is used when that field drives visual Color. The selector therefore remains the interactive filter and the exact color key without forcing every value into the persistent ribbon.
 
 If a dimension is selected in multiple roles, it renders exactly one chip set.
 
@@ -250,6 +263,23 @@ Deployed qualification at application commit `f590c7742d13d9e8497fd8d3e7ff3d7364
 - compact branding follows the hamburger rather than preceding it;
 - the R10 collapse/expand handler and persistent collapsed rail strip are unchanged.
 
+## R12 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r12.html`
+- Status: **VALIDATED CANDIDATE — PUBLICATION PENDING**
+
+R12 replaces the expanding inline filter-value row with the governed two-row control hierarchy. Row 1 contains the three dimension controls followed by fixed AI POV and filtered item count. Row 2 contains one compact summary per active deduplicated filter. Each summary opens the chip-only adaptive modal/bottom sheet described above.
+
+The existing AI right panel is reorganized—not replaced—into a fixed status header, scrollable context/prompt/result body and fixed action footer. AI POV exposes `Analyzing…` in Row 1 and the panel header for the full request duration. Research with AI, Continue and Add to Library remain reachable without scrolling. A completed analysis saves or updates its stable Analysis identity with one click and changes immediately to `Saved to Library`, preventing duplicate clicks.
+
+Local mechanical qualification:
+- inline JavaScript parses successfully;
+- all DOM IDs are unique and required R12 controls exist;
+- boot reaches Ready against the repository cache and renders the ECharts treemap;
+- exactly three compact filter summaries render for the default Group/Color/Size dimensions;
+- semantic All opens with individual chips off; direct subset, All-then-exclude and close-to-commit transitions pass;
+- Row 1 and the panel header both expose the processing state without scrolling;
+- the fixed Add to Library action becomes available after a completed analysis and acknowledges a one-click persisted save.
+
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
 
@@ -295,6 +325,9 @@ The next candidate is acceptable only if:
 22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
 23. the hamburger exists inside the left portal rail, performs only rail collapse/expand, remains reachable while collapsed, and is absent from the global top header.
 24. the hamburger is the first control in the rail header and occupies the rail's top-left position; branding is secondary to its right.
+25. the ribbon has a non-scrolling Row 1 for Group/Color/Size + AI POV + item count and a non-scrolling Row 2 with one compact summary per active deduplicated filter.
+26. each filter summary opens a chip-only adaptive selector; semantic All opens with individual chips off, All activates every current value, close commits, and zero/every value normalize to All.
+27. AI processing remains visible in Row 1 and the fixed panel header, while Research, Continue and one-click Add to Library remain available in a fixed panel footer without scrolling.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.
