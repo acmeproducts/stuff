@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.22.0 -->
-# TALKBRIDGE MASTER PLAN v20.22.0
+<!-- TALKBRIDGE-PLAN v20.23.0 -->
+# TALKBRIDGE MASTER PLAN v20.23.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1900,6 +1900,13 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.23.0 · 2026-09-01.** Retired the three R10 candidate-gate workflows
+(CR1/CR2/CR3) — R10 is accepted and closed, but they still ran on every push
+to main and failed 25·base work as "outside the R10 scope wall." The live
+gates are unchanged: the release-law gate still runs on every relay deploy
+and pull request, and the 25·base suites (N1/N2/R11.0/CR3 relay contract)
+run at build time. Deleting them touches no app, worker, or relay file.
 
 **v20.22.0 · 2026-09-01.** N2 (PRISM un-hijack, §5.2) absorbed into the
 25·base candidate on owner GO ("go"): canonical home `/stuff/talkbridge/`
