@@ -61,6 +61,19 @@ trap cleanup EXIT
 for tool in bash curl install node python3 sha256sum; do command -v "$tool" >/dev/null 2>&1 || die REQUIRE_TOOL "$tool"; done
 pass REQUIRE_TOOLS ok
 bash -n "${BASH_SOURCE[0]}" || die INSTALLER_BASH_PARSE failed
+python3 - "${BASH_SOURCE[0]}" <<'PY'
+from pathlib import Path
+import re,sys
+s=Path(sys.argv[1]).read_text()
+for n,line in enumerate(s.splitlines(),1):
+    m=re.match(r'^\s*local\s+(.+)$',line)
+    if not m: continue
+    decl=m.group(1)
+    names=re.findall(r'(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=',decl)
+    for name in names:
+        if re.search(r'\$\{?'+re.escape(name)+r'\}?',decl):
+            raise SystemExit(f'nounset-unsafe local declaration at line {n}: {name}')
+PY
 pass INSTALLER_BASH_PARSE true
 
 health_check(){
@@ -124,7 +137,11 @@ pass STATIC_PRODUCT_CONTRACTS true
 pass ASYNC_RUNTIME_HAZARDS_ABSENT true
 
 parse_html_js(){
-  local html="$1" tag="$2" dir="$TMP/js-$tag" combined="$TMP/$tag-combined.js" count file
+  local html tag dir combined count file
+  html="$1"
+  tag="$2"
+  dir="$TMP/js-$tag"
+  combined="$TMP/$tag-combined.js"
   mkdir -p "$dir"
   count="$(python3 - "$html" "$dir" "$combined" <<'PY'
 from pathlib import Path
