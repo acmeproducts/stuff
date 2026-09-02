@@ -1442,3 +1442,19 @@ visible notification after every push settles, so Chrome can never substitute
 its own again. Both are mutation-gated, including replanting this defect.
 Rule carried forward: a platform-specific push format is never applied
 globally — branch on the endpoint and prove each branch separately.
+
+## G27 — 2026-09-01 — Moving the worker's scope without moving its tap target
+
+Buried: changing a service worker's scope while its notification tap target is
+computed as `scope + <hardcoded file name>`. The frozen worker builds the tap
+destination from its own scope plus `bridge-turn24-post-ship.html`. At /stuff/
+that named a real file; after the un-hijack it named
+/stuff/talkbridge/bridge-turn24-post-ship.html, which does not exist — so
+tapping a notification (including from Android notification history) opened a
+browser tab on a missing page and, with the original install tab closed,
+landed the owner in Chrome's tab list instead of TalkBridge. Owner called it
+correctly: it came from the un-hijack. Fix (N4): the worker rewrites any stale
+destination to its real app file in the current scope on every notification;
+mutation-gated by replanting the stale name. Rule carried forward: whenever a
+scope, folder, or artifact name changes, every URL derived from that scope
+must be re-proven — a scope move is never just a manifest edit.

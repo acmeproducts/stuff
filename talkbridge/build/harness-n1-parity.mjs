@@ -18,6 +18,8 @@ exp = exp.replace("return navigator.serviceWorker.register('./tb-sw.js').then(fu
 exp = exp.slice(0, -tail.length) + '\n\n' + n1 + tail;
 const n2 = fs.readFileSync('talkbridge/parts/n2-scope-migration.js', 'utf8');
 exp = exp.slice(0, -tail.length) + '\n\n' + n2 + tail;
+const n4 = fs.readFileSync('talkbridge/parts/n4-caller-call-screen.js', 'utf8');
+exp = exp.slice(0, -tail.length) + '\n\n' + n4 + tail;
 const got = fs.readFileSync('talkbridge/bridge-turn25-base.html', 'utf8');
 ok(got === exp, 'canonical artifact = frozen bytes + R11.0 + declared reg line + N1 + N2 parts, nothing else');
 // worker parity

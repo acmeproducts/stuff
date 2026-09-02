@@ -47,3 +47,24 @@
     }, opts);
   };
 })();
+
+/* N4 (25·base rebuild, plan v20.26.0 §5.1 — G27). ROOT CAUSE of "tapping the
+   notification opens Chrome, not TalkBridge": the frozen worker computes its
+   tap destination as its own scope + a hardcoded file name
+   ('bridge-turn24-post-ship.html'). While the worker lived at /stuff/ that
+   resolved to a real file. After the scope move it resolves to
+   /stuff/talkbridge/bridge-turn24-post-ship.html, which does not exist — the
+   tap opens a browser tab on a missing page instead of the installed app.
+   Fix: rewrite that stale destination to this worker's real app file, on
+   every notification, without touching the frozen handler. */
+(function () {
+  var APP_HERE = self.registration.scope + 'bridge-turn25-base.html';
+  var STALE = /bridge-turn24-post-ship\.html(\?|#|$)/;
+  var orig = ServiceWorkerRegistration.prototype.showNotification;
+  ServiceWorkerRegistration.prototype.showNotification = function (title, opts) {
+    opts = opts || {};
+    if (!opts.data) opts.data = {};
+    if (!opts.data.url || STALE.test(String(opts.data.url))) opts.data.url = APP_HERE;
+    return orig.call(this, title, opts);
+  };
+})();

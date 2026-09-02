@@ -6,6 +6,7 @@ const src = fs.readFileSync(process.argv[2] || 'tb-sw-25b.js', 'utf8');
 const calls = []; const listeners = {};
 function FakeReg() {} // prototype target
 const reg = new FakeReg();
+reg.scope = 'https://acmeproducts.github.io/stuff/talkbridge/';
 const ctx = {
   self: { addEventListener: (t, f) => { listeners[t] = f; }, registration: reg, clients: { matchAll: async () => [], openWindow: async () => {} }, skipWaiting: () => {} },
   __shown: () => calls,
@@ -42,4 +43,10 @@ const silentEv = { data: { json: () => { throw new Error('unparseable'); } }, wa
 try { await listeners['push'](silentEv); } catch (_) {}
 await new Promise(r => setTimeout(r, 40));
 ok(calls.length > before, 'a push that shows nothing still leaves a notification visible (no Chrome substitution)');
+// N4: tap destination must be this worker's real app file, never the stale one
+reg.scope = 'https://acmeproducts.github.io/stuff/talkbridge/';
+const urls = calls.map(c => c.opts.data && c.opts.data.url).filter(Boolean);
+ok(urls.length === calls.length, 'every notification carries a tap destination');
+ok(urls.every(u => /\/stuff\/talkbridge\/bridge-turn25-base\.html$/.test(u)), 'tap destination is the real app file in this scope');
+ok(!urls.some(u => /bridge-turn24-post-ship/.test(u)), 'stale destination never survives (the G27 defect)');
 console.log(fail === 0 ? 'N1-SW GREEN' : fail + ' FAILURES'); process.exit(fail ? 1 : 0);

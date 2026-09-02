@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.25.0 -->
-# TALKBRIDGE MASTER PLAN v20.25.0
+<!-- TALKBRIDGE-PLAN v20.26.0 -->
+# TALKBRIDGE MASTER PLAN v20.26.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,7 +68,7 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·base | Notifications, complete + caller call round trip (owner directive 2026-09-01: caller mic muted, call screen, ring-back, synced timers/B-8a — no debate) (§5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
 | 25·pre-ship | (absorbed into 25·base by owner GO 2026-09-01: PRISM un-hijack ships with N1/N2) | — | — |
 | 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
 | 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
@@ -1903,6 +1903,35 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.26.0 · 2026-09-01.** Second device-gate failure and the owner's scope
+call, both handled.
+**Root cause (G27), found not guessed:** the frozen worker computes its
+notification tap target as its own scope plus the hardcoded file name
+`bridge-turn24-post-ship.html` (tb-sw.js line 92, `data.url ||
+(self.registration.scope + APP_FILE)`). At /stuff/ that resolved to a real
+file; after the un-hijack it resolves to
+`/stuff/talkbridge/bridge-turn24-post-ship.html`, which does not exist, so a
+tap opened a browser tab on a missing page — with the original install tab
+closed the owner landed in Chrome's tab list. The owner's read that this came
+from the un-hijack was correct. Fix N4: the worker rewrites any stale
+destination to its real app file in the current scope, on every notification,
+without touching the frozen handler. Live artifact:
+https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html
+**Android ringing:** the earlier G26 defect (declarative envelope sent to
+Chrome) is what stopped Android alerts from being ours at all; with the
+Apple/Chrome split plus the guaranteed-visible notification, Android receives
+the accepted R10-CR3 push exactly as it did when it last worked. Sound and
+heads-up presentation on Android remain governed by the per-site channel
+importance, which only the device owner can raise
+(pushpad.xyz/blog/this-site-has-been-updated-in-the-background;
+w3c/push-api#359).
+**Owner scope directive, now built (N4):** caller's microphone is muted while
+placing a call, the caller gets a call screen with an audible ring-back, the
+mic goes live on answer, and BOTH clocks re-anchor to the accept (B-8a
+closed). Wrapped around the frozen call logic; nothing replaced.
+Gates: N4 10/10 + 4 mutations, worker 12/12 + 4, relay 9/9 + 3, N2 14/14 + 3,
+app 8/8 + 3, R11.0 4/4, CR3 relay 10/10, byte parity 3/3, release-law PASS.
 
 **v20.25.0 · 2026-09-01.** Device gate FAILED on Android (owner): iPhone
 rang correctly; Android did not ring out of focus or locked and Chrome showed
