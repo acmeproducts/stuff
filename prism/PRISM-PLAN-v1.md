@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.12.0 -->
-# PRISM MASTER PLAN v2.12.0
+<!-- PRISM-PLAN v2.13.0 -->
+# PRISM MASTER PLAN v2.13.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -15,7 +15,7 @@ The baseline remains frozen. Forward candidates fork from this exact application
 ## Preserve unchanged
 - **Explore stays as the baseline implementation for this gate.** No Explore redesign, geometry replacement, or new visualization experiment.
 - **Config stays where it is:** top-right configuration entry and existing configuration surface.
-- **AI remains global:** Row 1 → AI POV and the existing right-panel analytical flow. The R12 processing, context and fixed-action improvements remain without changing provider, prompt, evidence or Library architecture.
+- **AI remains global:** Row 1 → AI POV and the established right-panel analytical flow. Provider keys, model selection and validation remain exclusively in top-right Config; the AI panel consumes that verified runtime and does not repeat configuration.
 - Existing Map, Feed, search, event reader, source handling, AI/provider behavior, selection semantics, and cache architecture must not be removed.
 
 ## ACTIVE WORKSTREAM 1 — Portal shell
@@ -49,12 +49,14 @@ Library Omnisearch searches titles, prompts, responses, event metadata, source n
 Examples: `federal reserve`, `rates -crypto`, `source:Reuters`, `-source:*tabloid*`, `url:*federalreserve.gov*`.
 
 Library portability:
-- each Analysis can be downloaded independently as JSON or CSV;
+- each Analysis can be downloaded independently as Markdown, print-to-PDF, JSON or CSV;
 - JSON and CSV Analysis files can be imported/merged through the existing top-right Config gear surface;
 - import is non-destructive and updates by Analysis identity rather than erasing unrelated saved work;
 - existing whole-Library JSON import remains compatible where practical.
 
-AI POV and every Library continuation must render Markdown links as active direct URLs. Any external fact, source, further-reading item, related topic or research suggestion introduced by AI must have its direct URL adjacent to it. If the model cannot supply a reliable direct URL, it must omit that external reference rather than produce an unlinked lead or fabricate a URL. Paywalled material must not be referenced or recommended, with one explicit exception: WSJ is allowed because the owner has a subscription.
+AI POV and every Library continuation are current-web research operations over the saved PRISM evidence package. Provider-native web search must be enabled automatically. Results render as artifact-quality Markdown with active direct URLs; tables and Mermaid diagrams may be used when they materially clarify supported findings. Any external fact, source, further-reading item, related topic or research suggestion introduced by AI must have its direct URL adjacent to it. If the model cannot supply a reliable direct URL, it must omit that external reference rather than produce an unlinked lead or fabricate a URL. Paywalled material must not be referenced or recommended, with one explicit exception: WSJ is allowed because the owner has a subscription.
+
+AI panel structure is fixed: a chevron-disclosed, internally scrollable selected-context section; Prompt; Analysis; and a sticky action footer containing visible running state plus Run analysis and one-click Add to Library. Provider/model/key fields and the old Continue action are prohibited in this panel. Library continuation happens only in the Library composer and appends to the same device-persisted research item.
 
 ## ACTIVE WORKSTREAM 3 — Dimension / filter system
 ### Core law
@@ -72,7 +74,7 @@ The analytical ribbon is a fixed two-row hierarchy with no horizontal scrolling:
 - AI POV and the filtered item count remain outside every scrolling filter surface.
 - Dimension selector values display only the dimension name (`Subject`, `Region`, `Importance`, and so on). Repeating `Group ·`, `Color ·` or `Size ·` inside every value is prohibited because role is already conveyed by selector position and its accessible label.
 
-Tapping a Row 2 summary opens an adaptive selection surface: a centered content-sized modal on wider screens and a bottom sheet on narrow screens. The selection surface contains toggle chips only—no checkboxes, `Only` buttons, include/exclude modes or Apply button.
+Tapping a Row 2 summary opens a content-sized popover directly below the control that was tapped, flipping above only when viewport space requires it. It must never emerge as a distant bottom sheet. The selection surface contains toggle chips only—no checkboxes, `Only` buttons, include/exclude modes or Apply button.
 
 When the committed filter state is `All`, opening the selector presents the individual value chips off, ready for narrowing. Tapping individual chips selects the exact desired subset. Tapping the `All` chip activates every current value, after which unwanted chips can be turned off. Closing the surface commits automatically. Zero selected values and every current value selected both normalize to the semantic `All` state so newly ingested sources remain included.
 
@@ -148,8 +150,10 @@ The compact ribbon/filter surface has recovered substantial canvas space. Use th
 Required behavior:
 - large tiles should show more than a truncated headline when geometry allows;
 - useful tile metadata may include subject/region context, Importance bucket/score, corroboration/source count and recency;
-- labels degrade gracefully with tile area: large tiles show richer metadata, medium tiles fewer lines, tiny tiles only headline/abbreviation;
+- labels degrade gracefully with tile area: the largest tiles show large multi-line headlines and useful metadata, medium tiles show fewer lines, and geometry too small for a readable label stays unlabeled rather than displaying meaningless initials;
 - do not turn every tile into a card or reduce event coverage simply to make labels fit.
+- the treemap fills the available Map canvas without large decorative margins;
+- tapping a group header focuses that complete group; the focused group name is displayed with an adjacent × control that restores the all-groups view in one tap.
 
 Size encoding also needs materially stronger differentiation. R6 Importance sizing is visually compressed.
 
@@ -158,8 +162,8 @@ Required sizing law:
 - Importance: Critical / High / Medium / Low must produce clearly different areas;
 - Corroboration: 4+ / 3 / 2 / 1 source must produce clearly separated areas;
 - Recency buckets must likewise produce meaningful area differences;
-- preserve usable treemap hierarchy and avoid one extreme tile consuming the entire map.
-- use a strong but bounded 64 / 44 / 29 / 19 scale for the four governed buckets so the distinction remains obvious without producing giant information-sparse tiles;
+- preserve usable treemap hierarchy while making bucket differences immediately legible.
+- use a deliberately steep 144 / 64 / 28 / 12 scale for the four governed buckets; recovered area must be spent on readable headlines and metadata rather than blank color;
 - use wrapped multi-line headlines, larger tile type and progressively richer metadata to spend available area on information;
 - use a compact, dark, viewport-confined tooltip so mobile inspection never produces the oversized white overlay seen in R12 owner testing.
 
@@ -292,7 +296,7 @@ Owner mobile testing then exposed three R12 readability defects: selector values
 - Artifact: `prism/prism-turn01-pre-ship-r13.html`
 - Application commit: `e3f657b6a45129aace2e5f4b90280a4a9a4c0583`
 - Blob: `246938c8ebf54afa2856a6cbe4233c40545774e4`
-- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **REJECTED FOR CORRECTION — TREEMAP READABILITY / DISTANT FILTER / RESEARCH WORKFLOW**
 
 R13 keeps the R12 two-row control and AI architecture while making the mobile surface readable. Row 1 selector values contain only dimension names. Row 2 always contains three controls aligned to Group, Color and Size; duplicate underlying dimensions remain visible and mirror one shared filter state. Map sizing uses the bounded governed 64 / 44 / 29 / 19 scale, larger wrapped labels with progressive metadata, and a compact dark tooltip confined to the viewport.
 
@@ -305,6 +309,18 @@ Deployed qualification at application commit `e3f657b6a45129aace2e5f4b90280a4a9a
 - Importance weights resolve exactly to 64 / 44 / 29 / 19, large labels wrap with context and metrics, and the dark tooltip is viewport-confined;
 - the exact R12 artifact remains unchanged at blob `4069ec8db8f803cda14d3572ff8c04cd3522de6c`;
 - the public GitHub Pages artifact returns HTTP 200 and hashes to the committed R13 blob above.
+
+Owner mobile testing showed that R13 still packed most events into unlabeled or initial-only rectangles inside a map with excessive unused margin. Filter selection traveled to a bottom sheet far from its trigger. The AI panel duplicated Config concerns and retained an unnecessary Continue action, while Library rendered saved output as a constrained card rather than a live research workspace. R13 remains preserved as the exact rejected artifact; correction proceeds in R14.
+
+## R14 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r14.html`
+- Application commit: **PENDING DEPLOYMENT**
+- Blob: **PENDING DEPLOYMENT**
+- Status: **LOCAL IMPLEMENTATION / QUALIFICATION IN PROGRESS**
+
+R14 keeps Explore, global AI placement, top-right Config placement, Portal shell and reader architecture unchanged. It removes AI runtime setup from the AI panel, enables provider-native current-web research automatically, requires adjacent direct URLs and enforces the WSJ-only paywall exception. The panel is Context → Prompt → Analysis with a sticky run/save footer and no Continue action.
+
+Library becomes a flowing master/detail research workspace with its own Omnisearch rail, full transcript, persistent bottom research composer, device-persisted continuation, and Markdown/PDF/JSON/CSV artifacts. The filter chip popover anchors to the tapped Row 2 control. The Map fills its canvas, uses 144 / 64 / 28 / 12 governed weights, spends large geometry on readable multi-line content, suppresses unreadable micro-labels, and supports one-tap group focus/clear.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -338,11 +354,11 @@ The next candidate is acceptable only if:
 9. filter chips are colored and serve as the legend; no redundant legend remains;
 10. a Source-only filter cannot leave an unselected Source group visible;
 11. Map tiles use available area for larger wrapped headlines and richer information when geometry permits, and mobile tooltips remain compact and viewport-confined;
-12. Size produces materially visible but bounded bucket/value area differences without giant information-sparse tiles;
+12. Size produces materially visible 144 / 64 / 28 / 12 bucket/value area differences, and large areas are used for readable information rather than blank color;
 13. Library has no persistent dimension/filter controls and has its own Omnisearch + Analysis-card left rail;
 14. Library Omnisearch proves positive, `-negative`, wildcard, `source:` and `url:` matching;
 15. a selected Analysis renders its complete timestamped conversation and continues from a bottom compose strip with device persistence;
-16. each Analysis downloads as JSON and CSV, and Config imports/merges both formats non-destructively;
+16. each Analysis exports as Markdown, print-to-PDF, JSON and CSV, and Config imports/merges JSON/CSV non-destructively;
 17. AI prompt policy requires direct URLs for every external reference/research suggestion and excludes paywalled references except WSJ;
 18. Map, Feed, Sources, AI/provider configuration, reader, selection and Library do not regress;
 19. Explore remains the baseline visualization for this gate;
@@ -352,8 +368,10 @@ The next candidate is acceptable only if:
 23. the hamburger exists inside the left portal rail, performs only rail collapse/expand, remains reachable while collapsed, and is absent from the global top header.
 24. the hamburger is the first control in the rail header and occupies the rail's top-left position; branding is secondary to its right.
 25. the ribbon has a non-scrolling Row 1 for Group/Color/Size + AI POV + item count and a non-scrolling Row 2 with exactly three role-aligned summaries; visible selector values do not repeat `Group ·`, `Color ·` or `Size ·`.
-26. each filter summary opens a chip-only adaptive selector; semantic All opens with individual chips off, All activates every current value, close commits, and zero/every value normalize to All.
-27. AI processing remains visible in Row 1 and the fixed panel header, while Research, Continue and one-click Add to Library remain available in a fixed panel footer without scrolling.
+26. each filter summary opens a chip-only popover immediately below its trigger (or above only to remain on-screen); semantic All opens with individual chips off, All activates every current value, close commits, and zero/every value normalize to All.
+27. AI processing remains visible in Row 1 and the fixed panel header, while Run analysis and one-click Add to Library remain available in a fixed panel footer without scrolling; the panel contains no provider/key/model setup and no Continue action.
+28. Library continuation automatically uses the Config-selected verified provider, searches the current web over the saved PRISM package and persists the appended turn without leaving Library.
+29. tapping a Map group focuses that group and exposes a named × control that restores all groups; unreadably small tile geometry does not display initials as substitute content.
 
 ## Standing process law
 Rollback/recovery always uses a specific existing repository artifact. Never manufacture a substitute baseline. Once the owner identifies the baseline, governance and implementation must continue from that artifact until the owner explicitly changes it.

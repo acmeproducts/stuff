@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.7.0 -->
-# PRISM GRAVEYARD v2.7.0
+<!-- PRISM-GRAVEYARD v2.8.0 -->
+# PRISM GRAVEYARD v2.8.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -100,6 +100,15 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **VETO:** do not repeat a selector's role inside each visible option; do not remove a Group / Color / Size filter slot because another role uses the same dimension; do not use an extreme area scale with tiny labels or an oversized default light tooltip.
 
 **Replacement:** dimension-name-only selector values; exactly three role-aligned Row 2 controls with duplicate dimensions mirroring one shared filter state; bounded 64 / 44 / 29 / 19 sizing, larger wrapped progressive labels and a compact dark viewport-confined tooltip.
+
+## G35 · Distant controls, micro-tile labels and archival research surfaces
+**Origin:** R13 mobile owner testing.
+
+**Observed:** a filter tap opened a bottom sheet far from its trigger; the treemap left large margins while rendering most events as unlabeled or initial-only micro-rectangles; AI POV repeated runtime configuration already owned by Config and exposed a redundant Continue action; Library constrained a saved analysis inside a scrollable card instead of treating it as an active research record.
+
+**VETO:** no bottom-sheet filter for a control in the top ribbon; no initials as a substitute for readable treemap content; no duplicated provider/key/model setup in AI POV; no Continue action in AI POV; no Library record trapped inside an archival analysis card; no research continuation without current-web retrieval and direct source URLs.
+
+**Replacement:** trigger-anchored chip popover; full-canvas treemap with steep governed weights, progressive multi-line labels and group focus; Config-selected AI runtime; Context → Prompt → Analysis with fixed run/save footer; flowing Library transcript with bottom composer, current-web continuation and Markdown/PDF/JSON/CSV artifact output.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`
