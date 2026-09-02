@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.20.0 -->
-# TALKBRIDGE MASTER PLAN v20.20.0
+<!-- TALKBRIDGE-PLAN v20.21.0 -->
+# TALKBRIDGE MASTER PLAN v20.21.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,7 +68,7 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | R11.0 part BUILT and device-confirmed; remainder planned — owner GO required | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·base | Notifications, complete (owner lock 2026-09-01, §5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
 | 25·pre-ship | PRISM scope un-hijack (§5.2) | Planned | — |
 | 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
 | 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
@@ -1900,6 +1900,23 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.21.0 · 2026-09-01.** N1 built on owner GO ("go"): (1) #652 — worker
+`tb-sw-25b.js` (frozen r10-cr3 bytes + wrapper part) injects icon/badge and
+explicit sound on every banner; `tb-sw.js` untouched per rule 0c, candidate
+registers the new worker (one declared line). (2) Declarative Web Push —
+relay v6.3 wraps the unchanged tb-ev identity in the web_push:8030 envelope
+with Content-Type application/notification+json; iOS 18.4+ displays without
+waking the worker, Chrome path byte-identical in behavior. Tap destination
+is the 25·base stage URL (stage-bound constant; canonicalized at the PRISM
+release). (3) #653 — "Join thread" fourth clock-menu option: paste an
+invite link, or scan QR where BarcodeDetector exists; joins via the app's
+own #j= boot path, nothing in it touched. (4) iPhone silence instrumented:
+n1_notif_cfg logged at boot; silent:false explicit on both paths. Gates:
+harness-n1-sw/app/relay/parity + mutate-n1-sw/app + CR3 relay 10/10; 9
+planted defects all caught. Device gate: the five unproven rows
+(2/3/7/8 Android, 13 Android→iPhone) + banner icon/sound on Android + iPhone
+sound + a declined-thread rejoin — one session, log fidelity closes with it.
 
 **v20.20.0 · 2026-09-01.** OWNER LOCK — final ladder, zero backlog:
 25·base notifications-complete (log fidelity closes here, one gate; #652,
