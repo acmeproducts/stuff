@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.14.0 -->
-# TALKBRIDGE MASTER PLAN v20.14.0
+<!-- TALKBRIDGE-PLAN v20.15.0 -->
+# TALKBRIDGE MASTER PLAN v20.15.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -318,6 +318,42 @@ stays as accepted until the owner moves to the 25·base URL. Same tb-sw.js and
 relay. Build support: `talkbridge/parts/r11-0-log-fidelity.js`,
 `talkbridge/build/assemble-r11-0.mjs`, `talkbridge/build/harness-r11-0.mjs`,
 `talkbridge/build/mutate-r11-0.mjs`, `package.json` scripts.
+
+## 5.1 · RELEASE — TURN25 PRE-SHIP: ANDROID ALERT PRESENTATION (OWNER GO REQUIRED)
+
+**Problem (r10-cr3 acceptance, finding 2):** Android alerts arrive as a
+generic bell icon and a dot in the shade — no heads-up banner.
+
+**Root cause, split honestly:**
+1. **Bell icon — proven, ours to fix.** The worker's `showNotification` calls
+   supply no `icon`/`badge`, so Chrome renders its generic bell.
+2. **No heads-up banner — platform-constrained.** On Android 8+, banner
+   behavior is decided by the notification channel's importance, fixed at the
+   moment the channel is created; later notifications cannot change it
+   (Pushwoosh KB 31878525893789; Android channel docs). Chrome creates one
+   channel per site at permission grant. Code cannot raise it afterward.
+   The device gate therefore tests two states: as-is, and after elevating
+   TalkBridge's notification category once in Android settings (or
+   re-granting permission so the channel is recreated).
+
+**Change (hook, never replace; new SW part over the frozen r10-cr3 worker):**
+- Add `icon` (icon-192.png) and monochrome `badge` (new icon-badge-96.png,
+  white-on-transparent) to every `showNotification` options object — call
+  alerts and room bursts alike. Nothing else in the worker changes.
+- App and worker move together as always; relay untouched (urgency headers
+  do not affect Android display — not in scope).
+
+**Gates:**
+- Machine: harness asserts every `showNotification` call carries `icon` and
+  `badge`; mutation (strip icon) must fail; parity gate proves frozen worker
+  bytes carried verbatim plus exactly one declared part.
+- Device (owner): Android alert shows the TalkBridge icon, not the bell;
+  banner behavior recorded in both channel states; the five unproven sheet
+  rows (2/3/7/8 Android, 13 Android→iPhone) read from the now-foldable log.
+
+**Sequencing:** builds on turn25-base after the owner's light check of
+R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker,
+new address, accepted files untouched (rule 0c).
 
 ## 4 · RELEASE 10 — POST-SHIP
 
@@ -1793,6 +1829,11 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.15.0 · 2026-09-01.** turn25 pre-ship planned: Android alert
+presentation (§5.1) — icon/badge fix is ours; heads-up banner is
+channel-importance, fixed at channel creation, code cannot raise it —
+device-gated in both channel states. Owner GO required before build.
 
 **v20.14.0 · 2026-09-01.** Commit `fb7ed76` (scope migration) reverted
 byte-exact; standing rule 0c added: accepted artifacts are immutable. Failure
