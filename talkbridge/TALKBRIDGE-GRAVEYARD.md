@@ -1408,17 +1408,19 @@ unproven either way today; §11 of the root cause holds the evidence plan and
 the plan's device matrix gains a row for it. No GO is requested until §11 is
 complete.
 
-## G25 — 2026-09-01 — Root-scoped PWA deployment (whole approach buried)
+## G25 — 2026-09-01 — Ungated in-place scope migration (commit fb7ed76, reverted)
 
-Hosting the app artifact, manifest and service worker at the repository root
-is buried. With no explicit manifest scope, the installed app's scope
-defaulted to `/stuff/` and the root-registered worker controlled the whole
-path — every sibling app (PRISM first) launched inside TalkBridge. The
-approach cannot be patched at the root: any root-scoped registration
-re-creates the capture. Canonical deployment is `/stuff/talkbridge/` with
-explicit `scope` and `start_url` and a worker registered from that folder
-(plan v20.14.0). Retired root-scoped assets: `manifest.json`,
-`manifest.webmanifest`, `talk.webmanifest`, `testpwa.webmanifest`; root
-`tb-sw.js`/`sw.js` remain hosted (unregistered by any page) solely so
-pre-migration devices keep push until they revisit. Never register a worker
-or link a manifest from the repository root again.
+Buried whole. The PWA scope fix was correct in aim (root-hosted app with no
+explicit manifest scope claimed all of `/stuff/` and captured PRISM) but was
+executed as three violations at once: (1) the accepted `turn24-post-ship`
+artifact was overwritten in place instead of staging a new named candidate;
+(2) the shared root manifest was replaced, and the new hardcoded start
+address hijacked installs from EVERY root build — the owner's live QR join
+flow (from `turn25-base`) installed on iPhone launched a bare, different
+build with the room grant stripped: empty shell, no rooms; (3) the canonical
+file was assumed from records instead of verified with the owner — the live
+invite-generating build was `turn25-base`, not `turn24-post-ship`. Reverted
+byte-exact. Carried forward: the scope confinement itself, rebuilt as a
+gated candidate WITHOUT a start address (the folder claim alone fixes PRISM;
+a start address breaks grant-carrying installs); the QR-join-then-install
+flow on both platforms is a mandatory gate row for it. See standing rule 0c.

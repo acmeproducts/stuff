@@ -12,6 +12,20 @@ apart. This version has one home for every item and no duplicated sections.
 
 ---
 
+## 0c · STANDING RULE — ACCEPTED ARTIFACTS ARE IMMUTABLE (owner, 2026-09-01)
+
+An accepted release's files are frozen the moment the owner accepts them.
+No build, fix, migration, or cleanup may ever modify, replace, relocate, or
+delete an accepted artifact — or any file an accepted artifact loads at its
+shipped address (its manifest, worker, icons). All change ships as a NEW
+named candidate at a NEW address and reaches users only after the owner's
+device gate. The only permitted write to an accepted artifact is a rollback
+that restores earlier accepted bytes. Before any push, every touched path is
+checked against the accepted-baseline file list; a match aborts the push.
+First application: commit fb7ed76 overwrote the accepted turn24-post-ship in
+place, replaced the shared root manifest, and broke the live join flow (G25).
+It was reverted byte-exact the same day.
+
 ## 0b · STANDING RULE — TESTING IS EXPENSIVE; CLAUDE OWNS PRE-FLIGHT (owner, 2026-08-24)
 
 The owner does not test that Claude executed correctly. Testing is expensive
@@ -1780,32 +1794,16 @@ Green means allowed to push. It never means done.
 
 ## 10 · CHANGE LOG
 
-**v20.14.0 · 2026-09-01.** R12 scope migration (owner-directed, single pass).
-**Root cause:** the app lived at the repository root, its manifest carried no
-explicit scope (defaulting to the start page's folder, `/stuff/`) and its
-worker was registered from the root — so the installed TalkBridge claimed the
-entire `/stuff/` path and captured PRISM launches into the app window.
-**Fix:** canonical app, worker, manifest and icons consolidated under
-`/stuff/talkbridge/`; manifest now declares `scope`/`start_url` there
-explicitly, with `id` set to the legacy install identity
-(`/stuff/bridge-turn24-post-ship.html`) so browsers that honor the id member
-update the existing install in place; worker registered with explicit scope.
-**Migration:** the root app URL is now a stub that forwards every launch
-(hash/query intact) to the canonical URL — legacy installed icons and legacy
-notification taps keep working; the canonical page then, only after its own
-scoped worker is ready and its push subscription exists (bounded wait),
-unsubscribes and unregisters legacy workers matched by EXACT scope
-(`/stuff/`) AND script URL (`/stuff/tb-sw.js`, `/stuff/sw.js`) — PRISM and
-foreign workers are provably untouched, no storage is cleared, rooms and
-device data survive. Legacy worker files stay hosted so not-yet-migrated
-devices keep receiving pushes. **Retired root manifests:** `manifest.json`,
-`manifest.webmanifest`, `talk.webmanifest`, `testpwa.webmanifest`.
-Worker bytes unchanged (assembled R10-CR3 artifact, byte-verified); relay
-untouched — pair remains v6.0 in sync. Gate: `build/check-r12-scope.mjs`,
-18/18 with mutation kills on scope regression and loose worker matching.
-Residual: on devices whose browser ignores the manifest id member, the
-installed icon keeps the old identity and a one-time reinstall is needed for
-the icon to launch the canonical URL directly (it still works via the stub).
+**v20.14.0 · 2026-09-01.** Commit `fb7ed76` (scope migration) reverted
+byte-exact; standing rule 0c added: accepted artifacts are immutable. Failure
+recorded as G25. The PRISM scope-capture root cause stands (root-hosted app,
+manifest with no explicit scope claims all of `/stuff/`) and will be rebuilt
+as a proper gated candidate; the reverted commit's second defect — a
+hardcoded manifest start address — is what broke the live QR join flow on
+iPhone by launching installs at a bare, different build instead of the
+grant-carrying invite URL. Live device build observed generating invites:
+`bridge-turn25-base.html` — canonical-file assumption must be re-verified
+with the owner before the next build.
 
 **v20.13.0 · 2026-08-31.** R10 closed: R10-CR3 pair `ac541c1` accepted by the
 owner as 24·post-ship (acceptance record in governance/evidence; gaps
