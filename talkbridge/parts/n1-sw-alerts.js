@@ -15,3 +15,35 @@
     return orig.call(this, title, opts);
   };
 })();
+
+/* N3 (G26): Chrome substitutes its own "site updated in the background"
+   message — with unsubscribe and spam prompts — whenever a push arrives and
+   the worker leaves no notification visible (pushpad.xyz; w3c/push-api#359).
+   This adds a last-resort guarantee: after every push event settles, if no
+   notification is showing for it, show one. Wraps the push listener; the
+   frozen handler still runs first and unchanged. */
+(function () {
+  var origAdd = self.addEventListener.bind(self);
+  self.addEventListener = function (type, fn, opts) {
+    if (type !== 'push') return origAdd(type, fn, opts);
+    return origAdd('push', function (e) {
+      var settled;
+      var wrapped = {
+        data: e.data,
+        waitUntil: function (p) {
+          settled = Promise.resolve(p).catch(function () {}).then(function () {
+            return self.registration.getNotifications().then(function (list) {
+              if (list && list.length) return;
+              return self.registration.showNotification('TalkBridge', {
+                body: 'New activity', tag: 'tb-fallback-visible', silent: false
+              });
+            }).catch(function () {});
+          });
+          e.waitUntil(settled);
+        }
+      };
+      try { fn.call(self, wrapped); } catch (_) {}
+      if (!settled) wrapped.waitUntil(Promise.resolve());
+    }, opts);
+  };
+})();

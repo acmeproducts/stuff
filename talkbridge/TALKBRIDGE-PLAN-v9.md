@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.24.0 -->
-# TALKBRIDGE MASTER PLAN v20.24.0
+<!-- TALKBRIDGE-PLAN v20.25.0 -->
+# TALKBRIDGE MASTER PLAN v20.25.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.25.0 · 2026-09-01.** Device gate FAILED on Android (owner): iPhone
+rang correctly; Android did not ring out of focus or locked and Chrome showed
+its own unsubscribe/spam notification instead. Root cause G26 — the
+declarative envelope and Content-Type were sent to every endpoint, so the
+Chrome path stopped producing our notification and Chrome substituted its
+own. Protocol executed: rollback of the Chrome push path to the accepted
+R10-CR3 bytes, graveyard G26, plan bump, rebuild as N3 — relay branches on
+endpoint (Apple declarative, everything else classic, mode logged per send)
+and the worker now guarantees a visible notification after every push
+settles. Gates: relay 9/9 + 3 mutations (incl. the replanted defect), worker
+9/9 + 4 mutations, N2 14/14 + 3, app 8/8 + 3, R11.0 4/4, CR3 relay 10/10,
+release-law gate PASS. Owner spec note: caller mute + call screen + ring-back
+remain 25·ship (§5.3) and were never part of this build.
 
 **v20.24.0 · 2026-09-01.** Governance self-test repaired, 16/16 green.
 Two real defects, neither in the app: (1) the guard looks for the R10.6

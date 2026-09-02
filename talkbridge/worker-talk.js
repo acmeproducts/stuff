@@ -459,17 +459,29 @@ export class TalkSession {
       const who = ev.name || 'TalkBridge';
       const nBody = kindStr === 'voice' ? 'Incoming voice call' : kindStr === 'video' ? 'Incoming video call' : 'New message';
       const nTag = (kindStr === 'voice' || kindStr === 'video') ? ('tb-call-' + ev.callId) : ('tb-' + sessionId);
-      const payload = {
-        t: 'tb-ev', id: ev.id, room: sessionId, kind: kindStr, callId: ev.callId || null, name: ev.name || null, ts: ev.ts,
-        web_push: 8030,
-        notification: { title: who + ' \u00b7 TalkBridge', body: nBody, tag: nTag, silent: false,
-          navigate: DECL_APP_URL + '#ev=' + encodeURIComponent(sessionId) + '.' + encodeURIComponent(ev.id) }
-      };
+      /* N3 (25\u00b7base rebuild, plan v20.25.0 \u00a75.1 \u2014 G26).
+         Declarative Web Push is APPLE-ONLY. Chrome/FCM receives exactly the
+         accepted R10-CR3 payload and headers: adding the declarative envelope
+         and Content-Type to the Chrome path left Android with a push that the
+         browser did not turn into our notification, so Chrome substituted its
+         own "site updated in the background" message with an unsubscribe and
+         spam prompt (Chrome shows that whenever a push arrives and the worker
+         does not display a notification \u2014 pushpad.xyz/blog/
+         this-site-has-been-updated-in-the-background; w3c/push-api#359). The
+         iPhone path is confirmed working on device and is kept unchanged. */
+      const isApple = /\.push\.apple\.com/i.test(endpoint);
+      const payload = { t: 'tb-ev', id: ev.id, room: sessionId, kind: kindStr, callId: ev.callId || null, name: ev.name || null, ts: ev.ts };
+      if (isApple) {
+        payload.web_push = 8030;
+        payload.notification = { title: who + ' \u00b7 TalkBridge', body: nBody, tag: nTag, silent: false,
+          navigate: DECL_APP_URL + '#ev=' + encodeURIComponent(sessionId) + '.' + encodeURIComponent(ev.id) };
+      }
+      r.pushMode = isApple ? 'declarative' : 'classic';
       body = await webpushEncrypt(JSON.stringify(payload), keys.p256dh, keys.auth);
     } catch (e) { r.push = 'failed'; r.pushErr = 'encrypt'; return; }
     const headers = {
       TTL: '60', Urgency: 'high', Topic: ev.kind === 'call' ? ('tb-call-' + ev.callId).slice(0, 32) : ('tb-' + sessionId).slice(0, 32),
-      'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/notification+json',
+      'Content-Encoding': 'aes128gcm', 'Content-Type': (/\.push\.apple\.com/i.test(endpoint) ? 'application/notification+json' : 'application/octet-stream'),
       'Content-Length': String(body.length)
     };
     const auth = await vapidHeader(this.env, endpoint);

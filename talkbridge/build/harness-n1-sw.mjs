@@ -8,6 +8,7 @@ function FakeReg() {} // prototype target
 const reg = new FakeReg();
 const ctx = {
   self: { addEventListener: (t, f) => { listeners[t] = f; }, registration: reg, clients: { matchAll: async () => [], openWindow: async () => {} }, skipWaiting: () => {} },
+  __shown: () => calls,
   ServiceWorkerRegistration: FakeReg,
   indexedDB: { open: () => { const r = {}; setTimeout(() => r.onerror && r.onerror(new Error('no idb')), 0); return r; } },
   setTimeout, clearTimeout, Promise, JSON, console, Date,
@@ -34,4 +35,11 @@ ok(!!byTag('tb-r1') && !!byTag('tb-call-c9') && !!byTag('tb-fallback'), 'frozen 
 ok(byTag('tb-call-c9').opts.requireInteraction === true && Array.isArray(byTag('tb-call-c9').opts.vibrate), 'call persistence+vibrate intact');
 ok(byTag('tb-r1').title === 'Sally · TalkBridge', 'frozen title scheme intact');
 ok(!!byTag('tb-r2'), 'declarative-envelope payload still parsed by SW (Chrome path)');
+// N3: a push whose handler shows nothing must still leave a notification visible (Chrome substitution guard)
+const before = calls.length;
+FakeReg.prototype.getNotifications = async () => [];
+const silentEv = { data: { json: () => { throw new Error('unparseable'); } }, waitUntil: (p) => p };
+try { await listeners['push'](silentEv); } catch (_) {}
+await new Promise(r => setTimeout(r, 40));
+ok(calls.length > before, 'a push that shows nothing still leaves a notification visible (no Chrome substitution)');
 console.log(fail === 0 ? 'N1-SW GREEN' : fail + ' FAILURES'); process.exit(fail ? 1 : 0);

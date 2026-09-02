@@ -5,6 +5,7 @@ const muts = [
   ['icon injection removed', src.replace("if (!('icon' in opts)) opts.icon = ICON;", '')],
   ['wrapper swallows original (no call-through)', src.replace('return orig.call(this, title, opts);', 'return Promise.resolve();')],
   ['silent forcing removed', src.replace("if (!('silent' in opts)) opts.silent = false;", '')],
+  ['visible-notification guarantee removed (the G26 Android defect)', src.replace("return self.registration.showNotification('TalkBridge', {", "return Promise.resolve().then(function(){}) || self.registration.showNotification('TalkBridge', {")],
 ];
 let bad = 0;
 for (const [name, m] of muts) {

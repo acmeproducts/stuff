@@ -1424,3 +1424,21 @@ byte-exact. Carried forward: the scope confinement itself, rebuilt as a
 gated candidate WITHOUT a start address (the folder claim alone fixes PRISM;
 a start address breaks grant-carrying installs); the QR-join-then-install
 flow on both platforms is a mandatory gate row for it. See standing rule 0c.
+
+## G26 — 2026-09-01 — Declarative Web Push sent to every endpoint (buried)
+
+Buried: sending the Declarative Web Push envelope (and its Content-Type) to
+ALL push endpoints. Device gate, owner: iPhone rang and behaved correctly;
+Android did NOT ring when the app was out of focus or locked — instead Chrome
+showed its own notification with unsubscribe and "is this spam" prompts.
+Chrome substitutes that message whenever a push arrives and the worker leaves
+no notification visible (pushpad.xyz/blog/this-site-has-been-updated-in-the-
+background; github.com/w3c/push-api/issues/359; github.com/zhukov/webogram
+/issues/1593). Declarative push is an Apple path; Chrome must keep receiving
+the accepted classic payload and Content-Type. Fix (N3): the relay branches
+on the endpoint — Apple gets declarative, everything else gets the byte-same
+payload and headers as accepted R10-CR3; the worker additionally guarantees a
+visible notification after every push settles, so Chrome can never substitute
+its own again. Both are mutation-gated, including replanting this defect.
+Rule carried forward: a platform-specific push format is never applied
+globally — branch on the endpoint and prove each branch separately.
