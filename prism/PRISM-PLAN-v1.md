@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v2.11.0 -->
-# PRISM MASTER PLAN v2.11.0
+<!-- PRISM-PLAN v2.12.0 -->
+# PRISM MASTER PLAN v2.12.0
 
 ## Governing baseline
 The owner has identified the exact existing application baseline. All prior rollback guesses are superseded.
@@ -15,7 +15,7 @@ The baseline remains frozen. Forward candidates fork from this exact application
 ## Preserve unchanged
 - **Explore stays as the baseline implementation for this gate.** No Explore redesign, geometry replacement, or new visualization experiment.
 - **Config stays where it is:** top-right configuration entry and existing configuration surface.
-- **AI remains global:** Row 1 → AI POV and the existing right-panel analytical flow. R12 may improve processing visibility, context density and access to Add to Library without changing provider, prompt, evidence or Library architecture.
+- **AI remains global:** Row 1 → AI POV and the existing right-panel analytical flow. The R12 processing, context and fixed-action improvements remain without changing provider, prompt, evidence or Library architecture.
 - Existing Map, Feed, search, event reader, source handling, AI/provider behavior, selection semantics, and cache architecture must not be removed.
 
 ## ACTIVE WORKSTREAM 1 — Portal shell
@@ -58,18 +58,19 @@ AI POV and every Library continuation must render Markdown links as active direc
 
 ## ACTIVE WORKSTREAM 3 — Dimension / filter system
 ### Core law
-**Every selectable dimension has one corresponding filter, and only currently selected dimensions appear as filters.**
+**Each Group / Color / Size role always has one corresponding visible filter control.**
 
-Visible filters = deduplicated union of active Group + Color + Size dimensions. If a dimension leaves all active roles, its filter disappears and its state is cleared.
+Row 2 therefore always contains three role-aligned controls in Group / Color / Size order. If the same underlying dimension is selected in two roles, both role slots remain visible and mirror one shared dimension filter state; the event predicate is evaluated once, avoiding contradictory double-filtering. If a dimension leaves all active roles, its state is cleared.
 
 ### Two-row control contract
 The analytical ribbon is a fixed two-row hierarchy with no horizontal scrolling:
 
 - Row 1: Group dimension • Color dimension • Size dimension | AI POV | filtered item count.
 - The global time-window control remains available in the top utility header because it is not a visualization dimension.
-- Row 2: one compact summary control for each active deduplicated dimension filter.
+- Row 2: exactly three compact role-aligned summary controls, one for Group, one for Color and one for Size.
 - Summary controls display `All`, the sole selected value, or `N of M`; they never enumerate an expanding value catalog inline.
 - AI POV and the filtered item count remain outside every scrolling filter surface.
+- Dimension selector values display only the dimension name (`Subject`, `Region`, `Importance`, and so on). Repeating `Group ·`, `Color ·` or `Size ·` inside every value is prohibited because role is already conveyed by selector position and its accessible label.
 
 Tapping a Row 2 summary opens an adaptive selection surface: a centered content-sized modal on wider screens and a bottom sheet on narrow screens. The selection surface contains toggle chips only—no checkboxes, `Only` buttons, include/exclude modes or Apply button.
 
@@ -119,13 +120,13 @@ There is **no separate inert legend**.
 
 Every dimension value in the adaptive selector is represented by a colored toggle chip. The same dimension/value color is used when that field drives visual Color. The selector therefore remains the interactive filter and the exact color key without forcing every value into the persistent ribbon.
 
-If a dimension is selected in multiple roles, it renders exactly one chip set.
+If a dimension is selected in multiple roles, every role retains its Row 2 control, but those controls open and mirror the same chip set.
 
 Examples:
 - Group=Subject + Color=Sentiment + Size=Importance → Subject + Sentiment + Importance chip sets.
 - Group=Tier + Color=Sentiment + Size=Importance → Tier + Sentiment + Importance.
 - Group=Source + Color=Tier + Size=Corroboration → Source + Tier + Corroboration.
-- Group=Subject + Color=Subject + Size=Importance → one Subject set + one Importance set.
+- Group=Subject + Color=Subject + Size=Importance → three visible controls (Subject, Subject, Importance); the two Subject controls mirror one Subject chip set.
 
 ### R6 source-filter defect — mandatory correction
 Owner test reproduced a correctness failure:
@@ -158,6 +159,9 @@ Required sizing law:
 - Corroboration: 4+ / 3 / 2 / 1 source must produce clearly separated areas;
 - Recency buckets must likewise produce meaningful area differences;
 - preserve usable treemap hierarchy and avoid one extreme tile consuming the entire map.
+- use a strong but bounded 64 / 44 / 29 / 19 scale for the four governed buckets so the distinction remains obvious without producing giant information-sparse tiles;
+- use wrapped multi-line headlines, larger tile type and progressively richer metadata to spend available area on information;
+- use a compact, dark, viewport-confined tooltip so mobile inspection never produces the oversized white overlay seen in R12 owner testing.
 
 ## ACTIVE WORKSTREAM 5 — Truthful custom-source ingestion
 Owner testing of R7 proved that Config → Sources → Add source was a metadata-only control. It stored the source in browser configuration but never fetched or parsed the feed, never merged its articles into the canonical corpus, and therefore could not expose the source in the active source inventory, Source filter or event provenance.
@@ -267,7 +271,7 @@ Deployed qualification at application commit `f590c7742d13d9e8497fd8d3e7ff3d7364
 - Artifact: `prism/prism-turn01-pre-ship-r12.html`
 - Application commit: `0f8932c61125b32661d28c688eac902b1afd6c07`
 - Blob: `4069ec8db8f803cda14d3572ff8c04cd3522de6c`
-- Status: **DEPLOYED MECHANICAL VALIDATION PASSED — OWNER TEST PENDING**
+- Status: **SUPERSEDED FOR CORRECTION — MOBILE READABILITY / THREE-SLOT FILTER CONTRACT**
 
 R12 replaces the expanding inline filter-value row with the governed two-row control hierarchy. Row 1 contains the three dimension controls followed by fixed AI POV and filtered item count. Row 2 contains one compact summary per active deduplicated filter. Each summary opens the chip-only adaptive modal/bottom sheet described above.
 
@@ -281,6 +285,16 @@ Deployed qualification at application commit `0f8932c61125b32661d28c688eac902b1a
 - semantic All opens with individual chips off; direct subset, All-then-exclude and close-to-commit transitions pass;
 - Row 1 and the panel header both expose the processing state without scrolling;
 - the fixed Add to Library action becomes available after a completed analysis and acknowledges a one-click persisted save.
+
+Owner mobile testing then exposed three R12 readability defects: selector values spent scarce width repeating role prefixes; duplicate dimensions were deduplicated into fewer than three visible filter controls; and the 120 / 58 / 26 / 11 treemap scale produced oversized, information-sparse tiles while tile labels remained too small. R12 remains preserved as the exact compact-control artifact; the scoped correction proceeds in R13.
+
+## R13 candidate
+- Artifact: `prism/prism-turn01-pre-ship-r13.html`
+- Application commit: **PENDING**
+- Blob: **PENDING**
+- Status: **LOCAL CANDIDATE — QUALIFICATION PENDING**
+
+R13 keeps the R12 two-row control and AI architecture while making the mobile surface readable. Row 1 selector values contain only dimension names. Row 2 always contains three controls aligned to Group, Color and Size; duplicate underlying dimensions remain visible and mirror one shared filter state. Map sizing uses the bounded governed 64 / 44 / 29 / 19 scale, larger wrapped labels with progressive metadata, and a compact dark tooltip confined to the viewport.
 
 ## BACKLOG — Config → Customize color schemes
 Do not pull this into the current gate unless the owner explicitly activates it.
@@ -308,13 +322,13 @@ The next candidate is acceptable only if:
 3. Config remains in its baseline location/flow;
 4. AI remains in its baseline location/flow;
 5. completed AI analysis can be added to Library and opened entirely inside the Library portal;
-6. every active dimension has exactly one corresponding filter;
+6. Group, Color and Size each retain one visible role-aligned filter control, including when roles share a dimension; duplicate controls mirror one underlying filter state;
 7. no inactive dimension has a visible or hidden active filter;
 8. Importance, Corroboration, Recency and Tier use governed bucket/value semantics;
 9. filter chips are colored and serve as the legend; no redundant legend remains;
 10. a Source-only filter cannot leave an unselected Source group visible;
-11. Map tiles use available area for richer information when geometry permits;
-12. Size produces materially visible bucket/value area differences;
+11. Map tiles use available area for larger wrapped headlines and richer information when geometry permits, and mobile tooltips remain compact and viewport-confined;
+12. Size produces materially visible but bounded bucket/value area differences without giant information-sparse tiles;
 13. Library has no persistent dimension/filter controls and has its own Omnisearch + Analysis-card left rail;
 14. Library Omnisearch proves positive, `-negative`, wildcard, `source:` and `url:` matching;
 15. a selected Analysis renders its complete timestamped conversation and continues from a bottom compose strip with device persistence;
@@ -327,7 +341,7 @@ The next candidate is acceptable only if:
 22. all nine repository defaults remain visible in Source inventory regardless of enabled/cache state, a prior all-hidden R8 state restores once on migration, and source startup does not require upgrading the shared PRISM database.
 23. the hamburger exists inside the left portal rail, performs only rail collapse/expand, remains reachable while collapsed, and is absent from the global top header.
 24. the hamburger is the first control in the rail header and occupies the rail's top-left position; branding is secondary to its right.
-25. the ribbon has a non-scrolling Row 1 for Group/Color/Size + AI POV + item count and a non-scrolling Row 2 with one compact summary per active deduplicated filter.
+25. the ribbon has a non-scrolling Row 1 for Group/Color/Size + AI POV + item count and a non-scrolling Row 2 with exactly three role-aligned summaries; visible selector values do not repeat `Group ·`, `Color ·` or `Size ·`.
 26. each filter summary opens a chip-only adaptive selector; semantic All opens with individual chips off, All activates every current value, close commits, and zero/every value normalize to All.
 27. AI processing remains visible in Row 1 and the fixed panel header, while Research, Continue and one-click Add to Library remain available in a fixed panel footer without scrolling.
 

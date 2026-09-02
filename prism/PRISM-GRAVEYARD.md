@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v2.6.0 -->
-# PRISM GRAVEYARD v2.6.0
+<!-- PRISM-GRAVEYARD v2.7.0 -->
+# PRISM GRAVEYARD v2.7.0
 
 ## Governance
 Rejected architectures are not patched forward. Rollback means returning to an identified existing repository artifact/commit. Do not synthesize a replacement and call it a rollback.
@@ -91,6 +91,15 @@ Rejected architectures are not patched forward. Rollback means returning to an i
 **VETO:** do not persistently enumerate every dimension value in the ribbon; do not place AI POV inside filter overflow; do not make the user scroll to confirm that AI is processing or to save a completed analysis.
 
 **Replacement:** fixed Row 1 dimensions + AI POV + item count; compact Row 2 filter summaries; chip-only adaptive selector; fixed AI status header and fixed action footer with one-click Add to Library.
+
+## G34 · Role-prefixed selectors, disappearing filter slots and information-sparse Map tiles
+**Origin:** R12 mobile owner testing.
+
+**Observed:** Row 1 repeated `Group ·`, `Color ·` and `Size ·` inside every selector option, so the role prefix consumed the visible mobile width while the actual dimension was truncated. When two roles selected the same underlying dimension, deduplication collapsed Row 2 from three controls to two. The 120 / 58 / 26 / 11 treemap scale produced giant colored tiles with substantial unused area, while labels remained small and the default light tooltip obscured a large part of the Map.
+
+**VETO:** do not repeat a selector's role inside each visible option; do not remove a Group / Color / Size filter slot because another role uses the same dimension; do not use an extreme area scale with tiny labels or an oversized default light tooltip.
+
+**Replacement:** dimension-name-only selector values; exactly three role-aligned Row 2 controls with duplicate dimensions mirroring one shared filter state; bounded 64 / 44 / 29 / 19 sizing, larger wrapped progressive labels and a compact dark viewport-confined tooltip.
 
 ## Active recovery baseline
 **Exact artifact:** `prism/prism-turn01-pre-ship-r3.html`
