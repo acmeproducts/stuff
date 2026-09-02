@@ -917,8 +917,7 @@ class GoogleDriveProvider {
     async setFav(fileId,v){await this.makeApiCall(`/files/${fileId}`,{method:'PATCH',body:JSON.stringify({appProperties:{favorite:String(v)}})});}
     async deleteFile(fileId){await this.makeApiCall(`/files/${fileId}`,{method:'DELETE'},false);}
     async getBlobUrl(file){
-        const r=await fetch(`${this.apiBase}/files/${file.id}?alt=media`,{headers:{Authorization:`Bearer ${this.accessToken}`}});
-        if(!r.ok)throw new Error('Fetch '+r.status);
+        const r=await this.makeApiCall(`/files/${file.id}?alt=media`,{},false);
         return URL.createObjectURL(await r.blob());
     }
     async getStreamUrl(file){
@@ -1288,6 +1287,8 @@ const Viewer={
   // Get streaming URL — browser handles range requests natively
   async getStreamingUrl(file){
     if(st.pvrType==='googledrive'){
+      // Cheap ping forces a token refresh if expired, so the URL below carries a live token
+      try{await st.pvr.makeApiCall('/files?pageSize=1&fields=files(id)');}catch(e){}
       // Direct URL with token — browser can seek, range requests work
       return `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&access_token=${encodeURIComponent(st.pvr.accessToken)}`;
     }else{
@@ -1298,11 +1299,14 @@ const Viewer={
 
   async getBlobUrl(file){
     if(this._blobCache[file.id])return this._blobCache[file.id];
-    let url,headers={};
-    if(st.pvrType==='googledrive'){url=`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;headers={'Authorization':'Bearer '+st.pvr.accessToken};}
-    else{const t=await st.pvr.getAccessToken();url=`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`;headers={'Authorization':'Bearer '+t};}
-    const r=await fetch(url,{headers});
-    if(!r.ok)throw new Error('HTTP '+r.status+' fetching file');
+    let r;
+    if(st.pvrType==='googledrive'){
+      r=await st.pvr.makeApiCall(`/files/${file.id}?alt=media`,{},false);
+    }else{
+      const t=await st.pvr.getAccessToken();
+      r=await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`,{headers:{'Authorization':'Bearer '+t}});
+      if(!r.ok)throw new Error('HTTP '+r.status+' fetching file');
+    }
     const blob=await r.blob();
     const objUrl=URL.createObjectURL(blob);
     this._blobCache[file.id]=objUrl;
