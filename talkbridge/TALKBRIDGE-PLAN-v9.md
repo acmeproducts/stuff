@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.15.0 -->
-# TALKBRIDGE MASTER PLAN v20.15.0
+<!-- TALKBRIDGE-PLAN v20.16.0 -->
+# TALKBRIDGE MASTER PLAN v20.16.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -69,9 +69,9 @@ built yet.
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — one relay-owned event authority; app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | Snapshot of 24·post-ship (accepted) | **Frozen 2026-08-31** — byte-identical to 24·post-ship, sha256 `6abc47d77ed2`; same tb-sw.js and relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
 | 25·base | R11.0 — log fidelity (owner: "fix the buffer flood first"); then R11 — responsive layout & collision safety (incl. 11.7 occluded video-mute icon) | R11.0 BUILT 2026-08-31 (owner GO "Go"): machine 4/4, 4 planted defects caught, relay/worker gates green; awaiting owner light check (§5c) | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | R12 — multi-party | Not started | — |
-| 25·ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
-| 25·post-ship | Unassigned — reserved | — | — |
+| 25·pre-ship | Android alert presentation + PRISM scope un-hijack (owner directive 2026-09-01; scope §5.1) | Planned — owner GO required | — |
+| 25·ship | R12 — multi-party | Not started | — |
+| 25·post-ship | R13 — secret migration Phase B (governed, owner go only) | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -82,25 +82,11 @@ the owner installed from that URL; it is retired when A8 passes.
 
 ## 1 · RELEASES
 
-**BASELINE: `bridge-turn24-pre-base.html`** — read receipts, device-passed
-2026-08-07. The only build that has ever passed a gate and still works. Both
-`bridge-turn24-base.html` and `bridge-turn24-pre-ship.html` have been
-overwritten with it.
-
-| # | Release | Feature | Status |
-|---|---|---|---|
-| 1 | turn23-pre-base | Room card and home screen | PASSED 2026-08-05 |
-| 2 | turn23-base | Joiner shell parity | PASSED 2026-08-05 |
-| 3 | turn23-pre-ship | Room lifecycle, naming, elevation | PASSED 2026-08-06 |
-| 4 | turn23-ship | Call and network robustness | PASSED 2026-08-06 |
-| 5 | turn23-post-ship | Room menu surface | PASSED 2026-08-06 |
-| 6 | turn24-pre-base | Read receipt delivery | **PASSED 2026-08-07 — CURRENT BASELINE** |
-| 7 | — | PWA, push, away-record | ROLLED BACK ×6. Folded into R10 |
-| 8 | turn24-base | Ribbon recovery + fine touches | REBUILD — scope §2 |
-| 9 | — | Phrasebook | Built (candidate) |
-| 10 | — | Notifications and PWA | R10.5 and R10.6 rejected; R10-CR1 clean-replacement plan complete; owner GO required; exact R10.2/v4.2 baseline remains live |
-| 11 | — | Responsive layout and collision safety | Built (candidate) |
-| 12 | — | Multi-party (3+) | Built (candidate) |
+The §0 TURN/STAGE LEDGER is the single authority for release status and
+artifacts. The duplicate status table that lived here was stale (it still
+showed R9 as a candidate and R10 awaiting GO after both had passed) and
+caused drift — removed 2026-09-01 per owner. Historical turn23 results live
+in the graveyard and acceptance records.
 
 ---
 
@@ -238,7 +224,9 @@ failure that has cost this project the most; it is not repeated here.
 
 ---
 
-### 3b · R9 INCOMPLETE — target-edit full behaviour not shipped
+### 3b · R9 — RESOLVED: passed at 24·ship (ledger, owner). Incompleteness note below is historical only.
+
+#### (historical) R9 INCOMPLETE — target-edit full behaviour not shipped
 
 R9 shipped the "Target updated (was X)" clarify entry. The following behaviour
 was specified but NOT built — it must ship as R9.1 before R10:
@@ -319,7 +307,7 @@ relay. Build support: `talkbridge/parts/r11-0-log-fidelity.js`,
 `talkbridge/build/assemble-r11-0.mjs`, `talkbridge/build/harness-r11-0.mjs`,
 `talkbridge/build/mutate-r11-0.mjs`, `package.json` scripts.
 
-## 5.1 · RELEASE — TURN25 PRE-SHIP: ANDROID ALERT PRESENTATION (OWNER GO REQUIRED)
+## 5.1 · RELEASE — TURN25 PRE-SHIP: ANDROID ALERT PRESENTATION + PRISM SCOPE UN-HIJACK (OWNER GO REQUIRED)
 
 **Problem (r10-cr3 acceptance, finding 2):** Android alerts arrive as a
 generic bell icon and a dot in the shade — no heads-up banner.
@@ -351,9 +339,23 @@ generic bell icon and a dot in the shade — no heads-up banner.
   banner behavior recorded in both channel states; the five unproven sheet
   rows (2/3/7/8 Android, 13 Android→iPhone) read from the now-foldable log.
 
+**Part 2 — PRISM scope un-hijack (owner directive 2026-09-01):**
+- Root cause (proven, G25): root-hosted app + manifest with no explicit scope
+  claims all of `/stuff/`; every sibling app (PRISM) opens inside TalkBridge.
+- Fix: candidate app, worker, manifest and icons under `/stuff/talkbridge/`;
+  manifest declares `scope` explicitly and **carries NO start address** — an
+  install must keep the grant-carrying invite URL (the fb7ed76 lesson).
+- Old address becomes a forwarder (hash/query intact); push migrates on the
+  new page AFTER its own subscription exists; legacy workers retired only on
+  EXACT scope + script match; legacy worker files stay hosted; no storage
+  cleared; PRISM untouched.
+- Gates add: QR join → install on iPhone AND Android lands in the room;
+  PRISM opens from Chrome in a plain tab; no duplicate alerts; rooms and
+  device data intact.
+
 **Sequencing:** builds on turn25-base after the owner's light check of
-R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker,
-new address, accepted files untouched (rule 0c).
+R11.0 log fidelity. Output: `bridge-turn25-pre-ship.html` + versioned worker
+under the new folder, accepted files untouched (rule 0c).
 
 ## 4 · RELEASE 10 — POST-SHIP
 
@@ -1829,6 +1831,12 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.16.0 · 2026-09-01.** Owner plan cleanup: §1 stale duplicate status
+table removed — §0 ledger is the single authority; R9 marked passed (24·ship)
+and its stale incompleteness note demoted to historical; 25·pre-ship set to
+Android alert presentation + PRISM scope un-hijack per owner directive, with
+R12 multi-party and R13 shifted one stage down the ledger.
 
 **v20.15.0 · 2026-09-01.** turn25 pre-ship planned: Android alert
 presentation (§5.1) — icon/badge fix is ours; heads-up banner is
