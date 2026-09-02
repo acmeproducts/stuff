@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.26.0 -->
-# TALKBRIDGE MASTER PLAN v20.26.0
+<!-- TALKBRIDGE-PLAN v20.27.0 -->
+# TALKBRIDGE MASTER PLAN v20.27.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,38 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.27.0 · 2026-09-01.** FULL ROLLBACK to the last known-good state
+(commit `2b58bbf`): app `bridge-turn25-base.html` at the root with R11.0
+only, accepted `tb-sw.js`, relay v6.2 source, accepted 24·post-ship pair
+untouched. Restored byte-exact and re-gated (R11.0 4/4, CR3 relay 10/10,
+release-law PASS). Every artifact of the buried work — candidate app, worker,
+manifest, folder icons, parts and their harnesses — removed so none can be
+reused by accident.
+**Root cause of this turn's failures (G28), stated plainly:** four unproven
+changes were stacked into one candidate — scope move, push format, worker
+wrappers, caller call surface — and each was piled on before the previous had
+passed a device gate, so when the delivered/read indicators regressed there
+was no way to attribute it. Method failure, not a coding one.
+**Second, concrete defect found in the rollback review:** the worker part
+wrapped `self.addEventListener` in code appended BELOW the frozen worker,
+which had already registered its push listener — the wrapper could never see
+it, so the "guaranteed visible notification" was dead code and the Android
+symptom was never actually addressed. Appended code may only hook what is
+resolved at call time (a prototype method, an object property), never an
+event registration that already happened.
+**Android ringing is UNKNOWN and stays unknown until instrumented.** Two
+builds asserted a cause without ever reading a device log of the push path;
+both were wrong. Build order rule 5 (instrument first when the cause is
+unknown) was skipped twice and is now mandatory for this item.
+**Rebuild rule for 25·base, effective now:** one behavioural change per
+candidate, each device-gated before the next begins. Order: (1)
+instrumentation-only notification build — no behaviour change — to find why
+Android does not ring unfocused or locked; (2) the fix that log points to;
+(3) PRISM un-hijack alone, with every URL derived from the scope re-proven
+(G27); (4) caller call round trip (mic muted, call screen, ring-back, synced
+timers). Known-good rollback point for all four:
+https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.26.0 · 2026-09-01.** Second device-gate failure and the owner's scope
 call, both handled.

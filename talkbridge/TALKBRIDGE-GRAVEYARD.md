@@ -1458,3 +1458,34 @@ destination to its real app file in the current scope on every notification;
 mutation-gated by replanting the stale name. Rule carried forward: whenever a
 scope, folder, or artifact name changes, every URL derived from that scope
 must be re-proven — a scope move is never just a manifest edit.
+
+## G28 — 2026-09-01 — Stacking unproven changes into one candidate (whole method buried)
+
+Buried: the working method of this whole turn, not any single part. Four
+independent changes were stacked into one candidate — scope move (N2), push
+format (N1/N3), worker wrappers, and the caller call surface (N4) — and each
+new one was piled on top before the previous had passed a device gate. Two
+device gates failed and a third defect (delivered/read indicators stopped
+working) appeared with no way to say which change caused it, because nothing
+was ever isolated. That is the actual root cause of this turn's failures, and
+it is a method failure, not a coding one.
+
+Also buried, specifically:
+- **The worker's addEventListener wrapper (N3).** It replaced
+  `self.addEventListener` in an appended part — but the frozen worker had
+  already registered its push listener above it, so the wrapper could never
+  see it. The "guaranteed visible notification" was dead code from the moment
+  it was written and the Android behaviour it claimed to fix was never
+  touched. Anything appended after the frozen bytes must hook things that are
+  resolved at CALL time (a prototype method, an object property), never an
+  event registration that already happened.
+- **Declaring an Android root cause from reasoning.** Two builds asserted a
+  cause for "Android does not ring when unfocused or locked" without ever
+  reading a device log of the push path. Both were wrong. The cause is still
+  UNKNOWN and the next build instruments it before changing it (build order
+  rule 5, which was skipped twice).
+
+Rules carried forward: one behavioural change per candidate, device-gated
+before the next is started; when a cause is unknown, ship instrumentation
+first and read the log; never append code that assumes it can intercept
+listeners the frozen artifact already registered.

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { JSDOM } from 'jsdom';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const CANDIDATE = fs.readFileSync(path.join(root, 'talkbridge/bridge-turn25-base.html'), 'utf8');
+const CANDIDATE = fs.readFileSync(path.join(root, 'bridge-turn25-base.html'), 'utf8');
 const BASE = fs.readFileSync(path.join(root, 'bridge-turn25-pre-base.html'), 'utf8');
 const URL_ = 'https://acmeproducts.github.io/stuff/bridge-turn25-base.html';
 

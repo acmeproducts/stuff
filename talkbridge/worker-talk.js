@@ -45,8 +45,6 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
 const RELAY_VERSION = '6.2';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-/* N1: declarative-tap destination — the 25\u00b7base stage artifact. Revisit at the PRISM release when addresses become canonical. */
-const DECL_APP_URL = 'https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html';
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
 const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
@@ -450,38 +448,13 @@ export class TalkSession {
     if (!endpoint || !keys || !keys.p256dh || !keys.auth) { r.push = 'failed'; r.pushErr = 'no-subscription'; return; }
     let body;
     try {
-      /* The event identity only — never message text. N1 (plan v20.20.0 §5.1):
-         the same payload now also carries the Declarative Web Push envelope
-         (web_push 8030 + notification) so iOS 18.4+/Safari displays the banner
-         without waking the worker; Chrome ignores the envelope and the service
-         worker reads the unchanged tb-ev fields exactly as before. */
-      const kindStr = ev.kind === 'call' ? ev.callKind : 'chat';
-      const who = ev.name || 'TalkBridge';
-      const nBody = kindStr === 'voice' ? 'Incoming voice call' : kindStr === 'video' ? 'Incoming video call' : 'New message';
-      const nTag = (kindStr === 'voice' || kindStr === 'video') ? ('tb-call-' + ev.callId) : ('tb-' + sessionId);
-      /* N3 (25\u00b7base rebuild, plan v20.25.0 \u00a75.1 \u2014 G26).
-         Declarative Web Push is APPLE-ONLY. Chrome/FCM receives exactly the
-         accepted R10-CR3 payload and headers: adding the declarative envelope
-         and Content-Type to the Chrome path left Android with a push that the
-         browser did not turn into our notification, so Chrome substituted its
-         own "site updated in the background" message with an unsubscribe and
-         spam prompt (Chrome shows that whenever a push arrives and the worker
-         does not display a notification \u2014 pushpad.xyz/blog/
-         this-site-has-been-updated-in-the-background; w3c/push-api#359). The
-         iPhone path is confirmed working on device and is kept unchanged. */
-      const isApple = /\.push\.apple\.com/i.test(endpoint);
-      const payload = { t: 'tb-ev', id: ev.id, room: sessionId, kind: kindStr, callId: ev.callId || null, name: ev.name || null, ts: ev.ts };
-      if (isApple) {
-        payload.web_push = 8030;
-        payload.notification = { title: who + ' \u00b7 TalkBridge', body: nBody, tag: nTag, silent: false,
-          navigate: DECL_APP_URL + '#ev=' + encodeURIComponent(sessionId) + '.' + encodeURIComponent(ev.id) };
-      }
-      r.pushMode = isApple ? 'declarative' : 'classic';
+      /* The event identity only — never message text. */
+      const payload = { t: 'tb-ev', id: ev.id, room: sessionId, kind: ev.kind === 'call' ? ev.callKind : 'chat', callId: ev.callId || null, name: ev.name || null, ts: ev.ts };
       body = await webpushEncrypt(JSON.stringify(payload), keys.p256dh, keys.auth);
     } catch (e) { r.push = 'failed'; r.pushErr = 'encrypt'; return; }
     const headers = {
       TTL: '60', Urgency: 'high', Topic: ev.kind === 'call' ? ('tb-call-' + ev.callId).slice(0, 32) : ('tb-' + sessionId).slice(0, 32),
-      'Content-Encoding': 'aes128gcm', 'Content-Type': (/\.push\.apple\.com/i.test(endpoint) ? 'application/notification+json' : 'application/octet-stream'),
+      'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
       'Content-Length': String(body.length)
     };
     const auth = await vapidHeader(this.env, endpoint);
