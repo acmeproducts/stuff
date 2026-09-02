@@ -176,7 +176,7 @@ export function validateSnapshot({ root, changedFiles = [], previousState = null
      plan. The state file itself may not be rewound. */
   if (previousState && previousState.stage === 'accepted') {
     if (state && state.stage !== 'accepted') errors.push('a closed R10 cycle cannot be reopened in place; open a new cycle file');
-    return { state, errors, closed: true };
+    return { ok: errors.length === 0, stage: state?.stage, errors, closed: true };
   }
 
   assert(state.schema === 1, 'unsupported governance schema', errors);
