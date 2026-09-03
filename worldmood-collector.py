@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import datetime as dt, json, os, re, time, urllib.parse, urllib.request
+import datetime as dt, json, os, re, time, socket, ssl, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 from collections import defaultdict
 
-VERSION='1.9.0'
+VERSION='1.9.1'
 GKG=os.environ.get('WORLDPULSE_GKG_URL','https://api.gdeltproject.org/api/v1/gkg_geojson')
 DOC=os.environ.get('WORLDPULSE_DOC_URL','https://api.gdeltproject.org/api/v2/doc/doc')
 HISTORY=Path(os.environ.get('WORLDPULSE_HISTORY','worldpulse-history.json'))
 OUTPUT=Path(os.environ.get('WORLDPULSE_OUTPUT','worldpulse-index.json'))
-WINDOWS=(60,180,360,720,1440); MAXROWS=5000; TIMEOUT=45
-UA='WorldPulseCollector/1.9 (+https://github.com/acmeproducts/stuff)'
+WINDOWS=(60,180,360,720,1440); MAXROWS=5000; TIMEOUT=int(os.environ.get('WORLDPULSE_TIMEOUT','35')); RETRIES=int(os.environ.get('WORLDPULSE_RETRIES','3'))
+UA='WorldPulseCollector/1.9.1 (+https://github.com/acmeproducts/stuff)'
 QUALITY={'bbc.com':100,'bbc.co.uk':100,'reuters.com':99,'apnews.com':99,'npr.org':95,'theguardian.com':94,'aljazeera.com':93,'dw.com':92,'france24.com':92,'abc.net.au':91,'cbc.ca':91,'cbsnews.com':87,'nbcnews.com':87,'abcnews.go.com':87,'cnn.com':85,'nytimes.com':85,'washingtonpost.com':85}
 TARGET=list(QUALITY)[:11]
+
+class TransientUpstream(Exception): pass
 
 def utcnow(): return dt.datetime.now(dt.timezone.utc)
 def iso(t): return t.astimezone(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -26,9 +28,26 @@ def parse_time(v):
         t=dt.datetime.fromisoformat(s.replace('Z','+00:00')); return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
     except:return None
 
-def get_json(url):
-    req=urllib.request.Request(url,headers={'User-Agent':UA,'Accept':'application/json'}); t=time.time()
-    with urllib.request.urlopen(req,timeout=TIMEOUT) as r:return json.loads(r.read().decode('utf-8','replace')),r.status,round((time.time()-t)*1000)
+def transient(e):
+    if isinstance(e,(TimeoutError,socket.timeout,ConnectionError,ssl.SSLError,urllib.error.URLError)):
+        if isinstance(e,urllib.error.HTTPError): return e.code in (408,425,429) or 500<=e.code<=599
+        return True
+    return isinstance(e,urllib.error.HTTPError) and (e.code in (408,425,429) or 500<=e.code<=599)
+
+def get_json(url,label='upstream'):
+    last=None
+    for attempt in range(1,RETRIES+1):
+        req=urllib.request.Request(url,headers={'User-Agent':UA,'Accept':'application/json'}); t=time.time()
+        try:
+            with urllib.request.urlopen(req,timeout=TIMEOUT) as r:
+                return json.loads(r.read().decode('utf-8','replace')),r.status,round((time.time()-t)*1000)
+        except Exception as e:
+            if not transient(e): raise
+            last=e
+            print(json.dumps({'level':'warning','event':'upstream_retry','source':label,'attempt':attempt,'max_attempts':RETRIES,'error':str(e)}),flush=True)
+            if attempt<RETRIES: time.sleep(min(8,2**(attempt-1)))
+    raise TransientUpstream(f'{label} unavailable after {RETRIES} attempts: {last}')
+
 def dom(u):
     try:return urllib.parse.urlparse(u).netloc.lower().removeprefix('www.')
     except:return ''
@@ -54,7 +73,7 @@ def quality_titles():
     ors=' OR '.join(f'domain:{d}' for d in TARGET)
     p=urllib.parse.urlencode({'query':f'({ors}) sourcelang:english','mode':'ArtList','maxrecords':'250','format':'json','timespan':'60min','sort':'DateDesc'})
     try:
-        j,http,ms=get_json(DOC+'?'+p); out={}
+        j,http,ms=get_json(DOC+'?'+p,'GDELT DOC'); out={}
         for a in j.get('articles',[]):
             u=a.get('url') or ''
             if u:out[u]={'title':(a.get('title') or '').strip(),'domain':a.get('domain') or dom(u),'published':a.get('seendate') or ''}
@@ -63,7 +82,7 @@ def quality_titles():
 
 def gkg():
     p=urllib.parse.urlencode({'QUERY':'','TIMESPAN':'60','OUTPUTFIELDS':'name,geores,url,domain,lang,tone,urltone,date,datetime,themes,names,title','MAXROWS':str(MAXROWS)})
-    u=GKG+'?'+p; j,http,ms=get_json(u); return j.get('features',[]),http,ms
+    u=GKG+'?'+p; j,http,ms=get_json(u,'GDELT GKG'); return j.get('features',[]),http,ms
 
 def norm(f,titles):
     g=f.get('geometry') or {}; c=g.get('coordinates') or []
@@ -81,6 +100,11 @@ def norm(f,titles):
 def load_history():
     try:return json.loads(HISTORY.read_text(encoding='utf-8')).get('records',[])
     except:return []
+def valid_cache():
+    try:
+        h=json.loads(HISTORY.read_text(encoding='utf-8')); i=json.loads(OUTPUT.read_text(encoding='utf-8'))
+        return h.get('schema')=='worldpulse-history-v1' and bool(h.get('records')) and i.get('schema')=='worldpulse-index-v1' and bool(i.get('windows'))
+    except:return False
 def merge(old,new):
     cut=utcnow()-dt.timedelta(hours=26); m={}
     for r in old+new:
@@ -148,12 +172,20 @@ def build(rows,mins):
     return {'minutes':mins,'records':len(rows),'reports':reports}
 
 def main():
-    titles,tstat=quality_titles(); feats,http,ms=gkg(); new=[r for r in (norm(f,titles) for f in feats) if r]
+    titles,tstat=quality_titles()
+    try: feats,http,ms=gkg()
+    except TransientUpstream as e:
+        if valid_cache():
+            print(json.dumps({'ok':True,'stale':True,'cache_retained':True,'reason':str(e),'quality_doc':tstat},indent=2)); return
+        raise SystemExit(f'WorldPulse upstream unavailable and no valid cache exists: {e}')
+    new=[r for r in (norm(f,titles) for f in feats) if r]
     if len(new)<100:raise SystemExit(f'Refusing to publish: only {len(new)} mapped records in 60m pull')
-    hist=merge(load_history(),new); HISTORY.write_text(json.dumps({'schema':'worldpulse-history-v1','generated_at':iso(utcnow()),'records':hist},separators=(',',':')),encoding='utf-8')
+    hist=merge(load_history(),new)
     windows={str(m):build(hist,m) for m in WINDOWS}; one=windows['60']['records']
     for m in ('180','360','720','1440'):
         if one>=100 and windows[m]['records']<max(50,int(one*.5)):raise SystemExit(f'Refusing invalid {m}m window: {windows[m]["records"]} vs {one}')
+    history_payload={'schema':'worldpulse-history-v1','generated_at':iso(utcnow()),'records':hist}
     out={'schema':'worldpulse-index-v1','app_version':VERSION,'generated_at':iso(utcnow()),'source_note':'Rolling 24h precomputed index built from repeated healthy 60-minute GDELT pulls. Broad GDELT drives geography/sentiment; reputable publishers are ranked first in the reader.','quality_publishers':QUALITY,'collector':{'gkg_http':http,'gkg_ms':ms,'gkg_raw':len(feats),'mapped_new':len(new),'history_records':len(hist),'quality_doc':tstat},'windows':windows}
-    OUTPUT.write_text(json.dumps(out,separators=(',',':')),encoding='utf-8'); print(json.dumps({'ok':True,'new':len(new),'history':len(hist),'windows':{k:v['records'] for k,v in windows.items()},'quality_doc':tstat},indent=2))
+    HISTORY.write_text(json.dumps(history_payload,separators=(',',':')),encoding='utf-8'); OUTPUT.write_text(json.dumps(out,separators=(',',':')),encoding='utf-8')
+    print(json.dumps({'ok':True,'new':len(new),'history':len(hist),'windows':{k:v['records'] for k,v in windows.items()},'quality_doc':tstat},indent=2))
 if __name__=='__main__':main()
