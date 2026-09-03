@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'integrate-SOT-turn01-coordination.py'
+      - 'integrate-SOT-turn01-coordination-ui.py'
       - 'sot-db/migrations/005-project-coordination.sql'
       - '.github/workflows/sot-coordination-qualification.yml'
 permissions:
@@ -30,6 +31,26 @@ jobs:
           grep -Fq "const BUILD = '2026.09.03.sot-turn01-coordination-1';" /tmp/candidate.js
           grep -Fq 'const EXPECTED_MIGRATION = 5;' /tmp/candidate.js
           grep -Fq 'function claimProjectOperation(projectToken,kind)' /tmp/candidate.js
+      - name: Generate governed UI and non-destructive refresh
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html -o /tmp/pre.html
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py -o /tmp/ui22.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py -o /tmp/ui24.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py -o /tmp/uiai.py
+          python3 -m py_compile /tmp/ui22.py /tmp/ui24.py /tmp/uiai.py integrate-SOT-turn01-coordination-ui.py
+          python3 /tmp/ui22.py /tmp/pre.html /tmp/ui22.html
+          python3 /tmp/ui24.py /tmp/ui22.html /tmp/ui24.html
+          python3 /tmp/uiai.py /tmp/ui24.html /tmp/ui-base.html
+          python3 integrate-SOT-turn01-coordination-ui.py /tmp/ui-base.html /tmp/ui.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('/tmp/ui.html').read_text(); s='\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I));Path('/tmp/ui.js').write_text(s)
+          assert 'function sotOperatorBusy()' in h
+          assert 'p.lifecycle_state' in h
+          PY
+          node --check /tmp/ui.js
       - name: Build schema 5 test database
         run: |
           set -euo pipefail
