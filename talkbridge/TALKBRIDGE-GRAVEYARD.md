@@ -1554,3 +1554,17 @@ BYTES at the SAME registered path of a NEW stage artifact, or not at all;
 relay-side and app-side fixes are preferred while an install base is live.
 Carried forward with G25 and G27: anything touching scope, worker identity, or
 manifest identity is its own release with its own install/launch gate.
+
+## G33 — 2026-09-03 — Retrying a permission on a stolen tap; one platform's settings for all
+
+Buried, both halves. (1) When the silent notification subscribe failed, the app
+armed a capture-phase listener that consumed the NEXT TAP ANYWHERE to retry
+inside a gesture. On the owner's Android device the next tap was the hamburger:
+the menu never opened, the retry failed again, and the denial card appeared
+instead — the app looked broken and the menu was unreachable. A permission
+retry must ride a deliberate, visible control the person chooses, never an
+unrelated tap. (2) The denial card gave iPhone settings (Notification Centre,
+Banners, Banner style: Temporary) on every platform; on Android those screens
+do not exist, so the instructions led nowhere and notifications stayed off —
+which is why nothing could ring when locked no matter what the relay did.
+Device-specific guidance must branch on the device in front of the person.

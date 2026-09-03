@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.33.0 -->
-# TALKBRIDGE MASTER PLAN v20.33.0
+<!-- TALKBRIDGE-PLAN v20.34.0 -->
+# TALKBRIDGE MASTER PLAN v20.34.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,31 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.34.0 · 2026-09-03.** 25·base completes the round trip, on owner order.
+**N9 — notification permission (G33).** The failed silent subscribe used to arm
+a listener that ate the next tap anywhere; on the owner's Android the hamburger
+was that tap, so the menu never opened and the denial card appeared instead.
+Replaced by a visible bar the person taps on purpose. The denial card gave
+iPhone settings on every platform; it now branches — Android gets App info →
+Notifications → Allow, and the category set to Alert/Pop-up (a silent category
+never makes a sound), iPhone keeps its own steps. This is why the handset could
+not ring when locked: notifications were never actually granted on the device.
+**N10 — the outbound half of the call.** Caller's microphone is muted while it
+rings, the caller sees a call screen naming who is being called, and hears a
+ring-back through the phone; on answer the mic goes live, the screen clears,
+and BOTH clocks start at the answer, so the two sides agree (B-8a closed).
+Cancel ends the call on both sides. Wrapped around the frozen call logic.
+Together with N8 (liveness ack gate) 25·base now carries the whole device-to-
+device cycle: reachable when locked, alerted correctly, dialled and answered
+with matching timers.
+Scope note: no service worker, registration, manifest or install-gate surface
+is touched (G32); the app has ZERO changed lines against the accepted bytes —
+only appended parts.
+Gates: N9/N10 22/22 with 8 replanted defects all caught (tap thief, wrong
+platform steps, mute, ring-back, call screen, both clock anchors, mic on
+answer); relay contract 12/12; N8 app passthrough 9/9; release-law PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.33.0 · 2026-09-02.** Second-pass line-by-line audit of 25·base against
 the accepted baseline `ac541c1`, at owner instruction. Confirmed identical:
