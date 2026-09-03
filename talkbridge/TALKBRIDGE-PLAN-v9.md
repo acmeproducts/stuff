@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.31.0 -->
-# TALKBRIDGE MASTER PLAN v20.31.0
+<!-- TALKBRIDGE-PLAN v20.32.0 -->
+# TALKBRIDGE MASTER PLAN v20.32.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,28 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.32.0 · 2026-09-02.** 25·base, rebuilt from the accepted pair after the
+install-gate/flicker regression (G32: changing the registered worker filename
+under a live install). This build touches NO service worker, no registration,
+no manifest, no install gate. The app differs from the accepted bytes by one
+appended part.
+**Cause of the Android silence (G30), unchanged and now fixed properly:** the
+relay withheld the push from any recipient it believed was `in_app`, and that
+belief is the handset's own last self-report — a phone that locks or is
+backgrounded keeps its socket open while the report still reads `visible` for
+up to STATE_FRESH_MS, so nothing was sent and nothing could ring. iOS was
+never affected because it suspends the page and drops the socket.
+**N8 — liveness ack gate:** before withholding a push the relay asks that
+socket to prove it is awake and waits ALIVE_MS (1200ms; tests shorten it). A
+live on-screen app answers immediately and is not pushed, so there are still
+no duplicate alerts; a locked or frozen page cannot answer and is pushed.
+Muted and burst suppression are untouched, as are presentation words,
+counters, projections and the ledger.
+Gates: relay contract 11/11 including a new scenario reproducing the exact
+device failure (reported visible, then locked → pushed; live app → not
+pushed), CR3 app mutations 17/17, release-law PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.31.0 · 2026-09-02.** 25·base built from the ACCEPTED pair, one
 behavioural change: make the phone ring again, by restoring the R10.2 alert

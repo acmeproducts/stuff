@@ -21,10 +21,10 @@ class ServerSocket {
   constructor(pair) { this.pair = pair; this.attachment = null; this.closed = false; }
   serializeAttachment(a) { this.attachment = clone(a); }
   deserializeAttachment() { return clone(this.attachment); }
-  send(text) { if (this.closed) throw new Error('closed'); this.pair.client.inbox.push(JSON.parse(text)); }
+  send(text) { if (this.closed) throw new Error('closed'); const m = JSON.parse(text); this.pair.client.inbox.push(m); if (this.pair.client.onEach) { try { this.pair.client.onEach(m); } catch (_) {} } }
   close() { this.closed = true; }
 }
-class ClientSocket { constructor() { this.inbox = []; } }
+class ClientSocket { constructor() { this.inbox = []; this.onEach = null; } }
 globalThis.WebSocketPair = class { constructor() { this.client = new ClientSocket(); const s = new ServerSocket(this); this[0] = this.client; this[1] = s; } };
 const RealResponse = globalThis.Response;
 globalThis.Response = function (body, init) { if (init && init.status === 101) return { status: 101, webSocket: init.webSocket }; return new RealResponse(body, init); };
@@ -41,6 +41,7 @@ class FakeState {
   async blockConcurrencyWhile(fn) { return fn(); }
 }
 
+globalThis.TB_ALIVE_MS = 60;   /* N8: keep the liveness window short in tests */
 const mod = await import(pathToFileURL(WORKER).href);
 const { TalkSession } = mod;
 const ENV = { VAPID_PRIVATE_KEY: '' };
@@ -137,18 +138,19 @@ await scenario('R4 accept then end · ended outcome, nothing counted', async () 
 
 await scenario('R5 presentation by state · visible in room = in_app + seen on handling; visible elsewhere = in_app card until open', async () => {
   const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
+  /* N8: a genuinely awake app answers the relay's liveness challenge, which is
+     what keeps it un-pushed. Belief alone no longer suppresses the push. */
+  b.server.pair.client.onEach = (m) => { if (m.type === 'ev-alive') b.say({ type: 'ev-alive-ack', token: m.token }); };
   await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
   await a.say(CHAT('c2'));
-  /* N7 (plan v20.31.0): the relay returned to R10.2 ALWAYS-PUSH. The word is
-     unchanged — the relay still believes 'in_app' — but the transport no
-     longer depends on that belief. The DEVICE decides display (harness-n7:
-     Android with a visible window shows nothing). So: pushed, not shown. */
-  assert.equal(pushes.length, 1, 'always-push: the handset is always reachable'); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(pushes.length, 0); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
   const s1 = await b.ask({ type: 'ev-seen', ids: ['c2'] }); assert.deepEqual(s1.proj, { chat: 0, voice: 0, video: 0 });
   assert.equal(w.session.events.c2.rcp.B.seenBy, 'in_room');
   await b.say({ type: 'ev-state', visible: true, inRoom: false, muted: false });
   await a.say(CHAT('c3'));
-  assert.equal(pushes.length, 2, 'always-push: sent; the device suppresses display while visible'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(pushes.length, 0, 'visible on home: in-app card, no OS alert'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
   const bproj = b.inbox.filter((m) => m.type === 'ev-proj'); assert.ok(bproj.length >= 1, 'the projection rides the socket');
   assert.deepEqual(bproj[bproj.length - 1].proj, { chat: 1, voice: 0, video: 0 });
   assert.deepEqual((await proj(b)).proj, { chat: 1, voice: 0, video: 0 });
@@ -206,22 +208,29 @@ await scenario('R10 read-only HTTPS reconciliation equals the socket answer; cal
   const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.2'); assert.ok(Array.isArray(d.events));
 });
 
-await scenario('N7 locked handset · a phone that reported visible and then locked is STILL pushed (the Android failure)', async () => {
+await scenario('N8 liveness gate · a phone that reported visible and then locked is pushed; a live app is not', async () => {
   const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
-  /* the phone is in the room and says so */
   await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
+  /* the app is awake: it answers the challenge, so nothing is pushed */
+  b.server.pair.client.onEach = (m) => { if (m.type === 'ev-alive') b.say({ type: 'ev-alive-ack', token: m.token }); };
   const before = pushes.length;
-  /* the screen locks: no further report, the socket is still open, and the
-     last report is still inside STATE_FRESH_MS - exactly the window in which
-     the relay used to withhold the push */
-  await a.say(CHAT('n7a'));
-  assert.equal(pushes.length, before + 1, 'the push is sent while the stale visible report is still fresh');
-  /* a muted room is still never pushed */
-  await b.say({ type: 'ev-state', visible: true, inRoom: false, muted: true });
+  await a.say(CHAT('n8a'));
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(pushes.length, before, 'a live app answers and is not pushed');
+  /* the screen locks: the socket is still open and the report still reads
+     visible, but the page is frozen and cannot answer */
+  b.server.pair.client.onEach = null;
+  await a.say(CHAT('n8b'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(pushes.length, before + 1, 'a frozen page cannot answer, so the handset is pushed');
+  /* muted is still never pushed */
+  await b.say({ type: 'ev-state', visible: false, inRoom: false, muted: true });
   const beforeMuted = pushes.length;
-  await a.say(CHAT('n7b'));
+  await a.say(CHAT('n8c'));
+  await new Promise((r) => setTimeout(r, 200));
   assert.equal(pushes.length, beforeMuted, 'muted still blocks the push');
 });
+
 
 const bad = results.filter((r) => !r.ok).length;
 console.log(`relay harness: ${results.length - bad}/${results.length} scenarios pass`);

@@ -1539,3 +1539,18 @@ Live state is now the last artifact the OWNER accepted: 24·post-ship pair
 the stage. Carried forward, non-negotiable: the next candidate contains ONE
 behavioural change, is gated on device before a second is written, and the
 rollback point is the accepted pair, never the previous candidate.
+
+## G32 — 2026-09-02 — Changing the registered worker filename on a shipped stage
+
+Buried: pointing a stage artifact at a NEW service-worker filename while
+devices already run the old one. Registering `tb-sw-25b.js` at the same scope
+that `tb-sw.js` already owned made the browser swap the controlling worker
+under a live install; the install gate (which shows whenever a launch is not
+standalone) and the installed app then fought over which launch was real —
+the owner saw the install page on top of a working app and a flicker between
+the browser page and the PWA. Fix: never change the registered worker file on
+a stage devices already have installed. Any worker change must arrive as new
+BYTES at the SAME registered path of a NEW stage artifact, or not at all;
+relay-side and app-side fixes are preferred while an install base is live.
+Carried forward with G25 and G27: anything touching scope, worker identity, or
+manifest identity is its own release with its own install/launch gate.

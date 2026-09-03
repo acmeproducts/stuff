@@ -47,7 +47,8 @@ const RELAY_VERSION = '6.2';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
-const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
+const STATE_FRESH_MS = 45000;
+const ALIVE_MS = (typeof globalThis !== 'undefined' && globalThis.TB_ALIVE_MS) || 1200;   /* N8: how long a device gets to prove it is awake before it is pushed (tests shorten it) */         /* a reported visible state older than this is not trusted */
 const EV_TYPES = new Set(['ev-state', 'ev-seen', 'ev-open', 'events-sync']);
 
 function cors() {
@@ -475,22 +476,41 @@ export class TalkSession {
 
   /* v6: the record decides. Only os_requested recipients are pushed; the push
      result is written back to the same record. Nothing here waits for an ack. */
+  /* N8 (plan v20.32.0 - G32). LIVENESS ACK GATE.
+     A recipient the relay believes is 'in_app' used to get no push at all. But
+     that belief is the handset's own last self-report, and a phone that locks
+     or is backgrounded keeps its socket open while its report still reads
+     'visible' for up to STATE_FRESH_MS - so the relay stayed silent and the
+     handset had nothing to ring. iOS was never affected because it suspends the
+     page and drops the socket. Belief is no longer trusted on its own: the
+     relay asks the socket to prove it is awake and pushes unless the device
+     answers within ALIVE_MS. A visible app answers instantly (no push, no
+     duplicate); a locked or frozen page cannot answer, so it is pushed. */
+  _proveAwake(clientId) {
+    if (!this._isConnected(clientId)) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const token = 'a' + Math.random().toString(36).slice(2, 10);
+      this._alive = this._alive || {};
+      this._alive[token] = resolve;
+      this._sendTo(clientId, { type: 'ev-alive', transient: true, token });
+      setTimeout(() => { if (this._alive && this._alive[token]) { delete this._alive[token]; resolve(false); } }, ALIVE_MS);
+    });
+  }
+
   async _deliverByRecord(ev, sessionId) {
     if (!ev) return;
     const now = Date.now();
     const jobs = [];
     for (const [clientId, r] of Object.entries(ev.rcp)) {
-      /* N7 (plan v20.31.0 - G30): ALWAYS-PUSH, restored from R10.2
-         (plan v20.0.0 §4.6). The presentation word still records what the relay
-         believes, and every counter, projection and ledger read is unchanged -
-         but belief no longer decides whether the handset is reachable. A phone
-         that locks or is backgrounded keeps its socket alive and its last
-         self-report still reads 'visible' for up to STATE_FRESH_MS, so the
-         relay withheld the push and the handset had nothing to ring; iOS was
-         unaffected only because it suspends the page and drops the socket.
-         The DEVICE decides presentation (tb-sw N7), exactly as in R10.2.
-         Muted recipients and burst-suppressed chat are still never pushed. */
-      if ((r.p !== 'os_requested' && r.p !== 'in_app') || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
+      if (r.p === 'in_app' && r.push === 'not_requested') {
+        const rec0 = this.subs[clientId];
+        if (rec0) {
+          const awake = await this._proveAwake(clientId);
+          if (!awake) { jobs.push(this._pushOne(clientId, rec0, ev, sessionId)); }
+        }
+        continue;
+      }
+      if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
       const rec = this.subs[clientId];
       if (rec && rec.at && now - rec.at > SUB_TTL_MS) { delete this.subs[clientId]; r.push = 'failed'; r.pushErr = 'stale-subscription'; continue; }
       jobs.push(this._pushOne(clientId, rec, ev, sessionId));
@@ -589,6 +609,7 @@ export class TalkSession {
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     if (msg.type === 'hello') await this._noteDevice(clientId);
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
+    if (msg.type === 'ev-alive-ack' && msg.token && this._alive && this._alive[msg.token]) { const f = this._alive[msg.token]; delete this._alive[msg.token]; f(true); return; }
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
 
     if (!isTransient) {
