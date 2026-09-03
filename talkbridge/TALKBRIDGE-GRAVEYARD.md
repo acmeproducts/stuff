@@ -1568,3 +1568,20 @@ Banners, Banner style: Temporary) on every platform; on Android those screens
 do not exist, so the instructions led nowhere and notifications stayed off —
 which is why nothing could ring when locked no matter what the relay did.
 Device-specific guidance must branch on the device in front of the person.
+
+## G34 — 2026-09-03 — Reusing a push subscription without checking its signing key
+
+Buried: `if (existing) return existing` — accepting whatever push subscription
+the browser already holds without verifying it was minted with the CURRENT
+signing key. A subscription created under an earlier key stays valid-looking
+from every angle the app can see: permission is granted, the subscription
+object exists, its endpoint registers with the relay, and no error is raised
+anywhere. But the push service rejects every message the relay signs, because
+the signature no longer matches the key that subscription was minted with.
+Result: notifications appear ON, the app appears healthy, and the handset never
+rings when locked — with nothing in the app to indicate why. This is the state
+the owner's Android was in while permissions had "always been turned on".
+Fix (N11): compare the subscription's key against the live one on every
+standalone boot; on a mismatch discard it, mint a fresh one, re-register every
+room. Rule carried forward: a credential that cannot fail visibly must be
+verified on every boot, not trusted because it exists.

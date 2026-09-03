@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.34.0 -->
-# TALKBRIDGE MASTER PLAN v20.34.0
+<!-- TALKBRIDGE-PLAN v20.35.0 -->
+# TALKBRIDGE MASTER PLAN v20.35.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,27 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.35.0 · 2026-09-03.** Owner: permissions have ALWAYS been on and Android
+still does not ring when locked. That rules out permission and points at the
+subscription itself — root cause G34, found in the app's own code: the app
+reuses whatever push subscription the browser holds without ever checking it
+was minted with the current signing key. Such a subscription looks healthy from
+every angle the app can see (permission granted, object present, endpoint
+accepted by the relay) while the push service silently rejects every message
+the relay signs. Nothing arrives, nothing is reported. iPhone escaped it
+whenever its subscription happened to be recreated.
+**N11:** on every standalone boot the app compares its subscription's key with
+the live one; on a mismatch it discards the dead subscription, mints a fresh
+one and re-registers every room. A healthy subscription is left untouched — no
+churn, no duplicate endpoints. The log now says plainly which of the two
+happened (`n11_key_ok` or `n11_key_stale` → `n11_resubscribed`).
+Gates: N11 9/9 with 4 replanted defects caught (stale key accepted, dead
+subscription kept, rooms not re-registered, healthy subscription churned);
+N9/N10 22/22; relay contract 12/12; release-law PASS. Still zero changed lines
+against the accepted app and no worker, registration or manifest surface
+touched.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.34.0 · 2026-09-03.** 25·base completes the round trip, on owner order.
 **N9 — notification permission (G33).** The failed silent subscribe used to arm
