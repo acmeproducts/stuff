@@ -1,0 +1,217 @@
+name: PRISM R17 governed rebuild
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/prism-r17-rebuild.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild R17 from frozen baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object prism/prism-turn01-pre-ship.html)" = "f313268d418ee86c8f27054d7c10f714077d91fb"
+          test "$(git hash-object prism/prism-turn01-pre-ship-r14.html)" = "56ba6eb63bf27073399c471fde44164e16c3990f"
+          test "$(git hash-object prism/PRISM-PLAN-v1.md)" = "603ec3c67ef9de7b2a07366bcaae86fec460a6b3"
+          test "$(git hash-object prism/PRISM-GRAVEYARD.md)" = "928fe28d3230bce748f8ebc5fc1f883f76c38c5e"
+          test ! -e prism/prism-turn01-pre-ship-r17.html
+          python3 - <<'PY'
+          from pathlib import Path
+          from difflib import SequenceMatcher
+          import re
+
+          baseline = Path('prism/prism-turn01-pre-ship.html').read_text(encoding='utf-8')
+          donor = Path('prism/prism-turn01-pre-ship-r14.html').read_text(encoding='utf-8')
+          dst = Path('prism/prism-turn01-pre-ship-r17.html')
+
+          # Mechanically replay the accumulated governed workstream delta onto the exact frozen baseline.
+          a = baseline.splitlines(keepends=True)
+          b = donor.splitlines(keepends=True)
+          out = []
+          for tag, i1, i2, j1, j2 in SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+              if tag == 'equal':
+                  out.extend(a[i1:i2])
+              elif tag in ('replace', 'insert'):
+                  out.extend(b[j1:j2])
+          html = ''.join(out)
+          assert html == donor, 'governed R14 replay did not reproduce donor exactly'
+
+          html = html.replace('PRISM · Turn 01 pre-ship R14', 'PRISM · Turn 01 pre-ship R17', 1)
+          html = html.replace('Turn 01 · pre-ship R14', 'Turn 01 · pre-ship R17', 1)
+
+          old_explore = '<div id="sphere" class="sphere"><div id="orb" class="orb"></div><div id="zoomHint" class="zoomHint">100% · wheel / pinch</div></div>'
+          new_explore = '<div id="sphere" class="sphere"><div class="exploreHead"><button id="exploreFocusClear" class="btn" hidden></button><span id="exploreSummary" class="count"></span></div><div id="exploreClusters" class="exploreClusters"></div></div>'
+          assert old_explore in html, 'R14 Explore DOM anchor changed'
+          html = html.replace(old_explore, new_explore, 1)
+
+          old_compose = '<button id="librarySend" class="btn primary">Research</button>'
+          assert old_compose in html, 'Library research button anchor changed'
+          html = html.replace(old_compose, '<button id="librarySend" class="btn primary">Research web</button>', 1)
+
+          stage_anchor = '<section id="libraryStage" class="libraryStage"><div id="libraryDetailHead" class="libraryDetailHead">'
+          stage_new = '<section id="libraryStage" class="libraryStage"><div id="libraryMobileTools" class="libraryMobileTools"><button id="libraryRailOpen" class="btn">Library</button><input id="libQDetail" class="libraryOmni" type="search" placeholder="Omnisearch research, sources, URLs…"></div><div id="libraryDetailHead" class="libraryDetailHead">'
+          assert stage_anchor in html, 'Library stage anchor changed'
+          html = html.replace(stage_anchor, stage_new, 1)
+
+          old_sphere = re.search(r"function renderSphere\(\)\{.*?\}\nfunction renderFeed\(\)", html, re.S)
+          assert old_sphere, 'renderSphere anchor missing'
+          new_sphere = r'''function exploreGroups(){const groups=new Map;for(const e of filtered()){let keys=state.group==='source'?dimValuesForEvent(e,'source'):[groupVal(e,state.group)];if(state.group==='source'&&state.filters.source?.size)keys=keys.filter(k=>state.filters.source.has(String(k)));keys=[...new Set(keys.map(k=>String(k)).filter(k=>k&&k!=='Unknown'))];for(const k of keys){if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e)}}return[...groups.entries()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]),undefined,{numeric:true,sensitivity:'base'}))}
+function renderSphere(){const root=$('exploreClusters'),groups=exploreGroups();if(!root)return;const valid=new Set(groups.map(([k])=>String(k)));if(state.exploreFocus&&!valid.has(String(state.exploreFocus)))state.exploreFocus=null;const clear=$('exploreFocusClear'),summary=$('exploreSummary');clear.hidden=!state.exploreFocus;clear.textContent=state.exploreFocus?state.exploreFocus+'  ×':'';clear.onclick=()=>{state.exploreFocus=null;renderSphere()};if(!state.exploreFocus){summary.textContent=groups.length+' clusters · '+filtered().length+' events';root.className='exploreClusters';root.innerHTML=groups.map(([k,a])=>{const sample=a.slice(0,2).map(e=>'<li>'+esc(e.headline)+'</li>').join('');return '<article class="exploreCluster" data-cluster="'+esc(k)+'" style="--c:'+dimColor(state.group,k)+'"><div class="exploreClusterMeta"><b>'+esc(k)+'</b><span>'+a.length+' events</span></div><ul>'+sample+'</ul></article>'}).join('')||'<div class="empty">No clusters match the active search and filters.</div>';root.querySelectorAll('[data-cluster]').forEach(x=>x.onclick=()=>{state.exploreFocus=x.dataset.cluster;renderSphere()});return}const hit=groups.find(([k])=>String(k)===String(state.exploreFocus)),items=hit?hit[1]:[],shown=items.slice(0,80);summary.textContent=items.length>shown.length?'Showing '+shown.length+' of '+items.length+' events':items.length+' events';root.className='exploreClusters exploreDrill';root.innerHTML=shown.map(e=>'<article class="exploreEvent '+(state.selected.has(e.eventId)?'selected':'')+'" data-id="'+e.eventId+'" style="--c:'+colorFor(e)+'"><h3>'+esc(e.headline)+'</h3><p>'+esc(e.summary||'')+'</p><div>'+esc(e.subject)+' · '+new Set(activeCoverage(e).map(c=>c.source)).size+' sources · '+esc(importanceBucket(e))+'</div></article>').join('');root.querySelectorAll('[data-id]').forEach(x=>x.onclick=()=>selectEvent(x.dataset.id,true))}
+function renderFeed()'''
+          html = html[:old_sphere.start()] + new_sphere + html[old_sphere.end():]
+
+          old_select = "function selectEvent(id,toggle=true){if(toggle){state.selected.has(id)?state.selected.delete(id):state.selected.add(id)}state.focused=id;renderSelection();openReader(id);renderMap();renderSphere();renderFeed()}function clearSelection(){if(aiBusy)return;state.selected.clear();renderSelection();renderMap();renderSphere();renderFeed()}"
+          new_select = "function renderVisibleAnalytical(){if(state.view==='map')renderMap();else if(state.view==='explore')renderSphere();else if(state.view==='feed')renderFeed()}function selectEvent(id,toggle=true){if(toggle){state.selected.has(id)?state.selected.delete(id):state.selected.add(id)}state.focused=id;renderSelection();openReader(id);renderVisibleAnalytical()}function clearSelection(){if(aiBusy)return;state.selected.clear();renderSelection();renderVisibleAnalytical()}"
+          assert old_select in html, 'selection render anchor changed'
+          html = html.replace(old_select, new_select, 1)
+
+          old_render = "function render(){renderFilters();$('eventCount').textContent=filtered().length+' items';renderSelection();if(state.view==='map')renderMap();if(state.view==='explore')renderSphere();if(state.view==='feed')renderFeed();if(state.view==='library')renderLibrary();renderSources()}"
+          new_render = "function render(){renderFilters();$('eventCount').textContent=filtered().length+' items';renderSelection();if(state.view==='map')renderMap();if(state.view==='explore')renderSphere();if(state.view==='feed')renderFeed();if(state.view==='library')renderLibrary();if(state.view!=='explore')renderSources()}"
+          assert old_render in html, 'render anchor changed'
+          html = html.replace(old_render, new_render, 1)
+
+          old_zoom = re.search(r"function wireSphereZoom\(\)\{.*?\}\nfunction toggleRail", html, re.S)
+          assert old_zoom, 'wireSphereZoom anchor missing'
+          html = html[:old_zoom.start()] + "function wireSphereZoom(){}\nfunction toggleRail" + html[old_zoom.end():]
+
+          html = html.replace("$('libraryResearchStatus').textContent=ready?'Current web enabled':'Configure AI in ⚙'", "$('libraryResearchStatus').textContent=ready?'Research web · '+runtime.provider:'Configure AI in ⚙'", 1)
+          html = html.replace("$('librarySend').textContent='Research'", "$('librarySend').textContent='Research web'", 1)
+          html = html.replace("$('libQ').oninput=renderLibrary;", "$('libQ').oninput=()=>{const d=$('libQDetail');if(d)d.value=$('libQ').value;renderLibrary()};$('libQDetail').oninput=()=>{$('libQ').value=$('libQDetail').value;renderLibrary()};$('libraryRailOpen').onclick=()=>{$('libraryPortal').classList.remove('detailOpen');$('libQ').focus()};", 1)
+
+          css = r'''
+/* R17 governed correction: plan-faithful Library + cardinality Explore */
+.sphere{overflow:hidden;touch-action:auto;background:#07111b}
+.exploreHead{height:42px;display:flex;align-items:center;gap:8px;padding:6px 9px;border-bottom:1px solid var(--line);background:#081522}
+.exploreClusters{height:calc(100% - 42px);overflow:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:9px;align-content:start;overscroll-behavior:contain}
+.exploreCluster{min-height:132px;border:1px solid #ffffff1f;border-top:4px solid var(--c,#7dd3fc);border-radius:11px;background:#0d1c2b;padding:11px;cursor:pointer;contain:layout paint style;content-visibility:auto;contain-intrinsic-size:150px}
+.exploreClusterMeta{display:flex;gap:8px;align-items:baseline}.exploreClusterMeta b{font-size:15px;flex:1}.exploreClusterMeta span{font-size:10px;color:var(--muted)}
+.exploreCluster ul{margin:9px 0 0;padding-left:18px;color:#c8d7e4}.exploreCluster li{margin:5px 0;font-size:11px;line-height:1.35}
+.exploreDrill{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.exploreEvent{border:1px solid #ffffff1f;border-left:5px solid var(--c);border-radius:10px;background:#0d1c2b;padding:10px;cursor:pointer}.exploreEvent.selected{outline:2px solid var(--accent)}.exploreEvent h3{font-size:13px;line-height:1.3;margin:0 0 6px}.exploreEvent p{font-size:10px;line-height:1.4;color:#bfd0df;margin:0 0 8px}.exploreEvent div{font-size:9px;color:var(--muted)}
+.libraryMobileTools{display:none}
+@media(max-width:760px){
+  #libraryPortal.library{display:block;min-width:0;overflow:hidden}
+  #libraryPortal .libraryRail,#libraryPortal .libraryStage{width:100%;height:100%;min-width:0;min-height:0}
+  #libraryPortal:not(.detailOpen) .libraryRail{display:grid}
+  #libraryPortal:not(.detailOpen) .libraryStage{display:none}
+  #libraryPortal.detailOpen .libraryRail{display:none}
+  #libraryPortal.detailOpen .libraryStage{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}
+  #libraryPortal .libraryMobileTools{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--line);background:#081522}
+  #libraryPortal .libraryMobileTools .libraryOmni{width:100%;height:34px;margin:0}
+  #libraryPortal .libraryBack{display:inline-grid;place-items:center}
+  #libraryPortal .libraryTranscript{min-height:0;overflow:auto;padding-bottom:18px}
+  #libraryPortal .libraryCompose{position:relative;z-index:8;background:#081522;grid-template-columns:1fr auto;padding-bottom:max(9px,env(safe-area-inset-bottom))}
+  #libraryPortal .libraryResearchStatus{grid-column:1/-1}
+  #libraryPortal .libraryCompose textarea{min-height:44px;max-height:96px}
+  #libraryPortal .libraryCompose .btn{min-width:112px;min-height:44px}
+  .exploreClusters{grid-template-columns:1fr;padding:7px}.exploreDrill{grid-template-columns:1fr}.exploreCluster{min-height:116px}
+}
+'''
+          assert '</style>' in html
+          html = html.replace('</style>', css + '\n</style>', 1)
+
+          dst.write_text(html, encoding='utf-8')
+
+          plan = Path('prism/PRISM-PLAN-v1.md')
+          p = plan.read_text(encoding='utf-8').rstrip()
+          note = r'''
+
+## R17 governed rebuild — 2026-09-02
+**Stage:** Turn 01 · pre-ship R17
+**Test URL:** https://acmeproducts.github.io/stuff/prism/prism-turn01-pre-ship-r17.html
+
+- R17 is rebuilt from the exact frozen `prism/prism-turn01-pre-ship.html` baseline. The accumulated R6–R14 governed workstream delta is replayed onto that baseline; R15 and R16 are not implementation ancestors.
+- Portal shell, Config ownership, global AI POV, three-role analytical ribbon/filter semantics, Map density/size behavior, truthful custom-source ingestion, Feed, reader, selection and cache architecture are preserved from the governed workstream implementation.
+- Library mobile now has a persistent Library/Omnisearch row while an Analysis is open. The transcript is independently scrollable and the bottom action is explicitly **Research web**, with the active provider disclosed.
+- Explore is replaced rather than patched: overview renders exactly one lightweight cluster card per unique Group value after active window/search/source/filter constraints. Source grouping de-duplicates event/source identities. Cluster drill-in is bounded to 80 rendered events and ordinary vertical scrolling; orbital transforms, pinch/wheel zoom and permanent event-card clouds are removed.
+- Event selection rerenders only the currently visible analytical surface.
+- R17 mechanical gates cover exact baseline/donor identities, plan-critical DOM controls, Library current-web continuation, source ingestion controls, Map governed behavior, cardinality Explore, absence of the orbital DOM, and JavaScript syntax.
+'''
+          if '## R17 governed rebuild — 2026-09-02' not in p:
+              plan.write_text(p + note + '\n', encoding='utf-8')
+
+          grave = Path('prism/PRISM-GRAVEYARD.md')
+          g = grave.read_text(encoding='utf-8').rstrip()
+          gnote = r'''
+
+## G37 · R15/R16 wrong-lineage correction
+**Origin:** R15 and R16 owner testing on 2026-09-02.
+**Observed:** the published descendants were mechanically valid but did not represent the governing plan closely enough; R16 was explicitly constructed from R15 even though the master plan names `prism/prism-turn01-pre-ship.html` as the exact frozen forward baseline.
+**VETO:** do not use R15 or R16 as implementation ancestors and do not treat mechanical anchor checks as product-plan acceptance.
+**Replacement:** rebuild R17 from the exact frozen baseline, replay only the governed workstream changes, replace the rejected mobile Library and all-event Explore surfaces, then return to owner testing.
+'''
+          if '## G37 · R15/R16 wrong-lineage correction' not in g:
+              grave.write_text(g + gnote + '\n', encoding='utf-8')
+          PY
+
+      - name: Mechanical qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          f=prism/prism-turn01-pre-ship-r17.html
+          test -s "$f"
+          grep -Fq '<title>PRISM · Turn 01 pre-ship R17</title>' "$f"
+          grep -Fq 'id="rail" class="rail"' "$f"
+          grep -Fq 'id="groupCtl"' "$f"
+          grep -Fq 'id="colorCtl"' "$f"
+          grep -Fq 'id="sizeCtl"' "$f"
+          grep -Fq 'id="aiOpen"' "$f"
+          grep -Fq 'id="libQ" class="libraryOmni"' "$f"
+          grep -Fq 'id="libQDetail" class="libraryOmni"' "$f"
+          grep -Fq 'id="libraryCompose" class="libraryCompose"' "$f"
+          grep -Fq '>Research web<' "$f"
+          grep -Fq 'Research web · ' "$f"
+          grep -Fq 'Add + fetch' "$f"
+          grep -Fq 'Restore defaults' "$f"
+          grep -Fq 'function exploreGroups()' "$f"
+          grep -Fq 'keys=[...new Set' "$f"
+          grep -Fq 'class="exploreCluster"' "$f"
+          grep -Fq 'slice(0,80)' "$f"
+          grep -Fq 'function wireSphereZoom(){}' "$f"
+          grep -Fq "function renderVisibleAnalytical()" "$f"
+          grep -Fq "if(state.view!=='explore')renderSources()" "$f"
+          if grep -Fq 'id="orb"' "$f"; then echo 'FAIL orbital DOM remains'; exit 1; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('prism/prism-turn01-pre-ship-r17.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',h,re.S|re.I)
+          inline='\n'.join(x for x in scripts if x.strip())
+          assert inline.strip()
+          Path('/tmp/prism-r17-inline.js').write_text(inline,encoding='utf-8')
+          PY
+          node --check /tmp/prism-r17-inline.js
+          git diff --check
+          echo 'PASS R17 governed baseline/workstream replay'
+          echo 'PASS R17 Library Omnisearch/current-web composer contract'
+          echo 'PASS R17 cardinality Explore/no-orbit contract'
+          echo 'PASS R17 visible-surface render contract'
+          echo 'PASS R17 inline JavaScript syntax'
+
+      - name: Publish and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name acmeproducts
+          git config user.email acmeproducts@example.com
+          git fetch origin main
+          test "$(git show origin/main:prism/prism-turn01-pre-ship.html | git hash-object --stdin)" = "f313268d418ee86c8f27054d7c10f714077d91fb"
+          test "$(git show origin/main:prism/prism-turn01-pre-ship-r14.html | git hash-object --stdin)" = "56ba6eb63bf27073399c471fde44164e16c3990f"
+          test "$(git show origin/main:prism/PRISM-PLAN-v1.md | git hash-object --stdin)" = "603ec3c67ef9de7b2a07366bcaae86fec460a6b3"
+          test "$(git show origin/main:prism/PRISM-GRAVEYARD.md | git hash-object --stdin)" = "928fe28d3230bce748f8ebc5fc1f883f76c38c5e"
+          git rm .github/workflows/prism-r17-rebuild.yml
+          git add prism/prism-turn01-pre-ship-r17.html prism/PRISM-PLAN-v1.md prism/PRISM-GRAVEYARD.md
+          git commit -m 'PRISM Turn 01 pre-ship R17: governed baseline rebuild'
+          git pull --rebase origin main
+          git push origin main
