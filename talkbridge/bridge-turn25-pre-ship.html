@@ -8294,34 +8294,7 @@ function cr3Heartbeat() {
 })();
 
 
-/* N8 (25·base, plan v20.32.0) — answer the relay's liveness challenge.
-   The relay no longer trusts a device's last self-report to decide whether the
-   handset can be reached: before withholding a push it asks the socket to prove
-   it is awake. A running, on-screen app answers at once and stays quiet; a
-   locked or frozen page cannot answer and is pushed, which is what makes the
-   handset ring again. Adds one reply on the room socket and one on any listen
-   lane. Wraps handleRelay and LISTEN.handle and calls through; does not touch
-   the service worker, its registration, the manifest, or the install gate. */
-(function () {
-  function ack(roomId, token) {
-    try { cr3Send(roomId, { type: 'ev-alive-ack', transient: true, token: token }); } catch (_) {}
-    try { if (typeof log === 'function') log('n8_alive_ack', { room: roomId }, 'ok'); } catch (_) {}
-  }
-  if (typeof handleRelay === 'function') {
-    var _h = handleRelay;
-    handleRelay = function (d) {
-      if (d && d.type === 'ev-alive') { ack((typeof S !== 'undefined' && S.roomId) || null, d.token); return; }
-      return _h.apply(this, arguments);
-    };
-  }
-  if (typeof LISTEN === 'object' && LISTEN && typeof LISTEN.handle === 'function') {
-    var _l = LISTEN.handle;
-    LISTEN.handle = function (roomId, d) {
-      if (d && d.type === 'ev-alive') { ack(roomId, d.token); return; }
-      return _l.apply(this, arguments);
-    };
-  }
-})();
+
 
 
 /* N9 (25·base, plan v20.34.0 — G33). NOTIFICATION PERMISSION, FIXED.
@@ -8722,31 +8695,7 @@ function cr3Heartbeat() {
 })();
 
 
-/* N14 (D-1). The relay always knew whether the push service accepted a message;
-   the device never did, so nobody could say which link was breaking — relay not
-   sending, push service rejecting, or Android not alerting. The relay now
-   reports the outcome to the device and this writes it into the log:
-     n14_push_out status=201  the push service ACCEPTED it — the phone was
-                              reached, so anything still wrong is on the handset
-     n14_push_out status=403/404/410  the push service REJECTED it — the
-                              subscription or signing key is wrong
-     no line at all           the relay never sent — it still believes the app
-                              is awake
-   Adds one log line. Changes no behaviour. */
-(function () {
-  function note(d) {
-    var o = d && d.out; if (!o) return;
-    try { if (typeof log === 'function') log('n14_push_out', { status: o.status, host: o.host || '', err: o.error || '' }, o.status >= 200 && o.status < 300 ? 'ok' : 'error'); } catch (_) {}
-  }
-  if (typeof handleRelay === 'function') {
-    var _h = handleRelay;
-    handleRelay = function (d) { if (d && d.type === 'ev-push-out') { note(d); return; } return _h.apply(this, arguments); };
-  }
-  if (typeof LISTEN === 'object' && LISTEN && typeof LISTEN.handle === 'function') {
-    var _l = LISTEN.handle;
-    LISTEN.handle = function (roomId, d) { if (d && d.type === 'ev-push-out') { note(d); return; } return _l.apply(this, arguments); };
-  }
-})();
+
 
 
 /* N15 (D-2). PRISM un-hijack. The app now lives in its own folder, so its

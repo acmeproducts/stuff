@@ -48,7 +48,6 @@ const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
 const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
-const ALIVE_MS = (typeof globalThis !== 'undefined' && globalThis.TB_ALIVE_MS) || 1200;   /* N8: how long a device gets to prove it is awake before it is pushed (tests shorten it) */
 const EV_TYPES = new Set(['ev-state', 'ev-seen', 'ev-open', 'events-sync']);
 
 function cors() {
@@ -286,8 +285,6 @@ export class TalkSession {
   }
   _pushProjection(clientId) {
     const p = this._projection(clientId);
-    const out = this.pushOut && this.pushOut[clientId];
-    if (out) { try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out }); } catch (_) {} }
     this._sendTo(clientId, { type: 'ev-proj', transient: true, proj: p.proj, unseen: p.unseen, calls: p.calls, ts: Date.now() });
   }
   _recipients(senderId) {
@@ -465,12 +462,6 @@ export class TalkSession {
     try {
       const res = await fetch(endpoint, { method: 'POST', headers, body });
       this.lastWake = { clientId, at: Date.now(), status: res.status, eventId: ev.id };
-      /* D-1: the relay already knew whether the push service accepted the
-         message; the device never did, so nobody could say which link in
-         the chain was breaking. It is now reported back to that device. */
-      this.pushOut = this.pushOut || {};
-      this.pushOut[clientId] = { at: Date.now(), status: res.status, eventId: ev.id, host: String(endpoint).split('/')[2] || '' };
-      try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out: this.pushOut[clientId] }); } catch (_) {}
       r.push = (res.status >= 200 && res.status < 300) ? 'accepted' : 'failed';
       r.pushStatus = res.status;
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
@@ -479,51 +470,16 @@ export class TalkSession {
         delete this.subs[clientId];
         await this._saveSubs();
       }
-    } catch (e) {
-      r.push = 'unknown';
-      this.pushOut = this.pushOut || {};
-      this.pushOut[clientId] = { at: Date.now(), status: 0, error: String(e && e.message || e).slice(0, 60), eventId: ev.id };
-      try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out: this.pushOut[clientId] }); } catch (_) {}
-    }
+    } catch (_) { r.push = 'unknown'; }
   }
 
   /* v6: the record decides. Only os_requested recipients are pushed; the push
      result is written back to the same record. Nothing here waits for an ack. */
-  /* N8 (plan v20.32.0 - G32). LIVENESS ACK GATE.
-     A recipient the relay believes is 'in_app' used to get no push at all. But
-     that belief is the handset's own last self-report, and a phone that locks
-     or is backgrounded keeps its socket open while its report still reads
-     'visible' for up to STATE_FRESH_MS - so the relay stayed silent and the
-     handset had nothing to ring. iOS was never affected because it suspends the
-     page and drops the socket. Belief is no longer trusted on its own: the
-     relay asks the socket to prove it is awake and pushes unless the device
-     answers within ALIVE_MS. A visible app answers instantly (no push, no
-     duplicate); a locked or frozen page cannot answer, so it is pushed. */
-  _proveAwake(clientId) {
-    if (!this._isConnected(clientId)) return Promise.resolve(false);
-    return new Promise((resolve) => {
-      const token = 'a' + Math.random().toString(36).slice(2, 10);
-      this._alive = this._alive || {};
-      this._alive[token] = resolve;
-      this._sendTo(clientId, { type: 'ev-alive', transient: true, token });
-      setTimeout(() => { if (this._alive && this._alive[token]) { delete this._alive[token]; resolve(false); } }, ALIVE_MS);
-    });
-  }
-
   async _deliverByRecord(ev, sessionId) {
     if (!ev) return;
     const now = Date.now();
     const jobs = [];
     for (const [clientId, r] of Object.entries(ev.rcp)) {
-      if (r.p === 'in_app' && r.push === 'not_requested') {
-        const rec0 = this.subs[clientId];
-        if (!rec0) continue;
-        /* same stale-subscription rule as the os_requested path below */
-        if (rec0.at && now - rec0.at > SUB_TTL_MS) { delete this.subs[clientId]; continue; }
-        const awake = await this._proveAwake(clientId);
-        if (!awake) jobs.push(this._pushOne(clientId, rec0, ev, sessionId));
-        continue;
-      }
       if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
       const rec = this.subs[clientId];
       if (rec && rec.at && now - rec.at > SUB_TTL_MS) { delete this.subs[clientId]; r.push = 'failed'; r.pushErr = 'stale-subscription'; continue; }
@@ -622,9 +578,6 @@ export class TalkSession {
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     if (msg.type === 'hello') await this._noteDevice(clientId);
-    /* N8: the answer to a liveness challenge. Answered to this device only,
-       never broadcast, never history — it settles the pending wait and stops. */
-    if (msg.type === 'ev-alive-ack' && msg.token && this._alive && this._alive[msg.token]) { const f = this._alive[msg.token]; delete this._alive[msg.token]; f(true); return; }
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
 

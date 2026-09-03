@@ -41,23 +41,6 @@ const ui = events.indexOf('unsub:' + O + '/stuff/tb-sw.js'), ri = events.indexOf
 ok(ui !== -1 && ri !== -1 && ui < ri, 'their push is released first, so no alert is lost mid-flight');
 ok(!events.some(e => /prism|someone-else/.test(e)), "PRISM's worker and other apps' workers are never touched");
 
-/* ---- D-1: the push outcome reaches the device ---- */
-const relay = fs.readFileSync('talkbridge/worker-talk.js', 'utf8');
-ok(/this\.pushOut\[clientId\] = \{ at: Date\.now\(\), status: res\.status/.test(relay), 'the relay records what the push service answered');
-ok(relay.includes("type: 'ev-push-out'"), 'and reports it to that device');
-ok(/status: 0, error:/.test(relay), 'a push that never completed is reported too, with its error');
-ok(relay.includes("const out = this.pushOut && this.pushOut[clientId];"), 'and it is handed over again when a sleeping phone reconnects');
+/* D-1 visibility was rolled back with the relay; nothing here claims it. */
 
-const dom = new JSDOM('<body></body>', { url: 'https://x.test/a.html', runScripts: 'outside-only' });
-const w = dom.window; const logged = []; const passed = [];
-w.log = (e, d, lvl) => logged.push({ e, d, lvl });
-w.handleRelay = d => { passed.push(d); };
-w.LISTEN = { handle: (r, d) => passed.push(d) };
-w.eval(fs.readFileSync('talkbridge/parts/n14-push-visibility.js', 'utf8'));
-w.handleRelay({ type: 'ev-push-out', out: { status: 201, host: 'fcm.googleapis.com' } });
-ok(logged.length === 1 && logged[0].d.status === 201 && logged[0].lvl === 'ok', 'an accepted push is written to the log as ok — the phone WAS reached');
-w.handleRelay({ type: 'ev-push-out', out: { status: 403 } });
-ok(logged[1].lvl === 'error', 'a rejected push is written as an error — the subscription or key is wrong');
-w.handleRelay({ type: 'chat', id: 'c1' });
-ok(passed.length === 1 && passed[0].type === 'chat', 'every other message still reaches the app untouched');
-console.log(fail === 0 ? 'D1/D2 GREEN' : fail + ' FAILURES'); process.exit(fail ? 1 : 0);
+console.log(fail === 0 ? 'D2 GREEN' : fail + ' FAILURES'); process.exit(fail ? 1 : 0);

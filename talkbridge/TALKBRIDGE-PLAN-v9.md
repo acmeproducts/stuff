@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.39.0 -->
-# TALKBRIDGE MASTER PLAN v20.39.0
+<!-- TALKBRIDGE-PLAN v20.40.0 -->
+# TALKBRIDGE MASTER PLAN v20.40.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -92,7 +92,7 @@ they are never counted as progress.
 
 | # | Defect | State |
 |---|---|---|
-| D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause still unknown; the relay now reports its push result to the device (n14_push_out) so ONE test names the failing link |
+| D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause unknown. The always-push change and the liveness ack gate are BURIED (G36): they did not change device behaviour and they broke a passing contract check. Relay is back on the accepted pair. |
 | D-2 | **FIXED, awaiting device gate 2026-09-03** — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
 
@@ -1923,6 +1923,25 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.40.0 · 2026-09-03.** ROLLBACK on owner order. The relay is restored to
+the accepted pair (`6609b141e7da`, ac541c1) and the app-side parts that
+depended on it — the liveness ack answer and the push-outcome log line — are
+removed with it. Buried as G36: the always-push change never changed device
+behaviour and it broke a contract check that had been passing (app VISIBLE in
+the room expects zero OS alerts, got one). That check was red at push time and
+was not read. The rule now stands in the graveyard: the full contract suite is
+read BEFORE a push; a red check is a stop.
+**What survives, and it is gated:** D-2, the PRISM un-hijack. The app lives at
+`/stuff/talkbridge/`, its manifest claims that folder only and carries no start
+address, the worker registered from that folder gets that scope, the old
+address forwards with hash and query intact, and old root-scoped workers are
+retired by exact scope AND script match with push released first.
+**D-1 Android lock-screen ringing: cause still UNKNOWN**, and nothing in this
+build claims otherwise. **D-3 iPhone return-to-call: still untested.**
+Gates on the restored state: app contract 16/16 (the check that was red is
+green again), relay contract 10/10 with every planted defect caught, D-2 11/11
+with 4 replanted defects caught, N13 20/20, release-law PASS.
 
 **v20.39.0 · 2026-09-03.** Owner: fix all three defects.
 **D-2 PRISM capture — FIXED.** The app now lives at `/stuff/talkbridge/`, so

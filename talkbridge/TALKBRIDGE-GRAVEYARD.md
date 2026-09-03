@@ -1601,3 +1601,15 @@ floating requires the BROWSER's Picture-in-Picture window
 Chrome's own Picture-in-picture permission (Settings > Apps > Chrome >
 Picture-in-picture). Rule carried forward: if a feature must survive leaving
 the app, no amount of CSS will do it — it belongs to the browser or the OS.
+
+## G36 — 2026-09-03 — Always-push: shipped with a red contract check
+
+Buried: the relay change that pushed every recipient regardless of what it
+believed about them (and the liveness ack gate built on top of it). It was
+meant to make a locked Android ring. It did not change device behaviour at all,
+and it broke a contract check that had been passing: with the app VISIBLE in
+the room, the suite expects zero OS alerts and got one. That check was red when
+the change shipped and the builder did not look. The relay is restored to the
+accepted pair; the app-side parts that depended on it are removed with it.
+Rule carried forward: the full contract suite is read BEFORE a push, not after
+the owner asks. A red check is a stop, not a footnote.
