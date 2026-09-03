@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.36.0 -->
-# TALKBRIDGE MASTER PLAN v20.36.0
+<!-- TALKBRIDGE-PLAN v20.37.0 -->
+# TALKBRIDGE MASTER PLAN v20.37.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1900,6 +1900,30 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.37.0 · 2026-09-03.** N12 rolled back and rebuilt as N13 after the owner's
+device gate (G35).
+**What was wrong.** (1) Tap-to-swap moved CSS between the two video elements,
+so the big frame shrank and the small one grew — on device that read as the
+call collapsing into the small 9:16 view, which is exactly what the owner
+reported. (2) The PiP was a CSS overlay inside our own page; it cannot survive
+another app coming forward, which is the whole point.
+**N13.** A tap now exchanges the STREAMS between the two elements and touches
+nothing else — no class, no size, no mode, never PiP; the element carrying our
+own camera stays muted. The back button asks the BROWSER for its own
+Picture-in-Picture window, which is what floats over other apps; if the browser
+refuses or lacks it, the frozen in-page view still runs, and the log says which
+path was taken (`n13_native_pip` or `n13_inpage_pip`) so the cause is never
+guessed. The owner is right that a permission is involved: on Android this
+needs Chrome's own Picture-in-picture permission (Settings > Apps > Chrome >
+Picture-in-picture).
+Camera swap, desktop-only screen share, and the drag-anywhere inset carry over
+unchanged and re-gated.
+Artifact: `bridge-turn25-pre-ship.html` = 25·base bytes + one appended part,
+zero changed lines; worker, manifest, install gate untouched; relay unchanged.
+Gates: N13 20/20 with 9 replanted defects caught (including the exact G35
+defect); N9/N10 22/22; relay contract 12/12; release-law PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html
 
 **v20.36.0 · 2026-09-03.** OWNER LADDER, locked 2026-09-03: 25·pre-ship =
 calls and video complete; 25·ship = multi-user; 25·post-ship = technical debt

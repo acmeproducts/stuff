@@ -1585,3 +1585,19 @@ Fix (N11): compare the subscription's key against the live one on every
 standalone boot; on a mismatch discard it, mint a fresh one, re-register every
 room. Rule carried forward: a credential that cannot fail visibly must be
 verified on every boot, not trusted because it exists.
+
+## G35 — 2026-09-03 — Swapping video by moving the LAYOUT, and calling a CSS overlay "PiP"
+
+Buried, both halves of N12. (1) Tap-to-swap was implemented by moving CSS
+between the two video elements, so the large element shrank and the small one
+grew. On device that read as the call collapsing into the small 9:16 view — the
+owner's exact report. Swapping must move the STREAMS between the elements and
+leave every element, class and dimension exactly where it was; the large frame
+stays the large frame. (2) The "picture-in-picture" was a CSS overlay inside
+our own page. It cannot survive another app coming forward, which is the entire
+point of the feature — the owner asked to leave the app and keep watching. Real
+floating requires the BROWSER's Picture-in-Picture window
+(`video.requestPictureInPicture`), and on Android it additionally requires
+Chrome's own Picture-in-picture permission (Settings > Apps > Chrome >
+Picture-in-picture). Rule carried forward: if a feature must survive leaving
+the app, no amount of CSS will do it — it belongs to the browser or the OS.
