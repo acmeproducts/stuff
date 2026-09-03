@@ -1,0 +1,57 @@
+name: SOT coordination qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'integrate-SOT-turn01-coordination.py'
+      - 'sot-db/migrations/005-project-coordination.sql'
+      - '.github/workflows/sot-coordination-qualification.yml'
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate clean Base-22 backend
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js -o /tmp/pre.js
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py -o /tmp/base.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py -o /tmp/base22.py
+          python3 -m py_compile /tmp/base.py /tmp/base22.py integrate-SOT-turn01-coordination.py
+          python3 /tmp/base.py /tmp/pre.js /tmp/base3.js
+          python3 /tmp/base22.py /tmp/base3.js /tmp/base22.js
+          python3 integrate-SOT-turn01-coordination.py /tmp/base22.js /tmp/candidate.js
+          node --check /tmp/candidate.js
+          grep -Fq "const BUILD = '2026.09.03.sot-turn01-coordination-1';" /tmp/candidate.js
+          grep -Fq 'const EXPECTED_MIGRATION = 5;' /tmp/candidate.js
+          grep -Fq 'function claimProjectOperation(projectToken,kind)' /tmp/candidate.js
+      - name: Build schema 5 test database
+        run: |
+          set -euo pipefail
+          db=/tmp/sot.sqlite
+          now=2026-09-03T00:00:00.000Z
+          for m in sot-db/migrations/001-initial.sql sot-db/migrations/002-project-list-metrics.sql sot-db/migrations/003-project-run-controls.sql sot-db/migrations/004-live-byte-progress.sql sot-db/migrations/005-project-coordination.sql; do
+            sqlite3 "$db" < "$m"
+            v="$(basename "$m" | cut -c1-3 | sed 's/^0*//')"; [ -n "$v" ] || v=0
+            n="$(basename "$m")"; c="$(sha256sum "$m"|awk '{print $1}')"
+            sqlite3 "$db" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES($v,'$n','$c','$now');"
+          done
+          SOT_DB_PATH="$db" SOT_SQLITE_ADAPTER="$PWD/sot-sqlite.py" node - <<'NODE'
+          const api=require('/tmp/candidate.js');
+          if(api.EXPECTED_MIGRATION!==5) throw Error('migration mismatch');
+          console.log(JSON.stringify({build:api.BUILD,migration:api.EXPECTED_MIGRATION}));
+          NODE
+      - name: Coordination contract audit
+        run: |
+          set -euo pipefail
+          grep -Fq "idx_project_operations_one_active" sot-db/migrations/005-project-coordination.sql
+          grep -Fq "active_operation_id" /tmp/candidate.js
+          grep -Fq "operation_generation" /tmp/candidate.js
+          grep -Fq "finishOperation(projectToken,op.operation_id" /tmp/candidate.js
+          grep -Fq "requireOperation(projectToken,op.operation_id" /tmp/candidate.js
+          grep -Fq "architecture: 'durable-per-project-coordinator'" /tmp/candidate.js
