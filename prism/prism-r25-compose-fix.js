@@ -1,0 +1,16 @@
+(()=>{'use strict';const style=document.createElement('style');style.textContent=`
+.libraryStage{height:100%!important;min-height:0!important;overflow:hidden!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important}
+.libraryTranscript{min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding-bottom:72px!important;scroll-padding-bottom:72px!important}
+.libraryCompose{position:static!important;bottom:auto!important;z-index:15!important;display:grid!important;grid-template-columns:38px minmax(0,1fr) 38px!important;grid-template-rows:auto auto!important;gap:6px!important;align-items:end!important;padding:7px 8px max(7px,env(safe-area-inset-bottom))!important;border-top:1px solid var(--line)!important;background:#081522!important}
+.libraryCompose textarea{grid-column:2!important;grid-row:1!important;width:100%!important;min-width:0!important;min-height:38px!important;max-height:76px!important;resize:none!important;padding:9px 10px!important}
+.libraryCompose .r25Attach{grid-column:1!important;grid-row:1!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;font-size:0!important;border-radius:50%!important}
+.libraryCompose .r25Attach::before{content:'📎';font-size:18px;line-height:1}
+.libraryCompose #librarySend{grid-column:3!important;grid-row:1!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;font-size:0!important;border-radius:50%!important;background:#7dd3fc!important;color:#06121b!important;border-color:#7dd3fc!important}
+.libraryCompose #librarySend::before{content:'➤';font-size:18px;line-height:1}
+.libraryCompose #librarySend:disabled{opacity:.48!important}
+.libraryCompose .r25Files{grid-column:1/-1!important;grid-row:2!important;min-height:0!important;padding:0 3px!important;font-size:8px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.libraryCompose .r25Files:empty{display:none!important}
+`;document.head.appendChild(style);
+function bottom(){const b=document.getElementById('libraryTranscript');if(!b)return;requestAnimationFrame(()=>requestAnimationFrame(()=>{b.scrollTop=b.scrollHeight}))}
+function wire(){const c=document.getElementById('libraryCompose'),a=c?.querySelector('.r25Attach'),s=document.getElementById('librarySend'),t=document.getElementById('libraryPrompt');if(!c||!a||!s||!t)return setTimeout(wire,60);a.setAttribute('aria-label','Attach');a.title='Attach';s.setAttribute('aria-label','Research web');s.title='Research web';t.setAttribute('aria-label','Research question or context');const transcript=document.getElementById('libraryTranscript');if(transcript)new MutationObserver(bottom).observe(transcript,{childList:true,subtree:true,characterData:true});document.getElementById('libraryList')?.addEventListener('click',()=>setTimeout(bottom,40),true);s.addEventListener('click',()=>setTimeout(bottom,40),true);bottom()}
+wire()})();
