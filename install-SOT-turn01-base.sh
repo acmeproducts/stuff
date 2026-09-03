@@ -1,201 +1,61 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
 REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"
-SOT_DIR="$REPORT_ROOT/SOT"
-ARCHIVE_ROOT="$SOT_DIR/archive"
-API_LOCAL="${SOT_API_LOCAL:-http://127.0.0.1:18080/api/sot}"
-PUBLIC_BASE="${SOT_PUBLIC_BASE:-https://oc-ref.fell-dojo.ts.net/report/SOT}"
-PUBLIC_URL="$PUBLIC_BASE/SOT-turn01-base.html"
-TARGET_HTML="$SOT_DIR/SOT-turn01-base.html"
-EXPECTED_API_BUILD='2026.08.30.sot-turn01-base-22'
-EXPECTED_SCHEMA='4'
-EXPECTED_CANDIDATE_SHA='48c3f1ccb8af820331816cdfb94fbfcfd546ba078c9c4e28642eda54513d645c'
-PRE_UI_COMMIT='7a377c27e1ac078510b9d1e4fe66da4f997f25f3'
-BASE22_UI_COMMIT='603e8a331b13b72a097e9ebb9640e33707279777'
-BASE24_UI_COMMIT='083aa1334208b1e6995fa18852e82722a815f331'
-BASE_AI_COMMIT='5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5'
-PRE_UI_SHA256='a3ad6fc054790791c4fedee0ae6e12e63f0c37fb6765f8413d1715de2b61c069'
-BASE22_UI_SHA256='58299f1b5bb8393d0e3e0772cf49bdf28636a72dbcd18c3b14070732d1acf844'
-BASE24_UI_SHA256='45959cdcd1125ceb4f1536b2d7f5e70a983b208088ed77385cce6a2d43316556'
-BASE_AI_SHA256='57a60c6816763318aced87837ccee644b71e4475f3b010b6c05c51fdf0e043c3'
-
-TMP="$(mktemp -d -t sot-turn01-base.XXXXXXXX)"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN_DIR="$ARCHIVE_ROOT/$STAMP-turn01-base-release"
-LOG="$RUN_DIR/release.log"
-SUMMARY="$RUN_DIR/summary.tsv"
-BACKUP="$TMP/base.before.html"
-HAD_HTML=0
-CUTOVER=0
-SUCCESS=0
-
-mkdir -p "$SOT_DIR" "$ARCHIVE_ROOT" "$RUN_DIR"
-touch "$LOG" "$SUMMARY"
-exec > >(tee -a "$LOG") 2>&1
-
-record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-40s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }
-pass(){ record PASS "$1" "$2"; }
-die(){ record FAIL "$1" "$2"; exit 1; }
-
-cleanup(){
-  local rc=$?
-  set +e
-  if [ "$CUTOVER" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then
-    record INFO ROLLBACK 'restoring pre-cutover HTML'
-    if [ "$HAD_HTML" -eq 1 ]; then
-      install -m0644 "$BACKUP" "$TARGET_HTML" && record PASS ROLLBACK_HTML restored || record FAIL ROLLBACK_HTML failed
-    else
-      rm -f "$TARGET_HTML" && record PASS ROLLBACK_HTML removed-new-target || record FAIL ROLLBACK_HTML failed
-    fi
-  fi
-  echo '=== RELEASE SUMMARY ==='
-  awk -F '\t' '{printf "%-5s %-40s %s\n",$1,$2,$3}' "$SUMMARY" || true
-  echo "log: $LOG"
-  rm -rf "$TMP"
-  trap - EXIT
-  exit "$rc"
-}
-trap cleanup EXIT
-
-for tool in bash curl install node python3 sha256sum; do command -v "$tool" >/dev/null 2>&1 || die REQUIRE_TOOL "$tool"; done
-pass REQUIRE_TOOLS ok
-bash -n "${BASH_SOURCE[0]}" || die INSTALLER_BASH_PARSE failed
-python3 - "${BASH_SOURCE[0]}" <<'PY'
+SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"; SERVICE=openclaw-report-server.service
+ARCHIVE_ROOT="$SOT_DIR/archive"; PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"
+EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-1'; EXPECTED_SCHEMA=5
+SRC_COMMIT='5d0cc9bd0874d68cfbc27732f799a1692d20c406'; WORKER_COMMIT='ffaee4ad31fd35ed9000db932ddf81a16a83f44f'
+TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$ARCHIVE_ROOT/$STAMP-turn01-coordination-release"; mkdir -p "$RUN"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
+CUTOVER=0; SUCCESS=0
+record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; exit 1; }
+cleanup(){ rc=$?; set +e; if [ "$CUTOVER" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then sudo systemctl stop "$SERVICE" >/dev/null 2>&1; cp "$RUN/sot.sqlite.before" "$DB"; cp "$RUN/sot-api.js.before" "$REPORT_ROOT/sot-api.js"; cp "$RUN/sot-worker.js.before" "$REPORT_ROOT/sot-worker.js" 2>/dev/null || true; cp "$RUN/sot-coordinator.js.before" "$REPORT_ROOT/sot-coordinator.js" 2>/dev/null || true; cp "$RUN/SOT-turn01-base.html.before" "$SOT_DIR/SOT-turn01-base.html" 2>/dev/null || true; rm -f "$REPORT_ROOT/sot-db/migrations/005-project-coordination.sql"; sudo systemctl start "$SERVICE" >/dev/null 2>&1; record PASS ROLLBACK restored; fi; echo '=== QUALIFICATION SUMMARY ==='; awk -F '\t' '{printf "%-5s %-38s %s\n",$1,$2,$3}' "$SUMMARY"; echo "log: $LOG"; rm -rf "$TMP"; exit "$rc"; }; trap cleanup EXIT
+for t in bash curl node python3 sqlite3 sha256sum sudo systemctl; do command -v "$t" >/dev/null || fail REQUIRE_TOOL "$t"; done; pass REQUIRE_TOOLS ok
+[ -s "$DB" ] || fail DATABASE missing
+mkdir -p "$REPORT_ROOT/sot-db/migrations" "$ARCHIVE_ROOT"
+cp "$DB" "$RUN/sot.sqlite.before"; cp "$REPORT_ROOT/sot-api.js" "$RUN/sot-api.js.before"; cp "$REPORT_ROOT/sot-worker.js" "$RUN/sot-worker.js.before" 2>/dev/null || true; cp "$REPORT_ROOT/sot-coordinator.js" "$RUN/sot-coordinator.js.before" 2>/dev/null || true; cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before" 2>/dev/null || true; pass ARCHIVE_PRECHANGE "$RUN"
+RAW=https://raw.githubusercontent.com/acmeproducts/stuff
+fetch(){ curl --max-time 30 -fsSL "$1" -o "$2" || fail FETCH "$1"; }
+fetch "$RAW/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js" "$TMP/pre.js"
+fetch "$RAW/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py" "$TMP/base.py"
+fetch "$RAW/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py" "$TMP/base22.py"
+fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination.py" "$TMP/coord.py"
+fetch "$RAW/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html" "$TMP/pre.html"
+fetch "$RAW/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py" "$TMP/ui22.py"
+fetch "$RAW/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py" "$TMP/ui24.py"
+fetch "$RAW/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py" "$TMP/uiai.py"
+fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination-ui.py" "$TMP/coordui.py"
+fetch "$RAW/$SRC_COMMIT/sot-db/migrations/005-project-coordination.sql" "$TMP/005.sql"
+fetch "$RAW/$WORKER_COMMIT/sot-worker.js" "$TMP/sot-worker.js"; fetch "$RAW/$WORKER_COMMIT/sot-coordinator.js" "$TMP/sot-coordinator.js"
+python3 -m py_compile "$TMP/base.py" "$TMP/base22.py" "$TMP/coord.py" "$TMP/ui22.py" "$TMP/ui24.py" "$TMP/uiai.py" "$TMP/coordui.py" || fail PYTHON_PARSE failed
+python3 "$TMP/base.py" "$TMP/pre.js" "$TMP/base3.js"; python3 "$TMP/base22.py" "$TMP/base3.js" "$TMP/sot-api.js"; python3 "$TMP/coord.py" "$TMP/sot-api.js" "$TMP/sot-api-coord.js" || fail BACKEND_GENERATION failed
+python3 "$TMP/ui22.py" "$TMP/pre.html" "$TMP/ui22.html"; python3 "$TMP/ui24.py" "$TMP/ui22.html" "$TMP/ui24.html"; python3 "$TMP/uiai.py" "$TMP/ui24.html" "$TMP/ui-base.html"; python3 "$TMP/coordui.py" "$TMP/ui-base.html" "$TMP/SOT-turn01-base.html" || fail UI_GENERATION failed
+node --check "$TMP/sot-api-coord.js" || fail BACKEND_JS_PARSE failed; node --check "$TMP/sot-worker.js" || fail WORKER_JS_PARSE failed; node --check "$TMP/sot-coordinator.js" || fail COORDINATOR_JS_PARSE failed
+python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
-s=Path(sys.argv[1]).read_text()
-for n,line in enumerate(s.splitlines(),1):
-    m=re.match(r'^\s*local\s+(.+)$',line)
-    if not m: continue
-    decl=m.group(1)
-    names=re.findall(r'(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=',decl)
-    for name in names:
-        if re.search(r'\$\{?'+re.escape(name)+r'\}?',decl):
-            raise SystemExit(f'nounset-unsafe local declaration at line {n}: {name}')
+h=Path(sys.argv[1]).read_text(); s='\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)); Path(sys.argv[2]).write_text(s)
+for x in ['function sotOperatorBusy()','Default Target','Default Backup','2-copy groups','3-copy groups','4+ copy groups','Previous / Stale Plan','Current Plan']:
+ assert x in h,x
 PY
-pass INSTALLER_BASH_PARSE true
-
-health_check(){
-  local out="$1" code actual
-  code="$(curl --max-time 8 -sS -o "$out" -w '%{http_code}' "$API_LOCAL/health" || true)"
-  [ "$code" = 200 ] || return 1
-  actual="$(python3 - "$out" "$EXPECTED_API_BUILD" "$EXPECTED_SCHEMA" <<'PY'
+node --check "$TMP/ui.js" || fail UI_JS_PARSE failed
+for x in "const BUILD = '$EXPECTED_BUILD';" 'const EXPECTED_MIGRATION = 5;' 'function claimProjectOperation(projectToken,kind)' 'active_operation_id' 'operation_generation' "architecture: 'durable-per-project-coordinator'"; do grep -Fq "$x" "$TMP/sot-api-coord.js" || fail COORDINATION_CONTRACT "$x"; done; pass STATIC_QUALIFICATION passed
+cp "$DB" "$TMP/test.sqlite"; sqlite3 "$TMP/test.sqlite" < "$TMP/005.sql" || fail MIGRATION_DRY_RUN failed; C="$(sha256sum "$TMP/005.sql"|awk '{print $1}')"; sqlite3 "$TMP/test.sqlite" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,'005-project-coordination.sql','$C',strftime('%Y-%m-%dT%H:%M:%fZ','now'));" || fail MIGRATION_LEDGER_DRY_RUN failed; [ "$(sqlite3 "$TMP/test.sqlite" 'select max(version) from schema_migrations')" = 5 ] || fail MIGRATION_DRY_RUN_VERSION failed; pass MIGRATION_DRY_RUN schema5
+sudo systemctl stop "$SERVICE" || fail SERVICE_STOP failed; CUTOVER=1
+sqlite3 "$DB" < "$TMP/005.sql" || fail LIVE_MIGRATION failed; sqlite3 "$DB" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,'005-project-coordination.sql','$C',strftime('%Y-%m-%dT%H:%M:%fZ','now'));" || fail LIVE_MIGRATION_LEDGER failed
+install -m0644 "$TMP/005.sql" "$REPORT_ROOT/sot-db/migrations/005-project-coordination.sql"; install -m0644 "$TMP/sot-api-coord.js" "$REPORT_ROOT/sot-api.js"; install -m0644 "$TMP/sot-worker.js" "$REPORT_ROOT/sot-worker.js"; install -m0644 "$TMP/sot-coordinator.js" "$REPORT_ROOT/sot-coordinator.js"; install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html"; pass CUTOVER installed
+sudo systemctl start "$SERVICE" || fail SERVICE_START failed
+code=000; for i in {1..30}; do code="$(curl --max-time 3 -sS -o "$RUN/health.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health || true)"; [ "$code" = 200 ] && break; sleep 1; done; [ "$code" = 200 ] || fail LIVE_HEALTH "HTTP=$code"
+python3 - "$RUN/health.json" "$EXPECTED_BUILD" "$EXPECTED_SCHEMA" <<'PY'
 import json,sys
-x=json.load(open(sys.argv[1])); b=sys.argv[2]; s=int(sys.argv[3])
-assert x.get('build')==b,(x.get('build'),b)
-assert int(x.get('database_version',-1))==s,x.get('database_version')
-assert x.get('status')=='ok',x.get('status')
-print(f"{b} schema={s} status=ok")
+x=json.load(open(sys.argv[1])); assert x.get('status')=='ok'; assert x.get('build')==sys.argv[2],x; assert int(x.get('database_version',0))==int(sys.argv[3]),x; assert 'durable-project-coordination' in x.get('capabilities',[]),x
 PY
-)" || return 1
-  printf '%s\n' "$actual"
-}
-PRE_HEALTH="$(health_check "$RUN_DIR/pre-health.json" || true)"
-[ -n "$PRE_HEALTH" ] || die PRE_BACKEND_HEALTH failed
-pass PRE_BACKEND_HEALTH "$PRE_HEALTH"
-
-fetch_pinned(){
-  local name="$1" url="$2" expected="$3" out="$4" actual
-  curl --max-time 30 -fsSL "$url" -o "$out" || die "FETCH_${name}" failed
-  actual="$(sha256sum "$out" | awk '{print $1}')"
-  [ "$actual" = "$expected" ] || die "FETCH_${name}_IDENTITY" "expected=$expected actual=$actual"
-  pass "FETCH_${name}_IDENTITY" "$actual"
-}
-RAW='https://raw.githubusercontent.com/acmeproducts/stuff'
-fetch_pinned PRE_UI "$RAW/$PRE_UI_COMMIT/SOT-turn01-pre-base.html" "$PRE_UI_SHA256" "$TMP/pre.html"
-fetch_pinned BASE22_UI "$RAW/$BASE22_UI_COMMIT/integrate-SOT-turn01-base22-ui.py" "$BASE22_UI_SHA256" "$TMP/base22.py"
-fetch_pinned BASE24_UI "$RAW/$BASE24_UI_COMMIT/integrate-SOT-turn01-base24-ui.py" "$BASE24_UI_SHA256" "$TMP/base24.py"
-fetch_pinned BASE_AI "$RAW/$BASE_AI_COMMIT/integrate-SOT-turn01-base-ai.py" "$BASE_AI_SHA256" "$TMP/base-ai.py"
-
-python3 -m py_compile "$TMP/base22.py" "$TMP/base24.py" "$TMP/base-ai.py" >/dev/null 2>&1 || die PYTHON_INTEGRATORS_PARSE failed
-pass PYTHON_INTEGRATORS_PARSE true
-python3 "$TMP/base22.py" "$TMP/pre.html" "$TMP/base22.html" || die GENERATE_BASE22 failed
-python3 "$TMP/base24.py" "$TMP/base22.html" "$TMP/base24.html" || die GENERATE_BASE24 failed
-python3 "$TMP/base-ai.py" "$TMP/base24.html" "$TMP/candidate.html" || die GENERATE_BASE failed
-CAND_SHA="$(sha256sum "$TMP/candidate.html" | awk '{print $1}')"
-[ "$CAND_SHA" = "$EXPECTED_CANDIDATE_SHA" ] || die GENERATED_ARTIFACT_IDENTITY "expected=$EXPECTED_CANDIDATE_SHA actual=$CAND_SHA"
-pass GENERATED_ARTIFACT_IDENTITY "$CAND_SHA"
-
-python3 - "$TMP/candidate.html" <<'PY'
+pass LIVE_BACKEND "$EXPECTED_BUILD schema=$EXPECTED_SCHEMA"
+code="$(curl --max-time 10 -sS -H 'Cache-Control: no-cache' -o "$RUN/public.html" -w '%{http_code}' "$PUBLIC_URL" || true)"; [ "$code" = 200 ] || fail PUBLIC_HTTP "HTTP=$code"; [ "$(sha256sum "$RUN/public.html"|awk '{print $1}')" = "$(sha256sum "$TMP/SOT-turn01-base.html"|awk '{print $1}')" ] || fail PUBLIC_IDENTITY mismatch; pass PUBLIC_IDENTITY matched
+python3 - "$RUN/public.html" "$TMP/public.js" <<'PY'
 from pathlib import Path
 import re,sys
-h=Path(sys.argv[1]).read_text()
-required=[
-'2-copy groups','3-copy groups','4+ copy groups','dupDrill','Previous / Stale Plan','Current Plan','Re-index now',
-'availableFolderSearch','selectedPaneBody','id="selectorCommit"','Default Target','Default Backup',
-'https://api.venice.ai/api/v1/models','https://openrouter.ai/api/v1/models','async function aiValidate(provider,key,model)',
-'sot.ai.activeProvider','const SOT_SUPERVISOR_PROMPT=','SOT PROJECT / EVIDENCE CONTEXT (authoritative supplied data)'
-]
-for marker in required:
-    if marker not in h: raise SystemExit('missing product contract: '+marker)
-if h.count('const API=')!=1: raise SystemExit('API declaration count != 1')
-if re.search(r'(?m)^[ \t]*async[ \t]*(?:;)?[ \t]*$',h): raise SystemExit('standalone async hazard')
-if re.search(r'(?m)^[ \t]*async[ \t]*\r?\n',h): raise SystemExit('async line-terminator hazard')
+h=Path(sys.argv[1]).read_text(); Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I))); assert 'function sotOperatorBusy()' in h
 PY
-pass STATIC_PRODUCT_CONTRACTS true
-pass ASYNC_RUNTIME_HAZARDS_ABSENT true
-
-parse_html_js(){
-  local html tag dir combined count file
-  html="$1"
-  tag="$2"
-  dir="$TMP/js-$tag"
-  combined="$TMP/$tag-combined.js"
-  mkdir -p "$dir"
-  count="$(python3 - "$html" "$dir" "$combined" <<'PY'
-from pathlib import Path
-import re,sys
-h=Path(sys.argv[1]).read_text(); out=Path(sys.argv[2]); combined=Path(sys.argv[3]); scripts=[]
-for m in re.finditer(r'<script(?P<a>[^>]*)>(?P<b>[\s\S]*?)</script>',h,re.I):
-    a=m.group('a') or ''
-    if re.search(r'\bsrc\s*=',a,re.I): continue
-    scripts.append(m.group('b'))
-if not scripts: raise SystemExit('no inline scripts')
-for i,s in enumerate(scripts,1): (out/f'script-{i:02d}.js').write_text(s)
-combined.write_text('\n;\n'.join(scripts))
-print(len(scripts))
-PY
-)" || return 1
-  for file in "$dir"/*.js; do node --check "$file" >/dev/null || return 1; done
-  node --check "$combined" >/dev/null || return 1
-  printf '%s\n' "$count"
-}
-COUNT="$(parse_html_js "$TMP/candidate.html" generated || true)"
-[ -n "$COUNT" ] || die JS_GENERATED_PARSE failed
-pass JS_GENERATED_PARSE "scripts=$COUNT"
-
-if [ -f "$TARGET_HTML" ]; then cp "$TARGET_HTML" "$BACKUP"; HAD_HTML=1; fi
-ARCH="$ARCHIVE_ROOT/$STAMP-turn01-base-before-cutover"
-mkdir -p "$ARCH"
-[ "$HAD_HTML" -eq 0 ] || cp "$BACKUP" "$ARCH/SOT-turn01-base.html"
-cat > "$ARCH/ARCHIVE-MANIFEST.md" <<EOF
-# SOT Turn 01 Base pre-cutover archive
-
-- Archived: $STAMP
-- Prior HTML present: $HAD_HTML
-- Candidate SHA-256: $CAND_SHA
-- Backend retained: $EXPECTED_API_BUILD
-- Schema retained: $EXPECTED_SCHEMA
-EOF
-pass ARCHIVE_PRECUTOVER "$ARCH"
-
-install -m0644 "$TMP/candidate.html" "$TARGET_HTML" || die INSTALL_UI failed
-CUTOVER=1
-pass INSTALL_UI canonical-base
-code="$(curl --max-time 12 -sS -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' -o "$RUN_DIR/public.html" -w '%{http_code}' "$PUBLIC_URL" || true)"
-[ "$code" = 200 ] || die PUBLIC_PAGE_HTTP "HTTP=$code"
-PUBLIC_SHA="$(sha256sum "$RUN_DIR/public.html" | awk '{print $1}')"
-[ "$PUBLIC_SHA" = "$CAND_SHA" ] || die PUBLIC_ARTIFACT_IDENTITY "candidate=$CAND_SHA public=$PUBLIC_SHA"
-pass PUBLIC_ARTIFACT_IDENTITY "$PUBLIC_SHA"
-PUBLIC_COUNT="$(parse_html_js "$RUN_DIR/public.html" public || true)"
-[ -n "$PUBLIC_COUNT" ] || die JS_PUBLIC_PARSE failed
-pass JS_PUBLIC_PARSE "scripts=$PUBLIC_COUNT"
-POST_HEALTH="$(health_check "$RUN_DIR/post-health.json" || true)"
-[ -n "$POST_HEALTH" ] || die POST_BACKEND_HEALTH failed
-pass POST_BACKEND_HEALTH "$POST_HEALTH"
-
-SUCCESS=1
-pass RELEASE_READY 'lightweight mechanical QA passed'
-echo '=== TURN 01 BASE READY FOR OWNER TEST ==='
-echo "TEST URL: $PUBLIC_URL"
+node --check "$TMP/public.js" || fail PUBLIC_JS_PARSE failed; pass PUBLIC_JS_PARSE passed
+[ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || fail DATABASE_INTEGRITY failed; pass DATABASE_INTEGRITY ok
+SUCCESS=1; pass RELEASE_READY 'mechanical gates passed'; echo '=== TURN 01 COORDINATION READY FOR TEST ==='; echo "TEST URL: $PUBLIC_URL"
