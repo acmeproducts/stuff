@@ -4,7 +4,7 @@ REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"
 SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"; SERVICE=openclaw-report-server.service
 ARCHIVE_ROOT="$SOT_DIR/archive"; PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"
 EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-1'; EXPECTED_SCHEMA=5
-SRC_COMMIT='5d0cc9bd0874d68cfbc27732f799a1692d20c406'; WORKER_COMMIT='ffaee4ad31fd35ed9000db932ddf81a16a83f44f'
+SRC_COMMIT='91f158c48eed9a46063a1258c9ecce73b69aa8e1'; WORKER_COMMIT='ffaee4ad31fd35ed9000db932ddf81a16a83f44f'
 TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$ARCHIVE_ROOT/$STAMP-turn01-coordination-release"; mkdir -p "$RUN"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
 CUTOVER=0; SUCCESS=0
 record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; exit 1; }
