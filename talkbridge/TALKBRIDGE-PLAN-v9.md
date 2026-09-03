@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.29.0 -->
-# TALKBRIDGE MASTER PLAN v20.29.0
+<!-- TALKBRIDGE-PLAN v20.30.0 -->
+# TALKBRIDGE MASTER PLAN v20.30.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,7 +68,7 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | Notifications, complete + caller call round trip (owner directive 2026-09-01: caller mic muted, call screen, ring-back, synced timers/B-8a — no debate) (§5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·base (RESET) | Notifications, complete + caller call round trip (owner directive 2026-09-01: caller mic muted, call screen, ring-back, synced timers/B-8a — no debate) (§5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
 | 25·pre-ship | (absorbed into 25·base by owner GO 2026-09-01: PRISM un-hijack ships with N1/N2) | — | — |
 | 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
 | 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
@@ -1903,6 +1903,21 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.30.0 · 2026-09-02.** ROLLBACK TO THE ACCEPTED PAIR, on owner order.
+Live everywhere is now `ac541c1`: app `6abc47d77ed2`, worker `tb-sw.js`
+`610718a6c39a`, relay v6.2 `6609b141e7da`. `bridge-turn25-base.html` serves
+the accepted bytes; every part, candidate worker and candidate harness from
+this turn is deleted (G31). The accepted contract tests are restored
+unmodified — the two CR3 assertions changed for always-push are reverted.
+Gates on the restored pair: CR3 relay 10/10, CR3 mutations all caught,
+release-law PASS.
+Everything built this turn is buried, including work that may have been
+correct, because it was stacked without device gates and cannot be
+attributed. Rebuilding is one behavioural change per candidate, device-gated
+before the next is written, rolling back to the ACCEPTED pair — never to a
+previous candidate.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.29.0 · 2026-09-01.** The owner was right that the working behaviour was
 already in the repo and had not been carried into this release. Diffing R10.2

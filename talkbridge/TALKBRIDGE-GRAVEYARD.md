@@ -1522,3 +1522,20 @@ nothing while a window is genuinely visible. Muted and burst suppression still
 block the push. Rule carried forward: reachability is never inferred from a
 device's last self-report; the device decides what to display, the relay
 decides only what to send.
+
+## G31 — 2026-09-02 — Everything built this turn, buried whole
+
+Buried: every candidate produced in turn 25 to this point — R11.0 log
+fidelity, the notification work (N1/N3/N5), the scope un-hijack (N2), the
+caller call surface (N4) and the always-push change (N6). Not because each
+idea was wrong, but because they were built on top of one another without a
+device gate between them, so nothing in the chain can be trusted or
+attributed. The owner had to say so twelve times. Two changes were live that
+the owner never gated, after a rollback in which the builder had committed to
+one change at a time — the same violation, repeated immediately.
+Live state is now the last artifact the OWNER accepted: 24·post-ship pair
+`ac541c1` — app sha256 `6abc47d77ed2`, `tb-sw.js` `610718a6c39a`, relay v6.2
+`6609b141e7da` — with 25·base serving those exact bytes. Nothing else is on
+the stage. Carried forward, non-negotiable: the next candidate contains ONE
+behavioural change, is gated on device before a second is written, and the
+rollback point is the accepted pair, never the previous candidate.
