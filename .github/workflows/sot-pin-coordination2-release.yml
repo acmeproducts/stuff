@@ -1,0 +1,46 @@
+name: SOT pin coordination 2 release
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sot-pin-coordination2-release.yml']
+permissions: {contents: write}
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - name: Upgrade canonical installer to qualified coordination 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('install-SOT-turn01-base.sh');s=p.read_text()
+          def one(a,b):
+            global s
+            assert s.count(a)==1,(a,s.count(a));s=s.replace(a,b,1)
+          one("EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-1'; EXPECTED_SCHEMA=5","EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5")
+          one("SRC_COMMIT='91f158c48eed9a46063a1258c9ecce73b69aa8e1'; WORKER_COMMIT='ffaee4ad31fd35ed9000db932ddf81a16a83f44f'","SRC_COMMIT='91f158c48eed9a46063a1258c9ecce73b69aa8e1'; V2_COMMIT='7fcd7c171237187a91ff27b4672f9c54640f8d16'; WORKER_COMMIT='ffaee4ad31fd35ed9000db932ddf81a16a83f44f'")
+          one('fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination.py" "$TMP/coord.py"','fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination.py" "$TMP/coord.py"\nfetch "$RAW/$V2_COMMIT/integrate-SOT-turn01-coordination2.py" "$TMP/coord2.py"')
+          one('fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination-ui.py" "$TMP/coordui.py"','fetch "$RAW/$SRC_COMMIT/integrate-SOT-turn01-coordination-ui.py" "$TMP/coordui.py"\nfetch "$RAW/$V2_COMMIT/integrate-SOT-turn01-coordination2-ui.py" "$TMP/coord2ui.py"')
+          one('python3 -m py_compile "$TMP/base.py" "$TMP/base22.py" "$TMP/coord.py" "$TMP/ui22.py" "$TMP/ui24.py" "$TMP/uiai.py" "$TMP/coordui.py" || fail PYTHON_PARSE failed','python3 -m py_compile "$TMP/base.py" "$TMP/base22.py" "$TMP/coord.py" "$TMP/coord2.py" "$TMP/ui22.py" "$TMP/ui24.py" "$TMP/uiai.py" "$TMP/coordui.py" "$TMP/coord2ui.py" || fail PYTHON_PARSE failed')
+          one('python3 "$TMP/base.py" "$TMP/pre.js" "$TMP/base3.js"; python3 "$TMP/base22.py" "$TMP/base3.js" "$TMP/sot-api.js"; python3 "$TMP/coord.py" "$TMP/sot-api.js" "$TMP/sot-api-coord.js" || fail BACKEND_GENERATION failed','python3 "$TMP/base.py" "$TMP/pre.js" "$TMP/base3.js"; python3 "$TMP/base22.py" "$TMP/base3.js" "$TMP/sot-api.js"; python3 "$TMP/coord.py" "$TMP/sot-api.js" "$TMP/sot-api-c1.js"; python3 "$TMP/coord2.py" "$TMP/sot-api-c1.js" "$TMP/sot-api-coord.js" || fail BACKEND_GENERATION failed')
+          one('python3 "$TMP/ui22.py" "$TMP/pre.html" "$TMP/ui22.html"; python3 "$TMP/ui24.py" "$TMP/ui22.html" "$TMP/ui24.html"; python3 "$TMP/uiai.py" "$TMP/ui24.html" "$TMP/ui-base.html"; python3 "$TMP/coordui.py" "$TMP/ui-base.html" "$TMP/SOT-turn01-base.html" || fail UI_GENERATION failed','python3 "$TMP/ui22.py" "$TMP/pre.html" "$TMP/ui22.html"; python3 "$TMP/ui24.py" "$TMP/ui22.html" "$TMP/ui24.html"; python3 "$TMP/uiai.py" "$TMP/ui24.html" "$TMP/ui-base.html"; python3 "$TMP/coordui.py" "$TMP/ui-base.html" "$TMP/ui-c1.html"; python3 "$TMP/coord2ui.py" "$TMP/ui-c1.html" "$TMP/SOT-turn01-base.html" || fail UI_GENERATION failed')
+          one("for x in ['function sotOperatorBusy()','Default Target'","for x in ['function sotOperatorBusy()','state.selected=selected','state.tab=tab','cards.scrollTop=railY','Default Target'")
+          old='cp "$DB" "$TMP/test.sqlite"; sqlite3 "$TMP/test.sqlite" < "$TMP/005.sql" || fail MIGRATION_DRY_RUN failed; C="$(sha256sum "$TMP/005.sql"|awk \'{print $1}\')"; sqlite3 "$TMP/test.sqlite" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,\'005-project-coordination.sql\',\'$C\',strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\'));" || fail MIGRATION_LEDGER_DRY_RUN failed; [ "$(sqlite3 "$TMP/test.sqlite" \'select max(version) from schema_migrations\')" = 5 ] || fail MIGRATION_DRY_RUN_VERSION failed; pass MIGRATION_DRY_RUN schema5'
+          new='C="$(sha256sum "$TMP/005.sql"|awk \'{print $1}\')"; PRE_SCHEMA="$(sqlite3 "$DB" \'select max(version) from schema_migrations\')"; cp "$DB" "$TMP/test.sqlite"; if [ "$PRE_SCHEMA" -lt 5 ]; then sqlite3 "$TMP/test.sqlite" < "$TMP/005.sql" || fail MIGRATION_DRY_RUN failed; sqlite3 "$TMP/test.sqlite" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,\'005-project-coordination.sql\',\'$C\',strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\'));" || fail MIGRATION_LEDGER_DRY_RUN failed; fi; [ "$(sqlite3 "$TMP/test.sqlite" \'select max(version) from schema_migrations\')" = 5 ] || fail MIGRATION_DRY_RUN_VERSION failed; pass MIGRATION_DRY_RUN schema5'
+          one(old,new)
+          one('sqlite3 "$DB" < "$TMP/005.sql" || fail LIVE_MIGRATION failed; sqlite3 "$DB" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,\'005-project-coordination.sql\',\'$C\',strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\'));" || fail LIVE_MIGRATION_LEDGER failed','if [ "$PRE_SCHEMA" -lt 5 ]; then sqlite3 "$DB" < "$TMP/005.sql" || fail LIVE_MIGRATION failed; sqlite3 "$DB" "INSERT INTO schema_migrations(version,name,checksum_sha256,applied_at) VALUES(5,\'005-project-coordination.sql\',\'$C\',strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\'));" || fail LIVE_MIGRATION_LEDGER failed; fi')
+          one("echo '=== TURN 01 COORDINATION READY FOR TEST ==='","echo '=== TURN 01 COORDINATION 2 READY FOR TEST ==='")
+          p.write_text(s)
+          PY
+          bash -n install-SOT-turn01-base.sh
+          grep -Fq "EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'" install-SOT-turn01-base.sh
+          grep -Fq 'integrate-SOT-turn01-coordination2.py' install-SOT-turn01-base.sh
+      - name: Commit canonical installer
+        run: |
+          git config user.name acmeproducts
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add install-SOT-turn01-base.sh
+          git commit -m 'sot: pin behaviorally qualified coordination 2 release'
+          git pull --rebase origin main
+          git push origin HEAD:main
