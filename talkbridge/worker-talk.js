@@ -480,7 +480,17 @@ export class TalkSession {
     const now = Date.now();
     const jobs = [];
     for (const [clientId, r] of Object.entries(ev.rcp)) {
-      if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
+      /* N7 (plan v20.31.0 - G30): ALWAYS-PUSH, restored from R10.2
+         (plan v20.0.0 §4.6). The presentation word still records what the relay
+         believes, and every counter, projection and ledger read is unchanged -
+         but belief no longer decides whether the handset is reachable. A phone
+         that locks or is backgrounded keeps its socket alive and its last
+         self-report still reads 'visible' for up to STATE_FRESH_MS, so the
+         relay withheld the push and the handset had nothing to ring; iOS was
+         unaffected only because it suspends the page and drops the socket.
+         The DEVICE decides presentation (tb-sw N7), exactly as in R10.2.
+         Muted recipients and burst-suppressed chat are still never pushed. */
+      if ((r.p !== 'os_requested' && r.p !== 'in_app') || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
       const rec = this.subs[clientId];
       if (rec && rec.at && now - rec.at > SUB_TTL_MS) { delete this.subs[clientId]; r.push = 'failed'; r.pushErr = 'stale-subscription'; continue; }
       jobs.push(this._pushOne(clientId, rec, ev, sessionId));

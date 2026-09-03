@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.30.0 -->
-# TALKBRIDGE MASTER PLAN v20.30.0
+<!-- TALKBRIDGE-PLAN v20.31.0 -->
+# TALKBRIDGE MASTER PLAN v20.31.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,34 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.31.0 · 2026-09-02.** 25·base built from the ACCEPTED pair, one
+behavioural change: make the phone ring again, by restoring the R10.2 alert
+recipe verbatim rather than inventing one.
+**Cause (G30, from the repo):** R10-CR3 pushes only a recipient the relay has
+decided is `os_requested`; a recipient it believes is `in_app` gets no push at
+all. A phone that locks or is backgrounded keeps its socket alive and its last
+self-report still reads `visible` for up to STATE_FRESH_MS (45s), so the relay
+withheld the push and the handset had nothing to ring. iPhone was never
+affected because iOS suspends the page and drops the socket, so the relay
+falls through to pushing. That asymmetry is exactly what the owner reported.
+renotify:false (G29) is a real regression too — the second message in a room
+replaced the first silently — but it could never be the whole cause: an alert
+that is never sent cannot re-alert, which is why fixing it alone changed
+nothing on device.
+**N7 = R10.2 §4.6 ALWAYS-PUSH, restored:** the relay always pushes (words,
+counters, projections, ledger unchanged; muted and burst still block it) and
+the DEVICE decides presentation — a visible window means skip on Android
+(the app is the alert) and show-then-close on iOS (Apple revokes
+subscriptions that receive silent pushes); no visible window means show, with
+renotify, icon and badge (#652). Written as parts over the accepted worker;
+the accepted artifacts are byte-untouched.
+Gates: N7 16/16 across both platforms and both halves; relay contract 11/11
+including a new scenario that reproduces the exact failure (a phone that
+reported visible, then locked, is still pushed); 7 replanted defects all
+caught, including the relay withholding the push, renotify:false, and
+swallowing an iPhone push; CR3 app mutations 17/17; release-law PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.30.0 · 2026-09-02.** ROLLBACK TO THE ACCEPTED PAIR, on owner order.
 Live everywhere is now `ac541c1`: app `6abc47d77ed2`, worker `tb-sw.js`

@@ -42,8 +42,8 @@ const MUTATIONS = [
     find: "    if (st && st.visible && this._isConnected(clientId)) return 'in_app';",
     replace: "    if (st && st.visible && this._isConnected(clientId)) return 'os_requested';" },
   { name: 'retry-double-push · a resent event pushes again',
-    find: "      if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;",
-    replace: "      if (r.p !== 'os_requested') continue;" },
+    find: "      if ((r.p !== 'os_requested' && r.p !== 'in_app') || r.push !== 'not_requested') continue;",
+    replace: "      if (r.p !== 'os_requested' && r.p !== 'in_app') continue;" },
   { name: 'accept-not-separate · accepting does not change the receiver outcome',
     find: "    if (msg.type === 'call-accept') { if (r && r.o === 'offered') { r.o = 'accepted';",
     replace: "    if (msg.type === 'call-accept') { if (false) { r.o = 'accepted';" }

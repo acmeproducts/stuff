@@ -139,12 +139,16 @@ await scenario('R5 presentation by state · visible in room = in_app + seen on h
   const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
   await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
   await a.say(CHAT('c2'));
-  assert.equal(pushes.length, 0); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
+  /* N7 (plan v20.31.0): the relay returned to R10.2 ALWAYS-PUSH. The word is
+     unchanged — the relay still believes 'in_app' — but the transport no
+     longer depends on that belief. The DEVICE decides display (harness-n7:
+     Android with a visible window shows nothing). So: pushed, not shown. */
+  assert.equal(pushes.length, 1, 'always-push: the handset is always reachable'); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
   const s1 = await b.ask({ type: 'ev-seen', ids: ['c2'] }); assert.deepEqual(s1.proj, { chat: 0, voice: 0, video: 0 });
   assert.equal(w.session.events.c2.rcp.B.seenBy, 'in_room');
   await b.say({ type: 'ev-state', visible: true, inRoom: false, muted: false });
   await a.say(CHAT('c3'));
-  assert.equal(pushes.length, 0, 'visible on home: in-app card, no OS alert'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
+  assert.equal(pushes.length, 2, 'always-push: sent; the device suppresses display while visible'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
   const bproj = b.inbox.filter((m) => m.type === 'ev-proj'); assert.ok(bproj.length >= 1, 'the projection rides the socket');
   assert.deepEqual(bproj[bproj.length - 1].proj, { chat: 1, voice: 0, video: 0 });
   assert.deepEqual((await proj(b)).proj, { chat: 1, voice: 0, video: 0 });
@@ -200,6 +204,23 @@ await scenario('R10 read-only HTTPS reconciliation equals the socket answer; cal
   const viaSocket = await proj(b); const viaHttp = await w.post('B', { type: 'events-sync' });
   assert.deepEqual(viaHttp.proj, viaSocket.proj); assert.deepEqual(viaHttp.proj, { chat: 0, voice: 1, video: 0 });
   const d = await w.post('A', { type: 'diag' }); assert.equal(d.v, '6.2'); assert.ok(Array.isArray(d.events));
+});
+
+await scenario('N7 locked handset · a phone that reported visible and then locked is STILL pushed (the Android failure)', async () => {
+  const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
+  /* the phone is in the room and says so */
+  await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
+  const before = pushes.length;
+  /* the screen locks: no further report, the socket is still open, and the
+     last report is still inside STATE_FRESH_MS - exactly the window in which
+     the relay used to withhold the push */
+  await a.say(CHAT('n7a'));
+  assert.equal(pushes.length, before + 1, 'the push is sent while the stale visible report is still fresh');
+  /* a muted room is still never pushed */
+  await b.say({ type: 'ev-state', visible: true, inRoom: false, muted: true });
+  const beforeMuted = pushes.length;
+  await a.say(CHAT('n7b'));
+  assert.equal(pushes.length, beforeMuted, 'muted still blocks the push');
 });
 
 const bad = results.filter((r) => !r.ok).length;
