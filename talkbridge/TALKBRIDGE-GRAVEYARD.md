@@ -1613,3 +1613,17 @@ the change shipped and the builder did not look. The relay is restored to the
 accepted pair; the app-side parts that depended on it are removed with it.
 Rule carried forward: the full contract suite is read BEFORE a push, not after
 the owner asks. A red check is a stop, not a footnote.
+
+## G37 — 2026-09-03 — Adding a step the app never needed
+
+Buried: the "Notifications are off — Turn on" bar. It was added to stop a
+permission retry from eating the hamburger tap, but the retry never ate it:
+that listener runs in capture and lets the tap through to whatever was pressed.
+The menu DID open — the denial card then covered it, on every failed retry, and
+printed iPhone settings on every platform. So a working, invisible design was
+replaced with a visible extra step for a problem it did not have. Owner: an
+extra tap to enable notifications is cheap, ugly, and a reason to abandon the
+app. Restored: the app asks silently on the next tap, shows nothing, and the
+denial card appears at most once per install with the right platform's
+settings. Rule carried forward: never add UI to work around a fault that has
+not been proven to be where it is assumed.

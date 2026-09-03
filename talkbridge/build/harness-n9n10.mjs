@@ -4,43 +4,35 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 const n9 = fs.readFileSync(process.env.N9 || 'talkbridge/parts/n9-notif-permission.js', 'utf8');
 const n10 = fs.readFileSync(process.env.N10 || 'talkbridge/parts/n10-caller-call-screen.js', 'utf8');
 
-/* ---------- N9: the retry must never steal a tap ---------- */
+/* ---------- N9: no extra step, and the card cannot smother the app ---------- */
 function permWorld(ua) {
   const dom = new JSDOM('<body><button id="room-menu-btn">menu</button></body>', { url: 'https://x.test/a.html', runScripts: 'outside-only' });
   const w = dom.window; const logged = []; let attempts = 0; let menuOpened = 0;
+  const store = {};
   Object.defineProperty(w.navigator, 'userAgent', { value: ua, configurable: true });
-  w.log = (e, d) => logged.push({ e, d });
+  Object.defineProperty(w, 'localStorage', { value: { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } }, configurable: true });
+  w.p3Log = (e, d) => logged.push({ e, d });
   w.p3AttemptInGesture = () => { attempts++; };
-  w.p3ArmGesture = () => {};
   w.p3ShowRecipe = () => {};
   w.document.getElementById('room-menu-btn').addEventListener('click', () => { menuOpened++; });
   w.eval(n9);
   return { w, logged, menu: () => menuOpened, attempts: () => attempts };
 }
-let p = permWorld('Android Chrome');
-p.w.p3ArmGesture();
-ok(!!p.w.document.getElementById('n9-bar'), 'a visible "turn on notifications" bar appears instead of a hidden trap');
-p.w.document.getElementById('room-menu-btn').dispatchEvent(new p.w.Event('click', { bubbles: true }));
-ok(p.menu() === 1, 'tapping the hamburger opens the menu');
-ok(p.attempts() === 0, 'and does NOT get eaten by a permission retry (the G33 defect)');
-p.w.document.getElementById('n9-on').dispatchEvent(new p.w.Event('click', { bubbles: true }));
-ok(p.attempts() === 1, 'the retry runs only when the person taps "Turn on"');
-ok(!p.w.document.getElementById('n9-bar'), 'and the bar goes away');
-p = permWorld('Android Chrome');
-p.w.p3ArmGesture();
-p.w.document.getElementById('n9-x').dispatchEvent(new p.w.Event('click', { bubbles: true }));
-ok(!p.w.document.getElementById('n9-bar') && p.attempts() === 0, 'the bar can be dismissed without asking');
-
-/* ---------- N9: platform-correct instructions ---------- */
-p = permWorld('Mozilla/5.0 (Linux; Android 14; SM-S911B) Chrome/140');
+let p = permWorld('Mozilla/5.0 (Linux; Android 14) Chrome/140');
+ok(!p.w.document.getElementById('n9-bar'), 'no extra "turn on notifications" bar is ever shown — the app asks for nothing');
 p.w.p3ShowRecipe();
-let card = p.w.document.getElementById('p3-recipe').textContent;
-ok(/App info|Settings/.test(card) && /Alert/.test(card), 'Android sees Android steps (App info, Alert category)');
-ok(!/Notification Cent|Banner style/.test(card), 'Android never sees iPhone-only settings (the second G33 defect)');
+let card = p.w.document.getElementById('p3-recipe');
+ok(!!card, 'the card still appears on a real denial');
+ok(/App info|Allow notifications/.test(card.textContent) && /Alert/.test(card.textContent), 'and gives Android settings on Android');
+ok(!/Notification Cent|Banner style/.test(card.textContent), 'never iPhone settings on Android');
+p.w.document.getElementById('p3-done').dispatchEvent(new p.w.Event('click', { bubbles: true }));
+ok(!p.w.document.getElementById('p3-recipe'), 'dismissing it closes it');
+p.w.p3ShowRecipe();
+ok(!p.w.document.getElementById('p3-recipe'), 'and it never smothers the app a second time');
+ok(p.logged.some(l => l.e === 'n9_recipe_suppressed'), 'the suppression is recorded');
 p = permWorld('Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X)');
 p.w.p3ShowRecipe();
-card = p.w.document.getElementById('p3-recipe').textContent;
-ok(/Notification Centre|Banner style/.test(card), 'iPhone still sees iPhone steps');
+ok(/Notification Centre/.test(p.w.document.getElementById('p3-recipe').textContent), 'iPhone still gets iPhone settings');
 
 /* ---------- N10: the outbound call ---------- */
 function callWorld() {

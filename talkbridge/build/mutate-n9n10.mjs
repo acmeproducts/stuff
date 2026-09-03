@@ -9,10 +9,7 @@ const mut = (name, f, from, to) => {
   console.log((passed ? 'MISSED ' : 'CAUGHT ') + name); if (passed) bad++;
 };
 const N9 = 'talkbridge/parts/n9-notif-permission.js', N10 = 'talkbridge/parts/n10-caller-call-screen.js';
-mut('the tap thief comes back (hamburger eaten again)', N9,
-  "  p3ArmGesture = function () {\n    if (document.getElementById('n9-bar')) return;",
-  "  p3ArmGesture = function () {\n    document.addEventListener('click', function h() { document.removeEventListener('click', h); p3AttemptInGesture(); }, true);\n    if (document.getElementById('n9-bar')) return;");
-mut('iPhone steps shown on Android again', N9, "var steps = ios\n        ?", "var steps = true\n        ?");
+mut('iPhone steps shown on Android again', N9, "var steps = ios\n      ?", "var steps = true\n      ?");
 mut('caller mute removed', N10, "if (CALL.micOn) { try { CALL.toggleMic(); } catch (_) {} }", "");
 mut('ring-back removed', N10, "try { RING.start(); } catch (_) {}", "");
 mut('call screen never shown', N10, "ov.classList.add('show');", "");

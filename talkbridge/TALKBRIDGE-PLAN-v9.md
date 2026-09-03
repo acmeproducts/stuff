@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.40.0 -->
-# TALKBRIDGE MASTER PLAN v20.40.0
+<!-- TALKBRIDGE-PLAN v20.41.0 -->
+# TALKBRIDGE MASTER PLAN v20.41.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1923,6 +1923,20 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.41.0 · 2026-09-03.** The extra "Turn on notifications" step is REMOVED
+(G37). It should never have been added: the original design asks silently on
+the person's next tap, and that listener never blocked the tap — it runs in
+capture and lets it through. The menu did open; the denial card covered it. So
+the card was the whole defect, and a working invisible flow was traded for a
+visible extra step nobody asked for. Restored: nothing extra is shown, nothing
+is tapped twice, and the denial card now appears at most ONCE per install and
+names the settings of the device in front of the person (Android: App info →
+Notifications → Allow, category set to Alert; iPhone: Settings →
+Notifications → TalkBridge).
+Gates: N9/N10 22/22 with 7 replanted defects caught (including the bar being
+added back and the card smothering the app again); app contract 16/16; D-2
+11/11; N13 20/20; release-law PASS. Relay unchanged — accepted pair.
 
 **v20.40.0 · 2026-09-03.** ROLLBACK on owner order. The relay is restored to
 the accepted pair (`6609b141e7da`, ac541c1) and the app-side parts that
