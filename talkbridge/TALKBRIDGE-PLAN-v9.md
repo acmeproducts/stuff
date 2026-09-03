@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.37.0 -->
-# TALKBRIDGE MASTER PLAN v20.37.0
+<!-- TALKBRIDGE-PLAN v20.38.0 -->
+# TALKBRIDGE MASTER PLAN v20.38.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,17 +68,40 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base (RESET) | Notifications, complete + caller call round trip (owner directive 2026-09-01: caller mic muted, call screen, ring-back, synced timers/B-8a — no debate) (§5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | Calls & video, complete (owner lock 2026-09-03, §5.4): outbound call screen, caller mute, ring-back and synced timers land in 25·base; this stage adds the video surface — tap either video to swap, inset draggable across the whole screen and part-way off it, back button to a live 9:16 PiP with exactly two controls, camera swap, screen share on desktop only | **BUILT 2026-09-03** — owner device gate pending | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html |
-| 25·ship | Multi-user | Not started | — |
-| 25·post-ship | Technical debt — the full cleanup pass | Not started | — |
+| 25·base | Notifications + caller call round trip | **BUILT, NOT ACCEPTED** — caller call screen, caller mute, ring-back and synced timers confirmed working on device by the owner; Android lock-screen ringing NOT fixed (open defect D-1). The PRISM un-hijack was built here, rolled back, and IS NOT IN ANY LIVE ARTIFACT (open defect D-2). | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
+| 25·pre-ship | Calls & video surface | **BUILT, NOT ACCEPTED** — tap swaps the two streams and nothing else; back button asks the browser for its own Picture-in-Picture (Android: needs Chrome's Picture-in-picture permission; iPhone: not supported by that call, falls back to the in-page view — behaviour on return from another app is UNTESTED and unknown); camera swap; screen share on desktop only | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html |
+| 25·ship | **Multi-user** | Not started | — |
+| 25·post-ship | **Technical debt — the full cleanup pass** | Not started | — |
 | 26·pre-base | = accepted 25·post-ship, byte-identical snapshot | — | — |
-| 26·base | IndexedDB storage migration — LAST build release before pilot | Not started | — |
+| 26·base | **IndexedDB storage migration — LAST build release before pilot** | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
 (byte-identical). The turn25 file remains ONLY as a temporary alias in case
 the owner installed from that URL; it is retired when A8 passes.
+
+---
+
+## 0d · OPEN DEFECTS — NOT ROADMAP ITEMS (owner, 2026-09-03)
+
+The roadmap is exactly three releases: **multi-user, technical-debt cleanup,
+IndexedDB.** Nothing else is a release. Everything below is a defect — a thing
+that was working, or was promised working, and is not. Defects are fixed
+against the release they belong to; they never become roadmap entries, and
+they are never counted as progress.
+
+| # | Defect | State |
+|---|---|---|
+| D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN, cause unknown |
+| D-2 | PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | OPEN, fix known |
+| D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
+
+**Why these exist:** D-1 is a regression introduced in the R10 candidate work
+and not caught. D-2 is a fix that was built, broken, rolled back and then not
+rebuilt. D-3 is an untested claim that was stated as fact and should not have
+been. All three are builder failures, recorded here so they are never mistaken
+for planned work.
+
 
 ---
 
@@ -1900,6 +1923,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.38.0 · 2026-09-03.** Roadmap cut to the owner's three releases —
+multi-user, technical-debt cleanup, IndexedDB — and nothing else. Everything
+that was sitting on the roadmap because a build failed is moved to §0d OPEN
+DEFECTS and named as a builder failure: D-1 Android lock-screen ringing (two
+real causes found and fixed, neither changed device behaviour, remaining cause
+UNKNOWN and not narrowed); D-2 PRISM scope capture (fix built, rolled back,
+never rebuilt — in no live artifact); D-3 iPhone return-to-call behaviour
+(never tested, previously stated as if known). The 25·base and 25·pre-ship
+rows are corrected to say plainly what is built, what the owner confirmed on
+device, and what is not fixed — the 25·base row had carried a claim that the
+PRISM un-hijack shipped, and a link to an artifact that no longer exists.
 
 **v20.37.0 · 2026-09-03.** N12 rolled back and rebuilt as N13 after the owner's
 device gate (G35).
