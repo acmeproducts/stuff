@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111b">
+<title>PRISM · Turn 01 pre-ship R19</title>
+<style>html,body,#app{margin:0;width:100%;height:100%;overflow:hidden;background:#07111b}#app{border:0;display:block}</style>
+</head>
+<body>
+<iframe id="app" src="./prism-turn01-pre-ship-r18.html?v=e5c4dd5b78453ee4d911b2378fce091fe7ccc4a7" title="PRISM R19"></iframe>
+<script>
+(()=>{'use strict';
+const frame=document.getElementById('app');
+function patch(){
+  const w=frame.contentWindow,d=frame.contentDocument;
+  if(!w||!d||!w.echarts)return setTimeout(patch,120);
+  const el=d.getElementById('treemap');
+  if(!el)return setTimeout(patch,120);
+  const chart=w.echarts.getInstanceByDom(el);
+  if(!chart)return setTimeout(patch,120);
+  if(chart.__r19Patched)return;
+  chart.__r19Patched=true;
+  const nativeSet=chart.setOption.bind(chart);
+  function clone(v){try{return structuredClone(v)}catch{return JSON.parse(JSON.stringify(v))}}
+  function amplify(data){
+    return (data||[]).map(g=>{
+      const ng={...g};
+      ng.children=(g.children||[]).map(c=>{
+        const base=Math.max(1,+c.value||1);
+        const value=Math.round(Math.pow(base,1.72));
+        return {...c,value};
+      }).sort((a,b)=>(b.value||0)-(a.value||0));
+      ng.value=ng.children.reduce((s,c)=>s+(+c.value||0),0);
+      return ng;
+    }).sort((a,b)=>(b.value||0)-(a.value||0));
+  }
+  function transform(opt){
+    const o=clone(opt||{});
+    const s=o.series&&o.series[0];
+    if(!s||s.type!=='treemap')return o;
+    if(s.data)s.data=amplify(s.data);
+    s.left=0;s.right=0;s.top=0;s.bottom=0;
+    s.squareRatio=1.15;s.sort='desc';s.roam=false;s.nodeClick=false;
+    s.breadcrumb={show:false};
+    s.upperLabel={show:true,height:32,color:'#fff',fontSize:18,fontWeight:900,padding:[2,5],overflow:'truncate'};
+    s.itemStyle={gapWidth:1,borderColor:'#07111b',borderWidth:1};
+    s.levels=[
+      {itemStyle:{borderWidth:2,borderColor:'#07111b',gapWidth:2}},
+      {upperLabel:{show:true},itemStyle:{borderWidth:1,gapWidth:1}}
+    ];
+    s.label={show:true,color:'#f8fbff',padding:[3,5],overflow:'break',lineOverflow:'truncate',formatter:p=>p.data?.name||p.name};
+    s.labelLayout=p=>{
+      const r=p.rect||{},w=r.width||0,h=r.height||0,area=w*h;
+      if(w<48||h<28||area<1900)return{hide:true};
+      let fs=12,lh=14;
+      if(area>115000){fs=31;lh=34}
+      else if(area>65000){fs=25;lh=28}
+      else if(area>32000){fs=20;lh=23}
+      else if(area>16000){fs=16;lh=19}
+      else if(area>7000){fs=14;lh=17}
+      return{hide:false,fontSize:fs,lineHeight:lh};
+    };
+    o.tooltip={...(o.tooltip||{}),confine:true,backgroundColor:'#071522f4',borderColor:'#416781',borderWidth:1,padding:[8,10],textStyle:{color:'#edf6ff',fontSize:13,lineHeight:17},extraCssText:'max-width:260px;white-space:normal;word-break:break-word;box-shadow:0 8px 26px #0009;border-radius:8px'};
+    return o;
+  }
+  chart.setOption=function(opt,...rest){return nativeSet(transform(opt),...rest)};
+  const initial=chart.getOption();
+  nativeSet(transform(initial),true);
+  const style=d.createElement('style');
+  style.textContent='#treemap{inset:0!important}.surface{background:#07111b}.mapFocusClear{font-size:12px;min-height:30px;padding:4px 9px}';
+  d.head.appendChild(style);
+  const brand=d.querySelector('.railBrand small');if(brand)brand.textContent='Turn 01 · pre-ship R19';
+}
+frame.addEventListener('load',()=>setTimeout(patch,80));
+})();
+</script>
+</body>
+</html>
