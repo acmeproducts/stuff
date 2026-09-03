@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v3.1.0 -->
-# PRISM GRAVEYARD v3.1.0
+<!-- PRISM-GRAVEYARD v3.2.0 -->
+# PRISM GRAVEYARD v3.2.0
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. Owner device testing is the functional acceptance gate; mechanical checks do not substitute for acceptance.
@@ -19,7 +19,11 @@ Rejected work is evidence, not an implementation ancestor. Owner device testing 
 - No unrelated redesign while correcting governed defects.
 - No removal of established functionality to fix one surface.
 - No metadata-only source-add success claim.
-- No Library state that loses Omnisearch or Research web continuation on mobile.
+- No Library state that loses Omnisearch, Analysis-list access, selected detail, or Research web continuation on mobile.
+- No Library implementation where DOM cards are the persistence source of truth.
+- No heuristic matching of provider results to "an" in-process card; every run must bind to its own durable Analysis ID.
+- No Add/Save-to-Library step after Run Analysis; the record exists before execution begins.
+- No iframe/nested-wrapper candidate as a legitimate release.
 - No Explore implementation that creates/transforms one DOM object per event across the full corpus.
 - No hidden Map/Explore/Feed rerender fan-out during ordinary interaction.
 - No unselected Source group under an active Source filter.
@@ -48,11 +52,40 @@ Rejected. It continued the R15 implementation lineage and did not restore the de
 ### Failed R17 release mechanism
 Rejected before application publication. Temporary GitHub Actions release machinery failed and was removed. Do not retry it.
 
-## Current correction contract
-All four owner-directed workstreams are active together:
-1. Library research workflow.
-2. Explore performance and cardinality-driven clustering.
-3. Source/filter correctness including truthful live custom-source ingestion and stable default inventory.
-4. Map/controls/mobile layout including exactly three role-aligned filters, anchored chip popovers, readable Map sizing/content and preserved mobile navigation/configuration access.
+### R18
+Invalid release alias: byte-for-byte reuse of rejected R14 application content under a new release name. Not a legitimate implementation ancestor.
 
-The next candidate must begin from the exact R11 baseline and implement these corrections without wholesale reuse of a rejected application artifact.
+### R19
+Experimental iframe/runtime patch over R18. Useful evidence for Map topology and early Explore clustering only. Not a governed release ancestor.
+
+### R20
+Experimental iframe/runtime patch over rejected lineage. Its adaptive DOM Map tile layout is useful evidence, but the wrapper architecture is rejected.
+
+### R21
+Experimental iframe/runtime patch. Owner accepted the visible Map tile sizing, group-heading proximity, group-click focus/adjacent × restore behavior and fixed dimension-control sizing. Those behaviors may be ported, but R21 itself is not an ancestor.
+
+### R22
+Rejected Library direction. It hid the Library Analysis rail when an Analysis opened, directly violating the required persistent master/detail workspace.
+
+### R23
+Rejected as architecture despite moving closer visually. It remained a nested wrapper over rejected runtime lineage and did not make IndexedDB the authoritative Analysis model.
+
+### R24
+Rejected and diagnosed as structurally unusable Library implementation.
+- Runtime chain stacked R24 → R23 → R21 → R18/R14, leaving multiple documents, CSS layers and competing event handlers.
+- IndexedDB was added as side-effect writes from DOM cards/transcript instead of becoming the authoritative Analysis store.
+- Existing and synthetic Analysis cards followed different selection paths.
+- Run Analysis created a synthetic in-process card without a durable one-to-one binding to the actual provider request/result.
+- Completion detection guessed from generic output DOM mutation and could associate the wrong result.
+- IndexedDB content was not fully hydrated back into Library state on startup, so persistence was not a complete read/write model.
+- Portrait behavior remained subject to overlapping mobile CSS and nested runtime handlers.
+- Attachment/paste/current-web continuation persistence was not implemented as one durable Analysis thread.
+
+## Current correction contract
+All four owner-directed workstreams remain active together, with Library as the immediate acceptance gate:
+1. Library is an IndexedDB-backed master/detail research workspace. Run Analysis creates the durable record immediately; the Analysis list is rendered from IndexedDB; selection only changes the right pane; full Markdown transcript plus follow-up/web research persists under the same Analysis ID; delete is the retention decision.
+2. Explore uses lightweight cardinality-driven clustering with no transformed full-corpus event cloud.
+3. Source/filter correctness includes truthful custom-source ingestion and stable defaults.
+4. Map/controls/mobile layout ports the owner-accepted R21 Map behavior without inheriting the R21 wrapper architecture.
+
+The next legitimate candidate must begin from the exact standalone R11 baseline and implement corrections directly in that application. No R18–R24 runtime wrapper may be used as its ancestor.
