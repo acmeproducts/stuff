@@ -286,6 +286,8 @@ export class TalkSession {
   }
   _pushProjection(clientId) {
     const p = this._projection(clientId);
+    const out = this.pushOut && this.pushOut[clientId];
+    if (out) { try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out }); } catch (_) {} }
     this._sendTo(clientId, { type: 'ev-proj', transient: true, proj: p.proj, unseen: p.unseen, calls: p.calls, ts: Date.now() });
   }
   _recipients(senderId) {
@@ -463,6 +465,12 @@ export class TalkSession {
     try {
       const res = await fetch(endpoint, { method: 'POST', headers, body });
       this.lastWake = { clientId, at: Date.now(), status: res.status, eventId: ev.id };
+      /* D-1: the relay already knew whether the push service accepted the
+         message; the device never did, so nobody could say which link in
+         the chain was breaking. It is now reported back to that device. */
+      this.pushOut = this.pushOut || {};
+      this.pushOut[clientId] = { at: Date.now(), status: res.status, eventId: ev.id, host: String(endpoint).split('/')[2] || '' };
+      try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out: this.pushOut[clientId] }); } catch (_) {}
       r.push = (res.status >= 200 && res.status < 300) ? 'accepted' : 'failed';
       r.pushStatus = res.status;
       /* 404 and 410 mean the subscription is dead — the browser has revoked it.
@@ -471,7 +479,12 @@ export class TalkSession {
         delete this.subs[clientId];
         await this._saveSubs();
       }
-    } catch (_) { r.push = 'unknown'; }
+    } catch (e) {
+      r.push = 'unknown';
+      this.pushOut = this.pushOut || {};
+      this.pushOut[clientId] = { at: Date.now(), status: 0, error: String(e && e.message || e).slice(0, 60), eventId: ev.id };
+      try { this._sendTo(clientId, { type: 'ev-push-out', transient: true, out: this.pushOut[clientId] }); } catch (_) {}
+    }
   }
 
   /* v6: the record decides. Only os_requested recipients are pushed; the push

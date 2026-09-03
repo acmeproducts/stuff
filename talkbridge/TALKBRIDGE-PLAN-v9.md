@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.38.0 -->
-# TALKBRIDGE MASTER PLAN v20.38.0
+<!-- TALKBRIDGE-PLAN v20.39.0 -->
+# TALKBRIDGE MASTER PLAN v20.39.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -92,8 +92,8 @@ they are never counted as progress.
 
 | # | Defect | State |
 |---|---|---|
-| D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN, cause unknown |
-| D-2 | PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | OPEN, fix known |
+| D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause still unknown; the relay now reports its push result to the device (n14_push_out) so ONE test names the failing link |
+| D-2 | **FIXED, awaiting device gate 2026-09-03** — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
@@ -1923,6 +1923,35 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.39.0 · 2026-09-03.** Owner: fix all three defects.
+**D-2 PRISM capture — FIXED.** The app now lives at `/stuff/talkbridge/`, so
+its manifest and worker claim that folder and nothing else under `/stuff/` is
+captured. Relative paths do the work: the manifest beside the app declares
+`scope: /stuff/talkbridge/` and carries NO start address (G25), and the worker
+registered from that folder gets that folder as its scope. The old address
+forwards every launch with its hash and query intact, so invites, notification
+taps and old bookmarks still land. Devices installed before the move have their
+old root-scoped workers retired by EXACT scope AND script match, push released
+before unregister — PRISM's worker and any other app's are provably untouched,
+and no storage is cleared.
+**D-1 Android lock-screen ringing — STILL UNKNOWN, now diagnosable in one
+test.** No cause is claimed. The relay always knew what the push service
+answered and never told the device, which is why three different links could
+not be told apart. It now reports the outcome and the app writes it to the log:
+`n14_push_out status=2xx` means the push was ACCEPTED and the handset was
+reached (anything still wrong is on the phone); `403/404/410` means it was
+REJECTED (subscription or key); NO LINE AT ALL means the relay never sent. One
+locked-phone test now names the failing link instead of another guess.
+**D-3 iPhone return-to-call — still UNKNOWN.** It cannot be fixed by building;
+only a device test settles it, and no claim is made until then.
+Artifact: `/stuff/talkbridge/bridge-turn25-pre-ship.html` = 25·pre-ship bytes +
+two appended parts, zero changed lines; worker byte-identical to the accepted
+one; accepted release untouched.
+Gates: D1/D2 18/18 with 6 replanted defects all caught (manifest claiming
+/stuff/ again, a start address added back, prefix-matching that would retire
+PRISM, unregister without releasing push, outcome never reported, rejection
+reported as success); N13 20/20; relay contract 12/12; release-law PASS.
 
 **v20.38.0 · 2026-09-03.** Roadmap cut to the owner's three releases —
 multi-user, technical-debt cleanup, IndexedDB — and nothing else. Everything
