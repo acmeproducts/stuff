@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.35.0 -->
-# TALKBRIDGE MASTER PLAN v20.35.0
+<!-- TALKBRIDGE-PLAN v20.36.0 -->
+# TALKBRIDGE MASTER PLAN v20.36.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -69,14 +69,11 @@ built yet.
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
 | 25·base (RESET) | Notifications, complete + caller call round trip (owner directive 2026-09-01: caller mic muted, call screen, ring-back, synced timers/B-8a — no debate) (§5.1): R11.0 log fidelity closes here (device-confirmed; formally gated with this release, no separate ceremony) · #652 Android banners/icon · iPhone silence · five unproven sheet rows · declarative web push · #653 rejoin a declined room | **N1 BUILT 2026-09-01 on owner GO** — app+worker+relay v6.3 pair; all machine gates green (SW 8/8, app 8/8, relay 6/6+CR3 10/10, parity 3/3, 9 planted defects caught); owner device gate pending; **N2 (PRISM un-hijack) absorbed on owner GO** — canonical home `/stuff/talkbridge/`, no start address, exact-match migration, root URL forwards | https://acmeproducts.github.io/stuff/talkbridge/bridge-turn25-base.html | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | (absorbed into 25·base by owner GO 2026-09-01: PRISM un-hijack ships with N1/N2) | — | — |
-| 25·ship | Call & video experience (§5.3): full owner spec · B-8a synced timers · B-8b live rename · B-8c invite name · #650 WhatsApp-grade video · 11.7 occluded mute icon · screen share (desktop-gated) | Planned | — |
-| 25·post-ship | Layout & polish: R11 items 11.1–11.6, 11.8, 11.9 | Planned | — |
+| 25·pre-ship | Calls & video, complete (owner lock 2026-09-03, §5.4): outbound call screen, caller mute, ring-back and synced timers land in 25·base; this stage adds the video surface — tap either video to swap, inset draggable across the whole screen and part-way off it, back button to a live 9:16 PiP with exactly two controls, camera swap, screen share on desktop only | **BUILT 2026-09-03** — owner device gate pending | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html |
+| 25·ship | Multi-user | Not started | — |
+| 25·post-ship | Technical debt — the full cleanup pass | Not started | — |
 | 26·pre-base | = accepted 25·post-ship, byte-identical snapshot | — | — |
-| 26·base | Multi-user (§6) | Not started | — |
-| 26·pre-ship | IndexedDB storage migration (§7 R12b) | Not started | — |
-| 26·ship | Code refactor — tight, non-redundant codebase; LAST build release | Not started | — |
-| 26·post-ship | R13 — remaining secret migration Phase B (governed, owner explicit go), then PILOT | Not started | — |
+| 26·base | IndexedDB storage migration — LAST build release before pilot | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -1903,6 +1900,31 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.36.0 · 2026-09-03.** OWNER LADDER, locked 2026-09-03: 25·pre-ship =
+calls and video complete; 25·ship = multi-user; 25·post-ship = technical debt
+cleanup; 26·base = IndexedDB, the last build before pilot. EVERYTHING else is
+post-pilot, including **Android not ringing on the lock screen, which the owner
+has moved to backlog** after N8/N11 — the app-side and relay-side causes found
+so far (G30 belief-based suppression, G34 stale signing key) are fixed and
+shipped; the remaining device behaviour is not blocking any release.
+**N12 — the video surface (§5.4), built to the owner's spec as written:**
+tapping either video swaps which stream is large; the inset is draggable across
+the WHOLE screen and may hang off an edge with a sliver left to drag it back; a
+drag is never mistaken for a tap; the back button drops to a 9:16 PiP with the
+call still LIVE and exactly two controls — a diagonal expand and an X to end;
+camera swap is offered only where a second camera exists and actually reaches
+the far side; screen share swaps the outgoing video track and is offered ONLY
+where a screen can be captured — desktop; phones never see it (verified
+2026-09-01: display capture is unsupported on iOS Safari and Android Chrome).
+Ending a call resets the whole surface. Built by reading the live markup and
+CSS, never reconstructed.
+Artifact: `bridge-turn25-pre-ship.html` = 25·base bytes + one appended part,
+zero changed lines. Worker registration, manifest and install gate untouched
+(G32). Relay unchanged — pair verified: deployed source `10cdff488553ebbf`
+matches the repository byte for byte.
+Gates: N12 19/19 with 9 replanted defects all caught; N9/N10 22/22; N11 9/9;
+relay contract 12/12; release-law PASS.
 
 **v20.35.0 · 2026-09-03.** Owner: permissions have ALWAYS been on and Android
 still does not ring when locked. That rules out permission and points at the
