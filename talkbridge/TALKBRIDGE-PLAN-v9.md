@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.32.0 -->
-# TALKBRIDGE MASTER PLAN v20.32.0
+<!-- TALKBRIDGE-PLAN v20.33.0 -->
+# TALKBRIDGE MASTER PLAN v20.33.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,26 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.33.0 · 2026-09-02.** Second-pass line-by-line audit of 25·base against
+the accepted baseline `ac541c1`, at owner instruction. Confirmed identical:
+`tb-sw.js`, `tb-manifest.webmanifest`, `bridge-turn24-post-ship.html`, and the
+25·pre-base snapshot (sha `6abc47d77ed2`); the candidate still registers
+`./tb-sw.js`, so no worker, registration, manifest or install-gate surface is
+touched (G32). The app differs from the accepted bytes by ONE appended block;
+the relay by ONE constant, ONE method, ONE branch and ONE message line.
+**One real defect found and fixed by the audit:** the new in_app push path did
+not apply the stale-subscription rule the os_requested path applies, so an
+expired subscription could have been pushed instead of dropped. Now gated by
+its own scenario. Two cosmetic defects fixed as well (an orphaned trailing
+comment on STATE_FRESH_MS and a line placed under the wrong comment).
+Gates: relay contract 12/12 (adds the locked-handset scenario and the stale-
+subscription scenario), 5 replanted N8 defects all caught (gate removed, gate
+always-awake, gate always-asleep, stale rule dropped, ack not settling),
+CR3 app mutations 17/17, app part audit 9/9 proving every accepted message
+still reaches the original handler unchanged and only the liveness challenge
+is intercepted, release-law gate PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.32.0 · 2026-09-02.** 25·base, rebuilt from the accepted pair after the
 install-gate/flicker regression (G32: changing the registered worker filename

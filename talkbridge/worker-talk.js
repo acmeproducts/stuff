@@ -47,8 +47,8 @@ const RELAY_VERSION = '6.2';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
-const STATE_FRESH_MS = 45000;
-const ALIVE_MS = (typeof globalThis !== 'undefined' && globalThis.TB_ALIVE_MS) || 1200;   /* N8: how long a device gets to prove it is awake before it is pushed (tests shorten it) */         /* a reported visible state older than this is not trusted */
+const STATE_FRESH_MS = 45000;         /* a reported visible state older than this is not trusted */
+const ALIVE_MS = (typeof globalThis !== 'undefined' && globalThis.TB_ALIVE_MS) || 1200;   /* N8: how long a device gets to prove it is awake before it is pushed (tests shorten it) */
 const EV_TYPES = new Set(['ev-state', 'ev-seen', 'ev-open', 'events-sync']);
 
 function cors() {
@@ -504,10 +504,11 @@ export class TalkSession {
     for (const [clientId, r] of Object.entries(ev.rcp)) {
       if (r.p === 'in_app' && r.push === 'not_requested') {
         const rec0 = this.subs[clientId];
-        if (rec0) {
-          const awake = await this._proveAwake(clientId);
-          if (!awake) { jobs.push(this._pushOne(clientId, rec0, ev, sessionId)); }
-        }
+        if (!rec0) continue;
+        /* same stale-subscription rule as the os_requested path below */
+        if (rec0.at && now - rec0.at > SUB_TTL_MS) { delete this.subs[clientId]; continue; }
+        const awake = await this._proveAwake(clientId);
+        if (!awake) jobs.push(this._pushOne(clientId, rec0, ev, sessionId));
         continue;
       }
       if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
@@ -608,8 +609,10 @@ export class TalkSession {
 
     const isTransient = msg.transient === true || TRANSIENT_TYPES.has(msg.type);
     if (msg.type === 'hello') await this._noteDevice(clientId);
-    /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
+    /* N8: the answer to a liveness challenge. Answered to this device only,
+       never broadcast, never history — it settles the pending wait and stops. */
     if (msg.type === 'ev-alive-ack' && msg.token && this._alive && this._alive[msg.token]) { const f = this._alive[msg.token]; delete this._alive[msg.token]; f(true); return; }
+    /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
 
     if (!isTransient) {

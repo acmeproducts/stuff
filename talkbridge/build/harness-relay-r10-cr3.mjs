@@ -231,6 +231,18 @@ await scenario('N8 liveness gate · a phone that reported visible and then locke
   assert.equal(pushes.length, beforeMuted, 'muted still blocks the push');
 });
 
+await scenario('N8 stale subscription · an expired subscription on the in_app path is dropped, never pushed', async () => {
+  const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
+  await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
+  w.session.subs.B.at = Date.now() - (1000 * 60 * 60 * 24 * 400);   /* long past any TTL */
+  const before = pushes.length;
+  await a.say(CHAT('n8stale'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(pushes.length, before, 'a stale subscription is never pushed');
+  assert.equal(w.session.subs.B, undefined, 'and it is dropped, exactly as on the os_requested path');
+});
+
+
 
 const bad = results.filter((r) => !r.ok).length;
 console.log(`relay harness: ${results.length - bad}/${results.length} scenarios pass`);
