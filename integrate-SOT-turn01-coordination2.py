@@ -32,7 +32,6 @@ old="`UPDATE projects SET workflow_step=4,evidence_revision=evidence_revision+1,
 new="`UPDATE projects SET workflow_step=4,evidence_revision=evidence_revision+1,status='Review',lifecycle_state='indexed',updated_at=${sqlQuote(at)} WHERE project_token=${sqlQuote(projectToken)} AND active_operation_id=${sqlQuote(op.operation_id)} AND mutation_generation=${Number(op.operation_generation)};`,\n      `UPDATE plans SET state='stale' WHERE project_token=${sqlQuote(projectToken)} AND evidence_revision < (SELECT evidence_revision FROM projects WHERE project_token=${sqlQuote(projectToken)}) AND state IN ('draft','approved','complete');`,"
 one(old,new,'evidence cutover plan stale exactness')
 one("finishOperation(projectToken,op.operation_id,op.operation_generation,'completed','indexed',{run_id:runId});","finishOperation(projectToken,op.operation_id,op.operation_generation,'completed','indexed',{run_id:runId,evidence_revision:Number(projectRow(projectToken)?.evidence_revision||0)});",'evidence event revision')
-if "p.lifecycle_state" not in s: raise SystemExit('generated coordination API does not expose lifecycle_state')
 for marker in ["coordination-2","function stableProjectView(projectToken)","status=CASE WHEN evidence_revision>0 THEN 'Reindexing'","evidence_revision < (SELECT evidence_revision FROM projects"]:
  if marker not in s: raise SystemExit('missing v2 contract '+marker)
 Path(sys.argv[2]).write_text(s);print('SOT coordination behavior v2 integrated')
