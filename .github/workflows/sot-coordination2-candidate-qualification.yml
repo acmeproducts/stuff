@@ -1,0 +1,55 @@
+name: SOT coordination 2 candidate qualification
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sot-coordination2-candidate-qualification.yml']
+permissions:
+  contents: read
+jobs:
+  qualify-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: sot-turn01-coordination2-build}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Generate exact clean-lineage candidate
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js -o /tmp/pre.js
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py -o /tmp/base.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py -o /tmp/base22.py
+          python3 /tmp/base.py /tmp/pre.js /tmp/base3.js; python3 /tmp/base22.py /tmp/base3.js /tmp/base22.js
+          python3 integrate-SOT-turn01-coordination.py /tmp/base22.js /tmp/c1.js
+          python3 integrate-SOT-turn01-coordination2.py /tmp/c1.js /tmp/sot-api.js
+          node --check /tmp/sot-api.js; grep -Fq '2026.09.03.sot-turn01-coordination-2' /tmp/sot-api.js
+          cp sot-worker.js sot-coordinator.js sot-sqlite.py /tmp/; mkdir -p /tmp/sot-db/migrations; cp sot-db/migrations/*.sql /tmp/sot-db/migrations/
+      - name: Build isolated schema 5 database
+        run: |
+          set -euo pipefail; db=/tmp/sot.sqlite; now=2026-09-03T00:00:00.000Z
+          for m in /tmp/sot-db/migrations/001-initial.sql /tmp/sot-db/migrations/002-project-list-metrics.sql /tmp/sot-db/migrations/003-project-run-controls.sql /tmp/sot-db/migrations/004-live-byte-progress.sql /tmp/sot-db/migrations/005-project-coordination.sql; do sqlite3 "$db" < "$m"; n="$(basename "$m")"; v="$(echo "$n"|cut -c1-3|sed 's/^0*//')"; c="$(sha256sum "$m"|awk '{print $1}')"; sqlite3 "$db" "INSERT INTO schema_migrations VALUES($v,'$n','$c','$now');"; done
+      - name: Execute lifecycle behavior gates
+        env: {SOT_DB_PATH: /tmp/sot.sqlite, SOT_ROOT: /tmp/sot-state, SOT_SQLITE_ADAPTER: /tmp/sot-sqlite.py}
+        run: |
+          set -euo pipefail; mkdir -p /tmp/src-a /tmp/src-b /tmp/sot-state; printf 'alpha\n' >/tmp/src-a/a.txt; printf 'beta\n' >/tmp/src-b/b.txt
+          node <<'NODE'
+          const crypto=require('crypto'),api=require('/tmp/sot-api.js'),t=api._test,q=v=>`'${String(v).replaceAll("'","''")}'`,now=new Date().toISOString(),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          function seed(id,src){let sid=id+'s';t.sqlite(`INSERT INTO projects(project_token,project_name,workflow_step,status,created_at,updated_at) VALUES(${q(id)},${q('Project '+id)},2,'Sources',${q(now)},${q(now)}); INSERT INTO sources(source_id,project_token,normalized_path,preflight_status,created_at,updated_at) VALUES(${q(sid)},${q(id)},${q(src)},'ready',${q(now)},${q(now)});`);return sid}
+          (async()=>{let sa=seed('A','/tmp/src-a');seed('B','/tmp/src-b');let ra=t.startProcessing('A'),rb=t.startProcessing('B');await sleep(100);let ops=JSON.parse(t.sqlite("SELECT DISTINCT project_token FROM project_operations WHERE state IN ('queued','running');",true));if(new Set(ops.map(x=>x.project_token)).size!==2)throw Error('cross-project concurrency');let blocked=false;try{t.startProcessing('A')}catch(e){blocked=e.status===409}if(!blocked)throw Error('same-project exclusion');t.stopProcessing('A');t.stopProcessing('B');for(let i=0;i<100;i++){await sleep(100);let n=Number(JSON.parse(t.sqlite("SELECT COUNT(*) n FROM project_operations WHERE state IN ('queued','running','paused');",true))[0].n);if(!n)break}
+          let hash=crypto.createHash('sha256').update('alpha\n').digest('hex'),obs='obsA';t.sqlite(`INSERT OR IGNORE INTO content VALUES(${q(hash)},6,${q(now)},${q(now)}); INSERT INTO processing_runs(run_id,project_token,state,phase,started_at,updated_at,ended_at) VALUES('oldrun','A','Closed','complete',${q(now)},${q(now)},${q(now)}); INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES(${q(obs)},'A',${q(sa)},'oldrun','/tmp/src-a/a.txt','a.txt','a.txt',6,1,${q(hash)},${q('1'.repeat(64))},${q('2'.repeat(64))},${q(now)},${q(now)}); INSERT INTO current_observations VALUES(${q(sa)},'a.txt',${q(obs)},'oldrun'); UPDATE projects SET evidence_revision=1,workflow_step=4,status='Review',lifecycle_state='indexed' WHERE project_token='A'; INSERT INTO plans(plan_id,project_token,evidence_revision,state,created_at) VALUES('plan1','A',1,'draft',${q(now)});`);let rr=t.startProcessing('A');let p=t.projectDetail('A'),plan=JSON.parse(t.sqlite("SELECT evidence_revision,state FROM plans WHERE plan_id='plan1';",true))[0];if(Number(p.evidence_revision)!==1||Number(p.workflow_step)<4||plan.state!=='draft')throw Error('reindex destroyed committed state');t.stopProcessing('A');for(let i=0;i<100;i++){await sleep(100);let n=Number(JSON.parse(t.sqlite("SELECT COUNT(*) n FROM project_operations WHERE project_token='A' AND state IN ('queued','running','paused');",true))[0].n);if(!n)break}p=t.projectDetail('A');let rev=t.review('A');plan=JSON.parse(t.sqlite("SELECT evidence_revision,state FROM plans WHERE plan_id='plan1';",true))[0];if(Number(p.evidence_revision)!==1||rev.files!==1||plan.state!=='draft'||Number(p.workflow_step)<4)throw Error('cancelled reindex lost committed state');console.log('PASS cross-project independence');console.log('PASS same-project exclusion');console.log('PASS reindex preserves committed evidence and plan');console.log('PASS stop restores stable committed state');})().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Generate UI and qualify reconciliation state
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html -o /tmp/pre.html
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py -o /tmp/u22.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py -o /tmp/u24.py
+          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py -o /tmp/uai.py
+          python3 /tmp/u22.py /tmp/pre.html /tmp/22.html; python3 /tmp/u24.py /tmp/22.html /tmp/24.html; python3 /tmp/uai.py /tmp/24.html /tmp/base.html; python3 integrate-SOT-turn01-coordination-ui.py /tmp/base.html /tmp/u1.html; python3 integrate-SOT-turn01-coordination2-ui.py /tmp/u1.html /tmp/ui.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('/tmp/ui.html').read_text(); js='\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I));Path('/tmp/ui.js').write_text(js)
+          for x in ['state.selected=selected','state.tab=tab','state.globalTab=globalTab','state.projectTab=projectTab','state.query=query','cards.scrollTop=railY','content.scrollTop=contentY','focus({preventScroll:true})']: assert x in h,x
+          PY
+          node --check /tmp/ui.js; echo 'PASS operator interaction state reconciliation'
