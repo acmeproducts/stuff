@@ -28,3 +28,21 @@
     return orig.call(this, title, opts);
   };
 })();
+
+/* N6 (25·base, plan v20.29.0 — G30). Pairs with the relay's return to
+   always-push: the DEVICE decides display, as it did in R10.2. If a window is
+   genuinely visible the alert is skipped (the app is already showing it);
+   otherwise it is shown. This is what makes always-push quiet while you are
+   using the app and audible when the phone is unfocused or locked. */
+(function () {
+  var orig = ServiceWorkerRegistration.prototype.showNotification;
+  ServiceWorkerRegistration.prototype.showNotification = function (title, opts) {
+    var self_ = this;
+    var args = arguments;
+    return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      var visible = (list || []).some(function (c) { return c.visibilityState === 'visible'; });
+      if (visible) return;                    /* the app is in front — its own UI already alerted */
+      return orig.apply(self_, args);
+    }).catch(function () { return orig.apply(self_, args); });
+  };
+})();

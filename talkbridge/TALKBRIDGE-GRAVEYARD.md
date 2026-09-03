@@ -1503,3 +1503,22 @@ root-cause assertions before the answer was found by diffing worker versions
 in this repo. Rule carried forward: when a behaviour used to work, diff the
 versions that had it against the one that lost it BEFORE proposing a cause or
 an instrumentation build — the answer is usually already in the repo.
+
+## G30 — 2026-09-01 — Letting the relay's belief decide whether the phone is reachable
+
+Buried: the R10-CR3 rule that only an `os_requested` recipient is pushed, so a
+recipient the relay believes is `in_app` gets no push at all. R10.2 was
+explicitly ALWAYS-PUSH and Android rang for several releases; CR3 moved the
+decision to the relay and Android went silent whenever it was unfocused or
+locked, because a backgrounded Chrome page keeps its socket alive and its last
+reported state can still read `visible` — so the relay withheld the push and
+the handset had nothing to ring. iPhone kept working because iOS suspends the
+page on lock, the socket drops, and the relay falls through to pushing.
+Renotify (G29) was a real regression and is fixed, but it was never the reason
+Android was silent: a notification that is never sent cannot re-alert.
+Fix (N6): the relay always pushes; the presentation word and every counter are
+unchanged; the DEVICE decides display, as it did in R10.2 — the worker shows
+nothing while a window is genuinely visible. Muted and burst suppression still
+block the push. Rule carried forward: reachability is never inferred from a
+device's last self-report; the device decides what to display, the relay
+decides only what to send.

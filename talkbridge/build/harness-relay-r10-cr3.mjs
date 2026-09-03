@@ -139,12 +139,18 @@ await scenario('R5 presentation by state · visible in room = in_app + seen on h
   const w = world(); const a = await w.connect('A'); await w.subscribe('B'); const b = await w.connect('B');
   await b.say({ type: 'ev-state', visible: true, inRoom: true, muted: false });
   await a.say(CHAT('c2'));
-  assert.equal(pushes.length, 0); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
+  /* N6 (plan v20.29.0): the relay returned to R10.2 always-push. The
+     presentation word is unchanged — the relay still believes 'in_app' — but
+     the transport no longer depends on that belief, because a backgrounded or
+     locked Android page can keep a socket alive and still read 'visible'. The
+     device decides display: the worker shows nothing while a window is
+     visible, which harness-n5 proves. So: push sent, no alert seen. */
+  assert.equal(pushes.length, 1, 'always-push: the handset is always reachable'); assert.equal(w.session.events.c2.rcp.B.p, 'in_app');
   const s1 = await b.ask({ type: 'ev-seen', ids: ['c2'] }); assert.deepEqual(s1.proj, { chat: 0, voice: 0, video: 0 });
   assert.equal(w.session.events.c2.rcp.B.seenBy, 'in_room');
   await b.say({ type: 'ev-state', visible: true, inRoom: false, muted: false });
   await a.say(CHAT('c3'));
-  assert.equal(pushes.length, 0, 'visible on home: in-app card, no OS alert'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
+  assert.equal(pushes.length, 2, 'always-push: sent; the device suppresses display while visible (harness-n5)'); assert.equal(w.session.events.c3.rcp.B.p, 'in_app');
   const bproj = b.inbox.filter((m) => m.type === 'ev-proj'); assert.ok(bproj.length >= 1, 'the projection rides the socket');
   assert.deepEqual(bproj[bproj.length - 1].proj, { chat: 1, voice: 0, video: 0 });
   assert.deepEqual((await proj(b)).proj, { chat: 1, voice: 0, video: 0 });

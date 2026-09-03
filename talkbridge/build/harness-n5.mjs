@@ -7,7 +7,8 @@ const calls = []; const listeners = {};
 function FakeReg() {}
 const reg = new FakeReg(); reg.scope = 'https://acmeproducts.github.io/stuff/';
 FakeReg.prototype.showNotification = async function (t, o) { calls.push({ t, o }); };
-const ctx = { self: { addEventListener: (t, f) => { listeners[t] = f; }, registration: reg, clients: { matchAll: async () => [], openWindow: async () => {} }, skipWaiting: () => {} },
+let VISIBLE = [];
+const ctx = { self: { addEventListener: (t, f) => { listeners[t] = f; }, registration: reg, clients: { matchAll: async () => VISIBLE, openWindow: async () => {} }, skipWaiting: () => {} },
   ServiceWorkerRegistration: FakeReg, indexedDB: { open: () => { const r = {}; setTimeout(() => r.onerror && r.onerror(new Error('x')), 0); return r; } },
   setTimeout, clearTimeout, Promise, JSON, console, Date };
 vm.createContext(ctx); vm.runInContext(src, ctx);
@@ -26,6 +27,20 @@ ok(calls.every(c => c.o.silent === false), 'never silent');
 ok(calls.find(c => c.o.tag === 'tb-call-c1').o.requireInteraction === true, 'frozen call persistence intact');
 ok(calls.find(c => c.o.tag === 'tb-r1').t === 'Sally · TalkBridge', 'frozen title scheme intact');
 ok(calls.every(c => c.o.data), 'frozen tap data intact on every alert');
+// N6: always-push means the DEVICE decides display
+const n = calls.length;
+VISIBLE = [{ visibilityState: 'visible' }];
+await listeners['push'](ev({ t: 'tb-ev', id: 'e9', room: 'r1', kind: 'chat', name: 'Sally', ts: 9 }));
+await new Promise(r => setTimeout(r, 30));
+ok(calls.length === n, 'no alert while a window is visible (app already showing it)');
+VISIBLE = [{ visibilityState: 'hidden' }];
+await listeners['push'](ev({ t: 'tb-ev', id: 'e10', room: 'r1', kind: 'chat', name: 'Sally', ts: 10 }));
+await new Promise(r => setTimeout(r, 30));
+ok(calls.length === n + 1, 'backgrounded or locked window still alerts (the Android case)');
+ok(calls[calls.length - 1].o.renotify === true, 'that alert re-alerts, so the phone rings');
+const relay = fs.readFileSync('talkbridge/worker-talk.js', 'utf8');
+ok(relay.includes("(r.p !== 'os_requested' && r.p !== 'in_app')"), 'relay pushes even when it believes the app is in front (always-push, as R10.2)');
+ok(relay.includes("if (st && st.muted) return 'muted';"), 'muted still blocks the push');
 const app = fs.readFileSync('bridge-turn25-base.html', 'utf8');
 ok(app.includes("register('./tb-sw-25b.js')"), 'app registers the new worker');
 ok(!/\/stuff\/talkbridge\//.test(app), 'no scope move in this candidate — one change at a time');

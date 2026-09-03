@@ -480,7 +480,16 @@ export class TalkSession {
     const now = Date.now();
     const jobs = [];
     for (const [clientId, r] of Object.entries(ev.rcp)) {
-      if (r.p !== 'os_requested' || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
+      /* N6 (plan v20.29.0 - G30): ALWAYS PUSH, as R10.2 did. The presentation
+         word still records what the relay believes ('in_app' vs
+         'os_requested') and every counter and ledger read is unchanged - but
+         belief no longer decides whether the phone is reachable. A backgrounded
+         or locked Android page can keep its socket alive and its last reported
+         state can still read 'visible', so the relay withheld the push and the
+         handset had nothing to ring. The device decides display: the worker
+         shows nothing when a window is genuinely visible. Muted and burst
+         suppression still block the push. */
+      if ((r.p !== 'os_requested' && r.p !== 'in_app') || r.push !== 'not_requested') continue;   /* a retry reuses the record; it never pushes twice */
       const rec = this.subs[clientId];
       if (rec && rec.at && now - rec.at > SUB_TTL_MS) { delete this.subs[clientId]; r.push = 'failed'; r.pushErr = 'stale-subscription'; continue; }
       jobs.push(this._pushOne(clientId, rec, ev, sessionId));

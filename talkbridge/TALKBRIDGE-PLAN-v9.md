@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.28.0 -->
-# TALKBRIDGE MASTER PLAN v20.28.0
+<!-- TALKBRIDGE-PLAN v20.29.0 -->
+# TALKBRIDGE MASTER PLAN v20.29.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1903,6 +1903,30 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.29.0 · 2026-09-01.** The owner was right that the working behaviour was
+already in the repo and had not been carried into this release. Diffing R10.2
+(`e74c7cb2`, named ALWAYS-PUSH) against R10-CR3 (`339eb402`) shows the real
+cause (G30): CR3 pushes only recipients the relay has decided are
+`os_requested`. A recipient it believes is `in_app` gets NO push. A
+backgrounded or locked Android page keeps its socket alive and its last
+reported state can still read `visible`, so the relay withheld the push
+entirely — the handset had nothing to ring. iPhone kept working because iOS
+suspends the page on lock, the socket drops, and the relay falls through to
+pushing. That is the whole asymmetry the owner has been reporting.
+renotify:false (G29) was a genuine regression and is fixed, but it was never
+the reason Android was silent: an alert that is never sent cannot re-alert.
+Fixing it alone changed nothing on device, exactly as observed.
+**N6:** the relay returns to always-push — presentation words, counters,
+ledger and projections all unchanged, muted and burst suppression still block
+the push — and the DEVICE decides display as it did in R10.2: the worker
+shows nothing while a window is genuinely visible. The two CR3 contract
+assertions that asserted "no push when in_app" are updated to assert "push
+sent, display suppressed on device", with the reason recorded inline.
+Gates: N5/N6 17/17 with 7 mutations caught (including the relay withholding
+the push again and the device alerting while in front), CR3 relay 10/10, CR3
+app mutations 17/17, R11.0 4/4 + 4/4, release-law PASS.
+Live: https://acmeproducts.github.io/stuff/bridge-turn25-base.html
 
 **v20.28.0 · 2026-09-01.** ANDROID RING REGRESSION — ROOT CAUSE FOUND IN THE
 REPO, as the owner instructed, by comparing versions instead of instrumenting.
