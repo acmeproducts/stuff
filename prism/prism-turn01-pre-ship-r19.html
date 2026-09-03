@@ -15,62 +15,53 @@ const frame=document.getElementById('app');
 function patch(){
   const w=frame.contentWindow,d=frame.contentDocument;
   if(!w||!d||!w.echarts)return setTimeout(patch,120);
-  const el=d.getElementById('treemap');
-  if(!el)return setTimeout(patch,120);
-  const chart=w.echarts.getInstanceByDom(el);
+  const el=d.getElementById('treemap'),chart=el&&w.echarts.getInstanceByDom(el);
   if(!chart)return setTimeout(patch,120);
   if(chart.__r19Patched)return;
   chart.__r19Patched=true;
-  const nativeSet=chart.setOption.bind(chart);
-  function clone(v){try{return structuredClone(v)}catch{return JSON.parse(JSON.stringify(v))}}
-  function amplify(data){
-    return (data||[]).map(g=>{
-      const ng={...g};
-      ng.children=(g.children||[]).map(c=>{
-        const base=Math.max(1,+c.value||1);
-        const value=Math.round(Math.pow(base,1.72));
-        return {...c,value};
-      }).sort((a,b)=>(b.value||0)-(a.value||0));
-      ng.value=ng.children.reduce((s,c)=>s+(+c.value||0),0);
-      return ng;
-    }).sort((a,b)=>(b.value||0)-(a.value||0));
-  }
-  function transform(opt){
-    const o=clone(opt||{});
-    const s=o.series&&o.series[0];
-    if(!s||s.type!=='treemap')return o;
-    if(s.data)s.data=amplify(s.data);
-    s.left=0;s.right=0;s.top=0;s.bottom=0;
-    s.squareRatio=1.15;s.sort='desc';s.roam=false;s.nodeClick=false;
-    s.breadcrumb={show:false};
-    s.upperLabel={show:true,height:32,color:'#fff',fontSize:18,fontWeight:900,padding:[2,5],overflow:'truncate'};
-    s.itemStyle={gapWidth:1,borderColor:'#07111b',borderWidth:1};
-    s.levels=[
-      {itemStyle:{borderWidth:2,borderColor:'#07111b',gapWidth:2}},
-      {upperLabel:{show:true},itemStyle:{borderWidth:1,gapWidth:1}}
-    ];
-    s.label={show:true,color:'#f8fbff',padding:[3,5],overflow:'break',lineOverflow:'truncate',formatter:p=>p.data?.name||p.name};
-    s.labelLayout=p=>{
-      const r=p.rect||{},w=r.width||0,h=r.height||0,area=w*h;
-      if(w<48||h<28||area<1900)return{hide:true};
-      let fs=12,lh=14;
-      if(area>115000){fs=31;lh=34}
-      else if(area>65000){fs=25;lh=28}
-      else if(area>32000){fs=20;lh=23}
-      else if(area>16000){fs=16;lh=19}
-      else if(area>7000){fs=14;lh=17}
-      return{hide:false,fontSize:fs,lineHeight:lh};
-    };
-    o.tooltip={...(o.tooltip||{}),confine:true,backgroundColor:'#071522f4',borderColor:'#416781',borderWidth:1,padding:[8,10],textStyle:{color:'#edf6ff',fontSize:13,lineHeight:17},extraCssText:'max-width:260px;white-space:normal;word-break:break-word;box-shadow:0 8px 26px #0009;border-radius:8px'};
-    return o;
-  }
-  chart.setOption=function(opt,...rest){return nativeSet(transform(opt),...rest)};
-  const initial=chart.getOption();
-  nativeSet(transform(initial),true);
+
   const style=d.createElement('style');
-  style.textContent='#treemap{inset:0!important}.surface{background:#07111b}.mapFocusClear{font-size:12px;min-height:30px;padding:4px 9px}';
+  style.textContent=`
+    #treemap{inset:0!important}.surface{background:#07111b}.mapFocusClear{font-size:12px;min-height:30px;padding:4px 9px}
+    #sphere{overflow:auto!important;touch-action:auto!important;background:#07111b!important}
+    #orb,#zoomHint{display:none!important}
+    .r19Explore{height:100%;overflow:auto;padding:10px;display:grid;gap:9px;align-content:start;background:#07111b}
+    .r19Cluster{border:1px solid #29445e;border-radius:12px;background:#0d1d2c;padding:12px;text-align:left;color:#edf6ff;min-height:96px}
+    .r19Cluster h3{margin:0 0 5px;font-size:18px}.r19Cluster .n{font-size:11px;color:#91a8bb}.r19Cluster p{margin:8px 0 0;font-size:12px;line-height:1.35;color:#c9d8e4}
+    .r19ExploreHead{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:#07111bf2;padding:4px 0 7px}
+    .r19ExploreHead b{font-size:16px}.r19ExploreBack{margin-left:auto;border:1px solid #7dd3fc;border-radius:999px;background:#102338;color:#edf6ff;padding:6px 10px;font-weight:850}
+    .r19Event{display:block;width:100%;border:1px solid #29445e;border-left:5px solid #7dd3fc;border-radius:10px;background:#0d1d2c;color:#edf6ff;text-align:left;padding:10px;margin:0 0 7px}
+    .r19Event b{display:block;font-size:14px;line-height:1.3}.r19Event small{display:block;color:#91a8bb;margin-top:5px}
+    @media(max-width:760px){
+      .library.detailOpen{display:grid!important;grid-template-rows:48px minmax(0,1fr)!important;height:100%!important}
+      .library.detailOpen .libraryRail{display:block!important;height:48px!important;border-right:0!important;border-bottom:1px solid var(--line)!important;background:#091522!important}
+      .library.detailOpen .libraryRailHead,.library.detailOpen .libraryHelp,.library.detailOpen .libraryList{display:none!important}
+      .library.detailOpen .libraryOmni{display:block!important;height:36px!important;margin:6px 8px!important;width:calc(100% - 16px)!important}
+      .library.detailOpen .libraryStage{display:grid!important;height:auto!important;min-height:0!important}
+      .libraryCompose{padding-bottom:max(9px,env(safe-area-inset-bottom))!important}
+    }`;
   d.head.appendChild(style);
   const brand=d.querySelector('.railBrand small');if(brand)brand.textContent='Turn 01 · pre-ship R19';
+
+  const nativeSet=chart.setOption.bind(chart);
+  function amplify(data){return (data||[]).map(g=>{const ng={...g};ng.children=(g.children||[]).map(c=>{const raw=Math.max(1,+c.value||1);return{...c,__r19Raw:raw,value:Math.round(Math.pow(raw,1.82))}}).sort((a,b)=>b.value-a.value);ng.value=ng.children.reduce((s,c)=>s+(+c.value||0),0);return ng}).sort((a,b)=>b.value-a.value)}
+  function mapPatch(opt){const s=opt&&opt.series&&opt.series[0];if(!s||s.type!=='treemap')return opt;if(s.data)s.data=amplify(s.data);s.left=0;s.right=0;s.top=0;s.bottom=0;s.sort='desc';s.squareRatio=1.12;s.roam=false;s.nodeClick=false;s.breadcrumb={show:false};s.upperLabel={show:true,height:32,color:'#fff',fontSize:18,fontWeight:900,padding:[2,5],overflow:'truncate'};s.itemStyle={gapWidth:1,borderColor:'#07111b',borderWidth:1};s.levels=[{itemStyle:{borderWidth:2,borderColor:'#07111b',gapWidth:2}},{upperLabel:{show:true},itemStyle:{borderWidth:1,gapWidth:1}}];s.label={show:true,color:'#f8fbff',padding:[4,5],overflow:'break',lineOverflow:'truncate',formatter:p=>{const x=p.data||{},raw=x.__r19Raw||12,name=x.name||p.name||'';return raw>=120?'{hero|'+name+'}':raw>=60?'{large|'+name+'}':raw>=25?'{medium|'+name+'}':'{small|'+name+'}'},rich:{hero:{fontSize:30,fontWeight:500,lineHeight:33,color:'#fff'},large:{fontSize:22,fontWeight:500,lineHeight:25,color:'#fff'},medium:{fontSize:16,fontWeight:500,lineHeight:19,color:'#fff'},small:{fontSize:12,fontWeight:500,lineHeight:14,color:'#fff'}}};s.labelLayout=p=>{const r=p.rect||{},area=(r.width||0)*(r.height||0);return{hide:(r.width||0)<45||(r.height||0)<27||area<1600}};opt.tooltip={...(opt.tooltip||{}),confine:true,backgroundColor:'#071522f4',borderColor:'#416781',borderWidth:1,padding:[8,10],textStyle:{color:'#edf6ff',fontSize:13,lineHeight:17},extraCssText:'max-width:260px;white-space:normal;word-break:break-word;box-shadow:0 8px 26px #0009;border-radius:8px'};return opt}
+  chart.setOption=function(opt,...rest){return nativeSet(mapPatch(opt),...rest)};
+
+  const navs=[...d.querySelectorAll('.navBtn')],exploreBtn=navs.find(b=>b.dataset.view==='explore'),mapBtn=navs.find(b=>b.dataset.view==='map'),feedBtn=navs.find(b=>b.dataset.view==='feed'),libraryBtn=navs.find(b=>b.dataset.view==='library');
+  const baseHandlers=new Map(navs.map(b=>[b,b.onclick]));let exploreMode=false,focusGroup=null;
+  function mapGroups(){const opt=chart.getOption(),s=opt.series&&opt.series[0];return (s&&s.data)||[]}
+  function showExplore(){exploreMode=true;navs.forEach(b=>b.classList.toggle('on',b===exploreBtn));d.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='explore'));d.getElementById('context').textContent='Explore';d.querySelector('.shell').classList.remove('libraryMode');d.getElementById('q').hidden=false;renderExplore()}
+  function renderExplore(){if(!exploreMode)return;const sphere=d.getElementById('sphere');if(!sphere)return;const groups=mapGroups();sphere.innerHTML='';const wrap=d.createElement('div');wrap.className='r19Explore';sphere.appendChild(wrap);if(focusGroup){const g=groups.find(x=>x.name===focusGroup);if(!g){focusGroup=null;return renderExplore()}const head=d.createElement('div');head.className='r19ExploreHead';head.innerHTML='<b>'+focusGroup+'</b><span class="n">'+((g.children||[]).length)+' items</span><button class="r19ExploreBack">× All clusters</button>';head.querySelector('button').onclick=()=>{focusGroup=null;renderExplore()};wrap.appendChild(head);(g.children||[]).forEach(c=>{const b=d.createElement('button');b.className='r19Event';b.innerHTML='<b>'+String(c.name||'')+'</b><small>Open event</small>';b.onclick=()=>{baseHandlers.get(feedBtn).call(feedBtn);setTimeout(()=>{const card=d.querySelector('.feedCard[data-id="'+c.eventId+'"]');if(card)card.click();baseHandlers.get(mapBtn).call(mapBtn);setTimeout(()=>{showExplore();focusGroup=g.name;renderExplore()},0)},0)};wrap.appendChild(b)})}else{groups.forEach(g=>{const kids=g.children||[],b=d.createElement('button');b.className='r19Cluster';b.innerHTML='<h3>'+String(g.name||'Unknown')+'</h3><div class="n">'+kids.length+' items</div><p>'+kids.slice(0,3).map(x=>String(x.name||'')).join(' · ')+'</p>';b.onclick=()=>{focusGroup=g.name;renderExplore()};wrap.appendChild(b)})}}
+  exploreBtn.onclick=()=>{focusGroup=null;showExplore()};
+  [mapBtn,feedBtn,libraryBtn].forEach(b=>{b.onclick=function(){exploreMode=false;return baseHandlers.get(b).call(b)}});
+
+  function refreshExploreSoon(){if(!exploreMode)return;setTimeout(renderExplore,40)}
+  ['q','groupCtl','colorCtl','sizeCtl','windowCtl','filterClose','filterScrim'].forEach(id=>{const x=d.getElementById(id);if(x){x.addEventListener('input',refreshExploreSoon);x.addEventListener('change',refreshExploreSoon);x.addEventListener('click',refreshExploreSoon)}});
+  d.addEventListener('click',e=>{if(exploreMode&&e.target.closest('.chip'))setTimeout(renderExplore,60)});
+
+  const send=d.getElementById('librarySend');if(send){const normalize=()=>{if(send.textContent==='Research')send.textContent='Research web'};normalize();new MutationObserver(normalize).observe(send,{childList:true,characterData:true,subtree:true})}
+  baseHandlers.get(mapBtn).call(mapBtn);
 }
 frame.addEventListener('load',()=>setTimeout(patch,80));
 })();
