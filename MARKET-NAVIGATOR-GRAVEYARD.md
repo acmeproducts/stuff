@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-09-03
+Updated: 2026-09-04
 
 This file is a negative specification. A rejected implementation, workflow, validation technique, layout decision or analytical shortcut is historical evidence only. It is not a successor baseline.
 
@@ -15,7 +15,9 @@ Required cycle:
 A rejected ship is rolled back. It does not become the next pre-base.
 
 ## Current recovery authority
-The owner-approved `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md` dated 2026-09-03 supersedes older conflicting V1/V2/V3 geometry. Recovery starts from the last working pre-governance Market Navigator 3.9.7 lineage, not from any rejected Gate 4 release.
+The authoritative baseline is the current product contract in `MARKET-NAVIGATOR-MASTER-PLAN.md` plus `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md`. Historical implementations are capability-specific donors only. Market Navigator 3.9.7 is a chart/data donor; PRISM R25 is an application-shell/Library donor. Neither historical file is the application baseline by itself.
+
+The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release or rejected Turn 01 shell.
 
 ## G4-R1 through G4-R10 — rejected historical lineage
 All Gate 4 R1 through R10 implementations are evidence only. Their previously documented failures remain binding, including standalone rewrites, arbitrary layout changes, misleading charts, synthetic/fallback evidence, incorrect V1/V2 geometry, component-menu V2 implementations, direct component→V3 transitions where superseded, and validation that proved structure rather than owner-visible behavior.
@@ -36,13 +38,13 @@ R11 was rejected and rolled back. It is not an implementation ancestor. The rele
 - incomplete product capability and insufficient browser qualification.
 
 ### Recovery
-Do not patch R12. Recover the working pre-governance chart implementation and make only the governed navigation/V2 changes.
+Do not patch R12. Recover only independently qualified donor capabilities and apply them to the clean current product architecture.
 
 ## G4-R13 — Rejected layered compatibility patch
 **Rejected implementation:** `market-view-gate4-r13.html` + `market-view-gate4-r13-patch.js`; both removed from active main on 2026-09-03.
 
 ### Root cause
-R13 violated the recovery process by loading the historical product and then stacking compatibility patches around it instead of modifying the known-good implementation directly.
+R13 violated the recovery process by loading the historical product and then stacking compatibility patches around it instead of building the governed product directly.
 
 ### Specific failures
 - per-series horizon endpoints instead of one common horizon clock/X-domain;
@@ -57,22 +59,31 @@ R13 violated the recovery process by loading the historical product and then sta
 - browser deployment success was incorrectly treated as sufficient readiness despite known product defects.
 
 ### Permanent lesson
-**Recovery means direct descent from the exact last-good pre-spiral implementation. No wrapper, compatibility patch, iframe patch injection, or rejected-release code may sit between that baseline and the next candidate.**
+**Use historical implementations as qualified donors, never as an excuse for wrapper recovery or rejected-release ancestry.** The clean application must implement the current contract directly with one shell, one state model, one chart engine and canonical evidence.
 
-The intended product delta is narrow:
-1. preserve the known-good chart/data/horizon behavior;
-2. breadcrumbs at top; no dedicated Back-to-Market button;
-3. V1 Market occupies the primary chart footprint;
-4. selecting RSK/GRW/MAC replaces that footprint with V2;
-5. V2 uses the existing working multi-series comparison behavior and adds the selected governed index curve to the governed component curves;
-6. component selection opens the compact V2 information card;
-7. More info opens exact-component V3 and close restores exact V2 state.
+## Turn 01 shell-only release — rejected 2026-09-04
+**Rejected implementation:** `market-navigator-turn01-base.html`, blob `60d5d3658ce2725cadd30fd18a1d1be0319a2e61`; removed from active `main` after owner review.
+
+### Failure
+The build satisfied a self-imposed structural shell gate but was not a meaningful product increment. It exposed empty placeholder surfaces for NOW, EXPLORE, LIBRARY, HEALTH and CONFIG and then was incorrectly handed to the owner as a test release.
+
+### Root cause
+The stage was decomposed too narrowly. “Application frame” was interpreted as permission to ship empty navigation instead of constructing the first coherent usable vertical slice. Mechanical checks proved only that an empty shell routed correctly; they did not prove Market Navigator functionality.
+
+### Permanent lesson
+- A base presented for owner testing must contain a meaningful end-to-end product capability, not placeholders.
+- Structural shell qualification is an internal pre-base gate, never sufficient for an owner test URL.
+- The first owner-testable clean build must include at minimum the real NOW V1 three-index chart, real canonical evidence, all seven horizons, correct common X-domain, inspection, and enough permanent application navigation to prove the intended surface.
+- Empty future-mode placeholders do not count as implemented product capability.
+- Confidence claims must be against the owner-visible product requirement, not merely a narrow internal stage definition.
 
 ## Permanent prohibited patterns
 - patching any rejected release forward;
 - wrapper/iframe/compatibility-patch recovery builds;
 - arbitrary application-frame redesign;
-- stacked V1 + V2 when the 2026-09-03 contract requires replacement;
+- empty-shell or placeholder-only owner test releases;
+- stacked V1 + V2 when the contract requires replacement;
+- fake fourth Market index;
 - V2 as a single index line plus component-navigation pills;
 - direct V2 component → V3 without the information-card bridge;
 - recreating V4 or V5 as product states;
