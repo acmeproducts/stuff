@@ -621,6 +621,7 @@ export class TalkSession {
     if (msg.type === 'hello') await this._noteDevice(clientId);
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
+    if (msg.type === 'ev-state' || (msg.type === 'ping' && typeof msg.visible === 'boolean')) { try { this._announcePeers(); } catch (_) {} }
 
     if (!isTransient) {
       await this._persist(msg);
@@ -646,13 +647,20 @@ export class TalkSession {
     }
   }
 
+  /* Presence is one thing: is the other person LOOKING at it. Every device
+     already reports that on every state announcement and heartbeat; the relay
+     simply passes it on. No timers, no counting sockets, no grace. */
   _announcePeers() {
     const ids = [...this._connectedIds()];
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
       if (!tag || !tag.clientId) continue;
-      const others = ids.filter((i) => i !== tag.clientId).length;
-      try { ws.send(JSON.stringify({ type: 'peer', transient: true, others, at: Date.now() })); } catch (_) {}
+      const others = ids.filter((i) => i !== tag.clientId);
+      const focused = others.some((i) => {
+        const st = this.states[i];
+        return !!(st && st.visible);
+      });
+      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused, others: others.length, at: Date.now() })); } catch (_) {}
     }
   }
 
