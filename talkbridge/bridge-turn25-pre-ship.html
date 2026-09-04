@@ -8405,7 +8405,14 @@ function cr3Heartbeat() {
     var r = _start.apply(this, arguments);
     return Promise.resolve(r).then(function (v) {
       if (!CALL.active || !CALL.caller) return v;
-      if (CALL.micOn) { try { CALL.toggleMic(); } catch (_) {} }    /* muted while it rings */
+      /* N19: mute the OUTGOING TRACK only. Routing this through toggleMic
+         also stopped transcription and announced a mic-state change, and at
+         call_start there are no senders yet, so the pipeline was torn down
+         before it was ever built. */
+      try {
+        (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = false; });
+        CALL.n10Muted = true;
+      } catch (_) {}
       show(kind);
       L('n10_caller_screen', { kind: kind, micOn: CALL.micOn });
       return v;
@@ -8418,9 +8425,16 @@ function cr3Heartbeat() {
     var r = _accepted.apply(this, arguments);
     if (wasCaller) {
       hide();
-      if (!CALL.micOn) { try { CALL.toggleMic(); } catch (_) {} }   /* live on answer */
+      /* live on answer — restore the track and leave the app's own mic state,
+         transcription and mic-state signalling exactly as they were */
+      try {
+        if (CALL.n10Muted) {
+          (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = CALL.micOn !== false; });
+          CALL.n10Muted = false;
+        }
+      } catch (_) {}
       CALL.startTs = Date.now();                                     /* B-8a: clock starts at the answer */
-      L('n10_answered', { micOn: CALL.micOn, anchored: true });
+      L('n10_answered', { micOn: CALL.micOn, tracks: (CALL.stream ? CALL.stream.getAudioTracks().length : 0) });
     }
     return r;
   };
@@ -8435,9 +8449,12 @@ function cr3Heartbeat() {
   };
 
   var _teardown = CALL.teardown;
-  CALL.teardown = function () { hide(); return _teardown.apply(this, arguments); };
+  CALL.teardown = function () {
+    hide();
+    try { (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = true; }); CALL.n10Muted = false; } catch (_) {}
+    return _teardown.apply(this, arguments);
+  };
 })();
-
 
 /* N11 (25·base, plan v20.35.0 — G34). THE STALE PUSH SUBSCRIPTION.
    The app reuses whatever push subscription the browser already holds
@@ -8777,10 +8794,23 @@ function cr3Heartbeat() {
    is missed. Wraps handleRelay and LISTEN.handle and calls through. */
 (function () {
   if (typeof setPresence !== 'function') return;
+  /* N20: a device holds more than one socket (room lane plus listen lanes) and
+     re-attaches them on every focus, so raw join/leave counts flap between 0
+     and 1 and the dot blinks. Lighting up is immediate; going dark waits out a
+     short grace so a reconnect is not reported as a departure. */
+  var GRACE = 6000, dark = null, last = null;
   function apply(d) {
-    var online = (d && typeof d.others === 'number') ? d.others > 0 : false;
-    try { setPresence(online); } catch (_) {}
-    try { if (typeof log === 'function') log('n17_peer', { online: online, others: d && d.others }, 'ok'); } catch (_) {}
+    var others = (d && typeof d.others === 'number') ? d.others : 0;
+    if (others > 0) {
+      clearTimeout(dark); dark = null;
+      if (last !== true) { last = true; try { setPresence(true); } catch (_) {} try { if (typeof log === 'function') log('n17_peer', { online: true, others: others }, 'ok'); } catch (_) {} }
+      return;
+    }
+    if (dark) return;
+    dark = setTimeout(function () {
+      dark = null;
+      if (last !== false) { last = false; try { setPresence(false); } catch (_) {} try { if (typeof log === 'function') log('n17_peer', { online: false, others: 0 }, 'ok'); } catch (_) {} }
+    }, GRACE);
   }
   if (typeof handleRelay === 'function') {
     var _h = handleRelay;
@@ -8791,7 +8821,6 @@ function cr3Heartbeat() {
     LISTEN.handle = function (roomId, d) { if (d && d.type === 'peer') return; return _l.apply(this, arguments); };
   }
 })();
-
 
 /* N18 (D-5) — CALL TIMERS THAT AGREE.
    The caller's clock is mounted when the call is PLACED and the answerer's when

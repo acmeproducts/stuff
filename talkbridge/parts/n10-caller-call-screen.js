@@ -52,7 +52,14 @@
     var r = _start.apply(this, arguments);
     return Promise.resolve(r).then(function (v) {
       if (!CALL.active || !CALL.caller) return v;
-      if (CALL.micOn) { try { CALL.toggleMic(); } catch (_) {} }    /* muted while it rings */
+      /* N19: mute the OUTGOING TRACK only. Routing this through toggleMic
+         also stopped transcription and announced a mic-state change, and at
+         call_start there are no senders yet, so the pipeline was torn down
+         before it was ever built. */
+      try {
+        (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = false; });
+        CALL.n10Muted = true;
+      } catch (_) {}
       show(kind);
       L('n10_caller_screen', { kind: kind, micOn: CALL.micOn });
       return v;
@@ -65,9 +72,16 @@
     var r = _accepted.apply(this, arguments);
     if (wasCaller) {
       hide();
-      if (!CALL.micOn) { try { CALL.toggleMic(); } catch (_) {} }   /* live on answer */
+      /* live on answer — restore the track and leave the app's own mic state,
+         transcription and mic-state signalling exactly as they were */
+      try {
+        if (CALL.n10Muted) {
+          (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = CALL.micOn !== false; });
+          CALL.n10Muted = false;
+        }
+      } catch (_) {}
       CALL.startTs = Date.now();                                     /* B-8a: clock starts at the answer */
-      L('n10_answered', { micOn: CALL.micOn, anchored: true });
+      L('n10_answered', { micOn: CALL.micOn, tracks: (CALL.stream ? CALL.stream.getAudioTracks().length : 0) });
     }
     return r;
   };
@@ -82,5 +96,9 @@
   };
 
   var _teardown = CALL.teardown;
-  CALL.teardown = function () { hide(); return _teardown.apply(this, arguments); };
+  CALL.teardown = function () {
+    hide();
+    try { (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = true; }); CALL.n10Muted = false; } catch (_) {}
+    return _teardown.apply(this, arguments);
+  };
 })();

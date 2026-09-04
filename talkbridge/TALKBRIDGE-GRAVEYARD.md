@@ -1638,3 +1638,21 @@ spent on "regressions" that were an address mismatch. Both root addresses now
 forward to the single folder build, so there is exactly one thing to test.
 Rule carried forward: one release, one address. An older stage artifact is
 never left serving live content once the next stage exists.
+
+## G39 — 2026-09-03 — Muting the caller through the app's own mic switch
+
+Buried. N10 muted the caller while the call rang by calling the app's mic
+toggle. Read from the shared device log: at `call_start` that toggle also
+stopped transcription (`rm_transcription_stopped_for_mute`, `dg_stopped`) and
+announced a mic-state change to the far side — and it ran when the connection
+had no senders yet (`net_mic_toggled senders:0`), so the audio pipeline was
+torn down before it was ever built. Mute the OUTGOING TRACK only; never route a
+presentation decision through a switch that owns transcription and signalling.
+
+## G40 — 2026-09-03 — Presence read from raw socket joins and leaves
+
+Buried. N17 lit the presence dot straight from the relay's connected count. A
+device holds more than one socket and re-attaches them on every focus, so the
+log shows the count flapping 0→1→0→1 within seconds and the dot blinking.
+Lighting up may be immediate; going dark must wait out a grace, or a reconnect
+reads as a departure.

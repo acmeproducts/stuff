@@ -42,8 +42,11 @@ function callWorld() {
   w.relaySend = m => sent.push(m);
   w.activeRoom = () => ({ id: 'r1', partnerName: 'Sally' });
   w.RING = { on: false, start() { this.on = true; }, stop() { this.on = false; } };
+  const tracks = [{ enabled: true }];
+  w.__tracks = tracks;
   w.CALL = {
     active: false, caller: false, micOn: true, startTs: 0, micToggles: 0,
+    stream: { getAudioTracks: () => tracks },
     toggleMic() { this.micOn = !this.micOn; this.micToggles++; },
     async start(kind) { this.active = true; this.caller = true; this.kind = kind; this.startTs = Date.now(); this.origStart = true; },
     onAccepted(room, d) { this.acceptedSeen = [room, d]; },
@@ -58,7 +61,8 @@ await new Promise(r => { if (c.w.document.readyState !== 'loading') r(); else c.
 const CALL = c.w.CALL;
 await CALL.start('voice');
 ok(CALL.origStart === true, 'the frozen call logic still runs (wrapped, not replaced)');
-ok(CALL.micOn === false, 'the caller microphone is muted while it rings');
+ok(c.w.__tracks[0].enabled === false, 'the caller microphone is muted while it rings');
+ok(CALL.micToggles === 0, 'muting does NOT go through the app mic switch, so transcription and mic signalling are untouched (N19)');
 ok(c.w.document.getElementById('n10-out').classList.contains('show'), 'the caller sees a call screen');
 ok(c.w.RING.on === true, 'the caller hears a ring-back');
 ok(/Sally/.test(c.w.document.getElementById('n10-name').textContent), 'it names who is being called');
@@ -66,7 +70,7 @@ const dialedAt = CALL.startTs;
 await new Promise(r => setTimeout(r, 60));
 CALL.onAccepted({ role: 'creator' }, { type: 'call-accept' });
 ok(Array.isArray(CALL.acceptedSeen), 'the frozen answer handler still runs with its arguments');
-ok(CALL.micOn === true, 'the microphone goes live the moment they answer');
+ok(c.w.__tracks[0].enabled === true, 'the microphone goes live the moment they answer');
 ok(!c.w.document.getElementById('n10-out').classList.contains('show') && c.w.RING.on === false, 'call screen and ring-back stop on answer');
 ok(CALL.startTs > dialedAt, 'the caller clock starts at the ANSWER, not the dial (B-8a)');
 c = callWorld(); await new Promise(r => setTimeout(r, 10));
@@ -79,4 +83,5 @@ await c.w.CALL.start('video');
 c.w.document.getElementById('n10-cancel').dispatchEvent(new c.w.Event('click', { bubbles: true }));
 ok(c.sent.some(m => m.type === 'call-end'), 'cancelling tells the other side');
 ok(c.w.CALL.toreDown === true && c.w.RING.on === false, 'cancelling tears the call down and stops the ring-back');
+ok(c.w.__tracks[0].enabled === true, 'and never leaves the microphone muted behind it');
 console.log(fail === 0 ? 'N9/N10 GREEN' : fail + ' FAILURES'); process.exit(fail ? 1 : 0);

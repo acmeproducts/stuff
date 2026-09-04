@@ -10,10 +10,23 @@
    is missed. Wraps handleRelay and LISTEN.handle and calls through. */
 (function () {
   if (typeof setPresence !== 'function') return;
+  /* N20: a device holds more than one socket (room lane plus listen lanes) and
+     re-attaches them on every focus, so raw join/leave counts flap between 0
+     and 1 and the dot blinks. Lighting up is immediate; going dark waits out a
+     short grace so a reconnect is not reported as a departure. */
+  var GRACE = 6000, dark = null, last = null;
   function apply(d) {
-    var online = (d && typeof d.others === 'number') ? d.others > 0 : false;
-    try { setPresence(online); } catch (_) {}
-    try { if (typeof log === 'function') log('n17_peer', { online: online, others: d && d.others }, 'ok'); } catch (_) {}
+    var others = (d && typeof d.others === 'number') ? d.others : 0;
+    if (others > 0) {
+      clearTimeout(dark); dark = null;
+      if (last !== true) { last = true; try { setPresence(true); } catch (_) {} try { if (typeof log === 'function') log('n17_peer', { online: true, others: others }, 'ok'); } catch (_) {} }
+      return;
+    }
+    if (dark) return;
+    dark = setTimeout(function () {
+      dark = null;
+      if (last !== false) { last = false; try { setPresence(false); } catch (_) {} try { if (typeof log === 'function') log('n17_peer', { online: false, others: 0 }, 'ok'); } catch (_) {} }
+    }, GRACE);
   }
   if (typeof handleRelay === 'function') {
     var _h = handleRelay;

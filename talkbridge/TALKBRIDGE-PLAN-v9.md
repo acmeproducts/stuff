@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.43.0 -->
-# TALKBRIDGE MASTER PLAN v20.43.0
+<!-- TALKBRIDGE-PLAN v20.44.0 -->
+# TALKBRIDGE MASTER PLAN v20.44.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1926,6 +1926,25 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.44.0 · 2026-09-03.** First release diagnosed from the shared device log
+rather than from reasoning. Two defects read straight out of it:
+**G39 — audio.** The caller's mute ran through the app's own mic switch, which
+also stops transcription and signals the far side, and it fired at `call_start`
+when the connection had no senders yet — the audio pipeline was torn down
+before it existed. Now only the outgoing track is disabled, restored on answer,
+and never left disabled after a call.
+**G40 — presence.** The dot was driven straight off the relay's connected
+count, but a device holds several sockets and re-attaches them on focus, so the
+log shows 0→1→0→1 within seconds and the dot blinks. Lighting is immediate;
+going dark now waits out a grace, so a reconnect is not read as a departure.
+Also confirmed from the log: the folder move is in effect on device
+(`n15_scope_ok` at `/stuff/talkbridge/`), iPhone push subscribes cleanly
+against Apple, and the browser reports native picture-in-picture as available
+on iPhone. Tap-to-swap could not be judged — every call in the log was voice,
+so there was no video to swap.
+Still open: D-1 Android lock-screen ringing, D-3 iPhone return-to-call.
+Gates: N9/N10 24/24, N17/N18 15/15, app contract 16/16, release-law PASS.
 
 **v20.43.0 · 2026-09-03.** Owner: attempt every open item before testing —
 nothing left in the backlog.
