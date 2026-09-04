@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T00:40:44Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T00:41:15Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -116,4 +116,84 @@ Both handsets write here. Drained 2026-09-04T00:40:44Z, every 30s. Newest at the
 00:40:38.951 [android-z5t] cr3_announce {"why":"hidden","visible":false,"lanes":1}
 00:40:39.198 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 00:40:39.199 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
-00:40:39.200 [android-z5t] joiner_create_control {"shown":true}```
+00:40:39.200 [android-z5t] joiner_create_control {"shown":true}
+00:40:49.609 [android-z5t] n16_devlog {"dev":"android-z5t"}
+00:40:49.610 [android-z5t] nopw_swept {"fields":19,"changed":15}
+00:40:49.610 [android-z5t] nopw_swept {"fields":19,"changed":0}
+00:40:49.620 [android-z5t] n15_scope_ok {"scope":"https://acmeproducts.github.io/stuff/talkbridge/"}
+00:40:49.621 [android-z5t] p2_standalone {}
+00:40:49.638 [android-z5t] boot {"mode":"owner","rooms":1}
+00:40:49.639 [android-z5t] p3_perm_prop {"prop":"default","gesture":false,"n":1}
+00:40:49.640 [android-z5t] cr3_armed {}
+00:40:49.640 [android-z5t] cr3_announce_window {"why":"boot"}
+00:40:49.641 [android-z5t] n13_ready {"share":false,"nativePip":true}
+00:40:49.653 [android-z5t] p3_sw_registered {"scope":"https://acmeproducts.github.io/stuff/talkbridge/"}
+00:40:49.700 [android-z5t] p4_sw_receipt {"ev":"app_announced","at":1788482396861,"room":null,"kind":null,"e":null}
+00:40:49.700 [android-z5t] p4_sw_drained {"n":1}
+00:40:49.765 [android-z5t] cr3_announce {"why":"pageshow","visible":true,"lanes":0}
+00:40:49.765 [android-z5t] cr3_recover {"why":"pageshow","n":1,"inRoom":false}
+00:40:49.909 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:49.909 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:49.909 [android-z5t] joiner_create_control {"shown":true}
+00:40:49.962 [android-z5t] p3_vapid {"got":true,"push":true}
+00:40:49.995 [android-z5t] listen_open {"room":"mtltqmgrabpmy3"}
+00:40:49.995 [android-z5t] cr3_lane_open {"room":"mtltqmgrabpmy3","explicit":false}
+00:40:50.007 [android-z5t] joiner_create_control {"shown":true}
+00:40:50.057 [android-z5t] lc_create_capture_wired {}
+00:40:50.108 [android-z5t] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+00:40:50.109 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:40:50.109 [android-z5t] r8_flag_bands {"dressed":2}
+00:40:50.109 [android-z5t] r8_info_card_removed {}
+00:40:50.109 [android-z5t] r8_r8a_installed {}
+00:40:50.208 [android-z5t] net_armed {}
+00:40:50.209 [android-z5t] rm_share_merged_into_general {}
+00:40:50.209 [android-z5t] rm_manage_pane_built {}
+00:40:50.209 [android-z5t] rm_room_name_field_taken_over {}
+00:40:50.209 [android-z5t] rm_header_bg_picker_built {}
+00:40:50.210 [android-z5t] r8_r8b_init {}
+00:40:50.233 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:50.233 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:50.233 [android-z5t] joiner_create_control {"shown":true}
+00:40:50.234 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:50.234 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:50.234 [android-z5t] joiner_create_control {"shown":true}
+00:40:50.508 [android-z5t] rib_layout_built {"moved":3,"of":3}
+00:40:50.838 [android-z5t] ft_unavailable {"stage":"wrapper","why":"script failed to load"}
+00:40:51.558 [android-z5t] p3_sub_failed {"name":"NotAllowedError","e":"Registration failed - permission denied","gesture":false}
+00:40:51.558 [android-z5t] p3_gesture_armed {}
+00:40:51.609 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:40:53.605 [android-z5t] cr3_attended {"on":false,"why":"blur"}
+00:40:53.606 [android-z5t] cr3_announce {"why":"blur","visible":false,"lanes":1}
+00:40:53.842 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:53.842 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:53.842 [android-z5t] joiner_create_control {"shown":true}
+00:40:54.042 [android-z5t] n16_devlog {"dev":"android-z5t"}
+00:40:54.046 [android-z5t] nopw_swept {"fields":19,"changed":15}
+00:40:54.046 [android-z5t] nopw_swept {"fields":19,"changed":0}
+00:40:54.052 [android-z5t] net_returned {"why":"focus","awayMs":15,"inRoom":false,"inCall":false}
+00:40:54.052 [android-z5t] net_returned {"why":"focus","awayMs":0,"inRoom":false,"inCall":false}
+00:40:54.070 [android-z5t] p2_gate_shown {"platform":"android","invite":false}
+00:40:54.071 [android-z5t] n13_ready {"share":false,"nativePip":true}
+00:40:54.095 [android-z5t] cr3_announce {"why":"focus","visible":true,"lanes":0}
+00:40:54.096 [android-z5t] cr3_recover {"why":"focus","n":1,"inRoom":false}
+00:40:54.103 [android-z5t] n15_scope_ok {"scope":"https://acmeproducts.github.io/stuff/talkbridge/"}
+00:40:54.340 [android-z5t] rc_panel_no_body {}
+00:40:54.487 [android-z5t] lc_create_capture_wired {}
+00:40:54.491 [android-z5t] listen_open {"room":"mtltqmgrabpmy3"}
+00:40:54.492 [android-z5t] cr3_lane_open {"room":"mtltqmgrabpmy3","explicit":false}
+00:40:54.537 [android-z5t] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+00:40:54.541 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:40:54.541 [android-z5t] r8_flag_bands {"dressed":2}
+00:40:54.541 [android-z5t] r8_no_clock {}
+00:40:54.541 [android-z5t] r8_r8a_installed {}
+00:40:54.637 [android-z5t] net_armed {}
+00:40:54.639 [android-z5t] rm_share_merged_into_general {}
+00:40:54.639 [android-z5t] rm_manage_pane_built {}
+00:40:54.640 [android-z5t] rm_room_name_field_taken_over {}
+00:40:54.641 [android-z5t] rm_header_bg_picker_built {}
+00:40:54.643 [android-z5t] r8_r8b_init {}
+00:40:54.767 [android-z5t] rc_panel_no_body {}
+00:40:54.768 [android-z5t] rc_panel_no_body {}
+00:40:54.938 [android-z5t] rib_layout_built {"moved":3,"of":3}
+00:40:55.357 [android-z5t] ft_unavailable {"stage":"wrapper","why":"script failed to load"}
+00:40:56.039 [android-z5t] r8_menu_labels {"applied":3,"of":3}```
