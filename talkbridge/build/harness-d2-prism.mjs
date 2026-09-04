@@ -17,7 +17,8 @@ ok(!/serviceWorker|rel="manifest"/.test(stub), 'and the forwarder registers no w
 ok(sha('bridge-turn24-post-ship.html') === sha('bridge-turn25-pre-base.html'), 'the accepted release is untouched');
 
 /* the migration retires only OUR old workers */
-const mig = app.slice(app.indexOf('/* N15 (D-2)'), app.lastIndexOf('})();') + 5);
+const _m0 = app.indexOf('/* N15 (D-2)');
+const mig = app.slice(_m0, app.indexOf('\n\n/* N16', _m0));
 const events = [];
 const mk = (scope, script, sub) => ({ scope, active: { scriptURL: script },
   pushManager: { getSubscription: () => Promise.resolve(sub ? { unsubscribe: () => { events.push('unsub:' + script); return Promise.resolve(); } } : null) },

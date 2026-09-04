@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.41.0 -->
-# TALKBRIDGE MASTER PLAN v20.41.0
+<!-- TALKBRIDGE-PLAN v20.42.0 -->
+# TALKBRIDGE MASTER PLAN v20.42.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -95,6 +95,9 @@ they are never counted as progress.
 | D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause unknown. The always-push change and the liveness ack gate are BURIED (G36): they did not change device behaviour and they broke a passing contract check. Relay is back on the accepted pair. |
 | D-2 | **FIXED, awaiting device gate 2026-09-03** — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
+| D-4 | Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | OPEN, backlog (owner 2026-09-03) |
+| D-5 | Call timers do not match between the two sides. N10 anchors both clocks to the answer; the owner reports they still differ, so the anchor is not the whole cause. | OPEN |
+| D-6 | Call screen reported not working by the owner on the base address — which does not contain the video build (G38). Needs re-testing on the single address before any cause is claimed. | UNVERIFIED |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
 and not caught. D-2 is a fix that was built, broken, rolled back and then not
@@ -1923,6 +1926,28 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.42.0 · 2026-09-03.** Owner: hand the diagnosis over — one shared log,
+one address, then a test URL and nothing else.
+**N16 — shared device log.** Every log line each handset writes is also sent to
+one shared file, in arrival order, tagged with which device wrote it and
+stamped with its own time. The relay holds it in one fixed place so both
+phones land in the same file; a scheduled repository workflow drains it to
+`talkbridge/DEVICE-LOG.md` every five minutes (and on demand), which is
+readable directly. Two sides of the same call can now be read together instead
+of correlated by hand from two exports. The local log is untouched; failures
+to send are silent and never reach the app.
+**G38 — one release, one address.** `bridge-turn25-base.html` was still serving
+an older build than the folder artifact. The owner tested it and reported
+tap-to-swap, camera swap, PiP and the PRISM fix as broken; none of them exist
+in that build. Both root addresses now forward to the single folder artifact.
+**Defects recorded from the owner's pass:** D-4 presence indicator (predates
+this cycle, traced back through turn 23 — backlog), D-5 call timers still
+mismatched despite both clocks anchoring to the answer, D-6 call screen
+reported broken on the wrong address and needs re-testing before any cause is
+claimed.
+Gates: N16 11/11; relay contract 10/10; app contract 16/16; D-2 11/11; N13
+20/20; release-law PASS.
 
 **v20.41.0 · 2026-09-03.** The extra "Turn on notifications" step is REMOVED
 (G37). It should never have been added: the original design asks silently on

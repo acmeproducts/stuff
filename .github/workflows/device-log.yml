@@ -1,0 +1,48 @@
+name: TalkBridge device log
+# Drains the shared device log from the relay into the repository so both
+# handsets' lines can be read together, in arrival order, in one file.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      clear:
+        description: 'clear the log after draining'
+        required: false
+        default: 'false'
+permissions:
+  contents: write
+concurrency:
+  group: device-log
+  cancel-in-progress: false
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Drain
+        run: |
+          set -e
+          U="https://talk-signal.myacctfortracking.workers.dev/log"
+          curl -sS --max-time 30 "$U" -o /tmp/dev.log || echo "(relay unreachable)" > /tmp/dev.log
+          mkdir -p talkbridge
+          {
+            echo "# TalkBridge device log"
+            echo ""
+            echo "Both handsets write here. Drained $(date -u +%FT%TZ). Newest at the bottom."
+            echo ""
+            echo '```'
+            tail -c 400000 /tmp/dev.log
+            echo '```'
+          } > talkbridge/DEVICE-LOG.md
+          if [ "${{ github.event.inputs.clear }}" = "true" ]; then
+            curl -sS -X DELETE --max-time 30 "$U" || true
+          fi
+      - name: Commit
+        run: |
+          git config user.name acmeproducts
+          git config user.email 182510673+acmeproducts@users.noreply.github.com
+          git add talkbridge/DEVICE-LOG.md
+          git diff --staged --quiet || git commit -m "device log [skip ci]"
+          git pull --rebase -q origin main || true
+          git push -q origin HEAD:main || true

@@ -1627,3 +1627,14 @@ app. Restored: the app asks silently on the next tap, shows nothing, and the
 denial card appears at most once per install with the right platform's
 settings. Rule carried forward: never add UI to work around a fault that has
 not been proven to be where it is assumed.
+
+## G38 — 2026-09-03 — Two live addresses for one release
+
+Buried: leaving `bridge-turn25-base.html` serving a DIFFERENT build from
+`talkbridge/bridge-turn25-pre-ship.html`. The owner tested the base address and
+reported tap-to-swap, camera swap, PiP and the PRISM fix as broken — none of
+which exist in that artifact; they are only in the folder build. Hours were
+spent on "regressions" that were an address mismatch. Both root addresses now
+forward to the single folder build, so there is exactly one thing to test.
+Rule carried forward: one release, one address. An older stage artifact is
+never left serving live content once the next stage exists.
