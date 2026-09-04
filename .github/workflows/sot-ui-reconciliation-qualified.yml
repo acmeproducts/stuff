@@ -1,0 +1,104 @@
+name: SOT Turn 01 Base real polling UI reconciliation qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sot-ui-reconciliation-qualified.yml'
+      - 'integrate-SOT-turn01-coordination-ui.py'
+      - 'integrate-SOT-turn01-coordination2-ui.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify-real-polling-reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install Chromium harness
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Generate exact clean-lineage UI
+        run: |
+          set -euo pipefail
+          raw=https://raw.githubusercontent.com/acmeproducts/stuff
+          curl --retry 5 --retry-all-errors -fsSL "$raw/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html" -o /tmp/pre.html
+          curl --retry 5 --retry-all-errors -fsSL "$raw/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py" -o /tmp/u22.py
+          curl --retry 5 --retry-all-errors -fsSL "$raw/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py" -o /tmp/u24.py
+          curl --retry 5 --retry-all-errors -fsSL "$raw/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py" -o /tmp/uai.py
+          python3 /tmp/u22.py /tmp/pre.html /tmp/22.html
+          python3 /tmp/u24.py /tmp/22.html /tmp/24.html
+          python3 /tmp/uai.py /tmp/24.html /tmp/base.html
+          python3 integrate-SOT-turn01-coordination-ui.py /tmp/base.html /tmp/u1.html
+          python3 integrate-SOT-turn01-coordination2-ui.py /tmp/u1.html /tmp/ui.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('/tmp/ui.html').read_text()
+          assert 'function sotOperatorBusy()' in h
+          assert "Promise.all([api('/projects'),api('/rollup')])" in h
+          assert 'state.projects=next' in h
+          assert 'state.selected=selected' in h
+          Path('/tmp/ui.js').write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
+          PY
+          node --check /tmp/ui.js
+      - name: Gate 9 — execute real polling update in Chromium
+        run: |
+          set -euo pipefail
+          cat >/tmp/gate9.js <<'NODE'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1200,height:900}});
+            let phase=0, projectRequests=0;
+            await page.route('**/api/sot/**',async route=>{
+              const u=route.request().url();
+              let body={};
+              if(u.includes('/projects')){
+                projectRequests++;
+                body={projects:[{project_token:'A',project_name:'Alpha',workflow_step:4,status:'Review',evidence_revision:1,files_discovered:phase?77:1,files_processed:phase?33:1,size_bytes:phase?7700:100,source_count:1,lifecycle_state:'indexing'}]};
+              } else if(u.includes('/rollup')) {
+                body={active_jobs:1,files_discovered:phase?77:1,files_processed:phase?33:1,bytes_discovered:phase?7700:100,bytes_processed:phase?3300:100};
+              } else if(u.includes('/health')) body={status:'ok',build:'test'};
+              else if(u.includes('/activity')) body={events:[]};
+              await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+            });
+            await page.setContent(fs.readFileSync('/tmp/ui.html','utf8'),{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>typeof state!=='undefined' && Array.isArray(state.projects) && state.projects.length>0,{timeout:5000});
+            await page.evaluate(()=>{
+              state.selected='A'; state.tab='index'; state.projectTab='plan'; state.query='keep-me';
+              const content=document.querySelector('.content')||document.scrollingElement;
+              const cf=document.createElement('div'); cf.style.height='1800px'; cf.id='content-filler'; content.appendChild(cf); content.scrollTop=137;
+              const cards=document.querySelector('.cards'); if(cards){const rf=document.createElement('div');rf.style.height='900px';rf.id='rail-filler';cards.appendChild(rf);cards.scrollTop=61;}
+              const modal=document.createElement('div'); modal.id='harness-modal'; modal.className='modal open'; modal.setAttribute('role','dialog');
+              const inp=document.createElement('input'); inp.id='harness-input'; inp.value='operator-edit'; modal.appendChild(inp); document.body.appendChild(modal); inp.focus();
+            });
+            const before=await page.evaluate(()=>({
+              selected:state.selected,tab:state.tab,projectTab:state.projectTab,query:state.query,
+              active:document.activeElement?.id||'',value:document.activeElement?.value||'',modal:!!document.querySelector('#harness-modal'),
+              content:(document.querySelector('.content')||document.scrollingElement).scrollTop,cards:document.querySelector('.cards')?.scrollTop||0,
+              files:Number(state.projects[0]?.files_discovered||0)
+            }));
+            const requestsBefore=projectRequests;
+            phase=1;
+            await page.waitForFunction(()=>Number(state.projects[0]?.files_discovered||0)===77,{timeout:6000});
+            if(projectRequests<=requestsBefore) throw new Error('gate9 no real /projects polling request occurred');
+            const after=await page.evaluate(()=>({
+              selected:state.selected,tab:state.tab,projectTab:state.projectTab,query:state.query,
+              active:document.activeElement?.id||'',value:document.activeElement?.value||'',modal:!!document.querySelector('#harness-modal'),
+              content:(document.querySelector('.content')||document.scrollingElement).scrollTop,cards:document.querySelector('.cards')?.scrollTop||0,
+              files:Number(state.projects[0]?.files_discovered||0)
+            }));
+            if(before.files===after.files || after.files!==77) throw new Error(`gate9 server-owned progress did not update ${JSON.stringify({before,after})}`);
+            for(const k of ['selected','tab','projectTab','query','active','value','modal']) if(before[k]!==after[k]) throw new Error(`gate9 operator state changed: ${k} ${JSON.stringify({before,after})}`);
+            if(Math.abs(before.content-after.content)>2 || Math.abs(before.cards-after.cards)>2) throw new Error(`gate9 scroll changed ${JSON.stringify({before,after})}`);
+            console.log(`PASS gate9 real polling request count=${projectRequests} progress ${before.files}->${after.files}; operator state preserved`);
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          NODE_PATH="$PWD/node_modules" node /tmp/gate9.js
