@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v3.4.0 -->
-# PRISM MASTER PLAN v3.4.0
+<!-- PRISM-PLAN v3.5.0 -->
+# PRISM MASTER PLAN v3.5.0
 
 ## Governing baseline
 PRISM remains governed by the exact last working standalone application baseline.
@@ -11,68 +11,66 @@ PRISM remains governed by the exact last working standalone application baseline
 - Rollback commit: `92d660c9b7f559a20012fd714edfbf21ab70b6b3`
 - Status: **WORKING BASELINE / IMPLEMENTATION ANCESTOR**
 
-R12–R25 are evidence only unless an individual behavior is explicitly called out below as accepted donor behavior. No iframe/nested-wrapper/bootstrap-fetch release is an implementation ancestor.
+R12–R25 are evidence only unless an individual behavior is explicitly accepted below. No iframe/nested-wrapper/bootstrap-fetch release is an implementation ancestor.
 
 ## Frozen accepted behavior
 ### R21 Map tiles — do not regress
-The owner-approved R21 Map behavior is frozen:
 - readable adaptive tiles;
 - tight group headings;
 - clickable group focus;
 - adjacent × to restore all groups;
 - fixed/equal dimension-control widths;
 - no headline truncation in large/medium tiles and font fitting for smaller tiles.
-Any Library/AI change must leave this renderer unchanged.
 
-### Library target
+### R13 filter/control behavior — restore exactly
+The agreed filter contract is the R13-style two-row control surface, not the R11 flat scrolling chip rail:
+- Row 1: exactly three equal role selectors: Group / Color / Size, then AI POV and filtered item count.
+- Row 2: exactly three role-aligned filter summary buttons, one for Group, one for Color, one for Size.
+- Each summary shows the active dimension label plus `All`, the single selected value, or `n of total`.
+- If two roles use the same dimension, both role slots remain visible and mirror the same filter state.
+- Tapping a summary opens the compact chip-only filter chooser for that dimension; on mobile it is a bottom sheet, not a horizontally scrolling legend rail.
+- The old `Filters / legend` label plus permanently exposed flat chips is not acceptable.
+- Library/AI work must not alter this filter contract.
+
+## AI POV contract
+- Exactly one Selected evidence list.
+- Direct source/coverage URL(s) live under a chevron on each selected evidence item.
+- No separate Evidence packet surface.
+- No duplicate editable provider/model/API-key controls in AI POV; those remain in Config.
+- Scope remains only where it changes the actual analysis corpus.
+
+## Library contract
 - IndexedDB `prism/analyses` is authoritative.
-- Every AI run creates one durable Analysis ID before provider execution and completion writes directly back to that exact record.
-- No hidden Save/Add-to-Library dependency and no heuristic migration to another card.
-- Library startup and every completed analysis refresh the card list from IndexedDB.
-- Selected Analysis right pane fills the full available Library page height independent of the number/height of cards in the left rail.
-- Right pane is three rows: compact header; `minmax(0,1fr)` independently scrollable transcript; compact compose row.
-- Transcript reaches the real bottom and is not clipped/occluded by the composer.
-- Compose is one sticky chat row: paperclip icon left, expanding text field center, send icon right.
-- Send performs current-web research using the complete selected Analysis as context and appends to the same Analysis ID.
+- Every AI run creates one durable Analysis ID at start.
+- Provider completion must result in a completed record that is actually readable from IndexedDB and visible in Library without a user Save/Add step.
+- While R25 still inherits the R11 internal `currentAnalysis` implementation, successful completion must automatically invoke the existing canonical persistence path so the base `analyses` array and IndexedDB cannot diverge. The Save control remains hidden; there is no user action.
+- Any stale synthetic `in_process` record created by earlier R25 sidecars for the same prompt must be removed after the canonical completed record is confirmed.
+- A run is not accepted until opening Library shows the completed card.
 
-## Immediate R25 correction gate
-### AI POV simplification
-- There is exactly one selected-evidence list.
-- The separate Evidence packet list is removed as redundant.
-- Each selected-evidence item owns a compact chevron disclosure. Expanding it reveals its direct source/coverage URL(s); collapsed state keeps the AI POV compact.
-- Provider/model/API-key configuration is not duplicated inside AI POV. Provider credentials/models remain configured and verified in Config only.
-- AI POV may show only the already-selected/verified provider status if operationally useful; it must not expose duplicate editable provider/model/key controls.
-- Scope remains part of the analysis request only where it adds distinct behavior.
+### Library layout
+- Left rail: Omnisearch + independently scrollable Analysis cards.
+- Right Analysis surface fills the entire available Library workspace height independent of card count.
+- Right surface is three rows: compact header; `minmax(0,1fr)` independently scrollable transcript; compact compose row.
+- Transcript can reach the true final rendered line.
+- Composer is paperclip icon left + expanding text/paste field center + send icon right.
+- Send performs Research web using the complete selected Analysis as context and appends to the same Analysis ID.
 
-### Direct persistence acceptance gate
-A run is not considered successful until all of the following are true:
-1. A durable Analysis card exists immediately with `in_process` status.
-2. Provider completion updates the same ID to `complete` with the rendered response.
-3. Opening Library shows that card without requiring Save/Add-to-Library.
-4. Selecting it displays the complete analysis in the full-height right pane.
-5. The bottom compose row remains visible and follow-up Research web appends a new turn to the same record.
-
-### Regression isolation
-- AI POV and Library corrections must not modify R21 Map tile DOM/CSS/render logic.
-- No release is advanced if Map tiles differ from the accepted R21 geometry before the Library gate is testable.
-
-## Explore / Source / Map standing scope
-- Explore remains lightweight cardinality-driven clustering with ordinary vertical scrolling.
-- Selected Source values govern event inclusion and Source grouping truthfully.
-- Custom RSS/Atom/common JSON sources must enter the shared corpus with truthful state/counts.
-- Three role-aligned Group/Color/Size controls remain visible and stable.
+## Regression isolation
+- R21 Map renderer remains untouched.
+- R13-style filter renderer is restored without changing event/filter truth.
+- AI/Library fixes must not reintroduce flat-chip filters, old tiles, duplicate evidence, or duplicate provider configuration.
 
 ## WorldPulse collector reliability
 - Frequent collector uses shallow checkout.
 - GDELT transport/429/5xx failures receive bounded retry/backoff.
-- If valid prior history/index exist, exhausted transient upstream failures retain cache and exit as successful stale/no-refresh runs.
-- Malformed data, inadequate mapped data after a successful response, invalid windows, or absence of a valid cache remain fatal.
+- Valid prior history/index converts exhausted transient upstream failures to stale/no-refresh success.
+- Malformed or inadequate successful data and no valid cache remain fatal.
 
 ## Delivery process
-1. Re-fetch `main` and exact target blobs before every write.
+1. Re-fetch `main` and exact target blobs before each write.
 2. Update Plan and Graveyard before candidate publication.
-3. Make only the smallest correction needed for the current acceptance gate.
-4. Preserve frozen R21 Map behavior byte-for-behavior while changing AI/Library.
-5. Mechanically assert: one evidence list; no duplicate editable provider/model controls in AI POV; selected-item URL disclosure; exact Analysis-ID lifecycle; full-height Library stage; compact compose strip; R21 Map patch still loaded unchanged.
-6. Publish through existing Pages deployment.
-7. Return exact cache-busted Pages URL. Owner device testing is the functional acceptance gate.
+3. Preserve the existing R21 map patch unchanged.
+4. Restore the R13 filter interaction contract over the existing underlying R11 filter state.
+5. Replace observer-only Library completion with device-verifiable automatic canonical persistence and remove stale duplicate in-process records.
+6. Assert: three filter summaries; compact chooser; one evidence list; no duplicate provider/model block; completed AI record present in Library; full-height detail; compact composer; R21 patch still unchanged.
+7. Publish via existing Pages and return the exact cache-busted URL. Owner device testing is the functional acceptance gate.
