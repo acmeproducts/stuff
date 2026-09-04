@@ -30,9 +30,9 @@ jobs:
       - name: Generate exact clean-lineage backend and UI
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js -o /tmp/pre.js
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py -o /tmp/base.py
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py -o /tmp/base22.py
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js -o /tmp/pre.js
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py -o /tmp/base.py
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py -o /tmp/base22.py
           python3 /tmp/base.py /tmp/pre.js /tmp/base3.js
           python3 /tmp/base22.py /tmp/base3.js /tmp/base22.js
           python3 integrate-SOT-turn01-coordination.py /tmp/base22.js /tmp/c1.js
@@ -42,10 +42,10 @@ jobs:
           cp sot-worker.js sot-coordinator.js sot-sqlite.py /tmp/
           mkdir -p /tmp/sot-db/migrations
           cp sot-db/migrations/*.sql /tmp/sot-db/migrations/
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html -o /tmp/pre.html
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py -o /tmp/u22.py
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py -o /tmp/u24.py
-          curl -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py -o /tmp/uai.py
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html -o /tmp/pre.html
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py -o /tmp/u22.py
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py -o /tmp/u24.py
+          curl --retry 5 --retry-all-errors -fsSL https://raw.githubusercontent.com/acmeproducts/stuff/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py -o /tmp/uai.py
           python3 /tmp/u22.py /tmp/pre.html /tmp/22.html
           python3 /tmp/u24.py /tmp/22.html /tmp/24.html
           python3 /tmp/uai.py /tmp/24.html /tmp/base.html
@@ -87,7 +87,7 @@ jobs:
           function seed(id,src){const sid=id+'s',n=now();t.sqlite(`INSERT INTO projects(project_token,project_name,workflow_step,status,created_at,updated_at) VALUES(${q(id)},${q('Project '+id)},2,'Sources',${q(n)},${q(n)}); INSERT INTO sources(source_id,project_token,normalized_path,preflight_status,created_at,updated_at) VALUES(${q(sid)},${q(id)},${q(src)},'ready',${q(n)},${q(n)});`);return sid}
           async function waitNoActive(id,limit=200){for(let i=0;i<limit;i++){let n=Number(rows(`SELECT COUNT(*) n FROM project_operations WHERE project_token=${q(id)} AND state IN ('queued','running','paused');`)[0]?.n||0);if(!n)return;await sleep(100)}throw Error('active operation timeout '+id)}
           async function waitRun(id,state,limit=200){for(let i=0;i<limit;i++){let r=rows(`SELECT state,phase FROM processing_runs WHERE project_token=${q(id)} ORDER BY started_at DESC LIMIT 1;`)[0];if(r&&state.includes(r.state))return r;await sleep(100)}throw Error('run state timeout '+id)}
-          function committed(id,sid,run='seedrun',rev=1){const n=now(),body='committed\n',hash=crypto.createHash('sha256').update(body).digest('hex'),obs=id+'obs';t.sqlite(`INSERT OR IGNORE INTO content(content_sha256,size,first_seen_at,last_seen_at) VALUES(${q(hash)},${body.length},${q(n)},${q(n)}); INSERT INTO processing_runs(run_id,project_token,state,phase,started_at,updated_at,ended_at) VALUES(${q(run)},${q(id)},'Closed','complete',${q(n)},${q(n)},${q(n)}); INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES(${q(obs)},${q(id)},${q(sid)},${q(run)},${q('/tmp/src-'+id.toLowerCase()+'/committed.txt')},'committed.txt','committed.txt',${body.length},1,${q(hash)},${q('1'.repeat(64))},${q('2'.repeat(64))},${q(n)},${q(n)}); INSERT OR REPLACE INTO current_observations(source_id,relative_path,observation_id,run_id) VALUES(${q(sid)},'committed.txt',${q(obs)},${q(run)}); UPDATE projects SET evidence_revision=${rev},workflow_step=4,status='Review',lifecycle_state='indexed' WHERE project_token=${q(id)};`)}
+          function committed(id,sid,run='seedrun',rev=1){const n=now(),body='committed\n',hash=crypto.createHash('sha256').update(body).digest('hex'),obs=id+'obs';t.sqlite(`INSERT OR IGNORE INTO content(content_sha256,size,first_observed_at,last_observed_at) VALUES(${q(hash)},${body.length},${q(n)},${q(n)}); INSERT INTO processing_runs(run_id,project_token,state,phase,started_at,updated_at,ended_at) VALUES(${q(run)},${q(id)},'Closed','complete',${q(n)},${q(n)},${q(n)}); INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES(${q(obs)},${q(id)},${q(sid)},${q(run)},${q('/tmp/src-'+id.toLowerCase()+'/committed.txt')},'committed.txt','committed.txt',${body.length},1,${q(hash)},${q('1'.repeat(64))},${q('2'.repeat(64))},${q(n)},${q(n)}); INSERT OR REPLACE INTO current_observations(source_id,relative_path,observation_id,last_run_id) VALUES(${q(sid)},'committed.txt',${q(obs)},${q(run)}); UPDATE projects SET evidence_revision=${rev},workflow_step=4,status='Review',lifecycle_state='indexed' WHERE project_token=${q(id)};`)}
           (async()=>{
             const sa=seed('A','/tmp/src-a'); seed('B','/tmp/src-b');
             t.startProcessing('A'); t.startProcessing('B');
