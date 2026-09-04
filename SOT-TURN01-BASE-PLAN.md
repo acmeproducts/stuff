@@ -13,7 +13,8 @@
 - Canonical target remains `SOT/SOT-turn01-base.html`.
 - 2026-09-02 coordination failure remains rejected evidence: `SOT/archive/2026-09-02-turn01-coordination-owner-rejection/` / `GY-019.md`.
 - 2026-09-03 build `2026.09.03.sot-turn01-coordination-1` is REJECTED evidence only. Owner gate failed 1, 3, 4, 5, 6 and 7; only same-project conflict blocking passed. Record: `SOT/archive/2026-09-03-turn01-coordination-owner-rejection/GY-020.md`.
-- The current qualified coordination delta is pinned by commit `141de8b2a46d705848462365473447e7e0827f45`; it is always regenerated from the clean lineage above and is not descended from either rejected runtime.
+- 2026-09-04 false-positive gate-9 / installer handoff failure is rejected qualification evidence at `SOT/archive/2026-09-04-turn01-qualified-installer-handoff-failure/GY-021.md`.
+- The current clean-lineage coordination implementation is unchanged from core-qualified commit `141de8b2a46d705848462365473447e7e0827f45`; corrected real-polling UI qualification is pinned at commit `b58920f014960c9b18b705a0fdcf0406c621fd5f`.
 
 ## Governance
 
@@ -25,7 +26,7 @@
 6. The owner is the browser/device product tester. Mechanical QA must remove mechanically reproducible failures before owner testing.
 7. No forward feature work until coordination, observability, durable evidence/plan state, and UI reconciliation pass executable behavioral gates.
 
-Prechange state for this qualification/release transition is archived at `SOT/archive/2026-09-04-1405-turn01-base-executable-qualification/ARCHIVE-MANIFEST.md`.
+Prechange state for the initial executable qualification transition is archived at `SOT/archive/2026-09-04-1405-turn01-base-executable-qualification/ARCHIVE-MANIFEST.md`. The failed handoff and qualification defect are archived in GY-021 before the corrected workflow/installer changes.
 
 ## Base product contract
 
@@ -74,24 +75,26 @@ The exact generated candidate must be started against a disposable schema-5+ dat
 
 A qualification workflow that merely searches generated source for these mechanisms is a failed qualification and must not emit readiness.
 
-## 2026-09-04 executable qualification result
+## 2026-09-04 corrected executable qualification result
 
-The repository-side candidate generated from the governed clean lineage passed the executable qualification workflow on commit `141de8b2a46d705848462365473447e7e0827f45`.
+The first nominally green run `33919314140` validly passed gates 1-8 and gate 10, but its original gate 9 was invalid: it conditionally called `backgroundPulse` only if that nonexistent function was present, so no actual progress update occurred. The subsequent WSL handoff correctly exposed the mismatch when the installer asserted `function backgroundPulse()` and exited before cutover. That false-positive qualification/handoff is rejected and recorded in GY-021.
 
-- GitHub Actions run: `33919314140`.
-- Gates 1-8: PASS.
-- Gate 9 real Chromium operator-state reconciliation: PASS.
-- Gate 10 parse/schema/protected Base product-contract floor: PASS.
-- No rejected generated runtime was used as an implementation ancestor.
+Corrected qualification now consists of:
 
-The canonical installer was then rebuilt to generate the same qualified candidate from those immutable inputs rather than installing the prior service-surface HTML. Installer repository qualification run `33919588171` passed Bash parsing, qualified-source pin checks, and resolution of every immutable release input.
+- **Core gates 1-8 and 10:** PASS on run `33919314140`, commit `141de8b2a46d705848462365473447e7e0827f45`.
+- **Gate 9 real polling/browser reconciliation:** PASS on run `33922645501`, commit `b58920f014960c9b18b705a0fdcf0406c621fd5f`. The harness serves the exact generated UI at a real HTTP origin, drives the actual 3-second `/projects` + `/rollup` polling path, changes server-owned progress from 1 to 77 files, proves a new `/projects` request occurred, proves `state.projects` ingested the changed progress, and asserts selection, active tab, open modal, search text, focus/input value, and content/rail scroll remain unchanged.
+- `compare 141de8b2...b58920f0` confirms no coordination backend/UI integrator, worker, coordinator, or migration file changed between the core-qualified commit and corrected gate-9 commit; intervening changes are workflow/governance/installer or unrelated repository projects.
+- **Canonical installer qualification:** PASS on run `33922817854`, commit `3e073b545ad8c254e5a7636e28e030678dfc7c81`. Installer CI now reproduces the same clean-lineage backend/UI generation and the installer's pre-cutover candidate assertions, and explicitly rejects the nonexistent `backgroundPulse` marker.
+
+No rejected generated runtime is used as an implementation ancestor.
 
 ## Current release boundary
 
-Repository qualification is complete. The only remaining Base handoff boundary is the WSL host installer run. The canonical installer now:
+Repository qualification is complete again after correcting the false-positive gate and installer assertion mismatch. The only remaining Base handoff boundary is the WSL host installer run. The canonical installer now:
 
 - archives the current SOT runtime/database before cutover;
 - regenerates backend and UI from the qualified clean lineage;
+- validates the actual polling/reconciliation markers present in that exact UI;
 - dry-runs schema 5 migration against a database copy;
 - performs an SOT-scoped cutover with automatic rollback on any later failure;
 - independently verifies live build/schema/capability, database integrity, public HTTP readback, byte identity, and public JavaScript parse;
@@ -101,4 +104,4 @@ Repository qualification is complete. The only remaining Base handoff boundary i
 
 Owner testing occurs only after all executable repository gates above pass on the exact candidate and the canonical public URL serves byte-identical qualified UI. The WSL installer must independently verify live health/schema/public identity and rollback on failure.
 
-Repository qualification has passed. **No owner test URL is declared qualified until the WSL installer completes successfully and prints `=== TURN 01 BASE READY FOR OWNER TEST ===`.**
+Repository qualification has passed after correction. **No owner test URL is declared qualified until the WSL installer completes successfully and prints `=== TURN 01 BASE READY FOR OWNER TEST ===`.**
