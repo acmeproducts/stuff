@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v3.7.0 -->
-# PRISM GRAVEYARD v3.7.0
+<!-- PRISM-GRAVEYARD v3.8.0 -->
+# PRISM GRAVEYARD v3.8.0
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. Owner device testing is the functional acceptance gate.
@@ -10,55 +10,49 @@ Rejected work is evidence, not an implementation ancestor. Owner device testing 
 - Blob: `5d91e005940d632b74d6dd59a9aa0ae645c40433`
 - Rollback commit: `92d660c9b7f559a20012fd714edfbf21ab70b6b3`
 
-## Frozen donors
-### Compact dynamic dimension filters
-- only dimensions active in Group / Color / Size have filters;
-- duplicate dimensions collapse to one shared filter set;
-- colored chips are both filters and legend;
-- changing role dimensions immediately changes visible filter sets;
-- Source filtering governs Source group identity.
+## Frozen donor: R21 complete visible interaction
+### R21 filter/control surface
+Repository evidence shows R21 runs over R18/R14, whose visible filter surface is three role-aligned summary buttons opening a chip chooser. R21 itself explicitly fixes `.filterSummaries`, `.filterTrigger`, and `.dimensionCtl` widths. Therefore the repeated claim that the accepted R21 filter UX was R11's permanently exposed dynamic chip rail was false.
+
+Frozen R21 behavior:
+- three equal dimension controls: Group / Color / Size;
+- three equal aligned filter-summary buttons beneath them;
+- summary = dimension + All/single/n-of-total;
+- tapping summary opens compact canonical chip chooser; mobile uses bottom sheet;
+- canonical chip state remains the only filter state;
+- no permanently exposed R11 `Filters / legend` rail;
+- Source filter truth continues to govern Source groups.
 
 ### R21 Map
 Adaptive readable tiles, tight group headings, group focus/adjacent × restore, fixed role-control widths and font fitting/no large-tile truncation remain frozen.
 
 ## Standing vetoes
-- No filters for inactive dimensions, duplicate role filters, or redundant separate legend.
+- No claim that R11's permanently exposed chip rail is the accepted R21 filter UI.
+- No second independent filter state layered over canonical filters.
 - No regression of R21 Map.
 - No duplicate evidence/provider configuration in AI POV.
 - No user Save/Add-to-Library step after AI completion.
-- No two competing AI-to-Library persistence mechanisms.
-- No claim of Library success until a completed Analysis is actually re-read from IndexedDB.
+- No competing AI-to-Library persistence mechanisms.
+- No claim of Library success until a completed Analysis is re-read from IndexedDB.
 - No Library detail height derived from card-stack height.
 - No stacked Attach/Research controls or composer overlay.
-- No iframe/nested-wrapper/runtime baseline-fetch candidate as a legitimate release.
 
 ## R25 failure record
-### Filters
-R25 repeatedly inherited or reconstructed obsolete filter surfaces. The accepted model is the compact dynamic active-dimension colored-chip filter/legend model. The later three-summary-button reconstruction is rejected.
+### Filter failure — donor identity repeatedly wrong
+R25 repeatedly fell back to R11 filters, then a correction was removed because the Plan incorrectly described the old chip rail as the accepted behavior. Historical R21 source proves the opposite: R21 explicitly styles `.filterSummaries` and `.filterTrigger`, inherited from R18/R14. This is now a permanent governance correction: when the owner says R21 was perfect, R21's complete visible control surface is the donor.
 
 ### Map
-R21 tile behavior was previously lost during unrelated Library work. It is now a frozen donor and may not change during this correction.
+R21 Map behavior remains frozen and must not change while filters are corrected.
 
 ### AI POV
-Selected evidence and Evidence packet duplicated the same events; provider/model controls duplicated Config. One evidence list with per-item URL disclosure remains required.
+One selected-evidence list with URL disclosure; no duplicate Evidence packet or provider configuration.
 
-### Library geometry
-Right Analysis detail must fill the workspace independently of left-card count and terminate in the compact paperclip/text/send Research web composer.
-
-### Library persistence failure — root cause refined
-The current R25 has two competing persistence owners:
-1. `prism-r25-library-v2.js` intercepts Run Analysis, creates a synthetic `in_process` Analysis ID, observes `aiResult`, and updates that synthetic record.
-2. `prism-r25-ai-library-gate.js` separately observes the same output and attempts to invoke R11's canonical hidden Save path.
-
-This is split authority over the same run. It can create duplicate/stale records, race completion, and leave the visible Library projection disconnected from R11's canonical `currentAnalysis` lifecycle.
-
-**Permanent rule:** one run, one persistence owner. R25 Library code renders/searches/selects/continues saved analyses only. Initial AI completion persists solely through the canonical R11 Save path, automatically and invisibly. Completion is not accepted until a newly saved completed record is re-read from IndexedDB and Library is opened from that confirmed state.
+### Library
+One canonical automatic persistence path; completed record must appear immediately; right detail fills workspace; compact bottom Research web composer.
 
 ## Current correction contract
-1. **Filters:** compact dynamic active-dimension colored-chip filters/legend.
-2. **Map:** preserve R21 tiles unchanged.
-3. **AI POV:** one evidence list + per-item URL chevrons; Config-only provider editing.
-4. **Persistence:** one canonical automatic save path; no synthetic parallel Analysis.
-5. **Library:** confirmed completed record visible immediately; full-height detail + compact bottom research composer.
-6. **Explore/Source:** lightweight clustering and truthful Source filtering/ingestion.
-7. **WorldPulse:** transient network resilience without hiding genuine integrity failures.
+1. **Filters:** restore R21 summary buttons + chooser as a projection of canonical R11 chip state.
+2. **Map:** preserve R21 tile patch unchanged.
+3. **AI POV:** one evidence list + URL chevrons; Config-only provider editing.
+4. **Persistence:** canonical automatic save only.
+5. **Library:** confirmed completed record visible immediately; full-height detail + compact composer.
