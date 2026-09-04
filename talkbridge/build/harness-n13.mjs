@@ -19,11 +19,19 @@ function world({ ua = 'Mozilla/5.0 (Linux; Android 14) Chrome/140', cams = 2, di
   Object.defineProperty(w.document, 'pictureInPictureElement', { value: null, writable: true, configurable: true });
   const rv = w.document.getElementById('remote-video'), lv = w.document.getElementById('local-video');
   rv.requestPictureInPicture = () => { st.pipCalls++; return pipRefuses ? Promise.reject(new Error('NotAllowedError')) : Promise.resolve({}); };
-  rv.srcObject = 'REMOTE'; lv.srcObject = 'LOCAL'; lv.muted = true;
+  const played = [];
+  rv.play = () => { played.push('remote'); return Promise.resolve(); };
+  lv.play = () => { played.push('local'); return Promise.resolve(); };
+  w.__played = played;
+  const MINE = { id: 'MINE' };
+  w.activeRoom = () => ({ id: 'r1', ear: true });
+  rv.srcObject = 'REMOTE'; lv.srcObject = MINE; lv.muted = true; rv.muted = false;
+  w.__MINE = MINE;
   w.log = (e, d) => logged.push({ e, d });
   const cam = { kind: 'video', id: 'cam', getSettings: () => ({ facingMode: 'user' }), stop() {} };
+  MINE._t = [cam]; MINE.getVideoTracks = function () { return this._t; }; MINE.addTrack = function (t) { this._t.push(t); }; MINE.removeTrack = function (t) { this._t = this._t.filter(x => x !== t); };
   w.CALL = { active: true, kind: 'video', pip: false,
-    stream: { _t: [cam], getVideoTracks() { return this._t; }, addTrack(t) { this._t.push(t); }, removeTrack(t) { this._t = this._t.filter(x => x !== t); } },
+    stream: MINE,
     pc: { getSenders: () => [{ track: cam, replaceTrack(t) { replaced.push(t.id); return Promise.resolve(); } }] },
     enterPip() { st.inPage = (st.inPage || 0) + 1; this.pip = true; },
     exitPip() { st.exitPip++; this.pip = false; },
@@ -38,12 +46,15 @@ const tap = t => t.d.getElementById('call-videos').dispatchEvent(new t.w.Event('
 let t = world(); await settle();
 const bandClassesBefore = t.d.getElementById('scr-room').className;
 tap(t); await settle();
-ok(t.rv.srcObject === 'LOCAL' && t.lv.srcObject === 'REMOTE', 'tapping exchanges the two streams: big becomes small, small becomes big');
+ok(t.rv.srcObject === t.w.__MINE && t.lv.srcObject === 'REMOTE', 'tapping exchanges the two streams: big becomes small, small becomes big');
+ok(t.w.__played.length >= 2, 'and both elements are told to play, or the picture never changes (N21b)');
+ok(t.rv.muted === true, 'our own camera is muted wherever it lands — no microphone feeding back through the speaker');
+ok(t.lv.muted === false, 'and the far side stays audible after a swap');
 ok(t.d.getElementById('scr-room').className === bandClassesBefore, 'and changes NOTHING else — no mode, no size, no PiP (the N12 defect)');
 ok(t.w.CALL.pip === false && t.st.pipCalls === 0, 'a tap never puts the call into picture-in-picture');
 ok(t.lv.muted === false && t.rv.muted === true, 'whichever element carries our own camera stays muted');
 tap(t); await settle();
-ok(t.rv.srcObject === 'REMOTE' && t.lv.srcObject === 'LOCAL', 'tapping again puts them back');
+ok(t.rv.srcObject === 'REMOTE' && t.lv.srcObject === t.w.__MINE, 'tapping again puts them back');
 
 /* 2. the back button asks the browser for real picture-in-picture */
 t = world(); await settle();
@@ -88,6 +99,19 @@ t.w.dispatchEvent(new t.w.MouseEvent('mouseup', { bubbles: true }));
 const before = t.rv.srcObject;
 tap(t); await settle();
 ok(t.rv.srcObject === before, 'letting go of a drag does not count as a tap');
+
+/* the Ear setting is the app's, not the swap's */
+t = world(); await settle();
+t.w.activeRoom = () => ({ id: 'r1', ear: false });
+tap(t); await settle();
+ok(t.lv.muted === true, 'a swap never overrides the room Ear setting (N21a)');
+
+/* a swap left running must not carry into the next call */
+t = world(); await settle();
+tap(t); await settle();
+t.w.CALL.teardown();
+ok(t.rv.srcObject === 'REMOTE' && t.rv.muted === false, 'hanging up mid-swap hands the far side back to the large frame, audible (N21c)');
+ok(t.lv.muted === true, 'and our own camera back to the inset, muted');
 
 /* 5. ending the call resets everything */
 t = world(); await settle();

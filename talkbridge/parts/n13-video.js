@@ -42,11 +42,26 @@
     var big = $$('remote-video'), small = $$('local-video');
     if (!big || !small) return;
     var a = big.srcObject, b = small.srcObject;
+    if (!a && !b) return;
     big.srcObject = b; small.srcObject = a;
-    big.muted = !S.swapped;              /* whichever element carries our own camera stays muted */
-    small.muted = !big.muted;
     S.swapped = !S.swapped;
-    L('n13_swap', { swapped: S.swapped });
+    /* N21a: the element holding OUR OWN camera must always be muted or the
+       handset feeds its own microphone back through the speaker. The element
+       holding the far side follows the room's Ear setting — the app owns that
+       switch and a swap must never override it. */
+    var mine = CALL.stream;
+    var room = (typeof activeRoom === 'function') ? activeRoom() : null;
+    var earOn = !room || room.ear !== false;
+    [big, small].forEach(function (el) {
+      var isMine = mine && el.srcObject === mine;
+      el.muted = isMine ? true : !earOn;
+      /* N21b: both elements are autoplay, but assigning a new srcObject to an
+         element that is already playing does not restart it — the app itself
+         calls play() everywhere it swaps a stream in. Without this the picture
+         simply does not change, which is exactly what a tap looked like. */
+      try { var q = el.play(); if (q && q.catch) q.catch(function () {}); } catch (_) {}
+    });
+    L('n13_swap', { swapped: S.swapped, ear: earOn });
   }
 
   /* ---------- 2. the back button asks for the browser's own PiP ---------- */
@@ -172,7 +187,20 @@
     CALL.teardown = function () {
       stopShare();
       try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (_) {}
-      S.swapped = false;
+      /* N21c: hand both elements back the way the app expects to find them, or
+         a swap left running at hang-up carries into the NEXT call — the far
+         side's audio silently muted, our own camera in the large frame. */
+      if (S.swapped) {
+        var b = $$('remote-video'), sm = $$('local-video');
+        if (b && sm) { var t = b.srcObject; b.srcObject = sm.srcObject; sm.srcObject = t; }
+        S.swapped = false;
+      }
+      try {
+        var rv = $$('remote-video'), lv2 = $$('local-video');
+        var room2 = (typeof activeRoom === 'function') ? activeRoom() : null;
+        if (rv) rv.muted = !!(room2 && room2.ear === false);
+        if (lv2) lv2.muted = true;
+      } catch (_) {}
       var lv = $$('local-video');
       if (lv) { lv.classList.remove('n13-free'); lv.style.left = ''; lv.style.top = ''; }
       return _tear.apply(this, arguments);

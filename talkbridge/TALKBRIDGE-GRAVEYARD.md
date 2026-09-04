@@ -1656,3 +1656,24 @@ device holds more than one socket and re-attaches them on every focus, so the
 log shows the count flapping 0→1→0→1 within seconds and the dot blinking.
 Lighting up may be immediate; going dark must wait out a grace, or a reconnect
 reads as a departure.
+
+## G41 — 2026-09-03 — A stream swap that never played, muted by hand, and outlived the call
+
+Buried, three faults in one function, all findable by reading the code instead
+of asking for another test round:
+1. **The tap looked dead.** Both video elements are `autoplay`, but assigning a
+   new `srcObject` to an element that is already playing does not restart it.
+   The app calls `play()` at every other place it swaps a stream in; the swap
+   did not, so the picture never changed and tap-to-swap read as broken.
+2. **It set `muted` by hand from its own toggle state.** `remote-video.muted`
+   is owned by the room's Ear setting and written by the app in two places. The
+   swap overrode it, so a swap could silence the far side or unmute our own
+   camera into the speaker. Mute must follow WHICH STREAM an element holds —
+   ours always muted, theirs following Ear — never a local flag.
+3. **A swap left running at hang-up carried into the next call.** Teardown
+   reset only its own flag, leaving our camera in the large frame and the far
+   side's audio muted for the following call. Anything that rearranges shared
+   elements must hand them back exactly as the app expects to find them.
+Rule carried forward: when a report says a feature "does nothing", read the
+element lifecycle before asking for another device pass — testing is the most
+expensive step in this line, not the cheapest.

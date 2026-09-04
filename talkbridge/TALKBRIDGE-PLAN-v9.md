@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.44.0 -->
-# TALKBRIDGE MASTER PLAN v20.44.0
+<!-- TALKBRIDGE-PLAN v20.45.0 -->
+# TALKBRIDGE MASTER PLAN v20.45.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1926,6 +1926,18 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.45.0 · 2026-09-03.** The owner's report of "PiP flip does not work" and
+"regression on audio" traced to ONE function by reading the code, not by asking
+for another test pass (G41). The stream swap: never called `play()`, so the
+picture never changed and the tap read as dead; set `muted` from its own toggle
+state, overriding the room's Ear setting, which could silence the far side or
+put our own microphone through the speaker; and left a swap in place at
+hang-up, carrying our camera in the large frame and the far side muted into the
+NEXT call — an audio fault that survives the call that caused it. All three
+fixed: mute follows which stream an element holds, both elements are played,
+and teardown hands the elements back exactly as the app expects them.
+Gates: N13 24/24 with 10 replanted defects caught, including all three of these.
 
 **v20.44.0 · 2026-09-03.** First release diagnosed from the shared device log
 rather than from reasoning. Two defects read straight out of it:
