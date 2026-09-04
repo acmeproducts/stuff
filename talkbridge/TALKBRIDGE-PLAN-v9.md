@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.46.0 -->
-# TALKBRIDGE MASTER PLAN v20.46.0
+<!-- TALKBRIDGE-PLAN v20.47.0 -->
+# TALKBRIDGE MASTER PLAN v20.47.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -68,11 +68,11 @@ built yet.
 | 24·ship | R9 — phrasebook target mirror + "was" traceability | PASSED | https://acmeproducts.github.io/stuff/bridge-turn24-ship.html |
 | 24·post-ship | R10 — ONE PATH: PWA + notifications + journey + lane telemetry | **ACCEPTED 2026-08-31 (owner): R10-CR3 pair `ac541c1`** — app `6abc47d77ed2` + worker + relay v6.2 | https://acmeproducts.github.io/stuff/bridge-turn24-post-ship.html |
 | 25·pre-base | = accepted 24·post-ship, byte-identical snapshot | **Frozen 2026-08-31** sha256 `6abc47d77ed2` | https://acmeproducts.github.io/stuff/bridge-turn25-pre-base.html |
-| 25·base | Notifications + caller call round trip | **BUILT, NOT ACCEPTED** — caller call screen, caller mute, ring-back and synced timers confirmed working on device by the owner; Android lock-screen ringing NOT fixed (open defect D-1). The PRISM un-hijack was built here, rolled back, and IS NOT IN ANY LIVE ARTIFACT (open defect D-2). | https://acmeproducts.github.io/stuff/bridge-turn25-base.html |
-| 25·pre-ship | Calls & video surface | **BUILT, NOT ACCEPTED** — tap swaps the two streams and nothing else; back button asks the browser for its own Picture-in-Picture (Android: needs Chrome's Picture-in-picture permission; iPhone: not supported by that call, falls back to the in-page view — behaviour on return from another app is UNTESTED and unknown); camera swap; screen share on desktop only | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html |
-| 25·ship | **Multi-user** | Not started | — |
-| 25·post-ship | **Technical debt — the full cleanup pass** | Not started | — |
-| 26·pre-base | = accepted 25·post-ship, byte-identical snapshot | — | — |
+| 25·base | Notifications + caller call round trip | **ABANDONED (owner ruling 2026-09-04)** — entire turn-25 body of work discarded; address rolled back byte-exact to accepted `ac541c1` (rollback commit `a45efc3`). All turn-25 candidate content is graveyard G44. | https://acmeproducts.github.io/stuff/bridge-turn25-base.html (now serves accepted bytes) |
+| 25·pre-ship | Calls & video surface | **ABANDONED (owner ruling 2026-09-04)** — same ruling; address rolled back byte-exact to accepted `ac541c1`. | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html (now serves accepted bytes) |
+| 25·ship | **Multi-user** | CANCELLED — turn 25 closed by owner ruling 2026-09-04 | — |
+| 25·post-ship | **Technical debt — the full cleanup pass** | CANCELLED — turn 25 closed by owner ruling 2026-09-04 | — |
+| 26·pre-base | = accepted 24·post-ship (turn 25 produced no accepted work), byte-identical snapshot | **Frozen 2026-09-04** sha256 `6abc47d77ed2` · paired relay v6.2 (worker byte-verified at `ac541c1` state, deployed, health checks green) | https://acmeproducts.github.io/stuff/bridge-turn26-pre-base.html |
 | 26·base | **IndexedDB storage migration — LAST build release before pilot** | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as

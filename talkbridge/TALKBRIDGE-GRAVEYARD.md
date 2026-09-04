@@ -1698,3 +1698,19 @@ never refreshed the timer, so the timer won and the dot went dark with the
 partner still attached. Whichever signal is authoritative must refresh the
 other's clock, or an indicator ends up with two owners and the stricter one
 always wins.
+
+## G44 — 2026-09-04 — Turn 25 in its entirety (owner ruling)
+
+Buried whole: every turn-25 candidate — call screen, synced timers, video
+swap, presence simplification, notification presentation work, and the
+subdirectory/scope migration attempts. The migration was the destabilizer:
+this is a single-origin PWA whose service worker and manifest scope own the
+whole `/stuff/` path. Moving files behind a subdirectory changes SW scope,
+manifest scope, `start_url`, and every relative fetch at once; each stopgap
+patched one break and created the next (the documented failure signature:
+"stopgap measures = headed toward destruction"). Android audio died in the
+churn. Owner rolled the entire turn back byte-exact to accepted `ac541c1`
+(rollback commit `a45efc3`) and closed the turn. Rules reinforced: no
+directory restructure without a full scope/URL impact map gated as its own
+release; features proven on device (call screen, timers) still die with the
+turn they rode in — re-land them as fresh candidates from the clean base.
