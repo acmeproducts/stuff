@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T00:43:54Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T00:44:25Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -511,4 +511,17 @@ Both handsets write here. Drained 2026-09-04T00:43:54Z, every 30s. Newest at the
 00:43:49.501 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 00:43:49.504 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
 00:43:49.506 [android-z5t] joiner_create_control {"shown":true}
-00:43:51.697 [android-z5t] n17_peer {"online":true,"others":1}```
+00:43:51.697 [android-z5t] n17_peer {"online":true,"others":1}
+00:44:06.781 [android-z5t] joiner_send_direction {"room":"abpmy3","from":"en","to":"es","role":"creator"}
+00:44:08.412 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:44:08.413 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:44:08.413 [android-z5t] joiner_create_control {"shown":true}
+00:44:08.419 [android-z5t] chat_sent {"t":"the iPhone has been returned to the home"}
+00:44:09.459 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:44:09.459 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:44:09.460 [android-z5t] joiner_create_control {"shown":true}
+00:44:18.821 [android-z5t] joiner_send_direction {"room":"abpmy3","from":"en","to":"es","role":"creator"}
+00:44:19.341 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:44:19.342 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:44:19.343 [android-z5t] joiner_create_control {"shown":true}
+00:44:19.348 [android-z5t] chat_sent {"t":"but yet Lolo on the iPhone still appears"}```
