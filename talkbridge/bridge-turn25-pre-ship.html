@@ -8764,6 +8764,64 @@ function cr3Heartbeat() {
   try { log('n16_devlog', { dev: DEV }); } catch (_) {}
 })();
 
+
+/* N17 (D-4) — PRESENCE, FIXED AT THE SOURCE.
+   The dot was lit by `touchPresence()`, which only ran when a message happened
+   to arrive from the partner on the room socket. A partner who was connected
+   but not sending anything went dark after the timeout, and a partner who had
+   left could stay lit until it expired. Presence was being inferred from
+   traffic; it was never told to anyone.
+   The relay is the only party that knows who is actually attached. It now
+   announces the count on every join and every leave, and this sets the dot
+   from that. Traffic still refreshes it, so nothing is lost if an announcement
+   is missed. Wraps handleRelay and LISTEN.handle and calls through. */
+(function () {
+  if (typeof setPresence !== 'function') return;
+  function apply(d) {
+    var online = (d && typeof d.others === 'number') ? d.others > 0 : false;
+    try { setPresence(online); } catch (_) {}
+    try { if (typeof log === 'function') log('n17_peer', { online: online, others: d && d.others }, 'ok'); } catch (_) {}
+  }
+  if (typeof handleRelay === 'function') {
+    var _h = handleRelay;
+    handleRelay = function (d) { if (d && d.type === 'peer') { apply(d); return; } return _h.apply(this, arguments); };
+  }
+  if (typeof LISTEN === 'object' && LISTEN && typeof LISTEN.handle === 'function') {
+    var _l = LISTEN.handle;
+    LISTEN.handle = function (roomId, d) { if (d && d.type === 'peer') return; return _l.apply(this, arguments); };
+  }
+})();
+
+
+/* N18 (D-5) — CALL TIMERS THAT AGREE.
+   The caller's clock is mounted when the call is PLACED and the answerer's when
+   it is ANSWERED, so the two differed by however long it rang. N10 re-anchored
+   the caller on answer, but the on-screen clock is driven by a timer that was
+   started at mount and is not restarted, so the display kept its original
+   start. This anchors BOTH sides to the answer and restarts the display there,
+   so the two phones show the same elapsed time from the same moment.
+   Wraps and calls through; replaces nothing. */
+(function () {
+  if (typeof CALL === 'undefined' || !CALL) return;
+  function anchor(who) {
+    CALL.startTs = Date.now();
+    try { if (typeof stopCallTimer === 'function') stopCallTimer(); } catch (_) {}
+    try {
+      var el = (typeof $ === 'function') ? $('rz-timer') : document.getElementById('rz-timer');
+      if (el && typeof callDuration === 'function') el.textContent = callDuration(CALL.startTs);
+      if (typeof startCallTimer === 'function') startCallTimer();
+    } catch (_) {}
+    try { if (typeof log === 'function') log('n18_anchor', { who: who }, 'ok'); } catch (_) {}
+  }
+  var _acc = CALL.onAccepted;
+  CALL.onAccepted = function () { var r = _acc.apply(this, arguments); if (CALL.active) anchor('caller'); return r; };
+  var _ac = CALL.accept;
+  CALL.accept = function () {
+    var r = _ac.apply(this, arguments);
+    return Promise.resolve(r).then(function (v) { if (CALL.active) anchor('answerer'); return v; });
+  };
+})();
+
 </script>
 </body>
 </html>

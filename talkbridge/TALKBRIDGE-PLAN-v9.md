@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.42.0 -->
-# TALKBRIDGE MASTER PLAN v20.42.0
+<!-- TALKBRIDGE-PLAN v20.43.0 -->
+# TALKBRIDGE MASTER PLAN v20.43.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -95,8 +95,8 @@ they are never counted as progress.
 | D-1 | Android does not ring on the lock screen. Two real causes found and fixed (G30 relay withheld the push on the handset's stale self-report; G34 push subscription reused under an old signing key). Both are live. **Neither changed the device behaviour.** The remaining cause is UNKNOWN — it has not been narrowed to relay-not-sending, push-service-rejecting, or Android-not-alerting, because nothing reports the relay's push result to the owner. | OPEN — cause unknown. The always-push change and the liveness ack gate are BURIED (G36): they did not change device behaviour and they broke a passing contract check. Relay is back on the accepted pair. |
 | D-2 | **FIXED, awaiting device gate 2026-09-03** — PRISM is captured by TalkBridge's PWA scope. The app's manifest declares no folder of its own and its worker is registered at the root of `/stuff/`, so TalkBridge claims the whole path. Built once (N2), rolled back with the reset, **never rebuilt — it is in no live artifact.** | FIXED — rebuilt, gated, live at /stuff/talkbridge/ |
 | D-3 | iPhone behaviour on returning to a call after leaving the app is unknown. Never tested on device; no claim should be made about it. | UNKNOWN, untested |
-| D-4 | Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | OPEN, backlog (owner 2026-09-03) |
-| D-5 | Call timers do not match between the two sides. N10 anchors both clocks to the answer; the owner reports they still differ, so the anchor is not the whole cause. | OPEN |
+| D-4 | Presence indicator does not work. Owner traced it back through turn 23 and found no working version — it PREDATES this cycle and was never caught. | ATTEMPTED (N17) — presence now comes from the relay, which is the only party that knows who is attached |
+| D-5 | Call timers do not match between the two sides. | ATTEMPTED (N18) — the anchor moved but the on-screen clock was never restarted, so the display kept its original start; both sides now anchor AND restart at the answer |
 | D-6 | Call screen reported not working by the owner on the base address — which does not contain the video build (G38). Needs re-testing on the single address before any cause is claimed. | UNVERIFIED |
 
 **Why these exist:** D-1 is a regression introduced in the R10 candidate work
@@ -1926,6 +1926,28 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.43.0 · 2026-09-03.** Owner: attempt every open item before testing —
+nothing left in the backlog.
+**N17 — presence (D-4).** Found by reading the code: the dot was lit by
+`touchPresence()`, which only ran when a message happened to ARRIVE from the
+partner on the room socket. A connected but quiet partner went dark after the
+timeout, and a partner who had left stayed lit until it expired. Presence was
+inferred from traffic and never actually told to anyone. The relay is the only
+party that knows who is attached; it now announces the count on every join and
+every leave, and the dot follows that. Traffic still refreshes it, so a missed
+announcement loses nothing. This is why no version back through turn 23 worked
+— it was never built to work.
+**N18 — call timers (D-5).** The caller's clock mounts when the call is PLACED,
+the answerer's when it is ANSWERED. N10 re-anchored the caller on answer but
+the on-screen clock is driven by a timer started at mount and never restarted,
+so the display kept its original start — which is why the owner still saw a
+mismatch. Both sides now anchor AND restart the display at the answer.
+Still open and honestly named: D-1 Android lock-screen ringing (cause unknown),
+D-3 iPhone return-to-call (untested). Everything else has an attempt in the
+build awaiting the owner's pass.
+Gates: N17/N18 12/12 with 7 replanted defects all caught; N16 11/11; relay
+contract 10/10; app contract 16/16; release-law PASS.
 
 **v20.42.0 · 2026-09-03.** Owner: hand the diagnosis over — one shared log,
 one address, then a test URL and nothing else.

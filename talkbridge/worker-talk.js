@@ -536,6 +536,12 @@ export class TalkSession {
       if (!clientId) return err('Missing client', 400);
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
+      /* N17 — PRESENCE FROM THE RELAY, NOT FROM TRAFFIC. Presence used to be
+         inferred on each device from messages happening to arrive, so a
+         partner who was connected but quiet went dark. The relay is the only
+         party that actually knows who is attached; it now says so on every
+         join and every leave. */
+      try { this._announcePeers(); } catch (_) {}
       pair[1].serializeAttachment({ clientId, sessionId });
       await this._noteDevice(clientId);
       return new Response(null, { status: 101, webSocket: pair[0] });
@@ -640,7 +646,17 @@ export class TalkSession {
     }
   }
 
-  async webSocketClose(ws, code, reason) {}
+  _announcePeers() {
+    const ids = [...this._connectedIds()];
+    for (const ws of this.state.getWebSockets()) {
+      const tag = ws.deserializeAttachment();
+      if (!tag || !tag.clientId) continue;
+      const others = ids.filter((i) => i !== tag.clientId).length;
+      try { ws.send(JSON.stringify({ type: 'peer', transient: true, others, at: Date.now() })); } catch (_) {}
+    }
+  }
+
+  async webSocketClose(ws, code, reason) { try { this._announcePeers(); } catch (_) {} }
 
   async webSocketError(ws, error) {
     try { ws.close(1011, 'error'); } catch (_) {}
