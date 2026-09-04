@@ -1,6 +1,8 @@
 (()=>{'use strict';const style=document.createElement('style');style.textContent=`
-.libraryStage{height:100%!important;min-height:0!important;overflow:hidden!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important}
-.libraryTranscript{min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding-bottom:72px!important;scroll-padding-bottom:72px!important}
+.library{position:absolute!important;inset:0!important;width:100%!important;height:auto!important;min-height:0!important;align-self:stretch!important}
+.libraryRail{height:100%!important;min-height:0!important;align-self:stretch!important;overflow:hidden!important}
+.libraryStage{height:auto!important;min-height:0!important;align-self:stretch!important;overflow:hidden!important;display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important}
+.libraryTranscript{min-height:0!important;height:auto!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding-bottom:72px!important;scroll-padding-bottom:72px!important}
 .libraryCompose{position:static!important;bottom:auto!important;z-index:15!important;display:grid!important;grid-template-columns:38px minmax(0,1fr) 38px!important;grid-template-rows:auto auto!important;gap:6px!important;align-items:end!important;padding:7px 8px max(7px,env(safe-area-inset-bottom))!important;border-top:1px solid var(--line)!important;background:#081522!important}
 .libraryCompose textarea{grid-column:2!important;grid-row:1!important;width:100%!important;min-width:0!important;min-height:38px!important;max-height:76px!important;resize:none!important;padding:9px 10px!important}
 .libraryCompose .r25Attach{grid-column:1!important;grid-row:1!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;font-size:0!important;border-radius:50%!important}
