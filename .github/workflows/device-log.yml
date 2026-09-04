@@ -18,31 +18,37 @@ concurrency:
 jobs:
   drain:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Drain
+      - name: Drain every 30 seconds
         run: |
-          set -e
+          # GitHub's schedule cannot fire faster than every 5 minutes, so this
+          # run stays alive and drains every 30 seconds for the whole window;
+          # the next scheduled run picks straight up from it.
           U="https://talk-signal.myacctfortracking.workers.dev/log"
-          curl -sS --max-time 30 "$U" -o /tmp/dev.log || echo "(relay unreachable)" > /tmp/dev.log
-          mkdir -p talkbridge
-          {
-            echo "# TalkBridge device log"
-            echo ""
-            echo "Both handsets write here. Drained $(date -u +%FT%TZ). Newest at the bottom."
-            echo ""
-            echo '```'
-            tail -c 400000 /tmp/dev.log
-            echo '```'
-          } > talkbridge/DEVICE-LOG.md
-          if [ "${{ github.event.inputs.clear }}" = "true" ]; then
-            curl -sS -X DELETE --max-time 30 "$U" || true
-          fi
-      - name: Commit
-        run: |
           git config user.name acmeproducts
           git config user.email 182510673+acmeproducts@users.noreply.github.com
-          git add talkbridge/DEVICE-LOG.md
-          git diff --staged --quiet || git commit -m "device log [skip ci]"
-          git pull --rebase -q origin main || true
-          git push -q origin HEAD:main || true
+          if [ "${{ github.event.inputs.clear }}" = "true" ]; then
+            curl -sS -X DELETE --max-time 20 "$U" || true
+          fi
+          mkdir -p talkbridge
+          for i in $(seq 1 11); do
+            curl -sS --max-time 20 "$U" -o /tmp/dev.log || echo "(relay unreachable)" > /tmp/dev.log
+            {
+              echo "# TalkBridge device log"
+              echo ""
+              echo "Both handsets write here. Drained $(date -u +%FT%TZ), every 30s. Newest at the bottom."
+              echo ""
+              echo '```'
+              tail -c 400000 /tmp/dev.log
+              echo '```'
+            } > talkbridge/DEVICE-LOG.md
+            git add talkbridge/DEVICE-LOG.md
+            if ! git diff --staged --quiet; then
+              git commit -q -m "device log [skip ci]"
+              git pull --rebase -q origin main || true
+              git push -q origin HEAD:main || true
+            fi
+            [ "$i" = "11" ] || sleep 30
+          done
