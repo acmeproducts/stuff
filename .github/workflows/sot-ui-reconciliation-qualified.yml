@@ -56,6 +56,8 @@ jobs:
             const browser=await chromium.launch({headless:true});
             const page=await browser.newPage({viewport:{width:1200,height:900}});
             let phase=0, projectRequests=0;
+            const html=fs.readFileSync('/tmp/ui.html','utf8');
+            await page.route('http://sot.test/',async route=>route.fulfill({status:200,contentType:'text/html',body:html}));
             await page.route('**/api/sot/**',async route=>{
               const u=route.request().url();
               let body={};
@@ -68,8 +70,8 @@ jobs:
               else if(u.includes('/activity')) body={events:[]};
               await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
             });
-            await page.setContent(fs.readFileSync('/tmp/ui.html','utf8'),{waitUntil:'domcontentloaded'});
-            await page.waitForFunction(()=>typeof state!=='undefined' && Array.isArray(state.projects) && state.projects.length>0,{timeout:5000});
+            await page.goto('http://sot.test/',{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>typeof state!=='undefined' && Array.isArray(state.projects) && state.projects.length>0,null,{timeout:5000});
             await page.evaluate(()=>{
               state.selected='A'; state.tab='index'; state.projectTab='plan'; state.query='keep-me';
               const content=document.querySelector('.content')||document.scrollingElement;
@@ -86,7 +88,7 @@ jobs:
             }));
             const requestsBefore=projectRequests;
             phase=1;
-            await page.waitForFunction(()=>Number(state.projects[0]?.files_discovered||0)===77,{timeout:6000});
+            await page.waitForFunction(()=>Number(state.projects[0]?.files_discovered||0)===77,null,{timeout:6000});
             if(projectRequests<=requestsBefore) throw new Error('gate9 no real /projects polling request occurred');
             const after=await page.evaluate(()=>({
               selected:state.selected,tab:state.tab,projectTab:state.projectTab,query:state.query,
