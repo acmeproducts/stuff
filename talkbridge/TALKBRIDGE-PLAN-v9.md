@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.49.0 -->
-# TALKBRIDGE MASTER PLAN v20.49.0
+<!-- TALKBRIDGE-PLAN v20.50.0 -->
+# TALKBRIDGE MASTER PLAN v20.50.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -74,7 +74,7 @@ built yet.
 | 25·post-ship | **Technical debt — the full cleanup pass** | CANCELLED — turn 25 closed by owner ruling 2026-09-04 | — |
 | 26·pre-base | = accepted 24·post-ship (turn 25 produced no accepted work), byte-identical snapshot | **ACCEPTED 2026-09-04 (owner)** — device gate: Android call audio confirmed working (earlier "no audio" report was disconnected earbuds in another room, not the app). sha256 `6abc47d77ed2` · paired relay v6.2 byte-verified, deployed, health green | https://acmeproducts.github.io/stuff/bridge-turn26-pre-base.html |
 | 26·base | Calls package re-landed clean (N10 caller screen + ring-back, N18 timers anchored at answer, N16 shared device log, P1 relay-fed presence) · relay v6.3 additive pair | **BUILT 2026-09-04 on owner GO — device gate pending.** Declared/actual contract: wraps CALL/RING/handleRelay/log, replaces nothing, no scope/manifest/subdirectory change, no mute (G42), timer fed not silenced (G43), attachment not visibility (G23). Mutation gates 2/2. | https://acmeproducts.github.io/stuff/bridge-turn26-base.html |
-| 26·pre-ship | PRISM scope un-hijack, isolated (+ B-8c rides the same invite/install gate) | Not started | — |
+| 26·pre-ship | D-2 un-hijack WITHOUT file moves (narrow prefix scope `/stuff/bridge-` on a new manifest `tb-manifest-turn26.webmanifest` + narrowed worker registration + exact-match legacy-worker retirement, push migrated first) + B-8c (creation name field, invite/QR carries the room's name, stamped at generation) | **BUILT 2026-09-04, device gate pending.** Spec deviation from §5.2 declared: the folder move is replaced by scope VALUES — W3C manifest scope is prefix-based by design ("consistency with Service Workers"), and a worker may register a scope deeper than its directory with no header. No start_url anywhere (fb7ed76/G25). Accepted manifest untouched. Contract+mutation gates 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-pre-ship.html |
 | 26·ship | **IndexedDB storage migration** | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
