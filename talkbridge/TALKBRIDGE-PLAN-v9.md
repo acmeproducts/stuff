@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.47.0 -->
-# TALKBRIDGE MASTER PLAN v20.47.0
+<!-- TALKBRIDGE-PLAN v20.48.0 -->
+# TALKBRIDGE MASTER PLAN v20.48.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -72,7 +72,7 @@ built yet.
 | 25·pre-ship | Calls & video surface | **ABANDONED (owner ruling 2026-09-04)** — same ruling; address rolled back byte-exact to accepted `ac541c1`. | https://acmeproducts.github.io/stuff/bridge-turn25-pre-ship.html (now serves accepted bytes) |
 | 25·ship | **Multi-user** | CANCELLED — turn 25 closed by owner ruling 2026-09-04 | — |
 | 25·post-ship | **Technical debt — the full cleanup pass** | CANCELLED — turn 25 closed by owner ruling 2026-09-04 | — |
-| 26·pre-base | = accepted 24·post-ship (turn 25 produced no accepted work), byte-identical snapshot | **Frozen 2026-09-04** sha256 `6abc47d77ed2` · paired relay v6.2 (worker byte-verified at `ac541c1` state, deployed, health checks green) | https://acmeproducts.github.io/stuff/bridge-turn26-pre-base.html |
+| 26·pre-base | = accepted 24·post-ship (turn 25 produced no accepted work), byte-identical snapshot | **ACCEPTED 2026-09-04 (owner)** — device gate: Android call audio confirmed working (earlier "no audio" report was disconnected earbuds in another room, not the app). sha256 `6abc47d77ed2` · paired relay v6.2 byte-verified, deployed, health green | https://acmeproducts.github.io/stuff/bridge-turn26-pre-base.html |
 | 26·base | **IndexedDB storage migration — LAST build release before pilot** | Not started | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
