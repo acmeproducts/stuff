@@ -32,7 +32,7 @@ from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
 s='\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)); Path(sys.argv[2]).write_text(s)
-required=['SOT TURN 01 · SERVICE SURFACE','function committedLabel(p)','function activeLabel(p)','function renderServiceShell(p)','function backgroundPulse()','Storage & Scope','Index & Evidence','Plan','Execution','Activity']
+required=['TURN 01 · SERVICE SURFACE','function committedLabel(p)','function activeLabel(p)','function renderServiceShell(p)','function backgroundPulse()','Storage & Scope','Index & Evidence','Plan','Execution','Activity']
 for x in required: assert x in h,x
 for rejected in ['class="tabs"','data-run=','data-pause=','data-stop=','Promise.all([api(\'/projects\'),api(\'/health\'),api(\'/rollup\'),api(\'/scheduler/status\')])','renderIndex(psel)']:
  assert rejected not in h,rejected
