@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v3.5.0 -->
-# PRISM MASTER PLAN v3.5.0
+<!-- PRISM-PLAN v3.6.0 -->
+# PRISM MASTER PLAN v3.6.0
 
 ## Governing baseline
 PRISM remains governed by the exact last working standalone application baseline.
@@ -9,11 +9,21 @@ PRISM remains governed by the exact last working standalone application baseline
 - Identity: `PRISM · Turn 01 pre-ship R11`
 - Blob: `5d91e005940d632b74d6dd59a9aa0ae645c40433`
 - Rollback commit: `92d660c9b7f559a20012fd714edfbf21ab70b6b3`
-- Status: **WORKING BASELINE / IMPLEMENTATION ANCESTOR**
-
-R12–R25 are evidence only unless an individual behavior is explicitly accepted below. No iframe/nested-wrapper/bootstrap-fetch release is an implementation ancestor.
 
 ## Frozen accepted behavior
+### Filters — compact dynamic active-dimension model
+The prior v3.5 assumption that R13 summary buttons were the accepted filter UX was incorrect and is withdrawn.
+
+The governed filter model established before R13 is:
+- filters exist only for dimensions currently active in Group / Color / Size;
+- if multiple roles use the same dimension, that dimension has one shared filter set, not duplicate role filters;
+- filter values are immediately visible as compact colored chips;
+- those same colored chips are the legend; there is no redundant separate legend or modal chooser;
+- changing Group / Color / Size immediately removes inactive-dimension filters and adds newly active ones;
+- `All` means the dimension is unrestricted; individual chips directly toggle inclusion;
+- Source filtering governs both event inclusion and Source group identity so no unselected Source group can remain visible;
+- ribbon remains compact and horizontally scrollable only when the active chip inventory cannot fit.
+
 ### R21 Map tiles — do not regress
 - readable adaptive tiles;
 - tight group headings;
@@ -22,55 +32,36 @@ R12–R25 are evidence only unless an individual behavior is explicitly accepted
 - fixed/equal dimension-control widths;
 - no headline truncation in large/medium tiles and font fitting for smaller tiles.
 
-### R13 filter/control behavior — restore exactly
-The agreed filter contract is the R13-style two-row control surface, not the R11 flat scrolling chip rail:
-- Row 1: exactly three equal role selectors: Group / Color / Size, then AI POV and filtered item count.
-- Row 2: exactly three role-aligned filter summary buttons, one for Group, one for Color, one for Size.
-- Each summary shows the active dimension label plus `All`, the single selected value, or `n of total`.
-- If two roles use the same dimension, both role slots remain visible and mirror the same filter state.
-- Tapping a summary opens the compact chip-only filter chooser for that dimension; on mobile it is a bottom sheet, not a horizontally scrolling legend rail.
-- The old `Filters / legend` label plus permanently exposed flat chips is not acceptable.
-- Library/AI work must not alter this filter contract.
-
 ## AI POV contract
 - Exactly one Selected evidence list.
 - Direct source/coverage URL(s) live under a chevron on each selected evidence item.
 - No separate Evidence packet surface.
 - No duplicate editable provider/model/API-key controls in AI POV; those remain in Config.
-- Scope remains only where it changes the actual analysis corpus.
 
 ## Library contract
 - IndexedDB `prism/analyses` is authoritative.
-- Every AI run creates one durable Analysis ID at start.
-- Provider completion must result in a completed record that is actually readable from IndexedDB and visible in Library without a user Save/Add step.
-- While R25 still inherits the R11 internal `currentAnalysis` implementation, successful completion must automatically invoke the existing canonical persistence path so the base `analyses` array and IndexedDB cannot diverge. The Save control remains hidden; there is no user action.
-- Any stale synthetic `in_process` record created by earlier R25 sidecars for the same prompt must be removed after the canonical completed record is confirmed.
-- A run is not accepted until opening Library shows the completed card.
-
-### Library layout
+- Completed AI work must automatically persist through the canonical Library path; no user Save/Add step.
+- Completed record must be visible in Library immediately.
 - Left rail: Omnisearch + independently scrollable Analysis cards.
 - Right Analysis surface fills the entire available Library workspace height independent of card count.
-- Right surface is three rows: compact header; `minmax(0,1fr)` independently scrollable transcript; compact compose row.
-- Transcript can reach the true final rendered line.
-- Composer is paperclip icon left + expanding text/paste field center + send icon right.
+- Right surface is compact header + independently scrollable transcript + compact paperclip/text/send compose row.
 - Send performs Research web using the complete selected Analysis as context and appends to the same Analysis ID.
 
 ## Regression isolation
-- R21 Map renderer remains untouched.
-- R13-style filter renderer is restored without changing event/filter truth.
-- AI/Library fixes must not reintroduce flat-chip filters, old tiles, duplicate evidence, or duplicate provider configuration.
+- Do not replace compact dynamic chips with three summary buttons or a separate filter chooser.
+- Do not alter R21 Map tile renderer while changing filters, AI, or Library.
+- Do not reintroduce duplicate evidence/provider surfaces.
 
 ## WorldPulse collector reliability
 - Frequent collector uses shallow checkout.
 - GDELT transport/429/5xx failures receive bounded retry/backoff.
 - Valid prior history/index converts exhausted transient upstream failures to stale/no-refresh success.
-- Malformed or inadequate successful data and no valid cache remain fatal.
+- Malformed/inadequate successful data or no valid cache remains fatal.
 
 ## Delivery process
-1. Re-fetch `main` and exact target blobs before each write.
+1. Re-fetch target blobs before each write.
 2. Update Plan and Graveyard before candidate publication.
-3. Preserve the existing R21 map patch unchanged.
-4. Restore the R13 filter interaction contract over the existing underlying R11 filter state.
-5. Replace observer-only Library completion with device-verifiable automatic canonical persistence and remove stale duplicate in-process records.
-6. Assert: three filter summaries; compact chooser; one evidence list; no duplicate provider/model block; completed AI record present in Library; full-height detail; compact composer; R21 patch still unchanged.
-7. Publish via existing Pages and return the exact cache-busted URL. Owner device testing is the functional acceptance gate.
+3. Remove the incorrect R13-summary filter sidecar from R25.
+4. Preserve the canonical compact dynamic active-dimension chip model and R21 Map patch unchanged.
+5. Preserve the current AI/Library persistence and full-height Library corrections.
+6. Publish via existing Pages and return the exact cache-busted URL. Owner device testing remains the acceptance gate.
