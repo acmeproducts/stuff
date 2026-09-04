@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v3.7.0 -->
-# PRISM MASTER PLAN v3.7.0
+<!-- PRISM-PLAN v3.8.0 -->
+# PRISM MASTER PLAN v3.8.0
 
 ## Governing baseline
 PRISM remains governed by the exact last working standalone application baseline.
@@ -10,17 +10,21 @@ PRISM remains governed by the exact last working standalone application baseline
 - Blob: `5d91e005940d632b74d6dd59a9aa0ae645c40433`
 - Rollback commit: `92d660c9b7f559a20012fd714edfbf21ab70b6b3`
 
-## Frozen accepted behavior
-### Filters — compact dynamic active-dimension model
-- filters exist only for dimensions currently active in Group / Color / Size;
-- duplicate dimensions collapse to one shared filter set;
-- colored chips are both filters and legend;
-- changing Group / Color / Size immediately removes inactive-dimension filters and adds newly active ones;
-- `All` means unrestricted; individual chips directly toggle inclusion;
-- Source filtering governs both event inclusion and Source group identity;
-- compact horizontal scrolling is allowed only when the active chip inventory cannot fit.
+## Frozen accepted R21 surface
+The owner acceptance statement is explicit: R21 was the working surface. Therefore the frozen donor is the complete R21 interaction contract, not only its tile renderer.
 
-### R21 Map tiles — do not regress
+### R21 filters and controls
+R21 inherits the R18/R14 control surface and then fixes control widths. The accepted filter UX is:
+- Row 1: three equal fixed-width dimension selectors: Group, Color, Size; time window remains in the top header; AI POV and item count remain compact.
+- Row 2: three equal filter-summary buttons aligned to Group / Color / Size.
+- Each summary shows the active dimension label and `All`, one selected value, or `n of total`.
+- Tapping a summary opens the compact chip chooser for that dimension; on mobile the chooser is a bottom sheet.
+- Filter chips remain the actual canonical filter controls; the summary surface is a projection onto those controls, not a second filter state.
+- The old R11 permanently exposed horizontal `Filters / legend` chip rail is not the R21 accepted surface and must not be shown.
+- Any duplicate role pointing to the same dimension may share the same underlying filter set while retaining the three role-aligned summary slots R21 presents.
+- Source filtering continues to govern event inclusion and Source-group identity.
+
+### R21 Map tiles
 - readable adaptive tiles;
 - tight group headings;
 - clickable group focus;
@@ -37,35 +41,25 @@ PRISM remains governed by the exact last working standalone application baseline
 ## Library contract
 - IndexedDB `prism/analyses` is authoritative.
 - One AI run has exactly one persistence path.
-- R25 must not create a synthetic sidecar Analysis record in parallel with the canonical R11 `currentAnalysis` record.
-- Successful provider completion automatically invokes the existing canonical `saveCurrent()` path through the hidden Save control; the user never sees or presses Save.
-- After automatic save, the completed record is re-read from IndexedDB before the run is considered complete.
-- Opening Library immediately after completion must display that completed Analysis card.
+- Initial AI completion persists automatically through the canonical R11 `saveCurrent()` path; no visible user Save/Add step.
+- After automatic save, the completed record is re-read from IndexedDB before completion is accepted.
+- Opening Library immediately after completion displays the completed Analysis card.
 - Left rail: Omnisearch + independently scrollable Analysis cards.
-- Right Analysis surface fills the entire available Library workspace height independent of card count.
+- Right Analysis surface fills the available Library workspace height independently of card count.
 - Right surface: compact header + `minmax(0,1fr)` scrollable transcript + compact paperclip/text/send compose row.
 - Send performs Research web using the complete selected Analysis as context and appends to the same Analysis ID.
 
 ## Immediate correction gate
-The current R25 contains two competing AI-to-Library mechanisms: `prism-r25-library-v2.js` creates/updates a synthetic Analysis from `aiResult`, while `prism-r25-ai-library-gate.js` also invokes the canonical Save path. This split authority is rejected.
-
-Correction:
-1. Remove AI-run persistence ownership from `prism-r25-library-v2.js`; it owns Library rendering and continuation only.
-2. Make `prism-r25-ai-library-gate.js` the sole automatic completion bridge to canonical `saveCurrent()`.
-3. On run start capture existing Analysis IDs; on stable successful completion click canonical Save once; re-read IndexedDB; require a newly saved completed record; then open Library.
-4. Do not publish if the completed record cannot be found after the canonical save.
-5. Leave filter behavior and the R21 Map patch unchanged.
-
-## WorldPulse collector reliability
-- shallow checkout;
-- bounded retry/backoff for transport/429/5xx;
-- valid cache converts exhausted transient upstream failures to stale/no-refresh success;
-- malformed/inadequate successful data or no valid cache remains fatal.
+1. Restore the exact R21 summary-filter interaction over the existing canonical R11 filter state; do not create a second filter engine.
+2. Use the existing hidden R11 chip buttons as the authoritative state/action targets, and project them into R21 summaries + chooser.
+3. Keep the R21 Map renderer unchanged.
+4. Keep the single-path AI-to-Library correction unchanged.
+5. Keep AI POV simplification and Library geometry unchanged.
 
 ## Delivery process
 1. Re-fetch exact target blobs before each write.
-2. Update Plan and Graveyard before implementation.
-3. Remove the duplicate synthetic persistence path.
-4. Strengthen canonical auto-save verification.
-5. Preserve filters, R21 tiles, AI POV simplification, and Library geometry unchanged.
+2. Update Plan and Graveyard first.
+3. Add a dedicated R21-filter projection sidecar; no changes to canonical R11 state logic.
+4. Load that sidecar in R25 after the R11 document is hydrated.
+5. Mechanically verify the old `Filters / legend` rail is hidden, three R21 summary slots render, each chooser proxies canonical chip clicks, R21 Map patch SHA is unchanged, and existing Library/AI patches remain loaded.
 6. Publish via existing Pages and return the exact cache-busted URL. Owner device testing remains the acceptance gate.
