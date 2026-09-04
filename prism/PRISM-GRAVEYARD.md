@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v4.0.0 -->
-# PRISM GRAVEYARD v4.0.0
+<!-- PRISM-GRAVEYARD v4.0.1 -->
+# PRISM GRAVEYARD v4.0.1
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. Owner device testing is the functional acceptance gate. A forward release requires explicit owner approval.
@@ -7,7 +7,7 @@ Rejected work is evidence, not an implementation ancestor. Owner device testing 
 ## Clean lineage
 - canonical R11 blob `5d91e005940d632b74d6dd59a9aa0ae645c40433`
 - clean standalone R18/R14 donor blob `56ba6eb63bf27073399c471fde44164e16c3990f`
-- standalone R26 is the immediate source baseline for the explicitly authorized R27 ordinary diff.
+- standalone R26 is the active fallback baseline after R27 rollback.
 
 ## Permanent architecture veto
 - no iframe release;
@@ -41,10 +41,17 @@ Library-card Omnisearch is not a substitute for a search inside the selected Ana
 ### R26 fixed-row Map
 The `.r21Group` fixed grid with 92/96/104px rows and big/medium/small span classes is rejected. It produces oversized repetitive rectangles rather than NewsMap density.
 
+## Rejected R27 attempt
+Published commit `5a8306b4105b23a253148aa19386e4ee887f9d23` is rejected and rolled back from `main`.
+
+Failure was specific and mechanical: the ECharts treemap used `leafDepth:1` while PRISM data is group parent → article leaf. That setting rendered only the large group-parent rectangles, exactly matching the owner screenshot, and hid the actual article tiles. The locally validated direct correction is `leafDepth:2` with the rest of the approved R27 source unchanged. Embedded JavaScript syntax validation passed on that corrected standalone source.
+
+Do not use the rejected R27 blob as a forward ancestor. Retry from the exact standalone R26 baseline, reapply the approved R27 ordinary diff, and ensure article leaves are visible before publication.
+
 ## R27 Map reference contract
 `IJMacD/newsmap-js` is the visual and geometry reference only: packed variable-area rectangles, dense full-height surface, thin dark borders, compact white Arial/Helvetica text around 7pt base, approximately 1.1 line height, category/group color families, and clipping only for genuinely tiny rectangles. PRISM must implement this directly in its standalone source without importing the reference application's architecture.
 
-## Current R27 acceptance contract
+## Current R27 retry acceptance contract
 1. Analysis record/card exists with `processing` status before AI fetch begins.
 2. Same ID transitions to `ready` or `failed` and is re-read from IndexedDB.
 3. PRISM navigation remains usable while AI fetch is pending.
@@ -52,6 +59,6 @@ The `.r21Group` fixed grid with 92/96/104px rows and big/medium/small span class
 5. Library reading surface fills workspace; transcript scrolls; compose is pinned to its bottom.
 6. Complete research conversation is timestamped and retained on the same Analysis ID.
 7. Selected Analysis has independent top-right Omnisearch with negative exclusion and wildcarding.
-8. Map uses packed NewsMap-like variable width/height geometry with no fixed-row lattice.
+8. Map uses packed NewsMap-like variable width/height geometry with visible article leaves and no fixed-row lattice.
 9. R27 remains one standalone HTML source with no wrapper, sidecar, worker, runtime bootstrap, overlay patch, or alternate persistence engine.
 10. Any R28 or later forward change requires new explicit owner approval.
