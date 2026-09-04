@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T00:40:12Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T00:40:44Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -83,4 +83,37 @@ Both handsets write here. Drained 2026-09-04T00:40:12Z, every 30s. Newest at the
 00:40:04.926 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
 00:40:04.926 [android-z5t] joiner_create_control {"shown":true}
 00:40:05.390 [android-z5t] pb_pull_unchanged {"version":1000}
-00:40:05.533 [android-z5t] lc_invite_built {"room":"abpmy3","grant":false}```
+00:40:05.533 [android-z5t] lc_invite_built {"room":"abpmy3","grant":false}
+00:40:11.187 [android-z5t] n17_peer {"online":false,"others":0}
+00:40:11.651 [android-z5t] r8_name_msg {"type":"hello","name":"milo","had":"milo"}
+00:40:11.656 [android-z5t] history_sync_sent {"n":41}
+00:40:11.885 [android-z5t] r8_name_msg {"type":"call-start","name":"milo","had":"milo"}
+00:40:11.923 [android-z5t] cr3_os_notify_owned_by_relay {"room":"mtltqmgrabpmy3"}
+00:40:11.924 [android-z5t] call_ring {"room":"mtltqmgrabpmy3"}
+00:40:11.936 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:11.936 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+00:40:11.936 [android-z5t] joiner_create_control {"shown":true}
+00:40:14.238 [android-z5t] cr3_missed_pill {"room":"mtltqmgrabpmy3","callId":"call-start-1-1788482411737"}
+00:40:14.240 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:14.241 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:14.241 [android-z5t] joiner_create_control {"shown":true}
+00:40:14.254 [android-z5t] cr3_local_missed_pill_dropped {"room":"mtltqmgrabpmy3"}
+00:40:14.327 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:14.327 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:14.327 [android-z5t] joiner_create_control {"shown":true}
+00:40:17.027 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:17.027 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:17.027 [android-z5t] joiner_create_control {"shown":true}
+00:40:28.066 [android-z5t] n17_peer {"online":true,"others":1}
+00:40:37.071 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:37.072 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:37.072 [android-z5t] joiner_create_control {"shown":true}
+00:40:38.408 [android-z5t] cr3_attended {"on":false,"why":"blur"}
+00:40:38.408 [android-z5t] cr3_announce {"why":"blur","visible":false,"lanes":1}
+00:40:38.675 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:38.675 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:38.675 [android-z5t] joiner_create_control {"shown":true}
+00:40:38.951 [android-z5t] cr3_announce {"why":"hidden","visible":false,"lanes":1}
+00:40:39.198 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:40:39.199 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:40:39.200 [android-z5t] joiner_create_control {"shown":true}```
