@@ -179,16 +179,6 @@ async function vapidHeader(env, endpoint) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    /* N16 — SHARED DEVICE LOG. Both handsets write their log lines here, in
-       one place, in arrival order, so a mismatch between two devices can be
-       read directly instead of correlated by hand from two exports. Held in
-       one fixed room so every device lands in the same file; drained by the
-       repository workflow and committed to talkbridge/DEVICE-LOG.md. */
-    if (url.pathname === '/log') {
-      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
-      const id = env.TALK_SESSION.idFromName('tb::__devicelog__');
-      return env.TALK_SESSION.get(id).fetch(request);
-    }
     if (url.pathname !== '/signal') {
       return new Response('Not found', { status: 404, headers: cors() });
     }
@@ -499,32 +489,7 @@ export class TalkSession {
     await this._saveEvents();
   }
 
-  async _deviceLog(request) {
-    const url = new URL(request.url);
-    if (request.method === 'GET') {
-      const lines = (await this.state.storage.get('devlog')) || [];
-      return new Response(lines.join('\n'), { status: 200, headers: { ...cors(), 'Content-Type': 'text/plain' } });
-    }
-    if (request.method === 'DELETE') {
-      await this.state.storage.put('devlog', []);
-      return new Response('cleared', { status: 200, headers: cors() });
-    }
-    let body = null;
-    try { body = await request.json(); } catch (_) { return new Response('bad json', { status: 400, headers: cors() }); }
-    const dev = String(body.dev || '?').slice(0, 24);
-    const rows = Array.isArray(body.rows) ? body.rows.slice(0, 200) : [];
-    const lines = (await this.state.storage.get('devlog')) || [];
-    for (const r of rows) {
-      const at = new Date(r.t || Date.now()).toISOString().slice(11, 23);
-      lines.push(`${at} [${dev}] ${String(r.e || '').slice(0, 60)} ${JSON.stringify(r.d || {}).slice(0, 400)}`);
-    }
-    while (lines.length > 4000) lines.shift();
-    await this.state.storage.put('devlog', lines);
-    return new Response(JSON.stringify({ ok: true, n: lines.length }), { status: 200, headers: { ...cors(), 'Content-Type': 'application/json' } });
-  }
-
   async fetch(request) {
-    if (new URL(request.url).pathname === '/log') return this._deviceLog(request);
     await this.ready;
     await this._touchSession();
 
@@ -536,12 +501,6 @@ export class TalkSession {
       if (!clientId) return err('Missing client', 400);
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
-      /* N17 — PRESENCE FROM THE RELAY, NOT FROM TRAFFIC. Presence used to be
-         inferred on each device from messages happening to arrive, so a
-         partner who was connected but quiet went dark. The relay is the only
-         party that actually knows who is attached; it now says so on every
-         join and every leave. */
-      try { this._announcePeers(); } catch (_) {}
       pair[1].serializeAttachment({ clientId, sessionId });
       await this._noteDevice(clientId);
       return new Response(null, { status: 101, webSocket: pair[0] });
@@ -621,7 +580,6 @@ export class TalkSession {
     if (msg.type === 'hello') await this._noteDevice(clientId);
     /* A ping may carry the device's state so a hidden phone cannot be mistaken for a watching one. */
     if (msg.type === 'ping' && typeof msg.visible === 'boolean') this.states[clientId] = { visible: msg.visible, inRoom: msg.inRoom === true, muted: msg.muted === true, at: Date.now() };
-    if (msg.type === 'ev-state' || (msg.type === 'ping' && typeof msg.visible === 'boolean')) { try { this._announcePeers(); } catch (_) {} }
 
     if (!isTransient) {
       await this._persist(msg);
@@ -647,24 +605,7 @@ export class TalkSession {
     }
   }
 
-  /* Presence is one thing: is the other person LOOKING at it. Every device
-     already reports that on every state announcement and heartbeat; the relay
-     simply passes it on. No timers, no counting sockets, no grace. */
-  _announcePeers() {
-    const ids = [...this._connectedIds()];
-    for (const ws of this.state.getWebSockets()) {
-      const tag = ws.deserializeAttachment();
-      if (!tag || !tag.clientId) continue;
-      const others = ids.filter((i) => i !== tag.clientId);
-      const focused = others.some((i) => {
-        const st = this.states[i];
-        return !!(st && st.visible);
-      });
-      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused, others: others.length, at: Date.now() })); } catch (_) {}
-    }
-  }
-
-  async webSocketClose(ws, code, reason) { try { this._announcePeers(); } catch (_) {} }
+  async webSocketClose(ws, code, reason) {}
 
   async webSocketError(ws, error) {
     try { ws.close(1011, 'error'); } catch (_) {}
