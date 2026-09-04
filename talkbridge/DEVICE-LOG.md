@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T00:41:15Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T00:41:47Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -196,4 +196,72 @@ Both handsets write here. Drained 2026-09-04T00:41:15Z, every 30s. Newest at the
 00:40:54.768 [android-z5t] rc_panel_no_body {}
 00:40:54.938 [android-z5t] rib_layout_built {"moved":3,"of":3}
 00:40:55.357 [android-z5t] ft_unavailable {"stage":"wrapper","why":"script failed to load"}
-00:40:56.039 [android-z5t] r8_menu_labels {"applied":3,"of":3}```
+00:40:56.039 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:41:29.204 [android-z5t] n16_devlog {"dev":"android-z5t"}
+00:41:29.205 [android-z5t] nopw_swept {"fields":19,"changed":15}
+00:41:29.205 [android-z5t] nopw_swept {"fields":19,"changed":0}
+00:41:29.212 [android-z5t] p2_standalone {}
+00:41:29.229 [android-z5t] boot {"mode":"owner","rooms":1}
+00:41:29.232 [android-z5t] p3_perm_prop {"prop":"denied","gesture":false,"n":1}
+00:41:29.232 [android-z5t] cr3_armed {}
+00:41:29.233 [android-z5t] n13_ready {"share":false,"nativePip":true}
+00:41:29.244 [android-z5t] n15_scope_ok {"scope":"https://acmeproducts.github.io/stuff/talkbridge/"}
+00:41:29.245 [android-z5t] cr3_announce_window {"why":"boot"}
+00:41:29.245 [android-z5t] p3_sw_registered {"scope":"https://acmeproducts.github.io/stuff/talkbridge/"}
+00:41:29.285 [android-z5t] p4_sw_receipt {"ev":"app_announced","at":1788482449700,"room":null,"kind":null,"e":null}
+00:41:29.285 [android-z5t] p4_sw_drained {"n":1}
+00:41:29.385 [android-z5t] cr3_announce {"why":"pageshow","visible":true,"lanes":0}
+00:41:29.386 [android-z5t] cr3_recover {"why":"pageshow","n":1,"inRoom":false}
+00:41:29.503 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:41:29.504 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:41:29.504 [android-z5t] joiner_create_control {"shown":true}
+00:41:29.566 [android-z5t] listen_open {"room":"mtltqmgrabpmy3"}
+00:41:29.567 [android-z5t] cr3_lane_open {"room":"mtltqmgrabpmy3","explicit":false}
+00:41:29.602 [android-z5t] joiner_create_control {"shown":true}
+00:41:29.644 [android-z5t] p3_vapid {"got":true,"push":true}
+00:41:29.645 [android-z5t] p3_sub_failed {"name":"NotAllowedError","e":"Registration failed - permission denied","gesture":false}
+00:41:29.645 [android-z5t] p3_gesture_armed {}
+00:41:29.652 [android-z5t] lc_create_capture_wired {}
+00:41:29.703 [android-z5t] lc_boot_check {"grant":false,"expires":null,"cleared":false,"canCreate":true}
+00:41:29.704 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:41:29.704 [android-z5t] r8_flag_bands {"dressed":2}
+00:41:29.705 [android-z5t] r8_info_card_removed {}
+00:41:29.705 [android-z5t] r8_r8a_installed {}
+00:41:29.794 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:41:29.796 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:41:29.796 [android-z5t] joiner_create_control {"shown":true}
+00:41:29.799 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:41:29.799 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:41:29.800 [android-z5t] joiner_create_control {"shown":true}
+00:41:29.803 [android-z5t] net_armed {}
+00:41:29.804 [android-z5t] rm_share_merged_into_general {}
+00:41:29.804 [android-z5t] rm_manage_pane_built {}
+00:41:29.805 [android-z5t] rm_room_name_field_taken_over {}
+00:41:29.806 [android-z5t] rm_header_bg_picker_built {}
+00:41:29.807 [android-z5t] r8_r8b_init {}
+00:41:30.106 [android-z5t] rib_layout_built {"moved":3,"of":3}
+00:41:30.438 [android-z5t] ft_unavailable {"stage":"wrapper","why":"script failed to load"}
+00:41:31.147 [android-z5t] p3_perm_prop {"prop":"denied","gesture":true,"n":2}
+00:41:31.149 [android-z5t] rc_home_dismissed {"room":"mtltqmgrabpmy3","at":1,"opening":true}
+00:41:31.150 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+00:41:31.151 [android-z5t] gen_bump {"n":2,"r":"room_enter"}
+00:41:31.153 [android-z5t] seq_seeded {"was":0,"now":5,"from":126}
+00:41:31.240 [android-z5t] room_enter {"id":"mtltqmgrabpmy3","role":"creator"}
+00:41:31.240 [android-z5t] rc_waiting_cleared {"room":"mtltqmgrabpmy3","was":1}
+00:41:31.240 [android-z5t] r8_dismiss_threshold_reset {"room":"mtltqmgrabpmy3"}
+00:41:31.240 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+00:41:31.240 [android-z5t] joiner_entered {"room":"abpmy3","myLang":"en","theirLang":"es","role":"creator"}
+00:41:31.269 [android-z5t] p3_perm_answer {"answer":"denied","prop":"denied"}
+00:41:31.270 [android-z5t] r8_menu_labels {"applied":3,"of":3}
+00:41:31.571 [android-z5t] p3_vapid {"got":true,"push":true}
+00:41:31.578 [android-z5t] p3_sub_failed {"name":"NotAllowedError","e":"Registration failed - permission denied","gesture":true}
+00:41:31.581 [android-z5t] p3_n9_recipe_shown {"ios":false}
+00:41:31.607 [android-z5t] relay_open {"room":"mtltqmgrabpmy3"}
+00:41:31.607 [android-z5t] cr3_lane_open {"room":"mtltqmgrabpmy3","explicit":true}
+00:41:31.929 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:41:31.930 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+00:41:31.930 [android-z5t] joiner_create_control {"shown":true}
+00:41:31.933 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:41:31.933 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+00:41:31.933 [android-z5t] joiner_create_control {"shown":true}
+00:41:32.001 [android-z5t] pb_pull_unchanged {"version":1000}```
