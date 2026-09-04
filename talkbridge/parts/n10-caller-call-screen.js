@@ -52,14 +52,10 @@
     var r = _start.apply(this, arguments);
     return Promise.resolve(r).then(function (v) {
       if (!CALL.active || !CALL.caller) return v;
-      /* N19: mute the OUTGOING TRACK only. Routing this through toggleMic
-         also stopped transcription and announced a mic-state change, and at
-         call_start there are no senders yet, so the pipeline was torn down
-         before it was ever built. */
-      try {
-        (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = false; });
-        CALL.n10Muted = true;
-      } catch (_) {}
+      /* G42: the caller mute is GONE. It disabled the outgoing audio tracks
+         before the connection had them, and a restore that never ran left the
+         microphone dead for the whole call — the meter never moved. The call
+         screen and ring-back stay; muting the caller does not. */
       show(kind);
       L('n10_caller_screen', { kind: kind, micOn: CALL.micOn });
       return v;
@@ -72,14 +68,10 @@
     var r = _accepted.apply(this, arguments);
     if (wasCaller) {
       hide();
-      /* live on answer — restore the track and leave the app's own mic state,
-         transcription and mic-state signalling exactly as they were */
-      try {
-        if (CALL.n10Muted) {
-          (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = CALL.micOn !== false; });
-          CALL.n10Muted = false;
-        }
-      } catch (_) {}
+      /* G42: nothing to restore — the caller is never muted now. Any track this
+         build ever disabled is re-enabled here so a phone that ran the old code
+         is not left silent. */
+      try { (CALL.stream ? CALL.stream.getAudioTracks() : []).forEach(function (t) { t.enabled = true; }); } catch (_) {}
       CALL.startTs = Date.now();                                     /* B-8a: clock starts at the answer */
       L('n10_answered', { micOn: CALL.micOn, tracks: (CALL.stream ? CALL.stream.getAudioTracks().length : 0) });
     }

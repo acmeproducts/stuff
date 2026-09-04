@@ -19,7 +19,11 @@
     var others = (d && typeof d.others === 'number') ? d.others : 0;
     if (others > 0) {
       clearTimeout(dark); dark = null;
-      if (last !== true) { last = true; try { setPresence(true); } catch (_) {} try { if (typeof log === 'function') log('n17_peer', { online: true, others: others }, 'ok'); } catch (_) {} }
+      if (last !== true) { last = true; try { if (typeof log === 'function') log('n17_peer', { online: true, others: others }, 'ok'); } catch (_) {} }
+      /* refresh the app's OWN partner-seen clock. It arms a 75-second timer
+         that blanks the dot; setting presence true without refreshing that
+         timer let it win and the dot went dark with the partner still there. */
+      try { if (typeof touchPresence === 'function') touchPresence(); else setPresence(true); } catch (_) {}
       return;
     }
     if (dark) return;

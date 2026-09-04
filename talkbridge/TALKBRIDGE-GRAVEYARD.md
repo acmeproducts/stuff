@@ -1677,3 +1677,24 @@ of asking for another test round:
 Rule carried forward: when a report says a feature "does nothing", read the
 element lifecycle before asking for another device pass — testing is the most
 expensive step in this line, not the cheapest.
+
+## G42 — 2026-09-03 — Muting the caller at all
+
+Buried whole, not repaired: muting the caller's microphone while the call rings.
+It disabled the outgoing audio tracks at call start — before the connection had
+them — and the restore ran only on an answer path that does not always fire, so
+the microphone stayed dead for the entire call and the level meter never moved.
+Owner: "the microphone on Android does not emit the green, it is not hearing
+anything." The call screen and ring-back stay; the mute is gone, and this build
+re-enables any track an earlier version left disabled. Rule: never disable a
+capture track for a presentation effect.
+
+## G43 — 2026-09-03 — Two authorities for one indicator
+
+Buried: setting presence from the relay's peer signal while the app's own
+`touchPresence` timer still ran. That timer blanks the dot 75 seconds after the
+last message ARRIVES from the partner; the peer signal set the dot true but
+never refreshed the timer, so the timer won and the dot went dark with the
+partner still attached. Whichever signal is authoritative must refresh the
+other's clock, or an indicator ends up with two owners and the stricter one
+always wins.

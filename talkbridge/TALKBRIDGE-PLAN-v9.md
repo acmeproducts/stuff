@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.45.0 -->
-# TALKBRIDGE MASTER PLAN v20.45.0
+<!-- TALKBRIDGE-PLAN v20.46.0 -->
+# TALKBRIDGE MASTER PLAN v20.46.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -1926,6 +1926,19 @@ Green means allowed to push. It never means done.
 ---
 
 ## 10 · CHANGE LOG
+
+**v20.46.0 · 2026-09-03.** Two faults, both mine, both removed at the source.
+**G42 — Android microphone dead.** The caller mute disabled the outgoing audio
+tracks at call start, before the connection held them, and its restore ran on a
+path that does not always fire — so the microphone stayed off for the whole
+call and the level meter never moved. The mute is buried whole rather than
+repaired; the call screen and ring-back remain. This build also re-enables any
+track an earlier version left disabled, so a phone that ran that code is not
+left silent.
+**G43 — presence still dark.** The peer signal set the dot true but never
+refreshed the app's own partner-seen clock, whose 75-second timer then blanked
+it while the partner was still attached. Two owners, and the stricter one won.
+The peer signal now refreshes that clock.
 
 **v20.45.0 · 2026-09-03.** The owner's report of "PiP flip does not work" and
 "regression on audio" traced to ONE function by reading the code, not by asking
