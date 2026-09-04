@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T00:43:22Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T00:43:54Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -471,4 +471,44 @@ Both handsets write here. Drained 2026-09-04T00:43:22Z, every 30s. Newest at the
 00:43:18.379 [android-z5t] cr3_local_missed_pill_dropped {"room":"mtltqmgrabpmy3"}
 00:43:18.453 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 00:43:18.453 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
-00:43:18.453 [android-z5t] joiner_create_control {"shown":true}```
+00:43:18.453 [android-z5t] joiner_create_control {"shown":true}
+00:43:20.415 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:20.415 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
+00:43:20.416 [iphone-7of] joiner_create_control {"shown":false}
+00:43:28.921 [android-z5t] r8_name_msg {"type":"sys-pill","name":"lolo","had":"milo"}
+00:43:28.932 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:28.933 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:43:28.934 [android-z5t] joiner_create_control {"shown":true}
+00:43:29.467 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:29.469 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:43:29.472 [android-z5t] joiner_create_control {"shown":true}
+00:43:39.948 [iphone-7of] joiner_send_direction {"room":"abpmy3","from":"es","to":"en","role":"joiner"}
+00:43:41.138 [android-z5t] r8_name_msg {"type":"chat-msg","name":"lolo","had":"lolo"}
+00:43:41.157 [android-z5t] read_receipts_sent {"n":1}
+00:43:41.157 [android-z5t] chat_rx {"t":"hola amigo"}
+00:43:41.163 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:41.164 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:43:41.165 [android-z5t] joiner_create_control {"shown":true}
+00:43:40.416 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:40.416 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
+00:43:40.417 [iphone-7of] joiner_create_control {"shown":false}
+00:43:40.980 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:40.980 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
+00:43:40.981 [iphone-7of] joiner_create_control {"shown":false}
+00:43:40.987 [iphone-7of] chat_sent {"t":"hola amigo"}
+00:43:41.392 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:41.393 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:43:41.394 [android-z5t] joiner_create_control {"shown":true}
+00:43:47.667 [iphone-7of] cr3_attended {"on":false,"why":"blur"}
+00:43:47.667 [iphone-7of] cr3_announce {"why":"blur","visible":false,"lanes":1}
+00:43:47.668 [iphone-7of] cr3_announce {"why":"hidden","visible":false,"lanes":1}
+00:43:47.905 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:47.906 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
+00:43:47.907 [iphone-7of] joiner_create_control {"shown":false}
+00:43:47.907 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:47.907 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
+00:43:47.907 [iphone-7of] joiner_create_control {"shown":false}
+00:43:49.501 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+00:43:49.504 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+00:43:49.506 [android-z5t] joiner_create_control {"shown":true}
+00:43:51.697 [android-z5t] n17_peer {"online":true,"others":1}```
