@@ -1,0 +1,54 @@
+name: SOT Turn 01 Base installer qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sot-installer-qualification.yml'
+      - 'install-SOT-turn01-base.sh'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify-installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse and pin audit
+        run: |
+          set -euo pipefail
+          bash -n install-SOT-turn01-base.sh
+          for marker in \
+            "QUALIFIED_COMMIT='141de8b2a46d705848462365473447e7e0827f45'" \
+            "QUALIFICATION_RUN='33919314140'" \
+            "PRE_UI='7a377c27e1ac078510b9d1e4fe66da4f997f25f3'" \
+            "PRE_API='9422453c180f8fce4e7d5fe362867912dc8005d1'" \
+            "EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'" \
+            "EXPECTED_SCHEMA=5" \
+            "TURN 01 BASE READY FOR OWNER TEST" \
+            "PUBLIC_IDENTITY" \
+            "ROLLBACK"; do
+            grep -Fq "$marker" install-SOT-turn01-base.sh || { echo "missing installer contract: $marker"; exit 1; }
+          done
+          echo 'PASS installer parse and qualified-source pins'
+      - name: Verify immutable release inputs resolve
+        run: |
+          set -euo pipefail
+          raw=https://raw.githubusercontent.com/acmeproducts/stuff
+          urls=(
+            "$raw/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js"
+            "$raw/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py"
+            "$raw/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py"
+            "$raw/7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html"
+            "$raw/603e8a331b13b72a097e9ebb9640e33707279777/integrate-SOT-turn01-base22-ui.py"
+            "$raw/083aa1334208b1e6995fa18852e82722a815f331/integrate-SOT-turn01-base24-ui.py"
+            "$raw/5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/integrate-SOT-turn01-coordination.py"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/integrate-SOT-turn01-coordination2.py"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/integrate-SOT-turn01-coordination-ui.py"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/integrate-SOT-turn01-coordination2-ui.py"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/sot-worker.js"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/sot-coordinator.js"
+            "$raw/141de8b2a46d705848462365473447e7e0827f45/sot-db/migrations/005-project-coordination.sql"
+          )
+          for u in "${urls[@]}"; do curl --retry 3 --retry-all-errors -fsSL "$u" -o /dev/null; done
+          echo 'PASS immutable release inputs resolve'
