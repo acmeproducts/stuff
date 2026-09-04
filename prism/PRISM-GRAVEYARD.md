@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v3.3.0 -->
-# PRISM GRAVEYARD v3.3.0
+<!-- PRISM-GRAVEYARD v3.4.0 -->
+# PRISM GRAVEYARD v3.4.0
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. Owner device testing is the functional acceptance gate; mechanical checks do not substitute for acceptance.
@@ -12,117 +12,74 @@ Rejected work is evidence, not an implementation ancestor. Owner device testing 
 - Status: **WORKING BASELINE**
 
 ## Standing vetoes
-- No synthesized rollback when an exact working artifact exists.
-- No PRISM-specific temporary GitHub Actions/recovery workflow as the normal publishing mechanism.
-- No WSL/repository orchestration architecture for this static browser application.
-- No whole-repository rollback in the shared repository.
-- No unrelated redesign while correcting governed defects.
-- No removal of established functionality to fix one surface.
-- No metadata-only source-add success claim.
-- No Library state that loses Omnisearch, Analysis-list access, selected detail, or Research web continuation on mobile.
-- No Library implementation where DOM cards are the persistence source of truth.
-- No heuristic matching of provider results to an in-process card; every run binds to its own durable Analysis ID.
+- No unrelated redesign while correcting a governed defect.
+- No removal/regression of accepted R21 Map tile behavior during AI/Library work.
+- No duplicate evidence representations in AI POV when they represent the same selected events.
+- No separate Evidence packet list duplicating Selected evidence.
+- No duplicate editable provider/model/API-key configuration in AI POV; configuration belongs in Config.
 - No Add/Save-to-Library step after Run Analysis.
-- No iframe, nested-wrapper, or runtime baseline-fetch candidate as a legitimate release.
-- No Explore implementation that creates/transforms one DOM object per event across the full corpus.
-- No hidden Map/Explore/Feed rerender fan-out during ordinary interaction.
-- No unselected Source group under an active Source filter.
-- No disappearing Group/Color/Size filter slot when roles share a dimension.
-- No claim that syntax/DOM assertions prove UX acceptance.
-- No stacked full-width `Attach` + `Research web` controls in a Library Analysis pane.
-- No compose strip that overlays, occludes, or steals the scrollable height required by the Analysis transcript.
-- No scheduled collector that converts a recoverable upstream network timeout into repeated failure notifications while a valid cached dataset exists.
-- No full-history repository checkout for a frequent data collector that only requires the current tree.
+- No heuristic result-to-card matching; one run owns one durable Analysis ID through completion.
+- No claim that an AI run is complete unless its Analysis record is actually present/readable in Library.
+- No Library detail height derived from Analysis-card count/content height.
+- No stacked full-width Attach/Research controls; composer is paperclip + text + send.
+- No compose strip that overlays or steals transcript reading height.
+- No iframe/nested-wrapper/runtime baseline-fetch candidate as a legitimate release.
+- No full-corpus Explore DOM cloud or hidden rerender fan-out.
+- No unselected Source group under active Source filtering.
+- No scheduled collector converting recoverable upstream timeout into repeated failure notifications while valid cache exists.
 
 ## Rejected lineage
-### R6–R10
-Historical correction artifacts only. Their individual findings remain evidence.
+### R6–R20
+Historical evidence only. R17 temporary release machinery is specifically rejected. R18 was an invalid alias. R19–R20 were wrapper experiments.
 
-### R12
-Superseded after mobile readability and three-slot filter defects were found.
+### R21 — accepted Map donor
+R21 itself is an experimental wrapper, but its Map renderer is frozen accepted behavior: adaptive readable tile sizing, tight group headings, group click focus, adjacent × restore, fixed dimension-control widths, and font fitting/no large-tile truncation. Later work must not regress it.
 
-### R13
-Rejected for treemap readability, distant filter interaction and research-workflow defects.
+### R22–R24 — rejected Library ancestry
+R22 hid the Analysis rail. R23/R24 relied on nested runtime lineage, competing CSS/handlers, side-effect persistence and/or heuristic provider-result association. Evidence only.
 
-### R14
-Rejected in owner device testing because open-Analysis mobile state lost immediate Omnisearch access, the continuation/current-web action was not visible, and inherited Explore froze.
+### R25 — repeated AI/Library regression cycle
+Owner testing across successive R25 patches exposed multiple failures that must be treated as one systemic regression class rather than isolated CSS bugs.
 
-### R15–R16
-Rejected. They did not preserve the intended application closely enough.
+**A. Compose geometry failure**
+- Attachment and Research web became stacked large controls.
+- Transcript did not own the full remainder or guarantee a reachable bottom.
+- Root cause: inherited composer rules were patched incrementally rather than establishing one authoritative three-row Library stage and compact composer contract.
 
-### Failed R17 release mechanism
-Rejected before application publication. Temporary GitHub Actions release machinery failed and was removed. Do not retry it.
+**B. Detail surface gated by card/list content**
+- Right Analysis surface height visually tracked the left card stack instead of filling the Library workspace.
+- Root cause: `height:100%` was applied inside an ancestor layout whose available height was content-derived; the detail pane lacked an independent full-workspace sizing contract.
 
-### R18
-Invalid release alias: byte-for-byte reuse of rejected R14 application content under a new release name.
+**C. R21 Map regression during Library work**
+- Accepted R21 tile behavior disappeared when a later candidate returned to R11 and applied Library patches without porting the accepted Map renderer.
+- Root cause: accepted donor behavior was documented but not treated as a frozen regression gate. A feature correction was allowed to change ancestry/surface composition without checking the accepted Map contract.
+- Permanent rule: AI/Library work may not touch the R21 Map patch/render path; candidate is rejected if tile behavior differs.
 
-### R19–R20
-Experimental wrapper/runtime patches. Useful Map/Explore evidence only; not governed ancestors.
+**D. AI POV redundancy returned**
+- Selected evidence and Evidence packet display the same underlying events; one merely adds URLs.
+- Provider/model controls also returned to AI POV despite configuration already living in Config.
+- Root cause: inheriting R11 AI POV wholesale reintroduced controls/content that earlier releases had intentionally removed, and subsequent patches targeted Library/Map without reapplying the simplified AI contract.
+- Permanent rule: one Selected evidence list only; URLs live under per-item chevrons; provider/model/key editing exists only in Config.
 
-### R21
-Experimental wrapper. Owner accepted visible Map tile sizing, group-heading proximity, group-click focus/adjacent × restore behavior and fixed dimension-control sizing. Port behavior only.
-
-### R22
-Rejected Library direction because opening an Analysis hid the Library Analysis rail.
-
-### R23
-Rejected architecture despite closer visual direction. Nested rejected runtime lineage and no authoritative IndexedDB Analysis model.
-
-### R24
-Rejected structurally unusable Library implementation.
-- Nested runtime chain and competing documents/CSS/handlers.
-- IndexedDB side-effect writes rather than authoritative hydration model.
-- Synthetic and existing cards used different paths.
-- Provider result association was heuristic instead of exact Analysis-ID binding.
-- Portrait behavior remained vulnerable to overlapping mobile CSS.
-
-### R25 — partial improvement, compose geometry rejected
-Owner portrait test on 2026-09-03 showed meaningful improvement in persistent Library master/detail visibility, card selection and Analysis rendering, but exposed a new concrete layout failure.
-
-**Observed defect**
-- Attachment rendered as a large full-width `Attach` button.
-- Research continuation rendered as a second large full-width `Research web` button.
-- Together with the textarea these controls occupied/overlaid a large portion of the Analysis pane.
-- The Analysis transcript did not behave as the sole flex/grid remainder with an independently reachable bottom, so the composer visibly occluded useful reading area and did not guarantee that the final transcript content could be scrolled clear of it.
-
-**Root cause**
-- R25 inserted attachment as an additional button into the inherited composer without redefining the composer as a compact horizontal chat-control row.
-- Its CSS made `.libraryStage` a three-row grid but retained inherited composer layout rules and used `position:sticky`; the new attachment button and existing full-width action therefore participated as stacked controls instead of fixed-width edge icons.
-- The transcript had `overflow:auto` but no explicit composer-aware bottom scroll padding/final-layout scroll guarantee. The result was nominal scrolling without a reliable unobstructed terminal reading position.
-- R25 itself is also a runtime bootstrap-fetch wrapper over R11, so it remains evidence rather than a legitimate standalone release.
-
-**Permanent correction rule**
-- Composer is one horizontal row: paperclip icon left, expanding textarea center, send icon right; labels are accessible names/tooltips, not large visible buttons.
-- Transcript is `minmax(0,1fr)`, independently scrollable, has bottom scroll padding, and is scrolled after rendered Markdown settles.
-- Pending attachment names may add a compact secondary line only when needed.
+**E. AI completion still not verifiably entering Library**
+- Owner can see completed AI output in AI POV but cannot find/select the corresponding completed Analysis in Library, so Library layout/continuation cannot be acceptance-tested.
+- Earlier implementation created an `in_process` IndexedDB record but completion depended on hidden legacy Save Analysis behavior; later MutationObserver patch attempted direct persistence but still did not produce a device-verifiable Library record.
+- Root cause class: persistence was attached as an observer/sidecar to legacy AI output rather than making the Analysis record the authoritative run object whose state transition drives both AI POV output and Library projection.
+- Permanent rule: Run Analysis creates ID → provider execution belongs to ID → provider result writes ID → Library list hydrates ID. No Save click, no guessed record, no observer-only completion contract. An analysis is not considered complete until `get(id)` returns the completed record and the Library projection can select/render it.
 
 ## WorldPulse collector failure / repeated GitHub email root cause
-Observed recurring `WorldPulse data collector / collect` failures are not an email-system defect.
-
-**Trigger chain**
-1. `.github/workflows/worldmood-collector.yml` is scheduled every 15 minutes.
-2. Checkout uses `fetch-depth: 0`, so every run unnecessarily retrieves full repository/branch history before collection.
-3. `worldmood-collector.py:get_json()` makes GDELT HTTPS requests with a single `urllib.request.urlopen(..., timeout=45)` attempt.
-4. A GDELT TLS/SSL handshake timeout propagates as an unhandled exception from the GKG path.
-5. Python exits non-zero; the collect job fails; GitHub produces annotations/failure notification email.
-6. Because the schedule repeats every 15 minutes, intermittent upstream failures create repeated inbox noise.
-
-**Deep-request failure classification**
-- GDELT GKG and DOC are remote dependencies and may time out, reset TLS, throttle, or return temporary 5xx/429 responses independently of PRISM/WorldPulse correctness.
-- `quality_titles()` already catches its DOC failure and degrades to an empty title supplement, but the primary `gkg()` request has no equivalent retry/fallback boundary.
-- The primary data request therefore has stricter fatal behavior than the optional enrichment request, despite an existing rolling history/index being specifically designed to preserve recent valid data.
-
-**Permanent correction rule**
-- Bounded retry/backoff for transient transport/429/5xx errors.
-- Valid cached WorldPulse history/index means exhausted transient upstream retries become `stale/cache retained` and successful no-op execution, not workflow failure.
-- No valid cache, malformed response, too-small mapped pull after a successful upstream response, or window-integrity failure remains fatal.
-- Frequent workflow uses shallow checkout; only bounded history needed for a rebase is fetched at commit time.
+- Workflow runs every 15 minutes.
+- Historical `fetch-depth:0` unnecessarily fetched full repository history.
+- GDELT GKG HTTPS TLS/SSL timeout propagated as fatal while optional DOC enrichment degraded differently.
+- Repetition created GitHub failure-email noise.
+- Permanent rule: shallow checkout; bounded retry/backoff; valid cache converts exhausted transient upstream failures to stale/no-refresh success; malformed/inadequate successful data or no valid cache remains fatal.
 
 ## Current correction contract
-1. Library: authoritative IndexedDB master/detail; compact icon compose strip; independently scrollable full-height transcript; exact Analysis-ID lifecycle.
-2. Explore: lightweight cardinality-driven clustering, no transformed full-corpus cloud.
-3. Source/filter: truthful ingestion and stable defaults.
-4. Map/mobile: port owner-accepted R21 behavior without wrapper ancestry.
-5. WorldPulse: shallow scheduled checkout plus retry/cache-retention handling for transient GDELT failures while preserving hard integrity failures.
+1. **Map:** frozen R21 tile behavior.
+2. **AI POV:** one evidence list; each item has chevron-disclosed direct URL/coverage; no duplicate editable provider/model/key block.
+3. **Persistence:** exact durable Analysis ID from run start through provider completion; completed record must be immediately Library-readable.
+4. **Library:** left Analysis rail + full-height independent right detail; transcript fills/scrolls remainder; compact sticky paperclip/text/send compose strip; send performs current-web research using complete Analysis context and appends to same ID.
+5. **Explore/Source:** lightweight clustering and truthful source filtering/ingestion.
+6. **WorldPulse:** transient network resilience without suppressing genuine integrity failures.
 
-The next legitimate PRISM candidate begins from exact standalone R11 and implements corrections directly. R18–R25 may supply behavioral evidence only.
+No further PRISM candidate should be advanced by fixing one item while regressing another item in this contract.
