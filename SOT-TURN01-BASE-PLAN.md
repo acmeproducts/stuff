@@ -1,8 +1,8 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** ACTIVE — COORDINATION REBUILD AFTER OWNER REJECTION  
-**Date:** 2026-09-03
+**Status:** REPOSITORY QUALIFIED — HOST CUTOVER / LIVE QUALIFICATION PENDING  
+**Date:** 2026-09-04
 
 ## Recovery anchor
 
@@ -12,7 +12,8 @@
 - Canonical AI/storage-default integrator: `5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py`.
 - Canonical target remains `SOT/SOT-turn01-base.html`.
 - 2026-09-02 coordination failure remains rejected evidence: `SOT/archive/2026-09-02-turn01-coordination-owner-rejection/` / `GY-019.md`.
-- 2026-09-03 build `2026.09.03.sot-turn01-coordination-1` is also REJECTED evidence only. Owner gate failed 1, 3, 4, 5, 6 and 7; only same-project conflict blocking passed. Record: `SOT/archive/2026-09-03-turn01-coordination-owner-rejection/GY-020.md`.
+- 2026-09-03 build `2026.09.03.sot-turn01-coordination-1` is REJECTED evidence only. Owner gate failed 1, 3, 4, 5, 6 and 7; only same-project conflict blocking passed. Record: `SOT/archive/2026-09-03-turn01-coordination-owner-rejection/GY-020.md`.
+- The current qualified coordination delta is pinned by commit `141de8b2a46d705848462365473447e7e0827f45`; it is always regenerated from the clean lineage above and is not descended from either rejected runtime.
 
 ## Governance
 
@@ -23,6 +24,8 @@
 5. Rollback is SOT-scoped. Never rewind unrelated repository projects merely to recover SOT.
 6. The owner is the browser/device product tester. Mechanical QA must remove mechanically reproducible failures before owner testing.
 7. No forward feature work until coordination, observability, durable evidence/plan state, and UI reconciliation pass executable behavioral gates.
+
+Prechange state for this qualification/release transition is archived at `SOT/archive/2026-09-04-1405-turn01-base-executable-qualification/ARCHIVE-MANIFEST.md`.
 
 ## Base product contract
 
@@ -71,8 +74,31 @@ The exact generated candidate must be started against a disposable schema-5+ dat
 
 A qualification workflow that merely searches generated source for these mechanisms is a failed qualification and must not emit readiness.
 
+## 2026-09-04 executable qualification result
+
+The repository-side candidate generated from the governed clean lineage passed the executable qualification workflow on commit `141de8b2a46d705848462365473447e7e0827f45`.
+
+- GitHub Actions run: `33919314140`.
+- Gates 1-8: PASS.
+- Gate 9 real Chromium operator-state reconciliation: PASS.
+- Gate 10 parse/schema/protected Base product-contract floor: PASS.
+- No rejected generated runtime was used as an implementation ancestor.
+
+The canonical installer was then rebuilt to generate the same qualified candidate from those immutable inputs rather than installing the prior service-surface HTML. Installer repository qualification run `33919588171` passed Bash parsing, qualified-source pin checks, and resolution of every immutable release input.
+
+## Current release boundary
+
+Repository qualification is complete. The only remaining Base handoff boundary is the WSL host installer run. The canonical installer now:
+
+- archives the current SOT runtime/database before cutover;
+- regenerates backend and UI from the qualified clean lineage;
+- dry-runs schema 5 migration against a database copy;
+- performs an SOT-scoped cutover with automatic rollback on any later failure;
+- independently verifies live build/schema/capability, database integrity, public HTTP readback, byte identity, and public JavaScript parse;
+- emits owner-test readiness only after those live host gates pass.
+
 ## Handoff rule
 
-Owner testing occurs only after all executable gates above pass on the exact candidate and the canonical public URL serves byte-identical qualified UI. The WSL installer must independently verify live health/schema/public identity and rollback on failure.
+Owner testing occurs only after all executable repository gates above pass on the exact candidate and the canonical public URL serves byte-identical qualified UI. The WSL installer must independently verify live health/schema/public identity and rollback on failure.
 
-Until then there is **no test URL for owner action**. Build `2026.09.03.sot-turn01-coordination-1` is rejected evidence, not a baseline.
+Repository qualification has passed. **No owner test URL is declared qualified until the WSL installer completes successfully and prints `=== TURN 01 BASE READY FOR OWNER TEST ===`.**
