@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-04T21:46:43Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-04T21:47:15Z, every 30s. Newest at the bottom.
 
 ```
 00:39:56.765 [android-z5t] n16_devlog {"dev":"android-z5t"}
@@ -3671,4 +3671,11 @@ Both handsets write here. Drained 2026-09-04T21:46:43Z, every 30s. Newest at the
 21:46:23.487 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 21:46:23.487 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
 21:46:23.488 [android-z5t] joiner_create_control {"shown":true}
-21:46:27.102 [android-z5t] p1_peer {"others":0}```
+21:46:27.102 [android-z5t] p1_peer {"others":0}
+21:46:43.557 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+21:46:43.557 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+21:46:43.557 [android-z5t] joiner_create_control {"shown":true}
+21:46:57.290 [android-z5t] p1_peer {"others":0}
+21:47:03.500 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
+21:47:03.500 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
+21:47:03.505 [android-z5t] joiner_create_control {"shown":true}```
