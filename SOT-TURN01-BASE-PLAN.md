@@ -1,7 +1,7 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** SINGLE-SURFACE REBUILD IN EXECUTABLE QUALIFICATION — QUALIFIED BACKEND RETAINED  
+**Status:** REPOSITORY QUALIFIED — SINGLE-SURFACE HOST CUTOVER / LIVE QUALIFICATION PENDING  
 **Date:** 2026-09-04
 
 ## Recovery anchor
@@ -123,20 +123,23 @@ The replacement directly exposes on every selected project:
 
 The canonical installer no longer regenerates the rejected old UI. It retains the exact qualified coordination backend generation and fetches the immutable single-surface UI bytes directly from the pinned UI commit. It archives prechange host state, dry-runs schema 5 migration, performs SOT-scoped rollback on failure, verifies live backend capabilities and database integrity, then requires byte-identical public serving and public JavaScript parse before declaring owner-test readiness.
 
-Single-surface executable browser qualification is tracked by `.github/workflows/sot-single-surface-qualification.yml`. Installer source/generation qualification is tracked by `.github/workflows/sot-single-surface-installer-qualification.yml`. Their passing run IDs must be recorded here before publication to `main`.
+## Single-surface executable qualification result
+
+- **Exact single-surface product contract + real polling/browser reconciliation:** PASS on run `33939713809`, workflow commit `a4f591e518a68aa75142e12cfd224a14607a2aa0`. The harness serves the exact `SOT-turn01-base.html` bytes, proves the six-step continuous surface, proves rejected step tabs are absent, drives the real 3-second polling path from 7 to 77 discovered files, and preserves selected project, Omnisearch text, open Target picker, focused edit value and workspace scroll.
+- **Canonical single-surface installer parse/structural audit + exact backend/UI reproduction:** PASS on run `33939770142`, installer commit `4ac083ae09eb67672738be51c76f405516497080`. The installer reproduces the qualified coordination backend, fetches the immutable single-surface UI commit `14d9f9670e1520668fab6786642e0abadc332faa`, validates both JavaScript artifacts, rejects the old UI generation chain, and retains host archive/migration/rollback/live/public-identity gates.
+
+Repository qualification for the replacement is complete.
 
 ## Current release boundary
 
-The backend/coordination foundation is already mechanically and live qualified. The remaining release boundary is:
+The backend/coordination foundation and the replacement single-surface repository candidate are mechanically qualified. The remaining release boundary is:
 
-1. pass the new exact single-surface browser/reconciliation qualification;
-2. pass the canonical single-surface installer source/generation qualification;
-3. publish the governed SOT changes onto the then-current `main` without overwriting unrelated newer work;
-4. execute the immutable canonical installer on the WSL host;
-5. require the installer to verify live health/schema/database/public byte identity and print `=== TURN 01 BASE READY FOR OWNER TEST ===`.
+1. publish the governed SOT changes onto the then-current `main` without overwriting unrelated newer work;
+2. execute the immutable canonical installer on the WSL host;
+3. require the installer to verify live health/schema/database/public byte identity and print `=== TURN 01 BASE READY FOR OWNER TEST ===`.
 
 ## Handoff rule
 
 Owner testing occurs only after the exact single-surface candidate passes executable repository gates and the canonical public URL serves byte-identical qualified UI. The WSL installer independently verifies live health/schema/public identity and rolls back on failure.
 
-**No replacement owner test URL is declared qualified until the single-surface repository gates pass and the WSL installer completes successfully.**
+**No replacement owner test URL is declared qualified until the WSL installer completes successfully.**
