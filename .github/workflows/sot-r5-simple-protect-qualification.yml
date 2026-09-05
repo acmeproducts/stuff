@@ -1,0 +1,41 @@
+name: SOT R5 simple protect qualification
+on:
+  push:
+    branches: [sot-turn01-base-r5-simple-protect]
+    paths:
+      - 'SOT-turn01-base.html'
+      - '.github/workflows/sot-r5-simple-protect-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Parse and product contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('SOT-turn01-base.html').read_text()
+          for m in ['SOT-turn01-base-r5-simple-protect','1. My files','2. What SOT found','3. Safe copies','4. Review & protect','5. Result','Protect my files','Exactly where the copies go','Previous attempt failed:','Details / diagnostics','Target copy','Backup copy']:
+              assert m in h,m
+          assert 'protectedCount=Math.max' not in h
+          assert 'fullyProtected=indexed&&targetMissing===0&&backupMissing===0' in h
+          scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)
+          Path('/tmp/ui.js').write_text('\n;\n'.join(scripts))
+          PY
+          node --check /tmp/ui.js
+      - name: Mobile surface smoke
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright-core@1.55.0 >/dev/null
+          cat > /tmp/test.js <<'NODE'
+          const {chromium}=require('playwright-core'),fs=require('fs'),assert=require('assert');
+          (async()=>{const exe=fs.existsSync('/usr/bin/google-chrome')?'/usr/bin/google-chrome':'/usr/bin/google-chrome-stable';const b=await chromium.launch({headless:true,executablePath:exe,args:['--no-sandbox']});const p=await b.newPage({viewport:{width:390,height:844}});const html=fs.readFileSync('SOT-turn01-base.html','utf8');await p.route('http://sot.test/**',r=>{let u=new URL(r.request().url),q=u.pathname.replace('/api/sot',''),x={};if(u.pathname==='/')return r.fulfill({status:200,contentType:'text/html',body:html});if(q==='/projects')x=[{project_token:'A',project_name:'Photos',size_bytes:1000,files_discovered:10,evidence_revision:3,status:'Closed'}];else if(q==='/turn01/projects/A')x={sources:[{normalized_path:'/source/photos'}]};else if(q==='/turn01/projects/A/storage')x={target_root:'/target/safe',backup_root:'/backup/safe'};else if(q==='/projects/A/fingerprint/status')x={state:'Closed'};else if(q==='/turn01/projects/A/review')x={files:10,bytes:1000,unique_content:9,duplicate_bytes:100,target_missing_content:9,backup_missing_content:9,evidence_revision:3};else if(q==='/turn01/projects/A/plan')x={state:'draft',evidence_revision:3,totals:{target_files:9,backup_files:9,target_bytes:900,backup_bytes:900}};else if(q.startsWith('/activity'))x={events:[{event_type:'execution.error',created_at:'now',detail_json:'{"error":"Destination unavailable"}'}]};else x={ok:true};return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(x)})});await p.goto('http://sot.test/');await p.waitForSelector('#protect[open]');assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);let txt=await p.locator('#protect').innerText();for(const s of ['/target/safe','/backup/safe','Previous attempt failed','Destination unavailable','Protect my files'])assert(txt.includes(s),s);assert.equal(await p.locator('#details').getAttribute('open'),null);await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+          node /tmp/test.js
