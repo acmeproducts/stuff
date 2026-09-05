@@ -1,0 +1,69 @@
+name: SOT Turn 01 single-surface installer qualification
+on:
+  push:
+    branches: [sot-turn01-single-surface-r2]
+    paths:
+      - 'install-SOT-turn01-base.sh'
+      - '.github/workflows/sot-single-surface-installer-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify-installer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Parse and structural audit
+        run: |
+          set -euo pipefail
+          bash -n install-SOT-turn01-base.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('install-SOT-turn01-base.sh').read_text()
+          required=[
+            "QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'",
+            "SINGLE_UI_COMMIT='14d9f9670e1520668fab6786642e0abadc332faa'",
+            "EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'",
+            "EXPECTED_SCHEMA=5",
+            'SOT-turn01-base-single-surface-r2','Scope / Storage','Activity / Diagnostics',
+            'PUBLIC_IDENTITY','MIGRATION_DRY_RUN','ROLLBACK','TURN 01 BASE READY FOR OWNER TEST'
+          ]
+          for marker in required: assert marker in s,marker
+          assert 'UI22=' not in s
+          assert 'UI24=' not in s
+          assert 'UIAI=' not in s
+          assert 'integrate-SOT-turn01-coordination-ui.py' not in s
+          PY
+      - name: Reproduce exact backend and UI candidate
+        run: |
+          set -euo pipefail
+          raw=https://raw.githubusercontent.com/acmeproducts/stuff
+          backend=b58920f014960c9b18b705a0fdcf0406c621fd5f
+          curl --retry 5 --retry-all-errors -fsSL "$raw/9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js" -o /tmp/pre.js
+          curl --retry 5 --retry-all-errors -fsSL "$raw/1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py" -o /tmp/base.py
+          curl --retry 5 --retry-all-errors -fsSL "$raw/1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py" -o /tmp/base22.py
+          curl --retry 5 --retry-all-errors -fsSL "$raw/$backend/integrate-SOT-turn01-coordination.py" -o /tmp/coord.py
+          curl --retry 5 --retry-all-errors -fsSL "$raw/$backend/integrate-SOT-turn01-coordination2.py" -o /tmp/coord2.py
+          python3 /tmp/base.py /tmp/pre.js /tmp/base3.js
+          python3 /tmp/base22.py /tmp/base3.js /tmp/base22.js
+          python3 /tmp/coord.py /tmp/base22.js /tmp/c1.js
+          python3 /tmp/coord2.py /tmp/c1.js /tmp/sot-api.js
+          node --check /tmp/sot-api.js
+          curl --retry 5 --retry-all-errors -fsSL "$raw/14d9f9670e1520668fab6786642e0abadc332faa/SOT-turn01-base.html" -o /tmp/ui.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('/tmp/ui.html').read_text()
+          for m in ['SOT-turn01-base-single-surface-r2','Scope / Storage','Activity / Diagnostics','2-copy groups','Current Plan','Default Target','SOT_SUPERVISOR_PROMPT','function operatorBusy()']:
+              assert m in h,m
+          for m in ['id="tabs"','Open Review']:
+              assert m not in h,m
+          Path('/tmp/ui.js').write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
+          s=Path('/tmp/sot-api.js').read_text()
+          for m in ["const BUILD = '2026.09.03.sot-turn01-coordination-2';",'const EXPECTED_MIGRATION = 5;','durable-project-coordination','stale-operation-rejection','atomic-evidence-cutover','/duplicates','/storage','/activity']:
+              assert m in s,m
+          PY
+          node --check /tmp/ui.js
