@@ -1,31 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-05T06:02:33Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-05T06:03:04Z, every 30s. Newest at the bottom.
 
 ```
-00:51:44.579 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:51:44.580 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
-00:51:44.580 [android-z5t] joiner_create_control {"shown":true}
-00:51:44.581 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:51:44.581 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
-00:51:44.583 [android-z5t] joiner_create_control {"shown":true}
-00:51:45.102 [android-z5t] cr3_attended {"on":false,"why":"blur"}
-00:51:45.102 [android-z5t] cr3_announce {"why":"blur","visible":false,"lanes":1}
-00:51:45.330 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:51:45.330 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
-00:51:45.330 [android-z5t] joiner_create_control {"shown":true}
-00:51:45.732 [android-z5t] cr3_announce {"why":"hidden","visible":false,"lanes":1}
-00:51:46.009 [android-z5t] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:51:46.009 [android-z5t] rc_home_rendered {"cards":0,"wired":0}
-00:51:46.010 [android-z5t] joiner_create_control {"shown":true}
-00:51:53.993 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:51:53.993 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
-00:51:53.994 [iphone-7of] joiner_create_control {"shown":false}
-00:52:13.955 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:52:13.955 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
-00:52:13.956 [iphone-7of] joiner_create_control {"shown":false}
-00:52:33.923 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-00:52:33.923 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
 00:52:33.924 [iphone-7of] joiner_create_control {"shown":false}
 00:52:54.097 [iphone-7of] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 00:52:54.097 [iphone-7of] rc_home_rendered {"cards":0,"wired":0}
@@ -4002,4 +3979,27 @@ Both handsets write here. Drained 2026-09-05T06:02:33Z, every 30s. Newest at the
 06:02:19.808 [android-z5t] p1_peer {"others":1}
 06:02:19.716 [iphone-8jw] p1_peer {"others":1}
 06:02:25.449 [android-z5t] p1_peer {"others":1}
-06:02:26.237 [android-z5t] p1_peer {"others":1}```
+06:02:26.237 [android-z5t] p1_peer {"others":1}
+06:02:32.129 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:32.130 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:32.130 [android-z5t] joiner_create_control {"shown":true}
+06:02:32.332 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:32.332 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:32.332 [android-z5t] joiner_create_control {"shown":true}
+06:02:36.433 [android-z5t] joiner_send_direction {"room":"b5e4e1","from":"en","to":"es","role":"creator"}
+06:02:37.819 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:37.819 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:37.820 [android-z5t] joiner_create_control {"shown":true}
+06:02:37.826 [android-z5t] chat_sent {"t":"year one"}
+06:02:51.864 [android-z5t] joiner_send_direction {"room":"b5e4e1","from":"en","to":"es","role":"creator"}
+06:02:52.083 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:52.083 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:52.084 [android-z5t] joiner_create_control {"shown":true}
+06:02:52.355 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:52.357 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:52.358 [android-z5t] joiner_create_control {"shown":true}
+06:02:52.460 [android-z5t] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+06:02:52.460 [android-z5t] rc_home_rendered {"cards":1,"wired":1}
+06:02:52.460 [android-z5t] joiner_create_control {"shown":true}
+06:02:52.465 [android-z5t] chat_sent {"t":"year two"}
+06:02:55.482 [android-z5t] p1_peer {"others":0}```
