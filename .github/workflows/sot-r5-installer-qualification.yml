@@ -1,0 +1,51 @@
+name: SOT R5 installer qualification
+on:
+  push:
+    branches: [sot-turn01-base-r5-simple-protect]
+    paths:
+      - 'install-SOT-turn01-base.sh'
+      - '.github/workflows/sot-r5-installer-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify-installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Parse and pin audit
+        run: |
+          set -euo pipefail
+          bash -n install-SOT-turn01-base.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('install-SOT-turn01-base.sh').read_text()
+          for m in [
+            "QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'",
+            "SINGLE_UI_COMMIT='f7e40616a2e889b77050a3c57fea145184e589e6'",
+            "SINGLE_UI_QUALIFICATION='33961226006'",
+            "EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'",
+            "EXPECTED_SCHEMA=5",
+            'SOT-turn01-base-r5-simple-protect','Protect my files','Exactly where the copies go','PUBLIC_IDENTITY','ROLLBACK','TURN 01 BASE R5 READY FOR OWNER TEST']:
+              assert m in s,m
+          assert 'exit "$rc"' in s
+          PY
+      - name: Reproduce exact R5 UI candidate
+        run: |
+          set -euo pipefail
+          raw=https://raw.githubusercontent.com/acmeproducts/stuff
+          ui=f7e40616a2e889b77050a3c57fea145184e589e6
+          curl --retry 5 --retry-all-errors -fsSL "$raw/$ui/SOT-turn01-base.html" -o /tmp/ui.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('/tmp/ui.html').read_text()
+          for m in ['SOT-turn01-base-r5-simple-protect','1. My files','2. What SOT found','3. Safe copies','4. Review & protect','5. Result','Protect my files','Exactly where the copies go','Previous attempt failed:','Details / diagnostics','Choose source folders','Choose Target','Choose Backup']:
+              assert m in h,m
+          assert 'fullyProtected=indexed&&targetMissing===0&&backupMissing===0' in h
+          assert 'protectedCount=Math.max' not in h
+          Path('/tmp/ui.js').write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
+          PY
+          node --check /tmp/ui.js
