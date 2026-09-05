@@ -12,8 +12,8 @@ EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'
 EXPECTED_SCHEMA=5
 QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'
 BACKEND_QUALIFICATION='core=33919314140 ui-foundation=33922645501'
-SINGLE_UI_COMMIT='14d9f9670e1520668fab6786642e0abadc332faa'
-SINGLE_UI_QUALIFICATION='33939713809'
+SINGLE_UI_COMMIT='21cd353d72866841e1e8f42ab4208c11e7077307'
+SINGLE_UI_QUALIFICATION='33956607689'
 PRE_API='9422453c180f8fce4e7d5fe362867912dc8005d1'
 BASE_API='1aebf2624621b08880a595ef9d1f58f2c8cde1b'
 BASE22_API='1abfeef83cc1f4da25de09e297361beb5320d516'
@@ -21,7 +21,7 @@ RAW='https://raw.githubusercontent.com/acmeproducts/stuff'
 
 TMP="$(mktemp -d)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN="$ARCHIVE_ROOT/$STAMP-turn01-base-single-surface-release"
+RUN="$ARCHIVE_ROOT/$STAMP-turn01-base-deterministic-r3-release"
 mkdir -p "$RUN"
 LOG="$RUN/release.log"
 SUMMARY="$RUN/summary.tsv"
@@ -109,19 +109,18 @@ from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
 required=[
- 'SOT-turn01-base-single-surface-r2','Scope / Storage','>Index<','>Review<','>Plan<','>Execute<','Activity / Diagnostics',
- 'OMNISEARCH','Select Source','Select Target','Select Backup','2-copy groups','3-copy groups','4+ copy groups',
- 'Current Plan','Previous / Stale Plan','Default Target','Default Backup','Venice','OpenRouter','SOT_SUPERVISOR_PROMPT',
- "api('/projects')","api('/rollup')","api('/scheduler/status')",'function operatorBusy()','setInterval(()=>refresh(false),3000)'
+ 'SOT-turn01-base-deterministic-r3','Projects — live status','Storage','Index','Review','Plan','Execute','Protected / Result','Activity / Diagnostics',
+ 'OMNISEARCH','Missing on Target','Missing on Backup','2-copy groups','3-copy groups','4+ copy groups','CURRENT PLAN','STALE PLAN',
+ 'Generate deterministic plan','No AI or inference in the operational path',"api('/projects')","api('/rollup')","api('/scheduler/status')",'function operatorBusy()','setInterval(()=>refresh(false),3000)'
 ]
 for marker in required: assert marker in h, marker
-for rejected in ['id="tabs"','data-tab=','Open Review']: assert rejected not in h, rejected
+for rejected in ['SOT_SUPERVISOR_PROMPT','OpenRouter','Venice','AI POV','data-play=','data-pause=','data-stop=','id="tabs"','data-tab=','Open Review']: assert rejected not in h, rejected
 scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)
 assert scripts
 Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
 PY
 node --check "$TMP/ui.js" || fail UI_JS_PARSE failed
-pass SINGLE_SURFACE_CONTRACT 'Scope/Storage -> Index -> Review -> Plan -> Execute -> Activity; no step tabs'
+pass DETERMINISTIC_COCKPIT_CONTRACT 'read-only rail; Storage -> Index -> Review -> Plan -> Execute -> Protected; no inference'
 
 python3 - "$TMP/sot-api.js" "$EXPECTED_BUILD" <<'PY'
 from pathlib import Path
@@ -130,7 +129,7 @@ s=Path(sys.argv[1]).read_text()
 required=[f"const BUILD = '{sys.argv[2]}';",'const EXPECTED_MIGRATION = 5;','function claimProjectOperation(projectToken,kind)','active_operation_id','operation_generation','durable-project-coordination','/duplicates','/storage','/activity']
 for marker in required: assert marker in s, marker
 PY
-pass QUALIFIED_CANDIDATE 'qualified coordination backend + exact single-surface UI'
+pass QUALIFIED_CANDIDATE 'qualified coordination backend + exact deterministic R3 UI'
 
 C="$(sha256sum "$TMP/005.sql"|awk '{print $1}')"
 PRE_SCHEMA="$(sqlite3 "$DB" 'select max(version) from schema_migrations')"
@@ -190,8 +189,8 @@ python3 - "$RUN/public.html" "$TMP/public.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
-for marker in ['SOT-turn01-base-single-surface-r2','Scope / Storage','Activity / Diagnostics','2-copy groups','Current Plan','Default Target','function operatorBusy()']: assert marker in h,marker
-for rejected in ['id="tabs"','Open Review']: assert rejected not in h,rejected
+for marker in ['SOT-turn01-base-deterministic-r3','Projects — live status','Protected / Result','Missing on Target','Missing on Backup','2-copy groups','CURRENT PLAN','function operatorBusy()']: assert marker in h,marker
+for rejected in ['SOT_SUPERVISOR_PROMPT','OpenRouter','Venice','AI POV','data-play=','data-pause=','data-stop=','id="tabs"','Open Review']: assert rejected not in h,rejected
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 PY
 node --check "$TMP/public.js" || fail PUBLIC_JS_PARSE failed
@@ -201,7 +200,7 @@ SUCCESS=1
 pass RELEASE_READY "backend=$QUALIFIED_BACKEND_COMMIT ui=$SINGLE_UI_COMMIT"
 echo '=== TURN 01 BASE READY FOR OWNER TEST ==='
 echo "BACKEND COMMIT: $QUALIFIED_BACKEND_COMMIT"
-echo "SINGLE-SURFACE UI COMMIT: $SINGLE_UI_COMMIT"
+echo "DETERMINISTIC R3 UI COMMIT: $SINGLE_UI_COMMIT"
 echo "UI QUALIFICATION RUN: $SINGLE_UI_QUALIFICATION"
 echo "PUBLIC SHA256: $PUBLIC_SHA"
 echo "TEST URL: $PUBLIC_URL"
