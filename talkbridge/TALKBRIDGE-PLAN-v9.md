@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.52.0 -->
-# TALKBRIDGE MASTER PLAN v20.52.0
+<!-- TALKBRIDGE-PLAN v20.53.0 -->
+# TALKBRIDGE MASTER PLAN v20.53.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -76,7 +76,7 @@ built yet.
 | 26·base | Calls package re-landed clean (N10 caller screen + ring-back, N18 timers anchored at answer, N16 shared device log, P1 relay-fed presence) · relay v6.3 additive pair | **BUILT 2026-09-04 on owner GO — device gate pending.** Declared/actual contract: wraps CALL/RING/handleRelay/log, replaces nothing, no scope/manifest/subdirectory change, no mute (G42), timer fed not silenced (G43), attachment not visibility (G23). Mutation gates 2/2. | https://acmeproducts.github.io/stuff/bridge-turn26-base.html |
 | 26·pre-ship | D-2 un-hijack WITHOUT file moves (narrow prefix scope `/stuff/bridge-` on a new manifest `tb-manifest-turn26.webmanifest` + narrowed worker registration + exact-match legacy-worker retirement, push migrated first) + B-8c (creation name field, invite/QR carries the room's name, stamped at generation) | **ACCEPTED 2026-09-04 (owner device gate: PRISM opens plain, iPhone QR install lands in room, room-name invites, single push).** D-2 CLOSED. B-8c CLOSED. Spec deviation from §5.2 declared: the folder move is replaced by scope VALUES — W3C manifest scope is prefix-based by design ("consistency with Service Workers"), and a worker may register a scope deeper than its directory with no header. No start_url anywhere (fb7ed76/G25). Accepted manifest untouched. Contract+mutation gates 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-pre-ship.html |
 | 26·ship | Call & video experience per §5.3: N13 (tap swaps streams in place, back → browser's native PiP with in-page fallback, camera swap, screen share where capturable; G41-clean — Ear untouched, swap reset at teardown) + M1 (mic muted while placing; N10 owns every restore — G42 one-owner rule) | **BUILT 2026-09-04, device gate pending.** Contract+mutation gates 3/3. D-1 lock-screen ringing moves to 26·post-ship with #652 (same notification-channel domain). | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
-| 26·post-ship | Arrival & polish: joiner welcome "NAME is inviting you to ROOM", #652 icon/badge + channel flip, D-1 attempt, iPhone silent-arrival instrumentation, declarative push (iOS 18.4+), #653 rejoin declined thread, B-8b live rename, presence damping | Not started | — |
+| 26·post-ship | Arrival & polish: joiner welcome "NAME is inviting you to ROOM", #652 icon/badge + channel flip, D-1 attempt, iPhone silent-arrival instrumentation, declarative push (iOS 18.4+), #653 rejoin declined thread, B-8b live rename, presence damping (root-caused 2026-09-04: iOS freezes the background socket, relay honestly reports the drop, dot tracks a churning witness — fix is a ~60s grace after silent drop, instant on clean goodbye) | Not started | — |
 | 27·pre-base | = accepted 26 line, byte-identical snapshot; then multi-user / collisions / refactor / IndexedDB | — | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
@@ -3611,3 +3611,11 @@ across 79 distinct values with zero media queries, 102 globals with no
 collision check, and 19 unmanaged z-index values. Owner ruling recorded: spacing
 and sizing are one job, not two — slices are by surface, converted end to end,
 because a named scale of fixed pixels is still fixed pixels.
+
+
+## Log-bank (diagnosed, banked, not blocking)
+
+- L-1 (2026-09-04) iPhone wake logs relay_err + close 1006 after background: iOS froze the page, socket was already dead; CR3 recovers in ~300ms, history replays, receipts flow. Cosmetic; optionally reorder announce-after-verified-socket.
+- L-2 (2026-09-04) Presence flicker = iOS background socket lifecycle, not a P1 defect. Cure: damping grace (see backlog).
+- L-3 (2026-09-04) Render churn: rc_panel/rc_home/joiner_create_control fire 3–6× per event burst. Coalesce in refactor pass.
+- L-4 (2026-09-04) Cross-device log ordering skew: clock offset + 30s batch drains. Cosmetic.
