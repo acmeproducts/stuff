@@ -10,20 +10,18 @@ ARCHIVE_ROOT="$SOT_DIR/archive"
 PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"
 EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'
 EXPECTED_SCHEMA=5
-QUALIFIED_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'
-QUALIFICATION_RUN='core=33919314140 ui=33922645501'
-PRE_UI='7a377c27e1ac078510b9d1e4fe66da4f997f25f3'
+QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'
+BACKEND_QUALIFICATION='core=33919314140 ui-foundation=33922645501'
+SINGLE_UI_COMMIT='14d9f9670e1520668fab6786642e0abadc332faa'
+SINGLE_UI_QUALIFICATION='33939490941'
 PRE_API='9422453c180f8fce4e7d5fe362867912dc8005d1'
 BASE_API='1aebf2624621b08880a595ef9d1f58f2c8cde1b'
 BASE22_API='1abfeef83cc1f4da25de09e297361beb5320d516'
-UI22='603e8a331b13b72a097e9ebb9640e33707279777'
-UI24='083aa1334208b1e6995fa18852e82722a815f331'
-UIAI='5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5'
 RAW='https://raw.githubusercontent.com/acmeproducts/stuff'
 
 TMP="$(mktemp -d)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN="$ARCHIVE_ROOT/$STAMP-turn01-base-qualified-release"
+RUN="$ARCHIVE_ROOT/$STAMP-turn01-base-single-surface-release"
 mkdir -p "$RUN"
 LOG="$RUN/release.log"
 SUMMARY="$RUN/summary.tsv"
@@ -79,23 +77,23 @@ if [ -f "$REPORT_ROOT/sot-db/migrations/005-project-coordination.sql" ]; then MI
 pass ARCHIVE_PRECHANGE "$RUN"
 
 cat >"$RUN/qualified-source.txt" <<EOF
-qualified_commit=$QUALIFIED_COMMIT
-qualification_run=$QUALIFICATION_RUN
+qualified_backend_commit=$QUALIFIED_BACKEND_COMMIT
+backend_qualification=$BACKEND_QUALIFICATION
+single_ui_commit=$SINGLE_UI_COMMIT
+single_ui_qualification=$SINGLE_UI_QUALIFICATION
 expected_build=$EXPECTED_BUILD
 expected_schema=$EXPECTED_SCHEMA
-pre_ui=$PRE_UI
-pre_api=$PRE_API
 EOF
-pass QUALIFIED_SOURCE "$QUALIFIED_COMMIT $QUALIFICATION_RUN"
+pass QUALIFIED_SOURCE "backend=$QUALIFIED_BACKEND_COMMIT ui=$SINGLE_UI_COMMIT"
 
 fetch "$RAW/$PRE_API/sot-api.js" "$TMP/pre.js"
 fetch "$RAW/$BASE_API/integrate-SOT-turn01-base.py" "$TMP/base.py"
 fetch "$RAW/$BASE22_API/generate-SOT-turn01-base22.py" "$TMP/base22.py"
-fetch "$RAW/$QUALIFIED_COMMIT/integrate-SOT-turn01-coordination.py" "$TMP/coord.py"
-fetch "$RAW/$QUALIFIED_COMMIT/integrate-SOT-turn01-coordination2.py" "$TMP/coord2.py"
-fetch "$RAW/$QUALIFIED_COMMIT/sot-db/migrations/005-project-coordination.sql" "$TMP/005.sql"
-fetch "$RAW/$QUALIFIED_COMMIT/sot-worker.js" "$TMP/sot-worker.js"
-fetch "$RAW/$QUALIFIED_COMMIT/sot-coordinator.js" "$TMP/sot-coordinator.js"
+fetch "$RAW/$QUALIFIED_BACKEND_COMMIT/integrate-SOT-turn01-coordination.py" "$TMP/coord.py"
+fetch "$RAW/$QUALIFIED_BACKEND_COMMIT/integrate-SOT-turn01-coordination2.py" "$TMP/coord2.py"
+fetch "$RAW/$QUALIFIED_BACKEND_COMMIT/sot-db/migrations/005-project-coordination.sql" "$TMP/005.sql"
+fetch "$RAW/$QUALIFIED_BACKEND_COMMIT/sot-worker.js" "$TMP/sot-worker.js"
+fetch "$RAW/$QUALIFIED_BACKEND_COMMIT/sot-coordinator.js" "$TMP/sot-coordinator.js"
 python3 -m py_compile "$TMP/base.py" "$TMP/base22.py" "$TMP/coord.py" "$TMP/coord2.py" || fail PYTHON_PARSE failed
 python3 "$TMP/base.py" "$TMP/pre.js" "$TMP/base3.js"
 python3 "$TMP/base22.py" "$TMP/base3.js" "$TMP/base22.js"
@@ -105,36 +103,34 @@ node --check "$TMP/sot-api.js" || fail BACKEND_JS_PARSE failed
 node --check "$TMP/sot-worker.js" || fail WORKER_JS_PARSE failed
 node --check "$TMP/sot-coordinator.js" || fail COORDINATOR_JS_PARSE failed
 
-fetch "$RAW/$PRE_UI/SOT-turn01-pre-base.html" "$TMP/pre.html"
-fetch "$RAW/$UI22/integrate-SOT-turn01-base22-ui.py" "$TMP/u22.py"
-fetch "$RAW/$UI24/integrate-SOT-turn01-base24-ui.py" "$TMP/u24.py"
-fetch "$RAW/$UIAI/integrate-SOT-turn01-base-ai.py" "$TMP/uai.py"
-fetch "$RAW/$QUALIFIED_COMMIT/integrate-SOT-turn01-coordination-ui.py" "$TMP/ucoord.py"
-fetch "$RAW/$QUALIFIED_COMMIT/integrate-SOT-turn01-coordination2-ui.py" "$TMP/ucoord2.py"
-python3 -m py_compile "$TMP/u22.py" "$TMP/u24.py" "$TMP/uai.py" "$TMP/ucoord.py" "$TMP/ucoord2.py" || fail UI_GENERATOR_PARSE failed
-python3 "$TMP/u22.py" "$TMP/pre.html" "$TMP/22.html"
-python3 "$TMP/u24.py" "$TMP/22.html" "$TMP/24.html"
-python3 "$TMP/uai.py" "$TMP/24.html" "$TMP/base.html"
-python3 "$TMP/ucoord.py" "$TMP/base.html" "$TMP/u1.html"
-python3 "$TMP/ucoord2.py" "$TMP/u1.html" "$TMP/SOT-turn01-base.html" || fail UI_GENERATION failed
+fetch "$RAW/$SINGLE_UI_COMMIT/SOT-turn01-base.html" "$TMP/SOT-turn01-base.html"
 python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
-Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
-required=['TURN01_BASE24_OWNER_GATE','TURN01_BASE28_OPERATIONAL_AI','2-copy groups','3-copy groups','4+ copy groups','availableFolderSearch','selectorCommit','Current Plan','Previous / Stale Plan','Default Target','Default Backup','Venice.ai','OpenRouter','function sotOperatorBusy()',"Promise.all([api('/projects'),api('/rollup')])",'state.projects=next','state.selected=selected']
+required=[
+ 'SOT-turn01-base-single-surface-r2','Scope / Storage','>Index<','>Review<','>Plan<','>Execute<','Activity / Diagnostics',
+ 'OMNISEARCH','Select Source','Select Target','Select Backup','2-copy groups','3-copy groups','4+ copy groups',
+ 'Current Plan','Previous / Stale Plan','Default Target','Default Backup','Venice','OpenRouter','SOT_SUPERVISOR_PROMPT',
+ "api('/projects')","api('/rollup')","api('/scheduler/status')",'function operatorBusy()','setInterval(()=>refresh(false),3000)'
+]
 for marker in required: assert marker in h, marker
+for rejected in ['id="tabs"','data-tab=','Open Review']: assert rejected not in h, rejected
+scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)
+assert scripts
+Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
 PY
 node --check "$TMP/ui.js" || fail UI_JS_PARSE failed
+pass SINGLE_SURFACE_CONTRACT 'Scope/Storage -> Index -> Review -> Plan -> Execute -> Activity; no step tabs'
 
 python3 - "$TMP/sot-api.js" "$EXPECTED_BUILD" <<'PY'
 from pathlib import Path
 import sys
 s=Path(sys.argv[1]).read_text()
-required=[f"const BUILD = '{sys.argv[2]}';",'const EXPECTED_MIGRATION = 5;','function claimProjectOperation(projectToken,kind)','active_operation_id','operation_generation','durable-project-coordination']
+required=[f"const BUILD = '{sys.argv[2]}';",'const EXPECTED_MIGRATION = 5;','function claimProjectOperation(projectToken,kind)','active_operation_id','operation_generation','durable-project-coordination','/duplicates','/storage','/activity']
 for marker in required: assert marker in s, marker
 PY
-pass QUALIFIED_CANDIDATE 'clean lineage + executable-qualified coordination delta'
+pass QUALIFIED_CANDIDATE 'qualified coordination backend + exact single-surface UI'
 
 C="$(sha256sum "$TMP/005.sql"|awk '{print $1}')"
 PRE_SCHEMA="$(sqlite3 "$DB" 'select max(version) from schema_migrations')"
@@ -176,7 +172,9 @@ x=json.load(open(sys.argv[1]))
 assert x.get('status')=='ok',x
 assert x.get('build')==sys.argv[2],x
 assert int(x.get('database_version',0))==int(sys.argv[3]),x
-assert 'durable-project-coordination' in x.get('capabilities',[]),x
+caps=x.get('capabilities',[])
+for cap in ['durable-project-coordination','stale-operation-rejection','atomic-evidence-cutover','non-blocking-background-workers','concurrent-project-indexing']:
+    assert cap in caps,(cap,x)
 PY
 pass LIVE_BACKEND "$EXPECTED_BUILD schema=$EXPECTED_SCHEMA"
 
@@ -192,16 +190,18 @@ python3 - "$RUN/public.html" "$TMP/public.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
+for marker in ['SOT-turn01-base-single-surface-r2','Scope / Storage','Activity / Diagnostics','2-copy groups','Current Plan','Default Target','function operatorBusy()']: assert marker in h,marker
+for rejected in ['id="tabs"','Open Review']: assert rejected not in h,rejected
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
-for marker in ['TURN01_BASE28_OPERATIONAL_AI','2-copy groups','Current Plan','Default Target','function sotOperatorBusy()',"Promise.all([api('/projects'),api('/rollup')])",'state.projects=next']: assert marker in h,marker
 PY
 node --check "$TMP/public.js" || fail PUBLIC_JS_PARSE failed
 pass PUBLIC_IDENTITY "$PUBLIC_SHA"
 
 SUCCESS=1
-pass RELEASE_READY "qualified $QUALIFICATION_RUN commit=$QUALIFIED_COMMIT"
+pass RELEASE_READY "backend=$QUALIFIED_BACKEND_COMMIT ui=$SINGLE_UI_COMMIT"
 echo '=== TURN 01 BASE READY FOR OWNER TEST ==='
-echo "QUALIFIED COMMIT: $QUALIFIED_COMMIT"
-echo "QUALIFICATION RUNS: $QUALIFICATION_RUN"
+echo "BACKEND COMMIT: $QUALIFIED_BACKEND_COMMIT"
+echo "SINGLE-SURFACE UI COMMIT: $SINGLE_UI_COMMIT"
+echo "UI QUALIFICATION RUN: $SINGLE_UI_QUALIFICATION"
 echo "PUBLIC SHA256: $PUBLIC_SHA"
 echo "TEST URL: $PUBLIC_URL"
