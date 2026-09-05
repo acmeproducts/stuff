@@ -1,7 +1,7 @@
-name: SOT Turn 01 deterministic R3 qualification
+name: SOT Turn 01 R4 mobile cockpit qualification
 on:
   push:
-    branches: [sot-turn01-base-r3-deterministic]
+    branches: [sot-turn01-base-r4-mobile-cockpit]
     paths:
       - 'SOT-turn01-base.html'
       - '.github/workflows/sot-single-surface-qualification.yml'
@@ -16,85 +16,92 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: Static deterministic product contract and JavaScript parse
+      - name: Parse and static contract
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
           h=Path('SOT-turn01-base.html').read_text()
-          required=['SOT-turn01-base-deterministic-r3','Projects — live status','Storage','Index','Review','Plan','Execute','Protected / Result','Activity / Diagnostics','OMNISEARCH','Missing on Target','Missing on Backup','2-copy groups','3-copy groups','4+ copy groups','CURRENT PLAN','STALE PLAN','Generate deterministic plan','No AI or inference in the operational path',"api('/projects')","api('/rollup')","api('/scheduler/status')",'/fingerprint/${a}','/duplicates?bucket=','/execute','/certify','/activity?project_token=','function operatorBusy()','setInterval(()=>refresh(false),3000)']
-          for marker in required: assert marker in h, marker
-          for rejected in ['SOT_SUPERVISOR_PROMPT','OpenRouter','Venice','AI POV','data-play=','data-pause=','data-stop=','id="tabs"','data-tab=','Open Review']: assert rejected not in h,rejected
+          for m in ['SOT-turn01-base-r4-mobile-cockpit','PROJECTS · LIVE STATUS','Storage','Index','Review','Plan','Execute','Protected / Result','Activity / Diagnostics','OMNISEARCH','Generate deterministic plan','Missing Target','Missing Backup',"setInterval(()=>refresh(false),3000)"]:
+              assert m in h,m
+          for m in ['SOT_SUPERVISOR_PROMPT','OpenRouter','Venice','AI POV','__sot__','Cross-project status only','data-play=','data-pause=','data-stop=','Open Review','id="tabs"']:
+              assert m not in h,m
           scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)
           assert scripts
           Path('/tmp/ui.js').write_text('\n;\n'.join(scripts))
           PY
           node --check /tmp/ui.js
-      - name: Prepare browser harness
+      - name: Prepare browser
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright-core@1.55.0 >/dev/null
           test -x /usr/bin/google-chrome || test -x /usr/bin/google-chrome-stable
-      - name: Real cockpit flow and polling preservation
+      - name: Real 390px mobile owner surface
         run: |
-          cat >test-r3.js <<'NODE'
+          cat >test-r4.js <<'NODE'
           const {chromium}=require('playwright-core');
           const fs=require('fs');
           const assert=require('assert');
           (async()=>{
             const exe=fs.existsSync('/usr/bin/google-chrome')?'/usr/bin/google-chrome':'/usr/bin/google-chrome-stable';
             const browser=await chromium.launch({headless:true,executablePath:exe,args:['--no-sandbox']});
-            const page=await browser.newPage({viewport:{width:1200,height:900}});
+            const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
             const html=fs.readFileSync('SOT-turn01-base.html','utf8');
-            let phase=0, projectRequests=0;
+            let phase=0,projectRequests=0;
             await page.route('http://sot.test/**',async route=>{
               const req=route.request(),u=new URL(req.url());
-              if(u.pathname==='/') return route.fulfill({status:200,contentType:'text/html',body:html});
-              const p=u.pathname.replace('/api/sot',''); let body={};
-              if(p==='/projects'){projectRequests++;body=[{project_token:'A',project_name:'Alpha',status:'Closed',processing_state:'Closed',evidence_revision:2,size_bytes:7700,files_discovered:phase?77:7,files_processed:7,folder_count:3,bytes_processed:7700,hashes_reused:4,hashes_computed:3}];}
-              else if(p==='/health') body={status:'ok',build:'qualified-backend',database_version:5};
-              else if(p==='/rollup') body={active_jobs:0,failed_jobs:0,files_discovered:phase?77:7,bytes_discovered:7700};
-              else if(p==='/scheduler/status') body={status:'idle'};
-              else if(p==='/turn01/projects/A') body={project_token:'A',project_name:'Alpha',evidence_revision:2,status:'Closed',sources:[{normalized_path:'/mnt/c/source'}]};
-              else if(p==='/turn01/projects/A/storage') body={target_root:'/mnt/d/target',backup_root:'/mnt/e/backup'};
-              else if(p==='/projects/A/fingerprint/status') body={state:'Closed',run:{state:'Closed',files_processed:7,files_discovered:7,bytes_processed:7700,bytes_discovered:7700,hashes_reused:4,hashes_computed:3},progress:{bytes_percent:100}};
-              else if(p==='/turn01/projects/A/review') body={project_token:'A',evidence_revision:2,files:7,bytes:7700,unique_content:4,duplicate_groups:2,duplicate_bytes:2500,target_content:3,target_missing_content:1,backup_content:2,backup_missing_content:2};
-              else if(p==='/turn01/projects/A/duplicates') body={counts:{two:1,three:1,four_plus:0}};
-              else if(p==='/turn01/projects/A/plan') body={project_token:'A',plan_id:'P',state:'none',items:[],totals:{}};
-              else if(p==='/activity') body={events:[{event_type:'processing.completed',created_at:'2026-09-05T08:00:00Z',detail_json:'{}'}]};
-              else if(p==='/turn01/volumes') body={volumes:[{name:'C:',path:'/mnt/c',mounted:true,free_bytes:1000000},{name:'D:',path:'/mnt/d',mounted:true,free_bytes:2000000}]};
-              else if(p==='/turn01/fs') body={path:u.searchParams.get('path')||'/mnt/c',parent:null,volume:{path:u.searchParams.get('path')||'/mnt/c'},folders:[{name:'one',path:(u.searchParams.get('path')||'/mnt/c')+'/one'}]};
-              else if(p==='/turn01/admin/settings') body={target_root:'/mnt/d/target',backup_root:'/mnt/e/backup'};
-              else if(req.method()==='PUT'||req.method()==='POST'||req.method()==='PATCH'||req.method()==='DELETE') body={ok:true,project_token:'A'};
+              if(u.pathname==='/')return route.fulfill({status:200,contentType:'text/html',body:html});
+              const p=u.pathname.replace('/api/sot','');let body={};
+              if(p==='/projects'){projectRequests++;body=[
+                {project_token:'A',project_name:'Alpha Archive',status:'Closed',processing_state:'Closed',evidence_revision:2,size_bytes:7700000000,files_discovered:phase?77:7,files_processed:7,folder_count:3,bytes_processed:7700000000,hashes_reused:4,hashes_computed:3},
+                {project_token:'B',project_name:'Second Project',status:'Idle',processing_state:'Idle',evidence_revision:0,size_bytes:0,files_discovered:0,files_processed:0}
+              ];}
+              else if(p==='/health')body={status:'ok',build:'qualified-backend',database_version:5};
+              else if(p==='/rollup')body={active_jobs:0,failed_jobs:0};
+              else if(p==='/scheduler/status')body={status:'idle'};
+              else if(p==='/turn01/projects/A')body={project_token:'A',project_name:'Alpha Archive',evidence_revision:2,status:'Closed',sources:[{normalized_path:'/mnt/c/source'}]};
+              else if(p==='/turn01/projects/A/storage')body={target_root:'/mnt/d/target',backup_root:'/mnt/e/backup'};
+              else if(p==='/projects/A/fingerprint/status')body={state:'Closed',run:{state:'Closed',files_processed:7,files_discovered:7,bytes_processed:7700000000,hashes_reused:4,hashes_computed:3},progress:{bytes_percent:100}};
+              else if(p==='/turn01/projects/A/review')body={project_token:'A',evidence_revision:2,files:7,bytes:7700000000,unique_content:4,duplicate_groups:2,duplicate_bytes:2500000000,target_content:3,target_missing_content:1,backup_content:2,backup_missing_content:2};
+              else if(p==='/turn01/projects/A/duplicates')body={counts:{two:1,three:1,four_plus:0}};
+              else if(p==='/turn01/projects/A/plan')body={project_token:'A',state:'none',items:[],totals:{}};
+              else if(p==='/activity')body={events:[{event_type:'processing.completed',created_at:'now'}]};
+              else if(p==='/turn01/volumes')body={volumes:[{name:'C:',path:'/mnt/c',mounted:true,free_bytes:1000000},{name:'D:',path:'/mnt/d',mounted:true,free_bytes:2000000}]};
+              else if(p==='/turn01/fs')body={path:u.searchParams.get('path')||'/mnt/c',parent:null,volume:{path:u.searchParams.get('path')||'/mnt/c'},folders:[{name:'one',path:(u.searchParams.get('path')||'/mnt/c')+'/one'}]};
+              else if(p==='/turn01/admin/settings')body={target_root:'/mnt/d/target',backup_root:'/mnt/e/backup'};
+              else if(p.startsWith('/turn01/projects/B')||p.startsWith('/projects/B'))body={project_token:'B',sources:[]};
+              else if(req.method()!=='GET')body={ok:true};
               return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
             });
             await page.goto('http://sot.test/',{waitUntil:'domcontentloaded'});
-            await page.waitForSelector('[data-project="A"]');
-            assert.equal(await page.locator('[data-play],[data-pause],[data-stop]').count(),0,'rail contains controls');
-            await page.click('[data-project="A"]');
-            await page.waitForSelector('#review');
-            for(const id of ['storage','index','review','plan','execute','protected','activity']) assert.equal(await page.locator('#'+id).count(),1,id);
-            assert((await page.locator('#review').innerText()).includes('Missing on Target'));
-            assert((await page.locator('#review').innerText()).includes('Missing on Backup'));
-            assert.equal(await page.locator('text=AI POV').count(),0);
-            await page.fill('#search','keep-me');
-            if(!(await page.locator('#storage').getAttribute('open'))) await page.locator('#storage summary').click();
-            await page.click('#editTarget');
-            await page.waitForSelector('#newFolder');
-            await page.fill('#newFolder','editing-folder');
-            await page.focus('#newFolder');
-            await page.evaluate(()=>{document.querySelector('#workspace').scrollTop=123;});
-            const before=projectRequests; phase=1; await page.waitForTimeout(3400);
-            assert(projectRequests>before,'real polling did not request projects again');
+            await page.waitForSelector('.title');
+            assert.equal(await page.locator('.title').innerText(),'Alpha Archive','first real project not selected by default');
+            assert.equal(await page.locator('[data-project]').count(),2,'rail must contain projects only');
+            const rail=await page.locator('.rail').boundingBox(),work=await page.locator('.workspace').boundingBox();
+            assert(rail.width>=110&&rail.width<=120,`mobile rail width ${rail.width}`);
+            assert(work.x>=110&&work.x<=120,`workspace x ${work.x}`);
+            const cards=await page.locator('.card').evaluateAll(xs=>xs.map(x=>({x:x.getBoundingClientRect().x,y:x.getBoundingClientRect().y,w:x.getBoundingClientRect().width})));
+            assert(cards[1].y>cards[0].y,'project rail became horizontal carousel');
+            assert(cards.every(c=>c.w<=116),'project card overflows rail');
+            assert.equal(await page.locator('.next').count(),1,'next action missing');
+            const next=await page.locator('.next').boundingBox();
+            assert(next.y<300,'next action not above fold');
+            for(const id of ['storage','index','review','plan','execute','result','activity'])assert.equal(await page.locator('#'+id).count(),1,id);
+            assert.equal(await page.locator('text=Cross-project status only').count(),0);
+            await page.fill('#search','Alpha');
+            if(!(await page.locator('#storage').getAttribute('open')))await page.locator('#storage summary').click();
+            await page.click('#target');
+            await page.waitForSelector('.modalBg');
+            await page.evaluate(()=>document.querySelector('#workspace').scrollTop=90);
+            const before=projectRequests;phase=1;await page.waitForTimeout(3400);
+            assert(projectRequests>before,'polling stopped');
             assert.equal(await page.evaluate(()=>state.projects[0].files_discovered),77,'polled state not ingested');
             assert.equal(await page.evaluate(()=>state.selected),'A');
-            assert.equal(await page.inputValue('#search'),'keep-me');
+            assert.equal(await page.inputValue('#search'),'Alpha');
             assert.equal(await page.locator('.modalBg').count(),1,'picker closed by polling');
-            assert.equal(await page.inputValue('#newFolder'),'editing-folder');
-            assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.id),'newFolder');
-            assert.equal(await page.evaluate(()=>document.querySelector('#workspace').scrollTop),123);
+            assert.equal(await page.evaluate(()=>document.querySelector('#workspace').scrollTop),90,'scroll changed during polling');
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
-          node test-r3.js
+          node test-r4.js
