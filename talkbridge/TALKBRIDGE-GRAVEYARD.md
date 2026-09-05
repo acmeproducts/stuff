@@ -1737,3 +1737,12 @@ create control (+) lives in the rooms panel — and the build put the row on
 the home/welcome surface instead, over the flag band. Spec was right, build
 deviated. Second lesson bought this turn: every candidate now logs one
 build-identity line at boot so the device log names the build it came from.
+
+## G47 — 2026-09-05 — 26·ship candidate 3, rejected and deleted at owner order
+
+The join row's Join button rendered underneath the panel's + control — two
+controls stacked on one corner. Owner ruling: the candidate is removed from
+the repository entirely, not merely buried; the join affordance was supposed
+to be HIDDEN per the owner's written direction, and a candidate that ignores
+a written instruction disqualifies itself as a canary for everything else in
+it. sha 83c4b4ed8b63, file deleted.
