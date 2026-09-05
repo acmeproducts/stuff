@@ -1714,3 +1714,17 @@ churn. Owner rolled the entire turn back byte-exact to accepted `ac541c1`
 directory restructure without a full scope/URL impact map gated as its own
 release; features proven on device (call screen, timers) still die with the
 turn they rode in — re-land them as fresh candidates from the clean base.
+
+## G45 — 2026-09-05 — 26·ship first candidate (video experience), failed device gate
+
+Buried: bridge-turn26-ship.html (sha 0d7b24d0a77e). Owner device gate on
+Android WITH the PiP permission granted: main frame black reading "Playing in
+picture-in-picture", multiple small video tiles left floating over the chat,
+camera not forward-facing, home button did not keep the call running as
+expected. Diagnosis DEFERRED by owner ruling — symptoms recorded, no root
+cause claimed. The wants move to the backlog as improvement items (BL-V1
+PiP/swap experience, BL-V2 forward-facing camera default, BL-V3 home button
+keeps call running). Process lesson, owner-stated: the candidate was assembled
+from donor code off the cuff instead of from a meticulous builder spec. New
+rule: SPEC-FIRST — no build starts without a §7-grade builder spec in the
+plan. The address stays hosted; the accepted chain is untouched.

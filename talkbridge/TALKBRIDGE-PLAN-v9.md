@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.53.0 -->
-# TALKBRIDGE MASTER PLAN v20.53.0
+<!-- TALKBRIDGE-PLAN v20.54.0 -->
+# TALKBRIDGE MASTER PLAN v20.54.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -75,9 +75,10 @@ built yet.
 | 26·pre-base | = accepted 24·post-ship (turn 25 produced no accepted work), byte-identical snapshot | **ACCEPTED 2026-09-04 (owner)** — device gate: Android call audio confirmed working (earlier "no audio" report was disconnected earbuds in another room, not the app). sha256 `6abc47d77ed2` · paired relay v6.2 byte-verified, deployed, health green | https://acmeproducts.github.io/stuff/bridge-turn26-pre-base.html |
 | 26·base | Calls package re-landed clean (N10 caller screen + ring-back, N18 timers anchored at answer, N16 shared device log, P1 relay-fed presence) · relay v6.3 additive pair | **BUILT 2026-09-04 on owner GO — device gate pending.** Declared/actual contract: wraps CALL/RING/handleRelay/log, replaces nothing, no scope/manifest/subdirectory change, no mute (G42), timer fed not silenced (G43), attachment not visibility (G23). Mutation gates 2/2. | https://acmeproducts.github.io/stuff/bridge-turn26-base.html |
 | 26·pre-ship | D-2 un-hijack WITHOUT file moves (narrow prefix scope `/stuff/bridge-` on a new manifest `tb-manifest-turn26.webmanifest` + narrowed worker registration + exact-match legacy-worker retirement, push migrated first) + B-8c (creation name field, invite/QR carries the room's name, stamped at generation) | **ACCEPTED 2026-09-04 (owner device gate: PRISM opens plain, iPhone QR install lands in room, room-name invites, single push).** D-2 CLOSED. B-8c CLOSED. Spec deviation from §5.2 declared: the folder move is replaced by scope VALUES — W3C manifest scope is prefix-based by design ("consistency with Service Workers"), and a worker may register a scope deeper than its directory with no header. No start_url anywhere (fb7ed76/G25). Accepted manifest untouched. Contract+mutation gates 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-pre-ship.html |
-| 26·ship | Call & video experience per §5.3: N13 (tap swaps streams in place, back → browser's native PiP with in-page fallback, camera swap, screen share where capturable; G41-clean — Ear untouched, swap reset at teardown) + M1 (mic muted while placing; N10 owns every restore — G42 one-owner rule) | **BUILT 2026-09-04, device gate pending.** Contract+mutation gates 3/3. D-1 lock-screen ringing moves to 26·post-ship with #652 (same notification-channel domain). | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
-| 26·post-ship | Arrival & polish: joiner welcome "NAME is inviting you to ROOM", #652 icon/badge + channel flip, D-1 attempt, iPhone silent-arrival instrumentation, declarative push (iOS 18.4+), #653 rejoin declined thread, B-8b live rename, presence damping (root-caused 2026-09-04: iOS freezes the background socket, relay honestly reports the drop, dot tracks a churning witness — fix is a ~60s grace after silent drop, instant on clean goodbye) | Not started | — |
-| 27·pre-base | = accepted 26 line, byte-identical snapshot; then multi-user / collisions / refactor / IndexedDB | — | — |
+| 26·ship (candidate 1) | video experience | **FAILED DEVICE GATE 2026-09-05 → buried G45** (symptoms only, diagnosis deferred by owner ruling). Video wants → backlog BL-V1/V2/V3. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html (dead candidate, stays hosted) |
+| 26·ship (candidate 2) | Arrival & identity per §7.1 (W1 welcome pill, R2 live rename to open drawer, J3 join-by-link) | Spec complete §7.1 — awaiting owner GO to build | — |
+| 26·post-ship | Notifications & steadiness per §7.2 (K1 worker icon/alert + old-worker retirement, P2 presence damping, C3 render coalescing) | Spec complete §7.2 — builds only after §7.1 accepted | — |
+| 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
 `bridge-turn25-base.html`. Canonical artifact is `bridge-turn24-post-ship.html`
@@ -3619,3 +3620,251 @@ because a named scale of fixed pixels is still fixed pixels.
 - L-2 (2026-09-04) Presence flicker = iOS background socket lifecycle, not a P1 defect. Cure: damping grace (see backlog).
 - L-3 (2026-09-04) Render churn: rc_panel/rc_home/joiner_create_control fire 3–6× per event burst. Coalesce in refactor pass.
 - L-4 (2026-09-04) Cross-device log ordering skew: clock offset + 30s batch drains. Cosmetic.
+
+---
+
+# §7 BUILDER SPECS — THE NEXT THREE RELEASES (spec-first rule in force)
+
+Written 2026-09-05. Each spec is complete: a builder executes it top to bottom
+with no guesswork, no blanks, no assumptions. Common law for all three:
+every part WRAPS a named frozen function and calls through — nothing frozen is
+edited or replaced; each candidate is a NEW file built as {base bytes} + one
+appended script block inserted immediately before the final `</script>`; the
+frozen body must remain byte-identical (machine gate 1 in every release);
+line-1 header comment states name, base sha, parts, and relay pair; byte-verify
+every pushed file via GitHub API at the exact commit SHA, never CDN; on device
+gate failure: candidate dies, graveyard entry, plan bump, rebuild from the same
+base — never patch the failed candidate.
+
+────────────────────────────────────────────────────────────────────────
+## §7.1 RELEASE A — 26·ship, second candidate: "Arrival & identity"
+────────────────────────────────────────────────────────────────────────
+
+FILE: `bridge-turn26-ship2.html` = bytes of `bridge-turn26-pre-ship.html`
+(sha256 e6d3d8c7a57d…) + one appended block. RELAY: v6.3, UNTOUCHED — state
+this in the commit message (Iron Rule). `tb-sw.js`, both manifests: untouched.
+
+### Part W1 — Joiner welcome: "«name» is inviting you to «room»"
+1. The basic invite builder is `invUrl(room)` (frozen, line ~782; already
+   wrapped once by B-8c `stamp()`). Payload today: `{r,ml,tl,n,k,tid,tok}`
+   (+ B-8c rewrites `n`). ADD a second wrapper over the CURRENT `invUrl`
+   (which is B-8c's wrapper — wrap what exists, order matters): after calling
+   through, decode with `decInv`, set `p.t = (room && room.title) || ''`,
+   re-encode with `encInv`. Same for `_lcInvUrl` and `linkDeviceUrl`
+   (link-device payload already carries `t` — setting it again is harmless
+   and keeps one code path).
+2. `joinRoom(p)` (frozen, line ~2112) creates the joiner's room with
+   `title:p.n` and calls `enterRoom(room.id)`. WRAP `joinRoom`: before
+   calling through, stash `p` in a closure var. After calling through, if a
+   room for `p.r` now exists and this was its FIRST join (the wrapper saw
+   `roomById(p.r)` null before the call): (a) if `p.t` is a non-empty string,
+   set `room.title = p.t; saveRooms();` (b) call
+   `addSysPill((p.n||'Someone') + ' is inviting you to ' + (p.t || 'their chat'))`
+   — `addSysPill(text,id)` is frozen at line ~1117 and renders the same pill
+   as "Voice call ended". Log `w1_welcome {n,t}`.
+3. Pill is LOCAL only — never sent on the relay (addSysPill alone does not
+   send; do not call the sys-pill relay path).
+
+### Part R2 — B-8b: rename reaches a partner's OPEN drawer
+1. Partner-name updates land in four frozen spots (lines ~1007, ~1016,
+   ~1048, ~1096); each already calls `renderRoomHead()`. The drawer populate
+   function is `renderDrawerValues()` (frozen, line ~1610); the drawer is
+   open iff `document.getElementById('drawer-s4b').classList.contains('open')`.
+2. WRAP `renderRoomHead`: call through; then if the drawer is open, call
+   `renderDrawerValues()` and log `b8b_drawer_refreshed {}`. That single hook
+   covers all four update paths with zero new message types.
+3. Guard: `renderDrawerValues` calls `activeRoom()` and returns if null — no
+   extra guard needed; still wrap the refresh in try/catch.
+
+### Part J3 — #653: join by pasted link
+1. `renderHome()` (frozen, line ~4536) draws the home cards; the joiner
+   create control logs `joiner_create_control`. WRAP `renderHome`: after
+   calling through, if `document.getElementById('j3-row')` is absent, append
+   to the SAME parent container that holds the create control a row:
+   `<div id="j3-row"><input id="j3-url" class="field-select" placeholder="Paste an invite link"><button id="j3-go" class="btn">Join</button></div>`
+   styled with existing classes only — no new CSS.
+2. `#j3-go` click handler: read `#j3-url`, extract the part after `#j=`
+   (accept a full URL or a bare token), run `decInv`; invalid → set the
+   input's placeholder to "That link didn't work" and clear it, log
+   `j3_bad_link {}`; valid → call `joinRoom(p)` (frozen — it handles both
+   the new-room and the room-already-exists/rejoin case) and log
+   `j3_join {r:p.r}`.
+3. Keys note: `joinRoom` already stores joiner keys in memory only — J3 adds
+   no storage.
+
+### Machine gates (all must PASS before push)
+M1 frozen pre-ship body byte-identical inside candidate. M2 appended block
+passes `node --check` (extract block to temp file). M3 exactly three new log
+markers present (`w1_welcome`, `b8b_drawer_refreshed`, `j3_join`).
+M4 candidate never calls `lsSet` with any NEW key (grep the block: only
+`saveRooms()` allowed). M5 no `"start_url"`, no `location.replace`, no
+`unregister` in the block.
+MUTATIONS (plant, expect gate FAIL, then remove): (a) delete the
+`room.title = p.t` line → gate asserting `p.t` adoption text must fail;
+(b) make J3 call a fabricated join function name → M2 fails at runtime-check
+gate (grep the block for `joinRoom(` exactly); (c) add `lsSet('tba_x'` → M4
+fails.
+
+### Device gate (owner, both phones) — URL in the handoff, always
+G1 Android creates a room titled "Gate A", changes the create-sheet name,
+sends invite; iPhone opens it fresh: the FIRST thing seen after joining is
+the pill "«name» is inviting you to Gate A". G2 With iPhone's room drawer
+OPEN, Android renames self in its drawer → iPhone's open drawer shows the new
+name within 2 s, no reopen. G3 iPhone deletes the room, then pastes the same
+invite URL into the home "Paste an invite link" row → lands back in the room
+with history replayed. PASS = all three; any miss = candidate dies (G-entry).
+
+────────────────────────────────────────────────────────────────────────
+## §7.2 RELEASE B — 26·post-ship: "Notifications & steadiness"
+────────────────────────────────────────────────────────────────────────
+
+FILE: `bridge-turn26-post-ship.html` = bytes of ACCEPTED §7.1 candidate + one
+appended block. NEW WORKER FILE: `tb-sw2.js` (tb-sw.js is accepted and
+immutable). RELAY: v6.3 untouched. Accepted manifest untouched;
+`tb-manifest-turn26.webmanifest` untouched.
+
+### Part K1 — #652: the alert wears the app's face (new worker file)
+1. Create `tb-sw2.js` = byte copy of `tb-sw.js` with exactly ONE addition:
+   inside the push handler where `opts` is assembled before
+   `showNotification(d.title, opts)` (line ~82), add
+   `opts.icon = self.registration.scope.replace(/bridge-$/, '') + 'icon-192.png';`
+   `opts.badge = opts.icon;` — the icons exist (manifest lists icon-192.png
+   at repo root). The call branch (`isCall`) additionally sets
+   `opts.renotify = true; opts.tag = 'tb-call';` alongside the existing
+   `requireInteraction` + `vibrate`. Nothing else changes; run a full diff —
+   it must show ONLY those lines.
+2. App block: WRAP `navigator.serviceWorker.register` (this wrapper stacks on
+   U1's — wrap what exists): if the URL string contains `tb-sw.js`, rewrite
+   it to `tb-sw2.js` before calling through (U1 then adds the narrow scope).
+   Log `k1_sw2_register {}`.
+3. Retirement: extend the U1 pattern — after `p3State.sub` exists on the
+   tb-sw2 registration (poll exactly as U1 does, 8 s + 30 s), enumerate
+   registrations; for each with scope `location.origin + '/stuff/'` OR
+   `location.origin + '/stuff/bridge-'` whose active script ends
+   `/tb-sw.js` (the OLD file only — never tb-sw2.js): release its push
+   subscription, then unregister; log `k1_old_sw_retired {scope}`. Exact
+   string matches only; PRISM can never match.
+4. D-1 attempt lives entirely in K1's option set above (strongest legal web
+   alert). The remaining half is a DEVICE SETTING: gate step G2 below flips
+   Chrome › Notifications › site › Alert/pop-up. No further code — if G2
+   still shows no heads-up after the flip, record the observation in the
+   log-bank and move on (owner ruling 2026-09-05: no speculative workarounds).
+
+### Part P2 — presence damping (root cause in log-bank L-2)
+1. P1's `apply(d)` is in the frozen 26·base block. WRAP the CURRENT
+   `handleRelay` (P1's wrapper — stack on it): intercept `type:'peer'`
+   BEFORE P1 sees it. New rule: `others>0` → cancel any pending dark-timer,
+   pass through to P1 (lights + refreshes clock); `others===0` → do NOT pass
+   through; start a 60 s timer (store handle on a closure var); when it
+   fires, synthesize `{type:'peer',others:0}` through to P1 (goes dark) and
+   log `p2_dark_after_grace {}`. A fresh `others>0` within the window logs
+   `p2_flap_absorbed {}`.
+2. No relay change, no P1 change — P1 still owns the dot; P2 only meters
+   what it hears.
+
+### Part C3 — render coalescing (log-bank L-3)
+1. WRAP `renderPanel` and `renderHome` each with the same rAF latch: if a
+   flush is already scheduled, mark dirty and return; else schedule
+   `requestAnimationFrame` → call through once. Log nothing per call; log
+   `c3_coalesced {n}` once per flush with the number of calls absorbed
+   (only when n>1). Behavior-identical output, fewer runs.
+
+### Machine gates
+M1 frozen body identical; M2 block `node --check`; M3 `tb-sw2.js` diff vs
+`tb-sw.js` contains ONLY the icon/badge/renotify/tag lines; M4 retirement
+matches OLD script name only (grep `tb-sw\.js$` guard present AND
+`tb-sw2` excluded from retirement); M5 P2 contains exactly one setTimeout(…
+60000) and P1's text untouched.
+MUTATIONS: (a) widen retirement to any script → M4 fails; (b) remove the
+grace timer cancel on others>0 → gate grepping the cancel call fails;
+(c) let tb-sw2 diff carry any extra line → M3 fails.
+
+### Device gate
+G1 Android, app closed: partner sends a message → notification shows the
+TalkBridge icon (not the bell). G2 Owner flips Chrome's site notification to
+Alert/pop-up (one-time), partner CALLS → phone locked: strongest observed
+presentation recorded in log-bank (pass = icon + vibration + tap opens call;
+heads-up/lock-screen presence is recorded, not required). G3 Presence: lock
+the iPhone mid-chat → Android dot survives the ~10 s socket churn (no
+flicker), goes dark ~60 s after true departure. G4 One push per message —
+no duplicates after the worker swap (old subscription retired). PASS = all.
+
+────────────────────────────────────────────────────────────────────────
+## §7.3 RELEASE C — 27·pre-base + 27·base: "IndexedDB storage migration"
+────────────────────────────────────────────────────────────────────────
+
+STEP 0 — 27·pre-base: `bridge-turn27-pre-base.html` = byte copy of the
+accepted 26·post-ship; frozen snapshot row in §0; no other change.
+
+FILE: `bridge-turn27-base.html` = 27·pre-base bytes + one appended block.
+RELAY v6.3 untouched. Workers/manifests untouched.
+
+### The complete storage inventory being migrated (nothing else exists)
+Via `lsGet/lsSet` (line ~620): `tba_user` (object), `tba_rooms` (array),
+`tba_tr_<roomId>` (array per room, written by `saveTr`, read by `loadTr`),
+`pbCacheKey(pk)` per-PAT phrasebook cache (written by `PB.save`, line ~1168),
+`tb_cr3_pilled`. Raw `localStorage.*Item`: `tb_cf_tid`, `tb_cf_tok`,
+`tb_dev`, `tb_dg_key`, `tb_gh_pat`, `tba_notif_asked`. Joiner keys are
+memory-only by design — they MUST NOT be persisted by this migration.
+
+### Part DB1 — the database
+`indexedDB.open('talkbridge', 1)`; on upgradeneeded create ONE object store
+`kv` with keyPath `k`. Records are `{k, v, at}` where `k` is EXACTLY the
+localStorage key string and `v` the same JSON value — a 1:1 mirror, no
+schema invention. Open once at boot inside the block; keep the handle in a
+closure; every IDB op wrapped in try/catch; any failure logs
+`db1_idb_fail {op,e}` and the app continues on localStorage alone
+(localStorage remains the synchronous read path all through this release).
+
+### Part DB2 — dual-write
+WRAP `lsSet(k,v)`: call through FIRST (localStorage stays the source of
+truth), then queue an async IDB put of `{k,v,at:Date.now()}`. WRAP
+`localStorage.setItem` calls' six raw keys the same way via a tiny shim
+`rawSet(k,v)`? NO — do not touch frozen call sites. Instead, on boot and
+then every 30 s, sweep the six raw keys plus `tba_user`/`tba_rooms` and put
+any changed values (compare by string) into IDB; per-room transcripts are
+caught by the `lsSet` wrap (saveTr uses lsSet). Log `db2_swept {n}` when
+n>0.
+On boot, after the DB opens: for every record in IDB missing from
+localStorage (a device where localStorage was evicted), write it BACK to
+localStorage and log `db2_restored {k}` — this is the entire point of the
+release: IDB survives eviction that wipes localStorage.
+
+### Part DB3 — verification surface
+Add to the existing debug log view a single computed line (rendered where
+the debug modal renders, wrapped, additive): `idb: <n> keys · <bytes> ·
+last sweep <s>s ago` and log `db3_parity {ls:<n>,idb:<n>}` on each sweep.
+Parity mismatch is INFORMATION, not a failure — localStorage governs.
+
+### Explicit non-scope (turn 28 material, do not build)
+No read-path cutover to IDB, no localStorage retirement, no schema beyond
+the kv mirror, no transcript chunking, no quota management beyond try/catch.
+
+### Machine gates
+M1 frozen body identical; M2 block `node --check`; M3 the block contains
+`lsSet` wrapper calling the original FIRST (order asserted by regex: original
+apply precedes any `put(`); M4 the block never writes joiner keys (grep: no
+`joinerKeys` reference); M5 store name/keyPath literals exactly
+`'talkbridge'`, `'kv'`, `'k'`.
+MUTATIONS: (a) reorder IDB put before the original lsSet → M3 fails;
+(b) persist `S.joinerKeys` → M4 fails; (c) rename the store → M5 fails.
+
+### Device gate
+G1 Both phones run a normal chat; debug view shows `idb: N keys` with N ≥
+(2 + open rooms). G2 Android: DevTools/site-settings → clear SITE DATA is
+too blunt for this gate (it clears IDB too); instead the gate is: kill and
+relaunch the app 3× — `db2_restored` MUST NOT appear (localStorage intact,
+mirror quiet), parity line steady. G3 Send 20 messages, confirm
+`db3_parity` ls==idb for the room's transcript key. PASS = all three;
+survival-after-eviction is proven in turn 28's cutover gate, not here.
+
+---
+
+
+## Backlog — video experience (owner ruling 2026-09-05: needs improvement, no diagnosis on file)
+- BL-V1 PiP / swap experience (see G45 symptoms)
+- BL-V2 default/change to forward-facing camera
+- BL-V3 device home button keeps the call running
+
+## Principle added 2026-09-05 — SPEC-FIRST
+No build starts without a §7-grade builder spec in this plan: exact files, exact frozen hooks by name and line, payload keys, log markers, machine gates with named mutations, and a numbered device gate with pass criteria. Off-the-cuff assembly is forbidden.
