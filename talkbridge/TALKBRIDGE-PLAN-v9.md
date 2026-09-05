@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.55.0 -->
-# TALKBRIDGE MASTER PLAN v20.55.0
+<!-- TALKBRIDGE-PLAN v20.56.0 -->
+# TALKBRIDGE MASTER PLAN v20.56.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -76,7 +76,8 @@ built yet.
 | 26·base | Calls package re-landed clean (N10 caller screen + ring-back, N18 timers anchored at answer, N16 shared device log, P1 relay-fed presence) · relay v6.3 additive pair | **BUILT 2026-09-04 on owner GO — device gate pending.** Declared/actual contract: wraps CALL/RING/handleRelay/log, replaces nothing, no scope/manifest/subdirectory change, no mute (G42), timer fed not silenced (G43), attachment not visibility (G23). Mutation gates 2/2. | https://acmeproducts.github.io/stuff/bridge-turn26-base.html |
 | 26·pre-ship | D-2 un-hijack WITHOUT file moves (narrow prefix scope `/stuff/bridge-` on a new manifest `tb-manifest-turn26.webmanifest` + narrowed worker registration + exact-match legacy-worker retirement, push migrated first) + B-8c (creation name field, invite/QR carries the room's name, stamped at generation) | **ACCEPTED 2026-09-04 (owner device gate: PRISM opens plain, iPhone QR install lands in room, room-name invites, single push).** D-2 CLOSED. B-8c CLOSED. Spec deviation from §5.2 declared: the folder move is replaced by scope VALUES — W3C manifest scope is prefix-based by design ("consistency with Service Workers"), and a worker may register a scope deeper than its directory with no header. No start_url anywhere (fb7ed76/G25). Accepted manifest untouched. Contract+mutation gates 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-pre-ship.html |
 | 26·ship (candidate 1) | video experience | **FAILED DEVICE GATE 2026-09-05 → buried G45** (symptoms only, diagnosis deferred by owner ruling). Video wants → backlog BL-V1/V2/V3. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html (dead candidate, stays hosted) |
-| 26·ship (candidate 2) | Arrival & identity per §7.1 (W1 welcome pill + invite carries room title, R2 live rename to open drawer, J3 join-by-link) | **BUILT 2026-09-05 to spec §7.1 on owner GO — device gate pending.** Machine gates M1–M5 PASS; mutations 3/3 caught. Note: joiner-side title adoption already existed in frozen code (applyInvitePayload) — W1's joinRoom hook only adds the pill; deviation recorded, spec otherwise followed verbatim. | https://acmeproducts.github.io/stuff/bridge-turn26-ship2.html |
+| 26·ship (candidate 2) | Arrival & identity per §7.1 (W1 welcome pill + invite carries room title, R2 live rename to open drawer, J3 join-by-link) | **BUILT 2026-09-05 to spec §7.1 on owner GO — device gate pending.** Machine gates M1–M5 PASS; mutations 3/3 caught. **REJECTED by owner 2026-09-05 → buried G46: J3 built on the home surface against its own spec line (panel = create-control container).** | https://acmeproducts.github.io/stuff/bridge-turn26-ship2.html (dead) |
+| 26·ship (candidate 3) | Same §7.1 scope; J3 relocated to the rooms panel per spec; every candidate now logs a build-identity boot line | **BUILT 2026-09-05 — device gate pending.** M1–M5 PASS; mutations 3/3 incl. a wrong-surface mutation. | https://acmeproducts.github.io/stuff/bridge-turn26-ship3.html |
 | 26·post-ship | Notifications & steadiness per §7.2 (K1 worker icon/alert + old-worker retirement, P2 presence damping, C3 render coalescing) | Spec complete §7.2 — builds only after §7.1 accepted | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
@@ -3868,3 +3869,7 @@ survival-after-eviction is proven in turn 28's cutover gate, not here.
 
 ## Principle added 2026-09-05 — SPEC-FIRST
 No build starts without a §7-grade builder spec in this plan: exact files, exact frozen hooks by name and line, payload keys, log markers, machine gates with named mutations, and a numbered device gate with pass criteria. Off-the-cuff assembly is forbidden.
+
+
+## Principle added 2026-09-05 — BUILD IDENTITY
+Every candidate logs one boot line naming its build; a device gate without a build line in the log proves nothing.

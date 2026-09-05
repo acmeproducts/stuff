@@ -1728,3 +1728,12 @@ keeps call running). Process lesson, owner-stated: the candidate was assembled
 from donor code off the cuff instead of from a meticulous builder spec. New
 rule: SPEC-FIRST — no build starts without a §7-grade builder spec in the
 plan. The address stays hosted; the accepted chain is untouched.
+
+## G46 — 2026-09-05 — 26·ship candidate 2, rejected by owner
+
+Buried: bridge-turn26-ship2.html (sha 667e53026f48). J3's own spec line reads
+"append to the SAME parent container that holds the create control" — the
+create control (+) lives in the rooms panel — and the build put the row on
+the home/welcome surface instead, over the flag band. Spec was right, build
+deviated. Second lesson bought this turn: every candidate now logs one
+build-identity line at boot so the device log names the build it came from.
