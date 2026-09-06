@@ -1,93 +1,150 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** R7 IN IMPLEMENTATION — SSOT ACTION SURFACE + IN-PICKER DESTINATION CREATION  
+**Status:** R8 ACTIVE — GLOBAL CONTENT RECONCILIATION  
 **Date:** 2026-09-05
 
-## Recovery anchors
+## Governing correction
 
-- Frozen pre-base UI: `7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html`.
-- Qualified coordination/backend foundation: `b58920f014960c9b18b705a0fdcf0406c621fd5f`, backend build `2026.09.03.sot-turn01-coordination-2`, schema 5.
-- Accepted R6 SSOT/action UI: `7dc9bc7b3402633bb82601b5123280dca74b57bd/SOT-turn01-base-r6.html`.
-- R6 live owner qualification: installer RC=0 on 2026-09-05; public SHA256 `1975ca5d97dc84733d0c239d1ea74ccf17764abada31b0df9e2c22a13cd23006`.
-- GY-024 records the R6 destination-picker limitation: Target/Backup could select only existing folders.
-- Canonical host target remains `SOT/SOT-turn01-base.html`; `install-SOT-turn01-base.sh` remains the only active Base installer.
+R7 is emphatically owner-rejected and archived in `SOT/archive/2026-09-05-turn01-r7-owner-rejection/GY-025.md`.
+
+The failure was not styling. The UI exposed workflow machinery instead of answering the storage-management question. It also made false health claims such as `0 files + 0 missing = Protected` and allowed SSOT to say no attention was required while constituent projects were unresolved.
+
+R8 replaces that model.
+
+## One authoritative model
+
+SOT is a **global physical-content reconciliation system**.
+
+The durable hierarchy is:
+
+`physical content fingerprint → known physical locations → project membership → required copy policy → missing work`
+
+Projects do not create duplicate physical-content truth. If the same fingerprint belongs to several projects, SSOT counts the bytes once and records all project memberships.
+
+A disk's role may change without changing the identity of the content on it. A former active Target that is full or rotated out remains a known fingerprinted location. Content identity and copy truth survive role changes.
+
+## Ownership
+
+### SSOT owns
+
+- the global deduplicated content catalog;
+- every known physical content location;
+- verified copy coverage;
+- storage-volume availability;
+- active write destinations / storage roles;
+- protection policy and placement;
+- cross-project overlap and shared bytes;
+- the ordered list of missing work.
+
+### Projects own
+
+- which source locations/content belong to the project;
+- project membership in the global catalog;
+- optional exceptional policy constraints only.
+
+Projects do **not** fundamentally own independent Target disks. Existing per-project destination plumbing may remain temporarily underneath R8 for compatibility, but the primary product model and UI must not present Target/Backup as project identity.
+
+## Primary UX contract
+
+The main screen is storage reconciliation, not a workflow dashboard.
+
+The dominant visual is:
+
+`SOURCE → SAFE COPY A → SAFE COPY B`
+
+and must answer immediately:
+
+1. **Unique source content** — deduplicated across all projects.
+2. **Fully protected** — positive committed content with all required verified copies.
+3. **Needs one or more copies** — content whose required verified copy coverage is incomplete.
+4. **Unknown / needs scan** — content/projects for which current committed evidence is insufficient to make a protection claim.
+5. **Shared between projects** — deduplicated bytes referenced by more than one project.
+6. **Next actions** — a short ordered list with a direct action beside every problem.
+
+No screen may infer healthy storage from zero counters when there is no positive committed evidence.
+
+## Project UX contract
+
+A project is a lens onto SSOT. Its primary view shows:
+
+- logical project bytes/files;
+- unique physical bytes attributable only to this project;
+- bytes shared with other projects;
+- verified copy coverage;
+- missing/unknown bytes;
+- one plain-language conclusion;
+- one direct next action.
+
+Example:
+
+`625 GB project content · 207 GB unique here · 418 GB shared`  
+`611 GB has both required copies · 14 GB needs another copy`  
+`[ Protect 14 GB ]`
+
+Implementation states such as evidence revision, `closed`, worker phase, stale plan, Pause/Stop/Continue belong under advanced diagnostics and may appear only when they directly explain or control a live operation.
+
+## Truth rules
+
+1. **Protected requires positive evidence.** `0 content`, empty evidence, or unknown evidence can never classify as Protected.
+2. Protection is evaluated per content fingerprint against verified physical holdings.
+3. SSOT and project views use the same resolver. They cannot disagree about health.
+4. Global unique bytes are counted once even when content belongs to multiple projects.
+5. Shared bytes are bytes whose fingerprint belongs to more than one active project.
+6. A transient operation failure cannot erase committed content truth, but it can make newer/unscanned scope explicitly Unknown.
+7. A full/retired disk holding verified content remains part of known storage truth while available; changing its storage role does not reclassify its files as new content.
+
+## R8 backend scope
+
+Preserve the qualified coordination foundation (`b58920f014960c9b18b705a0fdcf0406c621fd5f`, schema 5) and add one clean read model for SSOT reconciliation using existing `current_observations`, `observations`, `content`, `target_holdings`, `backup_holdings`, projects, and sources.
+
+The SSOT read model must return:
+
+- global unique content count/bytes;
+- globally fully protected count/bytes;
+- missing Target/copy-A count/bytes;
+- missing Backup/copy-B count/bytes;
+- missing both count/bytes;
+- shared-across-projects count/bytes;
+- project rows with logical unique content, project-only bytes, shared bytes, copy coverage, evidence availability, and current operation overlay.
+
+This is a read-model addition; no schema migration is required for R8.
+
+## R8 UI scope
+
+Build a clean R8 surface rather than patching R7 presentation logic.
+
+- No six-stage bar on the primary surface.
+- No generic `Protected` from project flags.
+- No `closed` as an operator status.
+- No always-visible Pause/Stop/Continue controls.
+- SSOT overview is the default home screen.
+- Project cards show coverage, overlap, and the next storage action.
+- Project detail is `Source → Copy A → Copy B` with bytes/files and missing/unknown coverage.
+- Advanced diagnostics remain available but collapsed.
+- Background polling patches numeric/status nodes only and never rebuilds operator-owned UI state.
+
+## R8 qualification gates
+
+Before owner handoff:
+
+1. Backend JS parses and retains schema 5 coordination capabilities.
+2. SSOT endpoint deduplicates the same content fingerprint across two projects and counts its bytes once globally.
+3. The same fixture reports those bytes as shared across projects.
+4. `0 files / 0 bytes` is Unknown/Not indexed, never Protected.
+5. Positive content with both verified holdings is Fully protected.
+6. Positive content missing one holding is Needs copy with exact missing bytes.
+7. SSOT aggregate equals the sum of mutually exclusive global coverage classes.
+8. Project rows reconcile to the same content fingerprints used globally.
+9. UI contains no six-stage primary workflow and no `closed` primary status.
+10. UI renders Source → Copy A → Copy B plus unique/shared/missing bytes.
+11. Existing coordination, database-integrity, public-byte identity and rollback gates pass.
+12. Host installer prints the exact cache-busted owner-test URL only after all gates pass.
 
 ## Governance
 
-1. Failed/rejected generated HTML is evidence only and never an implementation ancestor.
-2. R6 is an accepted owner-test baseline. R7 is a direct source revision of R6 for the explicitly requested destination-creation capability.
-3. Preserve the qualified backend coordination foundation; do not redesign or patch unrelated backend lifecycle behavior for this change.
-4. Before every governed write, fetch current `main` and the current target-file blob SHA. Preserve unrelated repository work.
-5. Host cutover must archive the previous SOT UI and roll back automatically if live/public qualification fails.
-6. Owner testing begins only after the installer passes live backend/schema/database/UI/public-byte gates.
-
-## Product hierarchy
-
-### SSOT — installation-wide truth
-
-The SSOT overview reconciles all project SOTs and answers: what storage exists, what has been indexed, what is protected, what needs attention, and what direct action is next.
-
-### Project SOT — durable project truth
-
-Each project has one continuous operational surface and visible lifecycle:
-
-`Setup → Index → Review → Plan → Protect → Verify`
-
-Completed durable state remains visible while temporary operations run. A transient error never replaces committed evidence truth.
-
-### Action model
-
-Every actionable problem must state:
-
-`what is true → what is missing/wrong → what happens next → direct corrective action`
-
-Raw machine errors belong in Activity / diagnostics.
-
-## R7 destination-definition contract
-
-Target and Backup are managed destinations, not pre-existing-folder references. Their picker must therefore support creation directly:
-
-1. Browse discovered Windows/WSL volumes and folders using the existing shared storage authority.
-2. For `Target` and `Backup`, show **New folder** in the currently browsed directory.
-3. Prompt for one folder name; reject empty names, `.` / `..`, path separators, and invalid backend names.
-4. Create through the already-qualified backend endpoint `POST /turn01/fs/folder` with `{parent,name}`. Do not add a second filesystem implementation.
-5. On success, refresh/enter the returned folder and automatically make it the selected Target/Backup candidate.
-6. Operator then saves the destination normally.
-7. Failure remains inside the picker with a plain corrective message; the picker stays open and retains the current browse location.
-8. Source picker remains selection-only; do not create empty Source folders.
-9. Background polling must not close the picker, clear the new-folder input, reset browse location, or change selected destination.
-
-## Base product contract retained
-
-- Stable completed Index and committed evidence revision.
-- 2-copy / 3-copy / 4+ duplicate findings.
-- Current versus stale Plan truth bound to exact committed evidence revision.
-- Shared Source/Target/Backup storage inventory and picker semantics.
-- Dynamic Windows volume inventory.
-- Target/Backup destination creation from within the picker.
-- Responsive UI during work; operator-owned selection, disclosure, modal, search, focus and scroll state.
-- Cross-project concurrency with one state-mutating operation owner per project.
-- Atomic replacement-index cutover; failed/cancelled re-index cannot destroy current evidence.
-- Durable Activity / diagnostics.
-- Installation-wide SSOT management view plus independent project SOT surfaces.
-
-## R7 qualification gates
-
-Before owner handoff the exact R7 candidate must pass:
-
-1. JavaScript parse.
-2. R6 SSOT/action/product markers remain present.
-3. Target picker contains `New folder`; Backup picker contains the same capability; Source picker does not offer destination creation.
-4. UI calls only `POST /turn01/fs/folder` for folder creation.
-5. Created-folder response is entered and selected immediately.
-6. Picker remains open on folder-create failure and displays an actionable error.
-7. Existing 3-second polling path does not rebuild/close the modal or mutate picker-owned state.
-8. Live backend remains build `2026.09.03.sot-turn01-coordination-2`, schema 5, with qualified coordination capabilities.
-9. Database integrity passes before and after cutover.
-10. Public served UI is byte-identical to the qualified R7 UI.
-11. Installer rollback restores prior R6 UI if any post-cutover gate fails.
-
-## Handoff
-
-After gates 1–11 pass, the canonical installer prints the cache-busted owner-test URL. No alternate preview host is used.
+- Failed/rejected generated artifacts are evidence only.
+- Do not patch R7 UI forward.
+- Preserve unrelated repository work; fetch current main and target SHA before every write.
+- `install-SOT-turn01-base.sh` remains the only active Base installer.
+- The owner is the product/browser tester; mechanically reproducible truth failures must be caught before handoff.
