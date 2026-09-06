@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.62.0 -->
-# TALKBRIDGE MASTER PLAN v20.62.0
+<!-- TALKBRIDGE-PLAN v20.63.0 -->
+# TALKBRIDGE MASTER PLAN v20.63.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -3880,3 +3880,113 @@ Every candidate logs one boot line naming its build; a device gate without a bui
 
 ## D-2 REOPENED — 2026-09-06 (owner ruling: half-right is 100% wrong)
 The narrow-prefix un-hijack does not manage all clients: browsers treat a scope without a trailing slash as invalid and silently fall back, so installed-app capture protection is unreliable and desktop install is blocked outright. The worker-side retirement stands as proven, but D-2 as a whole is NOT FIXED. The correct fix is the directory arrangement (D-6 Option 1), executed as its own gated release with a complete path-impact map per G44. No partial credit.
+
+────────────────────────────────────────────────────────────────────────
+## §7.4 BUILDER SPEC — MD-1: kanban notes markdown in the chat transcript
+────────────────────────────────────────────────────────────────────────
+Written 2026-09-06. Unsequenced — owner slots it. Common law of §7 applies
+(new file = base bytes + one appended block, frozen body byte-identical,
+wrap-and-call-through, byte-verify at commit SHA, candidate dies on gate
+failure).
+
+FILE: next 26/27-line candidate per owner sequencing, base = the accepted
+release current at build time. RELAY untouched. Workers/manifests untouched.
+
+### The three design decisions (fixed; the build implements exactly these)
+D1 RENDER AT DISPLAY TIME ONLY. The raw text remains canonical everywhere
+   else: composer sends raw, relay carries raw, translation receives raw,
+   transcript storage (`tba_tr_*`), history sync, phrasebook save, clarify,
+   and receipts all see raw. Markdown exists only in the painted bubble.
+D2 BOTH COLUMNS RENDER, EACH FROM ITS OWN TEXT. The left cell renders from
+   the text it already shows, the right cell from its own; if translation
+   mangled the syntax, the pipeline fail-softs to plain text (broken
+   markdown simply doesn't match and renders as typed). No cross-column
+   copying.
+D3 SPEECH NEVER READS SYNTAX. Read-aloud speaks a stripped form: link
+   labels without URLs, bare URLs as their hostname, emphasis/code marks
+   dropped, fences dropped.
+NON-SCOPE: no live preview inside the composer input; no markdown in the
+   room list, pills, drawer, PB cards, or notifications; no images beyond
+   the kanban base64 rule; no tables.
+
+### Part MD-A — the ported pipeline (verbatim from kanban.html)
+Port these four functions BYTE-FOR-BYTE from kanban.html (locations as of
+kanban.html today; builder re-greps at build time): `normalizeShorthandUrl`
+(~line 2000), `shorthandToMarkdown` (~2010), `preprocessNotes` (~2018),
+`inlineMarkdown` (~2049), plus `linkifyNotes` (~2046), `renderMarkdown`
+(~2056) and `sanitizeMarkdownImages` (~2078), renamed with a `tbmd` prefix
+(tbmdRenderMarkdown etc.) and using the app's own `esc()` (line 614) where
+kanban calls `escapeHtml` — same contract (div.textContent → innerHTML).
+The rule set this buys, in full: `Label -- url` shorthand → bold link with
+https:// prefixed and `.com` appended to dotless hosts (assumptionsof →
+https://assumptionsof.com); bare http(s) URLs → links labeled by hostname,
+www stripped, trailing `),.;!?` trimmed; existing `[..](..)`/`![..](..)`
+token-protected through both passes; inline **bold** *italic* `code`
+[label](url) (target=_blank rel=noopener); block: ``` fences, -/* bullets,
+#/##/### as bold lines, blank lines dropped, base64 image markdown → <img>;
+HTML-escaped BEFORE all rendering (the XSS guarantee — order is law).
+
+### Part MD-B — the display hook
+1. WRAP `appendMsgDom(e,batch)` (frozen, line ~1470; `renderTranscript`
+   line ~1402 funnels every painted entry through it — the wrapper covers
+   both live and bulk paint; the machine gate verifies that funnel by grep).
+   After calling through: if `e.kind==='sys'` return. Locate the just-added
+   node `t.lastElementChild`... NO — the original appends via fragment; the
+   wrapper instead re-queries `$('transcript').querySelector('.msg[data-id="'+e.id+'"]')`
+   (ids are already stamped by msgHtml). For each of the node's two
+   `.tr-text` cells (inside `[data-side="left"]` and `[data-side="right"]`):
+   ONLY IF `typeof attHtml==='function' && attHtml(e)===''` (no attachment
+   markup shares the cell), replace the cell's content with
+   `tbmdRenderMarkdown(text)` where text = the same field msgHtml put there
+   (`e.who==='me'` → left=e.sourceText/right=e.translatedText, else
+   swapped — copy msgHtml's own mapping, lines ~1441-1444). Preserve the
+   sibling TTS button (it is OUTSIDE `.tr-text` — verified in msgHtml
+   ~1456-1461 — so cell replacement cannot touch it). Wrap the whole
+   rewrite in try/catch; on any throw the escaped original stands.
+   Log `md1_rendered {id}` once per rewritten message, level ok.
+2. Links inside bubbles must not trigger the column's tap-to-speak: the
+   wrapper adds one delegated listener on `#transcript` (once) that calls
+   `ev.stopPropagation()` for clicks on `a[href]` inside `.tr-text`.
+
+### Part MD-C — speech stripping (D3)
+WRAP `speakText(text,lang)` (frozen, line ~710): before calling through,
+run `tbmdSpeechStrip(text)`: `[label](url)` → label; `Label -- url` →
+Label; bare URLs → hostname without www; strip `**`, `*`, backticks, and
+fence lines; collapse doubled whitespace. Deterministic, specified fully by
+the fixture set below. Log nothing (speech is frequent).
+
+### Machine gates
+M1 frozen body byte-identical. M2 block `node --check`. M3 PARITY HARNESS:
+the build script extracts the source functions from kanban.html AND the
+tbmd-ported copies from the candidate, runs BOTH in node against the
+fixture set, asserts character-identical output (esc/escapeHtml shimmed
+identically): fixtures — `site -- assumptionsof` → contains
+`https://assumptionsof.com`; `docs -- assumptionsof.com/x?q=1` keeps path
+and query; `ref -- ftp://h.io/f` keeps scheme; bare
+`see https://www.foo.com/a, now` → link labeled `foo.com`, comma outside;
+`**b** *i* \`c\` [l](https://x.y/z)`; a ``` fence block; a `- ` list; `## h`;
+`<img src=x onerror=alert(1)>` renders escaped and inert (no `<img` in
+output); `![p](data:image/png;base64,AAAA)` → one `<img`. M4 speech
+fixtures: `[call me](https://a.b/c)` → `call me`; `go to
+https://www.x.com/y now` → `go to x.com now`; `**loud** \`code\`` → `loud
+code`. M5 hook guards present by grep: the attHtml-empty condition, the
+`.tr-text` selector, the stopPropagation listener, the try/catch fallback.
+MUTATIONS (plant → gate must fail → remove): (a) swap the escape order so
+raw text hits the renderer before esc → XSS fixture fails M3; (b) change
+the dotless-host default from `.com` → assumptionsof fixture fails M3;
+(c) delete the attHtml guard → M5 fails; (d) make speech return the URL →
+M4 fails.
+
+### Device gate (owner, both phones; footer names the build first)
+G1 Send `menu -- assumptionsof` → both phones show a bold "menu" link; tap
+opens https://assumptionsof.com in a new tab; tapping elsewhere in the
+column still speaks. G2 Send `**urgent** meet at https://www.maps.com/x` →
+bold renders, link labeled maps.com; read-aloud says "urgent meet at
+maps.com". G3 Send a `- ` two-item list and a ``` fenced line → bullets and
+code render on both phones; the translated column shows its own text,
+broken syntax tolerated as plain text. G4 Send `<b>hi</b>` → renders as the
+literal text, not bold (escape holds). G5 A message with an attachment
+renders exactly as today (guard). PASS = all five.
+
+
+## MD-1 — kanban markdown in chat: spec complete §7.4, unsequenced (owner slots it into the release chain).
