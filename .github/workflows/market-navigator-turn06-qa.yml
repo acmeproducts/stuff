@@ -1,0 +1,95 @@
+name: Market Navigator Turn 06 qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn06-pre-ship.html'
+      - '.github/workflows/market-navigator-turn06-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Static and syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          s=Path('market-navigator-turn06-pre-ship.html').read_text()
+          assert '<iframe' not in s.lower()
+          assert all(x in s for x in ['NOW','EXPLORE','LIBRARY','HEALTH','CONFIG'])
+          assert all(x in s for x in ["'1D'","'5D'","'MTD'","'YTD'","'1YR'","'3YR'","'5YR'"])
+          assert 'native_unit' in s and 'Y1 + Y2' in s and 'Indexed 100' in s
+          assert 'Add' in s and 'Stats' in s and 'Print' in s and 'DL' in s and 'AI' in s
+          scripts=re.findall(r'<script>(.*?)</script>',s,re.S); assert scripts
+          Path('/tmp/mn.js').write_text(scripts[-1])
+          c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
+          m={x['id']:x for x in c['series']}
+          assert m['cpi']['native_unit']=='percent' and m['coreCpi']['native_unit']=='percent'
+          assert m['wti']['native_unit']=='USD per barrel' and m['brent']['native_unit']=='USD per barrel'
+          PY
+          node --check /tmp/mn.js
+      - name: Browser journey, touch, axes, mobile composition
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn-server.log 2>&1 &
+          mkdir -p qa-shots
+          cat > qa.js <<'JS'
+          const {chromium}=require('playwright');
+          const H=['1D','5D','MTD','YTD','1YR','3YR','5YR'];
+          async function tipTap(p,sel){const b=await p.locator(sel).boundingBox(); if(!b||b.width<20||b.height<20)throw Error('bad chart geometry '+sel); await p.touchscreen.tap(b.x+b.width*.58,b.y+b.height*.46);await p.waitForTimeout(100)}
+          async function add(p,q){await p.locator('#addSeries').click();await p.locator('#pickerSearch').fill(q);let r=p.locator('#pickerList .row').first();if(!await r.count())throw Error('picker missing '+q);await r.click();await p.waitForTimeout(160)}
+          async function openExploreRoot(p,cat,q){await p.locator('[data-view="explore"]').click();await p.locator(`[data-cat="${cat}"]`).click();await p.locator('#exploreSearch').fill(q);let r=p.locator('#exploreList .row').first();if(!await r.count())throw Error('explore missing '+q);await r.click();await p.locator('#openExploreAnalysis').click();await p.waitForTimeout(180)}
+          (async()=>{const b=await chromium.launch({headless:true});
+            for(const vp of [{width:1280,height:800,name:'desktop'},{width:390,height:844,name:'phone'}]){
+              const p=await b.newPage({viewport:{width:vp.width,height:vp.height},hasTouch:true});let errors=[];p.on('pageerror',e=>errors.push(String(e)));
+              await p.goto('http://127.0.0.1:8123/market-navigator-turn06-pre-ship.html',{waitUntil:'networkidle'});await p.waitForTimeout(500);if(errors.length)throw Error(errors.join('\n'));
+              if((await p.locator('#hzs .hz').allTextContents()).join('|')!==H.join('|'))throw Error('NOW horizons');
+              if((await p.locator('#legend .lg').allTextContents()).join('|')!=='RSK|GRW|MAC')throw Error('V1 legend copy');
+              if(vp.name==='phone'){if(await p.locator('#range').evaluate(e=>getComputedStyle(e).display)!=='none')throw Error('phone date collision');if(await p.locator('.chartHead').first().evaluate(e=>e.getBoundingClientRect().height)>40)throw Error('phone chart header height');}
+              await tipTap(p,'#nowChart');if(await p.locator('#nowTip').evaluate(e=>getComputedStyle(e).display)==='none')throw Error('V1 touch inspection');
+              if(vp.name==='phone')await p.screenshot({path:'qa-shots/phone-v1.png',fullPage:false});
+              for(const index of ['RSK','GRW','MAC']){
+                if(!(await p.locator('#legend .lg',{hasText:index}).count()))throw Error('missing V1 '+index);
+                await p.locator('#legend .lg',{hasText:index}).click();await p.waitForTimeout(250);
+                if(await p.locator('#legend .lg').count()<8)throw Error(index+' V2 series count');
+                if(vp.name==='phone'&&await p.locator('.chartHead').first().evaluate(e=>e.getBoundingClientRect().height)>40)throw Error(index+' V2 header wrap');
+                for(const h of H){await p.locator('#hzs .hz',{hasText:h}).click();await p.waitForTimeout(100);let cb=await p.locator('#nowChart').boundingBox();if(!cb||cb.height<250)throw Error(index+' '+h+' chart geometry')}
+                await tipTap(p,'#nowChart');if(await p.locator('#nowTip').evaluate(e=>getComputedStyle(e).display)==='none')throw Error(index+' V2 inspection');
+                if(vp.name==='phone'&&index==='RSK')await p.screenshot({path:'qa-shots/phone-v2-risk.png',fullPage:false});
+                await p.locator('#v1btn').click();await p.waitForTimeout(120);
+              }
+              // NOW -> component card -> V3 and seven horizons
+              await p.locator('#legend .lg',{hasText:'GRW'}).click();await p.waitForTimeout(220);await p.locator('#legend .lg').nth(1).click();await p.waitForSelector('#moreInfo');await p.locator('#moreInfo').click();await p.waitForTimeout(180);
+              if((await p.locator('#analysisHz .hz').allTextContents()).join('|')!==H.join('|'))throw Error('V3 horizons');
+              if(!(await p.locator('#axisBadge').textContent()).includes('Native Y1'))throw Error('one series native Y1');
+              for(const h of H){await p.locator('#analysisHz .hz',{hasText:h}).click();await p.waitForTimeout(80);let cb=await p.locator('#analysisChart').boundingBox();if(!cb||cb.height<220)throw Error('V3 '+h+' geometry')}
+              await tipTap(p,'#analysisChart');if(await p.locator('#analysisTip').evaluate(e=>getComputedStyle(e).display)==='none')throw Error('V3 inspection');
+              if(vp.name==='phone')await p.screenshot({path:'qa-shots/phone-v3.png',fullPage:false});
+              await p.locator('#closeAnalysis').click();
+              // CPI + Core CPI => shared native Y1
+              await openExploreRoot(p,'Macro','CPI');await add(p,'Core Consumer');if(!(await p.locator('#axisBadge').textContent()).includes('Native Y1'))throw Error('CPI+Core CPI shared Y1');await p.locator('#closeAnalysis').click();
+              // WTI + Brent => shared native Y1
+              await p.locator('[data-view="explore"]').click();await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('West Texas');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.waitForTimeout(150);await add(p,'Brent');if(!(await p.locator('#axisBadge').textContent()).includes('Native Y1'))throw Error('WTI+Brent shared Y1');await p.locator('#closeAnalysis').click();
+              // CPI + WTI => dual; + VIX => Indexed100
+              await p.locator('[data-view="explore"]').click();await p.locator('[data-cat="Macro"]').click();await p.locator('#exploreSearch').fill('Consumer Price Inflation YoY');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.waitForTimeout(150);await add(p,'West Texas');if(!(await p.locator('#axisBadge').textContent()).includes('Y1 + Y2'))throw Error('CPI+WTI dual');await add(p,'Volatility');if(!(await p.locator('#axisBadge').textContent()).includes('Indexed 100'))throw Error('CPI+WTI+VIX indexed');
+              let overflow=await p.evaluate(()=>document.documentElement.scrollHeight>document.documentElement.clientHeight||document.body.scrollHeight>document.body.clientHeight);if(overflow)throw Error('page scroll');if(errors.length)throw Error(errors.join('\n'));await p.close();
+            }
+            await b.close();console.log('TURN06 PASS')})().catch(e=>{console.error(e);process.exit(1)})
+          JS
+          node qa.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-navigator-turn06-phone-screens
+          path: qa-shots
+          if-no-files-found: ignore
