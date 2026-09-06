@@ -1,161 +1,132 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** R9 ACTIVE — DATABASE-CENTERED MASTER / DETAIL  
+**Status:** R10 ACTIVE — OPERATING INTELLIGENCE  
 **Date:** 2026-09-06
 
 ## Governing model
 
 SOT is a global physical-content reconciliation system backed by one SSOT database.
 
-`physical fingerprint → known locations → project membership → required copies → actual verified copies → missing work`
+`physical fingerprint → known physical locations → project membership → required verified copies → missing work → recommended action`
 
-Content identity is permanent. Storage roles are not. A full former Target may become retained/source storage and its verified fingerprints remain known. Projects are membership/policy views over the database and do not own physical-content truth.
+Content identity is permanent; storage roles are not. Projects are membership/policy lenses over the SSOT and do not own physical-content truth. A Target may later become retained/source storage without changing fingerprint identity.
 
-R7 presentation is rejected in GY-025. R8 pre-cutover syntax failure is GY-026. R8 dashboard presentation is emphatically owner-rejected in GY-027. The qualified R8 reconciliation backend/read model remains useful foundation; rejected UI artifacts are evidence only.
+## Accepted R9 foundation and R10 correction
 
-## Product information architecture
+R9's Dashboard / Database / Activity / Settings information architecture and master→detail interaction are retained because the owner explicitly found the dashboard materially better. R9 is nevertheless rejected as a complete product in GY-032 because it hid/removed essential operating capability and did not explain what fingerprint evidence means.
 
-### 1. Dashboard — default home
+R10 is one clean source advance from the mechanically qualified R9 baseline. It restores the operating product behind the accepted shell; it does not redesign the shell again.
 
-Dashboard is the default landing surface. There is no `Overview` or `Storage estate` mode button.
+## Dashboard — understand and act
 
-It must show the whole storage estate visually:
+Dashboard remains the default home and must show:
 
 - unique fingerprinted source content;
-- verified Copy A coverage;
-- verified Copy B coverage;
-- fully protected content;
-- unresolved / unknown content;
-- shared cross-project content;
-- current storage work.
+- verified Copy A and Copy B coverage;
+- fully protected and unprotected bytes;
+- cross-project shared content;
+- duplicate source groups and redundant source bytes;
+- current storage work with real durable counters when available;
+- deterministic prioritized recommendations explaining what to do next.
 
-Coverage is displayed primarily as horizontal bars whose lengths are comparable against the unique-content estate.
+A number without interpretation is insufficient. Duplicate groups must expose fingerprint, size, physical source locations, project membership, copy count, and potential redundant bytes. Shared-project content and verified protection copies must never be described as disposable duplicates.
 
-### 2. Active now — always visible
+## Project master → detail
 
-Any queued/running/paused index, plan, copy, or verification operation appears prominently on Dashboard and on its project master row.
+Selecting a project keeps the master list visible and renders detail on the same Dashboard.
 
-For index work show, when available:
+Project detail must provide:
 
-- operation name/state;
-- files processed / expected;
-- bytes processed / expected;
-- percentage/progress bar;
-- elapsed/current item when available;
-- Pause + Stop while running;
-- Resume + Stop while paused.
+1. Source content / Copy A / Copy B / fully protected coverage.
+2. **Sources / Target / Backup** operating control.
+3. Live-volume folder picker for Sources, Target and Backup.
+4. Destination-folder creation.
+5. Project-specific duplicate groups, physical locations, redundant bytes and missing protection.
+6. Deterministic recommended next actions.
+7. Active operation telemetry and Pause/Resume/Stop where valid.
+8. Deep Dive for exhaustive evidence.
 
-A project with an active operation may never simultaneously offer `Scan now` as though idle.
+## Storage configuration
 
-### 3. Master → detail
+Sources define project membership. Target is Copy A and Backup is Copy B. The picker uses `/turn01/volumes`, `/turn01/fs`, and `/turn01/fs/folder`; source assignments use the canonical project sources API and destination assignments use the canonical project storage API. No parallel configuration state is introduced.
 
-Dashboard contains the project master list. Selecting a project does not navigate away. Detail renders directly below the master/dashboard context.
+## Storage intelligence read model
 
-Project master rows show:
+R10 adds a read-only deterministic intelligence projection over existing SSOT tables. It may not create alternate truth.
 
-- project name;
-- logical content;
-- unique vs shared bytes;
-- verified coverage;
-- unresolved bytes;
-- live operation/progress if active;
-- one next storage action if idle.
+For global and project scopes it reports:
 
-Project detail shows Source → Copy A → Copy B coverage as compact visual bars plus sources/membership and corrective action.
+- fingerprint count and logical bytes;
+- duplicate source groups;
+- redundant source bytes (`size × (source_locations - 1)` for fingerprints observed at multiple source paths);
+- cross-project shared groups/bytes;
+- largest duplicate groups with all known source locations and project names;
+- fingerprints lacking verified Copy A or Copy B;
+- prioritized deterministic recommendations.
 
-### 4. Deep-dive modal
+Deletion is never automatic and recommendations must explicitly protect/verify before suggesting removal of redundant source copies.
 
-`Details` opens a large modal rather than navigating away. It may contain exhaustive information without cluttering Dashboard:
+## Database and Deep Dive
 
-- project sources and scope;
-- content/copy summaries;
-- fingerprints/locations;
-- overlap/membership;
-- plans/evidence revisions;
-- operation history;
-- diagnostics/errors/provenance.
+Database remains first-class with Content, Locations, Projects and Operations views. Deep Dive remains the exhaustive evidence surface. These surfaces support the Dashboard explanation; they are not substitutes for it.
 
-Modal actions: Print, Download JSON, Download CSV where applicable, Share/send when platform capability exists. AI analysis is a future extension point, not an R9 blocker.
+## Activity / observability
 
-### 5. Database — first-class surface
+Any queued/running/paused index, plan, copy or verification operation appears prominently. Running indexing shows, when backend evidence exists: files discovered/processed, bytes discovered/processed, phase/current item, percentage and controls. Queued state must be labeled as waiting rather than presented as completed progress. An active project may never simultaneously offer idle `Scan now`.
 
-Database is a top-level surface beside Dashboard, Activity, and Settings.
+## AI configuration
 
-Database provides a searchable catalog over SSOT truth, not a diagnostics dump. Initial views:
+Settings restores AI configuration:
 
-- Content — fingerprint, size, project membership count, location/copy state;
-- Locations — known paths/holdings and verification state;
-- Projects — membership/overlap view;
-- Operations — durable operation records.
+- provider: OpenRouter or Venice;
+- provider model ID;
+- API key stored browser-local only;
+- selected provider/model persisted browser-local.
 
-Search accepts fingerprint, filename/path when available, project, and location. Results support JSON/CSV export.
-
-### 6. Activity — first-class surface
-
-Activity exposes durable current/recent work and event history. It is separate from database inspection and from the normal dashboard.
+AI is advisory. Fingerprints, locations, verified-copy state and deterministic protection decisions remain factual authority. AI configuration must not be required for core storage reconciliation.
 
 ## Truth rules
 
-1. Protected requires positive committed content plus required verified copies.
+1. Protected requires positive committed content plus required verified independent copies.
 2. Zero files/bytes is Unknown/Not indexed, never Protected.
 3. Global unique bytes count each fingerprint once regardless of project membership.
-4. Shared bytes are fingerprints referenced by more than one active project.
-5. SSOT, project rows, detail, database and exports use the same resolver/read model.
-6. A failed/new scan cannot erase prior committed truth; any unscanned newer scope is explicitly Unknown.
+4. Shared content is distinct from redundant source duplication.
+5. Verified Target/Backup holdings are protection copies, not disposable duplicate-source waste.
+6. A failed/new scan cannot erase prior committed evidence.
 7. Active-operation truth overrides idle CTA presentation without overwriting committed storage truth.
 8. Storage-role changes do not change content identity.
+9. No delete/removal recommendation may precede protection/verification evidence.
 
-## R9 backend/read-model scope
+## R10 qualification gates
 
-Preserve qualified schema-5 coordination and R8 global reconciliation. Extend the read model only where required for:
+### Developer pass
+1. R10 backend integrator and resulting backend parse.
+2. R10 UI integrator and extracted UI JavaScript parse.
+3. Existing R8 reconciliation and R9 catalog remain present.
+4. Intelligence fixture proves duplicate group count, redundant-byte math, physical locations, shared-project distinction and missing-copy reporting.
+5. UI contract proves Dashboard intelligence, project Sources/Target/Backup, volume/folder picker, folder creation, duplicate detail, recommendations and AI settings.
+6. Existing governed active-operation fixture still reads WIP 40/100 after startup recovery has completed.
 
-- active-operation progress fields on project rows;
-- database catalog queries over current fingerprints, memberships and holdings;
-- durable activity queries;
-- exportable deep-dive payloads.
+### Manager pass
+7. R10 is one clean advance from the qualified R9 source, not a rejected generated artifact.
+8. No unrelated architecture/workflows are changed.
+9. Cutover rollback is armed before first live file replacement.
+10. Installer remains canonical and immutable by commit for owner execution.
 
-Do not create alternate content identity or project-specific storage truth.
-
-## R9 UI scope
-
-Create a clean standalone R9 source. Do not patch R8 UI forward.
-
-Top navigation:
-
-`SSOT | Dashboard | Database | Activity | Settings`
-
-Dashboard order:
-
-1. storage-estate coverage bars;
-2. Active now;
-3. project master list;
-4. selected project detail below master;
-5. ordered attention/corrective actions.
-
-The surface must remain useful at tablet width. Background refresh patches data without resetting selected project, active tab, scroll, modal, database query/filter, focus, or disclosure state.
-
-## R9 qualification gates
-
-1. Backend JS parse.
-2. Existing R8 cross-project fingerprint dedup fixture still passes.
-3. Zero-content cannot classify Protected.
-4. Running fixture appears in Active now and project row.
-5. Running fixture cannot render idle `Scan now` CTA.
-6. Progress counters/bar render from backend operation/run counters.
-7. Dashboard is default and no Overview/Storage-estate mode button exists.
-8. Comparable estate bars render unique, Copy A, Copy B, fully protected, unresolved.
-9. Project selection renders detail without replacing master/dashboard context.
-10. Deep-dive modal exists and provides Print + JSON export.
-11. Database top-level surface supports Content/Locations/Projects/Operations views and search.
-12. Activity top-level surface exposes current/recent durable operations.
-13. Poll refresh preserves operator-owned state.
-14. Database integrity, public-byte identity, rollback and canonical installer gates pass.
-15. Installer emits exact cache-busted owner-test URL only after all gates pass.
+### Red-team pass
+11. Zero-content cannot be Protected.
+12. Shared content is not counted as redundant merely because multiple projects reference it.
+13. Protection holdings are not counted as redundant source locations.
+14. Active operation cannot expose `Scan now`.
+15. Temp qualification uses SQLite backup and exact migration set; no raw WAL copy.
+16. Post-cutover health, intelligence/catalog/activity/project endpoints, database integrity and public byte identity pass.
+17. Any failure before release-ready rolls back live backend/UI and does not publish a test URL.
 
 ## Governance
 
-- Rejected UI builds are evidence only and never implementation ancestors.
-- Preserve unrelated repository work; fetch current main and every target blob SHA immediately before writes.
-- `install-SOT-turn01-base.sh` remains the only active Base installer.
-- Owner is the product/browser tester; mechanically reproducible failures must be caught before handoff.
+- Fetch current main and every target blob SHA immediately before writes; preserve unrelated work.
+- Failed/rejected generated artifacts are evidence only and never implementation ancestors.
+- `install-SOT-turn01-base.sh` is the only active Base installer.
+- Owner is the browser/product tester; mechanically reproducible failures must be caught before handoff.
+- Release handoff requires Developer PASS → Manager PASS → Red-team PASS and one exact WSL installer command.
