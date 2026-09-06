@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.63.0 -->
-# TALKBRIDGE MASTER PLAN v20.63.0
+<!-- TALKBRIDGE-PLAN v21.0.0 -->
+# TALKBRIDGE MASTER PLAN v21.0.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -80,7 +80,7 @@ built yet.
 | 26·ship (candidate 3) | Same §7.1 scope; J3 relocated to the rooms panel per spec; every candidate now logs a build-identity boot line | **REJECTED and REMOVED FROM THE REPOSITORY at owner order 2026-09-05** — Join button rendered under the + control (G47). File deleted; no candidate is entertained at this address. | (deleted) |
 | 26·ship (candidate 4) | Owner-scoped rebuild on accepted 26·pre-ship: #653 "Join thread" as the FOURTH clock long-press option (paste/QR via BarcodeDetector, hidden everywhere else, joins via the untouched #j= boot path — per the 2026-09-01 written direction) + welcome pill "name is inviting you to title (Yours ↔ Theirs)" + build identity (boot log line + clock-menu footer with build date/time) | **REJECTED 2026-09-05 (owner: onboarding broken) → buried G48; address rolled back byte-exact to accepted 26·pre-ship.** Post-mortem note from the device log, recorded not argued: a full onboard ran clean ON c4 bytes at 11:01–11:05Z (create→grant→invite→join→welcome pill correct), and the owner's broken test began ~3 min after the push — stale/mixed CDN is the standing suspect; build-identity footer exists to make that visible. | (address rolled back) |
 | 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | superseded by c6 same day (desktop-install fix). |
-| 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **BUILT 2026-09-06 — device gate pending. Footer must read c6.** | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
+| 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | Notifications & steadiness per §7.2 (K1 worker icon/alert + old-worker retirement, P2 presence damping, C3 render coalescing) | Spec complete §7.2 — builds only after §7.1 accepted | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
@@ -3990,3 +3990,206 @@ renders exactly as today (guard). PASS = all five.
 
 
 ## MD-1 — kanban markdown in chat: spec complete §7.4, unsequenced (owner slots it into the release chain).
+
+────────────────────────────────────────────────────────────────────────
+## §7.5 BUILDER SPEC — D-2 DONE RIGHT: the directory release
+────────────────────────────────────────────────────────────────────────
+The one arrangement both the standard and Chrome honor: TalkBridge lives in
+`/stuff/talkbridge-app/` with a slash-terminated scope. Executed alone, with
+this complete path-impact map — G44's price, paid in full.
+
+FILES: `talkbridge-app/index.html` (the app, base = accepted bytes with the
+declared head edits below), `talkbridge-app/tb-sw.js` (byte copy of root
+tb-sw.js), `talkbridge-app/tb-manifest.webmanifest` (accepted manifest
+content, `scope` `"./"` which now MEANS /stuff/talkbridge-app/, icons
+copied into the folder: `talkbridge-app/icon-192.png` etc. byte copies).
+Old addresses: every accepted bridge-*.html address gets a 15-line
+forwarder page (declared new content at existing addresses is FORBIDDEN on
+accepted artifacts — so forwarders ship ONLY at the moment the owner
+ACCEPTS this release, as its post-gate step, owner-ordered) that carries
+search+hash: `location.replace('/stuff/talkbridge-app/'+location.search+location.hash)`.
+RELAY untouched.
+
+### The complete URL-coupling map (verified against the code, line-exact)
+SELF-HEALING ON MOVE (no edit needed, listed so nothing is assumed):
+invite + link-device URLs build from `location.href` (lines 782, 788);
+push-notification click URL from `location.href` (7683); hash routes
+#j=/#ld parse from the live URL (2435); history.replaceState uses
+location.pathname (2447, 8287); relay/Deepgram/TURN/GitHub URLs are
+absolute and path-independent; PB GitHub file paths are repo paths, not
+page paths; storage keys are origin-scoped (unchanged origin → all rooms,
+transcripts, keys, PB caches survive untouched — NO migration of data).
+EDITS REQUIRED (each a declared diff line, gated as exactly-N-changes):
+E1 head manifest link → `tb-manifest.webmanifest` (folder-relative).
+E2 U1 block: NARROW const becomes `DIR` itself (scope `./` folder) — the
+   prefix hack dies with honor; worker registration stays `./tb-sw.js`
+   (now resolves into the folder).
+E3 the retirement list in U1/K1 style extends to BOTH legacy identities:
+   scope `origin+'/stuff/'` OR `origin+'/stuff/bridge-'`, script
+   `/tb-sw.js`, retire only after the folder registration owns the live
+   push subscription (the proven sequence).
+E4 build-identity line names the folder build.
+### Machine gates
+M1 the app file inside the folder differs from accepted bytes by exactly
+E1–E4 (unified diff line count asserted). M2 manifest JSON: scope "./",
+no start_url, icons resolve inside the folder (existence checked in repo).
+M3 sw byte-identical to root tb-sw.js. M4 no accepted root file modified
+in the same commit (git diff name-only asserted). MUTATIONS: (a) add
+start_url → M2 fails; (b) point icons at ../icon-192.png → M2 fails;
+(c) widen retirement beyond the two exact identities → grep gate fails;
+(d) touch a root bridge-*.html → M4 fails.
+### Device gate
+G1 Desktop Chrome at /stuff/talkbridge-app/: install icon PRESENT; install;
+app opens standalone. G2 Android: install from a fresh invite link into the
+folder; tap a PRISM link → opens in browser/PRISM, never inside TalkBridge.
+G3 iPhone: QR invite → install → lands in room (grant intact). G4 Existing
+Android install (old scope): still opens, chats intact (same origin
+storage); notification tap opens the folder URL. G5 One push per message
+after worker retirement. PASS = all five. POST-ACCEPT step (owner orders it
+explicitly): forwarders to the old addresses.
+
+────────────────────────────────────────────────────────────────────────
+## §7.6 BUILDER SPEC — VIDEO EXPERIENCE, DONE RIGHT (BL-V1/V2/V3, G45)
+────────────────────────────────────────────────────────────────────────
+RESEARCH-FIRST MANDATE (platform rule): before writing part code the
+builder web-verifies, with sources logged in the plan: current Android
+Chrome behavior of Element.requestPictureInPicture vs documentPictureInPicture,
+autoPictureInPicture eligibility, and background tab media policies. No
+workaround for a limitation that is not proven current.
+SCOPE (each its own part, each individually mutation-gated):
+V1 (BL-V2) the call STARTS on the front camera: getUserMedia video
+constraint `facingMode:'user'` asserted at the single frozen call-media
+acquisition site (builder greps `getUserMedia` video branches; the wrap
+supplies the constraint only when absent). Camera-flip toggles to
+`environment` and back; flip state resets at teardown (G41 pattern).
+V2 (BL-V1) tap-to-swap: one tap exchanges main/PiP FEEDS ONLY — no layout
+reflow, no extra floating tiles; the G45 symptom "multiple tiles over
+chat" gets an explicit gate: after any sequence of swaps the DOM contains
+exactly two video elements (machine-countable in the wrap, logged
+`v2_video_count {n}` and asserted =2 on device log review).
+V3 (BL-V3) home button / leaving the app keeps the call alive: audio
+continues in background (WebRTC audio is not paused by page-hide; the
+gate PROVES it rather than assumes); if research confirms eligibility,
+enable autoPictureInPicture on the remote video so leaving pops PiP;
+back-button PiP only on explicit user tap, never automatic stacking.
+NON-SCOPE: screen share changes, mute UI, filters.
+### Device gate
+G1 video call starts front-facing both phones. G2 ten rapid swaps → two
+video elements, chat untouched beneath. G3 home button mid-call → audio
+continues both directions ≥60s, return → video resumes. G4 hang up,
+recall → default layout, front camera. G5 log shows v2_video_count=2
+throughout. PASS = all five.
+
+────────────────────────────────────────────────────────────────────────
+## §7.7 BUILDER SPEC — IndexedDB CUTOVER (turn-28 half of §7.3)
+────────────────────────────────────────────────────────────────────────
+PRECONDITION: §7.3 mirror ACCEPTED and its parity line clean for ≥3 days
+of real use (owner attests; device log db3_parity history is the record).
+SCOPE: reads move to IDB with localStorage demoted to write-through cache.
+C1 boot loads `tba_user`, `tba_rooms`, `tba_tr_*`, PB caches from IDB
+first (async, before first render — the boot sequence gains one awaited
+step, wrapped around the frozen `S` initializer via a pre-boot loader that
+populates localStorage from IDB BEFORE the frozen reader runs, preserving
+the frozen synchronous reads untouched — localStorage becomes a boot-time
+materialized view). C2 `lsSet` wrap now writes IDB first, localStorage
+second (order flip is THE cutover; one constant flag `TB_IDB_PRIMARY=true`
+in the block). C3 eviction survival: if localStorage is empty at boot but
+IDB holds keys, restore silently and log `c3_evict_survived {n}`.
+### Machine gates: order asserted by regex (IDB put precedes lsSet
+passthrough); flag present; §7.3's M-gates re-run unchanged. MUTATIONS:
+flip the order back → gate fails; drop the pre-boot loader → a fixture
+boot with empty localStorage and seeded IDB must fail.
+### Device gate: G1 normal use unchanged. G2 THE gate this exists for:
+on Android, clear Chrome SITE DATA for the origin EXCEPT... (Chrome clears
+both stores together, so the honest gate is:) DevTools → Application →
+Local Storage → delete all keys manually → relaunch → rooms, transcripts,
+names all present, `c3_evict_survived` in the log. G3 20 messages parity.
+
+────────────────────────────────────────────────────────────────────────
+## §7.8 BUILDER SPEC — MULTI-USER (turn 28, product defaults flagged)
+────────────────────────────────────────────────────────────────────────
+PRODUCT DEFAULTS (owner may override any at GO; the spec builds these):
+one room, up to 4 participants, ONE language pair per room (phase 1 keeps
+the bilingual model: every participant declares which side of the pair
+they speak; cross-pair rooms are phase 2, not specced). Everyone sees
+sender-named bubbles (senderName already renders, line ~1444).
+RELAY R1 (v6.4): the Durable Object already fans out to all sockets and
+counts `others` (v6.3 announce) — the 2-party ASSUMPTIONS to remove are
+enumerated by grep in worker-talk.js: any `others.some` single-partner
+logic, hello/ack pairing, call signaling addressed "to the other" becomes
+addressed-by-deviceId. Calls remain 1:1 in phase 1: a call invitation
+names its callee; others see "on a call" presence. R2 invite carries a
+`cap` field; joiner N>cap sees "room is full" (relay enforces at join,
+new transient `{type:'full'}`).
+APP A1: presence pill shows count ("3 here") when others>1 (P1 wrap
+extends, dot semantics unchanged for 1:1). A2 read receipts become
+count-based ("read by 2") — receiptHtml wrap. A3 name conflicts: two
+joiners with one name get "name (2)" display-side only.
+### Gates: relay mutation harness extends the existing deploy checks with
+a 3-socket scenario (ws-connect×3, deliver-to-all, full-at-cap). Device
+gate needs a third device (owner + two phones + desktop counts): G1 three
+join, all see 3-way chat with names. G2 4th join at cap=3 → "room is
+full". G3 1:1 call between two of three; third sees presence. G4 receipts
+count. PASS = all.
+
+────────────────────────────────────────────────────────────────────────
+## §7.9 BUILDER SPEC — COLLISIONS & CONCURRENCY (turn 28)
+────────────────────────────────────────────────────────────────────────
+The concrete collision surfaces in this codebase, each with its rule:
+K1 message ids: today `uid()` per device; rule = ids namespaced
+`deviceId+'-'+uid()` at the wrap (dedupe by id already exists — retry
+dedupe proven in relay checks; namespacing makes cross-device collision
+impossible rather than unlikely). K2 PB sync: GitHub is SOT with
+version bump (line ~1263); collision = both devices bump from the same
+version; rule = compare-and-swap — the push carries the base version, the
+relay of record is the GH file sha (PUT with expected sha; on 409/mismatch
+→ pull, three-way merge by card id with last-write-wins per card,
+`pb_merge {kept,took}` logged, re-push). K3 simultaneous join at cap
+(§7.8 R2 owns it). K4 room title/name concurrent edits: last-write-wins
+by timestamp, both sides converge on next hello (existing hello already
+carries name — gate proves convergence ≤2s). K5 transcript writes are
+per-device keys — no collision by construction; stated so nobody
+"fixes" it.
+### Gates: unit harness for the PB three-way merge with 6 fixture
+conflicts; mutation = remove expected-sha → harness fails. Device gate:
+G1 both phones edit the same PB card offline-ish then sync → one card
+survives, merge logged, no duplicates. G2 both rename the room within 2s
+→ converged title both sides. PASS = both.
+
+────────────────────────────────────────────────────────────────────────
+## §7.10 BUILDER SPEC — REFACTOR & DEBT PASS (turn 28 close)
+────────────────────────────────────────────────────────────────────────
+Additive-law-compatible debt work only (no rewrites of frozen bytes):
+F1 render coalescing extended to renderTranscript (same rAF latch as
+§7.2 C3, fixes L-3 fully — log `c3_coalesced` totals). F2 log hygiene:
+markers older than two turns demoted to debug level via one allowlist.
+F3 wrapper-chain registry: the block emits `wrap_map` once at boot — a
+JSON list of every wrapped function and its layer order — making the
+stack auditable from the device log (the anti-"who wrapped what" tool).
+F4 dead-candidate purge: owner-ordered list of dead files deleted (G45's
+candidate 1, ship2) — owner names the list at GO. F5 graveyard index:
+one table at the top of the graveyard (id, date, one line). No behavior
+changes; device gate = one normal chat session with zero regressions and
+wrap_map present in the log.
+
+────────────────────────────────────────────────────────────────────────
+## §8 THE SEQUENCE — every in-play release, in order (owner-editable)
+────────────────────────────────────────────────────────────────────────
+| # | Release | Spec | Status |
+|---|---------|------|--------|
+| 1 | 26·ship = c6 arrival & identity | §7.1 as amended | ACCEPTED 2026-09-06 |
+| 2 | 26·post-ship = MD-1 markdown in chat | §7.4 | NEXT — builds on c6 acceptance |
+| 3 | 27·pre-base snapshot of accepted 26 line | §7.3 step 0 pattern | after 2 |
+| 4 | 27·base = notifications & steadiness | §7.2 | after 3 |
+| 5 | 27·pre-ship = directory release (D-2 done right, D-6 Option 1) | §7.5 | after 4, isolated |
+| 6 | 27·ship = IndexedDB mirror | §7.3 | after 5 |
+| 7 | 27·post-ship = video done right | §7.6 | after 6 |
+| 8 | 28·pre-base snapshot | — | after 7 |
+| 9 | 28·base = IndexedDB cutover | §7.7 | needs §7.3 + 3-day parity |
+| 10 | 28·pre-ship = collisions & concurrency | §7.9 | after 9 |
+| 11 | 28·ship = multi-user | §7.8 | after 10 |
+| 12 | 28·post-ship = refactor & debt | §7.10 | closes turn 28 |
+BEYOND THE ROADMAP (in scope, NOT in play — specs due at pilot exit, not
+now, stated so nothing is silently skipped): pilot itself, phrasebook-
+informed translation (fuzzy-match then LLM-assisted), room-scoped
+phrasebook pairs, open-core licensing, go-to-market.
