@@ -7,7 +7,7 @@ EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5
 QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'
 R6_UI_COMMIT='7dc9bc7b3402633bb82601b5123280dca74b57bd'
 RAW='https://raw.githubusercontent.com/acmeproducts/stuff'; ARCHIVE_ROOT="$SOT_DIR/archive"
-TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$ARCHIVE_ROOT/$STAMP-turn01-r6-ssot-action-release"
+TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$ARCHIVE_ROOT/$STAMP-turn01-r7-folder-create-release"
 mkdir -p "$RUN" "$SOT_DIR"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
 CUTOVER=0; SUCCESS=0
 record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-42s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; return 1; }
@@ -25,20 +25,59 @@ for cap in ['durable-project-coordination','stale-operation-rejection','atomic-e
 PY
 pass LIVE_BACKEND "$EXPECTED_BUILD schema=$EXPECTED_SCHEMA"
 [ -f "$SOT_DIR/SOT-turn01-base.html" ] && cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before"; pass ARCHIVE_PRECHANGE "$RUN"
-curl --retry 5 --retry-all-errors --max-time 45 -fsSL "$RAW/$R6_UI_COMMIT/SOT-turn01-base-r6.html" -o "$TMP/SOT-turn01-base.html" || { fail FETCH_UI "$R6_UI_COMMIT"; return 1 2>/dev/null || true; }
+curl --retry 5 --retry-all-errors --max-time 45 -fsSL "$RAW/$R6_UI_COMMIT/SOT-turn01-base-r6.html" -o "$TMP/r6.html" || { fail FETCH_UI "$R6_UI_COMMIT"; return 1 2>/dev/null || true; }
+python3 - "$TMP/r6.html" "$TMP/SOT-turn01-base.html" <<'PY'
+from pathlib import Path
+import re,sys
+src=Path(sys.argv[1]).read_text()
+old="const BUILD='SOT-turn01-base-r6-ssot-action'"
+assert src.count(old)==1
+src=src.replace(old,"const BUILD='SOT-turn01-base-r7-folder-create'",1)
+pat=re.compile(r'async function picker\(p,role,selected\)\{')
+m=pat.search(src); assert m
+start=m.start(); brace=src.find('{',m.end()-1); depth=0; quote=None; esc=False; i=brace
+while i<len(src):
+    c=src[i]
+    if quote:
+        if esc: esc=False
+        elif c=='\\': esc=True
+        elif c==quote: quote=None
+    else:
+        if c in "'\"`": quote=c
+        elif c=='{': depth+=1
+        elif c=='}':
+            depth-=1
+            if depth==0:
+                end=i+1; break
+    i+=1
+else: raise AssertionError('picker boundary')
+new=r'''async function picker(p,role,selected){let multi=role==='sources',vols=state.volumes||[],current=selected[0]||'',data=null,createError='';modal(role==='sources'?'Choose Sources':role==='target'?'Choose Target':'Choose Backup','<div id="pickMount">Loading storage…</div>');let root=$('pickMount');async function browse(path){current=path;createError='';data=await api(`/turn01/fs?path=${encodeURIComponent(path)}`);draw()}function draw(){let create=multi?'':`<div style="padding:8px;border-bottom:1px solid var(--line)"><div class="paneHead" style="position:static;padding:0 0 6px;border:0">New folder here</div><div style="display:grid;grid-template-columns:1fr auto;gap:6px"><input id="newFolderName" class="input" placeholder="Folder name" autocomplete="off"><button id="createFolder" class="btn">New folder</button></div><div id="folderError" class="${createError?'errorDetail':'hidden'}" style="margin-top:6px">${esc(createError)}</div></div>`;root.innerHTML=`<div class="picker"><div class="pane"><div class="paneHead">Volumes</div>${vols.map(v=>`<button class="pick ${current.startsWith(v.path)?'active':''}" data-vol="${esc(v.path)}">${esc(v.name||v.path)}<br><small>${bytes(v.free_bytes)} free</small></button>`).join('')}</div><div class="pane"><div class="paneHead">Folders · ${esc(data?.path||'')}</div>${create}${data?.parent?`<div class="folder"><button data-browse="${esc(data.parent)}">..</button><span></span></div>`:''}${(data?.folders||[]).map(f=>`<div class="folder"><button data-browse="${esc(f.path)}">${esc(f.name||f.path)}</button><button class="btn" data-add="${esc(f.path)}">Use</button></div>`).join('')}</div><div class="pane"><div class="paneHead">Selected</div>${selected.map(x=>`<div class="selected"><span>${esc(x)}</span><button class="btn" data-remove="${esc(x)}">×</button></div>`).join('')||'<div class="selected">Nothing selected</div>'}<div style="padding:8px"><button id="savePick" class="btn primary" ${selected.length?'':'disabled'}>Save ${role==='sources'?'Sources':role==='target'?'Target':'Backup'}</button></div></div></div>`;document.querySelectorAll('[data-vol]').forEach(b=>b.onclick=()=>browse(b.dataset.vol));document.querySelectorAll('[data-browse]').forEach(b=>b.onclick=()=>browse(b.dataset.browse));document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{let x=b.dataset.add;if(multi){if(!selected.includes(x))selected.push(x)}else selected=[x];draw()});document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{selected=selected.filter(x=>x!==b.dataset.remove);draw()});if(!multi){let input=$('newFolderName'),createBtn=$('createFolder');createBtn.onclick=()=>createFolder(input.value);input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();createFolder(input.value)}}}$('savePick').onclick=save}async function createFolder(name){name=String(name||'').trim();if(!name||name==='.'||name==='..'||/[\\/]/.test(name)){createError='Enter one folder name without slashes.';let e=$('folderError');if(e){e.textContent=createError;e.classList.remove('hidden')}return}let btn=$('createFolder');if(btn)btn.disabled=true;try{let made=await api('/turn01/fs/folder',{method:'POST',body:JSON.stringify({parent:current,name})});selected=[made.path];await browse(made.path);toast(`${role==='target'?'Target':'Backup'} folder created and selected`)}catch(e){createError=`Could not create folder: ${e.message}`;let out=$('folderError');if(out){out.textContent=createError;out.classList.remove('hidden')}if(btn)btn.disabled=false}}async function save(){let t=encodeURIComponent(p.project_token);if(role==='sources')await api(`/turn01/projects/${t}/sources`,{method:'PUT',body:JSON.stringify({sources:selected})});else{let body={};body[`${role}_root`]=selected[0]||'';await api(`/turn01/projects/${t}/storage`,{method:'PUT',body:JSON.stringify(body)})}closeModal();toast(`${role} saved`);await hydrate(p.project_token);renderCards();ssot();renderProject()}try{if(!vols.length){let v=await api('/turn01/volumes');vols=v.volumes||[];state.volumes=vols}let start=selected[0]||vols[0]?.path;if(!start){root.textContent='No storage volumes available.';return}await browse(start)}catch(e){root.textContent=e.message}}'''
+src=src[:start]+new+src[end:]
+Path(sys.argv[2]).write_text(src)
+PY
 python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
-required=['SOT-turn01-base-r6-ssot-action','SINGLE SOURCE OF TRUTH','PROJECT SOTs','CURRENT STATE · NEXT STEP','Needs Target','Choose Target','Needs Backup','Choose Backup','Setup','Index','Review','Plan','Protect','Verify','function rememberDetails','localStorage.setItem(\'sot.r6.open\'','function patchLive','setInterval(poll,3000)','Activity / diagnostics']
+required=['SOT-turn01-base-r7-folder-create','SINGLE SOURCE OF TRUTH','PROJECT SOTs','CURRENT STATE · NEXT STEP','Needs Target','Choose Target','Needs Backup','Choose Backup','Setup','Index','Review','Plan','Protect','Verify','function rememberDetails','function patchLive','setInterval(poll,3000)','Activity / diagnostics','New folder here',"api('/turn01/fs/folder',{method:'POST'",'selected=[made.path]','await browse(made.path)','Could not create folder:']
 for m in required: assert m in h,m
+picker=h[h.index('async function picker'):h.index('async function load')]
+assert "let create=multi?'':" in picker
+assert picker.count("api('/turn01/fs/folder'")==1
 assert "$('surface').innerHTML" not in h[h.index('function patchLive'):h.index("$('search').oninput")]
 scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I); assert scripts; Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
 PY
-node --check "$TMP/ui.js" || { fail UI_JS_PARSE failed; return 1 2>/dev/null || true; }; pass R6_UI_CONTRACT 'SSOT + actionable state + operator-owned disclosure'
+node --check "$TMP/ui.js" || { fail UI_JS_PARSE failed; return 1 2>/dev/null || true; }; pass R7_UI_CONTRACT 'R6 SSOT + Target/Backup New folder + operator-owned picker'
 install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html"; CUTOVER=1; pass CUTOVER installed
 LOCAL_SHA="$(sha256sum "$TMP/SOT-turn01-base.html"|awk '{print $1}')"; code=000
 for i in {1..20}; do code="$(curl --max-time 5 -sS -H 'Cache-Control: no-cache' -o "$RUN/public.html" -w '%{http_code}' "$PUBLIC_URL?release=$LOCAL_SHA" || true)"; [ "$code" = 200 ] && [ -s "$RUN/public.html" ] && break; sleep 1; done
 [ "$code" = 200 ] || { fail PUBLIC_HTTP "HTTP=$code"; return 1 2>/dev/null || true; }; PUBLIC_SHA="$(sha256sum "$RUN/public.html"|awk '{print $1}')"; [ "$PUBLIC_SHA" = "$LOCAL_SHA" ] || { fail PUBLIC_IDENTITY "local=$LOCAL_SHA public=$PUBLIC_SHA"; return 1 2>/dev/null || true; }; pass PUBLIC_IDENTITY "$PUBLIC_SHA"
+python3 - "$RUN/public.html" "$TMP/public.js" <<'PY'
+from pathlib import Path
+import re,sys
+h=Path(sys.argv[1]).read_text(); assert 'SOT-turn01-base-r7-folder-create' in h; assert 'New folder here' in h; assert "api('/turn01/fs/folder',{method:'POST'" in h
+Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
+PY
+node --check "$TMP/public.js" || { fail PUBLIC_JS_PARSE failed; return 1 2>/dev/null || true; }; pass PUBLIC_JS_PARSE passed
 [ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || { fail DATABASE_POSTCHECK failed; return 1 2>/dev/null || true; }; pass DATABASE_POSTCHECK ok
-SUCCESS=1; pass RELEASE_READY "backend=$QUALIFIED_BACKEND_COMMIT ui=$R6_UI_COMMIT"; echo '=== TURN 01 BASE R6 READY FOR OWNER TEST ==='; echo "R6 UI COMMIT: $R6_UI_COMMIT"; echo "PUBLIC SHA256: $PUBLIC_SHA"; echo "TEST URL: $PUBLIC_URL?release=$PUBLIC_SHA"
+SUCCESS=1; pass RELEASE_READY "backend=$QUALIFIED_BACKEND_COMMIT ui=R7-from-$R6_UI_COMMIT"; echo '=== TURN 01 BASE R7 READY FOR OWNER TEST ==='; echo "R7 BASELINE: $R6_UI_COMMIT"; echo "PUBLIC SHA256: $PUBLIC_SHA"; echo "TEST URL: $PUBLIC_URL?release=$PUBLIC_SHA"
