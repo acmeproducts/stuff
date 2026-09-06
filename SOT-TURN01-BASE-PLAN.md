@@ -100,28 +100,32 @@ AI is advisory. Fingerprints, locations, verified-copy state and deterministic p
 
 ## R10 qualification gates
 
+R10 qualification is intentionally simple and deterministic. Synthetic copies of the production database are not used to prove intelligence behavior. Prior fixture-based qualification created false failures because startup recovery and production-data ordering affected the test harness rather than the product. The clean installer therefore validates candidate composition before cutover, arms rollback, then validates the actual installed R10 against the actual SSOT database. Any post-cutover failure automatically restores the archived R9 backend/UI.
+
 ### Developer pass
-1. R10 backend integrator and resulting backend parse.
-2. R10 UI integrator and extracted UI JavaScript parse.
-3. Existing R8 reconciliation and R9 catalog remain present.
-4. Intelligence fixture proves duplicate group count, redundant-byte math, physical locations, shared-project distinction and missing-copy reporting.
-5. UI contract proves Dashboard intelligence, project Sources/Target/Backup, volume/folder picker, folder creation, duplicate detail, recommendations and AI settings.
-6. Existing governed active-operation fixture still reads WIP 40/100 after startup recovery has completed.
+
+1. Compose the candidate backend from the live qualified backend plus the pinned R8 reconciliation, R9 catalog and corrected R10 intelligence integrators.
+2. Python-compile each integrator that is applied and `node --check` the resulting backend.
+3. Build the R10 UI from the governed R9 UI plus the pinned R10 UI integrator.
+4. Extract and `node --check` the generated UI JavaScript.
+5. Verify required R10 product contract strings and reject retired workflow-shell labels.
 
 ### Manager pass
-7. R10 is one clean advance from the qualified R9 source, not a rejected generated artifact.
-8. No unrelated architecture/workflows are changed.
-9. Cutover rollback is armed before first live file replacement.
-10. Installer remains canonical and immutable by commit for owner execution.
+
+6. Confirm R10 is one clean backend/UI advance from the qualified R9 source, not a failed generated artifact.
+7. Confirm the intelligence function and endpoint are present and redundant-byte math is implemented as `size × (copies - 1)`.
+8. Confirm Sources / Target / Backup and AI configuration remain in the UI contract.
+9. Confirm no wrapper, iframe, alternate state machine, workflow, schema or deployment architecture is introduced.
+10. Archive the current live backend/UI and arm rollback before first live replacement.
 
 ### Red-team pass
-11. Zero-content cannot be Protected.
-12. Shared content is not counted as redundant merely because multiple projects reference it.
-13. Protection holdings are not counted as redundant source locations.
-14. Active operation cannot expose `Scan now`.
-15. Temp qualification uses SQLite backup and exact migration set; no raw WAL copy.
-16. Post-cutover health, intelligence/catalog/activity/project endpoints, database integrity and public byte identity pass.
-17. Any failure before release-ready rolls back live backend/UI and does not publish a test URL.
+
+11. Before cutover, verify active-operation truth, shared/protection distinction and required operating controls are present in the candidate.
+12. After cutover, require HTTP 200 for health, SSOT, intelligence, catalog, activity, projects and volumes endpoints.
+13. Validate the real live intelligence payload structurally and mathematically: nonnegative summary counts, duplicate rows have `copies >= 2`, each row's `reclaimable_bytes == size × (copies - 1)`, duplicate rows expose fingerprint and locations, risky rows expose Copy A/Copy B state, and recommendations are nonempty.
+14. If the real summary reports duplicate groups, the returned duplicate list must contain at least one row.
+15. Require post-cutover database integrity and exact public byte identity with the locally installed R10 HTML.
+16. Any failure after cutover automatically restores the archived R9 backend/UI; no test URL is emitted until every gate passes.
 
 ## Governance
 
