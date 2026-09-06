@@ -10,13 +10,13 @@ fn=r'''function storageIntelligence(projectToken = '', requestedLimit = 100) {
   const project=String(projectToken||'').trim();
   const projectFilter=project?`AND s.project_token=${sqlQuote(project)}`:'';
   const base=`FROM current_observations co JOIN observations o ON o.observation_id=co.observation_id JOIN sources s ON s.source_id=co.source_id JOIN projects p ON p.project_token=s.project_token WHERE s.removed_at IS NULL AND p.deleted_at IS NULL ${projectFilter}`;
-  const summary=one(`WITH g AS (SELECT o.content_sha256,MAX(o.size) size,COUNT(DISTINCT o.normalized_path) copies,COUNT(DISTINCT s.project_token) projects ${base} GROUP BY o.content_sha256)
+  const summary=(rows(`WITH g AS (SELECT o.content_sha256,MAX(o.size) size,COUNT(DISTINCT o.normalized_path) copies,COUNT(DISTINCT s.project_token) projects ${base} GROUP BY o.content_sha256)
     SELECT COUNT(*) fingerprints,COALESCE(SUM(size),0) logical_bytes,
       COALESCE(SUM(CASE WHEN copies>1 THEN 1 ELSE 0 END),0) duplicate_groups,
       COALESCE(SUM(CASE WHEN copies>1 THEN size*(copies-1) ELSE 0 END),0) duplicate_waste_bytes,
       COALESCE(SUM(CASE WHEN projects>1 THEN 1 ELSE 0 END),0) shared_groups,
       COALESCE(SUM(CASE WHEN projects>1 THEN size ELSE 0 END),0) shared_bytes
-    FROM g;`) || {};
+    FROM g;`)[0]) || {};
   const duplicateGroups=rows(`WITH g AS (SELECT o.content_sha256,MAX(o.size) size,MAX(o.filename) filename,COUNT(DISTINCT o.normalized_path) copies,COUNT(DISTINCT s.project_token) projects,group_concat(DISTINCT o.normalized_path) locations,group_concat(DISTINCT p.project_name) project_names ${base} GROUP BY o.content_sha256 HAVING COUNT(DISTINCT o.normalized_path)>1)
     SELECT content_sha256,size,filename,copies,projects,size*(copies-1) reclaimable_bytes,locations,project_names FROM g ORDER BY reclaimable_bytes DESC,copies DESC LIMIT ${limit};`);
   const risky=rows(`WITH g AS (SELECT o.content_sha256,MAX(o.size) size,MAX(o.filename) filename,COUNT(DISTINCT o.normalized_path) source_copies,group_concat(DISTINCT o.normalized_path) locations ${base} GROUP BY o.content_sha256)
