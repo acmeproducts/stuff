@@ -1,0 +1,39 @@
+name: Market Navigator Turn 07 build
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-build-turn07.py'
+      - '.github/workflows/market-navigator-turn07-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build standalone Turn 07
+        run: |
+          python3 market-navigator-build-turn07.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn07-pre-ship.html').read_text()
+          assert 'TURN 07 PRE-SHIP' in s
+          assert 'data-about' in s and 'data-add' in s and 'seriesX' in s
+          assert "Y1 ${loaded[0]?.unit||''} · Y2 ${loaded[1]?.unit||''}" in s
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/mn7.js').write_text(js)
+          PY
+          node --check /tmp/mn7.js
+      - name: Publish generated standalone source
+        run: |
+          git config user.name 'acmeproducts'
+          git config user.email '182510693+acmeproducts@users.noreply.github.com'
+          git add market-navigator-turn07-pre-ship.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'market navigator: build Turn 07 analysis legends and axis mapping'
+          git push origin HEAD:main
