@@ -1,0 +1,68 @@
+name: Market Navigator Turn 07 qualification R2
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn07-pre-ship.html'
+      - '.github/workflows/market-navigator-turn07-qa-r2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Static and syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          s=Path('market-navigator-turn07-pre-ship.html').read_text()
+          assert 'TURN 07 PRE-SHIP' in s
+          assert '<iframe' not in s.lower()
+          assert 'data-about' in s and 'data-add' in s and 'latestLabel' in s and 'updatedLabel' in s
+          assert 'seriesLegend' in s and 'seriesX' in s
+          c=json.loads(Path('data/market-backend/data-catalog.json').read_text());m={x['id']:x for x in c['series']}
+          assert m['cpi']['native_unit']=='percent'
+          assert m['wti']['native_unit']=='USD per barrel'
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/mn7.js').write_text(js)
+          PY
+          node --check /tmp/mn7.js
+      - name: Browser legend dual-axis About freshness
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn7-server.log 2>&1 &
+          cat > qa.js <<'JS'
+          const {chromium}=require('playwright');
+          async function openExplore(p,cat,q){await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator(`[data-cat="${cat}"]`).click();await p.locator('#exploreSearch').fill(q);await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.waitForTimeout(180)}
+          (async()=>{const b=await chromium.launch({headless:true});
+            for(const vp of [{width:390,height:844,name:'phone'},{width:1280,height:800,name:'desktop'}]){
+              const p=await b.newPage({viewport:{width:vp.width,height:vp.height},hasTouch:true});let errs=[];p.on('pageerror',e=>errs.push(String(e)));
+              await p.goto('http://127.0.0.1:8123/market-navigator-turn07-pre-ship.html',{waitUntil:'networkidle'});await p.waitForTimeout(350);if(errs.length)throw Error(errs.join('\n'));
+              await openExplore(p,'Macro','Consumer Price Inflation YoY');
+              let top=await p.locator('#seriesBar').boundingBox(),body=await p.locator('.analysisBody').boundingBox();if(!top||!body||top.y>=body.y)throw Error('series legend not above chart');
+              if(await p.locator('#seriesBar [data-rm]').count()!==1)throw Error('root chip missing remove x');
+              let chip=await p.locator('#seriesBar .chip').first().getAttribute('style');if(!/border-color/.test(chip||'')||!/box-shadow/.test(chip||''))throw Error('chip color not bound to line');
+              await p.locator('#addSeries').click();await p.locator('#pickerSearch').fill('West Texas');await p.waitForTimeout(80);
+              let row=p.locator('#pickerList .pickerRow').first();if(!await row.count())throw Error('WTI picker row missing');let meta=await row.locator('.rowMeta').textContent();if(!/trading-day/i.test(meta)||!/updated/i.test(meta))throw Error('picker cadence/update missing');
+              if(!await row.locator('[data-about]').count()||!await row.locator('[data-add]').count())throw Error('About/Add controls missing');
+              await row.locator('[data-about]').click();await p.waitForTimeout(80);if(await p.locator('#seriesAbout').evaluate(e=>getComputedStyle(e).display)==='none')throw Error('About card not opened');let about=await p.locator('#seriesAbout').textContent();if(!/Cadence/.test(about)||!/Updated/.test(about)||!/Latest observation/.test(about))throw Error('About freshness details missing');await p.locator('#closeSeriesAbout').click();
+              await row.locator('[data-add]').click();await p.waitForTimeout(180);let badge=await p.locator('#axisBadge').textContent();if(!/Y1 percent/.test(badge)||!/Y2 USD per barrel/.test(badge))throw Error('dollar-percent dual axis mapping: '+badge);
+              if(await p.locator('#seriesBar .chip').count()!==2||await p.locator('#seriesBar [data-rm]').count()!==2)throw Error('dual legend chips/removers');
+              let cb=await p.locator('#analysisChart').boundingBox();await p.touchscreen.tap(cb.x+cb.width*.56,cb.y+cb.height*.48);await p.waitForTimeout(80);if(await p.locator('#analysisTip').evaluate(e=>getComputedStyle(e).display)==='none')throw Error('analysis inspection');
+              await p.locator('#seriesBar [data-rm]').last().click();await p.waitForTimeout(120);if(await p.locator('#seriesBar .chip').count()!==1)throw Error('chip remove failed');
+              if(vp.name==='phone'){let overflow=await p.evaluate(()=>document.documentElement.scrollHeight>document.documentElement.clientHeight||document.body.scrollHeight>document.body.clientHeight);if(overflow)throw Error('phone page scroll')}
+              if(errs.length)throw Error(errs.join('\n'));await p.close();
+            }
+            await b.close();console.log('TURN07 R2 PASS')
+          })().catch(e=>{console.error(e);process.exit(1)})
+          JS
+          node qa.js
