@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.61.0 -->
-# TALKBRIDGE MASTER PLAN v20.61.0
+<!-- TALKBRIDGE-PLAN v20.62.0 -->
+# TALKBRIDGE MASTER PLAN v20.62.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -3876,3 +3876,7 @@ No build starts without a §7-grade builder spec in this plan: exact files, exac
 
 ## Principle added 2026-09-05 — BUILD IDENTITY
 Every candidate logs one boot line naming its build; a device gate without a build line in the log proves nothing.
+
+
+## D-2 REOPENED — 2026-09-06 (owner ruling: half-right is 100% wrong)
+The narrow-prefix un-hijack does not manage all clients: browsers treat a scope without a trailing slash as invalid and silently fall back, so installed-app capture protection is unreliable and desktop install is blocked outright. The worker-side retirement stands as proven, but D-2 as a whole is NOT FIXED. The correct fix is the directory arrangement (D-6 Option 1), executed as its own gated release with a complete path-impact map per G44. No partial credit.
