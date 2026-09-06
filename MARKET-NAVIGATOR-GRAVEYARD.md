@@ -3,7 +3,7 @@
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
 Updated: 2026-09-06
 
-This file is a negative specification. A rejected implementation, workflow, validation technique, layout decision or analytical shortcut is historical evidence only. It is not a successor baseline.
+This file is a negative specification. A rejected implementation, workflow, validation technique or analytical shortcut is historical evidence only. It is not a successor baseline.
 
 ## Permanent process rule
 **DO NOT PATCH FORWARD FROM A REJECTED RELEASE.**
@@ -17,7 +17,7 @@ A rejected ship is rolled back. It does not become the next pre-base.
 ## Current recovery authority
 The authoritative baseline is the current product contract in `MARKET-NAVIGATOR-MASTER-PLAN.md` plus `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md`. Historical implementations are capability-specific donors only. Market Navigator 3.9.7 is a chart/data donor; PRISM R25 is an application-shell/Library donor. Neither historical file is the application baseline by itself.
 
-The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release, rejected Turn 01 shell, or rejected Turn 04 release.
+The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release, rejected Turn 01 shell, rejected Turn 04 release, or failed Turn 05 candidate.
 
 ## G4-R1 through G4-R10 — rejected historical lineage
 All Gate 4 R1 through R10 implementations are evidence only. Their previously documented failures remain binding, including standalone rewrites, arbitrary layout changes, misleading charts, synthetic/fallback evidence, incorrect V1/V2 geometry, component-menu V2 implementations, direct component→V3 transitions where superseded, and validation that proved structure rather than owner-visible behavior.
@@ -100,6 +100,20 @@ The qualification workflow proved browser boot and scripted state transitions bu
 - V3 is a complete analysis surface, not a modal chart placeholder: margins, axes, comparison controls, evidence, AI action, and exact close/restore behavior are all part of the gate.
 - A component chart that is technically drawable but visually sparse/discontinuous must be reconciled against canonical observation cadence and the intended comparison representation before release.
 - Automated QA must fail on owner-visible layout collisions and missing governed controls, not merely DOM presence and navigation.
+
+## Turn 05 candidate — failed qualification 2026-09-06
+**Failed implementation:** `market-navigator-turn05-pre-ship.html`; qualification workflow run `34039208570`.
+
+### Qualification result
+Static/syntax, compact V1 labels, phone header containment, V1/V2/V3 point inspection, V2 governed-series presence, V3 seven horizons and single-series native Y1 all passed. The candidate failed the mandatory **CPI + WTI → Y1 + Y2** gate.
+
+### Root cause
+The candidate inferred measurement family from Health-envelope fields that do not own native-unit metadata. That collapsed CPI and WTI into the same fallback family and selected one native Y axis. Canonical units actually live in `data/market-backend/data-catalog.json`: CPI/Core CPI = `percent`; WTI/Brent = `USD per barrel`.
+
+### Permanent lesson
+- Axis compatibility must be derived from authoritative catalog `native_unit` / measurement metadata, never guessed from Health fields.
+- The release gate must prove all four automatic-axis cases: one native series; CPI + Core CPI shared native Y1; WTI + Brent shared native Y1; CPI + WTI native Y1+Y2; CPI + WTI + VIX Indexed100 Y1.
+- A pre-ship candidate that fails any axis case is discarded and rebuilt from the clean contract/donors rather than patched forward.
 
 ## Permanent prohibited patterns
 - patching any rejected release forward;
