@@ -24,21 +24,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re,json
-          p=Path('market-navigator-turn03-pre-ship.html')
-          s=p.read_text()
+          s=Path('market-navigator-turn03-pre-ship.html').read_text()
           assert '<iframe' not in s.lower()
           assert all(x in s for x in ['NOW','EXPLORE','LIBRARY','HEALTH','CONFIG'])
           assert all(x in s for x in ["'1D'","'5D'","'MTD'","'YTD'","'1YR'","'3YR'","'5YR'"])
           assert "S.nowLevel===1?renderV1():renderV2()" in s
           assert 'More info' in s and 'Run AI' in s and 'Continue this analysis' in s
-          scripts=re.findall(r'<script>(.*?)</script>',s,re.S)
-          assert scripts
+          scripts=re.findall(r'<script>(.*?)</script>',s,re.S); assert scripts
           Path('/tmp/mn.js').write_text(scripts[-1])
-          d=json.loads(Path('market-evidence/derived-indices.json').read_text())
-          assert d['coherence']['allIndexHorizonsComputable']
+          d=json.loads(Path('market-evidence/derived-indices.json').read_text()); assert d['coherence']['allIndexHorizonsComputable']
           for k in ['risk','growth','macro']:
-            for h in ['1D','5D','MTD','YTD','1YR','3YR','5YR']:
-              assert d['indices'][k]['horizons'][h]
+            for h in ['1D','5D','MTD','YTD','1YR','3YR','5YR']: assert d['indices'][k]['horizons'][h]
           print('STATIC PASS')
           PY
           node --check /tmp/mn.js
@@ -48,8 +44,8 @@ jobs:
           npm i playwright@1.55.0 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
           python3 -m http.server 8123 >/tmp/mn-server.log 2>&1 &
-          cat > /tmp/qa.js <<'JS'
+          cat > qa.js <<'JS'
           const {chromium}=require('playwright');
           (async()=>{const b=await chromium.launch({headless:true});for(const vp of [{width:1280,height:800},{width:390,height:844}]){const p=await b.newPage({viewport:vp});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-navigator-turn03-pre-ship.html',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.echarts&&document.querySelector('#nowChart canvas'));if(errors.length)throw Error(errors.join('\n'));let hz=await p.locator('.hz').allTextContents();if(hz.join('|')!=='1D|5D|MTD|YTD|1YR|3YR|5YR')throw Error('horizons');if(!(await p.locator('.hz.on').textContent()).includes('5D'))throw Error('default horizon');if(await p.locator('.lg').count()!==3)throw Error('V1 must have 3 index legends');await p.locator('.lg.risk').click();await p.waitForTimeout(800);if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V2 did not replace V1');if(await p.locator('#legend [data-c]').count()<6)throw Error('V2 components missing');await p.locator('#legend [data-c]').first().click();await p.locator('#moreInfo').click();await p.waitForTimeout(500);if(await p.locator('#analysisModal.hidden').count())throw Error('V3 did not open');await p.locator('#closeAnalysis').click();if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V3 did not restore V2');await p.locator('[data-view="explore"]').first().click();await p.locator('#exploreSearch').fill('CPI');if(await p.locator('#exploreList .row').count()<1)throw Error('Explore search');await p.locator('[data-view="health"]').first().click();if(await p.locator('#healthRows .healthRow').count()<20)throw Error('Health');await p.locator('[data-view="library"]').first().click();if(!(await p.locator('#compose').getAttribute('placeholder')).includes('Continue'))throw Error('Library composer');let overflow=await p.evaluate(()=>document.documentElement.scrollHeight>document.documentElement.clientHeight||document.body.scrollHeight>document.body.clientHeight);if(overflow)throw Error('page-level scroll');await p.close()}await b.close();console.log('BROWSER PASS')})().catch(e=>{console.error(e);process.exit(1)})
           JS
-          node /tmp/qa.js
+          node qa.js
