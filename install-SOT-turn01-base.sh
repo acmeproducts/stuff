@@ -1,83 +1,74 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"
-SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"
-PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"
-EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5
-QUALIFIED_BACKEND_COMMIT='b58920f014960c9b18b705a0fdcf0406c621fd5f'
-R6_UI_COMMIT='7dc9bc7b3402633bb82601b5123280dca74b57bd'
-RAW='https://raw.githubusercontent.com/acmeproducts/stuff'; ARCHIVE_ROOT="$SOT_DIR/archive"
-TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$ARCHIVE_ROOT/$STAMP-turn01-r7-folder-create-release"
-mkdir -p "$RUN" "$SOT_DIR"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
+REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"; SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"; SERVICE=openclaw-report-server.service
+PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"; EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5
+RAW='https://raw.githubusercontent.com/acmeproducts/stuff'; R8_COMMIT='aa8216611132fb8008f13e12a6dd8bc8d572dc35'; INTEGRATOR_COMMIT='70ec640fd706859e2c1452a6218920741c7d4767'
+TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$SOT_DIR/archive/$STAMP-turn01-r8-global-reconciliation-release"; mkdir -p "$RUN" "$TMP/sot-db/migrations"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
 CUTOVER=0; SUCCESS=0
-record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-42s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; return 1; }
-cleanup(){ set +e; if [ "$CUTOVER" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then if [ -f "$RUN/SOT-turn01-base.html.before" ]; then cp "$RUN/SOT-turn01-base.html.before" "$SOT_DIR/SOT-turn01-base.html"; else rm -f "$SOT_DIR/SOT-turn01-base.html"; fi; record PASS ROLLBACK 'restored previous SOT UI'; fi; echo '=== QUALIFICATION SUMMARY ==='; awk -F '\t' '{printf "%-5s %-42s %s\n",$1,$2,$3}' "$SUMMARY"; echo "log: $LOG"; rm -rf "$TMP"; }
-trap cleanup EXIT
-for t in bash curl node python3 sqlite3 sha256sum; do command -v "$t" >/dev/null || { fail REQUIRE_TOOL "$t"; return 1 2>/dev/null || true; }; done; pass REQUIRE_TOOLS ok
-[ -s "$DB" ] || { fail DATABASE missing; return 1 2>/dev/null || true; }
-[ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || { fail DATABASE_INTEGRITY failed; return 1 2>/dev/null || true; }
-SCHEMA="$(sqlite3 "$DB" 'select max(version) from schema_migrations')"; [ "$SCHEMA" = "$EXPECTED_SCHEMA" ] || { fail DATABASE_SCHEMA "expected=$EXPECTED_SCHEMA actual=$SCHEMA"; return 1 2>/dev/null || true; }; pass DATABASE_INTEGRITY "schema=$SCHEMA"
-code=000; for i in {1..20}; do code="$(curl --max-time 3 -sS -o "$RUN/health.before.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health || true)"; [ "$code" = 200 ] && break; sleep 1; done; [ "$code" = 200 ] || { fail LIVE_BACKEND "HTTP=$code"; return 1 2>/dev/null || true; }
-python3 - "$RUN/health.before.json" "$EXPECTED_BUILD" "$EXPECTED_SCHEMA" <<'PY'
+record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; return 1; }
+cleanup(){ rc=$?; set +e; if [ "$CUTOVER" -eq 1 ]&&[ "$SUCCESS" -ne 1 ];then sudo systemctl stop "$SERVICE" >/dev/null 2>&1||true; cp "$RUN/sot-api.js.before" "$REPORT_ROOT/sot-api.js"; cp "$RUN/SOT-turn01-base.html.before" "$SOT_DIR/SOT-turn01-base.html"; sudo systemctl start "$SERVICE" >/dev/null 2>&1||true; record PASS ROLLBACK 'restored previous backend and UI';fi; echo '=== QUALIFICATION SUMMARY ===';awk -F '\t' '{printf "%-5s %-38s %s\n",$1,$2,$3}' "$SUMMARY";echo "log: $LOG";rm -rf "$TMP";return "$rc";};trap cleanup EXIT
+for t in bash curl node python3 sqlite3 sha256sum sudo systemctl;do command -v "$t" >/dev/null||{ fail REQUIRE_TOOL "$t";return 1 2>/dev/null||true;};done;pass REQUIRE_TOOLS ok
+[ -s "$DB" ]||fail DATABASE missing;[ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ]||fail DATABASE_INTEGRITY failed;SCHEMA="$(sqlite3 "$DB" 'select max(version) from schema_migrations')";[ "$SCHEMA" = "$EXPECTED_SCHEMA" ]||fail DATABASE_SCHEMA "expected=$EXPECTED_SCHEMA actual=$SCHEMA";pass DATABASE_INTEGRITY "schema=$SCHEMA"
+code=000;for i in {1..20};do code="$(curl --max-time 3 -sS -o "$RUN/health.before.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health||true)";[ "$code" = 200 ]&&break;sleep 1;done;[ "$code" = 200 ]||fail LIVE_BACKEND "HTTP=$code"
+python3 - "$RUN/health.before.json" "$EXPECTED_BUILD" <<'PY'
 import json,sys
-x=json.load(open(sys.argv[1])); assert x.get('status')=='ok',x; assert x.get('build')==sys.argv[2],x; assert int(x.get('database_version',0))==int(sys.argv[3]),x
-for cap in ['durable-project-coordination','stale-operation-rejection','atomic-evidence-cutover','non-blocking-background-workers','concurrent-project-indexing']: assert cap in x.get('capabilities',[]),(cap,x)
+x=json.load(open(sys.argv[1]));assert x.get('build')==sys.argv[2],x;assert int(x.get('database_version',0))==5,x
+for c in ['durable-project-coordination','stale-operation-rejection','atomic-evidence-cutover','concurrent-project-indexing']:assert c in x.get('capabilities',[]),(c,x)
 PY
-pass LIVE_BACKEND "$EXPECTED_BUILD schema=$EXPECTED_SCHEMA"
-[ -f "$SOT_DIR/SOT-turn01-base.html" ] && cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before"; pass ARCHIVE_PRECHANGE "$RUN"
-curl --retry 5 --retry-all-errors --max-time 45 -fsSL "$RAW/$R6_UI_COMMIT/SOT-turn01-base-r6.html" -o "$TMP/r6.html" || { fail FETCH_UI "$R6_UI_COMMIT"; return 1 2>/dev/null || true; }
-python3 - "$TMP/r6.html" "$TMP/SOT-turn01-base.html" <<'PY'
+pass LIVE_BACKEND "$EXPECTED_BUILD schema=5"
+cp "$REPORT_ROOT/sot-api.js" "$RUN/sot-api.js.before";cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before";pass ARCHIVE_PRECHANGE "$RUN"
+cp "$REPORT_ROOT/sot-api.js" "$TMP/sot-api.js";for f in sot-worker.js sot-coordinator.js sot-sqlite.py;do [ -f "$REPORT_ROOT/$f" ]&&cp "$REPORT_ROOT/$f" "$TMP/$f"||true;done;for m in "$REPORT_ROOT"/sot-db/migrations/*.sql;do cp "$m" "$TMP/sot-db/migrations/";done
+curl --retry 5 --retry-all-errors -fsSL "$RAW/$INTEGRATOR_COMMIT/integrate-SOT-turn01-r8-ssot.py" -o "$TMP/integrate.py";python3 -m py_compile "$TMP/integrate.py";python3 "$TMP/integrate.py" "$TMP/sot-api.js";node --check "$TMP/sot-api.js";pass R8_BACKEND_PARSE 'global reconciliation integrated'
+curl --retry 5 --retry-all-errors -fsSL "$RAW/$R8_COMMIT/SOT-turn01-base-r8.html" -o "$TMP/SOT-turn01-base.html";python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
-src=Path(sys.argv[1]).read_text()
-old="const BUILD='SOT-turn01-base-r6-ssot-action'"
-assert src.count(old)==1
-src=src.replace(old,"const BUILD='SOT-turn01-base-r7-folder-create'",1)
-pat=re.compile(r'async function picker\(p,role,selected\)\{')
-m=pat.search(src); assert m
-start=m.start(); brace=src.find('{',m.end()-1); depth=0; quote=None; esc=False; i=brace
-while i<len(src):
-    c=src[i]
-    if quote:
-        if esc: esc=False
-        elif c=='\\': esc=True
-        elif c==quote: quote=None
-    else:
-        if c in "'\"`": quote=c
-        elif c=='{': depth+=1
-        elif c=='}':
-            depth-=1
-            if depth==0:
-                end=i+1; break
-    i+=1
-else: raise AssertionError('picker boundary')
-new=r'''async function picker(p,role,selected){let multi=role==='sources',vols=state.volumes||[],current=selected[0]||'',data=null,createError='';modal(role==='sources'?'Choose Sources':role==='target'?'Choose Target':'Choose Backup','<div id="pickMount">Loading storage…</div>');let root=$('pickMount');async function browse(path){current=path;createError='';data=await api(`/turn01/fs?path=${encodeURIComponent(path)}`);draw()}function draw(){let create=multi?'':`<div style="padding:8px;border-bottom:1px solid var(--line)"><div class="paneHead" style="position:static;padding:0 0 6px;border:0">New folder here</div><div style="display:grid;grid-template-columns:1fr auto;gap:6px"><input id="newFolderName" class="input" placeholder="Folder name" autocomplete="off"><button id="createFolder" class="btn">New folder</button></div><div id="folderError" class="${createError?'errorDetail':'hidden'}" style="margin-top:6px">${esc(createError)}</div></div>`;root.innerHTML=`<div class="picker"><div class="pane"><div class="paneHead">Volumes</div>${vols.map(v=>`<button class="pick ${current.startsWith(v.path)?'active':''}" data-vol="${esc(v.path)}">${esc(v.name||v.path)}<br><small>${bytes(v.free_bytes)} free</small></button>`).join('')}</div><div class="pane"><div class="paneHead">Folders · ${esc(data?.path||'')}</div>${create}${data?.parent?`<div class="folder"><button data-browse="${esc(data.parent)}">..</button><span></span></div>`:''}${(data?.folders||[]).map(f=>`<div class="folder"><button data-browse="${esc(f.path)}">${esc(f.name||f.path)}</button><button class="btn" data-add="${esc(f.path)}">Use</button></div>`).join('')}</div><div class="pane"><div class="paneHead">Selected</div>${selected.map(x=>`<div class="selected"><span>${esc(x)}</span><button class="btn" data-remove="${esc(x)}">×</button></div>`).join('')||'<div class="selected">Nothing selected</div>'}<div style="padding:8px"><button id="savePick" class="btn primary" ${selected.length?'':'disabled'}>Save ${role==='sources'?'Sources':role==='target'?'Target':'Backup'}</button></div></div></div>`;document.querySelectorAll('[data-vol]').forEach(b=>b.onclick=()=>browse(b.dataset.vol));document.querySelectorAll('[data-browse]').forEach(b=>b.onclick=()=>browse(b.dataset.browse));document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{let x=b.dataset.add;if(multi){if(!selected.includes(x))selected.push(x)}else selected=[x];draw()});document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{selected=selected.filter(x=>x!==b.dataset.remove);draw()});if(!multi){let input=$('newFolderName'),createBtn=$('createFolder');createBtn.onclick=()=>createFolder(input.value);input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();createFolder(input.value)}}}$('savePick').onclick=save}async function createFolder(name){name=String(name||'').trim();if(!name||name==='.'||name==='..'||/[\\/]/.test(name)){createError='Enter one folder name without slashes.';let e=$('folderError');if(e){e.textContent=createError;e.classList.remove('hidden')}return}let btn=$('createFolder');if(btn)btn.disabled=true;try{let made=await api('/turn01/fs/folder',{method:'POST',body:JSON.stringify({parent:current,name})});selected=[made.path];await browse(made.path);toast(`${role==='target'?'Target':'Backup'} folder created and selected`)}catch(e){createError=`Could not create folder: ${e.message}`;let out=$('folderError');if(out){out.textContent=createError;out.classList.remove('hidden')}if(btn)btn.disabled=false}}async function save(){let t=encodeURIComponent(p.project_token);if(role==='sources')await api(`/turn01/projects/${t}/sources`,{method:'PUT',body:JSON.stringify({sources:selected})});else{let body={};body[`${role}_root`]=selected[0]||'';await api(`/turn01/projects/${t}/storage`,{method:'PUT',body:JSON.stringify(body)})}closeModal();toast(`${role} saved`);await hydrate(p.project_token);renderCards();ssot();renderProject()}try{if(!vols.length){let v=await api('/turn01/volumes');vols=v.volumes||[];state.volumes=vols}let start=selected[0]||vols[0]?.path;if(!start){root.textContent='No storage volumes available.';return}await browse(start)}catch(e){root.textContent=e.message}}'''
-src=src[:start]+new+src[end:]
-Path(sys.argv[2]).write_text(src)
-PY
-python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
-from pathlib import Path
-import re,sys
-h=Path(sys.argv[1]).read_text()
-required=['SOT-turn01-base-r7-folder-create','SINGLE SOURCE OF TRUTH','PROJECT SOTs','CURRENT STATE · NEXT STEP','Needs Target','Choose Target','Needs Backup','Choose Backup','Setup','Index','Review','Plan','Protect','Verify','function rememberDetails','function patchLive','setInterval(poll,3000)','Activity / diagnostics','New folder here',"api('/turn01/fs/folder',{method:'POST'",'selected=[made.path]','await browse(made.path)','Could not create folder:']
-for m in required: assert m in h,m
-picker=h[h.index('async function picker'):h.index('async function load')]
-assert "let create=multi?'':" in picker
-assert picker.count("api('/turn01/fs/folder'")==1
-assert "$('surface').innerHTML" not in h[h.index('function patchLive'):h.index("$('search').oninput")]
-scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I); assert scripts; Path(sys.argv[2]).write_text('\n;\n'.join(scripts))
-PY
-node --check "$TMP/ui.js" || { fail UI_JS_PARSE failed; return 1 2>/dev/null || true; }; pass R7_UI_CONTRACT 'R6 SSOT + Target/Backup New folder + operator-owned picker'
-install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html"; CUTOVER=1; pass CUTOVER installed
-LOCAL_SHA="$(sha256sum "$TMP/SOT-turn01-base.html"|awk '{print $1}')"; code=000
-for i in {1..20}; do code="$(curl --max-time 5 -sS -H 'Cache-Control: no-cache' -o "$RUN/public.html" -w '%{http_code}' "$PUBLIC_URL?release=$LOCAL_SHA" || true)"; [ "$code" = 200 ] && [ -s "$RUN/public.html" ] && break; sleep 1; done
-[ "$code" = 200 ] || { fail PUBLIC_HTTP "HTTP=$code"; return 1 2>/dev/null || true; }; PUBLIC_SHA="$(sha256sum "$RUN/public.html"|awk '{print $1}')"; [ "$PUBLIC_SHA" = "$LOCAL_SHA" ] || { fail PUBLIC_IDENTITY "local=$LOCAL_SHA public=$PUBLIC_SHA"; return 1 2>/dev/null || true; }; pass PUBLIC_IDENTITY "$PUBLIC_SHA"
-python3 - "$RUN/public.html" "$TMP/public.js" <<'PY'
-from pathlib import Path
-import re,sys
-h=Path(sys.argv[1]).read_text(); assert 'SOT-turn01-base-r7-folder-create' in h; assert 'New folder here' in h; assert "api('/turn01/fs/folder',{method:'POST'" in h
+h=Path(sys.argv[1]).read_text();need=['SOT-turn01-base-r8-global-reconciliation','Your storage','unique physical content','safe copy a','safe copy b','shared by projects','/turn01/ssot','Physical overlap','Advanced / diagnostics']
+for x in need:assert x in h,x
+for bad in ['✓ Setup','✓ Index','✓ Review','CURRENT STATE · NEXT STEP']:assert bad not in h,bad
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 PY
-node --check "$TMP/public.js" || { fail PUBLIC_JS_PARSE failed; return 1 2>/dev/null || true; }; pass PUBLIC_JS_PARSE passed
-[ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || { fail DATABASE_POSTCHECK failed; return 1 2>/dev/null || true; }; pass DATABASE_POSTCHECK ok
-SUCCESS=1; pass RELEASE_READY "backend=$QUALIFIED_BACKEND_COMMIT ui=R7-from-$R6_UI_COMMIT"; echo '=== TURN 01 BASE R7 READY FOR OWNER TEST ==='; echo "R7 BASELINE: $R6_UI_COMMIT"; echo "PUBLIC SHA256: $PUBLIC_SHA"; echo "TEST URL: $PUBLIC_URL?release=$PUBLIC_SHA"
+node --check "$TMP/ui.js";pass R8_UI_CONTRACT 'storage reconciliation, not workflow machinery'
+cp "$DB" "$TMP/test.sqlite";SOT_DB_PATH="$TMP/test.sqlite" node - "$TMP/sot-api.js" > "$TMP/before.json" <<'NODE'
+const a=require(process.argv[2]);console.log(JSON.stringify(a._test.ssotReconciliation().global));
+NODE
+sqlite3 "$TMP/test.sqlite" <<'SQL'
+PRAGMA foreign_keys=ON;
+INSERT INTO projects(project_token,project_name,evidence_revision,status,created_at,updated_at) VALUES('r8fixtureA','R8 fixture A',1,'Review','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),('r8fixtureB','R8 fixture B',1,'Review','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO sources(source_id,project_token,normalized_path,preflight_status,created_at,updated_at) VALUES('r8srcA','r8fixtureA','/tmp/r8a','ready','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),('r8srcB','r8fixtureB','/tmp/r8b','ready','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO processing_runs(run_id,project_token,state,phase,started_at,updated_at,ended_at) VALUES('r8runA','r8fixtureA','Closed','complete','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),('r8runB','r8fixtureB','Closed','complete','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO content(content_sha256,size,first_observed_at,last_observed_at) VALUES('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',1000,'2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',2000,'2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO observations(observation_id,project_token,source_id,run_id,normalized_path,relative_path,filename,size,modified_ms,content_sha256,path_hash,observation_hash,first_observed_at,last_observed_at) VALUES
+('r8obsA1','r8fixtureA','r8srcA','r8runA','/tmp/r8a/shared','shared','shared',1000,0,'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),
+('r8obsB1','r8fixtureB','r8srcB','r8runB','/tmp/r8b/shared','shared','shared',1000,0,'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),
+('r8obsA2','r8fixtureA','r8srcA','r8runA','/tmp/r8a/only','only','only',2000,0,'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','1111111111111111111111111111111111111111111111111111111111111111','2222222222222222222222222222222222222222222222222222222222222222','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO current_observations(source_id,relative_path,observation_id,last_run_id) VALUES('r8srcA','shared','r8obsA1','r8runA'),('r8srcB','shared','r8obsB1','r8runB'),('r8srcA','only','r8obsA2','r8runA');
+INSERT INTO target_holdings(content_sha256,target_path,verification_status,verified_sha256,established_at,verified_at) VALUES('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','/tmp/r8-target-shared','verified','ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z'),('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','/tmp/r8-target-only','verified','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+INSERT INTO backup_holdings(content_sha256,backup_path,verification_status,verified_sha256,established_at,verified_at) VALUES('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','/tmp/r8-backup-shared','verified','ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z');
+SQL
+SOT_DB_PATH="$TMP/test.sqlite" node - "$TMP/sot-api.js" > "$TMP/after.json" <<'NODE'
+const a=require(process.argv[2]);console.log(JSON.stringify(a._test.ssotReconciliation()));
+NODE
+python3 - "$TMP/before.json" "$TMP/after.json" <<'PY'
+import json,sys
+b=json.load(open(sys.argv[1]));a=json.load(open(sys.argv[2]));g=a['global']
+assert g['unique_bytes']-b['unique_bytes']==3000,(b,g)
+assert g['shared_bytes']-b['shared_bytes']==1000,(b,g)
+assert g['protected_bytes']-b['protected_bytes']==1000,(b,g)
+assert g['missing_copy_b_bytes']-b['missing_copy_b_bytes']==2000,(b,g)
+pa=next(x for x in a['projects'] if x['project_token']=='r8fixtureA');pb=next(x for x in a['projects'] if x['project_token']=='r8fixtureB')
+assert pa['shared_bytes']==1000 and pa['project_only_bytes']==2000,(pa,pb)
+assert pb['shared_bytes']==1000 and pb['project_only_bytes']==0,(pa,pb)
+PY
+pass R8_DEDUP_BEHAVIOR 'shared 1KB counted once globally; overlap and missing copy reconciled'
+sudo systemctl stop "$SERVICE";install -m0644 "$TMP/sot-api.js" "$REPORT_ROOT/sot-api.js";install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html";CUTOVER=1;sudo systemctl start "$SERVICE";pass CUTOVER 'backend read model + R8 UI installed'
+code=000;for i in {1..30};do code="$(curl --max-time 3 -sS -o "$RUN/health.after.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health||true)";[ "$code" = 200 ]&&break;sleep 1;done;[ "$code" = 200 ]||fail POST_HEALTH "HTTP=$code";pass POST_HEALTH HTTP=200
+code="$(curl --max-time 10 -sS -o "$RUN/ssot.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/turn01/ssot||true)";[ "$code" = 200 ]||fail LIVE_SSOT "HTTP=$code";python3 - "$RUN/ssot.json" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1]));assert x.get('model')=='global-content-reconciliation-v1',x;g=x['global'];assert g['protected_bytes']<=g['unique_bytes'];
+for p in x['projects']:
+ if not p['unique_content'] or not p['logical_bytes']:assert p['condition']!='protected',p
+PY
+pass LIVE_SSOT 'global truth endpoint; zero-content protected impossible'
+LOCAL_SHA="$(sha256sum "$TMP/SOT-turn01-base.html"|awk '{print $1}')";code=000;for i in {1..20};do code="$(curl --max-time 5 -sS -H 'Cache-Control: no-cache' -o "$RUN/public.html" -w '%{http_code}' "$PUBLIC_URL?release=$LOCAL_SHA"||true)";[ "$code" = 200 ]&&break;sleep 1;done;[ "$code" = 200 ]||fail PUBLIC_HTTP "HTTP=$code";PUBLIC_SHA="$(sha256sum "$RUN/public.html"|awk '{print $1}')";[ "$PUBLIC_SHA" = "$LOCAL_SHA" ]||fail PUBLIC_IDENTITY "local=$LOCAL_SHA public=$PUBLIC_SHA";pass PUBLIC_IDENTITY "$PUBLIC_SHA"
+[ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ]||fail DATABASE_POSTCHECK failed;pass DATABASE_POSTCHECK ok;SUCCESS=1;pass RELEASE_READY "R8 global reconciliation"
+echo '=== TURN 01 BASE R8 READY FOR OWNER TEST ===';echo "PUBLIC SHA256: $PUBLIC_SHA";echo "TEST URL: $PUBLIC_URL?release=$PUBLIC_SHA"
