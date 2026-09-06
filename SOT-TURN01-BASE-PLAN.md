@@ -1,150 +1,161 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** R8 ACTIVE — GLOBAL CONTENT RECONCILIATION  
-**Date:** 2026-09-05
+**Status:** R9 ACTIVE — DATABASE-CENTERED MASTER / DETAIL  
+**Date:** 2026-09-06
 
-## Governing correction
+## Governing model
 
-R7 is emphatically owner-rejected and archived in `SOT/archive/2026-09-05-turn01-r7-owner-rejection/GY-025.md`.
+SOT is a global physical-content reconciliation system backed by one SSOT database.
 
-The failure was not styling. The UI exposed workflow machinery instead of answering the storage-management question. It also made false health claims such as `0 files + 0 missing = Protected` and allowed SSOT to say no attention was required while constituent projects were unresolved.
+`physical fingerprint → known locations → project membership → required copies → actual verified copies → missing work`
 
-R8 replaces that model.
+Content identity is permanent. Storage roles are not. A full former Target may become retained/source storage and its verified fingerprints remain known. Projects are membership/policy views over the database and do not own physical-content truth.
 
-## One authoritative model
+R7 presentation is rejected in GY-025. R8 pre-cutover syntax failure is GY-026. R8 dashboard presentation is emphatically owner-rejected in GY-027. The qualified R8 reconciliation backend/read model remains useful foundation; rejected UI artifacts are evidence only.
 
-SOT is a **global physical-content reconciliation system**.
+## Product information architecture
 
-The durable hierarchy is:
+### 1. Dashboard — default home
 
-`physical content fingerprint → known physical locations → project membership → required copy policy → missing work`
+Dashboard is the default landing surface. There is no `Overview` or `Storage estate` mode button.
 
-Projects do not create duplicate physical-content truth. If the same fingerprint belongs to several projects, SSOT counts the bytes once and records all project memberships.
+It must show the whole storage estate visually:
 
-A disk's role may change without changing the identity of the content on it. A former active Target that is full or rotated out remains a known fingerprinted location. Content identity and copy truth survive role changes.
+- unique fingerprinted source content;
+- verified Copy A coverage;
+- verified Copy B coverage;
+- fully protected content;
+- unresolved / unknown content;
+- shared cross-project content;
+- current storage work.
 
-## Ownership
+Coverage is displayed primarily as horizontal bars whose lengths are comparable against the unique-content estate.
 
-### SSOT owns
+### 2. Active now — always visible
 
-- the global deduplicated content catalog;
-- every known physical content location;
-- verified copy coverage;
-- storage-volume availability;
-- active write destinations / storage roles;
-- protection policy and placement;
-- cross-project overlap and shared bytes;
-- the ordered list of missing work.
+Any queued/running/paused index, plan, copy, or verification operation appears prominently on Dashboard and on its project master row.
 
-### Projects own
+For index work show, when available:
 
-- which source locations/content belong to the project;
-- project membership in the global catalog;
-- optional exceptional policy constraints only.
+- operation name/state;
+- files processed / expected;
+- bytes processed / expected;
+- percentage/progress bar;
+- elapsed/current item when available;
+- Pause + Stop while running;
+- Resume + Stop while paused.
 
-Projects do **not** fundamentally own independent Target disks. Existing per-project destination plumbing may remain temporarily underneath R8 for compatibility, but the primary product model and UI must not present Target/Backup as project identity.
+A project with an active operation may never simultaneously offer `Scan now` as though idle.
 
-## Primary UX contract
+### 3. Master → detail
 
-The main screen is storage reconciliation, not a workflow dashboard.
+Dashboard contains the project master list. Selecting a project does not navigate away. Detail renders directly below the master/dashboard context.
 
-The dominant visual is:
+Project master rows show:
 
-`SOURCE → SAFE COPY A → SAFE COPY B`
+- project name;
+- logical content;
+- unique vs shared bytes;
+- verified coverage;
+- unresolved bytes;
+- live operation/progress if active;
+- one next storage action if idle.
 
-and must answer immediately:
+Project detail shows Source → Copy A → Copy B coverage as compact visual bars plus sources/membership and corrective action.
 
-1. **Unique source content** — deduplicated across all projects.
-2. **Fully protected** — positive committed content with all required verified copies.
-3. **Needs one or more copies** — content whose required verified copy coverage is incomplete.
-4. **Unknown / needs scan** — content/projects for which current committed evidence is insufficient to make a protection claim.
-5. **Shared between projects** — deduplicated bytes referenced by more than one project.
-6. **Next actions** — a short ordered list with a direct action beside every problem.
+### 4. Deep-dive modal
 
-No screen may infer healthy storage from zero counters when there is no positive committed evidence.
+`Details` opens a large modal rather than navigating away. It may contain exhaustive information without cluttering Dashboard:
 
-## Project UX contract
+- project sources and scope;
+- content/copy summaries;
+- fingerprints/locations;
+- overlap/membership;
+- plans/evidence revisions;
+- operation history;
+- diagnostics/errors/provenance.
 
-A project is a lens onto SSOT. Its primary view shows:
+Modal actions: Print, Download JSON, Download CSV where applicable, Share/send when platform capability exists. AI analysis is a future extension point, not an R9 blocker.
 
-- logical project bytes/files;
-- unique physical bytes attributable only to this project;
-- bytes shared with other projects;
-- verified copy coverage;
-- missing/unknown bytes;
-- one plain-language conclusion;
-- one direct next action.
+### 5. Database — first-class surface
 
-Example:
+Database is a top-level surface beside Dashboard, Activity, and Settings.
 
-`625 GB project content · 207 GB unique here · 418 GB shared`  
-`611 GB has both required copies · 14 GB needs another copy`  
-`[ Protect 14 GB ]`
+Database provides a searchable catalog over SSOT truth, not a diagnostics dump. Initial views:
 
-Implementation states such as evidence revision, `closed`, worker phase, stale plan, Pause/Stop/Continue belong under advanced diagnostics and may appear only when they directly explain or control a live operation.
+- Content — fingerprint, size, project membership count, location/copy state;
+- Locations — known paths/holdings and verification state;
+- Projects — membership/overlap view;
+- Operations — durable operation records.
+
+Search accepts fingerprint, filename/path when available, project, and location. Results support JSON/CSV export.
+
+### 6. Activity — first-class surface
+
+Activity exposes durable current/recent work and event history. It is separate from database inspection and from the normal dashboard.
 
 ## Truth rules
 
-1. **Protected requires positive evidence.** `0 content`, empty evidence, or unknown evidence can never classify as Protected.
-2. Protection is evaluated per content fingerprint against verified physical holdings.
-3. SSOT and project views use the same resolver. They cannot disagree about health.
-4. Global unique bytes are counted once even when content belongs to multiple projects.
-5. Shared bytes are bytes whose fingerprint belongs to more than one active project.
-6. A transient operation failure cannot erase committed content truth, but it can make newer/unscanned scope explicitly Unknown.
-7. A full/retired disk holding verified content remains part of known storage truth while available; changing its storage role does not reclassify its files as new content.
+1. Protected requires positive committed content plus required verified copies.
+2. Zero files/bytes is Unknown/Not indexed, never Protected.
+3. Global unique bytes count each fingerprint once regardless of project membership.
+4. Shared bytes are fingerprints referenced by more than one active project.
+5. SSOT, project rows, detail, database and exports use the same resolver/read model.
+6. A failed/new scan cannot erase prior committed truth; any unscanned newer scope is explicitly Unknown.
+7. Active-operation truth overrides idle CTA presentation without overwriting committed storage truth.
+8. Storage-role changes do not change content identity.
 
-## R8 backend scope
+## R9 backend/read-model scope
 
-Preserve the qualified coordination foundation (`b58920f014960c9b18b705a0fdcf0406c621fd5f`, schema 5) and add one clean read model for SSOT reconciliation using existing `current_observations`, `observations`, `content`, `target_holdings`, `backup_holdings`, projects, and sources.
+Preserve qualified schema-5 coordination and R8 global reconciliation. Extend the read model only where required for:
 
-The SSOT read model must return:
+- active-operation progress fields on project rows;
+- database catalog queries over current fingerprints, memberships and holdings;
+- durable activity queries;
+- exportable deep-dive payloads.
 
-- global unique content count/bytes;
-- globally fully protected count/bytes;
-- missing Target/copy-A count/bytes;
-- missing Backup/copy-B count/bytes;
-- missing both count/bytes;
-- shared-across-projects count/bytes;
-- project rows with logical unique content, project-only bytes, shared bytes, copy coverage, evidence availability, and current operation overlay.
+Do not create alternate content identity or project-specific storage truth.
 
-This is a read-model addition; no schema migration is required for R8.
+## R9 UI scope
 
-## R8 UI scope
+Create a clean standalone R9 source. Do not patch R8 UI forward.
 
-Build a clean R8 surface rather than patching R7 presentation logic.
+Top navigation:
 
-- No six-stage bar on the primary surface.
-- No generic `Protected` from project flags.
-- No `closed` as an operator status.
-- No always-visible Pause/Stop/Continue controls.
-- SSOT overview is the default home screen.
-- Project cards show coverage, overlap, and the next storage action.
-- Project detail is `Source → Copy A → Copy B` with bytes/files and missing/unknown coverage.
-- Advanced diagnostics remain available but collapsed.
-- Background polling patches numeric/status nodes only and never rebuilds operator-owned UI state.
+`SSOT | Dashboard | Database | Activity | Settings`
 
-## R8 qualification gates
+Dashboard order:
 
-Before owner handoff:
+1. storage-estate coverage bars;
+2. Active now;
+3. project master list;
+4. selected project detail below master;
+5. ordered attention/corrective actions.
 
-1. Backend JS parses and retains schema 5 coordination capabilities.
-2. SSOT endpoint deduplicates the same content fingerprint across two projects and counts its bytes once globally.
-3. The same fixture reports those bytes as shared across projects.
-4. `0 files / 0 bytes` is Unknown/Not indexed, never Protected.
-5. Positive content with both verified holdings is Fully protected.
-6. Positive content missing one holding is Needs copy with exact missing bytes.
-7. SSOT aggregate equals the sum of mutually exclusive global coverage classes.
-8. Project rows reconcile to the same content fingerprints used globally.
-9. UI contains no six-stage primary workflow and no `closed` primary status.
-10. UI renders Source → Copy A → Copy B plus unique/shared/missing bytes.
-11. Existing coordination, database-integrity, public-byte identity and rollback gates pass.
-12. Host installer prints the exact cache-busted owner-test URL only after all gates pass.
+The surface must remain useful at tablet width. Background refresh patches data without resetting selected project, active tab, scroll, modal, database query/filter, focus, or disclosure state.
+
+## R9 qualification gates
+
+1. Backend JS parse.
+2. Existing R8 cross-project fingerprint dedup fixture still passes.
+3. Zero-content cannot classify Protected.
+4. Running fixture appears in Active now and project row.
+5. Running fixture cannot render idle `Scan now` CTA.
+6. Progress counters/bar render from backend operation/run counters.
+7. Dashboard is default and no Overview/Storage-estate mode button exists.
+8. Comparable estate bars render unique, Copy A, Copy B, fully protected, unresolved.
+9. Project selection renders detail without replacing master/dashboard context.
+10. Deep-dive modal exists and provides Print + JSON export.
+11. Database top-level surface supports Content/Locations/Projects/Operations views and search.
+12. Activity top-level surface exposes current/recent durable operations.
+13. Poll refresh preserves operator-owned state.
+14. Database integrity, public-byte identity, rollback and canonical installer gates pass.
+15. Installer emits exact cache-busted owner-test URL only after all gates pass.
 
 ## Governance
 
-- Failed/rejected generated artifacts are evidence only.
-- Do not patch R7 UI forward.
-- Preserve unrelated repository work; fetch current main and target SHA before every write.
+- Rejected UI builds are evidence only and never implementation ancestors.
+- Preserve unrelated repository work; fetch current main and every target blob SHA immediately before writes.
 - `install-SOT-turn01-base.sh` remains the only active Base installer.
-- The owner is the product/browser tester; mechanically reproducible truth failures must be caught before handoff.
+- Owner is the product/browser tester; mechanically reproducible failures must be caught before handoff.
