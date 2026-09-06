@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.1.0 -->
-# TALKBRIDGE MASTER PLAN v21.1.0
+<!-- TALKBRIDGE-PLAN v21.2.0 -->
+# TALKBRIDGE MASTER PLAN v21.2.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -81,7 +81,7 @@ built yet.
 | 26·ship (candidate 4) | Owner-scoped rebuild on accepted 26·pre-ship: #653 "Join thread" as the FOURTH clock long-press option (paste/QR via BarcodeDetector, hidden everywhere else, joins via the untouched #j= boot path — per the 2026-09-01 written direction) + welcome pill "name is inviting you to title (Yours ↔ Theirs)" + build identity (boot log line + clock-menu footer with build date/time) | **REJECTED 2026-09-05 (owner: onboarding broken) → buried G48; address rolled back byte-exact to accepted 26·pre-ship.** Post-mortem note from the device log, recorded not argued: a full onboard ran clean ON c4 bytes at 11:01–11:05Z (create→grant→invite→join→welcome pill correct), and the owner's broken test began ~3 min after the push — stale/mixed CDN is the standing suspect; build-identity footer exists to make that visible. | (address rolled back) |
 | 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | superseded by c6 same day (desktop-install fix). |
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
-| 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **NEXT — awaiting owner GO** | — |
+| 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **BUILT 2026-09-06 on owner GO — device gate pending (§7.4 G1–G5).** Parity harness 10/10 vs living kanban source; speech fixtures 4/4; mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of the accepted 26 line | §7.3 step-0 pattern | queued | — |
 | 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1 attempt, #652) with safe old-worker retirement; presence dot 60-s damping (kills the flicker you accepted under reservation); render coalescing | Spec §7.2 | queued | — |
 | 27·pre-ship | **Directory release** — D-2 PRISM un-hijack done right AND **desktop Chrome install restored** (D-6): app moves to /stuff/talkbridge-app/ with a slash-true scope; complete URL-coupling map already verified line-by-line; isolated release | Spec §7.5 | queued | — |
