@@ -34,13 +34,14 @@ const a=require(process.argv[2]);const c=a._test.ssotCatalog('content','',20,'')
 NODE
 pass R9_DATABASE_BEHAVIOR "$(cat "$TMP/catalog.json")"
 sqlite3 "$TMP/test.sqlite" <<'SQL'
-INSERT INTO projects(project_token,project_name,evidence_revision,status,created_at,updated_at) VALUES('r9active','R9 active fixture',0,'Pending','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z');
-INSERT INTO processing_runs(run_id,project_token,state,phase,files_discovered,bytes_discovered,files_processed,bytes_processed,started_at,updated_at) VALUES('r9run','r9active','WIP','fingerprinting',100,1000000,40,400000,'2026-09-06T00:00:00Z','2026-09-06T00:00:01Z');
+INSERT INTO projects(project_token,project_name,evidence_revision,status,lifecycle_state,mutation_generation,active_operation_id,created_at,updated_at) VALUES('r9active','R9 active fixture',0,'Indexing','indexing',1,'r9op','2026-09-06T00:00:00Z','2026-09-06T00:00:01Z');
+INSERT INTO project_operations(operation_id,project_token,kind,generation,state,created_at,started_at,updated_at,detail_json) VALUES('r9op','r9active','index',1,'running','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z','2026-09-06T00:00:01Z','{}');
+INSERT INTO processing_runs(run_id,project_token,state,phase,files_discovered,bytes_discovered,files_processed,bytes_processed,started_at,updated_at,operation_id,operation_generation) VALUES('r9run','r9active','WIP','fingerprinting',100,1000000,40,400000,'2026-09-06T00:00:00Z','2026-09-06T00:00:01Z','r9op',1);
 SQL
 SOT_DB_PATH="$TMP/test.sqlite" node - "$TMP/sot-api.js" <<'NODE'
-const a=require(process.argv[2]);const p=a._test.listProjects().find(x=>x.project_token==='r9active');if(!p||p.processing_state!=='WIP'||Number(p.files_processed)!==40||Number(p.files_discovered)!==100)throw Error(JSON.stringify(p));console.log('active fixture: WIP 40/100 visible');
+const a=require(process.argv[2]);const p=a._test.listProjects().find(x=>x.project_token==='r9active');if(!p||p.processing_state!=='WIP'||Number(p.files_processed)!==40||Number(p.files_discovered)!==100||p.active_operation_id!=='r9op')throw Error(JSON.stringify(p));console.log('active fixture: governed WIP 40/100 visible');
 NODE
-pass R9_ACTIVE_BEHAVIOR 'running fixture exposes WIP 40/100 before UI cutover'
+pass R9_ACTIVE_BEHAVIOR 'governed running fixture exposes WIP 40/100 before UI cutover'
 sudo systemctl stop "$SERVICE";install -m0644 "$TMP/sot-api.js" "$REPORT_ROOT/sot-api.js";install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html";CUTOVER=1;sudo systemctl start "$SERVICE";pass CUTOVER 'R9 catalog + database-centered dashboard installed'
 code=000;for i in {1..30};do code="$(curl --max-time 3 -sS -o "$RUN/health.after.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health||true)";[ "$code" = 200 ]&&break;sleep 1;done;[ "$code" = 200 ]||fail POST_HEALTH "HTTP=$code";pass POST_HEALTH HTTP=200
 for endpoint in 'turn01/ssot' 'turn01/catalog?view=content&limit=5' 'activity?limit=5' 'turn01/projects';do code="$(curl --max-time 10 -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:18080/api/sot/$endpoint"||true)";[ "$code" = 200 ]||fail LIVE_R9_ENDPOINT "$endpoint HTTP=$code";done;pass LIVE_R9_ENDPOINTS 'ssot + catalog + activity + project progress HTTP=200'
