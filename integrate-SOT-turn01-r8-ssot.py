@@ -44,13 +44,13 @@ fn=r'''function ssotReconciliation() {
     JOIN (SELECT project_token,MAX(created_at) created_at FROM project_operations GROUP BY project_token) x ON x.project_token=po.project_token AND x.created_at=po.created_at;`);
   const opMap = Object.fromEntries(operations.map(x=>[x.project_token,x]));
   const projects = projectRows.map(x=>{
-    const content=Number(x.unique_content||0), bytes=Number(x.logical_bytes||0), protected=Number(x.protected_bytes||0);
+    const content=Number(x.unique_content||0), bytes=Number(x.logical_bytes||0), protectedBytes=Number(x.protected_bytes||0);
     let condition='needs_scan', headline='Needs scan', next_action='index';
     if (!Number(x.source_count||0)) { condition='needs_sources'; headline='Needs sources'; next_action='sources'; }
     else if (!content || !bytes || Number(x.evidence_revision||0)<=0) { condition='needs_scan'; headline='Nothing indexed yet'; next_action='index'; }
-    else if (protected===bytes) { condition='protected'; headline='All known content has both verified copies'; next_action='none'; }
+    else if (protectedBytes===bytes) { condition='protected'; headline='All known content has both verified copies'; next_action='none'; }
     else { condition='needs_copy'; headline='Some content still needs a safe copy'; next_action='protect'; }
-    return {...x,unique_content:content,logical_bytes:bytes,project_only_bytes:Number(x.project_only_bytes||0),shared_bytes:Number(x.shared_bytes||0),protected_bytes:protected,missing_copy_a_bytes:Number(x.missing_copy_a_bytes||0),missing_copy_b_bytes:Number(x.missing_copy_b_bytes||0),condition,headline,next_action,operation:opMap[x.project_token]||null};
+    return {...x,unique_content:content,logical_bytes:bytes,project_only_bytes:Number(x.project_only_bytes||0),shared_bytes:Number(x.shared_bytes||0),protected_bytes:protectedBytes,missing_copy_a_bytes:Number(x.missing_copy_a_bytes||0),missing_copy_b_bytes:Number(x.missing_copy_b_bytes||0),condition,headline,next_action,operation:opMap[x.project_token]||null};
   });
   const unknownProjects=projects.filter(x=>x.condition==='needs_scan'||x.condition==='needs_sources').length;
   return { build:BUILD, model:'global-content-reconciliation-v1', global:Object.fromEntries(Object.entries(global).map(([k,v])=>[k,Number(v||0)])), unknown_projects:unknownProjects, projects };
