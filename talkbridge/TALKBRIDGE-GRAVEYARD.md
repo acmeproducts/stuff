@@ -1746,3 +1746,12 @@ the repository entirely, not merely buried; the join affordance was supposed
 to be HIDDEN per the owner's written direction, and a candidate that ignores
 a written instruction disqualifies itself as a canary for everything else in
 it. sha 83c4b4ed8b63, file deleted.
+
+## G48 — 2026-09-05 — 26·ship candidate 4, rejected: onboarding broken
+
+Owner device test: "entire onboard is fucked up now and doesn't work."
+Diagnosis not yet performed (owner stood the line down). Candidate sha
+40b03edcfc70 buried; address bridge-turn26-ship.html rolled back byte-exact
+to accepted 26·pre-ship (e6d3d8c7a57d). Suspect list for the future
+post-mortem, unproven: the #j= reload-based join path interacting with
+onboarding, or the join sheet's modal markup. No claims made.
