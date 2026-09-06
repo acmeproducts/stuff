@@ -1,145 +1,93 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** REPOSITORY QUALIFIED — SINGLE-SURFACE HOST CUTOVER / LIVE QUALIFICATION PENDING  
-**Date:** 2026-09-04
+**Status:** R7 IN IMPLEMENTATION — SSOT ACTION SURFACE + IN-PICKER DESTINATION CREATION  
+**Date:** 2026-09-05
 
-## Recovery anchor
+## Recovery anchors
 
-- Accepted pre-base UI: `7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html`.
-- Accepted pre-base backend: `9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js`.
-- Clean Base UI integrators: Base-22 at `603e8a331b13b72a097e9ebb9640e33707279777` and Base-24 at `083aa1334208b1e6995fa18852e82722a815f331`.
-- Canonical AI/storage-default integrator: `5660a5fd6f0aaa6c7b734f2ad04b468b65693eb5/integrate-SOT-turn01-base-ai.py`.
-- Canonical target remains `SOT/SOT-turn01-base.html` on the host; repository source is `SOT-turn01-base.html`.
-- 2026-09-02 coordination failure remains rejected evidence: `SOT/archive/2026-09-02-turn01-coordination-owner-rejection/` / `GY-019.md`.
-- 2026-09-03 build `2026.09.03.sot-turn01-coordination-1` is REJECTED evidence only. Owner gate failed 1, 3, 4, 5, 6 and 7; only same-project conflict blocking passed. Record: `SOT/archive/2026-09-03-turn01-coordination-owner-rejection/GY-020.md`.
-- 2026-09-04 false-positive gate-9 / installer handoff failure is rejected qualification evidence at `SOT/archive/2026-09-04-turn01-qualified-installer-handoff-failure/GY-021.md`.
-- The qualified coordination implementation remains pinned at `b58920f014960c9b18b705a0fdcf0406c621fd5f` with backend build `2026.09.03.sot-turn01-coordination-2`, schema 5.
-- The mechanically qualified but owner-rejected old UI architecture is now recorded at `SOT/archive/2026-09-04-turn01-qualified-ui-owner-rejection/GY-022.md`.
-- Single-surface prechange state is archived at `SOT/archive/2026-09-04-1840-turn01-single-surface-rebuild/ARCHIVE-MANIFEST.md`.
+- Frozen pre-base UI: `7a377c27e1ac078510b9d1e4fe66da4f997f25f3/SOT-turn01-pre-base.html`.
+- Qualified coordination/backend foundation: `b58920f014960c9b18b705a0fdcf0406c621fd5f`, backend build `2026.09.03.sot-turn01-coordination-2`, schema 5.
+- Accepted R6 SSOT/action UI: `7dc9bc7b3402633bb82601b5123280dca74b57bd/SOT-turn01-base-r6.html`.
+- R6 live owner qualification: installer RC=0 on 2026-09-05; public SHA256 `1975ca5d97dc84733d0c239d1ea74ccf17764abada31b0df9e2c22a13cd23006`.
+- GY-024 records the R6 destination-picker limitation: Target/Backup could select only existing folders.
+- Canonical host target remains `SOT/SOT-turn01-base.html`; `install-SOT-turn01-base.sh` remains the only active Base installer.
 
 ## Governance
 
-1. `SOT-turn01-pre-base.html` remains the frozen recovery anchor. Failed generated HTML is evidence only and never becomes an implementation ancestor.
-2. `install-SOT-turn01-base.sh` is the only active Base installer. Numbered installers are history only.
-3. Before governed SOT files change, archive the current commit/path/blob state under `SOT/archive/`.
-4. Product development proceeds from the pinned clean lineage above. Do not patch rejected coordination runtimes or the owner-rejected old navigation surface forward.
-5. Rollback is SOT-scoped. Never rewind unrelated repository projects merely to recover SOT.
-6. The owner is the browser/device product tester. Mechanical QA must remove mechanically reproducible failures before owner testing.
-7. No forward feature work until coordination, observability, durable evidence/plan state, and UI reconciliation pass executable behavioral gates.
+1. Failed/rejected generated HTML is evidence only and never an implementation ancestor.
+2. R6 is an accepted owner-test baseline. R7 is a direct source revision of R6 for the explicitly requested destination-creation capability.
+3. Preserve the qualified backend coordination foundation; do not redesign or patch unrelated backend lifecycle behavior for this change.
+4. Before every governed write, fetch current `main` and the current target-file blob SHA. Preserve unrelated repository work.
+5. Host cutover must archive the previous SOT UI and roll back automatically if live/public qualification fails.
+6. Owner testing begins only after the installer passes live backend/schema/database/UI/public-byte gates.
 
-Prechange state for the initial executable qualification transition is archived at `SOT/archive/2026-09-04-1405-turn01-base-executable-qualification/ARCHIVE-MANIFEST.md`. The failed handoff and qualification defect are archived in GY-021 before the corrected workflow/installer changes.
+## Product hierarchy
 
-## Base product contract
+### SSOT — installation-wide truth
 
-The canonical Base must retain: stable completed Index with 2-copy/3-copy/4+ findings; explicit current/stale Plan separation; one shared Source/Target/Backup/default storage selector; Default Target/Backup; dynamic Windows volume inventory; operational Venice/OpenRouter provider/model state; SOT supervisor prompt and exact evidence context; advisory AI proposal flow; responsive UI during work; cross-project concurrency with one mutation owner per project.
+The SSOT overview reconciles all project SOTs and answers: what storage exists, what has been indexed, what is protected, what needs attention, and what direct action is next.
 
-## Project surface architecture — authoritative
+### Project SOT — durable project truth
 
-Each project is one continuous operational surface. The visible flow is:
+Each project has one continuous operational surface and visible lifecycle:
 
-`Scope / Storage → Index → Review → Plan → Execute → Activity`
+`Setup → Index → Review → Plan → Protect → Verify`
 
-There is no second project-step navigation model, no project-to-review context jump, and no buried `Open Review` action. Source, Target and Backup are directly editable from Scope / Storage through the same volume/folder selector. Index controls and live progress, deterministic Review findings, current/stale Plan truth, deterministic Execute/Certify controls, and durable Activity/Diagnostics all remain inside the same project surface.
+Completed durable state remains visible while temporary operations run. A transient error never replaces committed evidence truth.
 
-Global SOT is limited to cross-project status, aggregate truth, scheduler/database state, project creation/deletion and configuration. Each project remains operationally independent and feeds the centralized SOT database and plan authority.
+### Action model
 
-Background refresh may reconcile server-owned state in place but must not replace or reset operator-owned selected project, Omnisearch text, open picker/modal, focused input or edit value, scroll position, or expanded/collapsed surface state.
+Every actionable problem must state:
 
-## Coordination architecture — authoritative
+`what is true → what is missing/wrong → what happens next → direct corrective action`
 
-- Different projects may index/plan/execute concurrently subject only to global resource limits.
-- One project has exactly one state-mutating lifecycle owner at a time.
-- Indexing may use bounded read/hash workers under that owner.
-- Lifecycle is backend truth: `idle -> indexing -> indexed -> planning -> planned -> executing`, with explicit `paused`, `failed`, `cancelled`/interrupted outcomes.
-- Every mutation has durable operation ID + generation; stale completions are discarded and logged.
-- Re-index builds candidate evidence separately. Current committed evidence remains usable until a complete candidate atomically replaces it.
-- Plans bind an exact committed evidence revision and become stale only after a newer evidence revision successfully commits.
-- UI refresh updates server-owned values without replacing operator-owned selection, modal/picker, search, scroll, focus, form-edit state, or surface expansion state.
-- Activity/Diagnostics records queued/start/pause/resume/cancel/fail/complete/stale-discard, lifecycle transitions, evidence commits, plan binding/staleness, execution, worker exit/restart recovery, and conflict rejection.
+Raw machine errors belong in Activity / diagnostics.
 
-## Recovery implementation order
+## R7 destination-definition contract
 
-1. Rebuild from the governed clean lineage, never from the rejected 2026-09-03 runtime or owner-rejected old UI surface.
-2. Retain the qualified transactional project-operation authority shared by index/re-index, plan and execute.
-3. Keep replacement index evidence in operation-scoped candidate storage until atomic commit; no destructive deletion/update of current evidence before commit.
-4. Bind plan eligibility and staleness exclusively to committed evidence revision.
-5. Make pause/stop/restart transitions durable and generation-safe.
-6. Use one continuous project surface and targeted reconciliation; operator interaction state is never reconstructed from polling.
-7. Expose the durable operation/event ledger in Activity/Diagnostics on the same project surface.
-8. Preserve cross-project concurrency and the full protected Base product contract.
-9. Build executable behavioral qualification before another owner handoff.
+Target and Backup are managed destinations, not pre-existing-folder references. Their picker must therefore support creation directly:
 
-## Qualification floor — executable behavior required
+1. Browse discovered Windows/WSL volumes and folders using the existing shared storage authority.
+2. For `Target` and `Backup`, show **New folder** in the currently browsed directory.
+3. Prompt for one folder name; reject empty names, `.` / `..`, path separators, and invalid backend names.
+4. Create through the already-qualified backend endpoint `POST /turn01/fs/folder` with `{parent,name}`. Do not add a second filesystem implementation.
+5. On success, refresh/enter the returned folder and automatically make it the selected Target/Backup candidate.
+6. Operator then saves the destination normally.
+7. Failure remains inside the picker with a plain corrective message; the picker stays open and retains the current browse location.
+8. Source picker remains selection-only; do not create empty Source folders.
+9. Background polling must not close the picker, clear the new-folder input, reset browse location, or change selected destination.
 
-Source inspection, marker searches, syntax checks, schema checks and capability strings are necessary but **cannot satisfy a behavioral gate**.
+## Base product contract retained
 
-The exact candidate must be started against a disposable schema-5+ database and the automated harness must execute and assert:
+- Stable completed Index and committed evidence revision.
+- 2-copy / 3-copy / 4+ duplicate findings.
+- Current versus stale Plan truth bound to exact committed evidence revision.
+- Shared Source/Target/Backup storage inventory and picker semantics.
+- Dynamic Windows volume inventory.
+- Target/Backup destination creation from within the picker.
+- Responsive UI during work; operator-owned selection, disclosure, modal, search, focus and scroll state.
+- Cross-project concurrency with one state-mutating operation owner per project.
+- Atomic replacement-index cutover; failed/cancelled re-index cannot destroy current evidence.
+- Durable Activity / diagnostics.
+- Installation-wide SSOT management view plus independent project SOT surfaces.
 
-1. **Same-project exclusion:** conflicting mutation is rejected without changing current state.
-2. **Cross-project independence:** Project A and Project B both make observable progress while overlapping operations run.
-3. **Committed-state durability:** completed Index remains current and plan-eligible after API refresh/reload/restart.
-4. **Re-index atomicity:** with revision N committed, a replacement index is started and then failed/cancelled; revision N evidence remains queryable and plan-eligible. Only successful replacement advances to N+1.
-5. **Plan truth:** plan binds exact revision N; remains current during replacement indexing; becomes stale only after N+1 commits.
-6. **Stale worker:** old generation cannot commit after ownership changes.
-7. **Pause/stop/restart:** each leaves an explicit durable state, retains prior committed evidence, and cannot silently resume stale mutation.
-8. **Activity reconstruction:** operation history reconstructs every tested transition and rejection.
-9. **Single-surface UI reconciliation:** a real DOM/browser-state harness runs the exact UI while real 3-second polling updates server-owned progress and asserts one continuous project flow plus preservation of selected project, open picker/modal, Omnisearch text, focus/input edit value, scroll, and surface state. The harness also proves rejected step-tabs/Open Review navigation is absent.
-10. Existing parse/boot/health/schema/public-byte identity/rollback/product-contract gates also pass.
+## R7 qualification gates
 
-A qualification workflow that merely searches generated source for these mechanisms is a failed qualification and must not emit readiness.
+Before owner handoff the exact R7 candidate must pass:
 
-## 2026-09-04 corrected executable coordination qualification result
+1. JavaScript parse.
+2. R6 SSOT/action/product markers remain present.
+3. Target picker contains `New folder`; Backup picker contains the same capability; Source picker does not offer destination creation.
+4. UI calls only `POST /turn01/fs/folder` for folder creation.
+5. Created-folder response is entered and selected immediately.
+6. Picker remains open on folder-create failure and displays an actionable error.
+7. Existing 3-second polling path does not rebuild/close the modal or mutate picker-owned state.
+8. Live backend remains build `2026.09.03.sot-turn01-coordination-2`, schema 5, with qualified coordination capabilities.
+9. Database integrity passes before and after cutover.
+10. Public served UI is byte-identical to the qualified R7 UI.
+11. Installer rollback restores prior R6 UI if any post-cutover gate fails.
 
-The first nominally green run `33919314140` validly passed gates 1-8 and gate 10, but its original gate 9 was invalid: it conditionally called `backgroundPulse` only if that nonexistent function was present, so no actual progress update occurred. The subsequent WSL handoff correctly exposed the mismatch when the installer asserted `function backgroundPulse()` and exited before cutover. That false-positive qualification/handoff is rejected and recorded in GY-021.
+## Handoff
 
-Corrected coordination qualification consists of:
-
-- **Core gates 1-8 and 10:** PASS on run `33919314140`, commit `141de8b2a46d705848462365473447e7e0827f45`.
-- **Old-surface Gate 9 real polling/browser reconciliation:** PASS on run `33922645501`, commit `b58920f014960c9b18b705a0fdcf0406c621fd5f`. This remains evidence for the qualified coordination/reconciliation foundation, not acceptance of the old product architecture.
-- `compare 141de8b2...b58920f0` confirms no coordination backend/UI integrator, worker, coordinator, or migration file changed between the core-qualified commit and corrected gate-9 commit; intervening changes are workflow/governance/installer or unrelated repository projects.
-- **Prior canonical installer qualification:** PASS on run `33922817854`, commit `3e073b545ad8c254e5a7636e28e030678dfc7c81`.
-
-No rejected generated runtime is used as an implementation ancestor.
-
-## 2026-09-04 live cutover and owner rejection
-
-The corrected canonical installer was executed successfully on the WSL host on 2026-09-04 at approximately 14:57 PT. It passed live backend/schema/database/public-byte qualification and served the qualified Base at `https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html` with backend build `2026.09.03.sot-turn01-coordination-2`, schema 5.
-
-That successful mechanical/live qualification did **not** constitute owner UI acceptance. During owner testing the old surface was rejected because it still fragmented a project into separate project/step navigation and context changes. This product-architecture rejection is GY-022. The qualified backend/coordination foundation remains accepted and is retained.
-
-## Single-surface replacement
-
-The clean replacement source is `SOT-turn01-base.html`, build marker `SOT-turn01-base-single-surface-r2`. The exact UI bytes were introduced at commit `14d9f9670e1520668fab6786642e0abadc332faa`, blob `8125cc8df5bec3e47dd0be2edc922a128bf7bed4`.
-
-The replacement directly exposes on every selected project:
-
-- Scope / Storage with the shared Source/Target/Backup picker;
-- Index controls and live progress;
-- Review evidence with 2-copy, 3-copy and 4+ duplicate drill-down plus evidence-grounded AI POV;
-- Current Plan versus Previous / Stale Plan truth;
-- deterministic Execute and Certify actions;
-- Activity / Diagnostics event reconstruction.
-
-The canonical installer no longer regenerates the rejected old UI. It retains the exact qualified coordination backend generation and fetches the immutable single-surface UI bytes directly from the pinned UI commit. It archives prechange host state, dry-runs schema 5 migration, performs SOT-scoped rollback on failure, verifies live backend capabilities and database integrity, then requires byte-identical public serving and public JavaScript parse before declaring owner-test readiness.
-
-## Single-surface executable qualification result
-
-- **Exact single-surface product contract + real polling/browser reconciliation:** PASS on run `33939713809`, workflow commit `a4f591e518a68aa75142e12cfd224a14607a2aa0`. The harness serves the exact `SOT-turn01-base.html` bytes, proves the six-step continuous surface, proves rejected step tabs are absent, drives the real 3-second polling path from 7 to 77 discovered files, and preserves selected project, Omnisearch text, open Target picker, focused edit value and workspace scroll.
-- **Canonical single-surface installer parse/structural audit + exact backend/UI reproduction:** PASS on run `33939770142`, installer commit `4ac083ae09eb67672738be51c76f405516497080`. The installer reproduces the qualified coordination backend, fetches the immutable single-surface UI commit `14d9f9670e1520668fab6786642e0abadc332faa`, validates both JavaScript artifacts, rejects the old UI generation chain, and retains host archive/migration/rollback/live/public-identity gates.
-
-Repository qualification for the replacement is complete.
-
-## Current release boundary
-
-The backend/coordination foundation and the replacement single-surface repository candidate are mechanically qualified. The remaining release boundary is:
-
-1. publish the governed SOT changes onto the then-current `main` without overwriting unrelated newer work;
-2. execute the immutable canonical installer on the WSL host;
-3. require the installer to verify live health/schema/database/public byte identity and print `=== TURN 01 BASE READY FOR OWNER TEST ===`.
-
-## Handoff rule
-
-Owner testing occurs only after the exact single-surface candidate passes executable repository gates and the canonical public URL serves byte-identical qualified UI. The WSL installer independently verifies live health/schema/public identity and rolls back on failure.
-
-**No replacement owner test URL is declared qualified until the WSL installer completes successfully.**
+After gates 1–11 pass, the canonical installer prints the cache-busted owner-test URL. No alternate preview host is used.
