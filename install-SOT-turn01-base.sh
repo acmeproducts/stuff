@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"; SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"; SERVICE="openclaw-report-server.service"
 PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"; EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5; RAW='https://raw.githubusercontent.com/acmeproducts/stuff'
-R8I='d1b397902e6dce35e620b36ee0454ed666adb74d'; R9I='9c94559e70243adf3b7e87e1a10c98fe1602f174'; R9UI='c9a014c2c3b578b1c207665a0ea6655b73e0327c'; R10I='3c1f7f4be03ed6b09608e4a0ace1766614f2c87e'; R10UI='76214ed7b321fdeb3a5c26e1744fa02313aa236d'
+R8I='d1b397902e6dce35e620b36ee0454ed666adb74d'; R9I='9c94559e70243adf3b7e87e1a10c98fe1602f174'; R9UI='c9a014c2c3b578b1c207665a0ea6655b73e0327c'; R10I='2a29e486d036178cbc677535f9a6aa3daafaf907'; R10UI='76214ed7b321fdeb3a5c26e1744fa02313aa236d'
 TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$SOT_DIR/archive/$STAMP-turn01-r10-operating-intelligence-release"; mkdir -p "$RUN" "$TMP/sot-db/migrations"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
 CUTOVER=0; SUCCESS=0; ACTIVE_PID=''
 record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; return 1; }
@@ -53,7 +53,6 @@ if(Number(p.summary.duplicate_groups)!==1||Number(p.summary.duplicate_waste_byte
 if((p.risky_content||[]).length<2)throw Error('missing-copy risk not exposed'); console.log(JSON.stringify({copies:d.copies,projects:d.projects,redundant:d.reclaimable_bytes,project_redundant:p.summary.duplicate_waste_bytes,risky:p.risky_content.length}));
 NODE
 pass DEV_INTELLIGENCE "$(cat "$TMP/intel.json")"
-# Existing coordination behavior gate: initialize backend first, then inject active work.
 sqlite3 "$DB" ".backup '$TMP/active.sqlite'"
 SOT_DB_PATH="$TMP/active.sqlite" node - "$TMP/sot-api.js" "$TMP/active.ready" > "$TMP/active.json" <<'NODE' &
 const fs=require('fs'),a=require(process.argv[2]); a._test.listProjects(); fs.writeFileSync(process.argv[3],'ready'); const end=Date.now()+10000; const t=setInterval(()=>{const p=a._test.listProjects().find(x=>x.project_token==='r10active'); if(p&&p.processing_state==='WIP'&&Number(p.files_processed)===40&&Number(p.files_discovered)===100&&p.active_operation_id==='r10op'){clearInterval(t);console.log(JSON.stringify({state:p.processing_state,files_processed:40,files_discovered:100,operation:p.active_operation_id}));process.exit(0)} if(Date.now()>=end){clearInterval(t);console.error(JSON.stringify(p||null));process.exit(1)}},100);
