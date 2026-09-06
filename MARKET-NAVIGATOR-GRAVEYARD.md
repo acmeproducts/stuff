@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-09-04
+Updated: 2026-09-06
 
 This file is a negative specification. A rejected implementation, workflow, validation technique, layout decision or analytical shortcut is historical evidence only. It is not a successor baseline.
 
@@ -17,7 +17,7 @@ A rejected ship is rolled back. It does not become the next pre-base.
 ## Current recovery authority
 The authoritative baseline is the current product contract in `MARKET-NAVIGATOR-MASTER-PLAN.md` plus `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md`. Historical implementations are capability-specific donors only. Market Navigator 3.9.7 is a chart/data donor; PRISM R25 is an application-shell/Library donor. Neither historical file is the application baseline by itself.
 
-The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release or rejected Turn 01 shell.
+The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release, rejected Turn 01 shell, or rejected Turn 04 release.
 
 ## G4-R1 through G4-R10 — rejected historical lineage
 All Gate 4 R1 through R10 implementations are evidence only. Their previously documented failures remain binding, including standalone rewrites, arbitrary layout changes, misleading charts, synthetic/fallback evidence, incorrect V1/V2 geometry, component-menu V2 implementations, direct component→V3 transitions where superseded, and validation that proved structure rather than owner-visible behavior.
@@ -76,6 +76,30 @@ The stage was decomposed too narrowly. “Application frame” was interpreted a
 - The first owner-testable clean build must include at minimum the real NOW V1 three-index chart, real canonical evidence, all seven horizons, correct common X-domain, inspection, and enough permanent application navigation to prove the intended surface.
 - Empty future-mode placeholders do not count as implemented product capability.
 - Confidence claims must be against the owner-visible product requirement, not merely a narrow internal stage definition.
+
+## Turn 04 pre-ship — rejected by owner 2026-09-06
+**Rejected implementation:** `market-navigator-turn04-pre-ship.html`, commit `4020f0f63d34c8761959ea3e198469724157e135`.
+
+### Owner-observed failures
+- Crosshair/point inspection is not functionally usable on Market and is not reliable across the chart system.
+- V1 chart header is overfilled: redundant index legend text and date-range text wrap/bleed into additional rows on phone.
+- V2 Risk legend is unusable and the plotted component evidence appears incomplete/discontinuous enough to make the chart read as a mess rather than an analytical surface.
+- V3/Analysis drill-down is materially incomplete: horizon controls are absent, chart margins/geometry are wrong, and the series-control treatment exposes placeholder-like add-series behavior instead of a deliberate analytical comparison workflow.
+- The V3 implementation did not demonstrate the governed automatic axis contract for compatible native scales, incompatible dual Y1/Y2 scales, and 3+ incompatible Indexed100 comparison.
+- The release contains explanatory/redundant UI copy instead of a disciplined sweep for only decision-useful text.
+
+### Root cause
+The qualification workflow proved browser boot and scripted state transitions but did not qualify the actual phone composition, gesture/inspection behavior, chart-header row budgets, complete component-series presentation, or every V3 axis/horizon combination. Passing automation was incorrectly treated as product readiness.
+
+### Permanent lessons
+- Every chart surface must be visually swept at phone width for header/legend/date collision and redundant text before owner test.
+- Index legends use the shortest unambiguous label; do not repeat abbreviation + full index name in a chip when the surrounding surface already identifies the context.
+- Date range must have a reserved non-overlapping location and must never compete with legend rows.
+- Point inspection must be qualified with real touch/pointer gestures on V1, every V2 index, and representative V3 one-series/two-compatible/two-incompatible/three-incompatible states.
+- V3 must expose the same seven horizons and preserve the selected horizon on entry unless the contract explicitly says otherwise.
+- V3 is a complete analysis surface, not a modal chart placeholder: margins, axes, comparison controls, evidence, AI action, and exact close/restore behavior are all part of the gate.
+- A component chart that is technically drawable but visually sparse/discontinuous must be reconciled against canonical observation cadence and the intended comparison representation before release.
+- Automated QA must fail on owner-visible layout collisions and missing governed controls, not merely DOM presence and navigation.
 
 ## Permanent prohibited patterns
 - patching any rejected release forward;
