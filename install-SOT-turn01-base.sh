@@ -37,6 +37,7 @@ sqlite3 "$DB" ".backup '$TMP/active.sqlite'"
 SOT_DB_PATH="$TMP/active.sqlite" node - "$TMP/sot-api.js" "$TMP/active.ready" > "$TMP/active.json" <<'NODE' &
 const fs=require('fs');
 const a=require(process.argv[2]);
+a._test.listProjects();
 fs.writeFileSync(process.argv[3],'ready');
 setTimeout(()=>{
   const p=a._test.listProjects().find(x=>x.project_token==='r9active');
@@ -55,7 +56,7 @@ INSERT INTO projects(project_token,project_name,evidence_revision,status,lifecyc
 INSERT INTO project_operations(operation_id,project_token,kind,generation,state,created_at,started_at,updated_at,detail_json) VALUES('r9op','r9active','index',1,'running','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z','2026-09-06T00:00:01Z','{}');
 INSERT INTO processing_runs(run_id,project_token,state,phase,files_discovered,bytes_discovered,files_processed,bytes_processed,started_at,updated_at,operation_id,operation_generation) VALUES('r9run','r9active','WIP','fingerprinting',100,1000000,40,400000,'2026-09-06T00:00:00Z','2026-09-06T00:00:01Z','r9op',1);
 SQL
-wait "$ACTIVE_PID"||fail R9_ACTIVE_BEHAVIOR 'already-running backend did not expose governed WIP fixture'
+wait "$ACTIVE_PID"||fail R9_ACTIVE_BEHAVIOR 'already-initialized backend did not expose governed WIP fixture'
 pass R9_ACTIVE_BEHAVIOR "$(cat "$TMP/active.json")"
 sudo systemctl stop "$SERVICE";install -m0644 "$TMP/sot-api.js" "$REPORT_ROOT/sot-api.js";install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html";CUTOVER=1;sudo systemctl start "$SERVICE";pass CUTOVER 'R9 catalog + database-centered dashboard installed'
 code=000;for i in {1..30};do code="$(curl --max-time 3 -sS -o "$RUN/health.after.json" -w '%{http_code}' http://127.0.0.1:18080/api/sot/health||true)";[ "$code" = 200 ]&&break;sleep 1;done;[ "$code" = 200 ]||fail POST_HEALTH "HTTP=$code";pass POST_HEALTH HTTP=200
