@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.0.0 -->
-# TALKBRIDGE MASTER PLAN v21.0.0
+<!-- TALKBRIDGE-PLAN v21.1.0 -->
+# TALKBRIDGE MASTER PLAN v21.1.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -81,7 +81,17 @@ built yet.
 | 26·ship (candidate 4) | Owner-scoped rebuild on accepted 26·pre-ship: #653 "Join thread" as the FOURTH clock long-press option (paste/QR via BarcodeDetector, hidden everywhere else, joins via the untouched #j= boot path — per the 2026-09-01 written direction) + welcome pill "name is inviting you to title (Yours ↔ Theirs)" + build identity (boot log line + clock-menu footer with build date/time) | **REJECTED 2026-09-05 (owner: onboarding broken) → buried G48; address rolled back byte-exact to accepted 26·pre-ship.** Post-mortem note from the device log, recorded not argued: a full onboard ran clean ON c4 bytes at 11:01–11:05Z (create→grant→invite→join→welcome pill correct), and the owner's broken test began ~3 min after the push — stale/mixed CDN is the standing suspect; build-identity footer exists to make that visible. | (address rolled back) |
 | 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | superseded by c6 same day (desktop-install fix). |
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
-| 26·post-ship | Notifications & steadiness per §7.2 (K1 worker icon/alert + old-worker retirement, P2 presence damping, C3 render coalescing) | Spec complete §7.2 — builds only after §7.1 accepted | — |
+| 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **NEXT — awaiting owner GO** | — |
+| 27·pre-base | Byte-identical snapshot of the accepted 26 line | §7.3 step-0 pattern | queued | — |
+| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1 attempt, #652) with safe old-worker retirement; presence dot 60-s damping (kills the flicker you accepted under reservation); render coalescing | Spec §7.2 | queued | — |
+| 27·pre-ship | **Directory release** — D-2 PRISM un-hijack done right AND **desktop Chrome install restored** (D-6): app moves to /stuff/talkbridge-app/ with a slash-true scope; complete URL-coupling map already verified line-by-line; isolated release | Spec §7.5 | queued | — |
+| 27·ship | **IndexedDB mirror** — 1:1 mirror of every storage key, dual-write, restore-after-eviction, parity readout; localStorage still governs | Spec §7.3 | queued | — |
+| 27·post-ship | **Video done right** — BL-V1 **PiP/tap-swap** (exactly two video tiles ever, gated), BL-V2 **front camera default + flip**, BL-V3 **home button keeps the call running**; research-first mandate; buries G45 properly | Spec §7.6 | queued | — |
+| 28·pre-base | Snapshot | — | queued | — |
+| 28·base | **IndexedDB cutover** — reads move to IDB, eviction-survival proven on device; needs mirror + 3 days clean parity | Spec §7.7 | queued | — |
+| 28·pre-ship | **Collisions & concurrency** — device-namespaced message ids, phrasebook compare-and-swap sync with three-way merge, concurrent-rename convergence | Spec §7.9 | queued | — |
+| 28·ship | **Multi-user** — up to 4 in a room, one language pair, named bubbles, cap enforcement, 1:1 calls with presence; relay v6.4 | Spec §7.8 | queued | — |
+| 28·post-ship | **Refactor & debt** — full render coalescing, log hygiene, wrapper-chain audit line, dead-candidate purge (owner names the list), graveyard index | Spec §7.10 | queued | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
@@ -4173,23 +4183,9 @@ changes; device gate = one normal chat session with zero regressions and
 wrap_map present in the log.
 
 ────────────────────────────────────────────────────────────────────────
-## §8 THE SEQUENCE — every in-play release, in order (owner-editable)
-────────────────────────────────────────────────────────────────────────
-| # | Release | Spec | Status |
-|---|---------|------|--------|
-| 1 | 26·ship = c6 arrival & identity | §7.1 as amended | ACCEPTED 2026-09-06 |
-| 2 | 26·post-ship = MD-1 markdown in chat | §7.4 | NEXT — builds on c6 acceptance |
-| 3 | 27·pre-base snapshot of accepted 26 line | §7.3 step 0 pattern | after 2 |
-| 4 | 27·base = notifications & steadiness | §7.2 | after 3 |
-| 5 | 27·pre-ship = directory release (D-2 done right, D-6 Option 1) | §7.5 | after 4, isolated |
-| 6 | 27·ship = IndexedDB mirror | §7.3 | after 5 |
-| 7 | 27·post-ship = video done right | §7.6 | after 6 |
-| 8 | 28·pre-base snapshot | — | after 7 |
-| 9 | 28·base = IndexedDB cutover | §7.7 | needs §7.3 + 3-day parity |
-| 10 | 28·pre-ship = collisions & concurrency | §7.9 | after 9 |
-| 11 | 28·ship = multi-user | §7.8 | after 10 |
-| 12 | 28·post-ship = refactor & debt | §7.10 | closes turn 28 |
-BEYOND THE ROADMAP (in scope, NOT in play — specs due at pilot exit, not
-now, stated so nothing is silently skipped): pilot itself, phrasebook-
-informed translation (fuzzy-match then LLM-assisted), room-scoped
-phrasebook pairs, open-core licensing, go-to-market.
+## §8 SEQUENCE = the §0 ledger. One table, one truth.
+The release schedule lives ONLY in the §0 Turn/Stage Ledger above; specs in
+§7 are the how, the ledger is the what and when. BEYOND THE ROADMAP (in
+scope, not in play — specs due at pilot exit): pilot, phrasebook-informed
+translation (fuzzy-match then LLM-assisted), room-scoped phrasebook pairs,
+open-core licensing, go-to-market.
