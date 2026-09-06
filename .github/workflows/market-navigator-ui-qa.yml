@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'market-navigator-turn03-pre-ship.html'
+      - 'market-navigator-turn04-pre-ship.html'
       - 'market-evidence/**'
       - 'data/market-backend/derived-index-definition.json'
       - '.github/workflows/market-navigator-ui-qa.yml'
@@ -24,11 +24,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re,json
-          s=Path('market-navigator-turn03-pre-ship.html').read_text()
+          s=Path('market-navigator-turn04-pre-ship.html').read_text()
           assert '<iframe' not in s.lower()
           assert all(x in s for x in ['NOW','EXPLORE','LIBRARY','HEALTH','CONFIG'])
           assert all(x in s for x in ["'1D'","'5D'","'MTD'","'YTD'","'1YR'","'3YR'","'5YR'"])
-          assert "S.nowLevel===1?renderV1():renderV2()" in s
+          assert all(x in s for x in ['nearest real observation','Y1 + Y2','Indexed 100 (3+ incompatible series)','markLine','markPoint'])
           assert 'More info' in s and 'Run AI' in s and 'Continue this analysis' in s
           scripts=re.findall(r'<script>(.*?)</script>',s,re.S); assert scripts
           Path('/tmp/mn.js').write_text(scripts[-1])
@@ -38,7 +38,7 @@ jobs:
           print('STATIC PASS')
           PY
           node --check /tmp/mn.js
-      - name: Browser boot and interaction gates
+      - name: Browser boot, chart and interaction gates
         run: |
           npm init -y >/dev/null 2>&1
           npm i playwright@1.55.0 >/dev/null 2>&1
@@ -46,6 +46,6 @@ jobs:
           python3 -m http.server 8123 >/tmp/mn-server.log 2>&1 &
           cat > qa.js <<'JS'
           const {chromium}=require('playwright');
-          (async()=>{const b=await chromium.launch({headless:true});for(const vp of [{width:1280,height:800},{width:390,height:844}]){const p=await b.newPage({viewport:vp});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-navigator-turn03-pre-ship.html',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.echarts&&document.querySelector('#nowChart canvas'));if(errors.length)throw Error(errors.join('\n'));let hz=await p.locator('.hz').allTextContents();if(hz.join('|')!=='1D|5D|MTD|YTD|1YR|3YR|5YR')throw Error('horizons');if(!(await p.locator('.hz.on').textContent()).includes('5D'))throw Error('default horizon');if(await p.locator('.lg').count()!==3)throw Error('V1 must have 3 index legends');await p.locator('.lg.risk').click();await p.waitForTimeout(800);if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V2 did not replace V1');if(await p.locator('#legend [data-c]').count()<6)throw Error('V2 components missing');await p.locator('#legend [data-c]').first().click();await p.locator('#moreInfo').click();await p.waitForTimeout(500);if(await p.locator('#analysisModal.hidden').count())throw Error('V3 did not open');await p.locator('#closeAnalysis').click();if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V3 did not restore V2');await p.locator('[data-view="explore"]').first().click();await p.locator('#exploreSearch').fill('CPI');if(await p.locator('#exploreList .row').count()<1)throw Error('Explore search');await p.locator('[data-view="health"]').first().click();if(await p.locator('#healthRows .healthRow').count()<20)throw Error('Health');await p.locator('[data-view="library"]').first().click();if(!(await p.locator('#compose').getAttribute('placeholder')).includes('Continue'))throw Error('Library composer');let overflow=await p.evaluate(()=>document.documentElement.scrollHeight>document.documentElement.clientHeight||document.body.scrollHeight>document.body.clientHeight);if(overflow)throw Error('page-level scroll');await p.close()}await b.close();console.log('BROWSER PASS')})().catch(e=>{console.error(e);process.exit(1)})
+          (async()=>{const b=await chromium.launch({headless:true});for(const vp of [{width:1280,height:800},{width:390,height:844}]){const p=await b.newPage({viewport:vp});let errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.goto('http://127.0.0.1:8123/market-navigator-turn04-pre-ship.html',{waitUntil:'networkidle'});await p.waitForFunction(()=>window.echarts&&document.querySelector('#nowChart canvas'));if(errors.length)throw Error(errors.join('\n'));let hz=await p.locator('.hz').allTextContents();if(hz.join('|')!=='1D|5D|MTD|YTD|1YR|3YR|5YR')throw Error('horizons');if(!(await p.locator('.hz.on').textContent()).includes('5D'))throw Error('default horizon');if(await p.locator('#legend .lg').count()!==3)throw Error('V1 legends');let meta=await p.locator('#nowMeta').textContent();if(!meta.includes('common horizon clock')||!meta.includes('Indexed 100'))throw Error('V1 axes');await p.locator('#legend [data-id="risk"]').click();await p.waitForTimeout(900);if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V2 replacement');if(await p.locator('#legend .lg').count()<7)throw Error('V2 components');meta=await p.locator('#nowMeta').textContent();if(!meta.includes('direction-oriented Indexed 100'))throw Error('V2 axes');await p.locator('#legend .lg').nth(1).click();await p.locator('#moreInfo').click();await p.waitForTimeout(500);if(await p.locator('#analysisModal.hidden').count())throw Error('V3 open');if(!(await p.locator('#analysisMeta').textContent()).includes('Y1'))throw Error('V3 axes');await p.locator('#closeAnalysis').click();if(!(await p.locator('#crumb').textContent()).includes('RSK'))throw Error('V3 restore');await p.locator('[data-view="explore"]').first().click();await p.locator('#exploreSearch').fill('CPI');if(await p.locator('#exploreList .row').count()<1)throw Error('Explore');await p.locator('[data-view="health"]').first().click();if(await p.locator('#healthRows .healthRow').count()<20)throw Error('Health');await p.locator('[data-view="library"]').first().click();if(!(await p.locator('#compose').getAttribute('placeholder')).includes('Continue'))throw Error('Library');let overflow=await p.evaluate(()=>document.documentElement.scrollHeight>document.documentElement.clientHeight||document.body.scrollHeight>document.body.clientHeight);if(overflow)throw Error('page scroll');await p.close()}await b.close();console.log('BROWSER PASS')})().catch(e=>{console.error(e);process.exit(1)})
           JS
           node qa.js
