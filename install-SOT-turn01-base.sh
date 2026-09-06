@@ -15,6 +15,7 @@ for c in ['durable-project-coordination','stale-operation-rejection','atomic-evi
 PY
 pass LIVE_BACKEND "$EXPECTED_BUILD schema=5"
 cp "$REPORT_ROOT/sot-api.js" "$RUN/sot-api.js.before";cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before";pass ARCHIVE_PRECHANGE "$RUN";cp "$REPORT_ROOT/sot-api.js" "$TMP/sot-api.js"
+for m in "$REPORT_ROOT"/sot-db/migrations/*.sql;do cp "$m" "$TMP/sot-db/migrations/";done
 if ! grep -q 'function ssotReconciliation()' "$TMP/sot-api.js";then curl --retry 5 --retry-all-errors -fsSL "$RAW/$R8I/integrate-SOT-turn01-r8-ssot.py" -o "$TMP/r8.py";python3 "$TMP/r8.py" "$TMP/sot-api.js";fi
 curl --retry 5 --retry-all-errors -fsSL "$RAW/$R9I/integrate-SOT-turn01-r9-catalog.py" -o "$TMP/r9.py";python3 -m py_compile "$TMP/r9.py";python3 "$TMP/r9.py" "$TMP/sot-api.js";node --check "$TMP/sot-api.js";pass R9_BACKEND_PARSE 'R8 reconciliation + R9 catalog'
 curl --retry 5 --retry-all-errors -fsSL "$RAW/$R9UI/SOT-turn01-base-r9.html" -o "$TMP/SOT-turn01-base.html";python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
@@ -28,7 +29,7 @@ assert h.index('Storage estate')<h.index('Active now')<h.index('Projects</h2>')
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 PY
 node --check "$TMP/ui.js";pass R9_UI_CONTRACT 'dashboard bars + active-now + master/detail + database + deep dive'
-cp "$DB" "$TMP/test.sqlite";SOT_DB_PATH="$TMP/test.sqlite" node - "$TMP/sot-api.js" > "$TMP/catalog.json" <<'NODE'
+sqlite3 "$DB" ".backup '$TMP/test.sqlite'";SOT_DB_PATH="$TMP/test.sqlite" node - "$TMP/sot-api.js" > "$TMP/catalog.json" <<'NODE'
 const a=require(process.argv[2]);const c=a._test.ssotCatalog('content','',20,'');const l=a._test.ssotCatalog('locations','',20,'');const p=a._test.listProjects();if(!Array.isArray(c.rows)||!Array.isArray(l.rows)||!Array.isArray(p))throw Error('catalog contract');console.log(JSON.stringify({content:c.rows.length,locations:l.rows.length,projects:p.length}));
 NODE
 pass R9_DATABASE_BEHAVIOR "$(cat "$TMP/catalog.json")"
