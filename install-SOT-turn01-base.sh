@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 REPORT_ROOT="${SOT_REPORT_ROOT:-/home/support/.openclaw/workspace/https/report}"; SOT_DIR="$REPORT_ROOT/SOT"; STATE="${SOT_ROOT:-/home/support/.openclaw/sot}"; DB="$STATE/sot.sqlite"; SERVICE=openclaw-report-server.service
 PUBLIC_URL="${SOT_PUBLIC_URL:-https://oc-ref.fell-dojo.ts.net/report/SOT/SOT-turn01-base.html}"; EXPECTED_BUILD='2026.09.03.sot-turn01-coordination-2'; EXPECTED_SCHEMA=5
-RAW='https://raw.githubusercontent.com/acmeproducts/stuff'; R8_COMMIT='aa8216611132fb8008f13e12a6dd8bc8d572dc35'; INTEGRATOR_COMMIT='70ec640fd706859e2c1452a6218920741c7d4767'
+RAW='https://raw.githubusercontent.com/acmeproducts/stuff'; R8_COMMIT='aa8216611132fb8008f13e12a6dd8bc8d572dc35'; INTEGRATOR_COMMIT='d1b397902e6dce35e620b36ee0454ed666adb74d'
 TMP="$(mktemp -d)"; STAMP="$(date +%Y%m%d-%H%M%S)"; RUN="$SOT_DIR/archive/$STAMP-turn01-r8-global-reconciliation-release"; mkdir -p "$RUN" "$TMP/sot-db/migrations"; LOG="$RUN/release.log"; SUMMARY="$RUN/summary.tsv"; touch "$LOG" "$SUMMARY"; exec > >(tee -a "$LOG") 2>&1
 CUTOVER=0; SUCCESS=0
 record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }; pass(){ record PASS "$1" "$2"; }; fail(){ record FAIL "$1" "$2"; return 1; }
