@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v20.60.0 -->
-# TALKBRIDGE MASTER PLAN v20.60.0
+<!-- TALKBRIDGE-PLAN v20.61.0 -->
+# TALKBRIDGE MASTER PLAN v20.61.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -79,7 +79,8 @@ built yet.
 | 26·ship (candidate 2) | Arrival & identity per §7.1 (W1 welcome pill + invite carries room title, R2 live rename to open drawer, J3 join-by-link) | **BUILT 2026-09-05 to spec §7.1 on owner GO — device gate pending.** Machine gates M1–M5 PASS; mutations 3/3 caught. **REJECTED by owner 2026-09-05 → buried G46: J3 built on the home surface against its own spec line (panel = create-control container).** | https://acmeproducts.github.io/stuff/bridge-turn26-ship2.html (dead) |
 | 26·ship (candidate 3) | Same §7.1 scope; J3 relocated to the rooms panel per spec; every candidate now logs a build-identity boot line | **REJECTED and REMOVED FROM THE REPOSITORY at owner order 2026-09-05** — Join button rendered under the + control (G47). File deleted; no candidate is entertained at this address. | (deleted) |
 | 26·ship (candidate 4) | Owner-scoped rebuild on accepted 26·pre-ship: #653 "Join thread" as the FOURTH clock long-press option (paste/QR via BarcodeDetector, hidden everywhere else, joins via the untouched #j= boot path — per the 2026-09-01 written direction) + welcome pill "name is inviting you to title (Yours ↔ Theirs)" + build identity (boot log line + clock-menu footer with build date/time) | **REJECTED 2026-09-05 (owner: onboarding broken) → buried G48; address rolled back byte-exact to accepted 26·pre-ship.** Post-mortem note from the device log, recorded not argued: a full onboard ran clean ON c4 bytes at 11:01–11:05Z (create→grant→invite→join→welcome pill correct), and the owner's broken test began ~3 min after the push — stale/mixed CDN is the standing suspect; build-identity footer exists to make that visible. | (address rolled back) |
-| 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | **BUILT 2026-09-06 on owner instruction — device gate pending. Judge nothing until the menu footer reads c5.** | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
+| 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | superseded by c6 same day (desktop-install fix). |
+| 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **BUILT 2026-09-06 — device gate pending. Footer must read c6.** | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | Notifications & steadiness per §7.2 (K1 worker icon/alert + old-worker retirement, P2 presence damping, C3 render coalescing) | Spec complete §7.2 — builds only after §7.1 accepted | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
