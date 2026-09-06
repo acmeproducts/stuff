@@ -33,20 +33,29 @@ Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</
 PY
 node --check "$TMP/ui.js"; pass DEV_UI 'operating controls + intelligence + AI settings parse'
 sqlite3 "$DB" ".backup '$TMP/intel.sqlite'"
-SOT_DB_PATH="$TMP/intel.sqlite" node - "$TMP/sot-api.js" "$TMP/intel.ready" > "$TMP/intel.json" <<'NODE' &
+SOT_DB_PATH="$TMP/intel.sqlite" node - "$TMP/sot-api.js" "$TMP/intel.ready" "$TMP/intel.seeded" > "$TMP/intel.json" <<'NODE' &
 const fs=require('fs'),a=require(process.argv[2]);
 a._test.listProjects();
 fs.writeFileSync(process.argv[3],'ready');
 const end=Date.now()+10000;
 const t=setInterval(()=>{
+  if(!fs.existsSync(process.argv[4])){if(Date.now()>=end){clearInterval(t);console.error('fixture was not seeded');process.exit(1)}return;}
   const g=a._test.storageIntelligence('',100),p=a._test.storageIntelligence('r10a',100),d=g.duplicate_groups.find(x=>x.content_sha256==='a'.repeat(64));
   if(d&&Number(d.copies)===3&&Number(d.projects)===2&&Number(d.reclaimable_bytes)===200&&String(d.locations).includes('/r10/a/dup.bin')&&String(d.locations).includes('/r10/b/dup.bin')&&String(d.locations).includes('/r10/c/dup.bin')&&Number(p.summary.duplicate_groups)===1&&Number(p.summary.duplicate_waste_bytes)===100&&(p.risky_content||[]).length>=2){
     clearInterval(t); console.log(JSON.stringify({copies:Number(d.copies),projects:Number(d.projects),redundant:Number(d.reclaimable_bytes),project_redundant:Number(p.summary.duplicate_waste_bytes),risky:p.risky_content.length})); process.exit(0);
   }
-  if(Date.now()>=end){clearInterval(t);console.error(JSON.stringify({global:g,project:p}));process.exit(1)}
+  if(Date.now()>=end){clearInterval(t);console.error(JSON.stringify({duplicate:d||null,project_summary:p.summary,project_risky:(p.risky_content||[]).length}));process.exit(1)}
 },100);
 NODE
 ACTIVE_PID=$!; for i in {1..100}; do [ -f "$TMP/intel.ready" ]&&break; kill -0 "$ACTIVE_PID" >/dev/null 2>&1||break; sleep .1; done; [ -f "$TMP/intel.ready" ]||fail DEV_INTELLIGENCE_STARTUP 'initialized intelligence backend did not become ready'
+python3 - "$TMP/intel.sqlite" <<'PY'
+import sqlite3,sys
+cx=sqlite3.connect(sys.argv[1]); cx.execute('PRAGMA foreign_keys=OFF')
+keep={'schema_migrations','settings'}
+for (name,) in cx.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
+    if name not in keep: cx.execute('DELETE FROM "'+name.replace('"','""')+'"')
+cx.commit(); cx.close()
+PY
 sqlite3 "$TMP/intel.sqlite" <<'SQL'
 INSERT INTO projects(project_token,project_name,evidence_revision,status,created_at,updated_at) VALUES('r10a','R10 A',1,'Closed','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z'),('r10b','R10 B',1,'Closed','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z');
 INSERT INTO sources(source_id,project_token,normalized_path,created_at,updated_at) VALUES('r10s1','r10a','/r10/a','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z'),('r10s2','r10a','/r10/b','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z'),('r10s3','r10b','/r10/c','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z');
@@ -59,7 +68,8 @@ INSERT INTO observations(observation_id,project_token,source_id,run_id,normalize
 ('r10o4','r10a','r10s1','r10run1','/r10/a/unique.bin','unique.bin','unique.bin',50,1,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','1444444444444444444444444444444444444444444444444444444444444444','2444444444444444444444444444444444444444444444444444444444444444','2026-09-06T00:00:00Z','2026-09-06T00:00:00Z');
 INSERT INTO current_observations(source_id,relative_path,observation_id,last_run_id) VALUES('r10s1','dup.bin','r10o1','r10run1'),('r10s2','dup.bin','r10o2','r10run1'),('r10s3','dup.bin','r10o3','r10run2'),('r10s1','unique.bin','r10o4','r10run1');
 SQL
-wait "$ACTIVE_PID"||fail DEV_INTELLIGENCE 'initialized backend did not expose duplicate/shared/risk fixture within 10s'; ACTIVE_PID=''; pass DEV_INTELLIGENCE "$(cat "$TMP/intel.json")"
+touch "$TMP/intel.seeded"
+wait "$ACTIVE_PID"||fail DEV_INTELLIGENCE 'initialized isolated backend did not expose duplicate/shared/risk fixture within 10s'; ACTIVE_PID=''; pass DEV_INTELLIGENCE "$(cat "$TMP/intel.json")"
 sqlite3 "$DB" ".backup '$TMP/active.sqlite'"
 SOT_DB_PATH="$TMP/active.sqlite" node - "$TMP/sot-api.js" "$TMP/active.ready" > "$TMP/active.json" <<'NODE' &
 const fs=require('fs'),a=require(process.argv[2]); a._test.listProjects(); fs.writeFileSync(process.argv[3],'ready'); const end=Date.now()+10000; const t=setInterval(()=>{const p=a._test.listProjects().find(x=>x.project_token==='r10active'); if(p&&p.processing_state==='WIP'&&Number(p.files_processed)===40&&Number(p.files_discovered)===100&&p.active_operation_id==='r10op'){clearInterval(t);console.log(JSON.stringify({state:p.processing_state,files_processed:40,files_discovered:100,operation:p.active_operation_id}));process.exit(0)} if(Date.now()>=end){clearInterval(t);console.error(JSON.stringify(p||null));process.exit(1)}},100);
