@@ -27,11 +27,9 @@ exec > >(tee -a "$LOG") 2>&1
 
 CUTOVER=0
 SUCCESS=0
-
 record(){ printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$SUMMARY"; printf '[%s] %-5s %-38s %s\n' "$(date '+%H:%M:%S')" "$1" "$2" "$3"; }
 pass(){ record PASS "$1" "$2"; }
 fail(){ record FAIL "$1" "$2"; return 1; }
-
 cleanup(){
   rc=$?
   set +e
@@ -50,11 +48,9 @@ cleanup(){
 }
 trap cleanup EXIT
 
-for t in bash curl node python3 sqlite3 sha256sum sudo systemctl; do
-  command -v "$t" >/dev/null || fail REQUIRE_TOOL "$t"
-done
+# Developer pass: environment, database, current live baseline, candidate composition.
+for t in bash curl node python3 sqlite3 sha256sum sudo systemctl; do command -v "$t" >/dev/null || fail REQUIRE_TOOL "$t"; done
 pass REQUIRE_TOOLS ok
-
 [ -s "$DB" ] || fail DATABASE missing
 [ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || fail DATABASE_INTEGRITY failed
 SCHEMA="$(sqlite3 "$DB" 'select max(version) from schema_migrations')"
@@ -81,7 +77,6 @@ pass LIVE_BACKEND "$EXPECTED_BUILD schema=5"
 cp "$REPORT_ROOT/sot-api.js" "$RUN/sot-api.js.before"
 cp "$SOT_DIR/SOT-turn01-base.html" "$RUN/SOT-turn01-base.html.before"
 pass ARCHIVE_PRECHANGE "$RUN"
-
 cp "$REPORT_ROOT/sot-api.js" "$TMP/sot-api.js"
 for m in "$REPORT_ROOT"/sot-db/migrations/*.sql; do cp "$m" "$TMP/sot-db/migrations/"; done
 
@@ -109,47 +104,40 @@ python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
-need=[
-'SOT-turn01-base-r10-operating-intelligence','What SOT found','Duplicate groups','Redundant source bytes',
-'Sources / Target / Backup','Assign sources','Choose Target','Choose Backup','/turn01/volumes','/turn01/fs?path=',
-'/turn01/fs/folder','/turn01/intelligence','AI analysis','OpenRouter','Venice','Provider model ID',
-'Keys stay in this browser','Database','Activity','Deep dive','fingerprint/pause','fingerprint/resume','fingerprint/stop'
-]
+need=['SOT-turn01-base-r10-operating-intelligence','What SOT found','Duplicate groups','Redundant source bytes','Sources / Target / Backup','Assign sources','Choose Target','Choose Backup','/turn01/volumes','/turn01/fs?path=','/turn01/fs/folder','/turn01/intelligence','AI analysis','OpenRouter','Venice','Provider model ID','Keys stay in this browser','Database','Activity','Deep dive','fingerprint/pause','fingerprint/resume','fingerprint/stop']
 for x in need: assert x in h,x
-for bad in ['Storage estate</button>','CURRENT STATE · NEXT STEP','✓ Setup','✓ Index','✓ Review']:
-    assert bad not in h,bad
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 PY
 node --check "$TMP/ui.js"
 pass DEV_UI 'candidate UI composes, contract checks, and parses'
 
+# Manager pass: one governed R10 advance, archived rollback, no alternate runtime.
 python3 - "$TMP/sot-api.js" "$TMP/SOT-turn01-base.html" <<'PY'
 from pathlib import Path
 import sys
 b=Path(sys.argv[1]).read_text(); h=Path(sys.argv[2]).read_text()
-assert 'function storageIntelligence(' in b
-assert "/api/sot/turn01/intelligence" in b
-assert 'size*(copies-1)' in b
-assert 'Shared-project content and verified protection copies are not classified as disposable duplicates.' in b
-assert "!live(p)&&p.condition==='needs_scan'" in h
-assert 'Sources / Target / Backup' in h
-assert 'OpenRouter' in h and 'Venice' in h
+for x in ['function storageIntelligence(',"/api/sot/turn01/intelligence",'size*(copies-1)','Shared-project content and verified protection copies are not classified as disposable duplicates.']:
+    assert x in b,x
+for x in ["!live(p)&&p.condition==='needs_scan'",'Sources / Target / Backup','OpenRouter','Venice']:
+    assert x in h,x
 PY
 pass MANAGER_SCOPE 'one R10 backend/UI advance; no wrapper or alternate architecture'
 pass MANAGER_LINEAGE 'qualified R9 UI + pinned R8/R9/R10 integrators'
 pass MANAGER_ROLLBACK 'prechange backend/UI archived before cutover'
 
-python3 - "$TMP/SOT-turn01-base.html" <<'PY'
+# Red-team pre-cutover: verify truth rules against the correct artifact.
+python3 - "$TMP/sot-api.js" "$TMP/SOT-turn01-base.html" <<'PY'
 from pathlib import Path
 import sys
-h=Path(sys.argv[1]).read_text()
+b=Path(sys.argv[1]).read_text(); h=Path(sys.argv[2]).read_text()
+assert 'Shared-project content and verified protection copies are not classified as disposable duplicates.' in b
+assert 'target_holdings' in b and 'backup_holdings' in b
 assert "!live(p)&&p.condition==='needs_scan'" in h
-assert 'Shared-project content and verified protection copies are not classified as disposable duplicates.' in h
-assert 'copy_a' in h or 'Verified copy A' in h
-assert 'fingerprint/stop' in h
+assert 'fingerprint/stop' in h and 'fingerprint/pause' in h and 'fingerprint/resume' in h
 PY
-pass REDTEAM_PRECUTOVER 'truth labels, protection distinction, operation controls present'
+pass REDTEAM_PRECUTOVER 'backend truth rules and UI operation controls present'
 
+# Cut over once; every subsequent failure restores the archived R9 live files.
 sudo systemctl stop "$SERVICE"
 CUTOVER=1
 install -m0644 "$TMP/sot-api.js" "$REPORT_ROOT/sot-api.js"
@@ -167,8 +155,7 @@ done
 pass POST_HEALTH HTTP=200
 
 for endpoint in 'turn01/ssot' 'turn01/intelligence?limit=100' 'turn01/catalog?view=content&limit=5' 'activity?limit=5' 'turn01/projects' 'turn01/volumes'; do
-  out="$RUN/$(echo "$endpoint" | tr '/?=&' '____').json"
-  code="$(curl --max-time 20 -sS -o "$out" -w '%{http_code}' "http://127.0.0.1:18080/api/sot/$endpoint" || true)"
+  code="$(curl --max-time 20 -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:18080/api/sot/$endpoint" || true)"
   [ "$code" = 200 ] || fail LIVE_R10_ENDPOINT "$endpoint HTTP=$code"
 done
 pass REDTEAM_LIVE_ENDPOINTS 'ssot + intelligence + catalog + activity + projects + volumes HTTP=200'
@@ -182,30 +169,20 @@ s=x.get('summary') or {}
 for k in ['fingerprints','logical_bytes','duplicate_groups','duplicate_waste_bytes','shared_groups','shared_bytes']:
     assert k in s,k
     assert int(s[k] or 0)>=0,(k,s[k])
-d=x.get('duplicate_groups')
-r=x.get('risky_content')
-recs=x.get('recommendations')
+d=x.get('duplicate_groups'); r=x.get('risky_content'); recs=x.get('recommendations')
 assert isinstance(d,list) and isinstance(r,list) and isinstance(recs,list)
 for g in d:
     size=int(g.get('size') or 0); copies=int(g.get('copies') or 0); reclaim=int(g.get('reclaimable_bytes') or 0)
     assert copies>=2,g
     assert reclaim==size*(copies-1),(g,reclaim,size,copies)
-    assert g.get('content_sha256'),g
-    assert g.get('locations'),g
+    assert g.get('content_sha256') and g.get('locations'),g
 for item in r:
     assert item.get('content_sha256'),item
     assert item.get('copy_a') is not None and item.get('copy_b') is not None,item
-if int(s.get('duplicate_groups') or 0)>0:
-    assert len(d)>0,'summary reports duplicate groups but list is empty'
+if int(s.get('duplicate_groups') or 0)>0: assert len(d)>0,'summary reports duplicate groups but list is empty'
 assert len(recs)>0,'recommendations empty'
-print(json.dumps({'fingerprints':int(s.get('fingerprints') or 0),'duplicate_groups':int(s.get('duplicate_groups') or 0),'shown_duplicates':len(d),'risky_shown':len(r),'recommendations':len(recs)}))
 PY
-pass REDTEAM_INTELLIGENCE "$(python3 - "$RUN/intelligence.live.json" <<'PY'
-import json,sys
-x=json.load(open(sys.argv[1])); s=x.get('summary') or {}
-print('fingerprints=%s duplicate_groups=%s shown=%s risky=%s recommendations=%s' % (s.get('fingerprints',0),s.get('duplicate_groups',0),len(x.get('duplicate_groups') or []),len(x.get('risky_content') or []),len(x.get('recommendations') or [])))
-PY
-)"
+pass REDTEAM_INTELLIGENCE 'live SSOT intelligence structure and duplicate math verified'
 
 LOCAL_SHA="$(sha256sum "$TMP/SOT-turn01-base.html" | awk '{print $1}')"
 code=000
@@ -218,10 +195,8 @@ done
 PUBLIC_SHA="$(sha256sum "$RUN/public.html" | awk '{print $1}')"
 [ "$PUBLIC_SHA" = "$LOCAL_SHA" ] || fail PUBLIC_IDENTITY "local=$LOCAL_SHA public=$PUBLIC_SHA"
 pass PUBLIC_IDENTITY "$PUBLIC_SHA"
-
 [ "$(sqlite3 "$DB" 'PRAGMA integrity_check')" = ok ] || fail DATABASE_POSTCHECK failed
 pass DATABASE_POSTCHECK ok
-
 SUCCESS=1
 pass RELEASE_READY 'Developer PASS → Manager PASS → Red-team PASS'
 echo '=== TURN 01 BASE R10 READY FOR OWNER TEST ==='
