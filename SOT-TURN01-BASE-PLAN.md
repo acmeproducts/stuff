@@ -1,7 +1,7 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** R10 ACTIVE — OPERATING INTELLIGENCE  
+**Status:** R10 MECHANICALLY QUALIFIED — OWNER UX CORRECTION REQUIRED  
 **Date:** 2026-09-06
 
 ## Governing model
@@ -12,40 +12,57 @@ SOT is a global physical-content reconciliation system backed by one SSOT databa
 
 Content identity is permanent; storage roles are not. Projects are membership/policy lenses over the SSOT and do not own physical-content truth. A Target may later become retained/source storage without changing fingerprint identity.
 
-## Accepted R9 foundation and R10 correction
+## Product outcome
 
-R9's Dashboard / Database / Activity / Settings information architecture and master→detail interaction are retained because the owner explicitly found the dashboard materially better. R9 is nevertheless rejected as a complete product in GY-032 because it hid/removed essential operating capability and did not explain what fingerprint evidence means.
+The owner does not need a storage analytics billboard. The primary job is:
 
-R10 is one clean source advance from the mechanically qualified R9 baseline. It restores the operating product behind the accepted shell; it does not redesign the shell again.
+**safely clean up files → prove required copies exist → certify the cleaned estate → permit source media to be cold-stored or deliberately retired.**
 
-## Dashboard — understand and act
+Every primary Dashboard element must therefore answer one of four questions: **What do I do next? What will that accomplish? How much remains? Is it safe/certified yet?** Evidence and diagnostics remain available, but they must not dominate the operating surface.
 
-Dashboard remains the default home and must show:
+## R10 owner review — required UX correction
 
-- unique fingerprinted source content;
-- verified Copy A and Copy B coverage;
-- fully protected and unprotected bytes;
-- cross-project shared content;
-- duplicate source groups and redundant source bytes;
-- current storage work with real durable counters when available;
-- deterministic prioritized recommendations explaining what to do next.
+R10 mechanically qualified, but owner browser review rejects its information density and non-actionable presentation. The intelligence itself is useful; the operating hierarchy is not.
 
-A number without interpretation is insufficient. Duplicate groups must expose fingerprint, size, physical source locations, project membership, copy count, and potential redundant bytes. Shared-project content and verified protection copies must never be described as disposable duplicates.
+### 1. Recommendations become actions
 
-## Project master → detail
+The current recommendation banners such as `Protect 100 high-value unprotected items shown` and `Review 3878 duplicate groups` are informational only. Each recommendation must have an explicit next action/control, for example `Protect / verify`, `Review duplicates`, or a chevron that expands to the explanation plus the concrete next step. A recommendation may not terminate at diagnosis.
 
-Selecting a project keeps the master list visible and renders detail on the same Dashboard.
+### 2. Duplicate evidence becomes a bounded drill-down
 
-Project detail must provide:
+The long `Largest duplicate groups` list may not consume the Dashboard. It becomes a collapsed chevron/summary by default. When expanded it uses a fixed-height scrollable region. Individual duplicate rows retain their own disclosure for fingerprint, locations, projects and disposition evidence. Exhaustive evidence remains in Database/Deep Dive.
 
-1. Source content / Copy A / Copy B / fully protected coverage.
-2. **Sources / Target / Backup** operating control.
-3. Live-volume folder picker for Sources, Target and Backup.
-4. Destination-folder creation.
-5. Project-specific duplicate groups, physical locations, redundant bytes and missing protection.
-6. Deterministic recommended next actions.
-7. Active operation telemetry and Pause/Resume/Stop where valid.
-8. Deep Dive for exhaustive evidence.
+### 3. Replace storage-estate accounting bars with a cleanup/protection progress picture
+
+The current `Unique content / Verified copy A / Verified copy B / Fully protected / Needs protection` accounting bars do not provide enough operating context. The primary visualization must show the estate as one understandable quantified journey: total in scope, already safe/certified, work remaining, and the immediate next step. It must make the relationship visually obvious rather than require inference.
+
+The preferred mental model is:
+
+`IN SCOPE → SAFE / CERTIFIED → REMAINING → NEXT ACTION`
+
+Quantities must be shown in bytes and/or fingerprints as appropriate. Copy A/Copy B remain factual evidence but are subordinate to the question `Can I safely clean/cold-store/retire the source?`.
+
+### 4. Project rows stay compact and actionable
+
+The project list is the operating surface. Each row must communicate project name, compact progress/safety state, and the one valid next action. Examples: `Start scan`, `Continue scan`, `Protect`, `Verify`, `Review cleanup`, `Certified`. Do not require the owner to infer the next action from a status label.
+
+### 5. Project detail moves out of the Dashboard
+
+The large selected-project detail block currently rendered beneath the project list is removed from the normal Dashboard flow. Detailed project breakdown belongs in a modal/drill-down opened deliberately from the project row. The modal may contain Sources/Target/Backup configuration, project-specific copy coverage, duplicate/unique evidence, recommendations, operation telemetry and Deep Dive access.
+
+A project that has not been scanned must not render an empty duplicate/protection analytics panel. Its useful state is simply that it has not started, what is configured, and the `Start scan` action.
+
+### 6. Progressive disclosure rule
+
+Dashboard default density is deliberately low:
+
+1. global cleanup/protection progress;
+2. explicit next action(s);
+3. compact project rows with progress + next action;
+4. collapsed/bounded evidence summaries;
+5. modal/Database/Deep Dive for detail.
+
+No unbounded evidence list is allowed on the Dashboard.
 
 ## Storage configuration
 
@@ -53,38 +70,13 @@ Sources define project membership. Target is Copy A and Backup is Copy B. The pi
 
 ## Storage intelligence read model
 
-R10 adds a read-only deterministic intelligence projection over existing SSOT tables. It may not create alternate truth.
+The R10 read-only deterministic intelligence projection remains authoritative and is not replaced. It reports fingerprint counts/logical bytes, duplicate source groups, redundant source bytes, cross-project sharing, physical locations, missing verified copies and deterministic recommendations. The UX correction changes presentation and action routing, not SSOT truth.
 
-For global and project scopes it reports:
+Deletion is never automatic. Shared-project content and verified protection copies are never classified as disposable duplicates. Cleanup/removal is enabled only after required protection/verification evidence exists.
 
-- fingerprint count and logical bytes;
-- duplicate source groups;
-- redundant source bytes (`size × (source_locations - 1)` for fingerprints observed at multiple source paths);
-- cross-project shared groups/bytes;
-- largest duplicate groups with all known source locations and project names;
-- fingerprints lacking verified Copy A or Copy B;
-- prioritized deterministic recommendations.
+## Database / Activity / Settings
 
-Deletion is never automatic and recommendations must explicitly protect/verify before suggesting removal of redundant source copies.
-
-## Database and Deep Dive
-
-Database remains first-class with Content, Locations, Projects and Operations views. Deep Dive remains the exhaustive evidence surface. These surfaces support the Dashboard explanation; they are not substitutes for it.
-
-## Activity / observability
-
-Any queued/running/paused index, plan, copy or verification operation appears prominently. Running indexing shows, when backend evidence exists: files discovered/processed, bytes discovered/processed, phase/current item, percentage and controls. Queued state must be labeled as waiting rather than presented as completed progress. An active project may never simultaneously offer idle `Scan now`.
-
-## AI configuration
-
-Settings restores AI configuration:
-
-- provider: OpenRouter or Venice;
-- provider model ID;
-- API key stored browser-local only;
-- selected provider/model persisted browser-local.
-
-AI is advisory. Fingerprints, locations, verified-copy state and deterministic protection decisions remain factual authority. AI configuration must not be required for core storage reconciliation.
+Database remains the exhaustive content/location/project/operation evidence surface. Activity remains the durable operation/event surface. Settings retains storage policy and browser-local AI provider/model/key configuration. These are supporting surfaces, not substitutes for an action-oriented Dashboard.
 
 ## Truth rules
 
@@ -97,35 +89,37 @@ AI is advisory. Fingerprints, locations, verified-copy state and deterministic p
 7. Active-operation truth overrides idle CTA presentation without overwriting committed storage truth.
 8. Storage-role changes do not change content identity.
 9. No delete/removal recommendation may precede protection/verification evidence.
+10. A project with no committed scan evidence must not display zero-valued cleanup analytics as though they were meaningful findings.
+11. Certification is the terminal owner-facing proof that required cleanup/protection/verification policy has been satisfied for the applicable scope.
 
-## R10 qualification gates
+## Next release acceptance gates
 
-R10 qualification is intentionally simple and deterministic. Synthetic copies of the production database are not used to prove intelligence behavior. Prior fixture-based qualification created false failures because startup recovery and production-data ordering affected the test harness rather than the product. The clean installer therefore validates candidate composition before cutover, arms rollback, then validates the actual installed R10 against the actual SSOT database. Any post-cutover failure automatically restores the archived R9 backend/UI.
+### Developer
 
-### Developer pass
+- Clean source diff from the governed mechanically qualified R10 lineage; never patch generated live HTML.
+- Dashboard contains no unbounded duplicate list.
+- Recommendation cards expose explicit actions/disclosures.
+- Project rows expose one state-valid next action.
+- Project detail is modal/drill-down rather than permanently expanded below the table.
+- Unscanned projects suppress meaningless zero-valued analytics.
+- JavaScript syntax/boot validation passes.
 
-1. Compose the candidate backend from the live qualified backend plus the pinned R8 reconciliation, R9 catalog and corrected R10 intelligence integrators.
-2. Python-compile each integrator that is applied and `node --check` the resulting backend.
-3. Build the R10 UI from the governed R9 UI plus the pinned R10 UI integrator.
-4. Extract and `node --check` the generated UI JavaScript.
-5. Verify required R10 product contract strings and reject retired workflow-shell labels.
+### Manager
 
-### Manager pass
+- The primary Dashboard reads as an operating sequence toward safe cleanup/certification, not an analytics report.
+- Copy A/Copy B and duplicate evidence remain available without dominating the default surface.
+- No unrelated architecture, schema, workflow, deployment, Database, Activity or Settings changes.
+- Existing SSOT intelligence truth and coordination rules are preserved.
 
-6. Confirm R10 is one clean backend/UI advance from the qualified R9 source, not a failed generated artifact.
-7. Confirm the intelligence function and endpoint are present and redundant-byte math is implemented as `size × (copies - 1)`.
-8. Confirm Sources / Target / Backup and AI configuration remain in the UI contract.
-9. Confirm no wrapper, iframe, alternate state machine, workflow, schema or deployment architecture is introduced.
-10. Archive the current live backend/UI and arm rollback before first live replacement.
+### Red team
 
-### Red-team pass
-
-11. Before cutover, verify active-operation truth, shared/protection distinction and required operating controls are present in the candidate.
-12. After cutover, require HTTP 200 for health, SSOT, intelligence, catalog, activity, projects and volumes endpoints.
-13. Validate the real live intelligence payload structurally and mathematically: nonnegative summary counts, duplicate rows have `copies >= 2`, each row's `reclaimable_bytes == size × (copies - 1)`, duplicate rows expose fingerprint and locations, risky rows expose Copy A/Copy B state, and recommendations are nonempty.
-14. If the real summary reports duplicate groups, the returned duplicate list must contain at least one row.
-15. Require post-cutover database integrity and exact public byte identity with the locally installed R10 HTML.
-16. Any failure after cutover automatically restores the archived R9 backend/UI; no test URL is emitted until every gate passes.
+- From the default Dashboard, a tester can identify the next valid action without opening Database/Deep Dive.
+- Expanding duplicate evidence cannot grow the page without bound; the region is fixed-height and scrollable.
+- An unscanned project offers Start scan and does not imply analyzed duplicate/protection truth.
+- A scanned/unprotected project routes to protection/verification work.
+- A protected project routes to verification/certification rather than deletion by inference.
+- No cleanup/removal action is enabled without protection/verification evidence.
+- Public byte identity, live endpoint health, database integrity and rollback gates remain mandatory before owner test URL.
 
 ## Governance
 
