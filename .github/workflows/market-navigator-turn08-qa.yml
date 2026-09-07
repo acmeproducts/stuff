@@ -1,0 +1,72 @@
+name: Market Navigator Turn 08 qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn08-pre-ship.html'
+      - '.github/workflows/market-navigator-turn08-qa.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Static and syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn08-pre-ship.html').read_text()
+          for x in ['TURN 08 PRE-SHIP','veniceLoad','openrouterLoad','anthropicValidate','marketNavigatorAIRegistryV1','Validate & save','analysisModal']:
+              assert x in s, x
+          for x in ['saveConfig','verifyConfig','function cfg(){','function currentCfg(){','function loadCfg(){']:
+              assert x not in s, x
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/mn8.js').write_text(js)
+          PY
+          node --check /tmp/mn8.js
+      - name: Browser provider registration and durable Analysis lifecycle
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn8-server.log 2>&1 &
+          cat > qa.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:1280,height:800}});
+            let errs=[];p.on('pageerror',e=>errs.push(String(e)));
+            let orCalls=0, veniceCalls=0, anthCalls=0;
+            await p.route('https://openrouter.ai/api/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:'openrouter/test-model'},{id:'openrouter/other'}]})}));
+            await p.route('https://api.venice.ai/api/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:'venice/test-model'}]})}));
+            await p.route('https://openrouter.ai/api/v1/chat/completions',async r=>{orCalls++;let body=JSON.parse(r.request().postData()||'{}');let text=body.max_tokens===8?'OK':(orCalls>=3?'## Follow-up\nPersistent continuation works.':'## Market Analysis\nEvidence-backed result with [source](https://example.com/source).');await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:text}}]})})});
+            await p.route('https://api.venice.ai/api/v1/chat/completions',async r=>{veniceCalls++;await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:'OK'}}]})})});
+            await p.route('https://api.anthropic.com/v1/messages',async r=>{anthCalls++;await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({content:[{type:'text',text:'OK'}]})})});
+            await p.goto('http://127.0.0.1:8123/market-navigator-turn08-pre-ship.html',{waitUntil:'networkidle'});await p.waitForTimeout(250);
+            if(errs.length)throw Error(errs.join('\n'));
+            await p.evaluate(()=>document.querySelector('[data-view="config"]').click());
+            await p.locator('#veniceKey').fill('venice-test-key');await p.locator('#veniceLoad').click();await p.waitForFunction(()=>document.querySelector('#veniceStatus').textContent.includes('models loaded'));await p.locator('#veniceValidate').click();await p.waitForFunction(()=>document.querySelector('#veniceStatus').textContent.includes('registered'));
+            await p.locator('#openrouterKey').fill('sk-or-test-key');await p.locator('#openrouterLoad').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('models loaded'));await p.locator('#openrouterModel').selectOption('openrouter/test-model');await p.locator('#openrouterValidate').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('registered'));
+            await p.locator('#anthropicKey').fill('sk-ant-test-key');await p.locator('#anthropicModel').fill('claude-test-model');await p.locator('#anthropicValidate').click();await p.waitForFunction(()=>document.querySelector('#anthropicStatus').textContent.includes('registered'));
+            await p.locator('#defaultProvider').selectOption('openrouter');
+            let reg=await p.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')));
+            if(reg.defaultProvider!=='openrouter'||!reg.providers.openrouter.verified||!reg.providers.venice.verified||!reg.providers.anthropic.verified)throw Error('provider registry persistence');
+            await p.locator('#veniceKey').fill('venice-changed');let reg2=await p.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')));if(reg2.providers.venice.verified)throw Error('changed key did not invalidate verification');
+            await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Macro"]').click();await p.locator('#exploreSearch').fill('Consumer Price Inflation YoY');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.waitForSelector('#runAI');
+            await p.locator('#runAI').click();await p.waitForFunction(()=>document.querySelector('#analysisModal').classList.contains('hidden'));await p.waitForFunction(()=>document.querySelector('#view-library').classList.contains('on'));await p.waitForFunction(()=>document.querySelector('#libList').textContent.includes('ready'),null,{timeout:5000});
+            let title=await p.locator('#libTitle').textContent();if(!title.includes('OpenRouter')||!title.includes('openrouter/test-model'))throw Error('Library provider/model identity missing');
+            let tx=await p.locator('#transcript').textContent();if(!tx.includes('Market Analysis')||!tx.includes('EVIDENCE'))throw Error('completed analysis not persisted in Library');
+            if(await p.locator('#transcript a[href="https://example.com/source"]').count()!==1)throw Error('Markdown source link not rendered');
+            let stored=await p.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAnalysesV4')));if(stored.length!==1||stored[0].status!=='ready'||stored[0].provider!=='openrouter'||stored[0].model!=='openrouter/test-model')throw Error('durable analysis record invalid');
+            await p.locator('#compose').fill('What should I watch next?');await p.locator('#send').click();await p.waitForFunction(()=>document.querySelector('#transcript').textContent.includes('Persistent continuation works.'),null,{timeout:5000});
+            await p.evaluate(()=>document.querySelector('[data-view="now"]').click());await p.evaluate(()=>document.querySelector('[data-view="library"]').click());await p.locator('#libList .row').first().click();if(!(await p.locator('#transcript').textContent()).includes('Persistent continuation works.'))throw Error('reopen lost conversation');
+            await p.reload({waitUntil:'networkidle'});await p.evaluate(()=>document.querySelector('[data-view="library"]').click());await p.locator('#libList .row').first().click();let after=await p.locator('#transcript').textContent();if(!after.includes('Market Analysis')||!after.includes('What should I watch next?')||!after.includes('Persistent continuation works.'))throw Error('reload lost durable Analysis');
+            if(orCalls<3||veniceCalls<1||anthCalls<1)throw Error('provider execution paths not exercised');
+            if(errs.length)throw Error(errs.join('\n'));
+            await b.close();console.log('TURN08 AI/LIBRARY PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node qa.js
