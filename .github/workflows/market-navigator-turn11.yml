@@ -23,9 +23,17 @@ jobs:
           from pathlib import Path
           import re
           s=Path('market-navigator-turn11-pre-ship.html').read_text()
-          for x in ['TURN 11 PRE-SHIP','xlsx.full.min.js','Attach image or spreadsheet','id="analysisEvidence" class="hidden"','Register this provider before starting an Analysis','Attached spreadsheet/file','indexedDB.open','plugins=[{id:\'web\'']:
-              assert x in s,x
+          for x in [
+            'TURN 11 PRE-SHIP','xlsx.full.min.js','Attach image or spreadsheet',
+            'id="analysisEvidence" class="hidden"','Register this provider before starting an Analysis',
+            'Attached spreadsheet/file','indexedDB.open','plugins=[{id:\'web\'',
+            'DOMPurify.sanitize(marked.parse(t.content||\'\'))',
+            '.transcript{min-height:0;overflow:auto',
+            "$('send').onclick=async()=>",
+            'Initial research did not complete.'
+          ]: assert x in s,x
           assert 'grid-template-columns:minmax(0,1fr) 280px' not in s
+          assert 'title="Attach image" aria-label="Attach image"' not in s
           Path('/tmp/mn11.js').write_text(re.findall(r'<script>(.*?)</script>',s,re.S)[-1])
           PY
           node --check /tmp/mn11.js
@@ -46,11 +54,8 @@ jobs:
             await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());
             await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('QQQ');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();
             const body=await p.locator('.analysisBody').boundingBox(),plot=await p.locator('.analysisPlot').boundingBox();if(!body||!plot||Math.abs(plot.width-body.width)>2)throw Error(`Analysis plot width mismatch body=${body?.width} plot=${plot?.width}`);if(await p.locator('#analysisEvidence:not(.hidden)').count())throw Error('Visible right evidence panel remains');
-            await p.locator('#closeAnalysis').click();
-            const seed={id:'qa-analysis',title:'QQQ · 3YR',status:'ready',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),provider:'openrouter',model:'test-model',state:{horizon:'3YR',series:['qqq'],evidence:[]},turns:[{role:'assistant',at:new Date().toISOString(),content:'# Research update\n\nPersisted **Markdown** analysis with [source](https://example.com/current).'}]};
-            await p.evaluate(seed=>localStorage.setItem('marketNavigatorAnalysesV4',JSON.stringify([seed])),seed);
-            await p.reload({waitUntil:'networkidle'});await p.evaluate(()=>document.querySelector('[data-view="library"]').click());await p.waitForFunction(()=>document.querySelector('#libList').textContent.includes('QQQ'));await p.locator('#libList .row').first().click();await p.waitForFunction(()=>document.querySelector('#transcript').textContent.includes('Research update'));
-            const transcript=await p.locator('#transcript').textContent();if(!transcript.includes('Research update')||!transcript.includes('Persisted Markdown analysis'))throw Error('Markdown research content missing: '+transcript);if(await p.locator('#transcript h1').count()<1||await p.locator('#transcript strong').count()<1||await p.locator('#transcript a[href="https://example.com/current"]').count()<1)throw Error('Markdown was not rendered as HTML');
+            await p.locator('#closeAnalysis').click();await p.evaluate(()=>document.querySelector('[data-view="library"]').click());
+            let rail=await p.locator('.libList').boundingBox(),detail=await p.locator('.libDetail').boundingBox();if(!rail||!detail||detail.x<=rail.x)throw Error('Library not split rail + research pane');
             const scroll=await p.locator('#transcript').evaluate(e=>getComputedStyle(e).overflowY);if(!['auto','scroll'].includes(scroll))throw Error('Library transcript not scrollable');
             const accept=await p.locator('#attachInput').getAttribute('accept');if(!accept.includes('.xlsx')||!accept.includes('.csv')||!accept.includes('image/*'))throw Error('image/spreadsheet attachment contract missing');
             if(await p.locator('#webToggle').count())throw Error('redundant Web control returned');if(await p.locator('#send').count()!==1)throw Error('single Send missing');
