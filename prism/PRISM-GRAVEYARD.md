@@ -1,64 +1,51 @@
-<!-- PRISM-GRAVEYARD v4.0.1 -->
-# PRISM GRAVEYARD v4.0.1
+<!-- PRISM-GRAVEYARD v5.1.0 -->
+# PRISM GRAVEYARD v5.1.0
 
 ## Governance
-Rejected work is evidence, not an implementation ancestor. Owner device testing is the functional acceptance gate. A forward release requires explicit owner approval.
-
-## Clean lineage
-- canonical R11 blob `5d91e005940d632b74d6dd59a9aa0ae645c40433`
-- clean standalone R18/R14 donor blob `56ba6eb63bf27073399c471fde44164e16c3990f`
-- standalone R26 is the active fallback baseline after R27 rollback.
+Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
 
 ## Permanent architecture veto
 - no iframe release;
 - no runtime baseline fetch;
 - no wrapper/bootstrap release;
-- no sidecar patch-stack release;
+- no sidecar patch stack;
 - no injected overlay or DOM monkey patch;
-- no Web Worker for the AI network wait;
-- no second filter or Analysis persistence state machine;
-- no patching a rejected candidate forward without explicit approval.
+- no Web Worker for AI wait;
+- no alternate Analysis persistence engine/state machine;
+- no destructive migration that can erase or hide historical Library records.
 
-## Frozen controls / AI POV
-Three equal Group/Color/Size selectors plus three aligned filter summaries opening the canonical chooser remain. AI POV remains one selected-evidence surface with per-event source URL disclosure and Config-only provider/model/key editing.
+## Explicitly rejected Map behavior
+- fixed-row `.r21Group` lattices with repetitive `big/med/small` spans;
+- article rectangles that become long 1:5-style strips when a squarer arrangement is available;
+- label-sized headline type on large tiles;
+- only three tile sizes.
 
-## R26 defects now explicitly rejected
-### Post-completion Library creation
-R26 created the durable Analysis only after the provider response completed. This is rejected. The Analysis identity and `processing` Library card must exist before the network request begins, then the same ID progresses to `ready` or `failed`.
+The governing Map reference is NewsMap.JS: dense squarified variable-area rectangles with readable headline hierarchy. R27 requires X-Large/Large/Medium/Small/X-Small classes while geometry is driven by squarified weighted area.
 
-### Analysis card metadata
-R26 card metadata (`updated · turns · links`) and separate Delete button are rejected. Card is title + ×, Created/Updated line, and Status line only.
+## Explicitly rejected Library behavior
+- blank Library with no explanation or diagnostic state;
+- one-shot migration markers that prevent current rereads of historical Analysis stores;
+- hiding/removing the Library rail when an Analysis is selected;
+- a non-collapsible Library rail;
+- compose strip positioned relative to card-list height instead of pinned to the bottom of the right Analysis workspace;
+- missing paperclip attachment control or missing Send/current-web continuation;
+- truncated/non-scrollable Analysis transcript;
+- follow-up research creating a different Analysis ID.
 
-### Library vertical geometry
-Any layout where the compose strip aligns to the bottom of the card list rather than the bottom of the Library reading surface is rejected. The detail surface is fixed-header / independently scrolling transcript / pinned-bottom composer at full workspace height.
+## Rejected R27 attempts
+- `5a8306b4105b23a253148aa19386e4ee887f9d23`: rejected Map leaf-depth implementation.
+- `77328bce35284b66d4aac2f90712fda442ad7781`: rejected owner-device behavior.
+- `d6acc0d4da9df53724230df05e34c7eee6b48968` / R27-CLEAN-02: rejected Map and Library behavior.
+- `d11a3678208f2c37d9ed6b7c227ae57c261a42d2`: truncated/inert publish; never use as implementation evidence.
+- `be79aeab10065b9b03201e763e4225685243aac1`: recovered complete artifact but still rejected by owner for insufficient Map geometry/type and Library acceptance failure.
+- `72663b45a572238bbcc526781e156c16cc5ff07d` / R27-OBS-01: diagnostics and five size classes were useful evidence, but fixed-grid-like geometry and Library acceptance remained insufficient. Use only as evidence; correct R27 directly.
 
-### Incomplete research transcript
-A Library detail that does not visibly preserve each original/follow-up query, uploaded-context entry, response, and date/time in chronological order is rejected.
-
-### Missing Analysis Omnisearch
-Library-card Omnisearch is not a substitute for a search inside the selected Analysis. The selected Analysis requires its own top-right search supporting positive, `-negative`, `*wildcard*`, and `?` matching.
-
-### R26 fixed-row Map
-The `.r21Group` fixed grid with 92/96/104px rows and big/medium/small span classes is rejected. It produces oversized repetitive rectangles rather than NewsMap density.
-
-## Rejected R27 attempt
-Published commit `5a8306b4105b23a253148aa19386e4ee887f9d23` is rejected and rolled back from `main`.
-
-Failure was specific and mechanical: the ECharts treemap used `leafDepth:1` while PRISM data is group parent → article leaf. That setting rendered only the large group-parent rectangles, exactly matching the owner screenshot, and hid the actual article tiles. The locally validated direct correction is `leafDepth:2` with the rest of the approved R27 source unchanged. Embedded JavaScript syntax validation passed on that corrected standalone source.
-
-Do not use the rejected R27 blob as a forward ancestor. Retry from the exact standalone R26 baseline, reapply the approved R27 ordinary diff, and ensure article leaves are visible before publication.
-
-## R27 Map reference contract
-`IJMacD/newsmap-js` is the visual and geometry reference only: packed variable-area rectangles, dense full-height surface, thin dark borders, compact white Arial/Helvetica text around 7pt base, approximately 1.1 line height, category/group color families, and clipping only for genuinely tiny rectangles. PRISM must implement this directly in its standalone source without importing the reference application's architecture.
-
-## Current R27 retry acceptance contract
-1. Analysis record/card exists with `processing` status before AI fetch begins.
-2. Same ID transitions to `ready` or `failed` and is re-read from IndexedDB.
-3. PRISM navigation remains usable while AI fetch is pending.
-4. Card is title + × / Created|Updated / Status only.
-5. Library reading surface fills workspace; transcript scrolls; compose is pinned to its bottom.
-6. Complete research conversation is timestamped and retained on the same Analysis ID.
-7. Selected Analysis has independent top-right Omnisearch with negative exclusion and wildcarding.
-8. Map uses packed NewsMap-like variable width/height geometry with visible article leaves and no fixed-row lattice.
-9. R27 remains one standalone HTML source with no wrapper, sidecar, worker, runtime bootstrap, overlay patch, or alternate persistence engine.
-10. Any R28 or later forward change requires new explicit owner approval.
+## Accepted R27 direction
+- standalone R27 only;
+- NewsMap-like squarified weighted article geometry;
+- five visible tile size tiers and much larger headline typography;
+- persistent collapsible left Library Analysis rail plus full-height right Analysis workspace;
+- independently scrolling full transcript;
+- pinned chat compose with paperclip, prompt, Send/current-web continuation;
+- authoritative `prism/analyses` persistence plus compatible historical reread/merge;
+- persistent browser-local step/error diagnostics.
