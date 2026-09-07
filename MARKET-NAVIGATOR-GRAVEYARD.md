@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-09-06
+Updated: 2026-09-07
 
 This file is a negative specification. A rejected implementation, workflow, validation technique or analytical shortcut is historical evidence only. It is not a successor baseline.
 
@@ -17,7 +17,7 @@ A rejected ship is rolled back. It does not become the next pre-base.
 ## Current recovery authority
 The authoritative baseline is the current product contract in `MARKET-NAVIGATOR-MASTER-PLAN.md` plus `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md`. Historical implementations are capability-specific donors only. Market Navigator 3.9.7 is a chart/data donor; PRISM R25 is an application-shell/Library donor. Neither historical file is the application baseline by itself.
 
-The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release, rejected Turn 01 shell, rejected Turn 04 release, or failed Turn 05 candidate.
+The next product candidate must be a clean coherent application assembled from qualified donor capabilities and canonical evidence. It must not descend from any rejected Gate 4 release, rejected Turn 01 shell, rejected Turn 04 release, failed Turn 05 candidate, or rejected Turn 11 release.
 
 ## G4-R1 through G4-R10 — rejected historical lineage
 All Gate 4 R1 through R10 implementations are evidence only. Their previously documented failures remain binding, including standalone rewrites, arbitrary layout changes, misleading charts, synthetic/fallback evidence, incorrect V1/V2 geometry, component-menu V2 implementations, direct component→V3 transitions where superseded, and validation that proved structure rather than owner-visible behavior.
@@ -114,6 +114,24 @@ The candidate inferred measurement family from Health-envelope fields that do no
 - Axis compatibility must be derived from authoritative catalog `native_unit` / measurement metadata, never guessed from Health fields.
 - The release gate must prove all four automatic-axis cases: one native series; CPI + Core CPI shared native Y1; WTI + Brent shared native Y1; CPI + WTI native Y1+Y2; CPI + WTI + VIX Indexed100 Y1.
 - A pre-ship candidate that fails any axis case is discarded and rebuilt from the clean contract/donors rather than patched forward.
+
+## Turn 11 pre-ship — rejected by owner 2026-09-07
+**Rejected implementation:** `market-navigator-turn11-pre-ship.html`, published commit `bc2fe75013356913cda217cee1fd4a74526becfc`.
+
+### Owner-observed failure
+- The application failed immediately with no usable chart display.
+
+### Reproduced live Pages failure
+A dedicated live Pages Chromium smoke test loaded the public HTML with HTTP 200 but found that the NOW chart container had been replaced by the boot error `renderAIConfig is not defined`; the canvas therefore did not exist.
+
+### Root cause
+The Turn 11 builder replaced the source range from `attachmentPayload()` through `responseText()` while adding spreadsheet attachment support. In Turn 10 that range also contained the complete AI configuration state machine, including `renderAIConfig()`, provider registry, model loading, validation, and event wiring. The range replacement therefore deleted required runtime functions even though JavaScript syntax remained valid. Local qualification did not assert a completed boot with the original canvas still present and did not inspect the boot error surface, so it falsely passed.
+
+### Recovery rule
+- Do not patch Turn 11 forward.
+- Rebuild from the Turn 10 clean source.
+- Apply the requested full-width V3 + persistent Markdown research + image/spreadsheet attachment changes as narrow independent replacements that preserve the complete AI configuration block.
+- Release qualification must include a **public Pages smoke test** that fails if the boot catch replaces `#nowWrap`, if `#nowChart` disappears, if any page/console error occurs, or if canonical evidence requests fail.
 
 ## Permanent prohibited patterns
 - patching any rejected release forward;
