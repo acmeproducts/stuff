@@ -1,0 +1,77 @@
+name: Market Navigator internal qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/market-navigator-turn10-qualify.yml'
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: build
+        continue-on-error: true
+        run: |
+          python3 market-navigator-build-turn10.py
+          python3 market-navigator-build-turn10-fix.py
+      - id: syntax
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn10-pre-ship.html').read_text()
+          for x in ['TURN 10 PRE-SHIP','function axisPlan(','typeBadge','cadBadge','freshnessNote','libCollapse','deletedToggle','libMoreBtn','libImport','libDelete','indexedDB.open']:
+              assert x in s, x
+          for x in ['id="webToggle"','S.webOn']:
+              assert x not in s, x
+          Path('/tmp/mn10.js').write_text(re.findall(r'<script>(.*?)</script>',s,re.S)[-1])
+          PY
+          node --check /tmp/mn10.js
+      - id: browser
+        if: steps.build.outcome == 'success' && steps.syntax.outcome == 'success'
+        continue-on-error: true
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn10-server.log 2>&1 &
+          cat > qa.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:1024,height:900}});
+            const errs=[];p.on('pageerror',e=>errs.push(String(e)));const reqs=[];
+            await p.route('https://openrouter.ai/api/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:'openrouter/test-model'}]})}));
+            await p.route('https://openrouter.ai/api/v1/chat/completions',async r=>{const body=JSON.parse(r.request().postData()||'{}');reqs.push(body);const content=body.max_tokens===8?'OK':'## Market read\nSubstantive persisted analysis with [source](https://example.com/current).';await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content}}]})})});
+            await p.goto('http://127.0.0.1:8123/market-navigator-turn10-pre-ship.html',{waitUntil:'networkidle'});await p.waitForTimeout(250);if(errs.length)throw Error(errs.join('\n'));
+            await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('QQQ');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();
+            for(const term of ['Brent','Core CPI']){await p.locator('#addSeries').click();await p.locator('#pickerSearch').fill(term);const row=p.locator('#pickerList .pickerRow').first();if(await row.locator('.typeBadge').count()!==1||await row.locator('.cadBadge').count()!==1)throw Error('picker metadata missing '+term);await row.locator('[data-add]').click();await p.waitForTimeout(100)}
+            const meta=await p.locator('#analysisMeta').textContent();if(!meta.includes('dual native axes'))throw Error('money + percent incorrectly indexed: '+meta);if(!/monthly/i.test(meta))throw Error('slow-cadence footnote missing: '+meta);if((await p.locator('#axisBadge').textContent()).includes('Indexed'))throw Error('dual axis badge incorrectly indexed');
+            await p.locator('#closeAnalysis').click();await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Other"]').click();await p.locator('#exploreSearch').fill('Retail Sales');if(await p.locator('#openExploreAnalysis').isDisabled())await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();const retailMeta=await p.locator('#analysisMeta').textContent();if(!/Retail.*monthly/i.test(retailMeta))throw Error('Retail Sales release-cadence note missing: '+retailMeta);await p.locator('#closeAnalysis').click();
+            await p.evaluate(()=>document.querySelector('[data-view="config"]').click());await p.locator('#openrouterKey').fill('sk-or-test');await p.locator('#openrouterLoad').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('models loaded'));await p.locator('#openrouterValidate').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('registered'));await p.locator('#defaultProvider').selectOption('openrouter');
+            await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('QQQ');if(await p.locator('#openExploreAnalysis').isDisabled())await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.locator('#moreBtn').click();await p.locator('#moreAI').click();await p.waitForFunction(()=>document.querySelector('#view-library').classList.contains('on'));await p.waitForFunction(()=>document.querySelector('#libList').textContent.includes('ready'),null,{timeout:5000});
+            if(await p.locator('#webToggle').count())throw Error('redundant Web control remains');if(await p.locator('#send').count()!==1)throw Error('single send missing');if(!/Substantive persisted analysis/i.test(await p.locator('#transcript').textContent()))throw Error('analysis markdown missing');
+            let rail=await p.locator('.libList').boundingBox(),detail=await p.locator('.libDetail').boundingBox();if(!rail||!detail||detail.x<=rail.x)throw Error('Library not split rail/detail');const before=rail.width;await p.locator('#libCollapse').click();rail=await p.locator('.libList').boundingBox();if(!rail||rail.width>=before/2)throw Error('Library rail collapse failed');await p.locator('#libCollapse').click();
+            await p.locator('#libMoreBtn').click();const actions=await p.locator('#libMenu button').allTextContents();for(const x of ['Print','Download Markdown','Export JSON','Import JSON','Soft delete'])if(!actions.includes(x))throw Error('Library action missing '+x);await p.locator('#libDelete').click();if(!/Deleted \(1\)/.test(await p.locator('#deletedToggle').textContent()))throw Error('soft delete missing');await p.locator('#deletedToggle').click();await p.locator('[data-restore]').click();if(/Deleted \(1\)/.test(await p.locator('#deletedToggle').textContent()))throw Error('restore failed');
+            const stores=await p.evaluate(()=>new Promise((res,rej)=>{const r=indexedDB.open('marketNavigatorLocal');r.onsuccess=()=>res([...r.result.objectStoreNames]);r.onerror=()=>rej(r.error)}));if(!stores.includes('analyses')||!stores.includes('attachments'))throw Error('IndexedDB stores missing');if(!reqs.some(x=>Array.isArray(x.plugins)&&x.plugins.some(z=>z.id==='web')))throw Error('web grounding missing');if(errs.length)throw Error(errs.join('\n'));await b.close();console.log('TURN10 QUALIFIED');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node qa.js
+      - name: Publish only qualified candidate
+        if: steps.build.outcome == 'success' && steps.syntax.outcome == 'success' && steps.browser.outcome == 'success'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn10-pre-ship.html
+          git commit -m 'market navigator: publish qualified Turn 10' || exit 0
+          git pull --rebase origin main
+          git push origin main
+      - if: always()
+        run: echo "build=${{ steps.build.outcome }} syntax=${{ steps.syntax.outcome }} browser=${{ steps.browser.outcome }}"
