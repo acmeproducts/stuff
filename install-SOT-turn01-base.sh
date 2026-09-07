@@ -15,10 +15,11 @@ R9I='9c94559e70243adf3b7e87e1a10c98fe1602f174'
 R9UI='c9a014c2c3b578b1c207665a0ea6655b73e0327c'
 R10I='2a29e486d036178cbc677535f9a6aa3daafaf907'
 R10UI='76214ed7b321fdeb3a5c26e1744fa02313aa236d'
+R11UI='edd419b979aaee36c9c4ee7bcefaeb6ab8828d85'
 
 TMP="$(mktemp -d)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-RUN="$SOT_DIR/archive/$STAMP-turn01-r10-clean-release"
+RUN="$SOT_DIR/archive/$STAMP-turn01-r11-action-release"
 LOG="$RUN/release.log"
 SUMMARY="$RUN/summary.tsv"
 mkdir -p "$RUN" "$TMP/sot-db/migrations"
@@ -48,7 +49,7 @@ cleanup(){
 }
 trap cleanup EXIT
 
-# Developer pass: environment, database, current live baseline, candidate composition.
+# Developer pass: environment, database, current live baseline, clean candidate composition.
 for t in bash curl node python3 sqlite3 sha256sum sudo systemctl; do command -v "$t" >/dev/null || fail REQUIRE_TOOL "$t"; done
 pass REQUIRE_TOOLS ok
 [ -s "$DB" ] || fail DATABASE missing
@@ -90,60 +91,76 @@ if ! grep -q 'function ssotCatalog(' "$TMP/sot-api.js"; then
   python3 -m py_compile "$TMP/r9.py"
   python3 "$TMP/r9.py" "$TMP/sot-api.js"
 fi
-curl --retry 5 --retry-all-errors -fsSL "$RAW/$R10I/integrate-SOT-turn01-r10-intelligence.py" -o "$TMP/r10i.py"
-python3 -m py_compile "$TMP/r10i.py"
-python3 "$TMP/r10i.py" "$TMP/sot-api.js"
+if ! grep -q 'function storageIntelligence(' "$TMP/sot-api.js"; then
+  curl --retry 5 --retry-all-errors -fsSL "$RAW/$R10I/integrate-SOT-turn01-r10-intelligence.py" -o "$TMP/r10i.py"
+  python3 -m py_compile "$TMP/r10i.py"
+  python3 "$TMP/r10i.py" "$TMP/sot-api.js"
+fi
 node --check "$TMP/sot-api.js"
-pass DEV_BACKEND 'candidate backend composes and parses'
+pass DEV_BACKEND 'qualified live backend preserved; R8/R9/R10 capabilities present'
 
 curl --retry 5 --retry-all-errors -fsSL "$RAW/$R9UI/SOT-turn01-base-r9.html" -o "$TMP/r9.html"
 curl --retry 5 --retry-all-errors -fsSL "$RAW/$R10UI/integrate-SOT-turn01-r10-operating-ui.py" -o "$TMP/r10ui.py"
-python3 -m py_compile "$TMP/r10ui.py"
-python3 "$TMP/r10ui.py" "$TMP/r9.html" "$TMP/SOT-turn01-base.html"
+curl --retry 5 --retry-all-errors -fsSL "$RAW/$R11UI/integrate-SOT-turn01-r11-action-dashboard.py" -o "$TMP/r11ui.py"
+python3 -m py_compile "$TMP/r10ui.py" "$TMP/r11ui.py"
+python3 "$TMP/r10ui.py" "$TMP/r9.html" "$TMP/r10.html"
+python3 "$TMP/r11ui.py" "$TMP/r10.html" "$TMP/SOT-turn01-base.html"
 python3 - "$TMP/SOT-turn01-base.html" "$TMP/ui.js" <<'PY'
 from pathlib import Path
 import re,sys
 h=Path(sys.argv[1]).read_text()
-need=['SOT-turn01-base-r10-operating-intelligence','What SOT found','Duplicate groups','Redundant source bytes','Sources / Target / Backup','Assign sources','Choose Target','Choose Backup','/turn01/volumes','/turn01/fs?path=','/turn01/fs/folder','/turn01/intelligence','AI analysis','OpenRouter','Venice','Provider model ID','Keys stay in this browser','Database','Activity','Deep dive','fingerprint/pause','fingerprint/resume','fingerprint/stop']
+need=['SOT-turn01-base-r11-action-first-cleanup','Cleanup & protection progress','Safe / certified-ready','Remaining','Next actions','tap for next step','boundedEvidence','Progress, safety, and the one action','openProjectDetail','This project has not been indexed yet.','Start scan','Protect / verify','Review certification','Sources / Target / Backup','/turn01/intelligence','AI analysis','OpenRouter','Venice','Database','Activity','Deep dive','fingerprint/pause','fingerprint/resume','fingerprint/stop']
 for x in need: assert x in h,x
+for x in ['<h3>Largest duplicate groups</h3>${duplicateHTML(state.intel)}',"${sel?detailHTML(sel):''}"]:
+    assert x not in h,x
+assert '.boundedEvidence{max-height:' in h and 'overflow:auto' in h
+assert "function detailHTML(p){return''}" in h
 Path(sys.argv[2]).write_text('\n;\n'.join(re.findall(r'<script[^>]*>([\s\S]*?)</script>',h,re.I)))
 PY
 node --check "$TMP/ui.js"
-pass DEV_UI 'candidate UI composes, contract checks, and parses'
+pass DEV_UI 'R11 action-first UI composes, contracts pass, JavaScript parses'
 
-# Manager pass: one governed R10 advance, archived rollback, no alternate runtime.
+# Manager pass: one UI-only advance from qualified R10; operating hierarchy matches owner correction.
 python3 - "$TMP/sot-api.js" "$TMP/SOT-turn01-base.html" <<'PY'
 from pathlib import Path
 import sys
 b=Path(sys.argv[1]).read_text(); h=Path(sys.argv[2]).read_text()
 for x in ['function storageIntelligence(',"/api/sot/turn01/intelligence",'size*(copies-1)','Shared-project content and verified protection copies are not classified as disposable duplicates.']:
     assert x in b,x
-for x in ["!live(p)&&p.condition==='needs_scan'",'Sources / Target / Backup','OpenRouter','Venice']:
+for x in ['Cleanup & protection progress','Next actions','tap for next step','Duplicate evidence ·','boundedEvidence','Next action','Start scan','Protect / verify','Review certification','Sources / Target / Backup','OpenRouter','Venice']:
     assert x in h,x
+assert '<h3>Largest duplicate groups</h3>${duplicateHTML(state.intel)}' not in h
+assert "${sel?detailHTML(sel):''}" not in h
+assert "function detailHTML(p){return''}" in h
 PY
-pass MANAGER_SCOPE 'one R10 backend/UI advance; no wrapper or alternate architecture'
-pass MANAGER_LINEAGE 'qualified R9 UI + pinned R8/R9/R10 integrators'
+pass MANAGER_SCOPE 'R11 is a direct UI hierarchy correction; backend/schema/architecture unchanged'
+pass MANAGER_LINEAGE 'qualified R9 source → pinned R10 integrator → pinned R11 integrator'
 pass MANAGER_ROLLBACK 'prechange backend/UI archived before cutover'
 
-# Red-team pre-cutover: verify truth rules against the correct artifact.
+# Red-team pre-cutover: enforce action-first and progressive disclosure rules.
 python3 - "$TMP/sot-api.js" "$TMP/SOT-turn01-base.html" <<'PY'
 from pathlib import Path
 import sys
 b=Path(sys.argv[1]).read_text(); h=Path(sys.argv[2]).read_text()
 assert 'Shared-project content and verified protection copies are not classified as disposable duplicates.' in b
 assert 'target_holdings' in b and 'backup_holdings' in b
-assert "!live(p)&&p.condition==='needs_scan'" in h
+assert 'This project has not been indexed yet.' in h
+assert 'There is no cleanup, duplicate, or protection result to interpret until a scan commits fingerprint evidence.' in h
+assert '<details id="globalEvidence" class="evidenceDrawer">' in h
+assert 'max-height:330px;overflow:auto' in h
+assert 'Start scan' in h and 'Protect / verify' in h and 'Review certification' in h
 assert 'fingerprint/stop' in h and 'fingerprint/pause' in h and 'fingerprint/resume' in h
+assert '<h3>Largest duplicate groups</h3>${duplicateHTML(state.intel)}' not in h
 PY
-pass REDTEAM_PRECUTOVER 'backend truth rules and UI operation controls present'
+pass REDTEAM_PRECUTOVER 'action routing, bounded evidence, unscanned truth, and safety controls present'
 
-# Cut over once; every subsequent failure restores the archived R9 live files.
+# Cut over once; every subsequent failure restores the archived qualified R10 live files.
 sudo systemctl stop "$SERVICE"
 CUTOVER=1
 install -m0644 "$TMP/sot-api.js" "$REPORT_ROOT/sot-api.js"
 install -m0644 "$TMP/SOT-turn01-base.html" "$SOT_DIR/SOT-turn01-base.html"
 sudo systemctl start "$SERVICE"
-pass CUTOVER 'R10 clean candidate installed'
+pass CUTOVER 'R11 action-first candidate installed'
 
 code=000
 for i in {1..30}; do
@@ -156,7 +173,7 @@ pass POST_HEALTH HTTP=200
 
 for endpoint in 'turn01/ssot' 'turn01/intelligence?limit=100' 'turn01/catalog?view=content&limit=5' 'activity?limit=5' 'turn01/projects' 'turn01/volumes'; do
   code="$(curl --max-time 20 -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:18080/api/sot/$endpoint" || true)"
-  [ "$code" = 200 ] || fail LIVE_R10_ENDPOINT "$endpoint HTTP=$code"
+  [ "$code" = 200 ] || fail LIVE_R11_ENDPOINT "$endpoint HTTP=$code"
 done
 pass REDTEAM_LIVE_ENDPOINTS 'ssot + intelligence + catalog + activity + projects + volumes HTTP=200'
 
@@ -182,7 +199,7 @@ for item in r:
 if int(s.get('duplicate_groups') or 0)>0: assert len(d)>0,'summary reports duplicate groups but list is empty'
 assert len(recs)>0,'recommendations empty'
 PY
-pass REDTEAM_INTELLIGENCE 'live SSOT intelligence structure and duplicate math verified'
+pass REDTEAM_INTELLIGENCE 'live SSOT intelligence remains structurally and mathematically valid'
 
 LOCAL_SHA="$(sha256sum "$TMP/SOT-turn01-base.html" | awk '{print $1}')"
 code=000
@@ -199,6 +216,6 @@ pass PUBLIC_IDENTITY "$PUBLIC_SHA"
 pass DATABASE_POSTCHECK ok
 SUCCESS=1
 pass RELEASE_READY 'Developer PASS → Manager PASS → Red-team PASS'
-echo '=== TURN 01 BASE R10 READY FOR OWNER TEST ==='
+echo '=== TURN 01 BASE R11 READY FOR OWNER TEST ==='
 echo "PUBLIC SHA256: $PUBLIC_SHA"
 echo "TEST URL: $PUBLIC_URL?release=$PUBLIC_SHA"
