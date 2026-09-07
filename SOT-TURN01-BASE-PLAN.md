@@ -1,7 +1,7 @@
 # SOT Turn 01 Base Plan
 
 **Stage:** `base`  
-**Status:** R12 MECHANICALLY QUALIFIED — R13 OWNER UX CORRECTION REQUIRED  
+**Status:** R13 MECHANICALLY QUALIFIED — OWNER MOBILE UX REJECTED — R14 MOBILE-FIRST CORRECTION READY FOR HOST QUALIFICATION  
 **Date:** 2026-09-07
 
 ## Governing model
@@ -11,6 +11,21 @@ SOT is one dynamically versioned SSOT virtual storage volume.
 `Discover sources → Profile SSOT rN → Omnisearch/select → Action → Profile SSOT rN+1`
 
 Projects are abolished as a first-class operating abstraction. The virtual volume is the structure; Omnisearch is the selector; tags are classification; Action operates on an explicit Profile revision and stable selection.
+
+## Mobile-first product rule
+
+SOT is a **mobile-first application**. Touch, software-keyboard, viewport-resize, focus, suggestion, selection and scroll behavior on phone/tablet are first-class release contracts, not desktop compatibility details.
+
+A mechanically qualified release is not acceptable if ordinary mobile typing can be interrupted by polling, redraw, viewport change, focus transition, or background state reconciliation.
+
+For any active text/tag editor:
+
+- the DOM node containing the editor must not be reconstructed while the owner is editing;
+- software keyboard visibility/focus must survive background refresh;
+- keyboard/viewport transitions must not be inferred solely from `document.activeElement`;
+- editing state must be explicit application state;
+- Enter/tap-to-commit must execute before any redraw;
+- the edit lock clears only from an explicit owner interaction outside the editing surface or navigation away.
 
 ## Primary surfaces
 
@@ -22,13 +37,13 @@ Discover admits and manages physical source folders/volumes. It defines what is 
 
 Profile is the authoritative committed SSOT revision. It exposes folders/files with path, size, created/modified dates, fingerprint, physical location/protection truth, and direct/effective tags.
 
-**Profile is a hierarchical virtual-volume browser, not a flat database listing.** Its required layout is master-detail:
+Profile is a hierarchical virtual-volume browser, not a flat database listing. Its required layout is master-detail:
 
 - **Master:** expandable/collapsible folder hierarchy with source/root context.
-- **Detail:** the selected folder's immediate child folders/files, or the selected file's metadata/evidence.
-- Selecting a folder in the master updates detail without losing tree expansion.
+- **Detail:** selected folder immediate child folders/files, or selected file metadata/evidence.
+- Selecting a folder updates detail without losing tree expansion.
 - Selecting a file shows that file as the detail object while keeping its folder context visible.
-- Omnisearch filters the virtual volume while preserving the ancestry/context needed to understand where every result lives.
+- Omnisearch filters the virtual volume while preserving ancestry/context.
 
 ### Action
 
@@ -42,27 +57,23 @@ A tag may be assigned directly to a folder or file. Folder tags are inherited by
 
 ### Required tag interaction
 
-The accepted interaction follows the prior UI/Kanban model:
-
 - begin typing in a persistent inline tag editor;
 - matching tags from the global pool appear immediately;
 - tap/click a match to assign it, or press **Enter** to assign/create the normalized typed tag;
 - assigned/effective tags render as chips;
 - **the chip `×` is the removal control**;
 - there is no generic separate `Remove tag` button in the normal tag workflow;
-- an inherited chip identifies its source folder; its `×` removes the governing folder assignment, not an unrelated direct assignment on the descendant;
+- inherited chips identify source folder provenance and their `×` removes the governing assignment only;
 - bulk add-tag is allowed for a stable selection;
-- bulk removal is represented by removable common/effective tag chips for the selected set rather than a generic remove-tag text field/button.
+- bulk removal is represented by removable common/effective tag chips for the selected set.
 
 ## Omnisearch and bulk selection
 
-Omnisearch operates across folders/files, path/name, fingerprints and tags. Search does not flatten the storage model: matching folders/files remain anchored to their hierarchy.
+Omnisearch operates across folders/files, path/name, fingerprints and tags. Search does not flatten the storage model: matching folders/files remain anchored to hierarchy.
 
-Selection is explicit and stable. Refresh cannot silently add newly matching items to an existing selection. Bulk Actions must display selection count and Profile revision before mutation.
+Selection is explicit and stable. Refresh cannot silently add newly matching items to an existing selection. Bulk Actions display selection count and Profile revision before mutation.
 
 ## Virtual-volume data model
-
-The durable model is:
 
 1. Folder node — path/parent/source identity, aggregate size/count, dates where available, direct tags.
 2. File instance — parent/path/name, size, dates, physical location, fingerprint reference, direct tags.
@@ -88,7 +99,7 @@ Polling/data refresh may update Profile data but may not destroy owner interacti
 - scroll position;
 - modal state.
 
-If an input/textarea/select/contenteditable control is actively being edited, periodic refresh must update state without reconstructing that active editing surface. R12's keyboard dismissal is explicitly rejected.
+R13 proved that a `document.activeElement`-only guard is insufficient on mobile. R14 therefore requires an explicit tag-edit lock that survives transient mobile focus/viewport changes and blocks active-editor DOM replacement.
 
 ## Product outcome
 
@@ -107,65 +118,57 @@ The SSOT should answer: what exists, where it exists, how it is organized/classi
 7. Tags never confer protection, certification or deletion eligibility.
 8. No physical delete/removal path may bypass protection/verification evidence.
 
-## R12 status
+## Qualified foundation
 
-R12 is the qualified schema-6/backend baseline. Public qualified SHA256:
+R12 remains the qualified schema-6/backend foundation.
 
-`2c84d243fe8fe6778b850bd6dcf9de49892163a2a6e91c7623531228417faa47`
+R13 is mechanically qualified UI lineage for hierarchical master/detail Profile, but owner mobile testing rejects its tag editor because the keyboard can still be dismissed during typing. That rejection is archived as `GY-041`.
 
-Owner rejected its Profile presentation. Rejection is archived as `GY-040`.
+## R14 build scope
 
-## R13 build scope
+R14 is a **UI-only clean source advance** from governed R13 source composition. It must not patch the installed/generated R13 HTML.
 
-R13 is a **UI-only clean source advance** unless a concrete blocker proves otherwise. It must be composed from governed source lineage, never by patching the installed/generated R12 HTML.
+Required R14 slice:
 
-Required R13 slice:
+- preserve R12 backend/schema 6 unchanged;
+- preserve R13 folder hierarchy, master/detail, Omnisearch ancestry, selected node, expansion and chip UX;
+- add explicit application-level tag editing state;
+- acquire tag-edit lock on focus/pointer/type/Enter;
+- while lock is active, polling may update state but may not redraw/replace the tag-editor DOM;
+- suggestion selection and Enter assignment keep the lock through mutation completion;
+- clear lock only on explicit pointer interaction outside the editor or navigation away;
+- retain chip `×` removal and no generic Remove Tag button;
+- no unsafe physical bulk delete.
 
-- preserve R12 schema 6 and backend APIs unchanged;
-- replace flat Profile listing with folder-tree master + selected-node detail pane;
-- preserve folder/file hierarchy under Omnisearch;
-- implement persistent type-ahead tag editor with Enter-to-assign;
-- prevent periodic refresh from dismissing keyboard/focus or replacing active editor;
-- assigned/effective tags are chips with `×` removal;
-- remove generic `Remove tag` button from Profile/Action tag flow;
-- expose bulk add-tag for stable selection and common-tag chips with `×` for bulk removal;
-- preserve selected node, tree expansion, selection, Omnisearch, disclosure and scroll state across refresh;
-- no unsafe bulk physical deletion.
-
-## R13 acceptance gates
+## R14 acceptance gates
 
 ### Developer
 
-- Clean UI source advance from pinned qualified lineage; no generated/live patch-forward.
+- Clean source advance from pinned R13 composition; no live/generated patch-forward.
 - JavaScript syntax/boot passes.
-- Tree derives parent/child hierarchy from Profile paths and distinguishes folder/file nodes.
-- Selecting a folder renders only its immediate children in detail; selecting a file renders file detail.
-- Omnisearch retains ancestors/context for matches.
-- Type-ahead suggestions come from the existing tag pool.
-- Enter assigns typed tag without redraw before key handling.
-- Active editor survives a polling refresh without DOM replacement/focus loss.
-- Assigned tags render chips with `×`; no generic Remove Tag button remains.
-- Bulk add and common-chip bulk removal use stable explicit selection.
+- Explicit tag edit lock exists in state.
+- Focus, pointer, typing and Enter all acquire/retain the lock.
+- `load()` and `draw()` cannot reconstruct the active editor while lock is set.
+- Outside interaction explicitly releases the lock.
+- Enter-to-assign and type-ahead remain present.
+- Hierarchy/master-detail and chip `×` removal remain present.
 
 ### Manager
 
-- Profile reads visually as a storage volume/file manager, not a database dump.
-- Master-detail relationship is immediately clear.
-- Folder hierarchy is navigable without scrolling through a flat estate.
-- Tag interaction matches the accepted chip/type-ahead model.
-- Discover → Profile → Action remains the top-level product model.
-- R12 backend/schema/protection/fingerprint truth remains untouched.
+- Mobile-first keyboard/focus behavior is a primary product contract.
+- Tag entry does not depend on desktop-style stable `activeElement` semantics.
+- Discover → Profile → Action remains unchanged.
+- R12 backend/schema truth remains untouched.
 
 ### Red team
 
-- Poll refresh while typing cannot hide the mobile keyboard by reconstructing the active editor.
-- Enter on tag input cannot be pre-empted by redraw.
-- Chip `×` removes the correct direct or governing inherited assignment.
-- Equivalent direct descendant tag survives removal of inherited folder assignment.
-- Omnisearch cannot detach a matching file from its folder ancestry.
-- Refresh cannot broaden a previously captured bulk selection.
+- Simulated refresh/redraw path is structurally blocked while tag edit lock is active.
+- Mobile focus transitions cannot independently clear the edit lock.
+- Enter assignment cannot be pre-empted by redraw.
+- Explicit outside interaction can release the lock so navigation still works.
+- Chip `×`, hierarchy, expansion and stale selection protections remain intact.
 - Unsafe bulk physical delete remains absent.
-- Public byte identity, live endpoint health, DB integrity and rollback are mandatory before owner test URL.
+- Public byte identity, live endpoint health, DB integrity and rollback remain mandatory before owner test URL.
 
 ## Governance
 
