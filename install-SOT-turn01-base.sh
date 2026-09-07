@@ -149,7 +149,7 @@ from pathlib import Path
 import sys
 b=Path(sys.argv[1]).read_text(); h=Path(sys.argv[2]).read_text()
 for x in ['function ssotProfile(','function discoverSources(','function mutateTags(','stale profile revision','target_holdings','backup_holdings']: assert x in b,x
-for x in ['Discover','Profile','Action','SSOT virtual volume','direct:true','rememberDisclosure','Select results']: assert x in h,x
+for x in ['Discover','Profile','Action','SSOT virtual volume','let inherited=!t.direct','Inherited from','rememberDisclosure','Select results']: assert x in h,x
 PY
 pass MANAGER_SCOPE 'SSOT sole owner-facing object; tags classify; Omnisearch selects; Action mutates'
 pass MANAGER_LINEAGE 'qualified R11 source composition → pinned R12 schema/backend/UI integrators'
