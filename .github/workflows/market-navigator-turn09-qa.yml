@@ -1,0 +1,78 @@
+name: Market Navigator Turn 09 qualification
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'market-navigator-turn09-pre-ship.html'
+      - '.github/workflows/market-navigator-turn09-qa.yml'
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Static and syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn09-pre-ship.html').read_text()
+          for x in ['TURN 09 PRE-SHIP','Index ${fmt(q.v)}','indexedDB.open','attachInput','webToggle','moreAI','moreStats','morePrint','moreDownload',"plugins=[{id:'web'",'enable_web_search','web_search_20250305','Provider returned no answer content','crumbMarket']:
+              assert x in s, x
+          for x in ['id="stats">Stats','id="runAI">AI','id="printBtn">Print','id="downloadBtn">DL']:
+              assert x not in s, x
+          js=re.findall(r'<script>(.*?)</script>',s,re.S)[-1]
+          Path('/tmp/mn9.js').write_text(js)
+          PY
+          node --check /tmp/mn9.js
+      - name: Browser workspace, IndexedDB, web and image qualification
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn9-server.log 2>&1 &
+          cat > qa.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:390,height:844}});
+            let errs=[];p.on('pageerror',e=>errs.push(String(e)));
+            let requests=[];
+            await p.route('https://openrouter.ai/api/v1/models',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({data:[{id:'openrouter/test-model'}]})}));
+            await p.route('https://openrouter.ai/api/v1/chat/completions',async r=>{let body=JSON.parse(r.request().postData()||'{}');requests.push(body);let content=body.max_tokens===8?'OK':'## Analysis\nSubstantive answer with [source](https://example.com/current).';await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content,annotations:[{type:'url_citation',url_citation:{url:'https://example.com/current',title:'Current source'}}]}}]})})});
+            await p.goto('http://127.0.0.1:8123/market-navigator-turn09-pre-ship.html',{waitUntil:'networkidle'});await p.waitForTimeout(300);
+            if(errs.length)throw Error(errs.join('\n'));
+            // Breadcrumb return replaces visible V1 control.
+            await p.evaluate(()=>document.querySelector('#legend [data-id="risk"]').click());await p.waitForTimeout(200);
+            if(await p.locator('#v1btn').isVisible())throw Error('legacy V1 button visible');
+            if(await p.locator('#crumbMarket').count()!==1)throw Error('Market breadcrumb missing');
+            await p.locator('#crumbMarket').click();await p.waitForFunction(()=>document.querySelector('#crumb').textContent.includes('NOW / Market'));
+            // Open a mixed Explore analysis.
+            await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('QQQ');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.waitForSelector('#moreBtn');
+            // Ribbon only exposes legend(s), Add and More.
+            if(await p.locator('#seriesBar > .btn').count()!==2)throw Error('analysis ribbon has extra controls');
+            await p.locator('#moreBtn').click();let menu=await p.locator('#moreMenu button').allTextContents();if(menu.join('|')!=='AI Analysis|Stats|Print|Download')throw Error('More menu order wrong '+menu.join('|'));
+            // Crosshair indexed tooltip shows index + native value after 3+ incompatible series.
+            await p.locator('#moreMenu').evaluate(el=>el.classList.add('hidden'));
+            await p.locator('#addSeries').click();await p.locator('#pickerSearch').fill('WTI');await p.locator('[data-add]').first().click();await p.waitForTimeout(120);
+            await p.locator('#addSeries').click();await p.locator('#pickerSearch').fill('Gold');await p.locator('[data-add]').first().click();await p.waitForTimeout(120);
+            let box=await p.locator('#analysisChart').boundingBox();await p.mouse.click(box.x+box.width*.7,box.y+box.height*.5);await p.waitForTimeout(100);let tip=await p.locator('#analysisTip').textContent();if(!tip.includes('Index'))throw Error('indexed tooltip missing index level: '+tip);
+            // Configure OpenRouter.
+            await p.locator('#closeAnalysis').click();await p.evaluate(()=>document.querySelector('[data-view="config"]').click());await p.locator('#openrouterKey').fill('sk-or-test');await p.locator('#openrouterLoad').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('models loaded'));await p.locator('#openrouterValidate').click();await p.waitForFunction(()=>document.querySelector('#openrouterStatus').textContent.includes('registered'));await p.locator('#defaultProvider').selectOption('openrouter');
+            // Create Analysis from Explore and invoke AI through More.
+            await p.evaluate(()=>document.querySelector('[data-view="explore"]').click());await p.locator('[data-cat="Growth"]').click();await p.locator('#exploreSearch').fill('QQQ');await p.locator('#exploreList .row').first().click();await p.locator('#openExploreAnalysis').click();await p.locator('#moreBtn').click();await p.locator('#moreAI').click();await p.waitForFunction(()=>document.querySelector('#view-library').classList.contains('on'));await p.waitForFunction(()=>document.querySelector('#libList').textContent.includes('ready'),null,{timeout:5000});let tx=await p.locator('#transcript').textContent();if(!tx.includes('Substantive answer'))throw Error('Analysis output missing');
+            if(!requests.some(x=>Array.isArray(x.plugins)&&x.plugins.some(z=>z.id==='web')))throw Error('initial AI did not enable web search');
+            // Attach a real PNG and send follow-up with web enabled.
+            const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6nWQAAAAASUVORK5CYII=','base64');
+            await p.setInputFiles('#attachInput',{name:'pixel.png',mimeType:'image/png',buffer:png});await p.waitForFunction(()=>document.querySelector('#attachPreview').textContent.includes('pixel.png'));await p.locator('#compose').fill('Examine this picture and use current web context.');await p.locator('#send').click();await p.waitForFunction(()=>document.querySelector('#transcript').textContent.includes('pixel.png'));await p.waitForTimeout(300);
+            let visionReq=requests.at(-1),user=visionReq.messages.findLast(m=>m.role==='user');if(!Array.isArray(user.content)||!user.content.some(x=>x.type==='image_url'))throw Error('image not sent to provider');if(!visionReq.plugins?.some(z=>z.id==='web'))throw Error('follow-up web search missing');
+            // IndexedDB is canonical for analyses + attachment blobs and survives reload.
+            let stores=await p.evaluate(()=>new Promise((res,rej)=>{let r=indexedDB.open('marketNavigatorLocal');r.onsuccess=()=>res([...r.result.objectStoreNames]);r.onerror=()=>rej(r.error)}));if(!stores.includes('analyses')||!stores.includes('attachments'))throw Error('IndexedDB stores missing');
+            await p.reload({waitUntil:'networkidle'});await p.evaluate(()=>document.querySelector('[data-view="library"]').click());await p.waitForSelector('#libList .row');await p.locator('#libList .row').first().click();await p.waitForFunction(()=>document.querySelector('#transcript').textContent.includes('pixel.png'));if(!(await p.locator('#transcript').textContent()).includes('Substantive answer'))throw Error('reload lost analysis');
+            if(errs.length)throw Error(errs.join('\n'));
+            await b.close();console.log('TURN09 PASS');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node qa.js
