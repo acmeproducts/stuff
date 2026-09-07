@@ -8,9 +8,10 @@ s=s.replace('<title>Market Navigator · Turn 10</title>','<title>Market Navigato
 s=s.replace('TURN 10 PRE-SHIP','TURN 11 PRE-SHIP')
 
 old='.analysisBody{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:8px;padding:8px}'
-new='.analysisBody{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:8px}.analysisPlot{width:100%}'
+new='.analysisBody{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:0}.analysisPlot{width:100%;height:100%}'
 if old not in s: raise SystemExit('analysis body CSS anchor missing')
 s=s.replace(old,new)
+s=s.replace('.analysisBody{grid-template-columns:1fr;padding:5px}', '.analysisBody{grid-template-columns:1fr;padding:0}')
 old='<div class="card evidence" id="analysisEvidence"></div>'
 new='<div id="analysisEvidence" class="hidden"></div>'
 if old not in s: raise SystemExit('analysis evidence panel anchor missing')
@@ -46,7 +47,7 @@ s=s.replace(needle,replacement)
 
 s=s.replace("<div class=\"rowMeta\">📎 ${esc(x.name)}</div>", "<div class=\"rowMeta\">📎 ${esc(x.name)}${/\\.(csv|tsv|xlsx|xls)$/i.test(x.name||'')?' · spreadsheet':''}</div>")
 
-for must in ['TURN 11 PRE-SHIP','xlsx.full.min.js','Attach image or spreadsheet','analysisBody{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0','id="analysisEvidence" class="hidden"','Register this provider before starting an Analysis','Attached spreadsheet/file','indexedDB.open','plugins=[{id:\'web\'']:
+for must in ['TURN 11 PRE-SHIP','xlsx.full.min.js','Attach image or spreadsheet','analysisBody{min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:0','id="analysisEvidence" class="hidden"','Register this provider before starting an Analysis','Attached spreadsheet/file','indexedDB.open','plugins=[{id:\'web\'']:
     if must not in s: raise SystemExit('missing Turn11 requirement: '+must)
 for bad in ['grid-template-columns:minmax(0,1fr) 280px','title="Attach image" aria-label="Attach image"']:
     if bad in s: raise SystemExit('Turn11 forbidden residue: '+bad)
