@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v5.0.0 -->
-# PRISM MASTER PLAN v5.0.0
+<!-- PRISM-PLAN v5.1.0 -->
+# PRISM MASTER PLAN v5.1.0
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
@@ -7,121 +7,95 @@ Complete PRISM R27 as one clean standalone release. R27 remains the authorized r
 ## Baseline and ancestry
 - Canonical historical baseline: `prism/prism-turn01-pre-ship.html`, R11 blob `5d91e005940d632b74d6dd59a9aa0ae645c40433`.
 - Clean standalone donor lineage: R18/R14 blob `56ba6eb63bf27073399c471fde44164e16c3990f`.
-- Clean standalone implementation baseline for this rebuild: `prism/prism-turn01-pre-ship-r26.html`, current blob `491abbbdaa8f559387c0235e4ddb89300787c491`.
-- All post-R26 R27 attempts, including BUILD R27-0906A, are rejected evidence only and are not implementation ancestors.
+- Standalone implementation lineage remains R26/R27 only; rejected R27 attempts are evidence, not implementation ancestors.
+- NewsMap.JS (`https://newsmap.ijmacd.com/?edition=US_en`) is the explicit Map visual/geometry reference. PRISM implements the behavior directly in its own standalone source; it does not import the reference architecture.
 
-## Frozen accepted surfaces
-The following are frozen and must not regress while Library is rebuilt:
-1. Map: accepted R21/R26 fixed-grid tile behavior, including group headings, focus/×, muted colors, size classes, text fitting, and tile event selection.
-2. Filters: three Group/Color/Size selectors plus three aligned filter-summary controls opening the canonical chip chooser. On mobile the chooser opens directly below the tapped filter control and is viewport-capped; it is not a forced bottom sheet.
-3. AI POV: one selected-evidence list, per-event source URL disclosure, Config-only provider/model/key editing.
-4. Source and Config behavior.
+## Map contract — corrected 2026-09-06
+The Map is not a fixed-row lattice. It must visually behave like a dense NewsMap surface.
+1. Use squarified variable-area article rectangles, not long 1:5 slivers or repetitive fixed rows.
+2. Tile geometry should strongly prefer near-square rectangles; approximately 4:5 through modestly wider/taller shapes are acceptable. Extreme strips are not.
+3. Preserve five visible size tiers: X-Large, Large, Medium, Small, X-Small.
+4. Size is driven by the active Size dimension and continuous weight; the five classes control typography/padding, not a return to a fixed-grid layout.
+5. Headline typography must be materially larger than prior R27 attempts and scale by tile area. Large tiles should read like headlines, not labels.
+6. Use compact Arial/Helvetica, strong weight, tight line height, dark thin borders, muted categorical color families, dense packing, and clipping only when a genuinely small tile cannot fit more text.
+7. Group headings, group focus, × reset, tile selection, Group/Color/Size dimensions, and the three filter-summary controls remain intact.
+8. The filter chooser opens directly below the tapped summary control and is capped to the remaining viewport; no forced bottom sheet.
 
-## Surface isolation rule
-Library is the only feature surface under redesign in this R27 rebuild. Library work may integrate with AI launch/persistence/navigation only through explicitly defined lifecycle boundaries. No Map geometry, filter semantics, source architecture, or AI evidence architecture may be redesigned while fixing Library.
-
-## Library product contract
-Library is a complete workspace, not a card-list adjunct.
-- Persistent Library rail with one card per Analysis.
-- Card hierarchy exactly: title + × delete; `Created <date/time> | Updated <date/time>`; `Status: Processing|Ready|Failed`.
-- Full-height reading stage independent of card-list height.
-- Reading stage is a true three-row grid: fixed header / `minmax(0,1fr)` independently scrolling transcript / pinned bottom compose row.
-- Complete chronological transcript retains initial question, each AI response, every later research query/response, uploaded context, and timestamps.
-- Separate Library-card Omnisearch and selected-Analysis Omnisearch.
-- Selected-Analysis Omnisearch supports positive terms, `-negative`, `*wildcard*`, and `?` single-character matching.
-- Follow-up research appends to the same Analysis ID and updates `updatedAt`.
+## Library product contract — mandatory acceptance surface
+Library is a complete two-surface workspace and may never degrade to a blank page.
+1. The Library has a persistent left Analysis rail and a right Analysis workspace.
+2. The Analysis rail is independently scrollable and explicitly collapsible/expandable. Collapsing it must expand the right workspace; it must never destroy the rail state or Analysis selection.
+3. Each rail card is exactly title + × delete; `Created <date/time> | Updated <date/time>`; `Status: Processing|Ready|Failed`.
+4. The right workspace fills all remaining application height and is a true three-row grid: fixed Analysis header / `minmax(0,1fr)` independently scrolling complete Analysis transcript / pinned bottom chat compose strip.
+5. The compose strip is sticky/pinned to the bottom of the right workspace and contains a paperclip attachment button, prompt textarea, and send button.
+6. The compose prompt is direction for the next Analysis turn. Send executes current-web research with the configured provider/model, appends the response to the same Analysis ID, and updates `updatedAt`.
+7. Attachments are appended to the same Analysis record/context and appear chronologically in the transcript.
+8. The transcript retains initial prompt, every AI response, all follow-up prompts/responses, uploaded context, and timestamps.
+9. Library-card Omnisearch and selected-Analysis Omnisearch remain separate. Selected-Analysis search supports positive terms, `-negative`, `*wildcard*`, and `?`.
+10. On every Library entry and boot, PRISM must reread the authoritative `prism/analyses` store and merge readable historical rows from `prism-analysis-index-v1/analyses`. A one-shot migration marker may not hide historical records.
+11. If either store fails to read, the Library must render a visible diagnostic/error state and retain any successfully read rows; it must not silently render blank.
 
 ## Single authoritative Analysis model
-IndexedDB is the only durable Analysis authority.
-- Database: `prism`.
-- Store: `analyses`.
-- Key path: `analysisId`.
-- One normalization function.
-- One durable write path and one authoritative reread path.
-- No alternate shadow persistence engine or duplicate Analysis state machine.
+- Durable primary authority: IndexedDB database `prism`, store `analyses`, key path `analysisId`.
+- One normalizer, one durable write path, one authoritative reread path.
+- Historical Library data may be read/merged for compatibility, but new/updated records are written only to `prism/analyses`.
+- No destructive store replacement or silent historical deletion.
 
 ## Required Analysis lifecycle
 `Run analysis` executes exactly this lifecycle:
 1. Validate provider, prompt, and selected evidence.
 2. Create durable Analysis ID.
-3. Persist same record to IndexedDB with `status:"processing"`, `createdAt`, and `updatedAt`.
-4. Reread that exact Analysis ID from IndexedDB.
-5. Enter Library through the single view controller.
-6. Select the reread Analysis and render its Processing card/detail.
-7. Yield a browser paint so Library ownership is visible.
-8. Only then begin provider/network work.
-9. Success updates the same ID with Markdown response, `status:"ready"`, and new `updatedAt`; reread and rerender.
-10. Failure updates the same ID with error text, `status:"failed"`, and new `updatedAt`; reread and rerender; the card remains.
+3. Persist the record immediately as `status:"processing"` with timestamps and frozen evidence.
+4. Reread the exact Analysis ID from IndexedDB.
+5. Close AI POV and enter Library through the single view controller.
+6. Select/render that Processing card and the right workspace.
+7. Yield browser paint/event loop.
+8. Begin provider/network work asynchronously.
+9. Success updates the same ID to `ready`, appends Markdown response, rereads, and rerenders.
+10. Failure updates the same ID to `failed` with error detail, rereads, and rerenders; the card remains.
 
-## AI execution ownership
-Map/Explore/Feed do not own background Analysis status.
-- After Run analysis is accepted, AI POV closes.
-- The Map AI button returns to ordinary `AI POV`; it must never be the background job status indicator.
-- Processing/Ready/Failed belongs to the Library card/detail for that Analysis.
-- A request may continue while the user navigates elsewhere, but returning to Library rereads status from IndexedDB.
-
-## Single view controller
-Exactly one function owns application view transitions and is the only allowed writer of view chrome/state. It must own:
-- `state.view`;
-- active nav item;
-- visible `.view`;
-- Library ribbon/search behavior;
-- reader closure;
-- mobile portal-rail transition.
-No competing direct `.on` mutation or `state.view=` mutation is allowed outside initialization and this controller.
-
-## Mobile transition contract
-Launching an Analysis on a phone must:
-1. close AI POV;
-2. close open event readers;
-3. persist/reread Processing Analysis;
-4. enter Library;
-5. collapse the global portal rail if necessary so it cannot cover the Library workspace;
-6. keep the Library's own rail visible;
-7. select the new Processing card and show the reading stage;
-8. begin provider work only after the Library has painted.
-
-## Build identity
-Every candidate has an immutable visible build ID in reserved application chrome, never floating over content. The same ID must appear in source diagnostics and the cache-busted test URL. If the visible marker does not match the handed-off build, testing stops.
+## Diagnostics / observability contract
+R27 must maintain a persistent browser-local event/error log sufficient to isolate every lifecycle failure without guessing. At minimum log:
+- boot start/wire/complete/failure;
+- IndexedDB open/upgrade/read/write/verification failures;
+- primary and legacy Library row counts and merged counts;
+- Library entry/render/select/delete/rail collapse/compose/attachment/send;
+- Analysis Processing → provider request → Ready/Failed transitions and timings;
+- Map render count/group count/geometry mode/selection/filter changes;
+- source/cache fetch starts/completions/failures;
+- `window.error` and unhandled promise rejections.
+Diagnostics must be visible and copyable from Config and remain customer-safe: internal repository workflow failures are not surfaced as customer product status.
 
 ## Deterministic pre-publication gates
-A candidate cannot be published until all pass:
-1. HTML structure intact and embedded JavaScript syntax parses.
-2. Exactly one `runAI` implementation.
-3. Exactly one Analysis persistence lifecycle path.
-4. Exactly one authoritative view controller.
-5. No competing `state.view` writes or view-class mutations.
-6. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay architecture, Web Worker, or alternate persistence engine.
-7. Processing write and authoritative reread occur before provider invocation.
-8. Library selection/render and a paint occur before provider invocation.
-9. Map AI button cannot display background Processing state.
-10. Processing, Ready, and Failed records render with the same Analysis ID.
-11. Follow-up appends to same Analysis ID.
-12. Library and selected-Analysis Omnisearch pass positive, negative, `*`, and `?` cases.
-13. Frozen Map/filter/AI POV/source invariants match the accepted R26 implementation except explicitly approved integration lines.
-14. Reload reconstructs Ready/Failed Analysis records solely from IndexedDB.
+A candidate cannot be published until all applicable gates pass:
+1. Complete HTML structure and embedded JavaScript syntax parse.
+2. Exactly one `runAI`, one Analysis persistence path, and one view controller.
+3. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay, Worker, alternate state machine, or destructive persistence migration.
+4. Map uses squarified geometry and all five size classes; deterministic geometry test must reject extreme aspect-ratio slivers (target maximum ≤5:1 under the qualification fixture, with normal tiles substantially closer to square).
+5. Headline font qualification proves X-Large/Large tiers begin materially larger than prior label-sized rendering and shrink only as required to fit.
+6. Library DOM qualification proves left rail exists, rail collapse/expand control exists, right workspace exists, transcript is independently scrollable, compose is bottom-pinned, paperclip exists, send exists.
+7. Library data qualification injects both a primary `prism/analyses` row and a historical `prism-analysis-index-v1/analyses` row; after reread both cards must be present and selectable.
+8. Selecting an Analysis must make the compose strip visible without removing the left rail.
+9. Processing write/reread/Library render occurs before provider invocation; same ID must later render Ready or Failed.
+10. Follow-up current-web research and attachment operations persist on the same Analysis ID.
+11. Diagnostics must contain boot, DB, Library-load, Map-render, and lifecycle checkpoints.
 
-## Browser lifecycle qualification
-Before owner handoff, exercise deterministic success and failure lifecycle paths and inspect actual DOM state at each checkpoint:
-- active nav;
-- visible view;
-- visible build ID;
-- Analysis ID/status/card selection;
-- transcript and compose geometry;
-- Map AI button label;
-- authoritative IndexedDB record.
-A state where Map is active while its AI button says `Analyzing…` is an automatic failure and must never be published.
+## Browser qualification and environmental fallback
+Owner-device browser acceptance remains decisive. Before handoff, execute browser qualification when the environment permits navigation. If the execution environment blocks browser navigation by administrator policy, do not pretend a browser test ran: run embedded-JS syntax, deterministic squarify math, structural Library contract, persistence-path/static lifecycle gates, publish, verify the exact deployed artifact, and rely on the owner-device gate for final browser behavior.
 
 ## Publication / concurrency gate
 Immediately before publication:
-1. fetch current `main` and target file SHAs;
+1. fetch current `main` and current SHAs of every target file;
 2. preserve unrelated repository work;
-3. publish R27 on top of then-current `main`;
-4. verify resulting commit ancestry;
+3. update this Plan and the Graveyard before/with the R27 source;
+4. publish on top of then-current `main` without force;
 5. refetch `main` after write to detect races;
-6. inspect the actual Pages deployment artifact and prove it contains the exact candidate blob/build marker before returning a URL.
+6. verify the exact published R27 blob/build marker and Pages deployment before returning the cache-busted test URL.
 
 ## Owner acceptance sequence
-First owner-device gate is deliberately narrow:
-`Run analysis → AI POV closes → Library active → Processing card visible+selected → provider runs → same card Ready or Failed`.
-If this transition fails, the identified build is rejected immediately. After it passes, validate Library selection, scrolling, composer, follow-up, Omnisearch, reload persistence, filters, and frozen Map behavior.
+Primary gate:
+`Library opens with historical cards → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID`.
+Map gate:
+`NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
+AI creation gate:
+`Run analysis → Library active → Processing card visible+selected → provider runs → same card Ready or Failed`.
