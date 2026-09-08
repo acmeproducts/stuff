@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.1 -->
-# PRISM MASTER PLAN v6.0.1
+<!-- PRISM-PLAN v6.0.2 -->
+# PRISM MASTER PLAN v6.0.2
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
@@ -116,7 +116,7 @@ Primary gate:
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 Analysis creation gate:
-`Select story → Analyze → Library active → Draft card visible+selected with saved evidence and compose strip → first prompt advances that same card through Processing to Ready or Failed`.
+`Select story → Analyze → Processing card visible+selected with saved evidence → automatic current-web analysis runs → same card becomes Ready with a rendered Markdown response or Failed with an explicit error → compose continues that same Analysis ID`.
 
 ## R27 recovery qualification correction
 The first published recovery artifact `cda47efc8a78a02134eb17f270e3d486fe72e831` is rejected. It parsed statically but failed browser boot because the active Size dimension `attention` lacked the categorical value function required by the shared filter path. The UI stopped at `DIMS[k].value is not a function`. It also exposed contradictory `R27-RECOVERY-01` and `R27-CLEAN-02` identities. The corrected artifact must pass a real browser boot with event tiles rendered and one coherent build identity before handoff.
@@ -135,7 +135,9 @@ The owner screenshot rejects multicolored micro-tile mosaics as a visual aberrat
 
 R13 is the minimum Library interaction yardstick: persistent left Analysis rail, right research workspace, readable master-detail hierarchy, and direct access to the saved record. R27 adds the missing compose strip but must not regress that layout.
 
-Selecting stories and pressing Analyze must create and persist a Draft Analysis card immediately, before provider configuration, prompting, or inference. The app then opens Library on that card with the selected evidence and compose strip. Sending the first prompt advances the same card through Processing to Ready or Failed; it must never create an unrelated replacement record.
+Selecting stories and pressing Analyze must execute analysis, not create an empty Draft. With a verified provider, the app creates and persists a Processing card immediately, opens Library on that card with the selected evidence, runs the governed automatic current-web prompt, and writes the Markdown response into the same card. The compose strip then continues that Analysis ID. Without a verified provider, no empty record is created; Config opens with an explicit validation requirement.
 
 ## R27 Library visibility correction
 `R27-NEWSMAP-04` proved only persistence in a clean browser. It could truthfully write a card and still hide it when Library starter mode remained active, the Analysis rail remained collapsed, or the Library Omnisearch excluded its title. Analyze must clear those conflicting presentation states, select the exact persisted ID, render its card/workspace/evidence/compose strip, yield paint, and verify that all four surfaces are visibly present before showing a success toast. Qualification must include pre-existing analyses, active starter mode, a collapsed rail, a non-matching Omnisearch query, and reload persistence.
+
+`R27-NEWSMAP-05` exposed the deeper contract error: it reliably rendered an Analysis record whose prompt, response, and turns were all empty. Visibility is not analysis. The Analyze control must invoke the single existing AI lifecycle with a deterministic comprehensive prompt; the Library must show Processing before network work and the resulting Markdown response afterward on the same record.

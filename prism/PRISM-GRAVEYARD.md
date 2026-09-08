@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.1 -->
-# PRISM GRAVEYARD v6.0.1
+<!-- PRISM-GRAVEYARD v6.0.2 -->
+# PRISM GRAVEYARD v6.0.2
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -52,6 +52,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - `70e892e617630e88b40d5e01fad2b82da3d47e9b` / R27-NEWSMAP-02: booted and rendered the cache, but live qualification loaded 0/8 Google News categories because direct/CORS routes failed. A cache-rendering fallback is not proof of current content.
 - `7a7ae5657b48b235202b9b4296b861da70f9484b` / R27-NEWSMAP-03: rejected by owner screenshot. Live content worked, but 272 uncapped sentiment-colored tiles produced incoherent micro-tile mosaics, and Analyze still failed to establish immediate Library ownership. Do not reuse those defaults or interaction semantics.
 - `972cc29582a75a8cf14c45bb1e0faa715150b016` / R27-NEWSMAP-04: rejected on the owner device. The success toast followed IndexedDB read-back but did not prove the card was visible; persistent starter mode or a stale Library Omnisearch could suppress the just-created record. Never equate durable storage with an owner-visible Library result.
+- `7c51e94e7b9257c26fd2c21e5e181bd043969eb8` / R27-NEWSMAP-05: rejected by owner. It made the empty record reliably visible but created `prompt:''`, `response:''`, and `turns:[]`; therefore the Library was still functionally blank. Never label an empty Draft as completed Analyze behavior.
 
 ## Accepted R27 direction
 - standalone R27 only;
