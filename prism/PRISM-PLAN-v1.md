@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.2 -->
-# PRISM MASTER PLAN v6.0.2
+<!-- PRISM-PLAN v6.0.3 -->
+# PRISM MASTER PLAN v6.0.3
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
@@ -116,7 +116,7 @@ Primary gate:
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 Analysis creation gate:
-`Select story → Analyze → Processing card visible+selected with saved evidence → automatic current-web analysis runs → same card becomes Ready with a rendered Markdown response or Failed with an explicit error → compose continues that same Analysis ID`.
+`Select story → Analyze → AI POV opens with selected evidence, presets, and editable prompt → Run analysis → Processing card visible+selected with saved evidence → current-web analysis runs → same card becomes Ready with a rendered Markdown response or Failed with an explicit error → compose continues that same Analysis ID`.
 
 ## R27 recovery qualification correction
 The first published recovery artifact `cda47efc8a78a02134eb17f270e3d486fe72e831` is rejected. It parsed statically but failed browser boot because the active Size dimension `attention` lacked the categorical value function required by the shared filter path. The UI stopped at `DIMS[k].value is not a function`. It also exposed contradictory `R27-RECOVERY-01` and `R27-CLEAN-02` identities. The corrected artifact must pass a real browser boot with event tiles rendered and one coherent build identity before handoff.
@@ -127,7 +127,7 @@ Owner review rejects a repository-cache-first Map that merely resembles NewsMap 
 2. preserve Google News category, position, and multi-source coverage so tile area reflects source count, feed position, and freshness;
 3. use two-level squarification, full-area category groups, headline-first adaptive typography, and unobtrusive group focus;
 4. keep PRISM dimensions, filters, selection, reader, and custom sources layered on that framework;
-5. expose New Analysis inside Library; when nothing is selected it uses the strongest current-view stories, persists Processing before inference, and opens the same Analysis for continuation;
+5. expose New Analysis inside Library; when nothing is selected it seeds the strongest current-view stories and opens the same governed AI POV prompt workspace used by Analyze;
 6. reread compatible saved analyses without presenting an empty surface as a completed Library.
 
 ## Owner correction: Map density and immediate Analysis ownership
@@ -135,7 +135,10 @@ The owner screenshot rejects multicolored micro-tile mosaics as a visual aberrat
 
 R13 is the minimum Library interaction yardstick: persistent left Analysis rail, right research workspace, readable master-detail hierarchy, and direct access to the saved record. R27 adds the missing compose strip but must not regress that layout.
 
-Selecting stories and pressing Analyze must execute analysis, not create an empty Draft. With a verified provider, the app creates and persists a Processing card immediately, opens Library on that card with the selected evidence, runs the governed automatic current-web prompt, and writes the Markdown response into the same card. The compose strip then continues that Analysis ID. Without a verified provider, no empty record is created; Config opens with an explicit validation requirement.
+Selecting stories and pressing Analyze must open the R13-governed AI POV workspace; it must never bypass or replace that workspace with an automatic prompt. The workspace visibly contains selected context and source links, Clear all, a prompt textarea, the Throughline, Frequency, Recency / precedent, and Missing context presets, and Run analysis. Run analysis validates the provider, entered or preset prompt, and evidence; then it creates and persists a Processing card immediately, opens Library on that card, and writes the Markdown response into the same card. The compose strip then continues that Analysis ID. Without a verified provider, no empty record is created; Config opens with an explicit validation requirement.
+
+## R27 prompt-workspace restoration
+`R27-NEWSMAP-06` retained the AI POV markup but made it unreachable by wiring Analyze directly to an automatic `beginSelectedAnalysis()` path. That contradicted the owner-approved R13 interaction contract and made the missing prompt/preset surface appear deleted. R27 must have one visible creation path: Analyze and Library ＋ both open AI POV; only Run analysis may enter the Processing → Ready/Failed lifecycle.
 
 ## R27 Library visibility correction
 `R27-NEWSMAP-04` proved only persistence in a clean browser. It could truthfully write a card and still hide it when Library starter mode remained active, the Analysis rail remained collapsed, or the Library Omnisearch excluded its title. Analyze must clear those conflicting presentation states, select the exact persisted ID, render its card/workspace/evidence/compose strip, yield paint, and verify that all four surfaces are visibly present before showing a success toast. Qualification must include pre-existing analyses, active starter mode, a collapsed rail, a non-matching Omnisearch query, and reload persistence.
