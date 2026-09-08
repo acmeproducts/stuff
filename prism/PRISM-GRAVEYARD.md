@@ -1,8 +1,14 @@
-<!-- PRISM-GRAVEYARD v5.1.0 -->
-# PRISM GRAVEYARD v5.1.0
+<!-- PRISM-GRAVEYARD v6.0.0 -->
+# PRISM GRAVEYARD v6.0.0
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
+
+## R27 recovery additions
+
+- **Library-only product replacement:** `R27-LIBRARY-01` reduced the complete R26 application and rendered Map, Explore and Feed through the same placeholder card list. It is rejected and inert. Recovery starts from exact R26 and preserves the complete product.
+- **Persist-first custom sources:** saving a custom source before proving fetch and parse creates permanent zero-item inventory. R27 validates HTTPS URL, uniqueness, payload, usable entries and a sample headline before persistence.
+- **Sphere Explore:** a decorative sphere does not expose dimensional relationships. Explore now uses the same Group, Color and Size grammar as Map on a flat recency/value field.
 
 ## Permanent architecture veto
 - no iframe release;

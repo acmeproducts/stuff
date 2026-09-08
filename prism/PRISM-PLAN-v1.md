@@ -1,8 +1,26 @@
-<!-- PRISM-PLAN v5.1.0 -->
-# PRISM MASTER PLAN v5.1.0
+<!-- PRISM-PLAN v6.0.0 -->
+# PRISM MASTER PLAN v6.0.0
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
+
+## R27 recovery ruling — 2026-09-08
+- The reduced `R27-LIBRARY-01` artifact is rejected as a product replacement: Map, Explore and Feed were collapsed into placeholder cards. It is evidence only.
+- R27 restarts from exact standalone R26 blob `491abbbdaa8f559387c0235e4ddb89300787c491`; every unrelated R26 surface remains present.
+- The release is one coherent artifact containing validated source admission, NewsMap-grade Map, flat dimensional Explore, Feed, AI POV and the complete persistent Library. No partial Library-only handoff.
+
+## RSS admission contract
+1. A custom source is not persisted until its URL, fetch, payload type and usable entries validate.
+2. New sources require HTTPS, a unique name and URL, parseable RSS/Atom or governed JSON, and at least one item with a title and HTTP(S) article link.
+3. Validation returns the fetch mode, usable item count and a real sample headline. Failure remains unsaved and exposes the exact reason.
+4. Source acquisition has one visible truth: successful direct/collector/relay mode or explicit failure. Cached articles may be retained only for a previously admitted source.
+
+## Shared Map / Explore dimensional grammar
+- Map and Explore consume the same filtered events, reader, selection, Group, Color and Size state.
+- Map answers "what dominates now" with a dense squarified treemap. Default continuous area weight is coverage momentum: `log2(1 + independent source count) * exp(-age hours / 48)`.
+- The Size selector may instead expose governed importance, corroboration or recency, but geometry always uses continuous weight; five tile tiers affect typography/information density only.
+- Explore answers "how is attention distributed" on a flat 2D field: Group creates horizontal lanes, X is observation recency, Y is the selected Size value, card area is the same weight, and color is the selected Color dimension.
+- No sphere, fixed-row pseudo-treemap, or separate Explore data/state model.
 
 ## Baseline and ancestry
 - Canonical historical baseline: `prism/prism-turn01-pre-ship.html`, R11 blob `5d91e005940d632b74d6dd59a9aa0ae645c40433`.
