@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.4 -->
-# PRISM MASTER PLAN v6.0.4
+<!-- PRISM-PLAN v6.0.5 -->
+# PRISM MASTER PLAN v6.0.5
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
@@ -11,6 +11,14 @@ Complete PRISM R27 as one clean standalone release and provide the approved stan
 - It rereads all primary records and readable `prism-analysis-index-v1/analyses` history on every boot/focus. The newest Analysis is selected automatically. Empty records and storage failures are rendered explicitly rather than suppressed behind a success toast or starter mode.
 - Attachment and current-web follow-up operations update the selected record under the same `analysisId`; Send persists Processing before provider work and Ready/Failed afterward.
 - Current-web transport is provider-native: Venice web search/citations, OpenRouter web plugin, or Anthropic web-search tool. Provider/model/key verification remains browser-local and shared with PRISM.
+
+## Standalone Library request/response correction — 2026-09-08
+- A user prompt is a chat request, never the Analysis result. Only non-empty provider-returned Markdown may render as a PRISM response or place an Analysis in Ready state.
+- Each Analysis ID may have at most one unresolved provider request. The request is persisted with a unique request ID, start time, and expiry before network work begins; a second Send is blocked until the first request resolves.
+- The active Send control becomes Stop. Provider work has a two-minute deadline. Stop, timeout, provider failure, page abandonment, or an expired request moves the exact unresolved turn to Failed with a visible reason; no record may spin indefinitely.
+- On boot, focus, and manual refresh, an unresolved Processing record older than three minutes is recovered to Failed. Missing historical provider output is not fabricated; the failed response exposes Retry, which reruns the exact saved prompt and replaces that failed turn.
+- Every completed PRISM response is a distinct chat response card. Its header contains its completion date/time plus full-response TTS, Copy, and Markdown Download controls.
+- The Analysis header contains TTS, Copy, and Markdown Download for the complete Analysis. Entire-analysis TTS reads completed PRISM responses only, never the user's prompts or failure text.
 
 ## R27 recovery ruling — 2026-09-08
 - The reduced `R27-LIBRARY-01` artifact is rejected as a full-product replacement: Map, Explore and Feed were collapsed into placeholder cards. That ruling does not veto the separately named `prism-library.html` companion, which does not claim to be R27 or replace any R27 surface.
