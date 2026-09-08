@@ -115,8 +115,8 @@ Primary gate:
 `Library opens with historical cards → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID`.
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
-AI creation gate:
-`Run analysis → Library active → Processing card visible+selected → provider runs → same card Ready or Failed`.
+Analysis creation gate:
+`Select story → Analyze → Library active → Draft card visible+selected with saved evidence and compose strip → first prompt advances that same card through Processing to Ready or Failed`.
 
 ## R27 recovery qualification correction
 The first published recovery artifact `cda47efc8a78a02134eb17f270e3d486fe72e831` is rejected. It parsed statically but failed browser boot because the active Size dimension `attention` lacked the categorical value function required by the shared filter path. The UI stopped at `DIMS[k].value is not a function`. It also exposed contradictory `R27-RECOVERY-01` and `R27-CLEAN-02` identities. The corrected artifact must pass a real browser boot with event tiles rendered and one coherent build identity before handoff.
@@ -129,3 +129,10 @@ Owner review rejects a repository-cache-first Map that merely resembles NewsMap 
 4. keep PRISM dimensions, filters, selection, reader, and custom sources layered on that framework;
 5. expose New Analysis inside Library; when nothing is selected it uses the strongest current-view stories, persists Processing before inference, and opens the same Analysis for continuation;
 6. reread compatible saved analyses without presenting an empty surface as a completed Library.
+
+## Owner correction: Map density and immediate Analysis ownership
+The owner screenshot rejects multicolored micro-tile mosaics as a visual aberration. The accepted correction is category-first: Subject is the default Group and Color, mobile Map density is capped per category, weight extremes are compressed for layout, and rectangles too small to communicate are not rendered.
+
+R13 is the minimum Library interaction yardstick: persistent left Analysis rail, right research workspace, readable master-detail hierarchy, and direct access to the saved record. R27 adds the missing compose strip but must not regress that layout.
+
+Selecting stories and pressing Analyze must create and persist a Draft Analysis card immediately, before provider configuration, prompting, or inference. The app then opens Library on that card with the selected evidence and compose strip. Sending the first prompt advances the same card through Processing to Ready or Failed; it must never create an unrelated replacement record.

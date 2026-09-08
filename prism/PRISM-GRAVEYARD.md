@@ -50,6 +50,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - `d4ee8fd227ca1c6ba0138af06fee8adfef87a98c` / R27-RECOVERY-03: rejected by owner. It rendered, but its Library was an empty terminal surface and its Map remained an inferior approximation driven by stale repository content. Do not continue its cache-first/product-shell assumptions.
 - `e9495b72eb62b6b3af009d3af2a3ef51777f01fc` / R27-NEWSMAP-01: failed pre-handoff browser boot because the new Library action was wired without its DOM control. Never present a candidate based on static syntax alone.
 - `70e892e617630e88b40d5e01fad2b82da3d47e9b` / R27-NEWSMAP-02: booted and rendered the cache, but live qualification loaded 0/8 Google News categories because direct/CORS routes failed. A cache-rendering fallback is not proof of current content.
+- `7a7ae5657b48b235202b9b4296b861da70f9484b` / R27-NEWSMAP-03: rejected by owner screenshot. Live content worked, but 272 uncapped sentiment-colored tiles produced incoherent micro-tile mosaics, and Analyze still failed to establish immediate Library ownership. Do not reuse those defaults or interaction semantics.
 
 ## Accepted R27 direction
 - standalone R27 only;
