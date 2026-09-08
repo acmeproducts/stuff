@@ -48,6 +48,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - `cda47efc8a78a02134eb17f270e3d486fe72e831`: rejected inert recovery publish. Root cause was the missing `attention.value` dimension contract, which aborted initial rendering at `DIMS[k].value is not a function`. Its mixed `R27-RECOVERY-01` / `R27-CLEAN-02` labels are also forbidden as release evidence.
 - `ab5628a250152d42dc0bb3e1ef98f51b10d97c84`: boot repair rendered Map and Explore, but browser qualification rejected it before owner handoff because Library's parent grid collapsed to zero height.
 - `d4ee8fd227ca1c6ba0138af06fee8adfef87a98c` / R27-RECOVERY-03: rejected by owner. It rendered, but its Library was an empty terminal surface and its Map remained an inferior approximation driven by stale repository content. Do not continue its cache-first/product-shell assumptions.
+- `e9495b72eb62b6b3af009d3af2a3ef51777f01fc` / R27-NEWSMAP-01: failed pre-handoff browser boot because the new Library action was wired without its DOM control. Never present a candidate based on static syntax alone.
 
 ## Accepted R27 direction
 - standalone R27 only;
