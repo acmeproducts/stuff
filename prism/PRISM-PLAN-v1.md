@@ -1,11 +1,19 @@
-<!-- PRISM-PLAN v6.0.3 -->
-# PRISM MASTER PLAN v6.0.3
+<!-- PRISM-PLAN v6.0.4 -->
+# PRISM MASTER PLAN v6.0.4
 
 ## Governing objective
-Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
+Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
+
+## Approved standalone Library companion — 2026-09-08
+- `prism/prism-library.html` is an owner-approved application surface, not another R27 candidate and not a replacement for Map, Explore, Feed, or AI POV.
+- It contains only the persistent Analysis-card rail and the full Analysis workspace: fixed header, independently scrolling rendered Markdown transcript, and bottom-pinned attachment/prompt/Send composer.
+- It opens the same-origin IndexedDB database `prism`, store `analyses`, and reuses `prism_ai_cfg_v1`. It creates no alternate Analysis database, duplicated cards, wrapper, iframe, migration sidecar, or parallel state machine.
+- It rereads all primary records and readable `prism-analysis-index-v1/analyses` history on every boot/focus. The newest Analysis is selected automatically. Empty records and storage failures are rendered explicitly rather than suppressed behind a success toast or starter mode.
+- Attachment and current-web follow-up operations update the selected record under the same `analysisId`; Send persists Processing before provider work and Ready/Failed afterward.
+- Current-web transport is provider-native: Venice web search/citations, OpenRouter web plugin, or Anthropic web-search tool. Provider/model/key verification remains browser-local and shared with PRISM.
 
 ## R27 recovery ruling — 2026-09-08
-- The reduced `R27-LIBRARY-01` artifact is rejected as a product replacement: Map, Explore and Feed were collapsed into placeholder cards. It is evidence only.
+- The reduced `R27-LIBRARY-01` artifact is rejected as a full-product replacement: Map, Explore and Feed were collapsed into placeholder cards. That ruling does not veto the separately named `prism-library.html` companion, which does not claim to be R27 or replace any R27 surface.
 - R27 restarts from exact standalone R26 blob `491abbbdaa8f559387c0235e4ddb89300787c491`; every unrelated R26 surface remains present.
 - The release is one coherent artifact containing validated source admission, NewsMap-grade Map, flat dimensional Explore, Feed, AI POV and the complete persistent Library. No partial Library-only handoff.
 
