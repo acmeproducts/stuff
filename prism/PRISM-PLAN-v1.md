@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.0 -->
-# PRISM MASTER PLAN v6.0.0
+<!-- PRISM-PLAN v6.0.1 -->
+# PRISM MASTER PLAN v6.0.1
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release. R27 remains the authorized release. No R28.
@@ -136,3 +136,6 @@ The owner screenshot rejects multicolored micro-tile mosaics as a visual aberrat
 R13 is the minimum Library interaction yardstick: persistent left Analysis rail, right research workspace, readable master-detail hierarchy, and direct access to the saved record. R27 adds the missing compose strip but must not regress that layout.
 
 Selecting stories and pressing Analyze must create and persist a Draft Analysis card immediately, before provider configuration, prompting, or inference. The app then opens Library on that card with the selected evidence and compose strip. Sending the first prompt advances the same card through Processing to Ready or Failed; it must never create an unrelated replacement record.
+
+## R27 Library visibility correction
+`R27-NEWSMAP-04` proved only persistence in a clean browser. It could truthfully write a card and still hide it when Library starter mode remained active, the Analysis rail remained collapsed, or the Library Omnisearch excluded its title. Analyze must clear those conflicting presentation states, select the exact persisted ID, render its card/workspace/evidence/compose strip, yield paint, and verify that all four surfaces are visibly present before showing a success toast. Qualification must include pre-existing analyses, active starter mode, a collapsed rail, a non-matching Omnisearch query, and reload persistence.

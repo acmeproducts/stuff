@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.0 -->
-# PRISM GRAVEYARD v6.0.0
+<!-- PRISM-GRAVEYARD v6.0.1 -->
+# PRISM GRAVEYARD v6.0.1
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -51,6 +51,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - `e9495b72eb62b6b3af009d3af2a3ef51777f01fc` / R27-NEWSMAP-01: failed pre-handoff browser boot because the new Library action was wired without its DOM control. Never present a candidate based on static syntax alone.
 - `70e892e617630e88b40d5e01fad2b82da3d47e9b` / R27-NEWSMAP-02: booted and rendered the cache, but live qualification loaded 0/8 Google News categories because direct/CORS routes failed. A cache-rendering fallback is not proof of current content.
 - `7a7ae5657b48b235202b9b4296b861da70f9484b` / R27-NEWSMAP-03: rejected by owner screenshot. Live content worked, but 272 uncapped sentiment-colored tiles produced incoherent micro-tile mosaics, and Analyze still failed to establish immediate Library ownership. Do not reuse those defaults or interaction semantics.
+- `972cc29582a75a8cf14c45bb1e0faa715150b016` / R27-NEWSMAP-04: rejected on the owner device. The success toast followed IndexedDB read-back but did not prove the card was visible; persistent starter mode or a stale Library Omnisearch could suppress the just-created record. Never equate durable storage with an owner-visible Library result.
 
 ## Accepted R27 direction
 - standalone R27 only;
