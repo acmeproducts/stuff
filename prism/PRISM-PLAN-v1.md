@@ -117,3 +117,6 @@ Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 AI creation gate:
 `Run analysis → Library active → Processing card visible+selected → provider runs → same card Ready or Failed`.
+
+## R27 recovery qualification correction
+The first published recovery artifact `cda47efc8a78a02134eb17f270e3d486fe72e831` is rejected. It parsed statically but failed browser boot because the active Size dimension `attention` lacked the categorical value function required by the shared filter path. The UI stopped at `DIMS[k].value is not a function`. It also exposed contradictory `R27-RECOVERY-01` and `R27-CLEAN-02` identities. The corrected artifact must pass a real browser boot with event tiles rendered and one coherent build identity before handoff.
