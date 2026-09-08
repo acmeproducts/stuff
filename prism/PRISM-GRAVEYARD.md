@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.3 -->
-# PRISM GRAVEYARD v6.0.3
+<!-- PRISM-GRAVEYARD v6.0.4 -->
+# PRISM GRAVEYARD v6.0.4
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -37,6 +37,12 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - missing paperclip attachment control or missing Send/current-web continuation;
 - truncated/non-scrollable Analysis transcript;
 - follow-up research creating a different Analysis ID.
+
+## Standalone Library boundary
+- Rejected: disguising a Library-only artifact as the full R27 product, replacing Map/Explore/Feed with placeholders, or writing to a separate persistence engine.
+- Accepted: the explicitly named `prism-library.html` companion as a focused UI over the existing same-origin `prism/analyses` records and shared AI configuration.
+- The companion must never hide the newest record behind starter mode, a stale search, collapsed presentation state, or a success toast. Stored empty records remain visibly identified as empty; read failures expose the exact storage diagnostic.
+- The companion does not authorize R28 and must not become an implementation ancestor for unrelated PRISM surfaces.
 
 ## Rejected R27 attempts
 - `5a8306b4105b23a253148aa19386e4ee887f9d23`: rejected Map leaf-depth implementation.
