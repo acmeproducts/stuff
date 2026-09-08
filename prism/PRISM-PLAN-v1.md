@@ -120,3 +120,12 @@ AI creation gate:
 
 ## R27 recovery qualification correction
 The first published recovery artifact `cda47efc8a78a02134eb17f270e3d486fe72e831` is rejected. It parsed statically but failed browser boot because the active Size dimension `attention` lacked the categorical value function required by the shared filter path. The UI stopped at `DIMS[k].value is not a function`. It also exposed contradictory `R27-RECOVERY-01` and `R27-CLEAN-02` identities. The corrected artifact must pass a real browser boot with event tiles rendered and one coherent build identity before handoff.
+
+## R27 NewsMap refoundation
+Owner review rejects a repository-cache-first Map that merely resembles NewsMap and rejects an empty Library that requires discovery of a separate AI surface before it can do anything. R27 must now:
+1. load current US Google News topic feeds directly through simple compatibility routes, with repository/device content retained only as fallback;
+2. preserve Google News category, position, and multi-source coverage so tile area reflects source count, feed position, and freshness;
+3. use two-level squarification, full-area category groups, headline-first adaptive typography, and unobtrusive group focus;
+4. keep PRISM dimensions, filters, selection, reader, and custom sources layered on that framework;
+5. expose New Analysis inside Library; when nothing is selected it uses the strongest current-view stories, persists Processing before inference, and opens the same Analysis for continuation;
+6. reread compatible saved analyses without presenting an empty surface as a completed Library.

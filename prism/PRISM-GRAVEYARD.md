@@ -47,6 +47,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - `72663b45a572238bbcc526781e156c16cc5ff07d` / R27-OBS-01: diagnostics and five size classes were useful evidence, but fixed-grid-like geometry and Library acceptance remained insufficient. Use only as evidence; correct R27 directly.
 - `cda47efc8a78a02134eb17f270e3d486fe72e831`: rejected inert recovery publish. Root cause was the missing `attention.value` dimension contract, which aborted initial rendering at `DIMS[k].value is not a function`. Its mixed `R27-RECOVERY-01` / `R27-CLEAN-02` labels are also forbidden as release evidence.
 - `ab5628a250152d42dc0bb3e1ef98f51b10d97c84`: boot repair rendered Map and Explore, but browser qualification rejected it before owner handoff because Library's parent grid collapsed to zero height.
+- `d4ee8fd227ca1c6ba0138af06fee8adfef87a98c` / R27-RECOVERY-03: rejected by owner. It rendered, but its Library was an empty terminal surface and its Map remained an inferior approximation driven by stale repository content. Do not continue its cache-first/product-shell assumptions.
 
 ## Accepted R27 direction
 - standalone R27 only;
