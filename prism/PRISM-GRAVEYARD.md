@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.7 -->
-# PRISM GRAVEYARD v6.0.7
+<!-- PRISM-GRAVEYARD v6.0.8 -->
+# PRISM GRAVEYARD v6.0.8
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -19,6 +19,9 @@ Rejected work is evidence, not an implementation ancestor. R27 remains the autho
 - no Web Worker for AI wait;
 - no alternate Analysis persistence engine/state machine;
 - no destructive migration that can erase or hide historical Library records.
+- no side portal rail, third top-level tab, or top-level Explore, Feed, AI, or Config destination; the product architecture is exactly Map and Library.
+- no separate Map/Explore/Feed selection, filter, dimension, or reader state; Explore and Feed are subordinate modes of the shared Map corpus.
+- no tab switch that clears Map state or returns to a different Map mode than the one the owner left.
 
 ## Explicitly rejected Map behavior
 - fixed-row `.r21Group` lattices with repetitive `big/med/small` spans;
@@ -51,6 +54,7 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - generic card titles such as `Analysis · 5 selected`, using the user's prompt as the permanent title, or requiring a second provider request merely to name a completed Analysis;
 - title controls that open a separate modal instead of editing in the rail, or that fail to persist on Enter/blur;
 - background completion overwriting a title the owner edited while that Analysis was Processing.
+- integrating Library into the full product while dropping its per-Analysis parallel job isolation, generated inline-editable titles, exact-card persistence, or selected-card protection.
 
 ## Standalone Library boundary
 - Rejected: disguising a Library-only artifact as the full R27 product, replacing Map/Explore/Feed with placeholders, or writing to a separate persistence engine.
