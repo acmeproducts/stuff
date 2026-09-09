@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-09-07
+Updated: 2026-09-09
 
 This file is a negative specification. A rejected implementation, workflow, validation technique or analytical shortcut is historical evidence only. It is not a successor baseline.
 
@@ -133,6 +133,25 @@ The Turn 11 builder replaced the source range from `attachmentPayload()` through
 - Apply the requested full-width V3 + persistent Markdown research + image/spreadsheet attachment changes as narrow independent replacements that preserve the complete AI configuration block.
 - Release qualification must include a **public Pages smoke test** that fails if the boot catch replaces `#nowWrap`, if `#nowChart` disappears, if any page/console error occurs, or if canonical evidence requests fail.
 
+## Turn 12 pre-ship — rejected by owner 2026-09-09
+**Rejected implementation:** `market-navigator-turn12-pre-ship.html`, published commit `1ca70411`.
+
+### Owner-observed failures
+- Selecting a component at the index level produced an unsolicited right-side panel instead of a coherent compact component-card bridge into Analysis.
+- Library retained analysis prose and evidence labels but did not render the saved analytical chart, breaking continuity between the chart being analyzed and the durable research record.
+- Mechanical qualification again allowed chart geometry and Library behavior to be evaluated separately even though the product requires one analytical state across V3 and Library.
+
+### Root cause
+Turn 12 preserved the Turn 10 Library as a transcript-only surface. It stored series IDs, horizon and evidence metadata, but not an immutable chart snapshot containing the exact plotted observations, axis assignment, normalization, common X-domain and evidence revision. Reopening Library therefore could not render the chart that the AI had actually analyzed. The contextual component card also remained a generic right-edge overlay, repeating a presentation already rejected by the owner.
+
+### Recovery rule
+- Do not patch Turn 12 forward.
+- Reconstruct the next candidate from the clean Turn 10 source and reapply only qualified capabilities as direct source changes.
+- Persist the exact chart state before AI execution and render that snapshot in Library through the same canonical chart engine used by V3.
+- A legacy Analysis lacking a chart snapshot may be migrated once from current canonical evidence, must be marked as migrated, and must then remain frozen.
+- Replace the unsolicited right-edge component panel with the governed compact contextual card without changing the V1 → V2 → card → More info → V3 journey.
+- Qualification must prove the exact saved chart before and after reload, including horizon, series, axes, native values, Indexed-100 values and evidence revision.
+
 ## Permanent prohibited patterns
 - patching any rejected release forward;
 - wrapper/iframe/compatibility-patch recovery builds;
@@ -150,6 +169,8 @@ The Turn 11 builder replaced the source range from `attachmentPayload()` through
 - missing/incorrect X/Y1/Y2 axes;
 - all-series inspection popup;
 - stale inspection surviving context change;
+- Library Analysis without its visible saved chart;
+- a second Library-only chart engine or a Library chart reconstructed silently from newer evidence;
 - browser-side canonical Yahoo/FRED reacquisition when persisted canonical evidence is authoritative;
 - release gates that validate labels/DOM/syntax/deployment rather than actual owner-visible behavior;
 - handing the owner any release with known data, chart, journey, AI or layout defects.

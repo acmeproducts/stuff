@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-03
+Updated: 2026-09-09
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -277,12 +277,16 @@ V3 owns additive analysis. There is no separate V4.
 Automatic axis rules:
 1. one series → native Y1;
 2. 2+ compatible same-measurement series → shared native Y1;
-3. exactly two incompatible measurement families → native Y1 + Y2;
+3. exactly two incompatible measurement families, regardless of how many series belong to either family → native Y1 + Y2;
 4. 3+ incompatible measurement families → Indexed 100 Y1, no Y2.
+
+Axis assignment is governed by measurement-family count, never series count. Currency is not a separate analytical exception; authoritative catalog measurement metadata determines compatibility.
 
 Required acceptance examples:
 - WTI + Brent → shared native $/barrel Y1;
 - CPI + Core CPI → shared compatible Y1;
+- SPY + QQQ + WTI → three series, exactly two measurement families, native Y1 + Y2;
+- DXY + VIX → two distinct index-definition families, native Y1 + Y2 despite both displaying `idx` notation;
 - CPI + WTI → Y1 + Y2;
 - CPI + WTI + VIX → Indexed 100;
 - multi-component mixed set → Indexed 100 after evidence qualification.
@@ -300,10 +304,15 @@ Every applicable chart follows:
 - one vertical guide;
 - one point marker;
 - one contextual date/value/unit popup/tag;
+- for every raw series, the popup/tag exposes both its normalized `idx` value and its native value; for example, `WTI · idx 93.00 · value 81.15 USD/barrel`;
 - explicit dismiss where practical;
 - no all-series inspection popup;
 - horizon/context/series-set changes clear stale inspection;
 - a previous component's popup/marker must never persist after context changes.
+
+Selection availability is horizon-truthful. A raw series with no real observation inside the selected horizon remains visible as degraded evidence where governance requires it, but it is disabled and cannot be selected into V3/EXPLORE/Add Series for that horizon. It becomes selectable automatically on a horizon where real evidence exists.
+
+Quarterly and monthly macro evidence such as GDP and CPI is not excluded. It belongs to a periodic-change analytical treatment that preserves real publication cadence and presents q/q and y/y context when the canonical persisted schema supports both calculations. Direction is summarized as ▲ green positive, ▶ amber neutral, or ▼ red negative within the relevant sentiment context. No q/q or y/y value may be fabricated from an already transformed series that lacks the required underlying level evidence.
 
 ---
 
@@ -412,12 +421,21 @@ Saving Analysis preserves:
 - saved/version time;
 - resume context.
 
-Opening a saved analysis restores the same analytical state and allows continued conversation.
+It also preserves an immutable chart snapshot created before AI execution:
+- exact common X-domain and horizon;
+- exact selected series and active series;
+- exact axis mode and Y1/Y2 assignment by measurement family;
+- exact plotted real observations, native values and Indexed-100 values;
+- exact catalog/evidence/derived-index revisions used for the run.
+
+Opening a saved analysis restores the same analytical state, visibly renders that saved chart above the transcript, and allows continued conversation. Library rendering must use the same canonical chart engine as V1/V2/V3. It may not create a second Library chart engine or silently substitute newer evidence for the frozen saved chart.
 
 Library requirements:
 - left-side analysis list/cards;
 - Omnisearch;
 - readable selected analysis detail;
+- the first completed AI response generates a specific Analysis title; the title remains inline-editable and Enter/blur persists a manual override without later background completion replacing it;
+- visible saved chart with its legend, horizon, axis mode, point inspection and evidence revision;
 - evidence/source links where applicable;
 - persistent transcript;
 - persistent continuation composer;
@@ -602,6 +620,9 @@ Do not introduce:
 - AI spin-and-disappear behavior;
 - browser-side second canonical Yahoo/FRED store;
 - Library without continuation composer;
+- Library without the visible exact saved chart;
+- a duplicate Library-only chart engine;
+- silently rebuilding a saved chart from newer evidence;
 - Library/Analysis without working source hyperlinks;
 - production QA/redline clutter on the primary chart surface;
 - release URLs before complete pre-ship qualification.
@@ -665,7 +686,8 @@ No owner test URL during pre-base.
 3. Integrate AI POV preflight.
 4. Integrate persistent conversation presentation.
 5. Integrate Library save/resume and continuation composer.
-6. Ensure working source hyperlinks in AI output/evidence.
+6. Persist the immutable pre-request chart snapshot and render it in Library through the canonical chart engine.
+7. Ensure working source hyperlinks in AI output/evidence.
 
 ### Phase H — HEALTH / export / overlays
 1. Implement root-cause Health reconciliation.
@@ -793,6 +815,9 @@ Mandatory CPI + WTI:
 ### 25.12 Library
 - save exact analysis state;
 - reopen exact analysis state;
+- saved chart is visible above the transcript;
+- chart horizon, common X-domain, series, axis mode, Y1/Y2 assignment, native values, `idx` values and evidence revision are byte-for-byte equivalent before and after reload;
+- Library point inspection uses the canonical chart engine and exposes both `idx` and native value for raw series;
 - conversation restored;
 - continuation composer present and functional;
 - evidence/source links work;
@@ -835,7 +860,7 @@ Rules:
 ---
 
 ## 27. Current release state
-R11, R12 and R13 are rejected and belong to the Graveyard.
+Gate 4 R11, R12 and R13 are rejected and belong to the Graveyard. Turn 11 and Turn 12 pre-ship are also rejected.
 
 R13 wrapper and patch were removed from active `main`.
 
@@ -843,7 +868,7 @@ The next release is **not R13-plus-one patching** and is **not 3.9.7-plus-curren
 
 It is a clean donor-based reconstruction under this plan.
 
-The next candidate name/revision should be assigned only after pre-base donor/schema qualification is complete.
+The clean implementation baseline for the next candidate is `market-navigator-turn10-pre-ship.html`. The next candidate must be reconstructed from that file, not patched from rejected Turn 11 or Turn 12, and must add the immutable Library chart contract defined above without changing the governed analytical journey.
 
 ---
 
