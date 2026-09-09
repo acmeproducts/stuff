@@ -164,6 +164,13 @@ try {
   assert(processing[0].state.chart.dataRevision, 'saved chart must identify its evidence revision');
 
   await page.locator('#libTitle').waitFor({ state: 'visible' });
+  let completed = processing;
+  for (let attempt = 0; attempt < 100 && completed[0]?.status === 'processing'; attempt++) {
+    await page.waitForTimeout(100);
+    completed = await readRecords();
+  }
+  assert.equal(completed[0]?.status, 'ready', JSON.stringify(completed[0]?.turns));
+  assert.equal(completed[0]?.title, 'Oil and Equities Share a Two-Axis Signal');
   await page.waitForFunction(() => document.querySelector('#libTitle')?.value ===
     'Oil and Equities Share a Two-Axis Signal');
   assert.equal(await page.locator('#libChartPane').isVisible(), true,
