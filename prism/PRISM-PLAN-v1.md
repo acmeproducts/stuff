@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.6 -->
-# PRISM MASTER PLAN v6.0.6
+<!-- PRISM-PLAN v6.0.7 -->
+# PRISM MASTER PLAN v6.0.7
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
@@ -28,6 +28,12 @@ Complete PRISM R27 as one clean standalone release and provide the approved stan
 - A response is one chat. A row is one semantic Markdown readout unit: heading, paragraph, list item, blockquote, code block, or complete table row. Long rows may be split only to keep device TTS reliable.
 - Previous/Next response and Previous/Next row disable at their respective boundaries. Play automatically advances through all rows and then all completed responses, providing a full-Analysis readout. Manual row or response navigation preserves playback only when it was already playing.
 - Entering Chat stops TTS. Selecting another Analysis stops the prior readout and returns to Chat. No prompt, failure text, Processing label, or attachment metadata is spoken as an AI response.
+
+## Analysis-generated and owner-editable titles — 2026-09-09
+- The first completed provider response begins with one specific Markdown H1. The Library derives the card title from that completed analysis output without a second provider call; generic labels and the user's prompt are not final titles.
+- Existing Ready records whose titles are still generic or equal to their stored prompt are backfilled from their first completed response. Meaningful legacy titles are preserved.
+- Every rail title is an inline text field. Enter or blur commits the normalized non-empty title to the same `prism/analyses` record; Escape restores the prior value.
+- A completed background request rereads the latest durable record before saving its response. A manual title edit made while research is running must survive completion and permanently outrank automatic title generation.
 
 ## R27 recovery ruling — 2026-09-08
 - The reduced `R27-LIBRARY-01` artifact is rejected as a full-product replacement: Map, Explore and Feed were collapsed into placeholder cards. That ruling does not veto the separately named `prism-library.html` companion, which does not claim to be R27 or replace any R27 surface.
@@ -124,6 +130,7 @@ A candidate cannot be published until all applicable gates pass:
 11. Diagnostics must contain boot, DB, Library-load, Map-render, and lifecycle checkpoints.
 12. Parallel-job qualification starts requests on two distinct Analysis IDs, proves both remain Processing concurrently, completes them in reverse order, and proves both exact IDs become Ready without changing the owner's selected card.
 13. Listen-mode qualification proves Chat/Listen exclusivity, complete-response indexing, semantic table-row extraction, Play/Pause, automatic full-Analysis progression, and disabled boundary controls at the first/last response and row.
+14. Title qualification proves a generic/prompt-derived title is replaced from completed response content, Enter and blur persist an inline edit, blank titles are rejected, and a manual edit made during an unresolved request survives that request's completion.
 
 ## Browser qualification and environmental fallback
 Owner-device browser acceptance remains decisive. Before handoff, execute browser qualification when the environment permits navigation. If the execution environment blocks browser navigation by administrator policy, do not pretend a browser test ran: run embedded-JS syntax, deterministic squarify math, structural Library contract, persistence-path/static lifecycle gates, publish, verify the exact deployed artifact, and rely on the owner-device gate for final browser behavior.
@@ -139,7 +146,7 @@ Immediately before publication:
 
 ## Owner acceptance sequence
 Primary gate:
-`Library opens with historical cards → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID`.
+`Library opens with historical cards → generated card titles are meaningful and inline editable → Enter/blur persists the edit → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID`.
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 Analysis creation gate:
