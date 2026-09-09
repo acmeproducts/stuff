@@ -141,6 +141,9 @@ try {
       colors: importedColors
     }))
   });
+  await page.waitForFunction(() => /imported and saved/i.test(
+    document.querySelector('#paletteStatus')?.textContent || ''
+  ));
   assert.match(await page.locator('#paletteStatus').innerText(), /imported and saved/i);
   await page.locator('#settingsClose').click();
   await page.reload({ waitUntil: 'networkidle' });
