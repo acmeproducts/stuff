@@ -1,0 +1,91 @@
+name: Market Navigator Turn 14 qualify
+
+on:
+  push:
+    branches:
+      - main
+      - market-navigator-turn14-20260909
+    paths:
+      - 'market-navigator-build-turn13.py'
+      - 'market-navigator-turn13-pre-ship.html'
+      - 'market-navigator-turn13-qa.mjs'
+      - 'market-navigator-build-turn14.py'
+      - 'market-navigator-turn14-pre-ship.html'
+      - 'market-navigator-turn14-qa.mjs'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+      - '.github/workflows/market-navigator-turn14.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rebuild exact candidate
+        run: |
+          cp market-navigator-turn14-pre-ship.html /tmp/market-navigator-turn14-pre-ship.committed.html
+          python3 market-navigator-build-turn14.py
+          cmp /tmp/market-navigator-turn14-pre-ship.committed.html market-navigator-turn14-pre-ship.html
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path('market-navigator-turn14-pre-ship.html').read_text()
+          required = [
+              'TURN 14 PRE-SHIP',
+              'market-navigator-chart-snapshot-v1',
+              "renderType:'bar'",
+              "strokeStyle='#fff'",
+              'dataset.referenceOutline',
+              'marketNavigatorChartPaletteV1',
+              'id="settingsModal"',
+              'data-palette-slot',
+              'Analyze into Library',
+              'Download visible analysis',
+              'function chartSnapshotFromSets',
+              'function measurementFamily',
+              'idx ${fmt(iv)} · value ${fmt(nv)}',
+              'async function persistAnalysis',
+              'generatedAnalysisTitle',
+              'commitLibraryTitle',
+              'Attach image or spreadsheet',
+          ]
+          forbidden = [
+              'TURN 13 PRE-SHIP',
+              'color:C[i%C.length]',
+              'color:IC[k]',
+              'grid-template-columns:minmax(0,1fr) 280px',
+              '<div class="card evidence" id="analysisEvidence"></div>',
+              '.info{position:absolute;right:12px;top:56px',
+          ]
+          for marker in required:
+              assert marker in source, marker
+          for marker in forbidden:
+              assert marker not in source, marker
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', source, re.S | re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn14.js').write_text(scripts[-1])
+          PY
+          node --check /tmp/market-navigator-turn14.js
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run inherited and Turn 14 product matrices
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn14-http.log 2>&1 &
+          node market-navigator-turn14-qa.mjs

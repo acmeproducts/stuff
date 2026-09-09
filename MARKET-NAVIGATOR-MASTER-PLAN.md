@@ -189,13 +189,14 @@ V1 is **one chart**, not a collection of cards.
 
 Required:
 - one primary chart footprint;
-- exactly the three derived indices plotted together: **RSK · GRW · MAC**;
+- exactly the three derived indices plotted together as column series: **RSK · GRW · MAC**;
 - direction-adjusted Indexed 100 representation;
 - no fabricated fourth “Market” index or score curve;
 - same selected horizon/common X-domain for all three;
 - compact legend/series identities;
 - one active series/one real-point inspection at a time;
 - breadcrumbs/ribbon above the chart;
+- a compact `…` menu providing **Analyze into Library · Download · Print** against the exact visible V1 chart state;
 - core interaction visible without vertical page scrolling on phone portrait.
 
 Selecting Risk, Growth or Macro transitions that same chart footprint to V2. It does **not** stack another chart below V1.
@@ -206,18 +207,19 @@ Selecting Risk, Growth or Macro transitions that same chart footprint to V2. It 
 V2 replaces V1 in the exact same primary chart footprint.
 
 Required:
-- selected derived index reference curve;
+- selected derived index reference rendered as a column series;
 - every governed component of that selected index;
-- all visible together on the same comparison chart;
+- all visible together on the same comparison chart, with governed components retained as line series;
 - direction-oriented Indexed 100 on Y1;
 - no canonical V2 Y2;
 - same common horizon/X-domain;
 - compact legend/component identities corresponding to actual chart series;
-- selected index curve must be visually distinct without overwhelming components;
+- selected index columns must be visually distinct without overwhelming components;
 - missing/stale/sparse/failed/cadence-incompatible components remain explicitly represented as degraded evidence rather than silently disappearing;
 - source lines contain only real source observations;
 - slow-frequency lines terminate at their real observation dates;
 - context/horizon/series changes clear stale inspection.
+- a compact `…` menu provides **Analyze into Library · Download · Print** against the exact visible V2 chart state.
 
 The main substantive chart evolution from the previously working comparison behavior is deliberately narrow:
 
@@ -304,6 +306,7 @@ Every applicable chart follows:
 - one vertical guide;
 - one point marker;
 - one contextual date/value/unit popup/tag;
+- the active legend/series chip has a white border, and the active line or column has a white outline while retaining its assigned identity color;
 - for every raw series, the popup/tag exposes both its normalized `idx` value and its native value; for example, `WTI · idx 93.00 · value 81.15 USD/barrel`;
 - explicit dismiss where practical;
 - no all-series inspection popup;
@@ -352,12 +355,16 @@ Growth disclosure is mandatory: ISM Manufacturing PMI is excluded because no per
 
 A missing governed series is a backend/evidence gap, never permission for silent substitution.
 
-Semantic colors:
-- Risk = red;
-- Growth = blue;
-- Macro = neutral/white.
+Sentiment direction uses the governed semantic cues: ▲ green positive, ▶ amber neutral, ▼ red negative. Chart-series colors are identity colors, not sentiment judgments; this prevents a red series from being misread as a negative call and leaves white available for active-reference emphasis.
 
-Component colors are comparison colors, not semantic reinterpretations.
+Chart comparison colors follow an identity contract:
+- a series color is assigned by series identity, never by its current array position;
+- removing earlier series never recolors a remaining series;
+- every active chart of up to ten series uses visually distinct colors;
+- the settings gear opens three built-in ten-color presets plus ten editable color slots;
+- custom schemes persist locally and support JSON export/import;
+- white is reserved for the active reference outline and cannot be used as a series color;
+- an immutable Library chart preserves the exact colors saved with that chart even if the current global scheme later changes.
 
 ---
 
@@ -420,6 +427,8 @@ Saving Analysis preserves:
 - statistics/correlation state where active;
 - saved/version time;
 - resume context.
+
+V1 and V2 may create the Analysis directly from their `…` menu. That path must freeze the exact visible bar/line chart before AI execution; it may not detour through or reconstruct a different V3 state.
 
 It also preserves an immutable chart snapshot created before AI execution:
 - exact common X-domain and horizon;
@@ -552,6 +561,8 @@ Download must export the exact active report/evidence state plus exact underlyin
 Print must produce a formatted report reconciled to the same analytical/evidence state.
 
 No export may silently include a different series set, horizon, or evidence revision than the visible Analysis state.
+
+V1 and V2 expose Analyze into Library, Download and Print from the same compact `…` menu. All three actions bind to the exact visible chart, including derived-index columns, component lines, colors, horizon, common X-domain and evidence revision.
 
 ---
 
@@ -729,12 +740,15 @@ Desktop + phone portrait:
 ### 25.3 V1
 For each of 1D, 5D, MTD, YTD, 1YR, 3YR, 5YR:
 - RSK/GRW/MAC all present;
+- all three derived indices are columns;
 - no fake Market curve;
 - common X-domain;
 - correct Indexed 100 Y1;
 - visible X and Y1 axes;
 - compact legend identity;
 - single-active-series inspection;
+- white legend border and white column outline identify the active reference;
+- `…` Analyze/Download/Print actions bind to the exact visible V1 state;
 - no stale popup after horizon/series changes.
 
 ### 25.4 Risk V2
@@ -743,6 +757,8 @@ For all seven horizons:
 - all seven governed Risk components present or explicitly degraded;
 - same common X-domain;
 - no synthetic source points;
+- Risk index is a column; governed components remain lines;
+- remaining component colors do not change when other series are removed;
 - short-horizon slow-frequency behavior correct;
 - component card works;
 - breadcrumbs work;
@@ -784,6 +800,8 @@ Mechanically verify:
 - X/Y1/Y2 labels and units correct;
 - no axis overlap or missing axis.
 
+Also verify a three-series add/remove sequence: every color is visually unique, the active chip/series uses the white reference key, and deleting the first two series does not change the third series' assigned color.
+
 ### 25.9 Mixed frequency
 Mandatory CPI + WTI:
 - same selected X-domain;
@@ -822,6 +840,7 @@ Mandatory CPI + WTI:
 - continuation composer present and functional;
 - evidence/source links work;
 - continued AI exchange persists.
+- a V1/V2-created Analysis renders the same saved column/line geometry and colors after reload.
 
 ### 25.13 HEALTH
 For at least one current, one stale/missing, and one sparse/mixed-frequency case:
@@ -860,15 +879,19 @@ Rules:
 ---
 
 ## 27. Current release state
-Gate 4 R11, R12 and R13 are rejected and belong to the Graveyard. Turn 11 and Turn 12 pre-ship are also rejected.
+Gate 4 R11, R12 and R13 are rejected and belong to the Graveyard. Turn 11 and Turn 12 pre-ship are also rejected. Those names are historical Gate 4 releases and are not the later clean Turn 13 candidate.
 
 R13 wrapper and patch were removed from active `main`.
 
-The next release is **not R13-plus-one patching** and is **not 3.9.7-plus-current-shell patching**.
+`market-navigator-turn13-pre-ship.html` is the mechanically qualified clean baseline that restored the full-width V3 journey and immutable Library chart. It was reconstructed from Turn 10 under this plan; it is not the rejected Gate 4 R13 implementation.
 
-It is a clean donor-based reconstruction under this plan.
+Turn 14 is a bounded owner-directed evolution of that qualified baseline:
+- derived indices become column series while source components remain lines;
+- active-reference white keys apply to legend and plotted geometry;
+- colors become stable by series identity with persistent ten-slot preset/custom schemes and import/export;
+- V1 and V2 gain exact-state Analyze into Library, Download and Print actions.
 
-The clean implementation baseline for the next candidate is `market-navigator-turn10-pre-ship.html`. The next candidate must be reconstructed from that file, not patched from rejected Turn 11 or Turn 12, and must add the immutable Library chart contract defined above without changing the governed analytical journey.
+Turn 14 must preserve every Turn 13 regression gate and may ship only after its new column, reference, color-stability, settings and V1/V2 exact-state action gates pass.
 
 ---
 
