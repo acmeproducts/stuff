@@ -87,7 +87,7 @@ try {
 
   await page.locator('#hzs [data-h="5YR"]').click();
   await page.locator('#legend [data-id="risk"]').click();
-  await page.locator('#nowTitle').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelector('#nowTitle')?.textContent.trim() === 'RSK');
   assert.equal((await page.locator('#nowTitle').innerText()).trim(), 'RSK');
 
   const spy = page.locator('#legend [data-id="spy"]');
