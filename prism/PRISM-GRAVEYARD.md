@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.6 -->
-# PRISM GRAVEYARD v6.0.6
+<!-- PRISM-GRAVEYARD v6.0.7 -->
+# PRISM GRAVEYARD v6.0.7
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -48,6 +48,9 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - dropping a concurrent IndexedDB reread because another refresh is already running;
 - TTS as one undifferentiated text stream without Chat/Listen modes, Play/Pause, response navigation, and semantic-row navigation;
 - enabled Previous/Next or Back/Forward controls when already at the first or last response/row.
+- generic card titles such as `Analysis · 5 selected`, using the user's prompt as the permanent title, or requiring a second provider request merely to name a completed Analysis;
+- title controls that open a separate modal instead of editing in the rail, or that fail to persist on Enter/blur;
+- background completion overwriting a title the owner edited while that Analysis was Processing.
 
 ## Standalone Library boundary
 - Rejected: disguising a Library-only artifact as the full R27 product, replacing Map/Explore/Feed with placeholders, or writing to a separate persistence engine.
