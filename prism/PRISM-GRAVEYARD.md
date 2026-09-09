@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.5 -->
-# PRISM GRAVEYARD v6.0.5
+<!-- PRISM-GRAVEYARD v6.0.6 -->
+# PRISM GRAVEYARD v6.0.6
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -42,6 +42,12 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 - accepting another prompt while the selected Analysis already has an unresolved request;
 - a spinner without a deadline, Stop path, durable request identity, or recoverable Failed state;
 - response text without its own completion date/time, full-response TTS, Copy, and Markdown Download controls.
+- one global busy flag, abort controller, timer, or failure state that serializes unrelated Analysis IDs;
+- stopping one Analysis by aborting another Analysis's request;
+- background completion changing the owner's selected Analysis card;
+- dropping a concurrent IndexedDB reread because another refresh is already running;
+- TTS as one undifferentiated text stream without Chat/Listen modes, Play/Pause, response navigation, and semantic-row navigation;
+- enabled Previous/Next or Back/Forward controls when already at the first or last response/row.
 
 ## Standalone Library boundary
 - Rejected: disguising a Library-only artifact as the full R27 product, replacing Map/Explore/Feed with placeholders, or writing to a separate persistence engine.
