@@ -184,6 +184,11 @@ replace(
     "Library selected chart",
 )
 replace(
+    "$('libTitle').value=`${a.title} · ${a.status} · ${providerName(a.provider||'venice')} ${a.model||''}`;",
+    "$('libTitle').value=a.title;",
+    "editable title value",
+)
+replace(
     "$('libSearch').oninput=renderLibrary;",
     "async function commitLibraryTitle(){let a=currentAnalysis(),title=$('libTitle').value.trim();if(!a)return;if(!title){$('libTitle').value=a.title;return}if(title===a.title)return;a.title=title;a.titleManual=true;a.updatedAt=new Date().toISOString();await persistAnalysis(a);renderLibrary()}$('libTitle').onblur=commitLibraryTitle;$('libTitle').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('libTitle').blur()}else if(e.key==='Escape'){let a=currentAnalysis();$('libTitle').value=a?.title||'Library';$('libTitle').blur()}};$('libSearch').oninput=renderLibrary;",
     "inline-editable Analysis title",
