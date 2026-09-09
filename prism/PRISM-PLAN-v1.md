@@ -1,5 +1,5 @@
-<!-- PRISM-PLAN v6.0.5 -->
-# PRISM MASTER PLAN v6.0.5
+<!-- PRISM-PLAN v6.0.6 -->
+# PRISM MASTER PLAN v6.0.6
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
@@ -19,6 +19,15 @@ Complete PRISM R27 as one clean standalone release and provide the approved stan
 - On boot, focus, and manual refresh, an unresolved Processing record older than three minutes is recovered to Failed. Missing historical provider output is not fabricated; the failed response exposes Retry, which reruns the exact saved prompt and replaces that failed turn.
 - Every completed PRISM response is a distinct chat response card. Its header contains its completion date/time plus full-response TTS, Copy, and Markdown Download controls.
 - The Analysis header contains TTS, Copy, and Markdown Download for the complete Analysis. Entire-analysis TTS reads completed PRISM responses only, never the user's prompts or failure text.
+
+## Parallel Analysis and Listen-mode contract — 2026-09-09
+- Provider work is concurrent across distinct Analysis IDs. The Library owns an in-memory job registry keyed by `analysisId`; every job has its own request ID, abort controller, timeout, and failure path. There is no global busy lock or shared controller.
+- The one-unresolved-request rule applies inside one Analysis only. Analysis A may remain Processing while the owner selects Analysis B and starts, stops, retries, reads, or listens to B. Stopping one Analysis must not abort any other job.
+- Background persistence must never steal the selected card. Concurrent rereads are coalesced and rerun when necessary so simultaneous job completions cannot drop a state update.
+- The bottom workspace has two explicit, mutually exclusive modes: Chat and Listen. Chat contains attachment, prompt, and Send/Stop. Listen occupies the same dock and contains Previous response, Previous row, Play/Pause, Next row, and Next response.
+- A response is one chat. A row is one semantic Markdown readout unit: heading, paragraph, list item, blockquote, code block, or complete table row. Long rows may be split only to keep device TTS reliable.
+- Previous/Next response and Previous/Next row disable at their respective boundaries. Play automatically advances through all rows and then all completed responses, providing a full-Analysis readout. Manual row or response navigation preserves playback only when it was already playing.
+- Entering Chat stops TTS. Selecting another Analysis stops the prior readout and returns to Chat. No prompt, failure text, Processing label, or attachment metadata is spoken as an AI response.
 
 ## R27 recovery ruling — 2026-09-08
 - The reduced `R27-LIBRARY-01` artifact is rejected as a full-product replacement: Map, Explore and Feed were collapsed into placeholder cards. That ruling does not veto the separately named `prism-library.html` companion, which does not claim to be R27 or replace any R27 surface.
@@ -113,6 +122,8 @@ A candidate cannot be published until all applicable gates pass:
 9. Processing write/reread/Library render occurs before provider invocation; same ID must later render Ready or Failed.
 10. Follow-up current-web research and attachment operations persist on the same Analysis ID.
 11. Diagnostics must contain boot, DB, Library-load, Map-render, and lifecycle checkpoints.
+12. Parallel-job qualification starts requests on two distinct Analysis IDs, proves both remain Processing concurrently, completes them in reverse order, and proves both exact IDs become Ready without changing the owner's selected card.
+13. Listen-mode qualification proves Chat/Listen exclusivity, complete-response indexing, semantic table-row extraction, Play/Pause, automatic full-Analysis progression, and disabled boundary controls at the first/last response and row.
 
 ## Browser qualification and environmental fallback
 Owner-device browser acceptance remains decisive. Before handoff, execute browser qualification when the environment permits navigation. If the execution environment blocks browser navigation by administrator policy, do not pretend a browser test ran: run embedded-JS syntax, deterministic squarify math, structural Library contract, persistence-path/static lifecycle gates, publish, verify the exact deployed artifact, and rely on the owner-device gate for final browser behavior.
