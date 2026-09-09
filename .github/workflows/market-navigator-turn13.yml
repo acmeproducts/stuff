@@ -1,2 +1,82 @@
-m«ëˆ"¶›ÿ
-+‘ùhÂÏæj¹¶v¯Š­¢»n®}wÊiM¢Ëœ…ø¥zŠÝŠ·œ¶Šò
+name: Market Navigator Turn 13 qualify
+
+on:
+  push:
+    branches:
+      - main
+      - market-navigator-library-charts-20260909
+    paths:
+      - 'market-navigator-build-turn13.py'
+      - 'market-navigator-turn13-pre-ship.html'
+      - 'market-navigator-turn13-qa.mjs'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+      - '.github/workflows/market-navigator-turn13.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rebuild exact candidate
+        run: |
+          cp market-navigator-turn13-pre-ship.html /tmp/market-navigator-turn13-pre-ship.committed.html
+          python3 market-navigator-build-turn13.py
+          cmp /tmp/market-navigator-turn13-pre-ship.committed.html market-navigator-turn13-pre-ship.html
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path('market-navigator-turn13-pre-ship.html').read_text()
+          required = [
+              'TURN 13 PRE-SHIP',
+              'market-navigator-chart-snapshot-v1',
+              'id="libChart"',
+              'id="libChartError"',
+              'function measurementFamily',
+              'function draw(which,sets,w,mode=\'indexed\')',
+              'idx ${fmt(iv)} Â· value ${fmt(nv)}',
+              'async function persistAnalysis',
+              'generatedAnalysisTitle',
+              'commitLibraryTitle',
+              'legacy-migrated',
+              'Attach image or spreadsheet',
+          ]
+          forbidden = [
+              'TURN 12 PRE-SHIP',
+              'grid-template-columns:minmax(0,1fr) 280px',
+              '<div class="card evidence" id="analysisEvidence"></div>',
+              '.info{position:absolute;right:12px;top:56px',
+          ]
+          for marker in required:
+              assert marker in source, marker
+          for marker in forbidden:
+              assert marker not in source, marker
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', source, re.S | re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn13.js').write_text(scripts[-1])
+          PY
+          node --check /tmp/market-navigator-turn13.js
+
+      - name: Install browser gate
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Run product and persistence matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn13-http.log 2>&1 &
+          node market-navigator-turn13-qa.mjs
