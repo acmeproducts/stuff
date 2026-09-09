@@ -1,5 +1,5 @@
-<!-- PRISM-GRAVEYARD v6.0.8 -->
-# PRISM GRAVEYARD v6.0.8
+<!-- PRISM-GRAVEYARD v6.0.9 -->
+# PRISM GRAVEYARD v6.0.9
 
 ## Governance
 Rejected work is evidence, not an implementation ancestor. R27 remains the authorized release; no R28. Owner-device behavior is the final acceptance gate.
@@ -8,7 +8,8 @@ Rejected work is evidence, not an implementation ancestor. R27 remains the autho
 
 - **Library-only product replacement:** `R27-LIBRARY-01` reduced the complete R26 application and rendered Map, Explore and Feed through the same placeholder card list. It is rejected and inert. Recovery starts from exact R26 and preserves the complete product.
 - **Persist-first custom sources:** saving a custom source before proving fetch and parse creates permanent zero-item inventory. R27 validates HTTPS URL, uniqueness, payload, usable entries and a sample headline before persistence.
-- **Sphere Explore:** a decorative sphere does not expose dimensional relationships. Explore now uses the same Group, Color and Size grammar as Map on a flat recency/value field.
+- **Incomplete Explore:** both the decorative sphere and the later flat recency/value surface are removed from the shipped product. Explore is parked until it has a separately developed, owner-qualified contract; it may not remain as a selector option, hidden view, restorable state, or dead rendering path.
+- **Incidental publishers disguised as feeds:** Google News related-coverage publishers are evidence outlets, not configured feeds. Counting a lone TechCrunch mention and labeling it `default · cache` is rejected. The source inventory is limited to code-defined standard RSS feeds and owner-validated custom feeds, with per-feed acquisition status and usable-entry counts.
 
 ## Permanent architecture veto
 - no iframe release;
@@ -20,7 +21,8 @@ Rejected work is evidence, not an implementation ancestor. R27 remains the autho
 - no alternate Analysis persistence engine/state machine;
 - no destructive migration that can erase or hide historical Library records.
 - no side portal rail, third top-level tab, or top-level Explore, Feed, AI, or Config destination; the product architecture is exactly Map and Library.
-- no separate Map/Explore/Feed selection, filter, dimension, or reader state; Explore and Feed are subordinate modes of the shared Map corpus.
+- no separate Map/Feed selection, filter, dimension, or reader state; Feed is a subordinate mode of the shared Map corpus.
+- no shipped Explore selector, view, route, state restoration, renderer, gesture hook, or acceptance requirement until the owner explicitly recommissions it.
 - no tab switch that clears Map state or returns to a different Map mode than the one the owner left.
 
 ## Explicitly rejected Map behavior
@@ -82,6 +84,9 @@ The governing Map reference is NewsMap.JS: dense squarified variable-area rectan
 ## Accepted R27 direction
 - standalone R27 only;
 - NewsMap-like squarified weighted article geometry;
+- exactly two shipped Map modes: NewsMap and Feed; Explore is parked;
+- fifteen independently fetched standard RSS feeds, including TechCrunch, The Verge, Ars Technica, NPR News, The Guardian World, and NASA News;
+- publisher mentions from Google News coverage remain coverage evidence and never masquerade as configured feeds;
 - five visible tile size tiers and much larger headline typography;
 - persistent collapsible left Library Analysis rail plus full-height right Analysis workspace;
 - independently scrolling full transcript;
