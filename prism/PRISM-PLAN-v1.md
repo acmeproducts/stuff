@@ -1,20 +1,20 @@
-<!-- PRISM-PLAN v6.0.8 -->
-# PRISM MASTER PLAN v6.0.8
+<!-- PRISM-PLAN v6.0.9 -->
+# PRISM MASTER PLAN v6.0.9
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
 
 ## Two-tab product architecture — 2026-09-09
 - The full PRISM product has exactly two top-level navigation tabs: `Map` and `Library`. A side portal rail, a third product tab, and separate top-level Explore, Feed, AI, or Config destinations are not authorized.
-- `Map` is the intelligence-discovery product surface. Its subordinate surface selector contains `NewsMap`, `Explore`, and `Feed`; these modes share the same filtered event corpus, dimensions, selection, reader, and Analysis handoff.
-- `Explore` is the flat two-dimensional dimensional view inside Map, not a competing product destination. `Feed` is the linear view of the same Map corpus.
+- `Map` is the intelligence-discovery product surface. Its subordinate surface selector contains only `NewsMap` and `Feed`; these modes share the same filtered event corpus, dimensions, selection, reader, and Analysis handoff.
+- `Explore` is removed from the shipped selector, DOM, restorable view state, rendering path, and acceptance sequence. It is parked for possible later development and may return only as a separately qualified, explicitly authorized surface. `Feed` remains the linear view of the Map corpus.
 - `Library` is a first-class same-origin application page, reached by the top-level Library tab. It is the approved complete Library surface and reads/writes the same `prism/analyses` records as Map; it is not an alternate product, database, wrapper, or iframe.
-- Moving from any Map mode to Library and back restores the exact prior Map mode and retains active dimensions, filters, time window, query, selection, and reader state through same-tab session state unless the owner explicitly changes them.
+- Moving from NewsMap or Feed to Library and back restores the exact prior Map mode and retains active dimensions, filters, time window, query, selection, and reader state through same-tab session state unless the owner explicitly changes them. Historical saved `Explore` state resolves safely to NewsMap.
 - Analyze and Library `＋` open the governed AI POV prompt workspace. Run persists and selects the exact Processing card before provider work; completion writes the Markdown response and generated title back to that same card, then hands off to the complete Library page with that exact card selected.
 - The integrated Library retains per-Analysis parallel provider jobs and generated inline-editable titles. Consolidation may not reintroduce a global busy lock, generic permanent titles, or background selection theft.
 
 ## Approved standalone Library companion — 2026-09-08
-- `prism/prism-library.html` is an owner-approved application surface, not another R27 candidate and not a replacement for Map, Explore, Feed, or AI POV.
+- `prism/prism-library.html` is an owner-approved application surface, not another R27 candidate and not a replacement for Map, Feed, or AI POV.
 - It contains only the persistent Analysis-card rail and the full Analysis workspace: fixed header, independently scrolling rendered Markdown transcript, and bottom-pinned attachment/prompt/Send composer.
 - It opens the same-origin IndexedDB database `prism`, store `analyses`, and reuses `prism_ai_cfg_v1`. It creates no alternate Analysis database, duplicated cards, wrapper, iframe, migration sidecar, or parallel state machine.
 - It rereads all primary records and readable `prism-analysis-index-v1/analyses` history on every boot/focus. The newest Analysis is selected automatically. Empty records and storage failures are rendered explicitly rather than suppressed behind a success toast or starter mode.
@@ -47,20 +47,26 @@ Complete PRISM R27 as one clean standalone release and provide the approved stan
 ## R27 recovery ruling — 2026-09-08
 - The reduced `R27-LIBRARY-01` artifact is rejected as a full-product replacement: Map, Explore and Feed were collapsed into placeholder cards. That ruling does not veto the separately named `prism-library.html` companion, which does not claim to be R27 or replace any R27 surface.
 - R27 restarts from exact standalone R26 blob `491abbbdaa8f559387c0235e4ddb89300787c491`; every unrelated R26 surface remains present.
-- The release is one coherent artifact containing validated source admission, NewsMap-grade Map, flat dimensional Explore, Feed, AI POV and the complete persistent Library. No partial Library-only handoff.
+- The release is one coherent artifact containing validated standard/custom source admission, NewsMap-grade Map, Feed, AI POV and the complete persistent Library. No partial Library-only handoff.
 
-## RSS admission contract
+## Standard and custom RSS contract — corrected 2026-09-09
+1. The shipped source inventory contains fifteen code-defined standard RSS feeds: BBC Business, BBC World, CNBC World, Financial Times Markets, Financial Times World, MarketWatch, New York Times Business, New York Times World, WSJ Markets, TechCrunch, The Verge, Ars Technica, NPR News, The Guardian World, and NASA News.
+2. Standard feeds are fetched independently on startup, cached by stable source ID, and remain present when a live route fails. The six added feeds use their official RSS URL first and a publisher-scoped Google News RSS fallback when browser delivery routes reject the official endpoint.
+3. The source inventory reports only code-defined standard feeds and owner-added custom feeds. Incidental publishers extracted from Google News multi-source coverage remain evidence outlets; they may not be labeled or counted as configured/default RSS feeds.
+4. Every source row reports its own usable article count, event count, and actual acquisition mode or failure. A one-article coverage mention may not masquerade as a one-article configured feed.
+5. Disabling a standard or custom source filters that publisher's coverage without deleting its cached articles. Restore standards re-enables all fifteen standard feeds.
+
+## Custom RSS admission contract
 1. A custom source is not persisted until its URL, fetch, payload type and usable entries validate.
 2. New sources require HTTPS, a unique name and URL, parseable RSS/Atom or governed JSON, and at least one item with a title and HTTP(S) article link.
 3. Validation returns the fetch mode, usable item count and a real sample headline. Failure remains unsaved and exposes the exact reason.
 4. Source acquisition has one visible truth: successful direct/collector/relay mode or explicit failure. Cached articles may be retained only for a previously admitted source.
 
-## Shared Map / Explore dimensional grammar
-- Map and Explore consume the same filtered events, reader, selection, Group, Color and Size state.
+## Shared Map / Feed dimensional grammar
+- Map and Feed consume the same filtered events, reader, selection, Group, Color and Size state.
 - Map answers "what dominates now" with a dense squarified treemap. Default continuous area weight is coverage momentum: `log2(1 + independent source count) * exp(-age hours / 48)`.
 - The Size selector may instead expose governed importance, corroboration or recency, but geometry always uses continuous weight; five tile tiers affect typography/information density only.
-- Explore answers "how is attention distributed" on a flat 2D field: Group creates horizontal lanes, X is observation recency, Y is the selected Size value, card area is the same weight, and color is the selected Color dimension.
-- No sphere, fixed-row pseudo-treemap, or separate Explore data/state model.
+- Feed answers "what should I read linearly" from the same filtered and weighted corpus. It does not own a separate source, filter, selection, or reader state model.
 
 ## Baseline and ancestry
 - Canonical historical baseline: `prism/prism-turn01-pre-ship.html`, R11 blob `5d91e005940d632b74d6dd59a9aa0ae645c40433`.
@@ -127,8 +133,8 @@ Diagnostics must be visible and copyable from Config and remain customer-safe: i
 ## Deterministic pre-publication gates
 A candidate cannot be published until all applicable gates pass:
 1. Complete HTML structure and embedded JavaScript syntax parse.
-2. Exactly two top-level product tabs labeled Map and Library; Map contains one subordinate selector with NewsMap, Explore, and Feed. No side portal rail or top-level Explore/Feed control exists.
-3. Map → Library → Map restores the exact prior Map mode and does not clear dimensions, filters, time window, query, or selected evidence.
+2. Exactly two top-level product tabs labeled Map and Library; Map contains one subordinate selector with only NewsMap and Feed. No Explore option/view/route, side portal rail, or top-level Feed control exists.
+3. NewsMap/Feed → Library → Map restores the exact prior Map mode and does not clear dimensions, filters, time window, query, or selected evidence; a historical saved Explore value resolves to NewsMap.
 4. Exactly one `runAI`, one Analysis persistence path, and one view controller.
 5. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay, Worker, alternate state machine, or destructive persistence migration.
 6. Map uses squarified geometry and all five size classes; deterministic geometry test must reject extreme aspect-ratio slivers (target maximum ≤5:1 under the qualification fixture, with normal tiles substantially closer to square).
@@ -142,6 +148,7 @@ A candidate cannot be published until all applicable gates pass:
 14. Parallel-job qualification starts requests on two distinct Analysis IDs, proves both remain Processing concurrently, completes them in reverse order, and proves both exact IDs become Ready without changing the owner's selected card.
 15. Listen-mode qualification proves Chat/Listen exclusivity, complete-response indexing, semantic table-row extraction, Play/Pause, automatic full-Analysis progression, and disabled boundary controls at the first/last response and row.
 16. Title qualification proves a generic/prompt-derived title is replaced from completed response content, Enter and blur persist an inline edit, blank titles are rejected, and a manual edit made during an unresolved request survives that request's completion.
+17. Source qualification proves all fifteen standard rows exist, TechCrunch is a true independently fetched standard source rather than an incidental Google publisher count, each ready source has usable entries, failed live fetches retain cached rows, and the inventory contains no incidental publisher rows.
 
 ## Browser qualification and environmental fallback
 Owner-device browser acceptance remains decisive. Before handoff, execute browser qualification when the environment permits navigation. If the execution environment blocks browser navigation by administrator policy, do not pretend a browser test ran: run embedded-JS syntax, deterministic squarify math, structural Library contract, persistence-path/static lifecycle gates, publish, verify the exact deployed artifact, and rely on the owner-device gate for final browser behavior.
@@ -157,7 +164,7 @@ Immediately before publication:
 
 ## Owner acceptance sequence
 Primary gate:
-`Map opens → select Explore → Library opens with historical cards → generated card titles are meaningful and inline editable → Enter/blur persists the edit → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID → Map returns to Explore with prior Map state intact`.
+`Map opens → switch NewsMap/Feed → Library opens with historical cards → generated card titles are meaningful and inline editable → Enter/blur persists the edit → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID → Map returns to the prior NewsMap/Feed mode with prior Map state intact`.
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 Analysis creation gate:
