@@ -1,8 +1,17 @@
-<!-- PRISM-PLAN v6.0.7 -->
-# PRISM MASTER PLAN v6.0.7
+<!-- PRISM-PLAN v6.0.8 -->
+# PRISM MASTER PLAN v6.0.8
 
 ## Governing objective
 Complete PRISM R27 as one clean standalone release and provide the approved standalone Library companion over the same durable Analysis records. R27 remains the authorized full-product release. No R28.
+
+## Two-tab product architecture — 2026-09-09
+- The full PRISM product has exactly two top-level navigation tabs: `Map` and `Library`. A side portal rail, a third product tab, and separate top-level Explore, Feed, AI, or Config destinations are not authorized.
+- `Map` is the intelligence-discovery product surface. Its subordinate surface selector contains `NewsMap`, `Explore`, and `Feed`; these modes share the same filtered event corpus, dimensions, selection, reader, and Analysis handoff.
+- `Explore` is the flat two-dimensional dimensional view inside Map, not a competing product destination. `Feed` is the linear view of the same Map corpus.
+- `Library` is a first-class same-origin application page, reached by the top-level Library tab. It is the approved complete Library surface and reads/writes the same `prism/analyses` records as Map; it is not an alternate product, database, wrapper, or iframe.
+- Moving from any Map mode to Library and back restores the exact prior Map mode and retains active dimensions, filters, time window, query, selection, and reader state through same-tab session state unless the owner explicitly changes them.
+- Analyze and Library `＋` open the governed AI POV prompt workspace. Run persists and selects the exact Processing card before provider work; completion writes the Markdown response and generated title back to that same card, then hands off to the complete Library page with that exact card selected.
+- The integrated Library retains per-Analysis parallel provider jobs and generated inline-editable titles. Consolidation may not reintroduce a global busy lock, generic permanent titles, or background selection theft.
 
 ## Approved standalone Library companion — 2026-09-08
 - `prism/prism-library.html` is an owner-approved application surface, not another R27 candidate and not a replacement for Map, Explore, Feed, or AI POV.
@@ -118,19 +127,21 @@ Diagnostics must be visible and copyable from Config and remain customer-safe: i
 ## Deterministic pre-publication gates
 A candidate cannot be published until all applicable gates pass:
 1. Complete HTML structure and embedded JavaScript syntax parse.
-2. Exactly one `runAI`, one Analysis persistence path, and one view controller.
-3. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay, Worker, alternate state machine, or destructive persistence migration.
-4. Map uses squarified geometry and all five size classes; deterministic geometry test must reject extreme aspect-ratio slivers (target maximum ≤5:1 under the qualification fixture, with normal tiles substantially closer to square).
-5. Headline font qualification proves X-Large/Large tiers begin materially larger than prior label-sized rendering and shrink only as required to fit.
-6. Library DOM qualification proves left rail exists, rail collapse/expand control exists, right workspace exists, transcript is independently scrollable, compose is bottom-pinned, paperclip exists, send exists.
-7. Library data qualification injects both a primary `prism/analyses` row and a historical `prism-analysis-index-v1/analyses` row; after reread both cards must be present and selectable.
-8. Selecting an Analysis must make the compose strip visible without removing the left rail.
-9. Processing write/reread/Library render occurs before provider invocation; same ID must later render Ready or Failed.
-10. Follow-up current-web research and attachment operations persist on the same Analysis ID.
-11. Diagnostics must contain boot, DB, Library-load, Map-render, and lifecycle checkpoints.
-12. Parallel-job qualification starts requests on two distinct Analysis IDs, proves both remain Processing concurrently, completes them in reverse order, and proves both exact IDs become Ready without changing the owner's selected card.
-13. Listen-mode qualification proves Chat/Listen exclusivity, complete-response indexing, semantic table-row extraction, Play/Pause, automatic full-Analysis progression, and disabled boundary controls at the first/last response and row.
-14. Title qualification proves a generic/prompt-derived title is replaced from completed response content, Enter and blur persist an inline edit, blank titles are rejected, and a manual edit made during an unresolved request survives that request's completion.
+2. Exactly two top-level product tabs labeled Map and Library; Map contains one subordinate selector with NewsMap, Explore, and Feed. No side portal rail or top-level Explore/Feed control exists.
+3. Map → Library → Map restores the exact prior Map mode and does not clear dimensions, filters, time window, query, or selected evidence.
+4. Exactly one `runAI`, one Analysis persistence path, and one view controller.
+5. No iframe, wrapper, runtime baseline fetch, sidecar patch, injected overlay, Worker, alternate state machine, or destructive persistence migration.
+6. Map uses squarified geometry and all five size classes; deterministic geometry test must reject extreme aspect-ratio slivers (target maximum ≤5:1 under the qualification fixture, with normal tiles substantially closer to square).
+7. Headline font qualification proves X-Large/Large tiers begin materially larger than prior label-sized rendering and shrink only as required to fit.
+8. Library DOM qualification proves left rail exists, rail collapse/expand control exists, right workspace exists, transcript is independently scrollable, compose is bottom-pinned, paperclip exists, send exists.
+9. Library data qualification injects both a primary `prism/analyses` row and a historical `prism-analysis-index-v1/analyses` row; after reread both cards must be present and selectable.
+10. Selecting an Analysis must make the compose strip visible without removing the left rail.
+11. Processing write/reread/Library render occurs before provider invocation; same ID must later render Ready or Failed.
+12. Follow-up current-web research and attachment operations persist on the same Analysis ID.
+13. Diagnostics must contain boot, DB, Library-load, Map-render, and lifecycle checkpoints.
+14. Parallel-job qualification starts requests on two distinct Analysis IDs, proves both remain Processing concurrently, completes them in reverse order, and proves both exact IDs become Ready without changing the owner's selected card.
+15. Listen-mode qualification proves Chat/Listen exclusivity, complete-response indexing, semantic table-row extraction, Play/Pause, automatic full-Analysis progression, and disabled boundary controls at the first/last response and row.
+16. Title qualification proves a generic/prompt-derived title is replaced from completed response content, Enter and blur persist an inline edit, blank titles are rejected, and a manual edit made during an unresolved request survives that request's completion.
 
 ## Browser qualification and environmental fallback
 Owner-device browser acceptance remains decisive. Before handoff, execute browser qualification when the environment permits navigation. If the execution environment blocks browser navigation by administrator policy, do not pretend a browser test ran: run embedded-JS syntax, deterministic squarify math, structural Library contract, persistence-path/static lifecycle gates, publish, verify the exact deployed artifact, and rely on the owner-device gate for final browser behavior.
@@ -146,7 +157,7 @@ Immediately before publication:
 
 ## Owner acceptance sequence
 Primary gate:
-`Library opens with historical cards → generated card titles are meaningful and inline editable → Enter/blur persists the edit → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID`.
+`Map opens → select Explore → Library opens with historical cards → generated card titles are meaningful and inline editable → Enter/blur persists the edit → left rail collapses/expands → select Analysis → full transcript scrolls → sticky compose remains visible → attach works → prompt + Send performs current-web research on same Analysis ID → Map returns to Explore with prior Map state intact`.
 Map gate:
 `NewsMap-like dense squarified rectangles → five size tiers → large readable headline typography → group focus/× and filters still work`.
 Analysis creation gate:
