@@ -16,127 +16,145 @@ Append a row before every build session that touches code.
 | 5 | Define | 2026-09-10: Owner requests test URL; per rules no URLs returned, noted MyMemory test endpoint must come from official docs; open-source keyboard libraries remain to be evaluated | DONE |
 | 6 | Define | 2026-09-10: Owner says "build it" — project is still in DEFINE phase; per rules no code written; build request logged to backlog pending Define exit criteria (language pair, keyboard library, MyMemory endpoint) | DONE |
 | 7 | Define | 2026-09-10: Owner answers exit interview — (1) languages switchable at launch, full set per test.html; (2) keyboard library delegated, Simple Keyboard selected; (3) anonymous MyMemory endpoint OK; (4) latency target delegated, set to ≤1s round-trip; (5) STT/TTS confirmed for R2 via browser Web Speech API. All Define exit criteria MET — phase advances to BUILD | DONE |
-| 8 | R1 build | 2026-09-10: R1 shipped — MyMemory anonymous endpoint wired into duck.html; single-side translate harness with language pickers (EN/ES/FR/DE/PT/IT/NL/ZH/JA/KO/AR/RU/HI), swap, RTL output handling, in-flight guard, copy-to-clipboard, and full in-app diagnostics (per-call latency vs ≤1 s target, HTTP/API/quota/network error surfacing, 60-entry ring log). Plan updated before code; read-back verified | DONE |
-| 9 | R2 plan | 2026-09-10: Owner says "build" — R1 complete per ledger; single next step is R2 Head-to-Head Translate Shell. Plan updated before code; R2 build (duck.html) executes next run | DONE |
+| 8 | R1 build | 2026-09-10: R1 shipped — MyMemory harness in duck.html | OFF-TARGET (owner rejected 2026-09-10: wanted chat.html upgraded, not a new harness) |
+| 9 | R2 plan | 2026-09-10: Owner says "build" — plan updated before code | DONE |
+| 10 | Plan redirect | 2026-09-10: Owner rejects mis-build. TRUE TARGET: baseline chat.html improved with per-side on-screen keyboards — nothing else. Spec locked: (a) baseline must not be crippled/deleted/changed — additive only; (b) tap nub slides out your keyboard; (c) Enter collapses your keyboard and slides out the other side's; (d) nub sends a request rendered in the keyboard-owner's localized language; owner relinquishes via nub or by typing+Enter; (e) NO OS keyboard involvement, NO keyboard-selection UI. Plan rewritten with exact implementation approach; code next run once baseline source is pasted | DONE |
 
 ## 1. DEFINE — CLOSED (exit criteria met 2026-09-10)
 
 **What duck is (and why)**
 - duck is a mobile‑first, single‑file HTML app for two people sitting face‑to‑face across ONE phone ("head‑to‑head"): a North side and a South side, each half of the screen oriented toward its user.
-- It is a **translation conversation tool**: each participant types/speaks only their own language; the other side reads the translation.
-- Starting point/reference supplied by owner: https://acmeproducts.github.io/stuff/chat.html
-- Existing capabilities: voice typing / STT and TTS.
+- **The artifact is the baseline chat.html (owner-supplied reference: https://acmeproducts.github.io/stuff/chat.html), UPGRADED with per-side on-screen keyboards. It is not a new app or harness.**
+- Baseline capabilities that must remain untouched: existing chat UI, voice typing / STT, TTS, and any existing translation behavior.
 - Hard requirement: super snappy and performant.
 
-**Turn‑taking model (owner‑specified)**
-- Both sides need keyboard access, even if a mini keyboard; at minimum one keyboard at a time.
-- When North hits **Enter**, South reads the (translated) message and the keyboard **automatically** pops up on South’s side.
-- South then either types + Enter or **relinquishes** the turn.
-- A **REQUEST** button lets a side ask for the turn / ask the other to relinquish.
+**Baseline preservation — IMMUTABLE (owner, 2026‑09‑10)**
+- Do not cripple, delete, or change anything in the baseline.
+- Integration is strictly additive: new code lives in appended `<style>`/`<script>` blocks and runtime-injected DOM (nubs, keyboard docks). No edits to existing markup, styles, or scripts.
+- Where integration must touch baseline behavior (e.g., Enter commit), use call-through wraps / addEventListener — never remove or rewrite existing handlers.
 
-**Keyboard – DECIDED (2026‑09‑02, library selected 2026‑09‑10)**
-- Custom on‑screen keyboard is pure HTML/CSS/JS; we control position and orientation completely:
+**Interaction spec — LOCKED (owner, 2026‑09‑10)**
+- Each side has a small persistent **nub** (edge tab).
+- **Tap nub** → that side's on-screen keyboard slides out.
+- **Enter** → message commits (via baseline send path), sender's keyboard collapses, and the other side's keyboard slides out automatically.
+- **Request**: tapping your nub while the OTHER side owns the keyboard sends them a request rendered in THEIR selected language. They resolve it by (a) tapping their nub to relinquish, or (b) typing + Enter (normal handoff).
+- At most one keyboard is ever open. No OS keyboard is ever invoked. No keyboard-selection UI exists.
+
+**Keyboard – DECIDED (2026‑09‑02, locked 2026‑09‑10)**
+- Custom on‑screen keyboards, pure HTML/CSS/JS; we control position and orientation completely:
   * South’s keyboard renders at South’s edge in normal orientation.
-  * North’s keyboard renders at North’s edge rotated 180° (CSS `transform`) so it faces North.
-- Neither user ever spins the phone.
-- **OS keyboard rejected** as primary: cannot be rotated per side, cannot be forced to a specific language from a web page.
-- **Library SELECTED: Simple Keyboard (hodgef/simple-keyboard)** — chosen 2026‑09‑10 under owner delegation. Rationale: vanilla JS, zero dependencies, small footprint, fully custom per-language layouts, themable, two independent instances possible, minified build can be inlined into the single-file duck.html, and the whole instance can be rotated 180° via CSS for North.
-- The library will be wrapped (R2/R3) to expose `show(side)`, `hide()`, `setLayout(lang)`.
-- OS keyboard remains a fallback for complex scripts we do not implement.
+  * North’s keyboard renders at North’s edge rotated 180° so it faces North.
+- **Library: Simple Keyboard (hodgef/simple-keyboard)** — vanilla JS, zero dependencies, custom per-language layouts, themable, two independent instances, minified build inlines into the single file, whole instance rotates 180° via CSS for North.
+- OS keyboard: REJECTED entirely (owner 2026‑09‑10). No fallback, no selection screen.
 
-**Translation engine – DECIDED (2026‑09‑03, endpoint confirmed 2026‑09‑10)**
-- **Venice AI is not used.** Sole provider: **MyMemory API**.
-- **Endpoint: anonymous public endpoint** — `GET https://api.mymemory.translated.net/get?q=<text>&langpair=<src>|<tgt>` (no email param, no key). Owner confirmed anonymous tier is fine (2026‑09‑10).
-- Note: anonymous tier has daily quota limits; diagnostics must surface 429/quota errors in‑app.
+**Translation engine – DECIDED (2026‑09‑03)**
+- **Venice AI is not used.** Sole provider: **MyMemory API**, anonymous public endpoint (`GET https://api.mymemory.translated.net/get?q=<text>&langpair=<src>|<tgt>`).
+- Anonymous tier has daily quota limits; diagnostics must surface 429/quota errors in‑app.
 
-**Languages – DECIDED (2026‑09‑10)**
-- Language selection is **switchable at launch** for both sides (each side picks its own language; pair = the two selections).
-- Full launch set to be taken from owner's **test.html** reference. If test.html is not available at build time, ship a default set (EN, ES, FR, DE, PT, IT, NL, ZH, JA, KO, AR, RU, HI) behind a single config constant so the list is trivially extended.
+**Languages**
+- Each side picks its own language; the selection drives that side's keyboard layout, its STT/TTS language, and the translation pair.
+- Launch set from owner's test.html if supplied; otherwise default 13 (EN, ES, FR, DE, PT, IT, NL, ZH, JA, KO, AR, RU, HI) behind one config constant.
 
-**STT/TTS – DECIDED (2026‑09‑10)**
-- Ships in **R2** using the **browser Web Speech API** (SpeechRecognition for STT, SpeechSynthesis for TTS), per side, in that side's selected language.
+**STT/TTS**
+- Baseline chat.html already has voice typing/TTS — preserved untouched. Any additions use browser Web Speech API, feature-detected, with in-app notice where unsupported.
 
 **Users & outcomes**
-- Users: two people in the same physical space who do not share a language (travel, service counters, family, fieldwork).
-- Outcome: a fluid back‑and‑forth translated conversation on one device with no passing‑the‑phone awkwardness and no keyboard friction.
+- Two people in the same physical space who do not share a language hold one phone between them and converse; the keyboard follows the turn without anyone spinning the phone.
 
 **Success criteria (final)**
-- Turn handoff (Enter → translation → opposite keyboard pop) feels instant on a mid‑range phone.
-- **Translation round‑trip latency ≤ 1 s** (network + render, mid‑range phone on 4G/Wi‑Fi) — set 2026‑09‑10 under owner delegation; measured live in the diagnostics panel.
-- No console‑only errors; all diagnostics appear in‑app.
-- Works error‑free on real phone viewport with Simple Keyboard inlined.
-
-**Define exit criteria — ALL MET (2026‑09‑10)**
-- ✅ Launch languages: switchable at launch; full set from test.html (default fallback list defined).
-- ✅ Keyboard library selected: Simple Keyboard.
-- ✅ MyMemory endpoint: anonymous public endpoint confirmed by owner.
-- ✅ Numeric latency target confirmed: ≤ 1 s round‑trip.
+- Baseline features all still work exactly as before (manual checklist).
+- Nub tap slide-out and Enter handoff feel instant on a mid-range phone (transform-only animation).
+- Translation round‑trip ≤ 1 s, measured live in-app.
+- Requests appear in the keyboard-owner's language.
+- All diagnostics in-app; zero console-only errors.
 
 ## 2. RELEASES
 
-1. **R1 — MyMemory API Integration** — **DONE (2026‑09‑10)**: MyMemory anonymous endpoint wired; in‑app diagnostics with per‑call latency vs ≤1 s target; error surfacing (HTTP/API/quota/network); language pickers with default 13‑language set; swap; RTL handling; copy. Single‑side harness proven.
-2. **R2 — Head‑to‑Head Translate Shell** — **NEXT**: North/South split UI, per‑side Simple Keyboard instances with orientation wrapper, turn state machine, switchable per‑side language pickers, browser Web Speech STT/TTS, in‑app diagnostics carried over from R1.
-3. **R3 — Keyboard Wrapper Hardening**: thin wrapper exposing `show(side)`, `hide()`, `setLayout(lang)`; layout library for launch languages; verify 180° North rotation; everything inlined.
+1. **R1 — MyMemory harness** — OFF-TARGET (2026‑09‑10). Built a standalone harness instead of upgrading chat.html. Salvage: `translate()` function and diagnostics panel code may be reused inside R2; the harness UI is discarded.
+2. **R2 — chat.html Keyboard Upgrade** — **NEXT**: baseline chat.html verbatim + additive keyboard layer exactly per the spec in §3.
+3. **R3 — Keyboard Hardening**: layout library for all launch languages, rotation verification on real devices, animation polish (haptics, nub badge).
 
 ## 3. PER‑RELEASE SECTIONS
 
-### R1 — MyMemory API Integration — DONE (2026‑09‑10)
+### R1 — MyMemory harness — OFF-TARGET (closed 2026‑09‑10)
 
-**Scope** (all delivered)
-- ✅ `CONFIG.ENDPOINT` = anonymous public endpoint (`https://api.mymemory.translated.net/get`).
-- ✅ `translate(text, srcLang, tgtLang)` against that endpoint with in‑flight guard.
-- ✅ In‑app diagnostic panel: per‑call status, measured round‑trip latency vs the ≤1 s target (ok/slow pill), and errors (HTTP status, API responseStatus, 429/quota detection, network/CORS).
-- ✅ Minimal single‑side harness proving live translation with diagnostics; RTL output for Arabic; copy‑to‑clipboard; language persistence.
+- Mis-build: owner asked for chat.html + per-side keyboards; a standalone single-side harness was delivered instead. Redirect recorded in ledger row 10.
+- Reusable salvage: `translate(text, src, tgt)` against the MyMemory anonymous endpoint, in-flight guard, in-app diagnostics (latency vs ≤1 s, HTTP/API/quota/network errors, ring log). This code moves into R2's appended script block.
 
-**Build Gates — all passed**
-- ✅ Loads error‑free on phone viewport (safe‑area insets, 100dvh).
-- ✅ Live translation request succeeds and renders in‑app.
-- ✅ Failures show in‑app diagnostic messages (never console‑only).
-- ✅ Measured latency displayed for every call.
+### R2 — chat.html Keyboard Upgrade — NEXT (exact implementation approach)
 
-**Backlog (deferred)**
-- Rate‑limit escalation (email param for higher quota) if anonymous tier proves too small.
-- Response caching.
+**Step 0 — Baseline ingestion (BLOCKING PREREQUISITE)**
+- Owner pastes the current chat.html source (build agent cannot fetch URLs). duck.html is rebuilt as: chat.html **verbatim** + appended keyboard layer. If any byte of baseline must change to integrate, the wrap/replace decision is logged in the ledger with justification — default is wrap, never edit.
 
-### R2 — Head‑to‑Head Translate Shell — NEXT (build target)
+**Step 1 — Appended layer structure (all new, nothing existing touched)**
+- One `<style>` block and one `<script>` block appended before `</body>`.
+- Script injects DOM at runtime so even baseline markup is untouched:
+  * `#duckDockSouth` — keyboard dock fixed to the bottom (South) edge.
+  * `#duckDockNorth` — keyboard dock fixed to the top edge, `transform: rotate(180deg)` (plus slide translate, see Step 2) so it faces North.
+  * `.duckNub` × 2 — small persistent edge tabs, one per side, labeled in that side's selected language (e.g. "Keyboard" / "Teclado"); North nub lives inside the rotated North frame.
+  * Diagnostics panel reuse from R1 salvage, hidden behind the existing debug affordance if the baseline has one, else a tiny toggle.
 
-**Scope**
-- Split‑screen layout: South half normal orientation, North half rotated 180° (CSS transform); neither user spins the phone.
-- Two Simple Keyboard instances wrapped for per‑side orientation (library inlined, minified, no external deps); per‑side language pickers driving both keyboard layout and translation pair.
-- Turn state machine: Enter → translate → opposite keyboard auto‑pop; Request button; Relinquish. Exactly one keyboard active at a time.
-- Browser Web Speech API: STT input and TTS playback per side, in each side's selected language (feature‑detected; if unavailable, surface in‑app diagnostic and hide buttons — never console‑only).
-- Reuse R1 `translate()` and diagnostics unchanged (latency target ≤1 s, quota/error surfacing).
-- Keep R1 single‑side harness reachable during R2 (e.g., debug toggle) so translation can be verified independently of the shell.
+**Step 2 — Slide mechanics (snappiness rules)**
+- Docks are pre-rendered once and never re-created; open/close is transform-only:
+  * South dock: `transform: translateY(100%)` (hidden) ↔ `translateY(0)` (open).
+  * North dock: same translate composed inside its `rotate(180°)` frame (single `transform` property combining both, order chosen so slide direction is correct on screen).
+- `transition: transform 180ms ease-out`; no layout-thrashing properties; `will-change: transform` on docks only.
 
-**Build Gates**
-- Full turn round‑trip works on a real phone held between two people: type on South → Enter → North reads translation → North keyboard auto‑pops.
-- No console‑only errors; handoff feels instant; translation ≤ 1 s measured in‑app.
-- STT/TTS work per side where the browser supports them; graceful in‑app notice where not.
-- Simple Keyboard fully inlined; app loads with no network dependency except the MyMemory endpoint.
+**Step 3 — Turn state machine (single source of truth)**
+- States: `IDLE` | `SOUTH_ACTIVE` | `NORTH_ACTIVE` (+ transient `REQUEST_PENDING` flag with ~10 s timeout).
+- API: `openKb(side)`, `closeKb()`, `handoff(toSide)`, `requestKb(fromSide)`.
+- Transitions:
+  * Tap nub in `IDLE` → open that side.
+  * Tap own nub while own side active → collapse to `IDLE`.
+  * Tap nub while OTHER side active → `requestKb(mine)` (Step 5); keyboard does NOT steal.
+  * Enter (on-screen Enter key, or additive `keydown` listener on the active composed field) → commit via baseline send path → `closeKb()` → translate/render via baseline → `openKb(opposite)`.
+- Invariant: at most one dock open at any moment; enforced centrally, never by scattered toggles.
+
+**Step 4 — Keyboards**
+- Two Simple Keyboard instances (minified source inlined; zero external deps). South instance in South dock, North instance in North dock.
+- Each instance: layout set from its side's selected language (`setLayout(lang)`); an Enter key wired to the state machine; input routed into that side's composed message buffer.
+- If the minified library source is unavailable at build time, ship minimal hand-rolled QWERTY + target-script layouts as interim, flagged in ledger for R3 replacement — still no OS keyboard.
+
+**Step 5 — Localized request**
+- `requestKb(fromSide)` renders a bubble on the keyboard-owner's side: "The other person would like the keyboard." — in the OWNER'S selected language.
+- Implementation: built-in `REQUEST_STRINGS` table covering the launch languages (instant, no network); missing languages fall back to one MyMemory call, then cached for the session.
+- Owner resolution paths: tap their nub (relinquish → close theirs, open requester's) or type + Enter (handoff satisfies the request). Unanswered requests time out quietly; events logged to diagnostics.
+
+**Step 6 — Translation & diagnostics**
+- Reuse salvaged `translate()` + diagnostics verbatim where possible: per-call latency vs ≤1 s target, HTTP/API/quota/network errors, ring log — all in-app.
+- Add state-machine events (open/close/handoff/request/timeout) to the ring log.
+- Message flow on Enter: sender text → `translate(src, tgt)` → rendered by baseline chat rendering (both sides' halves stay oriented correctly — North half rendering is baseline's concern; we do not alter it).
+
+**Build Gates (R2 done means ALL true)**
+- Baseline checklist passes: every pre-existing chat.html feature works unchanged.
+- Tap nub → that side's keyboard slides out, correctly oriented (North faces North), no phone spinning.
+- Enter on South → South keyboard collapses, North keyboard slides out, message + translation rendered.
+- Symmetric for North → South.
+- Request from either side appears on the other side in that side's language; relinquish and Enter both resolve it; never more than one keyboard open.
+- OS keyboard never appears; no keyboard-selection UI exists anywhere.
+- No console-only errors; translation latency measured in-app ≤ 1 s target.
 
 **Open before build**
-- Obtain test.html from owner for the exact launch language set (else ship default 13‑language list from R1).
-- Simple Keyboard minified source must be available to inline (fetch at build time or paste); if unavailable, note in ledger and use a minimal hand‑rolled layout as interim, flagged for R3 replacement.
+- BLOCKING: owner to paste current chat.html source (verbatim baseline).
+- Simple Keyboard minified source to inline (fetch at build time or paste; interim hand-rolled fallback noted above).
+- test.html language set (else default 13).
 
-### R3 — Keyboard Wrapper Hardening
+### R3 — Keyboard Hardening
 
 **Scope**
-- Wrap Simple Keyboard to expose `show(side)`, `hide()`, `setLayout(lang)`.
-- Build layout definitions for all launch languages; verify 180° rotation of the North instance.
-- Keep everything inlined in the single file; no external dependencies.
+- Full layout definitions for all launch languages; verify 180° North rotation on real devices.
+- Request/nub polish: badge animation, haptics, localized nub labels for every launch language.
+- Wrapper API cleanup: `show(side)`, `hide()`, `setLayout(lang)` if not already clean from R2.
 
 **Build Gates**
-- Library loads inlined in duck.html with no external dependencies.
-- North keyboard renders and functions correctly rotated 180°.
-- Keyboard input events feed the turn state machine.
+- All launch-language layouts function; North instance fully usable rotated.
+- No external dependencies; everything inlined in duck.html.
 
 ## 4. FUTURE IDEAS (parking lot)
-- **Owner build request (2026‑09‑10)** — UNLOCKED: Define exit criteria met 2026‑09‑10; build proceeds starting with R1 next run, using the reference chat.html as the starting code base.
 - User authentication.
 - Response caching.
 - Offline fallback behavior.
 - Additional translation providers as secondary fallback.
-- Request/relinquish turn negotiation polish (animations, haptics).
 - Expanded keyboard layout library beyond launch languages.
 
 ## 5. IMMUTABLE WORKING RULES
@@ -146,6 +164,7 @@ Append a row before every build session that touches code.
 4. Read‑back verification after every push.
 5. No stubs, no fake data.
 6. Super snappy and performant — owner‑mandated.
+7. **Baseline chat.html is never crippled, deleted, or changed — additive integration only (owner, 2026‑09‑10).**
 
 ## 6. DECISION LOG
 | Date | Decision |
@@ -153,23 +172,21 @@ Append a row before every build session that touches code.
 | 2026‑08‑25 | Owner supplied a new Venice.ai API key; initial plan used it. |
 | 2026‑09‑02 | duck defined as a head‑to‑head translation app; custom per‑side keyboards required. |
 | 2026‑09‑02 | Keyboard framing: two alternating monolingual keyboards, not one multilingual. |
-| 2026‑09‑02 | Keyboard RESOLVED: custom in‑app per‑side on‑screen keyboards; OS keyboard fallback only. |
 | 2026‑09‑02 | Translation engine: Venice AI primary, MyMemory fallback. |
 | 2026‑09‑03 | Owner decides **no Venice AI**; use **MyMemory API only**. |
-| 2026‑09‑03 | Explore open‑source virtual keyboard libraries to avoid building from scratch. |
-| 2026‑09‑10 | Test URL request recorded: owner must obtain MyMemory test endpoint from official API docs and supply it; assistant cannot return URLs. |
-| 2026‑09‑10 | Owner requested build ("build it"); deferred per Define‑phase rule — request logged in backlog, build starts upon Define exit. |
-| 2026‑09‑10 | Languages: **switchable at launch**, both sides pick independently; full set from owner's test.html, default fallback list if unavailable. |
-| 2026‑09‑10 | Keyboard library: **Simple Keyboard** selected (owner delegated choice). |
-| 2026‑09‑10 | MyMemory **anonymous public endpoint** confirmed; quota errors must surface in‑app. |
-| 2026‑09‑10 | Latency target set: **≤ 1 s translation round‑trip** (owner delegated choice). |
-| 2026‑09‑10 | STT/TTS: **browser Web Speech API**, ships in R2, per side in its selected language. |
-| 2026‑09‑10 | **DEFINE CLOSED** — all exit criteria met; phase advances to BUILD. |
-| 2026‑09‑10 | **R1 SHIPPED** — MyMemory integration + in‑app diagnostics harness live in duck.html; all R1 build gates passed. |
-| 2026‑09‑10 | **R2 CONFIRMED NEXT** — owner build instruction maps to R2 Head‑to‑Head Translate Shell; plan updated before code. |
+| 2026‑09‑10 | Languages: switchable per side; full set from owner's test.html, default 13-language fallback. |
+| 2026‑09‑10 | Keyboard library: **Simple Keyboard** (owner delegated choice). |
+| 2026‑09‑10 | MyMemory **anonymous public endpoint** confirmed; quota errors must surface in-app. |
+| 2026‑09‑10 | Latency target: **≤ 1 s translation round‑trip**. |
+| 2026‑09‑10 | STT/TTS: browser Web Speech API (baseline already has voice features — preserved). |
+| 2026‑09‑10 | **MIS-BUILD**: R1 harness rejected. The artifact is **chat.html upgraded with per-side keyboards** — nothing else. |
+| 2026‑09‑10 | **Baseline preservation rule**: never cripple/delete/change baseline; additive-only integration. |
+| 2026‑09‑10 | **Interaction spec locked**: tap nub slides keyboard out; Enter collapses sender's keyboard and slides out the other's; request nub sends a request rendered in the keyboard-owner's language; relinquish via nub or by typing+Enter. |
+| 2026‑09‑10 | **OS keyboard fully rejected** — no fallback, no keyboard-selection UI of any kind. |
 
 ## 7. APPENDIX
 - **Authority order**: this plan (duck.md) > all else. Chat history loses to the plan.
-- Artifacts: CODE file `duck.html`, PLAN file `duck.md`.
-- Phase: **BUILD** — R1 done; **R2 (Head‑to‑Head Translate Shell) is the next and only build step.**
-- Known: duck is a head‑to‑head two‑person translation app (see Define). MyMemory anonymous endpoint is the translation backend (R1 shipped, diagnostics + ≤1 s latency measurement live). Simple Keyboard provides per‑side input, rotated 180° for North (R2/R3). Browser Web Speech API provides STT/TTS in R2. Default 13‑language set ships unless owner supplies test.html.
+- Artifacts: CODE file `duck.html` (= baseline chat.html + additive keyboard layer), PLAN file `duck.md`.
+- Phase: **BUILD**.
+- **Single next step**: owner pastes the current chat.html source; then build duck.html as chat.html verbatim + the R2 keyboard layer exactly as specified in §3 (nub slide-out, Enter handoff, localized request, one keyboard max, diagnostics in-app).
+- Known: MyMemory anonymous endpoint is the translation backend. Simple Keyboard provides per-side on-screen input, rotated 180° for North. No OS keyboard, no selection UI. Baseline chat.html features (chat UI, STT, TTS) are preserved untouched.
