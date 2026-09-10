@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.4.0 -->
-# TALKBRIDGE MASTER PLAN v21.4.0
+<!-- TALKBRIDGE-PLAN v21.5.0 -->
+# TALKBRIDGE MASTER PLAN v21.5.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **Directory release, FIRST and isolated** — D-2 PRISM un-hijack done right AND desktop Chrome install restored (D-6): /stuff/talkbridge-app/ with slash-true scope; complete line-verified URL-coupling map; single worker churn for the whole turn (notifications worker edit lands in the folder next release, not before) | Spec §7.5 | **BUILT 2026-09-06 on owner GO — device gate pending (§7.5 G1–G5).** Folder carries its own worker (byte-identical), manifest (scope "./", no start_url), icons and flag assets. Frozen-region diff = exactly E1–E4. Mutations 3/3. No root file touched (M4). Forwarders are a POST-ACCEPT step, owner-ordered. | https://acmeproducts.github.io/stuff/talkbridge-app/ |
+| 27·base | **Directory release, FIRST and isolated** — D-2 PRISM un-hijack done right AND desktop Chrome install restored (D-6): /stuff/talkbridge-app/ with slash-true scope; complete line-verified URL-coupling map; single worker churn for the whole turn (notifications worker edit lands in the folder next release, not before) | Spec §7.5 | **G1 FAILED then ROOT-CAUSED 2026-09-06: Chrome requires start_url for installability — the G25 no-start_url rule was the blocker. E5 added: folder manifest gains `"start_url": "./"` (MDN: reproduces default behavior where not required). G25 SUPERSEDED for the folder manifest only; root manifests untouched. Re-gate G1 AND G3 (install-before-join would launch at app root, not the invite; mitigated by Chrome's 30-s engagement rule).**  Folder carries its own worker (byte-identical), manifest (scope "./", no start_url), icons and flag assets. Frozen-region diff = exactly E1–E4. Mutations 3/3. No root file touched (M4). Forwarders are a POST-ACCEPT step, owner-ordered. | https://acmeproducts.github.io/stuff/talkbridge-app/ |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4226,3 +4226,7 @@ M4 fails; (c) export button on home → M5 fails.
 G2 export a room → readable text, Copy works. G3 DevTools → delete ALL
 Local Storage keys → relaunch → everything present (IDB restored it),
 log shows the restore. G4 20 messages, relaunch, all present.
+
+
+## G25 SUPERSEDED (2026-09-06, folder release)
+The "never a start_url" rule came from invite-install breakage. It is also the exact reason Chrome would not offer desktop install. Corrected rule: the folder manifest carries `start_url: "./"`; grant preservation is achieved by the invite being consumed on first visit (Chrome only offers install after 30 s engagement + a click). Root manifests keep no start_url.
