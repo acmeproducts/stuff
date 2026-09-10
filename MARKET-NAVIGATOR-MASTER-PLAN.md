@@ -2,6 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-10
+Next release scope: Turn 16
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -11,9 +12,13 @@ Market Navigator is an evidence-backed market research application with four per
 
 with **CONFIG** separated at the bottom of the left rail.
 
-The application is not a continuation of any single historical HTML file. The next release is a **clean reconstruction from the current product contract using proven historical donors by capability**.
+The analytical NOW journey has exactly three user-facing chart views:
 
-The product principle is:
+**ENVIRONMENT → <INDEX> → <COMPONENT>**
+
+Numbered view labels are prohibited in the active product, active governance, QA language, generated reports, breadcrumbs, titles, DOM text, and active implementation naming where they could leak into the product surface.
+
+The product principle remains:
 
 **Data Catalog → Collector → Smart Evidence Store → Operational Manifest / Source Health → chart and analysis consumers → AI interpretation**
 
@@ -27,112 +32,70 @@ The backend owns objective, deterministic, reproducible evidence. AI interprets 
 When sources disagree, use this order:
 
 1. **This Master Plan** — current product/build/qualification authority.
-2. **`MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md` dated 2026-09-03** — authoritative interaction contract for NOW/V1/V2/V3/EXPLORE; its content is folded into this plan.
-3. **Owner-reviewed accepted interaction/chart behavior** in `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md`, only where not superseded here.
-4. **Canonical backend definitions and observations** under `data/market-backend/` and `market-data/`, after schema and freshness are verified.
-5. **Historical donor implementations**, used only for the capabilities explicitly assigned in §4.
-6. **Graveyard** (`MARKET-NAVIGATOR-GRAVEYARD.md`) as the binding negative specification.
+2. Owner-reviewed accepted interaction/chart behavior in `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md`, only where not superseded here.
+3. Canonical backend definitions and observations under `data/market-backend/`, `market-data/`, and `market-evidence/`, after schema and freshness are verified.
+4. Historical donor implementations, used only for capabilities explicitly assigned here.
+5. `MARKET-NAVIGATOR-GRAVEYARD.md` as the binding negative specification where not superseded by a newer owner decision in this plan.
 
-Rejected Gate 4 releases are evidence only. They are never implementation ancestors.
-
----
-
-## 3. Critical reconstruction decision
-Do **not** treat Market Navigator 3.9.7 as the application baseline.
-
-3.9.7 is useful only as a **chart/data behavior donor** for proven mechanics such as multi-series rendering, real observation handling, touch/hover inspection, responsive chart sizing, historical data loading/cleaning, and selected-horizon behavior where compatible with the current contract.
-
-The current product architecture is materially different from 3.9.7 and requires a clean application shell.
-
-The next implementation therefore follows this rule:
-
-**Construct the current Market Navigator surface cleanly; transplant only proven donor capabilities; do not inherit obsolete pages, cards, fake Market constructs, old navigation, or rejected release structure simply because they surround useful code.**
-
-No iframe wrapper recovery. No compatibility patch stack. No patch-forward from R11/R12/R13. No historical file is automatically authoritative because it once worked.
+Historical contracts that use obsolete numbered view terminology are evidence only. Their terminology is not authoritative and must not be reintroduced.
 
 ---
 
-## 4. Donor matrix — use by capability, not ancestry
+## 3. Build principle
+Construct the current Market Navigator surface cleanly and reuse only proven donor capabilities.
 
-### 4.1 Application shell / layout / persistent mode architecture
-Primary donor:
+Do not inherit obsolete pages, fake Market constructs, old navigation, wrappers, stacked patch layers, duplicate chart engines, or rejected release geometry simply because useful code is nearby.
 
-**PRISM R25**
+There is one application state model, one chart engine, one horizon engine, one discovery component, one AI configuration/execution state, one Library persistence model, and one Health/evidence truth model.
 
-Exact reviewed URL/reference:
-`prism/prism-turn01-pre-ship-r25.html` at commit `da6442f2702a5e681367884d403a5d14251f2da8`.
+---
 
-Use PRISM R25 as a donor for:
+## 4. Donor matrix
+
+### 4.1 Application shell
+Primary donor: PRISM R25 at commit `da6442f2702a5e681367884d403a5d14251f2da8`.
+
+Use only for:
 - left collapsible rail geometry;
-- full-height no-page-scroll application shell;
-- compact top/ribbon structure;
+- full-height application shell;
 - responsive/mobile rail behavior;
-- persistent analytical workspace geometry;
+- persistent workspace geometry;
 - Library split-pane structure;
 - transcript + composer structure;
 - drawer/modal patterns;
-- compact control density;
-- stateful mode switching patterns.
+- compact control density.
 
-Do **not** copy PRISM domain-specific content, filters, sphere/treemap behavior, news/event semantics, or unrelated visual objects.
+### 4.2 Chart engine
+Primary donor: Market Navigator 3.9.7 `market-view.html` at commit `c7bf516af9a3ed43233f5aeb5c63b6c2d53c7180`, plus later accepted chart mechanics only when independently verified.
 
-### 4.2 Chart engine / real observation behavior
-Primary donors:
-- Market Navigator 3.9.7 `market-view.html` at commit `c7bf516af9a3ed43233f5aeb5c63b6c2d53c7180`;
-- accepted historical chart variants documented by `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md`;
-- later 3.9.x chart code only when independently verified as an improvement and not tied to rejected product geometry.
-
-Use these donors for:
+Use only for:
 - multi-series plotting;
-- axis rendering;
 - real observation coordinates;
-- responsive canvas/chart sizing;
-- touch/hover inspection mechanics;
-- canonical series cleanup/deduplication;
-- historical range handling that is compatible with the current seven-horizon contract.
+- axis rendering;
+- responsive chart sizing;
+- touch/hover inspection;
+- canonical observation cleanup/deduplication;
+- compatible historical range handling.
 
-Do **not** inherit:
-- old card-heavy home layouts;
-- old category pages;
-- any fake/extra Market index;
-- obsolete horizons;
-- obsolete page hierarchy;
-- unrelated detail navigation;
-- all-series popup behavior where it conflicts with the current single-active-series inspection contract.
-
-### 4.3 AI provider/model configuration
-Exact donor:
-
-**`devstream-test.html`**
-
-Reuse its provider/model/key state machine and interaction pattern rather than approximating it.
+### 4.3 AI configuration
+Exact donor: `devstream-test.html`.
 
 Required providers:
 - Venice.ai;
 - OpenRouter;
 - Anthropic direct.
 
-CONFIG validation and actual AI execution must consume the same authoritative saved state.
+CONFIG validation and actual AI execution must consume the same saved provider/model/key state.
 
-### 4.4 Analysis conversation
-Exact presentation donor:
+### 4.4 Conversation
+Exact presentation donor: `test.html`.
 
-**`test.html`**
-
-Reuse its conversation presentation principles for:
+Reuse its principles for:
 - AI/user turn bubbles;
 - timestamps;
 - persistent composer;
-- continued conversation below Analysis;
+- continued conversation;
 - state restoration from Library.
-
-### 4.5 Backend authority
-Canonical product data comes from:
-- `data/market-backend/` definitions/catalog/collector contracts;
-- `market-data/` persisted UI-facing observations and manifests;
-- Health/source-health evidence.
-
-The browser must not silently become a second canonical acquisition system.
 
 ---
 
@@ -140,102 +103,124 @@ The browser must not silently become a second canonical acquisition system.
 The production frame is:
 
 - left collapsible rail: **NOW · EXPLORE · LIBRARY · HEALTH**;
-- **CONFIG** fixed/separated at the bottom;
+- **CONFIG** fixed at the bottom;
 - one analytical workspace to the right;
-- compact header/ribbon above the analytical surface;
-- no page-level vertical scrolling for the core NOW journey on phone portrait;
-- secondary detail may use modal/drawer/contained scrolling where required;
-- no arbitrary redesign for implementation convenience.
-
-The application shell should feel closer to PRISM R25 than historical 3.9.7 because it represents the current product architecture.
+- no arbitrary redesign for implementation convenience;
+- no page-level vertical scroll hunt for the core NOW journey;
+- contained scrolling only where detail genuinely requires it.
 
 ---
 
-## 6. Canonical horizon contract
+## 6. Canonical chart chrome — mandatory across ENVIRONMENT, INDEX, and COMPONENT
+All three chart views use the same three-section vertical structure. This is one shared component, not three approximations.
+
+### Section A — single top row
+Exactly one physical row at every supported width:
+
+**clickable breadcrumb [left] | horizon controls [fixed center] | `…` context menu [right]**
+
+The seven horizon controls are always centered and are exactly:
+
+**1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**
+
+The row never wraps.
+
+The breadcrumb area yields space first. When it cannot fit, its visible text truncates with an ellipsis. Pointer hover exposes the full breadcrumb string. Touch must have an equivalent accessible disclosure without changing the row height.
+
+Breadcrumb forms are exactly:
+- `ENVIRONMENT`
+- `ENVIRONMENT / RSK`
+- `ENVIRONMENT / RSK / VIX`
+- with added comparison components: `ENVIRONMENT / RSK / VIX + 6 Components`
+
+The root and index ancestors are directly clickable navigation. No dedicated Back button is permitted.
+
+The root component in the breadcrumb is the component originally opened from its INDEX view. Added comparison series do not replace that root component; they only update the `+ X Components` suffix.
+
+### Section B — legend strip
+A dedicated legend strip is always present directly below Section A, including single-series charts.
+
+Legend chips are clickable and correspond one-to-one with visible chart series.
+
+Added comparison series live here rather than expanding the breadcrumb beyond the governed suffix.
+
+### Section C — centered footer
+The footer is a meaningful chart-status/control strip, not QA clutter.
+
+It contains, centered as one compact group:
+
+**version/build | exact visible date range | representation selector**
+
+The old header version label is removed from Section A.
+
+The representation selector exposes the governed chart representations:
+- **Native Y1**;
+- **Native Y1 + Y2** when two measurement families require it;
+- **Indexed 100**.
+
+The current representation is shown in the footer. Selecting another valid representation updates the same chart in place. Choices that are not meaningful for the current series set are disabled rather than producing invalid axes.
+
+Legacy footer text such as chart-type experiments or QA-oriented labels is prohibited.
+
+---
+
+## 7. Horizon contract
 Exactly seven horizons:
 
 **1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**
 
 NOW defaults to **5D**.
 
-There is exactly one selected horizon clock for the active analytical surface.
-
 Rules:
-- one common X-domain for every visible series in a given chart;
-- horizon start/end are determined by the selected horizon and common clock, not independently from each series' own latest observation;
-- monthly/weekly/stale series may terminate before the right edge;
-- a slow-frequency series with no in-window observation remains an explicit degraded/no-in-window evidence case;
+- one selected horizon clock for the active analytical surface;
+- one common X-domain for every visible series in a chart;
+- horizon boundaries come from the selected horizon/common clock, not each series independently;
+- low-frequency series may terminate before the right edge;
 - no source series is stretched to appear current;
 - no fabricated daily observations;
 - no visual carry-forward masquerading as source observations.
 
-All seven horizons are release-blocking QA across V1, every V2, and representative V3 cases. **5D, MTD and YTD receive explicit short-horizon review.**
-
 ---
 
-## 7. NOW — canonical progression
-The canonical NOW journey is:
-
-**V1 Market → V2 selected Index replacement → V2 component information card → More info → V3 Analysis modal → close → exact prior V2 state**
-
-There is no V4 product state.
-
-EXPLORE is a separate principal entrance and is never V5.
-
----
-
-## 8. V1 — Market overview
-V1 is **one chart**, not a collection of cards.
+## 8. ENVIRONMENT view
+ENVIRONMENT is one chart, not a collection of cards.
 
 Required:
 - one primary chart footprint;
-- exactly the three derived indices plotted together as line series: **RSK · GRW · MAC**;
-- direction-adjusted Indexed 100 representation;
-- no fabricated fourth “Market” index or score curve;
-- same selected horizon/common X-domain for all three;
-- compact legend/series identities;
-- one active series/one real-point inspection at a time;
-- breadcrumbs/ribbon above the chart;
-- a compact `…` menu providing **Analyze into Library · Download · Print** against the exact visible V1 chart state;
-- core interaction visible without vertical page scrolling on phone portrait.
-
-Selecting Risk, Growth or Macro transitions that same chart footprint to V2. It does **not** stack another chart below V1.
+- exactly three derived indices plotted together as line series: **RSK · GRW · MAC**;
+- direction-adjusted Indexed 100 representation by default;
+- no fabricated fourth Market/Environment score curve;
+- one common horizon/X-domain;
+- Section A/B/C chrome exactly as defined in §6;
+- selecting an index replaces ENVIRONMENT with that INDEX view in the same footprint.
 
 ---
 
-## 9. V2 — selected index + governed components
-V2 replaces V1 in the exact same primary chart footprint.
+## 9. INDEX view
+An INDEX view replaces ENVIRONMENT in the exact same primary chart footprint.
 
 Required:
-- selected derived index reference rendered as a line series;
-- every governed component of that selected index;
-- all visible together on the same comparison chart, with governed components retained as line series;
-- direction-oriented Indexed 100 on Y1;
-- no canonical V2 Y2;
-- same common horizon/X-domain;
-- compact legend/component identities corresponding to actual chart series;
-- selected index line must be visually distinct without overwhelming components;
-- missing/stale/sparse/failed/cadence-incompatible components remain explicitly represented as degraded evidence rather than silently disappearing;
+- selected derived index rendered as a line;
+- every governed component of that index rendered as lines;
+- one common horizon/X-domain;
+- direction-oriented Indexed 100 by default;
+- missing/stale/sparse/failed/cadence-incompatible evidence represented truthfully rather than silently disappearing;
 - source lines contain only real source observations;
 - slow-frequency lines terminate at their real observation dates;
-- context/horizon/series changes clear stale inspection.
-- a compact `…` menu provides **Analyze into Library · Download · Print** against the exact visible V2 chart state.
+- selecting a component opens/updates its contextual information card;
+- Section A/B/C chrome exactly as defined in §6.
 
-The main substantive chart evolution from the previously working comparison behavior is deliberately narrow:
-
-**the selected derived index line is added to the governed component comparison chart.**
-
-V2 is not a menu page, not component pills surrounding one line, and not a stacked second chart.
+The selected index and its components remain one comparison chart. Do not stack another chart or turn the view into navigation pills around a single line.
 
 ---
 
-## 10. V2 component selection — information card
-Selecting a component in V2 keeps V2 active and opens/updates a compact contextual information card.
+## 10. Component information card
+Selecting a component in an INDEX view keeps the INDEX chart active and opens/updates a compact contextual card.
 
 Minimum content:
-- component short identity and full identity;
+- short and full identity;
 - plain-language definition;
-- role/direction in the selected index;
+- role/direction in the index;
 - provider/source;
 - native unit;
 - native cadence;
@@ -244,87 +229,107 @@ Minimum content:
 - construction disclosure where relevant;
 - explicit **More info** action.
 
-The card is contextual, not a new page/state.
-
-It must not push the core chart flow below the fold on phone portrait.
-
-Changing component updates/replaces the card. Changing index or returning to V1 clears it.
+The card is contextual, not a new page. Changing component replaces the card. Changing index or returning to ENVIRONMENT clears it.
 
 ---
 
-## 11. V3 — Analysis
-Only the information card's **More info** action launches V3 from V2.
+## 11. COMPONENT view
+Only the information card's **More info** action opens the COMPONENT analytical workspace from an INDEX view.
 
-V3 opens as a modal/contained analytical workspace over NOW and preserves the exact underlying V2 state.
-
-Initial V3 state:
+Initial state:
 - exact selected root component;
 - same selected horizon;
 - native units;
 - native Y1;
 - real observations only;
-- Market/index/component lineage retained;
+- ENVIRONMENT/index/component lineage retained;
 - no unrelated default series.
 
-Closing V3 restores exactly:
-- same V2 index;
-- same component selection;
-- same information card;
-- same horizon;
-- same chart state;
-- same inspection state where still valid.
+Closing COMPONENT restores the exact prior INDEX state, including selected component, card, horizon, chart state, and still-valid inspection state.
 
-V3 owns additive analysis. There is no separate V4.
+COMPONENT owns additive comparison series.
 
-Automatic axis rules:
-1. one series → native Y1;
-2. 2+ compatible same-measurement series → shared native Y1;
-3. exactly two incompatible measurement families, regardless of how many series belong to either family → native Y1 + Y2;
-4. 3+ incompatible measurement families → Indexed 100 Y1, no Y2.
+The breadcrumb never grows beyond:
 
-Axis assignment is governed by measurement-family count, never series count. Currency is not a separate analytical exception; authoritative catalog measurement metadata determines compatibility.
+`ENVIRONMENT / <INDEX> / <ROOT COMPONENT> + X Components`
+
+Automatic representation rules remain:
+1. one series → Native Y1;
+2. compatible same-measurement series → shared Native Y1;
+3. exactly two incompatible measurement families → Native Y1 + Y2;
+4. three or more incompatible measurement families → Indexed 100.
 
 Required acceptance examples:
 - WTI + Brent → shared native $/barrel Y1;
 - CPI + Core CPI → shared compatible Y1;
-- SPY + QQQ + WTI → three series, exactly two measurement families, native Y1 + Y2;
-- DXY + VIX → two distinct index-definition families, native Y1 + Y2 despite both displaying `idx` notation;
-- CPI + WTI → Y1 + Y2;
-- CPI + WTI + VIX → Indexed 100;
-- multi-component mixed set → Indexed 100 after evidence qualification.
-
-**CPI + WTI is a mandatory mixed-frequency acceptance case.**
+- SPY + QQQ + WTI → Native Y1 + Y2;
+- DXY + VIX → Native Y1 + Y2;
+- CPI + WTI → Native Y1 + Y2;
+- CPI + WTI + VIX → Indexed 100.
 
 ---
 
-## 12. Point inspection contract
-Every applicable chart follows:
+## 12. Point inspection and active-series emphasis
+Point inspection remains single-active-series and real-observation based.
 
-- one active series at a time;
-- select by line or compact series identity;
-- snap to nearest **real** observation on that active series;
+Required:
+- select/target one active series by line or legend chip;
+- snap to nearest real observation on that active series;
 - one vertical guide;
 - one point marker;
 - one contextual date/value/unit popup/tag;
-- the active legend/series chip has a white border, and the active line or column has a white outline while retaining its assigned identity color;
-- for every raw series, the popup/tag exposes both its normalized `idx` value and its native value; for example, `WTI · idx 93.00 · value 81.15 USD/barrel`;
-- explicit dismiss where practical;
+- popup retains the already-governed normalized `idx` and native value information;
 - no all-series inspection popup;
-- horizon/context/series-set changes clear stale inspection;
-- a previous component's popup/marker must never persist after context changes.
+- no unrelated tooltip/content redesign;
+- horizon/context/series-set changes clear stale inspection.
 
-Selection availability is horizon-truthful. A raw series with no real observation inside the selected horizon remains visible as degraded evidence where governance requires it, but it is disabled and cannot be selected into V3/EXPLORE/Add Series for that horizon. It becomes selectable automatically on a horizon where real evidence exists.
+### Active-series visual treatment
+The white plotted-series outline scheme is retired.
 
-GDP is a periodic-change analytical measure, not a raw level series in the user-facing chart catalog. The canonical Real GDP level (`GDPC1`) is input evidence only. User-facing GDP exposes exactly **GDP q/q** and **GDP y/y**, both derived deterministically from successive real quarterly GDP level observations and persisted as quarterly transformed evidence. The raw GDP level is not selectable. No daily interpolation, horizon-end restamping, or visual carry-forward is permitted. Selection availability for GDP q/q and GDP y/y is based on the existence and currentness of the canonical quarterly transform, not on whether a new quarterly release happens to fall inside a short 1D/5D/MTD chart window. Only genuine quarterly transform observations are plotted; the latest q/q and y/y readings remain visible as periodic context when a short horizon contains no new release.
+During active crosshair/point inspection:
+- the intended active series remains fully opaque and is rendered visually above the others;
+- all other visible series become translucent/backgrounded;
+- configured line thickness does not change;
+- no second click is required to clear emphasis;
+- emphasis follows the existing inspection interaction and clears automatically when inspection ends or context changes;
+- no explanatory popup, separate chart window, or additional interaction state is introduced.
 
-CPI/Core CPI remain their governed inflation-change series rather than being treated as GDP-style raw levels. Direction for periodic change is summarized as ▲ green positive, ▶ amber neutral, or ▼ red negative within the relevant sentiment context. No q/q or y/y value may be fabricated from an already transformed series that lacks the required underlying level evidence.
+The goal is immediate visual isolation with zero added friction.
 
 ---
 
-## 13. Governed derived indices
-Three derived indices only.
+## 13. GDP and periodic evidence
+Raw Real GDP level (`GDPC1`) is input evidence only and is not user-selectable.
 
-Construction principle: equal-weight, direction-adjusted, rebased 100, with deterministic documented mixed-cadence alignment for the derived composite. Source series remain real observations only.
+User-facing GDP exposes exactly:
+- **GDP q/q**;
+- **GDP y/y**.
+
+Both are deterministic transforms of real quarterly GDP levels and remain quarterly evidence.
+
+No daily interpolation, horizon-end restamping, synthetic timestamps, or flat synthetic line is permitted.
+
+Short-horizon selection does not make GDP q/q or GDP y/y unavailable merely because no new quarterly release falls inside the selected window. Only genuine quarterly transform observations are plotted; the latest valid transform remains available as periodic analytical context.
+
+CPI/Core CPI remain their governed inflation-change series and are not reinterpreted as raw GDP-style levels.
+
+---
+
+## 14. Availability and WTI truthfulness
+Availability is not one boolean truth. Keep distinct:
+1. source/collector health;
+2. evidence load/revision integrity;
+3. direct-analysis availability;
+4. derived-index mathematical eligibility.
+
+Fetch/parse/revision failures must surface as actual evidence errors and must never silently become `unavailable`.
+
+WTI is the mandatory regression case. Its historical zero crossing may make it ineligible for a particular Growth composite rebasing formula, but that composite-construction exclusion must never suppress WTI's real observations from INDEX, EXPLORE, or COMPONENT direct analysis.
+
+---
+
+## 15. Governed indices
+Three derived indices only.
 
 ### Risk
 - SPY −1
@@ -344,7 +349,7 @@ Construction principle: equal-weight, direction-adjusted, rebased 100, with dete
 - unemployment −1
 - payrolls +1
 
-Growth disclosure is mandatory: ISM Manufacturing PMI is excluded because no permissible free historical/current source is available. The owner-approved replacement is Federal Reserve Industrial Production: Manufacturing (NAICS), **IPMAN**. IPMAN must never be described or implied to be PMI.
+ISM Manufacturing PMI remains excluded because no permissible free historical/current source is available. IPMAN must never be described or implied to be PMI.
 
 ### Macro
 - 10Y +1
@@ -357,649 +362,414 @@ Growth disclosure is mandatory: ISM Manufacturing PMI is excluded because no per
 
 A missing governed series is a backend/evidence gap, never permission for silent substitution.
 
-Sentiment direction uses the governed semantic cues: ▲ green positive, ▶ amber neutral, ▼ red negative. Chart-series colors are identity colors, not sentiment judgments; this prevents a red series from being misread as a negative call and leaves white available for active-reference emphasis.
+---
 
-Chart comparison colors follow an identity contract:
-- a series color is assigned by series identity, never by its current array position;
-- removing earlier series never recolors a remaining series;
-- every active chart of up to ten series uses visually distinct colors;
-- the settings gear opens three built-in ten-color presets plus ten editable color slots;
-- custom schemes persist locally and support JSON export/import;
-- white is reserved for the active reference outline and cannot be used as a series color;
-- an immutable Library chart preserves the exact colors saved with that chart even if the current global scheme later changes.
+## 16. Series identity and Chart Config
+Series style is identity-bound, never array-position-bound.
+
+CONFIG contains exactly three tabs:
+
+**AI | Chart Config | About**
+
+One persistent close `×` is visible at the top-right of the CONFIG surface in every tab. Closing CONFIG returns to the exact view from which CONFIG was opened.
+
+### Chart Config requirements
+- presets: **Normal · Bright · Colorblind**;
+- ten persistent series slots;
+- per-slot color;
+- per-slot thickness **1pt–12pt**;
+- per-slot style **line · dash · dash-dot · dot · dot-dash**;
+- local persistence;
+- JSON export/import;
+- immutable Library charts preserve their saved styles.
+
+Desktop and mobile layouts are implementation details, but every control must be fully visible, operable, and non-overlapping. A clipped or inaccessible line-style selector is a release-blocking defect.
+
+Changes preview immediately. **Save** commits persistence. Closing/canceling before Save discards unsaved changes and restores the persisted style state.
+
+Removing another series must never recolor or restyle a surviving series.
 
 ---
 
-## 14. Derived-index calculation integrity
-The derived index must not change effective component population or weights simply because observations occur on different dates.
+## 17. Canonical context menu
+There is one context-menu component and exactly one command order everywhere it appears:
 
-Before implementation, define and mechanically test one deterministic composite alignment rule covering:
-- daily components;
-- weekly components;
-- monthly components;
-- missing observations;
-- stale observations;
-- no-in-window observations;
-- publication timing.
+1. **AI POV**
+2. **Print**
+3. **Download Markdown**
+4. **Download CSV**
+5. **Download JSON**
 
-The derived composite may use a documented internal alignment/carry-forward rule solely for composite calculation if required, but:
-- the rule must be deterministic and disclosed;
-- source-series chart points must remain original real observations;
-- no synthetic observation may be written into canonical source evidence;
-- degraded component health must remain visible to the user;
-- the index must disclose/support how many governed components currently support the calculation.
+It appears in Section A on ENVIRONMENT, INDEX, COMPONENT, and applicable EXPLORE analytical state.
+
+No view-specific extra command is permitted inside this menu. Features such as statistics must live elsewhere if retained.
+
+Each action binds to the exact visible series set, horizon, representation, evidence revision, and chart state.
 
 ---
 
-## 15. EXPLORE
-EXPLORE is a principal application mode and a separate analytical entrance.
-
-Flow:
-
-**EXPLORE discovery → select one or more series → V3 Analysis**
+## 18. EXPLORE
+EXPLORE is a principal mode and a separate analytical entrance.
 
 Required:
-- full-page canonical discovery/selection component;
+- full-page discovery/selection;
 - taxonomy: **Market | Risk | Growth | Macro | Other**;
 - Omnisearch/search;
 - multi-select;
-- consistent item metadata and selection semantics;
-- Market contains selectable Risk/Growth/Macro indices; Market itself is not a selectable fake series;
+- consistent metadata and selection semantics;
+- Market contains selectable Risk/Growth/Macro indices; Market itself is not a fake selectable series;
 - Risk/Growth/Macro expose their index plus governed components;
 - Other = catalog minus governed index constituents;
-- same discovery component reused by Add Series inside V3.
+- same discovery component reused by Add Series inside COMPONENT.
 
-Do not force EXPLORE through V1 or V2. Do not label it V5.
+EXPLORE selection converges on COMPONENT analysis without traversing ENVIRONMENT or INDEX unless the user explicitly navigates there.
 
 ---
 
-## 16. LIBRARY
-LIBRARY is a persistent analysis workspace/history surface, not a static bookmark list.
+## 19. LIBRARY
+LIBRARY is persistent analysis/history, not a static bookmark list.
 
-The PRISM R25 Library structure is a strong shell donor.
-
-Saving Analysis preserves:
-- Market/index/root-component or Explore lineage;
+Saving an analysis preserves:
+- ENVIRONMENT/index/root-component or Explore lineage;
 - selected series;
 - horizon;
-- axis/normalization representation;
-- evidence/provenance references;
+- representation and axis assignment;
+- evidence/provenance revision;
 - AI POV;
 - full timestamped conversation;
-- statistics/correlation state where active;
 - saved/version time;
-- resume context.
+- exact chart snapshot, including styles and real observations.
 
-V1 and V2 may create the Analysis directly from their `…` menu. That path must freeze the exact visible bar/line chart before AI execution; it may not detour through or reconstruct a different V3 state.
+Opening a saved analysis restores the same analytical state, renders the saved chart above the transcript, and allows continued conversation.
 
-It also preserves an immutable chart snapshot created before AI execution:
-- exact common X-domain and horizon;
-- exact selected series and active series;
-- exact axis mode and Y1/Y2 assignment by measurement family;
-- exact plotted real observations, native values and Indexed-100 values;
-- exact catalog/evidence/derived-index revisions used for the run.
-
-Opening a saved analysis restores the same analytical state, visibly renders that saved chart above the transcript, and allows continued conversation. Library rendering must use the same canonical chart engine as V1/V2/V3. It may not create a second Library chart engine or silently substitute newer evidence for the frozen saved chart.
-
-Library requirements:
-- left-side analysis list/cards;
+Required:
+- analysis cards/list;
 - Omnisearch;
 - readable selected analysis detail;
-- the first completed AI response generates a specific Analysis title; the title remains inline-editable and Enter/blur persists a manual override without later background completion replacing it;
-- visible saved chart with its legend, horizon, axis mode, point inspection and evidence revision;
-- evidence/source links where applicable;
+- inline-editable generated title;
+- saved chart above transcript;
+- evidence/source links;
 - persistent transcript;
 - persistent continuation composer;
-- export/import where governed elsewhere;
-- no hidden or disconnected chat continuation state.
+- no duplicate Library-only chart engine;
+- no silent substitution of newer evidence for the frozen saved chart.
 
 ---
 
-## 17. AI / Analysis conversation
-AI is integrated into V3/Library Analysis, not bolted on as a separate unrelated report page.
-
-### Provider/model configuration
-Use `devstream-test.html` as exact donor for provider/model/key state.
-
-CONFIG must support:
-- Venice.ai;
-- OpenRouter;
-- Anthropic direct;
-- credential entry/storage;
-- model discovery/selection;
-- validation;
-- switching;
-- clear failure state.
-
-There is one authoritative AI configuration state. A provider/model shown as validated in CONFIG must be the exact state used by Analysis execution.
-
-Release-blocking proof:
-
-**validated provider/model → actual AI request → successful persistent AI response**
-
-### AI POV
+## 20. AI / conversation
 AI POV is the opening AI turn for the active analysis.
 
-Before interpretation it must preflight evidence for:
+Before interpretation it preflights:
 - stale/missing components;
 - incomplete horizon coverage;
-- expected publication lag versus collector/persistence failure;
+- publication lag versus collector/persistence failure;
 - sparse density;
 - mixed-frequency limitations;
 - unavailable components;
-- whether the visible index/chart is adequately supported.
+- whether the chart is adequately supported.
 
-If evidence is materially incomplete, the POV must state the limitation and narrow/refuse unsupported inference.
-
-### Conversation presentation
-Use `test.html` as presentation donor.
-
-Below the V3 chart, conversation owns the continuation area:
-- user and AI bubbles;
+Conversation requirements:
+- user/AI bubbles;
 - visible timestamps;
 - persistent composer;
 - Markdown rendering;
 - working hyperlinks for referenced sources/subjects;
 - persistence/restoration with Library state.
 
-No Tag/Clarify clutter or unrelated persistent stats blocks should displace conversation.
-
 ---
 
-## 18. HEALTH
-HEALTH is a root-cause diagnostic surface, not a green/red status table.
+## 21. HEALTH
+HEALTH is a root-cause diagnostic surface.
 
-For each canonical series it must reconcile:
+For each canonical series reconcile:
 
 **series/source → publication expectation → actual canonical observation → collector attempt/result → persistence/cache/manifest state → horizon coverage/density → visible chart/index impact**
 
-It must distinguish at minimum:
+Health must distinguish at minimum:
 1. source has not published yet;
 2. source published but collector missed/failed;
-3. collector obtained data but canonical persistence/cache failed;
+3. collector obtained data but persistence/cache failed;
 4. canonical data exists but active-horizon coverage is sparse/insufficient;
 5. cadence incompatibility makes a comparison misleading;
-6. stale or missing evidence affects a derived index.
+6. stale/missing evidence affects a derived index.
 
-Required metadata:
-- source/provider and source identifier;
-- native cadence;
-- publication lag/expected-availability rule;
-- latest publicly expected observation where determinable;
-- actual latest canonical observation;
-- last collection attempt/result;
-- last successful collection;
-- persistence/cache/manifest state;
-- next expected publication/update;
-- horizon coverage;
-- active-horizon observation density;
-- provenance/error state;
-- health class: current / expected-lag / stale / missing / failed / sparse.
-
-Cadence alone can never justify `expected-lag`.
+Cadence alone can never justify a healthy/current classification.
 
 ---
 
-## 19. Statistics / latest values / correlation
+## 22. Statistics / latest values / correlation
 Statistics bind to the exact active analytical state.
 
-Latest real observation date/value for visible series plus active correlation summary should occupy one compact upper-right chart overlay with explicit close.
+If retained, latest values/correlation use one compact chart overlay with explicit close. Closing it is presentation-only and must not mutate series, horizon, axes, representation, or analysis state.
 
-Closing the overlay is presentation-only and must not mutate:
-- series;
-- horizon;
-- axes;
-- normalization;
-- correlation;
-- Analysis state.
-
-No persistent below-chart statistics block may consume the conversation area.
+Statistics are not a special item in the canonical `…` menu.
 
 ---
 
-## 20. Print / Download
-Download must export the exact active report/evidence state plus exact underlying data used by that state.
+## 23. Print / Download
+All exports bind to the exact visible analytical state.
 
-Print must produce a formatted report reconciled to the same analytical/evidence state.
+- **Print** produces a formatted report matching the visible chart/evidence state.
+- **Download Markdown** exports the exact report/analysis state.
+- **Download CSV** exports the exact visible chart-series observations/data.
+- **Download JSON** exports the exact chart-series/state/evidence metadata required for reproducibility.
 
-No export may silently include a different series set, horizon, or evidence revision than the visible Analysis state.
-
-V1 and V2 expose Analyze into Library, Download and Print from the same compact `…` menu. All three actions bind to the exact visible chart, including derived-index columns, component lines, colors, horizon, common X-domain and evidence revision.
-
----
-
-## 21. Data and schema preconditions
-Before chart construction, prove the persisted schema for every governed component.
-
-For every governed ID verify:
-- canonical ID;
-- actual persisted filename/path;
-- observation field names/types;
-- timestamp semantics/time zone;
-- unit/measurement family;
-- provider/source ID;
-- cadence;
-- latest canonical observation;
-- required historical depth for 5YR;
-- health linkage.
-
-Resolve filename/identity mismatches before UI implementation. Examples such as `manufacturingProduction` versus `industrialProduction` must not be guessed around in the browser.
-
-The browser is a consumer of the reconciled canonical model, not the place where naming inconsistencies are hidden.
+No export may silently change series, horizon, representation, or evidence revision.
 
 ---
 
-## 22. Build architecture
-The new release should be built as a coherent application, not a wrapper chain.
+## 24. Race elimination and evidence coherence
+The browser must not allow stale asynchronous responses to overwrite newer user state.
 
-Preferred structure:
-- one canonical Market Navigator HTML shell;
-- modular JS/CSS files where useful;
-- one application state model;
-- one chart engine;
-- one horizon engine;
-- one series/catalog identity map;
-- one Analysis engine;
-- one discovery component shared by EXPLORE/Add Series;
-- one AI configuration/execution state;
-- one Library persistence model;
-- Health reading the same evidence state used by charts.
-
-Do not create parallel implementations for the same product concept.
+Required:
+- one in-flight fetch promise per canonical series per boot;
+- render-generation guards for every chart/discovery surface;
+- catalog, Health, derived evidence, and series evidence validated against a coherent session revision/anchor contract;
+- stale horizon/series responses discarded;
+- evidence failures reported explicitly rather than converted to availability falsehoods.
 
 ---
 
-## 23. Explicit non-goals / prohibited regressions
+## 25. Explicit prohibited regressions
 Do not introduce:
-- fake Market index/curve;
-- card-grid V1 instead of the single three-index chart;
-- stacked V1 + V2;
-- V2 as one line plus navigation pills;
-- dedicated Back-to-Market button when breadcrumbs suffice;
-- V4 or V5 product states;
-- direct V2 component → V3 without the information-card bridge;
-- arbitrary anchors/postcard cards/intermediate pages;
+- numbered user-facing view terminology;
+- fake Environment/Market index or curve;
+- stacked ENVIRONMENT + INDEX charts;
+- dedicated Back button where breadcrumbs provide navigation;
+- breadcrumb wrapping;
+- breadcrumb growth beyond `ENVIRONMENT / <INDEX> / <ROOT COMPONENT> + X Components`;
+- moving horizon controls away from fixed center alignment;
+- inconsistent top-row/menu/legend structure between chart views;
+- header version label when version belongs in Section C;
+- white plotted-series outline as the active-series emphasis mechanism;
+- second-click/toggle friction to clear crosshair emphasis;
+- line-width mutation merely to indicate active inspection;
+- view-specific context-menu variants;
+- inaccessible Chart Config controls;
+- missing CONFIG close control;
 - synthetic/random/fallback chart evidence;
 - silent component substitution;
 - per-series horizon domains;
-- stretched monthly/weekly source lines;
-- missing/incorrect X/Y1/Y2 axes;
+- stretched low-frequency source lines;
+- missing/incorrect X/Y axes;
 - all-series inspection popup;
 - stale inspection surviving context changes;
 - duplicate chart engines;
 - duplicate discovery implementations;
-- duplicate AI entry points;
-- CONFIG validation disconnected from AI execution;
-- AI spin-and-disappear behavior;
-- browser-side second canonical Yahoo/FRED store;
+- duplicate AI state;
 - Library without continuation composer;
-- Library without the visible exact saved chart;
-- a duplicate Library-only chart engine;
-- silently rebuilding a saved chart from newer evidence;
-- Library/Analysis without working source hyperlinks;
-- production QA/redline clutter on the primary chart surface;
-- release URLs before complete pre-ship qualification.
+- Library without the exact saved chart;
+- production QA/redline clutter on the chart surface;
+- release URL before complete qualification.
 
 ---
 
-## 24. Required construction sequence
-This sequence is binding unless a concrete technical blocker requires reordering.
+## 26. Next-release construction sequence
+This sequence is binding.
 
-### Phase A — pre-base / donor qualification
-1. Freeze this plan and Graveyard.
-2. Inventory exact donor artifacts and commits.
-3. Qualify PRISM R25 shell geometry and state patterns.
-4. Qualify historical chart donor mechanics separately from historical product layout.
-5. Verify canonical governed series schema/availability/history.
-6. Define deterministic derived-index alignment rule.
-7. Define one common seven-horizon clock.
-8. Produce a donor-to-target mapping showing exactly what is reused and what is not.
+### Phase A — plan freeze
+1. This plan is the authoritative interaction contract.
+2. Update negative specification only where needed to prevent resurrection of rejected behavior.
+3. No application code before the plan is frozen.
 
-No owner test URL during pre-base.
+### Phase B — shared chrome and terminology
+1. Replace active numbered view concepts with ENVIRONMENT / INDEX / COMPONENT naming throughout active code and QA.
+2. Implement one shared Section A/B/C chart-chrome component.
+3. Preserve exact chart state while navigating breadcrumbs.
+4. Move version/build to centered Section C.
+5. Implement the representation selector using the governed representation modes.
 
-### Phase B — base application shell
-1. Build current Market Navigator shell with left rail and permanent modes.
-2. Implement responsive/no-scroll workspace geometry.
-3. Implement common state/routing model.
-4. Integrate CONFIG shell/state donor.
-5. Do not yet add speculative secondary features.
+### Phase C — active-series inspection treatment
+1. Remove white plotted-series outline treatment.
+2. During crosshair inspection, keep active series fully opaque/on top.
+3. Fade non-active series automatically.
+4. Preserve existing tooltip/crosshair information and interaction semantics.
+5. No additional click/toggle state.
 
-### Phase C — NOW V1
-1. Implement one canonical chart engine.
-2. Implement seven-horizon engine.
-3. Render RSK/GRW/MAC together on one V1 chart.
-4. Prove common X-domain, axes, real observations, inspection.
-5. No fake Market series.
+### Phase D — CONFIG correction
+1. Add one persistent `×` across AI / Chart Config / About.
+2. Ensure all ten color/thickness/style controls are fully operable on desktop and mobile.
+3. Preserve live preview + Save persistence + discard-on-unsaved-close behavior.
 
-### Phase D — NOW V2
-1. Risk selection replaces V1 with Risk V2 in the same footprint.
-2. Repeat for Growth and Macro.
-3. V2 plots selected index + all governed components.
-4. Explicit degraded representation for unavailable/sparse components.
-5. Implement compact identities/legend.
-6. Implement component information card.
+### Phase E — canonical context menu
+1. One shared menu component.
+2. Exact command order from §17 everywhere it appears.
+3. Remove any special per-view command variants.
 
-### Phase E — V3 Analysis
-1. More info opens exact selected component in V3.
-2. Preserve horizon and lineage.
-3. Implement automatic axis rules.
-4. Implement additive series behavior inside V3.
-5. Implement exact-state close/restore to V2.
-6. Prove CPI+WTI mixed-frequency behavior.
+### Phase F — regression preservation
+Preserve Turn 15 corrections:
+- GDP q/q and GDP y/y;
+- raw GDP evidence-only status;
+- WTI direct-analysis availability independent of Growth composite eligibility;
+- line rendering for ENVIRONMENT and INDEX;
+- identity-bound ten-slot styling;
+- race guards and explicit evidence-error handling;
+- Library chart persistence;
+- AI/provider state.
 
-### Phase F — EXPLORE
-1. Implement canonical discovery component.
-2. Full-page EXPLORE presentation.
-3. Reuse same component for Add Series in V3.
-4. EXPLORE selection converges on V3 without traversing V1/V2.
+### Phase G — pre-ship qualification
+Run the complete matrix in §27 against the exact candidate artifact.
 
-### Phase G — AI / conversation / Library
-1. Integrate exact AI config state donor.
-2. Prove real validated-provider round trip.
-3. Integrate AI POV preflight.
-4. Integrate persistent conversation presentation.
-5. Integrate Library save/resume and continuation composer.
-6. Persist the immutable pre-request chart snapshot and render it in Library through the canonical chart engine.
-7. Ensure working source hyperlinks in AI output/evidence.
-
-### Phase H — HEALTH / export / overlays
-1. Implement root-cause Health reconciliation.
-2. Bind Health to the same canonical evidence used by charts.
-3. Add compact stats/latest/correlation overlay.
-4. Implement Print/Download exact-state export.
-
-### Phase I — pre-ship qualification
-Run the complete matrix in §25 against the exact candidate artifact.
-
-### Phase J — ship / owner test
-Only after all release-blocking gates pass:
+### Phase H — owner test
+Only after every release-blocking gate passes:
 - publish candidate;
 - verify Pages deployment;
-- return exact owner test URL and commit SHA;
-- owner tests;
-- no post-ship promotion until owner acceptance.
+- return exact cache-busted owner test URL and commit SHA.
 
 ---
 
-## 25. Mandatory pre-ship qualification matrix
-The owner is not exploratory QA. The builder must prove the candidate before handing it over.
+## 27. Mandatory pre-ship qualification matrix
+The owner is not exploratory QA. The builder proves the candidate before handoff.
 
-### 25.1 Syntax / boot / deployment
-- JavaScript syntax checks for every executable asset;
-- browser boot without uncaught exceptions;
+### 27.1 Syntax / boot / deployment
+- JavaScript syntax passes;
+- browser boots without uncaught application exceptions;
 - no missing required asset;
-- Pages deployment success;
-- candidate URL resolves to exact intended commit/artifact.
+- Pages deployment succeeds;
+- candidate URL resolves to the intended artifact.
 
-### 25.2 Application shell
-Desktop + phone portrait:
-- rail opens/closes correctly;
-- NOW/EXPLORE/LIBRARY/HEALTH mode switching works;
-- CONFIG remains separated;
-- primary analytical surface stays usable without page-scroll hunt;
-- no layout overlap/clipping.
+### 27.2 Shared chart chrome
+Desktop and phone:
+- ENVIRONMENT, every INDEX, and representative COMPONENT states use identical Section A/B/C geometry;
+- breadcrumb left, horizons fixed center, menu right;
+- row never wraps;
+- long breadcrumb truncates with ellipsis and full text is discoverable;
+- breadcrumbs navigate correctly without Back button;
+- legend strip always occupies Row 2;
+- version/build appears in Section C, not header;
+- footer date range equals visible chart domain;
+- representation selector reflects current mode and valid changes update chart in place.
 
-### 25.3 V1
-For each of 1D, 5D, MTD, YTD, 1YR, 3YR, 5YR:
-- RSK/GRW/MAC all present;
-- all three derived indices are columns;
-- no fake Market curve;
+### 27.3 ENVIRONMENT
+For every horizon:
+- RSK/GRW/MAC all present as lines;
+- no fake Environment/Market curve;
 - common X-domain;
-- correct Indexed 100 Y1;
-- visible X and Y1 axes;
-- compact legend identity;
-- single-active-series inspection;
-- white legend border and white column outline identify the active reference;
-- `…` Analyze/Download/Print actions bind to the exact visible V1 state;
-- no stale popup after horizon/series changes.
+- Indexed 100 default correct;
+- axes visible/correct;
+- canonical menu exact.
 
-### 25.4 Risk V2
-For all seven horizons:
-- Risk index present;
-- all seven governed Risk components present or explicitly degraded;
-- same common X-domain;
+### 27.4 INDEX views
+For Risk, Growth, Macro across all horizons:
+- selected index present as line;
+- all governed components present or explicitly degraded;
+- common X-domain;
 - no synthetic source points;
-- Risk index is a column; governed components remain lines;
-- remaining component colors do not change when other series are removed;
-- short-horizon slow-frequency behavior correct;
 - component card works;
-- breadcrumbs work;
-- no Back-to-Market button required.
+- breadcrumb and legend strip correct;
+- canonical menu exact.
 
-### 25.5 Growth V2
-For all seven horizons:
-- Growth index present;
-- all seven governed Growth components present or explicitly degraded;
-- IPMAN correctly identified and never described as PMI;
-- same common X-domain;
-- no synthetic source points;
-- component card works.
-
-### 25.6 Macro V2
-For all seven horizons:
-- Macro index present;
-- all seven governed Macro components present or explicitly degraded;
-- CPI/Core PCE/Fed Funds cadence behavior correct;
-- same common X-domain;
-- no synthetic source points;
-- component card works.
-
-### 25.7 V2 → V3 → V2 journey
+### 27.5 COMPONENT journey
 For representative components from each index:
-- component selection opens information card, not V3;
-- More info opens exact selected component V3;
-- V3 starts native Y1 for one series;
-- current horizon/lineage preserved;
-- close restores exact V2 state/card/selection/horizon;
-- prior inspection does not leak incorrectly.
+- information card precedes COMPONENT view;
+- root component and horizon preserved;
+- additive series update only legend and `+ X Components` suffix;
+- close restores exact prior INDEX state;
+- no stale inspection leakage.
 
-### 25.8 V3 axis matrix
+### 27.6 Axis / representation matrix
 Mechanically verify:
-- one series native Y1;
-- compatible pair shared Y1;
-- incompatible pair Y1+Y2;
-- 3+ incompatible Indexed 100;
-- X/Y1/Y2 labels and units correct;
-- no axis overlap or missing axis.
+- one series Native Y1;
+- compatible pair shared Native Y1;
+- incompatible pair Native Y1 + Y2;
+- three or more incompatible families Indexed 100;
+- footer selector accurately reflects and can switch among valid representations;
+- labels/units remain correct.
 
-Also verify a three-series add/remove sequence: every color is visually unique, the active chip/series uses the white reference key, and deleting the first two series does not change the third series' assigned color.
+Mandatory examples:
+- WTI + Brent;
+- CPI + Core CPI;
+- SPY + QQQ + WTI;
+- DXY + VIX;
+- CPI + WTI;
+- CPI + WTI + VIX.
 
-### 25.9 Mixed frequency
-Mandatory CPI + WTI:
-- same selected X-domain;
-- CPI points remain real monthly points;
-- WTI points remain real daily points;
-- CPI does not stretch to WTI's latest date;
-- inspection snaps to real points;
-- axis representation follows contract.
+### 27.7 Crosshair active-series emphasis
+- active series remains fully opaque and visually above others;
+- non-active series fade while inspection is active;
+- configured widths do not change;
+- tooltip content remains unchanged from governed inspection contract;
+- no second click is required;
+- emphasis clears automatically when inspection/context ends;
+- no white plotted-series outline remains.
 
-### 25.10 EXPLORE / Add Series
-- same discovery component in both contexts;
-- taxonomy correct;
-- search works;
-- multi-select works;
-- Market is not selectable fake series;
-- selection opens V3 correctly;
-- no V5 label/state.
+### 27.8 GDP / WTI / mixed frequency
+- raw GDP not selectable;
+- GDP q/q and GDP y/y selectable as periodic evidence;
+- no synthetic GDP timestamps/points;
+- WTI directly selectable on short horizons when canonical evidence supports it;
+- WTI composite ineligibility never suppresses direct analysis;
+- CPI + WTI preserves real monthly/daily points and correct common X-domain.
 
-### 25.11 AI
-- provider/model validation works;
-- validated state is same state used by execution;
-- real request succeeds;
-- response persists;
-- Markdown renders;
+### 27.9 CONFIG
+Desktop + mobile:
+- AI / Chart Config / About tabs all work;
+- one persistent `×` is visible and closes CONFIG from every tab;
+- all ten style rows fully operable;
+- color control works;
+- 1–12pt thickness works;
+- all five line styles work;
+- no clipping/overlap/inoperable desktop selector;
+- live preview works;
+- Save persists after reload;
+- unsaved close restores persisted state;
+- import/export works.
+
+### 27.10 Canonical menu
+On ENVIRONMENT, INDEX, COMPONENT, and applicable EXPLORE state:
+- same five commands;
+- same order;
+- same labels;
+- actions bind to exact visible state;
+- no per-view extras.
+
+### 27.11 Race / evidence gates
+- rapid horizon switching cannot render stale final state;
+- rapid component/series switching cannot render stale final state;
+- one in-flight canonical fetch per series per boot;
+- deliberate evidence failure surfaces as an evidence error, not `unavailable`;
+- Health/chart/derived/session evidence coherence is mechanically asserted.
+
+### 27.12 Library / AI preservation
+- exact saved chart restores above transcript;
+- chart styles/representation/evidence revision preserved;
+- transcript and continuation composer persist;
+- AI Markdown renders;
 - referenced sources/subjects have working hyperlinks;
-- failed request produces stable visible failure state;
-- no spin-and-disappear.
-
-### 25.12 Library
-- save exact analysis state;
-- reopen exact analysis state;
-- saved chart is visible above the transcript;
-- chart horizon, common X-domain, series, axis mode, Y1/Y2 assignment, native values, `idx` values and evidence revision are byte-for-byte equivalent before and after reload;
-- Library point inspection uses the canonical chart engine and exposes both `idx` and native value for raw series;
-- conversation restored;
-- continuation composer present and functional;
-- evidence/source links work;
-- continued AI exchange persists.
-- a V1/V2-created Analysis renders the same saved column/line geometry and colors after reload.
-
-### 25.13 HEALTH
-For at least one current, one stale/missing, and one sparse/mixed-frequency case:
-- expected publication reconciled;
-- actual canonical observation shown;
-- collector/persistence state shown;
-- visible chart/index impact explained;
-- health classification justified.
-
-### 25.14 Print / Download / overlay
-- overlay exact to active state;
-- closing overlay does not mutate analysis;
-- Download contains exact visible series/horizon/evidence;
-- Print matches active analysis state.
+- validated provider/model is the state actually used for execution.
 
 A candidate that fails any release-blocking item does not receive an owner-test URL.
 
 ---
 
-## 26. Governance / anti-drift process
+## 28. Governance / anti-drift
 Required lifecycle:
 
-**diagnose → Graveyard → Master Plan → pre-base → base → pre-ship → ship → owner test → post-ship only after acceptance**
+**diagnose → plan → build → pre-ship qualification → publish → owner test**
 
 Rules:
-- rejected release is rolled back;
-- rejected release never becomes next implementation ancestor;
-- inspect rejected code only for diagnosis;
-- no patch-forward from rejection;
-- fetch current `main` and current target-file SHA immediately before every write/delete;
-- unrelated movement on `main` is not a reason to stop; preserve newer unrelated work;
-- owner is acceptance reviewer, not exploratory QA;
+- owner feedback changes only the identified contract unless explicitly broader;
+- do not re-open settled behavior without a new owner request;
+- do not ask the owner to reconfirm already-specified mechanics;
+- rejected implementation behavior is not the ancestor for the next release;
+- fetch current `main` and target-file SHA before writes;
+- unrelated movement on `main` is not a reason to overwrite unrelated work;
 - no release URL with known defects;
 - do not substitute governance activity for product progress.
 
 ---
 
-## 27. Current release state
-Gate 4 R11, R12 and R13 are rejected and belong to the Graveyard. Turn 11 and Turn 12 pre-ship are also rejected. Those names are historical Gate 4 releases and are not the later clean Turn 13 candidate.
+## 29. Current release state
+Turn 15 is the current qualified release baseline.
 
-R13 wrapper and patch were removed from active `main`.
+The next release is bounded to the UX corrections in this plan:
+- ENVIRONMENT / INDEX / COMPONENT terminology;
+- consistent Section A/B/C chart chrome;
+- fixed-center horizons and non-wrapping truncated breadcrumbs;
+- legend strip as permanent Row 2;
+- crosshair-driven opacity emphasis without white plotted-series outline or added click friction;
+- meaningful centered footer with version, date range and representation selector;
+- corrected CONFIG close/desktop operability;
+- one identical context menu everywhere it appears.
 
-`market-navigator-turn13-pre-ship.html` is the mechanically qualified clean baseline that restored the full-width V3 journey and immutable Library chart. It was reconstructed from Turn 10 under this plan; it is not the rejected Gate 4 R13 implementation.
-
-Turn 14 is a bounded owner-directed evolution of that qualified baseline:
-- derived indices become column series while source components remain lines;
-- active-reference white keys apply to legend and plotted geometry;
-- colors become stable by series identity with persistent ten-slot preset/custom schemes and import/export;
-- V1 and V2 gain exact-state Analyze into Library, Download and Print actions.
-
-Turn 14 must preserve every Turn 13 regression gate and may ship only after its new column, reference, color-stability, settings and V1/V2 exact-state action gates pass.
-
----
-
-## 28. Handoff instruction to successor builder
-A successor such as Claude should begin by reading, in order:
-
-1. `MARKET-NAVIGATOR-MASTER-PLAN.md` — this file;
-2. `MARKET-NAVIGATOR-GRAVEYARD.md`;
-3. `MARKET-NAVIGATOR-NOW-EXPLORE-CONTRACT.md`;
-4. `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md`;
-5. PRISM R25 donor at commit `da6442f2702a5e681367884d403a5d14251f2da8`;
-6. 3.9.7 chart donor at commit `c7bf516af9a3ed43233f5aeb5c63b6c2d53c7180`;
-7. `devstream-test.html`;
-8. `test.html`;
-9. canonical backend/index definition and persisted market-data schemas.
-
-Before writing product code, the successor must produce internally (and commit if useful) a donor/schema qualification showing:
-- what exact shell capability comes from PRISM;
-- what exact chart mechanics come from historical Market Navigator;
-- what exact AI/conversation mechanics come from the donors;
-- verified governed-series IDs/files/schema/history;
-- the common horizon clock;
-- the derived-index mixed-cadence alignment rule.
-
-Then build forward according to §24 and do not hand the owner a URL until §25 passes.
-
-
----
-
-## Turn 15 locked correction — 2026-09-10
-
-Turn 15 is the immediate next release and is release-blocking. It implements the owner-approved rollback/correction after Turn 14 without unrelated product work.
-
-### Chart geometry
-- The Turn 14 column/bar experiment is rejected.
-- V1 Market uses three line series: RSK, GRW and MAC.
-- V2 uses the selected derived index as a line plus its governed component lines in the same chart footprint.
-- V3/Analysis uses line rendering for current derived and raw series unless a future explicitly approved chart type says otherwise.
-- White active-reference outlining remains; assigned identity color remains visible inside the white reference treatment.
-
-### GDP contract
-- Raw `realGdp` is backend evidence only and is not user-selectable.
-- User-facing GDP series are exactly `GDP q/q` and `GDP y/y`.
-- q/q = `(GDP_t / GDP_t-1 - 1) * 100` from canonical quarterly levels.
-- y/y = `(GDP_t / GDP_t-4 - 1) * 100` from canonical quarterly levels.
-- The transforms are persisted, deterministic, quarterly, auditable and derived only from real canonical level observations.
-- Short-horizon selection does not mark GDP q/q/y/y unavailable merely because no new release occurs inside that horizon.
-- No synthetic daily GDP observations or synthetic timestamps are permitted.
-
-### Availability and WTI truthfulness
-Availability is not one boolean truth. The implementation must keep these states distinct:
-1. source/collector health;
-2. evidence load/revision integrity;
-3. direct-analysis availability;
-4. derived-index mathematical eligibility.
-
-A failure to fetch or parse evidence must surface as an evidence error and must never be silently converted into `unavailable for <horizon>`.
-
-WTI is the mandatory regression case. Its historical zero crossing may make it ineligible for the Growth composite's ratio-rebasing formula, but that composite-construction exclusion must **never** suppress WTI's real source observations from V2, EXPLORE or V3 direct analysis. WTI remains directly selectable whenever canonical evidence exists for the selected analytical use.
-
-### CONFIG contract
-CONFIG contains exactly three top tabs:
-
-**AI | Chart Config | About**
-
-AI retains the existing provider/model/key behavior. Chart Config owns:
-- three presets: **Normal · Bright · Colorblind**;
-- ten persistent series slots;
-- per-slot color;
-- per-slot line thickness **1pt–12pt**;
-- per-slot line style **line · dash · dash-dot · dot · dot-dash**;
-- persistence;
-- JSON export/import.
-
-Series style is identity-bound, not array-position-bound. Removing another series must not recolor or restyle a surviving series. Immutable Library charts preserve the saved color, thickness and line style even if global settings later change.
-
-### More-menu contract
-A compact `…` menu is available on V1 Market, V2 index+components, V3/Analysis and EXPLORE. The analytical actions are:
-- **AI POV**;
-- **Print**;
-- **Download Markdown**;
-- **Download CSV** chart-series data;
-- **Download JSON** chart-series/state data.
-
-V3 may additionally retain Stats. EXPLORE actions operate on the current selected-series analytical state and are disabled when no series is selected.
-
-### Race elimination
-Turn 15 must eliminate stale asynchronous UI writes:
-- one in-flight fetch promise per canonical series per boot;
-- render-generation guards for V2 and V3 so an older horizon/series response cannot overwrite a newer state;
-- existing EXPLORE/picker generation guards remain mandatory;
-- boot-time catalog, health and derived evidence form one immutable browser session snapshot;
-- failed evidence loads report the actual failure reason rather than an availability falsehood.
-
-### Mandatory Turn 15 qualification
-Release is blocked unless automated browser qualification proves:
-- V1 RSK/GRW/MAC are lines, not columns;
-- V2 selected index and governed components are lines;
-- WTI is visible/selectable in Growth V2 on 5D despite composite ratio ineligibility;
-- WTI is directly selectable in V3 and EXPLORE;
-- raw Real GDP is not selectable;
-- GDP q/q and GDP y/y are present, deterministic and selectable as periodic evidence;
-- WTI + Brent share compatible native Y1;
-- CPI + WTI uses native Y1 + Y2;
-- all three CONFIG tabs work;
-- all ten chart-style slots expose color, 1–12pt thickness and the five governed line styles and persist after reload;
-- V1, V2, V3 and EXPLORE expose the governed `…` menu/download actions;
-- rapid horizon changes cannot allow a stale V2/V3 render to replace the final selected horizon;
-- public Pages boot has no page/console/resource errors.
+No unrelated feature work belongs in this release.
