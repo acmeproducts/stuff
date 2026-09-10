@@ -1551,6 +1551,117 @@
         return out;
     }
 
+    /* ================= GAP B · language resolution: detection + normalization =================
+       Law (from TalkBridge): in 'fixed' mode everything a person produces is shown and sent in
+       THEIR OWN language regardless of what they actually typed or spoke — the partner's
+       experience never changes because someone code-switched. 'auto' lets the produced language
+       become the source. Hooked BEFORE the baseline's addChatEntry; nothing baseline is replaced. */
+    var SCRIPT_TESTS=[
+        {lang:'th',re:/[\u0E00-\u0E7F]/},{lang:'ja',re:/[\u3040-\u30FF]/},
+        {lang:'ko',re:/[\uAC00-\uD7AF\u1100-\u11FF]/},{lang:'zh',re:/[\u4E00-\u9FFF]/},
+        {lang:'ar',re:/[\u0600-\u06FF]/},{lang:'ru',re:/[\u0400-\u04FF]/},
+        {lang:'hi',re:/[\u0900-\u097F]/},{lang:'km',re:/[\u1780-\u17FF]/},{lang:'lo',re:/[\u0E80-\u0EFF]/}
+    ];
+    function detectByScript(text){
+        var s=String(text||''),letters=s.replace(/[^\p{L}]/gu,'');
+        if(!letters)return null;
+        for(var i=0;i<SCRIPT_TESTS.length;i++){
+            var t=SCRIPT_TESTS[i];
+            var hits=(letters.match(new RegExp(t.re.source,'gu'))||[]).length;
+            if(hits/letters.length>0.2)return t.lang;
+        }
+        return null;
+    }
+    /* fastText (lid.176) for Latin-script pairs — the only reliable way to tell es/en/fr/pt apart.
+       Assets already live in the repo alongside this file. */
+    var FT_DIR=new URL('fastType/',location.href).href,
+        FT_WRAPPER=FT_DIR+'fasttext-wrapper.umd.js',
+        FT_MODEL=FT_DIR+'model/lid.176.ftz',
+        FT_WASM=FT_DIR+'core/fasttext.wasm';
+    var _ft=null,_ftPromise=null,_ftFailed=false;
+    function ftAllowed(code){return !!LANG_BY[code]}
+    function loadFastText(){
+        if(_ft||_ftFailed)return Promise.resolve(_ft);
+        if(_ftPromise)return _ftPromise;
+        _ftPromise=new Promise(function(resolve){
+            function fail(stage,why){_ftFailed=true;diag('lang model unavailable at '+stage+': '+(why&&why.message||why),true);resolve(null)}
+            try{
+                var cfg={locateFile:function(p){var n=String(p||'').split('/').pop();return /\.wasm$/i.test(n)?FT_WASM:FT_DIR+n}};
+                window.Module=cfg;window.FastTextModule=cfg;
+                var s=document.createElement('script');
+                s.src=FT_WRAPPER;
+                s.onerror=function(){fail('wrapper','script failed to load')};
+                s.onload=function(){
+                    try{
+                        var ft=new window.FastText();
+                        ft.loadModel(FT_MODEL).then(function(){_ft=ft;diag('language model ready (lid.176)');resolve(ft)})
+                          .catch(function(e){fail('model',e)});
+                    }catch(e){fail('init',e)}
+                };
+                document.head.appendChild(s);
+            }catch(e){fail('setup',e)}
+        });
+        return _ftPromise;
+    }
+    var FT_MIN_CHARS=8;   // below this a model answer is noise; the room language is safer
+    function ftDetect(text){
+        return loadFastText().then(function(ft){
+            if(!ft)return null;
+            var s=String(text||'').trim();
+            if(s.replace(/[^\p{L}]/gu,'').length<FT_MIN_CHARS)return null;
+            try{
+                var code=ft.detect(s);
+                if(!code)return null;
+                code=String(code).toLowerCase().split(/[-_]/)[0];
+                return ftAllowed(code)?code:null;
+            }catch(e){diag('detect error: '+e.message,true);return null}
+        });
+    }
+    function detectLangAsync(text){
+        var byScript=detectByScript(text);
+        if(byScript)return Promise.resolve(byScript);
+        return ftDetect(text);
+    }
+    /* per-side mode, persisted with the baseline's own settings store */
+    function langModeOf(side){
+        try{var v=localStorage.getItem('duck_langmode_'+side);return v==='auto'?'auto':'fixed'}catch(e){return 'fixed'}
+    }
+    function setLangMode(side,m){
+        try{localStorage.setItem('duck_langmode_'+side,m)}catch(e){}
+        diag(side+' language mode → '+m);
+        var b=document.querySelector('.duck-mode[data-side="'+side+'"]');
+        if(b)paintMode(b,side);
+    }
+    function resolveEffectiveLang(side,detected){
+        var mine=langOf(side);
+        if(!detected||detected===mine)return{srcLang:mine,normalizeFrom:null};
+        if(langModeOf(side)==='auto')return{srcLang:detected,normalizeFrom:null};
+        return{srcLang:mine,normalizeFrom:detected};
+    }
+    function mmTranslate(text,from,to){
+        var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+encodeURIComponent(from)+'|'+encodeURIComponent(to);
+        return fetch(url).then(function(r){return r.json()}).then(function(j){
+            var t=j&&j.responseData&&j.responseData.translatedText;
+            return t&&!/^MYMEMORY WARNING/i.test(t)?String(t):null;
+        }).catch(function(){return null});
+    }
+    /* One path for typed and spoken text so the two can never drift.
+       knownLang: authoritative when the channel knows it (keyboard layout / STT language). */
+    function normalizeOutgoing(side,text,knownLang){
+        return Promise.resolve(knownLang||detectLangAsync(text)).then(function(detected){
+            var r=resolveEffectiveLang(side,detected);
+            if(!r.normalizeFrom)return{text:text,lang:r.srcLang,detected:detected};
+            diag('normalizing '+side+': '+r.normalizeFrom+' → '+r.srcLang+' (code-switch)');
+            return mmTranslate(text,r.normalizeFrom,r.srcLang).then(function(out){
+                var same=out&&out.trim().toLowerCase()===String(text).trim().toLowerCase();
+                if(out&&!same)return{text:out,lang:r.srcLang,detected:detected,normalized:true};
+                var why=!out?'failed-or-empty':'same';
+                diag('normalize produced no rewrite ('+why+') '+r.normalizeFrom+'→'+r.srcLang+' — sending as '+r.normalizeFrom,true);
+                return{text:text,lang:r.normalizeFrom,detected:detected};
+            });
+        });
+    }
+
     /* ---------- layouts (hand-rolled, zero deps) ---------- */
     var LAYOUTS={
         latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
@@ -1579,6 +1690,7 @@
     var pendingFrom=null;      // side asking
     var askTimer=null;
     var kb={},nub={},buf={local:'',peer:''},shifted={local:false,peer:false},numMode={local:false,peer:false};
+    var duckJustNormalized=false;
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};   // active composition per side
     var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
     var peerInput=document.createElement('textarea');   // hidden input so baseline handleSubmit() runs untouched
@@ -1824,14 +1936,17 @@
         var text=(buf[side]||'').trim();
         if(!text){closeKb(side,'enter with empty buffer');return}
         buf[side]='';paintBuffer(side);
-        try{
-            if(side==='local'){localInputEl.value=text;handleSubmit(localInputEl,'local')}
-            else{peerInput.value=text;handleSubmit(peerInput,'peer')}
-            diag('sent from '+side+' ('+text.length+' chars) via baseline handleSubmit');
-        }catch(e){diag('send failed: '+e.message,true)}
         closeKb(side,'sent');
-        // hand the keyboard to the other side
-        openKb(other(side),'handoff after send');
+        // typed text: the keyboard layout IS the language — authoritative, no detection needed
+        normalizeOutgoing(side,text,langOf(side)).then(function(r){
+            duckJustNormalized=true;
+            try{
+                if(side==='local'){localInputEl.value=r.text;handleSubmit(localInputEl,'local')}
+                else{peerInput.value=r.text;handleSubmit(peerInput,'peer')}
+                diag('sent from '+side+' in '+r.lang+(r.normalized?' (normalized)':'')+' — '+r.text.length+' chars');
+            }catch(e){diag('send failed: '+e.message,true)}
+            openKb(other(side),'handoff after send');
+        });
     }
 
     /* ---------- open/close/handoff ---------- */
@@ -1907,11 +2022,58 @@
     }
     populateLanguages();
 
+    /* ---------- spoken text: same normalization path as typed ----------
+       The baseline starts recognition with an explicit language, so that language is knownLang.
+       We hook addChatEntry rather than replacing the recognizer: everything downstream
+       (bubbles, translation, TTS, speaker flip) runs exactly as before. */
+    (function hookSpeech(){
+        if(typeof addChatEntry!=='function')return;
+        var _add=addChatEntry,inFlight=false;
+        window.addChatEntry=addChatEntry=function(message,speaker){
+            if(inFlight||!message){return _add(message,speaker)}
+            var side=speaker==='local'?'local':'peer';
+            // typed path already normalized before calling handleSubmit; only unlabelled input needs work
+            if(duckJustNormalized){duckJustNormalized=false;return _add(message,speaker)}
+            var spokenLang=(side==='peer'&&peerRecognizerLang)||langOf(side);
+            normalizeOutgoing(side,String(message),spokenLang).then(function(r){
+                inFlight=true;
+                try{_add(r.text,speaker)}finally{inFlight=false}
+                if(r.normalized)diag('spoken text normalized on '+side+' → '+r.lang);
+            });
+            return;
+        };
+    })();
+    var peerRecognizerLang=null;
+    (function trackRecognizerLang(){
+        try{
+            var btn=document.getElementById('peer-talk');
+            if(btn)btn.addEventListener('click',function(){peerRecognizerLang=langOf('peer')},true);
+        }catch(e){}
+    })();
+
+    /* ---------- fixed/auto mode control per side ---------- */
+    function paintMode(btn,side){
+        var m=langModeOf(side);
+        btn.textContent=(m==='fixed'?'🔒 '+flagOf(langOf(side)):'🌐 auto');
+        btn.title=m==='fixed'?'Fixed: everything you send appears in your language':'Auto: your text stays in whatever language you used';
+        btn.style.borderColor=m==='fixed'?'rgba(59,130,246,.6)':'rgba(203,213,225,.9)';
+    }
+    function buildModeBtn(side){
+        var host=kb[side].querySelector('.duck-kb-buffer');
+        var b=document.createElement('button');
+        b.type='button';b.className='duck-mode';b.dataset.side=side;
+        b.style.cssText='flex:0 0 auto;font-size:11px;padding:5px 9px;border-radius:10px;border:1px solid rgba(203,213,225,.9);background:#fff;color:#334155;font-weight:700';
+        b.addEventListener('click',function(){setLangMode(side,langModeOf(side)==='fixed'?'auto':'fixed')});
+        host.appendChild(b);paintMode(b,side);
+        return b;
+    }
+
     /* ---------- init ---------- */
     ['local','peer'].forEach(function(side){
         nub[side]=buildNub(side);
         kb[side]=buildKeyboard(side);
         kb[side].style.position='relative';enableSwype(side);
+        buildModeBtn(side);
         askEl[side]=buildAsk(side);
         if(nub[side])nub[side].dataset.owned='false';
     });
@@ -1923,7 +2085,7 @@
     // language changes repaint the open keyboard
     ['local-language-select','peer-language-select'].forEach(function(id){
         var el=document.getElementById(id);
-        if(el)el.addEventListener('change',function(){if(owner)renderKeys(owner);diag('language changed → repaint')});
+        if(el)el.addEventListener('change',function(){if(owner)renderKeys(owner);['local','peer'].forEach(function(s){var b=document.querySelector('.duck-mode[data-side="'+s+'"]');if(b)paintMode(b,s)});diag('language changed → repaint')});
     });
     var diagBtn=document.createElement('button');
     diagBtn.id='duck-diag-btn';diagBtn.type='button';diagBtn.textContent='⌁';diagBtn.setAttribute('aria-label','Keyboard diagnostics');
@@ -1933,7 +2095,7 @@
         diagPanel.classList.toggle('show');
         if(diagPanel.classList.contains('show'))renderDiag();
     });
-    diag('keyboard layer ready — '+LANGS.length+' languages'+' · ko: offline Hangul automaton · ja: romaji→kana + kanji candidates');
+    diag('keyboard layer ready — '+LANGS.length+' languages · normalization: fixed mode'+' · ko: offline Hangul automaton · ja: romaji→kana + kanji candidates');
 })();
 </script>
 
