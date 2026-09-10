@@ -1,0 +1,110 @@
+<!-- TB SKELETON · /stuff/tb-skeleton/ · installability proof per plan §7.12 · build s1 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TB Skeleton</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2E8B8B">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TB Skeleton">
+<style>
+  :root { --teal:#2E8B8B; --cream:#FDFAF7; --ink:#243230; --dim:#6b7a78; --line:#e2ded9; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--cream); color:var(--ink); padding:20px 16px 40px; }
+  h1 { font-size:19px; margin:0 0 2px; }
+  .sub { color:var(--dim); font-size:12.5px; margin-bottom:18px; }
+  .band { height:64px; border-radius:8px; background:url('icon-512.png') center/cover; margin-bottom:18px; border:2px solid var(--teal); }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:9px 6px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:top; }
+  td:first-child { color:var(--dim); width:44%; }
+  .ok { color:#1d7a53; font-weight:600; }
+  .no { color:#b03a2e; font-weight:600; }
+  button { margin-top:18px; width:100%; padding:13px; border:0; border-radius:10px;
+           background:var(--teal); color:#fff; font-size:15px; font-weight:600; }
+  button[disabled] { background:#b9c6c4; }
+  .note { margin-top:14px; font-size:12px; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="band"></div>
+<h1>TB Skeleton</h1>
+<div class="sub" id="build">build s1</div>
+
+<table id="report"></table>
+
+<button id="install" disabled>Install (waiting for browser)</button>
+<div class="note">Desktop Chrome also needs about 30 seconds on the page and one click before it offers the address-bar icon.</div>
+
+<script>
+var rows = [];
+function put(k, v, good) {
+  rows.push([k, v, good]);
+  var t = document.getElementById('report');
+  t.innerHTML = rows.map(function (r) {
+    var cls = r[2] === true ? 'ok' : (r[2] === false ? 'no' : '');
+    return '<tr><td>' + r[0] + '</td><td class="' + cls + '">' + r[1] + '</td></tr>';
+  }).join('');
+}
+
+put('page URL', location.pathname);
+put('secure context', String(window.isSecureContext), window.isSecureContext);
+var dm = window.matchMedia('(display-mode: standalone)').matches ? 'standalone'
+       : (navigator.standalone ? 'standalone (iOS)' : 'browser tab');
+put('display mode', dm);
+
+fetch('manifest.webmanifest').then(function (r) {
+  put('manifest fetch', r.status + ' ' + (r.ok ? 'OK' : 'FAILED'), r.ok);
+  return r.json();
+}).then(function (m) {
+  var sizes = (m.icons || []).map(function (i) { return i.sizes; });
+  put('manifest start_url', m.start_url || '(missing)', !!m.start_url);
+  put('manifest scope', m.scope || '(missing)', !!m.scope);
+  put('manifest display', m.display || '(missing)', m.display === 'standalone');
+  put('icons', sizes.join(', '), sizes.indexOf('192x192') >= 0 && sizes.indexOf('512x512') >= 0);
+  return Promise.all((m.icons || []).map(function (i) {
+    return fetch(i.src).then(function (r) { return i.src + ':' + r.status; }).catch(function () { return i.src + ':ERR'; });
+  }));
+}).then(function (results) {
+  var allOk = results.every(function (r) { return /:200$/.test(r); });
+  put('icon files', allOk ? 'all 200' : results.join(' · '), allOk);
+}).catch(function (e) {
+  put('manifest error', String(e && e.message || e), false);
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    put('service worker', 'registered, scope ' + reg.scope, true);
+  }).catch(function (e) {
+    put('service worker', 'FAILED ' + String(e && e.message || e), false);
+  });
+} else {
+  put('service worker', 'unsupported', false);
+}
+
+var deferred = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  deferred = e;
+  put('install event', 'FIRED — browser will install', true);
+  var b = document.getElementById('install');
+  b.disabled = false;
+  b.textContent = 'Install TB Skeleton';
+});
+window.addEventListener('appinstalled', function () { put('appinstalled', 'yes', true); });
+
+setTimeout(function () {
+  if (!deferred && dm === 'browser tab') put('install event', 'not fired yet after 35s', false);
+}, 35000);
+
+document.getElementById('install').addEventListener('click', function () {
+  if (!deferred) return;
+  deferred.prompt();
+  deferred.userChoice.then(function (c) { put('user choice', c.outcome, c.outcome === 'accepted'); });
+});
+</script>
+</body>
+</html>
