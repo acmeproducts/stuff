@@ -1,0 +1,89 @@
+name: Market Navigator Turn 16 qualify and publish
+
+on:
+  push:
+    branches:
+      - market-navigator-turn16-20260910
+      - main
+    paths:
+      - 'market-navigator-turn16-governance.py'
+      - 'market-navigator-build-turn16.py'
+      - 'market-navigator-turn16-qa.mjs'
+      - '.github/workflows/market-navigator-turn16.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn16-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply locked governance
+        run: |
+          python3 market-navigator-turn16-governance.py
+          grep -F '## Turn 15 owner-visible UX regressions — rejected for Turn 16' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -F '**ENVIRONMENT → <INDEX> → <COMPONENT>**' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '**clickable breadcrumb [left] | horizon controls [fixed center] | `…` context menu [right]**' MARKET-NAVIGATOR-MASTER-PLAN.md
+
+      - name: Build exact Turn 16 candidate
+        run: python3 market-navigator-build-turn16.py
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn16-pre-ship.html').read_text()
+          required=[
+            'TURN 16 PRE-SHIP','id="nowCrumb"','id="analysisCrumb"','id="configClose"',
+            'id="analysisRepresentation"','function renderAnalysisCrumb','Save to persist',
+            "x.globalAlpha=inspecting&&z.id!==active?.24:1",
+            'Download Markdown','Download CSV','Download JSON',
+          ]
+          forbidden=[
+            '<div class="build">TURN 15 PRE-SHIP</div>',
+            'Indexed 100 · columns','Index column · components direction-indexed lines',
+            '<button id="moreStats">Stats</button>',
+            "if(reference){x.strokeStyle='#fff';x.lineWidth=st.width+3;trace()}",
+            'White remains reserved for the active reference outline.',
+          ]
+          for x in required: assert x in s, x
+          for x in forbidden: assert x not in s, x
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn16.js').write_text(scripts[-1])
+          print('TURN 16 STATIC: PASS')
+          PY
+          node --check /tmp/market-navigator-turn16.js
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run Turn 16 owner-visible product matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn16-http.log 2>&1 &
+          node market-navigator-turn16-qa.mjs
+
+      - name: Commit qualified generated release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn16-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Market Navigator Turn 16 qualified release [turn16-generated]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
