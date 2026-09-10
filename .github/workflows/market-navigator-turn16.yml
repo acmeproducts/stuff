@@ -45,7 +45,7 @@ jobs:
           import re
           s=Path('market-navigator-turn16-pre-ship.html').read_text()
           required=[
-            'TURN 16 PRE-SHIP','id="nowCrumb"','id="analysisCrumb"','id="configClose"',
+            'TURN 16 PRE-SHIP','id="nowChart"','id="nowCrumb"','id="analysisCrumb"','id="configClose"',
             'id="analysisRepresentation"','function renderAnalysisCrumb','Save to persist',
             "x.globalAlpha=inspecting&&z.id!==active?.24:1",
             'Download Markdown','Download CSV','Download JSON',
@@ -74,6 +74,12 @@ jobs:
       - name: Run Turn 16 owner-visible product matrix
         run: |
           python3 -m http.server 8123 >/tmp/market-navigator-turn16-http.log 2>&1 &
+          sleep 1
+          curl -fsS http://127.0.0.1:8123/market-navigator-turn16-pre-ship.html | grep -F 'id="nowChart"' >/dev/null
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:1440,height:900}});const es=[];p.on('pageerror',e=>es.push('pageerror: '+e.message));p.on('console',m=>{if(m.type()==='error')es.push('console: '+m.text())});await p.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({contentType:'application/javascript',body:"window.marked={parse:s=>'<div>'+String(s)+'</div>'};"}));await p.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({contentType:'application/javascript',body:'window.DOMPurify={sanitize:s=>s};'}));await p.goto('http://127.0.0.1:8123/market-navigator-turn16-pre-ship.html',{waitUntil:'networkidle'});const n=await p.locator('#nowChart').count();if(n!==1){console.log('BOOT BODY:',(await p.locator('body').innerText()).slice(0,2000));console.log('BOOT ERRORS:',es.join('\n'));process.exitCode=2}await b.close()})().catch(e=>{console.error(e);process.exit(3)});
+          JS
           node market-navigator-turn16-qa.mjs
 
       - name: Commit qualified generated release
