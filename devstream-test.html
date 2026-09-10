@@ -158,7 +158,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b29</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b30</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -739,13 +739,13 @@ $('runPending').onclick=()=>{if(activeKey)dispatch(activeKey)};
 $('pendingRun').onclick=()=>{if(activeKey)dispatch(activeKey)};
 
 /* ---- in-app agent (anthropic-direct) ---- */
-function agentSystem(codeFile,planFile,phase){
+function agentSystem(codeFile,planFile,phase,patchMode){
   const phaseGuide={
     Define:'Current phase: DEFINE. Focus on WHAT and WHY: purpose, users, outcomes, success criteria. Write these into the plan\'s Define section. Do NOT write code in this phase; if asked to build, note it in the plan backlog and say the project is in Define.',
     Design:'Current phase: DESIGN. Focus on HOW: architecture, UI model, data/persistence, constraints, release slicing. Write these into the plan\'s Design section. Code only as small spikes if explicitly demanded.',
     Build:'Current phase: BUILD. Execution cycles: implement per the plan into the CODE file, plan-before-code, one release slice at a time.',
     Ship:'Current phase: SHIP. Stabilize only: fixes, polish, docs. No new scope — new ideas go to the plan\'s Future Ideas.'}[phase]||'';
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: '+(patchMode?'SEARCH/REPLACE edit blocks as specified below':'the COMPLETE new file content, no fences, nothing after it')+'. If TARGET is NONE: your answer text.>'+(patchMode?'\n\nOUTPUT MODE: PATCH. The file is too large to reprint within your output limit — do NOT output the whole file. Emit one or more edit blocks, each exactly:\n<<<<<<< SEARCH\n(text copied character-for-character from the current file, appearing EXACTLY ONCE)\n=======\n(replacement text)\n>>>>>>> REPLACE\nKeep SEARCH blocks small but unique. Never invent text that is not in the file. To add code near the end, SEARCH a unique closing fragment and repeat it in the replacement. Output nothing after the final block.':'');
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -757,6 +757,17 @@ function parseAgent(text){
   body=body.trim();
   if(body.startsWith('```')){body=body.replace(/^```[a-zA-Z]*\n?/,'');const i=body.lastIndexOf('```');if(i>-1)body=body.slice(0,i);body=body.trim()}
   return{summary,target,body};
+}
+function applyPatchBlocks(original,body){
+  const re=/<{5,}\s*SEARCH\s*\n([\s\S]*?)\n={5,}\s*\n([\s\S]*?)\n>{5,}\s*REPLACE/g;
+  let m,n=0,out=original;const fails=[];
+  while((m=re.exec(body))){
+    n++;const find=m[1],rep=m[2];const first=out.indexOf(find);
+    if(first<0){fails.push('block '+n+': SEARCH not found');continue}
+    if(out.indexOf(find,first+1)>=0){fails.push('block '+n+': SEARCH not unique');continue}
+    out=out.slice(0,first)+rep+out.slice(first+find.length);
+  }
+  return{text:out,applied:n-fails.length,total:n,fails};
 }
 async function setState(key,patch){
   const t=sot.threads[key];if(!t)return;Object.assign(t,patch);
@@ -803,17 +814,31 @@ async function runAgent(key){
     const instr=pend.map(m=>m.text+(m.attachments||[]).filter(a=>a.kind==='text').map(a=>'\n\n<attachment name="'+a.name+'">\n'+a.text+'\n</attachment>').join('')).join('\n\n')+(forced?'\n\n(Required TARGET for this response: '+forced.forcedTarget+')':'');
     const images=pend.flatMap(m=>(m.attachments||[]).filter(a=>a.kind==='image').map(a=>({path:a.path,type:a.type,name:a.name})));
     const ghRefs=pend.flatMap(m=>parseGhRefs(m.text));
-    const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,
-      system:agentSystem(codeFile,planFile,(sot.projects[t.project]||{}).phase||'Define'),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
+    const curFile=await getFile(codeFile).catch(()=>null);
+    const baseChars=curFile?curFile.content.length:0;
+    const needTok=Math.ceil(baseChars/3.5*1.15);
+    const cap=capOf(eng,t.model||'');
+    const patchMode=baseChars>0&&needTok>cap*0.85;
+    if(patchMode)dlog('preflight: '+codeFile+' needs ~'+Math.round(needTok/1000)+'k output tokens vs '+eng+' cap '+Math.round(cap/1000)+'k → PATCH MODE');
+    const res=await runJob(key,{cfg:{...cfg},codeFile,planFile,inputFile:th.data.inputFile||null,images,ghRefs,webSearch:!!t.web,patchMode,
+      system:agentSystem(codeFile,planFile,(sot.projects[t.project]||{}).phase||'Define',patchMode),history,instr,chain,threadModel:t.model||null,threadEngine:eng});
     const{summary,target,body,state,usedEng}=res;
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     const followedContract=/^SUMMARY:/m.test(res.raw||'')||target!=='NONE'||summary!=='Done.';
     const ing=res.ingested||[];
     if(target!=='NONE'){
-      if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       const prev=await getFile(target).catch(()=>null);
       const prevLen=prev?prev.content.length:0;
+      if(patchMode&&target===codeFile){
+        if(!prev)throw new Error('patch mode requires the file to exist');
+        const pr=applyPatchBlocks(prev.content,body);
+        if(!pr.total)throw new Error('patch mode: engine returned no SEARCH/REPLACE blocks');
+        if(pr.fails.length)throw new Error('patch rejected — '+pr.fails.join('; ')+' — nothing written');
+        body=pr.text;
+        reply+='\n🩹 Patch mode: '+pr.applied+' edit block(s) applied';
+        dlog('patch: '+pr.applied+'/'+pr.total+' blocks applied to '+target);
+      } else if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       progress[key]={line:'committing '+target+' ('+Math.round(body.length/1000)+'k)',at:Date.now(),started:(progress[key]||{}).started};renderProgress();
       commit=await putFileSafe(target,body,'devstream agent: '+key+' — '+summary.slice(0,60));
       reply+='\n✅ Wrote '+target+' — '+Math.round(body.length/1000)+'k chars'+(prevLen?' (was '+Math.round(prevLen/1000)+'k)':' (new file)')+'\nDiff: https://github.com/'+repoFull()+'/commit/'+commit;
@@ -1049,7 +1074,9 @@ async function openEnginePicker(){
       ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;$('teModel').appendChild(o)});
       const cur=t.model||(prov==='venice'?cfg.vmodel:prov==='openrouter'?cfg.ormodel:'claude-sonnet-4-6');
       if(cur&&ids.includes(cur))$('teModel').value=cur;
-      $('teHint').textContent=ids.length+' models';
+      const upd=()=>{const mm=$('teModel').value,c=capOf(prov,mm);
+        $('teHint').textContent=ids.length+' models · output cap ~'+Math.round(c/1000)+'k tokens'+(c<20000?' (small files / patch mode only)':'')};
+      $('teModel').addEventListener('change',upd);upd();
     }catch(e){$('teHint').textContent='✗ '+e.message}
   };
   $('teProvider').onchange=()=>{$('teStatus').textContent='';load()};
@@ -1209,6 +1236,9 @@ function renderDash(){
 $('settings').onclick=()=>{if(cfg){$('sotPat').value=cfg.pat;$('sotOwner').value=cfg.owner;$('sotRepo').value=cfg.repo;$('sotBranch').value=cfg.branch;$('cfgakey').value=cfg.akey||'';$('cfgvkey').value=cfg.vkey||'';$('cfgorkey').value=cfg.orkey||'';
   if(cfg.vmodel)fillModels('cfgvmodel',[cfg.vmodel],cfg.vmodel);
   if(cfg.ormodel)fillModels('cfgormodel',[cfg.ormodel],cfg.ormodel);$('cfgengine').value=cfg.engine||'venice'}openModal('cfgModal');bindAppearanceUI()};
+var MODEL_CAPS=JSON.parse(localStorage.getItem('ds_model_caps')||'{}');
+function saveCaps(){try{localStorage.setItem('ds_model_caps',JSON.stringify(MODEL_CAPS))}catch(e){}}
+function capOf(eng,model){var c=MODEL_CAPS[eng+'|'+model];return c||(eng==='venice'?16384:(eng==='anthropic-direct'?64000:32000))}
 function fillModels(sel,ids,current){const el=$(sel);el.innerHTML='';ids.forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent=id;el.appendChild(o)});if(current&&ids.includes(current))el.value=current;else if(ids.length)el.value=ids[0]}
 $('vLoad').onclick=async()=>{
   const key=cleanKey($('cfgvkey').value);$('vStatus').textContent='';
@@ -1219,6 +1249,7 @@ $('vLoad').onclick=async()=>{
     if(!r.ok)throw new Error(r.status+': '+((j.error&&(j.error.message||j.error))||'rejected'));
     const ids=(j.data||[]).map(m=>m.id).filter(Boolean).sort();
     if(!ids.length)throw new Error('no models returned');
+    (j.data||[]).forEach(m=>{const sp=m.model_spec||{};MODEL_CAPS['venice|'+m.id]=Math.min(sp.availableContextTokens||16384,16384)});saveCaps();
     fillModels('cfgvmodel',ids,(sot.config&&sot.config.vmodel)||cfg&&cfg.vmodel);
     $('vStatus').textContent=ids.length+' models loaded — pick one, then Validate';
   }catch(e){$('vStatus').textContent='✗ '+e.message}
@@ -1252,6 +1283,7 @@ $('orLoad').onclick=async()=>{
     const rm=await lfetch('or-models','https://openrouter.ai/api/v1/models',{cache:'no-store'});
     const jm=await rm.json();
     const ids=(jm.data||[]).map(m=>m.id).filter(Boolean).sort();
+    (jm.data||[]).forEach(m=>{const tp=m.top_provider||{};MODEL_CAPS['openrouter|'+m.id]=tp.max_completion_tokens||m.context_length||32000});saveCaps();
     fillModels('cfgormodel',ids,(sot.config&&sot.config.ormodel)||cfg&&cfg.ormodel);
     $('orStatus').textContent=ids.length+' models loaded — pick one, then Validate';
   }catch(e){$('orStatus').textContent='✗ '+e.message}
