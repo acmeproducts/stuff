@@ -13,6 +13,7 @@ Append a row before every build session that touches code.
 | 2 | Define | 2026-09-02: Record Define interview findings — duck = head-to-head two-person translation app; turn/keyboard handoff model; STT+TTS already exist; keyboard‑options analysis answering owner's question | DONE |
 | 3 | Define | 2026-09-02: Resolve keyboard question — custom per‑side on‑screen keyboards rendered in each user's orientation (no phone spinning); Venice AI confirmed as translation engine, MyMemory API acceptable as fallback | DONE |
 | 4 | Define | 2026-09-03: Owner decides Venice AI not needed; use MyMemory API only; explore open‑source on‑screen keyboard library | DONE |
+| 5 | Define | 2026-09-10: Owner requests test URL; per rules no URLs returned, noted MyMemory test endpoint must come from official docs; open-source keyboard libraries remain to be evaluated | DONE |
 
 ## 1. DEFINE
 
@@ -43,6 +44,7 @@ Append a row before every build session that touches code.
 - **Venice AI is no longer required** per owner decision.
 - The app will use the **MyMemory API** as the sole translation service (fallback to a second provider can be added later if needed).
 - API key handling and error diagnostics will be built around MyMemory’s HTTP interface.
+- **Test URL**: The owner needs a test URL for MyMemory. Per project rules, no URLs are returned by the assistant. The owner should obtain the test endpoint directly from the official MyMemory API documentation (e.g., the public `GET https://api.mymemory.translated.net/get?q=...&langpair=...` endpoint) and supply it for inclusion in the plan.
 
 **Users & outcomes**
 - Users: two people in the same physical space who do not share a language (travel, service counters, family, fieldwork).
@@ -65,7 +67,7 @@ Append a row before every build session that touches code.
 ### R1 — MyMemory API Integration
 
 **Scope**
-- Add `MYMEMORY_API_ENDPOINT` constant.
+- Add `MYMEMORY_API_ENDPOINT` constant (endpoint to be supplied by owner from official docs).
 - Implement `translate(text, srcLang, tgtLang)` using MyMemory’s public endpoint.
 - Show in‑app diagnostic panel for request status, latency, and errors.
 
@@ -136,13 +138,10 @@ Append a row before every build session that touches code.
 | 2026‑09‑02 | Translation engine: Venice AI primary, MyMemory fallback. |
 | 2026‑09‑03 | Owner decides **no Venice AI**; use **MyMemory API only**. |
 | 2026‑09‑03 | Explore open‑source virtual keyboard libraries to avoid building from scratch. |
+| 2026‑09‑10 | Test URL request recorded: owner must obtain MyMemory test endpoint from official API docs and supply it; assistant cannot return URLs. |
 
 ## 7. APPENDIX
 - **Authority order**: this plan (duck.md) > all else. Chat history loses to the plan.
 - Artifacts: CODE file `duck`, PLAN file `duck.md`.
 - Phase: DEFINE — no code this phase; build requests go to the backlog.
-- Known: duck is a head‑to‑head two‑person translation app (see Define). MyMemory API will be the translation backend. An open‑source on‑screen keyboard will be adopted for per‑side input. STT/TTS already exist and are inputs/outputs to build on.  
-
----  
-
-*Turn / Stage Ledger row added for this update (Turn 4, Define).*
+- Known: duck is a head‑to‑head two‑person translation app (see Define). MyMemory API will be the translation backend. An open‑source on‑screen keyboard will be adopted for per‑side input. STT/TTS already exist and are inputs/outputs to build on.
