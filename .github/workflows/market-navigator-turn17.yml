@@ -1,0 +1,85 @@
+name: Market Navigator Turn 17 qualify and publish
+
+on:
+  push:
+    branches:
+      - market-navigator-turn17-20260910
+      - main
+    paths:
+      - 'market-navigator-turn17-governance.py'
+      - 'market-navigator-build-turn17.py'
+      - 'market-navigator-turn17-qa.mjs'
+      - '.github/workflows/market-navigator-turn17.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn17-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply locked governance
+        run: |
+          python3 market-navigator-turn17-governance.py
+          grep -F '## Turn 16 interaction/readout regressions — rejected for Turn 17' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -F '2. **Data**' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'Active-series emphasis begins at selection, not at crosshair activation' MARKET-NAVIGATOR-MASTER-PLAN.md
+
+      - name: Build exact Turn 17 candidate
+        run: python3 market-navigator-build-turn17.py
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn17-pre-ship.html').read_text()
+          required=[
+            'TURN 17 PRE-SHIP','id="nowChart"','id="nowData"','id="moreData"','id="exploreData"','id="dataModal"',
+            'function legendSample(z)','function openData17(state)','stroke-dasharray',
+            "c.onpointermove=e=>{if(e.pointerType!=='touch')inspect(e,false)}",
+            'data-emphasis','captureAnalysisState17(sets,w,mode)',
+            'Download Markdown','Download CSV','Download JSON'
+          ]
+          for x in required: assert x in s,x
+          assert s.count('>Data</button>')==3,s.count('>Data</button>')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn17.js').write_text(scripts[-1])
+          print('TURN 17 STATIC: PASS')
+          PY
+          node --check /tmp/market-navigator-turn17.js
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run Turn 17 owner-visible product matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn17-http.log 2>&1 &
+          sleep 1
+          curl -fsS http://127.0.0.1:8123/market-navigator-turn17-pre-ship.html | grep -F 'id="nowChart"' >/dev/null
+          node market-navigator-turn17-qa.mjs
+
+      - name: Commit qualified generated release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn17-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Market Navigator Turn 17 qualified release [turn17-generated]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
