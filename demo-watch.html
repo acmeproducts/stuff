@@ -151,24 +151,38 @@ function stripHtml(html){ const t=document.createElement('div'); t.innerHTML=htm
 function goto(url){ document.getElementById('urlInput').value = url; fetchAndFormatUrl(url); }
 
 /* ================= proxy cascade ================= */
-async function proxyCascadeText(targetUrlString){
-  const proxyBase = document.getElementById('proxyUrlInput').value.trim();
-  const proxies = [
-    { name: "CF Worker", url: `${proxyBase}?url=${encodeURIComponent(targetUrlString)}` },
-    { name: "AllOrigins", url: `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrlString)}` },
-    { name: "CodeTabs", url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrlString)}` }
-  ];
+function fetchWithTimeout(url, ms){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), ms||8000);
+  return fetch(url, {signal: ctrl.signal}).finally(()=>clearTimeout(t));
+}
+const PROXIES = [
+  { name:"CF Worker",   build:t=>`${document.getElementById('proxyUrlInput').value.trim()}?url=${encodeURIComponent(t)}` },
+  { name:"AllOrigins",  build:t=>`https://api.allorigins.win/raw?url=${encodeURIComponent(t)}` },
+  { name:"CodeTabs",    build:t=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}` },
+  { name:"corsproxy.io",build:t=>`https://corsproxy.io/?url=${encodeURIComponent(t)}` },
+  { name:"thingproxy",  build:t=>`https://thingproxy.freeboard.io/fetch/${t}` }
+];
+/* targets: array of candidate target URLs tried in order (e.g. www.reddit.com then old.reddit.com);
+   each is tried across every proxy before moving to the next target. */
+async function proxyCascadeText(targets){
+  if (typeof targets === 'string') targets = [targets];
   let lastError = "";
-  for (const proxy of proxies) {
-    try {
-      setStatus(`Fetching via ${proxy.name}...`);
-      const response = await fetch(proxy.url);
-      if (!response.ok) { lastError = `HTTP ${response.status} from ${proxy.name}`; continue; }
-      const text = await response.text();
-      if (text && text.trim().length > 0) return { text, via: proxy.name };
-    } catch (err) { lastError = `${proxy.name} failed: ${err.message}`; }
+  for (const target of targets) {
+    for (const proxy of PROXIES) {
+      try {
+        setStatus(`Trying ${proxy.name}…`);
+        const response = await fetchWithTimeout(proxy.build(target), 8000);
+        if (!response.ok) { lastError = `HTTP ${response.status} from ${proxy.name}`; continue; }
+        const text = await response.text();
+        if (text && text.trim().length > 0) return { text, via: proxy.name };
+        lastError = `${proxy.name} returned an empty response`;
+      } catch (err) {
+        lastError = err.name === 'AbortError' ? `${proxy.name} timed out` : `${proxy.name} failed: ${err.message}`;
+      }
+    }
   }
-  throw new Error(`Proxy cascade exhausted. Last error: ${lastError}`);
+  throw new Error(`All sources are unreachable right now. Last error: ${lastError}`);
 }
 
 /* ================= URL classification ================= */
@@ -233,7 +247,8 @@ async function loadGoogleNews(rssUrl){
 /* ================= Reddit rendering ================= */
 async function loadRedditListing(jsonUrl, label){
   setStatus(`Fetching ${label}…`);
-  const { text } = await proxyCascadeText(jsonUrl);
+  const alt = jsonUrl.replace('https://www.reddit.com','https://old.reddit.com');
+  const { text } = await proxyCascadeText([jsonUrl, alt]);
   let json; try { json = JSON.parse(text); } catch(e){ throw new Error('Reddit returned a non-JSON payload (likely rate-limited). Try again shortly.'); }
   if (json.error) throw new Error(`Reddit API error ${json.error}: ${json.message||''}`);
   const posts = (json.data?.children || []).filter(c => c.kind === 't3').map(c => c.data);
@@ -281,7 +296,8 @@ function renderComment(node, depth, budget){
 }
 async function loadRedditComments(jsonUrl){
   setStatus('Fetching discussion…');
-  const { text } = await proxyCascadeText(jsonUrl);
+  const alt = jsonUrl.replace('https://www.reddit.com','https://old.reddit.com');
+  const { text } = await proxyCascadeText([jsonUrl, alt]);
   let json; try { json = JSON.parse(text); } catch(e){ throw new Error('Reddit returned a non-JSON payload (likely rate-limited). Try again shortly.'); }
   const post = json[0]?.data?.children?.[0]?.data;
   const comments = json[1]?.data?.children || [];
@@ -362,6 +378,7 @@ async function fetchAndFormatUrl(rawUrl){
   if (!proxyBase || !urlInputVal) { setStatus('Please provide both the proxy and target URLs.', false); return; }
   let baseTargetUrl;
   try { baseTargetUrl = new URL(urlInputVal); } catch (e) { setStatus('Invalid Target URL format.', false); return; }
+  lastAction = () => fetchAndFormatUrl(urlInputVal);
   watchContent.innerHTML = `<div style="text-align:center;color:#8ab4f8;padding-top:50%;">Processing…</div>`;
   try {
     const target = classify(baseTargetUrl);
@@ -371,9 +388,18 @@ async function fetchAndFormatUrl(rawUrl){
     else await loadGeneric(target.url, baseTargetUrl);
   } catch (error) { showErr(error); }
 }
+let lastAction = null;
 function showErr(error){
   setStatus(`Error: ${error.message}`, false);
-  watchContent.innerHTML = `<div style="text-align:center;color:#f28b82;padding-top:50%;">${esc(error.message)}</div>`;
+  watchContent.innerHTML = '';
+  watchContent.appendChild(ce('div', null, `<div style="text-align:center;color:#f28b82;padding-top:38%;">${esc(error.message)}</div>`));
+  if (lastAction) {
+    const btn = document.createElement('button');
+    btn.textContent = '↻ Retry';
+    btn.style.cssText = 'display:block;margin:16px auto 0;padding:10px 20px;background:#8ab4f8;color:#202124;border:none;border-radius:20px;font-weight:bold;cursor:pointer;';
+    btn.onclick = () => { const fn = lastAction; if (fn) fn(); };
+    watchContent.appendChild(btn);
+  }
 }
 </script>
 </body>
