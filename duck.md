@@ -19,6 +19,7 @@ Append a row before every build session that touches code.
 | 8 | R1 build | 2026-09-10: R1 shipped — MyMemory harness in duck.html | OFF-TARGET (owner rejected 2026-09-10: wanted chat.html upgraded, not a new harness) |
 | 9 | R2 plan | 2026-09-10: Owner says "build" — plan updated before code | DONE |
 | 10 | Plan redirect | 2026-09-10: Owner rejects mis-build. TRUE TARGET: baseline chat.html improved with per-side on-screen keyboards — nothing else. Spec locked: (a) baseline must not be crippled/deleted/changed — additive only; (b) tap nub slides out your keyboard; (c) Enter collapses your keyboard and slides out the other side's; (d) nub sends a request rendered in the keyboard-owner's localized language; owner relinquishes via nub or by typing+Enter; (e) NO OS keyboard involvement, NO keyboard-selection UI. Plan rewritten with exact implementation approach; code next run once baseline source is pasted | DONE |
+| 11 | Spec correction | 2026-09-10: Owner refines request UX — nub is a keyboard icon at each side's physical bottom edge; request appears as an OVERLAY on the keyboard-owner's side with explicit Confirm / Decline buttons (not just a passive bubble). Plan spec updated accordingly (nub = keyboard icon bottom-anchored; request overlay = confirm/decline chooser; decline path added to state machine). Build still blocked on chat.html source | DONE |
 
 ## 1. DEFINE — CLOSED (exit criteria met 2026-09-10)
 
@@ -33,11 +34,12 @@ Append a row before every build session that touches code.
 - Integration is strictly additive: new code lives in appended `<style>`/`<script>` blocks and runtime-injected DOM (nubs, keyboard docks). No edits to existing markup, styles, or scripts.
 - Where integration must touch baseline behavior (e.g., Enter commit), use call-through wraps / addEventListener — never remove or rewrite existing handlers.
 
-**Interaction spec — LOCKED (owner, 2026‑09‑10)**
-- Each side has a small persistent **nub** (edge tab).
-- **Tap nub** → that side's on-screen keyboard slides out.
+**Interaction spec — LOCKED (owner, 2026‑09‑10; request UX corrected same day)**
+- Each side has a small persistent **nub**: a **keyboard icon** (⌨) pinned to that side's **physical bottom edge** (South nub at screen bottom; North nub at screen bottom from North's perspective = screen top in absolute terms, rendered inside the rotated North frame).
+- **Tap nub (IDLE)** → that side's on-screen keyboard slides out from its bottom edge.
+- **Tap nub (own side active)** → collapse own keyboard to IDLE.
+- **Tap nub (OTHER side active)** → an **overlay request** appears on the keyboard-owner's side, in the owner's selected language: "The other person would like the keyboard." with two buttons: **Confirm** (relinquish: close owner's keyboard, open requester's) and **Decline** (dismiss overlay, requester keeps waiting; logged to diagnostics). Owner can also implicitly confirm by typing + Enter (normal handoff).
 - **Enter** → message commits (via baseline send path), sender's keyboard collapses, and the other side's keyboard slides out automatically.
-- **Request**: tapping your nub while the OTHER side owns the keyboard sends them a request rendered in THEIR selected language. They resolve it by (a) tapping their nub to relinquish, or (b) typing + Enter (normal handoff).
 - At most one keyboard is ever open. No OS keyboard is ever invoked. No keyboard-selection UI exists.
 
 **Keyboard – DECIDED (2026‑09‑02, locked 2026‑09‑10)**
@@ -65,7 +67,7 @@ Append a row before every build session that touches code.
 - Baseline features all still work exactly as before (manual checklist).
 - Nub tap slide-out and Enter handoff feel instant on a mid-range phone (transform-only animation).
 - Translation round‑trip ≤ 1 s, measured live in-app.
-- Requests appear in the keyboard-owner's language.
+- Requests appear as confirm/decline overlays in the keyboard-owner's language.
 - All diagnostics in-app; zero console-only errors.
 
 ## 2. RELEASES
@@ -91,7 +93,8 @@ Append a row before every build session that touches code.
 - Script injects DOM at runtime so even baseline markup is untouched:
   * `#duckDockSouth` — keyboard dock fixed to the bottom (South) edge.
   * `#duckDockNorth` — keyboard dock fixed to the top edge, `transform: rotate(180deg)` (plus slide translate, see Step 2) so it faces North.
-  * `.duckNub` × 2 — small persistent edge tabs, one per side, labeled in that side's selected language (e.g. "Keyboard" / "Teclado"); North nub lives inside the rotated North frame.
+  * `.duckNub` × 2 — **keyboard-icon (⌨) tabs pinned to each side's physical bottom edge**: South nub at screen bottom (above its dock when closed), North nub at screen top in absolute terms inside the rotated North frame so it appears at North's bottom. Always visible, small, non-intrusive; labeled in that side's selected language where space allows (icon primary).
+  * `#duckRequestOverlay` — a single overlay element, shown on the keyboard-owner's side (inside that side's orientation frame, so North's requests render rotated for North), containing the localized request text + **Confirm** and **Decline** buttons.
   * Diagnostics panel reuse from R1 salvage, hidden behind the existing debug affordance if the baseline has one, else a tiny toggle.
 
 **Step 2 — Slide mechanics (snappiness rules)**
@@ -99,15 +102,19 @@ Append a row before every build session that touches code.
   * South dock: `transform: translateY(100%)` (hidden) ↔ `translateY(0)` (open).
   * North dock: same translate composed inside its `rotate(180°)` frame (single `transform` property combining both, order chosen so slide direction is correct on screen).
 - `transition: transform 180ms ease-out`; no layout-thrashing properties; `will-change: transform` on docks only.
+- Nub stays pinned at its side's bottom edge whether dock is open or closed (sits above dock content, independent layer).
 
 **Step 3 — Turn state machine (single source of truth)**
-- States: `IDLE` | `SOUTH_ACTIVE` | `NORTH_ACTIVE` (+ transient `REQUEST_PENDING` flag with ~10 s timeout).
-- API: `openKb(side)`, `closeKb()`, `handoff(toSide)`, `requestKb(fromSide)`.
+- States: `IDLE` | `SOUTH_ACTIVE` | `NORTH_ACTIVE` (+ transient `REQUEST_PENDING` flag with ~10 s timeout, carrying `fromSide` and `toSide`).
+- API: `openKb(side)`, `closeKb()`, `handoff(toSide)`, `requestKb(fromSide)`, `resolveRequest(accept)`.
 - Transitions:
   * Tap nub in `IDLE` → open that side.
   * Tap own nub while own side active → collapse to `IDLE`.
   * Tap nub while OTHER side active → `requestKb(mine)` (Step 5); keyboard does NOT steal.
   * Enter (on-screen Enter key, or additive `keydown` listener on the active composed field) → commit via baseline send path → `closeKb()` → translate/render via baseline → `openKb(opposite)`.
+  * Request Confirm → `closeKb(owner)` → `openKb(requester)` (handoff to requester).
+  * Request Decline → overlay dismissed, owner keeps keyboard, requester notified subtly (nub flash) and event logged.
+  * Request timeout (~10 s, unanswered) → treated as Decline (quiet), logged.
 - Invariant: at most one dock open at any moment; enforced centrally, never by scattered toggles.
 
 **Step 4 — Keyboards**
@@ -115,22 +122,23 @@ Append a row before every build session that touches code.
 - Each instance: layout set from its side's selected language (`setLayout(lang)`); an Enter key wired to the state machine; input routed into that side's composed message buffer.
 - If the minified library source is unavailable at build time, ship minimal hand-rolled QWERTY + target-script layouts as interim, flagged in ledger for R3 replacement — still no OS keyboard.
 
-**Step 5 — Localized request**
-- `requestKb(fromSide)` renders a bubble on the keyboard-owner's side: "The other person would like the keyboard." — in the OWNER'S selected language.
-- Implementation: built-in `REQUEST_STRINGS` table covering the launch languages (instant, no network); missing languages fall back to one MyMemory call, then cached for the session.
-- Owner resolution paths: tap their nub (relinquish → close theirs, open requester's) or type + Enter (handoff satisfies the request). Unanswered requests time out quietly; events logged to diagnostics.
+**Step 5 — Localized request (overlay with confirm/decline)**
+- `requestKb(fromSide)` shows `#duckRequestOverlay` on the keyboard-owner's side: text "The other person would like the keyboard." rendered in the OWNER'S selected language, with **Confirm** / **Decline** buttons also localized.
+- Implementation: built-in `REQUEST_STRINGS` table covering the launch languages — strings for request text, confirm label, decline label (instant, no network); missing languages fall back to one MyMemory call, then cached for the session.
+- Owner resolution paths: **Confirm** (handoff to requester), **Decline** (dismiss; requester's nub flashes once), or typing + Enter (implicit confirm — normal handoff satisfies the request).
+- Unanswered requests time out quietly after ~10 s; all request events (sent/confirmed/declined/timeout) logged to diagnostics.
 
 **Step 6 — Translation & diagnostics**
 - Reuse salvaged `translate()` + diagnostics verbatim where possible: per-call latency vs ≤1 s target, HTTP/API/quota/network errors, ring log — all in-app.
-- Add state-machine events (open/close/handoff/request/timeout) to the ring log.
+- Add state-machine events (open/close/handoff/request-sent/request-confirmed/request-declined/request-timeout) to the ring log.
 - Message flow on Enter: sender text → `translate(src, tgt)` → rendered by baseline chat rendering (both sides' halves stay oriented correctly — North half rendering is baseline's concern; we do not alter it).
 
 **Build Gates (R2 done means ALL true)**
 - Baseline checklist passes: every pre-existing chat.html feature works unchanged.
-- Tap nub → that side's keyboard slides out, correctly oriented (North faces North), no phone spinning.
+- Nub (keyboard icon, bottom edge) tap → that side's keyboard slides out, correctly oriented (North faces North), no phone spinning.
 - Enter on South → South keyboard collapses, North keyboard slides out, message + translation rendered.
 - Symmetric for North → South.
-- Request from either side appears on the other side in that side's language; relinquish and Enter both resolve it; never more than one keyboard open.
+- Request from either side appears as an overlay on the other side **in that side's language** with Confirm/Decline; Confirm, Decline, and typing+Enter all resolve it correctly; never more than one keyboard open.
 - OS keyboard never appears; no keyboard-selection UI exists anywhere.
 - No console-only errors; translation latency measured in-app ≤ 1 s target.
 
@@ -183,10 +191,11 @@ Append a row before every build session that touches code.
 | 2026‑09‑10 | **Baseline preservation rule**: never cripple/delete/change baseline; additive-only integration. |
 | 2026‑09‑10 | **Interaction spec locked**: tap nub slides keyboard out; Enter collapses sender's keyboard and slides out the other's; request nub sends a request rendered in the keyboard-owner's language; relinquish via nub or by typing+Enter. |
 | 2026‑09‑10 | **OS keyboard fully rejected** — no fallback, no keyboard-selection UI of any kind. |
+| 2026‑09‑10 | **Request UX corrected**: nub = keyboard icon pinned at each side's physical bottom edge; request = overlay on keyboard-owner's side with explicit Confirm / Decline buttons (decline path added; typing+Enter = implicit confirm). |
 
 ## 7. APPENDIX
 - **Authority order**: this plan (duck.md) > all else. Chat history loses to the plan.
 - Artifacts: CODE file `duck.html` (= baseline chat.html + additive keyboard layer), PLAN file `duck.md`.
 - Phase: **BUILD**.
-- **Single next step**: owner pastes the current chat.html source; then build duck.html as chat.html verbatim + the R2 keyboard layer exactly as specified in §3 (nub slide-out, Enter handoff, localized request, one keyboard max, diagnostics in-app).
+- **Single next step**: owner pastes the current chat.html source; then build duck.html as chat.html verbatim + the R2 keyboard layer exactly as specified in §3 (bottom-edge keyboard-icon nubs, slide-out docks, Enter handoff, localized confirm/decline request overlay, one keyboard max, diagnostics in-app).
 - Known: MyMemory anonymous endpoint is the translation backend. Simple Keyboard provides per-side on-screen input, rotated 180° for North. No OS keyboard, no selection UI. Baseline chat.html features (chat UI, STT, TTS) are preserved untouched.
