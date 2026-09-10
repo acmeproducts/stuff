@@ -158,23 +158,33 @@ function relTime(unixSecOrDateStr){
   if (m<1) return 'now'; if (m<60) return m+'m'; if (h<24) return h+'h';
   if (d<30) return d+'d'; return Math.floor(d/30)+'mo';
 }
-async function proxyCascadeText(targetUrlString){
-  const proxyBase=$('proxyUrlInput').value.trim();
-  const proxies=[
-    {name:"CF Worker",url:`${proxyBase}?url=${encodeURIComponent(targetUrlString)}`},
-    {name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrlString)}`},
-    {name:"CodeTabs",url:`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrlString)}`}
-  ];
+function fetchWithTimeout(url, ms){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(), ms||8000);
+  return fetch(url,{signal:ctrl.signal}).finally(()=>clearTimeout(t));
+}
+const PROXIES=[
+  {name:"CF Worker",   build:t=>`${$('proxyUrlInput').value.trim()}?url=${encodeURIComponent(t)}`},
+  {name:"AllOrigins",  build:t=>`https://api.allorigins.win/raw?url=${encodeURIComponent(t)}`},
+  {name:"CodeTabs",    build:t=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}`},
+  {name:"corsproxy.io",build:t=>`https://corsproxy.io/?url=${encodeURIComponent(t)}`},
+  {name:"thingproxy",  build:t=>`https://thingproxy.freeboard.io/fetch/${t}`}
+];
+async function proxyCascadeText(targets){
+  if(typeof targets==='string') targets=[targets];
   let lastError="";
-  for(const proxy of proxies){
-    try{
-      const r=await fetch(proxy.url);
-      if(!r.ok){lastError=`HTTP ${r.status} from ${proxy.name}`;continue}
-      const text=await r.text();
-      if(text && text.trim().length>0) return {text,via:proxy.name};
-    }catch(e){lastError=`${proxy.name} failed: ${e.message}`}
+  for(const target of targets){
+    for(const proxy of PROXIES){
+      try{
+        const r=await fetchWithTimeout(proxy.build(target),8000);
+        if(!r.ok){lastError=`HTTP ${r.status} from ${proxy.name}`;continue}
+        const text=await r.text();
+        if(text && text.trim().length>0) return {text,via:proxy.name};
+        lastError=`${proxy.name} returned an empty response`;
+      }catch(e){ lastError = e.name==='AbortError' ? `${proxy.name} timed out` : `${proxy.name} failed: ${e.message}`; }
+    }
   }
-  throw new Error(`Proxy cascade exhausted. ${lastError}`);
+  throw new Error(`All sources are unreachable right now. Last error: ${lastError}`);
 }
 
 /* ---------- URL classification (shared with demo-watch.html) ---------- */
@@ -231,7 +241,7 @@ async function loadGoogleNews(rssUrl){
       list.appendChild(c);
     });
     if(!items.length) list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">No stories found.</div>';
-  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div>`; }
+  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div><button style="background:transparent;border:1px solid var(--card-line);color:var(--accent2);border-radius:8px;padding:5px 12px;font-size:2.4vmin;margin-top:8px;cursor:pointer" onclick="loadGoogleNews(gnUrl)">↻ Retry</button>`; }
 }
 
 /* ---------- reddit tile ---------- */
@@ -251,7 +261,8 @@ async function loadRedditListing(path){
   list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">Loading…</div>';
   try{
     const target=buildRedditTarget(new URL('https://www.reddit.com'+path));
-    const {text}=await proxyCascadeText(target.url);
+    const alt=target.url.replace('https://www.reddit.com','https://old.reddit.com');
+    const {text}=await proxyCascadeText([target.url, alt]);
     let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?). Try again shortly.')}
     const posts=(json.data?.children||[]).filter(c=>c.kind==='t3').map(c=>c.data);
     list.innerHTML='';
@@ -266,7 +277,7 @@ async function loadRedditListing(path){
       list.appendChild(c);
     });
     if(!posts.length) list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">No posts found.</div>';
-  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div>`; }
+  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div><button style="background:transparent;border:1px solid var(--card-line);color:var(--accent2);border-radius:8px;padding:5px 12px;font-size:2.4vmin;margin-top:8px;cursor:pointer" onclick="loadRedditListing(currentSub)">↻ Retry</button>`; }
 }
 
 /* ---------- overlay reader with a view stack ---------- */
@@ -295,7 +306,12 @@ function openArticle(link,titleHint){
       if(target.type==='reddit-comments'){ await renderRedditCommentsInto(target.url); return; }
       if(target.type==='reddit-listing'){ await renderRedditListingInto(target.url, target.label); return; }
       await renderArticleFromGeneric(link);
-    }catch(e){ setOv('', `<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`); }
+    }catch(e){
+      const box=ce('div',null,`<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`);
+      const btn=ce('button',null,'↻ Retry'); btn.style.cssText='background:transparent;border:1px solid var(--card-line);color:var(--accent2);border-radius:8px;padding:5px 12px;font-size:2.4vmin;margin-top:8px;cursor:pointer';
+      btn.onclick=()=>openArticle(link,titleHint);
+      box.appendChild(btn); setOv('', box);
+    }
   });
 }
 async function renderArticleFromGeneric(link){
@@ -315,7 +331,12 @@ function openRedditComments(permalink, backToPath){
     try{
       const target=buildRedditTarget(new URL(permalink));
       await renderRedditCommentsInto(target.url, backToPath);
-    }catch(e){ setOv('', `<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`); }
+    }catch(e){
+      const box=ce('div',null,`<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`);
+      const btn=ce('button',null,'↻ Retry'); btn.style.cssText='background:transparent;border:1px solid var(--card-line);color:var(--accent2);border-radius:8px;padding:5px 12px;font-size:2.4vmin;margin-top:8px;cursor:pointer';
+      btn.onclick=()=>openRedditComments(permalink,backToPath);
+      box.appendChild(btn); setOv('', box);
+    }
   });
 }
 function renderComment(node,depth,budget){
@@ -334,7 +355,8 @@ function renderComment(node,depth,budget){
   return wrap;
 }
 async function renderRedditCommentsInto(jsonUrl, backToPath){
-  const {text}=await proxyCascadeText(jsonUrl);
+  const alt=jsonUrl.replace('https://www.reddit.com','https://old.reddit.com');
+  const {text}=await proxyCascadeText([jsonUrl, alt]);
   let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?).')}
   const post=json[0]?.data?.children?.[0]?.data;
   const comments=json[1]?.data?.children||[];
@@ -356,7 +378,8 @@ async function renderRedditCommentsInto(jsonUrl, backToPath){
   setOv('Discussion', wrap);
 }
 async function renderRedditListingInto(jsonUrl,label){
-  const {text}=await proxyCascadeText(jsonUrl);
+  const alt=jsonUrl.replace('https://www.reddit.com','https://old.reddit.com');
+  const {text}=await proxyCascadeText([jsonUrl, alt]);
   let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?).')}
   const posts=(json.data?.children||[]).filter(c=>c.kind==='t3').map(c=>c.data);
   const wrap=ce('div');
