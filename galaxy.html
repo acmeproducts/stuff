@@ -1,0 +1,400 @@
+<!-- Galaxy — Galaxy Watch9-style reader shell. Companion sim: galaxy-sim.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Galaxy</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Readability.js/0.4.4/Readability.min.js"></script>
+<style>
+:root{ --accent:#7c6cff; --accent2:#5ce1ff; --bg:#000; --ink:#eef0f5; --ink-dim:#8b90a0;
+  --card:#15161c; --card-line:#2a2c36; }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink);overflow:hidden;display:flex;align-items:center;justify-content:center}
+#face{position:relative;width:min(92vw,92vh);height:min(92vw,92vh);max-width:460px;max-height:460px;
+  border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 1px #1c1d24 inset}
+#pages{display:flex;width:400%;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+#pages::-webkit-scrollbar{display:none}
+.page{width:25%;height:100%;flex-shrink:0;scroll-snap-align:center;position:relative;overflow:hidden}
+.pad{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  padding:16% 13% 15%;overflow-y:auto;scrollbar-width:none}
+.pad::-webkit-scrollbar{display:none}
+.tile-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim);
+  margin-bottom:10px;text-align:center}
+/* clock tile */
+#clockTime{font-size:15vmin;font-weight:300;letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+#clockDate{font-size:3.4vmin;color:var(--ink-dim);letter-spacing:.14em;margin-top:2px}
+#clockRing{position:absolute;inset:0;pointer-events:none}
+/* list cards */
+.gcard{width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:14px;
+  padding:10px 12px;margin-bottom:8px;cursor:pointer;text-align:left}
+.gcard:active{background:#1c1e26}
+.gcard .t{font-size:3.2vmin;line-height:1.28;color:var(--ink)}
+.gcard .m{font-size:2.5vmin;color:var(--ink-dim);margin-top:5px;display:flex;gap:7px;flex-wrap:wrap}
+.gcard .snip{font-size:2.6vmin;color:var(--ink-dim);margin-top:5px;line-height:1.3}
+.chip-row{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.chip{background:#1c1e26;border:1px solid var(--card-line);color:var(--accent2);border-radius:10px;
+  padding:4px 8px;font-size:2.4vmin;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.refresh{background:transparent;border:1px solid var(--card-line);color:var(--ink-dim);border-radius:10px;
+  padding:4px 10px;font-size:2.4vmin;margin-bottom:8px;cursor:pointer}
+/* settings tile */
+.srow{width:100%;margin-bottom:10px}
+.srow label{display:block;font-size:2.4vmin;color:var(--ink-dim);margin-bottom:4px}
+.srow input{width:100%;background:var(--card);border:1px solid var(--card-line);color:var(--ink);
+  border-radius:8px;padding:7px 8px;font-size:2.6vmin}
+.gobtn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px;
+  font-size:2.8vmin;font-weight:700;cursor:pointer}
+/* page dots */
+#dots{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);display:flex;gap:5px;z-index:5}
+#dots i{width:5px;height:5px;border-radius:50%;background:#3a3c48}
+#dots i.on{background:var(--accent)}
+/* overlay reader */
+#overlay{position:absolute;inset:0;background:#000;z-index:20;display:none;flex-direction:column}
+#overlay.open{display:flex}
+#ovHead{display:flex;align-items:center;gap:8px;padding:14% 8% 6%;flex-shrink:0}
+#ovBack{width:26px;height:26px;border-radius:50%;background:var(--card);border:1px solid var(--card-line);
+  color:var(--ink);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  flex-shrink:0}
+#ovStatus{font-size:2.3vmin;color:var(--ink-dim);flex:1}
+#ovBody{flex:1;overflow-y:auto;padding:0 10% 16%;scrollbar-width:none}
+#ovBody::-webkit-scrollbar{display:none}
+.ov-h{font-size:3.6vmin;font-weight:700;line-height:1.25;margin-bottom:10px;color:var(--ink)}
+.ov-p{font-size:2.9vmin;color:#c7cad4;line-height:1.45;margin-bottom:10px}
+.ov-meta{font-size:2.4vmin;color:var(--ink-dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.ov-ext{display:inline-block;color:var(--accent2);font-size:2.4vmin;border:1px solid var(--card-line);
+  border-radius:8px;padding:4px 9px;margin-bottom:10px}
+.ov-comment{border-left:2px solid var(--card-line);padding-left:8px;margin:8px 0}
+.ov-cmeta{color:var(--accent2);font-size:2.3vmin;font-weight:700;display:flex;gap:6px}
+.ov-cbody{color:#c7cad4;font-size:2.6vmin;line-height:1.4;margin-top:2px;white-space:pre-wrap}
+.ov-body-content img,.ov-body-content figure{display:none}
+.ov-body-content a{color:var(--accent2)}
+.ov-body-content h1,.ov-body-content h2,.ov-body-content h3{font-size:3.1vmin;margin:14px 0 6px;color:var(--ink)}
+.ov-body-content p{font-size:2.8vmin;line-height:1.45;margin-bottom:10px;color:#c7cad4}
+@media (prefers-reduced-motion:reduce){#pages{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div id="face">
+  <div id="pages">
+    <div class="page"><div class="pad" style="justify-content:center;align-items:center">
+      <svg id="clockRing" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none"
+        stroke="#1c1d24" stroke-width="1.5"/><path id="secArc" fill="none" stroke="url(#gg)" stroke-width="1.5"
+        stroke-linecap="round"/><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#7c6cff"/><stop offset="1" stop-color="#5ce1ff"/></linearGradient></defs></svg>
+      <div id="clockTime">--:--</div><div id="clockDate">···</div>
+    </div></div>
+    <div class="page"><div class="pad">
+      <div class="tile-title">News</div>
+      <button class="refresh" onclick="loadGoogleNews(gnUrl,true)">↻ refresh</button>
+      <div id="newsList"></div>
+    </div></div>
+    <div class="page"><div class="pad">
+      <div class="tile-title">Reddit</div>
+      <div class="chip-row" id="subChips"></div>
+      <div id="redditList"></div>
+    </div></div>
+    <div class="page"><div class="pad">
+      <div class="tile-title">Settings</div>
+      <div class="srow"><label>CF Proxy Worker URL</label>
+        <input id="proxyUrlInput" value="https://proxy.myacctfortracking.workers.dev/"></div>
+      <div class="srow"><label>Custom URL</label><input id="urlInput" placeholder="https://…"></div>
+      <button class="gobtn" onclick="goto(document.getElementById('urlInput').value)">Fetch</button>
+    </div></div>
+  </div>
+  <div id="dots"><i class="on"></i><i></i><i></i><i></i></div>
+
+  <div id="overlay">
+    <div id="ovHead"><button id="ovBack" onclick="popView()">‹</button><div id="ovStatus"></div></div>
+    <div id="ovBody"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const pagesEl=$('pages'), faceEl=$('face');
+const gnUrl='https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en';
+
+/* ---------- page dots + swipe tracking ---------- */
+function syncDots(){
+  const idx=Math.round(pagesEl.scrollLeft/pagesEl.clientWidth);
+  [...$('dots').children].forEach((d,i)=>d.classList.toggle('on',i===idx));
+}
+pagesEl.addEventListener('scroll',()=>{clearTimeout(syncDots._t);syncDots._t=setTimeout(syncDots,60)});
+
+/* ---------- clock tile ---------- */
+function fmt(n){return String(n).padStart(2,'0')}
+const DAYS=["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const MON=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function pt(cx,cy,r,deg){const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]}
+function tickClock(){
+  const d=new Date();
+  $('clockTime').textContent=fmt(d.getHours())+':'+fmt(d.getMinutes());
+  $('clockDate').textContent=DAYS[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()];
+  const f=(d.getSeconds()+d.getMilliseconds()/1000)/60, a1=f*360;
+  const large=a1>180?1:0;
+  const[x0,y0]=pt(50,50,47,0),[x1,y1]=pt(50,50,47,a1);
+  $('secArc').setAttribute('d', a1>0.5?`M ${x0} ${y0} A 47 47 0 ${large} 1 ${x1} ${y1}`:'M 0 0');
+  requestAnimationFrame(tickClock);
+}
+tickClock();
+
+/* ---------- shared helpers ---------- */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function ce(tag,cls,html){ const e=document.createElement(tag); if(cls)e.className=cls;
+  if(html!=null)e.innerHTML=html; return e; }
+function fmtNum(n){ n=+n||0; return n>=1000 ? (n/1000).toFixed(n>=10000?0:1).replace(/\.0$/,'')+'k' : String(n); }
+function relTime(unixSecOrDateStr){
+  const ts = typeof unixSecOrDateStr==='number' ? unixSecOrDateStr*1000 : new Date(unixSecOrDateStr).getTime();
+  if (isNaN(ts)) return '';
+  const diff=Date.now()-ts, m=Math.floor(diff/60000), h=Math.floor(diff/3600000), d=Math.floor(diff/86400000);
+  if (m<1) return 'now'; if (m<60) return m+'m'; if (h<24) return h+'h';
+  if (d<30) return d+'d'; return Math.floor(d/30)+'mo';
+}
+async function proxyCascadeText(targetUrlString){
+  const proxyBase=$('proxyUrlInput').value.trim();
+  const proxies=[
+    {name:"CF Worker",url:`${proxyBase}?url=${encodeURIComponent(targetUrlString)}`},
+    {name:"AllOrigins",url:`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrlString)}`},
+    {name:"CodeTabs",url:`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrlString)}`}
+  ];
+  let lastError="";
+  for(const proxy of proxies){
+    try{
+      const r=await fetch(proxy.url);
+      if(!r.ok){lastError=`HTTP ${r.status} from ${proxy.name}`;continue}
+      const text=await r.text();
+      if(text && text.trim().length>0) return {text,via:proxy.name};
+    }catch(e){lastError=`${proxy.name} failed: ${e.message}`}
+  }
+  throw new Error(`Proxy cascade exhausted. ${lastError}`);
+}
+
+/* ---------- URL classification (shared with demo-watch.html) ---------- */
+function buildGoogleNewsTarget(u){
+  const p=u.searchParams;
+  const hl=p.get('hl')||'en-US', gl=p.get('gl')||'US', ceid=p.get('ceid')||'US:en';
+  const tail=`hl=${encodeURIComponent(hl)}&gl=${encodeURIComponent(gl)}&ceid=${encodeURIComponent(ceid)}`;
+  let path=u.pathname;
+  if(path.startsWith('/rss')) return `https://news.google.com${path}?${tail}`;
+  if(path.startsWith('/search') && p.get('q')) return `https://news.google.com/rss/search?q=${encodeURIComponent(p.get('q'))}&${tail}`;
+  let m=path.match(/^\/topics\/([^/]+)/)||path.match(/^\/topic\/([^/]+)/);
+  if(m) return `https://news.google.com/rss/topics/${m[1]}?${tail}`;
+  m=path.match(/^\/headlines\/section\/topic\/([^/]+)/);
+  if(m) return `https://news.google.com/rss/headlines/section/topic/${m[1]}?${tail}`;
+  return `https://news.google.com/rss?${tail}`;
+}
+function buildRedditTarget(u){
+  let path=u.pathname.replace(/\/+$/,'');
+  const cm=path.match(/^(\/r\/[^/]+)\/comments\/([a-z0-9]+)/i);
+  if(cm) return {type:'reddit-comments', url:`https://www.reddit.com${path}.json?raw_json=1&limit=60`};
+  let sort=null;
+  const sm=path.match(/\/(hot|new|top|rising|best)$/);
+  if(sm){sort=sm[1];path=path.slice(0,-sm[0].length)}
+  if(!path) path='/r/popular';
+  sort=sort||u.searchParams.get('sort')||'hot';
+  let qs=`raw_json=1&limit=30`;
+  if(sort==='top') qs+=`&t=${u.searchParams.get('t')||'day'}`;
+  return {type:'reddit-listing', url:`https://www.reddit.com${path}/${sort}.json?${qs}`, label:path};
+}
+function classify(u){
+  if(u.hostname.includes('news.google.com')) return {type:'gnews', url:buildGoogleNewsTarget(u)};
+  if(u.hostname.includes('reddit.com')) return buildRedditTarget(u);
+  return {type:'generic', url:u.href};
+}
+
+/* ---------- news tile ---------- */
+async function loadGoogleNews(rssUrl){
+  const list=$('newsList');
+  list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">Loading…</div>';
+  try{
+    const {text}=await proxyCascadeText(rssUrl);
+    const doc=new DOMParser().parseFromString(text,'application/xml');
+    const items=[...doc.querySelectorAll('item')];
+    list.innerHTML='';
+    items.forEach(item=>{
+      const title=item.querySelector('title')?.textContent?.trim()||'(untitled)';
+      const link=item.querySelector('link')?.textContent?.trim()||'';
+      const pub=item.querySelector('pubDate')?.textContent||'';
+      const source=item.querySelector('source')?.textContent?.trim()
+        ||(link?(()=>{try{return new URL(link).hostname.replace(/^www\./,'')}catch(e){return ''}})():'');
+      const c=ce('div','gcard');
+      c.innerHTML=`<div class="t">${esc(title)}</div><div class="m"><span>${esc(source)}</span>${pub?`<span>· ${esc(relTime(pub))}</span>`:''}</div>`;
+      c.onclick=()=>openArticle(link,title);
+      list.appendChild(c);
+    });
+    if(!items.length) list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">No stories found.</div>';
+  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div>`; }
+}
+
+/* ---------- reddit tile ---------- */
+const SUBS=[['Popular','/r/popular'],['Tech','/r/technology'],['World','/r/worldnews'],['AskReddit','/r/AskReddit']];
+let currentSub=SUBS[0][1];
+function buildSubChips(){
+  const row=$('subChips'); row.innerHTML='';
+  SUBS.forEach(([label,path])=>{
+    const b=ce('button','chip'+(path===currentSub?' on':''),esc(label));
+    b.onclick=()=>{currentSub=path;buildSubChips();loadRedditListing(path)};
+    row.appendChild(b);
+  });
+}
+async function loadRedditListing(path){
+  currentSub=path; buildSubChips();
+  const list=$('redditList');
+  list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">Loading…</div>';
+  try{
+    const target=buildRedditTarget(new URL('https://www.reddit.com'+path));
+    const {text}=await proxyCascadeText(target.url);
+    let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?). Try again shortly.')}
+    const posts=(json.data?.children||[]).filter(c=>c.kind==='t3').map(c=>c.data);
+    list.innerHTML='';
+    posts.forEach(p=>{
+      const c=ce('div','gcard');
+      const flair=p.link_flair_text?` · ${esc(p.link_flair_text)}`:'';
+      let html=`<div class="t">${esc(p.title)}</div>`;
+      if(p.is_self && p.selftext) html+=`<div class="snip">${esc(p.selftext.slice(0,90))}${p.selftext.length>90?'…':''}</div>`;
+      html+=`<div class="m"><span>▲ ${fmtNum(p.score)}</span><span>💬 ${fmtNum(p.num_comments)}</span><span>${relTime(p.created_utc)}${flair}</span></div>`;
+      c.innerHTML=html;
+      c.onclick=()=>openRedditComments('https://www.reddit.com'+p.permalink, path);
+      list.appendChild(c);
+    });
+    if(!posts.length) list.innerHTML='<div style="color:var(--ink-dim);font-size:2.6vmin">No posts found.</div>';
+  }catch(e){ list.innerHTML=`<div style="color:#ff8a8a;font-size:2.5vmin">${esc(e.message)}</div>`; }
+}
+
+/* ---------- overlay reader with a view stack ---------- */
+const overlay=$('overlay'), ovBody=$('ovBody'), ovStatus=$('ovStatus');
+let viewStack=[];
+function pushView(render){ viewStack.push(render); overlay.classList.add('open'); render(); }
+function popView(){
+  viewStack.pop();
+  if(!viewStack.length){ overlay.classList.remove('open'); return; }
+  viewStack[viewStack.length-1]();
+}
+function setOv(status, bodyHtmlOrNode){
+  ovStatus.textContent=status||'';
+  ovBody.innerHTML='';
+  if(bodyHtmlOrNode instanceof Node) ovBody.appendChild(bodyHtmlOrNode);
+  else if(bodyHtmlOrNode!=null) ovBody.innerHTML=bodyHtmlOrNode;
+  ovBody.scrollTop=0;
+}
+function openArticle(link,titleHint){
+  if(!link) return;
+  pushView(async ()=>{
+    setOv('Loading…','');
+    try{
+      const target=classify(new URL(link));
+      if(target.type==='gnews'){ await renderArticleFromGeneric(link); return; }
+      if(target.type==='reddit-comments'){ await renderRedditCommentsInto(target.url); return; }
+      if(target.type==='reddit-listing'){ await renderRedditListingInto(target.url, target.label); return; }
+      await renderArticleFromGeneric(link);
+    }catch(e){ setOv('', `<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`); }
+  });
+}
+async function renderArticleFromGeneric(link){
+  const {text}=await proxyCascadeText(link);
+  const doc=new DOMParser().parseFromString(text,'text/html');
+  if(typeof Readability==='undefined') throw new Error('Readability library failed to load.');
+  const reader=new Readability(doc);
+  const article=reader.parse();
+  if(!article||!article.content) throw new Error('Could not extract article content.');
+  const wrap=ce('div','ov-body-content');
+  wrap.innerHTML=`<div class="ov-h">${esc(article.title)}</div>`+article.content;
+  setOv('Article', wrap);
+}
+function openRedditComments(permalink, backToPath){
+  pushView(async ()=>{
+    setOv('Loading…','');
+    try{
+      const target=buildRedditTarget(new URL(permalink));
+      await renderRedditCommentsInto(target.url, backToPath);
+    }catch(e){ setOv('', `<div class="ov-h">Couldn't load that</div><div class="ov-p">${esc(e.message)}</div>`); }
+  });
+}
+function renderComment(node,depth,budget){
+  if(!node||budget.n<=0) return null;
+  if(node.kind==='more'){ const n=node.data?.count||0; if(!n) return null;
+    return ce('div',null,`<div style="color:#5a5d6b;font-size:2.3vmin;font-style:italic;margin:6px 0">… ${n} more repl${n===1?'y':'ies'}</div>`); }
+  if(node.kind!=='t1') return null;
+  const d=node.data; budget.n--;
+  const wrap=ce('div','ov-comment');
+  wrap.style.marginLeft=Math.min(depth,3)*8+'px';
+  wrap.innerHTML=`<div class="ov-cmeta">u/${esc(d.author)}<span style="color:var(--ink-dim);font-weight:400">▲ ${fmtNum(d.score)}</span></div>`+
+                  `<div class="ov-cbody">${esc(d.body||'')}</div>`;
+  if(depth<3 && d.replies && d.replies.data && budget.n>0){
+    d.replies.data.children.forEach(ch=>{ const c=renderComment(ch,depth+1,budget); if(c) wrap.appendChild(c); });
+  }
+  return wrap;
+}
+async function renderRedditCommentsInto(jsonUrl, backToPath){
+  const {text}=await proxyCascadeText(jsonUrl);
+  let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?).')}
+  const post=json[0]?.data?.children?.[0]?.data;
+  const comments=json[1]?.data?.children||[];
+  if(!post) throw new Error('Could not load this post.');
+  const wrap=ce('div');
+  wrap.innerHTML=`<div class="ov-h">${esc(post.title)}</div>`+
+    `<div class="ov-meta"><span>${esc(post.subreddit_name_prefixed)}</span><span>u/${esc(post.author)}</span>`+
+    `<span>▲ ${fmtNum(post.score)}</span><span>💬 ${fmtNum(post.num_comments)}</span></div>`;
+  if(post.is_self && post.selftext){
+    wrap.appendChild(ce('div','ov-p',esc(post.selftext.slice(0,1200))+(post.selftext.length>1200?'…':'')));
+  }else if(post.url){
+    const a=ce('a','ov-ext','↗ open linked article'); a.href=post.url;
+    a.onclick=e=>{e.preventDefault();openArticle(post.url)};
+    wrap.appendChild(a);
+  }
+  wrap.appendChild(ce('div','ov-h',`${fmtNum(post.num_comments)} comments`));
+  const budget={n:40};
+  comments.forEach(c=>{ const el=renderComment(c,0,budget); if(el) wrap.appendChild(el); });
+  setOv('Discussion', wrap);
+}
+async function renderRedditListingInto(jsonUrl,label){
+  const {text}=await proxyCascadeText(jsonUrl);
+  let json; try{json=JSON.parse(text)}catch(e){throw new Error('Reddit returned a non-JSON payload (rate-limited?).')}
+  const posts=(json.data?.children||[]).filter(c=>c.kind==='t3').map(c=>c.data);
+  const wrap=ce('div');
+  wrap.appendChild(ce('div','ov-h',label));
+  posts.forEach(p=>{
+    const c=ce('div','gcard');
+    c.innerHTML=`<div class="t">${esc(p.title)}</div><div class="m"><span>▲ ${fmtNum(p.score)}</span><span>💬 ${fmtNum(p.num_comments)}</span></div>`;
+    c.onclick=()=>openRedditComments('https://www.reddit.com'+p.permalink,label);
+    wrap.appendChild(c);
+  });
+  setOv(label, wrap);
+}
+
+/* ---------- settings: manual URL entry routes through classify() too ---------- */
+function goto(link){
+  if(!link) return;
+  try{
+    const u=new URL(link);
+    const target=classify(u);
+    if(target.type==='gnews'){ pagesEl.scrollTo({left:pagesEl.clientWidth,behavior:'smooth'}); loadGoogleNews(target.url); return; }
+    if(target.type==='reddit-listing'){ pagesEl.scrollTo({left:pagesEl.clientWidth*2,behavior:'smooth'}); loadRedditListing(target.label); return; }
+    openArticle(link);
+  }catch(e){ /* ignore invalid */ }
+}
+
+/* ---------- remote-control (galaxy-sim.html bezel/buttons) ---------- */
+window.addEventListener('message', e=>{
+  const d=e.data||{};
+  if(d.cmd==='home'){ pagesEl.scrollTo({left:0,behavior:'smooth'}); overlay.classList.remove('open'); viewStack=[]; }
+  else if(d.cmd==='back'){ if(overlay.classList.contains('open')) popView(); }
+  else if(d.cmd==='next') pagesEl.scrollBy({left:pagesEl.clientWidth,behavior:'smooth'});
+  else if(d.cmd==='prev') pagesEl.scrollBy({left:-pagesEl.clientWidth,behavior:'smooth'});
+});
+
+/* ---------- init ---------- */
+buildSubChips();
+loadGoogleNews(gnUrl);
+loadRedditListing(currentSub);
+</script>
+</body>
+</html>
