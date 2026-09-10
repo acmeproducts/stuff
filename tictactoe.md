@@ -1,3 +1,4 @@
+<plan>
 # tictactoe.md — Master Plan (sole authority)
 
 ## Project
@@ -38,7 +39,7 @@
 **v1.0 shipped (2026-08-29, approved 2026-08-31):** CSS-3D tilted board, flip-in raised X/O tiles, pass-and-play, turn badge, win/draw detection with winning-cell pulse, shake-on-invalid-tap, session scores (X/O/draws in diag line), alternating starter, 1-tap play-again, keyboard-accessible cells, reduced-motion support, in-app diagnostics line. User verdict: "it slaps."
 
 ## Backlog
-- HOST: Provide a GitHub Pages link for the game (requested 2026-08-31). Requires user to create a GitHub repo, push tictactoe.html, enable Pages, and share the public URL. **Blocked on user action.**
+- **HOST:** Provide a GitHub Pages link for the game (requested 2026-08-31). Requires user to create a GitHub repo, push tictactoe.html, enable Pages, and share the public URL: `https://acmeproducts.github.io/stuff/tictactoe.html`. **Pending user action.**
 - v2 candidates (unscheduled, not requested): AI opponent, sound effects, themes/skins, online multiplayer, score persistence via localStorage, PWA installability.
 
 ## Constraints & standing rules
@@ -56,3 +57,5 @@
 | 2026-08-29 | BUILD | Scope clarified (pass-and-play, CSS 3D, no extras v1). Built tictactoe.html v1.0: full two-player 3D game with HUD, diagnostics, play-again, scores. |
 | 2026-08-31 | DEFINE | User requested a GitHub Pages link. Logged hosting request in backlog; blocked on user creating repo and enabling Pages. |
 | 2026-08-31 | BUILD | User feedback on v1.0: "NGL it slaps" — build approved, no changes requested. Marked BUILD backlog item delivered, success criteria checked off, v2 candidates parked. Next: hosting (user action) or v2 ideas on request. |
+| 2026-09-16 | DEFINE | Noted hosting request; user to push tictactoe.html to GitHub Pages at `https://acmeproducts.github.io/stuff/tictactoe.html`. Awaiting user action. |
+</plan>
