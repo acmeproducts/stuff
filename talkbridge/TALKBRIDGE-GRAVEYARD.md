@@ -1755,3 +1755,11 @@ Diagnosis not yet performed (owner stood the line down). Candidate sha
 to accepted 26·pre-ship (e6d3d8c7a57d). Suspect list for the future
 post-mortem, unproven: the #j= reload-based join path interacting with
 onboarding, or the join sheet's modal markup. No claims made.
+
+## G49 — 2026-09-06 — directory release candidate 1, removed at owner order
+
+/stuff/talkbridge-app/ (index 14a4379c660c) deleted whole. Desktop Chrome
+never offered install, twice: first without start_url, then with
+start_url "./" added. Owner ruling: stop patching a working application to
+chase installability; prove it on a skeleton PWA first (§7.12). No
+diagnosis claimed beyond the fact that start_url alone was not decisive.
