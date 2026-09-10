@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CA Organic Ecosystem</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #ddd;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Gear Icon */
+        #gear-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(20, 20, 25, 0.7);
+            border: 1px solid #444;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+        #gear-btn:hover { background: rgba(40, 40, 50, 0.9); transform: rotate(30deg); }
+        #gear-btn svg { width: 24px; height: 24px; fill: #ccc; }
+
+        /* Side Panel (Hidden by default) */
+        #side-panel {
+            position: absolute;
+            top: 20px;
+            right: 75px;
+            z-index: 15;
+            background: rgba(15, 15, 18, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            width: 320px;
+            max-height: calc(100vh - 140px);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            pointer-events: none;
+        }
+        #side-panel.open {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        h1 { margin: 0 0 5px 0; font-size: 1.2rem; color: #fff; }
+        .subtitle { margin: 0 0 15px 0; font-size: 0.75rem; color: #888; line-height: 1.4; }
+        
+        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85rem; }
+        .color-box { width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; }
+
+        .stats { margin-top: 15px; padding-top: 15px; border-top: 1px solid #333; font-family: monospace; font-size: 0.85rem; color: #00ffaa;}
+
+        /* Running Log */
+        #log-container {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+            flex-grow: 1;
+            overflow-y: auto;
+            max-height: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .log-entry { font-family: monospace; font-size: 0.75rem; color: #aaa; animation: fadein 0.3s; }
+        .log-entry.alert { color: #ff3366; }
+        .log-entry.info { color: #3388ff; }
+        @keyframes fadein { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Bottom Drawer */
+        #bottom-drawer {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(calc(100% - 30px));
+            z-index: 20;
+            background: rgba(15, 15, 18, 0.9);
+            border: 1px solid #333;
+            border-bottom: none;
+            border-radius: 16px 16px 0 0;
+            padding: 10px 20px 20px 20px;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            width: 90vw;
+            max-width: 800px;
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #bottom-drawer.open { transform: translateX(-50%) translateY(0); }
+        
+        #drawer-handle {
+            width: 40px;
+            height: 5px;
+            background: #555;
+            border-radius: 3px;
+            margin: 0 auto 15px auto;
+            cursor: pointer;
+        }
+        #drawer-handle:hover { background: #888; }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px;}
+        
+        input[type=range] { width: 100%; accent-color: #00ffaa; }
+        
+        button {
+            background: #2a2a35; border: 1px solid #444; color: #ddd;
+            padding: 8px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 0.8rem; transition: background 0.2s;
+        }
+        button:hover { background: #3a3a45; color: #fff; }
+        button.action-btn { background: #5a2a55; border-color: #8a3a85; font-weight: bold; }
+        button.action-btn:hover { background: #7a3a75; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <!-- UI Layer -->
+    <div id="gear-btn" onclick="toggleSidePanel()">
+        <svg viewBox="0 0 24 24">
+            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+        </svg>
+    </div>
+
+    <div id="side-panel">
+        <h1>CA Ecosystem</h1>
+        <p class="subtitle">Emergent structures via spatial hashing.</p>
+        
+        <div class="legend-item">
+            <div class="color-box" style="background: #22ff66; box-shadow: 0 0 8px #22ff66;"></div>
+            <span>Plankton (Clumps, reproduces)</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #3388ff; box-shadow: 0 0 8px #3388ff;"></div>
+            <span>Grazer (Forms structural rings)</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #ff3333; box-shadow: 0 0 8px #ff3333;"></div>
+            <span>Predator (Solitary hunters)</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #ff00ff; box-shadow: 0 0 8px #ff00ff;"></div>
+            <span>Cohort (Invasive swarm)</span>
+        </div>
+        <div class="legend-item">
+            <div class="color-box" style="background: #555555; box-shadow: 0 0 8px #555555;"></div>
+            <span>Dormant (Aged out, stationary prey)</span>
+        </div>
+
+        <div class="stats" id="stats-display">
+            Population: 0 / 12000<br>
+            Tick: 0
+        </div>
+
+        <div id="log-container">
+            <div class="log-entry">System initialized.</div>
+        </div>
+    </div>
+
+    <div id="bottom-drawer">
+        <div id="drawer-handle" onclick="toggleDrawer()"></div>
+        <div class="controls-grid">
+            <div class="control-group">
+                <label>Sim Speed (<span id="speed-val">1.0</span>x)</label>
+                <input type="range" id="param-speed" min="0.1" max="3" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Entity Size (<span id="size-val">1.0</span>x)</label>
+                <input type="range" id="param-size" min="0.5" max="3" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Clumping Force</label>
+                <input type="range" id="param-clump" min="0" max="2" step="0.1" value="1.0">
+            </div>
+            <div class="control-group" style="justify-content: flex-end;">
+                <button class="action-btn" onclick="launchCohort()">LAUNCH NEW COHORT</button>
+            </div>
+            <div class="control-group" style="justify-content: flex-end;">
+                <button onclick="seedEcosystem(2000, TYPE_PLANKTON)">+ Plankton</button>
+            </div>
+            <div class="control-group" style="justify-content: flex-end;">
+                <button onclick="seedEcosystem(500, TYPE_GRAZER)">+ Grazers</button>
+            </div>
+            <div class="control-group" style="justify-content: flex-end;">
+                <button onclick="seedEcosystem(50, TYPE_PREDATOR)">+ Predators</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        let particleCapacity = 12000;
+        const BOUNDS = 300; // Simulation cube half-size
+        
+        // Types
+        const TYPE_PLANKTON = 0;
+        const TYPE_GRAZER = 1;
+        const TYPE_PREDATOR = 2;
+        const TYPE_COHORT = 3;
+
+        // Flat Arrays for Extreme Performance (Struct of Arrays)
+        // Made 'let' to allow dynamic resizing when cap is reached
+        let p_pos = new Float32Array(particleCapacity * 3);
+        let p_vel = new Float32Array(particleCapacity * 3);
+        let p_color = new Float32Array(particleCapacity * 3);
+        let p_size = new Float32Array(particleCapacity);
+        let p_type = new Uint8Array(particleCapacity);
+        let p_energy = new Float32Array(particleCapacity);
+        let p_active = new Uint8Array(particleCapacity);
+        let p_age = new Uint32Array(particleCapacity);
+        let p_dormant = new Uint8Array(particleCapacity);
+
+        // UI & Simulation Params
+        let activeCount = 0;
+        let dormantCount = 0;
+        let tickCount = 0;
+        let simSpeed = 1.0;
+        let globalSizeMod = 1.0;
+        let clumpingForce = 1.0;
+        let isDrawerOpen = false;
+        let isSidePanelOpen = false;
+        
+        // Performance Monitoring
+        let performancePressure = 0.0;
+        let simTimes = [];
+
+        // Three.js Globals
+        let scene, camera, renderer, controls, particleSystem;
+        let geometry, material;
+
+        // Instead of string Maps, we use a 1D array representing 3D space.
+        // This stops garbage collection pauses entirely.
+        const CELL_SIZE = 15;
+        const GRID_W = Math.ceil((BOUNDS * 2) / CELL_SIZE);
+        const NUM_CELLS = GRID_W * GRID_W * GRID_W;
+        
+        const gridHead = new Int32Array(NUM_CELLS);
+        let gridNext = new Int32Array(particleCapacity);
+
+        function expandCapacity() {
+            const oldCap = particleCapacity;
+            particleCapacity = Math.floor(particleCapacity * 1.5); // Grow by 50%
+            addLog(`Ecosystem overflowing. Expanding capacity to ${particleCapacity}...`, "alert");
+
+            const copy = (OldType, oldArr, mult) => {
+                const newArr = new OldType(particleCapacity * mult);
+                newArr.set(oldArr);
+                return newArr;
+            };
+
+            p_pos = copy(Float32Array, p_pos, 3);
+            p_vel = copy(Float32Array, p_vel, 3);
+            p_color = copy(Float32Array, p_color, 3);
+            p_size = copy(Float32Array, p_size, 1);
+            p_type = copy(Uint8Array, p_type, 1);
+            p_energy = copy(Float32Array, p_energy, 1);
+            p_active = copy(Uint8Array, p_active, 1);
+            p_age = copy(Uint32Array, p_age, 1);
+            p_dormant = copy(Uint8Array, p_dormant, 1);
+            gridNext = copy(Int32Array, gridNext, 1);
+
+            // Re-bind WebGL Buffers dynamically
+            if(geometry) {
+                geometry.setAttribute('position', new THREE.BufferAttribute(p_pos, 3));
+                geometry.setAttribute('customColor', new THREE.BufferAttribute(p_color, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(p_size, 1));
+            }
+            
+            return oldCap; // Return the first newly available index
+        }
+
+        function updateSpatialHash() {
+            gridHead.fill(-1); // Reset grid
+            for (let i = 0; i < particleCapacity; i++) {
+                if (p_active[i] === 0) continue;
+                
+                const idx = i * 3;
+                let cx = Math.floor((p_pos[idx] + BOUNDS) / CELL_SIZE);
+                let cy = Math.floor((p_pos[idx+1] + BOUNDS) / CELL_SIZE);
+                let cz = Math.floor((p_pos[idx+2] + BOUNDS) / CELL_SIZE);
+
+                // Clamp to grid bounds to prevent out-of-bounds access
+                if (cx < 0) cx = 0; else if (cx >= GRID_W) cx = GRID_W - 1;
+                if (cy < 0) cy = 0; else if (cy >= GRID_W) cy = GRID_W - 1;
+                if (cz < 0) cz = 0; else if (cz >= GRID_W) cz = GRID_W - 1;
+
+                const cellIdx = cx + (cy * GRID_W) + (cz * GRID_W * GRID_W);
+                
+                // Add to linked list
+                gridNext[i] = gridHead[cellIdx];
+                gridHead[cellIdx] = i;
+            }
+        }
+
+        function toggleDrawer() {
+            const drawer = document.getElementById('bottom-drawer');
+            isDrawerOpen = !isDrawerOpen;
+            if (isDrawerOpen) drawer.classList.add('open');
+            else drawer.classList.remove('open');
+        }
+
+        function toggleSidePanel() {
+            const panel = document.getElementById('side-panel');
+            isSidePanelOpen = !isSidePanelOpen;
+            if (isSidePanelOpen) panel.classList.add('open');
+            else panel.classList.remove('open');
+        }
+
+        function addLog(msg, type = "info") {
+            const container = document.getElementById('log-container');
+            const el = document.createElement('div');
+            el.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString([], {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            el.innerText = `[${time}] ${msg}`;
+            container.appendChild(el);
+            // Keep only last 50 entries
+            while (container.childNodes.length > 50) container.removeChild(container.firstChild);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('param-speed').addEventListener('input', (e) => {
+            simSpeed = parseFloat(e.target.value);
+            document.getElementById('speed-val').innerText = simSpeed.toFixed(1);
+        });
+        document.getElementById('param-size').addEventListener('input', (e) => {
+            globalSizeMod = parseFloat(e.target.value);
+            document.getElementById('size-val').innerText = globalSizeMod.toFixed(1);
+        });
+        document.getElementById('param-clump').addEventListener('input', (e) => {
+            clumpingForce = parseFloat(e.target.value);
+        });
+
+        function spawnParticle(type, px, py, pz) {
+            let id = -1;
+            for(let i=0; i<particleCapacity; i++) {
+                if(p_active[i] === 0) { id = i; break; }
+            }
+            if(id === -1) {
+                // Remove hard cap, dynamically resize arrays
+                id = expandCapacity();
+            }
+
+            const idx = id * 3;
+            // Place randomly if no coords given
+            p_pos[idx] = px !== undefined ? px : (Math.random() - 0.5) * BOUNDS * 1.8;
+            p_pos[idx+1] = py !== undefined ? py : (Math.random() - 0.5) * BOUNDS * 1.8;
+            p_pos[idx+2] = pz !== undefined ? pz : (Math.random() - 0.5) * BOUNDS * 1.8;
+            
+            // Random initial velocity
+            p_vel[idx] = (Math.random() - 0.5);
+            p_vel[idx+1] = (Math.random() - 0.5);
+            p_vel[idx+2] = (Math.random() - 0.5);
+
+            p_type[id] = type;
+            p_active[id] = 1;
+            p_age[id] = 0;
+            p_dormant[id] = 0;
+            activeCount++;
+
+            if (type === TYPE_PLANKTON) {
+                p_color[idx]=0.13; p_color[idx+1]=1.0; p_color[idx+2]=0.4;
+                p_size[id] = 2.0; p_energy[id] = 100;
+            } else if (type === TYPE_GRAZER) {
+                p_color[idx]=0.2; p_color[idx+1]=0.5; p_color[idx+2]=1.0;
+                p_size[id] = 3.5; p_energy[id] = 200;
+            } else if (type === TYPE_PREDATOR) {
+                p_color[idx]=1.0; p_color[idx+1]=0.2; p_color[idx+2]=0.2;
+                p_size[id] = 5.0; p_energy[id] = 300;
+            } else if (type === TYPE_COHORT) {
+                const isMagenta = Math.random() > 0.5;
+                p_color[idx]=1.0; p_color[idx+1]=isMagenta?0:1.0; p_color[idx+2]=isMagenta?1.0:0;
+                p_size[id] = 3.0; p_energy[id] = 150;
+            }
+            return id;
+        }
+
+        function killParticle(id) {
+            if(p_active[id] === 1) {
+                p_active[id] = 0;
+                if (p_dormant[id] === 1) dormantCount--;
+                else activeCount--;
+                p_dormant[id] = 0;
+                p_pos[id*3] = 999999; // Move offscreen immediately
+            }
+        }
+
+        function launchCohort() {
+            addLog("Warning: New foreign cohort entering ecosystem.", "alert");
+            
+            // Spawn a dense ball in the center
+            for(let i=0; i<800; i++) {
+                const r = Math.random() * 30;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const px = r * Math.sin(phi) * Math.cos(theta);
+                const py = r * Math.sin(phi) * Math.sin(theta);
+                const pz = r * Math.cos(phi);
+                spawnParticle(TYPE_COHORT, px, py, pz);
+            }
+        }
+
+        function simulateEcosystem() {
+            updateSpatialHash();
+            
+            // Interaction distances (squared for fast comparison)
+            const SENSE_SQ = 400; // 20 units
+            const CLUMP_SQ = 64;  // 8 units
+            const EAT_SQ = 16;    // 4 units
+
+            for (let i = 0; i < particleCapacity; i++) {
+                if (p_active[i] === 0) continue;
+                
+                p_age[i]++;
+                const type = p_type[i];
+                const idx = i * 3;
+
+                // --- PERFORMANCE-BASED AGING OUT ---
+                // If system lags, pressure increases. High pressure + old age = particle goes dormant.
+                if (p_dormant[i] === 0 && performancePressure > 0.3 && p_age[i] > 600) {
+                    // Chance to go dormant scales with pressure
+                    if (Math.random() < performancePressure * 0.05) {
+                        p_dormant[i] = 1;
+                        activeCount--;
+                        dormantCount++;
+                        // Fade color to gray/brown to indicate it's now structural/food
+                        p_color[idx] = p_color[idx]*0.3 + 0.1;
+                        p_color[idx+1] = p_color[idx+1]*0.3 + 0.1;
+                        p_color[idx+2] = p_color[idx+2]*0.3 + 0.1;
+                    }
+                }
+
+                let px = p_pos[idx], py = p_pos[idx+1], pz = p_pos[idx+2];
+                let vx = p_vel[idx], vy = p_vel[idx+1], vz = p_vel[idx+2];
+                
+                // If dormant, skip expensive forces. Just drift, decay, and update buffers.
+                if (p_dormant[i] === 1) {
+                    vx *= 0.95; vy *= 0.95; vz *= 0.95; // Drift to a halt
+                    px += vx; py += vy; pz += vz;
+                    p_energy[i] -= 0.05 * simSpeed; // Decay over time
+                    if (p_energy[i] <= 0) { killParticle(i); continue; }
+
+                    p_pos[idx] = px; p_pos[idx+1] = py; p_pos[idx+2] = pz;
+                    p_vel[idx] = vx; p_vel[idx+1] = vy; p_vel[idx+2] = vz;
+                    geometry.attributes.position.array[idx] = px;
+                    geometry.attributes.position.array[idx+1] = py;
+                    geometry.attributes.position.array[idx+2] = pz;
+                    geometry.attributes.customColor.array[idx] = p_color[idx];
+                    geometry.attributes.customColor.array[idx+1] = p_color[idx+1];
+                    geometry.attributes.customColor.array[idx+2] = p_color[idx+2];
+                    continue; 
+                }
+
+                // Emergent Forces
+                let steerX = 0, steerY = 0, steerZ = 0;
+                let speedLimit = (type === TYPE_PREDATOR) ? 0.8 : (type === TYPE_GRAZER) ? 0.6 : 0.2;
+
+                // Energy mechanics
+                if (type !== TYPE_PLANKTON) {
+                    p_energy[i] -= (type === TYPE_PREDATOR ? 0.05 : 0.02) * simSpeed;
+                    if (p_energy[i] <= 0) {
+                        killParticle(i);
+                        continue;
+                    }
+                }
+                const isHungry = p_energy[i] < 80;
+
+                // --- FAST NEIGHBOR LOOKUP (No objects created) ---
+                let cx = Math.floor((px + BOUNDS) / CELL_SIZE);
+                let cy = Math.floor((py + BOUNDS) / CELL_SIZE);
+                let cz = Math.floor((pz + BOUNDS) / CELL_SIZE);
+                
+                // Search surrounding 3x3x3 cells
+                for (let ox = -1; ox <= 1; ox++) {
+                    for (let oy = -1; oy <= 1; oy++) {
+                        for (let oz = -1; oz <= 1; oz++) {
+                            let nx = cx + ox, ny = cy + oy, nz = cz + oz;
+                            if (nx<0||nx>=GRID_W || ny<0||ny>=GRID_W || nz<0||nz>=GRID_W) continue;
+                            
+                            let cellIdx = nx + (ny * GRID_W) + (nz * GRID_W * GRID_W);
+                            let neighborId = gridHead[cellIdx];
+
+                            while (neighborId !== -1) {
+                                if (i !== neighborId && p_active[neighborId]) {
+                                    const nIdx = neighborId * 3;
+                                    let dx = p_pos[nIdx] - px;
+                                    let dy = p_pos[nIdx+1] - py;
+                                    let dz = p_pos[nIdx+2] - pz;
+                                    let distSq = dx*dx + dy*dy + dz*dz;
+
+                                    if (distSq < SENSE_SQ && distSq > 0) {
+                                        const nType = p_type[neighborId];
+                                        const nDormant = p_dormant[neighborId];
+                                        const dist = Math.sqrt(distSq);
+                                        const invDist = 1.0 / dist;
+                                        let nxDir = dx * invDist, nyDir = dy * invDist, nzDir = dz * invDist;
+
+                                        // Separation (Universal repulsion if too close)
+                                        if (distSq < p_size[i]*p_size[i]) {
+                                            steerX -= nxDir * 0.5; steerY -= nyDir * 0.5; steerZ -= nzDir * 0.5;
+                                        }
+
+                                        // --- RULE-BASED EMERGENCE ---
+
+                                        // 1. Plankton: Form dense, structural sticky masses
+                                        if (type === TYPE_PLANKTON && nType === TYPE_PLANKTON && !nDormant) {
+                                            if (distSq < CLUMP_SQ) {
+                                                // Strong cohesion (stickiness)
+                                                steerX += nxDir * 0.2 * clumpingForce;
+                                                steerY += nyDir * 0.2 * clumpingForce;
+                                                steerZ += nzDir * 0.2 * clumpingForce;
+                                                // Dampen velocity to solidify
+                                                vx *= 0.95; vy *= 0.95; vz *= 0.95;
+                                            }
+                                        }
+
+                                        // 2. Grazer: Circle around plankton, flee predators
+                                        else if (type === TYPE_GRAZER) {
+                                            if (nType === TYPE_PREDATOR && !nDormant) {
+                                                steerX -= nxDir * 1.5; steerY -= nyDir * 1.5; steerZ -= nzDir * 1.5; // Flee
+                                                speedLimit = 1.5; 
+                                            }
+                                            else if (nType === TYPE_GRAZER && !nDormant && distSq < CLUMP_SQ * 2) {
+                                                // Flocking alignment
+                                                steerX += p_vel[nIdx] * 0.05; steerY += p_vel[nIdx+1] * 0.05; steerZ += p_vel[nIdx+2] * 0.05;
+                                            }
+                                            else if (nType === TYPE_PLANKTON || nDormant) { // Will eat dormant entities of any type
+                                                // Seek food
+                                                steerX += nxDir * (isHungry ? 1.0 : 0.2); 
+                                                steerY += nyDir * (isHungry ? 1.0 : 0.2);
+                                                steerZ += nzDir * (isHungry ? 1.0 : 0.2);
+                                                if (distSq < EAT_SQ && isHungry) {
+                                                    killParticle(neighborId);
+                                                    p_energy[i] = Math.min(200, p_energy[i] + 40);
+                                                }
+                                            }
+                                        }
+
+                                        // 3. Predator: Hunt grazers, ignore plankton
+                                        else if (type === TYPE_PREDATOR) {
+                                            if (nType === TYPE_PREDATOR && !nDormant) {
+                                                steerX -= nxDir * 0.5; steerY -= nyDir * 0.5; steerZ -= nzDir * 0.5; // Territorial
+                                            }
+                                            else if (nType === TYPE_GRAZER || nType === TYPE_COHORT || nDormant) {
+                                                steerX += nxDir * 0.8; steerY += nyDir * 0.8; steerZ += nzDir * 0.8;
+                                                if (distSq < EAT_SQ && isHungry) {
+                                                    killParticle(neighborId);
+                                                    p_energy[i] = Math.min(300, p_energy[i] + 100);
+                                                }
+                                            }
+                                        }
+
+                                        // 4. Cohort: Aggressive swarming, attacks anything
+                                        else if (type === TYPE_COHORT) {
+                                            if (nType === TYPE_COHORT && !nDormant && distSq < CLUMP_SQ) {
+                                                // Swarm stickiness
+                                                steerX += nxDir * 0.1 * clumpingForce; steerY += nyDir * 0.1 * clumpingForce; steerZ += nzDir * 0.1 * clumpingForce;
+                                            } else if (nType !== TYPE_COHORT) {
+                                                // Attack/Parasitize everything else
+                                                steerX += nxDir * 0.5; steerY += nyDir * 0.5; steerZ += nzDir * 0.5;
+                                                if (distSq < EAT_SQ) {
+                                                    killParticle(neighborId);
+                                                    p_energy[i] = Math.min(150, p_energy[i] + 20);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                neighborId = gridNext[neighborId];
+                            }
+                        }
+                    }
+                }
+
+                // Random jitter for organic movement
+                steerX += (Math.random() - 0.5) * 0.1;
+                steerY += (Math.random() - 0.5) * 0.1;
+                steerZ += (Math.random() - 0.5) * 0.1;
+
+                // Center gravity (keeps them from drifting away endlessly)
+                steerX -= px * 0.0001; steerY -= py * 0.0001; steerZ -= pz * 0.0001;
+
+                // Apply forces
+                vx += steerX * simSpeed;
+                vy += steerY * simSpeed;
+                vz += steerZ * simSpeed;
+
+                // Speed limiting
+                let mag = Math.sqrt(vx*vx + vy*vy + vz*vz);
+                if (mag > speedLimit * simSpeed) {
+                    let norm = (speedLimit * simSpeed) / mag;
+                    vx *= norm; vy *= norm; vz *= norm;
+                }
+
+                // Update position
+                px += vx; py += vy; pz += vz;
+
+                // Soft bounds reflection
+                if (px > BOUNDS) { px = BOUNDS; vx *= -0.5; } else if (px < -BOUNDS) { px = -BOUNDS; vx *= -0.5; }
+                if (py > BOUNDS) { py = BOUNDS; vy *= -0.5; } else if (py < -BOUNDS) { py = -BOUNDS; vy *= -0.5; }
+                if (pz > BOUNDS) { pz = BOUNDS; vz *= -0.5; } else if (pz < -BOUNDS) { pz = -BOUNDS; vz *= -0.5; }
+
+                // Save back to arrays
+                p_pos[idx] = px; p_pos[idx+1] = py; p_pos[idx+2] = pz;
+                p_vel[idx] = vx; p_vel[idx+1] = vy; p_vel[idx+2] = vz;
+
+                // Write to BufferGeometry
+                geometry.attributes.position.array[idx] = px;
+                geometry.attributes.position.array[idx+1] = py;
+                geometry.attributes.position.array[idx+2] = pz;
+                
+                geometry.attributes.customColor.array[idx] = p_color[idx];
+                geometry.attributes.customColor.array[idx+1] = p_color[idx+1];
+                geometry.attributes.customColor.array[idx+2] = p_color[idx+2];
+                
+                geometry.attributes.size.array[i] = p_size[i] * globalSizeMod;
+
+                // Replication (Plankton only, infrequent)
+                if (type === TYPE_PLANKTON && Math.random() < 0.0001 * simSpeed) {
+                    spawnParticle(TYPE_PLANKTON, px + (Math.random()-0.5)*5, py + (Math.random()-0.5)*5, pz + (Math.random()-0.5)*5);
+                }
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.customColor.needsUpdate = true;
+            geometry.attributes.size.needsUpdate = true;
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050508, 0.0015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 2000);
+            camera.position.set(0, 150, 450);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Orbit controls for zoom/pan
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3;
+            // Ensure UI overlays don't block interaction when clicking through transparent parts
+            controls.domElement.style.touchAction = 'none';
+
+            // Custom Shader Material for glowing biological blobs
+            const vertexShader = `
+                attribute float size;
+                attribute vec3 customColor;
+                varying vec3 vColor;
+                void main() {
+                    vColor = customColor;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `;
+
+            const fragmentShader = `
+                varying vec3 vColor;
+                void main() {
+                    // Soft circular blob
+                    vec2 xy = gl_PointCoord.xy - vec2(0.5);
+                    float ll = length(xy);
+                    if(ll > 0.5) discard;
+                    
+                    // Core brightness + soft edge
+                    float alpha = smoothstep(0.5, 0.1, ll);
+                    vec3 finalColor = mix(vColor * 0.5, vColor * 2.0, smoothstep(0.4, 0.0, ll));
+                    gl_FragColor = vec4(finalColor, alpha * 0.9);
+                }
+            `;
+
+            geometry = new THREE.BufferGeometry();
+            
+            // Link typed arrays directly to geometry buffers
+            geometry.setAttribute('position', new THREE.BufferAttribute(p_pos, 3));
+            geometry.setAttribute('customColor', new THREE.BufferAttribute(p_color, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(p_size, 1));
+
+            material = new THREE.ShaderMaterial({
+                uniforms: {},
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            // Seed initial ecosystem
+            seedEcosystem(8000, TYPE_PLANKTON);
+            seedEcosystem(1500, TYPE_GRAZER);
+            seedEcosystem(150, TYPE_PREDATOR);
+
+            window.addEventListener('resize', onWindowResize);
+            
+            addLog("Simulation started.", "info");
+            addLog("Controls ready: Left Click (Rotate), Scroll (Zoom), Right Click (Pan).", "info");
+        }
+
+        function seedEcosystem(amount, type) {
+            let spawned = 0;
+            for(let i=0; i<amount; i++) {
+                if(spawnParticle(type) !== -1) spawned++;
+            }
+            let name = type===0?"Plankton":type===1?"Grazers":"Predators";
+            addLog(`Seeded ${spawned} ${name}.`);
+        }
+
+        function updateUI() {
+            document.getElementById('stats-display').innerHTML = 
+                `Active: ${activeCount} | Dormant: ${dormantCount}<br>` +
+                `Capacity: ${particleCapacity}<br>` +
+                `Tick: ${tickCount} | Pressure: ${(performancePressure*100).toFixed(0)}%`;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const t0 = performance.now();
+            simulateEcosystem();
+            const t1 = performance.now();
+            
+            // Calculate moving average of simulation time
+            simTimes.push(t1 - t0);
+            if(simTimes.length > 30) simTimes.shift();
+            let avgTime = simTimes.reduce((a,b)=>a+b)/simTimes.length;
+
+            // Target ~12ms max for sim logic to leave room for 60fps rendering (16.6ms total)
+            if (avgTime > 12.0) {
+                performancePressure = Math.min(1.0, performancePressure + 0.05);
+            } else {
+                performancePressure = Math.max(0.0, performancePressure - 0.01);
+            }
+            
+            tickCount++;
+            if(tickCount % 30 === 0 && isSidePanelOpen) {
+                updateUI();
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => {
+            init();
+            animate();
+        };
+
+    </script>
+</body>
+</html>
