@@ -1,0 +1,133 @@
+<!-- Galaxy Watch9 device-frame simulator for galaxy.html — mobile preview harness -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Galaxy — Simulator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0a0a0c;color:#cfd2dc;font-family:-apple-system,system-ui,sans-serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;
+  touch-action:none}
+#wrap{position:relative;display:flex;align-items:center;justify-content:center;
+  transition:transform .3s ease}
+/* device body */
+#body{position:relative;width:340px;height:410px;display:flex;align-items:center;justify-content:center}
+#lugTop,#lugBot{position:absolute;left:50%;transform:translateX(-50%);width:120px;height:34px;
+  background:linear-gradient(180deg,#2a2c33,#141519);border-radius:14px 14px 0 0}
+#lugTop{top:-6px}#lugBot{bottom:-6px;border-radius:0 0 14px 14px}
+#case{position:relative;width:340px;height:340px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,#3a3c46,#101116 70%);
+  box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 0 0 2px #050506;
+  display:flex;align-items:center;justify-content:center}
+/* touch bezel ring — draggable */
+#bezel{position:absolute;inset:8px;border-radius:50%;
+  background:conic-gradient(from 0deg,#1c1d22 0deg,#1c1d22 358deg,#2a2c33 360deg);
+  cursor:grab;touch-action:none}
+#bezel:active{cursor:grabbing}
+#tickRing{position:absolute;inset:0;pointer-events:none}
+/* screen */
+#screenHole{position:relative;width:266px;height:266px;border-radius:50%;overflow:hidden;
+  background:#000;box-shadow:0 0 0 3px #000, 0 0 0 5px #26272e}
+iframe{width:100%;height:100%;border:none;display:block;background:#000}
+/* physical buttons */
+.pbtn{position:absolute;right:-12px;width:30px;border-radius:8px;
+  background:linear-gradient(90deg,#26272e,#3a3c46);box-shadow:0 2px 6px rgba(0,0,0,.5);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;color:#9aa0ac;font-size:10px;
+  font-weight:700;letter-spacing:.05em}
+#btnHome{top:118px;height:38px}
+#btnBack{top:168px;height:30px}
+.pbtn:active{background:linear-gradient(90deg,#3a3c46,#4c4f5c)}
+/* controls under device */
+#ctrl{margin-top:26px;display:flex;gap:10px;align-items:center}
+#ctrl button{background:#17181d;border:1px solid #2a2c33;color:#cfd2dc;border-radius:10px;
+  padding:8px 14px;font-size:13px;cursor:pointer}
+#ctrl button.on{background:#7c6cff;border-color:#7c6cff;color:#fff;font-weight:700}
+#label{margin-top:14px;font-size:11px;letter-spacing:.14em;color:#5a5d6b;text-transform:uppercase}
+#hint{position:fixed;top:14px;left:50%;transform:translateX(-50%);font-size:11px;color:#5a5d6b;
+  letter-spacing:.06em;text-align:center;max-width:280px}
+</style>
+</head>
+<body>
+<div id="hint">Drag around the bezel ring to page ⇄ · side buttons = Home / Back</div>
+<div id="wrap">
+  <div id="body">
+    <div id="lugTop"></div><div id="lugBot"></div>
+    <div id="case">
+      <div id="bezel">
+        <svg id="tickRing" viewBox="0 0 340 340"></svg>
+      </div>
+      <div id="screenHole"><iframe id="fr" src="galaxy.html" title="Galaxy watch preview"></iframe></div>
+      <div class="pbtn" id="btnHome">●</div>
+      <div class="pbtn" id="btnBack">‹</div>
+    </div>
+  </div>
+</div>
+<div id="ctrl">
+  <button id="sz44" class="on">44mm</button>
+  <button id="sz40">40mm</button>
+</div>
+<div id="label">Galaxy Watch9 simulator · touch bezel drag = swipe</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const fr=$('fr'), bezel=$('bezel'), wrap=$('wrap');
+
+/* draw tick marks around the bezel, like a real touch-bezel ring */
+(function drawTicks(){
+  const svg=$('tickRing'), cx=170, cy=170, rO=168, rI=158;
+  for(let i=0;i<60;i++){
+    const a=i*6*Math.PI/180, maj=i%5===0;
+    const x0=cx+Math.sin(a)*rI, y0=cy-Math.cos(a)*rI;
+    const x1=cx+Math.sin(a)*rO, y1=cy-Math.cos(a)*rO;
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x0);l.setAttribute('y1',y0);l.setAttribute('x2',x1);l.setAttribute('y2',y1);
+    l.setAttribute('stroke',maj?'#4a4d59':'#2a2c33');l.setAttribute('stroke-width',maj?1.6:.8);
+    svg.appendChild(l);
+  }
+})();
+
+function send(cmd){ fr.contentWindow.postMessage({cmd}, '*'); }
+
+/* draggable touch-bezel: track angular delta, fire next/prev at threshold */
+let dragging=null;
+function angleAt(clientX,clientY){
+  const r=bezel.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  return Math.atan2(clientX-cx, -(clientY-cy)) * 180/Math.PI;
+}
+function norm(a){ a%=360; if(a>180)a-=360; if(a<-180)a+=360; return a; }
+bezel.addEventListener('pointerdown', e=>{
+  dragging={start:angleAt(e.clientX,e.clientY),fired:false};
+  bezel.setPointerCapture(e.pointerId);
+});
+bezel.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const now=angleAt(e.clientX,e.clientY);
+  const delta=norm(now-dragging.start);
+  if(!dragging.fired && Math.abs(delta)>26){
+    send(delta>0?'next':'prev');
+    dragging.fired=true;
+  }
+});
+function endDrag(){ dragging=null; }
+bezel.addEventListener('pointerup',endDrag);
+bezel.addEventListener('pointercancel',endDrag);
+
+$('btnHome').addEventListener('click',()=>send('home'));
+$('btnBack').addEventListener('click',()=>send('back'));
+
+/* size toggle */
+function setSize(mm){
+  wrap.style.transform = mm===40 ? 'scale(.86)' : 'scale(1)';
+  $('sz44').classList.toggle('on', mm===44);
+  $('sz40').classList.toggle('on', mm===40);
+}
+$('sz44').onclick=()=>setSize(44);
+$('sz40').onclick=()=>setSize(40);
+</script>
+</body>
+</html>
