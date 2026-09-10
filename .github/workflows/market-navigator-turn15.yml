@@ -1,0 +1,121 @@
+name: Market Navigator Turn 15 qualify and publish
+
+on:
+  push:
+    branches:
+      - market-navigator-turn15-20260910
+      - main
+    paths:
+      - 'market-navigator-turn15-governance.py'
+      - 'market-navigator-turn15-evidence.py'
+      - 'market-navigator-build-turn15.py'
+      - 'market-navigator-turn15-qa.mjs'
+      - '.github/workflows/market-navigator-turn15.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn15-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply locked governance
+        run: |
+          python3 market-navigator-turn15-governance.py
+          grep -F '## Turn 15 locked correction — 2026-09-10' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'exactly the three derived indices plotted together as line series' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '## Turn 14 chart-type / availability correction — rejected decisions 2026-09-10' MARKET-NAVIGATOR-GRAVEYARD.md
+
+      - name: Build GDP q/q and y/y evidence
+        run: |
+          python3 market-navigator-turn15-evidence.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('market-evidence/series/gdpQoq.json').read_text())
+          y=json.loads(Path('market-evidence/series/gdpYoy.json').read_text())
+          c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
+          h=json.loads(Path('market-evidence/health-envelope.json').read_text())
+          assert q['id']=='gdpQoq' and y['id']=='gdpYoy'
+          assert q['unit']=='percent' and y['unit']=='percent'
+          assert q['last']==y['last']
+          ids={x['id'] for x in c['series']}
+          assert {'realGdp','gdpQoq','gdpYoy'} <= ids
+          assert h['series']['gdpQoq']['analysisAvailability']=='periodic-transform'
+          assert h['series']['gdpYoy']['analysisAvailability']=='periodic-transform'
+          print('GDP TRANSFORM GATE: PASS')
+          PY
+
+      - name: Build exact Turn 15 candidate
+        run: |
+          python3 market-navigator-build-turn15.py
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn15-pre-ship.html').read_text()
+          required=[
+            'TURN 15 PRE-SHIP',
+            'data-cfgtab="ai"', 'data-cfgtab="chart"', 'data-cfgtab="about"',
+            'GDP q/q', 'GDP y/y',
+            "renderType:'line'",
+            'data-width-slot', 'data-style-slot',
+            'dash-dot', 'dot-dash',
+            'Download Markdown', 'Download CSV', 'Download JSON',
+            'v2RenderSeq', 'analysisRenderSeq', 'seriesPromises',
+            'direct series remains available',
+          ]
+          forbidden=[
+            'TURN 14 PRE-SHIP',
+            'Analyze into Library</button><button id="nowDownload"',
+            "a=omitted.has(c.id)?[]:indexed(src,w,c.direction)",
+          ]
+          for x in required: assert x in s, x
+          for x in forbidden: assert x not in s, x
+          scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn15.js').write_text(scripts[-1])
+          PY
+          node --check /tmp/market-navigator-turn15.js
+          python3 market-navigator-build-turn15.py
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run Turn 15 product matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn15-http.log 2>&1 &
+          node market-navigator-turn15-qa.mjs
+
+      - name: Commit qualified generated release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            MARKET-NAVIGATOR-MASTER-PLAN.md \
+            MARKET-NAVIGATOR-GRAVEYARD.md \
+            data/market-backend/data-catalog.json \
+            market-evidence/health-envelope.json \
+            market-evidence/series/gdpQoq.json \
+            market-evidence/series/gdpYoy.json \
+            market-navigator-turn15-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Market Navigator Turn 15 qualified release [turn15-generated]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
