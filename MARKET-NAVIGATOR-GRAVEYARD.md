@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: REJECTED APPROACHES / DO NOT PATCH FORWARD
-Updated: 2026-09-09
+Updated: 2026-09-10
 
 This file is a negative specification. A rejected implementation, workflow, validation technique or analytical shortcut is historical evidence only. It is not a successor baseline.
 
@@ -174,3 +174,19 @@ Turn 12 preserved the Turn 10 Library as a transcript-only surface. It stored se
 - browser-side canonical Yahoo/FRED reacquisition when persisted canonical evidence is authoritative;
 - release gates that validate labels/DOM/syntax/deployment rather than actual owner-visible behavior;
 - handing the owner any release with known data, chart, journey, AI or layout defects.
+
+
+## Turn 14 chart-type / availability correction — rejected decisions 2026-09-10
+
+Turn 14 remains useful as a capability donor for Library chart persistence, active-reference highlighting, series identity colors, AI/provider continuity and other independently qualified behavior. The following Turn 14 decisions are rejected and must not be patched forward as product requirements:
+
+- **Derived-index column/bar rendering is rejected.** The owner explicitly rolled it back. V1 and V2 return to the line-chart comparison model.
+- **Composite eligibility must not control direct-series visibility.** WTI was suppressed in Growth V2 because the derived-index evidence listed WTI as ratio-ineligible after its historical zero crossing. That is a composite-construction fact, not permission to hide valid WTI source evidence from direct chart analysis.
+- **`seriesAvailable()` may not swallow every exception and return `false`.** Fetch, parse, missing-file and revision failures are evidence errors and must be distinguishable from a legitimate no-new-release condition.
+- **Raw GDP-level selection is rejected.** User-facing GDP is q/q and y/y derived deterministically from canonical quarterly Real GDP levels.
+- **Color-only chart configuration is incomplete.** The accepted Chart Config contract also requires 1–12pt thickness and five governed line styles for ten persistent identity slots.
+- **Partial More menus are incomplete.** V1, V2, V3 and EXPLORE require AI POV, Print, Markdown, CSV and JSON actions against the exact current analytical state.
+- **Qualification that proves WTI only at 5YR is insufficient.** WTI 5D direct-analysis availability is a mandatory regression gate.
+
+### Recovery
+Turn 15 is a narrow correction from the clean current architecture. Preserve independently qualified Turn 14 capabilities, but replace the rejected decisions above directly in source. Do not reintroduce bars/columns through Library migration, derived-index defaults or later chart refactors.
