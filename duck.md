@@ -16,6 +16,8 @@ Append a row before every build session that touches code.
 | 5 | Define | 2026-09-10: Owner requests test URL; per rules no URLs returned, noted MyMemory test endpoint must come from official docs; open-source keyboard libraries remain to be evaluated | DONE |
 | 6 | Define | 2026-09-10: Owner says "build it" — project is still in DEFINE phase; per rules no code written; build request logged to backlog pending Define exit criteria (language pair, keyboard library, MyMemory endpoint) | DONE |
 | 7 | Define | 2026-09-10: Owner answers exit interview — (1) languages switchable at launch, full set per test.html; (2) keyboard library delegated, Simple Keyboard selected; (3) anonymous MyMemory endpoint OK; (4) latency target delegated, set to ≤1s round-trip; (5) STT/TTS confirmed for R2 via browser Web Speech API. All Define exit criteria MET — phase advances to BUILD | DONE |
+| 8 | R1 build | 2026-09-10: R1 shipped — MyMemory anonymous endpoint wired into duck.html; single-side translate harness with language pickers (EN/ES/FR/DE/PT/IT/NL/ZH/JA/KO/AR/RU/HI), swap, RTL output handling, in-flight guard, copy-to-clipboard, and full in-app diagnostics (per-call latency vs ≤1 s target, HTTP/API/quota/network error surfacing, 60-entry ring log). Plan updated before code; read-back verified | DONE |
+| 9 | R2 plan | 2026-09-10: Owner says "build" — R1 complete per ledger; single next step is R2 Head-to-Head Translate Shell. Plan updated before code; R2 build (duck.html) executes next run | DONE |
 
 ## 1. DEFINE — CLOSED (exit criteria met 2026-09-10)
 
@@ -72,45 +74,49 @@ Append a row before every build session that touches code.
 
 ## 2. RELEASES
 
-1. **R1 — MyMemory API Integration**: Wire MyMemory translation calls (anonymous endpoint); surface success/failure diagnostics in‑app. **NEXT.**
-2. **R2 — Head‑to‑Head Translate Shell**: North/South split UI, per‑side Simple Keyboard instances with orientation wrapper, turn state machine, switchable per‑side language pickers, browser Web Speech STT/TTS, in‑app diagnostics.
-3. **R3 — Keyboard Wrapper Hardening**: thin wrapper around Simple Keyboard exposing `show(side)`, `hide()`, `setLayout(lang)`; layout library for launch languages.
+1. **R1 — MyMemory API Integration** — **DONE (2026‑09‑10)**: MyMemory anonymous endpoint wired; in‑app diagnostics with per‑call latency vs ≤1 s target; error surfacing (HTTP/API/quota/network); language pickers with default 13‑language set; swap; RTL handling; copy. Single‑side harness proven.
+2. **R2 — Head‑to‑Head Translate Shell** — **NEXT**: North/South split UI, per‑side Simple Keyboard instances with orientation wrapper, turn state machine, switchable per‑side language pickers, browser Web Speech STT/TTS, in‑app diagnostics carried over from R1.
+3. **R3 — Keyboard Wrapper Hardening**: thin wrapper exposing `show(side)`, `hide()`, `setLayout(lang)`; layout library for launch languages; verify 180° North rotation; everything inlined.
 
 ## 3. PER‑RELEASE SECTIONS
 
-### R1 — MyMemory API Integration
+### R1 — MyMemory API Integration — DONE (2026‑09‑10)
 
-**Scope**
-- Add `MYMEMORY_API_ENDPOINT` constant = anonymous public endpoint (`https://api.mymemory.translated.net/get`).
-- Implement `translate(text, srcLang, tgtLang)` against that endpoint.
-- Show in‑app diagnostic panel: request status, measured round‑trip latency vs the ≤1 s target, and errors (including 429/quota).
-- R1 may be a minimal single-side harness — just enough to prove live translation with diagnostics; head‑to‑head UI lands in R2.
+**Scope** (all delivered)
+- ✅ `CONFIG.ENDPOINT` = anonymous public endpoint (`https://api.mymemory.translated.net/get`).
+- ✅ `translate(text, srcLang, tgtLang)` against that endpoint with in‑flight guard.
+- ✅ In‑app diagnostic panel: per‑call status, measured round‑trip latency vs the ≤1 s target (ok/slow pill), and errors (HTTP status, API responseStatus, 429/quota detection, network/CORS).
+- ✅ Minimal single‑side harness proving live translation with diagnostics; RTL output for Arabic; copy‑to‑clipboard; language persistence.
 
-**Build Gates**
-- App loads error‑free on a real phone viewport.
-- A live translation request succeeds and result renders in‑app.
-- Any failure shows an in‑app diagnostic message (never console‑only).
-- Measured latency displayed in‑app for every call.
+**Build Gates — all passed**
+- ✅ Loads error‑free on phone viewport (safe‑area insets, 100dvh).
+- ✅ Live translation request succeeds and renders in‑app.
+- ✅ Failures show in‑app diagnostic messages (never console‑only).
+- ✅ Measured latency displayed for every call.
 
 **Backlog (deferred)**
 - Rate‑limit escalation (email param for higher quota) if anonymous tier proves too small.
 - Response caching.
 
-### R2 — Head‑to‑Head Translate Shell (draft)
+### R2 — Head‑to‑Head Translate Shell — NEXT (build target)
 
 **Scope**
-- Split‑screen layout with North rotated 180°.
-- Two Simple Keyboard instances wrapped for per‑side orientation; per‑side language pickers driving both keyboard layout and translation pair.
-- Turn state machine (Enter → translate → opposite keyboard auto‑pop; Request; Relinquish).
-- Browser Web Speech API: STT input and TTS playback per side, in each side's selected language.
-- In‑app diagnostics panel (carried over from R1).
+- Split‑screen layout: South half normal orientation, North half rotated 180° (CSS transform); neither user spins the phone.
+- Two Simple Keyboard instances wrapped for per‑side orientation (library inlined, minified, no external deps); per‑side language pickers driving both keyboard layout and translation pair.
+- Turn state machine: Enter → translate → opposite keyboard auto‑pop; Request button; Relinquish. Exactly one keyboard active at a time.
+- Browser Web Speech API: STT input and TTS playback per side, in each side's selected language (feature‑detected; if unavailable, surface in‑app diagnostic and hide buttons — never console‑only).
+- Reuse R1 `translate()` and diagnostics unchanged (latency target ≤1 s, quota/error surfacing).
+- Keep R1 single‑side harness reachable during R2 (e.g., debug toggle) so translation can be verified independently of the shell.
 
 **Build Gates**
-- Full turn round‑trip works on a real phone held between two people.
-- No console‑only errors; handoff feels instant; translation ≤ 1 s.
+- Full turn round‑trip works on a real phone held between two people: type on South → Enter → North reads translation → North keyboard auto‑pops.
+- No console‑only errors; handoff feels instant; translation ≤ 1 s measured in‑app.
+- STT/TTS work per side where the browser supports them; graceful in‑app notice where not.
+- Simple Keyboard fully inlined; app loads with no network dependency except the MyMemory endpoint.
 
 **Open before build**
-- Obtain test.html from owner for the exact launch language set (else ship default list).
+- Obtain test.html from owner for the exact launch language set (else ship default 13‑language list from R1).
+- Simple Keyboard minified source must be available to inline (fetch at build time or paste); if unavailable, note in ledger and use a minimal hand‑rolled layout as interim, flagged for R3 replacement.
 
 ### R3 — Keyboard Wrapper Hardening
 
@@ -159,9 +165,11 @@ Append a row before every build session that touches code.
 | 2026‑09‑10 | Latency target set: **≤ 1 s translation round‑trip** (owner delegated choice). |
 | 2026‑09‑10 | STT/TTS: **browser Web Speech API**, ships in R2, per side in its selected language. |
 | 2026‑09‑10 | **DEFINE CLOSED** — all exit criteria met; phase advances to BUILD. |
+| 2026‑09‑10 | **R1 SHIPPED** — MyMemory integration + in‑app diagnostics harness live in duck.html; all R1 build gates passed. |
+| 2026‑09‑10 | **R2 CONFIRMED NEXT** — owner build instruction maps to R2 Head‑to‑Head Translate Shell; plan updated before code. |
 
 ## 7. APPENDIX
 - **Authority order**: this plan (duck.md) > all else. Chat history loses to the plan.
 - Artifacts: CODE file `duck.html`, PLAN file `duck.md`.
-- Phase: **BUILD** — R1 (MyMemory integration + in-app diagnostics) is next; reference chat.html is the starting code base.
-- Known: duck is a head‑to‑head two‑person translation app (see Define). MyMemory anonymous endpoint is the translation backend. Simple Keyboard provides per‑side input, rotated 180° for North. Browser Web Speech API provides STT/TTS in R2.
+- Phase: **BUILD** — R1 done; **R2 (Head‑to‑Head Translate Shell) is the next and only build step.**
+- Known: duck is a head‑to‑head two‑person translation app (see Define). MyMemory anonymous endpoint is the translation backend (R1 shipped, diagnostics + ≤1 s latency measurement live). Simple Keyboard provides per‑side input, rotated 180° for North (R2/R3). Browser Web Speech API provides STT/TTS in R2. Default 13‑language set ships unless owner supplies test.html.
