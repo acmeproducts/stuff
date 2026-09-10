@@ -1295,6 +1295,10 @@
     .duck-kb-buffer .txt{flex:1;min-width:0;min-height:32px;padding:6px 10px;border-radius:14px;
         border:1px solid rgba(226,232,240,.95);background:#fff;font-size:15px;white-space:pre-wrap;word-break:break-word}
     .duck-kb-buffer .lang{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase}
+    .duck-cands{display:none;gap:6px;overflow-x:auto;padding:4px 6px 6px;border-bottom:1px solid rgba(226,232,240,.9);scrollbar-width:none}
+    .duck-cands::-webkit-scrollbar{display:none}
+    .duck-cand{flex:0 0 auto;padding:6px 12px;border-radius:10px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;color:#0f172a}
+    .duck-cand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
     .duck-row{display:flex;gap:4px;justify-content:center;margin-bottom:4px}
     .duck-key{flex:1 1 0;min-width:0;max-width:52px;height:42px;border-radius:8px;border:1px solid rgba(203,213,225,.9);
         background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.12);font-size:16px;color:#0f172a;
@@ -1324,6 +1328,119 @@
 <script>
 (function duckKeyboardLayer(){
     'use strict';
+    /* ================= native-grade IME: Korean (offline automaton) + Japanese (romaji→kana + kanji candidates) ================= */
+    var HG={
+        CHO:['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'],
+        JUNG:['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'],
+        JONG:['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'],
+        JUNG_COMBO:{'ㅗㅏ':'ㅘ','ㅗㅐ':'ㅙ','ㅗㅣ':'ㅚ','ㅜㅓ':'ㅝ','ㅜㅔ':'ㅞ','ㅜㅣ':'ㅟ','ㅡㅣ':'ㅢ'},
+        JONG_COMBO:{'ㄱㅅ':'ㄳ','ㄴㅈ':'ㄵ','ㄴㅎ':'ㄶ','ㄹㄱ':'ㄺ','ㄹㅁ':'ㄻ','ㄹㅂ':'ㄼ','ㄹㅅ':'ㄽ','ㄹㅌ':'ㄾ','ㄹㅍ':'ㄿ','ㄹㅎ':'ㅀ','ㅂㅅ':'ㅄ'},
+        JONG_SPLIT:{'ㄳ':['ㄱ','ㅅ'],'ㄵ':['ㄴ','ㅈ'],'ㄶ':['ㄴ','ㅎ'],'ㄺ':['ㄹ','ㄱ'],'ㄻ':['ㄹ','ㅁ'],'ㄼ':['ㄹ','ㅂ'],'ㄽ':['ㄹ','ㅅ'],'ㄾ':['ㄹ','ㅌ'],'ㄿ':['ㄹ','ㅍ'],'ㅀ':['ㄹ','ㅎ'],'ㅄ':['ㅂ','ㅅ']}
+    };
+    function isJamoV(j){return HG.JUNG.indexOf(j)>-1}
+    function hgSyll(st){
+        if(st.cho===null)return st.jung!==null?HG.JUNG[st.jung]:'';
+        if(st.jung===null)return HG.CHO[st.cho];
+        return String.fromCharCode(0xAC00+(st.cho*21+st.jung)*28+(st.jong||0));
+    }
+    function newKoState(){return{cho:null,jung:null,jong:0}}
+    // returns {commit:'text flushed', state:newState}
+    function koInput(st,j){
+        var out='';
+        if(isJamoV(j)){
+            var vi=HG.JUNG.indexOf(j);
+            if(st.cho!==null&&st.jung!==null&&st.jong){       // split final: previous syllable keeps first, new syllable starts
+                var jongCh=HG.JONG[st.jong],moved,keep;
+                if(HG.JONG_SPLIT[jongCh]){keep=HG.JONG_SPLIT[jongCh][0];moved=HG.JONG_SPLIT[jongCh][1]}
+                else{keep='';moved=jongCh}
+                st.jong=HG.JONG.indexOf(keep||'');
+                out+=hgSyll(st);
+                return{commit:out,state:{cho:HG.CHO.indexOf(moved),jung:vi,jong:0}};
+            }
+            if(st.cho!==null&&st.jung!==null){                 // vowel combo or new syllable
+                var combo=HG.JUNG_COMBO[HG.JUNG[st.jung]+j];
+                if(combo){st.jung=HG.JUNG.indexOf(combo);return{commit:'',state:st}}
+                out+=hgSyll(st);
+                return{commit:out,state:{cho:null,jung:vi,jong:0}};
+            }
+            if(st.cho!==null){st.jung=vi;return{commit:'',state:st}}
+            if(st.jung!==null){                                 // standalone vowel combo
+                var c2=HG.JUNG_COMBO[HG.JUNG[st.jung]+j];
+                if(c2){st.jung=HG.JUNG.indexOf(c2);return{commit:'',state:st}}
+                out+=hgSyll(st);return{commit:out,state:{cho:null,jung:vi,jong:0}};
+            }
+            return{commit:'',state:{cho:null,jung:vi,jong:0}};
+        }
+        // consonant
+        var ci=HG.CHO.indexOf(j),ji=HG.JONG.indexOf(j);
+        if(st.cho!==null&&st.jung!==null){
+            if(st.jong){
+                var cmb=HG.JONG_COMBO[HG.JONG[st.jong]+j];
+                if(cmb){st.jong=HG.JONG.indexOf(cmb);return{commit:'',state:st}}
+                out+=hgSyll(st);return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+            }
+            if(ji>0){st.jong=ji;return{commit:'',state:st}}
+            out+=hgSyll(st);return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+        }
+        if(st.cho!==null||st.jung!==null){out+=hgSyll(st)}
+        return{commit:out,state:{cho:ci>-1?ci:null,jung:null,jong:0}};
+    }
+    function koBackspace(st){
+        if(st.jong){
+            var ch=HG.JONG[st.jong];
+            st.jong=HG.JONG_SPLIT[ch]?HG.JONG.indexOf(HG.JONG_SPLIT[ch][0]):0;
+            return{state:st,ate:true};
+        }
+        if(st.jung!==null){
+            var v=HG.JUNG[st.jung],parts=null;
+            Object.keys(HG.JUNG_COMBO).forEach(function(k){if(HG.JUNG_COMBO[k]===v)parts=k});
+            st.jung=parts?HG.JUNG.indexOf(parts[0]):null;
+            return{state:st,ate:true};
+        }
+        if(st.cho!==null){st.cho=null;return{state:st,ate:true}}
+        return{state:st,ate:false};
+    }
+
+    /* ---- Japanese: romaji → kana ---- */
+    var ROMA=[['kya','きゃ'],['kyu','きゅ'],['kyo','きょ'],['sha','しゃ'],['shu','しゅ'],['sho','しょ'],['shi','し'],['cha','ちゃ'],['chu','ちゅ'],['cho','ちょ'],['chi','ち'],['tsu','つ'],['nya','にゃ'],['nyu','にゅ'],['nyo','にょ'],['hya','ひゃ'],['hyu','ひゅ'],['hyo','ひょ'],['mya','みゃ'],['myu','みゅ'],['myo','みょ'],['rya','りゃ'],['ryu','りゅ'],['ryo','りょ'],['gya','ぎゃ'],['gyu','ぎゅ'],['gyo','ぎょ'],['ja','じゃ'],['ju','じゅ'],['jo','じょ'],['ji','じ'],['bya','びゃ'],['byu','びゅ'],['byo','びょ'],['pya','ぴゃ'],['pyu','ぴゅ'],['pyo','ぴょ'],['fu','ふ'],
+    ['ka','か'],['ki','き'],['ku','く'],['ke','け'],['ko','こ'],['sa','さ'],['su','す'],['se','せ'],['so','そ'],['ta','た'],['te','て'],['to','と'],['na','な'],['ni','に'],['nu','ぬ'],['ne','ね'],['no','の'],['ha','は'],['hi','ひ'],['he','へ'],['ho','ほ'],['ma','ま'],['mi','み'],['mu','む'],['me','め'],['mo','も'],['ya','や'],['yu','ゆ'],['yo','よ'],['ra','ら'],['ri','り'],['ru','る'],['re','れ'],['ro','ろ'],['wa','わ'],['wo','を'],
+    ['ga','が'],['gi','ぎ'],['gu','ぐ'],['ge','げ'],['go','ご'],['za','ざ'],['zu','ず'],['ze','ぜ'],['zo','ぞ'],['da','だ'],['de','で'],['do','ど'],['ba','ば'],['bi','び'],['bu','ぶ'],['be','べ'],['bo','ぼ'],['pa','ぱ'],['pi','ぴ'],['pu','ぷ'],['pe','ぺ'],['po','ぽ'],
+    ['a','あ'],['i','い'],['u','う'],['e','え'],['o','お'],['nn','ん'],['-','ー'],['.','。'],[',','、']];
+    function romajiToKana(raw){
+        var kana='',i=0;
+        while(i<raw.length){
+            if(raw[i]==='n'&&(i+1>=raw.length||!/[aiueoy]/.test(raw[i+1]))){kana+='ん';i++;continue}
+            if(i+1<raw.length&&raw[i]===raw[i+1]&&/[a-z]/.test(raw[i])&&!/[aiueon]/.test(raw[i])){kana+='っ';i++;continue}
+            var hit=null;
+            for(var L=3;L>=1;L--){
+                var seg=raw.substr(i,L);
+                for(var k=0;k<ROMA.length;k++){if(ROMA[k][0]===seg){hit=ROMA[k];break}}
+                if(hit){kana+=hit[1];i+=L;break}
+            }
+            if(!hit){kana+=raw[i];i++}
+        }
+        return kana;
+    }
+    function romajiTail(raw){ // trailing chars that can't resolve to kana yet
+        var m=raw.match(/[a-z]{1,3}$/);
+        if(!m)return '';
+        var t=m[0];
+        for(var L=t.length;L>=1;L--){
+            var seg=t.slice(-L),ok=false;
+            for(var k=0;k<ROMA.length;k++){if(ROMA[k][0].indexOf(seg)===0&&ROMA[k][0]!==seg){ok=true;break}}
+            if(ok)return seg;
+        }
+        return '';
+    }
+    function jaCandidates(kana,cb){ // Google Input Tools; kana always remains the fallback
+        var url='https://inputtools.google.com/request?text='+encodeURIComponent(kana)+'&itc=ja-t-ja-i0-und&num=8&ie=utf-8&oe=utf-8';
+        fetch(url).then(function(r){return r.json()}).then(function(j){
+            var list=[];
+            try{if(j[0]==='SUCCESS')list=j[1][0][1]||[]}catch(e){}
+            cb(list.slice(0,8));
+        }).catch(function(e){cb(null,e.message)});
+    }
+
     /* ---------- layouts (hand-rolled, zero deps) ---------- */
     var LAYOUTS={
         latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
@@ -1343,7 +1460,7 @@
         num:{rows:[['1','2','3','4','5','6','7','8','9','0'],['-','/',':',';','(',')','$','&','@','"'],['SHIFT','.',',','?','!',"'",'+','=','BKSP']],
              shift:[['[',']','{','}','#','%','^','*','+','='],['_','\\','|','~','<','>','€','£','¥','•'],['SHIFT','.',',','?','!',"'",'§','¿','BKSP']]}
     };
-    var LANG_LAYOUT={en:'latin',id:'latin',ms:'latin',zh:'latin',vi:'vi',th:'th',km:'km',lo:'lo',ja:'ja',ko:'ko'};
+    var LANG_LAYOUT={en:'latin',id:'latin',ms:'latin',zh:'latin',vi:'vi',th:'th',km:'km',lo:'lo',ja:'latin',ko:'ko'};
     var ASK_TEXT={en:'The other person would like to use the keyboard.',ok:'Allow',no:'Decline'};
 
     /* ---------- state ---------- */
@@ -1351,6 +1468,8 @@
     var pendingFrom=null;      // side asking
     var askTimer=null;
     var kb={},nub={},buf={local:'',peer:''},shifted={local:false,peer:false},numMode={local:false,peer:false};
+    var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};   // active composition per side
+    var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
     var peerInput=document.createElement('textarea');   // hidden input so baseline handleSubmit() runs untouched
     peerInput.id='duck-peer-input';peerInput.style.display='none';document.body.appendChild(peerInput);
     var localInputEl=document.getElementById('local-input');
@@ -1387,7 +1506,7 @@
     function buildKeyboard(side){
         var el=document.createElement('div');
         el.className='duck-kb '+(side==='local'?'south':'north');
-        el.innerHTML='<div class="duck-kb-buffer"><span class="lang"></span><div class="txt"></div></div><div class="duck-keys"></div>';
+        el.innerHTML='<div class="duck-cands"></div><div class="duck-kb-buffer"><span class="lang"></span><div class="txt"></div></div><div class="duck-keys"></div>';
         document.body.appendChild(el);
         return el;
     }
@@ -1432,23 +1551,106 @@
         wrap.querySelectorAll('.duck-key').forEach(function(b){
             b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
         });
-        kb[side].querySelector('.lang').textContent=langOf(side);
+        var lg=langOf(side);
+        kb[side].querySelector('.lang').textContent=lg+(lg==='ja'?' · romaji→kana, space=漢字':(lg==='ko'?' · 두벌식':''));
         paintBuffer(side);
     }
-    function paintBuffer(side){kb[side].querySelector('.txt').textContent=buf[side]||''}
+    function composingText(side){
+        var c=comp[side];
+        if(c.ko)return hgSyll(c.ko);
+        if(c.kana||c.raw)return c.kana+romajiTail(c.raw);
+        return '';
+    }
+    function paintBuffer(side){
+        var el=kb[side].querySelector('.txt');
+        var comping=composingText(side);
+        el.innerHTML=(buf[side]||'').replace(/[&<>]/g,'')+(comping?'<span style="text-decoration:underline;text-decoration-style:dotted;color:#2563eb">'+comping.replace(/[&<>]/g,'')+'</span>':'');
+    }
+    function paintCands(side){
+        var bar=kb[side].querySelector('.duck-cands');
+        if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
+        bar.style.display='flex';
+        bar.innerHTML=cands[side].map(function(c,i){return '<button type="button" class="duck-cand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
+        bar.querySelectorAll('.duck-cand').forEach(function(b){b.addEventListener('click',function(){pickCand(side,+b.dataset.i)})});
+    }
+    function pickCand(side,i){
+        var c=cands[side][i];if(c==null)return;
+        buf[side]+=c;comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;
+        paintCands(side);paintBuffer(side);diag('candidate chosen on '+side+': '+c);
+    }
+    function flushComposition(side){
+        var c=comp[side];
+        if(c.ko){buf[side]+=hgSyll(c.ko);}
+        else if(c.kana||c.raw){buf[side]+=romajiToKana(c.raw)}
+        comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;
+        paintCands(side);paintBuffer(side);
+    }
     function press(side,k){
+        var lang=langOf(side),ime=numMode[side]?null:(lang==='ko'?'ko':(lang==='ja'?'ja':null));
         if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
-        if(k==='NUM'){numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
-        if(k==='BKSP'){buf[side]=buf[side].slice(0,-1);paintBuffer(side);return}
-        if(k==='CLOSE'){closeKb(side,'closed by user');return}
-        if(k==='ENTER'){commit(side);return}
+        if(k==='NUM'){flushComposition(side);numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
+        if(k==='CLOSE'){flushComposition(side);closeKb(side,'closed by user');return}
+        if(k==='BKSP'){
+            if(ime==='ko'&&comp[side].ko){
+                var r=koBackspace(comp[side].ko);comp[side].ko=r.state;
+                if(!r.ate||(r.state.cho===null&&r.state.jung===null))comp[side].ko=(r.state.cho===null&&r.state.jung===null)?null:r.state;
+                paintBuffer(side);return;
+            }
+            if(ime==='ja'&&comp[side].raw){
+                comp[side].raw=comp[side].raw.slice(0,-1);comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-romajiTail(comp[side].raw).length));
+                cands[side]=[];candIdx[side]=-1;paintCands(side);paintBuffer(side);return;
+            }
+            buf[side]=buf[side].slice(0,-1);paintBuffer(side);return;
+        }
+        if(k==='ENTER'){
+            if(cands[side].length&&candIdx[side]>=0){pickCand(side,candIdx[side]);return}
+            flushComposition(side);commit(side);return;
+        }
+        if(k===' '){
+            if(ime==='ja'&&(comp[side].raw||comp[side].kana)){convertJa(side);return}
+            flushComposition(side);buf[side]+=' ';paintBuffer(side);return;
+        }
+        if(ime==='ko'){
+            if(!comp[side].ko)comp[side].ko=newKoState();
+            var res=koInput(comp[side].ko,k);
+            buf[side]+=res.commit;comp[side].ko=res.state;
+            if(shifted[side]){shifted[side]=false;renderKeys(side)}
+            paintBuffer(side);return;
+        }
+        if(ime==='ja'&&/^[a-zA-Z.,-]$/.test(k)){
+            comp[side].raw+=k.toLowerCase();
+            var tail=romajiTail(comp[side].raw);
+            comp[side].kana=romajiToKana(comp[side].raw.slice(0,comp[side].raw.length-tail.length));
+            cands[side]=[];candIdx[side]=-1;paintCands(side);
+            if(shifted[side]){shifted[side]=false;renderKeys(side)}
+            paintBuffer(side);return;
+        }
         buf[side]+=k;
         if(shifted[side]&&k.length===1){shifted[side]=false;renderKeys(side)}
         paintBuffer(side);
     }
+    function convertJa(side){
+        var kana=romajiToKana(comp[side].raw);
+        if(!kana)return;
+        if(cands[side].length){                     // space again cycles candidates
+            candIdx[side]=(candIdx[side]+1)%cands[side].length;paintCands(side);return;
+        }
+        diag('ja: converting "'+kana+'"');
+        jaCandidates(kana,function(list,err){
+            if(!list||!list.length){
+                cands[side]=[kana];candIdx[side]=0;paintCands(side);
+                diag('ja: kanji service unavailable'+(err?' ('+err+')':'')+' — kana kept',true);
+                return;
+            }
+            if(list.indexOf(kana)<0)list.push(kana);   // kana always selectable
+            cands[side]=list;candIdx[side]=0;paintCands(side);
+            diag('ja: '+list.length+' candidates');
+        });
+    }
 
     /* ---------- commit through the baseline pipeline ---------- */
     function commit(side){
+        flushComposition(side);
         var text=(buf[side]||'').trim();
         if(!text){closeKb(side,'enter with empty buffer');return}
         buf[side]='';paintBuffer(side);
@@ -1475,6 +1677,7 @@
     }
     function closeKb(side,why){
         if(!kb[side])return;
+        flushComposition(side);
         kb[side].classList.remove('open');
         nub[side].dataset.owned='false';
         if(owner===side)owner=null;
@@ -1544,7 +1747,7 @@
         diagPanel.classList.toggle('show');
         if(diagPanel.classList.contains('show'))renderDiag();
     });
-    diag('keyboard layer ready — languages: '+Object.keys(LANG_LAYOUT).join(','));
+    diag('keyboard layer ready — languages: '+Object.keys(LANG_LAYOUT).join(',')+' · ko: offline Hangul automaton · ja: romaji→kana + kanji candidates');
 })();
 </script>
 
