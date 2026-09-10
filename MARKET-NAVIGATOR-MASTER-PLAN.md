@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-10
-Next release scope: Turn 16
+Next release scope: Turn 17
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -140,7 +140,7 @@ The root component in the breadcrumb is the component originally opened from its
 ### Section B — legend strip
 A dedicated legend strip is always present directly below Section A, including single-series charts.
 
-Legend chips are clickable and correspond one-to-one with visible chart series.
+Legend chips are clickable and correspond one-to-one with visible chart series. Each legend key reproduces that series' configured line style and visible thickness; a generic solid color swatch is not sufficient.
 
 Added comparison series live here rather than expanding the breadcrumb beyond the governed suffix.
 
@@ -231,6 +231,10 @@ Minimum content:
 
 The card is contextual, not a new page. Changing component replaces the card. Changing index or returning to ENVIRONMENT clears it.
 
+The card is a compact non-blocking chart overlay anchored at the top-right of the plot. It uses a white background with black text, consumes only the space required by its content, and permits chart hover/inspection to continue beneath the non-interactive body of the card. Card controls such as **More info** and close remain directly operable.
+
+Legend-chip selection and plotted-line selection are bidirectional. Selecting a component chip immediately updates this card, makes that series the active visual reference, and prepares hover inspection without any second click. Clicking a different plotted series updates the selected chip and this card to that series.
+
 ---
 
 ## 11. COMPONENT view
@@ -286,15 +290,16 @@ Required:
 ### Active-series visual treatment
 The white plotted-series outline scheme is retired.
 
-During active crosshair/point inspection:
-- the intended active series remains fully opaque and is rendered visually above the others;
-- all other visible series become translucent/backgrounded;
-- configured line thickness does not change;
-- no second click is required to clear emphasis;
-- emphasis follows the existing inspection interaction and clears automatically when inspection ends or context changes;
-- no explanatory popup, separate chart window, or additional interaction state is introduced.
+Active-series emphasis begins at selection, not at crosshair activation:
+- clicking a legend chip immediately makes that series fully opaque/on top and backgrounds the other visible series;
+- moving the mouse/pointer over the chart immediately produces the crosshair and nearest-real-observation readout for the already-selected series; no pointer click is required to begin inspection;
+- hover inspection does not silently change the selected series;
+- clicking a different plotted series changes the active series, selected chip, contextual card where applicable, and visual emphasis in one action;
+- configured line style and thickness do not change during emphasis;
+- touch uses the same selection/inspection semantics without introducing a separate focus mode;
+- horizon/context/series-set changes clear stale crosshair content while preserving only still-valid explicit selection state.
 
-The goal is immediate visual isolation with zero added friction.
+The goal is immediate visual isolation and examination with zero redundant interaction.
 
 ---
 
@@ -395,16 +400,19 @@ Removing another series must never recolor or restyle a surviving series.
 There is one context-menu component and exactly one command order everywhere it appears:
 
 1. **AI POV**
-2. **Print**
-3. **Download Markdown**
-4. **Download CSV**
-5. **Download JSON**
+2. **Data**
+3. **Print**
+4. **Download Markdown**
+5. **Download CSV**
+6. **Download JSON**
 
 It appears in Section A on ENVIRONMENT, INDEX, COMPONENT, and applicable EXPLORE analytical state.
 
-No view-specific extra command is permitted inside this menu. Features such as statistics must live elsewhere if retained.
+**Data** is the exact-state data inspector for the selected chart series. For every selected raw series it exposes the complete canonical observation history available to the application, not only observations that happen to fall inside the current horizon. Each observation includes native value and an Indexed 100 value computed against the active chart-window baseline when that baseline is mathematically valid. Derived index series expose all derived observations available in the active chart context. The surface also reports Pearson correlation versus the currently active series. Correlation uses same-date real observations only; it does not interpolate, resample, forward-fill, or fabricate pairings. Insufficient paired observations or zero-variance inputs display `N/A`.
 
-Each action binds to the exact visible series set, horizon, representation, evidence revision, and chart state.
+No other view-specific command is permitted inside this menu. Separate statistics controls must live elsewhere if retained.
+
+The series set, active reference, chart-window baseline, representation, evidence revision, and chart state come from the exact active analytical state; expanding the Data rows to complete canonical history must not mutate that state.
 
 ---
 
@@ -497,12 +505,12 @@ Cadence alone can never justify a healthy/current classification.
 
 ---
 
-## 22. Statistics / latest values / correlation
-Statistics bind to the exact active analytical state.
+## 22. Data / statistics / correlation
+The canonical **Data** command binds to the exact active analytical state and is presentation-only. Closing it must not mutate series, horizon, axes, representation, active selection, or analysis state.
 
-If retained, latest values/correlation use one compact chart overlay with explicit close. Closing it is presentation-only and must not mutate series, horizon, axes, representation, or analysis state.
+For raw series, the Data surface contains the complete canonical series history available to the application with native and Indexed 100 values. Indexed 100 is calculated against the active chart-window baseline and preserves the plotted series direction where the current chart applies directional inversion. For derived indices, Data contains the full derived observation set available in the active chart context. Correlation is Pearson correlation versus the active series over same-date real observations from those Data rows. No interpolation, forward-fill, resampling, or synthetic alignment is permitted.
 
-Statistics are not a special item in the canonical `…` menu.
+Additional statistical tools, if retained, are separate from the canonical `…` menu.
 
 ---
 

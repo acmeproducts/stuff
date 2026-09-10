@@ -31,6 +31,8 @@ try{
     const k='marketNavigatorChartPaletteV1';
     const p=JSON.parse(localStorage.getItem(k)||'{}');
     p.schema='market-navigator-series-style-v2';
+    p.colors=p.colors||['#27D3F5','#FFD166','#48D597','#FF5A6F','#A78BFA','#FF9F1C','#4C78FF','#FF6EC7','#B8E43C','#AEB8C4'];
+    p.assignments=p.assignments||{risk:0,growth:1,macro:2};
     p.widths=Array(10).fill(7);
     p.lineStyles=Array(10).fill('dash-dot');
     localStorage.setItem(k,JSON.stringify(p));
