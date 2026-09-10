@@ -1279,6 +1279,8 @@
         width:46px;height:46px;border-radius:999px;border:1px solid rgba(226,232,240,.9);
         background:rgba(255,255,255,.95);box-shadow:0 8px 20px rgba(15,23,42,.14);
         display:inline-flex;align-items:center;justify-content:center;color:#334155}
+.duck-nub-flag{position:absolute;right:-2px;bottom:-2px;font-size:15px;line-height:1;filter:drop-shadow(0 1px 2px rgba(15,23,42,.35))}
+    .duck-nub{position:relative}
     .duck-nub[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
     .duck-nub[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
     @keyframes duckPulse{50%{opacity:.45}}
@@ -1295,6 +1297,7 @@
     .duck-kb-buffer .txt{flex:1;min-width:0;min-height:32px;padding:6px 10px;border-radius:14px;
         border:1px solid rgba(226,232,240,.95);background:#fff;font-size:15px;white-space:pre-wrap;word-break:break-word}
     .duck-kb-buffer .lang{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase}
+.duck-trail{position:absolute;inset:0;pointer-events:none;z-index:5}
     .duck-cands{display:none;gap:6px;overflow-x:auto;padding:4px 6px 6px;border-bottom:1px solid rgba(226,232,240,.9);scrollbar-width:none}
     .duck-cands::-webkit-scrollbar{display:none}
     .duck-cand{flex:0 0 auto;padding:6px 12px;border-radius:10px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;color:#0f172a}
@@ -1311,9 +1314,11 @@
     .duck-ask{position:absolute;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
         background:rgba(15,23,42,.45);backdrop-filter:blur(2px)}
     .duck-ask.show{display:flex}
-    .duck-ask-card{width:min(88%,340px);background:#fff;border-radius:18px;padding:18px;
-        box-shadow:0 20px 50px rgba(15,23,42,.3);text-align:center}
-    .duck-ask-card p{font-size:15px;color:#0f172a;margin-bottom:14px;line-height:1.4}
+    .duck-ask-card{width:min(92%,380px);background:transparent;padding:0}
+    .duck-ask-bubble{margin-bottom:12px;box-shadow:0 18px 40px rgba(15,23,42,.28)}
+    .duck-ask-card p{font-size:15px;line-height:1.4;margin:0}
+    .duck-ask-flag{font-size:20px}
+    .duck-ask-who{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
     .duck-ask-btns{display:flex;gap:10px}
     .duck-ask-btns button{flex:1;height:44px;border-radius:12px;font-weight:700;font-size:14px;border:1px solid rgba(203,213,225,.9);background:#f1f5f9;color:#334155}
     .duck-ask-btns .ok{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
@@ -1441,6 +1446,111 @@
         }).catch(function(e){cb(null,e.message)});
     }
 
+    /* ================= languages, flags, swype ================= */
+    var LANGS=[
+        {code:'en',label:'English',flag:'🇺🇸',kb:'latin'},{code:'es',label:'Spanish',flag:'🇪🇸',kb:'es'},
+        {code:'fr',label:'French',flag:'🇫🇷',kb:'fr'},{code:'de',label:'German',flag:'🇩🇪',kb:'de'},
+        {code:'it',label:'Italian',flag:'🇮🇹',kb:'it'},{code:'pt',label:'Portuguese',flag:'🇧🇷',kb:'pt'},
+        {code:'nl',label:'Dutch',flag:'🇳🇱',kb:'latin'},{code:'sv',label:'Swedish',flag:'🇸🇪',kb:'sv'},
+        {code:'pl',label:'Polish',flag:'🇵🇱',kb:'pl'},{code:'tr',label:'Turkish',flag:'🇹🇷',kb:'tr'},
+        {code:'ru',label:'Russian',flag:'🇷🇺',kb:'ru'},{code:'ar',label:'Arabic',flag:'🇸🇦',kb:'ar'},
+        {code:'hi',label:'Hindi',flag:'🇮🇳',kb:'hi'},{code:'th',label:'Thai',flag:'🇹🇭',kb:'th'},
+        {code:'km',label:'Cambodian',flag:'🇰🇭',kb:'km'},{code:'lo',label:'Lao',flag:'🇱🇦',kb:'lo'},
+        {code:'vi',label:'Vietnamese',flag:'🇻🇳',kb:'vi'},{code:'id',label:'Indonesian',flag:'🇮🇩',kb:'latin'},
+        {code:'ms',label:'Malay',flag:'🇲🇾',kb:'latin'},{code:'fil',label:'Filipino',flag:'🇵🇭',kb:'latin'},
+        {code:'ja',label:'Japanese',flag:'🇯🇵',kb:'latin'},{code:'ko',label:'Korean',flag:'🇰🇷',kb:'ko'},
+        {code:'zh',label:'Chinese (Simplified)',flag:'🇨🇳',kb:'latin'}
+    ];
+    var LANG_BY={};LANGS.forEach(function(l){LANG_BY[l.code]=l});
+    function flagOf(c){return (LANG_BY[c]&&LANG_BY[c].flag)||'🏳️'}
+    function labelOf(c){return (LANG_BY[c]&&LANG_BY[c].label)||c}
+
+    /* extra script layouts */
+    var EXTRA_LAYOUTS={
+        es:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ñ'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['á','é','í','ó','ú','ü','¿','¡','ç','·']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ñ'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Á','É','Í','Ó','Ú','Ü','¿','¡','Ç','·']]},
+        fr:{rows:[['a','z','e','r','t','y','u','i','o','p'],['q','s','d','f','g','h','j','k','l','m'],['SHIFT','w','x','c','v','b','n','BKSP'],['é','è','ê','à','ù','ç','î','ô','û','œ']],
+            shift:[['A','Z','E','R','T','Y','U','I','O','P'],['Q','S','D','F','G','H','J','K','L','M'],['SHIFT','W','X','C','V','B','N','BKSP'],['É','È','Ê','À','Ù','Ç','Î','Ô','Û','Œ']]},
+        de:{rows:[['q','w','e','r','t','z','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ö'],['SHIFT','y','x','c','v','b','n','m','BKSP'],['ä','ü','ß','€','-','_','?','!',';',':']],
+            shift:[['Q','W','E','R','T','Z','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ö'],['SHIFT','Y','X','C','V','B','N','M','BKSP'],['Ä','Ü','ẞ','€','-','_','?','!',';',':']]},
+        it:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ò'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['à','è','é','ì','ù','ç','€','?','!','.']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ò'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['À','È','É','Ì','Ù','Ç','€','?','!','.']]},
+        pt:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ç'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ã','õ','á','é','í','ó','ú','â','ê','ô']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ç'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ã','Õ','Á','É','Í','Ó','Ú','Â','Ê','Ô']]},
+        sv:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ö'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['å','ä','é','-','?','!',',','.',':',';']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ö'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Å','Ä','É','-','?','!',',','.',':',';']]},
+        pl:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ł'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ą','ć','ę','ń','ó','ś','ź','ż','?','!']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ł'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ą','Ć','Ę','Ń','Ó','Ś','Ź','Ż','?','!']]},
+        tr:{rows:[['q','w','e','r','t','y','u','ı','o','p'],['a','s','d','f','g','h','j','k','l','ş'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ç','ğ','ö','ü','i','İ','?','!',',','.']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ş'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ç','Ğ','Ö','Ü','İ','ı','?','!',',','.']]},
+        ru:{rows:[['й','ц','у','к','е','н','г','ш','щ','з','х'],['ф','ы','в','а','п','р','о','л','д','ж','э'],['SHIFT','я','ч','с','м','и','т','ь','б','ю','BKSP']],
+            shift:[['Й','Ц','У','К','Е','Н','Г','Ш','Щ','З','Х'],['Ф','Ы','В','А','П','Р','О','Л','Д','Ж','Э'],['SHIFT','Я','Ч','С','М','И','Т','Ь','Б','Ю','BKSP']]},
+        ar:{rows:[['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],['SHIFT','ئ','ء','ؤ','ر','لا','ى','ة','و','ز','BKSP']],
+            shift:[['َ','ً','ُ','ٌ','ِ','ٍ','ّ','ْ','إ','أ','آ'],['ذ','ظ','ژ','چ','پ','گ','،','؛','؟','٫','٬'],['SHIFT','١','٢','٣','٤','٥','٦','٧','٨','٩','BKSP']]},
+        hi:{rows:[['ौ','ै','ा','ी','ू','ब','ह','ग','द','ज','ड'],['ो','े','्','ि','ु','प','र','क','त','च','ट'],['SHIFT','ं','म','न','व','ल','स','य','भ','ङ','BKSP'],['अ','आ','इ','ई','उ','ऊ','ए','ओ','ऐ','औ']],
+            shift:[['ऒ','ऑ','ऋ','ॠ','ऌ','भ','ङ','घ','ध','झ','ढ'],['ओ','ऍ','ऽ','ि','ृ','फ','ऱ','ख','थ','छ','ठ'],['SHIFT','ँ','ण','ऩ','ॐ','ळ','श','ञ','ऴ','ॡ','BKSP'],['ॲ','ऄ','ऎ','ऐ','ऑ','ॉ','़','ॄ','ॢ','ॣ']]}
+    };
+
+    /* ---- swype / glide typing ---- */
+    var SWYPE_WORDS={
+        en:'the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us man find here thing tell try ask need feel become leave put mean keep let begin seem help talk turn start might show hear play run move live believe hold bring happen write provide sit stand lose pay meet include continue set learn change lead understand watch follow stop create speak read allow add spend grow open walk win offer remember love consider appear buy wait serve die send expect build stay fall cut reach kill remain hello hi hey please thanks thank sorry excuse yes no maybe okay sure water food eat drink hungry thirsty hotel room bathroom toilet airport station train bus taxi ticket price money cheap expensive help doctor hospital police pharmacy medicine sick pain phone wifi password address street left right straight near far open closed today tomorrow morning night beer coffee tea rice chicken beef fish vegetarian spicy delicious bill check card cash change friend family name where when what much many how'.split(' '),
+        es:'de la que el en y a los del se las por un para con no una su al lo como más pero sus le ya o este sí porque esta entre cuando muy sin sobre también me hasta hay donde quien desde todo nos durante todos uno les ni contra otros ese eso ante ellos e esto mí antes algunos qué unos yo otro otras otra él tanto esa estos mucho quienes nada muchos cual poco ella estar estas algunas algo nosotros mi mis tú te ti tu tus ellas nosotras vosotros vosotras os mío mía míos mías tuyo tuya suyo suya nuestro nuestra vuestro vuestra esos esas hola gracias bien buenos días noches tarde señor señora agua comida casa tiempo año día vida hombre mujer hola adiós gracias perdón disculpe agua comida hotel habitación baño aeropuerto estación tren autobús taxi billete precio dinero barato caro ayuda médico hospital policía farmacia medicina enfermo dolor teléfono contraseña dirección calle izquierda derecha recto cerca lejos abierto cerrado hoy mañana noche cerveza café té arroz pollo carne pescado vegetariano picante delicioso cuenta tarjeta efectivo amigo familia nombre dónde cuándo cuánto'.split(' '),
+        fr:'de le la et les des en un du une que dans qui est pour pas sur au ce il par plus se ne avec tout mais nous comme ou si leur y elle avoir été autre même deux bien où sans peut sous cette ces être faire dire aller voir savoir pouvoir vouloir venir falloir devoir croire trouver donner parler aimer passer mettre demander tenir sembler laisser rester penser entendre regarder répondre rendre connaître paraître arriver sentir attendre vivre chercher sortir comprendre porter devenir entrer écrire bonjour merci oui non homme femme jour temps main chose vie monde enfant eau maison bonjour salut merci pardon excusez eau nourriture hôtel chambre toilettes aéroport gare train bus taxi billet prix argent bon marché cher aide médecin hôpital police pharmacie médicament malade douleur téléphone adresse rue gauche droite tout droit près loin ouvert fermé aujourdhui demain matin nuit bière café thé riz poulet viande poisson végétarien épicé délicieux addition carte espèces ami famille nom où quand combien'.split(' '),
+        de:'der die und in den von zu das mit sich des auf für ist im dem nicht ein eine als auch es an werden aus er hat dass sie nach wird bei einer um am sind noch wie einem über einen so zum war haben nur oder aber vor zur bis mehr durch man sein wurde sei doch wenn schon vom ich wir alle uns kann sehr hier viel zwei ohne weil ihre unter jahr zeit menschen tag frau mann kind haus wasser leben gut neu groß klein alt jung guten morgen abend danke bitte hallo tschüss hallo tschüss danke entschuldigung wasser essen hotel zimmer badezimmer toilette flughafen bahnhof zug bus taxi fahrkarte preis geld billig teuer hilfe arzt krankenhaus polizei apotheke medizin krank schmerzen telefon passwort adresse straße links rechts geradeaus nah weit offen geschlossen heute morgen nacht bier kaffee tee reis hähnchen fleisch fisch vegetarisch scharf lecker rechnung karte bargeld freund familie name wo wann wieviel'.split(' '),
+        it:'di che e il la per un in una non sono mi si ho ma ti se ci lo ha cosa sei come io questo qui hai tu con da bene mio no ce te devo perché niente casa qualcosa più anche solo lei lui adesso della quando fatto sempre nella dei prima essere fare dire andare sapere dare stare volere dovere potere vedere parlare tempo anno giorno uomo donna vita mano acqua grazie ciao buongiorno buonasera arrivederci scusa prego amore ciao arrivederci grazie scusi acqua cibo hotel camera bagno aeroporto stazione treno autobus taxi biglietto prezzo soldi economico costoso aiuto medico ospedale polizia farmacia medicina malato dolore telefono indirizzo strada sinistra destra dritto vicino lontano aperto chiuso oggi domani mattina notte birra caffè tè riso pollo carne pesce vegetariano piccante delizioso conto carta contanti amico famiglia nome dove quando quanto'.split(' '),
+        pt:'de que não um os para com uma por como mas ao dos como das mais ele ela isso ser ter fazer estar ir poder dizer dar ver saber querer ficar dever passar chegar deixar falar vir precisar começar sentir voltar viver conhecer trabalhar bom dia boa noite tarde obrigado obrigada por favor água casa tempo ano vida homem mulher pessoa coisa mundo lugar hoje amanhã ontem agora sempre nunca também muito pouco grande pequeno novo velho olá tchau obrigado desculpe água comida hotel quarto banheiro aeroporto estação trem ônibus táxi bilhete preço dinheiro barato caro ajuda médico hospital polícia farmácia remédio doente dor telefone senha endereço rua esquerda direita reto perto longe aberto fechado hoje amanhã manhã noite cerveja café chá arroz frango carne peixe vegetariano picante delicioso conta cartão amigo família nome onde quando quanto'.split(' ')
+    };
+    function keyCenters(side){
+        var out=[];
+        kb[side].querySelectorAll('.duck-key').forEach(function(b){
+            var k=b.dataset.k;
+            if(!k||k.length!==1||!/\S/.test(k))return;
+            var r=b.getBoundingClientRect();
+            out.push({k:k,x:r.left+r.width/2,y:r.top+r.height/2,r:Math.max(r.width,r.height)/2});
+        });
+        return out;
+    }
+    function pathToKeys(pts,centers){
+        var seq=[],last=null;
+        pts.forEach(function(p){
+            var best=null,bd=1e9;
+            centers.forEach(function(c){
+                var d=Math.hypot(c.x-p.x,c.y-p.y);
+                if(d<bd){bd=d;best=c}
+            });
+            if(best&&bd<best.r*1.15){
+                if(!last||last!==best.k){seq.push(best.k);last=best.k}
+            }
+        });
+        // collapse immediate repeats
+        return seq.filter(function(k,i){return i===0||k!==seq[i-1]});
+    }
+    function swypeCandidates(seq,lang){
+        if(!seq.length)return[];
+        var list=SWYPE_WORDS[lang];
+        var joined=seq.join('');
+        if(!list)return[joined];
+        var first=seq[0],last=seq[seq.length-1],setSeq={};seq.forEach(function(c){setSeq[c]=1});
+        var scored=[];
+        list.forEach(function(w){
+            if(w[0]!==first)return;
+            if(w[w.length-1]!==last)return;
+            var i=0,ok=true;
+            for(var c=0;c<w.length;c++){                 // word letters must appear in path order
+                var idx=seq.indexOf(w[c],i);
+                if(idx<0){ok=false;break}
+                i=idx;
+            }
+            if(!ok)return;
+            var extra=0;seq.forEach(function(c){if(w.indexOf(c)<0)extra++});
+            scored.push({w:w,s:Math.abs(w.length-seq.length)+extra*0.6});
+        });
+        scored.sort(function(a,b){return a.s-b.s});
+        var out=scored.slice(0,7).map(function(x){return x.w});
+        if(out.indexOf(joined)<0)out.push(joined);      // literal path always available
+        return out;
+    }
+
     /* ---------- layouts (hand-rolled, zero deps) ---------- */
     var LAYOUTS={
         latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
@@ -1460,7 +1570,8 @@
         num:{rows:[['1','2','3','4','5','6','7','8','9','0'],['-','/',':',';','(',')','$','&','@','"'],['SHIFT','.',',','?','!',"'",'+','=','BKSP']],
              shift:[['[',']','{','}','#','%','^','*','+','='],['_','\\','|','~','<','>','€','£','¥','•'],['SHIFT','.',',','?','!',"'",'§','¿','BKSP']]}
     };
-    var LANG_LAYOUT={en:'latin',id:'latin',ms:'latin',zh:'latin',vi:'vi',th:'th',km:'km',lo:'lo',ja:'latin',ko:'ko'};
+    Object.keys(EXTRA_LAYOUTS).forEach(function(k){LAYOUTS[k]=EXTRA_LAYOUTS[k]});
+    function layoutNameFor(code){return (LANG_BY[code]&&LANG_BY[code].kb)||'latin'}
     var ASK_TEXT={en:'The other person would like to use the keyboard.',ok:'Allow',no:'Decline'};
 
     /* ---------- state ---------- */
@@ -1498,7 +1609,7 @@
         host.style.position=host.style.position||'relative';
         var b=document.createElement('button');
         b.type='button';b.className='duck-nub';b.setAttribute('aria-label','Keyboard');
-        b.innerHTML='<span class="material-symbols-outlined">keyboard</span>';
+        b.innerHTML='<span class="material-symbols-outlined">keyboard</span><span class="duck-nub-flag"></span>';
         b.addEventListener('click',function(){onNub(side)});
         host.appendChild(b);
         return b;
@@ -1514,7 +1625,7 @@
         var host=document.querySelector(side==='local'?'.tabletop-south':'.tabletop-north');
         var a=document.createElement('div');
         a.className='duck-ask';
-        a.innerHTML='<div class="duck-ask-card"><p></p><div class="duck-ask-btns"><button type="button" class="no"></button><button type="button" class="ok"></button></div></div>';
+        a.innerHTML='<div class="duck-ask-card"><div class="message-row peer"><div class="message-bubble peer duck-ask-bubble"><div class="bubble-col"><span class="duck-ask-flag"></span> <span class="duck-ask-who"></span></div><div class="bubble-col"><p></p></div></div></div><div class="duck-ask-btns"><button type="button" class="no"></button><button type="button" class="ok"></button></div></div>';
         host.style.position=host.style.position||'relative';
         host.appendChild(a);
         a.querySelector('.ok').addEventListener('click',function(){resolveAsk(true)});
@@ -1522,10 +1633,67 @@
         return a;
     }
 
+    /* ---------- swype gesture ---------- */
+    function enableSwype(side){
+        var el=kb[side],pts=[],tracking=false,centers=[],moved=0,trail=null;
+        el.addEventListener('pointerdown',function(e){
+            if(!e.target.closest('.duck-key'))return;
+            var lang=langOf(side);
+            if(numMode[side])return;
+            tracking=true;moved=0;pts=[{x:e.clientX,y:e.clientY}];centers=keyCenters(side);
+            trail=trail||makeTrail(el);trail.pts=[];
+        });
+        el.addEventListener('pointermove',function(e){
+            if(!tracking)return;
+            var last=pts[pts.length-1];
+            var d=Math.hypot(e.clientX-last.x,e.clientY-last.y);
+            if(d<6)return;
+            moved+=d;pts.push({x:e.clientX,y:e.clientY});
+            drawTrail(el,trail,pts);
+        });
+        function finish(e){
+            if(!tracking)return;tracking=false;clearTrail(trail);
+            if(moved<70){pts=[];return}                 // a tap, not a glide — normal key handler runs
+            e.preventDefault();e.stopPropagation();
+            var seq=pathToKeys(pts,centers);pts=[];
+            if(seq.length<2)return;
+            var lang=langOf(side);
+            if(lang==='ko'){                            // glide emits jamo through the automaton
+                seq.forEach(function(j){press(side,j)});
+                diag('swype(ko): '+seq.join(''));return;
+            }
+            if(lang==='ja'){
+                seq.forEach(function(c){press(side,c)});
+                diag('swype(ja): '+seq.join(''));return;
+            }
+            var list=swypeCandidates(seq,lang);
+            if(!list.length)return;
+            cands[side]=list;candIdx[side]=0;paintCands(side);
+            comp[side].swype=true;
+            diag('swype: "'+seq.join('')+'" → '+list.slice(0,3).join(', '));
+        }
+        el.addEventListener('pointerup',finish);
+        el.addEventListener('pointercancel',finish);
+        el.addEventListener('pointerleave',finish);
+    }
+    function makeTrail(el){
+        var c=document.createElement('canvas');c.className='duck-trail';el.appendChild(c);return{cv:c,pts:[]};
+    }
+    function drawTrail(el,trail,pts){
+        var c=trail.cv,r=el.getBoundingClientRect();
+        if(c.width!==r.width||c.height!==r.height){c.width=r.width;c.height=r.height}
+        var g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);
+        g.strokeStyle='rgba(59,130,246,.55)';g.lineWidth=5;g.lineCap='round';g.lineJoin='round';
+        g.beginPath();
+        pts.forEach(function(p,i){var x=p.x-r.left,y=p.y-r.top;i?g.lineTo(x,y):g.moveTo(x,y)});
+        g.stroke();
+    }
+    function clearTrail(trail){if(!trail)return;var g=trail.cv.getContext('2d');g.clearRect(0,0,trail.cv.width,trail.cv.height)}
+
     /* ---------- keys ---------- */
     function layoutFor(side){
         var code=langOf(side);
-        var name=numMode[side]?'num':(LANG_LAYOUT[code]||'latin');
+        var name=numMode[side]?'num':layoutNameFor(code);
         var L=LAYOUTS[name]||LAYOUTS.latin;
         return shifted[side]?(L.shift||L.rows):L.rows;
     }
@@ -1552,7 +1720,9 @@
             b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
         });
         var lg=langOf(side);
-        kb[side].querySelector('.lang').textContent=lg+(lg==='ja'?' · romaji→kana, space=漢字':(lg==='ko'?' · 두벌식':''));
+        kb[side].querySelector('.lang').innerHTML=flagOf(lg)+' '+labelOf(lg)+(lg==='ja'?' · romaji→kana, space=漢字':(lg==='ko'?' · 두벌식':''));
+        var nf=nub[side]&&nub[side].querySelector('.duck-nub-flag');
+        if(nf)nf.textContent=flagOf(lg);
         paintBuffer(side);
     }
     function composingText(side){
@@ -1575,7 +1745,7 @@
     }
     function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
-        buf[side]+=c;comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;
+        buf[side]+=c+(comp[side].swype?' ':'');delete comp[side].swype;comp[side]={raw:'',kana:'',ko:null};cands[side]=[];candIdx[side]=-1;
         paintCands(side);paintBuffer(side);diag('candidate chosen on '+side+': '+c);
     }
     function flushComposition(side){
@@ -1697,6 +1867,8 @@
         nub[fromSide].dataset.pending='true';
         var card=askEl[target];
         var lang=langOf(target);
+        card.querySelector('.duck-ask-flag').textContent=flagOf(langOf(fromSide));
+        card.querySelector('.duck-ask-who').textContent=labelOf(langOf(fromSide));
         setText(card.querySelector('p'),ASK_TEXT.en,lang);
         setText(card.querySelector('.ok'),ASK_TEXT.ok,lang);
         setText(card.querySelector('.no'),ASK_TEXT.no,lang);
@@ -1722,10 +1894,24 @@
         else diag('request '+(silent?'expired':'declined')+' for '+from);
     }
 
+    /* ---------- languages into the baseline selects (additive, keeps current value) ---------- */
+    function populateLanguages(){
+        ['local-language-select','peer-language-select'].forEach(function(id){
+            var sel=document.getElementById(id);if(!sel)return;
+            var cur=sel.value;
+            sel.innerHTML=LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+'  '+l.label+'</option>'}).join('');
+            sel.value=LANG_BY[cur]?cur:'en';
+            if(sel.value!==cur){try{if(id.indexOf('local')===0){settings.localLanguage=sel.value}else{settings.peerLanguage=sel.value};saveSettings()}catch(e){}}
+        });
+        diag('languages loaded: '+LANGS.length+' with flags');
+    }
+    populateLanguages();
+
     /* ---------- init ---------- */
     ['local','peer'].forEach(function(side){
         nub[side]=buildNub(side);
         kb[side]=buildKeyboard(side);
+        kb[side].style.position='relative';enableSwype(side);
         askEl[side]=buildAsk(side);
         if(nub[side])nub[side].dataset.owned='false';
     });
@@ -1747,7 +1933,7 @@
         diagPanel.classList.toggle('show');
         if(diagPanel.classList.contains('show'))renderDiag();
     });
-    diag('keyboard layer ready — languages: '+Object.keys(LANG_LAYOUT).join(',')+' · ko: offline Hangul automaton · ja: romaji→kana + kanji candidates');
+    diag('keyboard layer ready — '+LANGS.length+' languages'+' · ko: offline Hangul automaton · ja: romaji→kana + kanji candidates');
 })();
 </script>
 
