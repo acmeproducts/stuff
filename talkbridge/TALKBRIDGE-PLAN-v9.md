@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.2.0 -->
-# TALKBRIDGE MASTER PLAN v21.2.0
+<!-- TALKBRIDGE-PLAN v21.3.0 -->
+# TALKBRIDGE MASTER PLAN v21.3.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -81,17 +81,16 @@ built yet.
 | 26·ship (candidate 4) | Owner-scoped rebuild on accepted 26·pre-ship: #653 "Join thread" as the FOURTH clock long-press option (paste/QR via BarcodeDetector, hidden everywhere else, joins via the untouched #j= boot path — per the 2026-09-01 written direction) + welcome pill "name is inviting you to title (Yours ↔ Theirs)" + build identity (boot log line + clock-menu footer with build date/time) | **REJECTED 2026-09-05 (owner: onboarding broken) → buried G48; address rolled back byte-exact to accepted 26·pre-ship.** Post-mortem note from the device log, recorded not argued: a full onboard ran clean ON c4 bytes at 11:01–11:05Z (create→grant→invite→join→welcome pill correct), and the owner's broken test began ~3 min after the push — stale/mixed CDN is the standing suspect; build-identity footer exists to make that visible. | (address rolled back) |
 | 26·ship (candidate 5) | Identical scope to c4 — the three owner-approved items only, rebuilt from clean accepted pre-ship bytes with build id c5 | superseded by c6 same day (desktop-install fix). |
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
-| 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **BUILT 2026-09-06 on owner GO — device gate pending (§7.4 G1–G5).** Parity harness 10/10 vs living kanban source; speech fixtures 4/4; mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
-| 27·pre-base | Byte-identical snapshot of the accepted 26 line | §7.3 step-0 pattern | queued | — |
-| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1 attempt, #652) with safe old-worker retirement; presence dot 60-s damping (kills the flicker you accepted under reservation); render coalescing | Spec §7.2 | queued | — |
-| 27·pre-ship | **Directory release** — D-2 PRISM un-hijack done right AND **desktop Chrome install restored** (D-6): app moves to /stuff/talkbridge-app/ with a slash-true scope; complete URL-coupling map already verified line-by-line; isolated release | Spec §7.5 | queued | — |
-| 27·ship | **IndexedDB mirror** — 1:1 mirror of every storage key, dual-write, restore-after-eviction, parity readout; localStorage still governs | Spec §7.3 | queued | — |
-| 27·post-ship | **Video done right** — BL-V1 **PiP/tap-swap** (exactly two video tiles ever, gated), BL-V2 **front camera default + flip**, BL-V3 **home button keeps the call running**; research-first mandate; buries G45 properly | Spec §7.6 | queued | — |
+| 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
+| 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
+| 27·base | **Directory release, FIRST and isolated** — D-2 PRISM un-hijack done right AND desktop Chrome install restored (D-6): /stuff/talkbridge-app/ with slash-true scope; complete line-verified URL-coupling map; single worker churn for the whole turn (notifications worker edit lands in the folder next release, not before) | Spec §7.5 | queued — ringfence: install/scope behavior across all clients | — |
+| 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
+| 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
+| 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
 | 28·pre-base | Snapshot | — | queued | — |
-| 28·base | **IndexedDB cutover** — reads move to IDB, eviction-survival proven on device; needs mirror + 3 days clean parity | Spec §7.7 | queued | — |
-| 28·pre-ship | **Collisions & concurrency** — device-namespaced message ids, phrasebook compare-and-swap sync with three-way merge, concurrent-rename convergence | Spec §7.9 | queued | — |
-| 28·ship | **Multi-user** — up to 4 in a room, one language pair, named bubbles, cap enforcement, 1:1 calls with presence; relay v6.4 | Spec §7.8 | queued | — |
-| 28·post-ship | **Refactor & debt** — full render coalescing, log hygiene, wrapper-chain audit line, dead-candidate purge (owner names the list), graveyard index | Spec §7.10 | queued | — |
+| 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
+| 28·pre-ship | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
+| 28·ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX; closes turn 28 | Spec §7.8 A-parts | queued | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
@@ -3804,7 +3803,7 @@ flicker), goes dark ~60 s after true departure. G4 One push per message —
 no duplicates after the worker swap (old subscription retired). PASS = all.
 
 ────────────────────────────────────────────────────────────────────────
-## §7.3 RELEASE C — 27·pre-base + 27·base: "IndexedDB storage migration"
+## §7.3 [SUPERSEDED by §7.11 — owner ruling 2026-09-06: testing mode, no parallel bridge] — was: IndexedDB storage migration
 ────────────────────────────────────────────────────────────────────────
 
 STEP 0 — 27·pre-base: `bridge-turn27-pre-base.html` = byte copy of the
@@ -4091,7 +4090,7 @@ recall → default layout, front camera. G5 log shows v2_video_count=2
 throughout. PASS = all five.
 
 ────────────────────────────────────────────────────────────────────────
-## §7.7 BUILDER SPEC — IndexedDB CUTOVER (turn-28 half of §7.3)
+## §7.7 [SUPERSEDED by §7.11] — was: IndexedDB cutover
 ────────────────────────────────────────────────────────────────────────
 PRECONDITION: §7.3 mirror ACCEPTED and its parity line clean for ≥3 days
 of real use (owner attests; device log db3_parity history is the record).
@@ -4143,7 +4142,7 @@ full". G3 1:1 call between two of three; third sees presence. G4 receipts
 count. PASS = all.
 
 ────────────────────────────────────────────────────────────────────────
-## §7.9 BUILDER SPEC — COLLISIONS & CONCURRENCY (turn 28)
+## §7.9 BUILDER SPEC — COLLISIONS & CONCURRENCY [reclassified: technical debt, builds inside 28·base with §7.10]
 ────────────────────────────────────────────────────────────────────────
 The concrete collision surfaces in this codebase, each with its rule:
 K1 message ids: today `uid()` per device; rule = ids namespaced
@@ -4189,3 +4188,41 @@ The release schedule lives ONLY in the §0 Turn/Stage Ledger above; specs in
 scope, not in play — specs due at pilot exit): pilot, phrasebook-informed
 translation (fuzzy-match then LLM-assisted), room-scoped phrasebook pairs,
 open-core licensing, go-to-market.
+
+
+────────────────────────────────────────────────────────────────────────
+## §7.11 BUILDER SPEC — STORAGE CUTOVER, SINGLE SHOT (27·post-ship)
+────────────────────────────────────────────────────────────────────────
+Owner ruling 2026-09-06: testing mode — stored conversations are
+expendable; one or two worth keeping get exported. No mirror phase, no
+parity ceremony, one release.
+FILE: next candidate on the accepted line. RELAY untouched.
+X1 EXPORT (belt-and-braces, ships in the same block, works before the
+cutover code runs): drawer gains "Export transcript" under the existing
+General tab (renderDrawerValues wrap adds the button once): opens a modal
+with the room's transcript as readable text (one line per message:
+who · time · source → translated) plus a Copy button (navigator.clipboard
+with textarea fallback). No new APIs, no downloads. Log `x1_export {n}`.
+X2 DB: indexedDB.open('talkbridge',1), one store `kv` keyPath `k`,
+records {k,v,at} — §7.3's design, kept.
+X3 BOOT, IDB-first with free migration: a pre-boot loader (registered
+before the frozen initializer runs — the block executes at parse time,
+loader gates the frozen boot via wrapping the boot entry function the
+same way CR3 gates it) reads all IDB keys and materializes them into
+localStorage; if IDB is EMPTY and localStorage has keys (first run after
+cutover), seed IDB from localStorage once and log `x3_seeded {n}`. Net:
+nothing is lost on cutover day at all; the export exists for paranoia
+and for resets.
+X4 WRITES: wrap lsSet — IDB put FIRST (primary), localStorage second
+(boot cache for the frozen synchronous readers). The six raw-key
+credentials keep their 30-s sweep (§7.3 DB2 design). Any IDB failure →
+log `x4_idb_fail` and continue on localStorage alone.
+### Machine gates: M1 frozen body; M2 parse; M3 write order asserted by
+regex (put before passthrough); M4 seed-once guard present (no seed when
+IDB non-empty); M5 export button only in drawer, nowhere else.
+MUTATIONS: (a) reverse write order → M3 fails; (b) seed every boot →
+M4 fails; (c) export button on home → M5 fails.
+### Device gate: G1 normal chat unchanged, footer names the build.
+G2 export a room → readable text, Copy works. G3 DevTools → delete ALL
+Local Storage keys → relaunch → everything present (IDB restored it),
+log shows the restore. G4 20 messages, relaunch, all present.
