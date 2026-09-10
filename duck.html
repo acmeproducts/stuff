@@ -243,70 +243,6 @@
         #gear-fab.dragging {
             cursor: grabbing;
         }
-        /* ---- NEW ADDITIVE STYLES ---- */
-        .duck-nub {
-            position: absolute;
-            width: 44px;
-            height: 44px;
-            border-radius: 999px;
-            background: var(--bubble-local-bg);
-            color: var(--bubble-local-text);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            cursor: pointer;
-            z-index: 20;
-            transition: transform 0.2s ease;
-        }
-        .duck-nub:hover { transform: scale(1.08); }
-        .duck-keyboard {
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 40vh;
-            background: var(--bubble-local-bg);
-            border-top: 1px solid rgba(226,232,240,0.5);
-            transform: translateY(100%);
-            transition: transform 0.18s ease-out;
-            will-change: transform;
-            z-index: 15;
-            overflow-y: auto;
-            padding: 8px;
-        }
-        .duck-keyboard.active { transform: translateY(0); }
-        .duck-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 30;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s ease;
-        }
-        .duck-overlay.visible { opacity: 1; visibility: visible; }
-        .duck-overlay .dialog {
-            background: #fff;
-            padding: 16px;
-            border-radius: 12px;
-            max-width: 260px;
-            text-align: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-        }
-        .duck-overlay button {
-            margin-top: 12px;
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            background: var(--acc, #4da3ff);
-            color: #fff;
-            cursor: pointer;
-        }
-        .duck-overlay button.decline { background: #ff5d6c; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -345,7 +281,6 @@
         </div>
     </main>
 
-    <!-- Existing gear fab and controls -->
     <button id="gear-fab" class="fixed z-40 w-12 h-12 rounded-full bg-white/90 border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white" aria-label="Open controls">
         <span class="material-symbols-outlined text-[22px]">settings</span>
     </button>
@@ -439,32 +374,7 @@
         </div>
     </div>
 
-    <!-- ==== NEW ADDITIVE ELEMENTS ==== -->
-    <!-- Nubs -->
-    <div id="nub-south" class="duck-nub" style="bottom:8px; left:50%; transform:translateX(-50%);">
-        <span class="material-symbols-outlined">keyboard</span>
-    </div>
-    <div id="nub-north" class="duck-nub" style="top:8px; left:50%; transform:translateX(-50%) rotate(180deg);">
-        <span class="material-symbols-outlined">keyboard</span>
-    </div>
-
-    <!-- Keyboard containers -->
-    <div id="keyboard-south" class="duck-keyboard"></div>
-    <div id="keyboard-north" class="duck-keyboard" style="transform: rotate(180deg);"></div>
-
-    <!-- Request overlay -->
-    <div id="request-overlay" class="duck-overlay">
-        <div class="dialog">
-            <div id="request-text">The other person would like the keyboard.</div>
-            <button id="request-confirm">Confirm</button>
-            <button id="request-decline" class="decline">Decline</button>
-        </div>
-    </div>
-
     <script>
-        /* -------------------------------------------------
-         * Existing app logic (unchanged) – omitted for brevity
-         * ------------------------------------------------- */
         const STORAGE_KEYS = {
             history: 'tabletop_chat_history',
             settings: 'tabletop_chat_settings',
@@ -493,6 +403,7 @@
             localColor: '#ffffff',
             peerColor: '#ffffff'
         };
+
         const peerTranscript = document.getElementById('peer-transcript');
         const localTranscript = document.getElementById('local-transcript');
         const localInput = document.getElementById('local-input');
@@ -551,194 +462,1091 @@
             vi: 'vi'
         };
 
-        /* -------------------------------------------------
-         * Additive Keyboard Logic
-         * ------------------------------------------------- */
-        const State = {
-            IDLE: 'idle',
-            SOUTH_ACTIVE: 'south',
-            NORTH_ACTIVE: 'north',
-            REQUEST_PENDING: 'request'
-        };
-        let currentState = State.IDLE;
-        let requestFrom = null; // 'south' or 'north'
+        function readStorage(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch (_) {
+                return null;
+            }
+        }
 
-        const nubSouth = document.getElementById('nub-south');
-        const nubNorth = document.getElementById('nub-north');
-        const kbSouth = document.getElementById('keyboard-south');
-        const kbNorth = document.getElementById('keyboard-north');
-        const overlay = document.getElementById('request-overlay');
-        const overlayText = document.getElementById('request-text');
-        const overlayConfirm = document.getElementById('request-confirm');
-        const overlayDecline = document.getElementById('request-decline');
+        function writeStorage(key, value) {
+            try {
+                localStorage.setItem(key, value);
+            } catch (_) {}
+        }
 
-        // Simple Keyboard library – minimal inline version (QWERTY only)
-        const SimpleKeyboard = (function(){
-            const layout = [
-                '` 1 2 3 4 5 6 7 8 9 0 - = Backspace',
-                'q w e r t y u i o p [ ] \\',
-                'a s d f g h j k l ; \' Enter',
-                'z x c v b n m , . / Space'
-            ];
-            function createKeyboard(container, onEnter){
-                container.innerHTML = '';
-                const rows = document.createElement('div');
-                rows.style.display='flex';
-                rows.style.flexDirection='column';
-                rows.style.gap='4px';
-                layout.forEach(rowStr=>{
-                    const row = document.createElement('div');
-                    row.style.display='flex';
-                    row.style.gap='4px';
-                    rowStr.split(' ').forEach(key=>{
-                        const btn=document.createElement('button');
-                        btn.textContent=key;
-                        btn.style.flex='1';
-                        btn.style.padding='6px';
-                        btn.style.border='1px solid #ccc';
-                        btn.style.borderRadius='4px';
-                        btn.style.background='#f9f9f9';
-                        btn.style.cursor='pointer';
-                        btn.addEventListener('click',()=>handleKey(key));
-                        row.appendChild(btn);
+        function loadSettings() {
+            const raw = readStorage(STORAGE_KEYS.settings);
+            if (!raw) return { ...DEFAULT_SETTINGS };
+            try {
+                return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+            } catch (_) {
+                return { ...DEFAULT_SETTINGS };
+            }
+        }
+
+        function saveSettings() {
+            writeStorage(STORAGE_KEYS.settings, JSON.stringify(settings));
+        }
+
+        function loadHistory() {
+            const raw = readStorage(STORAGE_KEYS.history);
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function saveHistory() {
+            writeStorage(STORAGE_KEYS.history, JSON.stringify(chatHistory.slice(-200)));
+        }
+
+        function loadStyles() {
+            const raw = readStorage(STORAGE_KEYS.styles);
+            if (!raw) return { ...DEFAULT_STYLES };
+            try {
+                return { ...DEFAULT_STYLES, ...JSON.parse(raw) };
+            } catch (_) {
+                return { ...DEFAULT_STYLES };
+            }
+        }
+
+        function saveStyles() {
+            writeStorage(STORAGE_KEYS.styles, JSON.stringify(styles));
+        }
+
+        function loadBackground() {
+            const raw = readStorage(STORAGE_KEYS.background);
+            if (!raw) return { ...DEFAULT_BACKGROUND };
+            try {
+                return { ...DEFAULT_BACKGROUND, ...JSON.parse(raw) };
+            } catch (_) {
+                return { ...DEFAULT_BACKGROUND };
+            }
+        }
+
+        function saveBackground() {
+            writeStorage(STORAGE_KEYS.background, JSON.stringify(background));
+        }
+
+        function applyStyles() {
+            const root = document.documentElement;
+            root.style.setProperty('--bubble-local-bg', styles.localBg);
+            root.style.setProperty('--bubble-local-text', styles.localText);
+            root.style.setProperty('--bubble-peer-bg', styles.peerBg);
+            root.style.setProperty('--bubble-peer-text', styles.peerText);
+            root.style.setProperty('--bubble-font-size-local', `${styles.localFontSize}px`);
+            root.style.setProperty('--bubble-font-size-peer', `${styles.peerFontSize}px`);
+        }
+
+        function applyBackground() {
+            const root = document.documentElement;
+            root.style.setProperty('--chat-bg-local', background.localColor || DEFAULT_BACKGROUND.localColor);
+            root.style.setProperty('--chat-bg-peer', background.peerColor || DEFAULT_BACKGROUND.peerColor);
+            root.style.setProperty('--chat-bg-color', DEFAULT_BACKGROUND.localColor);
+        }
+
+        function updateControls() {
+            peerLanguageSelect.value = settings.peerLanguage;
+            localLanguageSelect.value = settings.localLanguage;
+            typingPauseInput.value = (settings.typingPauseMs / 1000).toFixed(1).replace(/\.0$/, '');
+            styleLocalBg.value = styles.localBg;
+            styleLocalText.value = styles.localText;
+            stylePeerBg.value = styles.peerBg;
+            stylePeerText.value = styles.peerText;
+            styleLocalFontSize.value = styles.localFontSize;
+            stylePeerFontSize.value = styles.peerFontSize;
+            styleLocalBgPanel.value = background.localColor;
+            stylePeerBgPanel.value = background.peerColor;
+            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
+            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
+            updateVoiceSelectors();
+            updateSpeakerIndicator();
+        }
+
+        function toggleModal(isOpen) {
+            if (!controlsModal || !controlsContent) return;
+            if (isOpen) {
+                controlsModal.classList.remove('invisible');
+                controlsModal.classList.add('visible');
+                controlsContent.classList.remove('scale-out');
+                controlsContent.classList.add('scale-in');
+            } else {
+                controlsModal.classList.add('invisible');
+                controlsModal.classList.remove('visible');
+                controlsContent.classList.add('scale-out');
+                controlsContent.classList.remove('scale-in');
+            }
+        }
+
+        function updateSpeakerIndicator() {
+            if (!speakerToggle) return;
+            speakerToggle.dataset.active = settings.activeSpeaker;
+        }
+
+        function clearTypingTimer() {
+            if (typingTimer) {
+                clearTimeout(typingTimer);
+            }
+            typingTimer = null;
+        }
+
+        function flipActiveSpeaker() {
+            settings.activeSpeaker = settings.activeSpeaker === 'local' ? 'peer' : 'local';
+            updateSpeakerIndicator();
+            saveSettings();
+            scrollTranscriptsToBottom();
+        }
+
+        function scheduleAutoSubmit(input, speaker) {
+            clearTypingTimer();
+            typingTimer = setTimeout(() => {
+                const value = (input?.value || '').trim();
+                if (!value) return;
+                settings.activeSpeaker = speaker;
+                updateSpeakerIndicator();
+                saveSettings();
+                addChatEntry(value, speaker);
+                if (input) {
+                    input.value = '';
+                }
+                flipActiveSpeaker();
+            }, settings.typingPauseMs);
+        }
+
+        function scrollTranscriptsToBottom() {
+            [peerTranscript, localTranscript].forEach(column => {
+                if (!column) return;
+                if (typeof column.scrollTo === 'function') {
+                    column.scrollTo({ top: column.scrollHeight, behavior: 'smooth' });
+                } else {
+                    column.scrollTop = column.scrollHeight;
+                }
+            });
+        }
+
+        function createEntryId() {
+            return (crypto.randomUUID ? crypto.randomUUID() : `entry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+        }
+
+        async function translateText(text, target, source = 'auto') {
+            if (!text || !target) return null;
+            const cacheKey = `${source}|${target}|${text}`;
+            if (translationCache.has(cacheKey)) return translationCache.get(cacheKey);
+            if (pendingTranslations.has(cacheKey)) return pendingTranslations.get(cacheKey);
+            const pendingPromise = (async () => {
+                try {
+                    const res = await fetch('https://libretranslate.de/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ q: text, source, target, format: 'text' })
                     });
-                    rows.appendChild(row);
-                });
-                container.appendChild(rows);
-                function handleKey(key){
-                    if(key==='Backspace'){
-                        const el = activeInput();
-                        if(el) el.value=el.value.slice(0,-1);
-                    }else if(key==='Enter'){
-                        if(onEnter) onEnter();
-                    }else if(key==='Space'){
-                        const el = activeInput();
-                        if(el) el.value+= ' ';
-                    }else{
-                        const el = activeInput();
-                        if(el) el.value+=key;
+                    if (!res.ok) throw new Error('Translation failed');
+                    const data = await res.json();
+                    const translated = data?.translatedText || null;
+                    if (translated) {
+                        translationCache.set(cacheKey, translated);
                     }
+                    return translated;
+                } catch (_) {
+                    try {
+                        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(source)}&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(text)}`);
+                        if (!res.ok) throw new Error('Translation fallback failed');
+                        const data = await res.json();
+                        const translated = Array.isArray(data?.[0])
+                            ? data[0].map(part => part?.[0]).filter(Boolean).join('')
+                            : null;
+                        if (translated) {
+                            translationCache.set(cacheKey, translated);
+                        }
+                        return translated;
+                    } catch (_) {
+                        return null;
+                    }
+                } finally {
+                    pendingTranslations.delete(cacheKey);
                 }
-                function activeInput(){
-                    return (currentState===State.SOUTH_ACTIVE) ? localInput :
-                           (currentState===State.NORTH_ACTIVE) ? peerInput() : null;
+            })();
+            pendingTranslations.set(cacheKey, pendingPromise);
+            return pendingPromise;
+        }
+
+        function escapeHtml(text) {
+            return (text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderMarkdown(text) {
+            let html = escapeHtml(text || '');
+            html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="bg-slate-900 text-slate-100 rounded p-2 text-[11px] overflow-auto"><code>${code}</code></pre>`);
+            html = html.replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 rounded">$1</code>');
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
+
+        function renderChat() {
+            const transcripts = [peerTranscript, localTranscript].filter(Boolean);
+            transcripts.forEach(column => {
+                column.innerHTML = '';
+            });
+            const lastEntryId = chatHistory.length ? chatHistory[chatHistory.length - 1].id : null;
+            let shouldSaveHistory = false;
+            chatHistory.forEach(entry => {
+                const speaker = entry.speaker;
+                const bubbleClass = speaker === 'local' ? 'local' : 'peer';
+                const defaultSource = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+                const defaultTarget = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+                const sourceLanguage = entry.sourceLanguage || defaultSource;
+                const targetLanguage = entry.targetLanguage || defaultTarget;
+                if (!entry.sourceLanguage || !entry.targetLanguage) {
+                    entry.sourceLanguage = sourceLanguage;
+                    entry.targetLanguage = targetLanguage;
+                    shouldSaveHistory = true;
                 }
-                function peerInput(){
-                    // peer side uses voice input; we simulate with hidden textarea
-                    return null;
+                const text = entry.message || '';
+                const translationKey = `${sourceLanguage}|${targetLanguage}`;
+                entry.translations = entry.translations || {};
+                const cached = entry.translations[translationKey] || translationCache.get(`${sourceLanguage}|${targetLanguage}|${text}`);
+                const translationCols = [];
+
+                transcripts.forEach(column => {
+                    const row = document.createElement('div');
+                    row.className = `message-row ${bubbleClass}`;
+                    const bubble = document.createElement('div');
+                    bubble.className = `message-bubble ${bubbleClass}${entry.id === lastEntryId ? ' latest-bubble' : ''}`;
+
+                    const sourceCol = document.createElement('div');
+                    sourceCol.className = 'bubble-col';
+                    const translationCol = document.createElement('div');
+                    translationCol.className = 'bubble-col';
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.className = 'bubble-delete material-symbols-outlined';
+                    deleteButton.textContent = 'close';
+                    deleteButton.dataset.entryId = entry.id;
+                    bubble.append(sourceCol, translationCol);
+                    bubble.appendChild(deleteButton);
+                    row.appendChild(bubble);
+
+                    sourceCol.innerHTML = renderMarkdown(text);
+                    if (sourceLanguage === targetLanguage || !targetLanguage) {
+                        translationCol.innerHTML = renderMarkdown(text);
+                    } else if (cached) {
+                        translationCol.innerHTML = renderMarkdown(cached);
+                    } else {
+                        translationCol.textContent = '…';
+                    }
+
+                    translationCols.push(translationCol);
+                    column.appendChild(row);
+                });
+
+                if (sourceLanguage !== targetLanguage && !cached) {
+                    translateText(text, targetLanguage, sourceLanguage).then(translated => {
+                        if (!translated) {
+                            translationCols.forEach(col => {
+                                col.textContent = 'Translation unavailable.';
+                            });
+                            return;
+                        }
+                        entry.translations[translationKey] = translated;
+                        saveHistory();
+                        translationCols.forEach(col => {
+                            col.innerHTML = renderMarkdown(translated);
+                        });
+                    });
                 }
+            });
+            if (shouldSaveHistory) {
+                saveHistory();
             }
-            return { createKeyboard };
-        })();
+            scrollTranscriptsToBottom();
+        }
 
-        // Initialize keyboards
-        SimpleKeyboard.createKeyboard(kbSouth,()=>handleEnter('south'));
-        SimpleKeyboard.createKeyboard(kbNorth,()=>handleEnter('north'));
+        function addChatEntry(message, speaker) {
+            const trimmed = (message || '').trim();
+            if (!trimmed) return;
+            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+            const targetLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+            chatHistory.push({
+                id: createEntryId(),
+                message: trimmed,
+                speaker,
+                ts: Date.now(),
+                translations: {},
+                sourceLanguage,
+                targetLanguage
+            });
+            saveHistory();
+            renderChat();
+            scrollTranscriptsToBottom();
+            speakIfEnabled(trimmed, speaker);
+        }
 
-        function openKeyboard(side){
-            if(side==='south'){
-                kbSouth.classList.add('active');
-                currentState = State.SOUTH_ACTIVE;
-            }else{
-                kbNorth.classList.add('active');
-                currentState = State.NORTH_ACTIVE;
-            }
-            updateNubs();
+        function handleSubmit(input, speaker) {
+            const value = input.value || '';
+            if (!value.trim()) return;
+            clearTypingTimer();
+            settings.activeSpeaker = speaker;
+            updateSpeakerIndicator();
+            saveSettings();
+            addChatEntry(value, speaker);
+            input.value = '';
+            flipActiveSpeaker();
         }
-        function closeKeyboard(side){
-            if(side==='south'){
-                kbSouth.classList.remove('active');
-            }else{
-                kbNorth.classList.remove('active');
-            }
-            currentState = State.IDLE;
-            updateNubs();
+
+        function handleTyping(input, speaker) {
+            settings.activeSpeaker = speaker;
+            updateSpeakerIndicator();
+            saveSettings();
+            scheduleAutoSubmit(input, speaker);
         }
-        function updateNubs(){
-            // highlight active side's nub
-            nubSouth.style.background = (currentState===State.SOUTH_ACTIVE) ? 'var(--bubble-local-bg)' : 'var(--bubble-peer-bg)';
-            nubNorth.style.background = (currentState===State.NORTH_ACTIVE) ? 'var(--bubble-local-bg)' : 'var(--bubble-peer-bg)';
-        }
-        function handleNubClick(side){
-            if(currentState===State.IDLE){
-                openKeyboard(side);
-            }else if(currentState===side){
-                closeKeyboard(side);
-            }else{
-                // other side active – send request
-                requestFrom = side;
-                showRequestOverlay(side);
-            }
-        }
-        function showRequestOverlay(requesterSide){
-            overlay.classList.add('visible');
-            const targetLang = (requesterSide==='south') ? settings.peerLanguage : settings.localLanguage;
-            const requestMsg = {
-                en: 'The other person would like the keyboard.',
-                zh: '对方想要键盘。',
-                km: 'អ្នកផ្សេងចង់បានក្តារចុច។',
-                id: 'Orang lain ingin keyboard.',
-                ja: '相手がキーボードを欲しがっています。',
-                ko: '다른 사람이 키보드를 원합니다.',
-                lo: 'ຄົນອື່ນຕ້ອງການແປ້ນພິມ.',
-                ms: 'Orang lain mahu papan kekunci.',
-                th: 'อีกคนต้องการคีย์บอร์ด',
-                vi: 'Người kia muốn bàn phím.'
-            }[targetLang] || requestMsg.en;
-            overlayText.textContent = requestMsg;
-        }
-        function hideRequestOverlay(){
-            overlay.classList.remove('visible');
-            requestFrom = null;
-        }
-        function handleConfirm(){
-            // handoff keyboard
-            if(requestFrom==='south'){
-                closeKeyboard('north');
-                openKeyboard('south');
-            }else{
-                closeKeyboard('south');
-                openKeyboard('north');
-            }
-            hideRequestOverlay();
-        }
-        function handleDecline(){
-            // simply dismiss overlay; requester stays waiting
-            hideRequestOverlay();
-        }
-        function handleEnter(activeSide){
-            // Simulate sending message via baseline send button
-            if(activeSide==='south'){
-                localSend.click();
-                closeKeyboard('south');
-                openKeyboard('north');
-            }else{
-                // peer side uses voice; we trigger its send flow
-                // For simplicity, just toggle active speaker
-                speakerToggle.click(); // flips activeSpeaker
-                closeKeyboard('north');
-                openKeyboard('south');
+
+        function updatePeerTalkState(isListening) {
+            peerListening = isListening;
+            if (!peerTalk) return;
+            peerTalk.dataset.listening = isListening ? 'true' : 'false';
+            peerTalk.setAttribute('aria-pressed', isListening ? 'true' : 'false');
+            const icon = peerTalk.querySelector('.material-symbols-outlined');
+            if (icon) {
+                icon.textContent = isListening ? 'stop_circle' : 'mic';
             }
         }
 
-        // Nub event listeners
-        nubSouth.addEventListener('click',()=>handleNubClick('south'));
-        nubNorth.addEventListener('click',()=>handleNubClick('north'));
+        function initPeerRecognizer() {
+            if (peerRecognizer || !peerTalk) return;
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                peerTalk.disabled = true;
+                peerTalk.setAttribute('aria-label', 'Voice input not supported');
+                return;
+            }
+            peerRecognizer = new SpeechRecognition();
+            peerRecognizer.interimResults = false;
+            peerRecognizer.maxAlternatives = 1;
+            peerRecognizer.continuous = false;
+            peerRecognizer.addEventListener('start', () => updatePeerTalkState(true));
+            peerRecognizer.addEventListener('end', () => updatePeerTalkState(false));
+            peerRecognizer.addEventListener('error', () => updatePeerTalkState(false));
+            peerRecognizer.addEventListener('result', event => {
+                const transcript = Array.from(event.results || [])
+                    .map(result => result?.[0]?.transcript)
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim();
+                if (!transcript) return;
+                settings.activeSpeaker = 'peer';
+                updateSpeakerIndicator();
+                saveSettings();
+                addChatEntry(transcript, 'peer');
+                flipActiveSpeaker();
+            });
+        }
 
-        // Overlay buttons
-        overlayConfirm.addEventListener('click',handleConfirm);
-        overlayDecline.addEventListener('click',handleDecline);
+        function exportChat() {
+            const payload = {
+                history: chatHistory,
+                settings,
+                styles,
+                background
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'tabletop-chat.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+        }
 
-        // -------------------------------------------------
-        // Existing initialization (unchanged) – keep as is
-        // -------------------------------------------------
-        function $(id){ return document.getElementById(id); }
-        const $src = $('src'), $tgt = $('tgt'), $in = $('in'), $out = $('out'),
-              $status = $('status'), $copy = $('copy'), $diag = $('diag');
-        // ... (rest of original script unchanged) ...
+        function importChat(file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const payload = JSON.parse(reader.result);
+                    if (Array.isArray(payload?.history)) {
+                        chatHistory = payload.history;
+                        saveHistory();
+                    }
+                    if (payload?.settings) {
+                        settings = { ...DEFAULT_SETTINGS, ...payload.settings };
+                        saveSettings();
+                    }
+                    if (payload?.styles) {
+                        styles = { ...DEFAULT_STYLES, ...payload.styles };
+                        saveStyles();
+                    }
+                    if (payload?.background) {
+                        background = { ...DEFAULT_BACKGROUND, ...payload.background };
+                        saveBackground();
+                    }
+                    applyStyles();
+                    applyBackground();
+                    updateControls();
+                    renderChat();
+                } catch (_) {}
+            };
+            reader.readAsText(file);
+        }
 
-        // Ensure nubs are positioned correctly after layout
-        window.addEventListener('load',()=>{ updateNubs(); });
+        function clearChat() {
+            chatHistory = [];
+            saveHistory();
+            renderChat();
+        }
+
+        function updateTtsToggle(button, enabled) {
+            if (!button) return;
+            button.dataset.enabled = enabled ? 'true' : 'false';
+            const icon = button.querySelector('.material-symbols-outlined');
+            if (icon) {
+                icon.textContent = enabled ? 'volume_up' : 'volume_off';
+            }
+        }
+
+        function loadVoices() {
+            if (!('speechSynthesis' in window)) return;
+            availableVoices = speechSynthesis.getVoices().slice().sort((a, b) => a.name.localeCompare(b.name));
+            updateVoiceSelectors();
+        }
+
+        function updateVoiceSelectors() {
+            if (!localVoiceSelect || !peerVoiceSelect) return;
+            const defaultOption = '<option value="">Default voice</option>';
+            localVoiceSelect.innerHTML = defaultOption;
+            peerVoiceSelect.innerHTML = defaultOption;
+            const localCandidates = filterVoicesByLanguage(settings.localLanguage);
+            const peerCandidates = filterVoicesByLanguage(settings.peerLanguage);
+            populateVoiceOptions(localVoiceSelect, localCandidates);
+            populateVoiceOptions(peerVoiceSelect, peerCandidates);
+            if (settings.localVoice && !localCandidates.some(voice => voice.name === settings.localVoice)) {
+                settings.localVoice = '';
+            }
+            if (settings.peerVoice && !peerCandidates.some(voice => voice.name === settings.peerVoice)) {
+                settings.peerVoice = '';
+            }
+            localVoiceSelect.value = settings.localVoice || '';
+            peerVoiceSelect.value = settings.peerVoice || '';
+            saveSettings();
+        }
+
+        function filterVoicesByLanguage(languageCode) {
+            const prefix = (LANGUAGE_PREFIXES[languageCode] || languageCode || '').toLowerCase();
+            if (!prefix) return [];
+            return availableVoices.filter(voice => (voice.lang || '').toLowerCase().startsWith(prefix));
+        }
+
+        function guessVoiceGender(voice) {
+            const name = (voice.name || '').toLowerCase();
+            if (/(female|woman|girl|zira|susan|kate|samantha|victoria|karen|moira|tessa|veena|aria|jenny|olivia|emily|emma|amy|linda|zoe|serena|luna)/.test(name)) {
+                return 'female';
+            }
+            if (/(male|man|boy|david|mark|alex|daniel|tom|liam|guy|fred|jorge|kiko|matthew|michael|ryan|sean|george|paul|jorge)/.test(name)) {
+                return 'male';
+            }
+            return 'neutral';
+        }
+
+        function populateVoiceOptions(selectEl, voices) {
+            const groups = {
+                female: [],
+                male: [],
+                neutral: []
+            };
+            voices.forEach(voice => {
+                groups[guessVoiceGender(voice)].push(voice);
+            });
+            const labels = {
+                female: 'Female',
+                male: 'Male',
+                neutral: 'Neutral'
+            };
+            ['female', 'male', 'neutral'].forEach(group => {
+                groups[group].forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.name;
+                    option.textContent = `${voice.name} (${voice.lang}, ${labels[group]})`;
+                    selectEl.appendChild(option);
+                });
+            });
+        }
+
+        function speakIfEnabled(message, speaker) {
+            const enabled = speaker === 'local' ? settings.ttsEnabledLocal : settings.ttsEnabledPeer;
+            if (!enabled || !('speechSynthesis' in window)) return;
+            const receiverLanguage = speaker === 'local' ? settings.peerLanguage : settings.localLanguage;
+            const sourceLanguage = speaker === 'local' ? settings.localLanguage : settings.peerLanguage;
+            const voiceName = speaker === 'local' ? settings.peerVoice : settings.localVoice;
+            const speak = text => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (receiverLanguage) {
+                    utterance.lang = receiverLanguage;
+                }
+                if (voiceName) {
+                    const voice = availableVoices.find(item => item.name === voiceName);
+                    if (voice) utterance.voice = voice;
+                }
+                speechSynthesis.speak(utterance);
+            };
+            if (!receiverLanguage || receiverLanguage === sourceLanguage) {
+                speak(message);
+                return;
+            }
+            translateText(message, receiverLanguage, sourceLanguage).then(translated => {
+                if (translated) {
+                    speak(translated);
+                } else {
+                    speak(message);
+                }
+            });
+        }
+
+        function deleteEntryById(entryId) {
+            const next = chatHistory.filter(entry => entry.id !== entryId);
+            if (next.length === chatHistory.length) return;
+            chatHistory = next;
+            saveHistory();
+            renderChat();
+        }
+
+        function restoreGearPosition() {
+            const stored = readStorage('tabletop_chat_gear_position');
+            if (!stored) {
+                positionGearDefault();
+                return;
+            }
+            try {
+                const { left, top } = JSON.parse(stored);
+                if (Number.isFinite(left) && Number.isFinite(top)) {
+                    gearFab.style.left = `${left}px`;
+                    gearFab.style.top = `${top}px`;
+                    gearFab.style.right = 'auto';
+                    gearFab.style.bottom = 'auto';
+                    gearPositionLocked = true;
+                    return;
+                }
+            } catch (_) {}
+            positionGearDefault();
+        }
+
+        function positionGearDefault() {
+            if (!gearFab || !speakerToggle) return;
+            const anchorRect = speakerToggle.getBoundingClientRect();
+            const fabRect = gearFab.getBoundingClientRect();
+            const desiredLeft = anchorRect.right + 12;
+            const desiredTop = anchorRect.top + (anchorRect.height / 2) - (fabRect.height / 2);
+            const clampedLeft = Math.min(window.innerWidth - fabRect.width - 8, Math.max(8, desiredLeft));
+            const clampedTop = Math.min(window.innerHeight - fabRect.height - 8, Math.max(8, desiredTop));
+            gearFab.style.left = `${clampedLeft}px`;
+            gearFab.style.top = `${clampedTop}px`;
+            gearFab.style.right = 'auto';
+            gearFab.style.bottom = 'auto';
+        }
+
+        function enableGearDrag() {
+            if (!gearFab) return;
+            let isDragging = false;
+            let offsetX = 0;
+            let offsetY = 0;
+            let hasMoved = false;
+            let startX = 0;
+            let startY = 0;
+            const onMove = event => {
+                if (!isDragging) return;
+                if (!hasMoved) {
+                    if (Math.hypot(event.clientX - startX, event.clientY - startY) <= 4) {
+                        return;
+                    }
+                    hasMoved = true;
+                }
+                const x = event.clientX - offsetX;
+                const y = event.clientY - offsetY;
+                gearFab.style.left = `${Math.max(8, x)}px`;
+                gearFab.style.top = `${Math.max(8, y)}px`;
+                gearFab.style.right = 'auto';
+                gearFab.style.bottom = 'auto';
+            };
+            const onUp = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                gearFab.classList.remove('dragging');
+                document.removeEventListener('pointermove', onMove);
+                document.removeEventListener('pointerup', onUp);
+                if (hasMoved) {
+                    writeStorage('tabletop_chat_gear_position', JSON.stringify({
+                        left: gearFab.offsetLeft,
+                        top: gearFab.offsetTop
+                    }));
+                    gearPositionLocked = true;
+                    gearWasDragged = true;
+                }
+            };
+            gearFab.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                isDragging = true;
+                hasMoved = false;
+                gearWasDragged = false;
+                gearFab.classList.add('dragging');
+                const rect = gearFab.getBoundingClientRect();
+                offsetX = event.clientX - rect.left;
+                offsetY = event.clientY - rect.top;
+                startX = event.clientX;
+                startY = event.clientY;
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            });
+        }
+
+        settings = loadSettings();
+        styles = loadStyles();
+        background = loadBackground();
+        chatHistory = loadHistory();
+        applyStyles();
+        applyBackground();
+        restoreGearPosition();
+        enableGearDrag();
+        window.addEventListener('resize', () => {
+            if (!gearPositionLocked) {
+                positionGearDefault();
+            }
+        });
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            speechSynthesis.addEventListener('voiceschanged', loadVoices);
+        }
+        updateControls();
+        renderChat();
+
+        speakerToggle.addEventListener('click', () => {
+            settings.activeSpeaker = settings.activeSpeaker === 'local' ? 'peer' : 'local';
+            updateSpeakerIndicator();
+            saveSettings();
+        });
+
+        gearFab.addEventListener('click', () => {
+            if (gearWasDragged) {
+                gearWasDragged = false;
+                return;
+            }
+            toggleModal(true);
+        });
+        closeControls.addEventListener('click', () => toggleModal(false));
+        controlsModal.addEventListener('click', event => {
+            if (event.target === controlsModal) toggleModal(false);
+        });
+
+        localSend.addEventListener('click', () => handleSubmit(localInput, 'local'));
+        localTtsToggle.addEventListener('click', () => {
+            settings.ttsEnabledLocal = !settings.ttsEnabledLocal;
+            updateTtsToggle(localTtsToggle, settings.ttsEnabledLocal);
+            saveSettings();
+        });
+        peerTtsToggle.addEventListener('click', () => {
+            settings.ttsEnabledPeer = !settings.ttsEnabledPeer;
+            updateTtsToggle(peerTtsToggle, settings.ttsEnabledPeer);
+            saveSettings();
+        });
+
+        localInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                handleSubmit(localInput, 'local');
+            }
+        });
+
+        localInput.addEventListener('input', () => handleTyping(localInput, 'local'));
+
+        initPeerRecognizer();
+        if (peerTalk) {
+            peerTalk.addEventListener('click', () => {
+                if (!peerRecognizer) return;
+                if (peerListening) {
+                    peerRecognizer.stop();
+                    return;
+                }
+                peerRecognizer.lang = settings.peerLanguage || 'en';
+                peerRecognizer.start();
+            });
+        }
+
+        peerLanguageSelect.addEventListener('change', () => {
+            settings.peerLanguage = peerLanguageSelect.value;
+            saveSettings();
+            updateVoiceSelectors();
+            renderChat();
+        });
+        localLanguageSelect.addEventListener('change', () => {
+            settings.localLanguage = localLanguageSelect.value;
+            saveSettings();
+            updateVoiceSelectors();
+            renderChat();
+        });
+
+        typingPauseInput.addEventListener('change', () => {
+            const value = Number(typingPauseInput.value);
+            if (Number.isFinite(value) && value > 0) {
+                settings.typingPauseMs = Math.min(10000, Math.max(1000, Math.round(value * 1000)));
+                saveSettings();
+            }
+        });
+
+        localVoiceSelect.addEventListener('change', () => {
+            settings.localVoice = localVoiceSelect.value;
+            saveSettings();
+        });
+        peerVoiceSelect.addEventListener('change', () => {
+            settings.peerVoice = peerVoiceSelect.value;
+            saveSettings();
+        });
+
+        styleReset.addEventListener('click', () => {
+            styles = { ...DEFAULT_STYLES };
+            background = { ...DEFAULT_BACKGROUND };
+            applyStyles();
+            applyBackground();
+            updateControls();
+            saveStyles();
+            saveBackground();
+        });
+
+        styleSave.addEventListener('click', () => {
+            const clampFontSize = (value, fallback) => {
+                const numberValue = Number(value);
+                if (!Number.isFinite(numberValue)) return fallback;
+                return Math.min(48, Math.max(10, Math.round(numberValue)));
+            };
+            styles = {
+                localBg: styleLocalBg.value,
+                localText: styleLocalText.value,
+                peerBg: stylePeerBg.value,
+                peerText: stylePeerText.value,
+                localFontSize: clampFontSize(styleLocalFontSize.value, DEFAULT_STYLES.localFontSize),
+                peerFontSize: clampFontSize(stylePeerFontSize.value, DEFAULT_STYLES.peerFontSize)
+            };
+            background = {
+                localColor: styleLocalBgPanel.value,
+                peerColor: stylePeerBgPanel.value
+            };
+            applyStyles();
+            applyBackground();
+            updateControls();
+            saveStyles();
+            saveBackground();
+        });
+
+        [peerTranscript, localTranscript].forEach(column => {
+            if (!column) return;
+            column.addEventListener('click', event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) return;
+                if (target.classList.contains('bubble-delete')) {
+                    deleteEntryById(target.dataset.entryId);
+                }
+            });
+        });
+
+        drawerImport.addEventListener('click', () => drawerImportInput.click());
+        drawerImportInput.addEventListener('change', event => {
+            const file = event.target.files?.[0];
+            if (file) {
+                importChat(file);
+                drawerImportInput.value = '';
+            }
+        });
+
+        drawerExport.addEventListener('click', () => exportChat());
+        drawerClear.addEventListener('click', () => {
+            exportChat();
+            clearChat();
+        });
     </script>
+<!-- ===== DUCK KEYBOARD LAYER (additive; baseline above is chat.html verbatim) ===== -->
+<style>
+    .duck-nub{position:absolute;left:50%;transform:translateX(-50%);bottom:6px;z-index:30;
+        width:46px;height:46px;border-radius:999px;border:1px solid rgba(226,232,240,.9);
+        background:rgba(255,255,255,.95);box-shadow:0 8px 20px rgba(15,23,42,.14);
+        display:inline-flex;align-items:center;justify-content:center;color:#334155}
+    .duck-nub[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
+    .duck-nub[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
+    @keyframes duckPulse{50%{opacity:.45}}
+    .duck-kb{position:fixed;left:0;right:0;z-index:60;background:rgba(248,250,252,.99);
+        border-top:1px solid rgba(203,213,225,.9);box-shadow:0 -10px 30px rgba(15,23,42,.14);
+        padding:6px 6px calc(6px + env(safe-area-inset-bottom));transition:transform .18s ease;will-change:transform}
+    .duck-kb.south{bottom:0;transform:translateY(105%)}
+    .duck-kb.north{top:0;transform:rotate(180deg) translateY(105%);transform-origin:center;
+        border-top:none;border-bottom:1px solid rgba(203,213,225,.9);
+        padding:6px 6px calc(6px + env(safe-area-inset-top))}
+    .duck-kb.open.south{transform:translateY(0)}
+    .duck-kb.open.north{transform:rotate(180deg) translateY(0)}
+    .duck-kb-buffer{display:flex;align-items:center;gap:8px;padding:4px 6px 6px}
+    .duck-kb-buffer .txt{flex:1;min-width:0;min-height:32px;padding:6px 10px;border-radius:14px;
+        border:1px solid rgba(226,232,240,.95);background:#fff;font-size:15px;white-space:pre-wrap;word-break:break-word}
+    .duck-kb-buffer .lang{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase}
+    .duck-row{display:flex;gap:4px;justify-content:center;margin-bottom:4px}
+    .duck-key{flex:1 1 0;min-width:0;max-width:52px;height:42px;border-radius:8px;border:1px solid rgba(203,213,225,.9);
+        background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.12);font-size:16px;color:#0f172a;
+        display:inline-flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation}
+    .duck-key:active{background:#e2e8f0}
+    .duck-key.wide{flex:2 1 0;max-width:none;font-size:13px;font-weight:700}
+    .duck-key.space{flex:5 1 0;max-width:none}
+    .duck-key.enter{flex:2 1 0;max-width:none;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent;font-size:13px;font-weight:700}
+    .duck-key.fn{font-size:12px;font-weight:700;color:#475569}
+    .duck-ask{position:absolute;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
+        background:rgba(15,23,42,.45);backdrop-filter:blur(2px)}
+    .duck-ask.show{display:flex}
+    .duck-ask-card{width:min(88%,340px);background:#fff;border-radius:18px;padding:18px;
+        box-shadow:0 20px 50px rgba(15,23,42,.3);text-align:center}
+    .duck-ask-card p{font-size:15px;color:#0f172a;margin-bottom:14px;line-height:1.4}
+    .duck-ask-btns{display:flex;gap:10px}
+    .duck-ask-btns button{flex:1;height:44px;border-radius:12px;font-weight:700;font-size:14px;border:1px solid rgba(203,213,225,.9);background:#f1f5f9;color:#334155}
+    .duck-ask-btns .ok{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
+    #duck-diag-btn{position:fixed;left:8px;bottom:8px;z-index:41;width:34px;height:34px;border-radius:999px;
+        border:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.9);color:#64748b;font-size:15px}
+    #duck-diag{position:fixed;left:0;right:0;bottom:0;z-index:80;max-height:52vh;overflow:auto;display:none;
+        background:#0f172a;color:#e2e8f0;font:11px/1.5 ui-monospace,Menlo,monospace;padding:10px 12px}
+    #duck-diag.show{display:block}
+    #duck-diag b{color:#7dd3fc}
+    #duck-diag .err{color:#fca5a5}
+</style>
+<script>
+(function duckKeyboardLayer(){
+    'use strict';
+    /* ---------- layouts (hand-rolled, zero deps) ---------- */
+    var LAYOUTS={
+        latin:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP']],
+               shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP']]},
+        vi:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['ă','â','ê','ô','ơ','ư','đ','á','à','ả']],
+            shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Ă','Â','Ê','Ô','Ơ','Ư','Đ','ã','ạ','ầ']]},
+        th:{rows:[['ๆ','ไ','ำ','พ','ะ','ั','ี','ร','น','ย'],['ฟ','ห','ก','ด','เ','้','่','า','ส','ว'],['SHIFT','ผ','ป','แ','อ','ิ','ื','ท','ม','BKSP'],['ใ','ฝ','ล','ง','ข','ช','ต','จ','ค','ษ']],
+            shift:[['๑','๒','๓','๔','๕','๖','๗','๘','๙','๐'],['ฤ','ฆ','ฏ','โ','ฌ','็','๋','ษ','ศ','ซ'],['SHIFT','(',')','ฉ','ฮ','ฺ','์','?','ฒ','BKSP'],['ฬ','ฦ','ฑ','ธ','ณ','ญ','ฐ','ฯ','ฃ','ฅ']]},
+        km:{rows:[['ក','ខ','គ','ឃ','ង','ច','ឆ','ជ','ឈ','ញ'],['ដ','ឋ','ឌ','ឍ','ណ','ត','ថ','ទ','ធ','ន'],['SHIFT','ប','ផ','ព','ភ','ម','យ','រ','ល','BKSP'],['វ','ស','ហ','ឡ','អ','ា','ិ','ី','ុ','ូ']],
+            shift:[['១','២','៣','៤','៥','៦','៧','៨','៩','០'],['េ','ែ','ៃ','ោ','ៅ','ំ','ះ','៉','៊','់'],['SHIFT','៌','៍','៎','៏','័','្','ឲ','ឳ','BKSP'],['ឪ','ឫ','ឬ','ឭ','ឮ','ៗ','។','៕','៖','៙']]},
+        lo:{rows:[['ກ','ຂ','ຄ','ງ','ຈ','ສ','ຊ','ຍ','ດ','ຕ'],['ຖ','ທ','ນ','ບ','ປ','ຜ','ຝ','ພ','ຟ','ມ'],['SHIFT','ຢ','ຣ','ລ','ວ','ຫ','ອ','ຮ','ະ','BKSP'],['ັ','າ','ິ','ີ','ຶ','ື','ຸ','ູ','ເ','ແ']],
+            shift:[['໑','໒','໓','໔','໕','໖','໗','໘','໙','໐'],['ໂ','ໃ','ໄ','ຳ','ົ','ຼ','່','້','໊','໋'],['SHIFT','໌','ໍ','ຯ','ໆ','๚','(',')','?','BKSP'],['ໜ','ໝ','ຫຼ','ຫງ','ຫຍ','ຫນ','ຫມ','ຫລ','ຫວ','ໟ']]},
+        ja:{rows:[['あ','い','う','え','お','か','き','く','け','こ'],['さ','し','す','せ','そ','た','ち','つ','て','と'],['SHIFT','な','に','ぬ','ね','の','は','ひ','ふ','BKSP'],['へ','ほ','ま','み','む','め','も','や','ゆ','よ'],['ら','り','る','れ','ろ','わ','を','ん','ー','、']],
+            shift:[['ア','イ','ウ','エ','オ','カ','キ','ク','ケ','コ'],['サ','シ','ス','セ','ソ','タ','チ','ツ','テ','ト'],['SHIFT','ナ','ニ','ヌ','ネ','ノ','ハ','ヒ','フ','BKSP'],['ヘ','ホ','マ','ミ','ム','メ','モ','ヤ','ユ','ヨ'],['ラ','リ','ル','レ','ロ','ワ','ヲ','ン','゛','゜']]},
+        ko:{rows:[['ㅂ','ㅈ','ㄷ','ㄱ','ㅅ','ㅛ','ㅕ','ㅑ','ㅐ','ㅔ'],['ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ'],['SHIFT','ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ','BKSP']],
+            shift:[['ㅃ','ㅉ','ㄸ','ㄲ','ㅆ','ㅛ','ㅕ','ㅑ','ㅒ','ㅖ'],['ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ'],['SHIFT','ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ','BKSP']]},
+        num:{rows:[['1','2','3','4','5','6','7','8','9','0'],['-','/',':',';','(',')','$','&','@','"'],['SHIFT','.',',','?','!',"'",'+','=','BKSP']],
+             shift:[['[',']','{','}','#','%','^','*','+','='],['_','\\','|','~','<','>','€','£','¥','•'],['SHIFT','.',',','?','!',"'",'§','¿','BKSP']]}
+    };
+    var LANG_LAYOUT={en:'latin',id:'latin',ms:'latin',zh:'latin',vi:'vi',th:'th',km:'km',lo:'lo',ja:'ja',ko:'ko'};
+    var ASK_TEXT={en:'The other person would like to use the keyboard.',ok:'Allow',no:'Decline'};
+
+    /* ---------- state ---------- */
+    var owner=null;            // null | 'local' | 'peer'
+    var pendingFrom=null;      // side asking
+    var askTimer=null;
+    var kb={},nub={},buf={local:'',peer:''},shifted={local:false,peer:false},numMode={local:false,peer:false};
+    var peerInput=document.createElement('textarea');   // hidden input so baseline handleSubmit() runs untouched
+    peerInput.id='duck-peer-input';peerInput.style.display='none';document.body.appendChild(peerInput);
+    var localInputEl=document.getElementById('local-input');
+    var diagLines=[];
+
+    function diag(msg,err){
+        diagLines.push((err?'!':'·')+' '+new Date().toISOString().slice(11,19)+' '+msg);
+        if(diagLines.length>200)diagLines=diagLines.slice(-200);
+        var d=document.getElementById('duck-diag');
+        if(d&&d.classList.contains('show'))renderDiag();
+    }
+    function renderDiag(){
+        var d=document.getElementById('duck-diag');
+        d.innerHTML='<b>Keyboard diagnostics</b> — owner: '+(owner||'none')+' · pending: '+(pendingFrom||'none')+'<br>'+
+            diagLines.slice().reverse().map(function(l){return '<div class="'+(l[0]==='!'?'err':'')+'">'+l.replace(/[&<>]/g,'')+'</div>'}).join('');
+    }
+    function langOf(side){
+        try{return side==='local'?(settings.localLanguage||'en'):(settings.peerLanguage||'en')}catch(e){return 'en'}
+    }
+    function other(side){return side==='local'?'peer':'local'}
+
+    /* ---------- build UI (append only; nothing existing is modified) ---------- */
+    function buildNub(side){
+        var host=document.querySelector(side==='local'?'.tabletop-south .client-shell':'.tabletop-north .client-shell');
+        if(!host)return null;
+        host.style.position=host.style.position||'relative';
+        var b=document.createElement('button');
+        b.type='button';b.className='duck-nub';b.setAttribute('aria-label','Keyboard');
+        b.innerHTML='<span class="material-symbols-outlined">keyboard</span>';
+        b.addEventListener('click',function(){onNub(side)});
+        host.appendChild(b);
+        return b;
+    }
+    function buildKeyboard(side){
+        var el=document.createElement('div');
+        el.className='duck-kb '+(side==='local'?'south':'north');
+        el.innerHTML='<div class="duck-kb-buffer"><span class="lang"></span><div class="txt"></div></div><div class="duck-keys"></div>';
+        document.body.appendChild(el);
+        return el;
+    }
+    function buildAsk(side){
+        var host=document.querySelector(side==='local'?'.tabletop-south':'.tabletop-north');
+        var a=document.createElement('div');
+        a.className='duck-ask';
+        a.innerHTML='<div class="duck-ask-card"><p></p><div class="duck-ask-btns"><button type="button" class="no"></button><button type="button" class="ok"></button></div></div>';
+        host.style.position=host.style.position||'relative';
+        host.appendChild(a);
+        a.querySelector('.ok').addEventListener('click',function(){resolveAsk(true)});
+        a.querySelector('.no').addEventListener('click',function(){resolveAsk(false)});
+        return a;
+    }
+
+    /* ---------- keys ---------- */
+    function layoutFor(side){
+        var code=langOf(side);
+        var name=numMode[side]?'num':(LANG_LAYOUT[code]||'latin');
+        var L=LAYOUTS[name]||LAYOUTS.latin;
+        return shifted[side]?(L.shift||L.rows):L.rows;
+    }
+    function renderKeys(side){
+        var wrap=kb[side].querySelector('.duck-keys');
+        var rows=layoutFor(side);
+        var html='';
+        rows.forEach(function(r){
+            html+='<div class="duck-row">';
+            r.forEach(function(k){
+                if(k==='SHIFT')html+='<button type="button" class="duck-key fn wide" data-k="SHIFT">⇧</button>';
+                else if(k==='BKSP')html+='<button type="button" class="duck-key fn wide" data-k="BKSP">⌫</button>';
+                else html+='<button type="button" class="duck-key" data-k="'+k.replace(/"/g,'&quot;')+'">'+k.replace(/[&<>]/g,'')+'</button>';
+            });
+            html+='</div>';
+        });
+        html+='<div class="duck-row">'+
+            '<button type="button" class="duck-key fn wide" data-k="NUM">'+(numMode[side]?'ABC':'123')+'</button>'+
+            '<button type="button" class="duck-key space" data-k=" ">space</button>'+
+            '<button type="button" class="duck-key enter" data-k="ENTER">Enter</button>'+
+            '<button type="button" class="duck-key fn wide" data-k="CLOSE">✕</button></div>';
+        wrap.innerHTML=html;
+        wrap.querySelectorAll('.duck-key').forEach(function(b){
+            b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
+        });
+        kb[side].querySelector('.lang').textContent=langOf(side);
+        paintBuffer(side);
+    }
+    function paintBuffer(side){kb[side].querySelector('.txt').textContent=buf[side]||''}
+    function press(side,k){
+        if(k==='SHIFT'){shifted[side]=!shifted[side];renderKeys(side);return}
+        if(k==='NUM'){numMode[side]=!numMode[side];shifted[side]=false;renderKeys(side);return}
+        if(k==='BKSP'){buf[side]=buf[side].slice(0,-1);paintBuffer(side);return}
+        if(k==='CLOSE'){closeKb(side,'closed by user');return}
+        if(k==='ENTER'){commit(side);return}
+        buf[side]+=k;
+        if(shifted[side]&&k.length===1){shifted[side]=false;renderKeys(side)}
+        paintBuffer(side);
+    }
+
+    /* ---------- commit through the baseline pipeline ---------- */
+    function commit(side){
+        var text=(buf[side]||'').trim();
+        if(!text){closeKb(side,'enter with empty buffer');return}
+        buf[side]='';paintBuffer(side);
+        try{
+            if(side==='local'){localInputEl.value=text;handleSubmit(localInputEl,'local')}
+            else{peerInput.value=text;handleSubmit(peerInput,'peer')}
+            diag('sent from '+side+' ('+text.length+' chars) via baseline handleSubmit');
+        }catch(e){diag('send failed: '+e.message,true)}
+        closeKb(side,'sent');
+        // hand the keyboard to the other side
+        openKb(other(side),'handoff after send');
+    }
+
+    /* ---------- open/close/handoff ---------- */
+    function openKb(side,why){
+        if(owner&&owner!==side)closeKb(owner,'replaced');
+        owner=side;
+        kb[side].classList.add('open');
+        nub[side].dataset.owned='true';
+        nub[other(side)].dataset.owned='false';
+        if(side==='local'){try{localInputEl.setAttribute('readonly','readonly')}catch(e){}}
+        renderKeys(side);
+        diag('keyboard → '+side+(why?' ('+why+')':''));
+    }
+    function closeKb(side,why){
+        if(!kb[side])return;
+        kb[side].classList.remove('open');
+        nub[side].dataset.owned='false';
+        if(owner===side)owner=null;
+        diag('keyboard closed on '+side+(why?' ('+why+')':''));
+    }
+    function onNub(side){
+        if(owner===side){closeKb(side,'nub tap');return}
+        if(!owner){openKb(side,'nub tap');return}
+        ask(side);
+    }
+
+    /* ---------- request overlay, localized to the person being asked ---------- */
+    var askEl={};
+    function ask(fromSide){
+        var target=other(fromSide);
+        pendingFrom=fromSide;
+        nub[fromSide].dataset.pending='true';
+        var card=askEl[target];
+        var lang=langOf(target);
+        setText(card.querySelector('p'),ASK_TEXT.en,lang);
+        setText(card.querySelector('.ok'),ASK_TEXT.ok,lang);
+        setText(card.querySelector('.no'),ASK_TEXT.no,lang);
+        card.classList.add('show');
+        diag('request: '+fromSide+' → '+target+' (asking in '+lang+')');
+        clearTimeout(askTimer);
+        askTimer=setTimeout(function(){diag('request timed out');resolveAsk(false,true)},20000);
+    }
+    function setText(el,en,lang){
+        el.textContent=en;
+        if(!lang||lang==='en')return;
+        try{
+            translateText(en,lang,'en').then(function(t){if(t)el.textContent=t}).catch(function(){});
+        }catch(e){/* baseline translate unavailable; English stands */}
+    }
+    function resolveAsk(granted,silent){
+        clearTimeout(askTimer);
+        Object.keys(askEl).forEach(function(k){askEl[k].classList.remove('show')});
+        var from=pendingFrom;pendingFrom=null;
+        if(from)nub[from].dataset.pending='false';
+        if(!from)return;
+        if(granted){closeKb(other(from),'granted');openKb(from,'request granted')}
+        else diag('request '+(silent?'expired':'declined')+' for '+from);
+    }
+
+    /* ---------- init ---------- */
+    ['local','peer'].forEach(function(side){
+        nub[side]=buildNub(side);
+        kb[side]=buildKeyboard(side);
+        askEl[side]=buildAsk(side);
+        if(nub[side])nub[side].dataset.owned='false';
+    });
+    // hardware Enter while a keyboard is open commits that side
+    document.addEventListener('keydown',function(e){
+        if(e.key!=='Enter'||e.shiftKey||!owner)return;
+        if(owner==='peer'){e.preventDefault();commit('peer')}
+    });
+    // language changes repaint the open keyboard
+    ['local-language-select','peer-language-select'].forEach(function(id){
+        var el=document.getElementById(id);
+        if(el)el.addEventListener('change',function(){if(owner)renderKeys(owner);diag('language changed → repaint')});
+    });
+    var diagBtn=document.createElement('button');
+    diagBtn.id='duck-diag-btn';diagBtn.type='button';diagBtn.textContent='⌁';diagBtn.setAttribute('aria-label','Keyboard diagnostics');
+    var diagPanel=document.createElement('div');diagPanel.id='duck-diag';
+    document.body.appendChild(diagBtn);document.body.appendChild(diagPanel);
+    diagBtn.addEventListener('click',function(){
+        diagPanel.classList.toggle('show');
+        if(diagPanel.classList.contains('show'))renderDiag();
+    });
+    diag('keyboard layer ready — languages: '+Object.keys(LANG_LAYOUT).join(','));
+})();
+</script>
+
 </body>
 </html>
