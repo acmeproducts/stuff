@@ -14,6 +14,7 @@ Append a row before every build session that touches code.
 | 3 | Define | 2026-09-02: Resolve keyboard question — custom per‑side on‑screen keyboards rendered in each user's orientation (no phone spinning); Venice AI confirmed as translation engine, MyMemory API acceptable as fallback | DONE |
 | 4 | Define | 2026-09-03: Owner decides Venice AI not needed; use MyMemory API only; explore open‑source on‑screen keyboard library | DONE |
 | 5 | Define | 2026-09-10: Owner requests test URL; per rules no URLs returned, noted MyMemory test endpoint must come from official docs; open-source keyboard libraries remain to be evaluated | DONE |
+| 6 | Define | 2026-09-10: Owner says "build it" — project is still in DEFINE phase; per rules no code written; build request logged to backlog pending Define exit criteria (language pair, keyboard library, MyMemory endpoint) | DONE |
 
 ## 1. DEFINE
 
@@ -27,14 +28,14 @@ Append a row before every build session that touches code.
 **Turn‑taking model (owner‑specified)**
 - Both sides need keyboard access, even if a mini keyboard; at minimum one keyboard at a time.
 - When North hits **Enter**, South reads the (translated) message and the keyboard **automatically** pops up on South’s side.
-- South then either types + Enter or **relinquishes** the turn.
+- South then either types + Enter or **relinquishes** the turn.
 - A **REQUEST** button lets a side ask for the turn / ask the other to relinquish.
 
 **Keyboard – DECIDED (2026‑09‑02)**
 - Owner’s question: can an on‑screen keyboard pop up for North, and can South use the keyboard without spinning the phone? **YES** – with a custom in‑app keyboard.
 - Custom on‑screen keyboard is pure HTML/CSS/JS, so we control position and orientation completely:
   * South’s keyboard renders at South’s edge in normal orientation.
-  * North’s keyboard renders at North’s edge rotated 180° (CSS `transform`) so it faces North.
+  * North’s keyboard renders at North’s edge rotated 180° (CSS `transform`) so it faces North.
 - Neither user ever spins the phone.
 - **OS keyboard rejected** as primary: cannot be rotated per side, cannot be forced to a specific language from a web page.
 - **Open‑source on‑screen keyboard libraries** will be evaluated to avoid building a keyboard from scratch (e.g., **Simple Keyboard**, **Virtual Keyboard**, **KeyboardJS**, **Mottie/Keyboard**). The chosen library will be wrapped to support per‑side orientation and language‑specific layouts.
@@ -51,10 +52,16 @@ Append a row before every build session that touches code.
 - Outcome: a fluid back‑and‑forth translated conversation on one device with no passing‑the‑phone awkwardness and no keyboard friction.
 
 **Success criteria (draft)**
-- Turn handoff (Enter → translation → opposite keyboard pop) feels instant on a mid‑range phone.
-- Translation round‑trip latency ≤ 1 s (target to be validated).
+- Turn handoff (Enter → translation → opposite keyboard pop) feels instant on a mid‑range phone.
+- Translation round‑trip latency ≤ 1 s (target to be validated).
 - No console‑only errors; all diagnostics appear in‑app.
 - Works error‑free on real phone viewport with the chosen open‑source keyboard.
+
+**Define exit criteria (must be resolved before any build)**
+- Launch language pair(s) chosen.
+- Keyboard library selected (or explicit decision to hand‑roll).
+- MyMemory endpoint supplied by owner from official docs.
+- Numeric translation latency target confirmed.
 
 ## 2. RELEASES
 
@@ -113,6 +120,7 @@ Append a row before every build session that touches code.
 - Keyboard input events feed into the turn state machine.
 
 ## 4. FUTURE IDEAS (parking lot)
+- **Owner build request (2026‑09‑10)**: Owner said "build it" during DEFINE. Logged here per rules — no code in Define phase. Action: on Define exit, proceed directly to R1 build (MyMemory integration) then R2 shell, using the reference chat.html as the starting code base.
 - User authentication.
 - Response caching.
 - Offline fallback behavior.
@@ -139,6 +147,7 @@ Append a row before every build session that touches code.
 | 2026‑09‑03 | Owner decides **no Venice AI**; use **MyMemory API only**. |
 | 2026‑09‑03 | Explore open‑source virtual keyboard libraries to avoid building from scratch. |
 | 2026‑09‑10 | Test URL request recorded: owner must obtain MyMemory test endpoint from official API docs and supply it; assistant cannot return URLs. |
+| 2026‑09‑10 | Owner requested build ("build it"); deferred per Define‑phase rule — request logged in backlog, build starts upon Define exit. |
 
 ## 7. APPENDIX
 - **Authority order**: this plan (duck.md) > all else. Chat history loses to the plan.
