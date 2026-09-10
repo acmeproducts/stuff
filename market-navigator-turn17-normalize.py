@@ -35,6 +35,15 @@ if old_active in s:
 elif new_active not in s:
     raise SystemExit('Turn 17 exact-active-state anchor missing')
 
+# The Data surface can be opened from COMPONENT, which itself is a modal.
+# Give Data a higher stacking level so its close/control surface cannot be
+# intercepted by the analysis modal underneath it.
+if '#dataModal{z-index:50}' not in s:
+    anchor = '.dataCard{width:min(1180px,calc(100% - 24px));'
+    if anchor not in s:
+        raise SystemExit('Turn 17 Data z-index anchor missing')
+    s = s.replace(anchor, '#dataModal{z-index:50}' + anchor, 1)
+
 builder.write_text(s)
 
 qa = Path('market-navigator-turn17-qa.mjs')
