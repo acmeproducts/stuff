@@ -158,7 +158,7 @@ select.input{appearance:auto}
 <div id="scrim"></div>
 <div id="app">
 <aside id="sidebar">
-  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b27</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
+  <div class="bar"><span id="dot"></span><span class="brand">devstream <span class="version">v1.0 b28</span></span><span class="grow"></span><button class="btn" id="projectAdd">+ New</button><button class="btn" id="refresh">↻</button><button class="btn" id="settings">⚙</button></div>
   <div id="searchWrap"><input id="search" class="input" placeholder="Search projects & threads">
     <div class="legend"><span><i class="legendDot ok"></i>OK</span><span><i class="legendDot run"></i>Running</span><span><i class="legendDot err"></i>Error</span></div></div>
   <div id="projList"></div>
@@ -745,7 +745,7 @@ function agentSystem(codeFile,planFile,phase){
     Design:'Current phase: DESIGN. Focus on HOW: architecture, UI model, data/persistence, constraints, release slicing. Write these into the plan\'s Design section. Code only as small spikes if explicitly demanded.',
     Build:'Current phase: BUILD. Execution cycles: implement per the plan into the CODE file, plan-before-code, one release slice at a time.',
     Ship:'Current phase: SHIP. Stabilize only: fixes, polish, docs. No new scope — new ideas go to the plan\'s Future Ideas.'}[phase]||'';
-  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
+  return 'You are the devstream build agent for a project with two artifacts: the CODE file "'+codeFile+'" (a single-file mobile-first HTML app) and the PLAN file "'+planFile+'" (the master plan, sole authority, and the ONLY memory that persists between runs — chat history may be partial or missing). '+phaseGuide+' You may be given REFERENCED FILE blocks (code pulled from GitHub URLs the owner pasted) — treat them as authoritative source material. CRITICAL: if a REFERENCED FILE block is present, its full contents ARE already in front of you — never reply that you cannot access GitHub, fetch URLs, or read the file; just use the contents given. If web search is enabled you can look up current docs, APIs and error messages to unblock yourself; cite what you found in the SUMMARY. ALWAYS read the plan context first and continue from its ledger; you are picking up where the previous run left off. Rules: questions/ideas/feedback update the PLAN (or are just answered); update-plan-before-code; at most ONE file write per response. When you write the PLAN, append a dated row to its TURN/STAGE LEDGER describing this run. All diagnostics in the app itself, never console-only. Preserve existing functionality not mentioned. Respond in EXACTLY this format:\nSUMMARY: <one or two sentences>\nTARGET: <'+codeFile+' or '+planFile+' or NONE>\nSTATE: <phase> | open: <top open items, terse> | next: <the single next step>\n<blank line>\n<if TARGET is a file: the COMPLETE new file content, no fences, nothing after it. If TARGET is NONE: your answer text.>';
 }
 function parseAgent(text){
   let summary='Done.',target='NONE';
@@ -809,6 +809,7 @@ async function runAgent(key){
     let commit=null,testUrl=t.testUrl||'',reply=summary;
     if(usedEng!==eng)reply='[via '+usedEng+' — '+eng+' failed]\n'+reply;
     const followedContract=/^SUMMARY:/m.test(res.raw||'')||target!=='NONE'||summary!=='Done.';
+    const ing=res.ingested||[];
     if(target!=='NONE'){
       if(body.length<80)throw new Error('agent returned no usable file content for '+target);
       const prev=await getFile(target).catch(()=>null);
@@ -823,6 +824,9 @@ async function runAgent(key){
       if(!followedContract)reply+='\n⚠️ Engine ignored the build contract (no SUMMARY/TARGET markers) — consider a stronger model for this thread (tap the engine chip).';
     }
     pend.forEach(m=>{m.status='done';delete m.forcedTarget});
+    if(ing.length)reply='📥 Ingested from GitHub: '+ing.map(i=>i.path+' ('+i.k+'k)').join(', ')+'\n'+reply;
+    if(ing.length&&/can(?:no|')t\s+(?:access|retrieve|fetch|read|open)|unable to (?:access|retrieve|fetch|read)|don'?t have access/i.test(reply))
+      reply+='\n⚠️ The engine claimed it cannot access GitHub, but '+ing.length+' file(s) WERE supplied in its context — that is a model failure, not a fetch failure. Switch this thread to a stronger model via the engine chip.';
     if(state)reply+='\n— '+state;
     th.data.messages.push({role:'agent',text:reply,summary,ts:now(),commit:commit||undefined,target:target!=='NONE'?target:undefined,state:state||undefined});
     th.data.lastState=state||th.data.lastState;
@@ -912,12 +916,12 @@ self.onmessage=async e=>{
       const r=await tfetch('https://api.github.com/repos/'+cfg.owner+'/'+cfg.repo+'/contents/'+im.path+'?ref='+cfg.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github+json'}},25000);
       if(r.ok){const j=await r.json();images.push({name:im.name,type:im.type,b64:(j.content||'').replace(/\\n/g,'')})}
     }
-    let ctx='';
+    let ctx='';const ingested=[];
     for(const ref of (job.ghRefs||[])){
       post({type:'log',line:'fetching '+ref.owner+'/'+ref.repo+'/'+ref.path});
       try{
         const r=await tfetch('https://api.github.com/repos/'+ref.owner+'/'+ref.repo+'/contents/'+ref.path+'?ref='+ref.branch,{cache:'no-store',headers:{'Authorization':'Bearer '+cfg.pat,'Accept':'application/vnd.github.raw+json'}},25000);
-        if(r.ok){const txt=await r.text();ctx+='REFERENCED FILE '+ref.url+':\\n<ref>\\n'+txt.slice(0,400000)+'\\n</ref>\\n\\n';post({type:'log',line:'fetched '+ref.path+' ('+Math.round(txt.length/1000)+'k)'})}
+        if(r.ok){const txt=await r.text();ctx+='REFERENCED FILE '+ref.url+':\\n<ref>\\n'+txt.slice(0,400000)+'\\n</ref>\\n\\n';ingested.push({path:ref.path,k:Math.round(txt.length/1000)});post({type:'log',line:'fetched '+ref.path+' ('+Math.round(txt.length/1000)+'k)'})}
         else post({type:'log',line:'could not fetch '+ref.path+' ('+r.status+')',err:true});
       }catch(e){post({type:'log',line:'fetch failed '+ref.path+': '+e.message,err:true})}
     }
@@ -937,7 +941,7 @@ self.onmessage=async e=>{
     if(text===null)throw new Error('all engines failed: '+fails.join(' | '));
     post({type:'log',line:'engine done ('+Math.round(text.length/1000)+'k chars out), parsing'});
     const{summary,target,body,state}=parseAgent(text);
-    post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng,raw:text.slice(0,400)});
+    post({type:'done',summary,target,body,state:(typeof state!=='undefined'?state:''),usedEng,raw:text.slice(0,400),ingested});
   }catch(err){post({type:'error',message:err.message})}
 };
 `;
