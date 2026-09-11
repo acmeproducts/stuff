@@ -226,3 +226,9 @@ Turn 17 is a bounded interaction/readout correction over the qualified Turn 16 a
 - Browser TTS playback is in scope and uses the PRISM Library interaction donor.
 - Downloadable/generated MP3 audio is **backlog only**. Do not fake an MP3 export from `speechSynthesis`; add it only with a future file-producing TTS implementation.
 
+
+
+## Turn 17 long-horizon overplotting — rejected for Turn 18
+Rejected behavior: drawing every high-frequency real observation at YTD/1YR/3YR/5YR simply because the evidence exists. On phone and dense multi-series charts this creates avoidable visual noise and reduces analytical readability.
+
+Do not fix this by mutating/downsampling persisted evidence, monthly averaging, interpolation, forward-fill, synthetic timestamps, or by weakening full-resolution Data/crosshair behavior. Turn 18 uses presentation-only real-observation display reduction: weekly for YTD/1YR and monthly for 3YR/5YR, while 1D/5D/MTD remain native.
