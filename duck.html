@@ -1302,15 +1302,17 @@
         text-transform:uppercase;padding:2px 10px;border-radius:999px;background:rgba(148,163,184,.14);margin:2px 0}
 
     /* per-side composer additions */
-    .duck-compose{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.98)}
+    .duck-compose{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.98)}
     .duck-inwrap{flex:1;min-width:0;position:relative;display:flex;align-items:center}
     .duck-in{flex:1;min-width:0;padding:9px 34px 9px 13px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
         background:#fff;font-size:15px;resize:none;max-height:96px;line-height:1.35}
     .duck-clear{position:absolute;right:6px;width:24px;height:24px;border-radius:999px;border:1px solid rgba(203,213,225,.8);
         background:rgba(241,245,249,.95);color:#64748b;display:none;align-items:center;justify-content:center;font-size:14px;line-height:1}
     .duck-clear.show{display:inline-flex}
-    .duck-ctl{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;
+    .duck-ctl{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;
         border:1px solid rgba(226,232,240,.95);background:#fff;color:#475569;flex-shrink:0}
+    .duck-ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
+    .duck-ctl.ttsbtn[data-on="true"]{background:rgba(191,219,254,.95);color:#1e40af;border-color:rgba(147,197,253,.9)}
     .duck-ctl[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
     .duck-ctl[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
     @keyframes duckPulse{50%{opacity:.45}}
@@ -1781,7 +1783,7 @@
 
     /* ================= state ================= */
     var owner=null,pendingFrom=null,askTimer=null;
-    var kb={},ctl={},askEl={},inputs={},clears={},langbar={};
+    var kb={},ctl={},micCtl={},ttsCtl={},askEl={},inputs={},clears={},langbar={};
     var shifted={local:false,peer:false},numMode={local:false,peer:false};
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
     var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
@@ -1839,6 +1841,8 @@
         var row=document.createElement('div');row.className='duck-compose';
         row.innerHTML=
             '<button type="button" class="duck-ctl kbbtn" aria-label="Keyboard"><span class="material-symbols-outlined" style="font-size:20px">keyboard</span></button>'+
+            '<button type="button" class="duck-ctl micbtn" data-on="false" aria-label="Dictate"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>'+
+            '<button type="button" class="duck-ctl ttsbtn" data-on="false" aria-label="Read aloud"><span class="material-symbols-outlined" style="font-size:20px">volume_off</span></button>'+
             '<button type="button" class="duck-ctl gearbtn" aria-label="Settings"><span class="material-symbols-outlined" style="font-size:20px">settings</span></button>'+
             '<span class="duck-inwrap"><textarea class="duck-in" rows="1" placeholder="Message"></textarea><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="duck-ctl duck-send" aria-label="Send"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>';
@@ -1852,6 +1856,22 @@
                 var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
         });
         ctl[side].addEventListener('click',function(){onKbButton(side)});
+        micCtl[side]=row.querySelector('.micbtn');
+        micCtl[side].addEventListener('click',function(){toggleSTT(side)});
+        ttsCtl[side]=row.querySelector('.ttsbtn');
+        ttsCtl[side].addEventListener('click',function(){
+            if(side==='local')settings.ttsEnabledLocal=!settings.ttsEnabledLocal;
+            else settings.ttsEnabledPeer=!settings.ttsEnabledPeer;
+            try{saveSettings()}catch(e){}
+            paintTts(side);
+            // keep the baseline's own toggles in agreement so speakIfEnabled stays correct
+            var b=document.getElementById(side==='local'?'local-tts-toggle':'peer-tts-toggle');
+            if(b){var on=side==='local'?settings.ttsEnabledLocal:settings.ttsEnabledPeer;
+                b.dataset.enabled=on?'true':'false';
+                var ic=b.querySelector('.material-symbols-outlined');if(ic)ic.textContent=on?'volume_up':'volume_off';}
+            diag(side+' read-aloud '+((side==='local'?settings.ttsEnabledLocal:settings.ttsEnabledPeer)?'on':'off'));
+        });
+        paintTts(side);
         row.querySelector('.duck-send').addEventListener('click',function(){send(side)});
         ta.addEventListener('input',function(){
             ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,96)+'px';
@@ -1866,6 +1886,12 @@
             ta.style.height='auto';ta.focus();diag(side+' input cleared');
         });
         return row;
+    }
+    function paintTts(side){
+        var b=ttsCtl[side];if(!b)return;
+        var on=side==='local'?!!settings.ttsEnabledLocal:!!settings.ttsEnabledPeer;
+        b.dataset.on=on?'true':'false';
+        var ic=b.querySelector('.material-symbols-outlined');if(ic)ic.textContent=on?'volume_up':'volume_off';
     }
     /* caret-aware insertion so select-and-edit works */
     function insertAt(side,str){
@@ -2053,7 +2079,10 @@
     var rec={local:null,peer:null},recOn={local:false,peer:false};
     function micBtn(side){return kb[side]&&kb[side].querySelector('.duck-key.mic')}
     function setMic(side,on){
-        recOn[side]=on;var b=micBtn(side);if(b)b.dataset.on=on?'true':'false';
+        recOn[side]=on;
+        var b=micBtn(side);if(b)b.dataset.on=on?'true':'false';
+        var c=micCtl[side];
+        if(c){c.dataset.on=on?'true':'false';var ic=c.querySelector('.material-symbols-outlined');if(ic)ic.textContent=on?'stop_circle':'mic'}
     }
     function toggleSTT(side){
         var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -2225,7 +2254,7 @@
                 var bub=document.createElement('div');
                 bub.className='message-bubble '+cls+(entry.id===lastId?' latest-bubble':'');
                 var hdr=document.createElement('div');hdr.className='duck-hdr';
-                hdr.innerHTML='<span class="duck-sender">'+flagOf(srcL)+' '+labelOf(srcL)+' · '+(speaker==='local'?'South':'North')+'</span>'+
+                hdr.innerHTML='<span class="duck-sender">'+flagOf(srcL)+' '+labelOf(srcL)+'</span>'+
                     '<span class="duck-time">'+timeLabel(entry.ts||Date.now())+'</span>';
                 var sc=document.createElement('div');sc.className='bubble-col';
                 var tc=document.createElement('div');tc.className='bubble-col';
@@ -2289,20 +2318,8 @@
             ctl[side].dataset.owned='false';
         });
         paintLangbars();stripDefunctSettings();
-        // baseline south composer is redundant now
-        var oldComposer=document.querySelector('.tabletop-south .tabletop-composer');
-        if(oldComposer)oldComposer.style.display='none';
-        // north keeps its mic + tts controls, moved into our row
-        var northOld=document.querySelector('.tabletop-north .tabletop-composer');
-        if(northOld){
-            var mic=document.getElementById('peer-talk'),tts=document.getElementById('peer-tts-toggle');
-            var row=shellOf('peer').querySelector('.duck-compose');
-            if(mic){mic.classList.add('duck-ctl');mic.style.width='38px';mic.style.height='38px';row.insertBefore(mic,row.querySelector('.duck-send'))}
-            if(tts){tts.style.width='38px';tts.style.height='38px';row.insertBefore(tts,row.querySelector('.duck-send'))}
-            northOld.style.display='none';
-        }
-        var localTts=document.getElementById('local-tts-toggle');
-        if(localTts){var srow=shellOf('local').querySelector('.duck-compose');localTts.style.width='38px';localTts.style.height='38px';srow.insertBefore(localTts,srow.querySelector('.duck-send'))}
+        // both baseline composers retire; each side now has an identical full-capability strip
+        document.querySelectorAll('.tabletop-composer').forEach(function(c){c.style.display='none'});
         // language selects in the settings modal keep working and repaint everything
         ['local-language-select','peer-language-select'].forEach(function(id){
             var el=document.getElementById(id);
@@ -2312,8 +2329,7 @@
         window.renderChat=renderChat=duckRenderChat;
         renderChat();
         // mic remembers which language it listened in
-        var pt=document.getElementById('peer-talk');
-        if(pt)pt.addEventListener('click',function(){peerRecognizerLang=langOf('peer')},true);
+        ['local','peer'].forEach(function(s){paintTts(s)});
         // diagnostics
         var b=document.createElement('button');b.id='duck-diag-btn';b.type='button';b.textContent='⌁';
         var p=document.createElement('div');p.id='duck-diag';
