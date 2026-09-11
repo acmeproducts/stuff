@@ -1304,6 +1304,12 @@
     .duck-del:active{color:#ef4444;border-color:#ef4444}
     .bubble-delete{display:none!important}
     .message-bubble{padding:10px 12px!important}
+    .duck-jump{position:absolute;right:12px;bottom:62px;z-index:30;width:34px;height:34px;border-radius:999px;
+        background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 6px 16px rgba(15,23,42,.16);
+        color:#475569;display:none;align-items:center;justify-content:center}
+    .duck-jump.show{display:flex}
+    .duck-jump .n{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;
+        background:#3b82f6;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;display:none}
     .duck-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;
         grid-column:1/-1;padding:0 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(0,0,0,.07)}
     .duck-sender{font-size:11px;font-weight:700;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
@@ -1797,7 +1803,7 @@
     var shifted={local:false,peer:false},numMode={local:false,peer:false};
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
     var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
-    var duckJustNormalized=false,diagLines=[];
+    var duckJustNormalized=false,duckSentBy=null,diagLines=[];
     var peerRecognizerLang=null;
 
     function diag(msg,err){
@@ -1932,6 +1938,7 @@
         closeKb(side,'sent');
         normalizeOutgoing(side,text,langOf(side)).then(function(r){
             duckJustNormalized=true;
+            duckSentBy=side;
             try{addChatEntry(r.text,side==='local'?'local':'peer')}
             catch(e){diag('send failed: '+e.message,true)}
             diag('sent from '+side+' in '+r.lang+(r.normalized?' (normalized from '+r.detected+')':''));
@@ -2252,6 +2259,39 @@
         return a;
     }
 
+    /* ================= scroll follow / jump-to-latest (bridge pattern) ================= */
+    var NEAR_BOTTOM=180, SHOW_JUMP=200, jumpBtn={};
+    function transcriptOf(side){return document.getElementById(side==='local'?'local-transcript':'peer-transcript')}
+    function isNearBottom(t){return t.scrollHeight-t.scrollTop-t.clientHeight<NEAR_BOTTOM}
+    function scrollToLatest(side){
+        var t=transcriptOf(side);if(!t)return;
+        requestAnimationFrame(function(){t.scrollTop=t.scrollHeight;paintJump(side)});
+    }
+    function paintJump(side){
+        var t=transcriptOf(side),b=jumpBtn[side];
+        if(!t||!b)return;
+        var behind=t.scrollHeight-t.scrollTop-t.clientHeight;
+        b.classList.toggle('show',behind>SHOW_JUMP);
+        var n=+(b.dataset.unread||0);
+        b.querySelector('.n').textContent=n>0?(n>9?'9+':n):'';
+        b.querySelector('.n').style.display=n>0?'inline-flex':'none';
+    }
+    function buildJump(side){
+        var shell=shellOf(side);
+        var b=document.createElement('button');
+        b.type='button';b.className='duck-jump';b.dataset.unread='0';
+        b.innerHTML='<span class="material-symbols-outlined" style="font-size:18px">arrow_downward</span><span class="n"></span>';
+        b.addEventListener('click',function(){b.dataset.unread='0';scrollToLatest(side)});
+        shell.appendChild(b);
+        jumpBtn[side]=b;
+        var t=transcriptOf(side);
+        if(t)t.addEventListener('scroll',function(){
+            if(isNearBottom(t))b.dataset.unread='0';
+            paintJump(side);
+        },{passive:true});
+        return b;
+    }
+
     /* ================= bubbles with sender + timestamp + day separators ================= */
     function dayKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()}
     function dayLabel(ts){
@@ -2261,8 +2301,17 @@
         return d.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'});
     }
     function timeLabel(ts){return new Date(ts).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
-    function duckRenderChat(){
+    function duckRenderChat(opts){
+        opts=opts||{};
         var cols=[document.getElementById('peer-transcript'),document.getElementById('local-transcript')].filter(Boolean);
+        var sides=['peer','local'];
+        var follow={},prevTop={};
+        sides.forEach(function(s){
+            var t=transcriptOf(s);
+            follow[s]=!t||isNearBottom(t)||opts.sentBy===s;
+            prevTop[s]=t?t.scrollTop:0;
+            if(!follow[s]&&opts.newEntry&&jumpBtn[s])jumpBtn[s].dataset.unread=(+(jumpBtn[s].dataset.unread||0))+1;
+        });
         cols.forEach(function(c){c.innerHTML=''});
         var lastId=chatHistory.length?chatHistory[chatHistory.length-1].id:null,save=false;
         var lastDay=cols.map(function(){return null});
@@ -2309,8 +2358,16 @@
             }
         });
         if(save)saveHistory();
-        scrollTranscriptsToBottom();
+        sides.forEach(function(s){
+            var t=transcriptOf(s);if(!t)return;
+            if(follow[s])t.scrollTop=t.scrollHeight; else t.scrollTop=prevTop[s];
+            paintJump(s);
+        });
     }
+    // baseline callers (and its own scroll helper) route through the follow-aware renderer
+    window.scrollTranscriptsToBottom=scrollTranscriptsToBottom=function(){
+        ['local','peer'].forEach(function(s){var t=transcriptOf(s);if(t&&isNearBottom(t))t.scrollTop=t.scrollHeight;paintJump(s)});
+    };
 
     /* ================= speech: same normalization path ================= */
     (function hookSpeech(){
@@ -2372,7 +2429,7 @@
             sel.value=LANG_BY[cur]?cur:'en';
         });
         ['local','peer'].forEach(function(side){
-            buildLangbar(side);buildComposer(side);
+            buildLangbar(side);buildComposer(side);buildJump(side);
             kb[side]=buildKeyboard(side);enableSwype(side);
             askEl[side]=buildAsk(side);
             ctl[side].dataset.owned='false';
@@ -2386,8 +2443,11 @@
             if(el)el.addEventListener('change',function(){paintLangbars();if(owner)renderKeys(owner)});
         });
         // take over rendering so bubbles get headers/timestamps
-        window.renderChat=renderChat=duckRenderChat;
-        renderChat();
+        window.renderChat=renderChat=function(){
+            var o={newEntry:true,sentBy:duckSentBy};duckSentBy=null;return duckRenderChat(o);
+        };
+        duckRenderChat({});
+        ['local','peer'].forEach(function(s){scrollToLatest(s)});
         // mic remembers which language it listened in
         ['local','peer'].forEach(function(s){paintTts(s)});
         // diagnostics
