@@ -1,0 +1,97 @@
+name: Market Navigator Turn 18 qualify
+
+on:
+  push:
+    branches:
+      - market-navigator-turn18-20260911
+    paths:
+      - 'market-navigator-turn17-pre-ship.html'
+      - 'market-navigator-turn18-governance.py'
+      - 'market-navigator-build-turn18.py'
+      - 'market-navigator-turn18-qa.mjs'
+      - '.github/workflows/market-navigator-turn18.yml'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn18-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply Turn 18 governance
+        run: |
+          python3 market-navigator-turn18-governance.py
+          grep -F '### 7.1 Horizon-aware display density' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'YTD · 1YR' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '3YR · 5YR' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'full real observation set' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '## Turn 17 long-horizon overplotting — rejected for Turn 18' MARKET-NAVIGATOR-GRAVEYARD.md
+
+      - name: Build exact Turn 18 candidate
+        run: python3 market-navigator-build-turn18.py
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn18-pre-ship.html').read_text()
+          required=[
+            'TURN 18 PRE-SHIP',
+            'TURN18_DISPLAY_DENSITY',
+            "function renderDensity18(h)",
+            "h==='YTD'||h==='1YR'?'weekly':h==='3YR'||h==='5YR'?'monthly':'native'",
+            'function displayPoints18(points,h)',
+            'function representative18(bucket)',
+            'displayPoints18(z.a,w.horizon)',
+            'c.dataset.renderDensity=renderDensity18(w.horizon)',
+            'c.dataset.sourcePoints=String(sourceCount)',
+            'c.dataset.renderedPoints=String(renderedCount)',
+            'let q=sel.a.reduce',
+            'async function openData17(state)'
+          ]
+          for x in required: assert x in s,x
+          assert 'TURN 17 PRE-SHIP' not in s
+          assert 'Market Navigator · Turn 17' not in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn18.js').write_text(scripts[-1])
+          print('TURN 18 STATIC: PASS')
+          PY
+          node --check /tmp/market-navigator-turn18.js
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run Turn 18 owner-visible product matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn18-http.log 2>&1 &
+          sleep 1
+          curl -fsS http://127.0.0.1:8123/market-navigator-turn18-pre-ship.html | grep -F 'TURN18_DISPLAY_DENSITY' >/dev/null
+          node market-navigator-turn18-qa.mjs
+
+      - name: Commit qualified generated release
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn18-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+          else
+            git commit -m 'Market Navigator Turn 18 qualified release [turn18-generated]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
