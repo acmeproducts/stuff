@@ -1,8 +1,8 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-10
-Next release scope: Turn 17
+Updated: 2026-09-11
+Next release scope: Turn 18
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -179,6 +179,27 @@ Rules:
 - no source series is stretched to appear current;
 - no fabricated daily observations;
 - no visual carry-forward masquerading as source observations.
+
+### 7.1 Horizon-aware display density
+Long-horizon charts reduce only **rendered display density**. Canonical evidence remains untouched.
+
+Display cadence is fixed by horizon:
+- **1D · 5D · MTD** → native observation density;
+- **YTD · 1YR** → weekly display density;
+- **3YR · 5YR** → monthly display density.
+
+The display reducer must select genuine persisted observations only. It must not average, interpolate, forward-fill, restamp, or fabricate observations. Within each weekly/monthly bucket, the representative real observation is selected to preserve the bucket's visible shape/deviation rather than blindly taking an arbitrary calendar endpoint; the first and last real observations in the active window are also retained.
+
+Display-density reduction is presentation-only. It must not alter:
+- canonical series/evidence;
+- chart-window boundaries or baselines;
+- axis truth or mathematical calculations;
+- Data rows, correlation, AI evidence, downloads, or Library snapshots;
+- crosshair/point inspection, which continues to snap against the **full real observation set** for the active series even when fewer points are drawn.
+
+The same rendering rule applies consistently to ENVIRONMENT, INDEX, COMPONENT, and restored Library charts. No separate long-horizon chart engine is permitted.
+
+Qualification must prove native density for 1D/5D/MTD, weekly density for YTD/1YR, monthly density for 3YR/5YR, fewer rendered points than source points for dense long-horizon series, and preservation of full-series inspection/data behavior.
 
 ---
 
