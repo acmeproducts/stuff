@@ -222,3 +222,7 @@ Turn 16 remains the qualified donor for canonical chart chrome, GDP periodic tre
 ### Recovery rule
 Turn 17 is a bounded interaction/readout correction over the qualified Turn 16 analytical/data architecture. Do not rewrite collectors, evidence storage, GDP/WTI rules, Library architecture, AI/provider behavior, or canonical chart chrome to deliver these changes.
 
+### Turn 17 deferred audio-export boundary
+- Browser TTS playback is in scope and uses the PRISM Library interaction donor.
+- Downloadable/generated MP3 audio is **backlog only**. Do not fake an MP3 export from `speechSynthesis`; add it only with a future file-producing TTS implementation.
+

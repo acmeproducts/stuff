@@ -781,3 +781,19 @@ The next release is bounded to the UX corrections in this plan:
 - one identical context menu everywhere it appears.
 
 No unrelated feature work belongs in this release.
+
+## Turn 17 card navigation and Library listen contract
+
+### Contextual series-card navigation
+The compact top-right component card includes **previous** and **next** arrow controls. The arrows traverse the currently selectable component series in the same order as the INDEX legend. The first component disables previous and the last component disables next; navigation does not wrap.
+
+One arrow press is exactly equivalent to selecting the adjacent legend chip: it updates the active series, selected chip, card contents, and chart isolation together and leaves pointer-hover crosshair inspection immediately ready. There is no intermediate focus state and no second confirmation click.
+
+### Library browser TTS
+Market Navigator Library adopts the current PRISM Library browser-readout interaction as its TTS donor. It uses the browser Web Speech API (`SpeechSynthesisUtterance` / `speechSynthesis`) and does not add a TTS provider or network dependency in Turn 17.
+
+The Library footer has **Chat** and **Listen** modes. Listen reads completed assistant analysis responses, supports play/pause, previous/next response, and previous/next readout row, and automatically advances through the current response and then subsequent completed assistant responses. Changing to Chat stops browser speech. TTS is presentation-only and must not mutate the Analysis record, frozen evidence, chart state, or conversation.
+
+### Deferred backlog — downloadable TTS audio
+**Downloadable MP3 TTS is deferred backlog and is explicitly out of Turn 17.** Browser `speechSynthesis` remains the playback mechanism for now. A future release may add a file-producing TTS engine/provider that renders the same analysis text into temporary audio and exposes an explicit MP3 download; generated audio must remain temporary unless the user explicitly downloads it.
+

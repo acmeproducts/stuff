@@ -8,6 +8,8 @@ const browser = await chromium.launch({headless:true});
 
 async function makePage(width=1440,height=900){
   const page=await browser.newPage({viewport:{width,height}}),errors=[],failed=[];
+  // TURN17_TTS_MOCK: deterministic browser-speech surface for headless qualification.
+  await page.addInitScript(()=>{class U{constructor(text){this.text=String(text);this.rate=1;this.onend=null;this.onerror=null}};Object.defineProperty(window,'SpeechSynthesisUtterance',{value:U,configurable:true});const speech={last:null,cancelCount:0,paused:false,speak(u){this.last=u;this.paused=false},cancel(){this.cancelCount++;this.paused=false},pause(){this.paused=true},resume(){this.paused=false}};Object.defineProperty(window,'speechSynthesis',{value:speech,configurable:true});window.__qaSpeech=speech});
   page.on('pageerror',e=>errors.push(`page: ${e.message}`));
   page.on('console',m=>{if(m.type()==='error')errors.push(`console: ${m.text()}`)});
   page.on('response',r=>{if(r.status()>=400)failed.push(`${r.status()} ${r.url()}`)});
@@ -61,6 +63,20 @@ try{
   assert(infoStyle.right>infoStyle.viewport-355,'card must be top-right rather than centered');
   assert(infoStyle.top<180,'card must sit near plot top');
   assert.notEqual(await page.locator('#moreInfo').evaluate(el=>getComputedStyle(el).pointerEvents),'none','More info remains operable');
+
+  // Card arrows navigate the selectable component legend order without extra focus clicks.
+  assert.equal(await page.locator('#prevInfo').count(),1,'card previous arrow');
+  assert.equal(await page.locator('#nextInfo').count(),1,'card next arrow');
+  assert.equal(await page.locator('#nextInfo').isDisabled(),false,'HYG should have a next selectable component in the governed RSK legend');
+  await page.locator('#nextInfo').click();
+  await page.waitForTimeout(80);
+  const arrowNext=await page.locator('#legend .lg.active').getAttribute('data-id');
+  assert(arrowNext&&arrowNext!=='hyg','card arrow must move to the next selectable series');
+  assert.equal(await page.locator('#nowChart').getAttribute('data-active-series'),arrowNext,'arrow navigation must update chart isolation');
+  assert.equal(await page.locator('#prevInfo').isDisabled(),false,'next card must allow previous navigation');
+  await page.locator('#prevInfo').click();
+  await page.waitForTimeout(80);
+  assert.equal(await page.locator('#legend .lg.active').getAttribute('data-id'),'hyg','previous arrow must return to prior series');
 
   // Mouse hover alone produces crosshair/readout for the selected HYG and must
   // not silently switch the selected chip.
@@ -145,6 +161,32 @@ try{
   await page.locator('#dataModal').waitFor({state:'visible'});
   assert((await page.locator('#dataRows tr').count())>0,'periodic GDP Data must expose genuine rows');
   await page.locator('#dataClose').click();
+
+  // Library Listen must reuse browser SpeechSynthesis with PRISM-style navigation.
+  await page.evaluate(async()=>{
+    const rec={id:'qa-tts',title:'QA Browser TTS',status:'ready',createdAt:'2099-01-01T00:00:00Z',updatedAt:'2099-01-01T00:00:00Z',state:{horizon:'5D',series:['spy'],active:'spy',index:'risk',evidence:[],chart:{schema:'market-navigator-chart-snapshot-v1',origin:'qa',horizon:'5D',window:{horizon:'5D',start:1788220800000,end:1788998399000,startLabel:'2026-09-01',endLabel:'2026-09-09'},mode:'native',active:'spy',series:[{id:'spy',label:'SPY',full:'SPY',unit:'USD',color:'#27D3F5',renderType:'line',axis:0,axisLabel:'USD',available:true,points:[{t:1788307200000,sourceT:1788307200000,v:100,raw:100,idx:100},{t:1788393600000,sourceT:1788393600000,v:101,raw:101,idx:101}]}],dataRevision:{derived:'qa'}}},turns:[{role:'assistant',content:'# First analysis\n\nFirst sentence. Second sentence.',at:'2099-01-01T00:00:00Z'},{role:'user',content:'Follow up',at:'2099-01-01T00:01:00Z'},{role:'assistant',content:'## Second analysis\n\nThird sentence.',at:'2099-01-01T00:02:00Z'}]};
+    await new Promise((resolve,reject)=>{const r=indexedDB.open('marketNavigatorLocal',1);r.onsuccess=()=>{const tx=r.result.transaction('analyses','readwrite');tx.objectStore('analyses').put(rec);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)};r.onerror=()=>reject(r.error)});
+  });
+  await page.reload({waitUntil:'networkidle'});
+  await page.locator('[data-view="library"]').click();
+  await page.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');
+  assert.equal(await page.locator('#libModeDock').isVisible(),true,'Library TTS dock visible for selected Analysis');
+  assert.equal(await page.locator('#libListenMode').isDisabled(),false,'Listen enabled for completed assistant analysis');
+  await page.locator('#libListenMode').click();
+  assert.equal(await page.locator('#libListenBar').isVisible(),true,'Listen controls visible');
+  assert.equal(await page.locator('#libComposer').isVisible(),false,'Chat composer hidden in Listen mode');
+  assert.match(await page.locator('#libListenProgress').innerText(),/Response 1 of 2 · Row 1 of/i);
+  await page.locator('#libListenPlay').click();
+  assert.equal(await page.locator('#libListenPlay').innerText(),'⏸','play toggles to pause');
+  assert(await page.evaluate(()=>window.__qaSpeech.last?.text?.length>0),'Library Listen must reuse browser SpeechSynthesis');
+  assert.equal(await page.locator('#libListenNextTurn').isDisabled(),false,'next response navigation enabled');
+  await page.locator('#libListenNextTurn').click();
+  assert.match(await page.locator('#libListenProgress').innerText(),/Response 2 of 2/i);
+  await page.locator('#libListenPrevTurn').click();
+  assert.match(await page.locator('#libListenProgress').innerText(),/Response 1 of 2/i);
+  await page.locator('#libChatMode').click();
+  assert.equal(await page.locator('#libComposer').isVisible(),true,'Chat mode restores composer');
+  assert.equal(await page.locator('#libListenBar').isVisible(),false,'Chat mode hides Listen controls');
 
   // Phone card remains compact/top-right and chart chrome remains one row.
   const phone=await makePage(390,844); const p=phone.page;
