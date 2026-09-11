@@ -1318,21 +1318,22 @@
         text-transform:uppercase;padding:2px 10px;border-radius:999px;background:rgba(148,163,184,.14);margin:2px 0}
 
     /* per-side composer additions */
-    .duck-compose{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.98)}
+    .duck-compose{display:flex;align-items:center;gap:5px;padding:6px 7px;border-top:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.98)}
     .duck-inwrap{flex:1;min-width:0;position:relative;display:flex;align-items:center}
-    .duck-in{flex:1;min-width:0;padding:9px 34px 9px 13px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
-        background:#fff;font-size:15px;resize:none;max-height:96px;line-height:1.35}
+    .duck-in{flex:1;min-width:0;padding:0 34px 0 13px;height:36px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
+        background:#fff;font-size:15px;line-height:36px;white-space:nowrap;overflow-x:auto;overflow-y:hidden}
+    .duck-in::-webkit-scrollbar{display:none}
     .duck-clear{position:absolute;right:6px;width:24px;height:24px;border-radius:999px;border:1px solid rgba(203,213,225,.8);
         background:rgba(241,245,249,.95);color:#64748b;display:none;align-items:center;justify-content:center;font-size:14px;line-height:1}
     .duck-clear.show{display:inline-flex}
-    .duck-ctl{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;
+    .duck-ctl{flex:0 0 36px;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;
         border:1px solid rgba(226,232,240,.95);background:#fff;color:#475569;flex-shrink:0}
     .duck-ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
     .duck-ctl.ttsbtn[data-on="true"]{background:rgba(191,219,254,.95);color:#1e40af;border-color:rgba(147,197,253,.9)}
     .duck-ctl[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
     .duck-ctl[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
     @keyframes duckPulse{50%{opacity:.45}}
-    .duck-send{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent;width:40px;height:40px}
+.duck-send{flex:0 0 40px;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent;width:40px;height:40px}
 
     /* keyboard: strict grid, no overflow */
     .duck-kb{position:absolute;left:0;right:0;bottom:0;z-index:40;background:rgba(248,250,252,.995);
@@ -1860,7 +1861,7 @@
             '<button type="button" class="duck-ctl micbtn" data-on="false" aria-label="Dictate"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>'+
             '<button type="button" class="duck-ctl ttsbtn" data-on="false" aria-label="Read aloud"><span class="material-symbols-outlined" style="font-size:20px">volume_off</span></button>'+
             '<button type="button" class="duck-ctl gearbtn" aria-label="Settings"><span class="material-symbols-outlined" style="font-size:20px">settings</span></button>'+
-            '<span class="duck-inwrap"><textarea class="duck-in" rows="1" placeholder="Message"></textarea><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
+            '<span class="duck-inwrap"><input type="text" class="duck-in" placeholder="Message" autocomplete="off"><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="duck-ctl duck-send" aria-label="Send"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>';
         shell.appendChild(row);
         var ta=row.querySelector('.duck-in'),cl=row.querySelector('.duck-clear');
@@ -1890,8 +1891,8 @@
         paintTts(side);
         row.querySelector('.duck-send').addEventListener('click',function(){send(side)});
         ta.addEventListener('input',function(){
-            ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,96)+'px';
             cl.classList.toggle('show',!!ta.value);
+            ta.scrollLeft=ta.scrollWidth;                  // keep the caret end visible as text grows — never wraps
         });
         ta.addEventListener('keydown',function(e){
             if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(side)}
@@ -1899,7 +1900,7 @@
         cl.addEventListener('click',function(){
             ta.value='';cl.classList.remove('show');comp[side]={raw:'',kana:'',ko:null};
             cands[side]=[];candIdx[side]=-1;if(kb[side])paintCands(side);
-            ta.style.height='auto';ta.focus();diag(side+' input cleared');
+            ta.focus();diag(side+' input cleared');
         });
         return row;
     }
@@ -1934,7 +1935,7 @@
         flushComposition(side);
         var ta=inputs[side],text=(ta.value||'').trim();
         if(!text)return;
-        ta.value='';clears[side].classList.remove('show');ta.style.height='auto';
+        ta.value='';clears[side].classList.remove('show');
         closeKb(side,'sent');
         normalizeOutgoing(side,text,langOf(side)).then(function(r){
             duckJustNormalized=true;
@@ -2101,49 +2102,62 @@
         var c=micCtl[side];
         if(c){c.dataset.on=on?'true':'false';var ic=c.querySelector('.material-symbols-outlined');if(ic)ic.textContent=on?'stop_circle':'mic'}
     }
-    var pauseTimer={local:null,peer:null};
-    var STT_PAUSE_MS=1100;            // bridge uses 400ms endpointing server-side; Web Speech needs a longer settle
-    function toggleSTT(side){
+    var pauseTimer={local:null,peer:null},STT_PAUSE_MS=1100;
+    function newRecognizer(side){
         var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-        if(!SR){diag('speech recognition not supported in this browser',true);return}
-        if(recOn[side]&&rec[side]){rec[side]._stopping=true;try{rec[side].stop()}catch(e){}return}
         var r=new SR();
-        r.lang=langOf(side);r.interimResults=true;r.continuous=true;r.maxAlternatives=1;
-        var settled='';
-        function armPause(){
-            clearTimeout(pauseTimer[side]);
-            pauseTimer[side]=setTimeout(function(){
-                var txt=(inputs[side].value||'').trim();
-                if(!txt)return;
-                diag('pause detected on '+side+' → auto-send');
-                settled='';
-                send(side);
-            },STT_PAUSE_MS);
-        }
-        r.onstart=function(){setMic(side,true);diag('listening on '+side+' in '+r.lang+' (auto-send after '+STT_PAUSE_MS+'ms pause)')};
+        r.lang=langOf(side);r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+        var settled='';                                    // scoped to THIS instance only — never leaks across restarts
+        r.onstart=function(){setMic(side,true)};
         r.onerror=function(e){
-            if(e.error==='no-speech')return;                       // normal during quiet stretches
-            setMic(side,false);clearTimeout(pauseTimer[side]);
+            if(e.error==='no-speech'||e.error==='aborted')return;   // onend handles restart/cleanup
+            recOn[side]=false;clearTimeout(pauseTimer[side]);setMic(side,false);
             diag('speech error on '+side+': '+e.error,true);
-        };
-        r.onend=function(){
-            if(!r._stopping&&recOn[side]){try{r.start();return}catch(e){}}   // keep the channel open across pauses
-            setMic(side,false);clearTimeout(pauseTimer[side]);
-            if(side==='peer')peerRecognizerLang=r.lang;
-            diag('stopped listening on '+side);
         };
         r.onresult=function(ev){
             var interim='';
-            for(var i=ev.resultIndex;i<ev.results.length;i++){
+            for(var i=0;i<ev.results.length;i++){          // continuous=false → this instance's results always start at 0
                 var t=ev.results[i][0].transcript;
                 if(ev.results[i].isFinal)settled+=t;else interim+=t;
             }
-            inputs[side].value=(settled+interim).replace(/^\s+/,'');
-            inputs[side].dispatchEvent(new Event('input'));
-            armPause();                                            // any speech restarts the silence clock
+            var txt=(settled+interim).trim();
+            insertAtEnd(side,txt);
+            armPause(side);
         };
-        rec[side]=r;
-        try{r.start()}catch(e){diag('could not start mic: '+e.message,true)}
+        r.onend=function(){
+            clearTimeout(pauseTimer[side]);
+            if(!recOn[side]){setMic(side,false);if(side==='peer')peerRecognizerLang=r.lang;diag('stopped listening on '+side);return}
+            var txt=(inputs[side].value||'').trim();
+            if(txt){diag('utterance ended on '+side+' → auto-send');send(side)}
+            rec[side]=newRecognizer(side);                 // fresh instance = fresh result buffer, every time
+            try{rec[side].start()}catch(e){diag('restart failed on '+side+': '+e.message,true);recOn[side]=false;setMic(side,false)}
+        };
+        return r;
+    }
+    function armPause(side){
+        clearTimeout(pauseTimer[side]);
+        pauseTimer[side]=setTimeout(function(){
+            var r=rec[side];if(r){try{r.stop()}catch(e){}}   // graceful stop → fires final onresult, then onend auto-sends
+        },STT_PAUSE_MS);
+    }
+    function insertAtEnd(side,text){                        // whole-utterance replace: sets value directly, no caret math needed
+        var ta=inputs[side];ta.value=text;
+        try{ta.setSelectionRange(text.length,text.length)}catch(e){}
+        ta.scrollLeft=ta.scrollWidth;
+        ta.dispatchEvent(new Event('input'));
+    }
+    function toggleSTT(side){
+        var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        if(!SR){diag('speech recognition not supported in this browser',true);return}
+        if(recOn[side]){
+            recOn[side]=false;clearTimeout(pauseTimer[side]);
+            var r=rec[side];if(r){try{r.stop()}catch(e){}}
+            return;
+        }
+        recOn[side]=true;
+        rec[side]=newRecognizer(side);
+        try{rec[side].start();diag('listening on '+side+' in '+langOf(side)+' (auto-send after '+STT_PAUSE_MS+'ms pause)')}
+        catch(e){diag('could not start mic: '+e.message,true);recOn[side]=false}
     }
 
     /* ---- swype gesture ---- */
