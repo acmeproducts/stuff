@@ -1281,19 +1281,29 @@
     .speaker-indicator{height:0!important;padding:0!important}
     #gear-fab{display:none!important}
     .tabletop-view{grid-template-rows:minmax(0,1fr) 0 minmax(0,1fr)!important}
-    .client-shell{position:relative;overflow:hidden}
+    .client-shell{position:relative;overflow:hidden;border-radius:22px}
     .client-shell.kb-open .tabletop-transcript{padding-bottom:0}
-    .tabletop-transcript{padding-top:44px!important}
+    .tabletop-transcript{padding-top:10px!important;min-height:0}
 
     /* language chip pinned top-center of each chat surface */
-    .duck-langbar{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:20;
-        display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:16px;
-        border:1px solid rgba(226,232,240,.95);background:rgba(255,255,255,.96);
-        box-shadow:0 4px 12px rgba(15,23,42,.10);font-size:12px;font-weight:700;color:#334155}
+    .duck-langbar{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;
+        height:30px;flex:0 0 30px;padding:0 10px;border-bottom:1px solid rgba(226,232,240,.9);
+        background:rgba(248,250,252,.96);font-size:12px;font-weight:700;color:#334155}
     .duck-langbar select{position:absolute;inset:0;opacity:0;width:100%;height:100%;border:0}
     .duck-langbar .fl{font-size:16px;line-height:1}
 
     /* bubble header (sender + time), test.html format */
+    .message-bubble.duck-s{background:#eff6ff;border-left:3px solid rgba(59,130,246,.75)}
+    .message-bubble.duck-n{background:#f6fdf9;border-left:3px solid rgba(16,185,129,.7)}
+    .message-bubble.single{grid-template-columns:1fr!important}
+    .message-bubble.single .bubble-col+.bubble-col{border-left:none;padding-left:0}
+    .duck-pending{opacity:.5;font-style:italic}
+    .duck-del{width:22px;height:22px;border-radius:999px;border:1px solid rgba(148,163,184,.45);
+        background:rgba(255,255,255,.8);color:#94a3b8;font-size:12px;line-height:1;flex:0 0 auto;
+        display:inline-flex;align-items:center;justify-content:center;margin-left:4px}
+    .duck-del:active{color:#ef4444;border-color:#ef4444}
+    .bubble-delete{display:none!important}
+    .message-bubble{padding:10px 12px!important}
     .duck-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;
         grid-column:1/-1;padding:0 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(0,0,0,.07)}
     .duck-sender{font-size:11px;font-weight:700;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
@@ -1353,7 +1363,7 @@
     .duck-ask-btns button{flex:1;height:44px;border-radius:12px;font-weight:700;font-size:14px;border:1px solid rgba(203,213,225,.9);background:#f1f5f9;color:#334155}
     .duck-ask-btns .ok{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 
-    #duck-diag-btn{position:fixed;left:6px;top:50%;transform:translateY(-50%);z-index:41;width:30px;height:30px;border-radius:999px;
+    #duck-diag-btn{position:fixed;left:4px;bottom:4px;z-index:41;width:26px;height:26px;opacity:.55;border-radius:999px;
         border:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.9);color:#64748b;font-size:14px}
     #duck-diag{position:fixed;left:0;right:0;bottom:0;z-index:80;max-height:52vh;overflow:auto;display:none;
         background:#0f172a;color:#e2e8f0;font:11px/1.5 ui-monospace,Menlo,monospace;padding:10px 12px}
@@ -1812,7 +1822,7 @@
         var bar=document.createElement('div');bar.className='duck-langbar';
         bar.innerHTML='<span class="fl"></span><span class="lb"></span><span style="opacity:.5">▾</span>'+
             '<select>'+LANGS.map(function(l){return '<option value="'+l.code+'">'+l.flag+' '+l.label+'</option>'}).join('')+'</select>';
-        shell.appendChild(bar);
+        shell.insertBefore(bar,shell.firstChild);
         var sel=bar.querySelector('select');
         sel.value=langOf(side);
         sel.addEventListener('change',function(){
@@ -2084,28 +2094,46 @@
         var c=micCtl[side];
         if(c){c.dataset.on=on?'true':'false';var ic=c.querySelector('.material-symbols-outlined');if(ic)ic.textContent=on?'stop_circle':'mic'}
     }
+    var pauseTimer={local:null,peer:null};
+    var STT_PAUSE_MS=1100;            // bridge uses 400ms endpointing server-side; Web Speech needs a longer settle
     function toggleSTT(side){
         var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
         if(!SR){diag('speech recognition not supported in this browser',true);return}
-        if(recOn[side]&&rec[side]){try{rec[side].stop()}catch(e){}return}
+        if(recOn[side]&&rec[side]){rec[side]._stopping=true;try{rec[side].stop()}catch(e){}return}
         var r=new SR();
-        r.lang=langOf(side);r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
-        var baseText=inputs[side].value,finalTxt='';
-        r.onstart=function(){setMic(side,true);diag('listening on '+side+' in '+r.lang)};
-        r.onerror=function(e){setMic(side,false);diag('speech error on '+side+': '+e.error,true)};
+        r.lang=langOf(side);r.interimResults=true;r.continuous=true;r.maxAlternatives=1;
+        var settled='';
+        function armPause(){
+            clearTimeout(pauseTimer[side]);
+            pauseTimer[side]=setTimeout(function(){
+                var txt=(inputs[side].value||'').trim();
+                if(!txt)return;
+                diag('pause detected on '+side+' → auto-send');
+                settled='';
+                send(side);
+            },STT_PAUSE_MS);
+        }
+        r.onstart=function(){setMic(side,true);diag('listening on '+side+' in '+r.lang+' (auto-send after '+STT_PAUSE_MS+'ms pause)')};
+        r.onerror=function(e){
+            if(e.error==='no-speech')return;                       // normal during quiet stretches
+            setMic(side,false);clearTimeout(pauseTimer[side]);
+            diag('speech error on '+side+': '+e.error,true);
+        };
         r.onend=function(){
-            setMic(side,false);
-            peerRecognizerLang=side==='peer'?r.lang:peerRecognizerLang;
-            diag('stopped listening on '+side+(finalTxt?' — "'+finalTxt.slice(0,40)+'"':' (nothing heard)'));
+            if(!r._stopping&&recOn[side]){try{r.start();return}catch(e){}}   // keep the channel open across pauses
+            setMic(side,false);clearTimeout(pauseTimer[side]);
+            if(side==='peer')peerRecognizerLang=r.lang;
+            diag('stopped listening on '+side);
         };
         r.onresult=function(ev){
             var interim='';
             for(var i=ev.resultIndex;i<ev.results.length;i++){
                 var t=ev.results[i][0].transcript;
-                if(ev.results[i].isFinal)finalTxt+=t;else interim+=t;
+                if(ev.results[i].isFinal)settled+=t;else interim+=t;
             }
-            inputs[side].value=(baseText?baseText+' ':'')+finalTxt+interim;
+            inputs[side].value=(settled+interim).replace(/^\s+/,'');
             inputs[side].dispatchEvent(new Event('input'));
+            armPause();                                            // any speech restarts the silence clock
         };
         rec[side]=r;
         try{r.start()}catch(e){diag('could not start mic: '+e.message,true)}
@@ -2236,7 +2264,8 @@
     function duckRenderChat(){
         var cols=[document.getElementById('peer-transcript'),document.getElementById('local-transcript')].filter(Boolean);
         cols.forEach(function(c){c.innerHTML=''});
-        var lastId=chatHistory.length?chatHistory[chatHistory.length-1].id:null,lastDay=null,save=false;
+        var lastId=chatHistory.length?chatHistory[chatHistory.length-1].id:null,save=false;
+        var lastDay=cols.map(function(){return null});
         chatHistory.forEach(function(entry){
             var speaker=entry.speaker,cls=speaker==='local'?'local':'peer';
             var srcL=entry.sourceLanguage||(speaker==='local'?settings.localLanguage:settings.peerLanguage);
@@ -2247,29 +2276,33 @@
             var cached=entry.translations[key]||translationCache.get(srcL+'|'+tgtL+'|'+text);
             var tcols=[];
             var dk=dayKey(entry.ts||Date.now());
-            var needDay=dk!==lastDay;lastDay=dk;
-            cols.forEach(function(col){
-                if(needDay){var sep=document.createElement('div');sep.className='duck-daysep';sep.textContent=dayLabel(entry.ts||Date.now());col.appendChild(sep)}
+            cols.forEach(function(col,ci){
+                if(lastDay[ci]!==dk){lastDay[ci]=dk;var sep=document.createElement('div');sep.className='duck-daysep';sep.textContent=dayLabel(entry.ts||Date.now());col.appendChild(sep)}
                 var row=document.createElement('div');row.className='message-row '+cls;
                 var bub=document.createElement('div');
-                bub.className='message-bubble '+cls+(entry.id===lastId?' latest-bubble':'');
+                bub.className='message-bubble '+cls+' duck-'+(speaker==='local'?'s':'n')+(entry.id===lastId?' latest-bubble':'');
                 var hdr=document.createElement('div');hdr.className='duck-hdr';
                 hdr.innerHTML='<span class="duck-sender">'+flagOf(srcL)+' '+labelOf(srcL)+'</span>'+
-                    '<span class="duck-time">'+timeLabel(entry.ts||Date.now())+'</span>';
+                    '<span class="duck-time">'+timeLabel(entry.ts||Date.now())+'</span>'+
+                    '<button type="button" class="duck-del" data-entry-id="'+entry.id+'" aria-label="Delete">✕</button>';
                 var sc=document.createElement('div');sc.className='bubble-col';
                 var tc=document.createElement('div');tc.className='bubble-col';
-                var del=document.createElement('button');
-                del.type='button';del.className='bubble-delete material-symbols-outlined';del.textContent='close';del.dataset.entryId=entry.id;
-                bub.appendChild(hdr);bub.append(sc,tc);bub.appendChild(del);row.appendChild(bub);
+                bub.appendChild(hdr);bub.append(sc,tc);row.appendChild(bub);
+                hdr.querySelector('.duck-del').addEventListener('click',function(ev){
+                    ev.stopPropagation();deleteEntryById(entry.id);
+                });
                 sc.innerHTML=renderMarkdown(text);
-                if(srcL===tgtL||!tgtL)tc.innerHTML=renderMarkdown(text);
+                if(srcL===tgtL||!tgtL){bub.classList.add('single');tc.style.display='none'}
                 else if(cached)tc.innerHTML=renderMarkdown(cached);
-                else tc.textContent='…';
+                else{tc.innerHTML='<span class="duck-pending">translating…</span>'}
                 tcols.push(tc);col.appendChild(row);
             });
             if(srcL!==tgtL&&!cached){
                 translateText(text,tgtL,srcL).then(function(tr){
-                    if(!tr){tcols.forEach(function(c){c.textContent='Translation unavailable.'});return}
+                    if(!tr){tcols.forEach(function(c){
+                        var b=c.closest('.message-bubble');if(b)b.classList.add('single');
+                        c.style.display='none';
+                    });diag('translation failed '+srcL+'→'+tgtL,true);return}
                     entry.translations[key]=tr;saveHistory();
                     tcols.forEach(function(c){c.innerHTML=renderMarkdown(tr)});
                 });
@@ -2295,6 +2328,33 @@
         };
     })();
 
+    /* ---- #1 translation: the donor's LibreTranslate endpoint is dead; MyMemory leads now ---- */
+    function installTranslator(){
+        if(typeof translateText!=='function')return;
+        var _orig=translateText;
+        window.translateText=translateText=function(text,target,source){
+            source=source||'auto';
+            if(!text||!target)return Promise.resolve(null);
+            var ck=source+'|'+target+'|'+text;
+            try{if(translationCache.has(ck))return Promise.resolve(translationCache.get(ck))}catch(e){}
+            var pair=(source==='auto'?'en':source)+'|'+target;
+            var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+encodeURIComponent(pair);
+            return fetch(url).then(function(r){return r.json()}).then(function(j){
+                var t=j&&j.responseData&&j.responseData.translatedText;
+                if(t&&!/^MYMEMORY WARNING|^QUERY LENGTH LIMIT|^INVALID/i.test(t)){
+                    try{translationCache.set(ck,t)}catch(e){}
+                    return t;
+                }
+                diag('MyMemory declined ('+String(t||'no text').slice(0,60)+') — trying donor chain',true);
+                return _orig(text,target,source);
+            }).catch(function(e){
+                diag('MyMemory unreachable: '+e.message+' — trying donor chain',true);
+                return _orig(text,target,source);
+            });
+        };
+        diag('translator: MyMemory primary, donor chain fallback');
+    }
+
     /* ================= init ================= */
     function stripDefunctSettings(){
         try{if(typeof scheduleAutoSubmit==='function'){window.scheduleAutoSubmit=scheduleAutoSubmit=function(){};}}catch(e){}
@@ -2317,7 +2377,7 @@
             askEl[side]=buildAsk(side);
             ctl[side].dataset.owned='false';
         });
-        paintLangbars();stripDefunctSettings();
+        paintLangbars();stripDefunctSettings();installTranslator();
         // both baseline composers retire; each side now has an identical full-capability strip
         document.querySelectorAll('.tabletop-composer').forEach(function(c){c.style.display='none'});
         // language selects in the settings modal keep working and repaint everything
