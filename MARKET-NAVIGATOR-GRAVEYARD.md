@@ -208,3 +208,21 @@ Turn 15 remains the qualified data/availability/style capability donor for GDP q
 ### Recovery rule
 Turn 16 is a bounded UX correction over the independently qualified Turn 15 data/analysis capabilities. Do not broaden scope or rewrite the backend. Qualification must prove owner-visible desktop and phone geometry, not just DOM presence.
 
+## Turn 16 interaction/readout regressions — rejected for Turn 17
+
+Turn 16 remains the qualified donor for canonical chart chrome, GDP periodic treatment, WTI direct availability, evidence loading/race guards, representation switching, Chart Config, immutable Library snapshots, and the unified export surface. The following owner-visible Turn 16 behavior is rejected for Turn 17:
+
+- **Generic solid legend swatches are rejected.** A legend key must render the actual configured stroke style and thickness for its series.
+- **The bottom-centered dark component card is rejected.** The contextual card is compact, white with black text, top-right, and non-blocking for chart hover except for its explicit controls.
+- **Crosshair-gated emphasis is rejected.** Explicit chip selection itself activates series isolation; the user does not click the chart again merely to see the series already selected.
+- **Click-only desktop crosshair inspection is rejected.** Pointer hover inspects the selected series immediately.
+- **Hover-driven silent series switching is rejected.** Hover examines the active series; clicking another plotted series is the deliberate bidirectional selection action that updates chip/card/emphasis.
+- **A context menu without full-series Data is rejected.** Data is canonical and exposes complete canonical raw-series history, native/index values, and same-date correlation versus the active series; it is not limited to the current horizon when a healthy periodic series has no new release inside that horizon.
+
+### Recovery rule
+Turn 17 is a bounded interaction/readout correction over the qualified Turn 16 analytical/data architecture. Do not rewrite collectors, evidence storage, GDP/WTI rules, Library architecture, AI/provider behavior, or canonical chart chrome to deliver these changes.
+
+### Turn 17 deferred audio-export boundary
+- Browser TTS playback is in scope and uses the PRISM Library interaction donor.
+- Downloadable/generated MP3 audio is **backlog only**. Do not fake an MP3 export from `speechSynthesis`; add it only with a future file-producing TTS implementation.
+
