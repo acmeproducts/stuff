@@ -1312,6 +1312,8 @@
     .duck-jump.show{display:flex}
     .duck-jump .n{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;
         background:#3b82f6;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;display:none}
+    .tabletop-south .client-shell{border:2px solid rgba(59,130,246,.45)}
+    .tabletop-north .client-shell{border:2px solid rgba(16,185,129,.45)}
     .duck-hdr{display:flex;align-items:center;justify-content:flex-end;gap:6px;
         grid-column:1/-1;padding:0 0 6px;margin-bottom:6px;border-bottom:1px solid rgba(0,0,0,.07)}
     .duck-sender{font-size:11px;font-weight:700;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
@@ -1374,11 +1376,12 @@
 
     #duck-diag-btn{position:fixed;left:4px;bottom:4px;z-index:41;width:26px;height:26px;opacity:.55;border-radius:999px;
         border:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.9);color:#64748b;font-size:14px}
-    #duck-diag{position:fixed;left:0;right:0;bottom:0;z-index:80;max-height:52vh;overflow:auto;display:none;
+    #duck-diag{position:fixed;left:0;right:0;bottom:0;z-index:80;max-height:52vh;display:none;flex-direction:column;
         background:#0f172a;color:#e2e8f0;font:11px/1.5 ui-monospace,Menlo,monospace;padding:10px 12px}
     #duck-diag.show{display:block}
     #duck-diag b{color:#7dd3fc}
     #duck-diag .err{color:#fca5a5}
+    #controls-modal.flip{transform:rotate(180deg)}
 </style>
 
 <script>
@@ -1785,7 +1788,11 @@
     /* One path for typed and spoken text so the two can never drift.
        knownLang: authoritative when the channel knows it (keyboard layout / STT language). */
     function normalizeOutgoing(side,text,knownLang){
-        return Promise.resolve(knownLang||detectLangAsync(text)).then(function(detected){
+        // BUG FIX: knownLang used to short-circuit detection entirely, so typed text (which always
+        // carried knownLang=langOf(side)) could NEVER be flagged as a code-switch — detection must
+        // run first; knownLang is only the fallback when detection is inconclusive.
+        return detectLangAsync(text).then(function(detected){
+            detected=detected||knownLang||langOf(side);
             var r=resolveEffectiveLang(side,detected);
             if(!r.normalizeFrom)return{text:text,lang:r.srcLang,detected:detected};
             diag('normalizing '+side+': '+r.normalizeFrom+' → '+r.srcLang+' (code-switch)');
@@ -1816,8 +1823,8 @@
         if(d&&d.classList.contains('show'))renderDiag();
     }
     function renderDiag(){
-        var d=document.getElementById('duck-diag');
-        d.innerHTML='<b>diagnostics</b> — keyboard: '+(owner||'free')+' · pending: '+(pendingFrom||'none')+'<br>'+
+        var box=document.getElementById('duck-diag-lines');if(!box)return;
+        box.innerHTML='keyboard: '+(owner||'free')+' · pending: '+(pendingFrom||'none')+'<br>'+
             diagLines.slice().reverse().map(function(l){return '<div class="'+(l[0]==='!'?'err':'')+'">'+l.replace(/[&<>]/g,'')+'</div>'}).join('');
     }
     function langOf(side){try{return side==='local'?(settings.localLanguage||'en'):(settings.peerLanguage||'en')}catch(e){return 'en'}}
@@ -1871,7 +1878,9 @@
         ctl[side]=row.querySelector('.kbbtn');
         row.querySelector('.gearbtn').addEventListener('click',function(){
             var m=document.getElementById('controls-modal');
-            if(m){m.classList.remove('invisible');m.classList.add('visible');
+            if(m){
+                m.classList.toggle('flip',side==='peer');     // north is physically rotated 180° — the modal must match
+                m.classList.remove('invisible');m.classList.add('visible');
                 var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
         });
         ctl[side].addEventListener('click',function(){onKbButton(side)});
@@ -2428,6 +2437,26 @@
         diag('translator: MyMemory primary, donor chain fallback');
     }
 
+    /* ---- #3: TTS re-gated to the listener's own toggle (shared physical speaker) ---- */
+    (function fixTtsGating(){
+        if(typeof speakIfEnabled!=='function')return;
+        window.speakIfEnabled=speakIfEnabled=function(message,speaker){
+            var enabled=speaker==='local'?settings.ttsEnabledPeer:settings.ttsEnabledLocal;   // listener's toggle, not speaker's
+            if(!enabled||!('speechSynthesis' in window))return;
+            var receiverLanguage=speaker==='local'?settings.peerLanguage:settings.localLanguage;
+            var sourceLanguage=speaker==='local'?settings.localLanguage:settings.peerLanguage;
+            var voiceName=speaker==='local'?settings.peerVoice:settings.localVoice;
+            function speak(text){
+                var u=new SpeechSynthesisUtterance(text);
+                if(receiverLanguage)u.lang=receiverLanguage;
+                if(voiceName){var v=availableVoices.find(function(x){return x.name===voiceName});if(v)u.voice=v}
+                speechSynthesis.speak(u);
+            }
+            if(!receiverLanguage||receiverLanguage===sourceLanguage){speak(message);return}
+            translateText(message,receiverLanguage,sourceLanguage).then(function(t){speak(t||message)});
+        };
+    })();
+
     /* ================= init ================= */
     function stripDefunctSettings(){
         try{if(typeof scheduleAutoSubmit==='function'){window.scheduleAutoSubmit=scheduleAutoSubmit=function(){};}}catch(e){}
@@ -2445,12 +2474,12 @@
             sel.value=LANG_BY[cur]?cur:'en';
         });
         ['local','peer'].forEach(function(side){
-            buildLangbar(side);buildComposer(side);buildJump(side);
+            buildComposer(side);buildJump(side);
             kb[side]=buildKeyboard(side);enableSwype(side);
             askEl[side]=buildAsk(side);
             ctl[side].dataset.owned='false';
         });
-        paintLangbars();stripDefunctSettings();installTranslator();
+        stripDefunctSettings();installTranslator();
         // both baseline composers retire; each side now has an identical full-capability strip
         document.querySelectorAll('.tabletop-composer').forEach(function(c){c.style.display='none'});
         // language selects in the settings modal keep working and repaint everything
@@ -2469,8 +2498,15 @@
         // diagnostics
         var b=document.createElement('button');b.id='duck-diag-btn';b.type='button';b.textContent='⌁';
         var p=document.createElement('div');p.id='duck-diag';
+        p.innerHTML='<div class="duck-diag-tools"><b>diagnostics</b><span style="flex:1"></span><button type="button" id="duck-diag-copy">Copy</button></div><div id="duck-diag-lines"></div>';
         document.body.appendChild(b);document.body.appendChild(p);
         b.addEventListener('click',function(){p.classList.toggle('show');if(p.classList.contains('show'))renderDiag()});
+        p.querySelector('#duck-diag-copy').addEventListener('click',function(){
+            var txt=diagLines.slice().reverse().join('\n');
+            var btn=this;
+            navigator.clipboard.writeText(txt).then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1200)})
+                .catch(function(e){diag('copy failed: '+e.message,true)});
+        });
         document.addEventListener('keydown',function(e){
             if(e.key==='Enter'&&!e.shiftKey&&owner==='peer'&&document.activeElement===inputs.peer){e.preventDefault();send('peer')}
         });
