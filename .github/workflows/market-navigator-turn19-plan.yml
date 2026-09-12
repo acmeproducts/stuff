@@ -1,0 +1,339 @@
+name: Market Navigator Turn 19 plan
+
+on:
+  push:
+    branches: [market-navigator-turn19-plan-20260911]
+
+permissions:
+  contents: write
+
+jobs:
+  update-plan:
+    if: ${{ !contains(github.event.head_commit.message, '[turn19-plan-generated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market-navigator-turn19-plan-20260911
+          fetch-depth: 0
+      - name: Apply approved Turn 19 interaction contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          plan_path = Path('MARKET-NAVIGATOR-MASTER-PLAN.md')
+          grave_path = Path('MARKET-NAVIGATOR-GRAVEYARD.md')
+          s = plan_path.read_text()
+
+          def section(start, end, body):
+              global s
+              pat = re.compile(rf'(?ms)^{re.escape(start)}\n.*?(?=^{re.escape(end)}\n)')
+              if not pat.search(s):
+                  raise SystemExit(f'missing section anchor: {start} -> {end}')
+              s = pat.sub(body.rstrip() + '\n\n', s, count=1)
+
+          s = s.replace('Next release scope: Turn 18', 'Next release scope: Turn 19', 1)
+          s = s.replace('**ENVIRONMENT → <INDEX> → <COMPONENT>**', '**ENV → <INDEX> → <COMPONENT>**', 1)
+
+          section('## 6. Canonical chart chrome — mandatory across ENVIRONMENT, INDEX, and COMPONENT', '## 7. Horizon contract', '''## 6. Canonical chart chrome — mandatory across ENV, INDEX, and COMPONENT
+All three chart views use the same three-section vertical structure. This is one shared component, not three approximations.
+
+### Section A — single top row
+Exactly one physical row at every supported width:
+
+**clickable breadcrumb [left] | horizon controls [fixed center] | `…` context menu [right]**
+
+The seven horizon controls are always centered and are exactly:
+
+**1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**
+
+The row never wraps.
+
+The center horizon region and the right-side `…` menu each own reserved geometry. The breadcrumb is constrained to the remaining left-side width and must never push either fixed region off-screen. The `…` menu is therefore always reachable on every supported width.
+
+The canonical visible top-level breadcrumb token is **ENV**.
+
+Breadcrumb forms are:
+- `ENV`
+- `ENV / RSK`
+- `ENV / RSK / VIX`
+- with added comparison series: `ENV / RSK / VIX +6`
+
+`ENV` and the three-character index token are protected breadcrumb segments. At COMPONENT depth, only the leaf/root-series segment yields space. When necessary it truncates with an ellipsis to the maximum width that preserves the centered horizons and right menu. Pointer hover exposes the full leaf label; touch has an equivalent accessible disclosure without changing row height. The breadcrumb never wraps.
+
+Breadcrumbs are the sole drill-up mechanism. `ENV` returns to the three-index ENV view. The index ancestor returns to the corresponding INDEX view. No dedicated Back button is permitted.
+
+### Section B — legend strip
+A dedicated legend strip is always present directly below Section A, including single-series charts.
+
+Legend chips correspond one-to-one with visible chart series. Each legend key reproduces that series' configured line style and visible thickness; a generic solid color swatch is not sufficient.
+
+Legend chips are the drill-down mechanism while a child analytical level exists:
+- from **ENV**, tapping an index legend chip opens that INDEX view;
+- from **INDEX**, tapping any legend chip opens that exact series as the root standalone COMPONENT analytical view;
+- at **COMPONENT** depth there is no deeper level, so tapping a legend chip changes the active/reference series only.
+
+Long-pressing a legend chip opens its compact series-information card and does not replace the normal tap behavior.
+
+Added comparison series live in the legend rather than expanding the breadcrumb beyond the governed compact suffix.
+
+### Section C — centered footer
+The footer is a meaningful chart-status/control strip, not QA clutter.
+
+It contains, centered as one compact group:
+
+**version/build | exact visible date range | representation selector**
+
+The representation selector exposes the governed chart representations:
+- **Native Y1**;
+- **Native Y1 + Y2** when two measurement families require it;
+- **Indexed 100**.
+
+The current representation is shown in the footer. Selecting another valid representation updates the same chart in place. Choices that are not meaningful for the current series set are disabled rather than producing invalid axes.
+
+Legacy footer text such as chart-type experiments or QA-oriented labels is prohibited.''')
+
+          section('## 8. ENVIRONMENT view', '## 9. INDEX view', '''## 8. ENV view
+ENV is one chart, not a collection of cards.
+
+Required:
+- one primary chart footprint;
+- exactly three derived indices plotted together as line series: **RSK · GRW · MAC**;
+- direction-adjusted Indexed 100 representation by default;
+- no fabricated fourth Market/Environment score curve;
+- one common horizon/X-domain;
+- Section A/B/C chrome exactly as defined in §6;
+- tapping a plotted index line selects it for inspection without navigating;
+- tapping an index legend chip drills down to that INDEX view;
+- long-pressing an index legend chip opens its compact information card.''')
+
+          section('## 9. INDEX view', '## 10. Component information card', '''## 9. INDEX view
+An INDEX view replaces ENV in the exact same primary chart footprint.
+
+Required:
+- selected derived index rendered as a line;
+- every governed component of that index rendered as lines;
+- one common horizon/X-domain;
+- direction-oriented Indexed 100 by default;
+- missing/stale/sparse/failed/cadence-incompatible evidence represented truthfully rather than silently disappearing;
+- source lines contain only real source observations;
+- slow-frequency lines terminate at their real observation dates;
+- Section A/B/C chrome exactly as defined in §6.
+
+The selected index and its components remain one comparison chart. Tapping a plotted line selects that series for inspection and does not navigate. Tapping any legend chip drills down to that exact series as the root standalone COMPONENT analytical view. This includes the index chip itself, which opens the standalone index series. Long-pressing a legend chip opens the compact information card instead of drilling.
+
+There is no card-mediated `More info` requirement between INDEX and COMPONENT.''')
+
+          section('## 10. Component information card', '## 11. COMPONENT view', '''## 10. Series information card
+Series information is optional reference detail, not a navigation gate. It opens by long-pressing a legend chip.
+
+The card is a compact non-blocking overlay anchored at the top-right of the plot with a white background, black text, minimal padding, and no wasted vertical space.
+
+Required layout:
+- **header:** Drill/Open chart action | concise series title | `×`;
+- **body:** purpose/usage, native unit, native cadence, and a **Health ›** link;
+- **footer:** previous arrow at the left edge and next arrow at the right edge.
+
+Provider, direction, latest value, and other diagnostic metadata do not occupy the default card unless they are needed to explain the series; deeper diagnostics belong in Health/Data.
+
+The Health link opens the relevant series Health detail. The Drill/Open chart action is available only when it would move to a deeper analytical level; at COMPONENT depth it is omitted or disabled.
+
+Previous/next arrows traverse the current legend order without wrapping. Moving through the card also updates the active series, selected chip, visual isolation, and card content together so chart inspection remains immediately ready.
+
+The card body must not block pointer inspection of the chart beneath it. Only its controls capture pointer input. Closing the card does not clear the current chart-series selection.''')
+
+          section('## 11. COMPONENT view', '## 12. Point inspection and active-series emphasis', '''## 11. COMPONENT view
+COMPONENT is the standalone analytical view reached directly from an INDEX legend chip or from EXPLORE.
+
+Initial state:
+- exact tapped root series;
+- same selected horizon;
+- native units;
+- native Y1 when valid;
+- real observations only;
+- ENV/index/component lineage retained when entered through NOW;
+- no unrelated default comparison series.
+
+COMPONENT owns additive comparison series.
+
+The breadcrumb never grows beyond the compact form:
+
+`ENV / <INDEX> / <ROOT SERIES> +X`
+
+The root series is protected as analytical lineage, but its visible leaf label truncates with ellipsis when required by the fixed Section A geometry.
+
+At COMPONENT depth there is no deeper legend navigation. Tapping any legend chip changes the active/reference series for inspection. Long-press opens that series' information card. Breadcrumb ancestors provide drill-up.
+
+Automatic representation rules remain:
+1. one series → Native Y1;
+2. compatible same-measurement series → shared Native Y1;
+3. exactly two incompatible measurement families → Native Y1 + Y2;
+4. three or more incompatible measurement families → Indexed 100.
+
+Required acceptance examples:
+- WTI + Brent → shared native $/barrel Y1;
+- CPI + Core CPI → shared compatible Y1;
+- SPY + QQQ + WTI → Native Y1 + Y2;
+- DXY + VIX → Native Y1 + Y2;
+- CPI + WTI → Native Y1 + Y2;
+- CPI + WTI + VIX → Indexed 100.''')
+
+          section('## 12. Point inspection and active-series emphasis', '## 13. GDP and periodic evidence', '''## 12. Point inspection and active-series emphasis
+Navigation and inspection are deliberately separate:
+- **breadcrumb = drill up**;
+- **legend-chip tap = drill down while a child level exists**;
+- **plotted-series tap = select/inspect without navigation**;
+- **legend-chip long press = series information**.
+
+Point inspection remains single-active-series and real-observation based.
+
+Required:
+- tapping/clicking a plotted series makes it the active visual reference without changing analytical depth;
+- the active series is fully opaque/on top and other visible series recede;
+- once a series is active, pointer hover immediately snaps to the nearest real observation on that same series with no additional click;
+- one vertical guide, one point marker, and one contextual date/value/unit popup/tag;
+- popup retains the governed normalized `idx` and native value information;
+- the inspection popup remains pinned when the pointer leaves the exact point/plot and updates when the pointer moves to another real observation on the same active series;
+- `×` dismisses the pinned inspection popup;
+- selecting a different plotted series replaces the active series and clears stale point content until that series is inspected;
+- no all-series inspection popup;
+- configured line style and thickness do not change during emphasis;
+- touch uses equivalent selection/inspection semantics without a separate focus mode;
+- horizon/context/series-set changes clear stale inspection.
+
+Legend-chip taps at ENV and INDEX are navigation, not the mechanism for simple selection. At COMPONENT depth, where there is no child analytical level, legend-chip taps select the active/reference series.
+
+The goal is immediate visual isolation and examination with zero redundant interaction.''')
+
+          section('## 25. Explicit prohibited regressions', '## 26. Next-release construction sequence', '''## 25. Explicit prohibited regressions
+Do not introduce:
+- numbered user-facing view terminology;
+- `ENVIRONMENT` as the visible top-level breadcrumb token; the canonical token is `ENV`;
+- fake Environment/Market index or curve;
+- stacked ENV + INDEX charts;
+- dedicated Back button where breadcrumbs provide drill-up;
+- breadcrumb wrapping;
+- breadcrumb geometry that can push the centered horizons or right-side `…` menu off-screen;
+- truncating the protected `ENV` or three-character index breadcrumb segments before the leaf segment;
+- breadcrumb growth beyond `ENV / <INDEX> / <ROOT SERIES> +X`;
+- moving horizon controls away from fixed center alignment;
+- inconsistent top-row/menu/legend structure between chart views;
+- card-mediated navigation that requires `More info` before COMPONENT;
+- automatically opening a large information card on ordinary series selection;
+- treating normal legend-chip tap and long-press as the same action;
+- adding a second click merely to begin crosshair inspection after a plotted series is selected;
+- header version label when version belongs in Section C;
+- white plotted-series outline as the active-series emphasis mechanism;
+- line-width mutation merely to indicate active inspection;
+- view-specific context-menu variants;
+- inaccessible Chart Config controls;
+- missing CONFIG close control;
+- synthetic/random/fallback chart evidence;
+- silent component substitution;
+- per-series horizon domains;
+- stretched low-frequency source lines;
+- missing/incorrect X/Y axes;
+- all-series inspection popup;
+- stale inspection surviving context changes;
+- duplicate chart engines;
+- duplicate discovery implementations;
+- duplicate AI state;
+- Library without continuation composer;
+- Library without the exact saved chart;
+- production QA/redline clutter on the chart surface;
+- release URL before complete qualification.''')
+
+          section('## 26. Next-release construction sequence', '## 27. Mandatory pre-ship qualification matrix', '''## 26. Next-release construction sequence
+This sequence is binding for Turn 19.
+
+### Phase A — plan freeze
+1. This plan is the authoritative interaction contract.
+2. Record the superseded Turn 18 navigation/card behavior in the Graveyard.
+3. No application code before the plan is frozen.
+
+### Phase B — fixed Section A geometry
+1. Change the visible top-level breadcrumb token to `ENV`.
+2. Reserve immutable geometry for the centered horizon controls and right-side `…` menu.
+3. Constrain the breadcrumb to the remaining device-width budget.
+4. Protect `ENV` and the index token; truncate only the leaf/root-series segment as needed.
+5. Prove the `…` menu remains reachable on narrow phones with the longest governed component label and comparison suffix.
+
+### Phase C — navigation semantics
+1. Breadcrumbs drill up.
+2. ENV legend-chip tap drills to INDEX.
+3. INDEX legend-chip tap drills directly to standalone COMPONENT for that exact series.
+4. COMPONENT legend-chip tap changes active/reference series only.
+5. Plotted-series tap selects/inspects without navigation.
+6. Legend-chip long press opens series information.
+7. Remove the card `More info` navigation gate.
+
+### Phase D — compact information card
+1. Card opens only from legend-chip long press.
+2. Header: Drill/Open chart | title | `×`.
+3. Body: purpose/usage | unit | cadence | Health link.
+4. Footer: previous/next arrows at opposite corners.
+5. Minimal whitespace; top-right; white/black; chart remains inspectable beneath non-control regions.
+
+### Phase E — inspection persistence
+1. Selecting a plotted series immediately isolates it visually.
+2. Hover inspects that already-selected series with no second click.
+3. Point popup remains pinned until dismissed, replaced, or invalidated by context/horizon change.
+4. Moving to another point on the same series updates the popup.
+
+### Phase F — regression preservation
+Preserve all qualified Turn 18 capabilities including horizon-aware display density, full-resolution inspection/Data, GDP q/q/y/y, WTI availability separation, style identity, canonical menu, Library browser TTS, Library chart persistence, evidence/race guards, and AI/provider state.
+
+### Phase G — pre-ship qualification
+Run the complete Turn 19 interaction/layout matrix plus the existing data/chart regression matrix against the exact candidate artifact.
+
+### Phase H — owner test
+Only after every release-blocking gate passes:
+- publish candidate;
+- verify Pages deployment;
+- return exact cache-busted owner test URL and commit SHA.''')
+
+          # Replace conflicting qualification bullets narrowly, preserving all unrelated gates.
+          s = s.replace('ENVIRONMENT, every INDEX, and representative COMPONENT states use identical Section A/B/C geometry;', 'ENV, every INDEX, and representative COMPONENT states use identical Section A/B/C geometry;', 1)
+          s = s.replace('breadcrumb left, horizons fixed center, menu right;', 'breadcrumb constrained left, horizons fixed center, menu in a permanently reserved right slot;', 1)
+          s = s.replace('long breadcrumb truncates with ellipsis and full text is discoverable;', 'only the leaf/root-series breadcrumb segment truncates with ellipsis; ENV/index remain visible and full leaf text is discoverable;', 1)
+          s = s.replace('- component card works;\n- breadcrumb and legend strip correct;', '- ordinary plotted-series selection does not auto-open the information card;\n- legend-chip tap drills directly to COMPONENT; long press opens the compact information card;\n- breadcrumb and legend strip correct;', 1)
+          s = s.replace('### 27.5 COMPONENT journey\nFor representative components from each index:\n- information card precedes COMPONENT view;\n- root component and horizon preserved;\n- additive series update only legend and `+ X Components` suffix;\n- close restores exact prior INDEX state;\n- no stale inspection leakage.', '''### 27.5 COMPONENT journey\nFor representative series from each index:\n- INDEX legend-chip tap opens that exact series directly as standalone COMPONENT;\n- tapping the index chip itself opens the standalone index series;\n- ordinary plotted-series tap selects/inspects without navigating;\n- legend-chip long press opens the compact information card without drilling;\n- root series and horizon are preserved;\n- additive series update only legend and compact `+X` breadcrumb suffix;\n- ENV/index breadcrumbs drill up without a Back control;\n- at COMPONENT depth legend-chip tap changes active/reference series rather than attempting deeper navigation;\n- no stale inspection leakage.''', 1)
+          s = s.replace('### 27.7 Crosshair active-series emphasis\n- active series remains fully opaque and visually above others;\n- non-active series fade while inspection is active;\n- configured widths do not change;\n- tooltip content remains unchanged from governed inspection contract;\n- no second click is required;\n- emphasis clears automatically when inspection/context ends;\n- no white plotted-series outline remains.', '''### 27.7 Crosshair active-series emphasis\n- plotted-series tap selects the active series without navigating;\n- active series remains fully opaque and visually above others;\n- non-active series fade immediately after selection;\n- pointer hover inspects the already-selected series with no second click;\n- pinned popup updates as the pointer moves between real observations on that series;\n- popup `×` dismisses it;\n- selecting a different plotted series clears stale point content and changes active emphasis;\n- configured widths do not change;\n- no white plotted-series outline remains.''', 1)
+
+          section('## 29. Current release state', '## Turn 17 card navigation and Library listen contract', '''## 29. Current release state
+Turn 18 is the current qualified release baseline.
+
+Turn 19 is bounded to the owner-approved interaction correction:
+- visible top-level breadcrumb token becomes **ENV**;
+- fixed reserved Section A regions prevent breadcrumb text from ever pushing the centered horizons or right-side `…` menu off-screen;
+- only the component/root-series leaf truncates as needed, with full-label disclosure;
+- breadcrumbs drill up;
+- legend-chip taps drill down at ENV and INDEX and select only at COMPONENT depth;
+- plotted-series taps select/inspect without navigating;
+- legend-chip long press opens the compact information card;
+- the oversized/default card and `More info` navigation gate are removed;
+- compact card uses Drill/Open chart | title | `×`, purpose/usage/unit/cadence/Health, and footer previous/next arrows;
+- point inspection becomes immediately available after plotted-series selection and remains pinned until dismissed/replaced/context-invalidated.
+
+No unrelated feature work belongs in Turn 19.''')
+
+          plan_path.write_text(s)
+
+          g = grave_path.read_text()
+          marker = '## Turn 18 navigation/card behavior superseded for Turn 19'
+          if marker not in g:
+              g += '''\n\n## Turn 18 navigation/card behavior superseded for Turn 19\n\nTurn 18 remains the qualified donor for horizon-aware display density, full-resolution inspection/Data, GDP q/q/y/y, WTI availability separation, chart styling, canonical context menu, Library browser TTS, Library chart persistence, AI/provider state and evidence/race protections. The following owner-visible interaction behavior is superseded and must not be restored:\n\n- **Unbounded breadcrumb flex is rejected.** Breadcrumb text may not consume the centered horizon region or push the right-side `…` menu off-screen.\n- **`ENVIRONMENT` as the visible root token is rejected.** The compact canonical root token is `ENV`.\n- **Whole-breadcrumb truncation/wrapping is rejected.** ENV and the three-character index remain visible; only the leaf/root-series segment yields and ellipsizes.\n- **Automatic large information card on ordinary series selection is rejected.** Series information is an explicit long-press action.\n- **Card-mediated `More info` drill-down is rejected.** Breadcrumbs drill up and legend-chip taps drill down while a child analytical level exists.\n- **Conflating navigation with chart inspection is rejected.** A plotted-series tap selects/isolates for inspection without changing analytical depth.\n- **Bottom-level legend navigation is rejected.** At COMPONENT depth legend-chip taps select the active/reference series because there is no deeper analytical level.\n\n### Recovery rule\nTurn 19 is a bounded interaction/chrome correction over the qualified Turn 18 baseline. Do not rewrite the backend, horizon-density engine, Data surface, Library TTS, or evidence architecture. Qualification must prove phone geometry with the longest governed leaf label, reachable `…`, direct legend drill-down, plotted-line inspection without navigation, long-press information, and correct bottom-level legend termination.\n'''
+          grave_path.write_text(g)
+          PY
+          git diff --check
+          git diff -- MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md
+      - name: Commit frozen plan
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md
+          git commit -m 'Market Navigator Turn 19 plan freeze [turn19-plan-generated]'
+          git push origin HEAD:market-navigator-turn19-plan-20260911
