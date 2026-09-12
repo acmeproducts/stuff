@@ -27,18 +27,29 @@ async function pageBase({width=1280,height=800,registry=null,failAI=false}={}){
   return{page,errors,failed,seriesRequests};
 }
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
-async function enter(p,id){await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(id=>document.querySelector('#legend [data-id="'+id+'"]'),id)}
+const CODE={growth:'GRW',risk:'RSK',macro:'MAC'};
+async function settle(p){await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
+async function enter(p,id){
+  await p.locator(`#legend [data-id="${id}"]`).click();
+  await p.waitForFunction(({id,code})=>{let crumb=document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim()||'',anchor=document.querySelector(`#legend [data-id="${id}"]`);return crumb===`ENV / ${code} / COMPONENTS`&&anchor?.classList.contains('active')&&document.querySelectorAll('#legend [data-id]').length>1},{id,code:CODE[id]});
+  await settle(p);
+}
 async function state(p){return await p.evaluate(()=>({h:[...document.querySelectorAll('#hzs .hz')].find(x=>x.classList.contains('on'))?.dataset.h||'',crumb:document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim(),ids:[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id),active:document.querySelector('#legend .active')?.dataset.id||null,card:(()=>{let r=document.querySelector('.chartCard').getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,right:r.right}})(),canvas:(()=>{let r=document.querySelector('#nowChart').getBoundingClientRect();return{w:r.width,h:r.height}})()}))}
 
 async function geometryCase(index=null){
   const t=await pageBase(),p=t.page;
   if(index)await enter(p,index);
   await p.locator('#hzs [data-h="3YR"]').click();
-  await p.waitForFunction(()=>document.querySelector('#hzs [data-h="3YR"]')?.classList.contains('on'));
-  await p.waitForTimeout(120);
+  await p.waitForFunction(()=>document.querySelector('#hzs [data-h="3YR"]')?.classList.contains('on')&&document.querySelector('#nowChart')?.dataset.renderDensity==='monthly');
+  await settle(p);await p.waitForTimeout(80);
   const before=await state(p),req=t.seriesRequests.length;
   for(let i=0;i<3;i++){
-    const old=await state(p);await p.locator('#toggle').click();await p.waitForTimeout(220);const now=await state(p);
+    const old=await state(p),wasClosed=await p.locator('#rail').evaluate(x=>x.classList.contains('closed'));
+    await p.locator('#toggle').click();
+    await p.waitForFunction(was=>document.querySelector('#rail')?.classList.contains('closed')!==was,wasClosed);
+    await p.waitForTimeout(180);await settle(p);
+    const now=await state(p);
+    if(Math.abs(now.card.top-before.card.top)>=2||Math.abs(now.card.bottom-before.card.bottom)>=2)console.log('GEOMETRY DIAG',index||'ENV',{before,old,now});
     assert(Math.abs(now.card.top-before.card.top)<2,`${index||'ENV'} card top pinned`);
     assert(Math.abs(now.card.bottom-before.card.bottom)<2,`${index||'ENV'} card bottom pinned`);
     assert.equal(now.h,'3YR',`${index||'ENV'} horizon invariant`);
@@ -51,13 +62,11 @@ async function geometryCase(index=null){
 }
 
 try{
-  // Exact regression sequence: horizon change followed by repeated rail collapse/expand.
   await geometryCase(null);
   await geometryCase('growth');
   await geometryCase('risk');
   await geometryCase('macro');
 
-  // Missing/unverified provider: Config AI opens cleanly and no empty Analysis is created.
   const missing=await pageBase({width:412,height:915,registry:{defaultProvider:'openrouter',providers:{openrouter:{verified:false,model:'qa-model'}}}}),mp=missing.page;
   assert.equal(await analysisCount(mp),0);
   await mp.locator('#nowMoreBtn').click();await mp.locator('#nowAnalyze').click();
@@ -67,7 +76,6 @@ try{
   assert.equal(await mp.locator('#settingsModal').count(),0,'retired settingsModal absent');
   assert.deepEqual(missing.errors,[],'invalid-provider path has no exception');await mp.close();
 
-  // Provider request failure becomes a persisted failed Analysis rather than an uncaught error.
   const reg={defaultProvider:'openrouter',providers:{openrouter:{verified:true,key:'qa-key',model:'qa-model',models:['qa-model']}}};
   const fail=await pageBase({width:412,height:915,registry:reg,failAI:true}),fp=fail.page;
   await fp.locator('#nowMoreBtn').click();await fp.locator('#nowAnalyze').click();
@@ -77,7 +85,6 @@ try{
   assert.match(await fp.locator('#transcript').innerText(),/Analysis failed/i);
   assert.deepEqual(fail.errors,[],'provider failure has no uncaught exception');await fp.close();
 
-  // Registered secrets remain hidden/empty; failed replacement is transactional.
   const cred=await pageBase({width:412,height:915,registry:reg,failAI:true}),cp=cred.page;
   await cp.locator('#settingsGear').click();
   const key=cp.locator('#openrouterKey'),replace=cp.locator('[data-replace-key="openrouter"]');
@@ -89,7 +96,6 @@ try{
   await replace.click();assert.equal(await key.isHidden(),true,'Cancel returns to registered-state display');
   assert.deepEqual(cred.errors,[]);await cp.close();
 
-  // Sources is a governed control-plane handoff; supported horizons come from canonical evidence.
   const src=await pageBase({width:412,height:915}),sp=src.page;
   await sp.locator('#settingsGear').click();await sp.locator('[data-cfgtab="sources"]').click();
   await sp.waitForFunction(()=>document.querySelector('#sourceStatus')?.textContent.includes('Canonical registry refreshed'));
@@ -101,7 +107,7 @@ try{
   await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');
   await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));
   assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),false,'healthy daily custom source available at 5D');
-  await sp.locator('#nowPickerClose').click();await sp.locator('#hzs [data-h="1D"]').click();await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');
+  await sp.locator('#nowPickerClose').click();await sp.locator('#hzs [data-h="1D"]').click();await sp.waitForFunction(()=>document.querySelector('#hzs [data-h="1D"]')?.classList.contains('on'));await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');
   await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));
   assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),true,'daily-only custom source cannot fabricate 1D intraday');
   assert.deepEqual(src.errors,[],'Sources path no app errors');assert.deepEqual(src.failed,[],'Sources path required resources healthy');await sp.close();
