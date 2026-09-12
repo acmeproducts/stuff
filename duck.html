@@ -1382,7 +1382,6 @@
     #duck-diag.show{display:block}
     #duck-diag b{color:#7dd3fc}
     #duck-diag .err{color:#fca5a5}
-    #controls-modal.flip{transform:rotate(180deg)}
 </style>
 
 <script>
@@ -1882,7 +1881,6 @@
         row.querySelector('.gearbtn').addEventListener('click',function(){
             var m=document.getElementById('controls-modal');
             if(m){
-                m.classList.toggle('flip',side==='peer');     // north is physically rotated 180° — the modal must match
                 m.classList.remove('invisible');m.classList.add('visible');
                 var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
         });
@@ -1904,6 +1902,7 @@
         });
         paintTts(side);
         row.querySelector('.duck-send').addEventListener('click',function(){send(side)});
+        ta.addEventListener('focus',function(){if(owner!==side)openKb(side,'field focused')});
         ta.addEventListener('input',function(){
             cl.classList.toggle('show',!!ta.value);
             ta.scrollLeft=ta.scrollWidth;                  // keep the caret end visible as text grows — never wraps
@@ -2010,6 +2009,7 @@
             '<button type="button" class="duck-key fn" data-k="CLOSE">✕</button></div>';
         wrap.innerHTML=html;
         wrap.querySelectorAll('.duck-key').forEach(function(b){
+            b.addEventListener('pointerdown',function(e){e.preventDefault()});   // keep focus+caret on the input
             b.addEventListener('click',function(e){e.preventDefault();press(side,b.dataset.k)});
         });
         var lg=langOf(side);
@@ -2028,7 +2028,10 @@
         if(!cands[side].length){bar.innerHTML='';bar.style.display='none';return}
         bar.style.display='flex';
         bar.innerHTML=cands[side].map(function(c,i){return '<button type="button" class="duck-cand'+(i===candIdx[side]?' on':'')+'" data-i="'+i+'">'+String(c).replace(/[&<>]/g,'')+'</button>'}).join('');
-        bar.querySelectorAll('.duck-cand').forEach(function(b){b.addEventListener('click',function(){pickCand(side,+b.dataset.i)})});
+        bar.querySelectorAll('.duck-cand').forEach(function(b){
+        b.addEventListener('pointerdown',function(e){e.preventDefault()});
+        b.addEventListener('click',function(){pickCand(side,+b.dataset.i)});
+    });
     }
     function pickCand(side,i){
         var c=cands[side][i];if(c==null)return;
@@ -2257,8 +2260,6 @@
         var target=other(fromSide);pendingFrom=fromSide;
         ctl[fromSide].dataset.pending='true';
         var card=askEl[target],lang=langOf(target);
-        card.querySelector('.duck-ask-flag').textContent=flagOf(langOf(fromSide));
-        card.querySelector('.duck-ask-who').textContent=labelOf(langOf(fromSide));
         setText(card.querySelector('.duck-ask-msg'),'The other person would like to use the keyboard.',lang);
         setText(card.querySelector('.ok'),'Allow',lang);
         setText(card.querySelector('.no'),'Decline',lang);
@@ -2284,7 +2285,6 @@
         var host=halfOf(side);
         var a=document.createElement('div');a.className='duck-ask';
         a.innerHTML='<div class="duck-ask-card"><div class="message-row peer"><div class="message-bubble peer duck-ask-bubble">'+
-            '<div class="duck-hdr"><span class="duck-sender"><span class="duck-ask-flag"></span><span class="duck-ask-who"></span></span></div>'+
             '<div class="bubble-col" style="grid-column:1/-1"><span class="duck-ask-msg"></span></div></div></div>'+
             '<div class="duck-ask-btns"><button type="button" class="no"></button><button type="button" class="ok"></button></div></div>';
         host.style.position=host.style.position||'relative';
@@ -2488,7 +2488,7 @@
         });
         ['local','peer'].forEach(function(side){
             buildComposer(side);buildJump(side);
-            kb[side]=buildKeyboard(side);enableSwype(side);
+            kb[side]=buildKeyboard(side);
             askEl[side]=buildAsk(side);
             ctl[side].dataset.owned='false';
         });
