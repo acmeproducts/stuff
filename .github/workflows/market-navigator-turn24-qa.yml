@@ -1,0 +1,89 @@
+name: Market Navigator Turn 24 qualification
+on:
+  push:
+    branches: [market-navigator-turn24-recovery]
+    paths:
+      - 'market-navigator-build-turn24.py'
+      - 'market-navigator-turn24-qa.mjs'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+      - '.github/workflows/market-navigator-turn24-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build clean Turn 24 from Turn 22
+        run: |
+          set -euo pipefail
+          test "$(git hash-object market-navigator-turn22-pre-ship.html)" = "19e45a18264534e16c535904f7d9fe049b7172da"
+          python3 market-navigator-build-turn24.py
+      - name: Static governance and JavaScript gates
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn24-pre-ship.html').read_text()
+          assert '<title>Market Navigator · Turn 24</title>' in s
+          assert 'TURN 24 PRE-SHIP' in s
+          assert 'settingsModal' not in s
+          assert 'type="password"' not in s
+          assert 'data-cfgtab="sources"' in s and 'id="cfgSources"' in s
+          assert 'repaintNowGeometry24' in s and 'ResizeObserver' in s
+          assert "if(S.view==='now')renderNow()" not in s[s.rfind("boot();window.addEventListener('resize'"):]
+          assert 'providerKeyForAction24' in s and 'openLibraryAnalysis24' in s
+          assert 'sourceIssueUrl24' in s and 'SOURCE_REGISTRY_PATH24' in s
+          assert 'market-navigator-turn23-pre-ship.html' not in Path('market-navigator-build-turn24.py').read_text()
+          scripts=re.findall(r'<script>(.*?)</script>',s,re.S);assert scripts
+          Path('/tmp/mn24.js').write_text(scripts[-1])
+          print('TURN24 STATIC/GOVERNANCE PASS')
+          PY
+          node --check /tmp/mn24.js
+      - name: Browser product and recovery matrix
+        env:
+          MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn24-pre-ship.html
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn24-server.log 2>&1 &
+          node market-navigator-turn22-qa.mjs
+          node market-navigator-turn24-qa.mjs
+      - name: Canonical Sources control-plane gates
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          dow=reg.get('aliases',{}).get('DOW|index')
+          assert dow and dow['symbol']=='^DJI' and dow['name']=='Dow Jones Industrial Average'
+          src=Path('market-navigator-source-register.py').read_text()
+          wf=Path('.github/workflows/market-evidence-pipeline.yml').read_text()
+          assert "CLASSES={'index','equity','etf','fund_cit'}" in src
+          assert "issues:" in wf and "register-source:" in wf
+          assert 'github.actor == github.repository_owner' in wf
+          assert 'market-navigator-source-register.py' in wf
+          print('TURN24 SOURCES CONTROL PLANE PASS')
+          PY
+      - name: Publish qualified branch artifact
+        run: |
+          set -euo pipefail
+          git config user.name "acmeproducts"
+          git config user.email "182510693+acmeproducts@users.noreply.github.com"
+          git add market-navigator-turn24-pre-ship.html
+          if git diff --cached --quiet; then echo 'Qualified artifact already current.'; exit 0; fi
+          git commit -m "Market Navigator Turn 24 qualified candidate"
+          git pull --rebase origin market-navigator-turn24-recovery
+          git push origin HEAD:market-navigator-turn24-recovery
