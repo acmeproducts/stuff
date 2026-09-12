@@ -1809,7 +1809,7 @@
 
 
     /* ================= state ================= */
-    var owner=null,pendingFrom=null,askTimer=null;
+    var owner=null,pendingFrom=null,pendingGrantFn=null,askTimer=null;
     var kb={},ctl={},micCtl={},ttsCtl={},modeChip={},askEl={},inputs={},clears={},langbar={};
     var shifted={local:false,peer:false},numMode={local:false,peer:false};
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
@@ -1886,7 +1886,7 @@
         });
         ctl[side].addEventListener('click',function(){onKbButton(side)});
         micCtl[side]=row.querySelector('.micbtn');
-        micCtl[side].addEventListener('click',function(){toggleSTT(side)});
+        micCtl[side].addEventListener('click',function(){requestInputAccess(side,function(){toggleSTT(side)})});
         ttsCtl[side]=row.querySelector('.ttsbtn');
         ttsCtl[side].addEventListener('click',function(){
             if(side==='local')settings.ttsEnabledLocal=!settings.ttsEnabledLocal;
@@ -2251,13 +2251,25 @@
         if(owner===side)owner=null;
         diag('keyboard closed on '+side+(why?' ('+why+')':''));
     }
-    function onKbButton(side){
-        if(owner===side){closeKb(side,'button');return}
-        if(!owner){openKb(side,'button');return}
-        ask(side);
+    // Single gate for BOTH the keyboard button and the mic button — whichever side holds input
+    // access, the other side must request it. Granting it forcibly releases the holder's keyboard
+    // AND stops their mic if it's hot, so two channels can never run at once.
+    function requestInputAccess(side,after){
+        if(owner===side){after();return}
+        if(!owner){owner=side;ctl[side].dataset.owned='true';ctl[other(side)].dataset.owned='false';after();return}
+        ask(side,after);
     }
-    function ask(fromSide){
-        var target=other(fromSide);pendingFrom=fromSide;
+    function releaseSide(side,why){
+        if(kb[side]&&kb[side].classList.contains('open'))closeKb(side,why);
+        if(recOn[side]){recOn[side]=false;var r=rec[side];if(r){try{r.stop()}catch(e){}}}
+        if(owner===side)owner=null;
+    }
+    function onKbButton(side){
+        if(owner===side&&kb[side].classList.contains('open')){closeKb(side,'button');return}
+        requestInputAccess(side,function(){openKb(side,'button')});
+    }
+    function ask(fromSide,onGranted){
+        var target=other(fromSide);pendingFrom=fromSide;pendingGrantFn=onGranted;
         ctl[fromSide].dataset.pending='true';
         var card=askEl[target],lang=langOf(target);
         setText(card.querySelector('.duck-ask-msg'),'The other person would like to use the keyboard.',lang);
@@ -2275,11 +2287,14 @@
     function resolveAsk(granted,silent){
         clearTimeout(askTimer);
         Object.keys(askEl).forEach(function(k){askEl[k].classList.remove('show')});
-        var from=pendingFrom;pendingFrom=null;
+        var from=pendingFrom,fn=pendingGrantFn;pendingFrom=null;pendingGrantFn=null;
         if(from)ctl[from].dataset.pending='false';
         if(!from)return;
-        if(granted){closeKb(other(from),'granted');openKb(from,'granted')}
-        else diag('request '+(silent?'expired':'declined'));
+        if(granted){
+            releaseSide(other(from),'granted to '+from);   // stop whatever the holder was doing — keyboard or mic
+            owner=from;ctl[from].dataset.owned='true';ctl[other(from)].dataset.owned='false';
+            if(fn)fn();
+        } else diag('request '+(silent?'expired':'declined'));
     }
     function buildAsk(side){
         var host=halfOf(side);
