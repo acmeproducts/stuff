@@ -1,8 +1,8 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-11
-Next release scope: Turn 19
+Updated: 2026-09-12
+Next release scope: Turn 20
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -227,7 +227,7 @@ COMPONENT is the standalone analytical workspace for the selected root series an
 
 Entry is direct from an INDEX legend-chip tap (or EXPLORE). The selected horizon is preserved. A raw component opens in native units/Native Y1 when mathematically valid; a derived RSK/GRW/MAC index remains truthfully represented as Indexed 100 rather than being mislabeled as native evidence.
 
-The breadcrumb never grows beyond `ENV / <INDEX> / <ROOT COMPONENT> + X Components`. ENV and INDEX drill upward. Added comparisons do not replace the root leaf.
+The breadcrumb never grows beyond `ENV / <INDEX> / <ROOT COMPONENT> + X Components`. ENV and INDEX drill upward. If a derived parent INDEX remains plotted as context and one or more raw comparison series are present, that derived INDEX is not a COMPONENT leaf and is not counted in `+ X`. The first raw series becomes the COMPONENT root and `+ X` counts only the additional raw series. Thus a Growth-context chart containing `GRW + PCE + Payrolls + UNE` is `ENV / GRW / PCE + 2 Components`, not `ENV / GRW / GRW + 3 Components`. A derived-only standalone COMPONENT remains valid as `ENV / GRW / GRW` until a raw series is added.
 
 At this bottom level:
 - legend-chip tap changes the active/reference series only;
@@ -750,4 +750,15 @@ The Library footer has **Chat** and **Listen** modes. Listen reads completed ass
 
 ### Deferred backlog — downloadable TTS audio
 **Downloadable MP3 TTS is deferred backlog and is explicitly out of Turn 17.** Browser `speechSynthesis` remains the playback mechanism for now. A future release may add a file-producing TTS engine/provider that renders the same analysis text into temporary audio and exposes an explicit MP3 download; generated audio must remain temporary unless the user explicitly downloads it.
+
+## 30. Turn 20 — lifecycle and AI snapshot truth correction
+Turn 20 is a narrow owner-directed correction over qualified Turn 19. It does not redesign the chart system, evidence model, Library, Config, display density, or interaction grammar.
+
+Release-blocking corrections:
+- **AI POV consumes the exact frozen chart state that is visibly rendered.** It must not reconstruct a COMPONENT chart by re-fetching raw-series files after the chart has already been rendered. Derived RSK/GRW/MAC curves in the visible chart therefore remain `available: true` with their real derived observations in AI evidence and the persisted Library chart snapshot.
+- **Derived parent context is not a duplicated COMPONENT leaf.** When a derived INDEX is the starting standalone series and the user adds the first raw series, that raw series becomes the COMPONENT root; the parent INDEX may remain plotted as context but is excluded from the leaf `+ X` count.
+- **Breadcrumb lifecycle must be explicitly qualified end-to-end:** ENV index-chip tap → INDEX; INDEX component-chip tap → COMPONENT; COMPONENT INDEX ancestor tap → the same INDEX; COMPONENT ENV ancestor tap → ENV; bottom-level legend taps remain select/reference only and never create a fourth level.
+- **AI/Library regression gate:** a COMPONENT chart containing a derived index plus raw comparison series must persist the derived index with non-empty plotted points and must send it to AI as available evidence.
+
+Turn 20 acceptance example: `GRW + PCE + Payrolls + UNE` at COMPONENT depth renders breadcrumb `ENV / GRW / PCE + 2 Components`; AI evidence and the saved Library chart both retain the visible GRW curve.
 
