@@ -1,9 +1,10 @@
+<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
 | Date | Turn | Stage | Status | Notes |
 |------|------|-------|--------|-------|
-| 2025-08-26 | 1 | DEFINE | ✅ done | Plan created from existing quilt.html v3; owner intent captured |
+| 2025-08-26 | 1 | DEFINE | ✅ done | Plan created from existing quilt.html v3; owner intent captured (wave field + Sierpinski carpet) |
 
 ## 1. RELEASES
 | # | Goal | Target |
@@ -109,3 +110,4 @@
 2. **quilt.html** — implementation; must match plan's current release scope.
 3. **Owner directives in chat** — captured into plan via DECISION LOG or scope changes before code.
 4. **External docs (MDN, Three.js, etc.)** — referenced only to unblock; cited in SUMMARY.
+</plan>
