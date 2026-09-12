@@ -232,3 +232,18 @@ Turn 17 is a bounded interaction/readout correction over the qualified Turn 16 a
 Rejected behavior: drawing every high-frequency real observation at YTD/1YR/3YR/5YR simply because the evidence exists. On phone and dense multi-series charts this creates avoidable visual noise and reduces analytical readability.
 
 Do not fix this by mutating/downsampling persisted evidence, monthly averaging, interpolation, forward-fill, synthetic timestamps, or by weakening full-resolution Data/crosshair behavior. Turn 18 uses presentation-only real-observation display reduction: weekly for YTD/1YR and monthly for 3YR/5YR, while 1D/5D/MTD remain native.
+
+## Turn 18 top-strip and hierarchy friction — rejected for Turn 19 (2026-09-11)
+Turn 18 remains the qualified donor for horizon-aware display density and the previously accepted data/Library/configuration capabilities. The following owner-visible interaction behavior is rejected:
+
+- visible root breadcrumb text `ENVIRONMENT`; the canonical visible token is now **ENV**;
+- equal/flexible top-row geometry that allows breadcrumb length to displace or hide the fixed horizons or right-side `…` menu;
+- whole-breadcrumb truncation that can consume protected ENV/INDEX ancestry; only the COMPONENT leaf may ellipsize;
+- automatically opening the large series-information card during ordinary chip or plotted-series selection;
+- requiring `More info` as the mandatory bridge from INDEX to COMPONENT;
+- using an INDEX legend-chip tap merely as selection when a deeper standalone analytical chart exists;
+- clearing the selected inspection readout merely because the pointer leaves the plot;
+- introducing any extra click/toggle to make a selected series ready for inspection.
+
+### Recovery rule
+Turn 19 uses one explicit interaction grammar: **breadcrumb drills up; legend chips drill down where a child exists; plotted series select/inspect; long press opens information.** At COMPONENT depth legend taps change active/reference series because there is no deeper hierarchy. The compact long-press popover is reference UI, not a navigation gate. Turn 18 display-density and data truth behavior must not change.
