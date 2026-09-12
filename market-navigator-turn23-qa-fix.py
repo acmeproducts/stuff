@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+
 p=Path('market-navigator-turn23-qa.mjs')
 s=p.read_text()
 old="""  let open=await geom();assert(Math.abs(open.card.t-open.view.t)<=2,'open rail chart pinned to workspace top');assert(Math.abs(open.card.b-open.view.b)<=2,'open rail chart pinned to workspace bottom');
@@ -15,6 +17,16 @@ new="""  let a=await geom();assert(Math.abs(a.card.t-a.view.t)<=2,'initial rail 
   assert(narrow.card.w>wide.card.w+20,'narrow rail grants chart width');assert(narrow.wrap.w>wide.wrap.w+20,'chart container follows available width');assert(Math.abs(b.canvas.w-b.wrap.w)<=1,'canvas redraw matches toggled container');
   await p.locator('#toggle').click();await p.waitForTimeout(260);let restored=await geom();assert(Math.abs(restored.card.t-a.card.t)<=2&&Math.abs(restored.card.b-a.card.b)<=2,'restored rail remains vertically pinned');assert(Math.abs(restored.wrap.w-a.wrap.w)<=2,'second toggle restores chart width');
 """
-if old not in s: raise SystemExit('rail QA anchor missing')
-p.write_text(s.replace(old,new,1))
-print('TURN23 RAIL QA PATCH PASS')
+
+if old in s:
+    p.write_text(s.replace(old,new,1))
+    print('TURN23 RAIL QA PATCH APPLIED')
+elif new in s:
+    print('TURN23 RAIL QA ALREADY NORMALIZED')
+else:
+    raise SystemExit('rail QA anchor missing')
+
+# The existing workflow publishes the generated HTML after qualification. Stage the
+# normalized QA source as part of that same atomic commit so the rebase step sees a
+# clean worktree and future runs execute the state-independent test directly.
+subprocess.run(['git','add',str(p)],check=True)
