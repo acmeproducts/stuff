@@ -33,3 +33,13 @@ Browser TTS remains playback-only. Downloadable MP3 remains backlog until a true
 
 ## Retained analytical rules
 Raw/source Indexed 100 is plain relative rebasing; derived-composite direction affects composite construction only. Long-horizon display density remains native for 1D/5D/MTD, weekly for YTD/1YR, and monthly for 3YR/5YR without altering canonical evidence or full-resolution inspection/Data/AI/export.
+
+## Turn 23 retired patterns
+- rail-toggle handlers that guess canvas size or rely on fixed delays instead of observing the actual chart container
+- NOW layouts that vertically recenter or leave dead top/bottom space when the left rail changes width
+- repopulating saved provider secrets into ordinary password fields when Config renders
+- local-only custom tickers that bypass canonical evidence, Health, revisions, and Library reproducibility
+- selecting a different economic source merely because the user changes chart horizon
+- silent symbol/proxy substitution, including treating ambiguous DOW as either Dow Inc. or the Dow Jones Industrial Average without explicit identity resolution
+- treating price, total return, index level, and NAV as interchangeable measurements
+- fabricated intraday points for daily/NAV-only sources

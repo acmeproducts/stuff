@@ -21,16 +21,17 @@ def series(id,name,short,description,domain,category,provider,pid,url,unit,caden
 
 def main():
     c=load(CATALOG)
-    c['version']='1.3.0'; c['status']='authoritative-r7-reconciled'; c['canonical_horizons']=H[:]
+    c['version']='1.4.0'; c['status']='authoritative-r7-reconciled-turn23'; c['canonical_horizons']=H[:]
     c['horizon_policy']={
-      '1D':'Latest valid observation versus the immediately preceding applicable observation/session.',
+      '1D':'Latest valid observation versus the immediately preceding applicable observation/session. User-registered daily-only sources must explicitly disable 1D until genuine intraday evidence is collected.',
       '5D':'Latest valid observation versus the nearest valid observation five applicable observation/trading days earlier.',
       'MTD':'Month-to-date from the last valid observation at or before the beginning of the current calendar month to the common market anchor.',
       'YTD':'Year-to-date from the last valid observation at or before the beginning of the current calendar year to the common market anchor.',
       '1YR':'Latest valid observation versus the nearest valid observation on or before one calendar year earlier.',
       '3YR':'Latest valid observation versus the nearest valid observation on or before three calendar years earlier.',
       '5YR':'Latest valid observation versus the nearest valid observation on or before five calendar years earlier.',
-      'low_frequency_rule':'Do not fabricate daily observations for weekly, monthly or quarterly series. Use actual published observations and expose no-new-release state when appropriate.'}
+      'low_frequency_rule':'Do not fabricate daily or intraday observations for weekly, monthly, quarterly, NAV-only, or daily-only sources. Use actual published observations and disable unsupported horizons.'
+    }
     existing={x['id']:x for x in c['series']}
     additions=[
       series('hyg','iShares iBoxx High Yield Corporate Bond ETF','HYG','Liquid high-yield bond price proxy used as a risk-appetite component.','market','credit','Yahoo Finance','HYG','https://finance.yahoo.com/quote/HYG/','USD','trading-day'),
@@ -47,7 +48,13 @@ def main():
     if pmi:
         pmi['enabled']=False; pmi['required']=False; pmi['status']='excluded-by-owner'; pmi['excluded_on']='2026-09-01'; pmi['exclusion_reason']='No permissible free ISM PMI source; owner-approved replacement is manufacturingProduction/IPMAN.'
     c.setdefault('publication_schedule',{}).setdefault('series_overrides',{})['manufacturingProduction']={'expected_day_of_month':18,'label':'Monthly Federal Reserve G.17 · about day 18'}
-    for x in c['series']: x['supported_horizons']=H[:]
+    for x in c['series']:
+        if x.get('custom_source'):
+            allowed=[h for h in (x.get('supported_horizons') or []) if h in H]
+            x['supported_horizons']=allowed or ['5D','MTD','YTD','1YR','3YR','5YR']
+            x['required']=False
+        else:
+            x['supported_horizons']=H[:]
     required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','manufacturingProduction','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
     for x in c['series']:
         if x['id'] in required: x['required']=True; x['enabled']=True

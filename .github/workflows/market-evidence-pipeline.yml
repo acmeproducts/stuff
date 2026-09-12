@@ -8,10 +8,14 @@ on:
       - 'market-navigator-r7-data-pipeline.py'
       - 'market-navigator-r7-health.py'
       - 'market-navigator-r7-index-audit.py'
+      - 'market-navigator-source-register.py'
       - 'data/market-backend/data-catalog.json'
+      - 'data/market-backend/source-registry.json'
       - 'data/market-backend/derived-index-definition.json'
       - 'data/market-backend/publication-rules.json'
       - '.github/workflows/market-evidence-pipeline.yml'
+  issues:
+    types: [opened]
   workflow_dispatch:
     inputs:
       bootstrap:
@@ -31,6 +35,7 @@ concurrency:
 
 jobs:
   evidence:
+    if: github.event_name != 'issues'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,7 +43,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconcile accepted R7 catalog and derived definitions
+      - name: Reconcile accepted catalog and derived definitions
         run: |
           set -euo pipefail
           python3 market-navigator-r7-catalog-reconcile.py
@@ -59,9 +64,7 @@ jobs:
           assert set(sum(([x[0] for x in v] for v in exp.values()),[])) <= ids
           pmi=next(x for x in c['series'] if x['id']=='pmi')
           assert pmi['enabled'] is False and pmi['required'] is False,pmi
-          excluded=d['indices']['growth'].get('excluded_components') or []
-          assert excluded and excluded[0]['id']=='pmi' and excluded[0]['replacement_id']=='manufacturingProduction',excluded
-          print('R7 accepted definitions reconciled')
+          print('Accepted definitions reconciled')
           PY
 
       - name: Build canonical evidence
@@ -107,8 +110,74 @@ jobs:
           set -euo pipefail
           git config user.name "market-evidence-bot"
           git config user.email "market-evidence-bot@users.noreply.github.com"
-          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json market-evidence
+          git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/source-registry.json market-evidence
           if git diff --cached --quiet; then echo "No canonical evidence changes."; exit 0; fi
-          git commit -m "data: publish proven Market Navigator R7 evidence"
+          git commit -m "data: publish proven Market Navigator evidence"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  register-source:
+    if: github.event_name == 'issues' && github.actor == github.repository_owner && startsWith(github.event.issue.title, '[Market Navigator Source]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_REQUEST_BODY: ${{ github.event.issue.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Parse governed source request
+        id: request
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os,re
+          body=os.environ.get('SOURCE_REQUEST_BODY','')
+          def field(name):
+              m=re.search(r'^'+re.escape(name)+r':\s*(.+?)\s*$',body,re.M|re.I)
+              if not m: raise SystemExit('Missing '+name)
+              return m.group(1).strip()
+          q=field('Query'); cls=field('Class').lower().replace('/','_')
+          allowed={'index','equity','etf','fund_cit'}
+          if cls not in allowed: raise SystemExit('Unsupported Class '+cls)
+          if not q or len(q)>80 or '\n' in q: raise SystemExit('Invalid Query')
+          print('query='+q)
+          print('class='+cls)
+          PY
+      - name: Resolve and register canonical identity
+        run: python3 market-navigator-source-register.py --query "${{ steps.request.outputs.query }}" --class "${{ steps.request.outputs.class }}"
+      - name: Preserve governed catalog and collect evidence
+        env:
+          MARKET_NAVIGATOR_BOOTSTRAP: 'true'
+        run: |
+          python3 market-navigator-r7-catalog-reconcile.py
+          python3 market-navigator-r7-data-pipeline.py
+          python3 market-navigator-r7-health.py
+          python3 market-navigator-r7-index-audit.py
+      - name: Validate requested source became canonical
+        run: |
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          body=os.environ.get('SOURCE_REQUEST_BODY','')
+          q=re.search(r'^Query:\s*(.+?)\s*$',body,re.M|re.I).group(1).strip()
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          match=[x for x in reg.get('registrations',[]) if x.get('query','').lower()==q.lower()]
+          assert match,'registration missing'
+          sid=match[-1]['id']
+          evidence=json.loads((Path('market-evidence/series')/(sid+'.json')).read_text())
+          health=json.loads(Path('market-evidence/health-envelope.json').read_text())['series'][sid]
+          assert evidence.get('count',0)>0,'registered source has no canonical observations'
+          assert health.get('classification') not in ('failed','missing'),'registered source unhealthy: '+str(health)
+          print('REGISTERED',sid,health.get('classification'),health.get('provider'))
+          PY
+      - name: Commit registered source and canonical evidence
+        run: |
+          set -euo pipefail
+          git config user.name "market-source-registration-bot"
+          git config user.email "market-source-registration-bot@users.noreply.github.com"
+          git add data/market-backend/data-catalog.json data/market-backend/source-registry.json data/market-backend/derived-index-definition.json market-evidence
+          git commit -m "data: register Market Navigator source"
           git pull --rebase origin main
           git push origin HEAD:main

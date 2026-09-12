@@ -24,7 +24,6 @@ def expected_month(today,release_day):
  n=1 if today.day>=release_day else 2
  return prev_month(today.year,today.month,n)
 def expected_quarter(today,release_day=30):
- # Latest completed reference quarter expected to have published by the governed release window.
  q=(today.month-1)//3+1
  if today.month in (1,4,7,10) and today.day<release_day:q-=2
  else:q-=1
@@ -33,13 +32,12 @@ def expected_quarter(today,release_day=30):
 def latest_expected(meta,catalog,today):
  cad=meta.get('native_cadence') or meta.get('canonical_storage_cadence')
  ov=(catalog.get('publication_schedule') or {}).get('series_overrides',{}).get(meta['id'],{})
- if cad=='monthly':
+ if cad in ('monthly','daily-nav'):
+  if cad=='daily-nav':return None,None
   day=int(ov.get('expected_day_of_month') or 20);y,m=expected_month(today,day)
-  # FRED monthly observations are timestamped at the first day of the reference month.
   return dt.date(y,m,1),f"monthly release around day {day}; latest expected reference month {y:04d}-{m:02d}"
  if cad=='quarterly':
   day=int(ov.get('expected_day_of_month') or 30);y,q=expected_quarter(today,day);m=(q-1)*3+1
-  # FRED quarterly observations are timestamped at the first day of the reference quarter.
   return dt.date(y,m,1),f"quarterly release around day {day}; latest expected reference quarter Q{q} {y}"
  return None,None
 def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
@@ -60,7 +58,7 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
   if note:why.append(note+'.')
  else:
   anchor=dt.datetime.fromtimestamp(market_anchor/1000,UTC).date() if market_anchor else today;age=(anchor-actual).days
-  cur={'trading-day':5,'daily':5,'weekly':10}.get(cad,7);lag={'trading-day':7,'daily':7,'weekly':18}.get(cad,14)
+  cur={'trading-day':5,'daily':5,'daily-nav':5,'weekly':10}.get(cad,7);lag={'trading-day':7,'daily':7,'daily-nav':7,'weekly':18}.get(cad,14)
   if err and age>cur:root='failed';why.append(f"Canonical evidence ends {actual.isoformat()} ({age} days behind the common market anchor) and collection failed: {err}")
   elif age<=cur:root='current';why.append(f"Canonical evidence ends {actual.isoformat()}, within the governed {cad} allowance relative to the common market anchor {anchor.isoformat()}.")
   elif age<=lag:root='stale';why.append(f"Canonical evidence ends {actual.isoformat()}, beyond the governed {cad} current allowance relative to {anchor.isoformat()}; no provider-publication evidence proves that the gap is legitimate expected lag.")
@@ -69,9 +67,9 @@ def classify(meta,actual_ms,state,collector,catalog,today,market_anchor):
   if collector.get('lastAttempt'):why.append('Collector last attempt '+str(collector.get('lastAttempt'))+'.')
   if collector.get('lastSuccess'):why.append('Collector last success '+str(collector.get('lastSuccess'))+'.')
   if collector.get('lastError'):why.append('Collector error '+str(collector.get('lastError'))+'.')
- coverage=state.get('horizon_readiness') or {};density=state.get('observation_count') or 0
- if root=='current' and coverage and not all(coverage.values()):root='sparse';why.append('One or more governed horizons lack sufficient canonical history.')
- return root,expected.isoformat() if expected else None,' '.join(why),coverage,density
+ coverage=state.get('horizon_readiness') or {};supported=meta.get('supported_horizons') or list(coverage);missing=[h for h in supported if not coverage.get(h)];density=state.get('observation_count') or 0
+ if root=='current' and missing:root='sparse';why.append('Supported horizons lacking sufficient canonical history: '+', '.join(missing)+'.')
+ return root,expected.isoformat() if expected else None,' '.join(why),coverage,density,supported
 
 def main():
  c=read(CAT);m=read(MAN);sh=(read(SOURCE_HEALTH).get('data') or {});today=dt.datetime.now(UTC).date();metas={x['id']:x for x in c.get('series',[]) if x.get('enabled',True)}
@@ -87,10 +85,12 @@ def main():
  rows={};counts={k:0 for k in ('current','expected-lag','stale','missing','failed','sparse')}
  for sid,meta in metas.items():
   s=read(SERIES/f'{sid}.json');st=(m.get('series') or {}).get(sid,{});collector=sh.get(('market:' if meta.get('domain')=='market' else 'macro:')+sid,{})
-  actual=s.get('last') or st.get('latest_observation');cls,expected,why,coverage,density=classify(meta,actual,st,collector,c,today,market_anchor);counts[cls]=counts.get(cls,0)+1
+  actual=s.get('last') or st.get('latest_observation');cls,expected,why,coverage,density,supported=classify(meta,actual,st,collector,c,today,market_anchor);counts[cls]=counts.get(cls,0)+1
   idx=impacts.get(sid,[]);impact=('Affects '+', '.join(x.title() for x in idx)+' derived index/V2 evidence and any Analysis using '+(meta.get('short_name') or sid)+'.') if idx else ('Affects direct Analysis using '+(meta.get('short_name') or sid)+'.')
-  rows[sid]={'id':sid,'name':meta.get('name'),'shortName':meta.get('short_name'),'provider':meta.get('provider'),'providerIdentifier':meta.get('provider_identifier'),'cadence':meta.get('native_cadence'),'classification':cls,'latestPubliclyExpectedObservation':expected,'actualLatestCanonicalObservation':iso_date(actual),'lastCollectionAttempt':st.get('last_attempted'),'lastSuccessfulCollection':st.get('last_successful'),'collectorStatus':collector.get('status'),'collectorError':collector.get('lastError') or st.get('last_error'),'horizonCoverage':coverage,'observationCount':density,'why':why,'chartImpact':impact,'affectedIndices':idx}
- out={'schema':'market-navigator-health-envelope-v1','version':'1.1.0-r7','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'marketAnchor':iso_date(market_anchor),'summary':{'series':len(rows),**counts},'series':rows};write(OUT,out)
+  provider=st.get('provider_used') or s.get('provider') or meta.get('provider');fallback=bool(st.get('provider_fallback_used') or s.get('providerFallbackUsed'))
+  if fallback:why+=' Provider fallback was used for this canonical collection.'
+  rows[sid]={'id':sid,'name':meta.get('name'),'shortName':meta.get('short_name'),'provider':provider,'providerIdentifier':st.get('provider_identifier_used') or s.get('providerIdentifier') or meta.get('provider_identifier'),'providerChain':meta.get('provider_chain') or s.get('providerChain') or [],'providerFallbackUsed':fallback,'providerErrors':st.get('provider_errors') or s.get('providerErrors') or [],'instrumentClass':meta.get('instrument_class'),'canonicalMeasure':meta.get('canonical_measure'),'customSource':bool(meta.get('custom_source')),'cadence':meta.get('native_cadence'),'classification':cls,'latestPubliclyExpectedObservation':expected,'actualLatestCanonicalObservation':iso_date(actual),'lastCollectionAttempt':st.get('last_attempted'),'lastSuccessfulCollection':st.get('last_successful'),'collectorStatus':collector.get('status'),'collectorError':collector.get('lastError') or st.get('last_error'),'horizonCoverage':coverage,'supportedHorizons':supported,'observationCount':density,'why':why,'chartImpact':impact,'affectedIndices':idx}
+ out={'schema':'market-navigator-health-envelope-v1','version':'1.2.0-turn23','generatedAt':dt.datetime.now(UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),'marketAnchor':iso_date(market_anchor),'summary':{'series':len(rows),**counts},'series':rows};write(OUT,out)
  required=set(sum(indices.values(),[]));missing=required-set(rows)
  if missing:raise SystemExit('Missing accepted health components: '+','.join(sorted(missing)))
  for sid in ('cpi','corePce','payrolls'):

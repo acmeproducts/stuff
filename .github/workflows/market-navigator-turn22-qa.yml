@@ -1,50 +1,88 @@
-name: Market Navigator Turn 22 qualification
+name: Market Navigator Turn 23 qualification
 on:
   push:
-    branches: [market-navigator-turn22, main]
+    branches: [market-navigator-turn23, main]
     paths:
       - 'market-navigator-turn22-pre-ship.html'
-      - 'market-navigator-turn22-qa.mjs'
+      - 'market-navigator-turn23-pre-ship.html'
+      - 'market-navigator-build-turn23.py'
+      - 'market-navigator-build-turn23-run.py'
+      - 'market-navigator-turn23-post.py'
+      - 'market-navigator-turn23-qa.mjs'
+      - 'market-navigator-turn23-qa-fix.py'
+      - 'market-navigator-source-register.py'
+      - 'market-navigator-r7-catalog-reconcile.py'
+      - 'market-navigator-r7-data-pipeline.py'
+      - 'market-navigator-r7-health.py'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+      - 'data/market-backend/source-registry.json'
       - '.github/workflows/market-navigator-turn22-qa.yml'
       - 'market-evidence/**'
       - 'data/market-backend/**'
 permissions:
-  contents: read
+  contents: write
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Static and JavaScript gates
+      - name: Build exact Turn 23 candidate
+        run: |
+          python3 market-navigator-build-turn23-run.py
+          python3 market-navigator-turn23-post.py
+          python3 market-navigator-turn23-qa-fix.py
+      - name: Static, governance, and JavaScript gates
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re,json
-          s=Path('market-navigator-turn22-pre-ship.html').read_text()
+          import re,json,runpy
+          s=Path('market-navigator-turn23-pre-ship.html').read_text()
           assert '<iframe' not in s.lower()
           assert 'data-view="explore"' not in s and 'id="view-explore"' not in s
           assert 'id="analysisModal"' not in s
-          assert 'function renderAnalysis(' not in s
-          assert 'function openAnalysis(' not in s
+          assert 'function renderAnalysis(' not in s and 'function openAnalysis(' not in s
           assert all(x in s for x in ['NOW','LIBRARY','HEALTH','CONFIG','COMPONENTS','nowAddSeries','nowPicker'])
+          assert all(x in s for x in ['data-cfgtab="sources"','id="cfgSources"','sourceIssueUrl','ResizeObserver','TURN 23 PRE-SHIP'])
           assert all(x in s for x in ["'1D'","'5D'","'MTD'","'YTD'","'1YR'","'3YR'","'5YR'"])
           assert 'libListenTitle' not in s
-          assert 'TURN 22 PRE-SHIP' in s
+          ai=s.split('id="cfgAi"',1)[1].split('id="cfgChart"',1)[0]
+          assert 'type="password"' not in ai
+          assert "$(p+'Key').value=q.key||''" not in s
+          assert 'replacement draft · validate to save' in s
           scripts=re.findall(r'<script>(.*?)</script>',s,re.S); assert scripts
-          Path('/tmp/mn22.js').write_text(scripts[-1])
+          Path('/tmp/mn23.js').write_text(scripts[-1])
+          plan=Path('MARKET-NAVIGATOR-MASTER-PLAN.md').read_text(); grave=Path('MARKET-NAVIGATOR-GRAVEYARD.md').read_text()
+          assert 'Next release scope: Turn 23' in plan and '**AI | Chart Config | Sources | About**' in plan
+          assert '## Turn 23 retired patterns' in grave
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          mod=runpy.run_path('market-navigator-source-register.py')
+          dow=mod['resolve']('DOW','index',reg); assert dow['symbol']=='^DJI' and dow['instrumentClass']=='index'
+          chain=mod['providers']({'symbol':'NVDA','instrumentClass':'equity'}); assert chain[0]['provider']=='Yahoo Finance' and any(x['provider']=='Stooq' for x in chain)
           d=json.loads(Path('market-evidence/derived-indices.json').read_text()); assert d['coherence']['allIndexHorizonsComputable']
-          print('TURN22 STATIC PASS')
+          print('TURN23 STATIC/GOVERNANCE/BACKEND CONTRACT PASS')
           PY
-          node --check /tmp/mn22.js
+          node --check /tmp/mn23.js
       - name: Browser product matrix
         run: |
           npm init -y >/dev/null 2>&1
           npm i playwright@1.55.0 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
-          python3 -m http.server 8123 >/tmp/mn22-server.log 2>&1 &
-          node market-navigator-turn22-qa.mjs
-# final branch qualification
+          python3 -m http.server 8123 >/tmp/mn23-server.log 2>&1 &
+          node market-navigator-turn23-qa.mjs
+      - name: Publish qualified candidate on branch
+        if: github.ref_name == 'market-navigator-turn23'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn23-pre-ship.html
+          if git diff --cached --quiet; then echo 'Qualified candidate already committed.'; exit 0; fi
+          git commit -m 'market navigator: publish qualified Turn 23 candidate'
+          git pull --rebase origin market-navigator-turn23
+          git push origin HEAD:market-navigator-turn23
