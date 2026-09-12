@@ -7,7 +7,7 @@ const browser=await chromium.launch({headless:true});
 
 async function analysisCount(page){return await page.evaluate(()=>new Promise((resolve,reject)=>{let r=indexedDB.open('marketNavigatorLocal',1);r.onerror=()=>reject(r.error);r.onsuccess=()=>{let q=r.result.transaction('analyses').objectStore('analyses').count();q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)}}))}
 async function pageBase({width=1280,height=800,registry=null,failAI=false}={}){
-  const page=await browser.newPage({viewport:{width,height}}),errors=[],failed=[],seriesRequests=[];
+  const page=await browser.newPage({viewport:{width,height}}),errors=[],failed=[],seriesRequests=[],expectedProviderConsole=[];
   await page.addInitScript(({registry})=>{
     class U{constructor(text){this.text=String(text);this.rate=1}}
     Object.defineProperty(window,'SpeechSynthesisUtterance',{value:U,configurable:true});
@@ -16,7 +16,7 @@ async function pageBase({width=1280,height=800,registry=null,failAI=false}={}){
     if(registry)localStorage.setItem('marketNavigatorAIRegistryV1',JSON.stringify(registry));
   },{registry});
   page.on('pageerror',e=>errors.push(`page: ${e.message}`));
-  page.on('console',m=>{if(m.type()==='error')errors.push(`console: ${m.text()}`)});
+  page.on('console',m=>{if(m.type()==='error'){let text=m.text();if(failAI&&/^Failed to load resource:.*500 \(Internal Server Error\)/.test(text))expectedProviderConsole.push(text);else errors.push(`console: ${text}`)}});
   page.on('request',r=>{if(/market-evidence\/series\/.+\.json/.test(r.url()))seriesRequests.push(r.url())});
   page.on('response',r=>{if(r.status()>=400&&!/favicon|openrouter\.ai/.test(r.url()))failed.push(`${r.status()} ${r.url()}`)});
   await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({contentType:'application/javascript',body:"window.marked={parse:s=>'<div>'+String(s)+'</div>'};"}));
@@ -24,7 +24,7 @@ async function pageBase({width=1280,height=800,registry=null,failAI=false}={}){
   if(registry?.providers?.openrouter?.verified)await page.route('https://openrouter.ai/api/v1/chat/completions',r=>r.fulfill(failAI?{status:500,contentType:'application/json',body:JSON.stringify({error:{message:'QA provider failure'}})}:{status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:'# Turn 24 QA\n\nRecovered AI launch.'}}]})}));
   await page.goto(url,{waitUntil:'networkidle'});
   await page.waitForFunction(()=>document.querySelector('#legend [data-id="growth"]'));
-  return{page,errors,failed,seriesRequests};
+  return{page,errors,failed,seriesRequests,expectedProviderConsole};
 }
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const CODE={growth:'GRW',risk:'RSK',macro:'MAC'};
@@ -83,6 +83,7 @@ try{
   await fp.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('QA provider failure'));
   assert.equal(await analysisCount(fp),1,'provider failure persists one Analysis');
   assert.match(await fp.locator('#transcript').innerText(),/Analysis failed/i);
+  assert(fail.expectedProviderConsole.length>=1,'deliberate provider 500 observed');
   assert.deepEqual(fail.errors,[],'provider failure has no uncaught exception');await fp.close();
 
   const cred=await pageBase({width:412,height:915,registry:reg,failAI:true}),cp=cred.page;
@@ -94,6 +95,7 @@ try{
   const preserved=await cp.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')).providers.openrouter);
   assert.equal(preserved.key,'qa-key','failed replacement preserves working key');assert.equal(preserved.verified,true,'failed replacement preserves verified registration');
   await replace.click();assert.equal(await key.isHidden(),true,'Cancel returns to registered-state display');
+  assert(cred.expectedProviderConsole.length>=1,'deliberate replacement-validation 500 observed');
   assert.deepEqual(cred.errors,[]);await cp.close();
 
   const src=await pageBase({width:412,height:915}),sp=src.page;
