@@ -26,7 +26,6 @@ async function pageBase({width=1280,height=800,registry=null,failAI=false}={}){
   await page.waitForFunction(()=>document.querySelector('#legend [data-id="growth"]'));
   return{page,errors,failed,seriesRequests,expectedProviderConsole};
 }
-const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const CODE={growth:'GRW',risk:'RSK',macro:'MAC'};
 async function settle(p){await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
 async function enter(p,id){
@@ -49,7 +48,6 @@ async function geometryCase(index=null){
     await p.waitForFunction(was=>document.querySelector('#rail')?.classList.contains('closed')!==was,wasClosed);
     await p.waitForTimeout(180);await settle(p);
     const now=await state(p);
-    if(Math.abs(now.card.top-before.card.top)>=2||Math.abs(now.card.bottom-before.card.bottom)>=2)console.log('GEOMETRY DIAG',index||'ENV',{before,old,now});
     assert(Math.abs(now.card.top-before.card.top)<2,`${index||'ENV'} card top pinned`);
     assert(Math.abs(now.card.bottom-before.card.bottom)<2,`${index||'ENV'} card bottom pinned`);
     assert.equal(now.h,'3YR',`${index||'ENV'} horizon invariant`);
@@ -62,57 +60,30 @@ async function geometryCase(index=null){
 }
 
 try{
-  await geometryCase(null);
-  await geometryCase('growth');
-  await geometryCase('risk');
-  await geometryCase('macro');
+  await geometryCase(null);await geometryCase('growth');await geometryCase('risk');await geometryCase('macro');
 
   const missing=await pageBase({width:412,height:915,registry:{defaultProvider:'openrouter',providers:{openrouter:{verified:false,model:'qa-model'}}}}),mp=missing.page;
-  assert.equal(await analysisCount(mp),0);
-  await mp.locator('#nowMoreBtn').click();await mp.locator('#nowAnalyze').click();
-  await mp.waitForFunction(()=>document.querySelector('#view-config')?.classList.contains('on'));
-  assert.match(await mp.locator('#openrouterStatus').innerText(),/Register this provider/i);
-  assert.equal(await analysisCount(mp),0,'invalid provider creates no Analysis artifact');
-  assert.equal(await mp.locator('#settingsModal').count(),0,'retired settingsModal absent');
-  assert.deepEqual(missing.errors,[],'invalid-provider path has no exception');await mp.close();
+  assert.equal(await analysisCount(mp),0);await mp.locator('#nowMoreBtn').click();await mp.locator('#nowAnalyze').click();
+  await mp.waitForFunction(()=>document.querySelector('#view-config')?.classList.contains('on'));assert.match(await mp.locator('#openrouterStatus').innerText(),/Register this provider/i);
+  assert.equal(await analysisCount(mp),0,'invalid provider creates no Analysis artifact');assert.equal(await mp.locator('#settingsModal').count(),0,'retired settingsModal absent');assert.deepEqual(missing.errors,[],'invalid-provider path has no exception');await mp.close();
 
   const reg={defaultProvider:'openrouter',providers:{openrouter:{verified:true,key:'qa-key',model:'qa-model',models:['qa-model']}}};
   const fail=await pageBase({width:412,height:915,registry:reg,failAI:true}),fp=fail.page;
-  await fp.locator('#nowMoreBtn').click();await fp.locator('#nowAnalyze').click();
-  await fp.waitForFunction(()=>document.querySelector('#view-library')?.classList.contains('on'));
-  await fp.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('QA provider failure'));
-  assert.equal(await analysisCount(fp),1,'provider failure persists one Analysis');
-  assert.match(await fp.locator('#transcript').innerText(),/Analysis failed/i);
-  assert(fail.expectedProviderConsole.length>=1,'deliberate provider 500 observed');
-  assert.deepEqual(fail.errors,[],'provider failure has no uncaught exception');await fp.close();
+  await fp.locator('#nowMoreBtn').click();await fp.locator('#nowAnalyze').click();await fp.waitForFunction(()=>document.querySelector('#view-library')?.classList.contains('on'));await fp.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('QA provider failure'));
+  assert.equal(await analysisCount(fp),1,'provider failure persists one Analysis');assert.match(await fp.locator('#transcript').innerText(),/Analysis failed/i);assert(fail.expectedProviderConsole.length>=1,'deliberate provider 500 observed');assert.deepEqual(fail.errors,[],'provider failure has no uncaught exception');await fp.close();
 
   const cred=await pageBase({width:412,height:915,registry:reg,failAI:true}),cp=cred.page;
-  await cp.locator('#settingsGear').click();
+  await cp.locator('#settingsGear').click();await cp.waitForTimeout(50);
+  const diag=await cp.evaluate(()=>{let k=document.querySelector('#openrouterKey'),b=document.querySelector('[data-replace-key="openrouter"]'),v=document.querySelector('#view-config'),a=document.querySelector('#cfgAi'),r=JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')||'{}');let br=b?.getBoundingClientRect();return{keyClass:k?.className,buttonClass:b?.className,buttonDisplay:b?getComputedStyle(b).display:null,buttonRect:br?{w:br.width,h:br.height}:null,viewClass:v?.className,aiClass:a?.className,registry:r}});console.log('CRED DIAG',JSON.stringify(diag));
   const key=cp.locator('#openrouterKey'),replace=cp.locator('[data-replace-key="openrouter"]');
   assert.equal(await key.inputValue(),'','registered key not repopulated');assert.equal(await key.isHidden(),true,'registered key field hidden');assert.equal(await replace.isVisible(),true,'Replace key explicit');
-  await replace.click();assert.equal(await key.isVisible(),true);assert.equal(await key.inputValue(),'');await key.fill('bad-replacement');
-  await cp.locator('#openrouterValidate').click();await cp.waitForFunction(()=>document.querySelector('#openrouterStatus')?.textContent.includes('QA provider failure'));
-  const preserved=await cp.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')).providers.openrouter);
-  assert.equal(preserved.key,'qa-key','failed replacement preserves working key');assert.equal(preserved.verified,true,'failed replacement preserves verified registration');
-  await replace.click();assert.equal(await key.isHidden(),true,'Cancel returns to registered-state display');
-  assert(cred.expectedProviderConsole.length>=1,'deliberate replacement-validation 500 observed');
-  assert.deepEqual(cred.errors,[]);await cp.close();
+  await replace.click();assert.equal(await key.isVisible(),true);assert.equal(await key.inputValue(),'');await key.fill('bad-replacement');await cp.locator('#openrouterValidate').click();await cp.waitForFunction(()=>document.querySelector('#openrouterStatus')?.textContent.includes('QA provider failure'));
+  const preserved=await cp.evaluate(()=>JSON.parse(localStorage.getItem('marketNavigatorAIRegistryV1')).providers.openrouter);assert.equal(preserved.key,'qa-key','failed replacement preserves working key');assert.equal(preserved.verified,true,'failed replacement preserves verified registration');await replace.click();assert.equal(await key.isHidden(),true,'Cancel returns to registered-state display');assert(cred.expectedProviderConsole.length>=1,'deliberate replacement-validation 500 observed');assert.deepEqual(cred.errors,[]);await cp.close();
 
   const src=await pageBase({width:412,height:915}),sp=src.page;
-  await sp.locator('#settingsGear').click();await sp.locator('[data-cfgtab="sources"]').click();
-  await sp.waitForFunction(()=>document.querySelector('#sourceStatus')?.textContent.includes('Canonical registry refreshed'));
-  assert((await sp.locator('#sourceList [data-source-id]').count())>=1,'registered canonical sources listed');
-  await sp.locator('#sourceQuery').fill('Dow');await sp.locator('#sourceClass').selectOption('index');await sp.locator('#sourceRegister').click();
-  const opened=await sp.evaluate(()=>window.__opened.at(-1)||'');assert(opened.includes('github.com/acmeproducts/stuff/issues/new'),'registration uses authenticated repository control plane');
-  const decoded=decodeURIComponent(opened);assert(decoded.includes('[Market Navigator Source] Dow'));assert(decoded.includes('Query: Dow'));assert(decoded.includes('Class: index'));
-  await sp.locator('#configClose').click();await enter(sp,'risk');
-  await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');
-  await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));
-  assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),false,'healthy daily custom source available at 5D');
-  await sp.locator('#nowPickerClose').click();await sp.locator('#hzs [data-h="1D"]').click();await sp.waitForFunction(()=>document.querySelector('#hzs [data-h="1D"]')?.classList.contains('on'));await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');
-  await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));
-  assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),true,'daily-only custom source cannot fabricate 1D intraday');
-  assert.deepEqual(src.errors,[],'Sources path no app errors');assert.deepEqual(src.failed,[],'Sources path required resources healthy');await sp.close();
+  await sp.locator('#settingsGear').click();await sp.locator('[data-cfgtab="sources"]').click();await sp.waitForFunction(()=>document.querySelector('#sourceStatus')?.textContent.includes('Canonical registry refreshed'));assert((await sp.locator('#sourceList [data-source-id]').count())>=1,'registered canonical sources listed');
+  await sp.locator('#sourceQuery').fill('Dow');await sp.locator('#sourceClass').selectOption('index');await sp.locator('#sourceRegister').click();const opened=await sp.evaluate(()=>window.__opened.at(-1)||'');assert(opened.includes('github.com/acmeproducts/stuff/issues/new'),'registration uses authenticated repository control plane');const decoded=decodeURIComponent(opened);assert(decoded.includes('[Market Navigator Source] Dow'));assert(decoded.includes('Query: Dow'));assert(decoded.includes('Class: index'));
+  await sp.locator('#configClose').click();await enter(sp,'risk');await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),false,'healthy daily custom source available at 5D');await sp.locator('#nowPickerClose').click();await sp.locator('#hzs [data-h="1D"]').click();await sp.waitForFunction(()=>document.querySelector('#hzs [data-h="1D"]')?.classList.contains('on'));await sp.locator('#nowAddSeries').click();await sp.locator('#nowPickerSearch').fill('NVDA');await sp.waitForFunction(()=>document.querySelector('[data-add-now="custom_nvda"]'));assert.equal(await sp.locator('[data-add-now="custom_nvda"]').isDisabled(),true,'daily-only custom source cannot fabricate 1D intraday');assert.deepEqual(src.errors,[],'Sources path no app errors');assert.deepEqual(src.failed,[],'Sources path required resources healthy');await sp.close();
 
   console.log('TURN 24 RECOVERY + EDGE-PATH QA: PASS');
 } finally {await browser.close()}
