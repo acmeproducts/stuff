@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.6.0 -->
-# TALKBRIDGE MASTER PLAN v21.6.0
+<!-- TALKBRIDGE-PLAN v21.7.0 -->
+# TALKBRIDGE MASTER PLAN v21.7.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **Directory release** — HELD. First candidate REMOVED FROM THE REPOSITORY at owner order 2026-09-06 after two G1 install failures (G49). Owner ruling: prove installability on a throwaway skeleton PWA first, with flag-motif icons; the working app is not touched until the skeleton installs. | Spec §7.5 + §7.12 | **BLOCKED on skeleton proof** | — |
+| 27·base | **Directory release** — HELD. First candidate REMOVED FROM THE REPOSITORY at owner order 2026-09-06 after two G1 install failures (G49). Owner ruling: prove installability on a throwaway skeleton PWA first, with flag-motif icons; the working app is not touched until the skeleton installs. | Spec §7.5 + §7.12 (recipe PROVEN) | **UNBLOCKED 2026-09-12 — awaiting owner GO to rebuild with the proven recipe** | — |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4248,6 +4248,27 @@ S3 worker: minimal, with a fetch handler (some installability paths still
 S4 page: names the build, shows what the browser reports — display mode,
    whether the install event fired, manifest fetch status — on screen,
    since mobile has no DevTools (owner constraint).
-GATE: install icon on desktop Chrome; installs standalone on Android and
-iPhone. Whatever field or file turns out to be decisive is recorded here
-verbatim before the app release resumes.
+GATE: PASSED 2026-09-12. Android Chrome offered install immediately;
+desktop Chrome fired beforeinstallprompt, user choice accepted,
+appinstalled yes, runs in its own window. Skeleton stays hosted at
+/stuff/tb-skeleton/ as the reference implementation.
+
+### THE DECISIVE FINDING (proven by A/B against the app, 2026-09-12)
+The accepted worker `tb-sw.js` registers NO fetch handler — only install,
+activate, message, push, notificationclick. Chrome's installability
+criteria require a registered service worker WITH a fetch event handler.
+That is why adding start_url alone (E5) changed nothing and G1 failed
+twice. The skeleton's worker has one; it installs everywhere.
+THE PROVEN RECIPE — exactly three items, copied verbatim, nothing else:
+R-1 manifest `start_url` (folder-relative "./")
+R-2 manifest `id` (the folder path)
+R-3 the folder worker gains a fetch handler identical in shape to
+    tb-skeleton/sw.js: GET-only, network-first, falling back to cache and
+    then to the start page. It is ADDITIVE — the accepted push /
+    notificationclick / message handlers are untouched, and the root
+    tb-sw.js is never modified.
+Every one of these lands ONLY inside the folder release; no accepted root
+artifact is edited. The app release resumes from §7.5 with R-1..R-3 added
+as declared edits E5/E6/E7, re-gated G1-G5 plus: offline reload of the
+folder URL serves the app (proves the fetch handler works), and one push
+per message (proves the push half still works alongside it).
