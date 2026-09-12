@@ -4,7 +4,7 @@ import csv,datetime as dt,hashlib,json,math,os,statistics,urllib.parse,urllib.re
 from pathlib import Path
 
 CATALOG=Path('data/market-backend/data-catalog.json');ROOT=Path('market-evidence');SERIES=ROOT/'series';REPORTS=ROOT/'reports';MANIFEST=ROOT/'operational-manifest.json'
-VERSION='2.0.0-r7';UA='MarketNavigatorR7Evidence/2.0 (+https://github.com/acmeproducts/stuff)';TIMEOUT=30;BOOT=os.environ.get('MARKET_NAVIGATOR_BOOTSTRAP','').lower() in {'1','true','yes'};DAY=86400000
+VERSION='2.1.0-turn23';UA='MarketNavigatorEvidence/2.1 (+https://github.com/acmeproducts/stuff)';TIMEOUT=30;BOOT=os.environ.get('MARKET_NAVIGATOR_BOOTSTRAP','').lower() in {'1','true','yes'};DAY=86400000
 
 def now():return dt.datetime.now(dt.timezone.utc)
 def iso(x=None):return (x or now()).astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
@@ -39,6 +39,19 @@ def yahoo(sym,boot):
   except:pass
  if not out:raise RuntimeError('Yahoo returned zero observations')
  return canon(out),http
+def stooq(sym,boot):
+ start=(dt.date(2015,1,1) if boot else (now()-dt.timedelta(days=430)).date()).strftime('%Y%m%d');end=now().date().strftime('%Y%m%d')
+ url='https://stooq.com/q/d/l/?'+urllib.parse.urlencode({'s':sym,'d1':start,'d2':end,'i':'d'})
+ raw,http=get(url,'text/csv,*/*');rows=raw.decode('utf-8-sig','replace').splitlines();out=[]
+ if not rows:raise RuntimeError('Stooq returned empty response')
+ for r in csv.DictReader(rows):
+  try:
+   if not r.get('Date') or not r.get('Close'):continue
+   t=int(dt.datetime.fromisoformat(r['Date']).replace(tzinfo=dt.timezone.utc).timestamp()*1000);v=float(r['Close'])
+   if math.isfinite(v):out.append({'t':t,'v':v})
+  except:pass
+ if not out:raise RuntimeError('Stooq returned zero observations')
+ return canon(out),http
 def fred(sid,boot):
  start='2015-01-01' if boot else (now()-dt.timedelta(days=430)).date().isoformat();url='https://fred.stlouisfed.org/graph/fredgraph.csv?'+urllib.parse.urlencode({'id':sid,'cosd':start});raw,http=get(url,'text/csv,*/*');rows=raw.decode('utf-8-sig','replace').splitlines();out=[]
  for r in csv.reader(rows[1:]):
@@ -47,6 +60,11 @@ def fred(sid,boot):
   except:pass
  if not out:raise RuntimeError('FRED returned zero observations')
  return canon(out),http
+def fetch_source(provider,identifier,boot):
+ if provider=='Yahoo Finance':return yahoo(identifier,boot)
+ if provider=='Stooq':return stooq(identifier,boot)
+ if provider=='FRED':return fred(identifier,boot)
+ raise RuntimeError('unsupported provider '+str(provider))
 def yoy(a):
  a=canon(a);m={}
  for p in a:
@@ -88,28 +106,38 @@ def report(a,h):
  if s is None:return {'ready':False,'reason':'insufficient history','now_date':e['t'],'now_value':e['v']}
  w=[p for p in a if s['t']<=p['t']<=e['t']];v=[p['v'] for p in w];chg=e['v']-s['v']
  return {'ready':True,'t0_date':s['t'],'t0_value':s['v'],'now_date':e['t'],'now_value':e['v'],'absolute_change':chg,'percentage_change':chg/s['v']*100 if s['v'] else None,'observation_count':len(w),'min':min(v),'max':max(v),'mean':statistics.fmean(v),'median':statistics.median(v),'percentile_now':percentile(v,e['v'])}
+def chain_for(m):
+ c=m.get('provider_chain') or []
+ if c:return c
+ return [{'provider':m.get('provider'),'identifier':m.get('provider_identifier')}]
 def main():
  c=read(CATALOG,{});assert c.get('schema')=='market-navigator-data-catalog-v1';H=c.get('canonical_horizons') or ['1D','5D','MTD','YTD','1YR','3YR','5YR'];assert H==['1D','5D','MTD','YTD','1YR','3YR','5YR']
  SERIES.mkdir(parents=True,exist_ok=True);REPORTS.mkdir(parents=True,exist_ok=True);states={};failures=[]
  for m in c.get('series',[]):
   if not m.get('enabled',True):continue
-  sid=m['id'];p=SERIES/f'{sid}.json';old=read(p,{});obs0=old.get('observations') or [];attempt=iso();err=None;http=None
+  sid=m['id'];p=SERIES/f'{sid}.json';old=read(p,{});obs0=old.get('observations') or [];attempt=iso();err=None;http=None;used=None;source_errors=[]
   try:
-   if m.get('provider')=='Yahoo Finance':raw,http=yahoo(m['provider_identifier'],BOOT or not obs0)
-   elif m.get('provider')=='FRED':raw,http=fred(m['provider_identifier'],BOOT or not obs0)
-   else:raise RuntimeError('unsupported provider '+str(m.get('provider')))
+   raw=None
+   for pos,src in enumerate(chain_for(m)):
+    try:
+     raw,http=fetch_source(src.get('provider'),src.get('identifier'),BOOT or not obs0);used={**src,'position':pos};break
+    except Exception as e:source_errors.append(f"{src.get('provider')}: {e}")
+   if raw is None:raise RuntimeError('; '.join(source_errors) or 'no provider configured')
    if 'year-over-year percent change' in (m.get('transformation') or '').lower():raw=yoy(raw)
    obs=merge(obs0,raw);success=iso()
   except Exception as e:
    err=str(e);obs=canon(obs0);success=old.get('last_successful');failures.append(f'{sid}: {e}')
   if obs:
    cutoff=int((now()-dt.timedelta(days=365.25*10.25)).timestamp()*1000);obs=[x for x in obs if x['t']>=cutoff]
-  rev=sha(obs);obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':m.get('provider'),'providerIdentifier':m.get('provider_identifier'),'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};write(p,obj)
-  rr={h:report(obs,h) for h in H}
-  for h,r in rr.items():r.update(source_revision=rev,source=m.get('provider'),series_id=sid,horizon=h)
+  rev=sha(obs);configured=chain_for(m);provider_name=(used or {}).get('provider') or old.get('provider') or m.get('provider');provider_id=(used or {}).get('identifier') or old.get('providerIdentifier') or m.get('provider_identifier')
+  obj={'schema':'market-navigator-evidence-series-v1','pipelineVersion':VERSION,'id':sid,'catalogVersion':c.get('version'),'provider':provider_name,'providerIdentifier':provider_id,'providerChain':configured,'providerFallbackUsed':bool(used and used.get('position',0)>0),'providerErrors':source_errors,'unit':m.get('native_unit'),'cadence':m.get('native_cadence'),'description':m.get('description'),'first':obs[0]['t'] if obs else None,'last':obs[-1]['t'] if obs else None,'count':len(obs),'sourceRevision':rev,'last_attempted':attempt,'last_successful':success,'last_error':err,'http':http,'observations':obs};write(p,obj)
+  supported=set(m.get('supported_horizons') or H);rr={}
+  for h in H:
+   rr[h]=report(obs,h) if h in supported else {'ready':False,'reason':'unsupported horizon for canonical evidence cadence'}
+  for h,r in rr.items():r.update(source_revision=rev,source=provider_name,series_id=sid,horizon=h)
   robj={'schema':'market-navigator-evidence-report-v1','pipelineVersion':VERSION,'id':sid,'generatedAt':iso(),'reports':rr};crev=sha(rr);robj['computedRevision']=crev;write(REPORTS/f'{sid}.json',robj)
   years=(obs[-1]['t']-obs[0]['t'])/(365.25*DAY) if len(obs)>1 else 0;ready={h:bool(rr[h].get('ready')) for h in H}
-  states[sid]={'status':'healthy' if obs and not err else ('stale' if obs else 'unavailable'),'first_observation':obs[0]['t'] if obs else None,'latest_observation':obs[-1]['t'] if obs else None,'observation_count':len(obs),'history_years':round(years,2),'last_attempted':attempt,'last_successful':success,'next_due':'next scheduled evidence workflow','bootstrap_complete':years>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6)),'horizon_readiness':ready,'missing_periods':[],'last_error':err,'source_revision':rev,'computed_revision':crev,'http':http}
+  states[sid]={'status':'healthy' if obs and not err else ('stale' if obs else 'unavailable'),'first_observation':obs[0]['t'] if obs else None,'latest_observation':obs[-1]['t'] if obs else None,'observation_count':len(obs),'history_years':round(years,2),'last_attempted':attempt,'last_successful':success,'next_due':'next scheduled evidence workflow','bootstrap_complete':years>=float(c.get('bootstrap_policy',{}).get('minimum_history_years',6)),'horizon_readiness':ready,'supported_horizons':sorted(supported,key=lambda x:H.index(x) if x in H else 99),'missing_periods':[],'last_error':err,'provider_used':provider_name,'provider_identifier_used':provider_id,'provider_fallback_used':bool(used and used.get('position',0)>0),'provider_errors':source_errors,'source_revision':rev,'computed_revision':crev,'http':http}
  required=[m['id'] for m in c.get('series',[]) if m.get('enabled',True) and m.get('required')];block=[]
  for sid in required:
   st=states.get(sid,{})
