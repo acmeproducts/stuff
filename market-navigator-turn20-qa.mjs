@@ -20,6 +20,10 @@ async function makePage({ai=false}={}){
   return{page,errors,failed,requests};
 }
 
+async function useReportedHorizon(page){
+  await page.locator('#hzs [data-h="5YR"]').click();
+  await page.waitForFunction(()=>document.querySelector('#hzs [data-h="5YR"]')?.classList.contains('on'));
+}
 async function addSeries(page,query,id){
   await page.locator('#addSeries').click();
   await page.locator('#pickerSearch').fill(query);
@@ -41,9 +45,10 @@ async function openGrowthDerived(page){
 }
 
 try{
-  // Full drill lifecycle and corrected component-leaf semantics.
+  // Full drill lifecycle and corrected component-leaf semantics, using the owner's 5YR case.
   const a=await makePage(),page=a.page;
   assert.equal((await page.locator('#nowCrumb').innerText()).trim(),'ENV');
+  await useReportedHorizon(page);
   await openGrowthDerived(page);
   await addSeries(page,'PCE','corePce');
   await addSeries(page,'Payroll','payrolls');
@@ -56,6 +61,7 @@ try{
   await page.locator('#crumbComponentIndex').click();
   await page.waitForFunction(()=>document.querySelector('#analysisModal')?.classList.contains('hidden'));
   assert.equal((await page.locator('#nowCrumb').innerText()).replace(/\s+/g,' ').trim(),'ENV / GRW','component INDEX ancestor drills up exactly one level');
+  assert.equal(await page.locator('#legend [data-id="payrolls"]').isDisabled(),false,'reported-horizon payroll component remains drillable');
   await page.locator('#legend [data-id="payrolls"]').click();
   await page.locator('#analysisModal').waitFor({state:'visible'});
   assert.match((await page.locator('#analysisCrumb').innerText()).replace(/\s+/g,' ').trim(),/^ENV \/ GRW \/ PAY/,'INDEX component chip drills down');
@@ -68,6 +74,7 @@ try{
 
   // AI POV must consume the exact rendered snapshot, preserving derived GRW.
   const b=await makePage({ai:true}),ai=b.page;
+  await useReportedHorizon(ai);
   await openGrowthDerived(ai);
   await addSeries(ai,'PCE','corePce');
   await addSeries(ai,'Payroll','payrolls');
