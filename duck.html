@@ -1383,6 +1383,12 @@
     #duck-diag.show{display:block}
     #duck-diag b{color:#7dd3fc}
     #duck-diag .err{color:#fca5a5}
+    #controls-modal.flip{transform:rotate(180deg)}
+    .duck-swatch-btn{position:relative;display:inline-block;width:100%;height:32px;border-radius:8px;border:1px solid rgba(148,163,184,.5);padding:0}
+    .duck-swatch-pop{position:absolute;top:100%;left:0;z-index:95;margin-top:4px;padding:8px;background:#fff;border:1px solid rgba(148,163,184,.5);
+        border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.25);display:grid;grid-template-columns:repeat(4,28px);gap:6px}
+    .duck-swatch-opt{width:28px;height:28px;border-radius:7px;border:1px solid rgba(148,163,184,.5);padding:0}
+    .duck-swatch-opt:active{border-color:#3b82f6}
 </style>
 
 <script>
@@ -1878,10 +1884,10 @@
         row.querySelector('.gearbtn').addEventListener('click',function(){
             var m=document.getElementById('controls-modal');
             if(m){
+                m.classList.toggle('flip',side==='peer');   // safe now — color pickers are custom DOM, not native, so rotation can't break them
                 m.classList.remove('invisible');m.classList.add('visible');
                 var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
         });
-        ctl[side].addEventListener('click',function(){onKbButton(side)});
         micCtl[side]=row.querySelector('.micbtn');
         micCtl[side].addEventListener('click',function(){requestInputAccess(side,function(){toggleSTT(side)})});
         ttsCtl[side]=row.querySelector('.ttsbtn');
@@ -2483,6 +2489,47 @@
         };
     })();
 
+
+    /* ---- custom color swatches: replace native <input type=color> so the settings modal can safely
+       rotate 180° for North — native color pickers don't rotate with CSS and render broken when they do ---- */
+    var SWATCH_PRESETS=['#eff6ff','#dcfce7','#fef3c7','#fee2e2','#ede9fe','#e0f2fe','#ffffff','#0f172a','#3b82f6','#10b981','#ef4444','#f59e0b'];
+    function buildColorSwatches(){
+        document.querySelectorAll('#controls-content input[type="color"]').forEach(function(inp){
+            if(inp.dataset.swatched)return;inp.dataset.swatched='1';
+            inp.style.cssText='position:absolute;width:0;height:0;opacity:0;pointer-events:none';
+            var btn=document.createElement('button');
+            btn.type='button';btn.className='duck-swatch-btn';btn.style.background=inp.value||'#ffffff';
+            inp.insertAdjacentElement('afterend',btn);
+            btn.addEventListener('click',function(e){
+                e.stopPropagation();
+                document.querySelectorAll('.duck-swatch-pop').forEach(function(p){p.remove()});
+                var pop=document.createElement('div');pop.className='duck-swatch-pop';
+                SWATCH_PRESETS.forEach(function(c){
+                    var s=document.createElement('button');s.type='button';s.className='duck-swatch-opt';s.style.background=c;
+                    s.addEventListener('click',function(ev){
+                        ev.stopPropagation();
+                        inp.value=c;inp.dispatchEvent(new Event('input'));inp.dispatchEvent(new Event('change'));
+                        btn.style.background=c;pop.remove();
+                    });
+                    pop.appendChild(s);
+                });
+                btn.appendChild(pop);
+                setTimeout(function(){document.addEventListener('click',function close(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',close)}})},0);
+            });
+        });
+    }
+    function refreshSwatches(){
+        document.querySelectorAll('#controls-content input[type="color"]').forEach(function(inp){
+            var btn=inp.nextElementSibling;
+            if(btn&&btn.classList&&btn.classList.contains('duck-swatch-btn'))btn.style.background=inp.value;
+        });
+    }
+    (function hookUpdateControls(){
+        if(typeof updateControls!=='function')return;
+        var _orig=updateControls;
+        window.updateControls=updateControls=function(){_orig();buildColorSwatches();refreshSwatches()};
+    })();
+
     /* ================= init ================= */
     function stripDefunctSettings(){
         try{if(typeof scheduleAutoSubmit==='function'){window.scheduleAutoSubmit=scheduleAutoSubmit=function(){};}}catch(e){}
@@ -2505,7 +2552,7 @@
             askEl[side]=buildAsk(side);
             ctl[side].dataset.owned='false';
         });
-        stripDefunctSettings();installTranslator();
+        stripDefunctSettings();installTranslator();buildColorSwatches();
         var saveBtn=document.getElementById('style-save');
         if(saveBtn)saveBtn.addEventListener('click',function(){toast('Settings saved')});
         // both baseline composers retire; each side now has an identical full-capability strip
