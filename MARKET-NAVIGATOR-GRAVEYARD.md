@@ -253,3 +253,8 @@ Turn 19 uses one explicit interaction grammar: **breadcrumb drills up; legend ch
 - Breadcrumbs such as `ENV / GRW / GRW + 3 Components` are rejected when the visible comparison set is `GRW + PCE + Payrolls + UNE`. The derived parent index is context, not a duplicated component leaf; the correct leaf is `PCE + 2 Components`.
 - A COMPONENT breadcrumb that does not survive the full drill-up/drill-down lifecycle is rejected. ENV → INDEX → COMPONENT must be reversible through the breadcrumb ancestors, while bottom-level legend taps remain selection only.
 
+## Turn 21 source-index / hierarchy regressions — rejected
+- Applying a derived-index component direction to the visible raw/source Indexed-100 series is rejected. Direction belongs to composite construction only. A rising SPY source series may reduce the derived RSK contribution, but SPY itself must still plot as rising relative performance.
+- Crosshair, Data, export, AI, or Library values that preserve a direction-inverted source index are rejected; every consumer must agree with the visible source-relative chart state.
+- INDEX self-drill is rejected. `ENV / GRW / GRW`, `ENV / RSK / RSK`, and `ENV / MAC / MAC` must never be produced. The parent INDEX chip remains at INDEX depth; only raw component chips drill to COMPONENT.
+

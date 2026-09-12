@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-12
-Next release scope: Turn 20
+Next release scope: Turn 21
 Owner handoff target: Claude or any successor builder
 
 ## 1. Executive definition
@@ -203,7 +203,8 @@ Required:
 An INDEX view replaces ENV in the same chart footprint and shows the selected index plus every governed component as lines on one common horizon.
 
 Navigation and inspection are deliberately separated:
-- tapping any enabled **legend chip** drills directly to a standalone analytical chart for that exact series, including tapping the INDEX chip itself;
+- tapping any enabled **raw component legend chip** drills to COMPONENT with that raw/source series as the leaf/root while retaining the current derived INDEX as plotted context;
+- tapping the current INDEX own legend chip selects/references that INDEX in place and never creates a redundant COMPONENT level;
 - tapping a plotted line selects/focuses that series for inspection without navigating;
 - long-pressing a legend chip opens compact series information without navigating;
 - the ENV breadcrumb ancestor drills up to ENV.
@@ -227,7 +228,7 @@ COMPONENT is the standalone analytical workspace for the selected root series an
 
 Entry is direct from an INDEX legend-chip tap (or EXPLORE). The selected horizon is preserved. A raw component opens in native units/Native Y1 when mathematically valid; a derived RSK/GRW/MAC index remains truthfully represented as Indexed 100 rather than being mislabeled as native evidence.
 
-The breadcrumb never grows beyond `ENV / <INDEX> / <ROOT COMPONENT> + X Components`. ENV and INDEX drill upward. If a derived parent INDEX remains plotted as context and one or more raw comparison series are present, that derived INDEX is not a COMPONENT leaf and is not counted in `+ X`. The first raw series becomes the COMPONENT root and `+ X` counts only the additional raw series. Thus a Growth-context chart containing `GRW + PCE + Payrolls + UNE` is `ENV / GRW / PCE + 2 Components`, not `ENV / GRW / GRW + 3 Components`. A derived-only standalone COMPONENT remains valid as `ENV / GRW / GRW` until a raw series is added.
+The breadcrumb never grows beyond `ENV / <INDEX> / <ROOT COMPONENT> + X Components`. ENV and INDEX drill upward. A derived parent INDEX is retained as plotted context when drilling from INDEX to a raw component, but it is never a COMPONENT leaf and is never counted in `+ X`. COMPONENT entry from NOW therefore requires a raw/source component root. Thus a Growth-context chart containing `GRW + PCE + Payrolls + UNE` is `ENV / GRW / PCE + 2 Components`; `ENV / GRW / GRW`, `ENV / RSK / RSK`, and `ENV / MAC / MAC` are invalid and must be unreachable. Tapping or opening the parent INDEX while already in its INDEX view keeps the user at INDEX depth.
 
 At this bottom level:
 - legend-chip tap changes the active/reference series only;
@@ -256,7 +257,7 @@ The interaction roles are fixed:
 
 Selecting a plotted series immediately makes it fully opaque/on top and fades the other visible series without changing configured line width/style. Hover/pointer movement immediately snaps to the nearest **full-resolution real observation** on the already-selected series; display downsampling never reduces inspection precision.
 
-The inspection readout contains one vertical guide, one point marker, date, native value/unit and Indexed-100 value where valid. It remains pinned when the pointer leaves the chart. It updates when another point on the same active series is inspected, changes to the newly selected plotted series when selection changes, and can be explicitly dismissed with its `×`. Context/horizon changes clear stale inspection. No second click/focus mode and no all-series tooltip are permitted.
+The inspection readout contains one vertical guide, one point marker, date, native value/unit and Indexed-100 value where valid. For every raw/source series, Indexed 100 is plain relative rebasing from that series own horizon baseline: `100 * (value / baseline)`. Component direction/weight is used only in derived-index construction and must never invert a raw/source line, crosshair index, Data row, export, AI evidence, or Library snapshot. Thus if SPY rises from its baseline, SPY Indexed 100 must also rise even though SPY contributes with direction `-1` to the derived RSK composite. It remains pinned when the pointer leaves the chart. It updates when another point on the same active series is inspected, changes to the newly selected plotted series when selection changes, and can be explicitly dismissed with its `×`. Context/horizon changes clear stale inspection. No second click/focus mode and no all-series tooltip are permitted.
 
 ## 13. GDP and periodic evidence
 Raw Real GDP level (`GDPC1`) is input evidence only and is not user-selectable.
@@ -761,4 +762,16 @@ Release-blocking corrections:
 - **AI/Library regression gate:** a COMPONENT chart containing a derived index plus raw comparison series must persist the derived index with non-empty plotted points and must send it to AI as available evidence.
 
 Turn 20 acceptance example: `GRW + PCE + Payrolls + UNE` at COMPONENT depth renders breadcrumb `ENV / GRW / PCE + 2 Components`; AI evidence and the saved Library chart both retain the visible GRW curve.
+
+## 31. Turn 21 — source-relative indexing and non-duplicating hierarchy
+Turn 21 is a narrow owner-directed correction over qualified Turn 20. It does not redesign the chart engine, derived-index mathematics, Library, AI, evidence cadence, or configuration surfaces.
+
+Release-blocking corrections:
+- **Raw/source Indexed 100 is always direction-neutral relative performance.** A source value above its own baseline must plot above 100 and a value below baseline must plot below 100. The `direction` field remains exclusively a derived-composite contribution rule.
+- **INDEX self-drill is prohibited.** The current parent INDEX chip is selectable/referenceable in INDEX view but cannot open COMPONENT for itself. Duplicate paths such as `ENV / GRW / GRW` are invalid.
+- **Parent context continuity:** drilling a raw component from INDEX retains the parent derived INDEX as plotted context while the selected raw series becomes the COMPONENT root. The parent INDEX is excluded from the breadcrumb leaf count.
+- **Hierarchy guard:** any attempted NOW transition that would create `ENV / <INDEX> / <same INDEX>` is intercepted and remains at `ENV / <INDEX>`.
+- **Regression case:** in RSK 5YR, later SPY native values greater than earlier SPY native values must also have greater Indexed-100 values; the negative RSK contribution direction must not reverse the displayed SPY series.
+
+Turn 21 acceptance examples: RSK/5YR SPY 2026 native above SPY 2024 implies SPY Indexed 100 above its 2024 value; GRW parent-chip tap remains `ENV / GRW`; Payrolls child-chip tap becomes `ENV / GRW / Payrolls` while GRW remains plotted as parent context.
 
