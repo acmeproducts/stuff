@@ -13,9 +13,9 @@ old='@media(max-width:700px){.chartChromeRow{gap:4px;padding-left:6px;padding-ri
 new='@media(max-width:700px){.chartChromeRow{--hz-half:96px;gap:4px;padding-left:6px;padding-right:6px}.chartChromeRow .chromeCrumb{left:6px}.chartChromeRow .chromeRight{right:6px}'
 if old not in s: raise SystemExit('missing mobile chrome rule')
 s=s.replace(old,new,1)
-# Prevent intrinsic grid/flex content from widening the NOW chart beyond its viewport.
+# Prevent intrinsic grid content (especially the longer INDEX legend) from widening the one-column chart grid.
 anchor='.chartCard{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto}'
-repl='.chartCard{min-height:0;min-width:0;width:100%;max-width:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}.now,.pad.now{min-width:0;width:100%;max-width:100%}.pad.now{overflow:hidden}'
+repl='.chartCard{min-height:0;min-width:0;width:100%;max-width:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}.now,.pad.now{min-width:0;width:100%;max-width:100%}.now{grid-template-columns:minmax(0,1fr)}.analysis{min-width:0;grid-template-columns:minmax(0,1fr)}.chartHead,.seriesBar{min-width:0;max-width:100%}.pad.now{overflow:hidden}'
 if anchor not in s: raise SystemExit('missing chartCard rule')
 s=s.replace(anchor,repl,1)
 p.write_text(s)
