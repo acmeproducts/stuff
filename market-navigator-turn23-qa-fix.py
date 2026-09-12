@@ -26,7 +26,9 @@ elif new in s:
 else:
     raise SystemExit('rail QA anchor missing')
 
-# The existing workflow publishes the generated HTML after qualification. Stage the
-# normalized QA source as part of that same atomic commit so the rebase step sees a
-# clean worktree and future runs execute the state-independent test directly.
+# Publish the normalized QA source in the same qualified commit as the generated
+# HTML. npm install may dirty package metadata after this step, so enable Git's
+# built-in autostash for the workflow's later pull --rebase instead of committing
+# package-manager noise.
 subprocess.run(['git','add',str(p)],check=True)
+subprocess.run(['git','config','rebase.autoStash','true'],check=True)
