@@ -3,6 +3,7 @@
 ## TURN/STAGE LEDGER
 2026-09-12 | DEFINE | Added Define section
 2026-09-12 | DEFINE | Confirmed scope and documented purpose, users, outcomes, success criteria
+2026-09-12 | DEFINE | Updated backlog and next step
 
 ## DEFINE
 **Purpose**  
@@ -24,3 +25,9 @@ Create a single‑file, mobile‑first HTML application (local.html) that serves
 - Lighthouse performance score ≥ 90 for speed, accessibility, and best practices.  
 - No external script or stylesheet dependencies; all resources load from the same file or same origin.  
 - User testing confirms that first‑time visitors can understand the purpose and navigate to the main call‑to‑action within 5 seconds.
+
+## BACKLOG
+- **Build local.html**: Implement the mobile‑first, single‑file landing page according to the defined purpose, outcomes, and success criteria.
+
+## NEXT STEPS
+- Review any additional content or branding requirements before starting the build.
