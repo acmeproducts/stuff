@@ -8,7 +8,7 @@ s=s.replace('TURN 19 PRE-SHIP','TURN 20 PRE-SHIP')
 s=s.replace('/* TURN19_DISPLAY_DENSITY:','/* TURN20_OWNER_CORRECTIONS: exact rendered AI snapshot + component breadcrumb lifecycle. */\n/* TURN19_DISPLAY_DENSITY:',1)
 
 old="let root=displayLabel(S.analysisRoot||S.analysisSeries[0]||'COMPONENT'),extra=Math.max(0,S.analysisSeries.length-1),suffix=extra?` + ${extra} ${pluralComponents(extra)}`:'',leaf=root+suffix"
-new="let raw=S.analysisSeries.filter(id=>!IDX.includes(id)),crumbRoot=raw.includes(S.analysisRoot)?S.analysisRoot:(raw[0]||S.analysisRoot||S.analysisSeries[0]||'COMPONENT'),crumbCount=raw.length?raw.length:(S.analysisSeries.length?1:0),root=displayLabel(crumbRoot),extra=Math.max(0,crumbCount-1),suffix=extra?` + ${extra} ${pluralComponents(extra)}`:'',leaf=root+suffix"
+new="let raw=S.analysisSeries.filter(id=>!IDX.includes(id)),crumbRoot=raw.includes(S.analysisRoot)?S.analysisRoot:(raw[0]||S.analysisRoot||S.analysisSeries[0]||'COMPONENT'),crumbCount=raw.length?raw.length:(S.analysisSeries.length?1:0),root=crumbRoot==='corePce'?'PCE':displayLabel(crumbRoot),extra=Math.max(0,crumbCount-1),suffix=extra?` + ${extra} ${pluralComponents(extra)}`:'',leaf=root+suffix"
 if old not in s: raise SystemExit('missing Turn 19 analysis breadcrumb expression')
 s=s.replace(old,new,1)
 
