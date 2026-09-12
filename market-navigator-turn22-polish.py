@@ -1,29 +1,12 @@
 from pathlib import Path
 p=Path('market-navigator-turn22-pre-ship.html')
 s=p.read_text()
-def cut(a,b,label):
-    global s
-    i=s.find(a); j=s.find(b,i+1)
-    if i<0 or j<0: raise SystemExit(f'{label} markers missing')
-    s=s[:i]+s[j:]
-# Retire the separate COMPONENT surface and state machine.
-i=s.find('<div class="modal hidden" id="analysisModal">'); j=s.find('</main>',i)
-if i<0 or j<0: raise SystemExit('analysis modal markers missing')
-s=s[:i]+s[j:]
-s=s.replace('#analysisModal{display:none!important}','')
-for x in ['analysisActive:null,','analysisRoot:null,','analysisSeries:[],','lineage:null,','priorV2:null,','analysisRenderSeq:0,','analysisRepresentation:null,','analysisFocus:null,','analysisChartState:null,']:
-    s=s.replace(x,'')
-cut('function renderAnalysisCrumb(){','function footerOptions','crumb')
-cut('function setAnalysisFooter(w,mode,families,derivedOnly=false){','function renderCrumb','footer')
-cut('function captureAnalysisState17(','async function dataSeries17','snapshot')
-cut('async function analysisState(){','function aiEvidenceState','analysis state')
-cut('async function openAnalysis(ids,lineage,root){',"$('dataClose').onclick=",'component engine')
-s=s.replace("async function downloadAnalysisState(kind='json'){let state=await analysisState();downloadState(state,'market-navigator-analysis',kind)}",'')
-s=s.replace("let state=stateOverride||await analysisState(),rootLabel=displayLabel(state.root||state.series?.[0]||'Analysis')","let state=stateOverride;if(!state)throw Error('Visible NOW chart state is required');let rootLabel=displayLabel(state.root||state.series?.[0]||'Analysis')")
-s=s.replace("S.activeAnalysis=analysisId;$('analysisModal').classList.add('hidden');$('libraryWorkspace').classList.add('detailOpen');","S.activeAnalysis=analysisId;$('libraryWorkspace').classList.add('detailOpen');")
-s=s.replace("if(!$('analysisModal').classList.contains('hidden'))renderAnalysis();",'')
-s=s.replace("if(which==='now'&&S.level!==1){if(S.priorV2)S.priorV2.component=sel.id===S.index?null:sel.id;$('info').classList.add('hidden')}if(which==='analysis')$('seriesAbout').classList.add('hidden')","if(which==='now'&&S.level!==1){$('info').classList.add('hidden')}")
+marker='/* TURN22_TTS_FIT */'
+if marker not in s:
+    css='''\n/* TURN22_TTS_FIT */\n.libListenBar{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important;padding-left:24px!important;padding-right:24px!important;grid-template-columns:repeat(5,minmax(0,40px))!important;justify-content:center!important;justify-items:center!important}.libListenControl{min-width:0!important;max-width:40px!important}@media(max-width:700px){.libListenBar{padding-left:18px!important;padding-right:18px!important;grid-template-columns:repeat(5,minmax(0,32px))!important;column-gap:4px!important}.libListenControl{width:32px!important;max-width:32px!important;height:34px!important}}\n'''
+    if '</style>' not in s: raise SystemExit('style close missing')
+    s=s.replace('</style>',css+'</style>',1)
 for bad in ['id="analysisModal"','function renderAnalysis(','function openAnalysis(']:
-    if bad in s: raise SystemExit('retired engine residue: '+bad)
+    if bad in s: raise SystemExit('retired component residue: '+bad)
 p.write_text(s)
-print('TURN22 COMPONENT ENGINE REMOVED',len(s))
+print('TURN22 LISTEN FIT APPLIED',len(s))
