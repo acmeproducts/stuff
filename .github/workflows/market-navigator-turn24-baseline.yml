@@ -1,0 +1,32 @@
+name: Market Navigator Turn 24 baseline proof
+on:
+  push:
+    branches: [market-navigator-turn24-recovery]
+    paths:
+      - 'market-navigator-turn24-pre-ship.html'
+      - '.github/workflows/market-navigator-turn24-baseline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prove exact Turn 22 application blob
+        run: |
+          test "$(git hash-object market-navigator-turn24-pre-ship.html)" = "19e45a18264534e16c535904f7d9fe049b7172da"
+          grep -q 'Market Navigator · Turn 22' market-navigator-turn24-pre-ship.html
+      - name: Run retained Turn 22 product matrix against restored copy
+        env:
+          MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn24-pre-ship.html
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm i playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+          python3 -m http.server 8123 >/tmp/mn24-baseline-server.log 2>&1 &
+          node market-navigator-turn22-qa.mjs
