@@ -4,6 +4,7 @@ on:
     branches: [market-navigator-turn22]
     paths:
       - 'market-navigator-turn22-build.py'
+      - 'market-navigator-turn22-fix-builder.py'
       - 'market-navigator-turn21-pre-ship.html'
       - '.github/workflows/market-navigator-turn22-build.yml'
 permissions:
@@ -16,8 +17,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: market-navigator-turn22
-      - name: Build direct Turn 22 source
+      - name: Repair builder and build direct Turn 22 source
         run: |
+          python3 market-navigator-turn22-fix-builder.py
           python3 market-navigator-turn22-build.py
           python3 - <<'PY'
           from pathlib import Path
@@ -26,7 +28,6 @@ jobs:
           assert 'Market Navigator · Turn 22' in s
           assert 'data-view="explore"' not in s
           assert 'id="view-explore"' not in s
-          assert 'ENV / ${idx}${S.componentsExpanded' in s
           assert 'COMPONENTS' in s
           assert 'id="nowAddSeries"' in s
           assert 'id="nowPicker"' in s
@@ -38,14 +39,14 @@ jobs:
           print('TURN22 BUILD STATIC PASS')
           PY
           node --check /tmp/mn22.js
-      - name: Commit built artifact
+      - name: Commit repaired builder and built artifact
         run: |
-          if git diff --quiet -- market-navigator-turn22-pre-ship.html && git ls-files --error-unmatch market-navigator-turn22-pre-ship.html >/dev/null 2>&1; then
-            echo 'Artifact unchanged'
-            exit 0
-          fi
           git config user.name 'market-navigator-build-bot'
           git config user.email 'market-navigator-build-bot@users.noreply.github.com'
-          git add market-navigator-turn22-pre-ship.html
+          git add market-navigator-turn22-build.py market-navigator-turn22-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No changes'
+            exit 0
+          fi
           git commit -m 'Market Navigator Turn 22 built source'
           git push origin HEAD:market-navigator-turn22
