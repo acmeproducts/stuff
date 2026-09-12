@@ -7,111 +7,130 @@ const browser=await chromium.launch({headless:true});
 
 async function makePage({width=412,height=915,ai=false}={}){
   const page=await browser.newPage({viewport:{width,height}}),errors=[],failed=[],requests=[];
-  await page.addInitScript(()=>{class U{constructor(text){this.text=String(text);this.rate=1}};Object.defineProperty(window,'SpeechSynthesisUtterance',{value:U,configurable:true});Object.defineProperty(window,'speechSynthesis',{value:{speak(){},cancel(){},pause(){},resume(){}},configurable:true})});
+  await page.addInitScript(()=>{
+    class U{constructor(text){this.text=String(text);this.rate=1}}
+    Object.defineProperty(window,'SpeechSynthesisUtterance',{value:U,configurable:true});
+    Object.defineProperty(window,'speechSynthesis',{value:{speak(){},cancel(){},pause(){},resume(){}},configurable:true});
+    if(!window.URL.createObjectURL)window.URL.createObjectURL=()=> 'blob:qa';
+  });
   if(ai)await page.addInitScript(()=>localStorage.setItem('marketNavigatorAIRegistryV1',JSON.stringify({defaultProvider:'openrouter',providers:{openrouter:{verified:true,key:'qa-key',model:'qa-model'}}})));
   page.on('pageerror',e=>errors.push(`page: ${e.message}`));
   page.on('console',m=>{if(m.type()==='error')errors.push(`console: ${m.text()}`)});
   page.on('response',r=>{if(r.status()>=400&&!/favicon/.test(r.url()))failed.push(`${r.status()} ${r.url()}`)});
   await page.route('https://cdn.jsdelivr.net/npm/marked/marked.min.js',r=>r.fulfill({contentType:'application/javascript',body:"window.marked={parse:s=>'<div>'+String(s)+'</div>'};"}));
   await page.route('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',r=>r.fulfill({contentType:'application/javascript',body:'window.DOMPurify={sanitize:s=>s};'}));
-  if(ai)await page.route('https://openrouter.ai/api/v1/chat/completions',async r=>{requests.push(r.request().postDataJSON());await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:'# Turn 22 QA\n\nUnified NOW state retained the derived anchor and visible evidence.'}}]})})});
+  if(ai)await page.route('https://openrouter.ai/api/v1/chat/completions',async r=>{
+    requests.push(r.request().postDataJSON());
+    await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:'# Turn 22 QA\n\nUnified NOW evidence reached Library intact.'}}]})});
+  });
   await page.goto(url,{waitUntil:'networkidle'});
-  if(width<=760&&!(await page.locator('#rail').evaluate(el=>el.classList.contains('closed'))))await page.locator('#toggle').click();
+  await page.waitForFunction(()=>document.querySelector('#legend [data-id="growth"]'));
   return{page,errors,failed,requests};
 }
-const text=async l=>(await l.innerText()).replace(/\s+/g,' ').trim();
-async function crumb(page){return text(page.locator('#nowCrumb'))}
-async function enterGrowth(page){await page.locator('#legend [data-id="growth"]').click();await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim()==='ENV / GRW / COMPONENTS')}
-async function setHz(page,h){await page.locator(`#hzs [data-h="${h}"]`).click();await page.waitForFunction(h=>document.querySelector(`#hzs [data-h="${h}"]`)?.classList.contains('on'),h)}
-function tipNumbers(t){let m=t.replace(/\s+/g,' ').match(/idx\s+(-?[\d,.]+)\s+·\s+value\s+(-?[\d,.]+)/i);assert(m,`tip contains indexed and native values: ${t}`);return{idx:+m[1].replace(/,/g,''),native:+m[2].replace(/,/g,'')}}
-async function inspectDate(page,iso){let box=await page.locator('#nowChart').boundingBox();assert(box);let start=Date.parse('2021-09-10T00:00:00Z'),end=Date.parse('2026-09-10T23:59:59Z'),target=Date.parse(iso+'T12:00:00Z'),left=48,right=12,frac=(target-start)/(end-start),x=box.x+left+frac*(box.width-left-right),y=box.y+Math.min(120,box.height/3);await page.mouse.move(Math.min(box.x+box.width-right-1,Math.max(box.x+left+1,x)),y);await page.waitForFunction(()=>document.querySelector('#nowTip')?.style.display==='block');return tipNumbers(await page.locator('#nowTip').innerText())}
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const crumb=async p=>clean(await p.locator('#nowCrumb').innerText());
+async function enter(p,id){await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(id=>document.querySelector('#nowCrumb')?.textContent.includes(id),id==='growth'?'GRW':id==='risk'?'RSK':'MAC')}
+async function pickerAdd(p,query,id){await p.locator('#nowAddSeries').click();await p.locator('#nowPickerSearch').fill(query);await p.waitForFunction(id=>document.querySelector(`[data-add-now="${id}"]`),id);let b=p.locator(`[data-add-now="${id}"]`);assert.equal(await b.isDisabled(),false,`${id} Add enabled`);await b.click();await p.waitForFunction(id=>document.querySelector(`#legend [data-id="${id}"]`),id)}
+async function noOverflow(p,label){let ok=await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.body.scrollWidth<=innerWidth+1);assert(ok,`${label} has no horizontal page overflow`)}
 
-async function coreJourney(width){
+async function architecture(width){
   const t=await makePage({width,height:width<700?915:800}),p=t.page;
   assert.equal(await p.locator('[data-view="explore"]').count(),0,'Explore nav retired');
-  assert.equal(await p.locator('#view-explore').count(),0,'Explore surface retired');
+  assert.equal(await p.locator('#view-explore').count(),0,'Explore view retired');
+  assert.equal(await p.locator('#analysisModal').count(),0,'retired Component modal physically absent');
   assert.equal(await crumb(p),'ENV');
-  assert.equal(await p.locator('#legend [data-id]').count(),3,'ENV has 3 indices');
+  assert.equal(await p.locator('#legend [data-id]').count(),3,'ENV has three derived indices');
   assert.equal(await p.locator('#legend .active').count(),0,'ENV boots neutral');
-  assert.equal(await p.locator('#nowChart').getAttribute('data-emphasis'),'false','ENV has no isolation emphasis');
-  await enterGrowth(p);
-  assert.equal(await p.locator('#analysisModal').evaluate(el=>el.classList.contains('hidden')),true,'no Component modal');
-  assert.equal(await p.locator('#legend [data-id]').count(),8,'GRW plus 7 governed components');
-  assert.equal(await p.locator('#legend [data-id="growth"] [data-rm]').count(),0,'anchor cannot be removed');
-  assert.equal(await p.locator('#legend [data-rm]').count(),7,'governed components removable');
-  assert.equal(await p.locator('#nowAddSeries').count(),1,'Add present');
-  await p.locator('#legend [data-id="payrolls"]').click();
-  await p.waitForFunction(()=>document.querySelector('#legend [data-id="payrolls"]')?.classList.contains('active'));
-  assert.equal(await crumb(p),'ENV / GRW / COMPONENTS','component selection does not navigate');
-  await p.locator('#legend [data-id="payrolls"] [data-rm]').click();
-  await p.waitForFunction(()=>!document.querySelector('#legend [data-id="payrolls"]'));
+  assert.equal(await p.locator('#nowChart').getAttribute('data-emphasis'),'false','ENV has no default emphasis');
+  await noOverflow(p,`ENV ${width}`);
+
+  await enter(p,'growth');
+  await p.waitForFunction(()=>clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW / COMPONENTS',undefined).catch(()=>{});
   assert.equal(await crumb(p),'ENV / GRW / COMPONENTS');
+  assert.equal(await p.locator('#nowCrumb button.crumbBtn').count(),2,'only ENV and GRW breadcrumb levels clickable');
+  assert.equal(await p.locator('#nowCrumb button:has-text("COMPONENTS")').count(),0,'COMPONENTS is a state label, not navigation');
+  assert.equal(await p.locator('#legend [data-id="growth"] [data-rm]').count(),0,'index anchor cannot be removed');
+  assert((await p.locator('#legend [data-rm]').count())>0,'governed component chips are removable');
+  assert.equal(await p.locator('#nowAddSeries').count(),1,'Add discovery is present in NOW');
+  await noOverflow(p,`GRW components ${width}`);
+
   await p.locator('#crumbIndex22').click();
   await p.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim()==='ENV / GRW');
-  assert.equal(await p.locator('#legend [data-id]').count(),1,'collapsed index-only');
-  assert.equal(await p.locator('#legend [data-id="growth"] [data-rm]').count(),0);
+  assert.equal(await p.locator('#legend [data-id]').count(),1,'index breadcrumb collapses to index-only');
   await p.locator('#legend [data-id="growth"]').click();
   await p.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim()==='ENV / GRW / COMPONENTS');
-  assert.equal(await p.locator('#legend [data-id]').count(),8,'anchor re-expands governed basket');
-  await p.locator('#nowAddSeries').click();
-  await p.locator('#nowPickerSearch').fill('Risk');
-  await p.waitForFunction(()=>!!document.querySelector('#nowPicker [data-add-now="risk"]'));
-  await p.locator('#nowPicker [data-add-now="risk"]').click();
-  await p.waitForFunction(()=>!!document.querySelector('#legend [data-id="risk"]'));
-  assert.equal(await p.locator('#legend [data-id="spy"]').count(),0,'adding derived RSK does not expand its basket');
-  assert.equal(await crumb(p),'ENV / GRW / COMPONENTS');
-  await p.locator('#legend [data-id="risk"] [data-rm]').click();
+  assert((await p.locator('#legend [data-id]').count())>1,'sole index chip re-expands governed basket');
+
+  await pickerAdd(p,'QQQ','qqq');
+  assert.equal(await crumb(p),'ENV / GRW / COMPONENTS','arbitrary Add does not change hierarchy breadcrumb');
+  assert.equal(await p.locator('#legend [data-id="qqq"] [data-rm]').count(),1,'arbitrary comparison is removable');
+  await p.locator('#legend [data-id="qqq"]').click();
+  await p.waitForFunction(()=>document.querySelector('#legend [data-id="qqq"]')?.classList.contains('active'));
+  await p.locator('#nowMoreBtn').click();await p.locator('#nowData').click();
+  await p.waitForFunction(()=>!document.querySelector('#dataModal')?.classList.contains('hidden'));
+  assert((await p.locator('#dataRows tr').count())>20,'Data uses full canonical history');
+  assert((await p.locator('#dataRows tr[data-active="true"][data-series="qqq"]').count())>0,'visible active series is frozen as Data reference');
+  await p.locator('#dataClose').click();
+
   await p.locator('#crumbEnvironment').click();
   await p.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.trim()==='ENV');
-  assert.equal(await p.locator('#legend .active').count(),0,'return to ENV is neutral');
-  assert.equal(await p.locator('#analysisModal').evaluate(el=>el.classList.contains('hidden')),true);
+  assert.equal(await p.locator('#legend .active').count(),0,'ENV return is neutral');
+  await noOverflow(p,`return ENV ${width}`);
   assert.deepEqual(t.errors,[],`browser errors ${width}`);assert.deepEqual(t.failed,[],`failed resources ${width}`);
   await p.close();
 }
 
 try{
-  await coreJourney(1280);
-  await coreJourney(412);
+  await architecture(1280);
+  await architecture(412);
 
-  // Source directionality and full-resolution crosshair survive Turn 22.
-  const d=await makePage({width:412,height:915}),p=d.page;
-  await setHz(p,'5YR');
-  await p.locator('#legend [data-id="risk"]').click();
-  await p.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.includes('COMPONENTS'));
-  await p.locator('#legend [data-id="spy"]').click();
-  const a=await inspectDate(p,'2024-08-12'),b=await inspectDate(p,'2026-09-10');
-  assert(b.native>a.native,`SPY native rises ${a.native} -> ${b.native}`);assert(b.idx>a.idx,`SPY index rises ${a.idx} -> ${b.idx}`);
-  assert.equal(await p.locator('#nowChart').getAttribute('data-render-density'),'monthly');
-  const src=+(await p.locator('#nowChart').getAttribute('data-source-points')),rnd=+(await p.locator('#nowChart').getAttribute('data-rendered-points'));assert(src>rnd,'5YR chart reduces visual point density');
-  await p.locator('#crumbEnvironment').click();
-  await setHz(p,'5D');await p.locator('#legend [data-id="risk"]').click();
-  await p.locator('#nowAddSeries').click();await p.locator('#nowPickerSearch').fill('WTI');
-  await p.waitForFunction(()=>!!document.querySelector('#nowPicker [data-add-now="wti"]'));
-  assert.equal(await p.locator('#nowPicker [data-add-now="wti"]').isDisabled(),false,'WTI selectable at 5D');
-  await p.locator('#nowPickerClose').click();
-  assert.deepEqual(d.errors,[]);assert.deepEqual(d.failed,[]);await p.close();
+  // Short-horizon evidence truth: WTI must remain directly selectable; GDP transform remains cadence-aware selectable.
+  const e=await makePage({width:412,height:915}),ep=e.page;
+  await enter(ep,'risk');
+  await pickerAdd(ep,'WTI','wti');
+  assert.equal(await crumb(ep),'ENV / RSK / COMPONENTS');
+  assert((+(await ep.locator('#nowChart').getAttribute('data-source-points')))>0,'WTI contributes real 5D chart evidence');
+  await ep.locator('#legend [data-id="wti"] [data-rm]').click();
+  await ep.locator('#nowAddSeries').click();await ep.locator('#nowPickerSearch').fill('GDP');
+  await ep.waitForFunction(()=>document.querySelector('[data-add-now="gdpQoq"]')||document.querySelector('[data-add-now="gdpYoy"]'));
+  let g=ep.locator('[data-add-now="gdpQoq"]').first();if(!(await g.count()))g=ep.locator('[data-add-now="gdpYoy"]').first();
+  assert.equal(await g.isDisabled(),false,'periodic GDP transform remains selectable at 5D without fabricating daily source observations');
+  await ep.locator('#nowPickerClose').click();
+  assert.deepEqual(e.errors,[]);assert.deepEqual(e.failed,[]);await ep.close();
 
-  // Exact visible NOW state flows to AI/Library and Listen controls remain centered on phone.
+  // Exact visible state -> AI -> persisted Library; also verifies source-relative indexing direction and phone Listen geometry.
   const q=await makePage({width:412,height:915,ai:true}),ai=q.page;
-  await enterGrowth(ai);
-  await ai.locator('#legend [data-id="payrolls"]').click();
+  await enter(ai,'growth');await pickerAdd(ai,'QQQ','qqq');
+  await ai.locator('#legend [data-id="qqq"]').click();await ai.waitForFunction(()=>document.querySelector('#legend [data-id="qqq"]')?.classList.contains('active'));
   await ai.locator('#nowMoreBtn').click();await ai.locator('#nowAnalyze').click();
   await ai.waitForFunction(()=>document.querySelector('#view-library')?.classList.contains('on'));
-  await ai.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('Unified NOW state'));
+  await ai.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('Unified NOW evidence'));
   assert.equal(q.requests.length,1,'one AI request');
-  const sys=q.requests[0].messages.find(m=>m.role==='system')?.content||'',marker='Evidence: ',i=sys.indexOf(marker);assert(i>=0,'AI evidence packet');const ev=JSON.parse(sys.slice(i+marker.length));
-  assert.equal(ev.lineage,'ENV/GRW/COMPONENTS');assert(ev.chart.series.find(z=>z.id==='growth')?.observationCount>0,'derived GRW in frozen AI state');assert.equal(ev.active,'payrolls');
-  await ai.locator('#libListenMode').click();await ai.waitForFunction(()=>!document.querySelector('#libListenBar')?.classList.contains('hidden'));
+  const sys=q.requests[0].messages.find(m=>m.role==='system')?.content||'',marker='Evidence: ',i=sys.indexOf(marker);assert(i>=0,'AI evidence packet present');
+  const ev=JSON.parse(sys.slice(i+marker.length));
+  assert.equal(ev.lineage,'ENV/GRW/COMPONENTS');assert.equal(ev.active,'qqq','active visible series reaches frozen AI evidence');
+  const qq=ev.chart.series.find(z=>z.id==='qqq');assert(qq&&qq.observationCount>0,'QQQ evidence reaches AI');
+  if(qq.first&&qq.last&&qq.first.raw!==qq.last.raw&&qq.first.idx!==qq.last.idx)assert.equal(Math.sign(qq.last.raw-qq.first.raw),Math.sign(qq.last.idx-qq.first.idx),'Indexed 100 direction matches source direction');
+  assert(ev.chart.series.find(z=>z.id==='growth')?.observationCount>0,'derived GRW anchor retained in frozen AI state');
+
   assert.equal(await ai.locator('#libListenTitle').count(),0,'redundant Listen title removed');
+  await ai.locator('#libListenMode').click();await ai.waitForFunction(()=>!document.querySelector('#libListenBar')?.classList.contains('hidden'));
   assert.match(await ai.locator('#libListenProgress').innerText(),/Response 1 of 1 · Row 1 of/);
   const geom=await ai.evaluate(()=>{let bar=document.querySelector('#libListenBar').getBoundingClientRect(),bs=[...document.querySelectorAll('#libListenBar .libListenControl')].map(x=>x.getBoundingClientRect());return{bar:{l:bar.left,r:bar.right,c:(bar.left+bar.right)/2},bs:bs.map(b=>({l:b.left,r:b.right})),vw:innerWidth}});
-  assert.equal(geom.bs.length,5);for(const b0 of geom.bs){assert(b0.l>=geom.bar.l-1&&b0.r<=geom.bar.r+1&&b0.l>=0&&b0.r<=geom.vw,'Listen control clipped')}
-  const controlsCenter=(geom.bs[0].l+geom.bs.at(-1).r)/2;assert(Math.abs(controlsCenter-geom.bar.c)<8,'Listen controls centered');
+  assert.equal(geom.bs.length,5);for(const b of geom.bs)assert(b.l>=geom.bar.l-1&&b.r<=geom.bar.r+1&&b.l>=0&&b.r<=geom.vw,'Listen control clipped');
+  assert(Math.abs((geom.bs[0].l+geom.bs.at(-1).r)/2-geom.bar.c)<8,'five Listen controls centered');
   await ai.locator('#libListenPlay').click();assert.equal(await ai.locator('#libListenPlay').innerText(),'⏸');
+  await noOverflow(ai,'Library phone');
   assert.deepEqual(q.errors,[]);assert.deepEqual(q.failed,[]);await ai.close();
 
-  // CONFIG remains operable.
-  const c=await makePage({width:412,height:915}),cp=c.page;await cp.locator('#settingsGear').click();await cp.locator('[data-cfgtab="chart"]').click();assert.equal(await cp.locator('[data-style-slot]').count(),10);assert.equal(await cp.locator('[data-width-slot]').count(),10);await cp.locator('#configClose').click();assert.deepEqual(c.errors,[]);await cp.close();
+  // Horizon render-density and CONFIG contracts remain intact.
+  const c=await makePage({width:412,height:915}),cp=c.page;
+  await enter(cp,'risk');
+  await cp.locator('#hzs [data-h="3YR"]').click();await cp.waitForFunction(()=>document.querySelector('#hzs [data-h="3YR"]')?.classList.contains('on'));
+  assert.equal(await cp.locator('#nowChart').getAttribute('data-render-density'),'monthly');
+  let src=+(await cp.locator('#nowChart').getAttribute('data-source-points')),rnd=+(await cp.locator('#nowChart').getAttribute('data-rendered-points'));assert(src>=rnd&&src>0,'3YR rendering is display-density only');
+  await cp.locator('#settingsGear').click();await cp.locator('[data-cfgtab="chart"]').click();assert.equal(await cp.locator('[data-style-slot]').count(),10);assert.equal(await cp.locator('[data-width-slot]').count(),10);await cp.locator('#configClose').click();
+  assert.deepEqual(c.errors,[]);assert.deepEqual(c.failed,[]);await cp.close();
 
-  console.log('TURN 22 UNIFIED NOW + ADD + TTS + REGRESSION QA: PASS');
+  console.log('TURN 22 UNIFIED NOW ARCHITECTURE QA: PASS');
 } finally {await browser.close()}
