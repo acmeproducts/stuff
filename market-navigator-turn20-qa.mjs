@@ -64,7 +64,7 @@ try{
   assert.equal(await page.locator('#legend [data-id="payrolls"]').isDisabled(),false,'reported-horizon payroll component remains drillable');
   await page.locator('#legend [data-id="payrolls"]').click();
   await page.locator('#analysisModal').waitFor({state:'visible'});
-  assert.match((await page.locator('#analysisCrumb').innerText()).replace(/\s+/g,' ').trim(),/^ENV \/ GRW \/ PAY/,'INDEX component chip drills down');
+  assert.equal((await page.locator('#analysisCrumb').innerText()).replace(/\s+/g,' ').trim(),'ENV / GRW / Payrolls','INDEX component chip drills down');
   await page.locator('#crumbComponentEnvironment').click();
   await page.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.trim()==='ENV');
   assert.equal((await page.locator('#nowCrumb').innerText()).trim(),'ENV','COMPONENT ENV ancestor drills to ENV');
