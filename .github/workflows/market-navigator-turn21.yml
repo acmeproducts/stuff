@@ -23,40 +23,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Freeze Turn 21 governance first
         run: |
-          python3 market-navigator-turn21-governance-fix.py
-          python3 market-navigator-turn21-governance.py
+          python3 market-navigator-turn21-governance-v2.py
           grep -F 'Next release scope: Turn 21' MARKET-NAVIGATOR-MASTER-PLAN.md
           grep -F 'source-relative indexing and non-duplicating hierarchy' MARKET-NAVIGATOR-MASTER-PLAN.md
           grep -F 'ENV / GRW / GRW' MARKET-NAVIGATOR-GRAVEYARD.md
           grep -F 'source_display_formula' data/market-backend/derived-index-definition.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add market-navigator-turn21-governance.py MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md data/market-backend/derived-index-definition.json
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md data/market-backend/derived-index-definition.json
           if ! git diff --cached --quiet; then
             git commit -m 'Market Navigator Turn 21 governance [turn21-plan]'
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
-
       - name: Build exact Turn 21 candidate
         run: python3 market-navigator-build-turn21.py
-
       - name: Static and JavaScript gates
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('market-navigator-turn21-pre-ship.html').read_text()
-          required=[
-            'TURN 21 PRE-SHIP','TURN21_OWNER_CORRECTIONS',
-            'let src=await getSeries(c.id),a=indexed(src,w,1);',
-            "await openAnalysis([k,id],'NOW',id)",
-            "if(id===k){S.nowActive=k;S.nowFocus=k",
-            "if(lineage==='NOW'&&IDX.includes(requestedRoot)&&requestedRoot===S.index)",
-            'function renderAnalysisCrumb()','async function startAI'
-          ]
+          required=['TURN 21 PRE-SHIP','TURN21_OWNER_CORRECTIONS','let src=await getSeries(c.id),a=indexed(src,w,1);',"await openAnalysis([k,id],'NOW',id)","if(id===k){S.nowActive=k;S.nowFocus=k", "if(lineage==='NOW'&&IDX.includes(requestedRoot)&&requestedRoot===S.index)",'function renderAnalysisCrumb()','async function startAI']
           for x in required: assert x in s,x
           assert 'let src=await getSeries(c.id),a=indexed(src,w,c.direction);' not in s
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
@@ -65,19 +54,16 @@ jobs:
           print('TURN 21 STATIC: PASS')
           PY
           node --check /tmp/market-navigator-turn21.js
-
       - name: Install browser gate
         run: |
           npm install --no-save --package-lock=false playwright@1.55.0
           npx playwright install chromium
-
       - name: Run Turn 21 phone product matrix
         run: |
           python3 -m http.server 8123 >/tmp/market-navigator-turn21-http.log 2>&1 &
           sleep 1
           curl -fsS http://127.0.0.1:8123/market-navigator-turn21-pre-ship.html | grep -F 'TURN 21 PRE-SHIP' >/dev/null
           MARKET_NAVIGATOR_URL=http://127.0.0.1:8123/market-navigator-turn21-pre-ship.html node market-navigator-turn21-qa.mjs
-
       - name: Commit qualified Turn 21 candidate
         run: |
           git add market-navigator-turn21-pre-ship.html
