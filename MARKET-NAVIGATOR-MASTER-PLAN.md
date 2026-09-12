@@ -2,7 +2,9 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-12
-Next release scope: Turn 23
+Next release scope: **Turn 24 recovery**
+
+This file is the single positive specification for Market Navigator. Do not create a parallel release plan. `MARKET-NAVIGATOR-GRAVEYARD.md` is the binding negative specification.
 
 ## 1. Product definition
 Market Navigator is an evidence-backed market research application with three permanent primary modes:
@@ -14,13 +16,12 @@ with **CONFIG** fixed at the bottom of the left rail.
 `EXPLORE` is retired as a separate mode. Its useful discovery capability is consolidated into **Add** inside NOW.
 
 The NOW surface has one chart workspace and two context states:
-
 - **ENV** — three derived indices: RSK · GRW · MAC.
 - **Anchored index workspace** — one selected index plus a user-controlled visible-series set.
 
 There is no separate COMPONENT page or modal. `COMPONENTS` may appear only as a non-clickable breadcrumb state marker indicating that the governed component basket is expanded.
 
-The product principle remains:
+Product pipeline:
 
 **Data Catalog → Collector → Smart Evidence Store → Operational Manifest / Source Health → chart and analysis consumers → AI interpretation**
 
@@ -30,7 +31,6 @@ The backend owns objective, deterministic, reproducible evidence. AI interprets 
 
 ## 2. Source-of-truth hierarchy
 When sources disagree, use this order:
-
 1. This Master Plan.
 2. Owner-reviewed accepted behavior in `MARKET-VIEW-CHART-ACCEPTANCE-MATRIX.md`, only where not superseded here.
 3. Canonical backend evidence under `data/market-backend/`, `market-data/`, and `market-evidence/` after schema/freshness validation.
@@ -41,8 +41,28 @@ Historical V1/V2/V3/V4/V5 terminology is prohibited from the active product.
 
 ---
 
-## 3. Architectural rule
-There is one NOW chart state:
+## 3. Recovery authority and baseline
+Turn 23 is rejected as an application successor baseline because owner testing exposed release-blocking regressions in AI POV launch and rail/horizon chart geometry.
+
+Turn 24 application construction starts from the last known good application release:
+- release: **Turn 22**
+- merge commit: `0d0681b74b55d35723ca8f2a220474a512175461`
+- application source: `market-navigator-turn22-pre-ship.html`
+
+Turn 23 HTML/JS/CSS must not be patched forward or used as the Turn 24 application donor. Turn 23 may be inspected only as failure evidence. Accepted requirements from Turn 23 — responsive NOW geometry, password-manager-safe credential UX, and canonical CONFIG → Sources — are reimplemented cleanly from the Turn 22 baseline.
+
+Current `main` remains the final integration target so unrelated data/WorldPulse movement is preserved.
+
+Required recovery lifecycle:
+
+**restore exact Turn 22 application → prove baseline → implement one governed Turn 24 phase → qualify normal + failure paths → continue only when green → integrate current main → exact-merge qualification → Pages verification → owner test**
+
+No application mutation may precede this governance freeze.
+
+---
+
+## 4. Core architectural rule
+There is one NOW analytical state:
 
 **context index + component-basket-expanded flag + visible series set + active series + horizon + representation + frozen evidence revision**.
 
@@ -50,9 +70,23 @@ Do not maintain a second COMPONENT chart state, component modal state, Explore a
 
 AI POV, Data, Print, downloads, and Library snapshots consume the exact visible NOW chart state.
 
+### 4.1 View ownership boundary
+NOW, CONFIG, LIBRARY, and HEALTH communicate through explicit state/navigation functions. A view must not manipulate another view's private DOM as a navigation mechanism.
+
+Removing or replacing a DOM surface requires removing every live execution reference to it before release. No runtime path may reference retired elements such as former modal IDs.
+
+### 4.2 Analytical render versus geometry repaint
+These are separate operations.
+
+**Analytical render may:** change horizon/composition/representation, fetch or normalize evidence, compute axes, build legend/footer, and capture the frozen chart model.
+
+**Geometry repaint may:** read the current chart container dimensions and repaint the already-current frozen chart model.
+
+Rail open/close, ResizeObserver, orientation, split-screen, and viewport-size changes are geometry events only. They must not call the analytical renderer, fetch evidence, rebuild composition, change horizon/active series/representation, or recapture AI state.
+
 ---
 
-## 4. Permanent application frame
+## 5. Permanent application frame
 Left rail:
 
 **NOW · LIBRARY · HEALTH**
@@ -61,21 +95,17 @@ CONFIG remains fixed at the bottom.
 
 No separate EXPLORE route, page, navigation item, lineage, or analytical workflow is permitted.
 
-NOW must fill the available shell continuously. Rail open/close, rotation, split-screen, and viewport changes may change chart width but may not vertically recenter the chart card or leave dead space above/below it. Canvas geometry is driven by the actual chart container and must redraw when that container changes size.
+NOW fills the available shell continuously. Rail open/close may change chart width but may not vertically recenter the chart card or leave dead space above/below it. Chart/card top and bottom remain pinned while only available width changes.
 
 ---
 
-## 5. Canonical chart chrome
+## 6. Canonical chart chrome
 All NOW states use one shared three-section chart structure.
 
-### Section A — one physical row
-
+### 6.1 Top row
 **breadcrumb [left] | 1D 5D MTD YTD 1YR 3YR 5YR [fixed center] | `…` [reserved right]**
 
-The center horizons and right context-menu slot are reserved and may never be displaced by breadcrumb length. The row never wraps.
-
 Valid breadcrumb forms:
-
 - `ENV`
 - `ENV / RSK`
 - `ENV / RSK / COMPONENTS`
@@ -84,38 +114,24 @@ Valid breadcrumb forms:
 - `ENV / MAC`
 - `ENV / MAC / COMPONENTS`
 
-`COMPONENTS` is a state marker only. It is not a series name and is never clickable.
+`COMPONENTS` is a non-clickable terminal state marker, never an individual series list or navigation container.
 
-Clickability:
+`ENV` drills to neutral Environment. The index token collapses expanded components to index-only. No breadcrumb may ever contain a duplicated index such as `ENV / GRW / GRW`.
 
-- `ENV` drills up to the neutral Environment chart.
-- the index token drills from expanded components to the collapsed index-only state.
-- there is no deeper breadcrumb level.
-
-No breadcrumb may ever contain a duplicated index such as `ENV / GRW / GRW`.
-
-### Section B — legend/composition strip
+### 6.2 Legend/composition strip
 The legend is always present.
+- ENV: tapping RSK/GRW/MAC enters that anchored index workspace with governed components expanded.
+- collapsed anchored index: tapping the sole anchor chip expands its governed basket.
+- expanded anchored index: tapping any chip selects it as active/reference without navigation.
+- long press opens compact series information.
+- anchor index chip never has `×` while its breadcrumb context is active.
+- every non-anchor component/comparison chip has `×`.
+- **Add** is always available in an anchored workspace.
 
-Every chip reproduces configured line color, pattern, and visible thickness.
-
-Legend roles are state-dependent but frictionless:
-
-- ENV: tapping RSK/GRW/MAC enters that anchored index workspace with the governed component basket expanded.
-- collapsed anchored index: the anchor index is the only required series; tapping its chip expands the governed component basket.
-- expanded anchored index: tapping any chip selects that series as active/reference; it does not navigate.
-- long press on any chip opens compact series information without changing context.
-
-The anchor index chip never has an `×` while its breadcrumb context is active.
-Every non-anchor comparison/component chip has an `×` and can be removed without leaving the index context.
-**Add** is always available in an anchored workspace and is the canonical discovery mechanism.
-
-### Section C — centered footer
-
+### 6.3 Footer
 **version/build | exact visible date range | representation selector**
 
-Representations remain:
-
+Representations:
 - Native Y1
 - Native Y1 + Y2
 - Indexed 100
@@ -124,116 +140,81 @@ Only mathematically valid options are enabled.
 
 ---
 
-## 6. NOW state mechanics
-### 6.1 ENV neutral state
+## 7. NOW state mechanics
+### 7.1 ENV neutral
 ENV plots exactly RSK · GRW · MAC.
+- no default-selected index;
+- no isolation fade on load;
+- all three display normally;
+- plotted-series tap selects for inspection only;
+- legend-chip tap enters that anchored index and expands components.
 
-On load:
-- no index chip is selected by default;
-- no series-isolation fade is active;
-- all three series are displayed normally;
-- there is no implicit preference for RSK.
-
-A plotted-series tap selects that series for inspection only and does not navigate.
-A legend-chip tap enters the corresponding anchored index workspace and immediately expands its governed components.
-
-### 6.2 Anchored index — collapsed
+### 7.2 Anchored index — collapsed
 Example: `ENV / GRW`.
-
-Required state:
-- GRW is the anchor context;
+- GRW is immutable anchor context;
 - GRW is the only required visible series;
-- GRW chip has no `×`;
-- Add is available;
-- tapping the GRW chip expands all governed Growth components;
-- tapping ENV returns to neutral ENV.
+- no `×` on GRW;
+- Add available;
+- tapping GRW chip expands all governed Growth components;
+- tapping ENV exits to neutral ENV.
 
-### 6.3 Anchored index — components expanded
+### 7.3 Anchored index — expanded
 Example: `ENV / GRW / COMPONENTS`.
-
-Required state:
-- GRW remains the immutable anchor while this breadcrumb context exists;
-- GRW plus all governed Growth components are initially visible;
-- GRW is the active/reference series on entry;
-- component/comparison chips have `×` controls;
-- Add is available;
-- tapping a chip selects/highlights that series without navigation;
-- tapping the GRW breadcrumb collapses back to `ENV / GRW` with only GRW required;
-- tapping ENV returns to neutral ENV.
-
-Removing every removable chip is valid; the anchor remains.
-Added arbitrary catalog series do not change the breadcrumb hierarchy. The breadcrumb describes context; the legend describes composition.
+- GRW remains immutable anchor;
+- GRW plus all governed Growth components initially visible;
+- GRW active/reference on entry;
+- non-anchor chips removable;
+- arbitrary Add series do not alter breadcrumb hierarchy;
+- tapping GRW breadcrumb collapses to `ENV / GRW`;
+- tapping ENV exits to neutral ENV.
 
 ---
 
-## 7. Add replaces Explore
-Add is the single discovery/catalog surface.
-
-It must provide:
+## 8. Add replaces Explore
+Add is the single chart discovery/catalog surface. It provides:
 - search/Omnisearch;
-- grouping: Risk · Growth · Macro · Other;
-- canonical short name and full name;
+- Risk · Growth · Macro · Other grouping;
+- canonical short/full name;
 - unit and cadence;
-- availability for the active horizon;
+- active-horizon availability;
 - Health state;
 - About/source access;
 - add action.
 
-The three derived indices may be added as single comparison series, but adding an index through Add does not auto-expand that index's component basket. Basket expansion is reserved for entering the index from ENV or tapping the active anchor chip from the collapsed anchor state.
-
-There is no separate Explore state, page, lineage, or export path.
+Derived RSK/GRW/MAC may be added as single comparison series. Adding an index through Add does not auto-expand its component basket.
 
 ---
 
-## 8. Active-series emphasis and inspection
-Series selection and inspection are distinct from navigation.
-
+## 9. Active-series emphasis and inspection
 When a series becomes active:
-- it stays fully opaque and is drawn on top;
-- all other visible series fade translucently;
-- configured line width and style do not change;
-- no second click is required.
+- active stays fully opaque and draws on top;
+- other visible series fade translucently;
+- configured width/style do not change;
+- no second click required.
 
-Pointer hover immediately inspects the active series at the nearest full-resolution real observation. Touch/plot tap provides the equivalent selection/inspection behavior.
-
-Inspection readout contains date, native value/unit, Indexed 100 value where valid, one point marker, one vertical guide, and explicit `×` dismissal. The readout remains pinned when the pointer leaves and updates as another point on the same active series is inspected.
+Inspection uses nearest full-resolution real observation and shows date, native value/unit, Indexed 100 where valid, point marker, vertical guide, and explicit `×` dismissal.
 
 For every raw/source series:
 
 `Indexed 100 = 100 × value / baseline`
 
-Component direction/weight applies only to derived-index construction and must never invert a raw/source chart, crosshair value, Data value, export, AI evidence, or Library snapshot.
+Component direction/weight applies only to derived-index construction and never inverts a raw/source chart, crosshair, Data value, export, AI evidence, or Library snapshot.
 
 ---
 
-## 9. Series information popover
-Long press opens compact reference information only.
-
-Required structure:
-- header: Open · title · ×
-- body: purpose/usage · unit · cadence · Health link
-- footer: ← and → at opposite corners
-
-Arrows traverse visible legend order without wrap. They update active series and popover contents together. `Open` selects/focuses that series inside the current NOW workspace and must not create a separate COMPONENT page.
-
----
-
-## 10. Horizon contract
+## 10. Horizon and display-density contract
 Exactly seven horizons:
 
 **1D · 5D · MTD · YTD · 1YR · 3YR · 5YR**
 
-NOW defaults to 5D.
+NOW defaults to 5D. One common X-domain applies to all visible series. No forward-fill, fabricated daily points, synthetic stretching, or horizon-end restamping.
 
-One common X-domain applies to all visible series. Low-frequency series end at their real latest observation. No synthetic stretching, forward-fill, fabricated daily points, or horizon-end restamping is permitted.
-
-### 10.1 Display density
-Presentation-only display cadence:
+Presentation-only density:
 - 1D · 5D · MTD → native
 - YTD · 1YR → weekly
 - 3YR · 5YR → monthly
 
-The reducer selects real persisted observations only and preserves first/last real observations. Full canonical evidence remains available for inspection, Data, correlation, AI, downloads, and Library.
+Reducer selects real persisted observations only and preserves first/last real observations. Full canonical evidence remains available to inspection, Data, correlation, AI, downloads, and Library.
 
 ---
 
@@ -243,10 +224,10 @@ Automatic representation:
 2. compatible raw series → shared Native Y1;
 3. exactly two incompatible measurement families → Native Y1 + Y2;
 4. three or more incompatible families → Indexed 100;
-5. a derived index alone → Indexed 100;
-6. mixed derived/raw series may use Indexed 100 whenever native-family comparison would be misleading.
+5. derived index alone → Indexed 100;
+6. mixed derived/raw series may use Indexed 100 when native-family comparison would mislead.
 
-Mandatory regression examples: WTI + Brent; CPI + Core CPI; SPY + QQQ + WTI; DXY + VIX; CPI + WTI; CPI + WTI + VIX.
+Mandatory regressions: WTI + Brent; CPI + Core CPI; SPY + QQQ + WTI; DXY + VIX; CPI + WTI; CPI + WTI + VIX.
 
 ---
 
@@ -260,31 +241,14 @@ QQQ +1 · copper +1 · small caps +1 · IPMAN +1 · WTI +1 · unemployment −1 
 ### Macro
 10Y +1 · 2Y +1 · 10Y−2Y +1 · 10Y−3M +1 · CPI +1 · Core PCE +1 · Fed Funds +1
 
-Direction affects the derived composite only, never the visible source-relative index.
-ISM Manufacturing PMI remains excluded unless a permissible free canonical source is established.
+Direction affects derived composite only, never source-relative display. ISM Manufacturing PMI remains excluded unless a permissible free canonical source is established.
+
+GDP q/q and GDP y/y are deterministic quarterly transforms of canonical Real GDP levels; no interpolation. WTI direct-analysis availability remains separate from Growth composite eligibility.
 
 ---
 
-## 13. GDP / periodic evidence
-Raw Real GDP level is evidence input only. User-facing GDP is exactly GDP q/q and GDP y/y, deterministic quarterly transforms of canonical Real GDP levels. No daily interpolation or synthetic timestamps.
-
-Healthy periodic series remain analytically selectable even when no new publication falls inside a short horizon; the UI must communicate publication cadence truthfully.
-
----
-
-## 14. WTI / availability truth
-Availability keeps four separate concepts:
-1. source/collector health;
-2. evidence/revision integrity;
-3. direct-analysis availability;
-4. derived-index mathematical eligibility.
-
-WTI historical zero-crossing/composite rebasing constraints may affect Growth composite eligibility but must never suppress valid WTI direct analysis. Fetch/parse/revision errors must surface explicitly rather than becoming generic `unavailable`.
-
----
-
-## 15. Canonical context menu
-The same menu appears everywhere on the NOW analytical surface:
+## 13. Canonical context menu
+Same NOW menu everywhere:
 1. AI POV
 2. Data
 3. Print
@@ -292,40 +256,46 @@ The same menu appears everywhere on the NOW analytical surface:
 5. Download CSV
 6. Download JSON
 
-No context-specific menu variants.
-Data exposes complete canonical raw-series history with Native, Indexed 100, and Pearson correlation versus the active series using same-date real observations only.
+Data exposes complete canonical raw-series history with Native, Indexed 100, and same-date Pearson correlation against the active series.
 
 ---
 
-## 16. LIBRARY
-Library persists the exact frozen analysis state: breadcrumb/context index, expanded/collapsed basket state, visible series set, active series, horizon, representation/axes, evidence revision, exact chart snapshot/styles, AI POV, and full timestamped conversation.
+## 14. LIBRARY
+Library persists exact frozen analysis state: context index, basket state, visible series, active series, horizon, representation/axes, evidence revision, exact chart snapshot/styles, AI POV, and full timestamped conversation.
 
-Opening a saved analysis restores its frozen chart above the transcript and permits continued conversation. No newer evidence may silently replace a saved chart.
+Opening an analysis restores the frozen chart above the transcript and permits continuation. Newer evidence must never silently replace a saved chart.
 
-### 16.1 Library TTS
-Library Listen uses browser `SpeechSynthesisUtterance`.
-The Listen dock must not display the article/analysis title because the Library header already owns that information and the title can force transport controls off-screen.
-
-Listen dock geometry:
-- compact centered progress text, e.g. `Response 1/1 · Row 9/37`;
-- five transport controls centered as a fixed group;
-- transport controls own the geometry and must never be displaced or clipped by text.
-
-Required controls: previous response, previous row, play/pause, next row, next response.
-Downloadable/generated MP3 remains backlog until a true file-producing TTS provider is introduced.
+### 14.1 Listen
+Browser `SpeechSynthesisUtterance` remains playback-only. The Listen dock never displays the analysis title. It contains compact centered progress and exactly five centered transport controls: previous response, previous row, play/pause, next row, next response. Controls may never be clipped by text.
 
 ---
 
-## 17. AI / conversation
-AI POV consumes the exact frozen visible chart state; it must not reconstruct the chart by refetching raw series and thereby lose derived indices.
-Markdown renders in the transcript. Referenced sources/subjects must have working hyperlinks.
-Provider/model/key state validated in CONFIG must be the state used for execution.
+## 15. AI / conversation
+AI POV consumes the exact frozen visible NOW chart state and must not reconstruct the chart by refetching raw series.
 
-Registered provider secrets must not be repopulated into ordinary editable password fields when Config renders. Config displays registration/model status and provides an explicit Replace key action. A replacement secret field exists only during replacement and must suppress browser password-manager/autofill ownership as far as the browser permits.
+Markdown renders in transcript. Referenced sources/subjects have working hyperlinks.
+
+Provider/model/key state validated in CONFIG is the execution state.
+
+### 15.1 AI transition contract
+`AI POV` follows exactly:
+
+**freeze exact NOW state → validate provider prerequisites → persist processing analysis → navigate through Library API → run provider → persist ready/failed result**.
+
+If provider is missing, unverified, missing key/model, or otherwise not executable:
+- no exception;
+- no empty/processing Analysis artifact;
+- open CONFIG on AI tab through the Config navigation API;
+- show actionable provider status.
+
+AI code does not manipulate CONFIG or LIBRARY private DOM directly.
+
+### 15.2 Credential ownership
+Registered secrets are not repopulated into editable password fields when Config renders. Registered state shows provider/model plus explicit **Replace key**. Replacement input exists only while replacement is active; a draft does not overwrite the registered key until validation succeeds. Autofill/password-manager ownership is suppressed as far as the browser permits.
 
 ---
 
-## 18. HEALTH
+## 16. HEALTH
 HEALTH reconciles:
 
 **series/source → publication expectation → canonical observation → collector result → persistence/revision → horizon coverage/density → chart/index impact**
@@ -334,143 +304,203 @@ It distinguishes publication lag, collector failure, persistence failure, sparse
 
 ---
 
-## 19. CONFIG
-Tabs are:
+## 17. CONFIG
+Tabs:
 
 **AI | Chart Config | Sources | About**
 
-One persistent close `×` works from every tab and returns to the exact prior mode.
+One persistent close `×` works from every tab and returns to exact prior mode.
 
-Chart Config retains Normal · Bright · Colorblind presets, ten identity-bound slots, color, 1–12 pt width, line/dash/dash-dot/dot/dot-dash, live preview, Save persistence, unsaved-close restoration, and import/export.
+Chart Config retains Normal · Bright · Colorblind presets, ten identity-bound slots, color, 1–12 pt width, line/dash/dash-dot/dot/dot-dash, live preview, Save persistence, unsaved-close restoration, import/export.
 
-### 19.1 Sources — canonical registration control plane
+### 17.1 Sources — canonical registration control plane
 Sources is not a local watchlist and not an ad-hoc browser quote fetcher.
 
-Turn 23 Sources v1 supports:
+Turn 24 Sources v1 supports:
 - market indices;
 - common equities;
 - ETFs;
 - fund / CIT / NAV vehicles.
 
-Examples defining the intended resolver scope include the Dow Jones Industrial Average, GAAMHX, V, NVDA, VRT, VOO, and T.
+Owner examples defining required resolver behavior:
+- **Dow** → actual Dow Jones Industrial Average index, not Dow Inc. and not an ETF proxy;
+- **GAAMHX** → resolve as its actual fund/CIT/NAV-type economic instrument when a qualified provider exists;
+- **V** → Visa equity;
+- **NVDA** → NVIDIA equity;
+- **VRT** → Vertiv equity;
+- **VOO** → Vanguard S&P 500 ETF;
+- **T** → AT&T equity.
 
-The entered text is never accepted blindly as provider identity. Registration resolves the request to one canonical instrument identity and records provider-specific aliases. Ambiguous requests such as `DOW` must distinguish the Dow Jones Industrial Average from Dow Inc.; no proxy or similarly named security may be silently substituted.
+Entered text is never blindly accepted as provider identity. Flow is:
 
-Canonical measurement semantics are explicit:
+**ticker/name → canonical instrument resolution → instrument class → provider-compatible alias/cascade → normalization → canonical evidence → Health/provenance → horizon capability → NOW Add**
+
+Ambiguous symbols must present/retain explicit identity intent. No proxy or similarly named security is silently substituted.
+
+Measurement semantics are explicit:
 - market index → published index level;
-- exchange-traded equity / ETF → market price;
+- equity / ETF → market price;
 - fund / CIT → published NAV or unit value.
 
-Total-return treatment is not silently substituted for price/index/NAV. Any future total-return representation is an explicit transform.
+Price, total return, index level, and NAV are not interchangeable. Total return, if added later, is an explicit derived representation.
 
-Provider resolution is an ordered compatible cascade owned by the evidence pipeline. Provider changes do not change the economic identity of the series. Provider fallback is recorded in Health/provenance. If no acceptable provider can resolve or collect an instrument, the request remains explicitly unresolved rather than fabricating evidence or substituting a proxy.
+Provider selection is an ordered cascade by instrument class. Provider fallback does not change economic identity and is recorded in Health/provenance. If no acceptable provider resolves/collects an instrument, registration remains explicitly unresolved.
 
-Horizon capability is derived from persisted canonical evidence, not from choosing a different economic source per horizon. Genuine intraday evidence is required for an intraday 1D view. Daily/EOD or NAV evidence may support 5D through 5YR when sufficient history exists. Unsupported horizons are disabled rather than synthesized.
+Horizons are capabilities of persisted canonical evidence, not separate economic sources. Genuine intraday evidence is required for an intraday 1D view. Daily/EOD or NAV evidence may support 5D through 5YR when sufficient history exists. Unsupported horizons are disabled, never fabricated.
 
-A healthy registered source automatically becomes discoverable through NOW → Add and thereafter uses the same chart, inspection, Data, AI POV, Library freeze, export, and Health machinery as built-in sources.
+Healthy registered instruments automatically become discoverable through NOW → Add and then use the same chart, inspection, Data, AI POV, Library, export, and Health machinery as native catalog series.
 
-Because Market Navigator is served from static GitHub Pages, the browser must never receive a repository write token. Registration uses an authenticated repository control-plane handoff; canonical registration and collection occur server-side, not in a localStorage-only second evidence system.
+Because Pages is static, the browser receives no repository write token. Registration is an authenticated control-plane handoff; canonical registration/collection occurs server-side/repository-side, not in localStorage.
+
+### 17.2 Source registration UX requirements
+CONFIG → Sources must:
+- accept ticker/name plus explicit instrument-class intent when needed;
+- show resolved canonical identity before admission where resolution is available;
+- show pending / healthy / unresolved / failed state;
+- show measurement semantics, provider cascade/fallback provenance, cadence, and enabled horizons;
+- expose Refresh after server-side registration/collection;
+- never imply a submitted request is healthy before canonical evidence and Health metadata exist;
+- make a healthy registered source discoverable through Add without a second local registration path.
 
 ---
 
-## 20. Race / coherence contract
+## 18. Race / coherence contract
 Required:
 - one in-flight canonical fetch per series per boot;
-- render-generation guards;
+- analytical render-generation guards;
 - stale async results cannot overwrite newer horizon/composition state;
 - catalog/Health/derived/raw evidence validated against one coherent session revision/anchor contract;
-- evidence errors remain explicit;
-- chart redraw on container resize may not mutate analytical state.
+- evidence errors explicit;
+- geometry repaint never mutates analytical state;
+- repeated rail/resize events coalesce via animation frame or equivalent paint scheduling and use the already-current chart model;
+- no geometry event creates a new evidence request.
 
 ---
 
-## 21. Explicit prohibited regressions
+## 19. Explicit prohibited regressions
 Do not introduce:
 - V1/V2/V3/V4/V5 product terminology;
-- separate EXPLORE mode;
-- separate COMPONENT page/modal;
-- `ENV / GRW / GRW` or any duplicated anchor breadcrumb;
-- component names individually appended to the breadcrumb;
+- separate EXPLORE mode or COMPONENT page/modal;
+- duplicated-index breadcrumb or individual component names in breadcrumb;
 - clickable `COMPONENTS` token;
 - default-selected RSK on ENV load;
-- anchor index chip with an `×` while in that index context;
-- breadcrumb wrapping or displacement of horizons/`…`;
-- second-click focus modes;
-- white outline as active-series emphasis;
-- hover-driven silent series switching;
-- all-series inspection tooltip;
-- synthetic/fallback chart evidence;
-- raw-source direction inversion;
-- duplicate chart/discovery engines;
-- separate Explore exports/AI state;
-- Library without exact frozen chart and continuation composer;
-- title text in the mobile Listen transport strip;
-- fake MP3 export from browser speech synthesis;
-- rail-dependent fixed-delay canvas sizing;
-- populated saved API secrets in normal password inputs;
+- anchor index with `×` in its own context;
+- breadcrumb wrapping/displacement of horizons/menu;
+- second-click focus modes, white-outline focus semantics, or hover-driven series switching;
+- synthetic/fallback chart evidence or raw-source direction inversion;
+- duplicate chart/discovery/AI engines;
+- Library without frozen chart + continuation composer;
+- title text in Listen transport strip or fake browser-TTS MP3 export;
+- populated saved API secrets in normal editable password fields;
 - local-only custom ticker evidence bypassing canonical Health/revisions;
-- provider-per-horizon identity switching;
-- silent symbol/proxy substitution;
+- provider-per-horizon economic identity switching;
+- silent ticker/proxy substitution;
 - fabricated intraday data for daily/NAV sources;
-- owner-test URL before release-blocking qualification passes.
+- a ResizeObserver/rail/orientation event invoking the full analytical renderer;
+- geometry events mutating horizon/composition/active series/representation/frozen evidence;
+- one view directly manipulating another view's private DOM;
+- live references to retired DOM IDs;
+- AI qualification that covers only the verified happy path;
+- release qualification that omits changed failure/edge paths.
 
 ---
 
-## 22. Turn 22 retained architecture
-Turn 22 established the unified NOW model: neutral ENV, anchored-index collapsed/expanded states, Add as discovery, no Explore/Component modal, exact frozen AI evidence, source-relative raw indexing, Library TTS geometry, and long-horizon display-density rules. Turn 23 preserves all of it.
+## 20. Turn 24 implementation plan
+### Phase A — prove baseline
+1. Copy exact Turn 22 application source from commit `0d0681b74b55d35723ca8f2a220474a512175461` into `market-navigator-turn24-pre-ship.html`.
+2. Change only Turn/build identity needed to execute qualification.
+3. Run retained Turn 22 product/browser matrix before feature work.
+4. If baseline does not reproduce, stop and diagnose; do not continue.
+
+### Phase B — deterministic geometry
+1. Make NOW fill the shell continuously.
+2. Persist the completed analytical chart model after each real analytical render.
+3. Add a geometry-only repaint path using that model.
+4. ResizeObserver/rail/orientation/viewport events call geometry repaint only.
+5. Prove rail changes create zero evidence fetches and zero analytical-state mutations.
+
+### Phase C — AI transition recovery + credential UX
+1. Remove cross-view DOM ownership from AI launch.
+2. Implement explicit Config-AI and Library-analysis navigation functions.
+3. Valid provider: freeze NOW → persist processing analysis → Library → complete/fail provider call.
+4. Invalid/unregistered provider: Config AI with status, no throw and no Analysis artifact.
+5. Reimplement registered-key/Replace-key UX from this written contract, not Turn 23 source.
+
+### Phase D — canonical Sources
+1. Add CONFIG → Sources from this contract.
+2. Implement canonical registration/control-plane handoff with explicit instrument class/identity.
+3. Support the owner test set: Dow index, GAAMHX, V, NVDA, VRT, VOO, T.
+4. Maintain provider aliases/cascade, explicit measurement semantics, provenance, cadence, and horizon capability.
+5. Healthy persisted registrations flow into Add; unresolved registrations remain explicit.
+6. No local-only evidence and no browser repository credential.
+
+### Phase E — retained behavior
+Preserve Turn 22 unified NOW architecture, Turn 21 source-relative indexing, exact frozen AI/Library evidence, long-horizon display density, WTI/GDP truthfulness, Data/correlation, Library/TTS, style Config, and canonical context menu.
 
 ---
 
-## 23. Retained mandatory qualification
-Every Turn 23 candidate must continue to prove the Turn 22 release-blocking matrix: JavaScript/boot, rail contents, neutral ENV, all three index lifecycles, Add discovery, inspection, all seven horizons, display-density rules, WTI short-horizon availability, GDP periodic truth, full-history Data/correlation, exact visible-state AI evidence, immutable Library chart, transcript/composer, TTS controls, Config style controls, canonical six-command menu, and stale-render/race resistance.
+## 21. Turn 24 release-blocking qualification
+All gates run on desktop, tablet, and phone where applicable.
+
+### Baseline/retention
+- boot/JavaScript clean;
+- neutral ENV;
+- RSK/GRW/MAC collapsed/expanded lifecycles;
+- Add discovery;
+- all seven horizons and density rules;
+- WTI short-horizon direct availability and GDP cadence truth;
+- Data/correlation;
+- Library frozen chart, transcript/composer, TTS controls;
+- Config style controls;
+- canonical six-command menu;
+- stale-render/race protection.
+
+### AI
+- verified provider launches AI POV and creates one processing→ready analysis;
+- missing key/model or unverified provider opens CONFIG → AI cleanly with actionable status;
+- invalid provider preflight creates no Analysis artifact;
+- provider request failure becomes a visible failed analysis without uncaught exception;
+- no live reference to retired Config/modal DOM;
+- exact frozen NOW state is the AI evidence packet.
+
+### Geometry
+For ENV and each anchored RSK/GRW/MAC state:
+- change horizons including 3YR and 5YR;
+- repeatedly open/close/open the left rail;
+- chart card top/bottom remain fixed;
+- canvas dimensions track actual container;
+- horizon, composition, active series, representation, breadcrumb, and frozen chart model remain invariant;
+- resize causes no evidence fetch and no analytical-render generation change;
+- no visible jump/dead gap remains after transition.
+
+### Credentials
+- registered key never repopulates an ordinary editable password field;
+- Replace key explicit/reversible;
+- cancelling replacement preserves registered key;
+- failed validation does not silently replace working registration.
+
+### Sources
+- Sources tab exists and is canonical-control-plane only;
+- Dow index request cannot silently resolve to Dow Inc. or an ETF proxy;
+- owner examples are accepted as resolver inputs with correct class intent;
+- healthy persisted source fixture appears in Add;
+- daily/NAV-only fixture is disabled for unsupported intraday 1D but works on supported longer horizon;
+- unresolved source is explicit;
+- Health/provenance exposes provider/fallback/cadence/coverage;
+- no local-only evidence path exists.
+
+### Console/error gate
+Application-owned console errors, unhandled promise rejections, failed required resources, or null-DOM execution errors fail the release. Browser-extension/content-script warnings are recorded separately and do not count as application errors.
 
 ---
 
-## 24. Governance / anti-drift
-Lifecycle:
+## 22. Publication gate
+Only after every Turn 24 release-blocking gate passes:
+1. fetch current `main`;
+2. integrate Turn 24 while preserving unrelated data/WorldPulse/main movement;
+3. verify the exact application artifact and governance diff;
+4. run the full Turn 24 matrix on the exact merged-main artifact;
+5. verify GitHub Pages deployment success;
+6. return the cache-busted Pages URL and exact merge SHA for owner test.
 
-**diagnose → plan → build → qualify → publish → owner test**
-
-Do not ask the owner to reconfirm settled mechanics. Do not broaden scope. Fetch current refs before writes. Preserve unrelated main-branch movement. Owner-visible behavior, not DOM existence, is the release gate.
-
----
-
-## 25. Turn 23 construction and qualification
-### Phase A — governance freeze
-1. Freeze this plan before application mutation.
-2. Update Graveyard with rejected sizing, password-manager, local-ticker, source-switching, proxy-substitution, and fake-intraday patterns.
-
-### Phase B — responsive NOW frame
-1. NOW chart card stays pinned to the available workspace while rail opens/closes.
-2. Observe actual chart-container geometry and redraw when it changes size.
-3. Rail transition, rotation, split-screen/browser viewport changes, and responsive width changes cannot leave stale canvas dimensions or top/bottom gaps.
-
-### Phase C — AI credential UX
-1. Registered API keys are not repopulated into editable password inputs.
-2. Config shows provider/model registration state plus explicit Replace key.
-3. Replacement field exists only while replacement is active and uses password-manager/autofill suppression.
-4. Existing local provider registry remains compatible.
-
-### Phase D — Sources tab / registration control plane
-1. Add CONFIG → Sources.
-2. Accept ticker/name plus instrument-class intent.
-3. Resolve canonical identity before registration; no silent proxy substitution.
-4. Store provider aliases/cascade and explicit measure semantics.
-5. Server-side registration updates canonical catalog/evidence/Health and healthy registrations become discoverable in Add.
-6. No GitHub write token or provider write credential is exposed to the Pages client.
-
-### Phase E — regression preservation
-Preserve Turn 22 unified NOW architecture, Turn 21 source-relative indexing, exact frozen AI evidence, long-horizon display density, WTI/GDP truthfulness, Data/correlation, Library/TTS, and canonical context menu.
-
-### Phase F — Turn 23 release-blocking gates
-Desktop/tablet/phone must prove:
-- rail open/close changes width only; chart top/bottom remain pinned and canvas redraws to the actual new container;
-- no password-manager-compatible populated API-key field exists after registered provider state loads;
-- Replace key is explicit and reversible;
-- Sources tab exists and does not create local-only evidence;
-- resolver/request flow distinguishes index/equity/ETF/fund-CIT intent;
-- registered-source fixture is discoverable through Add only when backed by persisted evidence/Health metadata;
-- unresolved/unsupported source state is explicit;
-- every retained Turn 22 gate still passes.
-
-Only after all release-blocking gates pass: merge to current main, verify Pages, and return the cache-busted Turn 23 URL plus exact merge SHA.
+A Pages deployment alone is never evidence of product qualification.
