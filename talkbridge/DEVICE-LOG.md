@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-12T12:38:50Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-12T12:39:23Z, every 30s. Newest at the bottom.
 
 ```
 11:05:15.491 [iphone-xzu] r8_menu_labels {"applied":3,"of":3}
