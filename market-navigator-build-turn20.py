@@ -13,7 +13,7 @@ if old not in s: raise SystemExit('missing Turn 19 analysis breadcrumb expressio
 s=s.replace(old,new,1)
 
 old_add="let id=b.dataset.add;S.analysisSeries.push(id);S.analysisActive=id;$('seriesPicker').classList.add('hidden');$('seriesAbout').classList.add('hidden');renderAnalysis()"
-new_add="let id=b.dataset.add,hadRaw=S.analysisSeries.some(v=>!IDX.includes(v));S.analysisSeries.push(id);if(IDX.includes(S.analysisRoot)&&!hadRaw){S.analysisRoot=id;if(S.lineage==='NOW'&&S.priorV2)S.priorV2.component=id}S.analysisActive=id;$('seriesPicker').classList.add('hidden');$('seriesAbout').classList.add('hidden');renderAnalysis()"
+new_add="let id=b.dataset.add,hadRaw=S.analysisSeries.some(v=>!IDX.includes(v));S.analysisSeries.push(id);if(IDX.includes(S.analysisRoot)&&!hadRaw)S.analysisRoot=id;S.analysisActive=id;$('seriesPicker').classList.add('hidden');$('seriesAbout').classList.add('hidden');renderAnalysis()"
 if old_add not in s: raise SystemExit('missing Turn 19 add-series handler')
 s=s.replace(old_add,new_add,1)
 
