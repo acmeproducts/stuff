@@ -1284,7 +1284,6 @@
     .tabletop-view{grid-template-rows:minmax(0,1fr) 0 minmax(0,1fr)!important}
     .client-shell{position:relative;border-radius:22px;width:min(98%,560px)!important}
     .duck-kb{border-radius:14px 14px 0 0}
-    .client-shell.kb-open .tabletop-transcript{padding-bottom:0}
     .tabletop-transcript{padding-top:10px!important;min-height:0}
 
     /* language chip pinned top-center of each chat surface */
@@ -1337,14 +1336,16 @@
     .duck-ctl[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
     .duck-ctl[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
     @keyframes duckPulse{50%{opacity:.45}}
-.duck-send{flex:0 0 34px;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent;width:34px;height:34px}
+.duck-modechip{flex:0 0 26px;height:26px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
+        background:#fff;font-size:13px;display:inline-flex;align-items:center;justify-content:center;padding:0}
+    .duck-modechip[data-mode="auto"]{background:rgba(191,219,254,.5);border-color:rgba(147,197,253,.9)}
+    .duck-send{flex:0 0 34px;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent;width:34px;height:34px}
 
     /* keyboard: strict grid, no overflow */
-    .duck-kb{position:absolute;left:0;right:0;bottom:0;z-index:40;background:rgba(248,250,252,.995);
-        border-top:1px solid rgba(203,213,225,.9);box-shadow:0 -8px 22px rgba(15,23,42,.14);
-        transition:transform .16s ease;will-change:transform;transform:translateY(102%);
-        padding:3px 3px 4px;overflow:hidden;border-radius:14px 14px 0 0}
-    .duck-kb.open{transform:translateY(0)}
+    .duck-kb{position:relative;max-height:0;overflow:hidden;background:rgba(248,250,252,.995);
+        transition:max-height .18s ease;flex-shrink:0}
+    .duck-kb.open{max-height:340px;border-top:1px solid rgba(203,213,225,.9);box-shadow:0 -6px 18px rgba(15,23,42,.12)}
+    .duck-kb-inner{padding:3px 3px 4px}
     .duck-kbtop{display:flex;align-items:center;gap:6px;padding:1px 4px 3px}
     .duck-kbtop .lang{font-size:10px;font-weight:700;color:#64748b;display:flex;align-items:center;gap:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .duck-kbtop .grow{flex:1}
@@ -1769,8 +1770,7 @@
     function setLangMode(side,m){
         try{localStorage.setItem('duck_langmode_'+side,m)}catch(e){}
         diag(side+' language mode → '+m);
-        var b=document.querySelector('.duck-mode[data-side="'+side+'"]');
-        if(b)paintMode(b,side);
+        paintMode(side);
     }
     function resolveEffectiveLang(side,detected){
         var mine=langOf(side);
@@ -1793,6 +1793,8 @@
         // run first; knownLang is only the fallback when detection is inconclusive.
         return detectLangAsync(text).then(function(detected){
             detected=detected||knownLang||langOf(side);
+            var mode=langModeOf(side);
+            diag(side+' normalize check: mode='+mode+' room='+langOf(side)+' detected='+detected+(detected===langOf(side)?' (match, no rewrite needed)':(mode==='auto'?' (mismatch, but AUTO mode — not rewriting)':' (mismatch — rewriting)')));
             var r=resolveEffectiveLang(side,detected);
             if(!r.normalizeFrom)return{text:text,lang:r.srcLang,detected:detected};
             diag('normalizing '+side+': '+r.normalizeFrom+' → '+r.srcLang+' (code-switch)');
@@ -1809,7 +1811,7 @@
 
     /* ================= state ================= */
     var owner=null,pendingFrom=null,askTimer=null;
-    var kb={},ctl={},micCtl={},ttsCtl={},askEl={},inputs={},clears={},langbar={};
+    var kb={},ctl={},micCtl={},ttsCtl={},modeChip={},askEl={},inputs={},clears={},langbar={};
     var shifted={local:false,peer:false},numMode={local:false,peer:false};
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
     var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
@@ -1870,7 +1872,8 @@
             '<button type="button" class="duck-ctl micbtn" data-on="false" aria-label="Dictate"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>'+
             '<button type="button" class="duck-ctl ttsbtn" data-on="false" aria-label="Read aloud"><span class="material-symbols-outlined" style="font-size:20px">volume_off</span></button>'+
             '<button type="button" class="duck-ctl gearbtn" aria-label="Settings"><span class="material-symbols-outlined" style="font-size:20px">settings</span></button>'+
-            '<span class="duck-inwrap"><input type="text" class="duck-in" placeholder="Message" autocomplete="off"><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
+            '<button type="button" class="duck-modechip"></button>'+
+            '<span class="duck-inwrap"><input type="text" inputmode="none" class="duck-in" placeholder="Message" autocomplete="off"><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="duck-ctl duck-send" aria-label="Send"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>';
         shell.appendChild(row);
         var ta=row.querySelector('.duck-in'),cl=row.querySelector('.duck-clear');
@@ -1961,8 +1964,8 @@
     function buildKeyboard(side){
         var el=document.createElement('div');
         el.className='duck-kb '+(side==='local'?'south':'north');
-        el.innerHTML='<div class="duck-kbtop"><span class="lang"></span><span class="grow"></span><button type="button" class="duck-mode"></button></div>'+
-            '<div class="duck-cands"></div><div class="duck-keys"></div>';
+        el.innerHTML='<div class="duck-kb-inner"><div class="duck-kbtop"><span class="lang"></span><span class="grow"></span><button type="button" class="duck-mode"></button></div>'+
+            '<div class="duck-cands"></div><div class="duck-keys"></div></div>';
         shellOf(side).appendChild(el);
         el.querySelector('.duck-mode').addEventListener('click',function(){
             setLangMode(side,langModeOf(side)==='fixed'?'auto':'fixed');paintMode(side);
@@ -1970,10 +1973,18 @@
         return el;
     }
     function paintMode(side){
-        var b=kb[side]&&kb[side].querySelector('.duck-mode');if(!b)return;
+        var b=kb[side]&&kb[side].querySelector('.duck-mode');
         var m=langModeOf(side);
-        b.textContent=m==='fixed'?'🔒 always '+labelOf(langOf(side)):'🌐 auto';
-        b.title=m==='fixed'?'Everything you send appears in your language':'Your text stays in whatever language you used';
+        if(b){b.textContent=m==='fixed'?'🔒 always '+labelOf(langOf(side)):'🌐 auto';
+            b.title=m==='fixed'?'Everything you send appears in your language':'Your text stays in whatever language you used'}
+        paintModeChip(side);
+    }
+    function paintModeChip(side){
+        var c=modeChip[side];if(!c)return;
+        var m=langModeOf(side);
+        c.textContent=m==='fixed'?'🔒':'🌐';
+        c.dataset.mode=m;
+        c.title=m==='fixed'?'FIXED — always sends in '+labelOf(langOf(side))+'. Tap for auto.':'AUTO — keeps whatever language you used. Tap for fixed.';
     }
     function layoutFor(side){
         var name=numMode[side]?'num':layoutNameFor(langOf(side));
@@ -2227,14 +2238,13 @@
         if(owner&&owner!==side)closeKb(owner,'replaced');
         owner=side;kb[side].classList.add('open');shellOf(side).classList.add('kb-open');
         ctl[side].dataset.owned='true';ctl[other(side)].dataset.owned='false';
-        try{inputs[side].setAttribute('inputmode','none');inputs[side].focus({preventScroll:true})}catch(e){}
+        try{inputs[side].focus({preventScroll:true})}catch(e){}   // inputmode=none is permanent now — set at creation
         renderKeys(side);diag('keyboard → '+side+(why?' ('+why+')':''));
     }
     function closeKb(side,why){
         if(!kb[side])return;
         flushComposition(side);
         kb[side].classList.remove('open');shellOf(side).classList.remove('kb-open');ctl[side].dataset.owned='false';
-        try{inputs[side].removeAttribute('inputmode')}catch(e){}
         if(owner===side)owner=null;
         diag('keyboard closed on '+side+(why?' ('+why+')':''));
     }
@@ -2498,7 +2508,7 @@
         // diagnostics
         var b=document.createElement('button');b.id='duck-diag-btn';b.type='button';b.textContent='⌁';
         var p=document.createElement('div');p.id='duck-diag';
-        p.innerHTML='<div class="duck-diag-tools"><b>diagnostics</b><span style="flex:1"></span><button type="button" id="duck-diag-copy">Copy</button></div><div id="duck-diag-lines"></div>';
+        p.innerHTML='<div class="duck-diag-tools"><b>diagnostics</b><span style="flex:1"></span><button type="button" id="duck-diag-copy">Copy</button><button type="button" id="duck-diag-close">✕</button></div><div id="duck-diag-lines"></div>';
         document.body.appendChild(b);document.body.appendChild(p);
         b.addEventListener('click',function(){p.classList.toggle('show');if(p.classList.contains('show'))renderDiag()});
         p.querySelector('#duck-diag-copy').addEventListener('click',function(){
@@ -2507,6 +2517,7 @@
             navigator.clipboard.writeText(txt).then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1200)})
                 .catch(function(e){diag('copy failed: '+e.message,true)});
         });
+        p.querySelector('#duck-diag-close').addEventListener('click',function(){p.classList.remove('show')});
         document.addEventListener('keydown',function(e){
             if(e.key==='Enter'&&!e.shiftKey&&owner==='peer'&&document.activeElement===inputs.peer){e.preventDefault();send('peer')}
         });
