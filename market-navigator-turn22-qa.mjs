@@ -11,7 +11,6 @@ async function makePage({width=412,height=915,ai=false}={}){
     class U{constructor(text){this.text=String(text);this.rate=1}}
     Object.defineProperty(window,'SpeechSynthesisUtterance',{value:U,configurable:true});
     Object.defineProperty(window,'speechSynthesis',{value:{speak(){},cancel(){},pause(){},resume(){}},configurable:true});
-    if(!window.URL.createObjectURL)window.URL.createObjectURL=()=> 'blob:qa';
   });
   if(ai)await page.addInitScript(()=>localStorage.setItem('marketNavigatorAIRegistryV1',JSON.stringify({defaultProvider:'openrouter',providers:{openrouter:{verified:true,key:'qa-key',model:'qa-model'}}})));
   page.on('pageerror',e=>errors.push(`page: ${e.message}`));
@@ -29,7 +28,7 @@ async function makePage({width=412,height=915,ai=false}={}){
 }
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const crumb=async p=>clean(await p.locator('#nowCrumb').innerText());
-async function enter(p,id){await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(id=>document.querySelector('#nowCrumb')?.textContent.includes(id),id==='growth'?'GRW':id==='risk'?'RSK':'MAC')}
+async function enter(p,id){const code=id==='growth'?'GRW':id==='risk'?'RSK':'MAC';await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(code=>document.querySelector('#nowCrumb')?.textContent.includes(code),code)}
 async function pickerAdd(p,query,id){await p.locator('#nowAddSeries').click();await p.locator('#nowPickerSearch').fill(query);await p.waitForFunction(id=>document.querySelector(`[data-add-now="${id}"]`),id);let b=p.locator(`[data-add-now="${id}"]`);assert.equal(await b.isDisabled(),false,`${id} Add enabled`);await b.click();await p.waitForFunction(id=>document.querySelector(`#legend [data-id="${id}"]`),id)}
 async function noOverflow(p,label){let ok=await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.body.scrollWidth<=innerWidth+1);assert(ok,`${label} has no horizontal page overflow`)}
 
@@ -45,7 +44,6 @@ async function architecture(width){
   await noOverflow(p,`ENV ${width}`);
 
   await enter(p,'growth');
-  await p.waitForFunction(()=>clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW / COMPONENTS',undefined).catch(()=>{});
   assert.equal(await crumb(p),'ENV / GRW / COMPONENTS');
   assert.equal(await p.locator('#nowCrumb button.crumbBtn').count(),2,'only ENV and GRW breadcrumb levels clickable');
   assert.equal(await p.locator('#nowCrumb button:has-text("COMPONENTS")').count(),0,'COMPONENTS is a state label, not navigation');
@@ -61,15 +59,15 @@ async function architecture(width){
   await p.waitForFunction(()=>document.querySelector('#nowCrumb')?.textContent.replace(/\s+/g,' ').trim()==='ENV / GRW / COMPONENTS');
   assert((await p.locator('#legend [data-id]').count())>1,'sole index chip re-expands governed basket');
 
-  await pickerAdd(p,'QQQ','qqq');
+  await pickerAdd(p,'SPY','spy');
   assert.equal(await crumb(p),'ENV / GRW / COMPONENTS','arbitrary Add does not change hierarchy breadcrumb');
-  assert.equal(await p.locator('#legend [data-id="qqq"] [data-rm]').count(),1,'arbitrary comparison is removable');
-  await p.locator('#legend [data-id="qqq"]').click();
-  await p.waitForFunction(()=>document.querySelector('#legend [data-id="qqq"]')?.classList.contains('active'));
+  assert.equal(await p.locator('#legend [data-id="spy"] [data-rm]').count(),1,'arbitrary comparison is removable');
+  await p.locator('#legend [data-id="spy"]').click();
+  await p.waitForFunction(()=>document.querySelector('#legend [data-id="spy"]')?.classList.contains('active'));
   await p.locator('#nowMoreBtn').click();await p.locator('#nowData').click();
   await p.waitForFunction(()=>!document.querySelector('#dataModal')?.classList.contains('hidden'));
   assert((await p.locator('#dataRows tr').count())>20,'Data uses full canonical history');
-  assert((await p.locator('#dataRows tr[data-active="true"][data-series="qqq"]').count())>0,'visible active series is frozen as Data reference');
+  assert((await p.locator('#dataRows tr[data-active="true"][data-series="spy"]').count())>0,'visible active series is frozen as Data reference');
   await p.locator('#dataClose').click();
 
   await p.locator('#crumbEnvironment').click();
@@ -100,17 +98,17 @@ try{
 
   // Exact visible state -> AI -> persisted Library; also verifies source-relative indexing direction and phone Listen geometry.
   const q=await makePage({width:412,height:915,ai:true}),ai=q.page;
-  await enter(ai,'growth');await pickerAdd(ai,'QQQ','qqq');
-  await ai.locator('#legend [data-id="qqq"]').click();await ai.waitForFunction(()=>document.querySelector('#legend [data-id="qqq"]')?.classList.contains('active'));
+  await enter(ai,'growth');await pickerAdd(ai,'SPY','spy');
+  await ai.locator('#legend [data-id="spy"]').click();await ai.waitForFunction(()=>document.querySelector('#legend [data-id="spy"]')?.classList.contains('active'));
   await ai.locator('#nowMoreBtn').click();await ai.locator('#nowAnalyze').click();
   await ai.waitForFunction(()=>document.querySelector('#view-library')?.classList.contains('on'));
   await ai.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('Unified NOW evidence'));
   assert.equal(q.requests.length,1,'one AI request');
   const sys=q.requests[0].messages.find(m=>m.role==='system')?.content||'',marker='Evidence: ',i=sys.indexOf(marker);assert(i>=0,'AI evidence packet present');
   const ev=JSON.parse(sys.slice(i+marker.length));
-  assert.equal(ev.lineage,'ENV/GRW/COMPONENTS');assert.equal(ev.active,'qqq','active visible series reaches frozen AI evidence');
-  const qq=ev.chart.series.find(z=>z.id==='qqq');assert(qq&&qq.observationCount>0,'QQQ evidence reaches AI');
-  if(qq.first&&qq.last&&qq.first.raw!==qq.last.raw&&qq.first.idx!==qq.last.idx)assert.equal(Math.sign(qq.last.raw-qq.first.raw),Math.sign(qq.last.idx-qq.first.idx),'Indexed 100 direction matches source direction');
+  assert.equal(ev.lineage,'ENV/GRW/COMPONENTS');assert.equal(ev.active,'spy','active visible series reaches frozen AI evidence');
+  const sp=ev.chart.series.find(z=>z.id==='spy');assert(sp&&sp.observationCount>0,'SPY evidence reaches AI');
+  if(sp.first&&sp.last&&sp.first.raw!==sp.last.raw&&sp.first.idx!==sp.last.idx)assert.equal(Math.sign(sp.last.raw-sp.first.raw),Math.sign(sp.last.idx-sp.first.idx),'Indexed 100 direction matches source direction');
   assert(ev.chart.series.find(z=>z.id==='growth')?.observationCount>0,'derived GRW anchor retained in frozen AI state');
 
   assert.equal(await ai.locator('#libListenTitle').count(),0,'redundant Listen title removed');
