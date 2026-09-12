@@ -1,0 +1,1 @@
+Turn 22 retires the separate Explore and Component analytical workflows. The canonical NOW model is ENV plus one anchored index workspace. Library Listen controls must remain centered and unobstructed on phone.
