@@ -1,3 +1,4 @@
+<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
@@ -5,14 +6,14 @@
 |------|------|-------|--------|-------|
 | 2025-08-26 | 1 | DEFINE | ✅ done | Plan created from existing quilt.html v3; owner intent captured (wave field + Sierpinski carpet) |
 | 2026-09-12 | 2 | DEFINE | ✅ done | Added build request to backlog and updated ledger |
-| 2026-09-12 | 3 | BUILD | ⬜ pending | Build R2 Sierpinski Carpet mode (pure JS Canvas2D) |
-| 2026-09-12 | 4 | DEFINE | ✅ closed | DEFINE phase completed; ready to proceed to BUILD |
+| 2026-09-12 | 3 | DEFINE | ✅ closed | DEFINE phase completed; ready to proceed to BUILD |
+| 2026-09-12 | 4 | BUILD | 🔄 active | Building R2 Sierpinski Carpet mode (Canvas2D, pure JS, zero deps) |
 
 ## 1. RELEASES
 | # | Goal | Target |
 |---|------|--------|
 | R1 | Stabilize current Three.js instanced quilt (v3) — mobile-first, touch-friendly, performant | 2025-08-26 |
-| R2 | Add Sierpinski carpet fractal mode (pure JS, no Three.js) as alternate renderer | TBD |
+| R2 | Add Sierpinski carpet fractal mode (pure JS, no Three.js) as alternate renderer | 2026-09-12 (active) |
 | R3 | Unify UI: single app toggling between "Wave Field" (Three.js) and "Sierpinski Quilt" (Canvas2D) | TBD |
 
 ## 2. PER-RELEASE SECTIONS
@@ -49,24 +50,27 @@
 ### R2 — Sierpinski Carpet Quilt (Pure JS, Canvas2D)
 **Scope (In)**
 - Single-file HTML5, zero deps, no importmap
-- Recursive Sierpinski carpet generation to configurable depth
-- Color palette per recursion level
-- Pan/zoom via touch (two-finger) and mouse (wheel + drag)
-- Mobile-first: viewport meta, safe-area insets, 60fps at depth 6 (46k rects)
-- In-app stats: depth, rect count, fps, render ms
+- Recursive Sierpinski carpet generation to configurable depth (1–6)
+- Viewport culling: skip off-screen branches; stop recursion when sub-pixel
+- Color palette per recursion level (HSL, hue shift per level)
+- Pan/zoom via touch (two-finger pinch) and mouse (wheel + drag)
+- Mobile-first: viewport meta, safe-area insets, 60fps target at depth 6 with culling
+- In-app stats HUD: depth setting, visible rect count, FPS, render time (ms)
+- All diagnostics in-app; zero console logs
 
 **Scope (Out)**
-- Three.js dependency
-- Wave animation
-- OrbitControls
+- Three.js dependency (this mode is pure Canvas2D)
+- Wave animation/instanced mesh
+- Preset persistence across sessions (keep single-file; URL hash optional backlog)
+- Export PNG/WebP
 
 **Build Gates**
-- iOS Safari: depth 6 @ 60fps, pinch-zoom smooth, no jank on drawer open
+- iOS Safari: depth 6 @ 60fps when zoomed to fit (culling active), pinch-zoom smooth, no jank on drawer open
 - Android Chrome: same
-- Desktop: depth 7 @ 60fps
-- Zero console logs; all perf in HUD
+- Desktop: depth 6+ @ 60fps
+- Zero console logs; all perf indicators in HUD
 
-**Backlog**
+**Backlog (Post-R2)**
 - Hilbert/Z-order traversal for cache-friendly drawing
 - Web Worker offload for depth ≥7
 - Export PNG/WebP
@@ -102,12 +106,11 @@
 | Date | Decision | Owner |
 |------|----------|-------|
 | 2025-08-26 | Current codebase is Three.js v3 (instanced mesh wave field). Owner also wants a pure-JS Sierpinski carpet quilt. Plan accommodates both as R1 (stabilize current) and R2 (new pure-JS mode). | User |
-| 2026-09-12 | Added build request to backlog for R2 implementation. | User |
-| 2026-09-12 | Created BUILD stage entry to track upcoming implementation of Sierpinski Carpet mode. | User |
-| 2026-09-12 | Closed DEFINE phase; ready to proceed to BUILD. | User |
+| 2026-09-12 | DEFINE phase closed; BUILD phase opened for R2 implementation. | User |
 
 ## 6. APPENDIX — AUTHORITY ORDER
 1. **quilt.md** (this plan) — sole persistent authority; chat history is ephemeral and loses to the plan.
 2. **quilt.html** — implementation; must match plan's current release scope.
 3. **Owner directives in chat** — captured into plan via DECISION LOG or scope changes before code.
 4. **External docs (MDN, Three.js, etc.)** — referenced only to unblock; cited in SUMMARY.
+</plan>
