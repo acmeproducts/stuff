@@ -1,0 +1,92 @@
+name: Market Navigator Turn 19 qualify
+
+on:
+  push:
+    branches:
+      - market-navigator-turn19-20260911
+    paths:
+      - 'TURN19_TRIGGER'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market-navigator-turn19-20260911
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Freeze approved Turn 19 governance first
+        run: |
+          python3 market-navigator-turn19-governance.py
+          grep -F 'Next release scope: Turn 19' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '**ENV → <INDEX> → <COMPONENT>**' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'breadcrumb = drill up' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'legend chip = drill down when a child level exists' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F 'Turn 18 top-strip and hierarchy friction — rejected for Turn 19' MARKET-NAVIGATOR-GRAVEYARD.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Market Navigator Turn 19 plan freeze [turn19-plan]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+
+      - name: Build exact Turn 19 candidate
+        run: |
+          python3 market-navigator-build-turn19.py
+          python3 market-navigator-turn19-layout-finalize.py
+
+      - name: Static and JavaScript gates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn19-pre-ship.html').read_text()
+          required=[
+            'TURN 19 PRE-SHIP','TURN19_DISPLAY_DENSITY','function wireLegend19',
+            'function showInfo19','data-info-open','data-info-health','crumbLeaf',
+            '--hz-half:132px','position:absolute;right:9px','c.onpointerleave=()=>{}',
+            'data-tip-close','derivedOnly','loaded.every(x=>x.derived)',
+            "wireLegend19($('seriesBar')",'SpeechSynthesisUtterance',
+            'async function openData17(state)','function displayPoints18(points,h)'
+          ]
+          for x in required: assert x in s,x
+          assert 'TURN 18 PRE-SHIP' not in s
+          assert '>ENVIRONMENT<' not in s
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn19.js').write_text(scripts[-1])
+          print('TURN 19 STATIC: PASS')
+          PY
+          node --check /tmp/market-navigator-turn19.js
+
+      - name: Install browser gate
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Run Turn 19 desktop and phone product matrix
+        run: |
+          python3 -m http.server 8123 >/tmp/market-navigator-turn19-http.log 2>&1 &
+          sleep 1
+          curl -fsS http://127.0.0.1:8123/market-navigator-turn19-pre-ship.html | grep -F 'TURN 19 PRE-SHIP' >/dev/null
+          node market-navigator-turn19-qa.mjs
+
+      - name: Commit qualified Turn 19 candidate
+        run: |
+          git add market-navigator-turn19-pre-ship.html
+          if git diff --cached --quiet; then
+            echo 'No candidate change to commit.'
+          else
+            git commit -m 'Market Navigator Turn 19 qualified release [turn19-generated]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
