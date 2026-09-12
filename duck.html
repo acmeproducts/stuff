@@ -1333,7 +1333,8 @@
         border:1px solid rgba(226,232,240,.95);background:#fff;color:#475569;flex-shrink:0}
     .duck-ctl[data-on="true"]{background:linear-gradient(135deg,rgba(248,113,113,.95),rgba(239,68,68,.95));color:#fff;border-color:transparent}
     .duck-ctl.ttsbtn[data-on="true"]{background:rgba(191,219,254,.95);color:#1e40af;border-color:rgba(147,197,253,.9)}
-    .duck-ctl[data-owned="true"]{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
+    /* ring, not a fill — so it can layer over the mic's own red "listening" background without hiding it */
+    .duck-ctl[data-owned="true"]{box-shadow:0 0 0 2px rgba(59,130,246,.85);border-color:transparent}
     .duck-ctl[data-pending="true"]{animation:duckPulse 1s ease-in-out infinite}
     @keyframes duckPulse{50%{opacity:.45}}
 .duck-modechip{flex:0 0 26px;height:26px;border-radius:999px;border:1px solid rgba(226,232,240,.95);
@@ -1867,7 +1868,6 @@
         var shell=shellOf(side);
         var row=document.createElement('div');row.className='duck-compose';
         row.innerHTML=
-            '<button type="button" class="duck-ctl kbbtn" aria-label="Keyboard"><span class="material-symbols-outlined" style="font-size:20px">keyboard</span></button>'+
             '<button type="button" class="duck-ctl micbtn" data-on="false" aria-label="Dictate"><span class="material-symbols-outlined" style="font-size:20px">mic</span></button>'+
             '<button type="button" class="duck-ctl ttsbtn" data-on="false" aria-label="Read aloud"><span class="material-symbols-outlined" style="font-size:20px">volume_off</span></button>'+
             '<button type="button" class="duck-ctl gearbtn" aria-label="Settings"><span class="material-symbols-outlined" style="font-size:20px">settings</span></button>'+
@@ -1877,7 +1877,7 @@
         shell.appendChild(row);
         var ta=row.querySelector('.duck-in'),cl=row.querySelector('.duck-clear');
         inputs[side]=ta;clears[side]=cl;
-        ctl[side]=row.querySelector('.kbbtn');
+        ctl[side]=row.querySelector('.micbtn');   // keyboard button removed — mic button now also carries the ownership indicator
         row.querySelector('.gearbtn').addEventListener('click',function(){
             var m=document.getElementById('controls-modal');
             if(m){
@@ -1902,7 +1902,10 @@
         });
         paintTts(side);
         row.querySelector('.duck-send').addEventListener('click',function(){send(side)});
-        ta.addEventListener('focus',function(){if(owner!==side)openKb(side,'field focused')});
+        ta.addEventListener('focus',function(){
+            if(owner===side)return;
+            requestInputAccess(side,function(){openKb(side,'field focused')});
+        });
         ta.addEventListener('input',function(){
             cl.classList.toggle('show',!!ta.value);
             ta.scrollLeft=ta.scrollWidth;                  // keep the caret end visible as text grows — never wraps
@@ -2238,7 +2241,7 @@
 
     /* ---- open/close/handoff ---- */
     function openKb(side,why){
-        if(owner&&owner!==side)closeKb(owner,'replaced');
+        if(owner&&owner!==side)releaseSide(owner,'replaced by '+side);   // was closeKb-only — that never stopped a hot mic
         owner=side;kb[side].classList.add('open');shellOf(side).classList.add('kb-open');
         ctl[side].dataset.owned='true';ctl[other(side)].dataset.owned='false';
         try{inputs[side].focus({preventScroll:true})}catch(e){}   // inputmode=none is permanent now — set at creation
@@ -2386,7 +2389,9 @@
                     '<button type="button" class="duck-del" data-entry-id="'+entry.id+'" aria-label="Delete">✕</button>';
                 var sc=document.createElement('div');sc.className='bubble-col';
                 var tc=document.createElement('div');tc.className='bubble-col';
-                bub.appendChild(hdr);bub.append(sc,tc);row.appendChild(bub);
+                bub.appendChild(hdr);
+                if(ci===0)bub.append(tc,sc);else bub.append(sc,tc);   // ci 0 = peer/north column, rotated 180° — DOM order must reverse
+                row.appendChild(bub);
                 hdr.querySelector('.duck-del').addEventListener('click',function(ev){
                     ev.stopPropagation();deleteEntryById(entry.id);
                 });
@@ -2508,6 +2513,8 @@
             ctl[side].dataset.owned='false';
         });
         stripDefunctSettings();installTranslator();
+        var saveBtn=document.getElementById('style-save');
+        if(saveBtn)saveBtn.addEventListener('click',function(){toast('Settings saved')});
         // both baseline composers retire; each side now has an identical full-capability strip
         document.querySelectorAll('.tabletop-composer').forEach(function(c){c.style.display='none'});
         // language selects in the settings modal keep working and repaint everything
