@@ -1,10 +1,10 @@
-<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
 | Date | Turn | Stage | Status | Notes |
 |------|------|-------|--------|-------|
 | 2025-08-26 | 1 | DEFINE | ✅ done | Plan created from existing quilt.html v3; owner intent captured (wave field + Sierpinski carpet) |
+| 2026-09-12 | 2 | DEFINE | ✅ done | Added build request to backlog and updated ledger |
 
 ## 1. RELEASES
 | # | Goal | Target |
@@ -44,8 +44,6 @@
 - WebGL2 instanced attributes for custom per-instance color
 - Orientationchange handling
 
----
-
 ### R2 — Sierpinski Carpet Quilt (Pure JS, Canvas2D)
 **Scope (In)**
 - Single-file HTML5, zero deps, no importmap
@@ -70,8 +68,6 @@
 - Hilbert/Z-order traversal for cache-friendly drawing
 - Web Worker offload for depth ≥7
 - Export PNG/WebP
-
----
 
 ### R3 — Unified App (Toggle Between Modes)
 **Scope (In)**
@@ -104,10 +100,10 @@
 | Date | Decision | Owner |
 |------|----------|-------|
 | 2025-08-26 | Current codebase is Three.js v3 (instanced mesh wave field). Owner also wants a pure-JS Sierpinski carpet quilt. Plan accommodates both as R1 (stabilize current) and R2 (new pure-JS mode). | User |
+| 2026-09-12 | Added build request to backlog for R2 implementation. | User |
 
 ## 6. APPENDIX — AUTHORITY ORDER
 1. **quilt.md** (this plan) — sole persistent authority; chat history is ephemeral and loses to the plan.
 2. **quilt.html** — implementation; must match plan's current release scope.
 3. **Owner directives in chat** — captured into plan via DECISION LOG or scope changes before code.
 4. **External docs (MDN, Three.js, etc.)** — referenced only to unblock; cited in SUMMARY.
-</plan>
