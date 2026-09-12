@@ -13,7 +13,7 @@ if old not in s: raise SystemExit('missing Turn 20 INDEX source rebasing express
 s=s.replace(old,new,1)
 
 old="wireLegend19($('legend'),async id=>{if(S.priorV2)S.priorV2.component=id===k?null:id;$('info').classList.add('hidden');$('nowTip').style.display='none';await openAnalysis([id],'NOW',id)},'now')"
-new="wireLegend19($('legend'),async id=>{if(id===k){S.nowActive=k;S.nowFocus=k;if(S.priorV2)S.priorV2.component=null;$('info').classList.add('hidden');$('nowTip').style.display='none';await renderV2();return}if(S.priorV2)S.priorV2.component=id;$('info').classList.add('hidden');$('nowTip').style.display='none';await openAnalysis([id],'NOW',id)},'now')"
+new="wireLegend19($('legend'),async id=>{if(id===k){S.nowActive=k;S.nowFocus=k;if(S.priorV2)S.priorV2.component=null;$('info').classList.add('hidden');$('nowTip').style.display='none';await renderV2();return}if(S.priorV2)S.priorV2.component=id;$('info').classList.add('hidden');$('nowTip').style.display='none';await openAnalysis([k,id],'NOW',id)},'now')"
 if old not in s: raise SystemExit('missing Turn 20 INDEX legend drill handler')
 s=s.replace(old,new,1)
 
@@ -23,7 +23,7 @@ if old not in s: raise SystemExit('missing Turn 20 openAnalysis function')
 s=s.replace(old,new,1)
 
 old="async function openInfoSeries19(id,context){if(context==='analysis'){S.analysisRoot=id;S.analysisSeries=[id];S.analysisActive=id;S.analysisFocus=id;S.analysisRepresentation=null;$('seriesAbout').classList.add('hidden');await renderAnalysis();return}if(S.level===1&&IDX.includes(id)){await openV2(id);return}if(S.priorV2)S.priorV2.component=id===S.index?null:id;$('info').classList.add('hidden');await openAnalysis([id],'NOW',id)}"
-new="async function openInfoSeries19(id,context){if(context==='analysis'){if(IDX.includes(id)&&id===S.index){$('seriesAbout').classList.add('hidden');$('analysisModal').classList.add('hidden');S.analysisRepresentation=null;S.analysisFocus=null;S.level=2;S.nowActive=id;S.nowFocus=id;if(S.priorV2)S.priorV2.component=null;await renderV2();return}S.analysisRoot=id;S.analysisSeries=[id];S.analysisActive=id;S.analysisFocus=id;S.analysisRepresentation=null;$('seriesAbout').classList.add('hidden');await renderAnalysis();return}if(S.level===1&&IDX.includes(id)){await openV2(id);return}if(S.level===2&&IDX.includes(id)&&id===S.index){S.nowActive=id;S.nowFocus=id;if(S.priorV2)S.priorV2.component=null;$('info').classList.add('hidden');await renderV2();return}if(S.priorV2)S.priorV2.component=id;$('info').classList.add('hidden');await openAnalysis([id],'NOW',id)}"
+new="async function openInfoSeries19(id,context){if(context==='analysis'){if(IDX.includes(id)&&id===S.index){$('seriesAbout').classList.add('hidden');$('analysisModal').classList.add('hidden');S.analysisRepresentation=null;S.analysisFocus=null;S.level=2;S.nowActive=id;S.nowFocus=id;if(S.priorV2)S.priorV2.component=null;await renderV2();return}S.analysisRoot=id;S.analysisSeries=[id];S.analysisActive=id;S.analysisFocus=id;S.analysisRepresentation=null;$('seriesAbout').classList.add('hidden');await renderAnalysis();return}if(S.level===1&&IDX.includes(id)){await openV2(id);return}if(S.level===2&&IDX.includes(id)&&id===S.index){S.nowActive=id;S.nowFocus=id;if(S.priorV2)S.priorV2.component=null;$('info').classList.add('hidden');await renderV2();return}if(S.priorV2)S.priorV2.component=id;$('info').classList.add('hidden');await openAnalysis([S.index,id],'NOW',id)}"
 if old not in s: raise SystemExit('missing Turn 20 info Open handler')
 s=s.replace(old,new,1)
 
