@@ -247,3 +247,9 @@ Turn 18 remains the qualified donor for horizon-aware display density and the pr
 
 ### Recovery rule
 Turn 19 uses one explicit interaction grammar: **breadcrumb drills up; legend chips drill down where a child exists; plotted series select/inspect; long press opens information.** At COMPONENT depth legend taps change active/reference series because there is no deeper hierarchy. The compact long-press popover is reference UI, not a navigation gate. Turn 18 display-density and data truth behavior must not change.
+
+## Turn 20 lifecycle / AI snapshot regressions — rejected
+- Reconstructing a visible COMPONENT chart for AI by calling raw-series fetches again is rejected. It drops derived RSK/GRW/MAC evidence because derived indices do not live at raw-series file paths. AI and Library persistence must consume the already-rendered frozen chart snapshot.
+- Breadcrumbs such as `ENV / GRW / GRW + 3 Components` are rejected when the visible comparison set is `GRW + PCE + Payrolls + UNE`. The derived parent index is context, not a duplicated component leaf; the correct leaf is `PCE + 2 Components`.
+- A COMPONENT breadcrumb that does not survive the full drill-up/drill-down lifecycle is rejected. ENV → INDEX → COMPONENT must be reversible through the breadcrumb ancestors, while bottom-level legend taps remain selection only.
+
