@@ -1,0 +1,51 @@
+name: Market Navigator Turn 22 build
+on:
+  push:
+    branches: [market-navigator-turn22]
+    paths:
+      - 'market-navigator-turn22-build.py'
+      - 'market-navigator-turn21-pre-ship.html'
+      - '.github/workflows/market-navigator-turn22-build.yml'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: market-navigator-turn22
+      - name: Build direct Turn 22 source
+        run: |
+          python3 market-navigator-turn22-build.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn22-pre-ship.html').read_text()
+          assert 'Market Navigator · Turn 22' in s
+          assert 'data-view="explore"' not in s
+          assert 'id="view-explore"' not in s
+          assert 'ENV / ${idx}${S.componentsExpanded' in s
+          assert 'COMPONENTS' in s
+          assert 'id="nowAddSeries"' in s
+          assert 'id="nowPicker"' in s
+          assert 'libListenTitle' not in s
+          assert 'grid-template-columns:repeat(5,34px)' in s
+          scripts=re.findall(r'<script>(.*?)</script>',s,re.S)
+          assert scripts
+          Path('/tmp/mn22.js').write_text(scripts[-1])
+          print('TURN22 BUILD STATIC PASS')
+          PY
+          node --check /tmp/mn22.js
+      - name: Commit built artifact
+        run: |
+          if git diff --quiet -- market-navigator-turn22-pre-ship.html && git ls-files --error-unmatch market-navigator-turn22-pre-ship.html >/dev/null 2>&1; then
+            echo 'Artifact unchanged'
+            exit 0
+          fi
+          git config user.name 'market-navigator-build-bot'
+          git config user.email 'market-navigator-build-bot@users.noreply.github.com'
+          git add market-navigator-turn22-pre-ship.html
+          git commit -m 'Market Navigator Turn 22 built source'
+          git push origin HEAD:market-navigator-turn22
