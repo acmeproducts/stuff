@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.8.0 -->
-# TALKBRIDGE MASTER PLAN v21.8.0
+<!-- TALKBRIDGE-PLAN v21.9.0 -->
+# TALKBRIDGE MASTER PLAN v21.9.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **Directory release** — HELD. First candidate REMOVED FROM THE REPOSITORY at owner order 2026-09-06 after two G1 install failures (G49). Owner ruling: prove installability on a throwaway skeleton PWA first, with flag-motif icons; the working app is not touched until the skeleton installs. | Spec §7.5 + §7.12 recipe | **BUILT 2026-09-12 on owner GO — device gate pending (G1–G5 plus the two new gates: G6 offline reload serves the app, G7 one push per message alongside the new fetch handler).** Edits E1–E4 in the app + E5 start_url + E6 id + E7 additive fetch handler appended to the folder worker (accepted worker bytes intact underneath). No root artifact modified. Mutations 3/3 (drop start_url, drop fetch handler, clobber push). | https://acmeproducts.github.io/stuff/talkbridge-app/ |
+| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1/#652); presence dot 60-s damping; render coalescing. Mobile-first: no scope, folder or naming changes | Spec §7.2 | **NEXT — awaiting owner GO** | — |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4001,7 +4001,7 @@ renders exactly as today (guard). PASS = all five.
 ## MD-1 — kanban markdown in chat: spec complete §7.4, unsequenced (owner slots it into the release chain).
 
 ────────────────────────────────────────────────────────────────────────
-## §7.5 BUILDER SPEC — D-2 DONE RIGHT: the directory release
+## §7.5 [BACKLOGGED 2026-09-12 by owner ruling: mobile-first; desktop install (D-6) and the PRISM folder move (D-2) are not worth bending the turn/stage naming convention or the working app. Spec and the PROVEN recipe below are kept intact and ready — /stuff/tb-skeleton/ stays hosted as the working reference. Resume only on explicit owner GO.] — D-2 DONE RIGHT: the directory release
 ────────────────────────────────────────────────────────────────────────
 The one arrangement both the standard and Chrome honor: TalkBridge lives in
 `/stuff/talkbridge-app/` with a slash-terminated scope. Executed alone, with
@@ -4272,3 +4272,9 @@ artifact is edited. The app release resumes from §7.5 with R-1..R-3 added
 as declared edits E5/E6/E7, re-gated G1-G5 plus G6 offline reload of the
 folder URL serves the app (proves the fetch handler works), and G7 one push
 per message (proves the push half still works alongside it).
+
+
+## Backlog — deferred by owner ruling 2026-09-12 (mobile-first)
+- D-6 desktop Chrome install: root cause PROVEN (accepted worker has no fetch handler; also needs start_url + id). Recipe R-1..R-3 in §7.12. Skeleton reference: https://acmeproducts.github.io/stuff/tb-skeleton/
+- D-2 PRISM un-hijack on installed clients: open, folder release is the correct fix, deferred with D-6 since one move solves both.
+- Naming-convention note: any future folder release keeps turn/stage candidate names INSIDE the folder (index.html = accepted only). Recorded so the convention is never silently dropped again.
