@@ -39,9 +39,20 @@ jobs:
 
       - name: Build exact-baseline Turn 25 candidate
         run: |
-          set -euo pipefail
-          test "$(git hash-object market-navigator-turn18-pre-ship.html)" = '4a52c7e764513024176aea80cc13c56e05370c11'
-          python3 market-navigator-build-turn25.py
+          set -uo pipefail
+          test "$(git hash-object market-navigator-turn18-pre-ship.html)" = '4a52c7e764513024176aea80cc13c56e05370c11' || exit 97
+          python3 market-navigator-build-turn25.py > /tmp/turn25-build.log 2>&1
+          rc=$?
+          cat /tmp/turn25-build.log
+          if [ "$rc" -ne 0 ]; then
+            cp /tmp/turn25-build.log market-navigator-turn25-build-failure.txt
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add market-navigator-turn25-build-failure.txt
+            git commit -m 'Record Turn 25 build failure diagnostic [turn25-diagnostic]'
+            git push origin HEAD:market-navigator-turn25-consolidation
+            exit "$rc"
+          fi
 
       - name: Static and JavaScript gates
         run: |
@@ -50,17 +61,7 @@ jobs:
           from pathlib import Path
           import re
           s=Path('market-navigator-turn25-pre-ship.html').read_text()
-          required=[
-            'Market Navigator · Turn 25',
-            'TURN25_CONSOLIDATION',
-            'data-cfgtab="sources"',
-            'id="nowAddSeries"',
-            'function geometryRepaint25()',
-            'function androidSpeech25()',
-            'data-replace-key="openrouter"',
-            'data-source-id',
-            'DOW',
-          ]
+          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW']
           for x in required: assert x in s,x
           for x in ['data-view="explore"','id="view-explore"','id="analysisModal"',"$('settingsModal')"]: assert x not in s,x
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
