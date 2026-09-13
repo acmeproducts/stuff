@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.19.0 -->
-# TALKBRIDGE MASTER PLAN v21.19.0
+<!-- TALKBRIDGE-PLAN v21.20.0 -->
+# TALKBRIDGE MASTER PLAN v21.20.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -84,7 +84,8 @@ built yet.
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
 | 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | 27·base | **Presence, traced end to end** — the word (visible + inRoom) is now declared on room entry, every view change, hide, show, blur, focus and page close, in browser tabs as well as the installed app (the accepted build declared only on lane open, on a 30s heartbeat, and — instant announcements only — inside the installed app; nothing ever declared on entering or leaving a room, so both parties read wrong in both directions). Relay v6.5 reads presence from the declared word keyed by device; ghost cleanup on last socket close. One owner of the dot: the legacy traffic-lighting and 75s countdown and the socket-close darkening are retired without editing a single frozen line. | Spec §7.13 as amended by the three-pass review | **ACCEPTED 2026-09-13 (owner: pass).** D-4 CLOSED — presence works for the first time in this project's history: steady green with both parties in the room, instant gray on lock / list / force-quit, instant green on return, no wink. Legacy presence engine and the superseded P1 block DELETED from the body (36 lines removed, nothing wrapped, nothing dormant) per owner ruling: in a file this size, wrapped dead code is a trap, not a safety measure. The file now contains one setPresence definition and exactly one caller. 16/16 two-party trace (entrance, exit, lock, unlock, list, re-attach, force-quit, relaunch, heartbeat); mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
-| 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
+| 27·pre-ship | **N-1 notification lifecycle** — one tag per call, closed on every terminal event (answered, declined, answered elsewhere, cancelled, ended, expired) via a foreground path AND a terminal push for when the app is closed; missed-call policy; app ring tone chosen by owner. Findings and scope in §9. | Spec §9 N-1 | **NEXT — spec agreed, awaiting owner GO** | — |
+| ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
 | 28·pre-base | Snapshot | — | queued | — |
@@ -4369,3 +4370,71 @@ The legacy inferred-presence engine (traffic lights the dot, 75s time-to-live da
 
 ## PRINCIPLE added 2026-09-13 (owner) — DELETE, DO NOT WRAP
 Superseded code is removed, not neutered behind a wrapper. Wrapping is for extending live behavior; it is never a way to retire code. A dormant second owner of any state is a defect waiting for the next maintainer, and this codebase is too large to carry them. Deletions are declared in the header, counted in the gate, and recoverable by rollback to the accepted bytes.
+
+
+────────────────────────────────────────────────────────────────────────
+## §9 ANDROID NOTIFICATIONS — FINDINGS FROM THE 2026-09-13 DEVICE SESSION
+────────────────────────────────────────────────────────────────────────
+Evidence, not theory. Every line below was observed on the owner's Galaxy.
+
+### Findings — settled, do not re-litigate
+F-1 The "bell icon, no sound" symptom was the PHONE IN MUTE, not the app and
+    not a channel policy. With mute off, the incoming-call push chirps, pops
+    a banner, and shows on the lock screen. Any future "no sound" report
+    starts by checking the mute toggle in the status bar.
+F-2 The installed app owns its OWN Android entry ("TalkBridge"), separate
+    from Chrome's, with a single category: General. Site settings for the
+    origin read "Notifications — Managed by TalkBridge". Chrome's "Web apps"
+    categories therefore do NOT govern the installed app. Support guidance
+    must send people to Settings › Apps › TalkBridge › Notifications.
+F-3 The notification content is already right: TalkBridge icon, caller name,
+    "Incoming voice call · <room>", and the tap opens the Accept/Decline
+    screen. No work needed on presentation.
+F-4 The tone cannot be chosen by us — the custom-sound property was removed
+    from the web standard in 2018; the browser and OS define it. The USER can
+    change it per device at Settings › Apps › TalkBridge › Notifications ›
+    General › Sound. The in-app ring is ours and IS changeable.
+F-5 The snooze control ("show this notification again in 15 min…") is
+    Samsung's, from Advanced settings › Show snooze button. Not ours, not a
+    defect, cannot be suppressed by the app.
+F-6 Two chirps per call is real: the push chirp, then the app's own ring when
+    the call screen opens. The second is correct; the first should stop being
+    relevant once the screen is open — i.e. the card should close.
+F-7 "Tap to copy the URL for this app" on answering is the D-2 scope hijack
+    surfacing again: the notification tap lands in a browser tab instead of
+    the installed app. It is a SYMPTOM of D-2, not a new defect, and it
+    returns whenever a tap escapes the app's scope.
+F-8 A finished or missed call leaves its card sitting in the shade still
+    reading "Incoming voice call". The lifecycle has no terminal step.
+
+### To-do — N-1 · notification lifecycle (the only app work here)
+One tag per call (`tb-call:<callId>`), and that exact card is CLOSED on every
+terminal event, not only on tap: answered here, declined here, answered on
+another device, caller cancelled, call ended, invitation expired. Two halves,
+both required, because the foreground half cannot run when the app is closed:
+  (a) foreground: on any terminal call state the page tells the worker to
+      close the tagged card;
+  (b) background: the relay sends a terminal push (`call-ended` /
+      `call-cancelled`) whose ONLY job is to find that tag and close it.
+      The relay already knows about hang-ups — the deploy contract check
+      `bare-hangup-missed` proves the event exists.
+Timeout policy (owner to confirm at spec time): replace the card with a
+"Missed call from <name> in <room>" using the SAME tag and no re-alert, or
+close it and write the missed-call line into the room. Never leave
+"Incoming call" as the final state.
+Also in N-1, free: the app's own ring tone becomes a chosen sound rather than
+the current one (owner picks).
+
+### To-do — N-2 · onboarding tells the truth about Android
+A short, one-time Android note: allow notifications, keep the phone off mute,
+and where to change the tone. This is documentation, not code — it belongs
+with the pilot materials, NOT in a release.
+
+### Where these land
+N-1 → **27·pre-ship**, the next release after 27·base. It is app + relay in
+one pair, it is small, and it is self-contained.
+F-7 (the URL strip) → already tracked as D-2 in the backlog with D-6; it is
+NOT fixed by N-1 and must not be attempted inside it.
+F-4/F-5 (tone choice, snooze) → nothing to build; recorded so nobody
+"fixes" them later.
+N-2 → pilot materials, unsequenced.
