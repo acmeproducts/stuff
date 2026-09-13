@@ -31,7 +31,7 @@ async function makePage({width=1280,height=800,registry=null,failAI=false,androi
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const crumb=async p=>clean(await p.locator('#nowCrumb').innerText());
 async function settle(p){await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
-async function enter(p,id){let code=id==='growth'?'GRW':id==='risk'?'RSK':'MAC';await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(code=>clean(document.querySelector('#nowCrumb')?.textContent)===`ENV / ${code} / COMPONENTS`,code)}
+async function enter(p,id){let code=id==='growth'?'GRW':id==='risk'?'RSK':'MAC';await p.locator(`#legend [data-id="${id}"]`).click();await p.waitForFunction(code=>window.clean(document.querySelector('#nowCrumb')?.textContent)===`ENV / ${code} / COMPONENTS`,code)}
 async function pickerAdd(p,query,id){await p.locator('#nowAddSeries').click();await p.locator('#nowPickerSearch').fill(query);await p.waitForFunction(id=>document.querySelector(`[data-add-now="${id}"]`),id);let b=p.locator(`[data-add-now="${id}"]`);assert.equal(await b.isDisabled(),false,`${id} Add enabled`);await b.click();await p.waitForFunction(id=>document.querySelector(`#legend [data-id="${id}"]`),id)}
 async function noOverflow(p,label){assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1&&document.body.scrollWidth<=innerWidth+1),`${label} no page overflow`)}
 
@@ -42,16 +42,16 @@ async function architecture(width){
   assert.equal(await p.locator('#analysisModal').count(),0,'Component modal physically retired');
   assert.equal(await crumb(p),'ENV');
   assert.equal(await p.locator('#legend [data-id]').count(),3,'ENV exact three indices');
-  assert.equal(await p.locator('#legend .active').count(),0,'ENV neutral on boot');
-  assert.equal(await p.locator('#nowChart').getAttribute('data-emphasis'),'false');
+  assert.equal(await p.locator('#legend [data-id].active').count(),0,'ENV has no active legend chip on boot');
+  assert.equal(await p.locator('#nowChart').getAttribute('data-emphasis'),'false','ENV chart has no emphasis on boot');
   await enter(p,'growth');
   assert.equal(await crumb(p),'ENV / GRW / COMPONENTS');
   assert.equal(await p.locator('#legend [data-id="growth"] [data-rm]').count(),0,'anchor immutable');
   assert((await p.locator('#legend [data-rm]').count())>0,'components removable');
   assert.equal(await p.locator('#nowAddSeries').count(),1,'Add inside NOW');
-  await p.locator('#crumbIndex22').click();await p.waitForFunction(()=>clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW');
+  await p.locator('#crumbIndex22').click();await p.waitForFunction(()=>window.clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW');
   assert.equal(await p.locator('#legend [data-id]').count(),1,'index collapse');
-  await p.locator('#legend [data-id="growth"]').click();await p.waitForFunction(()=>clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW / COMPONENTS');
+  await p.locator('#legend [data-id="growth"]').click();await p.waitForFunction(()=>window.clean(document.querySelector('#nowCrumb')?.textContent)==='ENV / GRW / COMPONENTS');
   await pickerAdd(p,'SPY','spy');
   assert.equal(await crumb(p),'ENV / GRW / COMPONENTS','comparison does not alter hierarchy');
   await p.locator('#legend [data-id="spy"]').click();await p.waitForFunction(()=>document.querySelector('#legend [data-id="spy"]')?.classList.contains('active'));
@@ -59,8 +59,8 @@ async function architecture(width){
   assert((await p.locator('#dataRows tr').count())>20,'Data uses full canonical history');
   assert((await p.locator('#dataRows tr[data-active="true"][data-series="spy"]').count())>0,'active series is Data reference');
   await p.locator('#dataClose').click();
-  await p.locator('#crumbEnvironment').click();await p.waitForFunction(()=>clean(document.querySelector('#nowCrumb')?.textContent)==='ENV');
-  assert.equal(await p.locator('#legend .active').count(),0,'return ENV neutral');
+  await p.locator('#crumbEnvironment').click();await p.waitForFunction(()=>window.clean(document.querySelector('#nowCrumb')?.textContent)==='ENV');
+  assert.equal(await p.locator('#legend [data-id].active').count(),0,'return ENV neutral');
   await noOverflow(p,`architecture ${width}`);
   assert.deepEqual(t.errors,[]);assert.deepEqual(t.failed,[]);await t.context.close();
 }
@@ -68,7 +68,7 @@ async function architecture(width){
 async function geometryCase(index=null){
   const t=await makePage(),p=t.page;if(index)await enter(p,index);
   await p.locator('#hzs [data-h="3YR"]').click();await p.waitForFunction(()=>document.querySelector('#hzs [data-h="3YR"]')?.classList.contains('on')&&document.querySelector('#nowChart')?.dataset.renderDensity==='monthly');await settle(p);await p.waitForTimeout(80);
-  const snap=()=>p.evaluate(()=>({h:[...document.querySelectorAll('#hzs .hz')].find(x=>x.classList.contains('on'))?.dataset.h,crumb:clean(document.querySelector('#nowCrumb')?.textContent),ids:[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id),active:document.querySelector('#legend .active')?.dataset.id||null,card:(()=>{let r=document.querySelector('.chartCard').getBoundingClientRect();return{top:r.top,bottom:r.bottom}})(),canvas:document.querySelector('#nowChart').getBoundingClientRect().width}));
+  const snap=()=>p.evaluate(()=>({h:[...document.querySelectorAll('#hzs .hz')].find(x=>x.classList.contains('on'))?.dataset.h,crumb:window.clean(document.querySelector('#nowCrumb')?.textContent),ids:[...document.querySelectorAll('#legend [data-id]')].map(x=>x.dataset.id),active:document.querySelector('#legend [data-id].active')?.dataset.id||null,card:(()=>{let r=document.querySelector('.chartCard').getBoundingClientRect();return{top:r.top,bottom:r.bottom}})(),canvas:document.querySelector('#nowChart').getBoundingClientRect().width}));
   const before=await snap(),req=t.seriesRequests.length;
   for(let i=0;i<3;i++){let old=await snap();await p.locator('#toggle').click();await p.waitForTimeout(190);await settle(p);let now=await snap();assert(Math.abs(now.card.top-before.card.top)<2,'top pinned');assert(Math.abs(now.card.bottom-before.card.bottom)<2,'bottom pinned');assert.equal(now.h,'3YR');assert.deepEqual(now.ids,before.ids);assert.equal(now.active,before.active);assert.notEqual(Math.round(now.canvas),Math.round(old.canvas),'canvas follows rail width')}
   assert.equal(t.seriesRequests.length,req,'geometry causes no evidence requests');assert.deepEqual(t.errors,[]);assert.deepEqual(t.failed,[]);await t.context.close();
