@@ -1,6 +1,6 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-13T10:13:29Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-13T10:14:01Z, every 30s. Newest at the bottom.
 
 ```
 23:58:37.633 [android-rcd] rc_panel_rendered {"live":3,"bin":0,"wired":3}
