@@ -1,0 +1,183 @@
+name: Market Navigator Turn 25 cumulative qualification
+
+on:
+  push:
+    branches:
+      - market-navigator-turn25-consolidation
+      - main
+    paths:
+      - 'market-navigator-turn25-governance.py'
+      - 'market-navigator-build-turn25.py'
+      - 'market-navigator-finalize-turn25.py'
+      - 'market-navigator-turn25-qa.mjs'
+      - 'market-navigator-turn25-pre-ship.html'
+      - '.github/workflows/market-navigator-turn25.yml'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn25-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply cumulative governance
+        run: |
+          set -euo pipefail
+          python3 market-navigator-turn25-governance.py
+          grep -F '## 24. Turn 25 cumulative consolidation' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '## Turn 25 permanent cumulative-release rule' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -F 'Rejected code may be discarded; owner-approved behavior may not.' MARKET-NAVIGATOR-MASTER-PLAN.md
+
+      - name: Build exact-baseline Turn 25 candidate
+        id: build
+        run: |
+          set -uo pipefail
+          committed="$(git rev-parse HEAD:market-navigator-turn18-pre-ship.html)"
+          if [ "$committed" != '4a52c7e764513024176aea80cc13c56e05370c11' ]; then
+            printf 'baseline mismatch: %s\n' "$committed" | tee market-navigator-turn25-build-failure.txt
+            exit 97
+          fi
+          git show HEAD:market-navigator-turn18-pre-ship.html > market-navigator-turn18-pre-ship.html
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-navigator-build-turn25.py')
+          s=p.read_text()
+          old="one('Market Navigator · Turn 18','Market Navigator · Turn 25','title')"
+          new="assert s.count('Market Navigator · Turn 18')>=1,'title anchor missing';s=s.replace('Market Navigator · Turn 18','Market Navigator · Turn 25',1)"
+          assert old in s
+          p.write_text(s.replace(old,new,1))
+          PY
+          python3 market-navigator-build-turn25.py > market-navigator-turn25-build-failure.txt 2>&1
+          rc=$?
+          if [ "$rc" -eq 0 ]; then
+            python3 market-navigator-finalize-turn25.py >> market-navigator-turn25-build-failure.txt 2>&1
+            rc=$?
+          fi
+          cat market-navigator-turn25-build-failure.txt
+          exit "$rc"
+
+      - name: Persist build failure diagnostic
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn25-build-failure.txt
+          git commit -m 'Record Turn 25 build failure diagnostic [turn25-diagnostic]'
+          git push origin HEAD:market-navigator-turn25-consolidation
+
+      - name: Static and JavaScript gates
+        id: static
+        run: |
+          set -uo pipefail
+          {
+            python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn25-pre-ship.html').read_text()
+          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW']
+          for x in required: assert x in s,x
+          for x in ['data-view="explore"','id="view-explore"','id="analysisModal"',"$('settingsModal')"]: assert x not in s,x
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn25.js').write_text(scripts[-1])
+          print('TURN 25 STATIC: PASS')
+          PY
+            node --check /tmp/market-navigator-turn25.js
+            node --check market-navigator-turn25-qa.mjs
+          } > market-navigator-turn25-static-failure.txt 2>&1
+          rc=$?
+          cat market-navigator-turn25-static-failure.txt
+          exit "$rc"
+
+      - name: Persist static failure diagnostic
+        if: failure() && steps.static.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn25-static-failure.txt
+          git commit -m 'Record Turn 25 static failure diagnostic [turn25-diagnostic]'
+          git push origin HEAD:market-navigator-turn25-consolidation
+
+      - name: Backend Sources truth gate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          dow=reg.get('aliases',{}).get('DOW|index')
+          assert dow and dow['symbol']=='^DJI' and dow['name']=='Dow Jones Industrial Average'
+          ids={r.get('id') for r in reg.get('registrations',[])}
+          assert {'custom_nvda','custom_v','custom_gaamhx'} <= ids
+          src=Path('market-navigator-source-register.py').read_text()
+          assert "CLASSES={'index','equity','etf','fund_cit'}" in src
+          for sid in ['custom_nvda','custom_v','custom_gaamhx']:
+              assert Path(f'market-evidence/series/{sid}.json').exists()
+          print('TURN 25 BACKEND SOURCES: PASS')
+          PY
+
+      - name: Install browser qualification
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Run cumulative semantic browser matrix
+        id: browser
+        env:
+          MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn25-pre-ship.html
+        run: |
+          set -uo pipefail
+          python3 -m http.server 8123 >/tmp/mn25-server.log 2>&1 &
+          node market-navigator-turn25-qa.mjs > market-navigator-turn25-browser-failure.txt 2>&1
+          rc=$?
+          cat market-navigator-turn25-browser-failure.txt
+          exit "$rc"
+
+      - name: Persist browser failure diagnostic
+        if: failure() && steps.browser.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn25-browser-failure.txt
+          git commit -m 'Record Turn 25 browser failure diagnostic [turn25-diagnostic]'
+          git push origin HEAD:market-navigator-turn25-consolidation
+
+      - name: Publish exact qualified candidate
+        if: github.ref_name == 'market-navigator-turn25-consolidation'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf node_modules
+          for f in market-navigator-build-turn25.py market-navigator-turn25-build-failure.txt market-navigator-turn25-static-failure.txt market-navigator-turn25-browser-failure.txt; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              git restore --worktree "$f"
+            else
+              rm -f "$f"
+            fi
+          done
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn25-pre-ship.html
+          git diff --cached --quiet && exit 0
+          bad="$(git diff --cached --name-only | grep -vE '^(MARKET-NAVIGATOR-MASTER-PLAN\.md|MARKET-NAVIGATOR-GRAVEYARD\.md|market-navigator-turn25-pre-ship\.html)$' || true)"
+          test -z "$bad"
+          git diff --cached --name-only | grep -Fx 'market-navigator-turn25-pre-ship.html'
+          remote="$(git ls-remote origin refs/heads/market-navigator-turn25-consolidation | cut -f1)"
+          test "$remote" = "$GITHUB_SHA"
+          git commit -m 'Market Navigator Turn 25 qualified candidate [turn25-generated]'
+          git push origin HEAD:market-navigator-turn25-consolidation

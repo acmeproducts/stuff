@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: NEGATIVE SPECIFICATION
-Updated: 2026-09-12
+Updated: 2026-09-13
 
 Historical rejected releases remain evidence only; detailed descriptions remain in git history.
 
@@ -103,3 +103,16 @@ Turn 24 application HTML/JS/CSS is not a donor for that reconstruction.
 **exact Turn 18 artifact → exact blob proof → full Turn 17 + Turn 18 semantic qualification → Pages rollback URL → owner/device test → clean reconstruction from written requirements only**.
 
 Do not begin successor application mutation before the rollback baseline is proved.
+
+## Turn 25 permanent cumulative-release rule
+Rollback changes the executable baseline; it does not roll back approved product requirements.
+
+Permanently rejected:
+- recovering one broken capability by publishing a baseline that silently drops other approved capabilities;
+- reintroducing approved improvements over a sequence of owner-facing releases where each step can regress previously accepted behavior;
+- using a rejected application release as a code donor merely because it contains a desired feature;
+- declaring a retained capability green without carrying forward its strongest semantic regression gate;
+- publishing an intermediate reconstruction candidate that is knowingly missing items from the cumulative acceptance ledger.
+
+The next owner-facing successor after a rollback must be one cumulative candidate: proven baseline behavior plus every still-approved later requirement, qualified together. If one cumulative gate fails, correct the same candidate; do not create a new partial rung in the release ladder.
+
