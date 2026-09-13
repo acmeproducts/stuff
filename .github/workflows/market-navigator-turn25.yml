@@ -1,0 +1,118 @@
+name: Market Navigator Turn 25 cumulative qualification
+
+on:
+  push:
+    branches:
+      - market-navigator-turn25-consolidation
+    paths:
+      - 'market-navigator-turn25-governance.py'
+      - 'market-navigator-build-turn25.py'
+      - 'market-navigator-turn25-qa.mjs'
+      - '.github/workflows/market-navigator-turn25.yml'
+      - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
+      - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify:
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn25-generated]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply cumulative governance
+        run: |
+          set -euo pipefail
+          python3 market-navigator-turn25-governance.py
+          grep -F '## 24. Turn 25 cumulative consolidation' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '## Turn 25 permanent cumulative-release rule' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -F 'Rejected code may be discarded; owner-approved behavior may not.' MARKET-NAVIGATOR-MASTER-PLAN.md
+
+      - name: Build exact-baseline Turn 25 candidate
+        run: |
+          set -euo pipefail
+          test "$(git hash-object market-navigator-turn18-pre-ship.html)" = '4a52c7e764513024176aea80cc13c56e05370c11'
+          python3 market-navigator-build-turn25.py
+
+      - name: Static and JavaScript gates
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('market-navigator-turn25-pre-ship.html').read_text()
+          required=[
+            'Market Navigator · Turn 25',
+            'TURN25_CONSOLIDATION',
+            'data-cfgtab="sources"',
+            'id="nowAddSeries"',
+            'function geometryRepaint25()',
+            'function androidSpeech25()',
+            'data-replace-key="openrouter"',
+            'data-source-id',
+            'DOW',
+          ]
+          for x in required: assert x in s,x
+          for x in ['data-view="explore"','id="view-explore"','id="analysisModal"',"$('settingsModal')"]: assert x not in s,x
+          scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
+          assert scripts and scripts[-1].strip()
+          Path('/tmp/market-navigator-turn25.js').write_text(scripts[-1])
+          print('TURN 25 STATIC: PASS')
+          PY
+          node --check /tmp/market-navigator-turn25.js
+          node --check market-navigator-turn25-qa.mjs
+
+      - name: Backend Sources truth gate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          dow=reg.get('aliases',{}).get('DOW|index')
+          assert dow and dow['symbol']=='^DJI' and dow['name']=='Dow Jones Industrial Average'
+          ids={r.get('id') for r in reg.get('registrations',[])}
+          assert {'custom_nvda','custom_v','custom_gaamhx'} <= ids
+          src=Path('market-navigator-source-register.py').read_text()
+          assert "CLASSES={'index','equity','etf','fund_cit'}" in src
+          for sid in ['custom_nvda','custom_v','custom_gaamhx']:
+              assert Path(f'market-evidence/series/{sid}.json').exists()
+          print('TURN 25 BACKEND SOURCES: PASS')
+          PY
+
+      - name: Install browser qualification
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Run cumulative semantic browser matrix
+        env:
+          MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn25-pre-ship.html
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8123 >/tmp/mn25-server.log 2>&1 &
+          node market-navigator-turn25-qa.mjs
+
+      - name: Publish exact qualified candidate
+        if: github.ref_name == 'market-navigator-turn25-consolidation'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn25-pre-ship.html
+          git diff --cached --quiet && exit 0
+          test -z "$(git status --porcelain | grep -vE '^M  (MARKET-NAVIGATOR-MASTER-PLAN.md|MARKET-NAVIGATOR-GRAVEYARD.md)$|^A  market-navigator-turn25-pre-ship.html$' || true)"
+          remote="$(git ls-remote origin refs/heads/market-navigator-turn25-consolidation | cut -f1)"
+          test "$remote" = "$GITHUB_SHA"
+          git commit -m 'Market Navigator Turn 25 qualified candidate [turn25-generated]'
+          git push origin HEAD:market-navigator-turn25-consolidation
