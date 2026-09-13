@@ -55,6 +55,14 @@ q=QA.read_text()
 old="window.__qaSpeech=speech;window.__opened=[];window.open=(u)=>{window.__opened.push(String(u));return null};"
 new="window.__qaSpeech=speech;window.__opened=[];window.clean=s=>String(s||'').replace(/\\s+/g,' ').trim();window.open=(u)=>{window.__opened.push(String(u));return null};"
 assert q.count(old)==1,('QA browser clean helper',q.count(old))
-QA.write_text(q.replace(old,new,1))
+q=q.replace(old,new,1)
+
+# Phone boots with the rail collapsed. Exercise the actual navigation path rather
+# than trying to click the hidden LIBRARY label.
+old="await p.reload({waitUntil:'networkidle'});await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');"
+new="await p.reload({waitUntil:'networkidle'});if(await p.locator('#rail').evaluate(el=>el.classList.contains('closed')))await p.locator('#toggle').click();await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');"
+assert q.count(old)==1,('TTS phone navigation',q.count(old))
+q=q.replace(old,new,1)
+QA.write_text(q)
 
 print('TURN 25 FINALIZE: PASS')
