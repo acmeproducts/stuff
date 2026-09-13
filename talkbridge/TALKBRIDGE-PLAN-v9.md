@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.22.0 -->
-# TALKBRIDGE MASTER PLAN v21.22.0
+<!-- TALKBRIDGE-PLAN v21.23.0 -->
+# TALKBRIDGE MASTER PLAN v21.23.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -95,7 +95,6 @@ built yet.
 | 28·post-ship | **D-6 desktop install + D-2 PRISM un-hijack** — folder release ("/stuff/talkbridge-app/"), the proven Chrome-installability recipe (start_url, id, additive fetch handler), old-worker retirement. One release, isolated, per owner ruling 2026-09-12 that this never shares a gate with anything else. | Spec §7.5 + §7.12 recipe | queued (was backlog, now scheduled) | — |
 | 29·pre-base | Snapshot | — | queued | — |
 | 29·base | **D-1 Android lock-screen ringing — one attempt, bounded** — try the strongest legal presentation (requireInteraction, vibrate pattern, full-screen-capable notification where the platform allows); NOT a native ringer, web push cannot produce one. Gate = the attempt is made and the result is recorded, pass or fail; no open-ended chase. | Spec to be written before build (not yet §7-graded) | queued | — |
-| 29·pre-ship | **Rejoin/phrasebook edge cases** — the specific gaps noted in passing during N-1 and MD-1 work (rejoin-after-decline interactions, phrasebook edge cases surfaced but not yet enumerated) get enumerated into a real spec before this slot is built, not left loose. | Spec to be written | queued | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
