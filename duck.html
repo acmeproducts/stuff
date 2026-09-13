@@ -1888,7 +1888,10 @@
                 var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
         });
         micCtl[side]=row.querySelector('.micbtn');
-        micCtl[side].addEventListener('click',function(){requestInputAccess(side,function(){toggleSTT(side)})});
+        micCtl[side].addEventListener('click',function(){
+            if(owner===side&&rec[side].on){rec[side].stop();owner=null;return}   // explicit self-pause: unconditional stop, not a toggle
+            requestInputAccess(side,function(){rec[side].start()});              // acquire: always an unconditional start
+        });
         ttsCtl[side]=row.querySelector('.ttsbtn');
         ttsCtl[side].addEventListener('click',function(){
             if(side==='local')settings.ttsEnabledLocal=!settings.ttsEnabledLocal;
@@ -2369,16 +2372,31 @@
     // Single gate for BOTH the keyboard button and the mic button — whichever side holds input
     // access, the other side must request it. Granting it forcibly releases the holder's keyboard
     // AND stops their mic if it's hot, so two channels can never run at once.
+    function forceStopSide(side,why){
+        // Unconditional — never trusts remembered .on/.open state, because that state can lie:
+        // auto-release-on-pause deliberately leaves a mic pipeline running while owner goes null.
+        if(kb[side]&&kb[side].classList.contains('open'))closeKb(side,why);
+        var r=rec[side];if(r&&r.on){try{r.stop()}catch(e){}}
+        if(owner===side)owner=null;
+    }
+    function grantTo(side,after){
+        // The single place ownership actually changes hands. ALWAYS force-stops BOTH sides first —
+        // not just "the one owner thinks it has" — then commits the new owner, then runs exactly the
+        // one action requested (never a toggle: acquiring is always an unconditional start).
+        forceStopSide('local','claimed by '+side);
+        forceStopSide('peer','claimed by '+side);
+        owner=side;ctl[side].dataset.owned='true';ctl[other(side)].dataset.owned='false';
+        try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
+        after();
+    }
     function requestInputAccess(side,after){
         if(owner===side){after();return}
-        if(!owner){owner=side;ctl[side].dataset.owned='true';ctl[other(side)].dataset.owned='false';try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}after();return}
+        if(!owner){grantTo(side,after);return}
         ask(side,after);
     }
-    function releaseSide(side,why){
-        if(kb[side]&&kb[side].classList.contains('open'))closeKb(side,why);
-        if(recOn[side]){recOn[side]=false;var r=rec[side];if(r){try{r.stop()}catch(e){}}}
-        if(owner===side)owner=null;
-        try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}   // a human claim always wins over a still-playing readout
+    function releaseSide(side,why){   // kept for the explicit self-pause case (tapping your own live mic to stop it)
+        forceStopSide(side,why);
+        try{if(window.speechSynthesis)speechSynthesis.cancel()}catch(e){}
     }
     function ask(fromSide,onGranted){
         var target=other(fromSide);pendingFrom=fromSide;pendingGrantFn=onGranted;
@@ -2403,9 +2421,7 @@
         if(from)ctl[from].dataset.pending='false';
         if(!from)return;
         if(granted){
-            releaseSide(other(from),'granted to '+from);   // stop whatever the holder was doing — keyboard or mic
-            owner=from;ctl[from].dataset.owned='true';ctl[other(from)].dataset.owned='false';
-            if(fn)fn();
+            grantTo(from,fn||function(){});
         } else diag('request '+(silent?'expired':'declined'));
     }
     function buildAsk(side){
@@ -2499,7 +2515,14 @@
                 var sc=document.createElement('div');sc.className='bubble-col';
                 var tc=document.createElement('div');tc.className='bubble-col';
                 bub.appendChild(hdr);
-                if(ci===0)bub.append(tc,sc);else bub.append(sc,tc);   // ci 0 = peer/north column, rotated 180° — DOM order must reverse
+                // Which language is "mine" depends on which column this is (peer/north vs local/south),
+                // NOT on who happens to have sent this particular message. A 180° panel rotation plus
+                // sitting 180° opposite cancel each other out geometrically — no DOM-order swap is
+                // needed for that. What was wrong before: swapping by column index alone put the
+                // SPEAKER'S language on the left for north regardless of who spoke, which only looked
+                // right when north happened to be the speaker.
+                var myLang=ci===0?settings.peerLanguage:settings.localLanguage;
+                if(myLang===tgtL&&myLang!==srcL)bub.append(tc,sc);else bub.append(sc,tc);
                 row.appendChild(bub);
                 hdr.querySelector('.duck-del').addEventListener('click',function(ev){
                     ev.stopPropagation();deleteEntryById(entry.id);
