@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+# Turn 25 cumulative qualification trigger: governance remains additive and idempotent.
 PLAN=Path('MARKET-NAVIGATOR-MASTER-PLAN.md')
 GRAVE=Path('MARKET-NAVIGATOR-GRAVEYARD.md')
 
