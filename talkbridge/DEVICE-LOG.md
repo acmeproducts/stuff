@@ -1,45 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-13T17:34:40Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-13T17:35:13Z, every 30s. Newest at the bottom.
 
 ```
-08:33:41.481 [android-rcd] joiner_create_control {"shown":true}
-08:33:41.501 [android-rcd] rc_home_rendered {"cards":0,"wired":0}
-08:33:41.416 [iphone-29v] joiner_payload_applied {"room":"z3vg83","myLang":"es","theirLang":"en","title":"new thread","changed":true,"was":"es/en"}
-08:33:41.416 [iphone-29v] gen_bump {"n":2,"r":"room_enter"}
-08:33:41.452 [iphone-29v] room_enter {"id":"mtqa8uykz3vg83","role":"joiner"}
-08:33:41.453 [iphone-29v] joiner_room_switcher_restored {}
-08:33:41.453 [iphone-29v] joiner_entered {"room":"z3vg83","myLang":"es","theirLang":"en","role":"joiner"}
-08:33:41.458 [iphone-29v] p3_perm_prop {"prop":"default","gesture":false,"n":1}
-08:33:41.458 [iphone-29v] k1_sw2_register {}
-08:33:41.459 [iphone-29v] cr3_announce {"why":"enter_room","visible":true,"lanes":0}
-08:33:41.459 [iphone-29v] pr2_declared {"why":"enter_room","inRoom":true}
-08:33:41.459 [iphone-29v] joiner_payload_applied {"room":"z3vg83","myLang":"es","theirLang":"en","title":"new thread","changed":false}
-08:33:41.459 [iphone-29v] lc_joined_plain {"room":"z3vg83"}
-08:33:41.463 [iphone-29v] w1_welcome {"n":"lilo","t":"new thread","l":"es-en"}
-08:33:41.463 [iphone-29v] pb_pull_no_pat {}
-08:33:41.467 [iphone-29v] rc_home_rendered {"cards":0,"wired":0}
-08:33:41.573 [iphone-29v] relay_open {"room":"mtqa8uykz3vg83"}
-08:33:41.573 [iphone-29v] cr3_lane_open {"room":"mtqa8uykz3vg83","explicit":true}
-08:33:41.619 [iphone-29v] p3_sw_registered {"scope":"https://acmeproducts.github.io/stuff/"}
-08:33:41.620 [iphone-29v] cr3_announce_window {"why":"boot"}
-08:33:41.626 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-08:33:41.626 [iphone-29v] joiner_create_control {"shown":false}
-08:33:41.626 [iphone-29v] c3_coalesced {"fn":"renderPanel","n":2}
-08:33:41.663 [iphone-29v] rc_home_rendered {"cards":0,"wired":0}
-08:33:41.692 [iphone-29v] r8_name_msg {"type":"hello-ack","name":"lilo","had":"lilo"}
-08:33:41.694 [iphone-29v] md1_rendered {"id":"va9csk"}
-08:33:41.695 [iphone-29v] md1_rendered {"id":"9785sp"}
-08:33:41.695 [iphone-29v] md1_rendered {"id":"2xp5gj"}
-08:33:41.695 [iphone-29v] md1_rendered {"id":"p9wcrk"}
-08:33:41.697 [iphone-29v] read_receipts_sent {"n":4}
-08:33:41.697 [iphone-29v] history_sync_merged {"n":4,"done":true}
-08:33:41.710 [iphone-29v] p3_vapid {"got":true,"push":true}
-08:33:41.714 [iphone-29v] p3_sub_failed {"name":"NotAllowedError","e":"Push notification prompting can only be done from a user gesture.","gesture":false}
-08:33:41.714 [iphone-29v] p3_gesture_armed {}
-08:33:50.725 [iphone-29v] p3_perm_prop {"prop":"granted","gesture":true,"n":2}
-08:33:50.726 [iphone-29v] joiner_create_control {"shown":false}
-08:33:50.726 [iphone-29v] joiner_panel_opened {"rooms":1}
 08:33:50.729 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 08:33:50.729 [iphone-29v] joiner_create_control {"shown":false}
 08:33:50.740 [iphone-29v] p3_perm_answer {"answer":"granted","prop":"granted"}
@@ -4002,4 +3965,41 @@ Both handsets write here. Drained 2026-09-13T17:34:40Z, every 30s. Newest at the
 17:34:34.610 [iphone-ukp] c3_coalesced {"fn":"renderPanel","n":2}
 17:34:34.626 [iphone-ukp] rc_home_rendered {"cards":1,"wired":1}
 17:34:37.187 [iphone-ukp] nopw_swept {"fields":21,"changed":1}
-17:34:37.254 [iphone-ukp] nopw_swept {"fields":21,"changed":0}```
+17:34:37.254 [iphone-ukp] nopw_swept {"fields":21,"changed":0}
+17:34:37.168 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:37.170 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:37.171 [android-5x4] joiner_create_control {"shown":true}
+17:34:37.177 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:37.179 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:37.179 [android-5x4] joiner_create_control {"shown":true}
+17:34:37.197 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:37.198 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:37.198 [android-5x4] joiner_create_control {"shown":true}
+17:34:39.606 [android-5x4] pr3_dot {"others":0}
+17:34:47.200 [android-5x4] net_relay_closed {"code":1006,"livedMs":128872,"hidden":false}
+17:34:54.600 [iphone-ukp] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+17:34:54.600 [iphone-ukp] joiner_create_control {"shown":false}
+17:34:54.600 [iphone-ukp] c3_coalesced {"fn":"renderPanel","n":2}
+17:34:54.622 [iphone-ukp] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.606 [android-5x4] cr3_announce {"why":"blur","visible":true,"lanes":3}
+17:34:54.606 [android-5x4] pr2_declared {"why":"blur","inRoom":true,"view":"room"}
+17:34:54.606 [android-5x4] cr3_attended {"on":false,"why":"blur"}
+17:34:54.606 [android-5x4] cr3_announce {"why":"blur","visible":false,"lanes":3}
+17:34:54.704 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.704 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.705 [android-5x4] joiner_create_control {"shown":true}
+17:34:54.705 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.705 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.705 [android-5x4] joiner_create_control {"shown":true}
+17:34:54.706 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.706 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.706 [android-5x4] joiner_create_control {"shown":true}
+17:34:54.706 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.706 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.706 [android-5x4] joiner_create_control {"shown":true}
+17:34:54.707 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.707 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.707 [android-5x4] joiner_create_control {"shown":true}
+17:34:54.707 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
+17:34:54.708 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
+17:34:54.708 [android-5x4] joiner_create_control {"shown":true}```
