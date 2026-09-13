@@ -72,9 +72,11 @@ jobs:
           git push origin HEAD:market-navigator-turn25-consolidation
 
       - name: Static and JavaScript gates
+        id: static
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
+          set -uo pipefail
+          {
+            python3 - <<'PY'
           from pathlib import Path
           import re
           s=Path('market-navigator-turn25-pre-ship.html').read_text()
@@ -86,8 +88,22 @@ jobs:
           Path('/tmp/market-navigator-turn25.js').write_text(scripts[-1])
           print('TURN 25 STATIC: PASS')
           PY
-          node --check /tmp/market-navigator-turn25.js
-          node --check market-navigator-turn25-qa.mjs
+            node --check /tmp/market-navigator-turn25.js
+            node --check market-navigator-turn25-qa.mjs
+          } > market-navigator-turn25-static-failure.txt 2>&1
+          rc=$?
+          cat market-navigator-turn25-static-failure.txt
+          exit "$rc"
+
+      - name: Persist static failure diagnostic
+        if: failure() && steps.static.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn25-static-failure.txt
+          git commit -m 'Record Turn 25 static failure diagnostic [turn25-diagnostic]'
+          git push origin HEAD:market-navigator-turn25-consolidation
 
       - name: Backend Sources truth gate
         run: |
