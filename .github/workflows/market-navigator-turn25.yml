@@ -135,12 +135,26 @@ jobs:
           npx playwright install --with-deps chromium >/dev/null 2>&1
 
       - name: Run cumulative semantic browser matrix
+        id: browser
         env:
           MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn25-pre-ship.html
         run: |
-          set -euo pipefail
+          set -uo pipefail
           python3 -m http.server 8123 >/tmp/mn25-server.log 2>&1 &
-          node market-navigator-turn25-qa.mjs
+          node market-navigator-turn25-qa.mjs > market-navigator-turn25-browser-failure.txt 2>&1
+          rc=$?
+          cat market-navigator-turn25-browser-failure.txt
+          exit "$rc"
+
+      - name: Persist browser failure diagnostic
+        if: failure() && steps.browser.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add market-navigator-turn25-browser-failure.txt
+          git commit -m 'Record Turn 25 browser failure diagnostic [turn25-diagnostic]'
+          git push origin HEAD:market-navigator-turn25-consolidation
 
       - name: Publish exact qualified candidate
         if: github.ref_name == 'market-navigator-turn25-consolidation'
