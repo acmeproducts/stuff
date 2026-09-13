@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Quilt — Sierpinski Carpet</title>
+<style>
+  * { box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; top: env(safe-area-inset-top, 0); left: env(safe-area-inset-left, 0); padding: 12px 16px; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); border-radius: 0 0 12px 0; font-size: 13px; line-height: 1.5; pointer-events: none; min-width: 140px; }
+  #drawer { position: fixed; bottom: env(safe-area-inset-bottom, 0); left: 0; right: 0; background: rgba(15,15,15,0.95); border-top: 1px solid #333; padding: 16px; transform: translateY(calc(100% - 56px)); transition: transform 0.25s ease; max-height: 60vh; overflow-y: auto; }
+  #drawer.open { transform: translateY(0); }
+  #drawer-handle { text-align: center; padding: 10px; cursor: pointer; font-weight: 600; letter-spacing: 0.5px; border-bottom: 1px solid #333; margin: -16px -16px 16px -16px; color: #aaa; }
+  #drawer.open #drawer-handle { color: #fff; }
+  .control { margin-bottom: 14px; }
+  label { display: block; font-size: 12px; margin-bottom: 6px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+  input[type="range"] { width: 100%; accent-color: #0f0; }
+  button { background: #222; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 8px; width: 100%; font-size: 14px; font-weight: 500; cursor: pointer; }
+  button:active { background: #333; transform: translateY(1px); }
+  .stat { color: #0f0; font-weight: 600; }
+  .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="row"><span>Depth:</span><span class="stat" id="hd">4</span></div>
+  <div class="row"><span>Visible:</span><span class="stat" id="hv">0</span></div>
+  <div class="row"><span>FPS:</span><span class="stat" id="hf">60</span></div>
+  <div class="row"><span>Render:</span><span class="stat" id="hr">0</span>ms</div>
+</div>
+<div id="drawer">
+  <div id="drawer-handle">Parameters ▲</div>
+  <div class="control">
+    <label>Recursion Depth: <span id="hl" class="stat">4</span></label>
+    <input type="range" id="depth" min="1" max="6" value="4">
+  </div>
+  <div class="control">
+    <button id="reset">Reset View</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const ui = {
+  hd: document.getElementById('hd'), hv: document.getElementById('hv'), hf: document.getElementById('hf'),
+  hr: document.getElementById('hr'), hl: document.getElementById('hl'), drawer: document.getElementById('drawer'),
+  depth: document.getElementById('depth'), reset: document.getElementById('reset'), handle: document.getElementById('drawer-handle')
+};
+
+let vw, vh, dpr;
+let state = {
+  depth: 4, scale: 1, dx: 0, dy: 0, visible: 0,
+  fps: 60, lastFrame: performance.now(), renderTime: 0
+};
+let interaction = { dragging: false, pinching: false, lastX: 0, lastY: 0, pinchDist: 0 };
+
+function updateSize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  vw = window.innerWidth;
+  vh = window.innerHeight;
+  canvas.width = Math.floor(vw * dpr);
+  canvas.height = Math.floor(vh * dpr);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+}
+window.addEventListener('resize', updateSize);
+updateSize();
+
+function resetView() {
+  const minDim = Math.min(vw, vh);
+  const size = minDim * 0.85;
+  state.scale = 1;
+  state.dx = (vw - size) / 2;
+  state.dy = (vh - size) / 2;
+}
+resetView();
+
+// recursive carpet with viewport and sub-pixel culling
+function drawCarpet(x, y, size, depth, level) {
+  const screenSize = size * state.scale;
+  const sx = x * state.scale + state.dx;
+  const sy = y * state.scale + state.dy;
+  
+  // Viewport culling
+  if (sx + screenSize < 0 || sx > vw || sy + screenSize < 0 || sy > vh) return;
+  
+  // Sub-pixel culling
+  if (screenSize < 1) return;
+  
+  if (depth === 0) {
+    const hue = (level * 35) % 360;
+    ctx.fillStyle = `hsl(${hue}, 75%, 55%)`;
+    ctx.fillRect(sx, sy, screenSize, screenSize);
+    state.visible++;
+    return;
+  }
+  
+  const newSize = size / 3;
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (i === 1 && j === 1) continue; // center hole
+      drawCarpet(x + i * newSize, y + j * newSize, newSize, depth - 1, level + 1);
+    }
+  }
+}
+
+function frame(now) {
+  const t0 = performance.now();
+  state.visible = 0;
+  
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, vw, vh);
+  
+  const minDim = Math.min(vw, vh);
+  const carpetSize = minDim * 0.85;
+  
+  drawCarpet(0, 0, carpetSize, state.depth, 0);
+  
+  state.renderTime = performance.now() - t0;
+  
+  const dt = now - state.lastFrame;
+  if (dt > 0) {
+    const instant = 1000 / dt;
+    state.fps += (instant - state.fps) * 0.1;
+  }
+  state.lastFrame = now;
+  
+  // Throttle HUD updates to reduce layout thrashing
+  if ((now | 0) % 5 === 0) {
+    ui.hd.textContent = state.depth;
+    ui.hv.textContent = state.visible;
+    ui.hf.textContent = Math.round(state.fps);
+    ui.hr.textContent = Math.round(state.renderTime);
+  }
+  
+  requestAnimationFrame(frame);
+}
+
+// Interactions
+function getDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
+canvas.addEventListener('mousedown', e => {
+  interaction.dragging = true;
+  interaction.lastX = e.clientX;
+  interaction.lastY = e.clientY;
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!interaction.dragging) return;
+  const dx = e.clientX - interaction.lastX;
+  const dy = e.clientY - interaction.lastY;
+  state.dx += dx;
+  state.dy += dy;
+  interaction.lastX = e.clientX;
+  interaction.lastY = e.clientY;
+});
+
+canvas.addEventListener('mouseup', () => interaction.dragging = false);
+canvas.addEventListener('mouseleave', () => interaction.dragging = false);
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
+  const newScale = state.scale * zoomFactor;
+  // Zoom towards cursor
+  state.dx = e.clientX - (e.clientX - state.dx) * zoomFactor;
+  state.dy = e.clientY - (e.clientY - state.dy) * zoomFactor;
+  state.scale = newScale;
+}, { passive: false });
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    interaction.dragging = true;
+    interaction.pinching = false;
+    interaction.lastX = e.touches[0].clientX;
+    interaction.lastY = e.touches[0].clientY;
+  } else if (e.touches.length === 2) {
+    interaction.dragging = false;
+    interaction.pinching = true;
+    interaction.pinchDist = getDist(e.touches);
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (interaction.pinching && e.touches.length === 2) {
+    const dist = getDist(e.touches);
+    const factor = dist / interaction.pinchDist;
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    state.dx = cx - (cx - state.dx) * factor;
+    state.dy = cy - (cy - state.dy) * factor;
+    state.scale *= factor;
+    interaction.pinchDist = dist;
+  } else if (interaction.dragging && e.touches.length === 1) {
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    state.dx += x - interaction.lastX;
+    state.dy += y - interaction.lastY;
+    interaction.lastX = x;
+    interaction.lastY = y;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  if (e.touches.length < 2) interaction.pinching = false;
+  if (e.touches.length < 1) interaction.dragging = false;
+  if (e.touches.length === 1) {
+    interaction.lastX = e.touches[0].clientX;
+    interaction.lastY = e.touches[0].clientY;
+  }
+});
+
+// UI bindings
+ui.depth.addEventListener('input', e => {
+  state.depth = parseInt(e.target.value, 10);
+  ui.hl.textContent = state.depth;
+});
+
+ui.reset.addEventListener('click', resetView);
+
+let drawerOpen = false;
+ui.handle.addEventListener('click', () => {
+  drawerOpen = !drawerOpen;
+  ui.drawer.classList.toggle('open', drawerOpen);
+});
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
