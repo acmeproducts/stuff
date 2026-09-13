@@ -18,10 +18,17 @@ new="filter(id=>{let g=IDX.includes(id)?'Other':pickerGroups25(id);return q?true
 assert s.count(old)==1,('global Add search',s.count(old))
 s=s.replace(old,new,1)
 
-# ENV must remain neutral after draw() performs its own legacy active sync.
-old="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}async function openV2"
-new="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}document.querySelectorAll('#legend [data-id]').forEach(n=>n.classList.remove('active'));$('nowChart').dataset.emphasis='false'}async function openV2"
-assert s.count(old)==1,('ENV neutral post-paint',s.count(old))
+# Turn 17/18's draw engine automatically promoted the first plotted series when
+# active was null. Neutral ENV explicitly requires no default active/reference.
+old="let model,sel=sets.find(z=>z.id===active&&z.a.length)||sets.find(z=>z.a.length);if(sel)setActive(sel.id,false);model=paint();syncActive();"
+new="let model,sel=sets.find(z=>z.id===active&&z.a.length)||sets.find(z=>z.a.length);let neutralEnv=which==='now'&&S.level===1&&!S.nowFocus;if(sel&&!neutralEnv)setActive(sel.id,false);if(neutralEnv){active=null;S.nowActive=null;S.nowFocus=null}model=paint();syncActive();"
+assert s.count(old)==1,('neutral draw fallback',s.count(old))
+s=s.replace(old,new,1)
+
+# Keep the frozen ENV snapshot neutral as well.
+old="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}document.querySelectorAll('#legend [data-id]').forEach(n=>n.classList.remove('active'));$('nowChart').dataset.emphasis='false'}async function openV2"
+new="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}$('nowChart').dataset.emphasis='false'}async function openV2"
+assert s.count(old)==1,('ENV neutral snapshot',s.count(old))
 s=s.replace(old,new,1)
 
 # Android Chromium-family pause ends/cancels the utterance. Prevent the cancelled
