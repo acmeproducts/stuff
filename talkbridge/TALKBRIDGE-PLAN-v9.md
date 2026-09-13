@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.21.0 -->
-# TALKBRIDGE MASTER PLAN v21.21.0
+<!-- TALKBRIDGE-PLAN v21.22.0 -->
+# TALKBRIDGE MASTER PLAN v21.22.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -92,6 +92,10 @@ built yet.
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
 | 28·pre-ship | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
 | 28·ship | **Multi-user, app leg** — named bubbles for N, presence count, receipts count, room-full UX; closes turn 28 | Spec §7.8 A-parts | queued | — |
+| 28·post-ship | **D-6 desktop install + D-2 PRISM un-hijack** — folder release ("/stuff/talkbridge-app/"), the proven Chrome-installability recipe (start_url, id, additive fetch handler), old-worker retirement. One release, isolated, per owner ruling 2026-09-12 that this never shares a gate with anything else. | Spec §7.5 + §7.12 recipe | queued (was backlog, now scheduled) | — |
+| 29·pre-base | Snapshot | — | queued | — |
+| 29·base | **D-1 Android lock-screen ringing — one attempt, bounded** — try the strongest legal presentation (requireInteraction, vibrate pattern, full-screen-capable notification where the platform allows); NOT a native ringer, web push cannot produce one. Gate = the attempt is made and the result is recorded, pass or fail; no open-ended chase. | Spec to be written before build (not yet §7-graded) | queued | — |
+| 29·pre-ship | **Rejoin/phrasebook edge cases** — the specific gaps noted in passing during N-1 and MD-1 work (rejoin-after-decline interactions, phrasebook edge cases surfaced but not yet enumerated) get enumerated into a real spec before this slot is built, not left loose. | Spec to be written | queued | — |
 | 27·pre-base + 27·base | IndexedDB mirror per §7.3 (DB1 kv store, DB2 dual-write + evict-restore, DB3 parity surface); cutover and multi-user are turn 28+ | Spec complete §7.3 — builds only after §7.2 accepted | — |
 
 NAMING CORRECTION 2026-08-16: the R10 candidate was mis-emitted as
@@ -4275,9 +4279,10 @@ folder URL serves the app (proves the fetch handler works), and G7 one push
 per message (proves the push half still works alongside it).
 
 
-## Backlog — deferred by owner ruling 2026-09-12 (mobile-first)
-- D-6 desktop Chrome install: root cause PROVEN (accepted worker has no fetch handler; also needs start_url + id). Recipe R-1..R-3 in §7.12. Skeleton reference: https://acmeproducts.github.io/stuff/tb-skeleton/
-- D-2 PRISM un-hijack on installed clients: open, folder release is the correct fix, deferred with D-6 since one move solves both.
+## RETIRED — former "backlog" section. Owner ruling 2026-09-13: every item must hold a turn/stage slot, nothing floats unscheduled. All three items below are now scheduled rows in §0 (28·post-ship, 29·base) and this section is kept only as a pointer, not as a holding area.
+- D-6 → scheduled 28·post-ship. Root cause PROVEN (accepted worker has no fetch handler; also needs start_url + id). Recipe R-1..R-3 in §7.12. Skeleton reference: https://acmeproducts.github.io/stuff/tb-skeleton/
+- D-2 → scheduled 28·post-ship, same release as D-6 (one move solves both).
+- D-1 → scheduled 29·base, bounded single attempt (see row).
 - Naming-convention note: any future folder release keeps turn/stage candidate names INSIDE the folder (index.html = accepted only). Recorded so the convention is never silently dropped again.
 
 
