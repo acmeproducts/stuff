@@ -1,3 +1,4 @@
+<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
@@ -8,12 +9,13 @@
 | 2026-09-12 | 3 | DEFINE | ✅ closed | DEFINE phase completed; ready to proceed to BUILD |
 | 2026-09-12 | 4 | BUILD | ⏸️ halted | R2 build opened, then owner issued "stop" — no code written; quilt.html unchanged at v3 |
 | 2026-09-12 | 5 | PAUSED | ⏸️ active | All work suspended pending owner direction |
+| 2026-09-13 | 6 | BUILD | 🔨 active | Owner "build it" command resumed R2 build; Sierpinski Carpet implementation proceeding |
 
 ## 1. RELEASES
 | # | Goal | Target |
 |---|------|--------|
 | R1 | Stabilize current Three.js instanced quilt (v3) — mobile-first, touch-friendly, performant | 2025-08-26 |
-| R2 | Add Sierpinski carpet fractal mode (pure JS, no Three.js) as alternate renderer | 2026-09-12 (paused) |
+| R2 | Add Sierpinski carpet fractal mode (pure JS, no Three.js) as alternate renderer | 2026-09-13 (active) |
 | R3 | Unify UI: single app toggling between "Wave Field" (Three.js) and "Sierpinski Quilt" (Canvas2D) | TBD |
 
 ## 2. PER-RELEASE SECTIONS
@@ -47,8 +49,8 @@
 - WebGL2 instanced attributes for custom per-instance color
 - Orientationchange handling
 
-### R2 — Sierpinski Carpet Quilt (Pure JS, Canvas2D) — ⏸️ PAUSED
-**Status:** Build halted by owner ("stop") on 2026-09-12 before any code was written. Scope below is preserved unchanged for resume.
+### R2 — Sierpinski Carpet Quilt (Pure JS, Canvas2D) — 🔨 ACTIVE
+**Status:** Build resumed 2026-09-13 per owner command.
 
 **Scope (In)**
 - Single-file HTML5, zero deps, no importmap
@@ -110,9 +112,11 @@
 | 2025-08-26 | Current codebase is Three.js v3 (instanced mesh wave field). Owner also wants a pure-JS Sierpinski carpet quilt. Plan accommodates both as R1 (stabilize current) and R2 (new pure-JS mode). | User |
 | 2026-09-12 | DEFINE phase closed; BUILD phase opened for R2 implementation. | User |
 | 2026-09-12 | Owner issued "stop" — R2 build halted immediately, no code written, quilt.html preserved at v3. Work paused until further direction. | User |
+| 2026-09-13 | Owner "build it" command resumed R2 build from paused state; implementation proceeding. | User |
 
 ## 6. APPENDIX — AUTHORITY ORDER
 1. **quilt.md** (this plan) — sole persistent authority; chat history is ephemeral and loses to the plan.
-2. **quilt.html** — implementation; must match plan's current release scope.
+2. **the-quilt.html** — implementation; must match plan's current release scope.
 3. **Owner directives in chat** — captured into plan via DECISION LOG or scope changes before code.
 4. **External docs (MDN, Three.js, etc.)** — referenced only to unblock; cited in SUMMARY.
+</plan>
