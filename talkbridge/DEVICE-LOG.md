@@ -1,9 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-13T17:37:22Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-13T17:37:54Z, every 30s. Newest at the bottom.
 
 ```
-08:33:51.909 [iphone-29v] cr3_recover {"why":"leave","n":2,"inRoom":false}
 08:33:52.015 [iphone-29v] listen_open {"room":"mtqa8uykz3vg83"}
 08:33:52.016 [iphone-29v] cr3_lane_open {"room":"mtqa8uykz3vg83","explicit":false}
 08:33:52.072 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
@@ -4002,4 +4001,5 @@ Both handsets write here. Drained 2026-09-13T17:37:22Z, every 30s. Newest at the
 17:35:21.883 [iphone-ukp] pr2_declared {"why":"hidden","inRoom":false}
 17:35:21.883 [iphone-ukp] cr3_announce {"why":"hidden","visible":false,"lanes":2}
 08:42:15.952 [iphone-xzu] cr3_announce {"why":"hidden","visible":false,"lanes":1}
-08:42:15.952 [iphone-xzu] pr2_declared {"why":"hidden","inRoom":false}```
+08:42:15.952 [iphone-xzu] pr2_declared {"why":"hidden","inRoom":false}
+17:35:46.342 [iphone-xzu] cr3_local_missed_pill_dropped {"room":"mtltqmgrabpmy3"}```
