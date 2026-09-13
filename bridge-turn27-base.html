@@ -103,8 +103,8 @@ button{font-family:inherit}
 .tog.on::after{left:21px}
 /* S4 room */
 .room-head-name{flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:6px;font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.presence-dot{width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0}
-.presence-dot.on{background:var(--green)}
+.presence-dot{width:10px;height:10px;border-radius:50%;background:#C8CFCD;border:1px solid #A9B3B1;flex-shrink:0;transition:background .12s linear,box-shadow .12s linear}
+.presence-dot.on{background:#18B368;border-color:#0E8C50;box-shadow:0 0 0 3px rgba(24,179,104,.22)}
 #transcript{flex:1;overflow-y:auto;padding:12px 12px 6px;background:var(--paper)}
 /* transcript bubble — pre-base tr-entry anatomy verbatim, light tokens */
 .msg{padding:2px 0;max-width:100%;position:relative}
@@ -609,7 +609,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 var VERSION='A7R · plan v7.1.2';
 var RELAY_WS='wss://talk-signal.myacctfortracking.workers.dev/signal';
 var RELAY_APP='talk-say-v1';
-var HEARTBEAT_MS=30000, PRESENCE_TTL=75000;
+var HEARTBEAT_MS=30000;   /* 27·base: the legacy presence time-to-live constant is deleted with the inferred-presence engine */
 function $(id){return document.getElementById(id)}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
@@ -961,7 +961,7 @@ function relayConnect(){
   ws.onclose=function(ev){
     if(ws!==_relayWs)return;
     log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);
-    setPresence(false);
+    /* 27·base: socket close no longer darkens the dot; the relay decides */
     if(S.view==='room'&&S.roomId){
       _relayReconnecting=true;renderPartnerState();
       wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(S.view==='room')relayConnect()},2000);
@@ -969,7 +969,7 @@ function relayConnect(){
   };
   ws.onerror=function(){log('relay_err',{},'error')};
 }
-function relayDisconnect(){stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;if(_relayWs){var w=_relayWs;_relayWs=null;try{w.close()}catch(_){}}setPresence(false);_relayReconnecting=false;_remoteMicOn=false;renderPartnerState()}
+function relayDisconnect(){stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;if(_relayWs){var w=_relayWs;_relayWs=null;try{w.close()}catch(_){}}/* 27·base: no setPresence here — a socket is not a person */_relayReconnecting=false;_remoteMicOn=false;renderPartnerState()}
 function relaySend(m){
   if(!_relayWs||_relayWs.readyState!==1)return false;
   m.session=S.roomId;m.from=deviceId;m.ts=m.ts||Date.now();m.seq=++seq;
@@ -992,12 +992,14 @@ function setPresence(on){
   var d=$('presence');if(d)d.classList.toggle('on',!!on);
 }
 function touchPresence(){
-  _lastPartnerSeen=Date.now();setPresence(true);
+  /* 27·base: the legacy inferred-presence engine is DELETED. Traffic no longer
+     lights the dot and no countdown darkens it; the relay's declared-presence
+     announcement is the only owner. What remains is the room's last-seen
+     bookkeeping, which is not presence. */
+  _lastPartnerSeen=Date.now();
   var rm=activeRoom();
   if(rm){rm.lastSeenAt=Date.now();
     clearTimeout(touchPresence._sv);touchPresence._sv=setTimeout(function(){saveRooms();renderRoomHead()},4000);}
-  clearTimeout(touchPresence._t);
-  touchPresence._t=setTimeout(function(){if(Date.now()-_lastPartnerSeen>=PRESENCE_TTL)setPresence(false)},PRESENCE_TTL+500);
 }
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
