@@ -3,61 +3,145 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#000000">
-<title>Quilt — Sierpinski Carpet</title>
+<meta name="theme-color" content="#0a0a0a">
+<title>Quilt — Procedural Tapestry</title>
 <style>
   * { box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; color: #eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   canvas { display: block; width: 100%; height: 100%; }
-  #hud { position: fixed; top: env(safe-area-inset-top, 0); left: env(safe-area-inset-left, 0); padding: 12px 16px; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); border-radius: 0 0 12px 0; font-size: 13px; line-height: 1.5; pointer-events: none; min-width: 140px; }
-  #drawer { position: fixed; bottom: env(safe-area-inset-bottom, 0); left: 0; right: 0; background: rgba(15,15,15,0.95); border-top: 1px solid #333; padding: 16px; transform: translateY(calc(100% - 56px)); transition: transform 0.25s ease; max-height: 60vh; overflow-y: auto; }
+  
+  /* HUD */
+  #hud { position: fixed; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); padding: 12px 16px; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border-radius: 12px; font-size: 13px; line-height: 1.5; pointer-events: none; min-width: 160px; border: 1px solid rgba(255,255,255,0.08); }
+  .row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .stat { color: #7ff; font-weight: 600; }
+  
+  /* Drawer */
+  #drawer { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(12,12,15,0.95); border-top: 1px solid #333; transform: translateY(calc(100% - 56px)); transition: transform 0.25s ease; max-height: 70vh; display: flex; flex-direction: column; }
   #drawer.open { transform: translateY(0); }
-  #drawer-handle { text-align: center; padding: 10px; cursor: pointer; font-weight: 600; letter-spacing: 0.5px; border-bottom: 1px solid #333; margin: -16px -16px 16px -16px; color: #aaa; }
+  #drawer-handle { text-align: center; padding: 14px; cursor: pointer; font-weight: 600; letter-spacing: 0.5px; color: #aaa; border-bottom: 1px solid #333; flex: 0 0 auto; background: #16161a; }
   #drawer.open #drawer-handle { color: #fff; }
-  .control { margin-bottom: 14px; }
-  label { display: block; font-size: 12px; margin-bottom: 6px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-  input[type="range"] { width: 100%; accent-color: #0f0; }
-  button { background: #222; color: #fff; border: 1px solid #444; padding: 10px 16px; border-radius: 8px; width: 100%; font-size: 14px; font-weight: 500; cursor: pointer; }
+  #drawer-content { overflow-y: auto; padding: 16px; }
+  
+  h3 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.8px; color: #888; }
+  
+  /* Neighbor Grid in Drawer */
+  .patch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .patch-cell { aspect-ratio: 1; border-radius: 8px; border: 2px solid #333; cursor: pointer; position: relative; overflow: hidden; background: #1a1a1e; }
+  .patch-cell.active { border-color: #7ff; box-shadow: 0 0 0 2px rgba(127,255,255,0.15); }
+  .patch-cell.center { background: #222; cursor: default; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #666; }
+  .patch-preview { width: 100%; height: 100%; }
+  
+  /* Controls */
+  .control { margin-bottom: 16px; }
+  label { display: block; font-size: 11px; margin-bottom: 6px; color: #aaa; text-transform: uppercase; letter-spacing: 0.6px; display: flex; justify-content: space-between; }
+  input[type="range"] { width: 100%; accent-color: #7ff; }
+  select { width: 100%; background: #222; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 6px; }
+  
+  button { background: #222; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 8px; width: 100%; font-size: 14px; cursor: pointer; margin-top: 4px; }
   button:active { background: #333; transform: translateY(1px); }
-  .stat { color: #0f0; font-weight: 600; }
-  .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  
+  .color-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  input[type="color"] { width: 36px; height: 36px; border: none; background: none; cursor: pointer; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+
 <div id="hud">
-  <div class="row"><span>Depth:</span><span class="stat" id="hd">4</span></div>
-  <div class="row"><span>Visible:</span><span class="stat" id="hv">0</span></div>
+  <div class="row"><span>Level:</span><span class="stat" id="hl">0</span></div>
+  <div class="row"><span>Zoom:</span><span class="stat" id="hz">1.0</span></div>
+  <div class="row"><span>Cells:</span><span class="stat" id="hc">0</span></div>
   <div class="row"><span>FPS:</span><span class="stat" id="hf">60</span></div>
   <div class="row"><span>Render:</span><span class="stat" id="hr">0</span>ms</div>
 </div>
+
 <div id="drawer">
-  <div id="drawer-handle">Parameters ▲</div>
-  <div class="control">
-    <label>Recursion Depth: <span id="hl" class="stat">4</span></label>
-    <input type="range" id="depth" min="1" max="6" value="4">
-  </div>
-  <div class="control">
-    <button id="reset">Reset View</button>
+  <div id="drawer-handle">Quilt Parameters ▲</div>
+  <div id="drawer-content">
+    <h3>Patch Neighborhood</h3>
+    <div class="patch-grid" id="patches"></div>
+    
+    <div id="patch-editor" style="display:none; border-top:1px solid #333; padding-top:12px;">
+      <h3>Edit Patch <span id="edit-idx" class="stat"></span></h3>
+      <div class="control">
+        <label>Type</label>
+        <select id="p-type">
+          <option value="solid">Solid</option>
+          <option value="stripesH">Stripes Horizontal</option>
+          <option value="stripesV">Stripes Vertical</option>
+          <option value="checker">Checkerboard</option>
+          <option value="dots">Polka Dots</option>
+          <option value="gradient">Gradient</option>
+          <option value="mini">Mini Carpet</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>Colors</label>
+        <div class="color-row">
+          <input type="color" id="p-col1" value="#ff6b35">
+          <input type="color" id="p-col2" value="#004e89">
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:4px;">Carpet Settings</h3>
+    <div class="control">
+      <label>Recursion Depth: <span id="hld" class="stat">4</span></label>
+      <input type="range" id="depth" min="2" max="6" value="4">
+    </div>
+    <div class="control">
+      <label>Base Hue: <span id="hlh" class="stat">200</span></label>
+      <input type="range" id="hue" min="0" max="360" value="200">
+    </div>
+    <div class="control">
+      <label>Max Levels: <span id="hml" class="stat">6</span></label>
+      <input type="range" id="maxlevels" min="3" max="9" value="6">
+    </div>
+    <button id="reset">Reset Zoom</button>
   </div>
 </div>
+
 <script>
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false });
 const ui = {
-  hd: document.getElementById('hd'), hv: document.getElementById('hv'), hf: document.getElementById('hf'),
-  hr: document.getElementById('hr'), hl: document.getElementById('hl'), drawer: document.getElementById('drawer'),
-  depth: document.getElementById('depth'), reset: document.getElementById('reset'), handle: document.getElementById('drawer-handle')
+  hl: document.getElementById('hl'), hz: document.getElementById('hz'), hc: document.getElementById('hc'),
+  hf: document.getElementById('hf'), hr: document.getElementById('hr'), drawer: document.getElementById('drawer'),
+  handle: document.getElementById('drawer-handle'), depth: document.getElementById('depth'), hue: document.getElementById('hue'),
+  maxlevels: document.getElementById('maxlevels'), reset: document.getElementById('reset'), patches: document.getElementById('patches'),
+  editor: document.getElementById('patch-editor'), editIdx: document.getElementById('edit-idx'), pType: document.getElementById('p-type'),
+  pCol1: document.getElementById('p-col1'), pCol2: document.getElementById('p-col2'), hld: document.getElementById('hld'),
+  hlh: document.getElementById('hlh'), hml: document.getElementById('hml')
 };
 
 let vw, vh, dpr;
-let state = {
-  depth: 4, scale: 1, dx: 0, dy: 0, visible: 0,
-  fps: 60, lastFrame: performance.now(), renderTime: 0
+// State
+const state = {
+  carpetDepth: 4,
+  baseHue: 200,
+  maxLevels: 6,
+  level: 0,       // Current hierarchy level (0 = base carpet)
+  scale: 1.0,     // 1.0 = center fills screen, 0.333 = neighbors fully visible
+  lastScale: 1.0,
+  stack: [],      // ImageBitmaps for each ascended level
+  neighbors: [],  // 8 patch configs
+  cellCount: 0,
+  fps: 60,
+  lastTime: performance.now(),
+  lastRender: 0
 };
-let interaction = { dragging: false, pinching: false, lastX: 0, lastY: 0, pinchDist: 0 };
 
-function updateSize() {
+// Initialize 8 neighbors with varied defaults
+const patchTypes = ['solid', 'stripesH', 'stripesV', 'checker', 'dots', 'gradient', 'mini', 'solid'];
+const patchColors = [
+  ['#ff6b35','#2a1b3d'], ['#ff6b35','#ffc15e'], ['#004e89','#1a659e'], ['#f7931e','#fcefe3'],
+  ['#2ec4b6','#011627'], ['#e71d36','#011627'], ['#662e9b','#f86624'], ['#f86624','#f9c80e']
+];
+for (let i = 0; i < 8; i++) {
+  state.neighbors.push({ type: patchTypes[i], col1: patchColors[i][0], col2: patchColors[i][1] });
+}
+
+function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   vw = window.innerWidth;
   vh = window.innerHeight;
@@ -66,173 +150,352 @@ function updateSize() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
 }
-window.addEventListener('resize', updateSize);
-updateSize();
+window.addEventListener('resize', resize);
+resize();
 
-function resetView() {
-  const minDim = Math.min(vw, vh);
-  const size = minDim * 0.85;
-  state.scale = 1;
-  state.dx = (vw - size) / 2;
-  state.dy = (vh - size) / 2;
+// Drawing primitives
+function drawPatch(x, y, size, conf, level) {
+  state.cellCount++;
+  const hueShift = (level * 15) % 360;
+  const c1 = conf.col1;
+  const c2 = conf.col2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, size, size);
+  ctx.clip();
+  
+  switch(conf.type) {
+    case 'solid':
+      ctx.fillStyle = c1;
+      ctx.fillRect(x, y, size, size);
+      break;
+    case 'stripesH':
+      ctx.fillStyle = c2;
+      ctx.fillRect(x, y, size, size);
+      ctx.fillStyle = c1;
+      const bands = 4;
+      const bh = size / bands;
+      for (let i = 0; i < bands; i += 2) ctx.fillRect(x, y + i*bh, size, bh);
+      break;
+    case 'stripesV':
+      ctx.fillStyle = c2;
+      ctx.fillRect(x, y, size, size);
+      ctx.fillStyle = c1;
+      const vbands = 4;
+      const bw = size / vbands;
+      for (let i = 0; i < vbands; i += 2) ctx.fillRect(x + i*bw, y, bw, size);
+      break;
+    case 'checker':
+      const tiles = 4;
+      const ts = size / tiles;
+      for (let i = 0; i < tiles; i++) {
+        for (let j = 0; j < tiles; j++) {
+          ctx.fillStyle = ((i+j)%2===0) ? c1 : c2;
+          ctx.fillRect(x + i*ts, y + j*ts, ts, ts);
+        }
+      }
+      break;
+    case 'dots':
+      ctx.fillStyle = c2;
+      ctx.fillRect(x, y, size, size);
+      ctx.fillStyle = c1;
+      const dc = 3;
+      const ds = size / dc;
+      const r = ds * 0.25;
+      for (let i = 0; i < dc; i++) {
+        for (let j = 0; j < dc; j++) {
+          ctx.beginPath();
+          ctx.arc(x + i*ds + ds/2, y + j*ds + ds/2, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+      break;
+    case 'gradient':
+      const grad = ctx.createLinearGradient(x, y, x + size, y + size);
+      grad.addColorStop(0, c1);
+      grad.addColorStop(1, c2);
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, size, size);
+      break;
+    case 'mini':
+      drawCarpet(x, y, size, 2, 0);
+      break;
+  }
+  // Quilt stitch border
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = Math.max(1, size * 0.015);
+  ctx.strokeRect(x, y, size, size);
+  ctx.restore();
 }
-resetView();
 
-// recursive carpet with viewport and sub-pixel culling
+// Recursive Sierpinski carpet
 function drawCarpet(x, y, size, depth, level) {
-  const screenSize = size * state.scale;
-  const sx = x * state.scale + state.dx;
-  const sy = y * state.scale + state.dy;
+  const screenSize = size; // Already transformed by caller scale
+  if (screenSize < 0.5) return; // Sub-pixel
   
-  // Viewport culling
-  if (sx + screenSize < 0 || sx > vw || sy + screenSize < 0 || sy > vh) return;
-  
-  // Sub-pixel culling
-  if (screenSize < 1) return;
-  
-  if (depth === 0) {
-    const hue = (level * 35) % 360;
-    ctx.fillStyle = `hsl(${hue}, 75%, 55%)`;
-    ctx.fillRect(sx, sy, screenSize, screenSize);
-    state.visible++;
+  if (depth <= 0) {
+    const hue = (state.baseHue + level * 15) % 360;
+    ctx.fillStyle = `hsl(${hue}, 70%, 55%)`;
+    ctx.fillRect(x, y, screenSize, screenSize);
+    state.cellCount++;
+    // Border for quilt feel
+    ctx.strokeStyle = `hsl(${hue}, 70%, 35%)`;
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(x, y, screenSize, screenSize);
     return;
   }
   
-  const newSize = size / 3;
+  const ns = size / 3;
   for (let i = 0; i < 3; i++) {
     for (let j = 0; j < 3; j++) {
-      if (i === 1 && j === 1) continue; // center hole
-      drawCarpet(x + i * newSize, y + j * newSize, newSize, depth - 1, level + 1);
+      if (i === 1 && j === 1) continue; // hole
+      drawCarpet(x + i*ns, y + j*ns, ns, depth - 1, level + 1);
     }
   }
 }
 
-function frame(now) {
+// Render the quilt hierarchy
+async function render() {
   const t0 = performance.now();
-  state.visible = 0;
+  state.cellCount = 0;
   
-  ctx.fillStyle = '#000';
+  // Rebase threshold: scale < 1/3 => zoom out to next level
+  if (state.scale <= 1/3 && state.level < state.maxLevels) {
+    // Capture current canvas for next level's center
+    try {
+      const bitmap = await createImageBitmap(canvas);
+      // If already have a bitmap at this stack index (shouldn't happen normally), close it
+      if (state.stack[state.level]) state.stack[state.level].close();
+      state.stack[state.level] = bitmap;
+      state.level++;
+      state.scale *= 3; // Reset perspective so 1.0 = center fills screen again
+    } catch(e) {
+      // Fallback: skip capture once if memory constrained
+    }
+  }
+  
+  // Unbase when zooming in: scale > 1.0 and level > 0
+  if (state.scale > 1.0 && state.level > 0) {
+    state.level--;
+    state.scale /= 3;
+    // We keep the bitmap in stack for potential zoom back out
+  }
+  
+  // Clear
+  ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, vw, vh);
   
-  const minDim = Math.min(vw, vh);
-  const carpetSize = minDim * 0.85;
+  const cx = vw / 2;
+  const cy = vh / 2;
+  const baseSize = Math.min(vw, vh) * 0.92;
+  const u = baseSize * state.scale; // Size of one cell at current zoom
   
-  drawCarpet(0, 0, carpetSize, state.depth, 0);
+  // Helper to get 8 neighbor positions (3x3 grid excluding center)
+  const positions = [
+    [-1,-1], [0,-1], [1,-1],
+    [-1, 0],          [1, 0],
+    [-1, 1], [0, 1], [1, 1]
+  ];
   
-  state.renderTime = performance.now() - t0;
+  // Draw center content
+  const cx0 = cx - u/2;
+  const cy0 = cy - u/2;
   
-  const dt = now - state.lastFrame;
-  if (dt > 0) {
-    const instant = 1000 / dt;
-    state.fps += (instant - state.fps) * 0.1;
+  if (state.level === 0) {
+    // Base level: live carpet
+    drawCarpet(cx0, cy0, u, state.carpetDepth, 0);
+  } else {
+    // Higher level: draw snapshot from stack
+    const snap = state.stack[state.level - 1];
+    if (snap) {
+      ctx.drawImage(snap, cx0, cy0, u, u);
+      state.cellCount++; // Count center as one composite cell
+    } else {
+      // Missing snapshot (shouldn't happen), draw placeholder
+      ctx.fillStyle = '#333';
+      ctx.fillRect(cx0, cy0, u, u);
+    }
   }
-  state.lastFrame = now;
   
-  // Throttle HUD updates to reduce layout thrashing
-  if ((now | 0) % 5 === 0) {
-    ui.hd.textContent = state.depth;
-    ui.hv.textContent = state.visible;
+  // Draw 8 neighbors (only if scale < 1.0 so they are visible/incoming)
+  // Actually always draw, they will be off-screen when scale=1.0
+  positions.forEach((pos, idx) => {
+    const px = cx + pos[0]*u - u/2;
+    const py = cy + pos[1]*u - u/2;
+    // Cull if far off-screen
+    if (px + u < 0 || px > vw || py + u < 0 || py > vh) return;
+    drawPatch(px, py, u, state.neighbors[idx], state.level);
+  });
+  
+  // Tapestry fade at deep levels: overlay subtle texture for "fabric" feel
+  if (state.level > 3) {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    for (let i = 0; i < vw; i += 4) ctx.fillRect(i, 0, 1, vh);
+    for (let j = 0; j < vh; j += 4) ctx.fillRect(0, j, vw, 1);
+  }
+  
+  // Stats
+  state.lastRender = performance.now() - t0;
+  const dt = performance.now() - state.lastTime;
+  if (dt > 0) state.fps += (1000/dt - state.fps)*0.1;
+  state.lastTime = performance.now();
+  
+  if ((state.lastTime|0) % 6 === 0) {
+    ui.hl.textContent = state.level;
+    ui.hz.textContent = state.scale.toFixed(2);
+    ui.hc.textContent = state.cellCount;
     ui.hf.textContent = Math.round(state.fps);
-    ui.hr.textContent = Math.round(state.renderTime);
+    ui.hr.textContent = Math.round(state.lastRender);
   }
   
-  requestAnimationFrame(frame);
+  requestAnimationFrame(render);
 }
 
-// Interactions
-function getDist(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return Math.hypot(dx, dy);
+// Input handling
+let dragging = false, pinching = false, lastX, lastY, pinchDist;
+
+function getDist(t) {
+  return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 }
 
-canvas.addEventListener('mousedown', e => {
-  interaction.dragging = true;
-  interaction.lastX = e.clientX;
-  interaction.lastY = e.clientY;
-});
-
+canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
 canvas.addEventListener('mousemove', e => {
-  if (!interaction.dragging) return;
-  const dx = e.clientX - interaction.lastX;
-  const dy = e.clientY - interaction.lastY;
-  state.dx += dx;
-  state.dy += dy;
-  interaction.lastX = e.clientX;
-  interaction.lastY = e.clientY;
+  if (!dragging) return;
+  // Panning disabled in this design (quilt is centered), but could add offset if desired
 });
-
-canvas.addEventListener('mouseup', () => interaction.dragging = false);
-canvas.addEventListener('mouseleave', () => interaction.dragging = false);
+canvas.addEventListener('mouseup', () => dragging = false);
+canvas.addEventListener('mouseleave', () => dragging = false);
 
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
-  const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
-  const newScale = state.scale * zoomFactor;
-  // Zoom towards cursor
-  state.dx = e.clientX - (e.clientX - state.dx) * zoomFactor;
-  state.dy = e.clientY - (e.clientY - state.dy) * zoomFactor;
-  state.scale = newScale;
+  const delta = e.deltaY > 0 ? 0.92 : 1.08;
+  state.scale *= delta;
 }, { passive: false });
 
 canvas.addEventListener('touchstart', e => {
-  if (e.touches.length === 1) {
-    interaction.dragging = true;
-    interaction.pinching = false;
-    interaction.lastX = e.touches[0].clientX;
-    interaction.lastY = e.touches[0].clientY;
-  } else if (e.touches.length === 2) {
-    interaction.dragging = false;
-    interaction.pinching = true;
-    interaction.pinchDist = getDist(e.touches);
+  if (e.touches.length === 2) {
+    pinching = true;
+    pinchDist = getDist(e.touches);
   }
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
-  if (interaction.pinching && e.touches.length === 2) {
-    const dist = getDist(e.touches);
-    const factor = dist / interaction.pinchDist;
-    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    state.dx = cx - (cx - state.dx) * factor;
-    state.dy = cy - (cy - state.dy) * factor;
+  if (pinching && e.touches.length === 2) {
+    const d = getDist(e.touches);
+    const factor = d / pinchDist;
     state.scale *= factor;
-    interaction.pinchDist = dist;
-  } else if (interaction.dragging && e.touches.length === 1) {
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
-    state.dx += x - interaction.lastX;
-    state.dy += y - interaction.lastY;
-    interaction.lastX = x;
-    interaction.lastY = y;
+    pinchDist = d;
   }
 }, { passive: false });
 
-canvas.addEventListener('touchend', e => {
-  if (e.touches.length < 2) interaction.pinching = false;
-  if (e.touches.length < 1) interaction.dragging = false;
-  if (e.touches.length === 1) {
-    interaction.lastX = e.touches[0].clientX;
-    interaction.lastY = e.touches[0].clientY;
+canvas.addEventListener('touchend', () => { pinching = false; });
+
+// UI Builders
+function buildPatchGrid() {
+  ui.patches.innerHTML = '';
+  // 3x3 grid, center is carpet
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const cell = document.createElement('div');
+      if (col === 1 && row === 1) {
+        cell.className = 'patch-cell center';
+        cell.textContent = 'Carpet';
+      } else {
+        const idx = (row*3 + col) - (row*3 + col > 4 ? 1 : 0) - (row===1?1:0); // rough map to 0-7
+        // Proper mapping:
+        // 0 1 2
+        // 3 . 4
+        // 5 6 7
+        let i = -1;
+        if (row===0) i = col;
+        else if (row===1) i = 3 + col; // col 0->3, col 2->4
+        else i = 5 + col;
+        
+        cell.className = 'patch-cell';
+        cell.dataset.idx = i;
+        cell.onclick = () => selectPatch(i);
+        
+        // Mini preview canvas
+        const pre = document.createElement('canvas');
+        pre.className = 'patch-preview';
+        pre.width = 100; pre.height = 100;
+        const pctx = pre.getContext('2d');
+        drawPatchPreview(pctx, state.neighbors[i], 100);
+        cell.appendChild(pre);
+      }
+      ui.patches.appendChild(cell);
+    }
   }
+}
+
+function drawPatchPreview(pctx, conf, size) {
+  // Simplified drawing for preview
+  const c1 = conf.col1, c2 = conf.col2;
+  pctx.clearRect(0,0,size,size);
+  pctx.fillStyle = c2; pctx.fillRect(0,0,size,size);
+  pctx.fillStyle = c1;
+  if (conf.type === 'solid') pctx.fillRect(0,0,size,size);
+  else if (conf.type === 'stripesH') for (let i=0;i<4;i+=2) pctx.fillRect(0,i*size/4,size,size/4);
+  else if (conf.type === 'stripesV') for (let i=0;i<4;i+=2) pctx.fillRect(i*size/4,0,size/4,size);
+  else if (conf.type === 'checker') for (let i=0;i<4;i++)for(let j=0;j<4;j++)if((i+j)%2===0)pctx.fillRect(i*size/4,j*size/4,size/4,size/4);
+  else if (conf.type === 'dots') for(let i=0;i<3;i++)for(let j=0;j<3;j++){pctx.beginPath();pctx.arc((i+0.5)*size/3,(j+0.5)*size/3,size/8,0,Math.PI*2);pctx.fill();}
+  else if (conf.type === 'gradient') {const g=pctx.createLinearGradient(0,0,size,size);g.addColorStop(0,c1);g.addColorStop(1,c2);pctx.fillStyle=g;pctx.fillRect(0,0,size,size);}
+  else if (conf.type === 'mini') {
+    pctx.fillStyle = c2; pctx.fillRect(0,0,size,size);
+    pctx.fillStyle = c1;
+    const s = size/3;
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(i!==1||j!==1)pctx.fillRect(i*s,j*s,s,s);
+  }
+}
+
+let selectedPatch = -1;
+function selectPatch(idx) {
+  selectedPatch = idx;
+  ui.editor.style.display = 'block';
+  ui.editIdx.textContent = idx + 1;
+  const p = state.neighbors[idx];
+  ui.pType.value = p.type;
+  ui.pCol1.value = p.col1;
+  ui.pCol2.value = p.col2;
+  
+  // Highlight
+  document.querySelectorAll('.patch-cell').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.patch-cell[data-idx="${idx}"]`)?.classList.add('active');
+}
+
+// UI Event Bindings
+ui.pType.addEventListener('change', e => { if (selectedPatch>=0) { state.neighbors[selectedPatch].type = e.target.value; updatePatch(); }});
+ui.pCol1.addEventListener('input', e => { if (selectedPatch>=0) { state.neighbors[selectedPatch].col1 = e.target.value; updatePatch(); }});
+ui.pCol2.addEventListener('input', e => { if (selectedPatch>=0) { state.neighbors[selectedPatch].col2 = e.target.value; updatePatch(); }});
+
+function updatePatch() {
+  buildPatchGrid();
+  selectPatch(selectedPatch);
+}
+
+ui.depth.addEventListener('input', e => { state.carpetDepth = +e.target.value; ui.hld.textContent = state.carpetDepth; });
+ui.hue.addEventListener('input', e => { state.baseHue = +e.target.value; ui.hlh.textContent = state.baseHue; });
+ui.maxlevels.addEventListener('input', e => { state.maxLevels = +e.target.value; ui.hml.textContent = state.maxLevels; });
+
+ui.reset.addEventListener('click', () => {
+  state.level = 0;
+  state.scale = 1.0;
+  // Clear stack bitmaps to free memory
+  state.stack.forEach(b => b.close?.());
+  state.stack = [];
 });
 
-// UI bindings
-ui.depth.addEventListener('input', e => {
-  state.depth = parseInt(e.target.value, 10);
-  ui.hl.textContent = state.depth;
-});
-
-ui.reset.addEventListener('click', resetView);
-
+// Drawer toggle
 let drawerOpen = false;
 ui.handle.addEventListener('click', () => {
   drawerOpen = !drawerOpen;
   ui.drawer.classList.toggle('open', drawerOpen);
 });
 
-requestAnimationFrame(frame);
+// Init
+buildPatchGrid();
+requestAnimationFrame(render);
 </script>
 </body>
 </html>
