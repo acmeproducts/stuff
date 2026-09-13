@@ -5,6 +5,19 @@ Updated: 2026-09-12
 
 Historical rejected releases remain evidence only; detailed descriptions are preserved in git history.
 
+## Permanent recovery rule
+**DO NOT PATCH FORWARD FROM A REJECTED APPLICATION RELEASE.**
+
+When an owner-tested release has a major regression, the next application candidate starts from the last known good application artifact, while current `main` is preserved only as the integration/data target. Rejected application source may be inspected to understand failure but is not a successor baseline or donor implementation.
+
+For the current recovery:
+
+- last known good application release: **Turn 22**
+- Turn 22 merge commit: `0d0681b74b55d35723ca8f2a220474a512175461`
+- approved application baseline: `market-navigator-turn22-pre-ship.html`
+- rejected successor implementation: **Turn 23**
+- Turn 24 execution authority: `MARKET-NAVIGATOR-TURN24-RECOVERY-PLAN.md`
+
 ## Current retired patterns
 - numbered V1/V2/V3/V4/V5 product terminology
 - separate Explore analytical mode
@@ -34,12 +47,33 @@ Browser TTS remains playback-only. Downloadable MP3 remains backlog until a true
 ## Retained analytical rules
 Raw/source Indexed 100 is plain relative rebasing; derived-composite direction affects composite construction only. Long-horizon display density remains native for 1D/5D/MTD, weekly for YTD/1YR, and monthly for 3YR/5YR without altering canonical evidence or full-resolution inspection/Data/AI/export.
 
-## Turn 23 retired patterns
-- rail-toggle handlers that guess canvas size or rely on fixed delays instead of observing the actual chart container
-- NOW layouts that vertically recenter or leave dead top/bottom space when the left rail changes width
-- repopulating saved provider secrets into ordinary password fields when Config renders
-- local-only custom tickers that bypass canonical evidence, Health, revisions, and Library reproducibility
-- selecting a different economic source merely because the user changes chart horizon
-- silent symbol/proxy substitution, including treating ambiguous DOW as either Dow Inc. or the Dow Jones Industrial Average without explicit identity resolution
-- treating price, total return, index level, and NAV as interchangeable measurements
-- fabricated intraday points for daily/NAV-only sources
+## Turn 23 requirements retained, implementation rejected
+The product requirements discussed for Turn 23 remain valid where explicitly accepted: responsive NOW sizing, password-manager-safe AI credential UX, and canonical Sources registration/provenance. The Turn 23 implementation is rejected and must not be copied forward.
+
+The following Turn 23 implementation patterns are permanently rejected:
+
+- rail-toggle handlers that guess canvas size or rely on fixed delays instead of observing the actual chart container;
+- NOW layouts that vertically recenter or leave dead top/bottom space when the left rail changes width;
+- a `ResizeObserver`, rail transition, orientation event, or viewport event invoking the full analytical renderer or causing evidence fetch/state recapture;
+- geometry changes mutating horizon, composition, active series, breadcrumb state, representation, or frozen evidence;
+- one view directly manipulating another view's DOM as a navigation mechanism;
+- live execution paths referencing DOM elements that were removed or retired;
+- AI provider preflight that can throw because a retired Config/modal element is missing;
+- AI qualification that tests only a verified-provider happy path and omits missing-key, unverified-provider, provider-failure, and no-artifact failure paths;
+- resize qualification that tests width change without combining horizon changes, repeated rail transitions, and analytical-state invariance assertions;
+- repopulating saved provider secrets into ordinary password fields when Config renders;
+- local-only custom tickers that bypass canonical evidence, Health, revisions, and Library reproducibility;
+- selecting a different economic source merely because the user changes chart horizon;
+- silent symbol/proxy substitution, including treating ambiguous DOW as either Dow Inc. or the Dow Jones Industrial Average without explicit identity resolution;
+- treating price, total return, index level, and NAV as interchangeable measurements;
+- fabricated intraday points for daily/NAV-only sources;
+- declaring a release qualified because static markers and successful-path browser tests pass while owner-visible failure/edge paths remain untested.
+
+## Turn 24 recovery rule
+Turn 24 must be constructed from Turn 22, not Turn 23. Turn 23 may be used only as failure evidence. Approved Turn 23 requirements are reimplemented from the written contract after the Turn 22 baseline is reproduced and qualified.
+
+The required sequence is:
+
+**restore Turn 22 baseline → prove baseline → implement one governed recovery phase → qualify normal and failure paths → continue only if green → integrate current main → exact-merge qualification → Pages → owner test**
+
+No Sources expansion or unrelated feature work may mask or delay recovery of AI POV and deterministic chart geometry.
