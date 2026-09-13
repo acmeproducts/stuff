@@ -37,6 +37,14 @@ new="let resume=libSpeechState17==='playing';if(libSpeechUtterance17)libSpeechUt
 assert s.count(old)==2,('speech navigation cancel',s.count(old))
 s=s.replace(old,new,2)
 
+# Credential replacement is driven by existence of a saved working key, not by
+# incidental verification-display state. A registered key is never repopulated;
+# Replace key exposes an empty draft; Cancel restores the registered display.
+old="function keyRow25(p){return document.querySelector(`[data-key-row=\"${p}\"]`)}function renderAIConfig(){let r=aiRegistry(),ps=r.providers||{};$('defaultProvider').value=r.defaultProvider||'venice';for(let p of ['venice','openrouter','anthropic']){let q=ps[p]||{},replacing=!!S.keyReplace25[p],row=keyRow25(p),btn=document.querySelector(`[data-replace-key=\"${p}\"]`);$(p+'Key').value='';row?.classList.toggle('hidden',!!q.verified&&!replacing);if(btn){btn.classList.toggle('hidden',!q.verified);btn.textContent=replacing?'Cancel replacement':'Replace key'}if(p==='anthropic')$('anthropicModel').value=q.model||'';else fillModelSelect(p+'Model',q.models||([q.model].filter(Boolean)),q.model);setPStatus(p,q.verified?`registered · ${q.model}`:(q.key?'saved · validation required':'not registered'),q.verified?true:null)}$('cfgSummary').textContent=`Default: ${providerName($('defaultProvider').value)}. Registered keys remain browser-local and are not repopulated into editable fields.`}function workingKey25(p){let typed=$(p+'Key').value.trim(),q=providerRec(p);return typed||q.key||''}"
+new="function keyRow25(p){return document.querySelector(`[data-key-row=\"${p}\"]`)}function renderAIConfig(){let r=aiRegistry(),ps=r.providers||{};$('defaultProvider').value=r.defaultProvider||'venice';for(let p of ['venice','openrouter','anthropic']){let q=ps[p]||{},hasKey=!!q.key,replacing=!!S.keyReplace25[p],row=keyRow25(p),btn=document.querySelector(`[data-replace-key=\"${p}\"]`),key=$(p+'Key');key.value='';row?.classList.toggle('hidden',hasKey&&!replacing);if(btn){btn.classList.toggle('hidden',!hasKey);btn.hidden=!hasKey;btn.textContent=replacing?'Cancel replacement':'Replace key';btn.setAttribute('aria-expanded',String(replacing))}if(p==='anthropic')$('anthropicModel').value=q.model||'';else fillModelSelect(p+'Model',q.models||([q.model].filter(Boolean)),q.model);setPStatus(p,q.verified?`registered · ${q.model}`:(hasKey?'saved · validation required':'not registered'),q.verified?true:null)}$('cfgSummary').textContent=`Default: ${providerName($('defaultProvider').value)}. Registered keys remain browser-local and are not repopulated into editable fields.`}function workingKey25(p){let typed=$(p+'Key').value.trim(),q=providerRec(p);return typed||q.key||''}"
+assert s.count(old)==1,('credential transactional display',s.count(old))
+s=s.replace(old,new,1)
+
 APP.write_text(s)
 
 q=QA.read_text()
@@ -50,6 +58,12 @@ q=q.replace(old,new,1)
 old="await p.reload({waitUntil:'networkidle'});await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');"
 new="await p.reload({waitUntil:'networkidle'});if(await p.locator('#rail').evaluate(el=>el.classList.contains('closed')))await p.locator('#toggle').click();await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');if(!(await p.locator('#libListenMode').isVisible())){await p.locator('#libList [data-id]').first().click();await p.waitForFunction(()=>document.querySelector('#libraryWorkspace')?.classList.contains('detailOpen'))}"
 assert q.count(old)==1,('TTS phone navigation',q.count(old))
+q=q.replace(old,new,1)
+
+# Keep the credential assertion semantic, but include observable state if it fails.
+old="assert.equal(await key.isHidden(),true);assert.equal(await replace.isVisible(),true);await replace.click();"
+new="assert.equal(await key.isHidden(),true,'registered key field hidden');let replaceState=await replace.evaluate(el=>({visible:!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length),hidden:el.hidden,cls:el.className,parent:el.parentElement?.className||'',panel:document.querySelector('#cfgAi')?.className||''}));assert.equal(replaceState.visible,true,`Replace key explicit ${JSON.stringify(replaceState)}`);await replace.click();"
+assert q.count(old)==1,('credential QA observability',q.count(old))
 q=q.replace(old,new,1)
 QA.write_text(q)
 
