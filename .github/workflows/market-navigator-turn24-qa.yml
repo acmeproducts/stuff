@@ -61,8 +61,7 @@ jobs:
           MARKET_NAVIGATOR_URL: http://127.0.0.1:8123/market-navigator-turn24-pre-ship.html
         run: |
           set -euo pipefail
-          npm init -y >/dev/null 2>&1
-          npm i playwright@1.55.0 >/dev/null 2>&1
+          npm install --no-save --package-lock=false playwright@1.55.0 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
           python3 -m http.server 8123 >/tmp/mn24-server.log 2>&1 &
           node market-navigator-turn22-qa.mjs
@@ -93,7 +92,16 @@ jobs:
           git config user.name "acmeproducts"
           git config user.email "182510693+acmeproducts@users.noreply.github.com"
           git add market-navigator-turn24-pre-ship.html
+          if ! git diff --quiet; then
+            echo 'Unexpected tracked workspace changes after qualification:'
+            git status --short
+            exit 1
+          fi
           if git diff --cached --quiet; then echo 'Qualified artifact already current.'; exit 0; fi
+          git fetch origin market-navigator-turn24-recovery
+          test "$(git rev-parse origin/market-navigator-turn24-recovery)" = "$GITHUB_SHA" || {
+            echo 'Recovery branch advanced during qualification; refusing to rebase a build workspace.'
+            exit 1
+          }
           git commit -m "Market Navigator Turn 24 qualified candidate"
-          git pull --rebase origin market-navigator-turn24-recovery
           git push origin HEAD:market-navigator-turn24-recovery
