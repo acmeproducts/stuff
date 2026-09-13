@@ -3,77 +3,103 @@
 Status: NEGATIVE SPECIFICATION
 Updated: 2026-09-12
 
-Historical rejected releases remain evidence only; detailed descriptions are preserved in git history.
+Historical rejected releases remain evidence only; detailed descriptions remain in git history.
 
 ## Permanent recovery rule
 **DO NOT PATCH FORWARD FROM A REJECTED APPLICATION RELEASE.**
 
-When an owner-tested release has a major regression, the next application candidate starts from the last known good application artifact, while current `main` is preserved only as the integration/data target. Rejected application source may be inspected to understand failure but is not a successor baseline or donor implementation.
+When owner testing exposes a material regression, the next recovery starts from the last artifact that actually proved the affected capability. Current `main` remains the integration/data target; rejected application source may be inspected for requirements and failure evidence but is not a successor baseline or donor implementation.
 
 For the current recovery:
+- approved rollback application release: **Turn 18**
+- qualified release commit: `97b8c028778f36380de821591e3d6c8125fb14f9`
+- approved application baseline: `market-navigator-turn18-pre-ship.html`
+- approved application blob: `4a52c7e764513024176aea80cc13c56e05370c11`
+- rejected as application recovery donors: **Turns 19, 20, 21, 22, 23 and 24**
+- execution authority: **`MARKET-NAVIGATOR-MASTER-PLAN.md` only**
 
-- last known good application release: **Turn 22**
-- Turn 22 merge commit: `0d0681b74b55d35723ca8f2a220474a512175461`
-- approved application baseline: `market-navigator-turn22-pre-ship.html`
-- rejected successor implementation: **Turn 23**
-- Turn 24 execution authority: `MARKET-NAVIGATOR-TURN24-RECOVERY-PLAN.md`
+There is no separate recovery-plan document.
 
-## Current retired patterns
-- numbered V1/V2/V3/V4/V5 product terminology
-- separate Explore analytical mode
-- separate Component analytical page/modal
-- duplicated-index breadcrumbs such as ENV / GRW / GRW
+## Permanent test-integrity rule
+A test may not claim to cover a capability by asserting only adjacent UI state.
+
+Permanently rejected examples:
+- TTS test that stubs `speechSynthesis.speak()` as a no-op and then checks only that Play changed to Pause;
+- data-source test that checks a green Health label without proving chart/selectability/evidence behavior;
+- AI test that checks navigation without proving provider request/result persistence;
+- resize test that checks width without proving horizon/composition/evidence invariance;
+- persistence test that checks a toast without re-reading durable state.
+
+For Library Listen/TTS, qualification must observe a non-empty utterance handed to the speech engine mock and must exercise response/row transport. A cosmetic button-state assertion is insufficient.
+
+**Never weaken a retained regression test when carrying a capability forward.** A replacement gate must be at least as semantically strong as the gate it supersedes.
+
+## Current retired product patterns
+- numbered V1/V2/V3/V4/V5 terminology in the intended product
+- separate Explore analytical mode in the intended product
+- separate Component analytical page/modal in the intended product
+- duplicated-index breadcrumbs such as `ENV / GRW / GRW`
 - default-selected RSK on ENV load
-- breadcrumb wrapping or displacement of horizons/menu
+- breadcrumb wrapping/displacement of horizons/menu
 - raw-source direction inversion
 - synthetic/fallback chart evidence
 - duplicate chart/discovery/AI state engines
 - clipped mobile Listen controls
 - fake MP3 export from browser speech synthesis
 
-## Turn 22 architecture
-NOW is one chart workspace with a neutral ENV state and one anchored-index context. The anchored context may be collapsed as `ENV / GRW` or expanded as `ENV / GRW / COMPONENTS`. `COMPONENTS` is a non-clickable state marker.
+## Retained intended architecture
+The intended reconstructed product remains one NOW chart workspace with neutral ENV and one anchored-index context. Anchored state may be collapsed (`ENV / GRW`) or expanded (`ENV / GRW / COMPONENTS`). `COMPONENTS` is a non-clickable state marker.
 
-ENV loads with RSK, GRW and MAC visible normally and no default-selected chip.
+ENV has RSK, GRW and MAC visible with no default selected chip. In anchored context the anchor cannot be removed; component/comparison chips are removable; Add is available; Add discovery replaces Explore.
 
-In an anchored index context, the anchor series cannot be removed. Its chip has no remove control. Component and comparison chips are removable. Add is always available. In expanded state chip taps select/reference only. Tapping the index breadcrumb collapses to the index-only state. Tapping the sole anchor chip in collapsed state restores the governed component basket. Tapping ENV exits the anchored context.
+Library owns a frozen chart, transcript, continuation composer and Listen/Chat modes. The Listen strip contains centered progress plus exactly five transport controls and no duplicate analysis title.
 
-The useful discovery capability formerly in Explore is consolidated into Add, including full-catalog search, Risk/Growth/Macro/Other grouping, cadence, unit, horizon availability, Health, About/source metadata, and insertion. Adding another derived index as a comparison does not expand that index basket.
-
-The Library Listen strip no longer contains the analysis title. The Library header owns the title. The strip reserves geometry for centered transport controls and compact progress text only.
-
-Browser TTS remains playback-only. Downloadable MP3 remains backlog until a true file-producing TTS provider is introduced.
+Browser TTS remains playback-only. Downloadable MP3 remains backlog until a real file-producing TTS provider exists.
 
 ## Retained analytical rules
-Raw/source Indexed 100 is plain relative rebasing; derived-composite direction affects composite construction only. Long-horizon display density remains native for 1D/5D/MTD, weekly for YTD/1YR, and monthly for 3YR/5YR without altering canonical evidence or full-resolution inspection/Data/AI/export.
+Raw/source Indexed 100 is plain relative rebasing. Derived-composite direction affects composite construction only and never source display.
 
-## Turn 23 requirements retained, implementation rejected
-The product requirements discussed for Turn 23 remain valid where explicitly accepted: responsive NOW sizing, password-manager-safe AI credential UX, and canonical Sources registration/provenance. The Turn 23 implementation is rejected and must not be copied forward.
+Display density remains native for 1D/5D/MTD, weekly for YTD/1YR, and monthly for 3YR/5YR without altering canonical evidence or full-resolution inspection/Data/AI/export.
 
-The following Turn 23 implementation patterns are permanently rejected:
+No fabricated intraday evidence, forward fill, horizon-end restamping, or proxy substitution.
 
-- rail-toggle handlers that guess canvas size or rely on fixed delays instead of observing the actual chart container;
-- NOW layouts that vertically recenter or leave dead top/bottom space when the left rail changes width;
-- a `ResizeObserver`, rail transition, orientation event, or viewport event invoking the full analytical renderer or causing evidence fetch/state recapture;
-- geometry changes mutating horizon, composition, active series, breadcrumb state, representation, or frozen evidence;
-- one view directly manipulating another view's DOM as a navigation mechanism;
-- live execution paths referencing DOM elements that were removed or retired;
-- AI provider preflight that can throw because a retired Config/modal element is missing;
-- AI qualification that tests only a verified-provider happy path and omits missing-key, unverified-provider, provider-failure, and no-artifact failure paths;
-- resize qualification that tests width change without combining horizon changes, repeated rail transitions, and analytical-state invariance assertions;
-- repopulating saved provider secrets into ordinary password fields when Config renders;
-- local-only custom tickers that bypass canonical evidence, Health, revisions, and Library reproducibility;
-- selecting a different economic source merely because the user changes chart horizon;
-- silent symbol/proxy substitution, including treating ambiguous DOW as either Dow Inc. or the Dow Jones Industrial Average without explicit identity resolution;
-- treating price, total return, index level, and NAV as interchangeable measurements;
+## Turn 19 qualification regression — permanent lesson
+Turn 18 qualification imported the complete Turn 17 regression matrix, including an observable TTS mock and the assertion that `window.__qaSpeech.last.text` contains spoken content after Play.
+
+Turn 19 replaced that protection with a speech mock whose `speak()` performed no observable action. Subsequent tests could pass by seeing only the UI enter a playing state. That weakening propagated into later retained matrices and allowed Turn 24 to be declared green even though owner/device TTS was broken.
+
+Permanently prohibited:
+- replacing a semantic capability assertion with a cosmetic assertion;
+- claiming a retained-product matrix when retained gates were silently weakened;
+- treating a green CI run as evidence for behavior the harness never observed;
+- promoting a release to last-known-good for a capability that was not actually qualified.
+
+## Turn 23 implementation patterns permanently rejected
+- rail handlers that guess canvas size or rely on fixed delays;
+- NOW layouts that recenter vertically or leave dead top/bottom space during rail changes;
+- ResizeObserver/rail/orientation/viewport events invoking full analytical render or evidence fetch;
+- geometry changes mutating horizon, composition, active series, breadcrumb, representation or frozen evidence;
+- one view manipulating another view's private DOM as navigation;
+- live references to retired DOM IDs;
+- AI provider preflight that throws because retired Config/modal DOM is missing;
+- AI happy-path-only qualification;
+- resize qualification without horizon changes, repeated transitions and analytical invariants;
+- repopulating saved provider secrets into ordinary editable password fields;
+- local-only custom tickers bypassing canonical evidence/Health/revisions/Library reproducibility;
+- provider-per-horizon economic identity switching;
+- silent symbol/proxy substitution, including ambiguous DOW;
+- treating price, total return, index level and NAV as interchangeable;
 - fabricated intraday points for daily/NAV-only sources;
-- declaring a release qualified because static markers and successful-path browser tests pass while owner-visible failure/edge paths remain untested.
+- declaring qualification from static markers and successful paths while owner-visible failure paths remain untested.
 
-## Turn 24 recovery rule
-Turn 24 must be constructed from Turn 22, not Turn 23. Turn 23 may be used only as failure evidence. Approved Turn 23 requirements are reimplemented from the written contract after the Turn 22 baseline is reproduced and qualified.
+## Turn 24 status
+Turn 24 is rejected as the active application successor because owner testing found broken TTS after the release had passed its automated gates.
 
-The required sequence is:
+Turn 24's accepted written requirements remain requirements only: unified NOW, geometry-only resizing, AI transition recovery, credential-safe Config, canonical Sources, DOW→DJIA identity, and Config-created source handling. Those requirements may be reconstructed from the Master Plan after Turn 18 rollback qualification and owner/device confirmation.
 
-**restore Turn 22 baseline → prove baseline → implement one governed recovery phase → qualify normal and failure paths → continue only if green → integrate current main → exact-merge qualification → Pages → owner test**
+Turn 24 application HTML/JS/CSS is not a donor for that reconstruction.
 
-No Sources expansion or unrelated feature work may mask or delay recovery of AI POV and deterministic chart geometry.
+## Current recovery sequence
+**exact Turn 18 artifact → exact blob proof → full Turn 17 + Turn 18 semantic qualification → Pages rollback URL → owner/device test → clean reconstruction from written requirements only**.
+
+Do not begin successor application mutation before the rollback baseline is proved.
