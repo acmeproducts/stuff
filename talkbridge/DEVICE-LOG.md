@@ -1,10 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-13T17:38:59Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-13T17:39:31Z, every 30s. Newest at the bottom.
 
 ```
-08:34:36.922 [iphone-29v] rc_home_rendered {"cards":0,"wired":0}
-08:34:56.894 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
 08:34:56.894 [iphone-29v] joiner_create_control {"shown":false}
 08:34:56.917 [iphone-29v] rc_home_rendered {"cards":0,"wired":0}
 08:35:16.889 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
@@ -4002,4 +4000,6 @@ Both handsets write here. Drained 2026-09-13T17:38:59Z, every 30s. Newest at the
 17:38:48.776 [android-5x4] joiner_create_control {"shown":true}
 17:38:48.781 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
 17:38:48.783 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
-17:38:48.783 [android-5x4] joiner_create_control {"shown":true}```
+17:38:48.783 [android-5x4] joiner_create_control {"shown":true}
+17:38:58.798 [android-5x4] net_relay_closed {"code":1006,"livedMs":14643,"hidden":true}
+17:39:16.707 [android-5x4] pr3_dot {"others":0}```
