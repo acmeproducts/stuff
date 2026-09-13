@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.12.0 -->
-# TALKBRIDGE MASTER PLAN v21.12.0
+<!-- TALKBRIDGE-PLAN v21.13.0 -->
+# TALKBRIDGE MASTER PLAN v21.13.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | Spec §7.2 pending rewrite | **BLOCKED** | — |
+| 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | Spec §7.13 (supersedes §7.2) | **SPEC WRITTEN 2026-09-12 — awaiting owner review, then GO. Nothing builds before approval.** | — |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4282,3 +4282,82 @@ per message (proves the push half still works alongside it).
 
 ## PROCESS RULE RESTATED 2026-09-12 (owner)
 A released candidate is IMMUTABLE. When any part of a candidate is rejected, the whole candidate dies and is buried; the next candidate is built fresh from the accepted base. Never edit a released artifact in place. Never layer a fix onto a candidate that is already out for gate. No known-broken behavior is shipped as 'good enough'.
+
+────────────────────────────────────────────────────────────────────────
+## §7.13 BUILDER SPEC — 27·base: PRESENCE (declared) + NOTIFICATIONS
+────────────────────────────────────────────────────────────────────────
+Supersedes §7.2. Owner ruling 2026-09-12: "they must be in the room to be
+present" — backgrounded or locked is GONE. No timers, no grace, no
+client-side masking. One spec, one candidate, agreed before any build.
+
+### The finding this is built on (evidence, not design opinion)
+D-4 records presence has never worked; there is no golden build to restore.
+Attempt 1 lit the dot from arriving traffic. Attempt 2 (N17, current) lights
+it from the relay's count of connected socket ids — G40 records the blink,
+because a device holds several sockets and re-attaches on focus. This
+project already buried socket-derived presence as a defective class with the
+rule "a socket is not a person" (§4.6 A3). The dot still violates it.
+ALREADY IN THE CODE, UNUSED BY THE DOT: the client computes
+`{visible, inRoom, muted}` (inRoom = visible AND view==='room' AND the room
+matches) and sends it on `ev-state` and on every `ping`; the relay stores it
+per clientId in `this.states`. Presence therefore becomes a READ of declared
+state, not a new mechanism.
+
+### Part PR-1 — relay v6.4, one function changed
+`_announcePeers()` (worker-talk.js ~653) today: `ids = _connectedIds()`,
+`others = ids minus self`, sends `{others: others.length, focused}`.
+CHANGE TO: build the present set from DECLARED state, keyed by clientId —
+a clientId counts when `this.states[id]` exists AND `st.inRoom === true`
+AND the id is not self. Send `{type:'peer', transient:true, others:
+<count>, focused: <count>0>, at}` — wire shape unchanged, so the frozen app
+handler needs no change. Sockets no longer count anyone; they only carry
+the declaration.
+STALE-STATE CLEANUP (the only socket use that remains, and it is cleanup,
+not presence): in `webSocketClose`, if the closing socket's clientId has no
+other open socket, delete `this.states[clientId]` before announcing — an
+app killed without declaring leaves no ghost. A device that merely
+re-attaches a socket is unaffected because it re-sends its state on the new
+socket's first ping.
+Announce triggers stay exactly as they are (join, ev-state, ping with a
+visible flag, close).
+
+### Part PR-2 — app: declare on entering and leaving a room
+Verify by grep, then wrap ONLY what is missing (the build reports which):
+the client must send a fresh `ev-state` at: room open, room close/back to
+list, `visibilitychange` both directions (already present, line ~8276),
+and `pagehide`. Each wrap calls through and then announces; no new state is
+invented, no timers. Log `pr2_declared {inRoom}`.
+
+### Part K1 — notifications (unchanged from the buried candidate, rebuilt
+fresh on the accepted base): new file `tb-sw2.js`, byte-identical to the
+accepted `tb-sw.js` except icon, badge, and call renotify/tag; registration
+rewritten to it; old `tb-sw.js` registrations retire ONLY on exact script
+match and ONLY after the new push subscription is live. Accepted
+`tb-sw.js` is never modified.
+
+### Part C3 — render coalescing: rAF latch on renderPanel/renderHome.
+
+### Machine gates
+M1 frozen accepted body byte-identical. M2 block parses. M3 relay diff =
+`_announcePeers` body + the webSocketClose cleanup line ONLY (unified diff
+asserted). M4 `tb-sw2.js` diff vs accepted worker = icon/badge/renotify/tag
+lines only. M5 grep: no `setTimeout` anywhere in the presence path; no
+`_connectedIds` inside `_announcePeers`. M6 relay 3-socket harness: one
+device with two sockets declaring inRoom counts as 1; a second device
+declaring inRoom makes 2; that device declaring hidden makes 1 again
+without any socket closing.
+MUTATIONS (plant → must fail → remove): (a) count sockets again → M5/M6
+fail; (b) add any grace timer → M5 fails; (c) retire workers on a loose
+match → K1 gate fails; (d) skip the stale-state cleanup → M6 ghost case
+fails.
+
+### Device gate
+G1 Both phones in the room, both foreground: both dots lit, steady for two
+minutes with no traffic. G2 Partner presses home / locks: dot goes dark at
+once, no timer. G3 Partner returns: lit at once. G4 Partner switches to the
+room list but stays in the app: dark (in the app is not in the room).
+G5 Partner force-quits: dark. G6 App closed, message arrives: alert carries
+the TalkBridge icon. G7 Call with phone locked: vibrates, tap opens the
+call. G8 One push per message, no duplicates.
+PASS = all eight. Any miss: candidate dies, buried, rebuilt from accepted
+base — never edited in place (G50).
