@@ -45,6 +45,13 @@ new="function keyRow25(p){return document.querySelector(`[data-key-row=\"${p}\"]
 assert s.count(old)==1,('credential transactional display',s.count(old))
 s=s.replace(old,new,1)
 
+# openConfig now accepts an optional tab argument. A DOM onclick binding passes
+# the click Event as the first argument, so the gear must bind explicitly to AI.
+old="$('settingsGear').onclick=openConfig;"
+new="$('settingsGear').onclick=()=>openConfig('ai');"
+assert s.count(old)==1,('Config gear explicit AI tab',s.count(old))
+s=s.replace(old,new,1)
+
 APP.write_text(s)
 
 q=QA.read_text()
