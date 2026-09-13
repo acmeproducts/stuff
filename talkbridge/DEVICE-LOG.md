@@ -1,19 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-13T17:35:13Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-13T17:35:45Z, every 30s. Newest at the bottom.
 
 ```
-08:33:50.729 [iphone-29v] rc_panel_rendered {"live":1,"bin":0,"wired":1}
-08:33:50.729 [iphone-29v] joiner_create_control {"shown":false}
-08:33:50.740 [iphone-29v] p3_perm_answer {"answer":"granted","prop":"granted"}
-08:33:50.754 [iphone-29v] rc_home_rendered {"cards":0,"wired":0}
-08:33:50.843 [iphone-29v] p3_vapid {"got":true,"push":true}
-08:33:50.947 [iphone-29v] p3_sub_ok {"endpoint":"https://web.push.apple.com/QKcv5yO9LgM22"}
-08:33:51.040 [iphone-29v] p3_room_registered {"room":"z3vg83","ok":true}
-08:33:51.866 [iphone-29v] r8_clock_home {}
-08:33:51.867 [iphone-29v] gen_bump {"n":3,"r":"room_leave"}
-08:33:51.868 [iphone-29v] cr3_leave_lane {"room":"mtqa8uykz3vg83"}
-08:33:51.868 [iphone-29v] cr3_announce {"why":"leave_room","visible":true,"lanes":0}
 08:33:51.868 [iphone-29v] pr2_declared {"why":"leave_room","inRoom":true}
 08:33:51.908 [iphone-29v] cr3_announce {"why":"leave","visible":true,"lanes":0}
 08:33:51.909 [iphone-29v] cr3_recover {"why":"leave","n":2,"inRoom":false}
@@ -4002,4 +3991,15 @@ Both handsets write here. Drained 2026-09-13T17:35:13Z, every 30s. Newest at the
 17:34:54.707 [android-5x4] joiner_create_control {"shown":true}
 17:34:54.707 [android-5x4] rc_panel_rendered {"live":3,"bin":0,"wired":3}
 17:34:54.708 [android-5x4] rc_home_rendered {"cards":1,"wired":1}
-17:34:54.708 [android-5x4] joiner_create_control {"shown":true}```
+17:34:54.708 [android-5x4] joiner_create_control {"shown":true}
+17:35:14.604 [iphone-ukp] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+17:35:14.604 [iphone-ukp] joiner_create_control {"shown":false}
+17:35:14.622 [iphone-ukp] rc_home_rendered {"cards":1,"wired":1}
+17:35:14.623 [iphone-ukp] rc_panel_rendered {"live":2,"bin":0,"wired":2}
+17:35:14.623 [iphone-ukp] joiner_create_control {"shown":false}
+17:35:14.638 [iphone-ukp] rc_home_rendered {"cards":1,"wired":1}
+17:35:21.881 [iphone-ukp] cr3_attended {"on":false,"why":"blur"}
+17:35:21.881 [iphone-ukp] cr3_announce {"why":"blur","visible":false,"lanes":2}
+17:35:21.883 [iphone-ukp] cr3_announce {"why":"hidden","visible":false,"lanes":2}
+17:35:21.883 [iphone-ukp] pr2_declared {"why":"hidden","inRoom":false}
+17:35:21.883 [iphone-ukp] cr3_announce {"why":"hidden","visible":false,"lanes":2}```
