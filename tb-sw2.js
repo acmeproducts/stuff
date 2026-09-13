@@ -78,7 +78,7 @@ self.addEventListener('push', function (e) {
       var data = { eventId: ev.id, roomId: ev.room, callId: ev.callId || null, kind: ev.kind, url: d.url };
       var isCall = (ev.kind === 'voice' || ev.kind === 'video');
       var opts = { body: d.body, tag: d.tag, renotify: false, silent: false, data: data };
-      /* K1 (27·base, tb-sw2.js) — the alert wears the app's face. */
+      /* K1 (27·base) — the alert wears the app's face. */
       opts.icon = self.registration.scope + 'icon-192.png';
       opts.badge = self.registration.scope + 'icon-badge-96.png';
       if (isCall) { opts.requireInteraction = true; opts.vibrate = [300, 150, 300, 150, 300]; opts.renotify = true; opts.tag = 'tb-call'; }
