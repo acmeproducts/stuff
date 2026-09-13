@@ -1,4 +1,4 @@
-<!-- 27·base · bridge-turn27-base.html · accepted 26·post-ship bytes 4bc088db89b6 + PR-2 (declare on room enter, view change, hide/show/blur/focus/pagehide — in tabs as well as the installed app) + PR-3 (one owner of the dot: legacy traffic-lighting and socket-close darkening retired without editing frozen lines) + PR-4 (the relay word is the only door to the dot) · pair: relay v6.5 (presence read from declared state; ghost cleanup on last socket close) -->
+<!-- 27·base · bridge-turn27-base.html · from accepted 26·post-ship 4bc088db89b6 with the legacy presence engine and the superseded P1 block DELETED (nothing wrapped, nothing dormant) + PR-2 (declare on room entry, view change, hide/show/blur/focus/pagehide, tabs included) + PR-3 (relay word is the sole owner of the dot) · pair: relay v6.5 -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -609,7 +609,7 @@ textarea::placeholder,input::placeholder{color:var(--ink-dim)}
 var VERSION='A7R · plan v7.1.2';
 var RELAY_WS='wss://talk-signal.myacctfortracking.workers.dev/signal';
 var RELAY_APP='talk-say-v1';
-var HEARTBEAT_MS=30000, PRESENCE_TTL=75000;
+var HEARTBEAT_MS=30000;
 function $(id){return document.getElementById(id)}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
@@ -939,7 +939,7 @@ var QR=(function(){
 })();
 
 /* ════════════ RELAY TRANSPORT (quarried protocol: pre-base) ════════════ */
-var _relayWs=null,hbTimer=null,wsReconnectTimer=null,seq=0,_lastPartnerSeen=0,_relayReconnecting=false,_remoteMicOn=false;
+var _relayWs=null,hbTimer=null,wsReconnectTimer=null,seq=0,_relayReconnecting=false,_remoteMicOn=false;
 function renderPartnerState(){
   if(!CALL.active||CALL.connBad)return; // idle/connBad states are owned by the durTimer tick and mount/hangup paths
   var el=$('rz-timer');if(el&&_remoteMicOn)el.textContent='Speaking…';
@@ -961,7 +961,6 @@ function relayConnect(){
   ws.onclose=function(ev){
     if(ws!==_relayWs)return;
     log('relay_close',{code:ev.code},'warn');stopHB();clearTimeout(wsReconnectTimer);
-    setPresence(false);
     if(S.view==='room'&&S.roomId){
       _relayReconnecting=true;renderPartnerState();
       wsReconnectTimer=setTimeout(function(){wsReconnectTimer=null;if(S.view==='room')relayConnect()},2000);
@@ -969,7 +968,7 @@ function relayConnect(){
   };
   ws.onerror=function(){log('relay_err',{},'error')};
 }
-function relayDisconnect(){stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;if(_relayWs){var w=_relayWs;_relayWs=null;try{w.close()}catch(_){}}setPresence(false);_relayReconnecting=false;_remoteMicOn=false;renderPartnerState()}
+function relayDisconnect(){stopHB();clearTimeout(wsReconnectTimer);wsReconnectTimer=null;if(_relayWs){var w=_relayWs;_relayWs=null;try{w.close()}catch(_){}}_relayReconnecting=false;_remoteMicOn=false;renderPartnerState()}
 function relaySend(m){
   if(!_relayWs||_relayWs.readyState!==1)return false;
   m.session=S.roomId;m.from=deviceId;m.ts=m.ts||Date.now();m.seq=++seq;
@@ -992,12 +991,9 @@ function setPresence(on){
   var d=$('presence');if(d)d.classList.toggle('on',!!on);
 }
 function touchPresence(){
-  _lastPartnerSeen=Date.now();setPresence(true);
   var rm=activeRoom();
   if(rm){rm.lastSeenAt=Date.now();
     clearTimeout(touchPresence._sv);touchPresence._sv=setTimeout(function(){saveRooms();renderRoomHead()},4000);}
-  clearTimeout(touchPresence._t);
-  touchPresence._t=setTimeout(function(){if(Date.now()-_lastPartnerSeen>=PRESENCE_TTL)setPresence(false)},PRESENCE_TTL+500);
 }
 function handleRelay(d){
   if(!d||d.from===deviceId)return;
@@ -8465,32 +8461,10 @@ function cr3Heartbeat() {
   try { log('n16_devlog', { dev: DEV }); } catch (_) {}
 })();
 
-/* P1 (26·base) — PRESENCE FED BY THE RELAY, GUARDED BY THE CLOCK.
-   The defect: the dot is driven only by a 75-second partner-seen timer that
-   refreshes when a partner message ARRIVES, so a connected-but-quiet partner
-   goes dark. The relay is the only party that knows who is attached; it now
-   announces the peers on every join, heartbeat, state change and close.
-   G43: the authoritative signal REFRESHES the existing clock — the timer is
-   not stood down, it is fed. Two owners become one chain of custody.
-   G23: attachment (a live socket), not the visibility flag, lights the dot —
-   on iPhone, blur and lock do not flip visibility, so focus alone lies.
-   Wraps handleRelay and calls through for everything it does not own. */
-(function () {
-  if (typeof setPresence !== 'function' || typeof handleRelay !== 'function') return;
-  function apply(d) {
-    var attached = !!(d && d.others > 0);
-    try { setPresence(attached); } catch (_) {}
-    if (attached && typeof touchPresence === 'function') {
-      try { touchPresence(); } catch (_) {}   /* G43: refresh the 75s clock */
-    }
-    try { if (typeof log === 'function') log('p1_peer', { others: (d && d.others) || 0 }, 'ok'); } catch (_) {}
-  }
-  var _h = handleRelay;
-  handleRelay = function (d) {
-    if (d && d.type === 'peer') { apply(d); return; }
-    return _h.apply(this, arguments);
-  };
-})();
+/* P1 (26·base) superseded and REMOVED in 27·base: presence now has a single
+   path (declared word → relay v6.5 → the dot). Dead code is deleted, not left
+   wrapped — this file is large enough that a dormant second owner is a trap. */
+
 
 
 /* ===== 26·pre-ship additions — every part wraps and calls through ===== */
@@ -8980,41 +8954,20 @@ function tbmdSpeechStrip(text) {
   window.addEventListener('pagehide', function () { declare('pagehide'); });
 })();
 
-/* PR-3 — ONE OWNER OF THE DOT.
-   The relay's announcement decides. The legacy engine that lit the dot from
-   arriving traffic, darkened it on a 75-second countdown, and switched it
-   off on every socket close is retired here — by neutering its two write
-   paths, not by editing frozen lines: touchPresence keeps its last-seen
-   bookkeeping (frozen callers rely on it) but no longer drives the light,
-   and the socket layer can no longer darken it. */
-(function () {
-  if (typeof setPresence !== 'function') return;
-  var relayOwns = false;
-  var _set = setPresence;
-  setPresence = function (on) { if (!relayOwns) return; return _set.apply(this, arguments); };   /* only the relay path passes */
-  window.__tbSetPresenceFromRelay = function (on) {
-    relayOwns = true;
-    try { _set(on); } finally { relayOwns = false; }
-  };
-  if (typeof touchPresence === 'function') {
-    var _touch = touchPresence;
-    touchPresence = function () {
-      var r = _touch.apply(this, arguments);                 /* last-seen bookkeeping runs */
-      try { clearTimeout(touchPresence._t); } catch (_) {}   /* its 75s darkening timer never fires */
-      return r;
-    };
-  }
-})();
-
-/* PR-4 — the relay's word reaches the dot through the one permitted door. */
+/* PR-3 — the relay's word is the only thing that moves the dot. The legacy
+   engine that lit it from traffic, darkened it on a 75-second countdown and
+   switched it off on every socket close is DELETED from the body (not
+   wrapped): the constant, the dead counter, both socket-close calls and the
+   timer are gone, and touchPresence keeps only its last-seen bookkeeping.
+   This block is now the sole caller of setPresence in the file. */
 (function () {
   if (typeof handleRelay !== 'function') return;
   var _h = handleRelay;
   handleRelay = function (d) {
     if (d && d.type === 'peer') {
       var present = !!(d.others > 0);
-      try { window.__tbSetPresenceFromRelay(present); } catch (_) {}
-      try { if (typeof log === 'function') log('pr4_dot', { others: d.others || 0 }, 'ok'); } catch (_) {}
+      try { setPresence(present); } catch (_) {}
+      try { if (typeof log === 'function') log('pr3_dot', { others: d.others || 0 }, 'ok'); } catch (_) {}
       return;
     }
     return _h.apply(this, arguments);
