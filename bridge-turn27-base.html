@@ -1,4 +1,4 @@
-<!-- 27·base (rebuild, no presence timer) · bridge-turn27-base.html · accepted 26·post-ship bytes 4bc088db89b6 + K1 (tb-sw2.js: notification icon+badge, call renotify; old-worker retirement after push migrates) + C3 (render coalescing) · presence left entirely to the relay per owner ruling 2026-09-12 · pair: relay v6.3 unchanged, accepted tb-sw.js and manifests untouched -->
+<!-- 26·post-ship · bridge-turn26-post-ship.html · accepted c6 bytes 107617b86d2d + MD-1 markdown in chat (§7.4: kanban pipeline ported verbatim, display-only, attachment guard, link-tap isolation, speech strip) · pair: relay v6.3 unchanged, tb-sw.js unchanged, manifests unchanged -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -8932,74 +8932,6 @@ function tbmdSpeechStrip(text) {
   if (typeof speakText !== 'function') return;
   var _speak = speakText;
   speakText = function (text, lang) { return _speak.call(this, tbmdSpeechStrip(text), lang); };
-})();
-
-
-/* ===== 27·base additions — Notifications & steadiness (§7.2) ===== */
-(function(){ try { if (typeof log==='function') log('build', { c:'turn27-base-notif', file:'bridge-turn27-base.html', built:'2026-09-13 05:43 UTC' }, 'ok'); } catch(_){} })();
-
-/* K1 — the alert wears the app's face. The accepted worker is immutable, so
-   the icon/badge/call-renotify lines live in tb-sw2.js (byte-identical to
-   tb-sw.js apart from those lines). Registration is rewritten to the new
-   file; U1's narrowing still applies on top. Old tb-sw.js registrations
-   retire only after this registration owns a live push subscription, and
-   only on an exact script match — never tb-sw2.js, never another app's. */
-(function () {
-  if (!('serviceWorker' in navigator)) return;
-  function L(ev, d, lvl) { try { if (typeof log === 'function') log(ev, d || {}, lvl || 'ok'); } catch (_) {} }
-  var _reg = navigator.serviceWorker.register.bind(navigator.serviceWorker);
-  navigator.serviceWorker.register = function (url, opts) {
-    try {
-      if (String(url).indexOf('tb-sw.js') !== -1) {
-        url = String(url).replace('tb-sw.js', 'tb-sw2.js');
-        L('k1_sw2_register', {});
-      }
-    } catch (_) {}
-    return _reg(url, opts);
-  };
-  function retireOld() {
-    navigator.serviceWorker.getRegistrations().then(function (regs) {
-      regs.forEach(function (r) {
-        try {
-          var script = (r.active || r.waiting || r.installing || {}).scriptURL || '';
-          if (!/\/tb-sw\.js$/.test(script)) return;              /* OLD file only */
-          if (/tb-sw2\.js$/.test(script)) return;                /* belt and braces */
-          var ourSubReady = !!(typeof p3State !== 'undefined' && p3State && p3State.sub);
-          if (!ourSubReady) { L('k1_retire_deferred', {}); return; }
-          r.pushManager.getSubscription()
-            .then(function (s) { return s ? s.unsubscribe().catch(function () {}) : null; })
-            .then(function () { return r.unregister(); })
-            .then(function (ok) { L('k1_old_sw_retired', { ok: !!ok, scope: r.scope }); })
-            .catch(function (e) { L('k1_retire_failed', { e: String(e && e.message || e) }, 'warn'); });
-        } catch (_) {}
-      });
-    }).catch(function () {});
-  }
-  setTimeout(retireOld, 8000);
-  setTimeout(retireOld, 30000);
-})();
-
-/* C3 — render coalescing (log-bank L-3: panel/home render 3-6x per event
-   burst). Same output, one run per frame. */
-(function () {
-  function latch(name) {
-    var fn = window[name];
-    if (typeof fn !== 'function') return;
-    var pending = false, absorbed = 0;
-    window[name] = function () {
-      absorbed++;
-      if (pending) return;
-      pending = true;
-      requestAnimationFrame(function () {
-        pending = false;
-        var n = absorbed; absorbed = 0;
-        try { fn(); } catch (_) {}
-        if (n > 1) { try { if (typeof log === 'function') log('c3_coalesced', { fn: name, n: n }, 'ok'); } catch (_) {} }
-      });
-    };
-  }
-  latch('renderPanel');
-  latch('renderHome');
 })();
 
 </script>

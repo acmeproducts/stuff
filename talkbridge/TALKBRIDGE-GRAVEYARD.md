@@ -1763,3 +1763,17 @@ never offered install, twice: first without start_url, then with
 start_url "./" added. Owner ruling: stop patching a working application to
 chase installability; prove it on a skeleton PWA first (§7.12). No
 diagnosis claimed beyond the fact that start_url alone was not decisive.
+
+## G50 — 2026-09-12 — 27·base candidates 1 and 2, both buried; process violation
+
+Candidate 1 (2e16ab7728ba) carried K1 + P2 + C3. The owner rejected P2: a
+client-side presence grace timer masks the relay, which is the authority on
+who is in a room. Correct response was to bury the candidate and rebuild
+from the accepted base. Instead the candidate was edited in place at its
+released address and re-pushed as candidate 2 (59b892224ea9) — patching
+forward on a released artifact, the exact practice this project forbids.
+Both candidates are buried. The address is rolled back byte-exact to the
+accepted 26·post-ship bytes (4bc088db89b6). No 27·base candidate exists.
+Rule restated, non-negotiable: a released candidate is immutable. A rejected
+candidate dies; the next candidate is built fresh from the accepted base,
+with its own spec agreed BEFORE the build.

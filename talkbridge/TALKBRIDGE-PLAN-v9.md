@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.11.0 -->
-# TALKBRIDGE MASTER PLAN v21.11.0
+<!-- TALKBRIDGE-PLAN v21.12.0 -->
+# TALKBRIDGE MASTER PLAN v21.12.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1/#652); presence untouched (relay is the only authority); render coalescing. Mobile-first: no scope, folder or naming changes | Spec §7.2 | **BUILT 2026-09-12 on owner GO — device gate pending.** K1 ships as new file tb-sw2.js (5-line diff vs accepted tb-sw.js: icon, badge, call renotify/tag — nothing else); old-worker retirement matches the OLD script only and waits for the new push subscription. **P2 REMOVED before gate — owner ruling 2026-09-12: no timed presence. The relay knows the instant someone is there and the instant they are not; a grace timer masks the truth source instead of trusting it. Presence stays exactly as accepted in 26·base (P1, relay-fed).** C3 rAF latch on panel/home. Accepted tb-sw.js and all manifests untouched. Mutations 3/3 (widened retirement, retire-before-subscribe, extra worker line). | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
+| 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | Spec §7.2 pending rewrite | **BLOCKED** | — |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4278,3 +4278,7 @@ per message (proves the push half still works alongside it).
 - D-6 desktop Chrome install: root cause PROVEN (accepted worker has no fetch handler; also needs start_url + id). Recipe R-1..R-3 in §7.12. Skeleton reference: https://acmeproducts.github.io/stuff/tb-skeleton/
 - D-2 PRISM un-hijack on installed clients: open, folder release is the correct fix, deferred with D-6 since one move solves both.
 - Naming-convention note: any future folder release keeps turn/stage candidate names INSIDE the folder (index.html = accepted only). Recorded so the convention is never silently dropped again.
+
+
+## PROCESS RULE RESTATED 2026-09-12 (owner)
+A released candidate is IMMUTABLE. When any part of a candidate is rejected, the whole candidate dies and is buried; the next candidate is built fresh from the accepted base. Never edit a released artifact in place. Never layer a fix onto a candidate that is already out for gate. No known-broken behavior is shipped as 'good enough'.
