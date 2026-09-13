@@ -1,13 +1,17 @@
 name: Market Navigator Turn 24 qualification
 on:
   push:
-    branches: [market-navigator-turn24-recovery]
+    branches: [market-navigator-turn24-recovery, main]
     paths:
       - 'market-navigator-build-turn24.py'
       - 'market-navigator-turn24-layout.py'
       - 'market-navigator-turn24-qa.mjs'
+      - 'market-navigator-turn24-pre-ship.html'
       - 'MARKET-NAVIGATOR-MASTER-PLAN.md'
       - 'MARKET-NAVIGATOR-GRAVEYARD.md'
+      - 'data/market-backend/source-registry.json'
+      - 'data/market-backend/data-catalog.json'
+      - 'market-evidence/**'
       - '.github/workflows/market-navigator-turn24-qa.yml'
   workflow_dispatch:
 permissions:
@@ -72,6 +76,8 @@ jobs:
           reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
           dow=reg.get('aliases',{}).get('DOW|index')
           assert dow and dow['symbol']=='^DJI' and dow['name']=='Dow Jones Industrial Average'
+          ids={r.get('id') for r in reg.get('registrations',[])}
+          assert {'custom_nvda','custom_v','custom_gaamhx'} <= ids
           src=Path('market-navigator-source-register.py').read_text()
           wf=Path('.github/workflows/market-evidence-pipeline.yml').read_text()
           assert "CLASSES={'index','equity','etf','fund_cit'}" in src
@@ -81,6 +87,7 @@ jobs:
           print('TURN24 SOURCES CONTROL PLANE PASS')
           PY
       - name: Publish qualified branch artifact
+        if: github.ref_name == 'market-navigator-turn24-recovery'
         run: |
           set -euo pipefail
           git config user.name "acmeproducts"
