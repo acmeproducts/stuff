@@ -2,7 +2,7 @@
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
 Updated: 2026-09-12
-Next release scope: **Turn 24 recovery**
+Next release scope: **Turn 18 rollback qualification → clean reconstruction**
 
 This file is the single positive specification for Market Navigator. Do not create a parallel release plan. `MARKET-NAVIGATOR-GRAVEYARD.md` is the binding negative specification.
 
@@ -504,3 +504,74 @@ Only after every Turn 24 release-blocking gate passes:
 6. return the cache-busted Pages URL and exact merge SHA for owner test.
 
 A Pages deployment alone is never evidence of product qualification.
+
+---
+
+## 23. Turn 24 rejection and Turn 18 rollback authority — superseding recovery section
+This section supersedes Sections 3, 20, 21 and 22 wherever they conflict on recovery baseline, release status or execution sequence. All product requirements elsewhere in this Plan remain in force.
+
+Owner testing of Turn 24 exposed a release-blocking Library Listen/TTS regression after automated qualification reported PASS. Investigation established a qualification regression:
+
+- Turn 17 used an observable speech mock and explicitly asserted that a non-empty utterance reached `speechSynthesis.speak()`.
+- Turn 18 imported the complete Turn 17 regression matrix and therefore retained that semantic TTS gate.
+- Turn 19 replaced the observable speech handoff with a no-op `speak(){}` mock and checked only UI playing state. That weakened gate propagated forward.
+- Turn 22 and Turn 24 therefore could report retained-product/TTS PASS without proving that any speech was submitted.
+
+### 23.1 Current rollback baseline
+The last release with the stronger semantic TTS qualification contract is:
+
+- release: **Turn 18**
+- qualified release commit: `97b8c028778f36380de821591e3d6c8125fb14f9`
+- application source: `market-navigator-turn18-pre-ship.html`
+- application blob: `4a52c7e764513024176aea80cc13c56e05370c11`
+- qualifying matrix: `market-navigator-turn18-qa.mjs`, which imports the complete `market-navigator-turn17-qa.mjs` matrix
+
+Turns 19, 20, 21, 22, 23 and 24 are **not application donors or successor baselines** for the next recovery build. They may be inspected only for accepted requirements and failure evidence. No HTML/JS/CSS from those releases is to be patched forward.
+
+Current `main` remains the integration/data target. The rollback itself does not rewrite or mutate Turn 18 application source.
+
+### 23.2 Permanent test-integrity rule
+A release gate must observe the side effect or state transition that defines the capability. It may not claim coverage from adjacent UI state alone.
+
+For Library Listen/TTS, qualification must prove:
+- completed assistant response enables Listen;
+- Listen shows exactly five transport controls and hides Chat composer;
+- Play creates a non-empty `SpeechSynthesisUtterance` from the selected response/row;
+- the utterance is actually passed to `speechSynthesis.speak()`;
+- previous/next row and previous/next response alter the selected spoken content;
+- cancel/stop/navigation state remains coherent;
+- no application exception occurs;
+- phone controls are visible and unclipped.
+
+A no-op `speak(){}` mock plus a Play→Pause button assertion is not a TTS test.
+
+No retained regression gate may be weakened when carried into a successor release. Any replacement test must be at least as semantically strong as the gate it supersedes.
+
+### 23.3 Android/device truth
+The application must not assume desktop Web Speech pause/resume semantics on Android-family browsers. Target-device qualification must verify actual playback behavior. If platform `pause()` behaves as cancel/end, the application state machine must remain truthful rather than pretending a resumable utterance still exists.
+
+### 23.4 Recovery execution sequence
+1. Pin the exact Turn 18 blob `4a52c7e764513024176aea80cc13c56e05370c11`.
+2. Confirm the historical Turn 18 qualification run passed the full Turn 17 + Turn 18 matrix, including semantic TTS handoff.
+3. Publish/return the cache-busted Turn 18 Pages URL for owner/device verification.
+4. Only after that rollback baseline is owner-confirmed, construct the next candidate from exact Turn 18 application source.
+5. Reimplement accepted post-Turn-18 requirements from this written Master Plan only; do not copy Turn 19–24 application implementation.
+6. Work in governed phases and run the complete accumulated matrix after every phase.
+7. Integrate current `main`, qualify the exact merge artifact, verify Pages, then return the owner-test URL.
+
+### 23.5 Reconstruction requirements retained
+Rollback does **not** revoke accepted product requirements. The reconstruction must retain/reimplement all accepted requirements in this Plan, including:
+- unified NOW architecture and Add replacing Explore;
+- source-relative Indexed 100 behavior;
+- long-horizon display density without evidence mutation;
+- WTI/GDP truthfulness;
+- Data/correlation and canonical six-command menu;
+- exact frozen AI/Library evidence and continuation;
+- AI provider failure/preflight behavior;
+- geometry-only resize invariants;
+- credential-safe Config/Replace Key behavior;
+- canonical Sources control plane, identity/provenance/horizon semantics, including DOW→DJIA, NVDA, V, GAAMHX, VRT, VOO and T;
+- full Library Listen/TTS behavior with semantic, target-device qualification.
+
+### 23.6 Publication rule for rollback
+The rollback changes governance, not the Turn 18 application artifact. A Pages deployment is not itself qualification. The qualified Turn 18 application blob must remain byte-identical to `4a52c7e764513024176aea80cc13c56e05370c11`.
