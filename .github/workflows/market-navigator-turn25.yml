@@ -38,19 +38,23 @@ jobs:
           grep -F 'Rejected code may be discarded; owner-approved behavior may not.' MARKET-NAVIGATOR-MASTER-PLAN.md
 
       - name: Build exact-baseline Turn 25 candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
-          test "$(git rev-parse HEAD:market-navigator-turn18-pre-ship.html)" = '4a52c7e764513024176aea80cc13c56e05370c11' || exit 97
-          python3 market-navigator-build-turn25.py > /tmp/turn25-build.log 2>&1
-          rc=$?
+          committed="$(git rev-parse HEAD:market-navigator-turn18-pre-ship.html)"
+          if [ "$committed" != '4a52c7e764513024176aea80cc13c56e05370c11' ]; then
+            printf 'baseline mismatch: %s\n' "$committed" > /tmp/turn25-build.log
+            rc=97
+          else
+            git show HEAD:market-navigator-turn18-pre-ship.html > market-navigator-turn18-pre-ship.html
+            python3 market-navigator-build-turn25.py > /tmp/turn25-build.log 2>&1
+            rc=$?
+          fi
           cat /tmp/turn25-build.log
           if [ "$rc" -ne 0 ]; then
-            cp /tmp/turn25-build.log market-navigator-turn25-build-failure.txt
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add market-navigator-turn25-build-failure.txt
-            git commit -m 'Record Turn 25 build failure diagnostic [turn25-diagnostic]'
-            git push origin HEAD:market-navigator-turn25-consolidation
+            payload="$(base64 -w0 /tmp/turn25-build.log)"
+            gh api --method PUT repos/acmeproducts/stuff/contents/market-navigator-turn25-build-failure.txt -f message='Record Turn 25 build failure diagnostic [turn25-diagnostic]' -f content="$payload" -f branch='market-navigator-turn25-consolidation' >/dev/null
             exit "$rc"
           fi
 
