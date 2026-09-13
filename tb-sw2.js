@@ -1,4 +1,4 @@
-/* TalkBridge service worker · R10-CR3 (plan v20.12.0 §4.13; §4.12.3 and §4.11.4 inherited) · source: talkbridge/parts/r10-cr3-sw.js — assembled, never hand-edited.
+/* TalkBridge service worker tb-sw2.js (27·pre-ship N-1: adds the tb-call-end branch above; every other line byte-identical to accepted tb-sw.js) · R10-CR3 (plan v20.12.0 §4.13; §4.12.3 and §4.11.4 inherited) · source: talkbridge/parts/r10-cr3-sw.js — assembled, never hand-edited.
    - The relay's recipient-event record already decided this device must be
      asked for an OS alert; the push carries the ENCRYPTED event identity
      (id, room, kind, callId, sender name — never message text).
@@ -68,6 +68,28 @@ function describe(ev, ctx) {
 self.addEventListener('push', function (e) {
   e.waitUntil((function () {
     var ev = null; try { ev = e.data ? e.data.json() : null; } catch (_) { ev = null; }
+    /* N-1 (27·pre-ship, tb-sw2.js) — the terminal wake. The relay itself
+       asked for this card (it is 'os_requested' in relay terms); the relay
+       is also the one retracting it. Never touches a chat notification —
+       'tb-ev' chat pushes are untouched below, byte for byte. */
+    if (ev && ev.t === 'tb-call-end' && ev.callId) {
+      var tag = 'tb-call-' + ev.callId;
+      return self.registration.getNotifications({ tag: tag }).then(function (list) {
+        var closes = list.map(function (n) { n.close(); return null; });
+        if (ev.outcome !== 'missed') return Promise.all(closes).then(function () { return journal('call_retracted', { id: ev.id, outcome: ev.outcome }); });
+        return Promise.all(closes).then(function () { return withTimeout(loadCtx(), CTX_MS); }).then(function (ctx) {
+          var room = null;
+          if (ctx && Array.isArray(ctx.rooms)) { for (var i = 0; i < ctx.rooms.length; i++) { if (ctx.rooms[i].id === ev.room) { room = ctx.rooms[i]; break; } } }
+          var who = ev.name || (room && room.title) || 'TalkBridge';
+          var body = 'Missed call' + (room && room.title && ev.name ? ' · ' + room.title : '');
+          var appUrl = self.registration.scope + APP_FILE;
+          return self.registration.showNotification(who + ' · TalkBridge', {
+            body: body, tag: tag, renotify: false, silent: false,
+            data: { eventId: ev.id, roomId: ev.room, callId: ev.callId, kind: 'missed', url: appUrl }
+          }).then(function () { return journal('call_missed_shown', { id: ev.id }); });
+        });
+      }).catch(function (err) { return journal('call_end_failed', { e: String(err && err.message || err) }); });
+    }
     if (!ev || ev.t !== 'tb-ev' || !ev.id || !ev.room) {
       return journal('arrived_unknown', {}).then(function () {
         return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback', data: { url: self.registration.scope + APP_FILE } });
@@ -78,10 +100,7 @@ self.addEventListener('push', function (e) {
       var data = { eventId: ev.id, roomId: ev.room, callId: ev.callId || null, kind: ev.kind, url: d.url };
       var isCall = (ev.kind === 'voice' || ev.kind === 'video');
       var opts = { body: d.body, tag: d.tag, renotify: false, silent: false, data: data };
-      /* K1 (27·base) — the alert wears the app's face. */
-      opts.icon = self.registration.scope + 'icon-192.png';
-      opts.badge = self.registration.scope + 'icon-badge-96.png';
-      if (isCall) { opts.requireInteraction = true; opts.vibrate = [300, 150, 300, 150, 300]; opts.renotify = true; opts.tag = 'tb-call'; }
+      if (isCall) { opts.requireInteraction = true; opts.vibrate = [300, 150, 300, 150, 300]; }
       return self.registration.showNotification(d.title, opts)
         .then(function () { return journal('shown', { id: ev.id, room: ev.room, kind: ev.kind }); },
               function (err) { return journal('failed', { id: ev.id, room: ev.room, e: String(err && err.message || err) }).then(function () { return self.registration.showNotification('TalkBridge', { body: 'New activity', tag: 'tb-fallback', data: data }).catch(function () {}); }); });

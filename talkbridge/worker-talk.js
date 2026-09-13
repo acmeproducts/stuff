@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.5 27·base (declared presence) (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
+   TALK RELAY — worker-talk.js  ·  v6.6 27·pre-ship (N-1: terminal push retracts a call card the relay itself requested, for recipients not connected) (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
    Lineage: v4.2 body (route, session addressing, broadcast, history, transient
    handling, subscribe/unsubscribe, RFC 8291 encrypted push) — unchanged —
    plus ONE recipient-event authority (§4.11.2), owned by this Durable Object.
@@ -43,7 +43,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.5';
+const RELAY_VERSION = '6.6';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
@@ -342,7 +342,7 @@ export class TalkSession {
     return best;
   }
   /* Recipient outcome transitions ride the product's own call words. */
-  async _applyCallWord(msg, clientId) {
+  async _applyCallWord(msg, clientId, sessionId) {
     const ev = (msg.callId && this._openCall(String(msg.callId))) || this._latestOpenCallFrom(clientId);
     if (!ev) return;
     msg.callId = ev.callId; msg.eventId = ev.id;
@@ -364,6 +364,45 @@ export class TalkSession {
     }
     await this._saveEvents();
     for (const cid of Object.keys(ev.rcp)) this._pushProjection(cid);
+    /* N-1 (plan §9) — the terminal wake. A card left by an OS-requested push
+       is this relay's own doing and this relay's own responsibility to
+       retract. Only recipients who are NOT connected need it — a connected
+       device already has the socket truth via _pushProjection above, and
+       never held an OS notification in the first place (_decide: visible +
+       connected → 'in_app', no push was ever requested for it). One send
+       per record, guarded exactly like every retry-safe push in this file. */
+    for (const [cid, r] of Object.entries(ev.rcp)) {
+      if (cid === clientId) continue;                       /* the actor sees it happen; no card exists to retract */
+      if (r.o !== 'missed' && r.o !== 'ended') continue;
+      if (r.termPushed) continue;
+      if (this._isConnected(cid)) continue;
+      r.termPushed = true;
+      try { await this._pushCallEnd(cid, ev, sessionId || '', r.o); } catch (_) {}
+    }
+    await this._saveEvents();
+  }
+  /* N-1 — mirrors _pushOne's delivery mechanics exactly (encrypt, VAPID,
+     same Topic so an undelivered offer push is superseded rather than
+     duplicated) without touching _pushOne itself. Failure is swallowed;
+     the card simply outlives the call, same as before this release. */
+  async _pushCallEnd(clientId, ev, sessionId, outcome) {
+    const rec = this.subs[clientId];
+    const endpoint = rec && rec.sub && rec.sub.endpoint;
+    const keys = rec && rec.sub && rec.sub.keys;
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
+    let body;
+    try {
+      const payload = { t: 'tb-call-end', id: ev.id, room: sessionId, callId: ev.callId, outcome, name: ev.name || null, ts: Date.now() };
+      body = await webpushEncrypt(JSON.stringify(payload), keys.p256dh, keys.auth);
+    } catch (_) { return; }
+    const headers = {
+      TTL: '60', Urgency: 'high', Topic: ('tb-call-' + ev.callId).slice(0, 32),
+      'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
+      'Content-Length': String(body.length)
+    };
+    const auth = await vapidHeader(this.env, endpoint);
+    if (auth) headers.Authorization = auth;
+    try { await fetch(endpoint, { method: 'POST', headers, body }); } catch (_) {}
   }
   async _markSeen(clientId, ids, by) {
     let changed = 0;
@@ -634,7 +673,7 @@ export class TalkSession {
     let ev = null;
     if (!isTransient) {
       try { ev = await this._recordEvent(msg, clientId); } catch (_) {}
-      if (msg.type === 'call-accept' || msg.type === 'call-decline' || msg.type === 'call-end') { try { await this._applyCallWord(msg, clientId); } catch (_) {} }
+      if (msg.type === 'call-accept' || msg.type === 'call-decline' || msg.type === 'call-end') { try { await this._applyCallWord(msg, clientId, sessionOf(ws)); } catch (_) {} }
     }
 
     this._broadcast(msg, clientId);
