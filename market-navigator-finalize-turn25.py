@@ -18,6 +18,12 @@ new="filter(id=>{let g=IDX.includes(id)?'Other':pickerGroups25(id);return q?true
 assert s.count(old)==1,('global Add search',s.count(old))
 s=s.replace(old,new,1)
 
+# ENV must remain neutral after draw() performs its own legacy active sync.
+old="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}async function openV2"
+new="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}document.querySelectorAll('#legend [data-id]').forEach(n=>n.classList.remove('active'));$('nowChart').dataset.emphasis='false'}async function openV2"
+assert s.count(old)==1,('ENV neutral post-paint',s.count(old))
+s=s.replace(old,new,1)
+
 # Android Chromium-family pause ends/cancels the utterance. Prevent the cancelled
 # utterance's onend handler from auto-advancing, then restart the same row on Play.
 old="if(androidSpeech25()){try{speechSynthesis.cancel()}catch{}libSpeechUtterance17=null;libSpeechState17='paused'}"
