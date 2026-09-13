@@ -25,8 +25,9 @@ new="let model,sel=sets.find(z=>z.id===active&&z.a.length)||sets.find(z=>z.a.len
 assert s.count(old)==1,('neutral draw fallback',s.count(old))
 s=s.replace(old,new,1)
 
-# Keep the frozen ENV snapshot neutral as well.
-old="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}document.querySelectorAll('#legend [data-id]').forEach(n=>n.classList.remove('active'));$('nowChart').dataset.emphasis='false'}async function openV2"
+# Keep the frozen ENV snapshot neutral. This anchor is the fresh build output,
+# not the output of a previous finalizer pass.
+old="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed')}async function openV2"
 new="captureNowState(sets,w,'indexed');S.nowPaint25={sets,w,mode:'indexed'};draw('now',sets,w,'indexed');S.nowActive=null;S.nowFocus=null;if(S.nowChartState){S.nowChartState.active=null;if(S.nowChartState.chart)S.nowChartState.chart.active=null}$('nowChart').dataset.emphasis='false'}async function openV2"
 assert s.count(old)==1,('ENV neutral snapshot',s.count(old))
 s=s.replace(old,new,1)
