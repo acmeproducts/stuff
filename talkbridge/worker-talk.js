@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.4 27·base (PR-1 declared presence; plan §7.13) — was v6.3 26·base (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
+   TALK RELAY — worker-talk.js  ·  v6.3 26·base (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
    Lineage: v4.2 body (route, session addressing, broadcast, history, transient
    handling, subscribe/unsubscribe, RFC 8291 encrypted push) — unchanged —
    plus ONE recipient-event authority (§4.11.2), owned by this Durable Object.
@@ -43,7 +43,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.4';
+const RELAY_VERSION = '6.3';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
@@ -651,43 +651,20 @@ export class TalkSession {
      already reports that on every state announcement and heartbeat; the relay
      simply passes it on. No timers, no counting sockets, no grace. */
   _announcePeers() {
-    /* PR-1 (v6.4, plan §7.13) — presence is DECLARED, never observed.
-       A clientId is present when its last reported state says it is in this
-       room. Sockets carry the declaration; they never constitute it, so one
-       device on several sockets is one person and a re-attach is not a
-       departure ("a socket is not a person", §4.6 A3). */
-    const present = Object.keys(this.states).filter((id) => {
-      const st = this.states[id];
-      return !!(st && st.inRoom === true);
-    });
+    const ids = [...this._connectedIds()];
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
       if (!tag || !tag.clientId) continue;
-      const others = present.filter((i) => i !== tag.clientId);
-      const focused = others.length > 0;
+      const others = ids.filter((i) => i !== tag.clientId);
+      const focused = others.some((i) => {
+        const st = this.states[i];
+        return !!(st && st.visible);
+      });
       try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused, others: others.length, at: Date.now() })); } catch (_) {}
     }
   }
 
-  async webSocketClose(ws, code, reason) {
-    /* PR-1 stale-state cleanup: when a device's LAST socket goes, drop its
-       declaration so an app killed without declaring leaves no ghost. A
-       device that merely re-attaches re-declares on its next ping. */
-    try {
-      const tag = ws.deserializeAttachment();
-      const id = tag && tag.clientId;
-      if (id) {
-        let another = false;
-        for (const other of this.state.getWebSockets()) {
-          if (other === ws) continue;                       /* the closing socket never counts itself */
-          const t = other.deserializeAttachment();
-          if (t && t.clientId === id) { another = true; break; }
-        }
-        if (!another) delete this.states[id];
-      }
-    } catch (_) {}
-    try { this._announcePeers(); } catch (_) {}
-  }
+  async webSocketClose(ws, code, reason) { try { this._announcePeers(); } catch (_) {} }
 
   async webSocketError(ws, error) {
     try { ws.close(1011, 'error'); } catch (_) {}

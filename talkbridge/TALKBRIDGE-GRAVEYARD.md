@@ -1777,3 +1777,35 @@ accepted 26·post-ship bytes (4bc088db89b6). No 27·base candidate exists.
 Rule restated, non-negotiable: a released candidate is immutable. A rejected
 candidate dies; the next candidate is built fresh from the accepted base,
 with its own spec agreed BEFORE the build.
+
+## G51 — 2026-09-13 — the 27·base presence work, rolled back whole
+
+Buried: app aa59e5ac4e35 and relay v6.4 (0177694…). Rolled back byte-exact
+to the accepted pair (app 4bc088db89b6 / relay v6.3 0241358e8a68).
+
+TWO separate failures are buried here, and both are recorded because either
+alone would repeat:
+
+(a) THE LEGACY INFERRED-PRESENCE ENGINE, deleted at owner order and rightly
+    so: traffic from the partner lit the dot; a 75-second time-to-live
+    darkened it; and every socket close called presence-off directly. Three
+    owners of one indicator. It produced the wink (gray flash on each
+    reconnect, green again on the next announcement). It should never have
+    survived the move to relay-announced presence in 26·base; keeping it was
+    the original oversight. It does NOT come back.
+
+(b) THE REPLACEMENT, which was worse: with the legacy engine deleted, the
+    dot showed GRAY for a partner sitting in the room. Cause, found after
+    the fact: the declared state the relay now reads is emitted through the
+    CR3 lane, and CR3 arms itself ONLY when the app runs as an installed
+    PWA (`if (!p2IsStandalone() || cr3State.armed) return`). Outside that
+    case nothing is ever declared, the relay's state table stays empty, and
+    every device reads as absent. The legacy engine had been masking this
+    the whole time. The build shipped without anyone tracing a declaration
+    end to end, on both sides, for entrance AND exit.
+
+PROCESS FAILURE, stated plainly: three consecutive candidates touched
+presence without a single end-to-end trace of the actual code path. The
+owner had to catch each one on a device. No further presence work proceeds
+without the three-pass review the owner ordered (build pass, manager pass,
+red-team pass) and external vetting of the findings.
