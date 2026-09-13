@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.20.0 -->
-# TALKBRIDGE MASTER PLAN v21.20.0
+<!-- TALKBRIDGE-PLAN v21.21.0 -->
+# TALKBRIDGE MASTER PLAN v21.21.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -84,7 +84,7 @@ built yet.
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
 | 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | 27·base | **Presence, traced end to end** — the word (visible + inRoom) is now declared on room entry, every view change, hide, show, blur, focus and page close, in browser tabs as well as the installed app (the accepted build declared only on lane open, on a 30s heartbeat, and — instant announcements only — inside the installed app; nothing ever declared on entering or leaving a room, so both parties read wrong in both directions). Relay v6.5 reads presence from the declared word keyed by device; ghost cleanup on last socket close. One owner of the dot: the legacy traffic-lighting and 75s countdown and the socket-close darkening are retired without editing a single frozen line. | Spec §7.13 as amended by the three-pass review | **ACCEPTED 2026-09-13 (owner: pass).** D-4 CLOSED — presence works for the first time in this project's history: steady green with both parties in the room, instant gray on lock / list / force-quit, instant green on return, no wink. Legacy presence engine and the superseded P1 block DELETED from the body (36 lines removed, nothing wrapped, nothing dormant) per owner ruling: in a file this size, wrapped dead code is a trap, not a safety measure. The file now contains one setPresence definition and exactly one caller. 16/16 two-party trace (entrance, exit, lock, unlock, list, re-attach, force-quit, relaunch, heartbeat); mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
-| 27·pre-ship | **N-1 notification lifecycle** — one tag per call, closed on every terminal event (answered, declined, answered elsewhere, cancelled, ended, expired) via a foreground path AND a terminal push for when the app is closed; missed-call policy; app ring tone chosen by owner. Findings and scope in §9. | Spec §9 N-1 | **NEXT — spec agreed, awaiting owner GO** | — |
+| 27·pre-ship | **N-1 notification lifecycle** — one tag per call, closed on every terminal event (answered, declined, answered elsewhere, cancelled, ended, expired) via a foreground path AND a terminal push for when the app is closed; missed-call policy; app ring tone chosen by owner. Findings and scope in §9. | Spec §9 N-1 (timeout policy: both) | **NEXT — fully specced, awaiting owner GO** | — |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -4418,9 +4418,11 @@ both required, because the foreground half cannot run when the app is closed:
       `call-cancelled`) whose ONLY job is to find that tag and close it.
       The relay already knows about hang-ups — the deploy contract check
       `bare-hangup-missed` proves the event exists.
-Timeout policy (owner to confirm at spec time): replace the card with a
-"Missed call from <name> in <room>" using the SAME tag and no re-alert, or
-close it and write the missed-call line into the room. Never leave
+Timeout policy — DECIDED 2026-09-13 (owner: "both"): on timeout, the tagged
+card is REPLACED with "Missed call from <name> in <room>" (same tag, no
+re-alert) AND a system line is written into the room's transcript so it is
+visible on return even if the shade card is later cleared. Both paths fire
+from the same terminal event; neither substitutes for the other. Never leave
 "Incoming call" as the final state.
 Also in N-1, free: the app's own ring tone becomes a chosen sound rather than
 the current one (owner picks).
