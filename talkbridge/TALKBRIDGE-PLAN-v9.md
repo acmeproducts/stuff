@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.10.0 -->
-# TALKBRIDGE MASTER PLAN v21.10.0
+<!-- TALKBRIDGE-PLAN v21.11.0 -->
+# TALKBRIDGE MASTER PLAN v21.11.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -83,7 +83,7 @@ built yet.
 | 26·ship (candidate 6) | c5 + ONE declared head edit: the narrow-scope manifest linked statically in the head (runtime swap becomes a no-op) so desktop Chrome evaluates installability against the right manifest from the first byte | **ACCEPTED 2026-09-06 (owner confirmed c6: welcome pill, Join thread in clock menu, footer, D-6 noted separately).** 26·ship stage CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn26-ship.html |
 | 26·post-ship | **Markdown in chat** — kanban notes rules in the transcript: `Label -- url` shorthand (dotless hosts get .com, e.g. assumptionsof → assumptionsof.com), bare-URL autolink, bold/italic/code/links, lists, fences; display-only, translation and speech protected | Spec §7.4 | **ACCEPTED 2026-09-06 (owner: markdown links confirmed).** Turn 26 CLOSED — five accepted releases, three dead candidates buried. | https://acmeproducts.github.io/stuff/bridge-turn26-post-ship.html |
 | 27·pre-base | Byte-identical snapshot of accepted 26·post-ship | — | queued | — |
-| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1/#652); presence dot 60-s damping; render coalescing. Mobile-first: no scope, folder or naming changes | Spec §7.2 | **BUILT 2026-09-12 on owner GO — device gate pending.** K1 ships as new file tb-sw2.js (5-line diff vs accepted tb-sw.js: icon, badge, call renotify/tag — nothing else); old-worker retirement matches the OLD script only and waits for the new push subscription. P2 damping = one 60s grace, P1 untouched. C3 rAF latch on panel/home. Accepted tb-sw.js and all manifests untouched. Mutations 3/3 (widened retirement, retire-before-subscribe, extra worker line). | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
+| 27·base | **Notifications & steadiness** — TalkBridge icon on Android alerts + strongest legal call alert (D-1/#652); presence untouched (relay is the only authority); render coalescing. Mobile-first: no scope, folder or naming changes | Spec §7.2 | **BUILT 2026-09-12 on owner GO — device gate pending.** K1 ships as new file tb-sw2.js (5-line diff vs accepted tb-sw.js: icon, badge, call renotify/tag — nothing else); old-worker retirement matches the OLD script only and waits for the new push subscription. **P2 REMOVED before gate — owner ruling 2026-09-12: no timed presence. The relay knows the instant someone is there and the instant they are not; a grace timer masks the truth source instead of trusting it. Presence stays exactly as accepted in 26·base (P1, relay-fed).** C3 rAF latch on panel/home. Accepted tb-sw.js and all manifests untouched. Mutations 3/3 (widened retirement, retire-before-subscribe, extra worker line). | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
 | 27·pre-ship | **Notifications & steadiness** — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
@@ -3630,7 +3630,7 @@ because a named scale of fixed pixels is still fixed pixels.
 ## Log-bank (diagnosed, banked, not blocking)
 
 - L-1 (2026-09-04) iPhone wake logs relay_err + close 1006 after background: iOS froze the page, socket was already dead; CR3 recovers in ~300ms, history replays, receipts flow. Cosmetic; optionally reorder announce-after-verified-socket.
-- L-2 (2026-09-04) Presence flicker = iOS background socket lifecycle, not a P1 defect. Cure: damping grace (see backlog).
+- L-2 (2026-09-04, REVISED 2026-09-12) Presence flicker = iOS background socket lifecycle. Owner ruling: NO client-side damping timer — the relay is the authority on presence. If the flicker is to be addressed at all, it is a RELAY question (distinguishing a clean departure from a transport drop in the relay's own membership state), specced and gated as relay work, never masked in the app.
 - L-3 (2026-09-04) Render churn: rc_panel/rc_home/joiner_create_control fire 3–6× per event burst. Coalesce in refactor pass.
 - L-4 (2026-09-04) Cross-device log ordering skew: clock offset + 30s batch drains. Cosmetic.
 

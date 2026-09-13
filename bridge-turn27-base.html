@@ -1,4 +1,4 @@
-<!-- 27·base · bridge-turn27-base.html · accepted 26·post-ship bytes 4bc088db89b6 + K1 (tb-sw2.js: notification icon+badge, call renotify; old-worker retirement after push migrates) + P2 (presence 60s damping) + C3 (render coalescing) · pair: relay v6.3 unchanged, accepted tb-sw.js and manifests untouched -->
+<!-- 27·base (rebuild, no presence timer) · bridge-turn27-base.html · accepted 26·post-ship bytes 4bc088db89b6 + K1 (tb-sw2.js: notification icon+badge, call renotify; old-worker retirement after push migrates) + C3 (render coalescing) · presence left entirely to the relay per owner ruling 2026-09-12 · pair: relay v6.3 unchanged, accepted tb-sw.js and manifests untouched -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -8977,37 +8977,6 @@ function tbmdSpeechStrip(text) {
   }
   setTimeout(retireOld, 8000);
   setTimeout(retireOld, 30000);
-})();
-
-/* P2 — presence damping (log-bank L-2: iOS freezes the background socket,
-   the relay honestly reports the drop, and the dot tracks a churning
-   witness). Rule: attached lights instantly; a reported departure must
-   survive a 60-second grace before the dot goes dark. P1 still owns the
-   dot — this only meters what P1 hears. */
-(function () {
-  if (typeof handleRelay !== 'function') return;
-  function L(ev, d) { try { if (typeof log === 'function') log(ev, d || {}, 'ok'); } catch (_) {} }
-  var darkTimer = null;
-  var _h = handleRelay;
-  handleRelay = function (d) {
-    try {
-      if (d && d.type === 'peer') {
-        if (d.others > 0) {
-          if (darkTimer) { clearTimeout(darkTimer); darkTimer = null; L('p2_flap_absorbed', {}); }
-          return _h.apply(this, arguments);
-        }
-        if (darkTimer) return;                                  /* grace already running */
-        var self_ = this, args = arguments;
-        darkTimer = setTimeout(function () {
-          darkTimer = null;
-          L('p2_dark_after_grace', {});
-          try { _h.apply(self_, args); } catch (_) {}
-        }, 60000);
-        return;
-      }
-    } catch (_) {}
-    return _h.apply(this, arguments);
-  };
 })();
 
 /* C3 — render coalescing (log-bank L-3: panel/home render 3-6x per event
