@@ -243,7 +243,15 @@
         #gear-fab.dragging {
             cursor: grabbing;
         }
-    </style>
+        .bubble-col{position:relative;cursor:pointer;user-select:none}
+    .bubble-col:active{background:rgba(59,130,246,.07);border-radius:6px}
+    .bbl-acts{display:flex;gap:3px;justify-content:flex-end;margin-top:4px;opacity:0;transition:opacity .15s;pointer-events:none}
+    .bubble-col:hover .bbl-acts,.bubble-col:focus-within .bbl-acts{opacity:1;pointer-events:auto}
+    .bbl-act{width:26px;height:26px;border-radius:999px;border:1px solid rgba(148,163,184,.4);
+        background:rgba(255,255,255,.9);display:inline-flex;align-items:center;justify-content:center;
+        color:#475569}
+    .bbl-act:active{background:#e0f2fe;color:#0369a1}
+</style>
 </head>
 <body class="min-h-screen text-slate-800">
     <main class="tabletop-view">
@@ -1951,6 +1959,16 @@
         ta.dispatchEvent(new Event('input'));
     }
 
+    function toCompose(speaker,text){
+        var side=speaker==='local'?'local':'peer';
+        // Acquire the switch if free; if owned by the other side, just populate without claiming
+        // (the owner can still read it aloud or send it — requesting a handoff is their choice)
+        var ta=inputs[side];if(!ta)return;
+        ta.value=text;ta.dispatchEvent(new Event('input'));
+        try{ta.setSelectionRange(text.length,text.length)}catch(e){}
+        if(!owner||owner===side){requestInputAccess(side,function(){ta.focus()})}
+    }
+
     /* ================= send ================= */
     function send(side){
         flushComposition(side);
@@ -2512,8 +2530,8 @@
                 var hdr=document.createElement('div');hdr.className='duck-hdr';
                 hdr.innerHTML='<span class="duck-time">'+dateTimeLabel(entry.ts||Date.now())+'</span>'+
                     '<button type="button" class="duck-del" data-entry-id="'+entry.id+'" aria-label="Delete">✕</button>';
-                var sc=document.createElement('div');sc.className='bubble-col';
-                var tc=document.createElement('div');tc.className='bubble-col';
+                var sc=document.createElement('div');sc.className='bubble-col';sc.setAttribute('tabindex','0');
+                var tc=document.createElement('div');tc.className='bubble-col';tc.setAttribute('tabindex','0');
                 bub.appendChild(hdr);
                 // Which language is "mine" depends on which column this is (peer/north vs local/south),
                 // NOT on who happens to have sent this particular message. A 180° panel rotation plus
@@ -2531,6 +2549,27 @@
                 if(srcL===tgtL||!tgtL){bub.classList.add('single');tc.style.display='none'}
                 else if(cached)tc.innerHTML=renderMarkdown(cached);
                 else{tc.innerHTML='<span class="duck-pending">translating…</span>'}
+                // bubble action bars — added after text so they sit below it
+                (function wireBubbleActions(scEl,tcEl,srcText,tgtText,srcLang,tgtLang,spkr){
+                    function actBar(text,lang){
+                        var bar=document.createElement('div');bar.className='bbl-acts';
+                        var ttsBtn=document.createElement('button');ttsBtn.type='button';ttsBtn.className='bbl-act';ttsBtn.title='Read aloud';ttsBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+                        var sendBtn=document.createElement('button');sendBtn.type='button';sendBtn.className='bbl-act';sendBtn.title='Send to compose';sendBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+                        bar.appendChild(ttsBtn);bar.appendChild(sendBtn);
+                        ttsBtn.addEventListener('click',function(ev){ev.stopPropagation();speakText(text,lang)});
+                        sendBtn.addEventListener('click',function(ev){ev.stopPropagation();toCompose(spkr,text)});
+                        return bar;
+                    }
+                    function wireCol(el,text,lang){
+                        el.appendChild(actBar(text,lang));
+                        el.addEventListener('click',function(ev){
+                            if(ev.target.closest('.bbl-act'))return;
+                            toCompose(spkr,text);
+                        });
+                    }
+                    wireCol(scEl,srcText,srcLang);
+                    if(tgtText)wireCol(tcEl,tgtText,tgtLang);
+                })(sc,tc,text,cached||null,srcL,tgtL,speaker);
                 tcols.push(tc);col.appendChild(row);
             });
             if(srcL!==tgtL&&!cached){
@@ -2540,7 +2579,12 @@
                         c.style.display='none';
                     });diag('translation failed '+srcL+'→'+tgtL,true);return}
                     entry.translations[key]=tr;saveHistory();
-                    tcols.forEach(function(c){c.innerHTML=renderMarkdown(tr)});
+                    tcols.forEach(function(c){
+                        c.innerHTML=renderMarkdown(tr);
+                        var bar=c.querySelector('.bbl-acts');
+                        if(bar){bar.querySelector('.bbl-act:last-child').addEventListener('click',function(ev){ev.stopPropagation();toCompose(entry.speaker,tr)});
+                                bar.querySelector('.bbl-act:first-child').addEventListener('click',function(ev){ev.stopPropagation();speakText(tr,entry.targetLanguage)})}
+                    });
                 });
             }
         });
