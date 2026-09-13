@@ -1,4 +1,4 @@
-<!-- 26·post-ship · bridge-turn26-post-ship.html · accepted c6 bytes 107617b86d2d + MD-1 markdown in chat (§7.4: kanban pipeline ported verbatim, display-only, attachment guard, link-tap isolation, speech strip) · pair: relay v6.3 unchanged, tb-sw.js unchanged, manifests unchanged -->
+<!-- 27·base · bridge-turn27-base.html · accepted 26·post-ship bytes 4bc088db89b6 + PR-2 (declare on room enter, view change, hide/show/blur/focus/pagehide — in tabs as well as the installed app) + PR-3 (one owner of the dot: legacy traffic-lighting and socket-close darkening retired without editing frozen lines) + PR-4 (the relay word is the only door to the dot) · pair: relay v6.5 (presence read from declared state; ghost cleanup on last socket close) -->
 <!DOCTYPE html>
 <!-- TALKBRIDGE APP · plan-first final app per TALKBRIDGE-MASTER-PLAN-v7.html (v8.4.8)
      Release 5 · 2026-08-01 · Clean-up (b): Ear/TTS/Mute rebuilt as icon buttons (slash convention
@@ -8932,6 +8932,93 @@ function tbmdSpeechStrip(text) {
   if (typeof speakText !== 'function') return;
   var _speak = speakText;
   speakText = function (text, lang) { return _speak.call(this, tbmdSpeechStrip(text), lang); };
+})();
+
+
+/* ===== 27·base additions — presence, traced end to end (§7.13) ===== */
+(function(){ try { if (typeof log==='function') log('build', { c:'turn27-base-presence', file:'bridge-turn27-base.html', built:'2026-09-13 15:12 UTC' }, 'ok'); } catch(_){} })();
+
+/* PR-2 — THE WORD IS SENT AT EVERY TRANSITION, IN EVERY ENVIRONMENT.
+   Traced in the accepted build: the word (ev-state, carrying visible +
+   inRoom) is emitted by cr3Announce on lane open and on every 30s heartbeat,
+   and instantly on hide/show — but the instant listeners are armed ONLY in
+   the installed app, and NOTHING declares on entering or leaving a room.
+   Consequences, both directions: two people in a room read gray until a
+   heartbeat happens to fire; a person who walks out still reads present for
+   up to 30 seconds. Both are closed here, for tab and installed app alike.
+   No timers: each declaration is sent at the moment the transition happens. */
+(function () {
+  if (typeof cr3Announce !== 'function') return;
+  function declare(why) {
+    try {
+      cr3Announce(why);
+      var w = (typeof cr3StateWord === 'function' && typeof S !== 'undefined' && S.roomId) ? cr3StateWord(S.roomId) : null;
+      if (typeof log === 'function') log('pr2_declared', { why: why, inRoom: !!(w && w.inRoom), view: (typeof S !== 'undefined' ? S.view : '?') }, 'ok');
+    } catch (_) {}
+  }
+  /* entrance */
+  if (typeof enterRoom === 'function') {
+    var _enter = enterRoom;
+    enterRoom = function () { var r = _enter.apply(this, arguments); declare('enter_room'); return r; };
+  }
+  /* exit — every path back out of a room */
+  if (typeof leaveRoomInternals === 'function') {
+    var _leave = leaveRoomInternals;
+    leaveRoomInternals = function () { var r = _leave.apply(this, arguments); declare('leave_room'); return r; };
+  }
+  /* every view change, so backing out to the list declares at once —
+     showScreen is the single view setter in the accepted build (line 1296) */
+  if (typeof showScreen === 'function') {
+    var _show = showScreen;
+    showScreen = function (v) { var r = _show.apply(this, arguments); declare('view_' + v); return r; };
+  }
+  /* screen state — armed unconditionally; inside the installed app this
+     simply declares the same word twice, which the relay stores idempotently */
+  document.addEventListener('visibilitychange', function () { declare(document.hidden ? 'hidden' : 'visible'); });
+  window.addEventListener('blur', function () { declare('blur'); });
+  window.addEventListener('focus', function () { declare('focus'); });
+  window.addEventListener('pagehide', function () { declare('pagehide'); });
+})();
+
+/* PR-3 — ONE OWNER OF THE DOT.
+   The relay's announcement decides. The legacy engine that lit the dot from
+   arriving traffic, darkened it on a 75-second countdown, and switched it
+   off on every socket close is retired here — by neutering its two write
+   paths, not by editing frozen lines: touchPresence keeps its last-seen
+   bookkeeping (frozen callers rely on it) but no longer drives the light,
+   and the socket layer can no longer darken it. */
+(function () {
+  if (typeof setPresence !== 'function') return;
+  var relayOwns = false;
+  var _set = setPresence;
+  setPresence = function (on) { if (!relayOwns) return; return _set.apply(this, arguments); };   /* only the relay path passes */
+  window.__tbSetPresenceFromRelay = function (on) {
+    relayOwns = true;
+    try { _set(on); } finally { relayOwns = false; }
+  };
+  if (typeof touchPresence === 'function') {
+    var _touch = touchPresence;
+    touchPresence = function () {
+      var r = _touch.apply(this, arguments);                 /* last-seen bookkeeping runs */
+      try { clearTimeout(touchPresence._t); } catch (_) {}   /* its 75s darkening timer never fires */
+      return r;
+    };
+  }
+})();
+
+/* PR-4 — the relay's word reaches the dot through the one permitted door. */
+(function () {
+  if (typeof handleRelay !== 'function') return;
+  var _h = handleRelay;
+  handleRelay = function (d) {
+    if (d && d.type === 'peer') {
+      var present = !!(d.others > 0);
+      try { window.__tbSetPresenceFromRelay(present); } catch (_) {}
+      try { if (typeof log === 'function') log('pr4_dot', { others: d.others || 0 }, 'ok'); } catch (_) {}
+      return;
+    }
+    return _h.apply(this, arguments);
+  };
 })();
 
 </script>

@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   TALK RELAY — worker-talk.js  ·  v6.3 26·base (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
+   TALK RELAY — worker-talk.js  ·  v6.5 27·base (declared presence) (v6.2 + additive: /log device-log route + peer presence announce; plan v20.49.0)
    Lineage: v4.2 body (route, session addressing, broadcast, history, transient
    handling, subscribe/unsubscribe, RFC 8291 encrypted push) — unchanged —
    plus ONE recipient-event authority (§4.11.2), owned by this Durable Object.
@@ -43,7 +43,7 @@ const VAPID_SUBJECT = 'mailto:nobody@nowhere.com';
 /* v6: only events that own a recipient record can alert. Everything else is
    data on the socket, never a wake. */
 const RECORD_KIND = { 'chat-msg': 'chat', 'thread-invite': 'chat', 'call-start': 'call' };
-const RELAY_VERSION = '6.3';
+const RELAY_VERSION = '6.5';
 const EVENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EVENTS = 400;
 const BURST_MS = 10000;               /* §4.11.4: first chat after ten quiet seconds may alert */
@@ -650,21 +650,45 @@ export class TalkSession {
   /* Presence is one thing: is the other person LOOKING at it. Every device
      already reports that on every state announcement and heartbeat; the relay
      simply passes it on. No timers, no counting sockets, no grace. */
+  /* v6.5 — PRESENCE IS DECLARED, NEVER OBSERVED (plan §7.13).
+     A clientId is present when its own last word says it is in this room.
+     Sockets carry the word; they never constitute it — one device on two
+     sockets is one person, and a re-attached socket is not an arrival.
+     The word is refreshed by the app on entering a room, leaving a room,
+     hiding, showing, and every heartbeat, in every environment. */
   _announcePeers() {
-    const ids = [...this._connectedIds()];
+    const present = [];
+    for (const id of Object.keys(this.states)) {
+      const st = this.states[id];
+      if (st && st.inRoom === true) present.push(id);
+    }
     for (const ws of this.state.getWebSockets()) {
       const tag = ws.deserializeAttachment();
       if (!tag || !tag.clientId) continue;
-      const others = ids.filter((i) => i !== tag.clientId);
-      const focused = others.some((i) => {
-        const st = this.states[i];
-        return !!(st && st.visible);
-      });
-      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused, others: others.length, at: Date.now() })); } catch (_) {}
+      const others = present.filter((i) => i !== tag.clientId);
+      try { ws.send(JSON.stringify({ type: 'peer', transient: true, focused: others.length > 0, others: others.length, at: Date.now() })); } catch (_) {}
     }
   }
 
-  async webSocketClose(ws, code, reason) { try { this._announcePeers(); } catch (_) {} }
+  async webSocketClose(ws, code, reason) {
+    /* Cleanup, not presence: when a device's LAST socket goes, its word is
+       discarded so a killed app leaves no ghost. The closing socket never
+       counts itself. A device that merely re-attaches re-declares at once. */
+    try {
+      const tag = ws.deserializeAttachment();
+      const id = tag && tag.clientId;
+      if (id) {
+        let another = false;
+        for (const other of this.state.getWebSockets()) {
+          if (other === ws) continue;
+          const t = other.deserializeAttachment();
+          if (t && t.clientId === id) { another = true; break; }
+        }
+        if (!another) delete this.states[id];
+      }
+    } catch (_) {}
+    try { this._announcePeers(); } catch (_) {}
+  }
 
   async webSocketError(ws, error) {
     try { ws.close(1011, 'error'); } catch (_) {}
