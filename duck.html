@@ -1820,7 +1820,6 @@
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
     var cands={local:[],peer:[]},candIdx={local:-1,peer:-1};
     var duckJustNormalized=false,duckSentBy=null,diagLines=[];
-    var peerRecognizerLang=null;
 
     function diag(msg,err){
         diagLines.push((err?'!':'·')+' '+new Date().toTimeString().slice(0,8)+' '+msg);
@@ -2120,71 +2119,185 @@
         });
     }
 
-    /* ---- speech to text, per side, into the input ---- */
-    var rec={local:null,peer:null},recOn={local:false,peer:false};
+    /* ================= STT: mechanical port of bridge-turn23-ship.html's Deepgram pipeline =================
+       Source: CHATMIC + startDeepgram/stopDeepgram/watchdog/reconnect, bridge-turn23-ship.html.
+       Ported verbatim at the engine level (URL params, linear16 encoding, AudioWorklet capture,
+       generation-guard against stale callbacks, 30s silence watchdog, 2s reconnect backoff,
+       3-strike credential-failure banner). The ONLY substitutions are bridge-specific wiring that
+       has no meaning outside bridge's room/call model — each is a like-for-like swap, not a logic
+       change: CALL.keys().dg -> localStorage 'tb_dg_key'; room.myLang -> langOf(side); dgShowFailBanner
+       -> diag(). Bridge's dual-socket English-arbitration and 'multi' auto-detect modes are not
+       exercised — duck always runs the single-language branch, which is also what bridge itself runs
+       whenever a room isn't configured for those features. Client-side pause timing (armPause/1100ms)
+       is retired: Deepgram's own endpointing=400 does that job server-side, which is what bridge relies
+       on and is the whole reason this port removes duck's flapping/duplication bugs. */
+    var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr',km:'th',lo:'th'};
+    var DG_WATCHDOG_MS=30000, DG_MAX_FAILS=3, DEDUP_MS=4000, DEDUP_MAX=8;
+    var DG_WORKLET_CODE='class TBAudioCapture extends AudioWorkletProcessor{constructor(){super();this._b=[];this._n=4096;}process(inputs){var ch=inputs[0]&&inputs[0][0];if(ch){for(var i=0;i<ch.length;i++)this._b.push(ch[i]);}while(this._b.length>=this._n){var out=new Float32Array(this._b.splice(0,this._n));this.port.postMessage(out,[out.buffer]);}return true;}}registerProcessor(\'tb-audio-capture\',TBAudioCapture);';
+    function dgKey(){return(localStorage.getItem('tb_dg_key')||'').trim()}   // same key bridge already uses, same origin
+    function dgLangParam(side){return DG_LANGS[langOf(side)]||'en-US'}
+    function stripDGTags(t){return(t||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim()}
+    function normDG(s){return(s||'').replace(/\s+/g,' ').trim()}
+
+    function createSTTPipeline(side,onFinal){
+        var P={on:false,stream:null,dgWs:null,dgActive:false,dgAudioCtx:null,dgSrc:null,dgProc:null,
+               gen:{n:1,bump:function(){this.n++;return this.n},is:function(g){return g===this.n}},
+               dgFailCount:0,_dgLastMsg:0,_dgWatchdogTimer:null,recentFinals:[]};
+
+        function isDupe(text){
+            var now=Date.now();P.recentFinals=P.recentFinals.filter(function(f){return now-f.t<DEDUP_MS});
+            var lo=normDG(text).toLowerCase();
+            for(var i=0;i<P.recentFinals.length;i++){var p=P.recentFinals[i].s;
+                if(p===lo)return true;if(p.length>8&&lo.length>8&&(p.indexOf(lo)>=0||lo.indexOf(p)>=0))return true}
+            return false;
+        }
+        function recFinal(t){P.recentFinals.push({s:normDG(t).toLowerCase(),t:Date.now()});if(P.recentFinals.length>DEDUP_MAX)P.recentFinals.shift()}
+        function stopDGAudio(){
+            if(P.dgProc)try{P.dgProc.disconnect()}catch(e){}P.dgProc=null;
+            if(P.dgSrc)try{P.dgSrc.disconnect()}catch(e){}P.dgSrc=null;
+            if(P.dgAudioCtx)try{P.dgAudioCtx.close()}catch(e){}P.dgAudioCtx=null;
+        }
+        function _stopWatchdog(){clearInterval(P._dgWatchdogTimer);P._dgWatchdogTimer=null}
+
+        function stopDeepgram(){
+            P.gen.bump();
+            if(P.dgWs){try{P.dgWs.close()}catch(e){}}P.dgWs=null;
+            P.dgActive=false;stopDGAudio();_stopWatchdog();
+        }
+
+        function startDeepgram(){
+            if(!P.on)return;
+            var key=dgKey();
+            if(!key){diag(side+': Deepgram key missing — no live transcription',true);return}
+            if(P.dgActive||(P.dgWs&&P.dgWs.readyState<2)){return}
+            var stream=P.stream;if(!stream){diag(side+': no mic stream',true);return}
+            var langParam=dgLangParam(side),myGen=P.gen.n;
+            var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(langParam)+
+                     '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+            var ws=new WebSocket(url,['token',key]);P.dgWs=ws;
+            function live(){return P.dgWs===ws&&P.gen.is(myGen)}
+
+            ws.onopen=function(){
+                if(!live()){try{ws.close()}catch(e){}return}
+                if(!P.on){try{ws.close()}catch(e){}return}
+                P.dgFailCount=0;
+                try{
+                    var tracks=stream.getAudioTracks().filter(function(t){return t.readyState==='live'});
+                    if(!tracks.length){diag(side+': no live audio track',true);ws.close();return}
+                    var dgStream=new MediaStream(tracks);
+                    P.dgAudioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+                    P.dgSrc=P.dgAudioCtx.createMediaStreamSource(dgStream);
+                    var silentGain=P.dgAudioCtx.createGain();silentGain.gain.value=0;silentGain.connect(P.dgAudioCtx.destination);
+                    function pump(f){
+                        if(!live()||ws.readyState!==1||!P.on)return;
+                        var b=new Int16Array(f.length);
+                        for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
+                        ws.send(b.buffer);
+                    }
+                    function scriptProc(){
+                        if(!live())return;
+                        P.dgProc=P.dgAudioCtx.createScriptProcessor(4096,1,1);
+                        P.dgProc.onaudioprocess=function(e){pump(e.inputBuffer.getChannelData(0))};
+                        P.dgSrc.connect(P.dgProc);P.dgProc.connect(silentGain);
+                        P.dgActive=true;
+                    }
+                    if(P.dgAudioCtx.audioWorklet&&typeof AudioWorkletNode!=='undefined'){
+                        var wblob=new Blob([DG_WORKLET_CODE],{type:'application/javascript'});
+                        var wurl=URL.createObjectURL(wblob);
+                        P.dgAudioCtx.audioWorklet.addModule(wurl).then(function(){
+                            URL.revokeObjectURL(wurl);
+                            if(!live()||ws.readyState!==1)return;
+                            var wnode=new AudioWorkletNode(P.dgAudioCtx,'tb-audio-capture');
+                            wnode.port.onmessage=function(ev){pump(ev.data)};
+                            P.dgSrc.connect(wnode);wnode.connect(silentGain);
+                            P.dgProc=wnode;P.dgActive=true;
+                        }).catch(function(e){URL.revokeObjectURL(wurl);diag(side+': worklet fallback — '+e,true);scriptProc()});
+                    }else scriptProc();
+                }catch(e){diag(side+': audio setup error — '+e.message,true);P.dgActive=false}
+            };
+
+            ws.onmessage=function(e){
+                if(!live())return;
+                P._dgLastMsg=Date.now();
+                try{
+                    var d=JSON.parse(e.data);
+                    var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
+                    if(alt&&alt.transcript&&d.is_final){
+                        var text=stripDGTags(alt.transcript);text=normDG(text);
+                        if(!text||!text.replace(/[\s.,!?;:'"()\-]/g,''))return;
+                        if(isDupe(text)){diag(side+': dedup skip — "'+text.slice(0,40)+'"');return}
+                        recFinal(text);
+                        onFinal(text);
+                    }
+                }catch(e2){}
+            };
+            ws.onerror=function(){if(live())diag(side+': Deepgram socket error',true)};
+            ws.onclose=function(ev){
+                if(P.dgWs!==ws)return;
+                if(!P.gen.is(myGen))return;
+                var neverOpened=!P.dgActive;
+                P.dgActive=false;stopDGAudio();_stopWatchdog();
+                if(!P.on)return;
+                if(neverOpened){
+                    P.dgFailCount++;
+                    if(P.dgFailCount>=DG_MAX_FAILS){diag(side+': Deepgram repeated failures — check the key in Calling & Sync Keys',true);return}
+                }
+                setTimeout(function(){if(P.gen.is(myGen)&&P.on&&!P.dgActive)startDeepgram()},2000);
+            };
+
+            P._dgLastMsg=Date.now();_stopWatchdog();
+            P._dgWatchdogTimer=setInterval(function(){
+                if(!P.gen.is(myGen)){_stopWatchdog();return}
+                if(!P.dgActive||!P.on){_stopWatchdog();return}
+                if(Date.now()-P._dgLastMsg>DG_WATCHDOG_MS){
+                    diag(side+': Deepgram watchdog restart (silent '+Math.round((Date.now()-P._dgLastMsg)/1000)+'s)',true);
+                    stopDeepgram();
+                    setTimeout(function(){if(P.gen.is(myGen)&&P.on&&!P.dgActive)startDeepgram()},1000);
+                }
+            },5000);
+        }
+
+        P.start=async function(){
+            if(P.on)return;
+            try{P.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,channelCount:1}})}
+            catch(e){diag(side+': microphone access needed',true);return}
+            P.on=true;setMic(side,true);
+            startDeepgram();
+            diag('listening on '+side+' in '+dgLangParam(side)+' (Deepgram, server-side endpointing)');
+        };
+        P.stop=function(){
+            if(!P.on){if(P.stream){P.stream.getTracks().forEach(function(t){try{t.stop()}catch(e){}});P.stream=null}return}
+            P.on=false;setMic(side,false);
+            if(P.stream){P.stream.getTracks().forEach(function(t){try{t.stop()}catch(e){}});P.stream=null}
+            stopDeepgram();
+            diag('stopped listening on '+side);
+        };
+        return P;
+    }
+
+    var rec={};
+    function onSTTFinal(side,text){
+        insertAtEnd(side,text);
+        send(side);   // duck's own pipeline: normalize (call-site knownLang stays duck's, per plan §5) + render + translate
+    }
+    rec.local=createSTTPipeline('local',function(t){onSTTFinal('local',t)});
+    rec.peer=createSTTPipeline('peer',function(t){onSTTFinal('peer',t)});
+    var recOn={get local(){return rec.local.on},set local(v){},get peer(){return rec.peer.on},set peer(v){}};   // setters are no-ops — actual state lives on rec[side].on; releaseSide's assignment must not throw under 'use strict'
     function micBtn(side){return kb[side]&&kb[side].querySelector('.duck-key.mic')}
     function setMic(side,on){
-        recOn[side]=on;
         var b=micBtn(side);if(b)b.dataset.on=on?'true':'false';
-        var c=micCtl[side];
-        if(c)c.dataset.on=on?'true':'false';   // same glyph both states — the red fill (CSS) is the state signal
+        var c=micCtl[side];if(c)c.dataset.on=on?'true':'false';
     }
-    var pauseTimer={local:null,peer:null},STT_PAUSE_MS=1100;
-    function newRecognizer(side){
-        var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-        var r=new SR();
-        r.lang=langOf(side);r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
-        var settled='';                                    // scoped to THIS instance only — never leaks across restarts
-        r.onstart=function(){setMic(side,true)};
-        r.onerror=function(e){
-            if(e.error==='no-speech'||e.error==='aborted')return;   // onend handles restart/cleanup
-            recOn[side]=false;clearTimeout(pauseTimer[side]);setMic(side,false);
-            diag('speech error on '+side+': '+e.error,true);
-        };
-        r.onresult=function(ev){
-            var interim='';
-            for(var i=0;i<ev.results.length;i++){          // continuous=false → this instance's results always start at 0
-                var t=ev.results[i][0].transcript;
-                if(ev.results[i].isFinal)settled+=t;else interim+=t;
-            }
-            var txt=(settled+interim).trim();
-            insertAtEnd(side,txt);
-            armPause(side);
-        };
-        r.onend=function(){
-            clearTimeout(pauseTimer[side]);
-            if(!recOn[side]){setMic(side,false);if(side==='peer')peerRecognizerLang=r.lang;diag('stopped listening on '+side);return}
-            var txt=(inputs[side].value||'').trim();
-            if(txt){diag('utterance ended on '+side+' → auto-send');send(side)}
-            rec[side]=newRecognizer(side);                 // fresh instance = fresh result buffer, every time
-            try{rec[side].start()}catch(e){diag('restart failed on '+side+': '+e.message,true);recOn[side]=false;setMic(side,false)}
-        };
-        return r;
-    }
-    function armPause(side){
-        clearTimeout(pauseTimer[side]);
-        pauseTimer[side]=setTimeout(function(){
-            var r=rec[side];if(r){try{r.stop()}catch(e){}}   // graceful stop → fires final onresult, then onend auto-sends
-        },STT_PAUSE_MS);
-    }
-    function insertAtEnd(side,text){                        // whole-utterance replace: sets value directly, no caret math needed
+    function insertAtEnd(side,text){
         var ta=inputs[side];ta.value=text;
         try{ta.setSelectionRange(text.length,text.length)}catch(e){}
         ta.scrollLeft=ta.scrollWidth;
         ta.dispatchEvent(new Event('input'));
     }
     function toggleSTT(side){
-        var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-        if(!SR){diag('speech recognition not supported in this browser',true);return}
-        if(recOn[side]){
-            recOn[side]=false;clearTimeout(pauseTimer[side]);
-            var r=rec[side];if(r){try{r.stop()}catch(e){}}
-            return;
-        }
-        recOn[side]=true;
-        rec[side]=newRecognizer(side);
-        try{rec[side].start();diag('listening on '+side+' in '+langOf(side)+' (auto-send after '+STT_PAUSE_MS+'ms pause)')}
-        catch(e){diag('could not start mic: '+e.message,true);recOn[side]=false}
+        if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){diag('microphone capture not supported in this browser',true);return}
+        if(rec[side].on){rec[side].stop();return}
+        rec[side].start();
     }
 
     /* ---- swype gesture ---- */
@@ -2428,7 +2541,7 @@
             if(busy||!message)return _add(message,speaker);
             if(duckJustNormalized){duckJustNormalized=false;return _add(message,speaker)}
             var side=speaker==='local'?'local':'peer';
-            var known=(side==='peer'&&peerRecognizerLang)||langOf(side);
+            var known=langOf(side);   // Deepgram's language is fixed to langOf(side) at listen-start; no drift to track
             normalizeOutgoing(side,String(message),known).then(function(r){
                 busy=true;try{_add(r.text,speaker)}finally{busy=false}
                 if(r.normalized)diag('spoken text normalized on '+side+' → '+r.lang);
