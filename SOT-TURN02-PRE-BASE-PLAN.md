@@ -1,81 +1,85 @@
 # SOT Turn 02 Pre-Base Plan
 
 **Stage:** `pre-base`  
-**Status:** RESET BASELINE — EMPTY DATABASE — SIMPLE MOBILE-FIRST SURFACE  
-**Date:** 2026-09-07
+**Status:** VOLUME-FIRST SERVICE REBUILD  
+**Date:** 2026-09-13
 
-## Reset decision
+## Governing correction
 
-Turn 01 is closed as rejected owner-facing product lineage. Its database, UI, and release artifacts remain archive evidence only. Turn 02 starts from a fresh empty managed database and a new standalone UI source. No Turn 01 generated HTML is an implementation ancestor.
+The first Turn 02 shell is rejected evidence only. Clearing mutable data was acceptable; reducing SOT to a browser shell was not.
 
-The reset installer must archive the current database/backend/UI before clearing live state. The fresh database is rebuilt only from the published managed migrations required by the qualified backend. No user/project/source/tag/content rows are carried forward.
+**Keep the engine. Simplify the control surface.**
 
-## Product rule
+SOT is a persistent Node service with SQLite durable state. The browser is an API client. Closing the browser must not stop indexing, hashing, verification, or other server-side work. Python may be used for build and qualification only, not as the deployed application engine.
 
-Keep the product deliberately small until the surface is stable on mobile.
+## Backend lineage
 
-There is no background polling in pre-base. Data changes only after an explicit owner action or a manual Refresh. No periodic redraw is allowed.
+Restore the previously qualified volume-aware Base-22 lineage from pinned clean sources:
 
-## Surface
+- `9422453c180f8fce4e7d5fe362867912dc8005d1/sot-api.js`
+- `1aebf2624621b08880a595ef9d1f58f2c8cde1b/integrate-SOT-turn01-base.py`
+- `1abfeef83cc1f4da25de09e297361beb5320d516/generate-SOT-turn01-base22.py`
 
-Three simple owner-facing views only:
+This provides Windows-native volume discovery and browsing, Source/Target/Backup storage assignment, persistent Node API service, background fingerprint processing, bounded hash workers, scheduler status, rollups, and SQLite state.
 
-1. **Discover** — add or remove source folders.
-2. **Profile** — read the current SSOT profile and browse it as a simple folder/file hierarchy with breadcrumb navigation.
-3. **Action** — initially only selected-item tag assignment/removal. Physical copy/delete/reconcile actions are deferred.
+Turn 02 uses a fresh schema-4 database because that is the explicit contract of this qualified engine. No prior owner data is carried forward.
 
-No Projects UI. No dashboard. No activity feed. No split-pane desktop layout. No hidden automatic refresh. No bulk actions in pre-base.
+## Owner-facing surfaces
 
-## Mobile-first interaction
+### Storage
+- Show discovered Windows/WSL volumes with capacity and availability.
+- Browse folders from a selected volume.
+- Assign one or more Source folders.
+- Assign Target and Backup folders.
+- Persist configuration in the service.
+- One hidden internal SSOT workspace record is allowed; Project is not an owner-facing abstraction.
 
-- Single-column layout by default.
-- Inputs are never reconstructed while focused.
-- Software keyboard state is never manipulated by background work because there is no background redraw.
-- Minimum touch target is 44px.
-- Folder navigation is tap-to-drill with breadcrumb/back rather than a dense desktop tree.
-- Tag entry is one persistent input; Enter or a suggestion assigns; assigned tags are chips with `×` removal.
+### SSOT
+- Show indexed files and bytes.
+- Show unique fingerprints/content objects.
+- Show duplicate counts and reclaimable bytes when available.
+- Show current Source/Target/Backup placement truth.
 
-## Data model
+### Work
+- Start or re-index.
+- Pause, resume, and stop.
+- Show current phase/state and file/byte progress.
+- Show worker-pool size and active workers.
+- Work continues independently of the browser.
 
-The backend remains the qualified schema-6 SSOT backend for now. Turn 02 pre-base clears all mutable owner data and recreates an empty schema-6 database from migrations 001-006.
+## Concurrency and UI rules
 
-The reset baseline is successful only when these owner data sets are empty after recreation:
+- The server owns concurrency through its bounded worker pool.
+- The browser never emulates parallelism.
+- Progress refresh updates status nodes only; it must not reconstruct active controls, pickers, inputs, navigation, or scroll state.
+- Mobile touch targets are at least 44px and the folder picker is volume-first.
 
-- projects / sources;
-- file observations / fingerprints / holdings;
-- tags / tag assignments;
-- operations / events except migration metadata and required bootstrap Profile revision.
+## Exclusions for pre-base
 
-## Pre-base acceptance gates
+No owner-facing Projects, no seven-step wizard, no tags, no AI, no browser-owned processing, and no alternate runtime architecture.
+
+## Mandatory release gates
 
 ### Developer
-
-- Fresh database builds from migrations 001-006 with integrity `ok` and schema version 6.
-- Current backend starts against the fresh DB and health returns HTTP 200.
-- Discover/Profile/tag endpoints return valid empty contracts.
-- Standalone Turn 02 UI JavaScript parses.
-- UI contains no timer/polling loop (`setInterval` or periodic redraw).
+- Compose the pinned volume-aware Node backend from clean source lineage.
+- Backend and UI JavaScript parse.
+- Fresh schema-4 DB has integrity `ok` and zero owner/work rows.
+- Volume inventory, scheduler, rollup, and worker-pool contracts are present.
 
 ### Manager
-
-- Surface is visibly mobile-first and single-column.
-- Only Discover / Profile / Action exist.
-- No Projects, Dashboard, Database, Activity, scheduler, or bulk-action UI leaks through.
-- Profile is hierarchical/breadcrumb-based, not a flat SSOT dump.
+- Storage / SSOT / Work only.
+- Volumes and Source/Target/Backup roles are obvious.
+- Persistent service and worker status are visible.
+- No owner-facing Project abstraction.
 
 ### Red team
-
-- Existing database is archived before reset.
-- Reset cannot proceed if archive fails.
+- Archive current DB/backend/UI before cutover.
 - Fresh DB contains no carried-forward owner data.
-- Tag input is not subject to timer-driven DOM replacement.
-- No physical delete action exists.
-- Public byte identity and rollback archive are verified before owner test.
+- Runtime is the persistent Node service using SQLite.
+- Volume discovery is live.
+- Status polling cannot replace active interaction DOM.
+- Public byte identity and rollback are verified before owner test.
 
-## Build progression
+## Progression
 
-Do not add complexity until the prior slice is owner accepted:
-
-`pre-base empty shell → source admission → scan/reconcile → profile browse → tags → protection actions`
-
-One capability per accepted slice. No patch chains from rejected Turn 01 UI artifacts.
+`volume/storage setup → background indexing → SSOT truth → protection/copy actions`
