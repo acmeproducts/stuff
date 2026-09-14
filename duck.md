@@ -348,3 +348,26 @@ Anything not on this list that differs from bridge is a defect.
 | D2 | **Mic idle auto-stop** (`MIC_IDLE_MS`, 6s, re-armed per utterance) | Bridge has no idle timer — correct for one person on their own device, wrong when an un-released mic blocks the other side's turn (graveyard G11) |
 | D3 | No WebRTC / relay / rooms / call UI | duck has no network peer by definition |
 | D4 | `log()` mirrored into the diagnostics panel by a **wrapper**, engine bytes untouched | Visibility, without breaking GATE 2 |
+
+
+---
+
+## 14. BACKLOG
+
+### B1 · Mic turn-release model — revisit (accepted as-is, not settled)
+
+Current behaviour (D2) is a 6s silence auto-release, re-armed per utterance. It was
+accepted to unblock testing, not chosen on merit. Four candidates, to be decided
+after real two-person use:
+
+| Option | Behaviour | Cost |
+|---|---|---|
+| **a. As-is** | 6s silence releases the turn | Timer length is a guess; a long thinking pause loses the turn |
+| **b. Exactly like bridge** | Never auto-releases; explicit tap only | Matches donor; an un-released mic blocks the other side indefinitely |
+| **c. Explicit hand-back** | Speaker must tap to give up the turn; no timer | Unambiguous, no guessing — but an extra deliberate action every turn |
+| **d. Both mics live** | Each side transcribed on its own socket simultaneously | Most natural conversationally. Hard: two live Deepgram sockets per device, echo/crosstalk between two mics on one handset, speaker attribution when both talk, and the ownership switch stops being a switch |
+
+Decide from observed use, not theory. If (d) is ever attempted it is a redesign of
+the switch, not a tweak — the whole railroad-switch premise assumes one owner.
+
+**Not blocking. Revisit after the next release.**
