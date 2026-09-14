@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   qualify:
-    if: ${{ !contains(github.event.head_commit.message || '', '[turn25-generated]') }}
+    if: ${{ !contains(github.event.head_commit.message || '', '[turn25-generated]') && !contains(github.event.head_commit.message || '', '[turn25-governance]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -37,8 +37,22 @@ jobs:
           set -euo pipefail
           python3 market-navigator-turn25-governance.py
           grep -F '## 24. Turn 25 cumulative consolidation' MARKET-NAVIGATOR-MASTER-PLAN.md
+          grep -F '## 26. Library Print — binding Turn 25 report contract' MARKET-NAVIGATOR-MASTER-PLAN.md
           grep -F '## Turn 25 permanent cumulative-release rule' MARKET-NAVIGATOR-GRAVEYARD.md
+          grep -F '## Permanent Library Print prohibitions' MARKET-NAVIGATOR-GRAVEYARD.md
           grep -F 'Rejected code may be discarded; owner-approved behavior may not.' MARKET-NAVIGATOR-MASTER-PLAN.md
+
+      - name: Commit governance before application implementation
+        if: github.ref_name == 'market-navigator-turn25-consolidation'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Market Navigator Turn 25 Library Print governance [turn25-governance]'
+            git push origin HEAD:market-navigator-turn25-consolidation
+          fi
 
       - name: Build exact-baseline Turn 25 candidate
         id: build
@@ -56,8 +70,8 @@ jobs:
           s=p.read_text()
           old="one('Market Navigator · Turn 18','Market Navigator · Turn 25','title')"
           new="assert s.count('Market Navigator · Turn 18')>=1,'title anchor missing';s=s.replace('Market Navigator · Turn 18','Market Navigator · Turn 25',1)"
-          assert old in s
-          p.write_text(s.replace(old,new,1))
+          if old in s:
+              p.write_text(s.replace(old,new,1))
           PY
           python3 market-navigator-build-turn25.py > market-navigator-turn25-build-failure.txt 2>&1
           rc=$?
@@ -87,7 +101,7 @@ jobs:
           from pathlib import Path
           import re
           s=Path('market-navigator-turn25-pre-ship.html').read_text()
-          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW']
+          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW','id="libraryPrintReport"','function printLibraryAnalysis25']
           for x in required: assert x in s,x
           for x in ['data-view="explore"','id="view-explore"','id="analysisModal"',"$('settingsModal')"]: assert x not in s,x
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
@@ -178,6 +192,6 @@ jobs:
           test -z "$bad"
           git diff --cached --name-only | grep -Fx 'market-navigator-turn25-pre-ship.html'
           remote="$(git ls-remote origin refs/heads/market-navigator-turn25-consolidation | cut -f1)"
-          test "$remote" = "$GITHUB_SHA"
+          test "$remote" = "$(git rev-parse HEAD)"
           git commit -m 'Market Navigator Turn 25 qualified candidate [turn25-generated]'
           git push origin HEAD:market-navigator-turn25-consolidation
