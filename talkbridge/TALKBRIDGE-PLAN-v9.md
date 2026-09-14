@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.32.0 -->
-# TALKBRIDGE MASTER PLAN v21.32.0
+<!-- TALKBRIDGE-PLAN v21.33.0 -->
+# TALKBRIDGE MASTER PLAN v21.33.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -4553,3 +4553,15 @@ R8B_CSS), every `CALL.*` wrap, every classList add/remove touching
 `#scr-room` or `#call-videos` — written down BEFORE the first edit, not
 discovered mid-build. G52 and G53 both trace to an incomplete inventory,
 not a bad idea.
+
+
+## Standing testing note — 2026-09-14
+Uninstall/reinstall does NOT clear a PWA's cache or service worker; the
+home-screen icon is a shortcut to the browser's existing origin state, not
+a fresh install. A device reporting a build footer from a much older
+release after a 'fresh install' is this, not a code regression — confirmed
+2026-09-14 (phone stuck on turn26-ship-c6 while testing 27·ship candidate 3).
+Fast check: open the URL in an Incognito tab — it bypasses the installed
+app's cache entirely, so its footer always reflects the live build.
+Real fix on the installed app: Settings → Apps → TalkBridge → Storage →
+Clear storage, then reinstall.
