@@ -404,6 +404,10 @@
                         class="mt-3 w-full px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">
                         Save keys
                     </button>
+                    <button id="duck-diag-open" type="button"
+                        class="mt-2 w-full px-3 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">
+                        ⌁ View diagnostics log
+                    </button>
                 </div>
             </div>
         </div>
@@ -1997,6 +2001,15 @@
         ta.dispatchEvent(new Event('input'));
     }
 
+    /* speakText — bridge's function signature; duck wraps speechSynthesis directly */
+    function speakText(text,lang){
+        if(!text||!('speechSynthesis' in window))return;
+        try{speechSynthesis.cancel()}catch(e){}
+        var u=new SpeechSynthesisUtterance(text);
+        if(lang)u.lang=lang;
+        speechSynthesis.speak(u);
+    }
+
     function toCompose(speaker,text){
         var side=speaker==='local'?'local':'peer';
         // Acquire the switch if free; if owned by the other side, just populate without claiming
@@ -2014,7 +2027,7 @@
         if(!text)return;
         ta.value='';clears[side].classList.remove('show');
         closeKb(side,'sent');
-        normalizeOutgoing(side,text,langOf(side)).then(function(r){
+        normalizeOutgoing(side,text,null).then(function(r){   // null: let detection run and catch code-switches
             duckJustNormalized=true;
             duckSentBy=side;
             try{addChatEntry(r.text,side==='local'?'local':'peer')}
@@ -2422,7 +2435,7 @@
         if(!kb[side])return;
         flushComposition(side);
         kb[side].classList.remove('open');shellOf(side).classList.remove('kb-open');ctl[side].dataset.owned='false';
-        if(owner===side)owner=null;
+        if(owner===side){owner=null;['local','peer'].forEach(function(s){if(ctl[s])ctl[s].dataset.owned='false'})}
         diag('keyboard closed on '+side+(why?' ('+why+')':''));
     }
     // Single gate for BOTH the keyboard button and the mic button — whichever side holds input
@@ -2433,7 +2446,7 @@
         // auto-release-on-pause deliberately leaves a mic pipeline running while owner goes null.
         if(kb[side]&&kb[side].classList.contains('open'))closeKb(side,why);
         var r=rec[side];if(r&&r.on){try{r.stop()}catch(e){}}
-        if(owner===side)owner=null;
+        if(owner===side){owner=null;['local','peer'].forEach(function(s){if(ctl[s])ctl[s].dataset.owned='false'})}
     }
     function grantTo(side,after){
         // The single place ownership actually changes hands. ALWAYS force-stops BOTH sides first —
@@ -2646,7 +2659,7 @@
             if(busy||!message)return _add(message,speaker);
             if(duckJustNormalized){duckJustNormalized=false;return _add(message,speaker)}
             var side=speaker==='local'?'local':'peer';
-            var known=langOf(side);   // Deepgram's language is fixed to langOf(side) at listen-start; no drift to track
+            var known=null;   // pass null: even STT text may contain code-switches the user wants normalized
             normalizeOutgoing(side,String(message),known).then(function(r){
                 busy=true;try{_add(r.text,speaker)}finally{busy=false}
                 if(r.normalized)diag('spoken text normalized on '+side+' → '+r.lang);
@@ -2805,10 +2818,8 @@
             '<button type="button" id="duck-diag-dl">Download</button>'+
             '<button type="button" id="duck-diag-clear">Clear</button>'+
             '<button type="button" id="duck-diag-close">✕</button></div><div id="duck-diag-lines"></div>';
-        var southRow=shellOf('local').querySelector('.duck-compose');
-        if(southRow)southRow.insertBefore(b,southRow.querySelector('.duck-inwrap'));
-        else document.body.appendChild(b);
-        document.body.appendChild(p);
+        document.body.appendChild(b);document.body.appendChild(p);
+        b.style.display='none';   // hidden — triggered from the config modal diag button below
         b.addEventListener('click',function(){p.classList.toggle('show');if(p.classList.contains('show'))renderDiag()});
         p.querySelector('#duck-diag-copy').addEventListener('click',function(){
             var btn=this;navigator.clipboard.writeText(diagLines.slice().reverse().join('\n'))
@@ -2859,6 +2870,11 @@
             if(st){st.classList.remove('hidden');st.textContent=key?'Saved ✓':'Nothing to save.'}
             diag('Keys saved: DG='+(key?'✓':'empty')+' PAT='+(pat?'✓':'empty'));
             if(key||pat)toast('Keys saved');
+        });
+        var diagOpenBtn=document.getElementById('duck-diag-open');
+        if(diagOpenBtn)diagOpenBtn.addEventListener('click',function(){
+            var p=document.getElementById('duck-diag');
+            if(p){p.classList.toggle('show');if(p.classList.contains('show'))renderDiag()}
         });
     })();
 })();
