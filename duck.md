@@ -95,10 +95,21 @@ function sideAsRoom(side){
 Every engine call site passes `sideAsRoom(side)`. That is the complete
 adaptation layer. No engine function signature changes.
 
-`knownLang` policy (unchanged from bridge's own contract):
-- duck virtual keyboard → pass that layout's language (we genuinely know it)
-- Deepgram STT → pass the language the socket was opened with
-- anything else (paste, OS keyboard) → pass `null`, let detection run
+`knownLang` policy — **bridge's actual contract, verified against its source**:
+
+- **Typed text → pass NOTHING.** Bridge calls `normalizeOutgoing(room, text)` with
+  two arguments (bridge27 line 3814). `knownLang` is undefined, so
+  `knownLang || await detectLangAsync(text)` **always runs detection**.
+- **Deepgram STT → pass the socket's language.** Bridge:
+  `onDGFinal(alt.transcript, myGen, room.myLang)` for single-language sockets.
+
+> **Do not "improve" this.** An earlier revision of this plan said the virtual
+> keyboard should pass its layout language because "we genuinely know it". That is
+> false parity: it short-circuits detection, so a code-switch typed on the keyboard
+> can never be detected. It shipped and broke normalization (graveyard G7).
+> The keyboard's layout language is *not* evidence about the language of the text —
+> people type Thai on a Latin keyboard and English on a Thai one. GATE 7 enforces
+> the two-argument call.
 
 ---
 
@@ -231,6 +242,10 @@ A build that fails any gate does not ship.
 4. **Parse** — every `<script>` block compiles.
 5. **Touch target** — no `.duck-key` height rule below 44px.
 6. **No orphan calls** — every called function resolves to exactly one definition.
+7. **Normalization parity (G7)** — the typed call site must be exactly
+   `normalizeOutgoing(sideAsRoom(side), text)`. A third argument fails the build.
+8. **Compose strip discipline (G8)** — `sendFrom` must clear the strip
+   unconditionally; the STT callback must not write to the strip at all.
 
 ---
 
@@ -288,3 +303,26 @@ Each is a direct restatement of a defect that reopened repeatedly. All must pass
 - No swype
 - No `auto` language mode — normalization is always on
 - No WebRTC / relay / TURN — duck is single-device by definition
+
+
+---
+
+## 12. BASELINE — 2026-09-14
+
+v2 rebuild shipped and accepted as **baseline**. Two defects found against it,
+root-caused, fixed, and guarded:
+
+| ID | Defect | Root cause | Guard |
+|---|---|---|---|
+| G7 | Normalization below donor parity | Plan §3 told us to pass `knownLang` for keyboard text; bridge passes nothing. Detection was short-circuited, so typed code-switches were undetectable. | GATE 7 + §3 corrected |
+| G8 | `➤` left the phrase in the compose strip | `sendFrom`'s clear was conditional on `textOverride==null`, so ➤/STT never cleared. STT additionally wrote the strip before sending. | GATE 8 |
+
+**Strip contract, now explicit:**
+- `➤` on a bubble → sends immediately, strip untouched and left empty
+- STT final → sends immediately, strip never written
+- tap bubble **text** → populates the strip only; user then sends or clears with ✕
+
+Full companion RCA for every historical defect: `duck-graveyard.md`.
+
+**Verification at baseline+fixes:** 8 gates · 25 state-machine · 20 normalization ·
+8 strip-discipline · 2 parity assertions. All pass.
