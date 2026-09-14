@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.26.0 -->
-# TALKBRIDGE MASTER PLAN v21.26.0
+<!-- TALKBRIDGE-PLAN v21.27.0 -->
+# TALKBRIDGE MASTER PLAN v21.27.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -4169,7 +4169,28 @@ video, own camera stays small; stop sharing (in-app or via the browser's
 own control) → camera returns to the big slot correctly. G6 confirm the
 OLD corner band is gone entirely — no tap-to-shrink-into-a-fixed-corner
 behavior remains anywhere.
-PASS = all six.
+
+### Red team additions (2026-09-13) — required rules, not open questions
+R6 Swap state and reduced-view state are independent; entering the reduced
+   view never resets which video is big.
+R7 Screen share always replaces the CAMERA sender's track, regardless of
+   which element currently carries the big/small role — swap must never
+   redirect share to the wrong track.
+R8 Camera flip is disabled while sharing (no camera track to flip) and
+   re-enabled the moment sharing stops.
+R9 Stopping share (in-app icon OR the browser's own "stop sharing" control)
+   restores exactly the state that existed before share started — including
+   swap state — not a hardcoded default.
+R10 Drag and tap-to-swap share the same pointer-down event; a tap must
+   resolve (no movement past threshold) before any drag logic runs, or
+   every tap is mistaken for a zero-length drag and swap never fires.
+R11 `CALL.hangUp` during an active drag removes that drag's pointer
+   listeners; none may outlive the call.
+G7 red-team gate: start a screen share, then flip camera (must be
+   disabled/no-op), then stop sharing — camera and prior swap state both
+   restored correctly. G8 tap-drag-tap in quick succession — swap fires
+   exactly once per genuine tap, drag never mistaken for a tap.
+PASS = all eight (G1–G8).
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.7 [SUPERSEDED by §7.11] — was: IndexedDB cutover
