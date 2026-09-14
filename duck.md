@@ -142,3 +142,11 @@ The DOM-order swap for North's rotated column (source language lands on North's 
 - No translation-provider changes beyond what's already MyMemory (bridge's provider logic is a separate, larger port not requested this turn).
 - No changes to the IME/keyboard layouts, swype (already removed), or language list — untouched.
 - No fallback preserved for the old Web Speech API STT path — replaced outright, not kept as a backup.
+
+## 11. DEFERRED TO NORMALIZATION TURN (§5)
+
+Items explicitly deferred from 2026-09-13 testing pass to be bundled with the §5 normalization port:
+
+- **Keyboard layout defaults to the side's configured language.** When the keyboard slides open for a side whose language is e.g. Simplified Chinese, the keyboard should already show the Chinese layout — not default to English and require the user to manually switch. Fix: `renderKeys(side)` already calls `layoutNameFor(langOf(side))`, so the layout itself is correct once the keyboard is open; the issue is the initial render on open may be stale from a previous language setting. Ensure `renderKeys` is always called with the freshest `langOf(side)` at open time, and that `langOf(side)` reads the latest saved setting rather than a cached value.
+
+- **`normalizeOutgoing` port from bridge** — the core §5 work. Call-site adapter per the plan: virtual keyboard → `knownLang = langOf(side)`; Deepgram STT → `knownLang = langOf(side)` at listen-start; OS/physical keyboard bypass → `knownLang = null`. Bridge's function body unchanged.
