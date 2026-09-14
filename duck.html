@@ -245,8 +245,7 @@
         }
         .bubble-col{position:relative;cursor:pointer;user-select:none}
     .bubble-col:active{background:rgba(59,130,246,.07);border-radius:6px}
-    .bbl-acts{display:flex;gap:3px;justify-content:flex-end;margin-top:4px;opacity:0;transition:opacity .15s;pointer-events:none}
-    .bubble-col:hover .bbl-acts,.bubble-col:focus-within .bbl-acts{opacity:1;pointer-events:auto}
+    .bbl-acts{display:flex;gap:3px;justify-content:flex-end;margin-top:4px}
     .bbl-act{width:26px;height:26px;border-radius:999px;border:1px solid rgba(148,163,184,.4);
         background:rgba(255,255,255,.9);display:inline-flex;align-items:center;justify-content:center;
         color:#475569}
@@ -1412,8 +1411,7 @@
     .duck-ask-btns button{flex:1;height:44px;border-radius:12px;font-weight:700;font-size:14px;border:1px solid rgba(203,213,225,.9);background:#f1f5f9;color:#334155}
     .duck-ask-btns .ok{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
 
-    #duck-diag-btn{position:fixed;left:4px;bottom:4px;z-index:41;width:26px;height:26px;opacity:.55;border-radius:999px;
-        border:1px solid rgba(226,232,240,.9);background:rgba(255,255,255,.9);color:#64748b;font-size:14px}
+    #duck-diag-btn{width:32px;height:32px;border-radius:999px;border:1px solid rgba(226,232,240,.95);background:#fff;color:#64748b;font-size:14px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
     #duck-diag{position:fixed;left:0;right:0;bottom:0;z-index:80;max-height:52vh;display:none;flex-direction:column;
         background:#0f172a;color:#e2e8f0;font:11px/1.5 ui-monospace,Menlo,monospace;padding:10px 12px}
     #duck-diag.show{display:block}
@@ -2800,17 +2798,29 @@
         // mic remembers which language it listened in
         ['local','peer'].forEach(function(s){paintTts(s)});
         // diagnostics
-        var b=document.createElement('button');b.id='duck-diag-btn';b.type='button';b.textContent='⌁';
+        var b=document.createElement('button');b.id='duck-diag-btn';b.type='button';b.textContent='⌁';b.title='Diagnostics';
         var p=document.createElement('div');p.id='duck-diag';
-        p.innerHTML='<div class="duck-diag-tools"><b>diagnostics</b><span style="flex:1"></span><button type="button" id="duck-diag-copy">Copy</button><button type="button" id="duck-diag-close">✕</button></div><div id="duck-diag-lines"></div>';
-        document.body.appendChild(b);document.body.appendChild(p);
+        p.innerHTML='<div class="duck-diag-tools"><b>diagnostics</b><span style="flex:1"></span>'+
+            '<button type="button" id="duck-diag-copy">Copy</button>'+
+            '<button type="button" id="duck-diag-dl">Download</button>'+
+            '<button type="button" id="duck-diag-clear">Clear</button>'+
+            '<button type="button" id="duck-diag-close">✕</button></div><div id="duck-diag-lines"></div>';
+        var southRow=shellOf('local').querySelector('.duck-compose');
+        if(southRow)southRow.insertBefore(b,southRow.querySelector('.duck-inwrap'));
+        else document.body.appendChild(b);
+        document.body.appendChild(p);
         b.addEventListener('click',function(){p.classList.toggle('show');if(p.classList.contains('show'))renderDiag()});
         p.querySelector('#duck-diag-copy').addEventListener('click',function(){
-            var txt=diagLines.slice().reverse().join('\n');
-            var btn=this;
-            navigator.clipboard.writeText(txt).then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1200)})
-                .catch(function(e){diag('copy failed: '+e.message,true)});
+            var btn=this;navigator.clipboard.writeText(diagLines.slice().reverse().join('\n'))
+                .then(function(){btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1400)}).catch(function(){});
         });
+        p.querySelector('#duck-diag-dl').addEventListener('click',function(){
+            var blob=new Blob([diagLines.slice().reverse().join('\n')],{type:'text/plain'});
+            var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+            a.download='duck-diag-'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.txt';
+            a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
+        });
+        p.querySelector('#duck-diag-clear').addEventListener('click',function(){diagLines=[];renderDiag();diag('log cleared')});
         p.querySelector('#duck-diag-close').addEventListener('click',function(){p.classList.remove('show')});
         document.addEventListener('keydown',function(e){
             if(e.key==='Enter'&&!e.shiftKey&&owner==='peer'&&document.activeElement===inputs.peer){e.preventDefault();send('peer')}
@@ -2827,6 +2837,7 @@
         var m=document.getElementById('controls-modal');
         if(m){m.classList.remove('invisible');m.classList.add('visible');
             var c=document.getElementById('controls-content');if(c){c.classList.remove('scale-out');c.classList.add('scale-in')}}
+        try{buildColorSwatches();refreshSwatches()}catch(e){}
     }
     function armDrawerLongPress(){}   // trigger is the south gear button
 
