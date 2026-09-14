@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.25.0 -->
-# TALKBRIDGE MASTER PLAN v21.25.0
+<!-- TALKBRIDGE-PLAN v21.26.0 -->
+# TALKBRIDGE MASTER PLAN v21.26.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -86,7 +86,7 @@ built yet.
 | 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | 27·base | **Presence, traced end to end** — the word (visible + inRoom) is now declared on room entry, every view change, hide, show, blur, focus and page close, in browser tabs as well as the installed app (the accepted build declared only on lane open, on a 30s heartbeat, and — instant announcements only — inside the installed app; nothing ever declared on entering or leaving a room, so both parties read wrong in both directions). Relay v6.5 reads presence from the declared word keyed by device; ghost cleanup on last socket close. One owner of the dot: the legacy traffic-lighting and 75s countdown and the socket-close darkening are retired without editing a single frozen line. | Spec §7.13 as amended by the three-pass review | **ACCEPTED 2026-09-13 (owner: pass).** D-4 CLOSED — presence works for the first time in this project's history: steady green with both parties in the room, instant gray on lock / list / force-quit, instant green on return, no wink. Legacy presence engine and the superseded P1 block DELETED from the body (36 lines removed, nothing wrapped, nothing dormant) per owner ruling: in a file this size, wrapped dead code is a trap, not a safety measure. The file now contains one setPresence definition and exactly one caller. 16/16 two-party trace (entrance, exit, lock, unlock, list, re-attach, force-quit, relaunch, heartbeat); mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
-| 27·ship | **Video done right** — PiP/tap-swap (two tiles ever), front camera default + flip, home button keeps the call; research-first | Spec §7.6 | queued — ringfence: platform PiP variance | — |
+| 27·ship | **Video call surface** — remove the unwanted corner-band PiP entirely; tap either video to swap big/small; back button reduces to a draggable 9:16 box with a red hang-up icon and expand control; small video independently draggable during normal calls; camera flip; WhatsApp-style screen share | Spec §7.6 (rewritten 2026-09-13 to the owner's exact stated behavior) | queued — manager pass done, red team next | — |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
 | 28·pre-base | Snapshot | — | queued | — |
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
@@ -4062,36 +4062,114 @@ after worker retirement. PASS = all five. POST-ACCEPT step (owner orders it
 explicitly): forwarders to the old addresses.
 
 ────────────────────────────────────────────────────────────────────────
-## §7.6 BUILDER SPEC — VIDEO EXPERIENCE, DONE RIGHT (BL-V1/V2/V3, G45)
-────────────────────────────────────────────────────────────────────────
-RESEARCH-FIRST MANDATE (platform rule): before writing part code the
-builder web-verifies, with sources logged in the plan: current Android
-Chrome behavior of Element.requestPictureInPicture vs documentPictureInPicture,
-autoPictureInPicture eligibility, and background tab media policies. No
-workaround for a limitation that is not proven current.
-SCOPE (each its own part, each individually mutation-gated):
-V1 (BL-V2) the call STARTS on the front camera: getUserMedia video
-constraint `facingMode:'user'` asserted at the single frozen call-media
-acquisition site (builder greps `getUserMedia` video branches; the wrap
-supplies the constraint only when absent). Camera-flip toggles to
-`environment` and back; flip state resets at teardown (G41 pattern).
-V2 (BL-V1) tap-to-swap: one tap exchanges main/PiP FEEDS ONLY — no layout
-reflow, no extra floating tiles; the G45 symptom "multiple tiles over
-chat" gets an explicit gate: after any sequence of swaps the DOM contains
-exactly two video elements (machine-countable in the wrap, logged
-`v2_video_count {n}` and asserted =2 on device log review).
-V3 (BL-V3) home button / leaving the app keeps the call alive: audio
-continues in background (WebRTC audio is not paused by page-hide; the
-gate PROVES it rather than assumes); if research confirms eligibility,
-enable autoPictureInPicture on the remote video so leaving pops PiP;
-back-button PiP only on explicit user tap, never automatic stacking.
-NON-SCOPE: screen share changes, mute UI, filters.
-### Device gate
-G1 video call starts front-facing both phones. G2 ten rapid swaps → two
-video elements, chat untouched beneath. G3 home button mid-call → audio
-continues both directions ≥60s, return → video resumes. G4 hang up,
-recall → default layout, front camera. G5 log shows v2_video_count=2
-throughout. PASS = all five.
+## §7.6 BUILDER SPEC — VIDEO CALL SURFACE, REWRITTEN 2026-09-13
+Supersedes the original §7.6 in full. Manager pass (2026-09-13) found the
+original V2 ("tap swaps main/PiP feeds") was inherited from the buried G45
+candidate's own description of itself and matched nothing in the accepted
+app or anything the owner had asked for; it also found the accepted app
+already has a corner-band PiP system that V2 would have collided with, and
+that the same system is wired into the Android back button. Owner then gave
+the actual, complete behavior directly — stated once, comprehensive, no
+further scope to infer.
+
+### The behavior, verbatim from the owner (2026-09-13)
+- Tap either video (big or small) → they swap: small becomes big, big
+  becomes small. Tap again, swaps back.
+- Back button → the call reduces to a draggable 9:16 box, persistent
+  wherever dragged, with a RED hang-up icon (not an X) that ends the call,
+  and a way to expand back to full size.
+- During a normal full-size call, the small video is independently
+  draggable anywhere on the surface and stays where left.
+- An icon on the big video flips the camera front↔back.
+- A screen-share icon works like WhatsApp's.
+- Nothing else is in scope. No swap-feeds-via-PiP-tap invention, no
+  additional gesture, no extra control.
+
+### What already exists and must be REMOVED, not layered under (evidence)
+The corner-band system is real, accepted, working, and unwanted:
+`CALL.enterPip`/`exitPip` (~2759), `#call-band`/`#call-videos` markup (~387),
+`wirePipSwap` — tap-to-shrink (~6864), `wirePipDrag` — drag-to-reposition
+(~6895), the `popstate` → `enterPip` back-button hook (~2344), the
+`#pip-x` close button which ALREADY calls `CALL.hangUp(true)` (~2340, 388) —
+its hang-up wiring is correct and is REUSED, only its icon changes from ✕ to
+the red hang-up glyph already used at `#rb-hangup`. `local-video` is
+currently fixed bottom-right, 82×110, non-draggable outside pip mode — the
+owner's "small video draggable anywhere during a normal call" is new.
+There is no swap-which-is-big concept anywhere today: `#remote-video` is
+always the big element, `#local-video` always the small one.
+Screen share and camera flip do not exist (`getDisplayMedia` and
+call-camera `facingMode` toggle both absent; the one `facingMode` hit in
+the file is unrelated dead QR-scanner code).
+
+### Parts (each additive over the accepted body; the removal is itself a
+declared, gated edit — not a silent deletion)
+R1 REMOVE the corner-band system: delete `enterPip`/`exitPip` bodies'
+   corner-band behavior, `wirePipSwap`, `wirePipDrag`, the `.pip` CSS rules,
+   and repoint `popstate` at the NEW reduced view (V3) instead of the old
+   `enterPip`. `#pip-x`'s hang-up wiring and element are KEPT and RESKINNED
+   as the reduced view's hang-up control (its behavior was already correct).
+V1 tap-to-swap: one delegated click handler on `#call-videos`; on tap,
+   exchange the two video elements' roles (which one carries the
+   `#remote-video`/`#local-video` sizing rules) via a single state flag,
+   re-attach `srcObject` to the swapped elements. No new video elements;
+   still exactly two, now with an explicit swapped/unswapped state instead
+   of none.
+V2 reduced view (replaces the corner band at the same trigger — back
+   button, and now also usable from a tap-to-reduce affordance if the owner
+   wants one, otherwise back-button only per the stated behavior): a 9:16
+   box, draggable via the existing `wirePipDrag` MECHANICS reused (rewritten
+   to target the new box, not `#call-band`), red hang-up icon (reskinned
+   `#pip-x`, same `CALL.hangUp(true)` call — zero new hang-up logic), and an
+   expand control that returns to full size. This is the ONLY thing that
+   answers V3's original "home button keeps the call running" — CSS-only,
+   same limitation as before (does not survive real backgrounding); a real
+   OS-level `documentPictureInPicture`/`requestPictureInPicture` window for
+   TRUE backgrounding survival is optional, research-first, and may be
+   dropped from this release if the platform check comes back weak — the
+   owner's stated behavior does not require it, only the back-button
+   reduced view does.
+V3 small video draggable during normal (non-reduced) calls: same drag
+   mechanics as V2's box, targeting `#local-video` (or whichever element
+   currently holds the small role, post-swap) directly, clamped to the
+   viewport, independent of reduced-view state.
+V4 camera flip: one icon on the call controls row; toggles the outbound
+   video track's `facingMode` between `user` and `environment` via
+   `getUserMedia` + `replaceTrack` on the existing peer connection sender
+   (the replace-track mechanics already exist at ~5341/5368 for mute; V4
+   reuses that exact pattern for the video track).
+V5 screen share: one icon; `getDisplayMedia()` → `replaceTrack` on the
+   video sender (same reuse as V4), restores the camera track when sharing
+   stops or the browser's own "stop sharing" control fires (`track.onended`).
+   WhatsApp-parity means: icon toggles share on/off, the shared content
+   plays in the big video slot, own camera continues in the small slot
+   exactly as during a normal video call.
+
+### Machine gates
+M1 frozen accepted body byte-identical outside the DECLARED R1 removal
+   (diff asserted to touch only the named functions/CSS rules/markup ids).
+M2 block parses. M3 exactly two video elements exist at every state (now
+   meaningful, since roles swap rather than the element count ever
+   changing — assert element count AND assert the swap flag matches which
+   element carries which CSS role). M4 `#pip-x`'s click handler still
+   calls `CALL.hangUp(true)` and nothing else was added to it. M5 drag
+   mechanics are ONE shared function parameterized by target element, not
+   two copies (asserted: no second copy of the clamp/threshold math).
+MUTATIONS: (a) leave the old corner-band `.pip` CSS/JS in place alongside
+the new reduced view (both systems present) → fails; (b) reduced view's
+close control calls anything other than `CALL.hangUp(true)` → fails;
+(c) drag math duplicated instead of shared → fails.
+
+### Device gate (owner, both phones)
+G1 video call: tap either video → big/small swap; tap again → swap back.
+G2 press back → reduces to a draggable 9:16 box; drag it; the red hang-up
+icon ends the call; expand returns to full size. G3 in a normal (non-
+reduced) call, drag the small video anywhere; it stays. G4 flip camera
+front→back→front. G5 start screen share → shared content is the big
+video, own camera stays small; stop sharing (in-app or via the browser's
+own control) → camera returns to the big slot correctly. G6 confirm the
+OLD corner band is gone entirely — no tap-to-shrink-into-a-fixed-corner
+behavior remains anywhere.
+PASS = all six.
 
 ────────────────────────────────────────────────────────────────────────
 ## §7.7 [SUPERSEDED by §7.11] — was: IndexedDB cutover
