@@ -518,6 +518,80 @@ async function normalizeOutgoing(room, text, knownLang) {
   }
   return { text: srcText, lang: srcLang, detected: detected };
 }
+/* ===== bridge27: DG_LANGS ===== */
+var DG_LANGS={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr'};
+/* ===== bridge27: DG_MULTI_LANGS ===== */
+var DG_MULTI_LANGS = ['en', 'es', 'fr', 'de', 'hi', 'it', 'ja', 'nl', 'ru', 'pt'];
+/* ===== bridge27: dual_arbitration ===== */
+var DG_DUAL_LANGS = ['zh', 'th', 'ko', 'ar'];
+
+/* Arbitration, unchanged from the original. The native result is held briefly
+   rather than fired immediately. If the English channel returns something
+   substantial inside that window, the held native result was phonetic nonsense
+   and is dropped. A native result arriving just after an English one is
+   suppressed outright — same utterance, already handled. */
+var _DG_CROSS_MS = 600;
+var _DG_HOLD_MS = 250;
+var _DG_EN_MIN_CHARS = 10;
+var _dgEnLastFiredAt = 0, _dgPrimHoldTimer = null, _dgPrimHeldText = null;
+
+function dgUseDual(room) {
+  return !!room && !dgUseMulti(room) && DG_DUAL_LANGS.indexOf(room.myLang) >= 0;
+}
+
+/* The arbitration itself, as one decision rather than two copies of it inside
+   socket handlers — so it can be exercised directly instead of only through a
+   live connection. `deliver` is what actually emits the line. */
+function dgArbitrateNative(text, deliver) {
+  if (Date.now() - _dgEnLastFiredAt < _DG_CROSS_MS) {
+    log('dg_cross_suppress', { t: String(text).slice(0, 40) }, 'warn');
+    return 'suppressed';
+  }
+  if (_dgPrimHoldTimer !== null) clearTimeout(_dgPrimHoldTimer);
+  var held = text;
+  _dgPrimHeldText = held;
+  _dgPrimHoldTimer = setTimeout(function () {
+    _dgPrimHoldTimer = null;
+    if (_dgPrimHeldText === held) { _dgPrimHeldText = null; deliver(held); }
+  }, _DG_HOLD_MS);
+  return 'held';
+}
+
+/* What happens to a line that arrives on the English channel, as one callable
+   decision. Kept out of the socket handler so it can be exercised without a
+   live connection — the previous version could be deleted silently because
+   nothing tested it. */
+function dgDeliverEnglish(text, gen) {
+  var verdict = dgArbitrateEnglish(text);
+  /* The language is known by construction: this channel listens only for
+     English. Re-guessing it would mislabel anything too short to detect. */
+  onDGFinal(text, gen, 'en');
+  return verdict;
+}
+
+function dgArbitrateEnglish(text) {
+  if (String(text).trim().length <= _DG_EN_MIN_CHARS) return 'ignored';
+  _dgEnLastFiredAt = Date.now();
+  if (_dgPrimHoldTimer !== null) {
+    clearTimeout(_dgPrimHoldTimer); _dgPrimHoldTimer = null;
+    log('dg_cross_suppress', { held: _dgPrimHeldText && _dgPrimHeldText.slice(0, 40) }, 'warn');
+    _dgPrimHeldText = null;
+    return 'displaced';
+  }
+  return 'won';
+}
+
+function dgUseMulti(room) {
+  if (!room) return false;
+  return DG_MULTI_LANGS.indexOf(room.myLang) >= 0 && DG_MULTI_LANGS.indexOf(room.theirLang) >= 0;
+}
+
+function dgLangParam(room) {
+  if (!room) return 'en-US';
+  if (dgUseMulti(room)) return 'multi';
+  return DG_LANGS[room.myLang] || room.myLang || 'en-US';
+}
+
 
 /* ######## KEYBOARD ######## */
     var EXTRA_LAYOUTS={
@@ -702,14 +776,12 @@ async function normalizeOutgoing(room, text, knownLang) {
        language per side, which is bridge's own single-language branch.
        ============================================================================ */
     var DG_WATCHDOG_MS=30000, DG_MAX_FAILS=3;
-    var DG_LANG={en:'en-US',th:'th',ja:'ja',ko:'ko',zh:'zh-CN',ar:'ar',hi:'hi',ru:'ru',fr:'fr',de:'de',
-                 es:'es',it:'it',pt:'pt-BR',vi:'vi',id:'id',ms:'ms',fil:'fil',nl:'nl',sv:'sv',pl:'pl',tr:'tr',km:'th',lo:'th'};
     function dgKey(){try{return(localStorage.getItem('tb_dg_key')||'').trim()}catch(e){return ''}}
 
     function createMicPipeline(side,onFinal){
         var P={
             on:false, stream:null,
-            ws:null, active:false, audioCtx:null, src:null, proc:null,
+            ws:null, enWs:null, active:false, audioCtx:null, src:null, proc:null,
             failCount:0, lastMsg:0, watchdog:null,
             gen:{n:1,bump:function(){this.n++;return this.n},is:function(g){return g===this.n}}
         };
@@ -724,7 +796,8 @@ async function normalizeOutgoing(room, text, knownLang) {
         function stopSocket(){
             P.gen.bump();
             if(P.ws){try{P.ws.close()}catch(e){}}
-            P.ws=null; P.active=false;
+            if(P.enWs){try{P.enWs.close()}catch(e){}}
+            P.ws=null; P.enWs=null; P.active=false;
             stopAudio(); stopWatchdog();
         }
 
@@ -736,7 +809,8 @@ async function normalizeOutgoing(room, text, knownLang) {
             var stream=P.stream;
             if(!stream){diag(side+': no mic stream',true);return}
 
-            var lang=DG_LANG[langOf(side)]||'en-US';
+            var room=sideAsRoom(side);
+            var lang=dgLangParam(room);
             var myGen=P.gen.n;
             var url='wss://api.deepgram.com/v1/listen?model=nova-3&language='+encodeURIComponent(lang)+
                     '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
@@ -761,6 +835,7 @@ async function normalizeOutgoing(room, text, knownLang) {
                         var b=new Int16Array(f.length);
                         for(var i=0;i<f.length;i++){var s=Math.max(-1,Math.min(1,f[i]));b[i]=s<0?s*0x8000:s*0x7FFF}
                         P.ws.send(b.buffer);
+                        if(P.enWs&&P.enWs.readyState===1)P.enWs.send(b.buffer);
                     }
                     function scriptProc(){
                         if(!live())return;
@@ -792,7 +867,17 @@ async function normalizeOutgoing(room, text, knownLang) {
                     var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
                     if(alt&&alt.transcript&&d.is_final){
                         var t=String(alt.transcript).trim();
-                        if(t)onFinal(t,langOf(side));
+                        if(!t)return;
+                        if(P.enWs){
+                            /* Dual-channel room (zh/th/ko/ar): hold the native result briefly.
+                               If the English channel returns something substantial inside the
+                               window, the native text was phonetic nonsense and gets dropped. */
+                            dgArbitrateNative(t,function(held){
+                                if(live())onFinal(held,dgUseMulti(room)?null:room.myLang);
+                            });
+                        }else{
+                            onFinal(t,dgUseMulti(room)?null:room.myLang);
+                        }
                     }
                 }catch(e2){}
             };
@@ -809,6 +894,31 @@ async function normalizeOutgoing(room, text, knownLang) {
                 }
                 setTimeout(function(){if(P.gen.is(myGen)&&P.on&&!P.active)connect()},2000);
             };
+
+            /* Second channel listening in English on the same audio — bridge's fix for
+               rooms whose language cannot code-switch with English (zh/th/ko/ar). */
+            if(dgUseDual(room)){
+                var urlEn='wss://api.deepgram.com/v1/listen?model=nova-3&language=en'+
+                          '&encoding=linear16&sample_rate=16000&channels=1&interim_results=false&punctuate=false&endpointing=400';
+                P.enWs=new WebSocket(urlEn,['token',key]);
+                var enSock=P.enWs;
+                P.enWs.onmessage=function(e){
+                    if(P.enWs!==enSock||!P.gen.is(myGen))return;
+                    P.lastMsg=Date.now();
+                    try{
+                        var d=JSON.parse(e.data);
+                        var alt=d.channel&&d.channel.alternatives&&d.channel.alternatives[0];
+                        if(!(alt&&alt.transcript&&d.is_final))return;
+                        var verdict=dgArbitrateEnglish(alt.transcript);
+                        if(verdict==='ignored')return;
+                        /* language known by construction: this channel hears only English */
+                        if(live())onFinal(String(alt.transcript).trim(),'en');
+                    }catch(_){}
+                };
+                P.enWs.onerror=function(){if(P.enWs===enSock)diag(side+': english channel error',true)};
+                P.enWs.onclose=function(){if(P.enWs===enSock)P.enWs=null};
+                log('dg_en_open',{myLang:room.myLang},'ok');
+            }
 
             P.lastMsg=Date.now();stopWatchdog();
             P.watchdog=setInterval(function(){
@@ -844,10 +954,33 @@ async function normalizeOutgoing(room, text, knownLang) {
        unconditionally. No fast paths. No trusting remembered state.
        Nothing outside teardown()/acquire() may write INPUT or start a pipeline.
        ============================================================================ */
+    /* ── Mic idle auto-stop ──────────────────────────────────────────────────
+       DELIBERATE DIVERGENCE FROM BRIDGE, recorded so it is never mistaken for a
+       port. Bridge's CHATMIC has no idle timer: its mic runs until the user taps
+       it off, because bridge is one person on their own device — holding the mic
+       costs nobody anything. duck is two people sharing one device, so an
+       un-released mic blocks the other side's turn indefinitely. The switch
+       therefore releases itself after a genuine silence.
+       Timer is armed on acquire and re-armed on every final transcript, so it
+       measures silence since the last thing you actually said — not since you
+       started talking. */
+    var MIC_IDLE_MS=6000, micIdleTimer=null;
+    function armMicIdle(side){
+        clearTimeout(micIdleTimer);
+        micIdleTimer=setTimeout(function(){
+            if(INPUT.owner===side&&INPUT.mode==='mic'){
+                diag('mic idle '+(MIC_IDLE_MS/1000)+'s → releasing turn');
+                teardown('mic-idle');
+            }
+        },MIC_IDLE_MS);
+    }
+    function clearMicIdle(){clearTimeout(micIdleTimer);micIdleTimer=null}
+
     var INPUT={owner:null,mode:null};          // owner: null|'south'|'north'   mode: null|'kb'|'mic'
     var mic={}, pendingReq=null, askTimer=null;
 
     function teardown(why){
+        clearMicIdle();
         ['south','north'].forEach(function(s){
             if(mic[s])mic[s].hardStop();
             hideKeyboard(s);
@@ -864,6 +997,7 @@ async function normalizeOutgoing(room, text, knownLang) {
         INPUT.owner=side;INPUT.mode=mode;
         if(mode==='mic'){
             mic[side].start().catch(function(){teardown('mic denied')});
+            armMicIdle(side);
         }else{
             showKeyboard(side);
         }
@@ -1359,10 +1493,9 @@ async function normalizeOutgoing(room, text, knownLang) {
         ['south','north'].forEach(function(s){
             buildStrip(s);
             mic[s]=createMicPipeline(s,function(text,lang){
-                /* G8: send straight through. Writing the transcript into the strip
-                   first left it sitting there after the send. The strip is only
-                   ever populated by an explicit tap on bubble text. */
-                sendFrom(s,text,true);       // keepMic: pause is not end-of-turn
+                /* G8: send straight through — never via the strip. */
+                sendFrom(s,text,true);       // keepMic: a pause is not end-of-turn
+                armMicIdle(s);               // but sustained silence IS — re-arm the idle clock
             });
             var ov=document.getElementById('ask-'+s);
             ov.querySelector('.ask-ok').addEventListener('click',function(){resolveAsk(true)});
@@ -1414,7 +1547,9 @@ async function normalizeOutgoing(room, text, knownLang) {
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
         window.sideAsRoom=sideAsRoom;window.CFG=CFG;window.translateWithRetry=translateWithRetry;
-        window.renderAll=renderAll;window.debugLog=debugLog;
+        window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
+        window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
+        window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
         window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
         Object.defineProperty(window,"HIST",{get:function(){return HIST}});}
 })();
