@@ -1,10 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-14T14:15:00Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-14T14:15:32Z, every 30s. Newest at the bottom.
 
 ```
-07:38:51.563 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-07:38:51.564 [android-tzc] joiner_create_control {"shown":true}
 07:38:51.569 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
 07:38:51.569 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
 07:38:51.570 [android-tzc] joiner_create_control {"shown":true}
@@ -4002,4 +4000,6 @@ Both handsets write here. Drained 2026-09-14T14:15:00Z, every 30s. Newest at the
 14:04:31.649 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
 14:04:31.649 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
 14:04:31.650 [android-tzc] joiner_create_control {"shown":true}
-14:11:38.243 [android-tzc] pr3_dot {"others":0}```
+14:11:38.243 [android-tzc] pr3_dot {"others":0}
+14:15:12.279 [android-tzc] relay_close {"code":1006}
+14:15:12.280 [android-tzc] net_relay_closed {"code":1006,"livedMs":1832139,"hidden":false}```
