@@ -1,7 +1,7 @@
 # Market Navigator — Graveyard
 
 Status: NEGATIVE SPECIFICATION
-Updated: 2026-09-13
+Updated: 2026-09-14
 
 Historical rejected releases remain evidence only; detailed descriptions remain in git history.
 
@@ -115,4 +115,14 @@ Permanently rejected:
 - publishing an intermediate reconstruction candidate that is knowingly missing items from the cumulative acceptance ledger.
 
 The next owner-facing successor after a rollback must be one cumulative candidate: proven baseline behavior plus every still-approved later requirement, qualified together. If one cumulative gate fails, correct the same candidate; do not create a new partial rung in the release ladder.
+
+## Permanent Library Print prohibitions
+Market Navigator must never:
+- print the interactive Library viewport as the Analysis Report;
+- leave analysis/transcript content clipped, scrollable, fixed-height, max-height or viewport-height constrained in printed output;
+- include application navigation, menus, Library list/search, editing controls, Chat/Listen controls, TTS/player controls, attachments, composer/Send controls, sticky UI or tooltips in the printed report;
+- recompute, refetch, substitute or otherwise change the frozen saved chart/evidence merely for printing;
+- impose application-owned page count, page range, paper size, orientation or destination instead of native browser/device print controls;
+- treat merely invoking `window.print()` as sufficient Print implementation or qualification;
+- alter the normal Library screen layout merely to make printing work.
 

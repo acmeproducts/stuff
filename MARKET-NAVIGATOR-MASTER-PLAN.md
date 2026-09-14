@@ -1,7 +1,7 @@
 # Market Navigator — Canonical Master Plan
 
 Status: AUTHORITATIVE PRODUCT / BUILD / QUALIFICATION PLAN
-Updated: 2026-09-13
+Updated: 2026-09-14
 Next release scope: **Turn 25 cumulative consolidation**
 
 This file is the single positive specification for Market Navigator. Do not create a parallel release plan. `MARKET-NAVIGATOR-GRAVEYARD.md` is the binding negative specification.
@@ -647,3 +647,39 @@ CONFIG → Sources exposes lifecycle truth from canonical evidence, Health, prov
 A healthy registered instrument automatically participates in Add, Health, Data, AI POV, Library snapshots and exports through the same canonical evidence machinery as native catalog series. No second local registration path is permitted.
 
 Turn 25 qualification must prove both speeds: (1) a governed registration performs immediate bootstrap, qualification and lifecycle promotion without waiting for the schedule; and (2) the scheduled 23:37 UTC run performs incremental maintenance without repeating bootstrap. Existing collected registrations must no longer remain permanently `registered-pending-collection`.
+
+---
+
+## 26. Library Print — binding Turn 25 report contract
+Library Print generates a dedicated, self-contained **Market Navigator Analysis Report** from the exact selected frozen Library analysis. It does not print the interactive Library viewport.
+
+The report must:
+- place the exact frozen Library chart at the top;
+- include the saved analysis title and relevant saved context already belonging to that analysis, including horizon, series, evidence/revision/source information where present;
+- include the complete saved analysis/transcript, including long and multiple responses;
+- render analysis/transcript as normal document content, never as a scrollable, fixed-height, max-height or viewport-constrained region;
+- render Markdown appropriately for print, including headings, paragraphs, lists, tables, blockquotes, images and hyperlinks;
+- paginate naturally across as many pages as required;
+- use sensible print-break behavior for headings, tables, rows and images;
+- exclude all interactive application chrome, including navigation, Library list/search, menus, editing controls, Chat/Listen controls, TTS/player controls, attachments, compose controls, Send controls, sticky UI and tooltips;
+- leave paper size, orientation, destination/PDF, page range and page count to browser/device native print controls;
+- leave the saved Library analysis and ordinary on-screen Library behavior unchanged before and after printing.
+
+Implementation uses a dedicated print-report surface generated from the selected frozen Library analysis. The application surface is hidden under print media and the report surface is visible. Print-only state is temporary and is cleaned up after printing.
+
+### 26.1 Library Print semantic qualification
+Turn 25 qualification must durably prove all of the following on the exact candidate and exact merged-main artifact:
+- a selected Library analysis with long/multiple responses prints completely;
+- native printing is invoked exactly once;
+- the report contains the saved analysis title and saved context;
+- the exact frozen chart is present without recomputation or substitution;
+- every saved analysis/transcript response is present;
+- interactive/navigation/composer/Chat/Listen/TTS controls are absent from the report;
+- under print media the ordinary application surface is hidden and the report is visible;
+- report/transcript content has no viewport max-height, fixed-height or scroll clipping;
+- headings, tables, rows and images have document-oriented print-break rules supporting natural multi-page pagination;
+- temporary print-only state is cleaned up after printing;
+- returning from print leaves the persisted selected Library analysis byte-for-byte/semantically unchanged.
+
+Merely invoking `window.print()` is not Print implementation or qualification. The complete existing Turn 25 qualification suite remains mandatory in addition to these Print gates.
+
