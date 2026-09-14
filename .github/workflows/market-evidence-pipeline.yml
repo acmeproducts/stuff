@@ -9,6 +9,7 @@ on:
       - 'market-navigator-r7-health.py'
       - 'market-navigator-r7-index-audit.py'
       - 'market-navigator-source-register.py'
+      - 'market-navigator-source-state.py'
       - 'data/market-backend/data-catalog.json'
       - 'data/market-backend/source-registry.json'
       - 'data/market-backend/derived-index-definition.json'
@@ -42,7 +43,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Reconcile accepted catalog and derived definitions
         run: |
           set -euo pipefail
@@ -53,68 +53,55 @@ jobs:
           c=json.loads(Path('data/market-backend/data-catalog.json').read_text())
           d=json.loads(Path('data/market-backend/derived-index-definition.json').read_text())
           assert c['canonical_horizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
-          exp={
-            'risk':[('spy',-1),('vix',1),('hySpread',1),('hyg',-1),('dxy',1),('move',1),('nfci',1)],
-            'growth':[('qqq',1),('copper',1),('smallCaps',1),('manufacturingProduction',1),('wti',1),('unemployment',-1),('payrolls',1)],
-            'macro':[('tenYear',1),('twoYear',1),('curve10y2y',1),('curve10y3m',1),('cpi',1),('corePce',1),('fedFunds',1)]}
-          for k,v in exp.items():
-              got=[(x['id'],x['direction']) for x in d['indices'][k]['components']]
-              assert got==v,(k,got,v)
-          ids={x['id'] for x in c['series']}
-          assert set(sum(([x[0] for x in v] for v in exp.values()),[])) <= ids
-          pmi=next(x for x in c['series'] if x['id']=='pmi')
-          assert pmi['enabled'] is False and pmi['required'] is False,pmi
+          exp={'risk':[('spy',-1),('vix',1),('hySpread',1),('hyg',-1),('dxy',1),('move',1),('nfci',1)],'growth':[('qqq',1),('copper',1),('smallCaps',1),('manufacturingProduction',1),('wti',1),('unemployment',-1),('payrolls',1)],'macro':[('tenYear',1),('twoYear',1),('curve10y2y',1),('curve10y3m',1),('cpi',1),('corePce',1),('fedFunds',1)]}
+          for k,v in exp.items(): assert [(x['id'],x['direction']) for x in d['indices'][k]['components']]==v
+          ids={x['id'] for x in c['series']};assert set(sum(([x[0] for x in v] for v in exp.values()),[])) <= ids
+          pmi=next(x for x in c['series'] if x['id']=='pmi');assert pmi['enabled'] is False and pmi['required'] is False
           print('Accepted definitions reconciled')
           PY
-
       - name: Build canonical evidence
         env:
           MARKET_NAVIGATOR_BOOTSTRAP: ${{ (github.event_name == 'schedule' && 'false') || 'true' }}
         run: python3 market-navigator-r7-data-pipeline.py
-
       - name: Build publication-aware Health envelope
         run: python3 market-navigator-r7-health.py
-
+      - name: Reconcile registered source lifecycle
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
+          for r in reg.get('registrations',[]): subprocess.run(['python3','market-navigator-source-state.py','--query',r['query']],check=True)
+          PY
       - name: Validate owned backend truth
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import datetime,json
           from pathlib import Path
-          m=json.loads(Path('market-evidence/operational-manifest.json').read_text())
-          h=json.loads(Path('market-evidence/health-envelope.json').read_text())
+          m=json.loads(Path('market-evidence/operational-manifest.json').read_text());h=json.loads(Path('market-evidence/health-envelope.json').read_text());reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
           assert m['canonicalHorizons']==['1D','5D','MTD','YTD','1YR','3YR','5YR']
           required={'spy','vix','hySpread','hyg','dxy','move','nfci','qqq','copper','smallCaps','manufacturingProduction','wti','unemployment','payrolls','tenYear','twoYear','curve10y2y','curve10y3m','cpi','corePce','fedFunds'}
-          assert required <= set(m['series'])
-          unavailable=sorted(x for x in required if m['series'][x]['status']=='unavailable')
-          assert not unavailable,'required series unavailable: '+','.join(unavailable)
+          assert required <= set(m['series']);unavailable=sorted(x for x in required if m['series'][x]['status']=='unavailable');assert not unavailable,'required series unavailable: '+','.join(unavailable)
           for sid in ('cpi','corePce','payrolls'):
-              r=h['series'][sid]
-              exp=r['latestPubliclyExpectedObservation'];act=r['actualLatestCanonicalObservation']
-              assert not (exp and act and act<exp and r['classification']=='expected-lag'),(sid,r)
+              r=h['series'][sid];exp=r['latestPubliclyExpectedObservation'];act=r['actualLatestCanonicalObservation'];assert not (exp and act and act<exp and r['classification']=='expected-lag'),(sid,r)
           today=datetime.datetime.now(datetime.timezone.utc).date()
-          if today >= datetime.date(2026,8,16):
-              r=h['series']['cpi']; assert r['actualLatestCanonicalObservation']>='2026-07-01',r
-          cpi=json.loads(Path('market-evidence/series/cpi.json').read_text())
-          wti=json.loads(Path('market-evidence/series/wti.json').read_text())
-          assert cpi['last'] < wti['last'],'mixed-frequency direct evidence was stretched'
-          assert h['summary'].get('expected-lag',0)==0,'Health is still masking stale evidence as expected-lag'
+          if today >= datetime.date(2026,8,16): assert h['series']['cpi']['actualLatestCanonicalObservation']>='2026-07-01'
+          cpi=json.loads(Path('market-evidence/series/cpi.json').read_text());wti=json.loads(Path('market-evidence/series/wti.json').read_text());assert cpi['last'] < wti['last'],'mixed-frequency direct evidence was stretched';assert h['summary'].get('expected-lag',0)==0
+          for r in reg.get('registrations',[]):
+              assert r.get('status') in ('active','degraded','failed'),('unreconciled registration',r)
+              if r['status'] in ('active','degraded'): assert r.get('observationCount',0)>0,(r['id'],r)
           print('OWNED BACKEND TRUTH ACCEPTED',m['revision'],h['summary'],'unavailable=',unavailable)
           PY
-
       - name: Prove derived index coherence
         run: python3 market-navigator-r7-index-audit.py
-
       - name: Commit reconciled canonical backend
         run: |
           set -euo pipefail
-          git config user.name "market-evidence-bot"
-          git config user.email "market-evidence-bot@users.noreply.github.com"
+          git config user.name "market-evidence-bot";git config user.email "market-evidence-bot@users.noreply.github.com"
           git add data/market-backend/data-catalog.json data/market-backend/derived-index-definition.json data/market-backend/source-registry.json market-evidence
           if git diff --cached --quiet; then echo "No canonical evidence changes."; exit 0; fi
-          git commit -m "data: publish proven Market Navigator evidence"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git commit -m "data: publish proven Market Navigator evidence";git pull --rebase origin main;git push origin HEAD:main
 
   register-source:
     if: github.event_name == 'issues' && github.actor == github.repository_owner && startsWith(github.event.issue.title, '[Market Navigator Source]')
@@ -138,12 +125,10 @@ jobs:
               m=re.search(r'^'+re.escape(name)+r':\s*(.+?)\s*$',body,re.M|re.I)
               if not m: raise SystemExit('Missing '+name)
               return m.group(1).strip()
-          q=field('Query'); cls=field('Class').lower().replace('/','_')
-          allowed={'index','equity','etf','fund_cit'}
+          q=field('Query');cls=field('Class').lower().replace('/','_');allowed={'index','equity','etf','fund_cit'}
           if cls not in allowed: raise SystemExit('Unsupported Class '+cls)
           if not q or len(q)>80 or '\n' in q: raise SystemExit('Invalid Query')
-          print('query='+q)
-          print('class='+cls)
+          print('query='+q);print('class='+cls)
           PY
       - name: Resolve and register canonical identity
         run: python3 market-navigator-source-register.py --query "${{ steps.request.outputs.query }}" --class "${{ steps.request.outputs.class }}"
@@ -155,29 +140,25 @@ jobs:
           python3 market-navigator-r7-data-pipeline.py
           python3 market-navigator-r7-health.py
           python3 market-navigator-r7-index-audit.py
+      - name: Reconcile requested source state
+        if: always()
+        run: |
+          if python3 market-navigator-source-state.py --query "${{ steps.request.outputs.query }}"; then exit 0; fi
+          echo "Source lifecycle reconciliation unavailable before canonical registration." >&2
       - name: Validate requested source became canonical
         run: |
           python3 - <<'PY'
           import json,os,re
           from pathlib import Path
-          body=os.environ.get('SOURCE_REQUEST_BODY','')
-          q=re.search(r'^Query:\s*(.+?)\s*$',body,re.M|re.I).group(1).strip()
-          reg=json.loads(Path('data/market-backend/source-registry.json').read_text())
-          match=[x for x in reg.get('registrations',[]) if x.get('query','').lower()==q.lower()]
-          assert match,'registration missing'
-          sid=match[-1]['id']
-          evidence=json.loads((Path('market-evidence/series')/(sid+'.json')).read_text())
-          health=json.loads(Path('market-evidence/health-envelope.json').read_text())['series'][sid]
-          assert evidence.get('count',0)>0,'registered source has no canonical observations'
-          assert health.get('classification') not in ('failed','missing'),'registered source unhealthy: '+str(health)
-          print('REGISTERED',sid,health.get('classification'),health.get('provider'))
+          body=os.environ.get('SOURCE_REQUEST_BODY','');q=re.search(r'^Query:\s*(.+?)\s*$',body,re.M|re.I).group(1).strip();reg=json.loads(Path('data/market-backend/source-registry.json').read_text());match=[x for x in reg.get('registrations',[]) if x.get('query','').lower()==q.lower()];assert match,'registration missing';r=match[-1];sid=r['id'];evidence=json.loads((Path('market-evidence/series')/(sid+'.json')).read_text());health=json.loads(Path('market-evidence/health-envelope.json').read_text())['series'][sid]
+          assert evidence.get('count',0)>0,'registered source has no canonical observations';assert health.get('classification') not in ('failed','missing'),'registered source unhealthy: '+str(health);assert r.get('status') in ('active','degraded'),('source lifecycle not published',r)
+          print('REGISTERED',sid,r['status'],health.get('classification'),health.get('provider'))
           PY
       - name: Commit registered source and canonical evidence
+        if: always()
         run: |
           set -euo pipefail
-          git config user.name "market-source-registration-bot"
-          git config user.email "market-source-registration-bot@users.noreply.github.com"
+          git config user.name "market-source-registration-bot";git config user.email "market-source-registration-bot@users.noreply.github.com"
           git add data/market-backend/data-catalog.json data/market-backend/source-registry.json data/market-backend/derived-index-definition.json market-evidence
-          git commit -m "data: register Market Navigator source"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          if git diff --cached --quiet; then echo "No registration state changes to publish."; exit 0; fi
+          git commit -m "data: register Market Navigator source";git pull --rebase origin main;git push origin HEAD:main
