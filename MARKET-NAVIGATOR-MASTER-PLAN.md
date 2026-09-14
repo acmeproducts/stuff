@@ -617,3 +617,33 @@ Construct Turn 25 from exact Turn 18 source plus fresh implementation written fr
 
 No intermediate partial application release is published for owner testing. Any failed cumulative gate keeps Turn 25 unshipped and is corrected on the same consolidation branch.
 
+---
+
+## 25. Source onboarding and maintenance lifecycle — binding Turn 25 contract
+This section resolves CONFIG → Sources lifecycle semantics and is cumulative with Sections 17 and 24.
+
+**Registration is immediate bootstrap; schedule is maintenance.** A governed CONFIG → Sources request starts canonical resolution and initial collection immediately. A new source does not wait for the daily maintenance schedule and does not require a Market Navigator application release.
+
+Current static-Pages control-plane flow is:
+
+**submit governed request → Resolving → Collecting → Validating → Active / Degraded / Failed → NOW Add**
+
+The browser does not claim a separate pre-confirmation resolver transaction unless a future read-only resolver API is explicitly introduced. The authenticated repository-side handoff remains the write boundary.
+
+Initial registration bootstraps available canonical history up to the configured historical limit. Subsequent scheduled evidence runs are incremental maintenance; the current schedule is 23:37 UTC daily with bootstrap disabled.
+
+Chartability is evidence-qualified, not registration-qualified. A submitted or resolved identity is not usable merely because a registry row exists. Publication requires actual canonical observations plus Health qualification. Unsupported horizons remain disabled and are never synthesized. Observation counts are reported facts, not admission thresholds.
+
+CONFIG → Sources exposes lifecycle truth from canonical evidence, Health, provider provenance and registration/job state:
+- **Requested / Resolving** — governed request exists or identity resolution is underway; not chartable.
+- **Collecting** — canonical identity/catalog entry exists and initial evidence collection is incomplete; not chartable.
+- **Validating** — evidence exists and publication/Health qualification is incomplete; not chartable.
+- **Active** — qualified canonical evidence exists through the preferred provider; discoverable through Add.
+- **Degraded** — qualified canonical evidence exists through a valid fallback provider; discoverable through Add with fallback provenance visible.
+- **Failed** — no qualified canonical evidence is available; not chartable and failure reason remains visible.
+
+`registered-pending-collection` is a transient registrar state only. It may not remain authoritative after the evidence pipeline completes. The pipeline reconciles persisted registration state to Active, Degraded or Failed from canonical evidence and Health. Health/canonical evidence remain authoritative for actual usability.
+
+A healthy registered instrument automatically participates in Add, Health, Data, AI POV, Library snapshots and exports through the same canonical evidence machinery as native catalog series. No second local registration path is permitted.
+
+Turn 25 qualification must prove both speeds: (1) a governed registration performs immediate bootstrap, qualification and lifecycle promotion without waiting for the schedule; and (2) the scheduled 23:37 UTC run performs incremental maintenance without repeating bootstrap. Existing collected registrations must no longer remain permanently `registered-pending-collection`.
