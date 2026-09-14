@@ -56,6 +56,46 @@ No intermediate partial application release is published for owner testing. Any 
 if '## 24. Turn 25 cumulative consolidation' not in p:
     p=p.rstrip()+section+'\n'
 
+print_section='''
+
+---
+
+## 26. Library Print — binding Turn 25 report contract
+Library Print generates a dedicated, self-contained **Market Navigator Analysis Report** from the exact selected frozen Library analysis. It does not print the interactive Library viewport.
+
+The report must:
+- place the exact frozen Library chart at the top;
+- include the saved analysis title and relevant saved context already belonging to that analysis, including horizon, series, evidence/revision/source information where present;
+- include the complete saved analysis/transcript, including long and multiple responses;
+- render analysis/transcript as normal document content, never as a scrollable, fixed-height, max-height or viewport-constrained region;
+- render Markdown appropriately for print, including headings, paragraphs, lists, tables, blockquotes, images and hyperlinks;
+- paginate naturally across as many pages as required;
+- use sensible print-break behavior for headings, tables, rows and images;
+- exclude all interactive application chrome, including navigation, Library list/search, menus, editing controls, Chat/Listen controls, TTS/player controls, attachments, compose controls, Send controls, sticky UI and tooltips;
+- leave paper size, orientation, destination/PDF, page range and page count to browser/device native print controls;
+- leave the saved Library analysis and ordinary on-screen Library behavior unchanged before and after printing.
+
+Implementation uses a dedicated print-report surface generated from the selected frozen Library analysis. The application surface is hidden under print media and the report surface is visible. Print-only state is temporary and is cleaned up after printing.
+
+### 26.1 Library Print semantic qualification
+Turn 25 qualification must durably prove all of the following on the exact candidate and exact merged-main artifact:
+- a selected Library analysis with long/multiple responses prints completely;
+- native printing is invoked exactly once;
+- the report contains the saved analysis title and saved context;
+- the exact frozen chart is present without recomputation or substitution;
+- every saved analysis/transcript response is present;
+- interactive/navigation/composer/Chat/Listen/TTS controls are absent from the report;
+- under print media the ordinary application surface is hidden and the report is visible;
+- report/transcript content has no viewport max-height, fixed-height or scroll clipping;
+- headings, tables, rows and images have document-oriented print-break rules supporting natural multi-page pagination;
+- temporary print-only state is cleaned up after printing;
+- returning from print leaves the persisted selected Library analysis byte-for-byte/semantically unchanged.
+
+Merely invoking `window.print()` is not Print implementation or qualification. The complete existing Turn 25 qualification suite remains mandatory in addition to these Print gates.
+'''
+if '## 26. Library Print — binding Turn 25 report contract' not in p:
+    p=p.rstrip()+print_section+'\n'
+
 negative='''
 
 ## Turn 25 permanent cumulative-release rule
@@ -73,8 +113,25 @@ The next owner-facing successor after a rollback must be one cumulative candidat
 if '## Turn 25 permanent cumulative-release rule' not in g:
     g=g.rstrip()+negative+'\n'
 
+print_negative='''
+
+## Permanent Library Print prohibitions
+Market Navigator must never:
+- print the interactive Library viewport as the Analysis Report;
+- leave analysis/transcript content clipped, scrollable, fixed-height, max-height or viewport-height constrained in printed output;
+- include application navigation, menus, Library list/search, editing controls, Chat/Listen controls, TTS/player controls, attachments, composer/Send controls, sticky UI or tooltips in the printed report;
+- recompute, refetch, substitute or otherwise change the frozen saved chart/evidence merely for printing;
+- impose application-owned page count, page range, paper size, orientation or destination instead of native browser/device print controls;
+- treat merely invoking `window.print()` as sufficient Print implementation or qualification;
+- alter the normal Library screen layout merely to make printing work.
+'''
+if '## Permanent Library Print prohibitions' not in g:
+    g=g.rstrip()+print_negative+'\n'
+
 g=g.replace('Updated: 2026-09-12','Updated: 2026-09-13',1)
 p=p.replace('Updated: 2026-09-12','Updated: 2026-09-13',1)
+g=g.replace('Updated: 2026-09-13','Updated: 2026-09-14',1)
+p=p.replace('Updated: 2026-09-13','Updated: 2026-09-14',1)
 PLAN.write_text(p)
 GRAVE.write_text(g)
 print('TURN 25 GOVERNANCE: PASS')
