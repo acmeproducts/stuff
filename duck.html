@@ -1915,8 +1915,7 @@
         row.innerHTML=
             '<button type="button" class="duck-ctl micbtn" data-on="false" aria-label="Dictate"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>'+
             '<button type="button" class="duck-ctl ttsbtn" data-on="false" aria-label="Read aloud"><span class="material-symbols-outlined" style="font-size:20px">volume_off</span></button>'+
-            (side==='local'?'<button type="button" class="duck-ctl gearbtn" aria-label="Settings"><span class="material-symbols-outlined" style="font-size:18px">settings</span></button>+':'')+
-                        '<span class="duck-inwrap"><input type="text" inputmode="none" class="duck-in" placeholder="Message" autocomplete="off"><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
+            '<span class="duck-inwrap"><input type="text" inputmode="none" class="duck-in" placeholder="Message" autocomplete="off"><button type="button" class="duck-clear" aria-label="Clear">✕</button></span>'+
             '<button type="button" class="duck-ctl duck-send" aria-label="Send"><span class="material-symbols-outlined" style="font-size:20px">send</span></button>';
         shell.appendChild(row);
         var ta=row.querySelector('.duck-in'),cl=row.querySelector('.duck-clear');
@@ -2654,27 +2653,39 @@
     function installTranslator(){
         if(typeof translateText!=='function')return;
         var _orig=translateText;
+        function mmOne(text,pair){
+            var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text.slice(0,490))+'&langpair='+encodeURIComponent(pair);
+            return fetch(url).then(function(r){return r.json()}).then(function(j){
+                var t=j&&j.responseData&&j.responseData.translatedText;
+                return(t&&!/^MYMEMORY WARNING|^QUERY LENGTH LIMIT|^INVALID/i.test(t))?t:null;
+            }).catch(function(){return null});
+        }
         window.translateText=translateText=function(text,target,source){
             source=source||'auto';
             if(!text||!target)return Promise.resolve(null);
             var ck=source+'|'+target+'|'+text;
             try{if(translationCache.has(ck))return Promise.resolve(translationCache.get(ck))}catch(e){}
             var pair=(source==='auto'?'en':source)+'|'+target;
-            var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+encodeURIComponent(pair);
-            return fetch(url).then(function(r){return r.json()}).then(function(j){
-                var t=j&&j.responseData&&j.responseData.translatedText;
-                if(t&&!/^MYMEMORY WARNING|^QUERY LENGTH LIMIT|^INVALID/i.test(t)){
-                    try{translationCache.set(ck,t)}catch(e){}
-                    return t;
-                }
-                diag('MyMemory declined ('+String(t||'no text').slice(0,60)+') — trying donor chain',true);
+            // chunk long text so each piece stays under MyMemory's 500-char limit
+            var chunks=[];var words=text.split(' ');var cur='';
+            words.forEach(function(w){
+                if((cur+' '+w).trim().length>400){if(cur)chunks.push(cur);cur=w}else cur=(cur?cur+' ':'')+w;
+            });
+            if(cur)chunks.push(cur);
+            var p=chunks.length===1?mmOne(chunks[0],pair)
+                :Promise.all(chunks.map(function(c){return mmOne(c,pair)})).then(function(rs){
+                    return rs.every(Boolean)?rs.join(' '):null;
+                });
+            return p.then(function(t){
+                if(t){try{translationCache.set(ck,t)}catch(e){}return t}
+                diag('MyMemory declined — trying donor chain',true);
                 return _orig(text,target,source);
             }).catch(function(e){
                 diag('MyMemory unreachable: '+e.message+' — trying donor chain',true);
                 return _orig(text,target,source);
             });
         };
-        diag('translator: MyMemory primary, donor chain fallback');
+        diag('translator: MyMemory primary (chunked, max 400 chars/chunk), donor chain fallback');
     }
 
     /* ---- #3: TTS re-gated to the listener's own toggle (shared physical speaker) ---- */
