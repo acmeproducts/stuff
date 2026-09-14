@@ -149,3 +149,56 @@ only action that populates the strip.
 an STT send, and non-empty only after a text tap.
 
 **Status: BURIED**
+
+---
+
+## G10 · Chinese→English transcription garbage (dual-socket omitted)
+
+**Symptom:** English→Chinese worked; the Chinese side produced nonsense.
+
+**Root cause — a subsystem I deliberately cut in plan §2.** Bridge defines
+`DG_DUAL_LANGS = ['zh','th','ko','ar']`: for these rooms it opens a **second
+Deepgram socket pinned to English** on the same audio and arbitrates between the
+two results. Its own comment explains why — a socket pinned to one of these
+languages transcribes any English the speaker uses *phonetically*, as native-script
+nonsense. Plan §2 said "bridge's dual-socket English arbitration is NOT included:
+duck is one language per side", which was my assumption, not bridge's contract. zh
+is precisely the case that needs it.
+
+Arbitration restored verbatim: the native result is held `_DG_HOLD_MS`; a
+substantial English result inside the window displaces it; a native result arriving
+just after an English one is suppressed. Also replaced my hand-written `DG_LANG`
+table with bridge's `DG_LANGS` and its `dgLangParam`/`dgUseMulti` logic — mine
+lacked the `multi` path entirely.
+
+**Structural guard:** GATE 11 — build fails without `DG_DUAL_LANGS`,
+`dgArbitrateNative`, `dgArbitrateEnglish`, `dgUseDual`, and the per-side English
+socket. Plan §2 corrected.
+
+**Status: BURIED**
+
+---
+
+## G11 · Mic never releases the turn (push-to-talk, then stuck-on)
+
+**Symptom:** first as PTT (mic died after every utterance), then the opposite — mic
+sat on indefinitely after the speaker stopped.
+
+**Root cause:** two different errors either side of the correct behaviour. The PTT
+half was `sendFrom` calling `teardown('sent')` unconditionally, killing the mic on
+every final. Removing that fixed PTT but left nothing to end the turn.
+
+**The honest finding:** bridge has **no idle timer at all** — `CHATMIC` runs until
+the user taps it off. That is correct for bridge (one person, own device; an idle
+mic costs nobody anything) and wrong for duck (two people, one device; an
+un-released mic blocks the other side's turn). So this is the one place duck
+**deliberately diverges**, recorded here so it is never "corrected" back to a port.
+
+`MIC_IDLE_MS` (6s) is armed on acquire and re-armed on every final transcript, so
+it measures silence since the last utterance, not since the mic opened. Natural
+pauses mid-thought keep the turn; sustained silence releases it.
+
+**Structural guard:** GATE 10 (a pause must not end the turn) and GATE 12 (sustained
+silence must).
+
+**Status: BURIED**
