@@ -234,20 +234,35 @@ A build that fails any gate does not ship.
 
 ---
 
-## 8. BUILD ORDER
+## 8. BUILD ORDER — internal steps, single delivery
 
-Each step ends in a deployable, testable file. No step begins before the prior one passes its gates.
+Steps A–E are **internal build stages, verified by my own harness. They are
+never handed over.** Intermediate scaffolding has no utility to the user and
+testing it is not the user's job. There is exactly one delivery: a complete,
+working app.
 
-| Step | Deliverable | Gate |
+Verification at each stage is mechanical and runs in my container:
+- all six gates from §7
+- a headless driver that walks every row of §4.4 and asserts the resulting
+  `INPUT` state and painted visual state after each transition
+- byte-comparison of every engine function against `bridge-turn27-base.html`
+- a `normalizeOutgoing` round-trip fixture: fixed inputs, expected outputs,
+  compared against bridge's results for the same inputs
+
+| Step | Internal deliverable | My verification |
 |---|---|---|
-| **A** | `duck2.html` = bridge27 with §2 removals only. No UI yet; engine + config + diagnostics reachable. | Gates 1,2,4. Deepgram key entry works; a typed test string round-trips through `normalizeOutgoing` and logs correctly. |
-| **B** | Ownership switch (§4) implemented standalone, driven by two temporary test buttons. | Gate 3 + every row of §4.4 manually verified, including stuck-ring impossibility. |
-| **C** | Tabletop UI (§5) attached — panels, bubbles, compose strips, config. | Gates 1–5. Typed message round-trips end-to-end both directions. |
-| **D** | Keyboard rebuilt (§6). | Gate 5 + type a full sentence both sides without mis-taps. |
-| **E** | STT live on both sides through the switch. | Full §9 acceptance. |
-| **F** | Swap: `duck2.html` → `duck.html`. Old file retained as `duck-v1-archive.html`. | All gates. |
+| A | bridge27 minus §2 removals; engine intact | Gates 1,2,4; normalize fixture passes |
+| B | Ownership switch (§4) | Gate 3; headless driver walks all §4.4 rows |
+| C | Tabletop UI attached (§5) | Gates 1–5; round-trip fixture through real DOM |
+| D | Keyboard rebuilt (§6) | Gate 5; synthetic tap targets ≥44px verified |
+| E | STT live both sides through the switch | Full §9 run against my harness |
 
----
+**Delivery:** one URL, once, when every item in §9 passes my harness. It
+replaces `duck.html` at that point; the old file is archived as
+`duck-v1-archive.html`. If §9 cannot be fully verified by harness alone (live
+Deepgram audio is the one case — it needs a real mic and a real key), I say so
+explicitly at delivery and name exactly which items are unverified and why,
+rather than quietly handing over something half-checked.
 
 ## 9. ACCEPTANCE — the failures that forced this rebuild
 
