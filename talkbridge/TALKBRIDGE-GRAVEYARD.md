@@ -1809,3 +1809,21 @@ presence without a single end-to-end trace of the actual code path. The
 owner had to catch each one on a device. No further presence work proceeds
 without the three-pass review the owner ordered (build pass, manager pass,
 red-team pass) and external vetting of the findings.
+
+## G52 — 2026-09-14 — 27·ship candidate 1, video controls, rolled back
+
+Buried: app sha 00dd252ea717. The new camera-flip and screen-share icons
+were injected via `document.querySelector('.rz-right')`, which matched the
+room's PERSISTENT header ribbon (always in the DOM, mic-mute/call/video-call/
+overflow) rather than a call-only control row — no such row exists; the real
+in-call hang-up button lives in that SAME ribbon and is kept hidden outside a
+call by dedicated CSS (`#rb-hangup{display:none}`, shown only under
+`#scr-room.st-phone`/`.st-video`). The new buttons had no equivalent rule, so
+they were visible in the ordinary chat header at all times, call or no call —
+the "monstrosity" the owner flagged. Root cause: assumed a call-scoped
+controls row existed without checking; it does not. Rollback is byte-exact
+to accepted 27·pre-ship (69ec6482db24). Secondary observation for the
+rebuild: the ribbon's hangup/call-state CSS rules appear TWICE in the file
+(a static block ~289-292 and a second, near-identical injected copy under
+`#room-ribbon .rz-center` ~6153+) — confirm which one governs before wiring
+any new call-state-conditional control.
