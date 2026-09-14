@@ -1827,3 +1827,24 @@ rebuild: the ribbon's hangup/call-state CSS rules appear TWICE in the file
 (a static block ~289-292 and a second, near-identical injected copy under
 `#room-ribbon .rz-center` ~6153+) — confirm which one governs before wiring
 any new call-state-conditional control.
+
+## G53 — 2026-09-14 — 27·ship candidate 2, rolled back
+
+Buried: app sha 7904747421e6. Owner report: partner video did not render,
+and tapping collapsed the call to a single 9:16 window resembling the old
+corner-band behavior rather than swapping big/small. Address rolled back
+byte-exact to accepted 27·pre-ship (69ec6482db24).
+
+RCA status: NOT FOUND, recorded honestly rather than guessed. Ruled out by
+direct reading: the `_r8Mount`/`_r8Teardown` wrappers (~7042/7058) only
+touch the call-timer display, nothing video-related; no code anywhere
+writes `CALL.pip` as a plain property (the getter-only alias added in
+candidate 2 has no write site to silently break). A third CSS source
+(R8B_CSS, injected via `st.textContent`) was found to still carry two
+`.pip`-scoped cursor rules the R1 edit never touched — confirmed dead
+(nothing adds the `.pip` class anymore) rather than conflicting, but its
+existence means this file has at least three separate places touching
+call/PiP-adjacent CSS (the head stylesheet, R8B_CSS, and possibly others
+not yet enumerated) that were not all inventoried before candidate 2 was
+built. That incomplete inventory is the process failure, whatever the exact
+runtime cause turns out to be.
