@@ -8918,6 +8918,46 @@ function tbmdSpeechStrip(text) {
 /* ===== 27·ship additions — video call surface, candidate 3 (G53 fixed) ===== */
 (function(){ try { if (typeof log==='function') log('build', { c:'turn27-ship-video-c3', file:'bridge-turn27-ship.html', built:'2026-09-14 19:35 UTC' }, 'ok'); } catch(_){} })();
 
+/* R15 (2026-09-14) — THE VISIBLE FOOTER SELF-HEALS.
+   Root cause: the menu footer (#s13-build) was written ONCE by a frozen IIFE
+   from turn26-ship-c6 and never updated by any release since — it has been
+   silently showing a build from before N-1, before presence, before this
+   release. This makes it correct going forward AND self-correcting: it
+   force-overwrites the text (never checks "already exists" and skips, the
+   bug that caused the staleness) on load and every time the menu opens, so
+   no future release can leave it stale again even if this exact line is
+   forgotten to be copied forward — it re-derives from THIS same BUILD
+   object already used for the boot log line above. */
+(function () {
+  var BUILD = { c: 'turn27-ship-video-c3', file: 'bridge-turn27-ship.html', built: '2026-09-14 23:12 UTC' };
+  function paint() {
+    try {
+      var m = document.getElementById('m-s13'); if (!m) return;
+      var modal = m.querySelector('.modal'); if (!modal) return;
+      var f = document.getElementById('s13-build');
+      if (!f) {
+        f = document.createElement('div');
+        f.id = 's13-build';
+        f.style.cssText = 'margin-top:12px;font-size:10.5px;color:var(--ink-dim);text-align:center';
+        modal.appendChild(f);
+      }
+      f.textContent = BUILD.c + ' \u00b7 built ' + BUILD.built;   /* R15: always overwrite, never skip */
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint); else paint();
+  /* the menu opens via longPress($('left-clock'), ...) adding 'show' to
+     #m-s13 directly — no click-through button exists to hook, so the
+     MutationObserver below (watching that exact class change) is the
+     correct and only re-paint trigger; verified against the real code,
+     not assumed. */
+  var mo = null;
+  try {
+    mo = new MutationObserver(function () { paint(); });
+    var target = document.getElementById('m-s13');
+    if (target) mo.observe(target, { attributes: true, attributeFilter: ['class'] });
+  } catch (_) {}
+})();
+
 /* Shared tap-vs-drag primitive. R14 (G53 fix): threshold widened 6px→11px
    (touchscreen tap jitter was crossing 6px and being misread as a drag,
    which then stamped inline left/top onto the element). clearPos() removes

@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.33.0 -->
-# TALKBRIDGE MASTER PLAN v21.33.0
+<!-- TALKBRIDGE-PLAN v21.34.0 -->
+# TALKBRIDGE MASTER PLAN v21.34.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -86,7 +86,7 @@ built yet.
 | 27·base | **BLOCKED 2026-09-12 (owner).** Both candidates buried (G50): candidate 1 included a presence timer never agreed; candidate 2 was an in-place edit of a released artifact — a process violation. Address rolled back byte-exact to accepted 26·post-ship. Nothing builds until (a) presence is root-caused against the historical build where it worked, (b) a single spec covering notifications AND presence is agreed in writing, (c) owner GO. | 27·base | **Presence, traced end to end** — the word (visible + inRoom) is now declared on room entry, every view change, hide, show, blur, focus and page close, in browser tabs as well as the installed app (the accepted build declared only on lane open, on a 30s heartbeat, and — instant announcements only — inside the installed app; nothing ever declared on entering or leaving a room, so both parties read wrong in both directions). Relay v6.5 reads presence from the declared word keyed by device; ghost cleanup on last socket close. One owner of the dot: the legacy traffic-lighting and 75s countdown and the socket-close darkening are retired without editing a single frozen line. | Spec §7.13 as amended by the three-pass review | **ACCEPTED 2026-09-13 (owner: pass).** D-4 CLOSED — presence works for the first time in this project's history: steady green with both parties in the room, instant gray on lock / list / force-quit, instant green on return, no wink. Legacy presence engine and the superseded P1 block DELETED from the body (36 lines removed, nothing wrapped, nothing dormant) per owner ruling: in a file this size, wrapped dead code is a trap, not a safety measure. The file now contains one setPresence definition and exactly one caller. 16/16 two-party trace (entrance, exit, lock, unlock, list, re-attach, force-quit, relaunch, heartbeat); mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-base.html |
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
-| 27·ship | **Video call surface** — corner-band PiP removed; tap-swap big/small; back-button reduced 9:16 draggable box; small video draggable in normal calls; camera flip. Screen share still dropped. | Spec §7.6 + R12 + R14 (G53 RCA: drag wiring on the video elements never cleared its own inline positioning; a real touchscreen tap's jitter exceeded the 6px threshold and was misread as a drag, leaving stray inline coordinates that outlived the swap/call and could bury one video behind the other) | **BUILT 2026-09-14, candidate 3 — device gate pending (G1–G4, G6, G8).** Gates pass; mutations 3/3 including direct re-tests of both G52 and G53. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
+| 27·ship | **Video call surface** — corner-band PiP removed; tap-swap big/small; back-button reduced 9:16 draggable box; small video draggable in normal calls; camera flip. Screen share still dropped. Build-identity footer now self-healing (R15) — was silently stale since 2026-09-06, unrelated to this release's own code. | Spec §7.6 + R12 + R14 + R15 | **BUILT 2026-09-14, candidate 3 (+R15 footer fix) — device gate pending (G1–G4, G6, G8). Confirm footer reads turn27-ship-video-c3 before testing anything else.** Gates pass; mutations 3/3. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
 | 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
 | 28·pre-base | Snapshot | — | queued | — |
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
@@ -4555,13 +4555,24 @@ discovered mid-build. G52 and G53 both trace to an incomplete inventory,
 not a bad idea.
 
 
-## Standing testing note — 2026-09-14
-Uninstall/reinstall does NOT clear a PWA's cache or service worker; the
-home-screen icon is a shortcut to the browser's existing origin state, not
-a fresh install. A device reporting a build footer from a much older
-release after a 'fresh install' is this, not a code regression — confirmed
-2026-09-14 (phone stuck on turn26-ship-c6 while testing 27·ship candidate 3).
-Fast check: open the URL in an Incognito tab — it bypasses the installed
-app's cache entirely, so its footer always reflects the live build.
-Real fix on the installed app: Settings → Apps → TalkBridge → Storage →
-Clear storage, then reinstall.
+## Standing testing note — 2026-09-14, CORRECTED same day
+The 'stale cache' conclusion below was WRONG and has been retracted. Real
+cause: the visible build footer (#s13-build) was written ONCE by a frozen
+IIFE from turn26-ship-c6 with a hardcoded BUILD string, and no release
+since ever updated it — it had been silently wrong for 8 days and four
+releases while the actual running code was correct throughout. Confirmed
+by direct code read, not inference: the frozen writer's own
+`if (document.getElementById('s13-build')) return;` guard meant it only
+ever wrote once, ever. Cache-clearing (owner tested, 10MB storage wiped,
+reinstalled) correctly did nothing, because there was nothing stale to
+clear. FIXED in 27·ship candidate 3 (R15): the footer is now force-
+overwritten on load and on every menu-open (MutationObserver on #m-s13's
+class attribute, verified against the real trigger — longPress on
+#left-clock adds 'show' directly, there is no click-through button, an
+earlier guess at one was written and then removed before shipping). Going
+forward the footer self-heals even if a future release forgets to touch
+it. The original incognito/clear-storage advice below is still correct
+advice for actual cache problems — it was simply not what happened here.
+Fast check: open the URL in an Incognito tab — bypasses the installed
+app's cache entirely. Real fix for a genuine stale cache: Settings → Apps
+→ TalkBridge → Storage → Clear storage, then reinstall.
