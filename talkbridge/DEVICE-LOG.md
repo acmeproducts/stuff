@@ -1,21 +1,8 @@
 # TalkBridge device log
 
-Both handsets write here. Drained 2026-09-14T07:12:36Z, every 30s. Newest at the bottom.
+Both handsets write here. Drained 2026-09-14T07:13:09Z, every 30s. Newest at the bottom.
 
 ```
-05:27:30.972 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-05:27:30.972 [android-tzc] joiner_create_control {"shown":true}
-05:27:30.979 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
-05:27:30.979 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-05:27:30.980 [android-tzc] joiner_create_control {"shown":true}
-05:27:40.908 [android-tzc] pr3_dot {"others":0}
-05:27:50.942 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
-05:27:50.942 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-05:27:50.944 [android-tzc] joiner_create_control {"shown":true}
-05:27:50.958 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
-05:27:50.959 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-05:27:50.960 [android-tzc] joiner_create_control {"shown":true}
-05:27:50.966 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
 05:27:50.966 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
 05:27:50.967 [android-tzc] joiner_create_control {"shown":true}
 05:27:50.973 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
@@ -4002,4 +3989,17 @@ Both handsets write here. Drained 2026-09-14T07:12:36Z, every 30s. Newest at the
 07:12:31.629 [android-tzc] joiner_create_control {"shown":true}
 07:12:31.634 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
 07:12:31.635 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
-07:12:31.635 [android-tzc] joiner_create_control {"shown":true}```
+07:12:31.635 [android-tzc] joiner_create_control {"shown":true}
+07:12:41.533 [android-tzc] pr3_dot {"others":0}
+07:12:51.553 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
+07:12:51.553 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
+07:12:51.554 [android-tzc] joiner_create_control {"shown":true}
+07:12:51.567 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
+07:12:51.567 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
+07:12:51.568 [android-tzc] joiner_create_control {"shown":true}
+07:12:51.572 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
+07:12:51.573 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
+07:12:51.573 [android-tzc] joiner_create_control {"shown":true}
+07:12:51.578 [android-tzc] rc_panel_rendered {"live":4,"bin":0,"wired":4}
+07:12:51.578 [android-tzc] rc_home_rendered {"cards":0,"wired":0}
+07:12:51.579 [android-tzc] joiner_create_control {"shown":true}```
