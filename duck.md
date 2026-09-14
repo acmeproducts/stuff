@@ -62,6 +62,13 @@ network peer. These bridge subsystems have no meaning in duck and come out:
 - Call UI (dialer, ringing, hang-up, call timer)
 - Phrasebook (S7/S8) — deferred to a later release, not deleted, just not wired
 
+> **§2 CORRECTION (G10).** An earlier revision excluded bridge's dual-socket
+> English arbitration, reasoning "duck is one language per side". That was my
+> assumption, not bridge's contract. Bridge opens a second English-pinned socket for
+> `DG_DUAL_LANGS = ['zh','th','ko','ar']` because a socket pinned to those languages
+> transcribes spoken English as phonetic native-script nonsense. **The arbitration
+> subsystem is IN SCOPE and ported verbatim.** GATE 11 enforces it.
+
 **Everything else stays byte-identical.** Specifically these are NOT touched:
 
 - `CHATMIC` + `startDeepgram` + watchdog + reconnect + generation guard
@@ -326,3 +333,18 @@ Full companion RCA for every historical defect: `duck-graveyard.md`.
 
 **Verification at baseline+fixes:** 8 gates · 25 state-machine · 20 normalization ·
 8 strip-discipline · 2 parity assertions. All pass.
+
+
+---
+
+## 13. DELIBERATE DIVERGENCES FROM BRIDGE
+
+Everything else is a verbatim port. These are the exceptions, each with its reason.
+Anything not on this list that differs from bridge is a defect.
+
+| # | Divergence | Why duck must differ |
+|---|---|---|
+| D1 | Deepgram pipeline is a **per-side factory**, not a device singleton | Two people share one device; bridge only ever has one local mic |
+| D2 | **Mic idle auto-stop** (`MIC_IDLE_MS`, 6s, re-armed per utterance) | Bridge has no idle timer — correct for one person on their own device, wrong when an un-released mic blocks the other side's turn (graveyard G11) |
+| D3 | No WebRTC / relay / rooms / call UI | duck has no network peer by definition |
+| D4 | `log()` mirrored into the diagnostics panel by a **wrapper**, engine bytes untouched | Visibility, without breaking GATE 2 |
