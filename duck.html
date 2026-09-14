@@ -202,6 +202,7 @@ body{display:flex;flex-direction:column}
 function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 /* ===== bridge27: log ===== */
+var debugLog=[];
 function log(ev,d,lvl){debugLog.push({ts:new Date().toISOString(),ev:ev,d:d||{},lvl:lvl||'info'});if(debugLog.length>400)debugLog.shift()}
 function toast(m,dur){var e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(function(){e.classList.remove('show')},dur||2600)}
 function lsGet(k,f){try{var r=localStorage.getItem(k);return r==null?f:JSON.parse(r)}catch(_){return f}}
@@ -518,7 +519,7 @@ async function normalizeOutgoing(room, text, knownLang) {
   return { text: srcText, lang: srcLang, detected: detected };
 }
 
-/* ######## KEYBOARD LAYOUTS + IME (donor: duck.html) ######## */
+/* ######## KEYBOARD ######## */
     var EXTRA_LAYOUTS={
         es:{rows:[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l','ñ'],['SHIFT','z','x','c','v','b','n','m','BKSP'],['á','é','í','ó','ú','ü','¿','¡','ç','·']],
             shift:[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L','Ñ'],['SHIFT','Z','X','C','V','B','N','M','BKSP'],['Á','É','Í','Ó','Ú','Ü','¿','¡','Ç','·']]},
@@ -675,7 +676,19 @@ async function normalizeOutgoing(room, text, knownLang) {
         }).catch(function(e){cb(null,e.message)});
     }
 
-/* ######## DUCK: pipeline factory + ownership switch ######## */
+/* ######## pipeline + switch ######## */
+    /* Mirror bridge's log() into the diagnostics panel WITHOUT touching its bytes
+       (GATE 2 requires byte-identity). Wrap, never replace. */
+    (function(){
+        var _log=log;
+        log=function(ev,d,lvl){
+            _log(ev,d,lvl);
+            try{if(typeof diag==='function')
+                diag('['+(lvl||'info')+'] '+ev+(d&&Object.keys(d).length?' '+JSON.stringify(d):''),
+                     (lvl==='error'||lvl==='warn'))}catch(_){}
+        };
+    })();
+
     /* ============================================================================
        PER-SIDE DEEPGRAM PIPELINE
        Mechanical refactor of bridge27's live startDeepgram (line 3341) from a
@@ -867,7 +880,7 @@ async function normalizeOutgoing(room, text, knownLang) {
     }
 
 
-/* ######## DUCK: config, history, bubbles, send ######## */
+/* ######## config/bubbles/send ######## */
     /* ================= CONFIG ================= */
     var CFG={southLang:'en',northLang:'th',ttsSouth:false,ttsNorth:false,
              southBg:'#eff6ff',northBg:'#f0fdf4',textColor:'#0f172a'};
@@ -949,15 +962,16 @@ async function normalizeOutgoing(room, text, knownLang) {
     }
 
     /* ================= SEND PIPELINE ================= */
-    function sendFrom(side,textOverride){
+    function sendFrom(side,textOverride,keepMic){
         var inp=document.getElementById('in-'+side);
         var text=norm(textOverride!=null?textOverride:(inp?inp.value:''));
         if(!text)return;
-        /* G8: clear on EVERY path. Previously the clear was skipped whenever a
-           textOverride was supplied (➤ and STT), so whatever was already in the
-           strip survived the send. */
+        /* G8: clear on EVERY path. */
         if(inp){inp.value='';updateClear(side)}
-        teardown('sent');
+        /* G9: a spoken utterance must NOT end the turn. Deepgram endpoints on a
+           natural pause and keeps the socket open; tearing down here turned the
+           mic into push-to-talk. Only a typed/➤ send releases the switch. */
+        if(!keepMic)teardown('sent');
         /* G7 PARITY: bridge's typed path calls normalizeOutgoing(room,text) with NO
            third argument, so `knownLang || await detectLangAsync(text)` always runs
            detection. Passing a knownLang here short-circuits detection and makes
@@ -1066,7 +1080,7 @@ async function normalizeOutgoing(room, text, knownLang) {
     }
 
 
-/* ######## DUCK: keyboard ######## */
+/* ######## keyboard ######## */
     /* ================= KEYBOARD — rebuilt, 44px minimum ================= */
     var LANG_KB={en:'latin',es:'es',fr:'fr',de:'de',it:'it',pt:'pt',nl:'latin',sv:'sv',pl:'pl',tr:'tr',
                  ru:'ru',ar:'ar',hi:'hi',th:'th',km:'km',lo:'lo',vi:'vi',id:'latin',ms:'latin',fil:'latin',
@@ -1243,7 +1257,7 @@ async function normalizeOutgoing(room, text, knownLang) {
     }
 
 
-/* ######## DUCK: boot ######## */
+/* ######## boot ######## */
     /* ================= LANGUAGE NAMES ================= */
     var LANG_NAMES={en:'English',th:'Thai',es:'Spanish',ja:'Japanese',ko:'Korean',zh:'Chinese (Simplified)',
       ar:'Arabic',hi:'Hindi',ru:'Russian',fr:'French',de:'German',it:'Italian',pt:'Portuguese',
@@ -1348,7 +1362,7 @@ async function normalizeOutgoing(room, text, knownLang) {
                 /* G8: send straight through. Writing the transcript into the strip
                    first left it sitting there after the send. The strip is only
                    ever populated by an explicit tap on bubble text. */
-                sendFrom(s,text);            // teardown() inside sendFrom releases the switch
+                sendFrom(s,text,true);       // keepMic: pause is not end-of-turn
             });
             var ov=document.getElementById('ask-'+s);
             ov.querySelector('.ask-ok').addEventListener('click',function(){resolveAsk(true)});
@@ -1398,7 +1412,9 @@ async function normalizeOutgoing(room, text, knownLang) {
         Object.defineProperty(window,"pendingReq",{get:function(){return pendingReq}});
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
-        window.sideAsRoom=sideAsRoom;window.renderAll=renderAll;window.CFG=CFG;window.translateWithRetry=translateWithRetry;
+        window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
+        window.sideAsRoom=sideAsRoom;window.CFG=CFG;window.translateWithRetry=translateWithRetry;
+        window.renderAll=renderAll;window.debugLog=debugLog;
         window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
         Object.defineProperty(window,"HIST",{get:function(){return HIST}});}
 })();
