@@ -951,12 +951,18 @@ async function normalizeOutgoing(room, text, knownLang) {
     /* ================= SEND PIPELINE ================= */
     function sendFrom(side,textOverride){
         var inp=document.getElementById('in-'+side);
-        var text=(textOverride!=null?textOverride:(inp?inp.value:'')||'').trim();
+        var text=norm(textOverride!=null?textOverride:(inp?inp.value:''));
         if(!text)return;
-        if(inp&&textOverride==null){inp.value='';updateClear(side)}
-        var knownLang=(INPUT.owner===side&&INPUT.mode==='kb')?langOf(side):null;
+        /* G8: clear on EVERY path. Previously the clear was skipped whenever a
+           textOverride was supplied (➤ and STT), so whatever was already in the
+           strip survived the send. */
+        if(inp){inp.value='';updateClear(side)}
         teardown('sent');
-        normalizeOutgoing(sideAsRoom(side),text,knownLang).then(function(r){
+        /* G7 PARITY: bridge's typed path calls normalizeOutgoing(room,text) with NO
+           third argument, so `knownLang || await detectLangAsync(text)` always runs
+           detection. Passing a knownLang here short-circuits detection and makes
+           typed code-switches undetectable. Do not add a third argument. */
+        normalizeOutgoing(sideAsRoom(side),text).then(function(r){
             addMessage(side,r.text,r.lang);
         }).catch(function(e){
             diag('normalize failed: '+e.message,true);
@@ -971,7 +977,7 @@ async function normalizeOutgoing(room, text, knownLang) {
         HIST.push(entry);saveHist();renderAll();
         if(srcLang===tgtLang){entry.tr=text;saveHist();renderAll();speakIfOn(side,text,tgtLang);return}
         translateWithRetry(text,srcLang,tgtLang,2).then(function(res){
-            entry.tr=(res&&res.ok&&res.text)?res.text:null;
+            entry.tr=(res&&res.ok&&res.text)?norm(res.text):null;   // bridge: tgtText=norm(tr.text)
             saveHist();renderAll();
             if(entry.tr)speakIfOn(side,entry.tr,tgtLang);
             else diag('translation failed '+srcLang+'→'+tgtLang,true);
@@ -1339,8 +1345,9 @@ async function normalizeOutgoing(room, text, knownLang) {
         ['south','north'].forEach(function(s){
             buildStrip(s);
             mic[s]=createMicPipeline(s,function(text,lang){
-                var inp=document.getElementById('in-'+s);
-                if(inp){inp.value=text;updateClear(s)}
+                /* G8: send straight through. Writing the transcript into the strip
+                   first left it sitting there after the send. The strip is only
+                   ever populated by an explicit tap on bubble text. */
                 sendFrom(s,text);            // teardown() inside sendFrom releases the switch
             });
             var ov=document.getElementById('ask-'+s);
@@ -1391,7 +1398,9 @@ async function normalizeOutgoing(room, text, knownLang) {
         Object.defineProperty(window,"pendingReq",{get:function(){return pendingReq}});
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
-        window.sideAsRoom=sideAsRoom;window.CFG=CFG;window.translateWithRetry=translateWithRetry;}
+        window.sideAsRoom=sideAsRoom;window.renderAll=renderAll;window.CFG=CFG;window.translateWithRetry=translateWithRetry;
+        window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
+        Object.defineProperty(window,"HIST",{get:function(){return HIST}});}
 })();
 </script>
 </body>
