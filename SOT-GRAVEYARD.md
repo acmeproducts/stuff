@@ -1,7 +1,7 @@
 # SOT Graveyard
 
 **Status:** AUTHORITATIVE REJECTED-APPROACH RECORD  
-**Updated:** 2026-08-31
+**Updated:** 2026-09-14
 **Repository:** `acmeproducts/stuff`
 
 This document records architectural and implementation approaches that have been rejected so they are not silently reintroduced in later SOT work.
@@ -343,3 +343,17 @@ The numbered wrapper chain made the qualifier itself the dominant source of defe
 - Audit structural defect classes across the whole source and qualifier.
 - Use standard input for WSL-to-Windows cleanup transport and prove Windows-native profile removal.
 - Mechanically qualify and cut over before the owner receives the canonical test URL.
+
+---
+
+## GY-044 — Repeated partial-recovery loop: working subsystems without a working product
+
+**Status:** REJECTED ARCHITECTURAL / DELIVERY PATTERN  
+**Decision date:** 2026-09-14  
+**Evidence:** `SOT/archive/2026-09-14-turn02-recovery-design/GY-044.md`
+
+Turn 01 and the first Turn 02 reset repeatedly produced locally qualified subsystems without proving one complete owner-operable storage loop. This allowed working pieces to coexist with contradictory storage authority, destructive polling, unstable interaction state, misleading work/evidence presentation, or a later oversimplified browser shell.
+
+The replacement rule is vertical-slice qualification. The next SOT release must prove the persistent foundation plus Storage end to end before indexing is added; indexing must then prove durable browser-independent Work before committed SSOT Profile is added; safe copy/verify/cleanup Action comes only after committed Profile truth is accepted.
+
+A mechanically qualified component is not a release qualification. Each slice requires Developer → Manager → Red-team → owner/device acceptance before the next slice becomes implementation scope.
