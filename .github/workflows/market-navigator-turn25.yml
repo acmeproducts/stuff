@@ -70,12 +70,9 @@ jobs:
           s=p.read_text()
           old="one('Market Navigator · Turn 18','Market Navigator · Turn 25','title')"
           new="assert s.count('Market Navigator · Turn 18')>=1,'title anchor missing';s=s.replace('Market Navigator · Turn 18','Market Navigator · Turn 25',1)"
-          if old in s:
-              p.write_text(s.replace(old,new,1))
+          if old in s:p.write_text(s.replace(old,new,1))
           f=Path('market-navigator-finalize-turn25.py')
-          z=f.read_text()
-          anchor="pos=s.rfind('</script>')"
-          patch="print_js=print_js.replace(\"$(\",\"document.getElementById(\")\n"
+          z=f.read_text();anchor="pos=s.rfind('</script>')";patch="print_js=print_js.replace(\"$(\",\"document.getElementById(\")\n"
           assert anchor in z
           if patch not in z:z=z.replace(anchor,patch+anchor,1)
           f.write_text(z)
@@ -84,6 +81,25 @@ jobs:
           rc=$?
           if [ "$rc" -eq 0 ]; then
             python3 market-navigator-finalize-turn25.py >> market-navigator-turn25-build-failure.txt 2>&1
+            rc=$?
+          fi
+          if [ "$rc" -eq 0 ]; then
+            python3 - <<'PY' >> market-navigator-turn25-build-failure.txt 2>&1
+          from pathlib import Path
+          app=Path('market-navigator-turn25-pre-ship.html');s=app.read_text()
+          anchor="function currentAnalysis(){return analyses().find(x=>x.id===S.activeAnalysis&&!x.deletedAt)}"
+          export=anchor+"window.__mnCurrentAnalysis=currentAnalysis;"
+          assert s.count(anchor)==1,('current Analysis export anchor',s.count(anchor))
+          s=s.replace(anchor,export,1)
+          a=s.index('function printContextRows25(');b=s.index("window.addEventListener('afterprint'",a)
+          seg=s[a:b].replace('currentAnalysis()','window.__mnCurrentAnalysis()')
+          s=s[:a]+seg+s[b:]
+          app.write_text(s)
+          qa=Path('market-navigator-turn25-qa.mjs');q=qa.read_text()
+          q=q.replace('JSON.stringify(currentAnalysis())','JSON.stringify(window.__mnCurrentAnalysis())')
+          qa.write_text(q)
+          print('TURN 25 PRINT SCOPE BRIDGE: PASS')
+          PY
             rc=$?
           fi
           cat market-navigator-turn25-build-failure.txt
@@ -108,7 +124,7 @@ jobs:
           from pathlib import Path
           import re
           s=Path('market-navigator-turn25-pre-ship.html').read_text()
-          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW','id="libraryPrintReport"','function printLibraryAnalysis25']
+          required=['Market Navigator · Turn 25','TURN25_CONSOLIDATION','data-cfgtab="sources"','id="nowAddSeries"','function geometryRepaint25()','function androidSpeech25()','data-replace-key="openrouter"','data-source-id','DOW','id="libraryPrintReport"','function printLibraryAnalysis25','window.__mnCurrentAnalysis=currentAnalysis']
           for x in required: assert x in s,x
           for x in ['data-view="explore"','id="view-explore"','id="analysisModal"',"$('settingsModal')"]: assert x not in s,x
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I)
@@ -187,11 +203,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -rf node_modules
           for f in market-navigator-build-turn25.py market-navigator-turn25-build-failure.txt market-navigator-turn25-static-failure.txt market-navigator-turn25-browser-failure.txt; do
-            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-              git restore --worktree "$f"
-            else
-              rm -f "$f"
-            fi
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then git restore --worktree "$f"; else rm -f "$f"; fi
           done
           git add MARKET-NAVIGATOR-MASTER-PLAN.md MARKET-NAVIGATOR-GRAVEYARD.md market-navigator-turn25-pre-ship.html
           git diff --cached --quiet && exit 0
