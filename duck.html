@@ -1809,58 +1809,265 @@
     }
     /* per-side mode, persisted with the baseline's own settings store */
     function langModeOf(side){return 'fixed'}
-    function setLangMode(){}   // no-op — kept so stale references don't crash
+    function setLangMode(){}
 
-    /* ── Northern Thai → Central Thai overlay (bridge verbatim) ── */
-    var NT_PHRASE_MAP={'ไปไสมาเจ้า':'ไปไหนมาครับ','กิ๋นข้าวแล้วเจ้า':'กินข้าวแล้วครับ','สวัสดีเจ้า':'สวัสดีครับ','ลาก่อนเจ้า':'ลาก่อนครับ','ขอบใจเจ้า':'ขอบคุณครับ','สบายดีเจ้า':'สบายดีครับ','บ่เป็นหยัง':'ไม่เป็นไร','เจ้าเป็นไง':'คุณเป็นยังไง','จอยเป็นไง':'ฉันเป็นยังไง','เว้ากันก่อน':'คุยกันก่อน','ฮักเจ้า':'รักคุณ','ม่วนหลาย':'สนุกมาก','แซ่บหลาย':'อร่อยมาก','เมินแล้ว':'นานแล้ว','ก็ได้เจ้า':'ก็ได้ครับ','มื้อนี้ตอนเช้า':'เช้านี้','ม่วนใจ๋':'มีความสุข','ดีใจ๋':'ดีใจ'};
-    var NT_WORD_MAP={'ฮู้สึก':'รู้สึก','ฮ้องไห้':'ร้องไห้','บ่อยาก':'ไม่อยาก','บ่ชอบ':'ไม่ชอบ','บ่เป็น':'ไม่เป็น','บ่รู้':'ไม่รู้','บ่มี':'ไม่มี','บ่ได้':'ไม่ได้','บ่ดี':'ไม่ดี','จั๋งใด':'ยังไง','เป็นไง':'เป็นยังไง','ไปไส':'ไปไหน','ทำหยัง':'ทำอะไร','อะหยัง':'อะไร','เป๋นหยัง':'เป็นอะไร','มื้อวาน':'เมื่อวาน','มื้อนี้':'วันนี้','มื้ออื่น':'วันอื่น','ขอบใจ':'ขอบคุณ','จอย':'ฉัน','เปิ้น':'เขา','เฮา':'เรา','เน้อ':'นะ','เนาะ':'นะ','ก้อ':'ก็','กิ๋น':'กิน','ผ่อ':'ดู','แอ่ว':'เที่ยว','กึ๊ด':'คิด','เว้า':'พูด','หื้อ':'ให้','หลาย':'มาก','คัก':'มาก','ม่วน':'สนุก','แซ่บ':'อร่อย','งาม':'สวย','เมิน':'นาน','ฮู้':'รู้','ฮัก':'รัก','ฮับ':'รับ','ฮ้อน':'ร้อน','ฮอด':'ถึง','ฮ่ม':'ร่ม','หั้น':'นั้น','อั้น':'อัน','ตี้':'ที่','ใจ๋':'ใจ','มื้อ':'วัน','หยัง':'อะไร'};
-    function applyNorthernThaiMap(text){
-        if(!text)return text;
-        var keys,i;
-        keys=Object.keys(NT_PHRASE_MAP).sort(function(a,b){return b.length-a.length});
-        for(i=0;i<keys.length;i++)if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_PHRASE_MAP[keys[i]]);
-        keys=Object.keys(NT_WORD_MAP).sort(function(a,b){return b.length-a.length});
-        for(i=0;i<keys.length;i++)if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_WORD_MAP[keys[i]]);
-        text=text.replace(/บ่([\u0E00-\u0E7F]+)/g,'ไม่$1');
-        return text;
-    }
-    function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
-    function resolveEffectiveLang(room,detected){
-        var mine=room.myLang;
-        if(!detected||detected===mine)return{srcLang:mine,normalizeFrom:null};
-        if((room.myLangMode||'fixed')==='auto')return{srcLang:detected,normalizeFrom:null};
-        return{srcLang:mine,normalizeFrom:detected};
-    }
-    function normTranslate(text,from,to){
+    /* ===== normalization: bridge-turn27-base.html verbatim ===== */
+    function translateWithRetry(text,from,to,retries){
         if(!text||!from||!to||from===to)return Promise.resolve({text:text,ok:true});
-        var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text.slice(0,490))+'&langpair='+encodeURIComponent(from+'|'+to);
-        return fetch(url).then(function(r){return r.json()}).then(function(d){
-            var t=d&&d.responseData&&d.responseData.translatedText;
-            if(t&&!/^MYMEMORY WARNING|^QUERY LENGTH/i.test(t))return{text:norm(t),ok:true};
-            return{text:text,ok:false};
-        }).catch(function(){return{text:text,ok:false}});
+        var attempt=function(n){
+            return fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text.slice(0,490))+'&langpair='+encodeURIComponent(from+'|'+to))
+                .then(function(r){return r.json()})
+                .then(function(d){
+                    if(d&&d.responseData){var t=d.responseData.translatedText;
+                        if(t&&t.indexOf('MYMEMORY')<0&&t.indexOf('QUERY')<0)return{text:String(t).trim(),ok:true}}
+                    throw new Error('no result');
+                }).catch(function(e){
+                    if(n>0)return new Promise(function(res){setTimeout(res,400)}).then(function(){return attempt(n-1)});
+                    return{text:text,ok:false};
+                });
+        };return attempt(retries||0);
     }
-    function normalizeOutgoing(side,text,knownLang){
+    function log(ev,d,lvl){diag('['+lvl+'] '+ev+': '+JSON.stringify(d||{}),(lvl==='error'||lvl==='warn'))}
+    function cleanTr(t){return(t||'').replace(/<[^>]*>/g,'').trim()}
+    var LANG_ORDER=['en','th','es','ja','ko','zh','ar','hi','ru','fr','de','it','pt','vi','id','ms','fil','nl','sv','pl','tr'];
+    function ftAllowed(code){return LANG_ORDER.indexOf(code)>=0}
+
+    var SCRIPT_TESTS = [
+      { lang: 'th', re: /[\u0E00-\u0E7F]/ },
+      { lang: 'ja', re: /[\u3040-\u30FF]/ },
+      { lang: 'ko', re: /[\uAC00-\uD7AF\u1100-\u11FF]/ },
+      { lang: 'zh', re: /[\u4E00-\u9FFF]/ },
+      { lang: 'ar', re: /[\u0600-\u06FF]/ },
+      { lang: 'ru', re: /[\u0400-\u04FF]/ },
+      { lang: 'hi', re: /[\u0900-\u097F]/ }
+    ];
+    
+    function detectByScript(text) {
+      var s = String(text || '');
+      var letters = s.replace(/[^\p{L}]/gu, '');
+      if (!letters) return null;
+      for (var i = 0; i < SCRIPT_TESTS.length; i++) {
+        var t = SCRIPT_TESTS[i];
+        var hits = (letters.match(new RegExp(t.re.source, 'gu')) || []).length;
+        if (hits / letters.length > 0.2) return t.lang;
+      }
+      return null;
+    }
+    
+    /* ── Language-identification model (Latin script) ───────────────────────────
+       Assets ship in the repo alongside the app. Loading is lazy and failure is
+       never fatal: if the model cannot load, detection degrades to the room's own
+       language rather than to a wrong answer. */
+    /* Asset paths must be absolute. The upstream loader resolves a relative model
+       path against its own module URL, not against the page, so a relative string
+       lands a directory too deep, the fetch returns a 404 page, and the runtime
+       aborts on HTML it was handed instead of a model. Resolving against the
+       fastType folder up front removes the ambiguity — this mirrors exactly what
+       the package's own smoke test does, which is the configuration proven to work. */
+    var FT_DIR = (typeof location !== 'undefined') ? new URL('fastType/', location.href).href : 'fastType/';
+    var FT_WRAPPER = FT_DIR + 'fasttext-wrapper.umd.js';
+    var FT_MODEL = FT_DIR + 'model/lid.176.ftz';
+    var FT_WASM = FT_DIR + 'core/fasttext.wasm';
+    var _ft = null, _ftPromise = null, _ftFailed = false;
+    
+    /* Only languages this app actually supports are trustworthy answers. Anything
+       the model reports outside this set is treated as "unknown" — a confident
+       wrong answer is worse than no answer, because it drives a wrong translation. */
+    function ftAllowed(code) { return LANG_ORDER.indexOf(code) >= 0; }
+    
+    function loadFastText() {
+      if (_ft || _ftFailed) return Promise.resolve(_ft);
+      if (_ftPromise) return _ftPromise;
+      _ftPromise = new Promise(function (resolve) {
+        function fail(stage, why) {
+          _ftFailed = true;
+          var detail = (why && (why.stack || why.message)) ? (why.message || String(why)) : String(why);
+          try { log('ft_unavailable', { stage: stage, why: detail }, 'error'); } catch (_) {}
+          resolve(null);
+        }
+        try {
+          /* The runtime asks for its own assets by bare filename; point it at the
+             folder they actually live in. Set before the wrapper loads, as the
+             package requires. */
+          var cfg = {
+            locateFile: function (path) {
+              var name = String(path || '').split('/').pop();
+              return /\.wasm$/i.test(name) ? FT_WASM : FT_DIR + name;
+            }
+          };
+          window.Module = cfg;
+          window.FastTextModule = cfg;
+    
+          var s = document.createElement('script');
+          s.src = FT_WRAPPER;
+          s.onerror = function () { fail('wrapper', 'script failed to load'); };
+          s.onload = function () {
+            try {
+              var ft = new window.FastText();
+              ft.loadModel(FT_MODEL).then(function () {
+                _ft = ft;
+                try { log('ft_ready', {}, 'ok'); } catch (_) {}
+                resolve(ft);
+              }).catch(function (e) { fail('model', e); });
+            } catch (e) { fail('init', e); }
+          };
+          document.head.appendChild(s);
+        } catch (e) { fail('setup', e); }
+      });
+      return _ftPromise;
+    }
+    
+    /* Short fragments are not reliably identifiable. Below this length the model's
+       answer is discarded rather than trusted — the room language is the safer
+       assumption for a two-word utterance. */
+    var FT_MIN_CHARS = 8;
+    
+    function ftDetect(text) {
+      return loadFastText().then(function (ft) {
+        if (!ft) return null;
+        var s = String(text || '').trim();
+        if (s.replace(/[^\p{L}]/gu, '').length < FT_MIN_CHARS) return null;
+        try {
+          var code = ft.detect(s);
+          if (!code) return null;
+          code = String(code).toLowerCase().split(/[-_]/)[0];
+          return ftAllowed(code) ? code : null;
+        } catch (e) {
+          try { log('ft_detect_err', { e: String(e) }, 'warn'); } catch (_) {}
+          return null;
+        }
+      });
+    }
+    
+    /* The one detection entry point. Returns null when nothing is trustworthy. */
+    function detectLangAsync(text) {
+      var byScript = detectByScript(text);
+      if (byScript) return Promise.resolve(byScript);
+      return ftDetect(text);
+    }
+    
+    /* The base calls this synchronously to decide whether it needs to normalize.
+       By the time it runs, normalization has already happened at the entry point,
+       so the honest answer is "nothing to correct" — it declines rather than
+       guessing English and sending correct text back through a pointless round
+       trip. Replacing it is safe: it is a leaf, nothing hangs off it. */
+    function detectLang(text) { return null; }
+    
+    /* Warm the model at boot so the first spoken line isn't the one that pays for
+       loading it. Failure here is silent by design — it retries on first use. */
+    if (typeof document !== 'undefined') {
+      setTimeout(function () { try { loadFastText(); } catch (_) {} }, 1200);
+    }
+    
+    /* ── Northern Thai → Central Thai overlay (G4) ──────────────────────────────
+       Lifted verbatim from the pre-amputation engine. Applied before translation:
+       the translation service has no Northern Thai, so dialect input has to be
+       mapped to Central Thai first or it comes back as noise. */
+    var NT_PHRASE_MAP = {
+      'ไปไสมาเจ้า': 'ไปไหนมาครับ', 'กิ๋นข้าวแล้วเจ้า': 'กินข้าวแล้วครับ',
+      'สวัสดีเจ้า': 'สวัสดีครับ', 'ลาก่อนเจ้า': 'ลาก่อนครับ',
+      'ขอบใจเจ้า': 'ขอบคุณครับ', 'สบายดีเจ้า': 'สบายดีครับ',
+      'บ่เป็นหยัง': 'ไม่เป็นไร', 'เจ้าเป็นไง': 'คุณเป็นยังไง',
+      'จอยเป็นไง': 'ฉันเป็นยังไง', 'เว้ากันก่อน': 'คุยกันก่อน',
+      'ฮักเจ้า': 'รักคุณ', 'ม่วนหลาย': 'สนุกมาก',
+      'แซ่บหลาย': 'อร่อยมาก', 'เมินแล้ว': 'นานแล้ว',
+      'ก็ได้เจ้า': 'ก็ได้ครับ', 'มื้อนี้ตอนเช้า': 'เช้านี้',
+      'ม่วนใจ๋': 'มีความสุข', 'ดีใจ๋': 'ดีใจ'
+    };
+    var NT_WORD_MAP = {
+      'ฮู้สึก': 'รู้สึก', 'ฮ้องไห้': 'ร้องไห้',
+      'บ่อยาก': 'ไม่อยาก', 'บ่ชอบ': 'ไม่ชอบ',
+      'บ่เป็น': 'ไม่เป็น', 'บ่รู้': 'ไม่รู้',
+      'บ่มี': 'ไม่มี', 'บ่ได้': 'ไม่ได้', 'บ่ดี': 'ไม่ดี',
+      'จั๋งใด': 'ยังไง', 'เป็นไง': 'เป็นยังไง',
+      'ไปไส': 'ไปไหน', 'ทำหยัง': 'ทำอะไร',
+      'อะหยัง': 'อะไร', 'เป๋นหยัง': 'เป็นอะไร',
+      'มื้อวาน': 'เมื่อวาน', 'มื้อนี้': 'วันนี้', 'มื้ออื่น': 'วันอื่น',
+      'ขอบใจ': 'ขอบคุณ',
+      'จอย': 'ฉัน', 'เปิ้น': 'เขา', 'เฮา': 'เรา',
+      'เน้อ': 'นะ', 'เนาะ': 'นะ', 'ก้อ': 'ก็',
+      'กิ๋น': 'กิน', 'ผ่อ': 'ดู', 'แอ่ว': 'เที่ยว',
+      'กึ๊ด': 'คิด', 'เว้า': 'พูด', 'หื้อ': 'ให้',
+      'หลาย': 'มาก', 'คัก': 'มาก',
+      'ม่วน': 'สนุก', 'แซ่บ': 'อร่อย',
+      'งาม': 'สวย', 'เมิน': 'นาน',
+      'ฮู้': 'รู้', 'ฮัก': 'รัก', 'ฮับ': 'รับ',
+      'ฮ้อน': 'ร้อน', 'ฮอด': 'ถึง', 'ฮ่ม': 'ร่ม',
+      'หั้น': 'นั้น', 'อั้น': 'อัน', 'ตี้': 'ที่',
+      'ใจ๋': 'ใจ', 'มื้อ': 'วัน', 'หยัง': 'อะไร'
+    };
+    function applyNorthernThaiMap(text) {
+      if (!text) return text;
+      var keys, i;
+      keys = Object.keys(NT_PHRASE_MAP).sort(function (a, b) { return b.length - a.length; });
+      for (i = 0; i < keys.length; i++) if (text.indexOf(keys[i]) >= 0) text = text.split(keys[i]).join(NT_PHRASE_MAP[keys[i]]);
+      keys = Object.keys(NT_WORD_MAP).sort(function (a, b) { return b.length - a.length; });
+      for (i = 0; i < keys.length; i++) if (text.indexOf(keys[i]) >= 0) text = text.split(keys[i]).join(NT_WORD_MAP[keys[i]]);
+      text = text.replace(/บ่([\u0E00-\u0E7F]+)/g, 'ไม่$1');
+      return text;
+    }
+    
+    /* ── Normalization state machine (G1) ───────────────────────────────────────
+       Each side of a room has a language mode. In 'fixed' — the default, and the
+       product's stated law — everything a person produces is shown and sent in
+       their own room language regardless of what they actually spoke, so their
+       partner's experience never changes because they code-switched. In 'auto' the
+       language they actually used becomes the source and normalization is skipped.
+    
+       The mode lives on the room, so it survives leaving and rejoining. */
+    function langMode(room) { return (room && room.myLangMode === 'auto') ? 'auto' : 'fixed'; }
+    
+    /* Given what was detected, decide the source language to work from and whether
+       the text must first be normalized into it. */
+    function resolveEffectiveLang(room, detected) {
+      var mine = room.myLang;
+      if (!detected || detected === mine) return { srcLang: mine, normalizeFrom: null };
+      if (langMode(room) === 'auto') return { srcLang: detected, normalizeFrom: null };
+      return { srcLang: mine, normalizeFrom: detected };
+    }
+    
+    /* Shared by spoken and typed text — one path, so the two can never drift.
+       Returns the text as it should appear on the speaker's own side, plus the
+       language it is in. */
+    async function normalizeOutgoing(room, text, knownLang) {
+      /* When the caller knows what language the text is in — because it arrived on
+         a channel listening for exactly that language — that is used directly.
+         Detection is a fallback for when nothing knows. */
+      var detected = knownLang || await detectLangAsync(text);
+      if (detected === 'th') text = applyNorthernThaiMap(text);
+      var r = resolveEffectiveLang(room, detected);
+      var srcText = text, srcLang = r.srcLang;
+      if (r.normalizeFrom) {
+        var n = await translateWithRetry(text, r.normalizeFrom, srcLang, 2);
+        var out = n && n.text ? norm(n.text) : '';
+        var same = !!out && out.toLowerCase() === norm(text).toLowerCase();
+        if (n.ok && out && !same) {
+          srcText = out;
+        } else {
+          /* Normalization did not produce a rewrite. Two very different causes hide
+             behind that, and they need opposite fixes, so the reason is recorded
+             rather than inferred:
+               failed  — the rewrite call did not come back
+               empty   — it came back with nothing
+               same    — it came back identical, which may mean the text was already
+                         in the room's language and detection was wrong about it */
+          var why = !n.ok ? 'failed' : (!out ? 'empty' : 'same');
+          log('normalize_no_rewrite', {
+            why: why, from: r.normalizeFrom, to: srcLang,
+            inText: String(text).slice(0, 40),
+            outText: String(out).slice(0, 40)
+          }, 'warn');
+          srcLang = r.normalizeFrom;
+        }
+      }
+      return { text: srcText, lang: srcLang, detected: detected };
+    }
+    
+
+    function duckNormalize(side,text,knownLang){
         var room={myLang:langOf(side),myLangMode:'fixed'};
-        return detectLangAsync(text).then(function(detected){
-            detected=detected||knownLang||room.myLang;
-            if(detected==='th')text=applyNorthernThaiMap(text);
-            var r=resolveEffectiveLang(room,detected);
-            var srcText=text,srcLang=r.srcLang;
-            diag(side+' normalize: detected='+detected+(r.normalizeFrom?' rewriting '+r.normalizeFrom+'→'+srcLang:'(match)'));
-            if(!r.normalizeFrom)return{text:srcText,lang:srcLang,detected:detected};
-            return normTranslate(text,r.normalizeFrom,srcLang).then(function(n){
-                var out=n&&n.text?norm(n.text):'';
-                var same=!!out&&out.toLowerCase()===norm(text).toLowerCase();
-                if(n.ok&&out&&!same){
-                    diag(side+' normalized: "'+out.slice(0,40)+'"');
-                    return{text:out,lang:srcLang,detected:detected,normalized:true};
-                }
-                var why=!n.ok?'failed':(!out?'empty':'same');
-                diag(side+' normalize no rewrite ('+why+')',true);
-                return{text:text,lang:r.normalizeFrom,detected:detected};
-            });
-        });
+        return Promise.resolve().then(function(){return normalizeOutgoing(room,text,knownLang||null)})
+            .catch(function(e){diag('normalize error: '+e.message,true);return{text:text,lang:langOf(side),detected:null}});
     }
 
 
@@ -2027,7 +2234,7 @@
         if(!text)return;
         ta.value='';clears[side].classList.remove('show');
         closeKb(side,'sent');
-        normalizeOutgoing(side,text,null).then(function(r){   // null: let detection run and catch code-switches
+        duckNormalize(side,text,null).then(function(r){
             duckJustNormalized=true;
             duckSentBy=side;
             try{addChatEntry(r.text,side==='local'?'local':'peer')}
@@ -2601,26 +2808,31 @@
                 else if(cached)tc.innerHTML=renderMarkdown(cached);
                 else{tc.innerHTML='<span class="duck-pending">translating…</span>'}
                 // bubble action bars — added after text so they sit below it
-                (function wireBubbleActions(scEl,tcEl,srcText,tgtText,srcLang,tgtLang,spkr){
+                (function wireBubbleActions(scEl,tcEl,srcText,tgtText,srcLang,tgtLang,colSide){
                     function actBar(text,lang){
                         var bar=document.createElement('div');bar.className='bbl-acts';
                         var ttsBtn=document.createElement('button');ttsBtn.type='button';ttsBtn.className='bbl-act';ttsBtn.title='Read aloud';ttsBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-                        var sendBtn=document.createElement('button');sendBtn.type='button';sendBtn.className='bbl-act';sendBtn.title='Send to compose';sendBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+                        var sendBtn=document.createElement('button');sendBtn.type='button';sendBtn.className='bbl-act';sendBtn.title='Send immediately';sendBtn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
                         bar.appendChild(ttsBtn);bar.appendChild(sendBtn);
                         ttsBtn.addEventListener('click',function(ev){ev.stopPropagation();speakText(text,lang)});
-                        sendBtn.addEventListener('click',function(ev){ev.stopPropagation();toCompose(spkr,text)});
+                        sendBtn.addEventListener('click',function(ev){
+                            ev.stopPropagation();
+                            var ta=inputs[colSide];if(!ta)return;
+                            ta.value=text;ta.dispatchEvent(new Event('input'));
+                            send(colSide);
+                        });
                         return bar;
                     }
                     function wireCol(el,text,lang){
                         el.appendChild(actBar(text,lang));
                         el.addEventListener('click',function(ev){
                             if(ev.target.closest('.bbl-act'))return;
-                            toCompose(spkr,text);
+                            toCompose(colSide,text);
                         });
                     }
                     wireCol(scEl,srcText,srcLang);
                     if(tgtText)wireCol(tcEl,tgtText,tgtLang);
-                })(sc,tc,text,cached||null,srcL,tgtL,speaker);
+                })(sc,tc,text,cached||null,srcL,tgtL,ci===0?'peer':'local');
                 tcols.push(tc);col.appendChild(row);
             });
             if(srcL!==tgtL&&!cached){
@@ -2633,7 +2845,7 @@
                     tcols.forEach(function(c){
                         c.innerHTML=renderMarkdown(tr);
                         var bar=c.querySelector('.bbl-acts');
-                        if(bar){bar.querySelector('.bbl-act:last-child').addEventListener('click',function(ev){ev.stopPropagation();toCompose(entry.speaker,tr)});
+                        if(bar){var cSide=bar.closest('.tabletop-north,.peer-transcript')?'peer':'local';bar.querySelector('.bbl-act:last-child').addEventListener('click',function(ev){ev.stopPropagation();var ta=inputs[cSide];if(ta){ta.value=tr;ta.dispatchEvent(new Event('input'));send(cSide)}});
                                 bar.querySelector('.bbl-act:first-child').addEventListener('click',function(ev){ev.stopPropagation();speakText(tr,entry.targetLanguage)})}
                     });
                 });
@@ -2660,7 +2872,7 @@
             if(duckJustNormalized){duckJustNormalized=false;return _add(message,speaker)}
             var side=speaker==='local'?'local':'peer';
             var known=null;   // pass null: even STT text may contain code-switches the user wants normalized
-            normalizeOutgoing(side,String(message),known).then(function(r){
+            duckNormalize(side,String(message),null).then(function(r){
                 busy=true;try{_add(r.text,speaker)}finally{busy=false}
                 if(r.normalized)diag('spoken text normalized on '+side+' → '+r.lang);
             });
