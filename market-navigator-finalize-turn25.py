@@ -57,21 +57,27 @@ APP.write_text(s)
 q=QA.read_text()
 old="window.__qaSpeech=speech;window.__opened=[];window.open=(u)=>{window.__opened.push(String(u));return null};"
 new="window.__qaSpeech=speech;window.__opened=[];window.clean=s=>String(s||'').replace(/\\s+/g,' ').trim();window.open=(u)=>{window.__opened.push(String(u));return null};"
-assert q.count(old)==1,('QA browser clean helper',q.count(old))
-q=q.replace(old,new,1)
+if q.count(old)==1:
+    q=q.replace(old,new,1)
+else:
+    assert q.count(old)==0 and q.count(new)==1,('QA browser clean helper',q.count(old),q.count(new))
 
 # On phone, Library opens list-first. Open the rail, enter Library, then open the
 # selected analysis card so the detail/Listen dock is genuinely visible.
 old="await p.reload({waitUntil:'networkidle'});await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');"
 new="await p.reload({waitUntil:'networkidle'});if(await p.locator('#rail').evaluate(el=>el.classList.contains('closed')))await p.locator('#toggle').click();await p.locator('[data-view=\"library\"]').click();await p.waitForFunction(()=>document.querySelector('#libTitle')?.value==='QA Browser TTS');if(!(await p.locator('#libListenMode').isVisible())){await p.locator('#libList [data-id]').first().click();await p.waitForFunction(()=>document.querySelector('#libraryWorkspace')?.classList.contains('detailOpen'))}"
-assert q.count(old)==1,('TTS phone navigation',q.count(old))
-q=q.replace(old,new,1)
+if q.count(old)==1:
+    q=q.replace(old,new,1)
+else:
+    assert q.count(old)==0 and q.count(new)==1,('TTS phone navigation',q.count(old),q.count(new))
 
 # Keep the credential assertion semantic, but include observable state if it fails.
 old="assert.equal(await key.isHidden(),true);assert.equal(await replace.isVisible(),true);await replace.click();"
 new="assert.equal(await key.isHidden(),true,'registered key field hidden');let replaceState=await replace.evaluate(el=>({visible:!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length),hidden:el.hidden,cls:el.className,parent:el.parentElement?.className||'',panel:document.querySelector('#cfgAi')?.className||''}));assert.equal(replaceState.visible,true,`Replace key explicit ${JSON.stringify(replaceState)}`);await replace.click();"
-assert q.count(old)==1,('credential QA observability',q.count(old))
-q=q.replace(old,new,1)
+if q.count(old)==1:
+    q=q.replace(old,new,1)
+else:
+    assert q.count(old)==0 and q.count(new)==1,('credential QA observability',q.count(old),q.count(new))
 QA.write_text(q)
 
 print('TURN 25 FINALIZE: PASS')
