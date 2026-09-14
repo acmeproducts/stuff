@@ -1848,3 +1848,20 @@ call/PiP-adjacent CSS (the head stylesheet, R8B_CSS, and possibly others
 not yet enumerated) that were not all inventoried before candidate 2 was
 built. That incomplete inventory is the process failure, whatever the exact
 runtime cause turns out to be.
+
+## G54 — 2026-09-14 — 27·ship candidate 3, rolled back (owner: rebuild, not patch)
+
+Buried: app sha b8fe4a59a4af. Owner device verdict: tap-swap (V1) worked
+correctly — first fully-working piece of this release across four
+candidates. Rejected for three reasons: (1) the camera-flip icon sits in
+the top ribbon; it belongs as an overlay on the big video surface itself.
+(2) The back-button reduced view (V2) does reduce and drag correctly, but
+closes entirely when switching to another app, and its expand control does
+not reliably return to full size. (3) Owner ruling: V2's persistence
+problem is a real limitation of a CSS-only in-page box — surviving actual
+backgrounding needs the browser's real Picture-in-Picture API, a bigger
+piece of work than this release should carry. V2 is DROPPED from scope
+entirely (not fixed), deferred to a future release built on real OS-level
+PiP. Owner explicitly ordered a rollback and reimplementation, not a patch
+onto candidate 3. Address rolled back byte-exact to accepted 27·pre-ship
+(69ec6482db24).
