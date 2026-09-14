@@ -1806,43 +1806,56 @@
         return ftDetect(text);
     }
     /* per-side mode, persisted with the baseline's own settings store */
-    function langModeOf(side){return 'fixed'}   // normalization is always-on now — no user-facing choice
-    function setLangMode(side,m){
-        try{localStorage.setItem('duck_langmode_'+side,m)}catch(e){}
-        diag(side+' language mode → '+m);
-        paintMode(side);
+    function langModeOf(side){return 'fixed'}
+    function setLangMode(){}   // no-op — kept so stale references don't crash
+
+    /* ── Northern Thai → Central Thai overlay (bridge verbatim) ── */
+    var NT_PHRASE_MAP={'ไปไสมาเจ้า':'ไปไหนมาครับ','กิ๋นข้าวแล้วเจ้า':'กินข้าวแล้วครับ','สวัสดีเจ้า':'สวัสดีครับ','ลาก่อนเจ้า':'ลาก่อนครับ','ขอบใจเจ้า':'ขอบคุณครับ','สบายดีเจ้า':'สบายดีครับ','บ่เป็นหยัง':'ไม่เป็นไร','เจ้าเป็นไง':'คุณเป็นยังไง','จอยเป็นไง':'ฉันเป็นยังไง','เว้ากันก่อน':'คุยกันก่อน','ฮักเจ้า':'รักคุณ','ม่วนหลาย':'สนุกมาก','แซ่บหลาย':'อร่อยมาก','เมินแล้ว':'นานแล้ว','ก็ได้เจ้า':'ก็ได้ครับ','มื้อนี้ตอนเช้า':'เช้านี้','ม่วนใจ๋':'มีความสุข','ดีใจ๋':'ดีใจ'};
+    var NT_WORD_MAP={'ฮู้สึก':'รู้สึก','ฮ้องไห้':'ร้องไห้','บ่อยาก':'ไม่อยาก','บ่ชอบ':'ไม่ชอบ','บ่เป็น':'ไม่เป็น','บ่รู้':'ไม่รู้','บ่มี':'ไม่มี','บ่ได้':'ไม่ได้','บ่ดี':'ไม่ดี','จั๋งใด':'ยังไง','เป็นไง':'เป็นยังไง','ไปไส':'ไปไหน','ทำหยัง':'ทำอะไร','อะหยัง':'อะไร','เป๋นหยัง':'เป็นอะไร','มื้อวาน':'เมื่อวาน','มื้อนี้':'วันนี้','มื้ออื่น':'วันอื่น','ขอบใจ':'ขอบคุณ','จอย':'ฉัน','เปิ้น':'เขา','เฮา':'เรา','เน้อ':'นะ','เนาะ':'นะ','ก้อ':'ก็','กิ๋น':'กิน','ผ่อ':'ดู','แอ่ว':'เที่ยว','กึ๊ด':'คิด','เว้า':'พูด','หื้อ':'ให้','หลาย':'มาก','คัก':'มาก','ม่วน':'สนุก','แซ่บ':'อร่อย','งาม':'สวย','เมิน':'นาน','ฮู้':'รู้','ฮัก':'รัก','ฮับ':'รับ','ฮ้อน':'ร้อน','ฮอด':'ถึง','ฮ่ม':'ร่ม','หั้น':'นั้น','อั้น':'อัน','ตี้':'ที่','ใจ๋':'ใจ','มื้อ':'วัน','หยัง':'อะไร'};
+    function applyNorthernThaiMap(text){
+        if(!text)return text;
+        var keys,i;
+        keys=Object.keys(NT_PHRASE_MAP).sort(function(a,b){return b.length-a.length});
+        for(i=0;i<keys.length;i++)if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_PHRASE_MAP[keys[i]]);
+        keys=Object.keys(NT_WORD_MAP).sort(function(a,b){return b.length-a.length});
+        for(i=0;i<keys.length;i++)if(text.indexOf(keys[i])>=0)text=text.split(keys[i]).join(NT_WORD_MAP[keys[i]]);
+        text=text.replace(/บ่([\u0E00-\u0E7F]+)/g,'ไม่$1');
+        return text;
     }
-    function resolveEffectiveLang(side,detected){
-        var mine=langOf(side);
+    function norm(s){return(s||'').replace(/\s+/g,' ').trim()}
+    function resolveEffectiveLang(room,detected){
+        var mine=room.myLang;
         if(!detected||detected===mine)return{srcLang:mine,normalizeFrom:null};
-        if(langModeOf(side)==='auto')return{srcLang:detected,normalizeFrom:null};
+        if((room.myLangMode||'fixed')==='auto')return{srcLang:detected,normalizeFrom:null};
         return{srcLang:mine,normalizeFrom:detected};
     }
-    function mmTranslate(text,from,to){
-        var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+encodeURIComponent(from)+'|'+encodeURIComponent(to);
-        return fetch(url).then(function(r){return r.json()}).then(function(j){
-            var t=j&&j.responseData&&j.responseData.translatedText;
-            return t&&!/^MYMEMORY WARNING/i.test(t)?String(t):null;
-        }).catch(function(){return null});
+    function normTranslate(text,from,to){
+        if(!text||!from||!to||from===to)return Promise.resolve({text:text,ok:true});
+        var url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text.slice(0,490))+'&langpair='+encodeURIComponent(from+'|'+to);
+        return fetch(url).then(function(r){return r.json()}).then(function(d){
+            var t=d&&d.responseData&&d.responseData.translatedText;
+            if(t&&!/^MYMEMORY WARNING|^QUERY LENGTH/i.test(t))return{text:norm(t),ok:true};
+            return{text:text,ok:false};
+        }).catch(function(){return{text:text,ok:false}});
     }
-    /* One path for typed and spoken text so the two can never drift.
-       knownLang: authoritative when the channel knows it (keyboard layout / STT language). */
     function normalizeOutgoing(side,text,knownLang){
-        // BUG FIX: knownLang used to short-circuit detection entirely, so typed text (which always
-        // carried knownLang=langOf(side)) could NEVER be flagged as a code-switch — detection must
-        // run first; knownLang is only the fallback when detection is inconclusive.
+        var room={myLang:langOf(side),myLangMode:'fixed'};
         return detectLangAsync(text).then(function(detected){
-            detected=detected||knownLang||langOf(side);
-            var mode=langModeOf(side);
-            diag(side+' normalize check: mode='+mode+' room='+langOf(side)+' detected='+detected+(detected===langOf(side)?' (match, no rewrite needed)':(mode==='auto'?' (mismatch, but AUTO mode — not rewriting)':' (mismatch — rewriting)')));
-            var r=resolveEffectiveLang(side,detected);
-            if(!r.normalizeFrom)return{text:text,lang:r.srcLang,detected:detected};
-            diag('normalizing '+side+': '+r.normalizeFrom+' → '+r.srcLang+' (code-switch)');
-            return mmTranslate(text,r.normalizeFrom,r.srcLang).then(function(out){
-                var same=out&&out.trim().toLowerCase()===String(text).trim().toLowerCase();
-                if(out&&!same)return{text:out,lang:r.srcLang,detected:detected,normalized:true};
-                var why=!out?'failed-or-empty':'same';
-                diag('normalize produced no rewrite ('+why+') '+r.normalizeFrom+'→'+r.srcLang+' — sending as '+r.normalizeFrom,true);
+            detected=detected||knownLang||room.myLang;
+            if(detected==='th')text=applyNorthernThaiMap(text);
+            var r=resolveEffectiveLang(room,detected);
+            var srcText=text,srcLang=r.srcLang;
+            diag(side+' normalize: detected='+detected+(r.normalizeFrom?' rewriting '+r.normalizeFrom+'→'+srcLang:'(match)'));
+            if(!r.normalizeFrom)return{text:srcText,lang:srcLang,detected:detected};
+            return normTranslate(text,r.normalizeFrom,srcLang).then(function(n){
+                var out=n&&n.text?norm(n.text):'';
+                var same=!!out&&out.toLowerCase()===norm(text).toLowerCase();
+                if(n.ok&&out&&!same){
+                    diag(side+' normalized: "'+out.slice(0,40)+'"');
+                    return{text:out,lang:srcLang,detected:detected,normalized:true};
+                }
+                var why=!n.ok?'failed':(!out?'empty':'same');
+                diag(side+' normalize no rewrite ('+why+')',true);
                 return{text:text,lang:r.normalizeFrom,detected:detected};
             });
         });
@@ -1850,7 +1863,7 @@
 
 
     /* ================= state ================= */
-    var owner=null,pendingFrom=null,pendingGrantFn=null,askTimer=null;
+        var owner=null,pendingFrom=null,pendingGrantFn=null,askTimer=null;
     var kb={},ctl={},micCtl={},ttsCtl={},modeChip={},askEl={},inputs={},clears={},langbar={};
     var shifted={local:false,peer:false},numMode={local:false,peer:false};
     var comp={local:{raw:'',kana:'',ko:null},peer:{raw:'',kana:'',ko:null}};
