@@ -1,24 +1,26 @@
-# duck.md — REBUILD PLAN (v2)
+# duck.md — MASTER PLAN
 
-**Supersedes all prior duck.md content.** Prior plan described an incremental
-build on `chat.html` with bridge subsystems imported piecemeal. That approach
-has failed and is abandoned. This document is the sole authority.
+**Sole authority.** Historical build narrative (the bridge-core rebuild
+rationale, the §7/§16 attempts and their rejection, all RCA writeups already
+duplicated in `duck-graveyard.md`) has been moved to **Appendix A** so this
+document stays readable as a living plan rather than a session transcript.
+Nothing in the appendix is deleted or reworded — moved verbatim.
+
+**2026-09-15 — replanned at owner direction.** Two live threads now: (1) keep
+the turn/stage table current going forward, (2) design and build the
+admin/shell split described in §2 below. §3 (multi-thread config inside
+chat.html) is **superseded** by this split — a thread's settings now belong to
+chat-admin, not to a gear icon inside the conversation itself.
 
 ---
 
 ## 0 · TURN / STAGE LEDGER — THE CHAIN IS THE LAW
 
-Per TALKBRIDGE-PLAN-v9.md §0: every turn runs **pre-base → base → pre-ship →
-ship → post-ship**, in that fixed order. A new turn begins only after
-post-ship completes.
-
-**Every stage is its own permanently-hosted file in the repo — `duck-turnNN-STAGE.html`
-— matching bridge's own convention exactly (`bridge-turn27-base.html`, etc.)**
-This was missing until now: prior stages existed only as git commits on a
-repeatedly-overwritten `duck.html`, which is why every "link to a specific
-version" request required a workaround instead of a direct URL. Corrected
-below — every accepted stage and every dead candidate has its own file, live
-and stays live. `duck.html` is repointed to mirror the current accepted stage.
+Every turn runs **pre-base → base → pre-ship → ship → post-ship**, in that
+fixed order. A new turn begins only after post-ship completes. Every stage is
+its own permanently-hosted file, `duck-turnNN-STAGE.html` (or, from Turn 22
+onward, `chat-turnNN-STAGE.html` / `chat-admin-turnNN-STAGE.html` — two
+artifacts per turn now that there are two files). Dead candidates stay hosted.
 
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
@@ -27,16 +29,147 @@ and stays live. `duck.html` is repointed to mirror the current accepted stage.
 | 20·ship | G5/CRITICAL found and fixed — `debugLog` missing from the engine extraction, silently killing normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10. | ACCEPTED | https://acmeproducts.github.io/stuff/duck-turn20-ship.html |
 | 20·post-ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12. | **ACCEPTED — current live baseline** | https://acmeproducts.github.io/stuff/duck-turn20-post-ship.html (= `duck.html`) |
 | 21·pre-base | = accepted 20·post-ship, byte-identical snapshot | queued | — |
-| 21·base (candidate 1) | Conversation persistence (§7), id-keyed storage | **REJECTED** — normalization/translation reported broken; address rolled back byte-exact to 20·post-ship | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate1.html (dead candidate, stays hosted) |
-| 21·base (candidate 2) | Multi-thread config UI (§16), per-thread language/colour | **REJECTED** — same ruling, plus font-size/font-colour controls missing | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate2.html (dead candidate, stays hosted) |
+| 21·base (candidate 1) | Conversation persistence (§7 of Appendix A), id-keyed storage | **REJECTED** — normalization/translation reported broken; rolled back byte-exact to 20·post-ship | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate1.html (dead, stays hosted) |
+| 21·base (candidate 2) | Multi-thread config UI (§16 of Appendix A), per-thread language/colour inside chat.html | **REJECTED** — same ruling, plus font-size/font-colour controls missing; **superseded by the admin/shell split (§2 below) regardless of the normalization question** | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate2.html (dead, stays hosted) |
+| 22·pre-base | Two-file split begins: `chat.html` (dumb shell, `?room=` required) + `chat-admin.html` (room create/edit/delete, keys). Spec §2. | **PLANNING — this document** | — |
 
-**Current: 20·post-ship is the accepted baseline — `duck.html` mirrors it
-byte-for-byte.** Turn 21·base is open and unresolved. It does not re-attempt
-until translation/normalization is confirmed correct on 20·post-ship on a real
-device (graveyard G13). Owner is running a side-by-side against the links
-above to close that question directly.
+**Current: 20·post-ship remains the accepted single-file baseline while Turn 22
+is designed.** Normalization root-cause (graveyard G13) is unresolved and is
+being checked by owner side-by-side against the Turn 20 stage links above —
+independent of the Turn 22 architecture work, since Turn 22 reuses the same
+engine untouched.
 
 ---
+
+## 1 · WHERE THIS PROJECT ACTUALLY STANDS
+
+- **Engine**: bridge-turn27-base.html, byte-verified, unmodified since Turn 20·base.
+- **Ownership switch, keyboard, bubbles, TTS-as-non-claimant**: built, accepted,
+  unmodified since Turn 20.
+- **Conversation/room concept**: attempted twice inside chat.html (§7, §16 in
+  Appendix A), rejected twice. Superseded by §2 — rooms move to chat-admin
+  entirely; chat.html stops knowing how to create or list them.
+- **Normalization**: reported broken at the Turn 20·post-ship baseline itself,
+  not just at the rejected candidates. Root cause open (graveyard G13). This is
+  the more urgent of the two open questions and is independent of §2.
+
+---
+
+## 2 · ADMIN / SHELL SPLIT — SPEC
+
+### 2.1 The shape
+
+Two files, not one:
+
+- **`chat-admin.html`** — owns every room: create, edit (language pair, name,
+  bubble colour, font colour, font size), soft-delete/restore/purge, and the
+  two global keys (Deepgram, GitHub PAT). This is the only place any of that
+  lives. No gear icon survives inside chat.html; nothing behind one does either.
+- **`chat.html`** — the tabletop shell already built (engine, switch, keyboard,
+  bubbles), now **stateless about rooms**. It takes exactly one required
+  parameter, `?room=<id>`, reads that room's settings, and renders. No room
+  list, no room creation, no keys UI, no gear icon.
+
+### 2.2 The room id — obfuscation, not access control
+
+Owner's own framing (2026-09-15): *"a simple way to obfuscate the chat so no
+one can be nosy and play let's-hunt-urls on the phone if it's unattended."*
+This is **not** a security boundary and must not be built or described as one
+— no crypto, no token exchange, no relay. It's a long random id that isn't
+next to a "new chat" button for a stranger to tap.
+
+```
+room id = 22 random URL-safe characters, generated once at creation
+           (crypto.getRandomValues, base64url — same primitive already
+           used in this codebase's newConvId(), just longer)
+example: chat.html?room=k3nF7xQ2mZpL9wRj4TbYs1
+```
+
+No relationship to bridge's `encInv`/`#j=` — that mechanism encodes join
+tokens and keys for a **second physical device to connect over a relay**.
+Duck has no second device and no relay; carrying that machinery over would
+import an entire subsystem (WebRTC, token issuance, join handshake) to solve
+a problem duck doesn't have. Rejected explicitly, not just omitted.
+
+### 2.3 Data ownership
+
+`chat-admin.html` writes; `chat.html` only ever reads its own room by id.
+
+```
+duck_rooms_index      [{id, createdAt, label, southLang, northLang,
+                         southBg, northBg, fontColor, fontSize, trashedAt}]
+duck_room_<id>        [messages]           — unchanged shape from Turn 20/21 work
+tb_dg_key             — Deepgram key, shared with bridge, unchanged
+duck_gh_pat           — GitHub PAT, unchanged
+```
+
+Same `localStorage`, same origin, both files read/write the same keys — no
+new sync mechanism needed, this is the property that already made key-sharing
+with bridge free.
+
+### 2.4 chat.html without `?room=`
+
+Per owner: **no standalone mode.** If `?room=` is absent or doesn't resolve to
+a real room, chat.html shows a single message — "Open this from chat-admin" —
+and nothing else. It does not fall back to a default room, does not offer to
+create one, does not show any settings surface. All of that is chat-admin's
+job now.
+
+### 2.5 What chat-admin actually is
+
+A simple list-and-form app, not a redesign of anything already built:
+
+- Room list (same card grid already built for §16 in Appendix A — that UI
+  work isn't wasted, it moves files)
+- Tap a card → edit form → Save/Cancel (same working-copy model already
+  specified in Appendix A §16)
+- ＋ New room → form, defaults to nothing inherited (there is no "current
+  live room" concept in an admin app the way there was inside chat.html)
+- A **"Launch"** button per room → opens `chat.html?room=<id>` in the same tab
+  or a new one (decide at build time which is less disruptive on a phone)
+- Trash view (chevron, same as Appendix A §16), Restore / Delete permanently
+- Global tab: Deepgram key, GitHub PAT — the entire contents of chat.html's
+  former gear icon, and nothing else
+
+### 2.6 Font size / font colour
+
+Confirmed missing from every attempt so far (graveyard G12). Built into
+chat-admin's per-room form from the start this time: background colour (already
+built), font colour, font size — four fields, not two.
+
+### 2.7 Gates for Turn 22
+
+1. `chat.html` contains no room-creation, room-list, or key-entry code —
+   grep-checked, build fails if any exists.
+2. `chat.html` refuses to render without a `?room=` that resolves.
+3. Engine block byte-identity vs bridge27 — same as Gate 2 today, unchanged.
+4. `chat-admin.html` writes; `chat.html` never writes `duck_rooms_index`.
+5. Font colour and font size fields present and wired, in addition to
+   background colour — direct answer to graveyard G12.
+6. Ownership-switch harness (25 assertions) re-run unmodified against the
+   split — proves the engine/switch work is untouched by the file split.
+
+---
+
+## 3 · OPEN QUESTIONS BEFORE BUILDING TURN 22
+
+1. Launch behavior — same tab (`location.href=`) or new tab/window
+   (`window.open`)? Same-tab loses the admin list on the phone's back
+   button; new-tab may be blocked by mobile popup rules outside a direct
+   tap handler.
+2. Does chat-admin need its own distinct visual identity, or should it
+   look like an obvious sibling of chat.html (shared CSS)?
+
+Both are small; flag a preference or I'll pick the safer default (same-tab,
+shared CSS) and state the assumption.
+
+---
+
+# APPENDIX A — HISTORICAL BUILD NARRATIVE
+
+Everything below is preserved verbatim from the prior plan. Superseded by §0–§3
+above where noted; kept in full because the RCA and gate rationale in it remain
+correct and referenced by `duck-graveyard.md`.
 
 ## 0. WHY REBUILD (the evidence, not the vibe)
 
@@ -64,6 +197,7 @@ engine works. Duck's engine does not. The rebuild inverts this.
 
 ---
 
+
 ## 1. THE INVERSION
 
 ```
@@ -81,6 +215,7 @@ into it. The only work is removing what duck doesn't need and replacing the UI
 shell around it.
 
 ---
+
 
 ## 2. WHAT IS REMOVED FROM BRIDGE (and only this)
 
@@ -115,6 +250,7 @@ Rule: **if a function is in the engine list above and the diff shows it
 changed, the change is a defect.** A byte-comparison gate enforces this (§7).
 
 ---
+
 
 ## 3. THE ROOM ADAPTER — the one engine-facing change
 
@@ -151,6 +287,7 @@ adaptation layer. No engine function signature changes.
 > the two-argument call.
 
 ---
+
 
 ## 4. THE OWNERSHIP SWITCH — the one genuinely new module
 
@@ -234,6 +371,7 @@ without repainting both sides.
 
 ---
 
+
 ## 5. UI — what is taken from duck.html as donor
 
 Hand-picked components only. Each is copied, reviewed, and re-attached to the
@@ -251,6 +389,7 @@ new engine. Nothing is bulk-copied.
 | **Virtual keyboard** | duck.html | **REBUILT — see §6** |
 
 ---
+
 
 ## 6. KEYBOARD — rebuilt, not donated
 
@@ -271,6 +410,7 @@ If 44px keys plus the transcript don't both fit a given viewport, the
 
 ---
 
+
 ## 7. GATES — mechanical, run before every deploy
 
 A build that fails any gate does not ship.
@@ -287,6 +427,7 @@ A build that fails any gate does not ship.
    unconditionally; the STT callback must not write to the strip at all.
 
 ---
+
 
 ## 8. BUILD ORDER — internal steps, single delivery
 
@@ -318,6 +459,7 @@ Deepgram audio is the one case — it needs a real mic and a real key), I say so
 explicitly at delivery and name exactly which items are unverified and why,
 rather than quietly handing over something half-checked.
 
+
 ## 9. ACCEPTANCE — the failures that forced this rebuild
 
 Each is a direct restatement of a defect that reopened repeatedly. All must pass.
@@ -335,6 +477,7 @@ Each is a direct restatement of a defect that reopened repeatedly. All must pass
 
 ---
 
+
 ## 10. EXPLICIT NON-GOALS
 
 - No phrasebook wiring (bridge code retained, dormant, later release)
@@ -345,6 +488,7 @@ Each is a direct restatement of a defect that reopened repeatedly. All must pass
 
 
 ---
+
 
 ## 12. BASELINE — 2026-09-14
 
@@ -369,6 +513,7 @@ Full companion RCA for every historical defect: `duck-graveyard.md`.
 
 ---
 
+
 ## 13. DELIBERATE DIVERGENCES FROM BRIDGE
 
 Everything else is a verbatim port. These are the exceptions, each with its reason.
@@ -383,6 +528,7 @@ Anything not on this list that differs from bridge is a defect.
 
 
 ---
+
 
 ## 14. BACKLOG
 
@@ -406,6 +552,7 @@ the switch, not a tweak — the whole railroad-switch premise assumes one owner.
 
 
 ---
+
 
 ## 15. §7 SHIPPED — 2026-09-14
 
@@ -436,6 +583,7 @@ backlog B1 (mic turn-release model).
 
 
 ---
+
 
 ## 16. §7b MULTI-THREAD CONFIG — REDESIGN (2026-09-14)
 
@@ -499,6 +647,7 @@ delete.
 
 ---
 
+
 ## 17. §16 SHIPPED — 2026-09-14
 
 Multi-thread config surface built and verified: two tabs (Conversations/Global),
@@ -512,6 +661,7 @@ normalization, strip discipline, parity, dual-socket, conversation persistence,
 §16 behavioural rules).
 
 ---
+
 
 ## 18. §16 REJECTED AND ROLLED BACK — 2026-09-14
 
@@ -539,6 +689,7 @@ requiring a search across the whole config module again.
    working baseline is independently verifiable.
 
 ---
+
 
 ## 19. SECOND ROLLBACK — 2026-09-14
 
