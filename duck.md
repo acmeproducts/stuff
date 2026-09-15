@@ -107,6 +107,31 @@ attempted — the whole premise assumes one owner).
 
 **Not blocking. Revisit after Turn 22.**
 
+### B2 · Keyboard dictionary autocomplete — exploration
+
+Word suggestions above the keys as you type, tap to insert. Needs a per-language
+word-frequency list (or an on-device dictionary source) — scope of that source
+is the open question, not the UI.
+
+### B3 · Swype, dictionary-based — exploration
+
+Gesture typing done properly this time. Prior swype attempt (Appendix A) was
+removed for being unreliable; a real attempt needs the same robust dictionary
+as B2 underneath it, which is why they're listed together — **B3 may replace
+B2, extend it, or the two may turn out to be one build sharing one word list.**
+Don't scope either until the shared dependency (the dictionary) is scoped.
+
+### B4 · Phrasebook via omni-search — exploration
+
+The compose input doubles as a search box: typing filters a phrasebook of
+common phrases, shown as tappable suggestions, tap inserts the full phrase.
+Bridge already has a phrasebook subsystem (Appendix A notes duck deliberately
+left it dormant, not ported) — worth a real look at what's reusable there
+before scoping this as new build versus adaptation.
+
+**All three (B2–B4) are exploration, not committed scope. Turn 22 does not
+touch typing/input assistance.**
+
 ---
 
 # APPENDIX A — HISTORICAL BUILD NARRATIVE
