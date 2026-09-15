@@ -505,3 +505,15 @@ requiring a search across the whole config module again.
    font colour, font size, name — not just background colour).
 3. Rebuild §16 as a targeted diff, gate-by-gate, so each change against the
    working baseline is independently verifiable.
+
+---
+
+## 19. SECOND ROLLBACK — 2026-09-14
+
+`duck.html` reverted further, to `f1cae14139` — immediately after the bridge-core
+rebuild and the G10 dual-socket fix, before any conversation/config work began.
+§7 is also not shipped as of this entry (was briefly re-accepted, now rejected
+alongside §16).
+
+**Hold: no further building until translation/normalization is confirmed working
+on a real device against this exact commit.** See graveyard G13.
