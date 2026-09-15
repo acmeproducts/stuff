@@ -106,16 +106,6 @@ body{display:flex;flex-direction:column}
 .swt::before{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
 .sw input:checked+.swt{background:#3b82f6}
 .sw input:checked+.swt::before{transform:translateX(20px)}
-.convrow{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid rgba(226,232,240,.95);
-  border-radius:10px;margin-bottom:6px;background:#fff}
-.convrow.on{border-color:#3b82f6;background:#eff6ff}
-.convmeta{flex:1;min-width:0}
-.convtitle{font-size:13px;font-weight:600;color:#0f172a;display:flex;align-items:center;gap:6px}
-.convtitle .dot{width:7px;height:7px;border-radius:50%;background:#3b82f6;flex:0 0 7px}
-.convsub{font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.convdel{width:28px;height:28px;border-radius:999px;border:1px solid rgba(203,213,225,.8);
-  background:#f8fafc;color:#94a3b8;font-size:13px;padding:0;flex:0 0 28px}
-.convdel:active{color:#ef4444;border-color:#ef4444}
 .cfgbtn{width:100%;padding:12px;border-radius:12px;border:none;font-weight:700;font-size:15px;margin-top:8px}
 .cfgbtn.primary{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
 .cfgbtn.ghost{background:#f1f5f9;color:#475569;border:1px solid rgba(226,232,240,.95)}
@@ -164,10 +154,6 @@ body{display:flex;flex-direction:column}
 
 <div id="cfg"><div class="cfgcard">
   <h3>Settings</h3>
-  <div class="cfglab">Conversations</div>
-  <div id="conv-list"></div>
-  <button type="button" class="cfgbtn ghost" id="conv-new">＋ Start a new conversation</button>
-
   <div class="cfglab">Languages</div>
   <div class="cfgrow"><label>South (you)</label><select id="cfg-south-lang"></select></div>
   <div class="cfgrow"><label>North (guest)</label><select id="cfg-north-lang"></select></div>
@@ -1028,7 +1014,7 @@ function dgLangParam(room) {
     }
 
 
-/* ######## conversations/config/bubbles/send ######## */
+/* ######## config/bubbles/send ######## */
     /* ================= CONFIG ================= */
     var CFG={southLang:'en',northLang:'th',ttsSouth:false,ttsNorth:false,
              southBg:'#eff6ff',northBg:'#f0fdf4',textColor:'#0f172a'};
@@ -1040,85 +1026,10 @@ function dgLangParam(room) {
         return{myLang:langOf(side),theirLang:langOf(otherSide(side)),myLangMode:'fixed'};
     }
 
-    /* ================= CONVERSATIONS (plan §7) =================
-       id-keyed from the start so "start fresh" is a pointer move, never a
-       migration. South-only by design — North never sees the list or the
-       history of anything but the live conversation. */
-    var CONV_INDEX='duck2_conv_index', CONV_ACTIVE='duck2_conv_active';
-    var convIndex=[], activeConv=null, HIST=[];
-
-    function convKey(id){return 'duck2_conv_'+id}
-    function newConvId(){return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
-
-    function loadIndex(){
-        try{convIndex=JSON.parse(localStorage.getItem(CONV_INDEX)||'[]')}catch(e){convIndex=[]}
-        if(!Array.isArray(convIndex))convIndex=[];
-    }
-    function saveIndex(){try{localStorage.setItem(CONV_INDEX,JSON.stringify(convIndex))}catch(e){}}
-
-    function loadHist(){
-        loadIndex();
-        try{activeConv=localStorage.getItem(CONV_ACTIVE)||null}catch(e){activeConv=null}
-
-        /* one-time adoption of the pre-§7 flat history, so nothing is lost */
-        var legacy=null;
-        try{legacy=localStorage.getItem('duck2_hist')}catch(e){}
-        if(legacy&&!convIndex.length){
-            var id=newConvId();
-            try{localStorage.setItem(convKey(id),legacy);localStorage.removeItem('duck2_hist')}catch(e){}
-            convIndex.push({id:id,createdAt:Date.now(),label:'Conversation 1'});
-            activeConv=id;saveIndex();
-            try{localStorage.setItem(CONV_ACTIVE,id)}catch(e){}
-            diag('adopted previous history into a conversation record');
-        }
-        if(!convIndex.length||!activeConv||!convIndex.some(function(c){return c.id===activeConv})){
-            startConversation(true);return;
-        }
-        readActive();
-    }
-    function readActive(){
-        try{HIST=JSON.parse(localStorage.getItem(convKey(activeConv))||'[]')}catch(e){HIST=[]}
-        if(!Array.isArray(HIST))HIST=[];
-    }
-    function saveHist(){
-        if(!activeConv)return;
-        try{localStorage.setItem(convKey(activeConv),JSON.stringify(HIST.slice(-300)))}catch(e){}
-        var rec=convIndex.filter(function(c){return c.id===activeConv})[0];
-        if(rec){rec.count=HIST.length;rec.lastAt=Date.now();saveIndex()}
-    }
-    function startConversation(silent){
-        var id=newConvId();
-        convIndex.push({id:id,createdAt:Date.now(),count:0,
-                        label:'Conversation '+(convIndex.length+1)});
-        activeConv=id;HIST=[];
-        saveIndex();saveHist();
-        try{localStorage.setItem(CONV_ACTIVE,id)}catch(e){}
-        if(!silent)diag('started a new conversation');
-    }
-    function switchConversation(id){
-        if(!convIndex.some(function(c){return c.id===id}))return;
-        teardown('conversation switch');
-        activeConv=id;
-        try{localStorage.setItem(CONV_ACTIVE,id)}catch(e){}
-        readActive();renderAll();
-        diag('switched conversation');
-    }
-    function deleteConversation(id){
-        try{localStorage.removeItem(convKey(id))}catch(e){}
-        convIndex=convIndex.filter(function(c){return c.id!==id});
-        saveIndex();
-        if(activeConv===id){
-            if(convIndex.length){activeConv=convIndex[convIndex.length-1].id;
-                try{localStorage.setItem(CONV_ACTIVE,activeConv)}catch(e){}readActive()}
-            else startConversation(true);
-        }
-        renderAll();diag('deleted a conversation');
-    }
-    function convPreview(id){
-        var raw=[];try{raw=JSON.parse(localStorage.getItem(convKey(id))||'[]')}catch(e){}
-        if(!raw.length)return 'empty';
-        return String(raw[raw.length-1].text||'').slice(0,42);
-    }
+    /* ================= HISTORY ================= */
+    var HIST=[];
+    function loadHist(){try{HIST=JSON.parse(localStorage.getItem('duck2_hist')||'[]')}catch(e){HIST=[]}}
+    function saveHist(){try{localStorage.setItem('duck2_hist',JSON.stringify(HIST.slice(-300)))}catch(e){}}
 
     /* ================= DIAGNOSTICS ================= */
     var diagLines=[];
@@ -1539,35 +1450,7 @@ function dgLangParam(room) {
     }
 
     /* ================= CONFIG UI ================= */
-    function renderConvList(){
-        var host=document.getElementById('conv-list');if(!host)return;
-        host.innerHTML='';
-        convIndex.slice().reverse().forEach(function(c){
-            var row=document.createElement('div');
-            row.className='convrow'+(c.id===activeConv?' on':'');
-            var when=new Date(c.lastAt||c.createdAt).toLocaleString([],
-                      {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-            var meta=document.createElement('div');meta.className='convmeta';
-            meta.innerHTML='<div class="convtitle">'+(c.id===activeConv?'<span class="dot"></span>':'')+
-                String(c.label||'Conversation').replace(/[&<>]/g,'')+'</div>'+
-                '<div class="convsub">'+when+' · '+(c.count||0)+' messages · '+
-                String(convPreview(c.id)).replace(/[&<>]/g,'')+'</div>';
-            meta.addEventListener('click',function(){switchConversation(c.id);renderConvList()});
-            row.appendChild(meta);
-            var del=document.createElement('button');
-            del.type='button';del.className='convdel';del.textContent='✕';del.title='Delete';
-            del.addEventListener('click',function(ev){
-                ev.stopPropagation();
-                if(convIndex.length<=1&&!HIST.length)return;
-                deleteConversation(c.id);renderConvList();
-            });
-            row.appendChild(del);
-            host.appendChild(row);
-        });
-    }
-
     function openCfg(){
-        renderConvList();
         ['south','north'].forEach(function(s){
             var sel=document.getElementById('cfg-'+s+'-lang');
             if(!sel.options.length){
@@ -1632,9 +1515,6 @@ function dgLangParam(room) {
             toastMsg('Saved');closeCfg();
             diag('settings saved — south='+CFG.southLang+' north='+CFG.northLang+' dgKey='+(dg?'set':'empty'));
         });
-        document.getElementById('conv-new').addEventListener('click',function(){
-            startConversation();renderAll();renderConvList();toastMsg('New conversation started');
-        });
         document.getElementById('cfg-close').addEventListener('click',closeCfg);
         document.getElementById('cfg-diag').addEventListener('click',function(){
             closeCfg();document.getElementById('diag-panel').classList.add('show');renderDiag();
@@ -1670,10 +1550,6 @@ function dgLangParam(room) {
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
-        window.startConversation=startConversation;window.switchConversation=switchConversation;
-        window.deleteConversation=deleteConversation;
-        Object.defineProperty(window,"convIndex",{get:function(){return convIndex}});
-        Object.defineProperty(window,"activeConv",{get:function(){return activeConv}});
         window.setFtForTest=function(impl){_ft=impl;_ftFailed=!impl;_ftPromise=Promise.resolve(impl)};
         Object.defineProperty(window,"HIST",{get:function(){return HIST}});}
 })();
