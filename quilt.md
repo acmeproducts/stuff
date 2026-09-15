@@ -1,4 +1,3 @@
-<plan>
 # quilt.md — Master Plan
 
 ## 0. TURN/STAGE LEDGER
@@ -12,60 +11,54 @@
 | 2026-09-13 | 6 | BUILD | 🔨 active | Owner "build it" resumed R2; initial implementation attempted |
 | 2026-09-13 | 7 | BUILD | 🔨 active | **Correction logged:** Owner clarified neighbors must be Sierpinski carpets (not mixed stripes/dots), forming a contiguous tapestry of fractal squares. Scope updated below. |
 | 2026-09-15 | 8 | BUILD | 🔨 active | **Performance fix:** Owner reports lag/black flash during zoom-out due to runtime bitmap creation. Adding eager pre-bake of all levels; render loop becomes strictly synchronous. |
+| 2026-09-15 | 9 | BUILD | 🔨 active | **Build command issued:** Owner commanded "Build it" — proceeding to generate the-quilt.html with eager pre-baking, square canvas capture, configurable neighbor hues, tour mode, and smooth pan/zoom. |
 
 ## 1. RELEASES
 | # | Goal | Target |
 |---|------|--------|
 | R1 | Stabilize current Three.js instanced quilt (v3) | 2025-08-26 |
-| R2 | **Procedural Sierpinski Tapestry** — infinite zoom via hierarchical 3×3 rebasing; all tiles are recursive carpets | 2026-09-13 (active) |
+| R2 | **Procedural Sierpinski Tapestry** — infinite zoom via hierarchical 3×3 rebasing; all tiles are recursive carpets with eager pre-baked ImageBitmap stack | 2026-09-15 (Turn 9) |
 | R3 | Unified toggle between Wave Field and Tapestry modes | TBD |
 
 ## 2. PER-RELEASE SECTIONS
 
-### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔨 ACTIVE (Turn 8)
-**Status:** Implementing eager pre-baking to eliminate zoom-out stutter.
+### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔨 ACTIVE (Turn 9)
+**Status:** Generating code implementation with eager pre-baking.
 
 **Core Mechanism**
 - **Grid:** 3×3 arrangement of Sierpinski carpets (center + 8 neighbors).
-- **Hierarchical Bitmap Stack:** During initialization (and whenever parameters change), the engine eagerly generates an array of `ImageBitmap` levels (0 to `maxLevels-1`).  
-  - `levelBitmap[0]`: A square canvas containing a 3×3 grid of carpets (center uses `centerColor`/`baseDepth`; 8 neighbors use their respective configs).  
-  - `levelBitmap[n]` (n>0): A square canvas containing a 3×3 grid where the center tile is `levelBitmap[n-1]` scaled into the middle third, and the 8 peripheral tiles are freshly rendered carpets using neighbor configs.
-- **Rebasing:** Render loop remains synchronous. When zoom scale ≤ 1/3, `level` increments and `scale` resets to 1.0; the new center simply displays the pre-baked `levelBitmap[level-1]`. No canvas creation or `await` occurs during the animation frame.
-- **Tessellation:** Because each bitmap is generated at a fixed high resolution (e.g., 2048×2048) with exact 1/3 subdivisions, edges between the bitmap center and the 8 live neighbor carpets align seamlessly (both use the same geometric algorithm).
+- **Eager Bitmap Stack:** On initialization and parameter changes, the engine asynchronously generates `state.stack[]` — an array of `ImageBitmap` objects representing levels 0 to `maxLevels-1`.
+  - Each bitmap is **strictly square** (e.g., 2048×2048px offscreen) to eliminate rectangular warping.
+  - Level 0: Renders 9 carpets (center + 8 unique neighbors) into a 3×3 grid on the square canvas.
+  - Level n (n>0): Renders level n-1 bitmap into center third; draws 8 fresh neighbor carpets around it.
+- **Synchronous Render Loop:** `requestAnimationFrame` loop simply draws `stack[level]` (or live carpet if level 0) and the 8 live neighbor carpets. No `createImageBitmap`, no `await`, no offscreen canvas creation during animation.
+- **Rebasing:** When `scale <= 1/3`, increment `level` and reset `scale` to 1.0. The view switches to the pre-baked bitmap instantly.
+- **Descent (Zoom In):** When `scale >= 3.0` and `level > 0`, decrement `level` and set `scale` to 1/3.
+- **Panning:** Offset state (`ox`, `oy`) dragged via pointer events; applied to center calculation.
+- **Tour Mode:** Automatically animates from `maxLevels` down to 0 (zooming in) then back out (zooming out), relying on cached bitmaps for smooth frame rates.
 
-**Scope (In)**
-- Single-file HTML5, zero deps.
-- Recursive carpet algorithm (depth-culled, sub-pixel terminated).
-- **Eager Baking:** Async `rebuildCache()` function generates the full bitmap stack upfront; UI shows “Baking…” overlay with progress indicator during this phase.
-- **Cache Invalidation:** Automatically triggered when `centerColor`, `baseDepth`, any neighbor color/depth, or `maxLevels` changes. Old bitmaps are `.close()`’d to free GPU memory.
-- **Smooth Zoom:** All level transitions are instantaneous swaps of pre-baked assets; no runtime lag or black frames.
-- **Tour Mode:** Animates from `maxLevels` down to 0 and back, relying on cached bitmaps for intermediate levels.
-- Mobile-first culling: Skip off-screen tiles (though with bitmaps this mainly applies to the 8 live neighbors at the current level).
+**Configuration UI**
+- **Center Color:** Hex color picker for the central carpet.
+- **Neighbor Editors:** 3×3 grid selector; selecting a neighbor reveals a hex color picker and depth slider unique to that position.
+- **Base Recursion:** Global default recursion depth.
+- **Max Hierarchy:** Determines how many bitmaps to pre-bake (stack size).
+- **Start Level / Jump:** Instantly jump to a specific level (requires bitmaps up to that level to be baked).
+- **Tour Button:** Toggles auto-pilot zoom animation.
 
-**Scope (Out)**
-- True infinite mathematical precision (finite stack capped by `maxLevels` parameter).
-- Runtime procedural generation during zoom (all heavy work moved to bake phase).
-- Export/serialization of bitmaps.
-
-**Build Gates**
-- 60 fps on iOS Safari during pinch-zoom with no frame drops when crossing rebasing thresholds.
-- Zero console errors; all state visible in HUD or drawer.
-- “Rectangular warp” fix verified: all baked canvases are strictly square (1:1 aspect ratio).
-
-**Decision Log Addition**
-| Date | Decision | Owner |
-|------|----------|-------|
-| 2026-09-13 | R2 scope correction: Neighbors changed from mixed pattern patches to contiguous Sierpinski carpets with configurable hues only. | User |
-| 2026-09-15 | Performance architecture: Moved from on-demand capture to eager pre-baking of ImageBitmap stack to eliminate zoom-out lag. | User |
+**Build Gates (R2 Acceptance)**
+- Zero frame drops when crossing rebasing thresholds during pinch-to-zoom on mid-tier mobile devices.
+- All tiles are perfectly square; no aspect ratio distortion.
+- Parameter changes trigger cache rebuild with "Baking..." indicator; UI remains responsive.
+- Single-file HTML5, zero dependencies, runs offline.
 
 ## 3. IMMUTABLE WORKING RULES
 - The PLAN is the sole memory; code changes are guided by ledger entries.
 - No external assets; single-file HTML only.
 - Render loop must be synchronous (no async/await per frame).
+- Cache rebuild is async but strictly separated from animation frames.
 
 ## 4. APPENDIX — AUTHORITY ORDER
 1. Owner feedback (latest turn)
 2. This PLAN document
 3. Reference files (if provided)
 4. Working CODE file
-</plan>
