@@ -11,6 +11,7 @@
 | 2026-09-12 | 5 | PAUSED | ⏸️ active | Work suspended pending owner direction |
 | 2026-09-13 | 6 | BUILD | 🔨 active | Owner "build it" resumed R2; initial implementation attempted |
 | 2026-09-13 | 7 | BUILD | 🔨 active | **Correction logged:** Owner clarified neighbors must be Sierpinski carpets (not mixed stripes/dots), forming a contiguous tapestry of fractal squares. Scope updated below. |
+| 2026-09-15 | 8 | BUILD | 🔨 active | **Performance fix:** Owner reports lag/black flash during zoom-out due to runtime bitmap creation. Adding eager pre-bake of all levels; render loop becomes strictly synchronous. |
 
 ## 1. RELEASES
 | # | Goal | Target |
@@ -21,46 +22,50 @@
 
 ## 2. PER-RELEASE SECTIONS
 
-### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔨 ACTIVE (Corrected)
-**Status:** Implementation corrected per owner feedback (Turn 7). Mixed pattern patches removed; all tiles are Sierpinski fractals.
+### R2 — Sierpinski Tapestry (Pure Canvas2D) — 🔨 ACTIVE (Turn 8)
+**Status:** Implementing eager pre-baking to eliminate zoom-out stutter.
 
 **Core Mechanism**
 - **Grid:** 3×3 arrangement of Sierpinski carpets (center + 8 neighbors).
-- **Rebasing:** When zoom scale ≤ 1/3, the canvas is captured as an ImageBitmap representing the current 3×3 “super-tile.” View ascends one hierarchy level (`level++`), scale resets to 1.0 (so the super-tile becomes the new single center tile), and 8 new carpets surround it.
-- **Tiles:** Every position renders the same recursive Sierpinski algorithm, but each of the 8 neighbors carries its own `hue` (and optional `depth` override) for variety while maintaining contiguous geometry.
-- **Tessellation:** Because all tiles are aligned squares with 1/3 subdivision, edges meet seamlessly; the “hole” in the center of each carpet is internal and does not break adjacency.
+- **Hierarchical Bitmap Stack:** During initialization (and whenever parameters change), the engine eagerly generates an array of `ImageBitmap` levels (0 to `maxLevels-1`).  
+  - `levelBitmap[0]`: A square canvas containing a 3×3 grid of carpets (center uses `centerColor`/`baseDepth`; 8 neighbors use their respective configs).  
+  - `levelBitmap[n]` (n>0): A square canvas containing a 3×3 grid where the center tile is `levelBitmap[n-1]` scaled into the middle third, and the 8 peripheral tiles are freshly rendered carpets using neighbor configs.
+- **Rebasing:** Render loop remains synchronous. When zoom scale ≤ 1/3, `level` increments and `scale` resets to 1.0; the new center simply displays the pre-baked `levelBitmap[level-1]`. No canvas creation or `await` occurs during the animation frame.
+- **Tessellation:** Because each bitmap is generated at a fixed high resolution (e.g., 2048×2048) with exact 1/3 subdivisions, edges between the bitmap center and the 8 live neighbor carpets align seamlessly (both use the same geometric algorithm).
 
 **Scope (In)**
 - Single-file HTML5, zero deps.
-- Recursive carpet generator (depth 1–6) with viewport culling and sub-pixel termination.
-- **Contiguous 3×3 grid at every hierarchy level.** Center tile is either:
-  - Live carpet (level 0), or
-  - Captured bitmap of previous level’s 3×3 grid (level ≥ 1).
-- **8 neighbor configs:** Each stores `hue` (0–360) controlling its carpet’s base color; optional independent `depth` for variety.
-- Pan/zoom via wheel (desktop) and two-finger pinch (touch).
-- Parameter drawer: per-neighbor hue editors (3×3 grid UI), global carpet depth, global hue shift, max hierarchy levels.
-- In-app HUD: level, zoom scale, visible cell count, FPS, render time.
-- Mobile-first culling: skip off-screen tiles and recurse only while squares > 0.5 px.
+- Recursive carpet algorithm (depth-culled, sub-pixel terminated).
+- **Eager Baking:** Async `rebuildCache()` function generates the full bitmap stack upfront; UI shows “Baking…” overlay with progress indicator during this phase.
+- **Cache Invalidation:** Automatically triggered when `centerColor`, `baseDepth`, any neighbor color/depth, or `maxLevels` changes. Old bitmaps are `.close()`’d to free GPU memory.
+- **Smooth Zoom:** All level transitions are instantaneous swaps of pre-baked assets; no runtime lag or black frames.
+- **Tour Mode:** Animates from `maxLevels` down to 0 and back, relying on cached bitmaps for intermediate levels.
+- Mobile-first culling: Skip off-screen tiles (though with bitmaps this mainly applies to the 8 live neighbors at the current level).
 
 **Scope (Out)**
-- Mixed “patch” patterns (stripes, dots, checker) — **removed per Turn 7 correction**.
-- Three.js or WebGL dependencies for this mode.
-- True infinite mathematical precision (finite bitmap stack capped by `maxLevels`).
-- Export/serialization.
+- True infinite mathematical precision (finite stack capped by `maxLevels` parameter).
+- Runtime procedural generation during zoom (all heavy work moved to bake phase).
+- Export/serialization of bitmaps.
 
 **Build Gates**
-- 60 fps on iOS Safari at depth 5 with culling active during pinch-zoom.
-- No console logs; all state visible in HUD or drawer.
-- Match between preview icons (mini carpets) and rendered canvas.
+- 60 fps on iOS Safari during pinch-zoom with no frame drops when crossing rebasing thresholds.
+- Zero console errors; all state visible in HUD or drawer.
+- “Rectangular warp” fix verified: all baked canvases are strictly square (1:1 aspect ratio).
 
 **Decision Log Addition**
 | Date | Decision | Owner |
 |------|----------|-------|
 | 2026-09-13 | R2 scope correction: Neighbors changed from mixed pattern patches to contiguous Sierpinski carpets with configurable hues only. | User |
+| 2026-09-15 | Performance architecture: Moved from on-demand capture to eager pre-baking of ImageBitmap stack to eliminate zoom-out lag. | User |
 
 ## 3. IMMUTABLE WORKING RULES
-*(unchanged)*
+- The PLAN is the sole memory; code changes are guided by ledger entries.
+- No external assets; single-file HTML only.
+- Render loop must be synchronous (no async/await per frame).
 
 ## 4. APPENDIX — AUTHORITY ORDER
-*(unchanged)*
+1. Owner feedback (latest turn)
+2. This PLAN document
+3. Reference files (if provided)
+4. Working CODE file
 </plan>
