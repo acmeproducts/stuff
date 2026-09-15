@@ -246,3 +246,31 @@ confirmed working there, the next attempt at §16 must diff against §16's
 *exact* commit rather than being rebuilt from scratch, so any regression is
 isolated to a specific, reviewable change instead of re-deriving the whole
 surface again.
+
+---
+
+## G13 · Second rollback — normalization/translation "hammered" even at §7 baseline
+
+**Status: OPEN.**
+
+User rejected the §7 baseline itself (`4cd50ed6e6`), not just §16 — reporting
+translation and normalization broken there too. Rolled back one commit further,
+to `f1cae14139`: the state immediately after the bridge-core rebuild + G10
+dual-socket fix, before §7 conversation persistence touched the file at all.
+
+**Not yet root-caused.** G12's harness checks (same-language translation,
+code-switch normalization through the real save flow, dual-socket language
+capture) all passed against §16's code — but that clean result is now suspect
+given the baseline underneath it is also being rejected. Two live hypotheses,
+neither confirmed:
+
+1. The regression predates §7/§16 entirely and has been present since the
+   bridge-core rebuild or the G10 patch — meaning my synthetic harness has a
+   blind spot that covers all of it, not just the multi-thread config layer.
+2. Something about live-device conditions (real Deepgram latency, real
+   fastText load timing, real network) diverges from every harness result
+   collected so far, which have all been clean end-to-end.
+
+**Next action:** confirm/deny translation and normalization against `f1cae14139`
+on a real device before any further code changes. No further building until this
+is confirmed, per direct instruction.
