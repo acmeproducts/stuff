@@ -202,3 +202,47 @@ pauses mid-thought keep the turn; sustained silence releases it.
 silence must).
 
 **Status: BURIED**
+
+---
+
+## G12 · §16 REJECTED — normalization regression, missing font controls
+
+**Status: OPEN. Root cause not confirmed. This entry exists to prevent re-litigating
+what's already been checked and cleared.**
+
+**Symptom reported:** normalization "completely regressed" in §16; font size and
+font colour missing from per-thread config (the latter confirmed, see below).
+
+**§16 rolled back.** `duck.html` restored to commit `4cd50ed6e6` (the §7 baseline,
+pre-multi-thread-config). Link reconfirmed byte-identical to that commit.
+
+**What I checked and found CORRECT in §16's code** (harness, not live device):
+- Same-language-room translation through `normalizeOutgoing` — fires correctly.
+- Code-switch normalization through the **actual config-save flow** (not direct
+  field pokes): English typed in a Chinese-set room correctly triggers `en→zh`
+  normalization, then `zh→en` translation for the other side.
+- Dual-socket arbitration's room/language capture — reads `sideAsRoom(side)`
+  fresh at `connect()` time, same pattern as the accepted §7 baseline, no
+  staleness.
+- The `debugLog`/`log()` engine wiring that caused the G5/CRITICAL regression —
+  intact, GATE 2 byte-verified, zero leftover `CFG.southLang`/`CFG.northLang`
+  references anywhere in the file.
+
+**What I could NOT check, stated plainly:** a real Deepgram socket, a real
+fastText model load over HTTPS, and real mic input. None exist in this
+container. Every synthetic reproduction attempted came back clean, which either
+means the regression needs one of those three real conditions to surface, or it
+needs a reproduction path I haven't tried yet. Both are open until confirmed
+against the restored baseline.
+
+**Font size/colour — this part IS confirmed, not speculative.** §7's modal had
+font-size and font-colour controls; §16's redesign carried bubble *background*
+colour onto the per-thread record but dropped font-size and font-colour
+entirely. Plain omission during the rebuild, not a regression of working code —
+straightforward to restore once §16 is rebuilt.
+
+**Next action:** retest against the restored §7 baseline. If normalization is
+confirmed working there, the next attempt at §16 must diff against §16's
+*exact* commit rather than being rebuilt from scratch, so any regression is
+isolated to a specific, reviewable change instead of re-deriving the whole
+surface again.
