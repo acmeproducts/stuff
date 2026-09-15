@@ -478,3 +478,30 @@ as pure session state, never stored anywhere, per-thread or global.
 Verification: 15 gates + 116 assertions across 8 suites (state machine,
 normalization, strip discipline, parity, dual-socket, conversation persistence,
 §16 behavioural rules).
+
+---
+
+## 18. §16 REJECTED AND ROLLED BACK — 2026-09-14
+
+`duck.html` reverted to the §7 baseline (commit `4cd50ed6e6`). §16 (multi-thread
+config) is **not shipped**. Reasons: normalization reported as regressed (root
+cause not confirmed — see graveyard G12), and font-size/font-colour controls
+missing from the per-thread settings (confirmed omission).
+
+**Process change for the retry:** §16 was built as a from-scratch rewrite of the
+config section rather than a diffed change against the accepted baseline. That
+made isolating what actually changed harder than it should have been, and it's
+why G12 can't yet point to a single line. The next attempt must be a **reviewable
+diff against `4cd50ed6e6`**, not a rebuilt surface — so if something regresses
+again, the change that caused it is immediately identifiable rather than
+requiring a search across the whole config module again.
+
+**Before rebuilding §16:**
+1. Confirm normalization is genuinely correct on the restored baseline (user
+   retest, live device — this needs real Deepgram/fastText/mic, none of which
+   exist in the harness).
+2. Add font-size and font-colour back to the per-thread field set (they exist in
+   the §7 modal already; §16 must carry all four fields — background colour,
+   font colour, font size, name — not just background colour).
+3. Rebuild §16 as a targeted diff, gate-by-gate, so each change against the
+   working baseline is independently verifiable.
