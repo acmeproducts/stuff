@@ -463,3 +463,18 @@ correct and unchanged — index, active pointer, per-conversation records — th
 redesign only changes the surface and adds `label` editing, colour/language as
 per-record fields instead of global `CFG`, and a `trashedAt` field for soft
 delete.
+
+
+---
+
+## 17. §16 SHIPPED — 2026-09-14
+
+Multi-thread config surface built and verified: two tabs (Conversations/Global),
+scrollable card grid over scrollable per-thread settings, inline-editable name
+(blur/Enter commit), Save/Cancel with the working-copy edit-buffer model, soft
+delete with trash/restore/purge, new-thread inherits the live pair. TTS confirmed
+as pure session state, never stored anywhere, per-thread or global.
+
+Verification: 15 gates + 116 assertions across 8 suites (state machine,
+normalization, strip discipline, parity, dual-socket, conversation persistence,
+§16 behavioural rules).
