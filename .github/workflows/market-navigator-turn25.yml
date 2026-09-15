@@ -63,11 +63,39 @@ jobs:
           old="function printLibraryAnalysis25(){let before=window.__mnCurrentAnalysis(),beforeJson=before?JSON.stringify(before):null;buildLibraryPrintReport25();window.__libraryPrintInvariant25={id:before?.id||null,before:beforeJson};window.print();let after=window.__mnCurrentAnalysis();window.__libraryPrintInvariant25.after=after?JSON.stringify(after):null;return window.__libraryPrintInvariant25}"
           new="async function printLibraryAnalysis25(){let before=window.__mnCurrentAnalysis(),beforeJson=before?JSON.stringify(before):null;buildLibraryPrintReport25();let img=document.getElementById('libraryPrintChart');if(img&&img.src){try{if(img.decode)await img.decode();else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject})}catch(e){cleanupLibraryPrint25();throw new Error('Frozen Library chart could not be prepared for printing.')}}await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));window.__libraryPrintInvariant25={id:before?.id||null,before:beforeJson};window.print();let after=window.__mnCurrentAnalysis();window.__libraryPrintInvariant25.after=after?JSON.stringify(after):null;return window.__libraryPrintInvariant25}"
           assert s.count(old)==1;s=s.replace(old,new,1)
-          old="if(document.getElementById('libPrint'))document.getElementById('libPrint').onclick=()=>{document.getElementById('libMenu')?.classList.add('hidden');printLibraryAnalysis25()};";new="if(document.getElementById('libPrint'))document.getElementById('libPrint').onclick=async()=>{document.getElementById('libMenu')?.classList.add('hidden');await printLibraryAnalysis25()};";assert s.count(old)==1;s=s.replace(old,new,1);app.write_text(s)
+          old="if(document.getElementById('libPrint'))document.getElementById('libPrint').onclick=()=>{document.getElementById('libMenu')?.classList.add('hidden');printLibraryAnalysis25()};";new="if(document.getElementById('libPrint'))document.getElementById('libPrint').onclick=async()=>{document.getElementById('libMenu')?.classList.add('hidden');await printLibraryAnalysis25()};";assert s.count(old)==1;s=s.replace(old,new,1)
+          # Library continuation: persist an explicit Processing… assistant turn, bind completion to the launching Analysis,
+          # and never introduce a global busy lock. Existing async provider work continues independently of navigation.
+          hs=s.index("$('send').onclick=async()=>");he=s.index('function renderHealth',hs);h=s[hs:he]
+          needle="a.status='processing';"
+          assert h.count(needle)==1,('chat processing anchor',h.count(needle))
+          h=h.replace(needle,"let processingId='processing-'+Date.now()+'-'+Math.random().toString(36).slice(2);a.turns.push({id:processingId,role:'assistant',content:'Processing…',at:new Date().toISOString(),processing:true});a.status='processing';",1)
+          assert h.count("saved.status='ready';")==1
+          h=h.replace("saved.status='ready';","saved.turns=saved.turns.filter(t=>t.id!==processingId);saved.status='ready';",1)
+          if "saved.status='failed';" in h:h=h.replace("saved.status='failed';","saved.turns=saved.turns.filter(t=>t.id!==processingId);saved.status='failed';",1)
+          s=s[:hs]+h+s[he:];app.write_text(s)
           qa=Path('market-navigator-turn25-qa.mjs');q=qa.read_text().replace('JSON.stringify(currentAnalysis())','JSON.stringify(window.__mnCurrentAnalysis())').replace("for(let x of ['break-inside: avoid','page-break-inside: avoid','display: table-header-group'])","for(let x of ['break-inside: avoid','display: table-header-group'])")
           q=q.replace("await p.locator('#libMoreBtn').click();await p.locator('#libPrint').click();\n  assert.equal(await p.evaluate(()=>window.__printCount),1,'native print invoked exactly once');","await p.locator('#libMoreBtn').click();await p.locator('#libPrint').click();await p.waitForFunction(()=>window.__printCount===1);\n  assert.equal(await p.evaluate(()=>window.__printCount),1,'native print invoked exactly once');")
           q=q.replace("assert((await p.locator('#libraryPrintChart').getAttribute('src'))?.startsWith('data:image/png'),'exact rendered frozen chart captured');","assert((await p.locator('#libraryPrintChart').getAttribute('src'))?.startsWith('data:image/png'),'exact rendered frozen chart captured');let printImage=await p.locator('#libraryPrintChart').evaluate(img=>({complete:img.complete,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight}));assert(printImage.complete&&printImage.naturalWidth>0&&printImage.naturalHeight>0,`frozen chart decoded before native print ${JSON.stringify(printImage)}`);")
-          qa.write_text(q);print('TURN 25 PRINT DECODE QUALIFICATION: PASS')
+          # Observation counts are live evidence and must not be frozen to yesterday's count.
+          q=q.replace('/observations: 2514.*provider: Yahoo Finance.*fallback: false.*enabled horizons:.*5D.*last success:/s','/observations: \\d+.*provider: Yahoo Finance.*fallback: false.*enabled horizons:.*5D.*last success:/s')
+          # Runtime concurrency gate: delayed continuation must visibly show Processing…, allow NOW navigation,
+          # and allow a second AI analysis to launch while the first request remains pending.
+          gate=r'''
+          async function parallelLibraryChatCase(){
+            const reg={defaultProvider:'openrouter',providers:{openrouter:{verified:true,key:'qa-key',model:'qa-model',models:['qa-model']}}};
+            const t=await makePage({width:412,height:915,registry:reg}),p=t.page;let calls=0;
+            await p.unroute('https://openrouter.ai/api/v1/chat/completions');
+            await p.route('https://openrouter.ai/api/v1/chat/completions',async r=>{calls++;await new Promise(x=>setTimeout(x,1800));await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:'# Parallel QA\n\nCompleted.'}}]})})});
+            await injectTTSAnalysis(p);await p.reload({waitUntil:'networkidle'});if(await p.locator('#rail').evaluate(el=>el.classList.contains('closed')))await p.locator('#toggle').click();await p.locator('[data-view="library"]').click();await p.locator('#libList [data-id="qa-tts25"]').click();await p.locator('#compose').fill('Continue this analysis while I keep working.');await p.locator('#send').click();
+            await p.waitForFunction(()=>document.querySelector('#transcript')?.textContent.includes('Processing…'));assert.equal(await p.locator('#send').isDisabled(),false,'chat processing does not globally disable composer');
+            await p.locator('[data-view="now"]').click();await p.waitForFunction(()=>document.querySelector('#view-now')?.classList.contains('on'));assert.equal(await p.locator('#view-now').isVisible(),true,'NOW exploration remains interactive during chat processing');
+            await p.locator('#nowMoreBtn').click();await p.locator('#nowAnalyze').click();await p.waitForFunction(()=>document.querySelector('#view-library')?.classList.contains('on'));await p.waitForFunction(()=>calls>=2);assert(calls>=2,'new analysis generation starts while Library continuation is still pending');
+            await p.waitForFunction(()=>[...document.querySelectorAll('#libList .rowMeta')].some(x=>/ready/i.test(x.textContent)),{timeout:7000});assert.deepEqual(t.errors,[]);assert.deepEqual(t.failed,[]);await t.context.close();
+          }
+          '''
+          assert 'try{' in q;q=q.replace('try{',gate+'\ntry{',1);q=q.replace('await ttsCase(false);await ttsCase(true);','await ttsCase(false);await ttsCase(true);await parallelLibraryChatCase();',1)
+          qa.write_text(q);print('TURN 25 PRINT + PARALLEL CHAT QUALIFICATION: PASS')
           PY
             rc=$?
           fi
@@ -79,7 +107,7 @@ jobs:
           from pathlib import Path
           import re
           s=Path('market-navigator-turn25-pre-ship.html').read_text()
-          for x in ['Market Navigator · Turn 25','id="libraryPrintReport"','async function printLibraryAnalysis25','await img.decode()','window.__mnCurrentAnalysis=currentAnalysis']:assert x in s,x
+          for x in ['Market Navigator · Turn 25','id="libraryPrintReport"','async function printLibraryAnalysis25','await img.decode()','window.__mnCurrentAnalysis=currentAnalysis',"content:'Processing…'",'processingId']:assert x in s,x
           scripts=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',s,re.S|re.I);Path('/tmp/mn25.js').write_text(scripts[-1])
           PY
           node --check /tmp/mn25.js
@@ -109,5 +137,5 @@ jobs:
           rm -rf node_modules
           git add market-navigator-turn25-pre-ship.html
           git diff --cached --quiet && exit 0
-          git commit -m 'Market Navigator Turn 25 qualified chart print [turn25-generated]'
+          git commit -m 'Market Navigator Turn 25 qualified print and parallel chat [turn25-generated]'
           git push origin HEAD:market-navigator-turn25-consolidation
