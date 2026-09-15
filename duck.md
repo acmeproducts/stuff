@@ -16,17 +16,18 @@ history.
 
 | Turn | Stage | Description | Status |
 |---|---|---|---|
-| 20 | Rebuild | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. | SUPERSEDED by 21 |
-| 21 | Fix | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. | SUPERSEDED by 22 |
-| 22 | Fix | G5/CRITICAL — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10 added. | SUPERSEDED by 23 |
-| 23 | Fix | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. | **LIVE — this is turn 23** |
-| 24 | Feature (§7) | Conversation persistence, id-keyed storage. | REJECTED at turn 26 |
-| 25 | Feature (§16) | Multi-thread config UI, per-thread language/colour. | REJECTED at turn 26 |
-| 26 | Rollback | Reverted past both 24 and 25 on report that normalization/translation were broken even at the turn-24 baseline. Restored to turn 23's exact file. Root cause not yet confirmed — holding for real-device confirmation before any further build (graveyard G13). | **CURRENT — awaiting confirmation** |
+| 20 | Build | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. | SUPERSEDED |
+| 21 | Fix | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. | SUPERSEDED |
+| 22 | Fix | G5/CRITICAL — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10 added. | SUPERSEDED |
+| 23 | Fix | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. | **BASELINE — currently live** |
+| 24 | Build | Conversation persistence (§7), id-keyed storage. | REJECTED |
+| 25 | Build | Multi-thread config UI (§16), per-thread language/colour. | REJECTED |
+| 26 | Rollback | Reverted past both 24 and 25 on report that normalization/translation were broken even at the turn-24 baseline. Restored to turn 23's exact file. Root cause not yet confirmed — holding for real-device confirmation before any further build (graveyard G13). | DONE |
 
-**We are at Turn 26: Rollback, holding at Turn 23's file** (bridge-core engine +
-G10 dual-socket fix + G11 mic idle release — nothing from §7 or §16 present).
-Next turn number for any future work is **27**.
+**Current turn: 26 (Rollback). Current stage: Hold**, sitting on Turn 23's file
+(bridge-core engine + G10 dual-socket fix + G11 mic idle release — nothing from
+§7 or §16 present). Nothing further builds until Turn 23 is confirmed working
+on a real device. Next turn number once building resumes is **27**.
 
 ---
 
