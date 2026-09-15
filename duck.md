@@ -371,3 +371,33 @@ Decide from observed use, not theory. If (d) is ever attempted it is a redesign 
 the switch, not a tweak — the whole railroad-switch premise assumes one owner.
 
 **Not blocking. Revisit after the next release.**
+
+
+---
+
+## 15. §7 SHIPPED — 2026-09-14
+
+Conversation persistence built as designed: id-keyed from the start, so "start
+fresh" is a pointer move rather than a migration.
+
+```
+duck2_conv_index   [{id, createdAt, label, count, lastAt}]
+duck2_conv_active  "<id>"
+duck2_conv_<id>    [messages]
+```
+
+- South-only list in config (switch · new · delete), consistent with the privacy
+  boundary — North never sees the list or any history but the live conversation.
+- Switching tears down the input switch first, so a conversation change can never
+  strand a live mic.
+- Any pre-§7 flat `duck2_hist` is adopted into a conversation record once, so no
+  existing history is lost.
+
+**Also closed:** TTS-default-off and keyboard-layout-on-open were v1 defects that
+did not survive the rebuild — verified correct, no change needed.
+
+**Still open:** GitHub PAT → phrasebooks (field present, feature deferred);
+backlog B1 (mic turn-release model).
+
+**Verification:** 13 gates · 83 assertions (25 switch · 20 normalization ·
+8 strip · 2 parity · 4 chain · 11 dual-socket · 13 conversations).
