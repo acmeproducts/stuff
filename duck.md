@@ -8,31 +8,33 @@ has failed and is abandoned. This document is the sole authority.
 
 ## 0 · TURN / STAGE LEDGER — THE CHAIN IS THE LAW
 
-Per TALKBRIDGE-PLAN-v9.md §0, verbatim rule, not paraphrased: every turn runs
-**pre-base → base → pre-ship → ship → post-ship**, in that fixed order. A new
-turn begins only after post-ship completes. A rejected candidate does not jump
-back to a prior turn — the address rolls back byte-exact to the last accepted
-stage within the current chain, and the rejected work is recorded in the
-graveyard.
+Per TALKBRIDGE-PLAN-v9.md §0: every turn runs **pre-base → base → pre-ship →
+ship → post-ship**, in that fixed order. A new turn begins only after
+post-ship completes.
 
-I had been tracking deploys by git commit SHA instead of this table, and then
-invented stage names of my own when asked to fix it. Both wrong. Corrected here
-against the actual source.
+**Every stage is its own permanently-hosted file in the repo — `duck-turnNN-STAGE.html`
+— matching bridge's own convention exactly (`bridge-turn27-base.html`, etc.)**
+This was missing until now: prior stages existed only as git commits on a
+repeatedly-overwritten `duck.html`, which is why every "link to a specific
+version" request required a workaround instead of a direct URL. Corrected
+below — every accepted stage and every dead candidate has its own file, live
+and stays live. `duck.html` is repointed to mirror the current accepted stage.
 
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
-| 20·base | Engine rebuilt from bridge-turn27-base.html, byte-verified (13/13 blocks). Ownership switch (unconditional teardown), 44px keyboard. Gates 1–6. | ACCEPTED | duck.html (superseded) |
-| 20·pre-ship | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path) | ACCEPTED | duck.html (superseded) |
-| 20·ship | G5/CRITICAL found and fixed — `debugLog` missing from the engine extraction, silently killing normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10. | ACCEPTED | duck.html (superseded) |
-| 20·post-ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12. | **ACCEPTED — this is the current live baseline** | https://acmeproducts.github.io/stuff/duck.html |
+| 20·base | Engine rebuilt from bridge-turn27-base.html, byte-verified (13/13 blocks). Ownership switch (unconditional teardown), 44px keyboard. Gates 1–6. | ACCEPTED | https://acmeproducts.github.io/stuff/duck-turn20-base.html |
+| 20·pre-ship | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path) | ACCEPTED | https://acmeproducts.github.io/stuff/duck-turn20-pre-ship.html |
+| 20·ship | G5/CRITICAL found and fixed — `debugLog` missing from the engine extraction, silently killing normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10. | ACCEPTED | https://acmeproducts.github.io/stuff/duck-turn20-ship.html |
+| 20·post-ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12. | **ACCEPTED — current live baseline** | https://acmeproducts.github.io/stuff/duck-turn20-post-ship.html (= `duck.html`) |
 | 21·pre-base | = accepted 20·post-ship, byte-identical snapshot | queued | — |
-| 21·base (candidate 1) | Conversation persistence (§7), id-keyed storage | **REJECTED** — normalization/translation reported broken; rolled back byte-exact to 20·post-ship | (address rolled back) |
-| 21·base (candidate 2) | Multi-thread config UI (§16), per-thread language/colour | **REJECTED** — same ruling, plus font-size/font-colour controls missing | (address rolled back) |
+| 21·base (candidate 1) | Conversation persistence (§7), id-keyed storage | **REJECTED** — normalization/translation reported broken; address rolled back byte-exact to 20·post-ship | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate1.html (dead candidate, stays hosted) |
+| 21·base (candidate 2) | Multi-thread config UI (§16), per-thread language/colour | **REJECTED** — same ruling, plus font-size/font-colour controls missing | https://acmeproducts.github.io/stuff/duck-turn21-base-candidate2.html (dead candidate, stays hosted) |
 
-**Current: 20·post-ship is the accepted baseline, live now.** Turn 21·base is
-open and unresolved — both candidates rejected, address rolled back byte-exact
-to 20·post-ship. Turn 21·base does not re-attempt until translation/normalization
-is confirmed correct on 20·post-ship on a real device (graveyard G13).
+**Current: 20·post-ship is the accepted baseline — `duck.html` mirrors it
+byte-for-byte.** Turn 21·base is open and unresolved. It does not re-attempt
+until translation/normalization is confirmed correct on 20·post-ship on a real
+device (graveyard G13). Owner is running a side-by-side against the links
+above to close that question directly.
 
 ---
 
