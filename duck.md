@@ -401,3 +401,65 @@ backlog B1 (mic turn-release model).
 
 **Verification:** 13 gates · 83 assertions (25 switch · 20 normalization ·
 8 strip · 2 parity · 4 chain · 11 dual-socket · 13 conversations).
+
+
+---
+
+## 16. §7b MULTI-THREAD CONFIG — REDESIGN (2026-09-14)
+
+§7's flat conversation list in the existing modal is **rejected**. A conversation
+is not a container for messages — it is a person you talk to. Language pair,
+colours, and name are the thread's identity, not global settings that happen to
+be in effect. The config surface is rebuilt around that.
+
+### Model
+
+**Per-thread:** language pair, name (inline-editable, blur/Enter commits),
+bubble colours.
+**Global (its own tab):** Deepgram key, GitHub PAT.
+**Neither — live session state, not a setting at all:** TTS on/off. It resets to
+off on every conversation load, same category as mic/keyboard ownership. It is
+not stored per-thread and not global; it simply doesn't persist. Tap to hear,
+every time.
+
+### Surface
+
+Two tabs: **Conversations** and **Global**.
+
+**Conversations tab**, split top/bottom, both independently scrollable:
+- **Top half — cards.** One per thread: flag pair + name. Tap selects a card for
+  editing below; selecting does **not** switch the live conversation by itself.
+  A collapsible chevron at the top reveals a **trash view** (soft-deleted threads,
+  each with Restore / Delete permanently).
+- **Bottom half — settings for the selected card.** Language pair, inline name
+  field, colour swatches. **Save** and **Cancel** pinned at the top of this half.
+
+**Save/Cancel semantics — the whole model in one rule:**
+- **Cancel** → discard edits, stay on whatever conversation is currently live.
+- **Save**, selected card *is* the live conversation → edits apply immediately,
+  stay put.
+- **Save**, selected card is a *different* thread → full `teardown()`, switch to
+  it, edited settings already in effect. Same "everything resets" rule as any
+  other switch — mic, keyboard, TTS, all zeroed, no exceptions for coming via
+  config instead of the card rail.
+
+**New thread (＋):** inherits the *current live* thread's language pair as a
+starting point, immediately editable — not a blank en/th default.
+
+**Global tab:** Deepgram key, GitHub PAT. Unchanged from §6/§7.
+
+### Soft delete
+
+Delete moves a thread's record under a chevron-revealed trash list rather than
+destroying it. Each trashed entry offers **Restore** (returns to the main list,
+history intact) or **Delete permanently** (irreversible, the only actual
+destruction). Deleting the live conversation switches to the most recent
+remaining thread, or creates a fresh one if none remain — same teardown rule.
+
+### What this replaces
+
+§7's flat list-in-modal UI is removed. The id-keyed storage underneath (§7) is
+correct and unchanged — index, active pointer, per-conversation records — this
+redesign only changes the surface and adds `label` editing, colour/language as
+per-record fields instead of global `CFG`, and a `trashedAt` field for soft
+delete.
