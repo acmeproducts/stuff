@@ -1889,3 +1889,21 @@ V2 previously masked it by giving a (fragile) return path. This is a
 pre-existing architectural gap, larger than "video call surface" — logged
 separately, not attempted inside this release. Address rolled back
 byte-exact to accepted 27·pre-ship (69ec6482db24).
+
+## G56 — 2026-09-14 — 27·post-ship (IndexedDB mirror), rolled back
+
+Buried: app sha e08890781391. Built exactly to §7.11 as specced, but the
+spec itself targeted the wrong problem: it mirrored every write to both
+IndexedDB and localStorage, which buys resilience (survives localStorage
+eviction) but not capacity — transcripts, the only data with real growth
+pressure, still write through the same localStorage-capped path as
+everything else, since converting the app's synchronous reads to async
+was explicitly out of scope. Owner's actual ask was capacity ("higher
+storage limits, retire localStorage"), and owner had already ruled test
+data expendable, which is exactly the failure mode resilience protects
+against — meaning even the thing this release DID do had no value in the
+current context. Owner ruling: no further attempt against the real app
+until IndexedDB is specced in painful detail and proven in a standalone
+proof-of-concept harness first — never directly against the working
+codebase again. Address rolled back byte-exact to accepted 27·ship
+(956ceb381585).
