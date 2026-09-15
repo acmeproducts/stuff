@@ -1865,3 +1865,27 @@ entirely (not fixed), deferred to a future release built on real OS-level
 PiP. Owner explicitly ordered a rollback and reimplementation, not a patch
 onto candidate 3. Address rolled back byte-exact to accepted 27·pre-ship
 (69ec6482db24).
+
+## G55 — 2026-09-14 — 27·ship candidate 4, rolled back
+
+Buried: app sha b5efc75509f9. Owner: "complete scrub." Confirmed working:
+tap-swap (V1), unchanged since candidate 3. Three real defects, RCA'd
+before any rebuild: (1) camera flip requested the new-facing stream BEFORE
+releasing the old one — every other camera-touching path in this codebase
+stops the old track first; flip was the one place that didn't, very likely
+causing a device-busy failure swallowed by a silent catch (Android: inert;
+iPhone: unresolved, no matching cause found yet). (2) The dragged video
+elements never got `touch-action:none` — the only place in this codebase
+that ever needed reliable drag (the old corner-band, R8B_CSS) had it;
+these didn't, so native video touch handling likely competed with and beat
+the custom drag listener, meaning drag never fired and the edge-handle
+logic (downstream of a drag event) never got exercised either. (3) Larger
+than this release's scope: the app has no resume path for an active call
+after real backgrounding — the only resume handler in the codebase is
+scoped to the chat view, never checks call state, and mobile OSes commonly
+fully reload a backgrounded page, wiping the call from JS memory while the
+other party's side has no idea. This is NOT new damage from V2's removal;
+V2 previously masked it by giving a (fragile) return path. This is a
+pre-existing architectural gap, larger than "video call surface" — logged
+separately, not attempted inside this release. Address rolled back
+byte-exact to accepted 27·pre-ship (69ec6482db24).
