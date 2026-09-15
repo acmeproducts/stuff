@@ -6,34 +6,33 @@ has failed and is abandoned. This document is the sole authority.
 
 ---
 
-## TURN/STAGE LEDGER
+## 0 · TURN / STAGE LEDGER — THE CHAIN IS THE LAW
 
-The pre-rebuild duck.md tracked every deploy by turn number here. That
-convention was dropped when the rebuild plan (v2) was written and every deploy
-since has only been traceable by git commit SHA — exactly the unreadable
-reference this ledger exists to prevent. Reinstated below, backfilled from git
-history.
+Per TALKBRIDGE-PLAN-v9.md §0, verbatim rule, not paraphrased: every turn runs
+**pre-base → base → pre-ship → ship → post-ship**, in that fixed order. A new
+turn begins only after post-ship completes. A rejected candidate does not jump
+back to a prior turn — the address rolls back byte-exact to the last accepted
+stage within the current chain, and the rejected work is recorded in the
+graveyard.
 
-Stage names follow the bridge convention exactly (`bridge-turn27-base.html` =
-turn 27, stage base): **pre-base** (work in progress toward a turn) → **base**
-(accepted, working artifact for that turn) → **pre-ship** (hardening) →
-**ship** (deployed/accepted) → **post-ship** (issue found after acceptance,
-triggers the next turn's pre-base).
+I had been tracking deploys by git commit SHA instead of this table, and then
+invented stage names of my own when asked to fix it. Both wrong. Corrected here
+against the actual source.
 
-| Turn | Stage | Description |
-|---|---|---|
-| 20 | ship | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. |
-| 21 | ship | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. |
-| 22 | post-ship→ship | G5/CRITICAL found post-ship — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. Fixed same turn: G9 mic no longer push-to-talk. Gates 9–10 added. |
-| 23 | ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. |
-| 24 | pre-base→post-ship | Conversation persistence (§7), id-keyed storage. Shipped, then rejected alongside turn 25. |
-| 25 | pre-base→post-ship | Multi-thread config UI (§16), per-thread language/colour. Shipped, then rejected: normalization regression reported, font controls missing. |
-| 26 | post-ship | Rolled back past both 24 and 25 on report that normalization/translation were broken even at turn 24's base. Restored turn 23's exact file. Root cause not confirmed — holding for real-device confirmation (graveyard G13). |
+| Turn·Stage | Release | Status | Artifact |
+|---|---|---|---|
+| 20·base | Engine rebuilt from bridge-turn27-base.html, byte-verified (13/13 blocks). Ownership switch (unconditional teardown), 44px keyboard. Gates 1–6. | ACCEPTED | duck.html (superseded) |
+| 20·pre-ship | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path) | ACCEPTED | duck.html (superseded) |
+| 20·ship | G5/CRITICAL found and fixed — `debugLog` missing from the engine extraction, silently killing normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10. | ACCEPTED | duck.html (superseded) |
+| 20·post-ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12. | **ACCEPTED — this is the current live baseline** | https://acmeproducts.github.io/stuff/duck.html |
+| 21·pre-base | = accepted 20·post-ship, byte-identical snapshot | queued | — |
+| 21·base (candidate 1) | Conversation persistence (§7), id-keyed storage | **REJECTED** — normalization/translation reported broken; rolled back byte-exact to 20·post-ship | (address rolled back) |
+| 21·base (candidate 2) | Multi-thread config UI (§16), per-thread language/colour | **REJECTED** — same ruling, plus font-size/font-colour controls missing | (address rolled back) |
 
-**Current: turn 26, stage post-ship.** Live file is turn 23's ship artifact
-(bridge-core engine + G10 dual-socket fix + G11 mic idle release — nothing from
-turns 24/25 present). post-ship means an issue is open and unresolved — turn 27
-pre-base does not begin until turn 23 is confirmed working on a real device.
+**Current: 20·post-ship is the accepted baseline, live now.** Turn 21·base is
+open and unresolved — both candidates rejected, address rolled back byte-exact
+to 20·post-ship. Turn 21·base does not re-attempt until translation/normalization
+is confirmed correct on 20·post-ship on a real device (graveyard G13).
 
 ---
 
