@@ -1,5 +1,5 @@
-<!-- TALKBRIDGE-PLAN v21.39.0 -->
-# TALKBRIDGE MASTER PLAN v21.39.0
+<!-- TALKBRIDGE-PLAN v21.40.0 -->
+# TALKBRIDGE MASTER PLAN v21.40.0
 
 **Location:** `talkbridge/TALKBRIDGE-PLAN-v9.md` in `acmeproducts/stuff`.
 **Owner:** Confi — sole decision-maker, runs every device gate.
@@ -87,7 +87,7 @@ built yet.
 | 27·pre-ship | **N-1 notification lifecycle** — relay v6.6 sends a terminal retraction push to any recipient NOT currently connected when their call record resolves without their own action (caller hung up or cancelled, answered by no one, etc.); a foreground device never holds an OS card in the first place (`_decide`: visible+connected → in_app, no push requested), so no client-side close path was needed. K1 (tb-sw2.js) closes the card, or on a missed outcome replaces it with "Missed call". The room-transcript half of the owner's "both" ruling was ALREADY WORKING via existing CR3 reconciliation (`cr3PillMissed`) — verified, not built. Ring-tone selection DROPPED from this release: no chosen value was ever given, and a knob with nothing to turn to is not a feature. | Built directly from evidence found in the code, correcting the original §9 guess | **ACCEPTED 2026-09-13 (owner: pass).** Gates pass; mutations 3/3 (push-to-connected, double-push-on-retry, accepted-worker-touched). Known limitation, not fixed here: if the caller's own device also backgrounds or closes right after dialing, no side ever sends call-end and the callee's card can linger — a pre-existing gap in the call model, not caused by or fixed by N-1. | https://acmeproducts.github.io/stuff/bridge-turn27-pre-ship.html |
 | ~~27·pre-ship (old)~~ | ~~Notifications & steadiness~~ — TalkBridge icon on alerts + strongest legal call alert (D-1/#652) in the folder worker; presence 60-s damping; render coalescing | Spec §7.2 (paths updated to folder) | queued — ringfence: worker swap + push continuity | — |
 | 27·ship | **Video call surface, candidate 5** — tap-swap (kept); camera-flip stops the old track before requesting the new one (matches this codebase's own established pattern, everywhere else already does this); drag gets `touch-action:none` on the video elements. Screen share still dropped, V2 still dropped. | Spec §7.6 + R17 (stop-before-acquire) + R18 (touch-action:none) | **ACCEPTED 2026-09-14 (owner).** Tap-swap confirmed working. Drag: PARTIAL PASS, accepted with a known issue — the small video can now be moved (R18 fixed the gesture), but a z-index/stacking bug still confines it visually within the large video pane instead of the full screen; backlogged, not blocking. Camera flip (R17): status unconfirmed, owner chose not to chase further — backlogged alongside the drag z-index issue. 27·ship CLOSED. | https://acmeproducts.github.io/stuff/bridge-turn27-ship.html |
-| 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release (testing-mode ruling: no parallel-bridge ceremony); one-time seed from existing localStorage plus a per-room Export Transcript button as belt-and-braces; localStorage demoted to boot cache | Spec §7.11 (supersedes §7.3+§7.7) | queued — ringfence: data loss, mitigated by seed + export + owner ruling that test data is expendable | — |
+| 27·post-ship | **Storage cutover, single shot** — IndexedDB becomes primary in ONE release; no export, no migration/seeding from existing localStorage — owner ruling 2026-09-14: not needed, already covered, test data is expendable outright; localStorage demoted to boot cache | Spec §7.11, corrected 2026-09-14 (supersedes §7.3+§7.7) | queued | — |
 | 28·pre-base | Snapshot | — | queued | — |
 | 28·base | **Refactor & technical debt** — collisions & concurrency folded in per owner ruling (device-namespaced message ids, phrasebook compare-and-swap three-way merge, concurrent-rename convergence) + full render coalescing, log hygiene, wrapper-chain audit, dead-candidate purge, graveyard index. Sequenced BEFORE multi-user because id-namespacing and PB merge are its prerequisites | Specs §7.9+§7.10 merged | queued — ringfence: silent behavior drift; gate = zero-regression session | — |
 | 28·pre-ship | **Multi-user, relay leg** — relay v6.4 alone: fan-out N≤4, cap enforcement, per-device call addressing; app untouched; gated by the 3-socket harness before any app change | Spec §7.8 R-parts | queued — ringfence: relay regressions isolated from app | — |
@@ -4296,39 +4296,36 @@ open-core licensing, go-to-market.
 ────────────────────────────────────────────────────────────────────────
 ## §7.11 BUILDER SPEC — STORAGE CUTOVER, SINGLE SHOT (27·post-ship)
 ────────────────────────────────────────────────────────────────────────
-Owner ruling 2026-09-06: testing mode — stored conversations are
-expendable; one or two worth keeping get exported. No mirror phase, no
-parity ceremony, one release.
+Owner ruling 2026-09-06, CORRECTED 2026-09-14: testing mode — stored
+conversations are expendable, outright. No export, no migration, no
+seeding from existing localStorage, no belt-and-braces of any kind —
+already covered by the testing-mode ruling itself; a safety net on top of
+an explicit "data loss is fine" ruling was unnecessary scope, now removed.
+No mirror phase, no parity ceremony, one release.
 FILE: next candidate on the accepted line. RELAY untouched.
-X1 EXPORT (belt-and-braces, ships in the same block, works before the
-cutover code runs): drawer gains "Export transcript" under the existing
-General tab (renderDrawerValues wrap adds the button once): opens a modal
-with the room's transcript as readable text (one line per message:
-who · time · source → translated) plus a Copy button (navigator.clipboard
-with textarea fallback). No new APIs, no downloads. Log `x1_export {n}`.
 X2 DB: indexedDB.open('talkbridge',1), one store `kv` keyPath `k`,
-records {k,v,at} — §7.3's design, kept.
-X3 BOOT, IDB-first with free migration: a pre-boot loader (registered
-before the frozen initializer runs — the block executes at parse time,
-loader gates the frozen boot via wrapping the boot entry function the
-same way CR3 gates it) reads all IDB keys and materializes them into
-localStorage; if IDB is EMPTY and localStorage has keys (first run after
-cutover), seed IDB from localStorage once and log `x3_seeded {n}`. Net:
-nothing is lost on cutover day at all; the export exists for paranoia
-and for resets.
+records {k,v,at}.
+X3 BOOT, IDB-first, no migration: a pre-boot loader (registered before
+the frozen initializer runs — the block executes at parse time, loader
+gates the frozen boot via wrapping the boot entry function the same way
+CR3 gates it) reads all IDB keys and materializes them into localStorage
+before the frozen synchronous readers run. Nothing seeds IDB from
+existing localStorage — IDB starts empty on a device that has never
+written to it, and that is the correct, accepted behavior.
 X4 WRITES: wrap lsSet — IDB put FIRST (primary), localStorage second
 (boot cache for the frozen synchronous readers). The six raw-key
 credentials keep their 30-s sweep (§7.3 DB2 design). Any IDB failure →
 log `x4_idb_fail` and continue on localStorage alone.
 ### Machine gates: M1 frozen body; M2 parse; M3 write order asserted by
-regex (put before passthrough); M4 seed-once guard present (no seed when
-IDB non-empty); M5 export button only in drawer, nowhere else.
-MUTATIONS: (a) reverse write order → M3 fails; (b) seed every boot →
-M4 fails; (c) export button on home → M5 fails.
+regex (put before passthrough); M4 no seed-from-localStorage code path
+exists anywhere in the block (grep-asserted absent, not just unused).
+MUTATIONS: (a) reverse write order → M3 fails; (b) any localStorage→IDB
+seeding code reintroduced → M4 fails.
 ### Device gate: G1 normal chat unchanged, footer names the build.
-G2 export a room → readable text, Copy works. G3 DevTools → delete ALL
-Local Storage keys → relaunch → everything present (IDB restored it),
-log shows the restore. G4 20 messages, relaunch, all present.
+G2 DevTools → delete ALL Local Storage keys → relaunch → everything
+written since cutover is present (IDB restored it; anything from BEFORE
+cutover is correctly gone — that's the accepted behavior, not a bug).
+G3 20 messages, relaunch, all present.
 
 
 ## G25 SUPERSEDED (2026-09-06, folder release)
