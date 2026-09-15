@@ -14,20 +14,26 @@ since has only been traceable by git commit SHA — exactly the unreadable
 reference this ledger exists to prevent. Reinstated below, backfilled from git
 history.
 
-| Turn | Stage | Description | Status |
-|---|---|---|---|
-| 20 | Build | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. | SUPERSEDED |
-| 21 | Fix | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. | SUPERSEDED |
-| 22 | Fix | G5/CRITICAL — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10 added. | SUPERSEDED |
-| 23 | Fix | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. | **BASELINE — currently live** |
-| 24 | Build | Conversation persistence (§7), id-keyed storage. | REJECTED |
-| 25 | Build | Multi-thread config UI (§16), per-thread language/colour. | REJECTED |
-| 26 | Rollback | Reverted past both 24 and 25 on report that normalization/translation were broken even at the turn-24 baseline. Restored to turn 23's exact file. Root cause not yet confirmed — holding for real-device confirmation before any further build (graveyard G13). | DONE |
+Stage names follow the bridge convention exactly (`bridge-turn27-base.html` =
+turn 27, stage base): **pre-base** (work in progress toward a turn) → **base**
+(accepted, working artifact for that turn) → **pre-ship** (hardening) →
+**ship** (deployed/accepted) → **post-ship** (issue found after acceptance,
+triggers the next turn's pre-base).
 
-**Current turn: 26 (Rollback). Current stage: Hold**, sitting on Turn 23's file
+| Turn | Stage | Description |
+|---|---|---|
+| 20 | ship | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. |
+| 21 | ship | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. |
+| 22 | post-ship→ship | G5/CRITICAL found post-ship — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. Fixed same turn: G9 mic no longer push-to-talk. Gates 9–10 added. |
+| 23 | ship | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. |
+| 24 | pre-base→post-ship | Conversation persistence (§7), id-keyed storage. Shipped, then rejected alongside turn 25. |
+| 25 | pre-base→post-ship | Multi-thread config UI (§16), per-thread language/colour. Shipped, then rejected: normalization regression reported, font controls missing. |
+| 26 | post-ship | Rolled back past both 24 and 25 on report that normalization/translation were broken even at turn 24's base. Restored turn 23's exact file. Root cause not confirmed — holding for real-device confirmation (graveyard G13). |
+
+**Current: turn 26, stage post-ship.** Live file is turn 23's ship artifact
 (bridge-core engine + G10 dual-socket fix + G11 mic idle release — nothing from
-§7 or §16 present). Nothing further builds until Turn 23 is confirmed working
-on a real device. Next turn number once building resumes is **27**.
+turns 24/25 present). post-ship means an issue is open and unresolved — turn 27
+pre-base does not begin until turn 23 is confirmed working on a real device.
 
 ---
 
