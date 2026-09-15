@@ -6,6 +6,30 @@ has failed and is abandoned. This document is the sole authority.
 
 ---
 
+## TURN/STAGE LEDGER
+
+The pre-rebuild duck.md tracked every deploy by turn number here. That
+convention was dropped when the rebuild plan (v2) was written and every deploy
+since has only been traceable by git commit SHA — exactly the unreadable
+reference this ledger exists to prevent. Reinstated below, backfilled from git
+history.
+
+| Turn | Stage | Description | Status |
+|---|---|---|---|
+| 20 | Rebuild | Engine sourced from bridge-turn27-base.html, byte-verified. Ownership switch (unconditional teardown), 44px keyboard, 6 gates. | SUPERSEDED by 21 |
+| 21 | Fix | G7 (normalization parity — typed path passes no knownLang) + G8 (compose strip clears on every send path). Gates 7–8 added. | SUPERSEDED by 22 |
+| 22 | Fix | G5/CRITICAL — `debugLog` missing from engine extraction, silently killing all of normalization via a thrown `log()`. G9 — mic no longer push-to-talk. Gates 9–10 added. | SUPERSEDED by 23 |
+| 23 | Fix | G10 — restored bridge's dual-socket English arbitration for zh/th/ko/ar (the actual root cause of the Chinese-room translation failure). G11 — mic idle auto-release. Gates 11–12 added. | **LIVE — this is turn 23** |
+| 24 | Feature (§7) | Conversation persistence, id-keyed storage. | REJECTED at turn 26 |
+| 25 | Feature (§16) | Multi-thread config UI, per-thread language/colour. | REJECTED at turn 26 |
+| 26 | Rollback | Reverted past both 24 and 25 on report that normalization/translation were broken even at the turn-24 baseline. Restored to turn 23's exact file. Root cause not yet confirmed — holding for real-device confirmation before any further build (graveyard G13). | **CURRENT — awaiting confirmation** |
+
+**We are at Turn 26: Rollback, holding at Turn 23's file** (bridge-core engine +
+G10 dual-socket fix + G11 mic idle release — nothing from §7 or §16 present).
+Next turn number for any future work is **27**.
+
+---
+
 ## 0. WHY REBUILD (the evidence, not the vibe)
 
 `duck.html` at 177,627 bytes contains, verifiably:
