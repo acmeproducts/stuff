@@ -63,8 +63,8 @@ body{display:flex;flex-direction:column}
 
 /* keyboard — 44px minimum, may take up to 50vh */
 .kb{flex:0 0 auto;max-height:0;overflow:hidden;background:#f1f5f9;transition:max-height .18s ease}
-.kb.open{max-height:50vh;border-top:1px solid rgba(203,213,225,.9)}
-.kbin{padding:4px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column}
+.kb.open{max-height:55vh;border-top:1px solid rgba(203,213,225,.9)}
+.kbin{padding:4px;max-height:55vh;overflow-y:auto;display:flex;flex-direction:column}
 .kkeys{position:relative}
 .swype-trail{position:absolute;inset:0;pointer-events:none;z-index:5}
 .klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
@@ -72,14 +72,18 @@ body{display:flex;flex-direction:column}
 .kcands::-webkit-scrollbar{display:none}
 .kcand{flex:0 0 auto;padding:7px 12px;border-radius:9px;border:1px solid rgba(203,213,225,.9);background:#fff;font-size:16px;min-height:36px}
 .kcand.on{background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff;border-color:transparent}
-.krow{display:flex;gap:4px;margin-bottom:4px}
-.key{flex:1 1 0;min-width:0;height:44px;border-radius:7px;border:1px solid rgba(203,213,225,.9);
-  background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.10);font-size:17px;color:#0f172a;padding:0;
+.krow{display:flex;gap:6px;margin-bottom:6px}
+.key{flex:1 1 0;min-width:0;height:48px;border-radius:8px;border:1px solid rgba(203,213,225,.9);
+  background:#fff;box-shadow:0 1px 0 rgba(15,23,42,.10);font-size:20px;color:#0f172a;padding:0;
   display:inline-flex;align-items:center;justify-content:center;
   touch-action:none;user-select:none;-webkit-user-select:none;
   transition:transform .04s ease,background .04s ease}
 .key.pressed{background:#dbeafe;transform:scale(0.92);box-shadow:none}
 .key.swyping{background:#bfdbfe}
+.kpop{position:absolute;z-index:6;pointer-events:none;display:none;min-width:44px;height:54px;padding:0 10px;
+  border-radius:10px;background:#fff;border:1px solid rgba(148,163,184,.6);box-shadow:0 4px 14px rgba(15,23,42,.22);
+  font-size:30px;font-weight:600;color:#0f172a;align-items:center;justify-content:center}
+.kpop.show{display:flex}
 .key.fn{flex:1.3 1 0;font-size:13px;font-weight:600;color:#475569;background:#e2e8f0}
 .key.space{flex:4 1 0;font-size:13px}
 .key.enter{flex:1.7 1 0;background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));
@@ -1281,7 +1285,7 @@ function dgLangParam(room) {
             '<button type="button" class="key space" data-k=" ">space</button>'+
             '<button type="button" class="key enter" data-k="ENTER">Enter</button>'+
             '<button type="button" class="key fn" data-k="CLOSE">✕</button></div>';
-        el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg>';
+        el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg><div class="kpop" id="kpop-'+side+'"></div>';
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
             (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
         wireKeyboard(side);
@@ -1337,8 +1341,18 @@ function dgLangParam(room) {
        device keyboard feels. Swipe is not a bolted-on second system watching
        the same element — it's the same pointerdown/move/up sequence deciding,
        per gesture, whether it stayed a tap or became a swipe. */
-    var HAPTIC_TAP=8, HAPTIC_SWYPE_TICK=4;
-    function haptic(ms){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+    var HAPTIC_TAP=18, HAPTIC_SWYPE_TICK=10, HAPTIC_RESOLVE=25;
+    var hapticReported=false;
+    function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
+    function haptic(ms){
+        var r=false;
+        try{if(navigator.vibrate)r=navigator.vibrate(ms)}catch(e){}
+        if(!hapticReported){hapticReported=true;
+            if(isIOS())diag('haptics unsupported on iOS (no web vibration API) — not a defect');   // item 16
+            else diag('haptics: navigator.vibrate available='+!!navigator.vibrate+' returned='+r);   // item 17
+        }
+        return r;
+    }
 
     /* Update key GLYPHS for a shift-state change without touching listeners.
        renderKeys()/wireKeyboard() rebuild everything and are for keyboard OPEN,
@@ -1348,7 +1362,7 @@ function dgLangParam(room) {
     function relabelKeysOnly(side){
         var el=kbEl(side);if(!el)return;
         var rows=layoutFor(side);
-        var flat=[];rows.forEach(function(r){flat=flat.concat(r)});
+        var flat=[];rows.forEach(function(r){flat=flat.concat(r.filter(function(k){return k!=='SHIFT'&&k!=='BKSP'}))});
         var i=0;
         el.querySelectorAll('.kkeys .key:not(.fn):not(.space):not(.enter)').forEach(function(btn){
             if(i>=flat.length)return;
@@ -1357,6 +1371,21 @@ function dgLangParam(room) {
             btn.textContent=String(k).replace(/[&<>]/g,'');
         });
     }
+    /* item 12: key-preview popup. Positioned in the key container's own
+       coordinate space (offsetLeft/Top), so it is "above the key" from the
+       user's perspective on both halves — the north half's 180° rotation
+       applies to the container as a whole. */
+    function showKeyPop(side,btn){
+        var pop=document.getElementById('kpop-'+side);if(!pop||!btn)return;
+        var k=btn.dataset.k;
+        if(!k||k.length!==1||k===' '){pop.classList.remove('show');return}
+        pop.textContent=btn.textContent;
+        pop.classList.add('show');
+        var w=pop.offsetWidth||44,h=pop.offsetHeight||54;
+        pop.style.left=(btn.offsetLeft+btn.offsetWidth/2-w/2)+'px';
+        pop.style.top=(btn.offsetTop-h-6)+'px';
+    }
+    function hideKeyPop(side){var pop=document.getElementById('kpop-'+side);if(pop)pop.classList.remove('show')}
     function wireKeyboard(side){
         var el=kbEl(side);if(!el)return;
         var oldKkeys=el.querySelector('.kkeys');if(!oldKkeys)return;
@@ -1373,7 +1402,7 @@ function dgLangParam(room) {
             if(!target)return;
             e.preventDefault();
             pid=e.pointerId;downBtn=target;downX=e.clientX;downY=e.clientY;isSwype=false;lastSwypeKey=null;
-            target.classList.add('pressed');
+            target.classList.add('pressed');showKeyPop(side,target);
             haptic(HAPTIC_TAP);                          // fires immediately on contact, not on release
             kkeys.setPointerCapture&&kkeys.setPointerCapture(pid);
 
@@ -1409,12 +1438,12 @@ function dgLangParam(room) {
             if(downBtn&&overKey!==downBtn){
                 if(downBtn)downBtn.classList.remove('pressed');
                 downBtn=overKey;
-                if(downBtn)downBtn.classList.add('pressed');
+                if(downBtn){downBtn.classList.add('pressed');if(!isSwype)showKeyPop(side,downBtn)}
             }
 
             if(!moved||!swype.pts.length)return;
             if(!swype.active){
-                swype.active=true;isSwype=true;
+                swype.active=true;isSwype=true;hideKeyPop(side);
                 if(downBtn)downBtn.classList.remove('pressed');
             }
             swype.pts.push({x:e.clientX,y:e.clientY});paintTrail(side);
@@ -1430,6 +1459,7 @@ function dgLangParam(room) {
 
         function finish(e){
             if(e.pointerId!==pid)return;
+            hideKeyPop(side);
             if(downBtn)downBtn.classList.remove('pressed');
             var wasSwype=isSwype;
             pid=null;isSwype=false;
@@ -1448,61 +1478,108 @@ function dgLangParam(room) {
         kkeys.addEventListener('pointerup',finish);
         kkeys.addEventListener('pointercancel',function(e){
             if(e.pointerId!==pid)return;
+            hideKeyPop(side);
             if(downBtn)downBtn.classList.remove('pressed');
             pid=null;isSwype=false;downBtn=null;
             swype.active=false;swype.pts=[];swype.letters=[];clearTrail(side);
         });
     }
-    /* Score every dictionary word against the letter sequence the finger
-       crossed: the word's letters must appear as a SUBSEQUENCE of the swyped
-       path (in order, gaps allowed — this is what makes it gesture typing
-       rather than exact spelling). Shorter gap-total among matches wins. */
-    /* FIXED: direction was backwards. A swype path is a SPARSE sample of the
-       word (start, corners, end) — it will almost never contain every letter
-       of the target word. The check must be: does every PATH letter appear in
-       the WORD, in order? Not the reverse (every word letter in the path),
-       which required the path to be as long as the word itself and made
-       "you" from a 2-point path [y,o] fail, since "you" has no way to place
-       its middle "u" inside a 2-letter path. Lower score = tighter fit
-       (fewer word-letters skipped between consecutive path hits). */
-    function swypeScore(word,path){
-        var w=word.toLowerCase(),wi=0,skips=0;
-        for(var pi=0;pi<path.length;pi++){
-            var found=false;
-            while(wi<w.length){
-                if(w[wi]===path[pi]){found=true;wi++;break}
-                wi++;skips++;
-            }
-            if(!found)return null;
+    /* ================= §3.3 SHAPE-WRITING RECOGNIZER (SHARK2) =================
+       Replaces the letter-subsequence scorer, which could never match a real
+       gesture: a real swipe is DENSE (every key the finger crosses), so a
+       word's letters must be found INSIDE that path, not the other way round,
+       and even that is fragile. SHARK2 instead compares the gesture's SHAPE
+       and LOCATION against an ideal template drawn through each candidate
+       word's key centers. Standard approach behind every serious gesture
+       keyboard. */
+    var SW_N=48;               // resample count (item 2)
+    var SW_GATE=1.3;           // start/end gate in key-widths (item 3)
+    var SW_TOPK=8;             // frequency re-rank window (item 7)
+    var SW_FREQ_W=0.35;        // weight of frequency rank in final score
+
+    function swPathLen(p){var t=0;for(var i=1;i<p.length;i++)t+=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);return t}
+    function swResample(pts,N){
+        if(!pts.length)return[];
+        if(pts.length===1){var o=[];for(var i=0;i<N;i++)o.push({x:pts[0].x,y:pts[0].y});return o}
+        var total=swPathLen(pts);
+        if(total===0){var o2=[];for(var j=0;j<N;j++)o2.push({x:pts[0].x,y:pts[0].y});return o2}
+        var step=total/(N-1),out=[{x:pts[0].x,y:pts[0].y}],acc=0,i2=1,prev=pts[0];
+        while(out.length<N&&i2<pts.length){
+            var cur=pts[i2],seg=Math.hypot(cur.x-prev.x,cur.y-prev.y);
+            if(acc+seg>=step){
+                var t=(step-acc)/seg,nx=prev.x+t*(cur.x-prev.x),ny=prev.y+t*(cur.y-prev.y);
+                out.push({x:nx,y:ny});prev={x:nx,y:ny};acc=0;
+            }else{acc+=seg;prev=cur;i2++}
         }
-        return skips;
+        while(out.length<N)out.push({x:pts[pts.length-1].x,y:pts[pts.length-1].y});
+        return out;
+    }
+    function swNormalize(p){
+        var cx=0,cy=0;p.forEach(function(q){cx+=q.x;cy+=q.y});cx/=p.length;cy/=p.length;
+        var minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+        p.forEach(function(q){if(q.x<minx)minx=q.x;if(q.x>maxx)maxx=q.x;if(q.y<miny)miny=q.y;if(q.y>maxy)maxy=q.y});
+        var s=Math.max(maxx-minx,maxy-miny)||1;
+        return p.map(function(q){return{x:(q.x-cx)/s,y:(q.y-cy)/s}});
+    }
+    function swMeanDist(a,b){var t=0;for(var i=0;i<a.length;i++)t+=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);return t/a.length}
+    function swLocDist(a,b,keyW){
+        var t=0,tun=keyW/2;
+        for(var i=0;i<a.length;i++){var d=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);t+=Math.max(0,d-tun)}
+        return t/a.length/keyW;
+    }
+    function swTemplate(word,keyMap){
+        var pts=[],last=null;
+        for(var i=0;i<word.length;i++){
+            var ch=word[i].toLowerCase();if(ch===last)continue;last=ch;
+            var k=keyMap[ch];if(!k)return null;
+            pts.push({x:k.cx,y:k.cy});
+        }
+        if(!pts.length)return null;
+        return pts;
+    }
+    /* Core: gesture points + key geometry + dictionary -> ranked candidates.
+       Pure function so the fixture (item 9) can drive it without a DOM. */
+    function swRecognize(points,rects,dict){
+        if(points.length<2||!rects.length||!dict||!dict.length)return[];
+        var keyMap={},keyW=0;
+        rects.forEach(function(r){keyMap[r.k]=r});
+        var xs=rects.map(function(r){return r.cx}).sort(function(a,b){return a-b});
+        var gaps=[];for(var i=1;i<xs.length;i++){var g=xs[i]-xs[i-1];if(g>2)gaps.push(g)}
+        gaps.sort(function(a,b){return a-b});keyW=gaps.length?gaps[Math.floor(gaps.length/2)]:40;
+        var g=swResample(points,SW_N),gn=swNormalize(g);
+        var first=points[0],lastP=points[points.length-1],gate=SW_GATE*keyW;
+        var scored=[];
+        for(var d=0;d<dict.length;d++){
+            var w=dict[d];if(!w||w.length<2)continue;
+            var wl=w.toLowerCase();
+            var k0=keyMap[wl[0]],k1=keyMap[wl[wl.length-1]];
+            if(!k0||!k1)continue;
+            if(Math.hypot(k0.cx-first.x,k0.cy-first.y)>gate)continue;      // item 3
+            if(Math.hypot(k1.cx-lastP.x,k1.cy-lastP.y)>gate)continue;
+            var tpl=swTemplate(wl,keyMap);if(!tpl)continue;
+            var t=swResample(tpl,SW_N);
+            var shape=swMeanDist(gn,swNormalize(t));                        // item 5
+            var loc=swLocDist(g,t,keyW);                                      // item 6
+            scored.push({w:w,s:shape+loc,rank:d});
+        }
+        if(!scored.length)return[];
+        scored.sort(function(a,b){return a.s-b.s});
+        var top=scored.slice(0,SW_TOPK),maxRank=Math.max(1,dict.length);
+        top.forEach(function(c){c.f=c.s+SW_FREQ_W*(c.rank/maxRank)});         // item 7
+        top.sort(function(a,b){return a.f-b.f});
+        return top.map(function(c){return c.w});
     }
     function resolveSwype(side){
         var dict=getDict(langOf(side));if(!dict){remoteLog('swype_no_dict',{side:side,lang:langOf(side)});return}
-        var path=swype.letters;
-        var scored=[];
-        for(var i=0;i<dict.length;i++){
-            var w=dict[i];
-            if(w.length<2||w[0].toLowerCase()!==path[0])continue;   // must start on the same key
-            var s=swypeScore(w,path);
-            if(s!==null)scored.push({w:w,s:s});
-            if(scored.length>=400)break;   // bounded scan — dictionary is frequency-ranked,
-                                            // so the first plausible matches are already the
-                                            // most likely words; no need to score all 8000
-        }
-        if(!scored.length){remoteLog('swype_no_match',{path:path.join(''),dictSize:dict.length});return}
-        scored.sort(function(a,b){return a.s-b.s});
-        var top=scored.slice(0,5).map(function(x){return x.w});
-        remoteLog('swype_resolved',{path:path.join(''),top:top});
-        cands[side]=top;candIdx[side]=-1;acFragLen[side]=0;
-        var ta=inputEl(side);
+        var rects=keyRectsFor(side);
+        var top=swRecognize(swype.pts,rects,dict);
+        if(!top.length){remoteLog('swype_no_match',{pts:swype.pts.length,letters:swype.letters.join('')});return}
+        remoteLog('swype_resolved',{letters:swype.letters.join(''),top:top.slice(0,5)});
+        haptic(HAPTIC_RESOLVE);
         var frag=currentWordFragment(side);
-        if(frag)acFragLen[side]=frag.length;
-        paintCands(side);
-        // best guess inserted immediately (standard swype behaviour); still tap-correctable via the bar
-        if(acFragLen[side])replaceComp(side,acFragLen[side],top[0]+' ');
+        if(frag)replaceComp(side,frag.length,top[0]+' ');
         else insertAt(side,top[0]+' ');
-        cands[side]=top.slice(1);candIdx[side]=-1;paintCands(side);
+        cands[side]=top.slice(1,5);candIdx[side]=-1;acFragLen[side]=0;paintCands(side);   // item 8
     }
     /* Track A: real autocomplete, reading the SAME asset chat-admin's download
        button writes (duck_dict_<lang> in localStorage). No dictionary = no
@@ -1793,7 +1870,7 @@ function dgLangParam(room) {
         window.detectByScript=detectByScript;window.applyNorthernThaiMap=applyNorthernThaiMap;
         window.resolveEffectiveLang=resolveEffectiveLang;window.normalizeOutgoing=normalizeOutgoing;
         window.detectLangAsync=detectLangAsync;window.loadFastText=loadFastText;
-        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.swypeScore=swypeScore;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swypeWarned=swypeWarned;
+        window.sideAsRoom=sideAsRoom;window.ROOM=ROOM;window.translateWithRetry=translateWithRetry;window.press=press;window.cands=cands;window.pickCand=pickCand;window.getDict=getDict;window.updateAutocomplete=updateAutocomplete;window.comp=comp;window.langOf=langOf;window.swype=swype;window.resolveSwype=resolveSwype;window.keyRectsFor=keyRectsFor;window.wireKeyboard=wireKeyboard;window.haptic=haptic;window.swRecognize=swRecognize;window.swResample=swResample;window.swypeWarned=swypeWarned;
         window.renderAll=renderAll;window.debugLog=debugLog;window.MIC_IDLE_MS=MIC_IDLE_MS;window.getDiagLines=function(){return diagLines};
         window.dgUseDual=dgUseDual;window.dgUseMulti=dgUseMulti;window.dgLangParam=dgLangParam;
         window.dgArbitrateNative=dgArbitrateNative;window.dgArbitrateEnglish=dgArbitrateEnglish;
