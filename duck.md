@@ -16,7 +16,7 @@ turn from Turn 22 on: `chat-turnNN-STAGE.html` + `chat-admin-turnNN-STAGE.html`)
 | Turn·Stage | Release | Status | Artifact |
 |---|---|---|---|
 | 20·post-ship | Bridge-core engine (byte-verified) + ownership switch + 44px keyboard + dual-socket arbitration + mic idle release. | **ACCEPTED BASELINE — proven working for both South and North.** | https://acmeproducts.github.io/stuff/duck-turn20-post-ship.html (= `duck.html`) |
-| 22·pre-base | Two-file split begins: `chat.html` (stateless shell, `?room=` required) + `chat-admin.html` (room create/edit/delete, keys). Spec §1. | **NEXT — planning complete, building now** | — |
+| 22·pre-base | Two-file split: `chat.html` (stateless shell, `?room=` required) + `chat-admin.html` (room create/edit/delete/restore, keys, font colour+size). All 6 gates pass — engine byte-identical (16/16), switch harness (25/25), no room/key code in chat.html, no-room gate present, never writes rooms_index. | **SHIPPED as pre-base — awaiting real-device test** | https://acmeproducts.github.io/stuff/chat.html · https://acmeproducts.github.io/stuff/chat-admin.html |
 
 Turns 20·base through 20·ship, and the two rejected Turn 21 candidates, are
 Appendix A history — superseded, not live. See Appendix A §0 for those rows if
