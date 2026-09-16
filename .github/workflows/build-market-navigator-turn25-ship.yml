@@ -1,0 +1,46 @@
+name: Build Market Navigator Turn 25 Ship
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - market-navigator-build-turn25-ship.py
+      - .github/workflows/build-market-navigator-turn25-ship.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build from owner-authoritative baseline
+        run: python3 market-navigator-build-turn25-ship.py
+      - name: Static qualification
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('market-navigator-turn25-ship.html')
+          s=p.read_text()
+          assert p.stat().st_size > 100000
+          assert s.count('id="indexInfoBtn"') == 1
+          assert 'function shipBuildRecord' in s
+          assert 'function shipModelHealthRecord' in s
+          assert 'function startAIShip' in s
+          assert 'function printNowShip' in s
+          assert 'ship-printing-now' in s
+          assert 'c3cde56268303d8e2a222012d5a34aee9f26651e' not in s
+          print('static ship gates PASS', p.stat().st_size)
+          PY
+      - name: Commit candidate artifact
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add market-navigator-turn25-ship.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Build Market Navigator Turn 25 Ship candidate from ddf275a"
+          git push
