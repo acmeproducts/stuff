@@ -78,6 +78,20 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
 .launch-full{width:100%;margin-top:16px;padding:13px;border-radius:12px;border:none;font-weight:700;font-size:15px;
   background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
 
+/* Track A: per-room dictionary status. Non-blocking to Save/Launch — a prompt,
+   not a gate. Chinese/Korean/Japanese are excluded (composed-script input is
+   Track B, or already hand-built for ko/ja) — those show no row at all. */
+.dictrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(226,232,240,.9);
+  border-radius:10px;margin-bottom:8px;background:#fafafa}
+.dictrow.ok{border-color:rgba(16,185,129,.35);background:#f0fdf4}
+.dictrow.missing{border-color:rgba(245,158,11,.4);background:#fffbeb}
+.dictrow .dlbl{flex:1;font-size:12px;color:#475569}
+.dictrow .dstate{font-size:11px;font-weight:700}
+.dictrow.ok .dstate{color:#10b981}
+.dictrow.missing .dstate{color:#b45309}
+.dictbtn{flex:0 0 auto;padding:7px 12px;border-radius:8px;border:1px solid rgba(180,83,9,.35);
+  background:#fff;color:#b45309;font-size:11px;font-weight:700}
+
 #tab-global{padding:16px}
 .cfgbtn{width:100%;padding:12px;border-radius:12px;border:none;font-weight:700;font-size:15px;margin-top:8px;
   background:linear-gradient(135deg,rgba(96,165,250,.95),rgba(59,130,246,.95));color:#fff}
@@ -102,9 +116,9 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
 <div id="tab-global" style="display:none">
   <div class="cfglab">Calling &amp; Sync Keys</div>
   <div class="cfgrow"><label>Deepgram</label>
-    <input type="password" id="cfg-dg" autocomplete="new-password" role="presentation" placeholder="Paste key…"></div>
+    <input type="text" id="cfg-dg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" placeholder="Paste key…"></div>
   <div class="cfgrow"><label>GitHub PAT</label>
-    <input type="password" id="cfg-pat" autocomplete="new-password" role="presentation" placeholder="Not active yet"></div>
+    <input type="text" id="cfg-pat" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly')" placeholder="Not active yet"></div>
   <button type="button" class="cfgbtn" id="cfg-keys-save">Save keys</button>
 </div>
 
@@ -129,6 +143,8 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
       <div class="swatches" id="sw-font"></div>
       <div class="cfglab">Font size</div>
       <div class="cfgrow"><label>Size (px)</label><input type="number" id="cfg-font-size" min="12" max="24" value="15"></div>
+      <div class="cfglab" id="dict-lab" style="display:none">Dictionary (autocomplete &amp; swype)</div>
+      <div id="dict-status"></div>
       <button type="button" class="launch-full" id="launch-btn">Launch this room →</button>
     </div>
   </div>
@@ -139,6 +155,76 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
 <script>
 (function chatAdmin(){
     'use strict';
+    /* ================= TRACK A: per-room dictionary status =================
+       Honest scope: the browser has no API to ask "is this OS-level dictionary
+       installed." What CAN be checked truthfully is whether OUR OWN downloadable
+       word-list asset for a language exists in this browser's storage — that's
+       the thing chat.html's autocomplete/swype actually reads, so it's the thing
+       worth checking. "Installed on the device" (an OS keyboard concept) is a
+       different, unverifiable claim and this deliberately does not make it.
+       Track-A-eligible = has an entry in DICT_SOURCES below. zh/ko/ja are
+       excluded here on purpose (ko/ja already work via the hand-built IME;
+       zh is Track B, not this build). */
+    var DICT_SOURCES={
+        en:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/en.json',
+        th:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/th.json',
+        es:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/es.json',
+        fr:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/fr.json',
+        de:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/de.json',
+        it:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/it.json',
+        pt:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/pt.json',
+        vi:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/vi.json',
+        id:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/id.json',
+        ms:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/ms.json',
+        fil:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/fil.json',
+        nl:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/nl.json',
+        sv:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/sv.json',
+        pl:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/pl.json',
+        tr:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/tr.json',
+        ru:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/ru.json',
+        ar:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/ar.json',
+        hi:'https://raw.githubusercontent.com/acmeproducts/stuff/main/dict/hi.json'
+    };
+    function dictKey(lang){return 'duck_dict_'+lang}
+    function dictInstalled(lang){try{return !!localStorage.getItem(dictKey(lang))}catch(e){return false}}
+    function downloadDict(lang,btn){
+        if(!DICT_SOURCES[lang])return;
+        btn.disabled=true;btn.textContent='Downloading…';
+        fetch(DICT_SOURCES[lang]).then(function(r){
+            if(!r.ok)throw new Error('HTTP '+r.status);
+            return r.text();
+        }).then(function(text){
+            try{localStorage.setItem(dictKey(lang),text)}catch(e){throw e}
+            renderDictStatus();
+            toastMsg('Dictionary downloaded');
+        }).catch(function(e){
+            btn.disabled=false;btn.textContent='Retry';
+            toastMsg('Download failed — check connection');
+        });
+    }
+    function renderDictStatus(){
+        var lab=$('dict-lab'), host=$('dict-status');
+        if(!editBuf){lab.style.display='none';host.innerHTML='';return}
+        var langs=[editBuf.southLang,editBuf.northLang].filter(function(l,i,a){return a.indexOf(l)===i});
+        var eligible=langs.filter(function(l){return !!DICT_SOURCES[l]});
+        if(!eligible.length){lab.style.display='none';host.innerHTML='';return}
+        lab.style.display='';
+        host.innerHTML='';
+        eligible.forEach(function(lang){
+            var have=dictInstalled(lang);
+            var row=document.createElement('div');
+            row.className='dictrow '+(have?'ok':'missing');
+            row.innerHTML='<span class="dlbl">'+(LANG_FLAGS[lang]||'')+' '+LANG_NAMES[lang]+'</span>'+
+                '<span class="dstate">'+(have?'Ready':'Not downloaded')+'</span>';
+            if(!have){
+                var btn=document.createElement('button');btn.type='button';btn.className='dictbtn';btn.textContent='Download';
+                btn.addEventListener('click',function(){downloadDict(lang,btn)});
+                row.appendChild(btn);
+            }
+            host.appendChild(row);
+        });
+    }
+
     var LANG_NAMES={en:'English',th:'Thai',es:'Spanish',ja:'Japanese',ko:'Korean',zh:'Chinese (Simplified)',
       ar:'Arabic',hi:'Hindi',ru:'Russian',fr:'French',de:'German',it:'Italian',pt:'Portuguese',
       vi:'Vietnamese',id:'Indonesian',ms:'Malay',fil:'Filipino',nl:'Dutch',sv:'Swedish',pl:'Polish',tr:'Turkish'};
@@ -188,6 +274,7 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
         nameInp.placeholder=(LANG_FLAGS[editBuf.southLang]||'')+' + '+(LANG_FLAGS[editBuf.northLang]||'');
         $('cfg-font-size').value=editBuf.fontSize||15;
         buildSwatches();
+        renderDictStatus();
     }
     function buildSwatches(){
         [['sw-south','southBg',BG_SWATCHES],['sw-north','northBg',BG_SWATCHES],['sw-font','fontColor',FONT_SWATCHES]]
@@ -289,8 +376,8 @@ header p{margin:2px 0 0;font-size:12px;color:#94a3b8}
         function commitName(){editBuf.label=nameInp.value.trim()||null}
         nameInp.addEventListener('blur',commitName);
         nameInp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();commitName();nameInp.blur()}});
-        $('cfg-south-lang').addEventListener('change',function(){editBuf.southLang=this.value});
-        $('cfg-north-lang').addEventListener('change',function(){editBuf.northLang=this.value});
+        $('cfg-south-lang').addEventListener('change',function(){editBuf.southLang=this.value;renderDictStatus()});
+        $('cfg-north-lang').addEventListener('change',function(){editBuf.northLang=this.value;renderDictStatus()});
 
         $('conv-new').addEventListener('click',function(){
             var id=newId();
