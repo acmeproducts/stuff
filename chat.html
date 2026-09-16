@@ -1311,7 +1311,7 @@ function dgLangParam(room) {
             var k=b.dataset.k;
             if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // letters only — not SHIFT/BKSP/space/etc
             var r=b.getBoundingClientRect();
-            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2});
+            out.push({k:k.toLowerCase(),cx:r.left+r.width/2,cy:r.top+r.height/2,w:r.width});
         });
         return out;
     }
@@ -1469,7 +1469,11 @@ function dgLangParam(room) {
 
             if(wasSwype){
                 swype.active=false;
-                remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join('')});
+                (function(){var rs=swResample(swype.pts,24),o=rects[0]||{cx:0,cy:0};
+                    remoteLog('swype_attempt',{side:side,pts:swype.pts.length,letters:swype.letters.join(''),
+                        keyW:(rects[0]&&rects[0].w)||0,
+                        p:rs.map(function(q){return[Math.round(q.x-o.cx),Math.round(q.y-o.cy)]}),
+                        k0:[Math.round(o.cx),Math.round(o.cy)]})})();
                 if(swype.pts.length>=4&&swype.letters.length>=2){haptic(HAPTIC_TAP);resolveSwype(side)}
                 else remoteLog('swype_too_short',{pts:swype.pts.length,letters:swype.letters.length});
                 swype.pts=[];swype.letters=[];clearTrail(side);
@@ -1525,12 +1529,28 @@ function dgLangParam(room) {
         var s=Math.max(maxx-minx,maxy-miny)||1;
         return p.map(function(q){return{x:(q.x-cx)/s,y:(q.y-cy)/s}});
     }
-    function swMeanDist(a,b){var t=0;for(var i=0;i<a.length;i++)t+=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);return t/a.length}
-    function swLocDist(a,b,keyW){
-        var t=0,tun=keyW/2;
-        for(var i=0;i<a.length;i++){var d=Math.hypot(a[i].x-b[i].x,a[i].y-b[i].y);t+=Math.max(0,d-tun)}
-        return t/a.length/keyW;
+    /* DTW: aligns gesture and template allowing local stretching, so a
+       detour or a slow segment does not shift every later point out of
+       alignment the way index-locked comparison does. Sakoe-Chiba band
+       keeps it cheap. */
+    function swDTW(a,b,tun){
+        var n=a.length,m=b.length,band=Math.max(6,Math.floor(n*0.25)),INF=1e18;
+        var prev=new Array(m+1).fill(INF),cur=new Array(m+1).fill(INF);prev[0]=0;
+        for(var i=1;i<=n;i++){
+            cur.fill(INF);
+            var lo=Math.max(1,i-band),hi=Math.min(m,i+band);
+            for(var j=lo;j<=hi;j++){
+                var d=Math.hypot(a[i-1].x-b[j-1].x,a[i-1].y-b[j-1].y);
+                if(tun)d=Math.max(0,d-tun);
+                var best=prev[j-1];if(prev[j]<best)best=prev[j];if(cur[j-1]<best)best=cur[j-1];
+                cur[j]=d+best;
+            }
+            var tmp=prev;prev=cur;cur=tmp;
+        }
+        return prev[m]/(n+m);
     }
+    function swMeanDist(a,b){return swDTW(a,b,0)}
+    function swLocDist(a,b,keyW){return swDTW(a,b,keyW/2)/keyW}
     function swTemplate(word,keyMap){
         var pts=[],last=null;
         for(var i=0;i<word.length;i++){
@@ -1547,9 +1567,13 @@ function dgLangParam(room) {
         if(points.length<2||!rects.length||!dict||!dict.length)return[];
         var keyMap={},keyW=0;
         rects.forEach(function(r){keyMap[r.k]=r});
-        var xs=rects.map(function(r){return r.cx}).sort(function(a,b){return a-b});
-        var gaps=[];for(var i=1;i<xs.length;i++){var g=xs[i]-xs[i-1];if(g>2)gaps.push(g)}
-        gaps.sort(function(a,b){return a-b});keyW=gaps.length?gaps[Math.floor(gaps.length/2)]:40;
+        /* keyW = median actual key width. The previous estimate (median gap
+           between sorted x-centers) was roughly HALF the true pitch on a
+           staggered QWERTY, which made the start/end gate ~23px and the
+           location tunnel ~9px on a phone — nearly every real gesture was
+           rejected or mis-scored. */
+        var ws=rects.map(function(r){return r.w||0}).filter(function(v){return v>0}).sort(function(a,b){return a-b});
+        keyW=ws.length?ws[Math.floor(ws.length/2)]:36;
         var g=swResample(points,SW_N),gn=swNormalize(g);
         var first=points[0],lastP=points[points.length-1],gate=SW_GATE*keyW;
         var scored=[];
