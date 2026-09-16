@@ -65,6 +65,8 @@ body{display:flex;flex-direction:column}
 .kb{flex:0 0 auto;max-height:0;overflow:hidden;background:#f1f5f9;transition:max-height .18s ease}
 .kb.open{max-height:50vh;border-top:1px solid rgba(203,213,225,.9)}
 .kbin{padding:4px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column}
+.kkeys{position:relative}
+.swype-trail{position:absolute;inset:0;pointer-events:none;z-index:5}
 .klang{font-size:11px;font-weight:700;color:#64748b;padding:2px 4px 4px}
 .kcands{display:none;gap:5px;overflow-x:auto;padding:0 4px 5px;flex:0 0 auto;min-height:36px;align-items:center}
 .kcands::-webkit-scrollbar{display:none}
@@ -134,7 +136,7 @@ body{display:flex;flex-direction:column}
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-north"></div>
     <div class="strip" id="strip-north"></div>
-    <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"></div></div></div>
+    <div class="kb" id="kb-north"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-north"></svg></div></div></div>
     <div class="ask" id="ask-north"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -145,7 +147,7 @@ body{display:flex;flex-direction:column}
   <div class="shell" style="position:relative">
     <div class="tx" id="tx-south"></div>
     <div class="strip" id="strip-south"></div>
-    <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"></div></div></div>
+    <div class="kb" id="kb-south"><div class="kbin"><div class="klang"></div><div class="kcands"></div><div class="kkeys"><svg class="swype-trail" id="trail-south"></svg></div></div></div>
     <div class="ask" id="ask-south"><div class="askcard">
       <div class="ask-msg"></div><div class="askbtns"><button type="button" class="ask-no"></button><button type="button" class="ask-ok"></button></div>
     </div></div>
@@ -1243,7 +1245,7 @@ function dgLangParam(room) {
             '<button type="button" class="key space" data-k=" ">space</button>'+
             '<button type="button" class="key enter" data-k="ENTER">Enter</button>'+
             '<button type="button" class="key fn" data-k="CLOSE">✕</button></div>';
-        el.querySelector('.kkeys').innerHTML=html;
+        el.querySelector('.kkeys').innerHTML=html+'<svg class="swype-trail" id="trail-'+side+'"></svg>';
         el.querySelector('.klang').textContent=(LANG_NAMES[langOf(side)]||langOf(side))+
             (langOf(side)==='ja'?' · romaji→kana':(langOf(side)==='ko'?' · 두벌식':''));
         el.querySelectorAll('.key').forEach(function(b){
@@ -1284,6 +1286,16 @@ function dgLangParam(room) {
         }
         return best;
     }
+    function clearTrail(side){var t=document.getElementById('trail-'+side);if(t)t.innerHTML=''}
+    function paintTrail(side){
+        var t=document.getElementById('trail-'+side);if(!t||!swype.pts.length)return;
+        var kkeys=t.parentElement;var r=kkeys.getBoundingClientRect();
+        t.setAttribute('viewBox','0 0 '+r.width+' '+r.height);
+        t.setAttribute('width',r.width);t.setAttribute('height',r.height);
+        var d=swype.pts.map(function(p,i){return (i===0?'M':'L')+(p.x-r.left)+','+(p.y-r.top)}).join(' ');
+        t.innerHTML='<path d="'+d+'" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>'+
+            swype.pts.map(function(p){return '<circle cx="'+(p.x-r.left)+'" cy="'+(p.y-r.top)+'" r="3" fill="#3b82f6"/>'}).join('');
+    }
     function wireSwype(side){
         var el=kbEl(side);if(!el)return;
         var kkeys=el.querySelector('.kkeys');if(!kkeys)return;
@@ -1300,12 +1312,12 @@ function dgLangParam(room) {
             if(k.length!==1||!/[a-zA-Z]/.test(k))return;   // gesture starts on a letter key only
             rects=keyRectsFor(side);
             if(rects.length<2)return;
-            swype.active=true;swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];
+            swype.active=true;swype.side=side;swype.pts=[{x:e.clientX,y:e.clientY}];swype.letters=[k.toLowerCase()];paintTrail(side);
             el.setPointerCapture&&el.setPointerCapture(e.pointerId);
         });
         kkeys.addEventListener('pointermove',function(e){
             if(!swype.active||swype.side!==side)return;
-            swype.pts.push({x:e.clientX,y:e.clientY});
+            swype.pts.push({x:e.clientX,y:e.clientY});paintTrail(side);
             var nk=nearestKey(rects,e.clientX,e.clientY);
             if(nk&&swype.letters[swype.letters.length-1]!==nk.k)swype.letters.push(nk.k);
         });
@@ -1313,7 +1325,7 @@ function dgLangParam(room) {
             if(!swype.active||swype.side!==side)return;
             swype.active=false;
             if(swype.pts.length>=4&&swype.letters.length>=2)resolveSwype(side);
-            swype.pts=[];swype.letters=[];
+            swype.pts=[];swype.letters=[];clearTrail(side);
         }
         kkeys.addEventListener('pointerup',endSwype);
         kkeys.addEventListener('pointercancel',endSwype);
